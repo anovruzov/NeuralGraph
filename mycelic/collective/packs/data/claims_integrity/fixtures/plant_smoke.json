@@ -129,11 +129,11 @@
         "motor-north",
         "motor-south"
       ],
-      "start_week": 10,
-      "weeks": 6,
+      "start_week": 19,
+      "weeks": 2,
       "rate_per_week": 5,
       "language": "en",
-      "entity_id": "TW-0007"
+      "entity_id": "TW-0042"
     },
     {
       "id": "d-base-rate",

@@ -7,15 +7,25 @@ Rules:
   timestamp read in its own calendar), pass the connector's record check and belong to this site; otherwise it is
   counted under one of :data:`REJECT_REASONS` and never stored.
 * **Extract.** Records without extraction are sensed in batches of :data:`EXTRACT_BATCH`, each saved in one
-  transaction; the first extraction of a record wins. A claim is stored only when its type, predicate, canonical
-  id, channel and confidence are the pack's (:func:`valid_claim`); others are counted as ``invalid_claims``. A model
-  sees a record only through the runtime, which is bound to this site. When the extraction route leaves the site
-  under an exemption (a simulated endpoint, or an external one with ``allow_external_raw``), model extraction
-  refuses to start unless every pending record carries the exemption's label (:func:`~.records.exempt_records_problem`):
-  all synthetic for ``synthetic``, this site the public source for ``public``. After
-  :data:`~.extract.BREAKER_AFTER` consecutive records whose model call failed as the server being down (timeout,
-  network, 5xx, after the client's retries), the rest of the pass is sensed lexically without a call (extractor
-  ``fallback``, error ``not_sent``); the next pass tries the server again.
+  transaction; the first extraction of a record wins, except a ``not_sent`` stand-in (below). A claim is stored only
+  when its type, predicate, canonical id, channel and confidence are the pack's (:func:`valid_claim`); others are
+  counted as ``invalid_claims``. A model sees a record only through the runtime, which is bound to this site. When
+  the extraction route leaves the site under an exemption (a simulated endpoint, or an external one with
+  ``allow_external_raw``), model extraction refuses to start unless every record it would send carries the
+  exemption's label (:func:`~.records.exempt_records_problem`): all synthetic for ``synthetic``, this site the
+  public source for ``public``.
+* **The extraction breaker.** After :data:`~.extract.BREAKER_AFTER` consecutive records whose call found the
+  route's primary endpoint down (timeout, network, 5xx, after the client's retries; a failure on the escalation
+  endpoint after the primary answered does not count, :func:`~.extract.server_down`), the breaker opens: records
+  are sensed lexically without a call (extractor ``fallback``, error ``not_sent``), so a dead server costs no
+  deadline per record. While open it half-opens on a doubling schedule (in the 1st, 3rd, 7th, 15th, ... batch
+  after it opened): that batch's first record is sent, and an answer closes the breaker, so a dead server costs a
+  pass of n records about 2 + log2(n / EXTRACT_BATCH) deadlines, and a short outage at most about as many batches
+  again as it lasted. A ``not_sent`` stand-in counts as extracted (the cells can be emitted), and every later model
+  pass sends the record to the model again and replaces it, until its count week is emitted in a cells bundle,
+  which is never revised (audit round 3: the stand-ins used to be final, so a 3-second blip, two records slower than
+  the deadline, or a dead escalation server downgraded the whole backlog to lexical for good).
+  :class:`ExtractSummary` counts them in ``resent``.
 * **Cells.** :meth:`EdgeSite.emit_cells` sends one ``cells_bundle`` per newly closed span of weeks
   (:func:`~.weeks.closed_through` with the pack's ``close_lag_days``). Cells count the site's own records
   (forwarded-in records excluded) per (entity, predicate, week, channel): records, distinct roots and distinct
@@ -52,8 +62,8 @@ from ..jsonio import canonical_bytes, sha256_hex, strict_load
 from ..packs.canonical import Canonicaliser
 from ..packs.connector import SITE_ID_RE, record_problems, valid_date
 from .egress import CHANNELS, PACKET_SUPPRESSED, SCHEMA_VERSION, SUPPRESSED, Boundary
-from .extract import (BREAKER_AFTER, FALLBACK_EXTRACTOR, NOT_SENT, SERVER_DOWN_KINDS, TASK_NAME, Claim,
-                      LexicalExtractor, ModelExtractor, extraction_task, sense)
+from .extract import (BREAKER_AFTER, FALLBACK_EXTRACTOR, NOT_SENT, TASK_NAME, Claim, LexicalExtractor,
+                      ModelExtractor, extraction_task, sense)
 from .records import EmissionRow, ExtractionRow, InputRow, RecordStore, exempt_records_problem
 from .weeks import TS_RE, closed_through, iso_week, local_date
 
@@ -90,6 +100,7 @@ class ExtractSummary:
     errors: Mapping[str, int]
     drops: Mapping[str, int]
     invalid_claims: int
+    resent: int = 0              # records the breaker had not sent in an earlier pass, extracted again in this one
 
 
 @dataclass(frozen=True)
@@ -291,11 +302,12 @@ class EdgeSite:
     def extract(self, mode: str) -> ExtractSummary:
         if mode not in EXTRACT_MODES:
             raise SiteError("unknown extraction mode") from None
+        redo = NOT_SENT if mode == "model" else None       # a model pass also sends what the breaker held back
         if mode == "model":
             if self.runtime is None:
                 raise SiteError("model extraction needs a runtime") from None
             problem = exempt_records_problem(self.runtime.exemption(extraction_task(self.pack)), self.site_id,
-                                             self.store.pending_non_synthetic())
+                                             self.store.pending_non_synthetic(redo))
             if problem is not None:
                 raise SiteError(problem) from None
             extractor: LexicalExtractor | ModelExtractor = ModelExtractor(self.pack, self.canonicaliser,
@@ -303,23 +315,38 @@ class EdgeSite:
         else:
             extractor = LexicalExtractor(self.pack, self.canonicaliser)
         lexical = LexicalExtractor(self.pack, self.canonicaliser)
-        down = 0
-        n_records = n_claims = invalid = 0
+        down = 0                    # consecutive records whose call found the primary endpoint down
+        gap = wait = 0              # while open: batches between probes (doubling) and batches left to the next
+        cursor = 0
+        n_records = n_claims = invalid = resent = 0
         extractors: dict[str, int] = {}
         errors: dict[str, int] = {}
         drops: dict[str, int] = {}
         while True:
-            batch = self.store.unextracted(EXTRACT_BATCH)
+            batch = self.store.unextracted(EXTRACT_BATCH, after_seq=cursor, redo_kind=redo)
             if not batch:
                 break
+            cursor = batch[-1][0]
+            probe = down >= BREAKER_AFTER and wait == 0
+            if down >= BREAKER_AFTER and wait > 0:
+                wait -= 1
             rows = []
-            for seq, record in batch:
-                if down >= BREAKER_AFTER:            # the server is down for this pass: no call, no deadline
+            for i, (seq, record) in enumerate(batch):
+                probing = probe and i == 0
+                if down >= BREAKER_AFTER and not probing:    # open: no call, no deadline
                     codes, text, claims = sense(record, self.pack, self.canonicaliser, lexical, ref=f"x:{seq}")
                     text = replace(text, extractor=FALLBACK_EXTRACTOR, error_kind=NOT_SENT)
                 else:
                     codes, text, claims = sense(record, self.pack, self.canonicaliser, extractor, ref=f"x:{seq}")
-                    down = down + 1 if text.error_kind in SERVER_DOWN_KINDS else 0
+                    if not text.server_down:
+                        down = 0                             # an answer (valid or not) closes it
+                    else:
+                        down += 1
+                        if probing:                          # a failed probe: twice as many batches to the next
+                            gap *= 2
+                            wait = gap - 1
+                        elif down == BREAKER_AFTER:          # it opens: the next batch sends one probe
+                            gap, wait = 1, 0
                 kept = tuple(c for c in claims if valid_claim(c, self.pack, self.canonicaliser))
                 rows.append(ExtractionRow(
                     record_ref=record["record_ref"], mode=mode, extractor=text.extractor, error_kind=text.error_kind,
@@ -327,7 +354,7 @@ class EdgeSite:
                     unresolved=dict(text.unresolved), unknown_codes=codes.unknown_codes,
                     structured_unresolved=codes.structured_unresolved, invalid_claims=len(claims) - len(kept),
                     extracted_at=self._now(), claims=kept))
-            self.store.save_extractions(rows)
+            resent += self.store.save_extractions(rows, redo_kind=redo)
             for r in rows:
                 n_records += 1
                 n_claims += len(r.claims)
@@ -340,7 +367,8 @@ class EdgeSite:
         return ExtractSummary(records=n_records, claims=n_claims,
                               extractors=MappingProxyType(dict(sorted(extractors.items()))),
                               errors=MappingProxyType(dict(sorted(errors.items()))),
-                              drops=MappingProxyType(dict(sorted(drops.items()))), invalid_claims=invalid)
+                              drops=MappingProxyType(dict(sorted(drops.items()))), invalid_claims=invalid,
+                              resent=resent)
 
     # ------------------------------------------------------------------ emit
     def _open_window(self, artifact_type: str, as_of: Any) -> tuple[str | None, str, EmissionRow | None] | None:

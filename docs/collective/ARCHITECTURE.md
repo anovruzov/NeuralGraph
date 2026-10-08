@@ -21,7 +21,7 @@ its `measurement` flag. The figures STRATEGY needs come from the founder's runs 
 |---|---|---|
 | Strict JSON | `jsonio.py` | Refuses byte-order marks, invalid UTF-8, NaN/Infinity (and `1e999`), duplicate keys and deep nesting; canonical serialisation for hashes, ledgers and run files |
 | Schema subset | `schemacheck.py` | Local validation of every model reply; problems are `(json_path, keyword)` and never hold a value |
-| Statistics | `stats.py` | Percentile, Wilson interval, exact sign test, paired bootstrap; seeded only |
+| Statistics | `stats.py` | Percentile, Wilson interval, exact sign test, paired bootstrap (of a mean and of a micro F1); seeded only |
 | Model runtime | `inference/runtime.py` | The only way collective code calls a model; bound to one boundary; repair once, escalate at most once |
 | HTTP client | `inference/client.py` | OpenAI-compatible chat over `http.client`; a deadline on every receive (status line, headers and body), size cap, no redirects, no stored text |
 | Routing | `inference/routing.py` | Routing file: endpoints with their boundary, routes with optional single-hop escalation; no defaults ship |
@@ -119,7 +119,7 @@ status.
 
 ## 4. The usage ledger
 
-Each runtime appends one canonical JSON line per logical attempt to its own ledger file. The row has exactly 27 keys:
+Each runtime appends one canonical JSON line per logical attempt to its own ledger file. The row has exactly 28 keys:
 
 | Key | Meaning |
 |---|---|
@@ -132,6 +132,7 @@ Each runtime appends one canonical JSON line per logical attempt to its own ledg
 | `endpoint`, `provider` | which endpoint served the attempt |
 | `model_requested`, `model_served` | the configured tag, and the id the server reported (kept only if it is a short plain identifier) |
 | `host` | `host:port`, or `in-process` for the fake |
+| `proxy` | the request went through the environment's HTTP proxy (audit round 3). Only an endpoint that may use one does: an `external` endpoint by default, any other only with `"env_proxy": true` in the routing file; an endpoint inside a site's or HQ's boundary is otherwise connected to directly whatever `http_proxy` says, since its requests carry the data the boundary keeps in |
 | `boundary`, `endpoint_boundary` | the runtime's boundary and the endpoint's |
 | `boundary_mode` | `own`, `simulated`, `external_raw_exempt`, `structured_egress` or `refused` |
 | `data_label` | `synthetic`, `public` or `partner` |
@@ -322,9 +323,12 @@ case for `device_quality` gives about 371,000 claims in about 1.2 s). The handle
 
 The scored output is the extractor's text claims (A3). Field-level micro F1 is primary; claim, entity and predicate
 F1, JSON validity and lot and supplier exact match (the share of records matched in every run, with a Wilson
-interval over records) are secondary. Intervals bootstrap records; the paired
-comparison bootstraps per-record differences against the reference and adds an exact sign test. With
-`measurement: false` the verdicts are withheld (null).
+interval over records) are secondary. Intervals bootstrap records. The paired comparison, and the non-inferiority
+verdict, is on the primary metric: the candidate's micro field F1 minus the reference's over the shared records, with
+a paired percentile bootstrap over records (`stats.paired_bootstrap_f1`); the per-record mean field F1 difference and
+an exact sign test are reported beside it as secondary (a claim-free record scores 1.0 on both sides there, so it
+dilutes that difference; audit round 3 moved the verdict off it). With `measurement: false` the verdicts are
+withheld (null).
 
 ## 12. G3: the site boundary
 
@@ -392,15 +396,24 @@ copy that reached another site without an origin marker counts as independent th
 `forwarded_in` is 1 only when the origin is another site. A record whose received week is at or before the cells
 watermark is late: it counts in `max(ingest week, the week after the watermark)` and gets a `late_records` row.
 
-Extraction runs over records without stats, 100 per transaction; the first extraction of a record wins. A claim is
+Extraction runs over records without stats, 100 per transaction; the first extraction of a record wins, except a
+`not_sent` stand-in (below). A claim is
 stored only when its type and predicate are the pack's, its id is canonical, its channel is `codes` or `text_only`
 and its `res_conf` is one of the pack's three confidences; others are counted as `invalid_claims`. Model extraction
 refuses to start while any pending record does not carry the label `Runtime.exemption` names (a simulated runtime, or
 a route that leaves the site under an exemption; section 2); a boundary refusal propagates and saves nothing of the
-batch. After two consecutive records whose model call failed as the server being down (`timeout`, `network`,
-`http_5xx`, after the client's retries), the rest of the pass is sensed lexically without a call (extractor
-`fallback`, error `not_sent`), and the next pass tries the server again (audit round 2: every record used to wait out
-the full deadline before its fallback).
+batch. After two consecutive records whose call found the route's primary endpoint down (`timeout`, `network`,
+`http_5xx`, after the client's retries), the breaker opens and records are sensed lexically without a call (extractor
+`fallback`, error `not_sent`; audit round 2: every record used to wait out the full deadline before its fallback).
+Audit round 3 made it recover: a failure on the escalation endpoint after the primary answered (its replies failed
+validation) does not count (`extract.server_down`); while open, the breaker sends one record in the 1st, 3rd, 7th,
+15th, ... batch after it opened, and an answer closes it, so a short outage costs at most about as many batches
+again as it lasted and a dead server about 2 + log2(n / 100) deadlines per pass of n records; and a `not_sent`
+stand-in counts as extracted (the cells can be emitted) but every later model pass sends the record again and
+replaces it, until its count week is emitted (an emitted week is never revised). `ExtractSummary.resent` counts them.
+Before, the breaker covered the whole backlog, never half-opened, counted a dead escalation server as the primary
+being down, and stored the stand-ins as final, so a 3-second outage or two records slower than the deadline
+downgraded the whole backlog to lexical for good.
 
 ### 12.3 The cell format
 
@@ -813,10 +826,10 @@ sites, start_week, weeks, rate_per_week, language}` plus, by class:
 |---|---|---|
 | `echo_marked` | `entity_id`, one origin site, `copy_sites` (at least 1, disjoint) | forwarded copies that name their origin |
 | `cross_site_unmarked_copies` | as above | copies that reached other sites without an origin marker |
-| `same_site_duplicates` | `entity_id`, one site | one narrative entered again and again |
+| `same_site_duplicates` | `entity_id`, one site | one narrative entered again and again (held quiet by `min_sites`, not by root collapse: see below) |
 | `single_site_burst` | `entity_id`, one site | a real burst that only one site sees |
 | `single_reporter` | `entity_id`, at least 2 sites, rate at least k | one person at each site |
-| `stale_chain` | `entity_id`, at least 2 sites, ending more than `stale_days` before the evaluation weeks | an old chain |
+| `stale_chain` | `entity_id`, at least 2 sites, stale at the first evaluation week and wholly inside its detection window | an old chain whose records still sit in the window |
 | `high_base_rate_everywhere` | `entity_ids` (at least 2 of one type), more than `base_rate_site_fraction` of the sites | a predicate common everywhere |
 | `near_miss_entity` | `entity_id` (A) at one site, `near_miss_id` (B, 1 or 2 edits from A) at another | two ids that look alike |
 
@@ -827,8 +840,16 @@ order (a decoy's `class` first, since its keys depend on it; then keys, id, enti
 week and rate ranges, visibility and language, what the construction needs, the class shape); then `duplicate id`
 and `duplicate key` (a key planted twice, counting every key of a decoy). `check_plant` adds the world: `unknown
 site`, `id not in master data of a counted site` (with `require_master_data`), `outside the world weeks`, `outside
-the evaluation weeks`, `not stale before the evaluation weeks` (unless `7 * (eval_from - end) > stale_days`), `too few
-sites for a high base rate` and `rate below k` (a single reporter needs an int `n`, so G4 can see few reporters).
+the evaluation weeks`, for a stale chain `not stale at the first evaluation week` (unless `7 * (eval_from - end) +
+close_lag_days > stale_days`: the first evaluation step's own as_of is at least its week's Sunday plus
+`close_lag_days`, so the chain's newest week is stale there whatever the run's as_of) and `not inside the first
+evaluation week's window` (unless `start >= eval_from - window_weeks + 1`), `too few sites for a high base rate` and
+`rate below k` (a single reporter needs an int `n`, so G4 can see few reporters). The two stale-chain rules leave a
+narrow band (device: chains in weeks `eval_from - 7` to `eval_from - 5`; claims: `eval_from - 7` to `eval_from - 6`),
+and that is the point: the whole chain is in the first evaluation week's window and none of it in that step's D2
+baseline, so without G4's stale filter the chain is as strong a candidate there as when it was fresh. Audit round 3:
+the earlier rule (`7 * (eval_from - end) > stale_days`) put every legal claims chain, and the shipped device chain,
+outside every window of the watch span, so window arithmetic and burn-in, not the stale filter, kept them quiet.
 
 **Construction** (`plant`) uses `random.Random(f"plant:{spec sha256}:{world seed}")` only. Records are made in spec
 order (patterns, then decoys), weeks ascending, then sites in the given order, then the week's records. Persons and
@@ -848,7 +869,7 @@ unmarked copies do not, so each is its own root there). The pipeline input is `w
 
 **Labels** (`labels.json`) are seed-independent; the harness adds each seed's planted record count. A pattern's
 **found window** is `[start, min(end + grace, eval_to)]`. A decoy's **watch span** is `[start, min(end + grace,
-eval_to)]`, or for a stale chain `[eval_from, min(max(eval_from, end + window_weeks - 1) + grace, eval_to)]`. The
+eval_to)]`, or for a stale chain `[eval_from, min(end + window_weeks - 1 + grace, eval_to)]`. The
 **quiet precondition** of the structural classes is checked on HQ's X cells: for echo, same-site duplicates, a
 single-site burst and a near miss, over weeks `[start - window_weeks + 1, watch_to]`, every site that planted no
 counted record of the key sums at most 1 (an int `n` counts `n`, `'<k'` counts 1); for a stale chain every site sums
@@ -858,7 +879,27 @@ counted record of the key sums at most 1 (an int `n` counts `n`, `'<k'` counts 1
 penalties, removes only stale candidates, and alerts every candidate while the budget lasts (section 13.5-13.6).
 So: for the structural classes (`echo_marked`, `same_site_duplicates`, `single_site_burst`, `near_miss_entity`,
 `stale_chain`) the mechanism is noise-free and, given the quiet precondition, G4's rules leave no X alert in the
-watch span (fewer than `min_sites` sites can exceed or rise, or the candidate is stale); for the penalty classes
+watch span (and, for a stale chain, no X candidate either). Which rule does it differs by class, and the classes are
+not five different tests:
+
+- `echo_marked`, `same_site_duplicates`, `single_site_burst` and `near_miss_entity` are held quiet by `min_sites`:
+  each key counts at one site only (marked copies are forwarded-in and count nowhere; each near-miss id is at its
+  own site). `same_site_duplicates` therefore tests `min_sites` exactly as `single_site_burst` does; it does **not**
+  test duplicate (root) collapse in detection, because D2 and D3 count records (`n`), not roots (`n_roots`). The
+  collapse to one root is asserted on the site's cells instead
+  (`test_same_site_duplicates_share_one_root_and_their_cells_have_suppressed_roots`), and a duplicate decoy at two
+  or more sites would alert.
+- `stale_chain` tests the stale filter, which acts on candidates: the chain is a candidate while fresh (in
+  burn-in), its whole chain is still in the first evaluation week's window, and with the filter disabled it is a
+  candidate in the watch span. It would still raise no alert there: it alerted while fresh and stays a candidate at
+  every step after, so the cooldown (13.6) is never released. An alert-level outcome alone therefore cannot show a
+  broken filter, and X1 scores a stale chain on candidacy as well (audit round 3 review): on every channel with
+  candidates (all but `rules` and `single_site`) a candidate week of its key inside the watch span fails it like an
+  alert (`candidate`, `failed`; 14.4). With the filter disabled the shipped chains fail X and U and raise no alert in
+  either (`assert_only_the_stale_filter_keeps_it_quiet` runs the harness both ways in both packs and pins X's
+  outcome).
+
+For the penalty classes
 (`single_reporter`, `high_base_rate_everywhere`) the flag is set on the candidate, and whether they alert is reported,
 not asserted; `cross_site_unmarked_copies` is a known hard case, reported in `known_hard_cases`.
 
@@ -923,7 +964,12 @@ Alert events are `{week, rank, key, score, site}`; events before the evaluation 
   divided by `n_relevant`; precision@k adds the `r` of whole groups inside the top k and `r (k - s)/n` for the group
   straddling k, divided by k always. The channel value is the mean over seeds; rules are unranked (null).
 - `false_alarms_per_week` = false alarms / (evaluation weeks x seeds); `decoys_alerted[class]` counts (decoy, seed)
-  instances with an event on any of the decoy's keys inside its watch span.
+  instances with an event on any of the decoy's keys inside its watch span. `decoys_failed[class]` counts the
+  instances that failed: an event as above, or, for a `stale_chain` on a channel with candidates (X, S, R_mf, U, the
+  ablation), a week inside the watch span at which one of its keys was a detector candidate (after the stale filter,
+  cooling or not). Each decoy outcome carries `alerted`, `first_alert_week`, `candidate` (null where candidacy is not
+  scored: every other class, and `rules` and `single_site`), `first_candidate_week` and `failed`. Decoy outcomes
+  enter no X1 verdict; a decoy alert is a false alarm and so counts against precision.
 - **Lifts** `X_minus_single_site` (the collective lift), `X_minus_S` and `X_minus_R_mf`: per pattern, the list over
   seeds of `net_found_a - net_found_b` (`basis`: "found in the planted world and not found as early or earlier in
   the same seed's no-plant control world"); the estimate is the pooled mean; the 95% interval is `stats.cluster_bootstrap_mean`
@@ -966,11 +1012,11 @@ code, org, prereg, plant, labels), the world and plant summaries, the channel la
 (per seed too, with the control's finds and the net values), the ablation (or null), the three lifts on net found,
 `by_construction` (S and R-mf cannot see `narrative_only` plants: "planted narrative_only records carry no codes and
 no structured entities, so they add nothing to the cells this channel reads", labelled "by construction, not a
-result", next to their measured recall, control recall and net recall), `known_hard_cases`,
-per-pattern and per-decoy outcomes (each with `found_in_control`), the decoys' quiet precondition and X flags at
-detection, suppression per seed, the minimum detectable rate, every alert in the evaluation weeks and every control
-alert (`control_alerts`), warnings (fewer than 10 patterns; a decoy that was
-not quiet elsewhere), the `x1` block and notes.
+result", next to their measured recall, control recall and net recall), `known_hard_cases`, per-pattern outcomes
+(each with `found_in_control`) and per-decoy outcomes (`alerted`, `candidate`, `failed`), the decoys' quiet
+precondition and X flags at detection, suppression per seed, the minimum detectable rate, every alert in the
+evaluation weeks and every control alert (`control_alerts`), warnings (fewer than 10 patterns; a decoy that was not
+quiet elsewhere), the `x1` block and notes.
 
 `x1.eligible` needs a blind run (self-declared: `planter_saw_detector_code` false and `planted_by` other than the
 detector author, compared case-folded with whitespace collapsed), a plant bound to the prereg, and at least 20
@@ -1231,11 +1277,12 @@ a malformed secret file (`VerifyError`, no value in its text). `answer(question)
    else `InferenceBoundaryError` before any call. A boundary refusal propagates and nothing is stored or sent; any
    other inference error counts the record as a failure. Since audit round 2 the judging stops early: once failures
    are more than half the records (degraded whatever the rest say), and after two consecutive failures that say the
-   server is down (`timeout`, `network`, `http_5xx`, each after the client's retries; `extract.BREAKER_AFTER`), when
-   the records not yet judged count as failures. Up to round 2 a dead server cost one call per retrieved record, all
-   under the verifier's lock (at the shipped `verify_max_records` 500 and the example's 300 s deadline, about 42 h
-   for one question at a wedged site, and every other question queued behind it); now a question costs at most two
-   deadlines;
+   route's primary server is down (`timeout`, `network`, `http_5xx`, each after the client's retries;
+   `extract.BREAKER_AFTER`; since audit round 3 a failure on the escalation endpoint after the primary answered is
+   not one), when the records not yet judged count as failures. Up to round 2 a dead server cost one call per
+   retrieved record, all under the verifier's lock (at the shipped `verify_max_records` 500 and the example's 300 s
+   deadline, about 42 h for one question at a wedged site, and every other question queued behind it); now a question
+   costs at most two deadlines;
 9. **the rules**, in order: nothing retrieved, `unknown` (local reason `no_records`); failures on more than half,
    `unknown` with quality `degraded` (see below); any yes/yes, `confirm` (support = yes/yes records, roots = their
    distinct roots, reporters = their distinct reporters with every unknown reporter one shared reporter, newest week); a
@@ -1799,8 +1846,12 @@ cells naming the id; the two-site variant's hits are also 0.
   records, comes only from structured master-data fields, and an id below k is omitted.
 - **D7. Packet requests and packets are Boundary artifacts**, logged in `hq/packet_requests.jsonl` and the receive
   log; `questions.jsonl` keeps questions only.
-- **D8. The draft scope scan checks types with an id format only** (exact and variant mentions and unresolved
-  lookalikes); alias words are ordinary words (the device label "Display fault" reads as the component alias).
+- **D8. The draft scope scan checks types with an id format only** (exact and variant mentions, mentions by one of
+  the type's aliases, and unresolved lookalikes); the aliases of alias-only types are ordinary words (the device
+  label "Display fault" reads as the component alias) and pass. Audit round 3: the scan used to skip every alias
+  mention, so a draft or an edit naming an out-of-scope product, supplier, repair shop, clinic or tow operator by its
+  name ("FlowLine Pro", "Harbourside Panel Works") passed while the same draft naming the id was refused; the
+  aliases of a type with an id format are proper names, so they are now checked like the id.
 - **D9. Ledger kinds** are the brief's thirteen plus `drafted` and `escalation_failed`.
 - **D10. The approve, edit and reject call sites** are the service, G0's simulated owner, a later demo console and
   the tests (`ApprovalCallSiteTests`); E5 runs G0's stages and calls none of them.

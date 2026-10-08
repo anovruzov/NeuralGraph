@@ -2202,6 +2202,46 @@ class PacketDraftTests(FollowupCase):
         self.assertEqual(f.service.regenerate(key, principal=SYSTEM, as_of=AS_OF), (1, None))   # an in-scope id
         self.assertEqual(f.service.state(key).draft(1)["containment"], "Quarantine stock of SD-9")
 
+    def test_a_name_of_an_out_of_scope_product_or_business_is_refused_like_its_id(self) -> None:
+        # audit r3: the aliases of a type with an id format are proper names (a product, supplier, repair shop,
+        # clinic or tow operator by name), so the scope scan resolves and checks them like the id; only the
+        # alias-only types' ordinary words pass unchecked (D8)
+        device = frozenset({("product", "SD-9")})
+        for text, ok in (("Quarantine all FlowLine Pro stock as well.", False), ("Quarantine IP-21 too", False),
+                         ("Quarantine SalineDuo stock", True), ("flowline pro units", False),
+                         ("Display fault and battery door checks", True)):
+            with self.subTest(pack="device_quality", text=text):
+                self.assertEqual(draft_scope_problem(DQ, device, {"containment": text}) is None, ok)
+        shop = frozenset({("repair_shop", "RS-42")})
+        for text, ok in (("Refer Harbourside Panel Works", False), ("Refer RS-1077", False),
+                         ("Refer Elm Street Clinic and Swiftline Towing", False), ("Refer Kestrel Auto Body", True),
+                         ("Refer RS-42 for side panel work", True)):
+            with self.subTest(pack="claims_integrity", text=text):
+                self.assertEqual(draft_scope_problem(CI, shop, {"title": text}) is None, ok)
+        self.assertIsNone(draft_scope_problem(CI, shop | {("clinic", "CL-A100")}, {"t": "Elm Street Clinic"}))
+
+        def named(payload: Mapping[str, Any]) -> dict[str, Any]:
+            return {**template_draft(DQ)(payload), "containment": "Quarantine all FlowLine Pro stock as well."}
+
+        provider = FakeProvider()
+        provider.register(DRAFT_TASK, named)
+        f = self.fw(runtime=central_runtime(DQ, self.tmp / "central.ledger.jsonl", Clock(NOW), provider=provider))
+        key = f.propose("capa_initiation_draft", {"conclusion": f.cid, "severity": "high"})
+        self.assertEqual(f.ledger.entries(key)[-1].payload, {"attempt": 1, "reason": "out_of_scope_id"})
+        self.assertEqual(f.service.state(key).status, "draft_failed")
+        self.assertNotIn(b"FlowLine", b"".join(canonical_bytes(e.payload) for e in f.entries()))
+        g = self.fw()
+        key = g.propose("capa_initiation_draft", {"conclusion": g.cid, "severity": "high"})
+        ann = human("ann")
+        for text in ("CAPA: SalineDuo and FlowLine Pro detachment", "CAPA: SD-9 and IP-21 detachment"):
+            with self.subTest(edit=text):
+                entry = self.assert_refused(g, "draft_out_of_scope",
+                                            lambda: g.service.edit(key, 1, {"title": text}, principal=ann,
+                                                                   as_of=AS_OF), path="$.title")
+                self.assertNotIn(text.encode("utf-8"), canonical_bytes(entry.payload))
+        self.assertEqual(g.service.edit(key, 1, {"title": "CAPA: SalineDuo detachment"}, principal=ann,
+                                        as_of=AS_OF), 2)
+
     def test_a_crash_before_the_draft_leaves_awaiting_draft_until_regenerate(self) -> None:
         f = self.fw()
         with mock.patch.object(DraftWriter, "write", side_effect=SystemExit(9)), self.assertRaises(SystemExit):

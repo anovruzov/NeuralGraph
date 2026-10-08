@@ -134,6 +134,13 @@ cp docs/collective/examples/routing.example.json <routing-file>
 - Delete the endpoints you do not run.
 - `docs/collective/examples/README.md` explains each field and how to add a price from a provider's pricing page.
 - A key for a hosted comparator goes in the environment variable named by `api_key_env`, never in the file.
+- An endpoint at `site:<site-id>` (or `central`, or `any-simulated`) is always connected to directly, even when the
+  machine exports `http_proxy` or `https_proxy`: its requests carry raw record text, and an environment proxy is
+  often an off-site web gateway. Only an `external` endpoint uses the environment's proxy (unless `no_proxy`
+  matches). If a proxy you trust stands inside the site and your server is reachable only through it, set
+  `"env_proxy": true` on that endpoint; the usage ledger then says `"proxy": true` for each of its calls. An
+  `external` endpoint can opt out with `"env_proxy": false` (audit round 3: before, a site endpoint addressed by a
+  host name went through the environment's proxy while the ledger said `boundary_mode: own`).
 - Since G6 a site's file also routes `judge_record`, the pushdown judge: it reads one of the site's own records to
   answer one question from HQ, so its endpoint (and any `escalate_to`) must be at `site:<site-id>`, the same
   boundary as `extract_claims` (`any-simulated` when one machine plays every simulated site, as in G0 and E2).
@@ -238,7 +245,10 @@ python -m mycelic.collective.experiments.n1_narratives sample --cache <cache-dir
 ```
 
 This writes `runs/n1/<run-id>/sheet.csv` (open it in a spreadsheet), `sheet.jsonl` and `sample.json`. If a code has
-too few eligible events, its shortfall is recorded; the other codes are not topped up.
+too few eligible events, its shortfall is recorded; the other codes are not topped up. Each code gets an equal share
+of the sample whatever its volume, so `sample.json` also records each code's volume (`strata`: openFDA's total for
+the query, the records fetched and the eligible events among them), which the score uses to weight the codes.
+`--n` must be at least the number of codes.
 
 **Label** each row by reading `narrative` against the coded columns of the same row (`generic_names`,
 `model_numbers`, `lot_numbers`, `product_problems`). Put `true` or `false` in each of the four columns. `yes`/`no`,
@@ -267,9 +277,19 @@ python -m mycelic.collective.experiments.n1_narratives score --sheet <labelled-s
 
 - `<sample-file>` is `runs/n1/<run-id>/sample.json`.
 - Use `runs/n1/<run-id>/narrative_gain.json` as `<out-file>`.
-- The score reports the share of narratives with any `true` label, its Wilson 95% interval, and a verdict against
-  the bars fixed before the run: at least 20% supports the extraction channel; below 10%, expect the codes-only
-  channel to match it; anything between is ambiguous.
+- The score reports the **event-level** share: the share of the chosen codes' eligible events whose narrative has
+  any `true` label, estimated from the stratified sample with each code weighted by its eligible volume (`share`,
+  `estimand`), its 95% interval (`ci95`, a Wilson interval at the design's effective sample size, `n_eff`), and a
+  verdict read from that share against the bars fixed before the run: at least 20% supports the extraction
+  channel; below 10%, expect the codes-only channel to match it; anything between is ambiguous.
+- `unweighted_sample` is the plain share of the sampled rows. It never decides: codes are sampled equally, so it
+  is an equal-weight mix of the codes, which a small code with a high gain dominates. `per_product_code` gives each
+  code's own share and its `weight`.
+- A code whose fetch was truncated (`--max-records`, or openFDA's skip limit) is weighted by its total times the
+  eligibility rate of the records fetched (`basis: extrapolated`), which assumes the fetched records are typical of
+  the code. Fetch without a cap when you can.
+- A `sample.json` written before the weighting (it has no `strata`) is refused: run `sample` again on the same cache
+  with the same codes, `--n` and `--seed` under a new run id; it draws the same sheet, so the labels still apply.
 - It refuses a sheet with unlabelled rows, or with keys that differ from the sample, and lists the rows to fix.
 
 ## 7. Freeze or extend a pack
@@ -393,9 +413,14 @@ python -m mycelic.collective.experiments.e1_extract compare --prereg <prereg-fil
   are null and `verdicts_withheld` says why. Never quote such a file.
 - `endpoints.<name>.field_f1` is the primary metric, with a bootstrap 95% interval over records. `claim_f1`,
   `entity_f1` and `predicate_f1` are secondary and never replace it.
-- `paired.<name>` compares each candidate with the reference record by record: `mean_diff`, `ci95` and an exact
-  sign test. `non_inferior` is true only when `ci95` low is above minus the margin. `underpowered` is true below
-  600 paired records; report such a result as underpowered. `kill_flag` is true below 0.80 absolute field F1.
+- `paired.<name>.field_f1` is the decision: the candidate's micro field F1 minus the reference's over the records
+  both have (`endpoint`, `reference`, `diff`), with a paired bootstrap 95% interval (`ci95`) that resamples records.
+  `non_inferior` is true only when `field_f1.ci95` low is above minus the margin. `underpowered` is true below 600
+  paired records; report such a result as underpowered. `kill_flag` is true below 0.80 absolute field F1.
+- `paired.<name>.per_record_field_f1` (the mean per-record field F1 difference, its interval and an exact sign test)
+  is secondary and never decides: a record with no claims that both sides leave empty scores 1.0 on both sides
+  there, so a narrative set with many claim-free records pulls it toward 0. Audit round 3: the verdict used to be
+  read from it, so a candidate more than the margin below the reference in field F1 could be called non-inferior.
 - `exact_match.lot` and `exact_match.supplier` report lot and supplier exact match separately: `n` counts records
   whose labels name a lot (or supplier), `matches` those whose predicted ids equal the labelled ones in every run,
   with a Wilson interval over records. Each `run.json` has that run's own rate.
@@ -443,11 +468,21 @@ nothing about the model; it only checks that the path through a real server leak
 python -m mycelic.collective.experiments.g0_canary --pack <pack> --records 1000 --seed <seed> --mode routing --routing <routing-file> --out runs/g0/<run-id>
 ```
 
+A routing run passes only when it actually went through the server: `model_path.problems` in `leakage.json` must be
+empty, and the command prints each problem as `g0: model path: ...` and exits 1 otherwise. A problem is any record or
+judge call the server did not answer (down, timed out, an HTTP error, or held back by the breaker as `not_sent`), no
+extraction record answered by the model, no judge call made or answered, or a degraded verdict. A reply that failed
+validation was still an answer and is counted in `model_path`, not listed as a problem. Start the server, check it
+answers (RUNBOOK section 2), then run G0; a FAIL here with no `hits` means the model path, not a leak (audit round 3:
+before, a run against a server that was down passed with every record sensed lexically).
+
 Reading `runs/g0/<run-id>/leakage.json`:
 
 - The command prints one line, `g0: pack=... canaries=... hits=... shingle_overlap_bytes=... known_limitation=...
-  -> PASS|FAIL`, and exits 0 on PASS, 1 when something leaked (or the scanner's positive control found nothing) and
-  2 on a usage or configuration error.
+  -> PASS|FAIL`, and exits 0 on PASS, 1 when something leaked (or the scanner's positive control found nothing, or,
+  with a model, `model_path` lists a problem) and 2 on a usage or configuration error.
+- `model_path` (null with `--mode lexical`) counts how extraction records were extracted (by the model or the
+  lexical fallback, by error kind), the judge's attempts and the ones a model answered, and degraded verdicts.
 - `hits` and `shingle_overlap_bytes` must be empty and 0. Each hit names the file and the canary id, never the token.
 - `positive_control` must show canary hits and narrative bytes in the first site's own database; otherwise the
   scanner is broken and the run fails.
@@ -515,6 +550,16 @@ site alone. Everything here is a **synthetic, same-author world**: the scorecard
 - The spec needs at least 20 patterns and 20 decoys (each a JSON object; `fixtures/plant_smoke.json` in each pack
   shows the shape, though it is a construction smoke, not blind). Spread them over the evaluation weeks; for 40 items
   use `--weeks 104`.
+- A `stale_chain` decoy is the exception: it lies in a narrow band of weeks just before `--eval-from` (with
+  `--eval-from 26`, device chains within weeks 19 to 21, claims chains within weeks 19 and 20), so that its records
+  are still in the first evaluation week's window and only G4's stale filter keeps it from being a candidate there.
+  `check-plant` says `not stale at the first evaluation week` or `not inside the first evaluation week's window` for
+  a chain outside it. Its outcome is read on candidacy as well as alerts (`failed`), because the cooldown after its
+  fresh alert would hold any alert whether the filter works or not (ARCHITECTURE section 14.2).
+- The one-site decoy classes (`echo_marked`, `same_site_duplicates`, `single_site_burst`, `near_miss_entity`) are
+  all held quiet by `min_sites`; `same_site_duplicates` does not test duplicate collapse in detection (ARCHITECTURE
+  section 14.2). A spec of 20 decoys mostly of those classes meets the count but tests little beyond `min_sites`;
+  spread the decoys over the classes.
 - The planter copies the `prereg_sha256` that `check-plant` prints into the spec, so the spec is bound to this
   prereg and to nothing else.
 
@@ -555,8 +600,10 @@ suppression. Ctrl-C exits 130 and leaves a partial run directory; start again un
   `lift_ci_low_above_0` (the 95% cluster-bootstrap interval of `lifts.X_minus_single_site` excludes 0),
   `precision_at_40_at_least_0_25` and `pass`.
 - `channels.<name>` gives recall (found / patterns x seeds), recall by visibility, median delay and lead in weeks,
-  tie-averaged precision@40 and AP, false alarms per week and how many decoys of each class alerted. Read X against
-  S, R_mf, single_site and U; `rules` is unranked.
+  tie-averaged precision@40 and AP, false alarms per week, how many decoys of each class alerted
+  (`decoys_alerted`) and how many failed (`decoys_failed`: the same, except that a stale chain also fails a channel
+  that keeps its key a candidate in its watch span; each decoy outcome says `candidate` and `failed`). Read X
+  against S, R_mf, single_site and U; `rules` is unranked.
 - **Every seed also runs without the plant** (the control, `work/seed-<seed>/control/`). A channel's find is a
   chance find when the control finds the same pattern in the same week or earlier: its key alerts that early on the
   background alone. A control alert that comes only later is not one; the plant's alert came first, and in the

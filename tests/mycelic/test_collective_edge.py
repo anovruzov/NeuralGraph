@@ -26,8 +26,8 @@ from unittest import mock
 from mycelic.collective.edge import site as site_mod
 from mycelic.collective.edge.egress import (ARTIFACT_TYPES, CHANNELS, KEYWORDS, LOG_KEYS, SUPPRESSED, Boundary,
                                             EgressError, artifact_keys, check_artifact, read_log, schema_words)
-from mycelic.collective.edge.extract import TASK_NAME, Claim, lexical_handler
-from mycelic.collective.edge.records import TABLES, InputRow, RecordStore, StoreError
+from mycelic.collective.edge.extract import NOT_SENT, TASK_NAME, Claim, lexical_handler
+from mycelic.collective.edge.records import TABLES, ExtractionRow, InputRow, RecordStore, StoreError
 from mycelic.collective.edge.site import (EXTRACT_BATCH, REJECT_REASONS, EdgeSite, SiteError, build_cells,
                                           valid_claim)
 from mycelic.collective.edge.weeks import (closed_through, iso_week, local_date, next_week, valid_week, week_monday,
@@ -1339,9 +1339,15 @@ class UsageTests(SiteCase):
                                  ({"fallback": 10}, {kind: 2, "not_sent": 8}))
                 self.assertEqual(len(read_ledger(s.runtime.ledger.path)) - before, 2)
                 self.assertEqual(summary.claims, 10)                 # the lexical fallback still senses each record
-                # the next pass tries the server again
+                # the next pass tries the server again, with the new record and (audit r3) the 8 the breaker did not
+                # send; the 2 records whose call failed keep their fallback
                 s.ingest([coded(DQ, "next", "s1", "2026-03-03", "SD-9")])
-                self.assertEqual(dict(s.extract("model").extractors), {"model:site-fake": 1})
+                again = s.extract("model")
+                self.assertEqual((dict(again.extractors), again.resent), ({"model:site-fake": 9}, 8))
+                self.assertEqual(db_rows(s.store.path, "SELECT extractor, error_kind, COUNT(*) FROM extraction_stats "
+                                                       "GROUP BY extractor, error_kind ORDER BY extractor"),
+                                 [("fallback", kind, 2), ("model:site-fake", None, 9)])
+                self.assertEqual(s.extract("model").records, 0)
         # a model reply that fails validation is about the record, not the server: no breaker
         provider = FakeProvider()
         provider.register(TASK_NAME, lexical_handler(DQ, Canonicaliser(DQ)))
@@ -1349,6 +1355,135 @@ class UsageTests(SiteCase):
         s = self.site(runtime=self.runtime(provider=provider), root=self.tmp / "invalid")
         s.ingest([coded(DQ, f"r{i}", "s1", "2026-03-02", "SD-9", reporter=f"R{i}") for i in range(4)])
         self.assertEqual(dict(s.extract("model").errors), {"json_invalid": 4})
+
+    def test_a_short_outage_does_not_downgrade_the_rest_of_the_backlog(self) -> None:
+        # regression (audit r3): after two server-down failures every remaining record of the pass was sensed
+        # lexically and stored as final, so a 3-second blip, or two records slower than the deadline, downgraded the
+        # whole backlog for good. Now the open breaker sends the next batch's first record, and an answer closes it
+        for kind in ("http_5xx", "timeout"):
+            with self.subTest(kind=kind):
+                provider = FakeProvider()
+                provider.register(TASK_NAME, lexical_handler(DQ, Canonicaliser(DQ)))
+                provider.fail_next(TASK_NAME, [kind] * 2)
+                s = self.site(runtime=self.runtime(provider=provider), root=self.tmp / f"blip-{kind}")
+                before = len(read_ledger(s.runtime.ledger.path))
+                s.ingest([coded(DQ, f"r{i:03d}", "s1", "2026-03-02", "SD-9", reporter=f"R{i}") for i in range(250)])
+                summary = s.extract("model")
+                self.assertEqual((dict(summary.extractors), dict(summary.errors)),
+                                 ({"fallback": 100, "model:site-fake": 150}, {kind: 2, "not_sent": 98}))
+                self.assertEqual(len(read_ledger(s.runtime.ledger.path)) - before, 152)
+                again = s.extract("model")              # the next pass sends the 98 held back, and nothing else
+                self.assertEqual((again.records, again.resent, dict(again.extractors)),
+                                 (98, 98, {"model:site-fake": 98}))
+                self.assertEqual(len(read_ledger(s.runtime.ledger.path)) - before, 250)
+
+    def test_a_dead_server_is_probed_on_a_doubling_schedule(self) -> None:
+        # open, the breaker sends one record in the 1st, 3rd and 7th batch after it opened: 2 + 3 calls for 800
+        provider = FakeProvider()
+        provider.register(TASK_NAME, lexical_handler(DQ, Canonicaliser(DQ)))
+        provider.fail_next(TASK_NAME, ["network"] * 50)
+        s = self.site(runtime=self.runtime(provider=provider))
+        s.ingest([coded(DQ, f"r{i:03d}", "s1", "2026-03-02", "SD-9", reporter=f"R{i}") for i in range(800)])
+        summary = s.extract("model")
+        self.assertEqual(dict(summary.errors), {"network": 5, "not_sent": 795})
+        refs = [r["ref"] for r in read_ledger(s.runtime.ledger.path)]
+        self.assertEqual(refs, [f"x:{seq}" for seq in (1, 2, 101, 301, 701)])
+        self.assertEqual(summary.claims, 800)
+
+    def test_a_down_escalation_server_does_not_trip_the_breaker(self) -> None:
+        # regression (audit r3): the primary answers every request (its replies fail validation twice) and only the
+        # escalation endpoint is down; the last attempt's kind is network, which tripped the breaker although the
+        # primary was up. A failure on the escalation endpoint is not the server being down
+        config = parse_routing({"schema_version": 1, "endpoints": {
+            "site-fake": {"provider": "fake", "boundary": "site:s1"},
+            "site-esc": {"provider": "fake", "boundary": "site:s1"}},
+            "routes": {TASK_NAME: {"endpoint": "site-fake", "escalate_to": "site-esc"}}}, allow_fake=True)
+        provider = FakeProvider()
+        provider.register(TASK_NAME, lexical_handler(DQ, Canonicaliser(DQ)))
+        provider.fail_next(TASK_NAME, ["json_invalid", "json_invalid", "network"] * 4)
+        rt = Runtime(config, boundary="site:s1", ledger_path=self.tmp / "esc.ledger.jsonl", run_id="g3-test",
+                     clock=self.clock, data_label="synthetic", allow_fake=True, fake=provider, sleep=lambda s: None,
+                     environ={})
+        self.addCleanup(rt.close)
+        s = self.site(runtime=rt)
+        s.ingest([coded(DQ, f"r{i}", "s1", "2026-03-02", "SD-9", reporter=f"R{i}") for i in range(6)])
+        summary = s.extract("model")
+        self.assertEqual((dict(summary.extractors), dict(summary.errors)),
+                         ({"fallback": 4, "model:site-fake": 2}, {"network": 4}))
+        rows = read_ledger(self.tmp / "esc.ledger.jsonl")
+        self.assertEqual([(r["endpoint"], r["error_kind"]) for r in rows[:3]],
+                         [("site-fake", "json_invalid"), ("site-fake", "json_invalid"), ("site-esc", "network")])
+        self.assertEqual(len(rows), 4 * 3 + 2)
+        # the primary itself down still trips it: its own network failures, two in a row
+        provider.fail_next(TASK_NAME, ["network"] * 2)
+        s.ingest([coded(DQ, f"q{i}", "s1", "2026-03-03", "SD-9", reporter=f"Q{i}") for i in range(5)])
+        self.assertEqual(dict(s.extract("model").errors), {"network": 2, "not_sent": 3})
+
+    def test_a_not_sent_record_is_final_once_its_week_is_emitted(self) -> None:
+        # the cells HQ holds are never revised, so a stand-in counted in an emitted bundle is not re-extracted
+        provider = FakeProvider()
+        provider.register(TASK_NAME, lexical_handler(DQ, Canonicaliser(DQ)))
+        provider.fail_next(TASK_NAME, ["http_5xx"] * 2)
+        s = self.site(runtime=self.runtime(provider=provider))
+        s.ingest([coded(DQ, f"r{i}", "s1", "2026-03-02", "SD-9", reporter=f"R{i}", synthetic=False)
+                  for i in range(5)])
+        self.assertEqual(dict(s.extract("model").errors), {"http_5xx": 2, "not_sent": 3})
+        # the exemption check counts the stand-ins a model pass would send again
+        self.assertEqual((s.store.pending_non_synthetic(), s.store.pending_non_synthetic(NOT_SENT)), (0, 3))
+        self.clock.value = "2026-03-29T08:00:00.000Z"
+        self.assertIsNotNone(s.emit_cells("2026-03-29"))
+        self.assertEqual(s.store.pending_non_synthetic(NOT_SENT), 0)
+        self.assertEqual(s.extract("model").records, 0)
+        with self.assertRaises(StoreError):
+            s.store.save_extractions([ExtractionRow(
+                record_ref="r0", mode="model", extractor="lexical", error_kind=None, truncated=False,
+                language_supported=True, drops={}, unresolved={}, unknown_codes=0, structured_unresolved=0,
+                invalid_claims=0, extracted_at="2026-03-29T08:00:00.000Z", claims=())], redo_kind=NOT_SENT)
+
+    def test_an_exempt_endpoint_is_refused_the_stand_ins_a_model_pass_would_send_again(self) -> None:
+        # regression (audit r3 review): a model pass also sends the breaker's not_sent stand-ins, which are stored
+        # already, so the exemption check must count them; counting only records without an extraction let the next
+        # pass send non-synthetic narratives to an external endpoint under allow_external_raw='synthetic'
+        with FakeOpenAIServer("valid", reply={"claims": []}) as server:
+            for synthetic in (False, True):
+                with self.subTest(synthetic=synthetic):
+                    root = self.tmp / f"resend-{synthetic}"
+                    provider = FakeProvider()
+                    provider.register(TASK_NAME, lexical_handler(DQ, Canonicaliser(DQ)))
+                    provider.fail_next(TASK_NAME, ["http_5xx"] * 2)
+                    own = fake_runtime(DQ, "s1", root / "own.ledger.jsonl", self.clock, provider=provider)
+                    self.addCleanup(own.close)
+                    s = self.site(runtime=own, root=root)
+                    s.ingest([coded(DQ, f"r{i}", "s1", "2026-03-02", "SD-9", reporter=f"R{i}", synthetic=synthetic)
+                              for i in range(5)])
+                    self.assertEqual(dict(s.extract("model").errors), {"http_5xx": 2, "not_sent": 3})
+                    s.close()
+                    # the same store, reopened with an external extraction endpoint under the synthetic exemption
+                    config = parse_routing({"schema_version": 1, "endpoints": {"cloud": {
+                        "provider": "openai_compat", "boundary": "external", "base_url": server.base_url,
+                        "model": "m-tag"}}, "routes": {TASK_NAME: {"endpoint": "cloud"}}}, environ={})
+                    ext = Runtime(config, boundary="site:s1", ledger_path=root / "ext.ledger.jsonl",
+                                  run_id="g3-test", clock=self.clock, data_label="synthetic",
+                                  allow_external_raw="synthetic", environ={}, sleep=lambda s: None)
+                    self.addCleanup(ext.close)
+                    s = self.site(runtime=ext, root=root)
+                    self.assertEqual(s.store.pending_through("2026-W10"), 0)    # only stand-ins are left to send
+                    before = len(server.chat_requests)
+                    if not synthetic:
+                        with self.assertRaises(SiteError):
+                            s.extract("model")
+                        self.assertEqual((len(server.chat_requests) - before, read_ledger(ext.ledger.path)), (0, []))
+                        self.assertEqual(db_rows(s.store.path, "SELECT extractor, error_kind, COUNT(*) FROM "
+                                                               "extraction_stats GROUP BY extractor, error_kind "
+                                                               "ORDER BY error_kind"),
+                                         [("fallback", "http_5xx", 2), ("fallback", "not_sent", 3)])
+                    else:                       # the control: synthetic stand-ins do go out again, and are replaced
+                        summary = s.extract("model")
+                        self.assertEqual((summary.records, summary.resent, dict(summary.extractors)),
+                                         (3, 3, {"model:cloud": 3}))
+                        self.assertEqual(len(server.chat_requests) - before, 3)
+                        self.assertEqual([(r["boundary_mode"], r["data_label"]) for r in read_ledger(ext.ledger.path)],
+                                         [("external_raw_exempt", "synthetic")] * 3)
 
     def test_an_exempt_external_extraction_only_reads_records_that_carry_the_label(self) -> None:
         # regression (audit r2): only a simulated runtime was checked, so under allow_external_raw='synthetic' model

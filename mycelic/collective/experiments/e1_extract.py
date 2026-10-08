@@ -24,8 +24,11 @@ F1, predicate F1, the share of records whose first attempt was valid JSON for th
 id set per type the pack flags with ``exact_match_metric`` (reported separately, as STRATEGY asks): the share of
 records matched in every run, with a Wilson interval over records. A model error on a record (``json_invalid`` or
 ``schema_invalid`` after the repair) is an empty prediction. Confidence intervals bootstrap records (all runs'
-counts per record pooled). The paired comparison bootstraps the per-record mean field F1 difference against the
-reference over the records both sides have, with an exact sign test.
+counts per record pooled). The paired comparison, and the non-inferiority verdict, is on the primary metric itself:
+the micro field F1 of the endpoint minus the reference's over the records both sides have, with a paired percentile
+bootstrap that resamples records and scores both sides on each draw. The per-record mean field F1 difference (a record
+with no gold and no prediction scores 1.0 on both sides, so claim-free records pull it toward 0) and an exact sign
+test are reported beside it as secondary and never decide.
 
 **Transport failures are not model errors.** A record whose extraction ended in a transport failure (``timeout``,
 ``network``, ``http_4xx``, ``http_5xx``, ``too_large``, ``no_handler``: the server, not the model's output) is not
@@ -111,10 +114,12 @@ NOTES = [
     "its predicate (negated predicates as not:<p>). claim_f1, entity_f1 and predicate_f1 are secondary and never "
     "substituted for it.",
     "Confidence intervals are percentile bootstraps over records, with every run's counts for a record pooled.",
-    "The paired difference is the per-record mean field F1 of the endpoint minus the reference's, over records "
-    "both have; records only one side has are counted in dropped.",
-    f"underpowered is true below {UNDERPOWERED_BELOW} paired records; non_inferior needs ci95 low > -margin "
-    f"(strict) and kill_flag is set below {KILL_BELOW} absolute field F1 (strict).",
+    "paired.<name>.field_f1 is the decision: the micro field F1 of the endpoint minus the reference's over the "
+    "records both have (records only one side has are counted in dropped), with a paired percentile bootstrap "
+    "over records. per_record_field_f1 (the mean per-record field F1 difference, where a claim-free record scores "
+    "1.0 on both sides, and a sign test) is secondary and never decides.",
+    f"underpowered is true below {UNDERPOWERED_BELOW} paired records; non_inferior needs field_f1.ci95 low > "
+    f"-margin (strict) and kill_flag is set below {KILL_BELOW} absolute field F1 (strict).",
     "exact_match counts records whose gold names at least one id of the type; a record matches when its predicted "
     "id set equals the gold's in every run, so repeats are not counted as independent trials. Each run.json has "
     "that run's own rate.",
@@ -1024,7 +1029,9 @@ def _read_run(directory: str | Path) -> tuple[dict[str, Any], list[dict[str, Any
 
 
 def _endpoint_block(name: str, runs: Sequence[tuple[dict, list, list]], prereg: Mapping[str, Any],
-                    types: Sequence[str]) -> tuple[dict[str, Any], dict[str, float]]:
+                    types: Sequence[str]) -> tuple[dict[str, Any], dict[str, float], dict[str, list[int]]]:
+    """The endpoint's block, its per-record mean field F1 and its per-record field counts (every run pooled), both
+    keyed by record_ref over the scored records."""
     seed, b = prereg["seed"], prereg["bootstrap_b"]
     pooled: dict[str, dict[str, list[int]]] = {}
     per_record_f1: dict[str, list[float]] = {}
@@ -1072,7 +1079,7 @@ def _endpoint_block(name: str, runs: Sequence[tuple[dict, list, list]], prereg: 
     block["per_run"] = per_run
     block["run_sd"] = {"field_f1": stats.sd([r["field_f1"] for r in per_run if r["field_f1"] is not None])}
     means = {ref: math.fsum(v) / len(v) for ref, v in per_record_f1.items()}
-    return block, means
+    return block, means, {ref: pooled[ref]["field"] for ref in refs}
 
 
 def cmd_compare(args: argparse.Namespace) -> int:
@@ -1133,9 +1140,9 @@ def cmd_compare(args: argparse.Namespace) -> int:
 
     types = sorted(t for t, et in pack.entity_types.items() if et.exact_match_metric)
     measurement = all(run["measurement"] is True for runs in by_endpoint.values() for run, _, _ in runs)
-    blocks, means = {}, {}
+    blocks, means, field_counts = {}, {}, {}
     for name in sorted(by_endpoint):
-        blocks[name], means[name] = _endpoint_block(name, by_endpoint[name], prereg, types)
+        blocks[name], means[name], field_counts[name] = _endpoint_block(name, by_endpoint[name], prereg, types)
     reference = prereg["reference"]
     paired = {}
     for name in sorted(by_endpoint):
@@ -1146,17 +1153,29 @@ def cmd_compare(args: argparse.Namespace) -> int:
                    "only_reference": len(set(means[reference]) - set(means[name]))}
         entry: dict[str, Any] = {"against": reference, "n": len(shared), "dropped": dropped}
         seed = f"e1:{prereg['seed']}:{name}"
+        b = prereg["bootstrap_b"]
+        # the decision: the pre-registered primary metric, micro field F1, of both sides over the shared records,
+        # resampled by record (a claim-free record both sides get right adds no count, so it cannot dilute it)
+        primary: dict[str, Any] = {"endpoint": None, "reference": None, "diff": None, "ci95": [None, None], "B": b,
+                                   "seed": f"{seed}:field_f1_diff", "undefined": None}
+        # secondary: the per-record mean field F1 (a record with no gold and no prediction scores 1.0 on both
+        # sides), with an exact sign test; never the decision
+        per_record: dict[str, Any] = {"mean_diff": None, "ci95": [None, None], "B": b, "seed": seed, "sign": None,
+                                      "sign_p": None}
         if shared:
+            boot = stats.paired_bootstrap_f1([field_counts[name][k] for k in shared],
+                                             [field_counts[reference][k] for k in shared], B=b,
+                                             seed=primary["seed"])
+            primary.update({"endpoint": boot["f1_a"], "reference": boot["f1_b"], "diff": boot["diff"],
+                            "ci95": [boot["ci_low"], boot["ci_high"]], "undefined": boot["undefined"]})
             a, r = [means[name][k] for k in shared], [means[reference][k] for k in shared]
-            boot = stats.paired_bootstrap(a, r, B=prereg["bootstrap_b"], seed=seed)
+            boot = stats.paired_bootstrap(a, r, B=b, seed=seed)
             sign = stats.sign_test([x - y for x, y in zip(a, r)])
-            entry.update({"mean_diff": boot["mean_diff"], "ci95": [boot["ci_low"], boot["ci_high"]],
-                          "B": prereg["bootstrap_b"], "seed": seed, "sign": sign, "sign_p": sign["p_value"]})
-        else:
-            entry.update({"mean_diff": None, "ci95": [None, None], "B": prereg["bootstrap_b"], "seed": seed,
-                          "sign": None, "sign_p": None})
+            per_record.update({"mean_diff": boot["mean_diff"], "ci95": [boot["ci_low"], boot["ci_high"]],
+                               "sign": sign, "sign_p": sign["p_value"]})
+        entry.update({"field_f1": primary, "per_record_field_f1": per_record})
         entry["underpowered"] = len(shared) < UNDERPOWERED_BELOW
-        v = verdicts(entry["ci95"][0], prereg["margin"], blocks[name]["field_f1"]["value"])
+        v = verdicts(primary["ci95"][0], prereg["margin"], blocks[name]["field_f1"]["value"])
         flaky = [n for n in (name, reference) if (blocks[n]["transport_failure_share"] or 0) > TRANSPORT_MAX_SHARE]
         entry["withheld_reason"] = None
         if not measurement:

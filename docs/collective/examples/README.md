@@ -44,6 +44,10 @@ The Ollama and vLLM endpoints turn thinking off (`"reasoning_effort": "none"` an
 the site tasks' small token budgets before any answer (`../RUNBOOK.md`, section 2, "Thinking"). Drop the key only
 when thinking is what you mean to test, and check what your server version accepts.
 
+No endpoint in the example sets `env_proxy`, so the site endpoints connect to their servers directly whatever
+`http_proxy` or `https_proxy` say, and only `external-comparator` uses the environment's proxy. Set `"env_proxy":
+true` on a site endpoint only for a proxy that stands inside the site (`../RUNBOOK.md`, section 3).
+
 The route `extract_claims` shows single-hop escalation. A reply that still fails the schema after one repair is
 retried once on `escalate_to`, with the original prompt only. The route `judge_record` (G6) is the site's
 pushdown judge: it answers one question about one of the site's own records, so it must stay at `site:<site-id>`

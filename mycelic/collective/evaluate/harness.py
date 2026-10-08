@@ -31,9 +31,12 @@ world the plant's alert came first, and the cooldown after it can suppress that 
 channel reports its control finds (any week in the window) and its chance finds, and ``found_net`` counts the
 planted finds that are not chance finds. Recall is pooled over patterns x seeds; precision@40 and AP are
 tie-averaged per seed over distinct alerted keys (score: the key's best alert) and averaged over seeds; lifts are
-cluster bootstraps over patterns of each pattern's per-seed differences in net found. Diagnostics: the quiet
-precondition of the structural decoys, the X flags at a decoy's detection, suppression shares and the analytic
-minimum detectable rate of G4's per-site test.
+cluster bootstraps over patterns of each pattern's per-seed differences in net found. A decoy fails a channel that
+alerts on its key inside its watch span; a stale chain also fails a channel with candidates (all but rules and
+single_site) that keeps its key a candidate there, because the cooldown after its fresh alert in burn-in would hold
+any alert (``decoys_failed``; ``decoys_alerted`` counts alerts only). Diagnostics: the quiet precondition of the
+structural decoys, the X flags at a decoy's detection, suppression shares and the analytic minimum detectable rate
+of G4's per-site test.
 
 **What the scorecard says about itself.** ``stamps`` are ``synthetic: true``, ``internal_only: true`` and
 ``measurement: false``; ``blind`` is self-declared (``blind_basis``). It is validated against
@@ -59,8 +62,8 @@ from ..jsonio import StrictJsonError, canonical_bytes, sha256_hex, strict_load
 from ..packs.generator import GeneratorError, generate
 from ..packs.loader import FrozenPack, PackError, is_builtin_ref, load_pack
 from .baselines import (ABLATION_CHANNELS, ABLATION_LABEL, CHANNEL_LABELS, CHANNELS, EvaluationError, Pipeline,
-                        detector_alerts, exact_result, hq_results, k1_cells, r_mf_cells, rule_alerts, run_pipeline,
-                        single_site_alerts, u_cells, world_weeks)
+                        detector_alerts, detector_candidates, exact_result, hq_results, k1_cells, r_mf_cells,
+                        rule_alerts, run_pipeline, single_site_alerts, u_cells, world_weeks)
 from .plant import (DECOY_CLASSES, HARD_CASE_CLASSES, VISIBILITIES, Decoy, PlantError, PlantSpec, check_plant,
                     is_blind, labels_doc, load_plant, plant)
 
@@ -204,6 +207,7 @@ _CHANNEL_BLOCK = _O({
     "by_visibility": _O({v: _VIS_BLOCK for v in VISIBILITIES}), "median_delay_weeks": _NNUM,
     "median_lead_weeks": _NNUM, "precision_at_40": _NNUM, "average_precision": _NNUM, "false_alarms": _NAT,
     "false_alarms_per_week": _NUM, "alerts": _NAT, "decoys_alerted": _O({c: _NAT for c in DECOY_CLASSES}),
+    "decoys_failed": _O({c: _NAT for c in DECOY_CLASSES}),
     "per_seed": _A(_O({"seed": _NAT, "found": _NAT, "recall": _NNUM, "control_found": _NAT, "chance_found": _NAT,
                        "found_net": _NAT,
                        "alerts": _NAT, "control_alerts": _NAT, "false_alarms": _NAT, "false_alarms_per_week": _NUM,
@@ -248,7 +252,8 @@ SCORECARD_SCHEMA = schemacheck.compile(_O({
     "decoys": _A(_O({"id": _STR, "class": _enum(DECOY_CLASSES), "keys": _A(_STR), "sites": _A(_STR),
                      "watch_from": _WEEK, "watch_to": _WEEK,
                      "outcomes": _A(_O({"seed": _NAT, "channel": _CHANNEL_ENUM, "alerted": _BOOL,
-                                        "first_alert_week": _NSTR})),
+                                        "first_alert_week": _NSTR, "candidate": typed_schema("boolean", nullable=True),
+                                        "first_candidate_week": _NSTR, "failed": _BOOL})),
                      "quiet_elsewhere": _A(_O({"seed": _NAT, "quiet": typed_schema("boolean", nullable=True)})),
                      "flags_at_detection": _A(_O({"seed": _NAT, "flags": _A(_O({
                          "key": _STR, "detection_week": _NSTR, "flags": _FLAGS}))}))})),
@@ -409,10 +414,24 @@ def ranking(events: Sequence[Mapping[str, Any]], patterns: Sequence[Mapping[str,
             stats.tie_averaged_ap(scores, relevant, len(patterns)))
 
 
-def decoy_outcome(events: Sequence[Mapping[str, Any]], label: Mapping[str, Any]) -> dict[str, Any]:
-    weeks = sorted(e["week"] for e in events
-                   if e["key"] in label["keys"] and label["watch_from"] <= e["week"] <= label["watch_to"])
-    return {"alerted": bool(weeks), "first_alert_week": weeks[0] if weeks else None}
+def decoy_outcome(events: Sequence[Mapping[str, Any]], label: Mapping[str, Any],
+                  candidates: Sequence[Mapping[str, Any]] | None = None) -> dict[str, Any]:
+    """A decoy fails a channel that alerts on one of its keys inside the watch span. A stale chain also fails a
+    channel that keeps one of its keys a candidate there (``candidates``: the channel's ``{week, key}`` candidate
+    events; None for rules and single_site, which have no candidates). Its alert alone cannot show a broken stale
+    filter: the chain alerted while fresh, in burn-in, and stays a candidate at every step until the filter removes
+    it, so without the filter its cooldown is never released. ``candidate`` is null where candidacy is not scored."""
+    def watched(items: Sequence[Mapping[str, Any]]) -> list[str]:
+        return sorted(e["week"] for e in items
+                      if e["key"] in label["keys"] and label["watch_from"] <= e["week"] <= label["watch_to"])
+
+    weeks = watched(events)
+    scored = label["class"] == "stale_chain" and candidates is not None
+    candidate_weeks = watched(candidates) if scored else []
+    return {"alerted": bool(weeks), "first_alert_week": weeks[0] if weeks else None,
+            "candidate": bool(candidate_weeks) if scored else None,
+            "first_candidate_week": candidate_weeks[0] if candidate_weeks else None,
+            "failed": bool(weeks) or bool(candidate_weeks)}
 
 
 def _recall(found: int, units: int) -> float | None:
@@ -445,7 +464,9 @@ def net_found(events: Sequence[Mapping[str, Any]], control: Sequence[Mapping[str
 
 def channel_block(channel: str, label: str, per_seed_events: Mapping[int, Sequence[Mapping[str, Any]]],
                   labels: Mapping[str, Any], index: Mapping[str, int], evaluation_weeks: int,
-                  control_events: Mapping[int, Sequence[Mapping[str, Any]]]) -> dict[str, Any]:
+                  control_events: Mapping[int, Sequence[Mapping[str, Any]]],
+                  candidates: Mapping[int, Sequence[Mapping[str, Any]] | None] | None = None) -> dict[str, Any]:
+    """One channel's metrics; ``candidates`` holds each seed's candidate events, None for a channel without any."""
     patterns, decoys = labels["patterns"], labels["decoys"]
     seeds = sorted(per_seed_events)
     ranked = channel != "rules"
@@ -481,9 +502,12 @@ def channel_block(channel: str, label: str, per_seed_events: Mapping[int, Sequen
         total_alerts += len(events)
         total_false += fa
     alerted = dict.fromkeys(DECOY_CLASSES, 0)
+    failed = dict.fromkeys(DECOY_CLASSES, 0)
     for d in decoys:
         for s in seeds:
-            alerted[d["class"]] += int(decoy_outcome(per_seed_events[s], d)["alerted"])
+            outcome = decoy_outcome(per_seed_events[s], d, None if candidates is None else candidates[s])
+            alerted[d["class"]] += int(outcome["alerted"])
+            failed[d["class"]] += int(outcome["failed"])
     units = len(patterns) * len(seeds)
     control_found = sum(1 for found in control.values() if found)
     found_net = sum(1 for found in net.values() if found)
@@ -498,7 +522,7 @@ def channel_block(channel: str, label: str, per_seed_events: Mapping[int, Sequen
             "precision_at_40": _mean([r["precision_at_40"] for r in per_seed]) if ranked else None,
             "average_precision": _mean([r["average_precision"] for r in per_seed]) if ranked else None,
             "false_alarms": total_false, "false_alarms_per_week": total_false / (evaluation_weeks * len(seeds)),
-            "alerts": total_alerts, "decoys_alerted": alerted, "per_seed": per_seed}
+            "alerts": total_alerts, "decoys_alerted": alerted, "decoys_failed": failed, "per_seed": per_seed}
 
 
 def lift(name: str, found_a: Mapping[str, Sequence[bool]], found_b: Mapping[str, Sequence[bool]], *, B: int,
@@ -612,21 +636,24 @@ def x1_block(*, blind: bool, bound: bool, n_patterns: int, n_decoys: int, lift_x
 
 def _channel_events(pack: FrozenPack, pipeline: Pipeline, records: Sequence[Mapping[str, Any]],
                     master_data: Mapping[str, Any], weeks: Sequence[str], salt: str, *,
-                    ablation_k1: bool) -> tuple[dict[str, list[dict[str, Any]]], dict[str, dict[str, Any]]]:
-    """Every channel's alert events over one pipeline, and HQ's X and S results."""
+                    ablation_k1: bool) -> tuple[dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]],
+                                                dict[str, dict[str, Any]]]:
+    """Every channel's alert events over one pipeline, the candidate events of the channels that run G4's detection
+    (all but rules and single_site), and HQ's X and S results."""
     hq = hq_results(pipeline.store, as_of=pipeline.as_of, tie_salt=salt)
     u = exact_result(pack, pipeline.org, u_cells(pipeline), as_of=pipeline.as_of, run_channel="X", tie_salt=salt)
     r = exact_result(pack, pipeline.org, r_mf_cells(pack, records, master_data=master_data, last_week=weeks[-1]),
                      as_of=pipeline.as_of, run_channel="S", tie_salt=salt)
-    events = {"X": detector_alerts(hq["X"]), "S": detector_alerts(hq["S"]), "R_mf": detector_alerts(r),
-              "U": detector_alerts(u), "rules": rule_alerts(hq["X"]),
-              "single_site": single_site_alerts(pipeline, tie_salt=salt)}
+    results = {"X": hq["X"], "S": hq["S"], "R_mf": r, "U": u}
     if ablation_k1:
         k1 = k1_cells(pipeline, ablation_k1=True)
         for name, channel in zip(ABLATION_CHANNELS, ("X", "S")):
-            events[name] = detector_alerts(exact_result(pack, pipeline.org, k1, as_of=pipeline.as_of,
-                                                        run_channel=channel, tie_salt=salt))
-    return events, hq
+            results[name] = exact_result(pack, pipeline.org, k1, as_of=pipeline.as_of, run_channel=channel,
+                                         tie_salt=salt)
+    events = {name: detector_alerts(result) for name, result in results.items()}
+    events.update({"rules": rule_alerts(hq["X"]), "single_site": single_site_alerts(pipeline, tie_salt=salt)})
+    candidates = {name: detector_candidates(result) for name, result in results.items()}
+    return events, candidates, hq
 
 
 def _seed_run(pack: FrozenPack, spec: PlantSpec, prereg: Mapping[str, Any], labels: Mapping[str, Any], seed: int,
@@ -641,8 +668,8 @@ def _seed_run(pack: FrozenPack, spec: PlantSpec, prereg: Mapping[str, Any], labe
     pipeline: Pipeline = run_pipeline(pack, records, site_ids=world_spec["site_ids"], master_data=world.master_data,
                                       weeks=weeks, workdir=workdir / "planted")
     try:
-        events, hq = _channel_events(pack, pipeline, records, world.master_data, weeks, salt,
-                                     ablation_k1=ablation_k1)
+        events, candidates, hq = _channel_events(pack, pipeline, records, world.master_data, weeks, salt,
+                                                 ablation_k1=ablation_k1)
         _, cells = pipeline.store.detection_inputs(pipeline.as_of, "X")
         decoys = [{"quiet": quiet_elsewhere(d, dl, cells), "flags": flags_at_detection(hq["X"], dl)}
                   for d, dl in zip(spec.decoys, labels["decoys"])]
@@ -653,13 +680,16 @@ def _seed_run(pack: FrozenPack, spec: PlantSpec, prereg: Mapping[str, Any], labe
     control: Pipeline = run_pipeline(pack, list(world.records), site_ids=world_spec["site_ids"],
                                      master_data=world.master_data, weeks=weeks, workdir=workdir / "control")
     try:
-        control_events, _ = _channel_events(pack, control, list(world.records), world.master_data, weeks, salt,
-                                            ablation_k1=ablation_k1)
+        control_events, _, _ = _channel_events(pack, control, list(world.records), world.master_data, weeks, salt,
+                                               ablation_k1=ablation_k1)
     finally:
         control.close()
     window = (ev["eval_from_week"], ev["eval_to_week"])
+    stale_keys = {key for d in labels["decoys"] if d["class"] == "stale_chain" for key in d["keys"]}
     return {"events": {name: eval_events(e, *window) for name, e in events.items()},
             "control_events": {name: eval_events(e, *window) for name, e in control_events.items()},
+            "candidates": {name: [e for e in eval_events(c, *window) if e["key"] in stale_keys]
+                           for name, c in candidates.items()},
             "decoys": decoys, "suppression": cells_stats, "org_hash": org_hash,
             "planted_records": len(planted.records)}
 
@@ -679,8 +709,10 @@ def build_scorecard(*, run_id: str, pack: FrozenPack, prereg: Mapping[str, Any],
     names = list(CHANNELS) + (list(ABLATION_CHANNELS) if ablation_k1 else [])
     per_channel = {name: {s: runs[s]["events"][name] for s in seeds} for name in names}
     per_control = {name: {s: runs[s]["control_events"][name] for s in seeds} for name in names}
+    per_candidates = {name: {s: runs[s]["candidates"].get(name) for s in seeds} for name in names}
     blocks = {name: channel_block(name, CHANNEL_LABELS[name] if name in CHANNEL_LABELS else ABLATION_LABEL,
-                                  per_channel[name], labels, index, evaluation_weeks, per_control[name])
+                                  per_channel[name], labels, index, evaluation_weeks, per_control[name],
+                                  per_candidates[name])
               for name in names}
     found = {name: {p["id"]: [net_found(per_channel[name][s], per_control[name][s], p, index) for s in seeds]
                     for p in patterns} for name in CHANNELS}
@@ -696,7 +728,8 @@ def build_scorecard(*, run_id: str, pack: FrozenPack, prereg: Mapping[str, Any],
         decoy_docs.append({
             "id": d.id, "class": d.decoy_class, "keys": list(dl["keys"]), "sites": list(dl["sites"]),
             "watch_from": dl["watch_from"], "watch_to": dl["watch_to"],
-            "outcomes": [{"seed": s, "channel": name, **decoy_outcome(per_channel[name][s], dl)}
+            "outcomes": [{"seed": s, "channel": name,
+                          **decoy_outcome(per_channel[name][s], dl, per_candidates[name][s])}
                          for s in seeds for name in CHANNELS],
             "quiet_elsewhere": quiet,
             "flags_at_detection": [{"seed": s, "flags": runs[s]["decoys"][i]["flags"]} for s in seeds]})

@@ -69,6 +69,50 @@ class WilsonTests(unittest.TestCase):
                 stats.wilson(k, n)
 
 
+class StratifiedShareTests(unittest.TestCase):
+    """Audit r3 (N1): the event-level share of a sample stratified by code, weighted by each code's volume."""
+
+    def test_the_estimate_variance_and_effective_n(self) -> None:
+        # equal allocation, very unequal weights: the design effect is above 1, so n_eff is below n = 300
+        strata = [(0.99, 8, 150, 29700.0), (0.01, 75, 150, 300.0)]
+        r = stats.stratified_share(strata)
+        share = 0.99 * 8 / 150 + 0.01 * 75 / 150
+        variance = (0.99 ** 2 * (1 - 150 / 29700) * (8 / 150) * (142 / 150) / 149
+                    + 0.01 ** 2 * (1 - 150 / 300) * 0.5 * 0.5 / 149)
+        self.assertAlmostEqual(r["share"], share, delta=1e-15)
+        self.assertAlmostEqual(r["variance"], variance, delta=1e-15)
+        self.assertAlmostEqual(r["n_eff"], share * (1 - share) / variance, delta=1e-9)
+        self.assertLess(r["n_eff"], 300)
+        z = stats.Z95
+        n_eff = r["n_eff"]
+        center = (share + z * z / (2 * n_eff)) / (1 + z * z / n_eff)
+        half = z * math.sqrt(share * (1 - share) / n_eff + z * z / (4 * n_eff * n_eff)) / (1 + z * z / n_eff)
+        self.assertAlmostEqual(r["ci_low"], center - half, delta=1e-12)
+        self.assertAlmostEqual(r["ci_high"], center + half, delta=1e-12)
+        self.assertEqual((r["n"], r["method"]), (300, "stratified wilson (effective n)"))
+
+    def test_a_census_is_wilson_at_n_and_n_eff_never_exceeds_n(self) -> None:
+        r = stats.stratified_share([(0.5, 60, 150, 150), (0.5, 0, 150, 150)])
+        self.assertEqual((r["share"], r["variance"], r["n_eff"]), (0.2, 0.0, 300.0))
+        lo, hi = stats.wilson(60, 300)
+        self.assertAlmostEqual(r["ci_low"], lo, delta=1e-12)
+        self.assertAlmostEqual(r["ci_high"], hi, delta=1e-12)
+        # one stratum from a large population: variance p(1-p)/(n-1), so n_eff is n - 1, never above n
+        one = stats.stratified_share([(1.0, 30, 100, 1e12)])
+        self.assertAlmostEqual(one["n_eff"], 99.0, delta=1e-6)
+        self.assertLessEqual(stats.wilson(30, 100)[1] - stats.wilson(30, 100)[0], one["ci_high"] - one["ci_low"])
+        for k in (0, 100):
+            edge = stats.stratified_share([(1.0, k, 100, 500)])
+            self.assertEqual((edge["n_eff"], edge["ci_low"] if k == 0 else edge["ci_high"]), (100.0, k / 100))
+
+    def test_input_validation(self) -> None:
+        for strata in ([], [(1.0, 1, 2)], [(0.5, 1, 2, 10)], [(1.0, 3, 2, 10)], [(1.0, 1, 0, 10)],
+                       [(1.0, 1, 5, 4)], [(-0.5, 1, 2, 10), (1.5, 1, 2, 10)], [(1.0, True, 2, 10)],
+                       [(float("nan"), 1, 2, 10)], "abc"):
+            with self.subTest(strata=strata), self.assertRaises(ValueError):
+                stats.stratified_share(strata)
+
+
 def _minlike(k: int, n: int) -> float:
     """Two-sided binomial p-value, 'minlike' method, p = 0.5: sum of pmf over outcomes no likelier than k."""
     pmf = [math.comb(n, i) / 2 ** n for i in range(n + 1)]
@@ -159,6 +203,39 @@ class F1Tests(unittest.TestCase):
         self.assertEqual((r["f1"], r["ci_low"], r["ci_high"]), (1.0, 1.0, 1.0))
         empty = stats.bootstrap_f1([(0, 0, 0), (0, 0, 0)], B=50, seed=3)
         self.assertEqual((empty["f1"], empty["ci_low"], empty["ci_high"], empty["undefined"]), (None, None, None, 50))
+
+    def test_paired_bootstrap_f1_scores_both_sides_on_one_draw(self) -> None:
+        # audit r3 (E1): the paired difference of two pooled (micro) F1s, resampled by record
+        a = [(1, 0, 0), (0, 1, 1), (2, 0, 1), (3, 1, 0), (1, 1, 1), (0, 0, 2)]
+        b = [(1, 0, 0), (1, 0, 0), (3, 0, 0), (3, 0, 1), (2, 0, 0), (1, 0, 1)]
+        r = stats.paired_bootstrap_f1(a, b, B=400, seed="e1:7:x")
+        self.assertEqual(r, stats.paired_bootstrap_f1(a, b, B=400, seed="e1:7:x"))
+        fa, fb = stats.f1_from_counts(7, 3, 5), stats.f1_from_counts(11, 0, 2)
+        self.assertEqual((r["n"], r["f1_a"], r["f1_b"], r["diff"]), (6, fa, fb, fa - fb))
+        self.assertEqual((r["B"], r["seed"], r["method"], r["undefined"]), (400, "e1:7:x", "paired percentile", 0))
+        rng = random.Random("e1:7:x")
+        reps = []
+        for _ in range(400):
+            picks = [rng.randrange(6) for _ in range(6)]
+            reps.append(stats.f1_from_counts(*(sum(a[j][i] for j in picks) for i in range(3)))
+                        - stats.f1_from_counts(*(sum(b[j][i] for j in picks) for i in range(3))))
+        self.assertEqual((r["ci_low"], r["ci_high"]), (stats.percentile(reps, 2.5), stats.percentile(reps, 97.5)))
+        # records with no counts on either side change neither F1 (unlike a per-record mean, where each adds 0)
+        padded = stats.paired_bootstrap_f1(a + [(0, 0, 0)] * 30, b + [(0, 0, 0)] * 30, B=400, seed="e1:7:x")
+        self.assertEqual((padded["f1_a"], padded["f1_b"], padded["diff"]), (fa, fb, fa - fb))
+
+    def test_paired_bootstrap_f1_undefined_and_input_validation(self) -> None:
+        r = stats.paired_bootstrap_f1([(0, 0, 0)] * 9 + [(1, 0, 0)], [(0, 0, 0)] * 9 + [(1, 0, 0)], B=300, seed=3)
+        self.assertGreater(r["undefined"], 0)
+        self.assertEqual((r["diff"], r["ci_low"], r["ci_high"]), (0.0, 0.0, 0.0))
+        empty = stats.paired_bootstrap_f1([(0, 0, 0)], [(1, 0, 0)], B=20, seed=3)
+        self.assertEqual((empty["f1_a"], empty["diff"], empty["ci_low"], empty["undefined"]), (None, None, None, 20))
+        for a, b, kwargs in (([], [], {}), ([(1, 0, 0)], [], {}), ([(1, 0)], [(1, 0)], {}),
+                             ([(1, 0, -1)], [(1, 0, 0)], {}), ([(1, 0, 0)], [(1, 0, 0.5)], {}),
+                             ([(1, 0, 0)], [(1, 0, 0)], {"B": 0}), ([(1, 0, 0)], [(1, 0, 0)], {"alpha": 1}),
+                             ([(1, 0, 0)], [(1, 0, 0)], {"seed": True})):
+            with self.subTest(a=a, b=b, kwargs=kwargs), self.assertRaises(ValueError):
+                stats.paired_bootstrap_f1(a, b, **{"B": 10, "seed": 1, **kwargs})
 
     def test_bootstrap_f1_input_validation(self) -> None:
         for counts, kwargs in (([], {}), ([(1, 0)], {}), ([(1, 0, -1)], {}), ([(1, 0, 0.5)], {}), (["abc"], {}),

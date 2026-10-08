@@ -70,6 +70,8 @@ SINGLE_LATER = ("One plant alone also caught this failure mode, running the same
 R_RELATED = "The restricted central baseline flagged a related key:"
 S_RELATED = "The codes-only baseline flagged a related key:"
 BY_CONSTRUCTION = "By construction, S and R cannot see this key:"
+DECOY_NOT_CHECKED_YET = " · not checked with the sites yet: the check comes next"
+DECOY_NOT_ALERTED = " · not checked with the sites: X did not alert it"
 THIS_MODE = "This failure mode: "
 OTHER_KEY = " · first other key of this case it flagged: "
 NO_OTHER_KEY = " · it flagged no other key of this case"
@@ -401,8 +403,12 @@ def _alert(b: _Builder, sc: Mapping[str, Any]) -> None:
         if decoy["verified"]:
             parts += [b.text(" · after checking with the sites: "),
                       b.item(f"decoy_{j}_status", "alert", "Gate status of the decoy", base + "/status", "text")]
+        elif decoy["x_alerted"]:
+            # live, before "Check with sites" runs (the check verifies every decoy X alerted); audit r3: this read
+            # "X did not alert it" next to "X alerted: yes"
+            parts.append(b.text(DECOY_NOT_CHECKED_YET))
         else:
-            parts.append(b.text(" · not checked with the sites: X did not alert it"))
+            parts.append(b.text(DECOY_NOT_ALERTED))
         b.block(f"alert-decoy-{j}", "alert", "note", parts, group="decoys")
 
 

@@ -868,6 +868,28 @@ class HonestyTests(unittest.TestCase):
     def committed(self) -> dict[str, Any]:
         return {k: v for k, v in load(committed_dir()).items() if k in runfiles.PRIMARY_FILES}
 
+    def test_an_alerted_decoy_before_the_check_is_not_said_to_be_unalerted(self) -> None:
+        # regression (audit r3): live, the alert beat is shown before "Check with sites" runs, when no decoy is
+        # verified yet, and an alerted decoy read "X alerted: yes · not checked with the sites: X did not alert it"
+        live = self.committed()
+        for decoy in live["scorecard.json"]["decoys"]:
+            decoy.update(verified=False, status=None, reason=None if decoy["x_alerted"] else "not_alerted")
+        recorded = scr.build_screen(self.committed(), mode="record", phase="complete")
+        for name, screen in (("live", scr.build_screen(live, mode="live", phase="ready")), ("recorded", recorded)):
+            decoys = [b for b in screen["blocks"] if b["group"] == "decoys"]
+            for decoy, block in zip(live["scorecard.json"]["decoys"], decoys):
+                with self.subTest(screen=name, decoy=decoy["id"]):
+                    text = "".join(p["text"] or "" for p in block["parts"])
+                    if decoy["x_alerted"]:
+                        self.assertNotIn("X did not alert it", text)
+                        self.assertIn(scr.DECOY_NOT_CHECKED_YET if name == "live" else "after checking with the "
+                                      "sites", text)
+                    else:
+                        self.assertIn(scr.DECOY_NOT_ALERTED, text)
+            self.assertEqual(len(decoys), len(live["scorecard.json"]["decoys"]))
+        self.assertTrue(any(d["x_alerted"] for d in live["scorecard.json"]["decoys"]))
+        self.assertTrue(any(not d["x_alerted"] for d in live["scorecard.json"]["decoys"]))
+
     def test_screen_sentences_follow_flags(self) -> None:
         base = self.committed()
         for r_caught in (False, True):
@@ -1327,7 +1349,17 @@ class ExportReplayTests(unittest.TestCase):
         self.assertEqual(post_control(port, {"action": "next"})[0], 200)
         wait_until(at("alert"), what="the alert beat")
         self.assertEqual(post_control(port, {"action": "next"})[0], 200)
-        wait_until(at("check"), what="the check beat")
+        s = wait_until(at("check"), what="the check beat")
+        # audit r3: the alert beat, given live before the check, never says an alerted decoy was not alerted
+        items = {i["id"]: i for i in s["items"]}
+        decoys = [b for b in s["blocks"] if b["group"] == "decoys"]
+        self.assertTrue(decoys)
+        for block in decoys:
+            alerted = next(items[p["item"]]["display"] for p in block["parts"]
+                           if p["item"] and p["item"].endswith("_alerted"))
+            text = "".join(p["text"] or "" for p in block["parts"])
+            self.assertEqual(scr.DECOY_NOT_CHECKED_YET in text, alerted == "yes", text)
+            self.assertEqual(scr.DECOY_NOT_ALERTED in text, alerted == "no", text)
         self.assertEqual(post_control(port, {"action": "check"})[0], 200)
         wait_until(at("check", lambda s: any(c["action"] == "next" and c["enabled"] for c in s["controls"])),
                    what="the check to finish")

@@ -22,6 +22,7 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest import mock
+from fractions import Fraction
 from urllib.parse import parse_qs, urlsplit
 
 from mycelic.collective import jsonio, stats
@@ -616,6 +617,12 @@ class N1Tests(TempCase):
         self.assertEqual(s1["exclusions"]["BBB"]["duplicate"], 2)
         self.assertEqual((s1["data_label"], s1["measurement"]), ("synthetic", False))
         self.assertEqual(s1["truncated_codes"], [])
+        # audit r3: each code's volume, from which score weights it (113 AAA records: 111 eligible; BBB's 2
+        # duplicates count as fetched but not eligible)
+        self.assertEqual(s1["strata"], {
+            "AAA": {"total": 113, "fetched": 113, "eligible": 111, "sampled": 100, "basis": "counted"},
+            "BBB": {"total": 112, "fetched": 112, "eligible": 110, "sampled": 100, "basis": "counted"},
+            "CCC": {"total": 40, "fetched": 40, "eligible": 40, "sampled": 40, "basis": "counted"}})
         for key in ("code_commit", "code_dirty", "code_hash", "cache_manifest_sha256"):
             self.assertIn(key, s1)
 
@@ -690,12 +697,17 @@ class N1Tests(TempCase):
     def score(self, sheet: Path, sample: Path, out: Path) -> tuple[int, str, str]:
         return run_cli(n1_narratives.main, ["score", "--sheet", str(sheet), "--sample", str(sample), "--out", str(out)])
 
-    def test_score_bars_and_wilson_interval(self) -> None:
+    def test_score_bars_and_the_stratified_interval(self) -> None:
         code, d, err = self.sample("full", "--n", "300", codes="AAA,BBB,DDD")
         self.assertEqual(code, 0, err)
-        n = jsonio.load_json_file(d / "sample.json")["n_sampled"]
+        sample = jsonio.load_json_file(d / "sample.json")
+        n = sample["n_sampled"]
         self.assertEqual(n, 300)
-        for k, verdict in ((60, "supports"), (29, "expect_S_matches_X"), (45, "ambiguous")):
+        volumes = {c: sample["strata"][c]["eligible"] for c in ("AAA", "BBB", "DDD")}
+        self.assertEqual(volumes, {"AAA": 111, "BBB": 110, "DDD": 110})
+        weights = {c: Fraction(v, sum(volumes.values())) for c, v in volumes.items()}
+        code_of = {r["row"]: r["product_code"] for r in sample["rows"]}
+        for k, verdict in ((90, "supports"), (20, "expect_S_matches_X"), (45, "ambiguous")):
             with self.subTest(k=k):
                 labels = {row: {"lot_not_in_codes": "TRUE"} for row in range(1, k + 1)}
                 sheet = self.labelled(d, labels, default="No", bom=True)
@@ -703,39 +715,124 @@ class N1Tests(TempCase):
                 code, stdout, err = self.score(sheet, d / "sample.json", out)
                 self.assertEqual(code, 0, err)
                 gain = jsonio.load_json_file(out)
+                hits = {c: sum(1 for row in range(1, k + 1) if code_of[row] == c) for c in volumes}
+                exact = sum(weights[c] * Fraction(hits[c], 100) for c in volumes)
                 self.assertEqual((gain["n"], gain["any_true"], gain["verdict"]), (n, k, verdict))
-                self.assertAlmostEqual(gain["share"], k / n, places=12)
-                if k == 60:
-                    self.assertEqual(gain["share"], 0.2)
-                lo, hi = stats.wilson(k, n)
-                self.assertAlmostEqual(gain["ci95"][0], lo, delta=1e-9)
-                self.assertAlmostEqual(gain["ci95"][1], hi, delta=1e-9)
+                self.assertEqual(gain["share"], float(exact))
+                est = stats.stratified_share([(float(weights[c]), hits[c], 100, float(volumes[c]))
+                                              for c in sorted(volumes)])
+                self.assertEqual((gain["ci95"], gain["n_eff"]), ([est["ci_low"], est["ci_high"]], est["n_eff"]))
+                self.assertLessEqual(gain["ci95"][0], gain["share"])
+                self.assertGreaterEqual(gain["ci95"][1], gain["share"])
+                self.assertEqual(gain["unweighted_sample"]["share"], k / n)
                 self.assertEqual(gain["per_column"]["lot_not_in_codes"]["k"], k)
+                self.assertEqual(gain["per_column"]["lot_not_in_codes"]["share"], gain["share"])
                 self.assertEqual(gain["per_column"]["component_not_in_codes"]["k"], 0)
                 self.assertEqual(sum(v["n"] for v in gain["per_product_code"].values()), n)
+                self.assertEqual({c: v["weight"] for c, v in gain["per_product_code"].items()},
+                                 {c: float(w) for c, w in weights.items()})
                 self.assertEqual(gain["caveat"], "MAUDE holds reportable events, not internal complaints.")
                 self.assertEqual(gain["bars"], {"supports_at_or_above": 0.2, "expect_S_matches_X_below": 0.1})
                 self.assertEqual((gain["data_label"], gain["measurement"], gain["ci_method"]),
-                                 ("synthetic", False, "wilson"))
+                                 ("synthetic", False, "stratified_wilson_effective_n"))
+                self.assertIn("event-level", gain["estimand"])
                 for key in ("code_commit", "code_dirty", "code_hash", "sample_sha256", "sheet_sha256"):
                     self.assertIn(key, gain)
 
     def test_verdict_bars_at_300(self) -> None:
-        self.assertEqual(n1_narratives.verdict(60, 300), "supports")
-        self.assertEqual(n1_narratives.verdict(59, 300), "ambiguous")
-        self.assertEqual(n1_narratives.verdict(29, 300), "expect_S_matches_X")
-        self.assertEqual(n1_narratives.verdict(30, 300), "ambiguous")
-        self.assertEqual(n1_narratives.verdict(45, 300), "ambiguous")
+        self.assertEqual(n1_narratives.verdict(Fraction(60, 300)), "supports")
+        self.assertEqual(n1_narratives.verdict(Fraction(59, 300)), "ambiguous")
+        self.assertEqual(n1_narratives.verdict(Fraction(29, 300)), "expect_S_matches_X")
+        self.assertEqual(n1_narratives.verdict(Fraction(30, 300)), "ambiguous")
+        self.assertEqual(n1_narratives.verdict(Fraction(45, 300)), "ambiguous")
+        # two codes of equal volume, each sampled whole (a census: no sampling variance), so the stratified
+        # interval is Wilson's at n
+        stratum = {"total": 150, "fetched": 150, "eligible": 150}
         sample = {"rows": [{"mdr_report_key": str(i), "product_code": "AAA" if i < 150 else "BBB"}
-                           for i in range(300)]}
+                           for i in range(300)], "strata": {"AAA": stratum, "BBB": stratum}}
         rows = [{"mdr_report_key": str(i), **{c: ("y" if i < 60 and c == "component_not_in_codes" else "n")
                                               for c in n1_narratives.LABEL_COLUMNS}} for i in range(300)]
         result = n1_narratives.score(rows, sample)
-        self.assertEqual((result["share"], result["verdict"]), (0.2, "supports"))
+        self.assertEqual((result["share"], result["verdict"], result["n_eff"]), (0.2, "supports", 300.0))
         lo, hi = stats.wilson(60, 300)
-        self.assertAlmostEqual(result["ci95"][0], lo, delta=1e-9)
-        self.assertAlmostEqual(result["ci95"][1], hi, delta=1e-9)
+        self.assertAlmostEqual(result["ci95"][0], lo, delta=1e-12)
+        self.assertAlmostEqual(result["ci95"][1], hi, delta=1e-12)
         self.assertEqual(result["per_product_code"]["AAA"]["k"], 60)
+
+    def test_the_headline_share_is_event_level_not_an_equal_weight_mix_of_codes(self) -> None:
+        # audit r3, the finder's case: AAA has 9000 eligible events and a low narrative gain, BBB 300 and a high
+        # one; 150 of each are sampled. Pooled, the sample says 83 / 300 (supports); per event it is far lower
+        sample = {"rows": [{"mdr_report_key": str(i), "product_code": "AAA" if i < 150 else "BBB"}
+                           for i in range(300)],
+                  "strata": {"AAA": {"total": 9000, "fetched": 9000, "eligible": 9000},
+                             "BBB": {"total": 300, "fetched": 300, "eligible": 300}}}
+        hits = set(range(8)) | set(range(150, 225))
+        rows = [{"mdr_report_key": str(i), **{c: ("true" if i in hits and c == "failure_mode_not_in_codes" else
+                                                  "false") for c in n1_narratives.LABEL_COLUMNS}}
+                for i in range(300)]
+        result = n1_narratives.score(rows, sample)
+        exact = Fraction(9000, 9300) * Fraction(8, 150) + Fraction(300, 9300) * Fraction(75, 150)
+        self.assertEqual((result["share"], result["verdict"]), (float(exact), "expect_S_matches_X"))
+        self.assertLess(result["ci95"][1], 0.2)
+        self.assertEqual((result["unweighted_sample"]["k"], result["unweighted_sample"]["n"]), (83, 300))
+        self.assertEqual(n1_narratives.verdict(Fraction(83, 300)), "supports")       # what the pooled share said
+        self.assertEqual({c: v["weight"] for c, v in result["per_product_code"].items()},
+                         {"AAA": 9000 / 9300, "BBB": 300 / 9300})
+
+    def test_weights_follow_volume_end_to_end_and_a_truncated_code_is_extrapolated(self) -> None:
+        code, d, err = self.sample("flip", "--n", "300", "--seed", "4")
+        self.assertEqual(code, 0, err)
+        sample = jsonio.load_json_file(d / "sample.json")
+        self.assertEqual(sample["allocation"], {"AAA": 100, "BBB": 100, "CCC": 40})
+        # every CCC narrative and ten AAA ones carry a gain: 50 of 240 sampled (supports, pooled), but CCC is 40 of
+        # the 261 eligible events, so per event the share is (111/261)(10/100) + (40/261)(1)
+        aaa = [r["row"] for r in sample["rows"] if r["product_code"] == "AAA"][:10]
+        ccc = [r["row"] for r in sample["rows"] if r["product_code"] == "CCC"]
+        sheet = self.labelled(d, {row: {"use_condition_not_in_codes": "true"} for row in aaa + ccc})
+        out = self.dir / "gain-flip.json"
+        code, stdout, err = self.score(sheet, d / "sample.json", out)
+        self.assertEqual(code, 0, err)
+        gain = jsonio.load_json_file(out)
+        exact = Fraction(111, 261) * Fraction(10, 100) + Fraction(40, 261)
+        self.assertEqual((gain["share"], gain["verdict"]), (float(exact), "ambiguous"))
+        self.assertEqual((gain["unweighted_sample"]["share"], n1_narratives.verdict(Fraction(50, 240))),
+                         (50 / 240, "supports"))
+        self.assertIn("event-level share", stdout)
+        # a cache truncated at 60 records per code: AAA's weight is extrapolated from its fetched records
+        with OpenFDAStub(n1_records()) as stub:
+            openfda.fetch("event", ["AAA", "BBB", "CCC"], "20240101", "20240331", self.dir / "cut", max_records=60,
+                          base_url=stub.base_url, sleep=lambda s: None, environ={})
+        code, _, err = run_cli(n1_narratives.main, ["sample", "--cache", str(self.dir / "cut"), "--product-codes",
+                                                    "AAA,BBB,CCC", "--run-id", "cut", "--runs-dir",
+                                                    str(self.dir / "runs")])
+        self.assertEqual(code, 0, err)
+        strata = jsonio.load_json_file(self.dir / "runs" / "n1" / "cut" / "sample.json")["strata"]
+        self.assertEqual(strata["AAA"], {"total": 113, "fetched": 60, "eligible": 60, "sampled": 60,
+                                         "basis": "extrapolated"})
+        self.assertEqual(n1_narratives.eligible_estimate(strata["AAA"]), Fraction(113))
+        self.assertEqual(n1_narratives.eligible_estimate({"total": 1000, "fetched": 50, "eligible": 40}),
+                         Fraction(800))
+        self.assertEqual(n1_narratives.eligible_estimate({"total": 0, "fetched": 0, "eligible": 0}), Fraction(0))
+
+    def test_a_sample_without_strata_and_too_small_an_n_are_refused(self) -> None:
+        code, d, err = self.sample("old", "--n", "30")
+        self.assertEqual(code, 0, err)
+        old = jsonio.load_json_file(d / "sample.json")
+        del old["strata"]
+        (self.dir / "old-sample.json").write_text(json.dumps(old), encoding="utf-8")
+        code, _, err = self.score(self.labelled(d, {}), self.dir / "old-sample.json", self.dir / "o-old.json")
+        self.assertEqual(code, 2)
+        self.assertIn("no strata", err)
+        for strata in ({**jsonio.load_json_file(d / "sample.json")["strata"], "ZZZ": {"total": 1}},
+                       {"AAA": {"total": 5, "fetched": 9, "eligible": 1}}):
+            (self.dir / "bad-strata.json").write_text(json.dumps({**old, "strata": strata}), encoding="utf-8")
+            code, _, err = self.score(self.labelled(d, {}), self.dir / "bad-strata.json", self.dir / "o-bad.json")
+            self.assertEqual(code, 2)
+            self.assertIn("strata are not n1 strata", err)
+        code, d, err = self.sample("tiny", "--n", "2")
+        self.assertEqual(code, 2)
+        self.assertIn("at least the number of product codes", err)
+        self.assertFalse(d.exists())
 
     def test_unlabelled_rows_and_key_mismatch_exit_2(self) -> None:
         code, d, err = self.sample("lab", "--n", "30")

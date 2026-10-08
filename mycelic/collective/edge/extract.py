@@ -68,8 +68,10 @@ CODES_EXTRACTOR = "codes"
 LEXICAL_EXTRACTOR = "lexical"
 FALLBACK_EXTRACTOR = "fallback"
 # A pass over records (one extraction pass, one question's judging) stops calling the model server after this many
-# consecutive failures of these kinds, each already after the client's own retries: the server is down, and every
-# further record would wait out the same deadline (audit round 2)
+# consecutive failures of these kinds on the call's primary endpoint, each already after the client's own retries:
+# the server is down, and every further record would wait out the same deadline (audit round 2). A failure on the
+# escalation endpoint is not counted: the primary answered (its replies failed validation), so it is up (audit
+# round 3; :func:`server_down`)
 SERVER_DOWN_KINDS = ("timeout", "network", "http_5xx")
 BREAKER_AFTER = 2
 NOT_SENT = "not_sent"
@@ -110,6 +112,7 @@ class ExtractionResult:
     truncated: bool
     error_kind: str | None
     language_supported: bool
+    server_down: bool = False            # the call's primary endpoint failed as down (:func:`server_down`)
 
 
 @dataclass(frozen=True)
@@ -403,6 +406,19 @@ def truncate(text: str, cap: int) -> tuple[str, bool]:
     return text[:cap], True
 
 
+def server_down(err: InferenceError, runtime: "Runtime", task: str, endpoint: str | None = None) -> bool:
+    """The failure says the server first asked is down: a :data:`SERVER_DOWN_KINDS` kind on the call's primary
+    endpoint (``endpoint`` when given, else the task's route). ``err.kind`` is the last attempt's, and the runtime
+    escalates only after the primary's replies failed validation twice, so a timeout, network error or 5xx on the
+    escalation endpoint means the primary is up and is not counted (audit round 3)."""
+    if err.kind not in SERVER_DOWN_KINDS:
+        return False
+    if endpoint is None:
+        route = runtime.config.routes.get(task)
+        endpoint = route.endpoint if route is not None else None
+    return err.endpoint == endpoint
+
+
 def model_payload(record: Mapping[str, Any], pack: "FrozenPack") -> tuple[dict[str, Any], bool]:
     text, truncated = truncate(record["narrative"], pack.extraction.max_input_chars)
     return {"language": record["language"], "text": text}, truncated
@@ -431,17 +447,20 @@ class ModelExtractor:
         _, supported = self.lexical.analyser.languages(record["language"])
         scan = self.canonicaliser.scan(payload["text"])
         reply = kind = None
+        down = False
         try:
             reply = self.runtime.run(self.task, payload, self.schema, ref=ref, endpoint=self.endpoint)
         except InferenceBoundaryError:
             raise
         except InferenceError as err:
             kind = err.kind
+            down = server_down(err, self.runtime, TASK_NAME, self.endpoint)
         if reply is None:
             if self.fallback:
-                return replace(self.lexical.extract(record, codes), extractor=FALLBACK_EXTRACTOR, error_kind=kind)
-            return _Claims().result(self.name, scan.unresolved, truncated=truncated, error_kind=kind,
-                                    language_supported=supported)
+                return replace(self.lexical.extract(record, codes), extractor=FALLBACK_EXTRACTOR, error_kind=kind,
+                               server_down=down)
+            return replace(_Claims().result(self.name, scan.unresolved, truncated=truncated, error_kind=kind,
+                                            language_supported=supported), server_down=down)
         return self.postprocess(reply["claims"], record, codes, payload["text"], scan, truncated=truncated,
                                 language_supported=supported)
 

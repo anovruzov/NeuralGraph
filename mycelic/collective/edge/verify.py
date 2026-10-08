@@ -35,8 +35,10 @@ threads; the orchestrator calls ``answer`` on worker threads):
    raises :class:`~..inference.errors.InferenceBoundaryError` before any call, and nothing is stored or sent. The
    judging stops early (audit round 2): as soon as failures are more than half the records (the verdict is then
    ``degraded`` whatever the rest say), and after :data:`~.extract.BREAKER_AFTER` consecutive failures that say the
-   server is down (timeout, network, 5xx, after the client's retries), when the records not yet judged count as
-   failures; so a dead server costs a question at most that many deadlines, not one per record under the lock;
+   route's primary server is down (timeout, network, 5xx, after the client's retries; a failure on the escalation
+   endpoint after the primary answered is not one, :func:`~.extract.server_down`), when the records not yet judged
+   count as failures; so a dead server costs a question at most that many deadlines, not one per record under the
+   lock;
 8. the verdict: no record retrieved, ``unknown`` (``no_records``); failures on more than half, ``unknown`` with
    quality ``degraded``, which reflects the model server's health rather than the records, so it is sent but not
    stored (its question_log row is ``degraded``, which uses no budget) and the next ask re-judges; any yes/yes,
@@ -71,7 +73,7 @@ from ..inference.tasks import TaskSpec
 from ..jsonio import canonical_bytes, sha256_hex, strict_load
 from ..packs.canonical import Canonicaliser, folded
 from .egress import EVIDENCE_REF_RE, SCHEMA_VERSION, bucket_of, verdict_id_of
-from .extract import BREAKER_AFTER, SERVER_DOWN_KINDS, LexicalExtractor, codes_channel, pair, person_values, truncate
+from .extract import BREAKER_AFTER, LexicalExtractor, codes_channel, pair, person_values, server_down, truncate
 from .records import QuestionLogRow, RecordStore, VerdictRow, WindowRecord, exempt_records_problem
 from .site import in_master_data
 from .weeks import TS_RE, local_date
@@ -369,16 +371,17 @@ class SiteVerifier:
             if down >= BREAKER_AFTER:                # the server is down: the rest are not sent
                 failures += len(records) - i
                 break
-            reply = kind = None
+            reply = None
+            down_now = False
             try:
                 reply = self.runtime.run(self._task, payload, self._schema, ref=f"j:{prefix}:{i}")
             except InferenceBoundaryError:
                 raise
             except InferenceError as err:
-                kind = err.kind
+                down_now = server_down(err, self.runtime, JUDGE_TASK)
             if reply is None:
                 failures += 1
-                down = down + 1 if kind in SERVER_DOWN_KINDS else 0
+                down = down + 1 if down_now else 0
             else:
                 judged.append((rec, reply))
                 down = 0

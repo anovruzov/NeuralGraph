@@ -10,13 +10,15 @@ drafter. :class:`DraftWriter` asks a ``central`` runtime for the task :data:`DRA
 the runtime validates the reply against the type's ``draft_schema``, with one repair) or, without a runtime, fills
 :func:`template_draft` (deterministic; also the fake provider's handler) and checks it against the schema. Either
 way the draft must then pass :func:`draft_scope_problem`: no exact or variant mention of an id of a type with an id
-format outside the conclusion's scope ids and the packets' co-mentions, and no unresolved lookalike (a homoglyph, a
-non-ASCII digit, a separator form of an id that the canonicaliser recognises but cannot resolve). Alias mentions are
-ignored: alias-only types are closed pack vocabularies whose aliases are ordinary words, so a predicate label may read
-as an alias (D8). The scan sees only the forms the canonicaliser recognises for each id format: an id restated with a
-separator its format does not have, or without the one it has, is not seen (LEAKAGE section 10 lists the forms; the
-second G7 ``NOT_COVERED`` item covers the residual). A failure is a reason from :data:`DRAFT_FAILURE_REASONS` and no
-draft; nothing retries here.
+format outside the conclusion's scope ids and the packets' co-mentions, whether written as the id or as one of its
+aliases (a product, supplier, repair shop or clinic named by its name), and no unresolved lookalike (a homoglyph, a
+non-ASCII digit, a separator form of an id that the canonicaliser recognises but cannot resolve). Mentions of
+alias-only types are ignored: those are closed pack vocabularies whose aliases are ordinary words, so a predicate
+label may read as an alias (D8). The aliases of a type with an id format are proper names, so they are checked like
+the id (audit round 3). The scan sees only the forms the canonicaliser recognises for each id format: an id restated
+with a separator its format does not have, or without the one it has, is not seen, nor is a name that is not in the
+pack's alias table (LEAKAGE section 10 lists the forms; the second G7 ``NOT_COVERED`` item covers the residual). A
+failure is a reason from :data:`DRAFT_FAILURE_REASONS` and no draft; nothing retries here.
 
 This is the only follow-up module that imports inference (``tasks`` and ``errors``; the runtime only for type
 checking). Deterministic: no clock, no randomness, every iteration sorted.
@@ -133,8 +135,9 @@ def _strings(value: Any, path: str, out: list[tuple[str, str]]) -> None:
 
 
 def draft_scope_problem(pack: "FrozenPack", scope: Iterable[tuple[str, str]], draft: Any) -> str | None:
-    """The JSON path of the first string that names an id (exact or variant) of a type with an id format outside
-    ``scope``, or holds an unresolved lookalike; None when the draft names only ids in scope (D8)."""
+    """The JSON path of the first string that names an id of a type with an id format outside ``scope`` (exact,
+    variant or by one of its aliases), or holds an unresolved lookalike; None when the draft names only ids in scope
+    (D8)."""
     known: dict[str, set[str]] = {}
     for entity_type, entity_id in sorted(scope):
         et = pack.entity_types.get(entity_type)
@@ -149,7 +152,7 @@ def draft_scope_problem(pack: "FrozenPack", scope: Iterable[tuple[str, str]], dr
         if any(scanned.unresolved.values()):
             return path
         for m in scanned.mentions:
-            if pack.entity_types[m.entity_type].id_format is None or m.method == "alias":
+            if pack.entity_types[m.entity_type].id_format is None:
                 continue
             if (m.entity_type, m.entity_id) not in allowed:
                 return path

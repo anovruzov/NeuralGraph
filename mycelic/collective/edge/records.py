@@ -113,17 +113,23 @@ _INSERT_RECORD = (
     "forwarded_in, synthetic) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 _INSERT_LATE = ("INSERT INTO late_records (record_ref, received_week, count_week, watermark, ingested_at) "
                 "VALUES (?, ?, ?, ?, ?)")
+# a record still to extract: no extraction yet, or (with a redo kind) a stand-in extraction of that error kind while
+# its count week is after the cells watermark (the last three parameters: redo kind, watermark, watermark)
 _UNEXTRACTED = (
     "SELECT r.seq, r.record_ref, r.received_date, r.language, r.codes, r.structured, r.narrative, r.person, "
     "r.reporter_id, r.origin_ref, r.origin_site, r.synthetic FROM records r "
-    "LEFT JOIN extraction_stats s ON s.record_ref = r.record_ref WHERE s.record_ref IS NULL "
-    "ORDER BY r.seq LIMIT ?")
+    "LEFT JOIN extraction_stats s ON s.record_ref = r.record_ref WHERE r.seq > ? AND (s.record_ref IS NULL "
+    "OR (s.error_kind = ? AND (? IS NULL OR r.count_week > ?))) ORDER BY r.seq LIMIT ?")
 _PENDING_THROUGH = (
     "SELECT r.seq FROM records r LEFT JOIN extraction_stats s ON s.record_ref = r.record_ref "
     "WHERE s.record_ref IS NULL AND r.count_week <= ? ORDER BY r.seq")
 _PENDING_NON_SYNTHETIC = (
     "SELECT r.seq FROM records r LEFT JOIN extraction_stats s ON s.record_ref = r.record_ref "
-    "WHERE s.record_ref IS NULL AND r.synthetic = 0 ORDER BY r.seq")
+    "WHERE r.synthetic = 0 AND (s.record_ref IS NULL OR (s.error_kind = ? AND (? IS NULL OR r.count_week > ?))) "
+    "ORDER BY r.seq")
+_STATS_KIND = "SELECT error_kind FROM extraction_stats WHERE record_ref = ? ORDER BY record_ref"
+_DELETE_CLAIMS = "DELETE FROM claims WHERE record_ref = ?"
+_DELETE_STATS = "DELETE FROM extraction_stats WHERE record_ref = ?"
 _INSERT_STATS = (
     "INSERT INTO extraction_stats (record_ref, mode, extractor, error_kind, truncated, language_supported, drops, "
     "unresolved, unknown_codes, structured_unresolved, invalid_claims, extracted_at) "
@@ -390,12 +396,19 @@ class RecordStore:
         return StoreIngest(ingested=ingested, duplicates=duplicates, late=late, forwarded_in=forwarded)
 
     # ------------------------------------------------------------------ extraction
-    def unextracted(self, limit: int) -> list[tuple[int, dict[str, Any]]]:
-        """(seq, record) for records without extraction stats, oldest first; the record has exactly the connector's
-        record keys."""
+    def _watermark(self) -> str | None:
+        last = self.last_emission(CELLS_ARTIFACT)
+        return last.closed_through if last is not None else None
+
+    def unextracted(self, limit: int, *, after_seq: int = 0,
+                    redo_kind: str | None = None) -> list[tuple[int, dict[str, Any]]]:
+        """(seq, record) for records after ``after_seq`` still to extract, oldest first: without extraction stats,
+        or, with ``redo_kind``, whose stored extraction has that error kind and whose count week is after the cells
+        watermark (an emitted week is never revised). The record has exactly the connector's record keys."""
         out = []
+        wm = self._watermark()
         for (seq, ref, received, language, codes, structured, narrative, person, reporter, origin_ref, origin_site,
-             synthetic) in self._conn.execute(_UNEXTRACTED, (limit,)).fetchall():
+             synthetic) in self._conn.execute(_UNEXTRACTED, (after_seq, redo_kind, wm, wm, limit)).fetchall():
             out.append((seq, {
                 "record_ref": ref, "site": self.site_id, "received_date": received, "language": language,
                 "codes": strict_load(codes), "entities": strict_load(structured), "narrative": narrative,
@@ -406,12 +419,25 @@ class RecordStore:
     def pending_through(self, week: str) -> int:
         return len(self._conn.execute(_PENDING_THROUGH, (week,)).fetchall())
 
-    def pending_non_synthetic(self) -> int:
-        return len(self._conn.execute(_PENDING_NON_SYNTHETIC).fetchall())
+    def pending_non_synthetic(self, redo_kind: str | None = None) -> int:
+        """The non-synthetic records :meth:`unextracted` would return."""
+        wm = self._watermark()
+        return len(self._conn.execute(_PENDING_NON_SYNTHETIC, (redo_kind, wm, wm)).fetchall())
 
-    def save_extractions(self, rows: Sequence[ExtractionRow]) -> None:
+    def save_extractions(self, rows: Sequence[ExtractionRow], *, redo_kind: str | None = None) -> int:
+        """Store each record's extraction and return how many replaced one. A record that has one already is refused,
+        unless its stored extraction has error kind ``redo_kind``, which is then replaced (claims and stats) in the
+        same transaction."""
+        replaced = 0
         with self._write() as conn:
             for r in rows:
+                stored = conn.execute(_STATS_KIND, (r.record_ref,)).fetchone()
+                if stored is not None:
+                    if redo_kind is None or stored[0] != redo_kind:
+                        raise StoreError("the record is extracted already") from None
+                    conn.execute(_DELETE_CLAIMS, (r.record_ref,))
+                    conn.execute(_DELETE_STATS, (r.record_ref,))
+                    replaced += 1
                 conn.execute(_INSERT_STATS, (
                     r.record_ref, r.mode, r.extractor, r.error_kind, int(bool(r.truncated)),
                     int(bool(r.language_supported)), canonical_dumps(dict(r.drops)),
@@ -420,6 +446,7 @@ class RecordStore:
                 for c in r.claims:
                     conn.execute(_INSERT_CLAIM, (r.record_ref, c.entity_type, c.entity_id, c.predicate, c.channel,
                                                  c.extractor, c.res_conf))
+        return replaced
 
     # ------------------------------------------------------------------ emission
     def emission_inputs(self, after: str | None, through: str) -> list[InputRow]:

@@ -1158,6 +1158,24 @@ class VerifyTests(WorldCase):
                 self.assertEqual((out["verdict"], out["quality"]), ("unknown", "degraded"))
                 self.assertEqual(len(read_ledger(ledger)), calls)
 
+    def test_a_down_escalation_server_is_not_the_judge_server_being_down(self) -> None:
+        # regression (audit r3): the primary answers (its replies fail validation twice) and only the escalation
+        # endpoint is down. The last attempt's kind, network, tripped the breaker after two records although the
+        # primary was up; now only the degraded rule stops the judging (7 failures > 12 / 2, three attempts each)
+        s = self.loaded(crack_records("s1", 9) + crack_records("s1", 3, start=50))
+        ledger = self.tmp / "escalation.jsonl"
+        provider = FakeProvider()
+        provider.register(JUDGE_TASK, lexical_judge(DQ, s.canonicaliser))
+        runtime = judge_runtime(DQ, "s1", ledger, self.clock, provider=provider, escalate_boundary="site:s1")
+        self.addCleanup(runtime.close)
+        provider.fail_next(JUDGE_TASK, ["json_invalid", "json_invalid", "network"] * 12)
+        out = SiteVerifier(s, runtime=runtime, clock=self.clock, demo_seed=1).answer(_q())
+        self.assertEqual((out["verdict"], out["quality"]), ("unknown", "degraded"))
+        rows = read_ledger(ledger)
+        self.assertEqual(len(rows), 7 * 3)
+        self.assertEqual({(r["endpoint"], r["error_kind"]) for r in rows},
+                         {("site-fake", "json_invalid"), ("other", "network")})
+
     def test_a_judge_outage_is_not_pinned_the_next_ask_re_judges(self) -> None:
         # regression: a degraded answer (the model server down) used to be stored and re-sent on every re-ask
         s = self.loaded(crack_records("s1", 5))

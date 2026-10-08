@@ -762,19 +762,23 @@ values and that adding or editing a plant file changes none of them.
 The construction smokes printed, in this sandbox, quoted only as **synthetic, same-author, not a measurement**:
 `device_quality` (rules removed, seed 11, 6 sites, 52 weeks, evaluation weeks 26 to 51, grace 4): X found 3 of 3
 patterns, S 0 of 3, R (model-free) 0 of 3, U 3 of 3, single_site 3 of 3; the five structural decoys were quiet and
-raised no X alert; the single reporter and high base rate decoys alerted with their flags set; the unmarked copies
-alerted in X. `claims_integrity` (built-in, seed 5): X found 2 of 3 (the rate-2 pattern below k=5 was not found), S 0
-of 3, R (model-free) 0 of 3, U 3 of 3, single_site 3 of 3. The lifts over three patterns and one seed are not
-interpretable (the scorecard warns), and none of these figures may be shown to anyone outside the team. Re-run with
-the review fixes (a no-plant control per seed; single_site counted only at a planted site; "Review fixes" at the end
-of this file), same labels: `device_quality` X 3 of 3 (control 0, net 3), S 0 of 3, R 0 of 3, U 3 of 3 (control 0,
-net 3), single_site 3 of 3 (control 2, chance 0, net 3); `claims_integrity` X 2 of 3 (control 0, net 2), S 0, R 0,
-U 3 of 3 (control 0, net 3), single_site 3 of 3 (control 1, chance 0, net 3). In the world without the plant,
-single_site alerts on two of the device pattern keys and one of the claims pattern keys at a planted site, but
-always strictly later than its planted-world find (device seed 11: planted W31 and W39, control W40 and W41). Those
-were plant-driven finds, not chance finds: the planted world's earlier alert came from the plant, and its cooldown
-hid the later background alert. An earlier version of this paragraph called them chance finds and reported
-single_site net 1 and 2 (audit round 2 corrected the rule; "Audit round 2" at the end of this file).
+raised no X alert (audit round 3: those runs' stale chain ended outside every detection window of its watch span, so it
+could not alert whatever G4's stale filter did, and the one-site classes test `min_sites`, not five different rules; the
+fixtures were re-planted, "Audit round 3" at the end of this file; and a stale chain's alert cannot show a broken stale
+filter at all, because the cooldown after its fresh alert holds it, so X1 now also scores it on candidacy, "Audit round
+3, review follow-up"); the single reporter and high base rate decoys alerted with their flags set; the unmarked copies
+alerted in X. `claims_integrity` (built-in, seed 5): X found 2 of 3 (the rate-2 pattern below k=5 was not found), S 0 of
+3, R (model-free) 0 of 3, U 3 of 3, single_site 3 of 3. The lifts over three patterns and one seed are not interpretable
+(the scorecard warns), and none of these figures may be shown to anyone outside the team. Re-run with the review fixes
+(a no-plant control per seed; single_site counted only at a planted site; "Review fixes" at the end of this file), same
+labels: `device_quality` X 3 of 3 (control 0, net 3), S 0 of 3, R 0 of 3, U 3 of 3 (control 0, net 3), single_site 3 of
+3 (control 2, chance 0, net 3); `claims_integrity` X 2 of 3 (control 0, net 2), S 0, R 0, U 3 of 3 (control 0, net 3),
+single_site 3 of 3 (control 1, chance 0, net 3). In the world without the plant, single_site alerts on two of the device
+pattern keys and one of the claims pattern keys at a planted site, but always strictly later than its planted-world find
+(device seed 11: planted W31 and W39, control W40 and W41). Those were plant-driven finds, not chance finds: the planted
+world's earlier alert came from the plant, and its cooldown hid the later background alert. An earlier version of this
+paragraph called them chance finds and reported single_site net 1 and 2 (audit round 2 corrected the rule; "Audit round
+2" at the end of this file).
 
 ## G6
 
@@ -1915,3 +1919,173 @@ percentiles over the week's calls (the NOT_COVERED item on usage is unchanged), 
 committed demo run and G0 are unchanged: their sites' extraction makes no failed call, so every group was already
 exact with no rows lacking tokens. Re-run here (seed 11, 1,000 records, both packs), G0 passes and HQ's receive logs
 are byte-identical to round 2's.
+
+## Audit round 3 (eight confirmed findings)
+
+**Base.** Branch `mycelic-collective-phase2` at 83bef36 (audit round 2), a clean worktree. Nothing is committed by the
+engineer.
+
+**Scope: fabric files changed: none.** `git diff --stat HEAD -- mycelic/service.py mycelic/store.py
+mycelic/aggregation.py mycelic/transport.py mycelic/api.py mycelic/lineage.py mycelic/config.py deploy SECURITY.md
+DEPLOYMENT.md NeuralGraph research` is empty. Changed: `mycelic/collective/stats.py`, `edge/{extract,records,site,
+verify}.py`, `evaluate/plant.py`, `experiments/{e1_extract,g0_canary,n1_narratives}.py`, `followup/drafts.py`,
+`inference/{client,ledger,routing,runtime}.py`, both packs' `fixtures/plant_smoke.json`, `demo/collective/screen.py`,
+`docs/collective/{ARCHITECTURE,INTEGRATION,LEAKAGE,RUNBOOK}.md`, `docs/collective/examples/README.md` and ten test
+files. No new SQLite table or column: the site store gained queries only.
+
+| # | Finding | Fix | Regression test |
+|---|---|---|---|
+| 1 | `stale_chain` decoys could not fail: `check_plant` (`7 * (eval_from - end) > stale_days`) put every legal claims chain, and the shipped device chain, outside every detection window of the watch span, so window arithmetic and burn-in, not G4's stale filter, kept them quiet; `same_site_duplicates` tests `min_sites` only | A stale chain must be stale at the first evaluation step whatever the run's as_of (`7 * (eval_from - end) + close_lag_days > stale_days`) and wholly inside that step's window (`start >= eval_from - window_weeks + 1`); both fixtures re-planted in that band (device weeks 19 to 21; claims weeks 19 and 20 on `TW-0042`, an id with no background, since every tow-operator series had background after week 21); the watch span drops the dead `max`; ARCHITECTURE 14.2 says which rule keeps each structural class quiet, and that same-site duplicates test `min_sites`, not root collapse; RUNBOOK 11 tells the planner | `PlantSpecTests::test_a_stale_chain_is_stale_at_the_first_evaluation_week_and_inside_its_window` (every placement in weeks 14 to 25, both packs), `test_every_refusal_names_its_path_and_a_fixed_problem` (three stale cases), `PlantedConstructionTests::test_only_the_stale_filter_keeps_the_stale_chain_out_of_its_watch_span` and `ClaimsIntegrityConstructionTests::...` (the same: a candidate while fresh, none in the watch span, and with `detectors._stale` disabled a candidate there) |
+| 2 | E1's non-inferiority was read from the per-record mean field F1 difference, where every claim-free record both sides leave empty adds an exact 0, so a model more than the margin below the reference in field F1 could pass | `paired.<name>.field_f1` is the decision: the micro field F1 of each side over the shared records, their difference and a paired percentile bootstrap over records (`stats.paired_bootstrap_f1`); the per-record mean and the sign test move to `per_record_field_f1`, secondary; NOTES, RUNBOOK 8, ARCHITECTURE 11.4 | `PrimaryMetricVerdictTests::test_a_model_beyond_the_margin_in_field_f1_is_not_non_inferior_however_many_records_are_claim_free` (the finder's 600-record scenario, measured runs written directly; 50% and 0% claim-free), `test_claim_free_records_leave_the_decision_unchanged`, `F1Tests::test_paired_bootstrap_f1_*` (stats) |
+| 3 | N1's headline share pooled an equal-per-code sample unweighted, so low-volume codes dominated the go/no-go verdict | `sample` records each code's `strata` (openFDA total, fetched, eligible; `--n` at least the number of codes); `score` reports the event-level share `sum W_h k_h / n_h` with `W_h` the code's eligible volume (`total * eligible / fetched`, extrapolated when truncated), its interval (`stats.stratified_share`: Wilson at Kish's effective n, finite-population corrected, capped at n), the verdict from that share in exact fractions, and the pooled share as `unweighted_sample`; a sample.json without strata is refused (re-sample: same sheet); RUNBOOK 6 | `N1Tests::test_the_headline_share_is_event_level_not_an_equal_weight_mix_of_codes` (the finder's 9000/300 case), `test_weights_follow_volume_end_to_end_and_a_truncated_code_is_extrapolated` (a flip from supports to ambiguous through the CLI; a cache cut at 60 records), `test_a_sample_without_strata_and_too_small_an_n_are_refused`, `StratifiedShareTests` |
+| 4 | The T1 draft scope scan skipped every alias mention, so a draft or an edit naming an out-of-scope product, supplier, repair shop, clinic or tow operator by name passed while the id was refused | Alias mentions of a type with an id format are checked like the id (their aliases are proper names); alias-only types' ordinary words still pass (D8); ARCHITECTURE D8, LEAKAGE 10 | `PacketDraftTests::test_a_name_of_an_out_of_scope_product_or_business_is_refused_like_its_id` (scan cases in both packs, a model draft refused `out_of_scope_id`, a human edit refused `draft_out_of_scope`, an in-scope alias accepted) |
+| 5 | The extraction breaker turned a 3-second outage, two records slower than the deadline, or a dead escalation server into a permanent lexical downgrade of the whole backlog | Only the route's primary endpoint being down counts (`extract.server_down`; the verifier too); while open the breaker sends one record in the 1st, 3rd, 7th, ... batch after it opened, and an answer closes it; a `not_sent` stand-in counts as extracted but every later model pass sends the record again and replaces it until its count week is emitted (`RecordStore.unextracted` / `save_extractions` / `pending_non_synthetic` with a redo kind; the exemption check counts those records too); `ExtractSummary.resent`; ARCHITECTURE 12.2 and 15.4 | `UsageTests::test_a_short_outage_does_not_downgrade_the_rest_of_the_backlog`, `test_a_dead_server_is_probed_on_a_doubling_schedule`, `test_a_down_escalation_server_does_not_trip_the_breaker`, `test_a_not_sent_record_is_final_once_its_week_is_emitted`, `VerifyTests::test_a_down_escalation_server_is_not_the_judge_server_being_down` |
+| 6 | G0 `--mode routing` reported PASS through a real server when no model call succeeded | `leakage.json` gains `model_path` (extraction records by extractor and error kind, judge attempts, answered and failed by kind, degraded verdicts) and `problems`; with a model, any problem fails the run (exit 1, one `g0: model path: ...` line each); a reply that failed validation is an answer, not a problem; RUNBOOK 9, LEAKAGE 5 and 6 | `G0RunnerTests::test_routing_mode_fails_when_the_models_did_not_answer` (a closed port, and a server whose every reply fails validation; the fake and lexical runs' `model_path`) |
+| 7 | Site-boundary model calls went through the environment's `http_proxy` when the server was addressed by a host name, while the ledger said `boundary_mode: own` | An endpoint uses the environment's proxy only when `Endpoint.uses_env_proxy`: routing key `env_proxy` (boolean, `openai_compat` only), default true only for `external`; `client.endpoint_proxy` decides per endpoint; the ledger row gains `proxy` (28 keys); RUNBOOK 3, ARCHITECTURE 4, examples/README | `ClientTransportTests::test_an_endpoint_inside_a_boundary_never_uses_the_environment_proxy` (a site endpoint dials its own host with the proxy set, the ledger says `proxy: false`; opt-in and opt-out; refused values), `test_public_host_goes_through_the_proxy_in_absolute_form` (now an external endpoint, `proxy: true`) |
+| 8 | Live, the alert beat read "X alerted: yes · not checked with the sites: X did not alert it" for decoys X alerted | An alerted decoy not yet verified reads "not checked with the sites yet: the check comes next" (`screen.DECOY_NOT_CHECKED_YET`); the not-alerted wording is unchanged; the committed recorded screen is unchanged | `HonestyTests::test_an_alerted_decoy_before_the_check_is_not_said_to_be_unalerted`, `ExportReplayTests::test_the_sixty_second_cut_can_be_given_live` (the live alert beat's decoy lines) |
+
+### Earlier tests whose expectation encoded a finding
+
+Changed, never weakened: each now asserts the fixed behaviour.
+
+- `test_collective_evaluate.py`: the refusal "stale chain not stale" planted `start 14, weeks 8` and expected `not
+  stale before the evaluation weeks`; the rule and its two messages changed (finding 1), so the table now has three
+  stale cases, one of them the old fixture's placement. The labels test pinned the old chain's watch span (W26 to
+  W30); it pins the new one (W26 to W32). `test_the_stale_chain_has_no_candidate_in_the_evaluation_weeks`, whose
+  comment claimed "proof the filter, not absence, works" and which passed with the filter disabled, is replaced by
+  `test_only_the_stale_filter_keeps_the_stale_chain_out_of_its_watch_span`, which fails with it disabled.
+- `test_collective_e1.py`: the smoke test pinned the paired entry's keys (`mean_diff`, `ci95`, `sign`, `sign_p` at
+  the top) and the transport test `mean_diff == 0.0`; both now read `field_f1` and `per_record_field_f1` (finding 2).
+- `test_collective_week1.py`: `test_score_bars_and_wilson_interval` asserted the pooled share `k / n` with a plain
+  Wilson interval; renamed `test_score_bars_and_the_stratified_interval`, it asserts the volume-weighted share, the
+  stratified interval and the pooled share beside it. `test_verdict_bars_at_300` calls `verdict` with an exact share
+  and gives its hand-built sample `strata` (finding 3).
+- `test_collective_edge.py`: `test_a_dead_model_server_costs_an_extraction_pass_two_calls` asserted that the next
+  pass sends only the newly ingested record; it now sends the 8 `not_sent` records as well (finding 5).
+- `test_collective_inference.py`: the two proxy-mechanics tests used a `site:a` endpoint, which no longer uses the
+  environment's proxy; they use an `external` one. `LEDGER_KEYS` has 28 keys, not 27 (finding 7).
+
+### Merge notes
+
+1. **No fabric change and no fabric integration point.** Everything is under `mycelic/collective/`, `demo/collective/`,
+   `docs/collective/` and `tests/mycelic/test_collective_*.py`.
+2. **Pack hashes are unchanged**: the plant fixtures are in no hash scope. The X1 and E1 code hashes change (`stats.py`,
+   `edge/`, `evaluate/`, `experiments/e1_extract.py`, `inference/`), so an X1 or E1 prereg made before this round is
+   refused by `run` and `compare` and must be re-made.
+3. **Ledger rows have 28 keys** (`proxy`). `read_ledger` refuses a ledger written before; E1 run directories from an
+   earlier round must be re-run (their prereg is refused anyway). Run files project the ledger to their own keys, so
+   the committed demo run is unchanged and `CommittedRunTests` reproduce it.
+4. **`e1.json`'s `paired.<name>` changed shape** (`field_f1`, `per_record_field_f1`) and **`narrative_gain.json`'s
+   `share`, `ci95` and `verdict` are now the event-level estimate** (`unweighted_sample` holds the pooled one). Any
+   consumer elsewhere (another team's tooling reading these files) must read the new keys.
+5. **A routing file's endpoint may carry `env_proxy`**; files without it behave as before for `external` endpoints
+   and connect directly for every other boundary, which is the fix.
+
+### Disagreements and residuals, for the reviewer
+
+- **Finding 1: the stale-chain band is narrow, and placement is all `check_plant` can guarantee.** Whether the chain is
+  a candidate while fresh, and would be one without the filter, depends on the world (background of the key); the
+  construction tests check it for the shipped fixtures, for one seed each. (The review of this round found the
+  alert-level outcome still could not fail through the filter; see the follow-up below.) The one-site decoy classes
+  still count toward X1's 20-decoy eligibility; whether they should is the planner's call (RUNBOOK 11 advises spreading
+  the decoys over the classes). A duplicate decoy at two or more sites would alert, because D2 and D3 count records, not
+  roots; testing root collapse in detection would need a detector change, which this round did not make.
+- **Finding 2: the 600-record `underpowered` bar** was sized from a per-record SD (STRATEGY item 10); it is unchanged
+  and is now a bar on the number of paired records for the micro-F1 bootstrap.
+- **Finding 3: the weights assume the fetched records are typical of a truncated code** (`basis: extrapolated`). Equal
+  allocation is kept so each code's own share stays estimable; the interval is capped at the sample size, so it is
+  never narrower than a simple random sample of the same size would give.
+- **Finding 4:** a business or product named by a name that is not in the pack's alias table still passes the scan;
+  the second G7 `NOT_COVERED` item covers it, and LEAKAGE 10 now says so.
+- **Finding 5: only records the breaker never sent are re-sent.** A record whose own call failed (after the client's
+  retries) keeps its lexical fallback, as before; so do stand-ins whose count week was emitted (cells are never
+  revised). The judge's breaker stays per question, as round 2 left it.
+- **Finding 6 is strict by design:** one transport failure fails a routing G0. A founder whose server times out on
+  one long record raises `deadline_s` and re-runs; a validation failure is reported but does not fail the run.
+- **Finding 7:** proxy credentials are still unsupported, and the openFDA connector keeps using the environment's
+  proxy (it fetches public data). The ledger's `host` remains the final destination; `proxy` says whether a proxy
+  stood between.
+
+### Synthetic figures (synthetic, same-author, not a measurement)
+
+Printed in this sandbox, quoted only as **synthetic, same-author, not a measurement**:
+
+- The X1 construction smokes on the re-planted fixtures (device: rules removed, seed 11; claims: built-in, seed 5;
+  6 sites, 52 weeks, evaluation weeks 26 to 51): device X 3 of 3 (control 0, net 3), S 0 of 3, R (model-free) 0 of
+  3, U 3 of 3, single_site 3 of 3 (control 2, chance 0, net 3); claims X 2 of 3 (net 2), S 0, R 0, U 3 of 3,
+  single_site 3 of 3 (control 1, chance 0, net 3), the same as round 2's on the old fixtures.
+- The stale chains: device (weeks 19 to 21, watch 2024-W27 to W33) is a candidate in 2024-W20 to W25 and alerts in
+  2024-W20 (burn-in); with the stale filter disabled it is also a candidate in W27 and W28. Claims (weeks 19 and 20,
+  watch W27 to W32): candidate W20 to W25 and, filter disabled, W27. On the old fixtures neither had a candidate in its
+  watch span with the filter disabled (the finding). With the filter disabled neither alerts in its watch span
+  either (the follow-up below).
+- The pushdown figures quoted for the device `plant_smoke` world (seed 11) still hold on the re-planted fixture: 7 of
+  14 conclusions supported (the three patterns, the unmarked copies and the three high-base-rate keys), the stale
+  chain `stale`, the other decoys hypotheses; on the claims world (seed 5) `clinic:CL-B7X9:treatment_pattern_mismatch`
+  is a hypothesis from 2024-W43 to W49 and supported at W50, and `tow_operator:TW-0310:tow_without_dispatch` is
+  supported throughout.
+- G0 in fake mode (`device_quality`, seed 11, 1,000 records, as `G0RunnerTests` runs it): `model_path` lists no
+  problem, with 1,000 of 1,000 extraction records answered by the fake model and every judge attempt answered.
+
+## Audit round 3, review follow-up (finding 1's stale-chain outcome)
+
+The review of the round-3 fixes found finding 1 only partly fixed. The re-planted stale chains are candidates in
+their watch span when G4's stale filter is disabled, but X1 did not score candidates: `harness.decoy_outcome` failed
+a decoy only on an **alert** in its watch span, and that is what fed `decoys_alerted.stale_chain` and the X decoy
+card. With the filter disabled the chain still never alerted there. It alerts while fresh (burn-in), and because its
+whole chain lies inside every window from that alert to `eval_from`, it is a candidate at every step after, so the
+cooldown ("a cooling key present now restarts its quiet count") is never released. So the cooldown, not the stale
+filter, held the alert-level outcome, while ARCHITECTURE 14.2, RUNBOOK 11 and `plant.py` said the filter alone kept
+the chain quiet. With the filter disabled globally, `test_structural_decoys_are_quiet_elsewhere_and_raise_no_x_alert`
+still passed.
+
+**Choice.** The review left the planner a choice: (a) score a stale chain on candidacy, or (b) say in the docs that
+its alert-level outcome is held by the cooldown and stop presenting it as an alert-level test. The engineer took (a),
+because only (a) lets a broken filter show in the scorecard. The planner may still prefer (b).
+
+| Fix | Regression test |
+|---|---|
+| `baselines.detector_candidates` gives a G4 result's `{week, key}` candidate events (after the stale filter, cooling or not). `harness._channel_events` returns them for every channel that runs G4's detection (X, S, R_mf, U and the k=1 ablation; not `rules` or `single_site`), and `_seed_run` keeps those of stale-chain keys in the evaluation weeks. `decoy_outcome` adds `candidate` (null unless a stale chain on a channel with candidates), `first_candidate_week` and `failed` (an alert in the watch span, or for a stale chain also a candidate week there). Channel blocks add `decoys_failed` beside `decoys_alerted` (unchanged: alerts only). The scorecard schema has the new fields. Decoy outcomes still enter no X1 verdict. ARCHITECTURE 14.2, 14.4 and 14.6, RUNBOOK 11, the `plant.py` and `harness.py` docstrings | `MetricTests::test_a_stale_chain_fails_a_channel_that_keeps_it_a_candidate_in_its_watch_span` (outcomes with and without candidates, a channel without candidates, `decoys_failed` against `decoys_alerted`). `assert_only_the_stale_filter_keeps_it_quiet` (both packs' `test_only_the_stale_filter_keeps_the_stale_chain_out_of_its_watch_span`) now also pins the shipped X outcome (`candidate: false`, `failed: false`, null for `rules` and `single_site`), then runs the harness again with `detectors._stale` disabled: the X outcome is `alerted: false`, `candidate: true`, `failed: true`, its first candidate week is the unfiltered detection's, and `decoys_failed.stale_chain` is 1 with `decoys_alerted.stale_chain` 0. `test_structural_decoys_are_quiet_elsewhere_and_raise_no_x_alert` also asserts `failed` is false |
+
+Earlier tests whose expectation encoded the finding:
+- `MetricTests::test_a_decoy_counts_only_inside_its_watch_span` compared `decoy_outcome` with
+  `{alerted, first_alert_week}`. It now compares the full outcome, gives its label a `class` (labels always carry
+  one), and adds a check that candidacy is not scored for a class other than `stale_chain`.
+- `assert_only_the_stale_filter_keeps_it_quiet` claimed in its docstring that the filter keeps the chain quiet; it
+  now says the filter keeps it from being a candidate and that the cooldown holds the alert.
+
+With the reviewer's plugin that disables `detectors._stale` for the whole session (`-p stale_off`), the construction
+tests now give 3 failed, 16 passed: both packs' stale-filter test and the `d-stale` subtest of
+`test_structural_decoys_are_quiet_elsewhere_and_raise_no_x_alert` (it was 2 failed, 16 passed before, with the X
+decoy card test passing). Mutation checks, each restored: never scoring candidacy in `decoy_outcome`, dropping the
+candidate events from `_seed_run`, and counting `decoys_failed` from `alerted`. Each makes the new unit test or both
+construction tests fail.
+
+Merge notes: X1 scorecards gain `decoys_failed` per channel block and `candidate`, `first_candidate_week` and
+`failed` per decoy outcome. `evaluate/harness.py` and `evaluate/baselines.py` are in the X1 code hash, so a prereg
+made before this change is refused by `run`. No fabric file, pack file or SQLite schema changed.
+
+Synthetic figures (synthetic, same-author, not a measurement), from the construction smokes in this sandbox (device:
+built-in, seed 11; claims: built-in, seed 5; 6 sites, 52 weeks, evaluation weeks 26 to 51). As shipped, the stale
+chain's outcome is `alerted: false`, `candidate: false`, `failed: false` on X, S, R_mf and U in both packs. With the
+stale filter disabled, X and U give `alerted: false`, `candidate: true`, first candidate week 2024-W27, `failed: true`
+(device watch 2024-W27 to W33, claims W27 to W32), and S and R_mf, which cannot see a narrative-only plant, stay
+`candidate: false`. X's recall is unchanged (device 3 of 3, claims 2 of 3).
+
+## Audit round 3, review follow-up (finding 5's re-send and the exemption check)
+
+The review found that the guard on the new re-send path had no test. A model pass now also sends the breaker's
+`not_sent` stand-ins, which are stored already, so `EdgeSite.extract` passes `pending_non_synthetic(redo)` to the
+exemption check; counting only records without an extraction (`pending_non_synthetic()`) would let the next pass send
+non-synthetic narratives to an external endpoint under `allow_external_raw='synthetic'`. The shipped code counted
+them, but that mutation passed every suite: the one related test read `RecordStore.pending_non_synthetic(NOT_SENT)`
+directly and never went through `extract`. No code changed.
+
+| Fix | Regression test |
+|---|---|
+| None needed in the code; a site-level test now pins the check | `UsageTests::test_an_exempt_endpoint_is_refused_the_stand_ins_a_model_pass_would_send_again`: the site's own server fails twice, so 3 of 5 records become stand-ins and none is left without an extraction; the same store is reopened with an `external` extraction endpoint under `allow_external_raw='synthetic'`. With non-synthetic records, `extract('model')` raises `SiteError`, the server receives no request, the exempt runtime's ledger stays empty and the stored rows are unchanged. The control, with synthetic records, sends the 3 stand-ins to that server and replaces them (`resent` 3, ledger `external_raw_exempt`, `synthetic`) |
+
+Mutation check, on a scratch copy outside the worktree: with `pending_non_synthetic(redo)` changed to
+`pending_non_synthetic()` in `edge/site.py`, the new test's non-synthetic case fails ("SiteError not raised"); the
+unmutated code passes it. No fabric file, pack file or SQLite schema changed; only
+`tests/mycelic/test_collective_edge.py` and this file.

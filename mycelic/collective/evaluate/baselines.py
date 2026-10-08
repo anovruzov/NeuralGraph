@@ -2,7 +2,7 @@
 
 This module may read the world and the site stores, which no deployable component may; nothing here is a deployable
 channel except X and S, which are exactly what HQ computes. Every channel returns a G4 result JSON or normalised alert
-events ``{week, rank, key, score, site}``.
+events ``{week, rank, key, score, site}``; a G4 result also gives its candidate weeks (:func:`detector_candidates`).
 
 * **X and S** (:func:`hq_results`): ``detect`` over HQ's collective store alone, as deployed.
 * **R (model-free)** (:func:`r_mf_cells`): the same detector code over record-level, unsuppressed counts built only
@@ -240,6 +240,12 @@ def r_mf_cells(pack: "FrozenPack", records: Sequence[Mapping[str, Any]], *,
 def detector_alerts(result: Mapping[str, Any]) -> list[dict[str, Any]]:
     return [{"week": a["week"], "rank": a["rank"], "key": a["key"], "score": a["score"], "site": None}
             for a in result["alerts"]]
+
+
+def detector_candidates(result: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """One ``{week, key}`` event per step at which a key was a detector candidate, after G4's stale filter, cooling
+    or not; a key that only rules hit has none."""
+    return [{"week": w, "key": c["key"]} for c in result["candidates"] for w in c["candidate_weeks"]]
 
 
 def rule_alerts(result_x: Mapping[str, Any]) -> list[dict[str, Any]]:

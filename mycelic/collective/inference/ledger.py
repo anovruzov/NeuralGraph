@@ -12,8 +12,10 @@ Row keys (exactly :data:`LEDGER_KEYS`; ``append`` refuses anything else):
 * identity: ``ts`` (from the runtime's injected clock), ``run_id``, ``task``, ``ref`` (an opaque caller handle,
   never a record id), ``attempt`` (0 refused before any I/O, 1 primary, 2 repair, 3 escalation), ``escalated_from``;
 * where: ``endpoint``, ``provider``, ``model_requested``, ``model_served``, ``host`` (``host:port`` or
-  ``in-process``), ``boundary`` (the runtime's), ``endpoint_boundary``, ``boundary_mode`` (own | simulated |
-  external_raw_exempt | structured_egress | refused), ``data_label`` (synthetic | public | partner);
+  ``in-process``), ``proxy`` (true when the request went through the environment's proxy, which only an endpoint
+  that may use one does: ``Endpoint.uses_env_proxy``; audit round 3), ``boundary`` (the runtime's),
+  ``endpoint_boundary``, ``boundary_mode`` (own | simulated | external_raw_exempt | structured_egress | refused),
+  ``data_label`` (synthetic | public | partner);
 * outcome: ``ok``, ``error_kind``, ``http_status``, ``finish_reason``, ``transport_retries``;
 * usage: ``tokens_in``, ``tokens_out`` (null when the server did not report them), ``latency_ms``, ``ttft_ms``,
   ``cost_usd``, ``cost_basis`` (per_token | per_hour | unpriced | fake), ``fake_marker``.
@@ -36,10 +38,10 @@ if TYPE_CHECKING:
     from .routing import Endpoint
 
 LEDGER_KEYS = frozenset({
-    "ts", "run_id", "task", "ref", "endpoint", "provider", "model_requested", "model_served", "host", "boundary",
-    "endpoint_boundary", "boundary_mode", "data_label", "attempt", "escalated_from", "ok", "error_kind", "http_status",
-    "finish_reason", "transport_retries", "tokens_in", "tokens_out", "latency_ms", "ttft_ms", "cost_usd",
-    "cost_basis", "fake_marker",
+    "ts", "run_id", "task", "ref", "endpoint", "provider", "model_requested", "model_served", "host", "proxy",
+    "boundary", "endpoint_boundary", "boundary_mode", "data_label", "attempt", "escalated_from", "ok", "error_kind",
+    "http_status", "finish_reason", "transport_retries", "tokens_in", "tokens_out", "latency_ms", "ttft_ms",
+    "cost_usd", "cost_basis", "fake_marker",
 })
 BOUNDARY_MODES = ("own", "simulated", "external_raw_exempt", "structured_egress", "refused")
 COST_BASES = ("per_token", "per_hour", "unpriced", "fake")

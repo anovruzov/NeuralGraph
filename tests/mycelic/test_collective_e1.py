@@ -12,6 +12,7 @@ import hashlib
 import io
 import json
 import math
+import random
 import shutil
 import socket
 import tempfile
@@ -824,14 +825,23 @@ class E1SmokeTests(E1Case):
         self.assertEqual((a["field_f1"]["value"], a["claim_f1"]["value"]), (1.0, 1.0))
         self.assertEqual(a["exact_match"]["lot"]["rate"], 1.0)
         paired = doc["paired"]["model-b"]
-        self.assertEqual(set(paired), {"against", "n", "dropped", "mean_diff", "ci95", "B", "seed", "sign", "sign_p",
-                                       "underpowered", "non_inferior", "kill_flag", "withheld_reason"})
+        self.assertEqual(set(paired), {"against", "n", "dropped", "field_f1", "per_record_field_f1", "underpowered",
+                                       "non_inferior", "kill_flag", "withheld_reason"})
         self.assertEqual(paired["withheld_reason"], "measurement_false")
         self.assertEqual((paired["against"], paired["n"], paired["dropped"]),
                          ("model-a", 120, {"only_model": 0, "only_reference": 0}))
-        self.assertLess(paired["mean_diff"], 0)
-        self.assertLess(paired["ci95"][1], 0)
-        self.assertLess(paired["sign_p"], 0.05)
+        primary = paired["field_f1"]
+        self.assertEqual(set(primary), {"endpoint", "reference", "diff", "ci95", "B", "seed", "undefined"})
+        self.assertEqual((primary["reference"], primary["B"], primary["seed"], primary["undefined"]),
+                         (1.0, 1000, "e1:11:model-b:field_f1_diff", 0))
+        self.assertEqual(primary["endpoint"], doc["endpoints"]["model-b"]["field_f1"]["value"])
+        self.assertEqual(primary["diff"], primary["endpoint"] - primary["reference"])
+        self.assertLess(primary["ci95"][1], 0)
+        per_record = paired["per_record_field_f1"]
+        self.assertEqual(set(per_record), {"mean_diff", "ci95", "B", "seed", "sign", "sign_p"})
+        self.assertLess(per_record["mean_diff"], 0)
+        self.assertLess(per_record["ci95"][1], 0)
+        self.assertLess(per_record["sign_p"], 0.05)
         self.assertIs(paired["underpowered"], True)
         self.assertIsNone(paired["non_inferior"])
         self.assertIsNone(paired["kill_flag"])
@@ -933,10 +943,86 @@ class TransportFailureTests(E1Case):
         self.assertEqual(b["transport_failure_share"], 3 * len(failed) / (3 * len(records)))
         self.assertEqual(doc["endpoints"]["model-a"]["transport_failure_share"], 0.0)
         paired = doc["paired"]["model-b"]
-        self.assertEqual(paired["mean_diff"], 0.0)
+        self.assertEqual((paired["field_f1"]["diff"], paired["per_record_field_f1"]["mean_diff"]), (0.0, 0.0))
         self.assertEqual(paired["dropped"], {"only_model": 0, "only_reference": len(failed)})
         self.assertEqual((paired["non_inferior"], paired["kill_flag"]), (None, None))
         self.assertIn("transport failures above 1% of the record runs of model-b", paired["withheld_reason"])
+
+
+class PrimaryMetricVerdictTests(E1Case):
+    """Audit r3: non-inferiority is judged on the pre-registered primary metric, micro field F1, not on the per-record
+    mean field F1, where every claim-free record both sides leave empty adds an exact 0 difference."""
+
+    def hand_run(self, prereg: Path, tag: str, endpoint: str, repeat: int,
+                 rows: list[tuple[str, list[dict[str, Any]], list[dict[str, Any]]]]) -> Path:
+        """A finished, measured run written directly (no server): one scored prediction per (ref, claims, gold)."""
+        out = self.runs / "e1" / f"hand-{tag}-{endpoint}-{repeat}"
+        out.mkdir(parents=True)
+        lines = [{"record_ref": ref, "claims": claims, "ok": True, "error_kind": None, "scored": True,
+                  "truncated": False, "drops": {}, "counts": record_counts(claims, gold),
+                  "exact": exact_flags(claims, gold, ["lot", "supplier"]), "field_f1": record_field_f1(claims, gold)}
+                 for ref, claims, gold in rows]
+        (out / "predictions.jsonl").write_text("".join(canonical_dumps(line) + "\n" for line in lines),
+                                               encoding="utf-8")
+        run = {"kind": "e1_run", "endpoint": endpoint, "repeat": repeat, "complete": True, "measurement": True,
+               "models_served": ["m"], "model_mismatch": False, "model_requested": "m",
+               "prereg_sha256": sha256_hex(prereg.read_bytes()), "ledger_sha256": None,
+               "predictions_sha256": sha256_hex((out / "predictions.jsonl").read_bytes()),
+               "finished_at": "2026-01-01T00:00:00Z"}
+        (out / "run.json").write_text(canonical_dumps(run), encoding="utf-8")
+        return out
+
+    def scenario(self, prereg: Path, empty_share: float) -> dict[str, Any]:
+        """The finder's probe: 600 records, three lot claims (one predicate) on each record that has claims; the
+        model drops two of three claims on 25% of those, the reference drops one on 5%. Every run of an endpoint
+        returns the same predictions."""
+        rng = random.Random(1)
+        model, reference = [], []
+        for r in range(600):
+            ref = f"rec-{r:04d}"
+            if r < int(600 * empty_share):
+                model.append((ref, [], []))
+                reference.append((ref, [], []))
+                continue
+            gold = [claim("lot", f"L{r * 10 + j:05d}", "leak") for j in range(3)]
+            reference.append((ref, gold if rng.random() >= 0.05 else gold[1:], gold))
+            model.append((ref, gold if rng.random() >= 0.25 else gold[2:], gold))
+        tag = f"empty{int(empty_share * 100)}"
+        dirs = [self.hand_run(prereg, tag, name, k, rows)
+                for name, rows in (("model-a", reference), ("model-b", model)) for k in (1, 2, 3)]
+        return load_json_file(self.compare(prereg, dirs, run_id=f"cmp-{tag}")[0])
+
+    def test_a_model_beyond_the_margin_in_field_f1_is_not_non_inferior_however_many_records_are_claim_free(self) \
+            -> None:
+        prereg = self.flow(4)["prereg"]
+        docs = {}
+        for empty_share in (0.5, 0.0):
+            with self.subTest(empty_share=empty_share):
+                doc = docs[empty_share] = self.scenario(prereg, empty_share)
+                self.assertIs(doc["measurement"], True)
+                paired = doc["paired"]["model-b"]
+                primary = paired["field_f1"]
+                self.assertEqual((paired["n"], paired["withheld_reason"], paired["underpowered"]), (600, None, False))
+                self.assertEqual(primary["endpoint"], doc["endpoints"]["model-b"]["field_f1"]["value"])
+                self.assertEqual(primary["reference"], doc["endpoints"]["model-a"]["field_f1"]["value"])
+                self.assertLess(primary["diff"], -doc["margin"])          # beyond the 5-point margin
+                self.assertLessEqual(primary["ci95"][0], -doc["margin"])
+                self.assertIs(paired["non_inferior"], False)
+                self.assertIs(paired["kill_flag"], False)
+        # the case the finding names: with half the records claim-free, the per-record mean difference's interval
+        # lies inside the margin, so judging it would have called this model non-inferior
+        diluted = docs[0.5]["paired"]["model-b"]
+        self.assertGreater(diluted["per_record_field_f1"]["ci95"][0], -0.05)
+        self.assertLess(diluted["field_f1"]["diff"], -0.05)
+        self.assertIs(diluted["non_inferior"], False)
+
+    def test_claim_free_records_leave_the_decision_unchanged(self) -> None:
+        a = [(5, 0, 1), (2, 1, 0), (0, 0, 3), (4, 0, 0)]
+        b = [(6, 0, 0), (2, 0, 0), (3, 0, 0), (4, 0, 0)]
+        boot = stats.paired_bootstrap_f1(a, b, B=500, seed="s")
+        padded = stats.paired_bootstrap_f1(a + [(0, 0, 0)] * 40, b + [(0, 0, 0)] * 40, B=500, seed="s")
+        self.assertEqual((padded["f1_a"], padded["f1_b"], padded["diff"]), (boot["f1_a"], boot["f1_b"], boot["diff"]))
+        self.assertEqual(boot["diff"], stats.f1_from_counts(11, 1, 4) - 1.0)
 
 
 class ExternalRawTests(E1Case):

@@ -179,16 +179,18 @@ pushdown stage.
 | `site_ledger_hygiene` | the hygiene class: bytes, items, hits, overlap |
 | `positive_control` | the database scanned, its canary hits and narrative overlap |
 | `edge_totals` | totals across sites only: records ingested, rejected, duplicates, forwarded in, late, extracted, claims, cells, cells with `n` >= k, suppressed fields, not master data, non-egress type, usage groups |
-| `passed` | no hit, no overlap, clean ledgers and a positive control that found both |
+| `model_path` | null in `lexical` mode; else (audit round 3) the extraction records by extractor and error kind, the judge's attempts, the ones a model answered and the failed ones by kind, the degraded verdicts, and `problems`: every way the run did not go through the models it names (counts only) |
+| `passed` | no hit, no overlap, clean ledgers, a positive control that found both and, with a model, no `model_path` problem |
 | `code_commit`, `code_dirty`, `code_hash`, `created_at` | code stamps; `created_at` is the only wall-clock value |
 
 The report never holds a token, and the run's one-line summary prints only counts.
 
 ## 6. Exit codes
 
-0 when `passed`; 1 when a canary or narrative text crossed, a ledger is not clean, or the positive control found
-nothing; 2 on a usage or configuration error (a non-empty `--out`, a bad pack or routing file). Known-limitation
-entries do not fail a run.
+0 when `passed`; 1 when a canary or narrative text crossed, a ledger is not clean, the positive control found
+nothing, or (with a model) `model_path` lists a problem, so a run whose records never reached the model cannot pass
+as a check of the path through it; 2 on a usage or configuration error (a non-empty `--out`, a bad pack or routing
+file). Known-limitation entries do not fail a run.
 
 ## 7. What G0 does not cover (verbatim from `leakage.NOT_COVERED`)
 
@@ -356,13 +358,15 @@ leaves the site. G0 never scans those directories as crossing.
 conclusion's key, labels, window, sites, decision unit and support lower bounds, and each packet's status, verdict,
 support bucket, codes and co-mentions (no reasons text, no narrative). A draft must then pass the id-scope scan: no
 exact or variant mention of an id (of a type with an id format) outside the conclusion's scope and the packets'
-co-mentions, and no unresolved lookalike (D8). The scan is conservative where the canonicaliser recognises a form: in
+co-mentions, whether written as the id or by one of its pack aliases (a product or business named by its name), and
+no unresolved lookalike (D8). The scan is conservative where the canonicaliser recognises a form: in
 the device pack two letters, a space and a number read as a space-separated product id, so prose such as "at 2" is
 refused; the template drafter avoids it. It sees only those forms, though. It catches an out-of-scope id in its
 canonical form, in another case, with a homoglyph or a non-ASCII digit, and, for a format with a separator, with a
 space for it (device `SD 10`, claims `RS 12345`). It does not see an id restated with a separator its format lacks or
 without the one it has: device suppliers `V-1001` and `V 1001`, device products `SD10`, claims repair shops `RS12345`
-pass the scan. This is the second G7 residual risk below.
+pass the scan, and so does a business or product named by a name that is not in the pack's alias table. This is the
+second G7 residual risk below.
 
 **The ledger and the outbox.** The follow-up ledger (`followups.sqlite3`) holds every proposal, assignment, draft,
 decision, execution result (the T0 packets' crossing summaries and the T1 outbox receipts) and outcome; refusals hold

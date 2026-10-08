@@ -299,6 +299,7 @@ class Runtime:
             "ts": self._clock(), "run_id": self.run_id, "task": plan.task.name, "ref": plan.ref,
             "endpoint": endpoint.name, "provider": endpoint.provider, "model_requested": endpoint.model,
             "model_served": result.model_served if result is not None else None, "host": endpoint.host_label,
+            "proxy": mode != "refused" and client.endpoint_proxy(endpoint, self._environ) is not None,
             "boundary": self.boundary, "endpoint_boundary": endpoint.boundary, "boundary_mode": mode,
             "data_label": self.data_label, "attempt": attempt, "escalated_from": escalated_from, "ok": ok,
             "error_kind": error_kind, "http_status": status,

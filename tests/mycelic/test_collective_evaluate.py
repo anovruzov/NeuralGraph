@@ -230,8 +230,14 @@ REFUSALS: tuple[tuple[str, Callable[[dict[str, Any]], None], str, str, str], ...
      "outside the world weeks"),
     ("outside the evaluation weeks", _set(["patterns", 0, "start_week"], 20), "check", "$.patterns[0].start_week",
      "outside the evaluation weeks"),
-    ("stale chain not stale", _with_decoy("stale_chain", start_week=14, weeks=8), "check",
-     "$.decoys[0].start_week", "not stale before the evaluation weeks"),
+    # device: stale at eval_from 26 needs 7 * (26 - end) + close_lag 14 > stale_days 42, so end <= 21, and the
+    # whole chain in week 26's window (window_weeks 8) needs start >= 19
+    ("stale chain not stale", _with_decoy("stale_chain", start_week=19, weeks=4), "check",
+     "$.decoys[0].start_week", "not stale at the first evaluation week"),
+    ("stale chain before the first window", _with_decoy("stale_chain", start_week=18, weeks=4), "check",
+     "$.decoys[0].start_week", "not inside the first evaluation week's window"),
+    ("stale chain wholly before the first window", _with_decoy("stale_chain", start_week=14, weeks=6), "check",
+     "$.decoys[0].start_week", "not inside the first evaluation week's window"),
     ("high base rate at too few sites", _with_decoy("high_base_rate_everywhere", sites=DQ_SITES[:3]), "check",
      "$.decoys[0].sites", "too few sites for a high base rate"),
     ("single reporter below k", _with_decoy("single_reporter", rate_per_week=2), "check",
@@ -489,14 +495,41 @@ class PlantSpecTests(PlantCase):
         self.assertEqual(by_id["d-echo"]["planted_sites"], DQ_SITES[:3])
         self.assertEqual(by_id["d-copies"]["sites"], [DQ_SITES[1], DQ_SITES[2], DQ_SITES[4]])
         stale = by_id["d-stale"]
-        # ends at 19; watch from eval_from to max(eval_from, 19 + 8 - 1) + 4 = 30
-        self.assertEqual((stale["watch_from"], stale["watch_to"]), (W[26], W[30]))
-        self.assertEqual((stale["quiet_from"], stale["quiet_to"], stale["quiet_rule"]), (W[20], W[30], "all_sites_zero"))
+        # weeks 19 to 21, wholly inside week 26's window; watch from eval_from to 21 + 8 - 1 + 4 = 32
+        self.assertEqual((stale["start_index"], stale["end_index"]), (19, 21))
+        self.assertEqual((stale["watch_from"], stale["watch_to"]), (W[26], W[32]))
+        self.assertEqual((stale["quiet_from"], stale["quiet_to"], stale["quiet_rule"]), (W[22], W[32], "all_sites_zero"))
         for name in ("d-reporter", "d-base-rate", "d-copies"):
             self.assertEqual((by_id[name]["quiet_from"], by_id[name]["quiet_rule"]), (None, None))
         self.assertEqual(len(by_id["d-base-rate"]["keys"]), 3)
         self.assertEqual(by_id["d-near-miss"]["keys"], ["lot:L20045:contamination", "lot:L20046:contamination"])
         self.assertEqual(by_id["d-near-miss"]["sites"], [DQ_SITES[0], DQ_SITES[3]])
+
+    def test_a_stale_chain_is_stale_at_the_first_evaluation_week_and_inside_its_window(self) -> None:
+        # audit r3: a chain stale only by calendar days (7 * (eval_from - end) > stale_days) sat outside every window
+        # of its watch span, so window arithmetic, not G4's stale filter, kept it quiet. Now its last week must be
+        # stale at eval_from's own as_of (at least Sunday + close_lag_days) and its first week inside eval_from's
+        # window. Device (stale_days 42, lag 14): end <= 21; claims (stale_days 56, lag 21): end <= 20; both start >= 19
+        for pack, path, seed, legal_ends in ((DQ, DQ_SMOKE, DQ_SEED, (19, 20, 21)),
+                                             (CI, CI_SMOKE, CI_SEED, (19, 20))):
+            world = generate(pack, seed, 6, WEEKS)
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            index = next(i for i, d in enumerate(raw["decoys"]) if d["class"] == "stale_chain")
+            for start in range(14, EVAL_FROM):
+                for weeks in range(1, EVAL_FROM - start + 1):
+                    end = start + weeks - 1
+                    with self.subTest(pack=pack.id, start=start, end=end):
+                        raw["decoys"][index].update(start_week=start, weeks=weeks)
+                        spec = P.parse_plant(raw, pack)
+                        if start >= EVAL_FROM - 7 and end in legal_ends:
+                            self.check(spec, pack, world)
+                            continue
+                        with self.assertRaises(P.PlantError) as cm:
+                            self.check(spec, pack, world)
+                        self.assertEqual(cm.exception.path, f"$.decoys[{index}].start_week")
+                        self.assertEqual(cm.exception.problem,
+                                         "not stale at the first evaluation week" if end > legal_ends[-1]
+                                         else "not inside the first evaluation week's window")
 
     def test_is_blind_normalises_names(self) -> None:
         spec = P.parse_plant({**base_spec(), "planted_by": "  Ada   LOVELACE "}, DQ)
@@ -521,6 +554,7 @@ class ConstructionCase(unittest.TestCase):
         cls.tmp = Path(cls._tmp.name)
         cls.runs = cls.tmp / "runs"
         cls.seed = seed
+        cls.plant_file = plant_file
         code, out, err = cli(H.main, prereg_argv(pack, cls.runs, seeds=str(seed)))
         assert code == 0, err
         cls.prereg_path = cls.runs / "x1" / "pre" / "prereg.json"
@@ -554,6 +588,51 @@ class ConstructionCase(unittest.TestCase):
 
     def candidate(self, key: str) -> dict[str, Any] | None:
         return next((c for c in self.x["candidates"] if c["key"] == key), None)
+
+    def assert_only_the_stale_filter_keeps_it_quiet(self) -> None:
+        """Audit r3: the stale chain was a candidate while fresh (burn-in), has none in its watch span, and with G4's
+        stale filter disabled it is a candidate there, so the filter, not window arithmetic, keeps it from being one.
+        X1 scores it on candidacy as well as alerts: with the filter disabled it raises no alert in its watch span (the
+        cooldown after its fresh alert is never released), so only ``candidate`` and ``failed`` show the broken
+        filter."""
+        stale = next(d for d in self.spec.decoys if d.decoy_class == "stale_chain")
+        label = self.label(stale.id)
+
+        def watched(weeks: Sequence[str]) -> list[str]:
+            return [w for w in weeks if label["watch_from"] <= w <= label["watch_to"]]
+
+        def outcome(card: Mapping[str, Any], channel: str) -> dict[str, Any]:
+            decoy = next(d for d in card["decoys"] if d["id"] == stale.id)
+            return next(o for o in decoy["outcomes"] if o["channel"] == channel)
+
+        self.assertEqual(label["watch_from"], self.card["world"]["eval_from_week"])
+        self.assertEqual(self.decoy_card(stale.id)["quiet_elsewhere"], [{"seed": self.seed, "quiet": True}])
+        c = self.candidate(stale.keys[0])
+        self.assertTrue([w for w in c["candidate_weeks"] if w < label["watch_from"]])
+        self.assertTrue([w for w in c["alert_weeks"] if w < label["watch_from"]])
+        self.assertFalse(watched(c["candidate_weeks"]))
+        self.assertEqual(outcome(self.card, "X"), {"seed": self.seed, "channel": "X", "alerted": False,
+                                                   "first_alert_week": None, "candidate": False,
+                                                   "first_candidate_week": None, "failed": False})
+        for name in ("rules", "single_site"):
+            self.assertIsNone(outcome(self.card, name)["candidate"])
+        self.assertEqual(self.card["channels"]["X"]["decoys_failed"]["stale_chain"], 0)
+        with mock.patch("mycelic.collective.detect.detectors._stale", return_value=False):
+            unfiltered = run_detection(self.pack, self.org, bundles=self.bundles, cells=self.cells,
+                                       as_of=self.as_of, run_channel="X", tie_salt="g5-smoke")
+            code, _, err = cli(H.main, run_argv(self.prereg_path, self.plant_file, self.runs, "stale-filter-off",
+                                                "--allow-dirty", seeds=str(self.seed)))
+        self.assertEqual(code, 0, err)
+        c = next(c for c in unfiltered["candidates"] if c["key"] == stale.keys[0])
+        self.assertTrue(watched(c["candidate_weeks"]))
+        self.assertFalse(watched(c["alert_weeks"]))
+        broken = json.loads((self.runs / "x1" / "stale-filter-off" / "scorecard.json").read_text(encoding="utf-8"))
+        self.assertEqual(outcome(broken, "X"), {"seed": self.seed, "channel": "X", "alerted": False,
+                                                "first_alert_week": None, "candidate": True,
+                                                "first_candidate_week": watched(c["candidate_weeks"])[0],
+                                                "failed": True})
+        self.assertEqual((broken["channels"]["X"]["decoys_alerted"]["stale_chain"],
+                          broken["channels"]["X"]["decoys_failed"]["stale_chain"]), (0, 1))
 
     def decoy_card(self, decoy_id: str) -> dict[str, Any]:
         return next(d for d in self.card["decoys"] if d["id"] == decoy_id)
@@ -598,6 +677,7 @@ class PlantedConstructionTests(ConstructionCase):
                 self.assertEqual(H.quiet_elsewhere(d, label, self.cells), True)
                 x = next(o for o in card["outcomes"] if o["channel"] == "X")
                 self.assertFalse(x["alerted"])
+                self.assertFalse(x["failed"])
                 for key in d.keys:
                     c = self.candidate(key)
                     weeks = c["alert_weeks"] if c else []
@@ -649,13 +729,8 @@ class PlantedConstructionTests(ConstructionCase):
             self.assertEqual(claims, [(near.entity_type, value, near.predicate)])
         self.assertNotEqual(*near.keys)
 
-    def test_the_stale_chain_has_no_candidate_in_the_evaluation_weeks(self) -> None:
-        stale = self.spec.decoys[4]
-        c = self.candidate(stale.keys[0])
-        eval_from = self.card["world"]["eval_from_week"]
-        self.assertFalse([w for w in (c["candidate_weeks"] if c else []) if w >= eval_from])
-        if c is not None:                              # it was a candidate before: proof the filter, not absence, works
-            self.assertTrue(c["candidate_weeks"])
+    def test_only_the_stale_filter_keeps_the_stale_chain_out_of_its_watch_span(self) -> None:
+        self.assert_only_the_stale_filter_keeps_it_quiet()
 
     def test_penalty_decoys_carry_their_flags_and_their_alerts_are_reported(self) -> None:
         reporter = self.spec.decoys[3]
@@ -815,6 +890,9 @@ class ClaimsIntegrityConstructionTests(ConstructionCase):
         self.assertEqual(self.card["content_hash"], H.content_hash(self.card))
         self.assertIsNone(self.card["ablation"])
         self.assertFalse(self.card["stamps"]["ablation_k1"])
+
+    def test_only_the_stale_filter_keeps_the_stale_chain_out_of_its_watch_span(self) -> None:
+        self.assert_only_the_stale_filter_keeps_it_quiet()
 
     def test_min_detectable_rate_at_k5_equals_the_hand_rows(self) -> None:
         mdr = self.card["min_detectable_rate"]
@@ -1088,6 +1166,10 @@ def _event(week: str, key: str = "t:K1:p", score: float | None = 0.5, site: str 
     return {"week": week, "rank": 1, "key": key, "score": score, "site": site}
 
 
+def _candidate(week: str, key: str) -> dict[str, Any]:
+    return {"week": week, "key": key}
+
+
 class MetricTests(unittest.TestCase):
     index = {w: i for i, w in enumerate(W)}
 
@@ -1106,11 +1188,38 @@ class MetricTests(unittest.TestCase):
         self.assertEqual([e["week"] for e in H.eval_events(events, W[26], W[51])], [W[26], W[51]])
 
     def test_a_decoy_counts_only_inside_its_watch_span(self) -> None:
-        label = {"keys": ["t:D1:p", "t:D2:p"], "watch_from": W[30], "watch_to": W[35]}
+        label = {"class": "echo_marked", "keys": ["t:D1:p", "t:D2:p"], "watch_from": W[30], "watch_to": W[35]}
         self.assertEqual(H.decoy_outcome([_event(W[29], "t:D1:p"), _event(W[36], "t:D2:p")], label),
-                         {"alerted": False, "first_alert_week": None})
+                         {"alerted": False, "first_alert_week": None, "candidate": None, "first_candidate_week": None,
+                          "failed": False})
         self.assertEqual(H.decoy_outcome([_event(W[33], "t:D2:p"), _event(W[31], "t:D1:p")], label),
-                         {"alerted": True, "first_alert_week": W[31]})
+                         {"alerted": True, "first_alert_week": W[31], "candidate": None, "first_candidate_week": None,
+                          "failed": True})
+        # candidacy is scored for stale chains only
+        self.assertEqual(H.decoy_outcome([], label, [_candidate(W[31], "t:D1:p")])["failed"], False)
+
+    def test_a_stale_chain_fails_a_channel_that_keeps_it_a_candidate_in_its_watch_span(self) -> None:
+        # audit r3 review: a stale chain alerts while fresh (burn-in) and, without G4's stale filter, stays a
+        # candidate at every step after, so its cooldown is never released and it never alerts again; scored on alerts
+        # alone, a broken filter could not fail it
+        label = {"class": "stale_chain", "keys": ["t:D1:p"], "watch_from": W[30], "watch_to": W[35]}
+        quiet = H.decoy_outcome([], label, [_candidate(W[29], "t:D1:p"), _candidate(W[31], "t:D2:p")])
+        self.assertEqual(quiet, {"alerted": False, "first_alert_week": None, "candidate": False,
+                                 "first_candidate_week": None, "failed": False})
+        kept = H.decoy_outcome([], label, [_candidate(W[33], "t:D1:p"), _candidate(W[32], "t:D1:p")])
+        self.assertEqual(kept, {"alerted": False, "first_alert_week": None, "candidate": True,
+                                "first_candidate_week": W[32], "failed": True})
+        # rules and single_site have no candidates: their outcome is the alert alone
+        self.assertEqual(H.decoy_outcome([_event(W[34], "t:D1:p")], label),
+                         {"alerted": True, "first_alert_week": W[34], "candidate": None, "first_candidate_week": None,
+                          "failed": True})
+        labels = {"patterns": [_label()], "decoys": [{**label, "id": "d"}]}
+        block = H.channel_block("X", "label", {1: [], 2: []}, labels, self.index, 26, {1: [], 2: []},
+                                {1: [_candidate(W[31], "t:D1:p")], 2: []})
+        self.assertEqual((block["decoys_alerted"]["stale_chain"], block["decoys_failed"]["stale_chain"]), (0, 1))
+        self.assertEqual(block["alerts"], 0)
+        without = H.channel_block("rules", "label", {1: []}, labels, self.index, 26, {1: []})
+        self.assertEqual(without["decoys_failed"]["stale_chain"], 0)
 
     def labels(self) -> dict[str, Any]:
         return {"patterns": [_label(), _label(id="q", key="t:K3:p", visibility="codes_only")],
@@ -1134,6 +1243,7 @@ class MetricTests(unittest.TestCase):
         self.assertEqual((block["alerts"], block["false_alarms"]), (5, 3))
         self.assertEqual(block["false_alarms_per_week"], 3 / (26 * 2))
         self.assertEqual(block["decoys_alerted"]["echo_marked"], 1)
+        self.assertEqual(block["decoys_failed"], block["decoys_alerted"])
         self.assertEqual((block["median_delay_weeks"], block["median_lead_weeks"]), (2, 5))
         seed1 = block["per_seed"][0]
         # seed 1 ranks D1 (0.95), K1 (0.9, relevant), X (0.2): p@40 = 1/40, AP = (1/2) / 2 patterns

@@ -13,18 +13,28 @@
   stays with the first code in the order given;
 * an event is eligible when at least one ``mdr_text`` entry has a selected ``text_type_code`` and non-empty text;
   exclusions are counted per code (``no_mdr_text``, ``no_selected_text_type``, ``duplicate``, ``no_report_key``);
-* each code gets ``n // k`` events and the first ``n % k`` codes one more; a code short of its share gives all it
-  has and records the shortfall (no reallocation); within a code ``random.Random("n1:<seed>:<code>").sample`` over
-  the sorted keys, then the whole sheet is shuffled with ``random.Random("n1:<seed>:order")``;
-* the narrative joins the selected entries ordered by text type (as given) and then ``mdr_text_key``.
+* each code gets ``n // k`` events and the first ``n % k`` codes one more (``n >= k``, so every code with an
+  eligible event is sampled); a code short of its share gives all it has and records the shortfall (no
+  reallocation); within a code ``random.Random("n1:<seed>:<code>").sample`` over the sorted keys, then the whole
+  sheet is shuffled with ``random.Random("n1:<seed>:order")``;
+* the narrative joins the selected entries ordered by text type (as given) and then ``mdr_text_key``;
+* ``strata`` records, per code, openFDA's ``total`` for the query, the records ``fetched`` into the cache and the
+  ``eligible`` events among them, from which ``score`` weights the code by its eligible volume:
+  ``total * eligible / fetched`` (exactly ``eligible`` when the code was not truncated; extrapolated from the
+  fetched records' eligibility rate when it was).
 
 The labeller fills four columns with true/false for whether the narrative names something absent from the coded
 fields (component, failure mode, lot, use condition). ``score`` reads the labelled CSV (a spreadsheet's UTF-8 BOM
 is accepted), refuses unlabelled rows and any key set that differs from the sample, and writes
-``narrative_gain.json``: the share of events with any true label, its Wilson 95% interval, per-column and
-per-code shares, and the verdict against the pre-registered bars (at least 20% supports the extraction channel;
-below 10% expect structured codes S to match extraction X; between is ambiguous), computed in integers
-(``5k >= n``, ``10k < n``). ``measurement`` is true only for a cache fetched from the real openFDA host.
+``narrative_gain.json``. **The estimand is event-level**: the share of the chosen codes' eligible events whose
+narrative carries information the codes lack. Codes are sampled equally, not in proportion to their volume, so the
+headline ``share`` is the stratified estimate ``sum_h W_h k_h / n_h`` with ``W_h`` each code's share of the eligible
+events, its interval ``stats.stratified_share`` (Wilson at the design's effective sample size, finite-population
+corrected), and the verdict against the pre-registered bars (at least 20% supports the extraction channel; below
+10% expect structured codes S to match extraction X; between is ambiguous) is read from that estimate, compared in
+exact fractions. The pooled sample share (``unweighted_sample``) is reported beside it and never decides: it
+estimates an equal-weight mix of the chosen codes, which low-volume codes dominate (audit round 3). Per-column and
+per-code shares are kept. ``measurement`` is true only for a cache fetched from the real openFDA host.
 """
 from __future__ import annotations
 
@@ -33,12 +43,13 @@ import csv
 import io
 import random
 import sys
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
 from ..connectors.openfda import CacheError, load_cache, read_manifest
 from ..jsonio import StrictJsonError, canonical_dumps, load_json_file, sha256_hex
-from ..stats import wilson
+from ..stats import stratified_share, wilson
 from .common import DryRun, UsageError, code_stamps, fail, run_dir, split_list, write_json_atomic
 
 CLI_SAMPLE = "n1_narratives sample"
@@ -54,6 +65,11 @@ FALSE_TOKENS = ("false", "no", "n", "0")
 CAVEAT = "MAUDE holds reportable events, not internal complaints."
 BARS = {"supports_at_or_above": 0.20, "expect_S_matches_X_below": 0.10}
 TRUNCATION_WARNING = "the sample covers fetched records only; the cache was truncated for these codes"
+ESTIMAND = ("event-level: the share of the chosen product codes' eligible events whose narrative carries information "
+            "the coded fields lack; codes are weighted by their eligible volume")
+UNWEIGHTED_NOTE = ("the pooled sample share: codes are sampled equally, so this is an equal-weight mix of the codes, "
+                   "not the event-level estimate; it never decides the verdict")
+CI_METHOD = "stratified_wilson_effective_n"
 
 
 # --------------------------------------------------------------------------------------------------- sample
@@ -164,7 +180,15 @@ def select(cache: Any, codes: list[str], n: int, seed: int, text_types: list[str
     for i, ident in enumerate(picks, start=1):
         rows.append({"row": i, **rows_by_key[ident]})
     return {"rows": rows, "allocation": allocation, "shortfalls": shortfalls, "exclusions": exclusions,
-            "eligible": {c: len(eligible[c]) for c in codes}}
+            "eligible": {c: len(eligible[c]) for c in codes}, "fetched": {c: len(seen_in_pages[c]) for c in codes}}
+
+
+def eligible_estimate(stratum: dict[str, Any]) -> Fraction:
+    """A code's eligible events in the population: ``total * eligible / fetched`` (exactly ``eligible`` when every
+    record was fetched); 0 when nothing was fetched."""
+    if not stratum["fetched"]:
+        return Fraction(0)
+    return Fraction(stratum["total"] * stratum["eligible"], stratum["fetched"])
 
 
 def sheet_bytes(rows: list[dict[str, Any]]) -> tuple[bytes, bytes]:
@@ -193,6 +217,8 @@ def cmd_sample(args: argparse.Namespace) -> int:
     try:
         if args.n < 1:
             raise UsageError("--n must be >= 1") from None
+        if args.n < len(codes):
+            raise UsageError("--n must be at least the number of product codes, so every code is sampled") from None
         out_dir = run_dir(args.runs_dir, "n1", args.run_id)
         if args.dry_run:
             dry = DryRun(CLI_SAMPLE)
@@ -220,12 +246,20 @@ def cmd_sample(args: argparse.Namespace) -> int:
     (out_dir / "sheet.jsonl").write_bytes(jsonl)
     (out_dir / "sheet.csv").write_bytes(csv_bytes)
     truncated = [c for c in codes if (cache.manifest["per_code"].get(c) or {}).get("truncated")]
+    strata = {}
+    for c in codes:
+        info = cache.manifest["per_code"].get(c) or {}
+        total = info.get("total")
+        fetched = picked["fetched"][c]
+        strata[c] = {"total": total if isinstance(total, int) and total >= fetched else fetched, "fetched": fetched,
+                     "eligible": picked["eligible"][c], "sampled": picked["allocation"][c],
+                     "basis": "extrapolated" if c in truncated else "counted"}
     data_label = cache.manifest.get("data_label")
     sample = {
         "kind": "n1_sample", "schema_version": 1, "run_id": args.run_id, "seed": args.seed, "n_requested": args.n,
         "n_sampled": len(picked["rows"]), "product_codes": codes, "text_types": text_types,
         "allocation": picked["allocation"], "shortfalls": picked["shortfalls"], "exclusions": picked["exclusions"],
-        "eligible": picked["eligible"], "truncated_codes": truncated,
+        "eligible": picked["eligible"], "strata": strata, "truncated_codes": truncated,
         "warning": TRUNCATION_WARNING if truncated else None,
         "rows": [{"row": r["row"], "mdr_report_key": r["mdr_report_key"], "product_code": r["product_code"]}
                  for r in picked["rows"]],
@@ -278,19 +312,45 @@ def read_sample(path: str | Path) -> dict[str, Any]:
             or not all(isinstance(r, dict) and isinstance(r.get("mdr_report_key"), str)
                        and isinstance(r.get("product_code"), str) for r in rows)):
         raise UsageError("the sample file is not an n1 sample.json") from None
+    strata = sample.get("strata")
+    if strata is None:
+        raise UsageError("the sample file has no strata (it predates the event-level weighting); run sample again "
+                         "with the same arguments, which draws the same sheet, and score against that sample.json") \
+            from None
+    if (not isinstance(strata, dict) or not all(_stratum_ok(v) for v in strata.values())
+            or not all(r["product_code"] in strata for r in rows)):
+        raise UsageError("the sample file's strata are not n1 strata") from None
     return sample
+
+
+def _stratum_ok(stratum: Any) -> bool:
+    if not isinstance(stratum, dict):
+        return False
+    values = [stratum.get(key) for key in ("total", "fetched", "eligible")]
+    return (all(isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in values)
+            and values[2] <= values[1] <= values[0])
 
 
 def _share(k: int, n: int) -> dict[str, Any]:
     return {"k": k, "n": n, "share": k / n if n else None, "ci95": wilson(k, n)}
 
 
-def verdict(k: int, n: int) -> str:
-    if 5 * k >= n:
+def verdict(share: Fraction) -> str:
+    """The pre-registered bars, compared exactly: at least 1/5 supports, below 1/10 expects S to match X."""
+    if share >= Fraction(1, 5):
         return "supports"
-    if 10 * k < n:
+    if share < Fraction(1, 10):
         return "expect_S_matches_X"
     return "ambiguous"
+
+
+def _weighted(hits: dict[str, int], sizes: dict[str, int], weights: dict[str, Fraction],
+              volumes: dict[str, Fraction]) -> tuple[Fraction, dict[str, Any]]:
+    """The exact stratified share and :func:`stats.stratified_share` over the codes with a positive weight."""
+    codes = sorted(c for c in weights if weights[c] > 0)
+    exact = sum((weights[c] * Fraction(hits[c], sizes[c]) for c in codes), Fraction(0))
+    est = stratified_share([(float(weights[c]), hits[c], sizes[c], float(volumes[c])) for c in codes])
+    return exact, est
 
 
 def score(rows: list[dict[str, str]], sample: dict[str, Any]) -> dict[str, Any]:
@@ -313,18 +373,46 @@ def score(rows: list[dict[str, str]], sample: dict[str, Any]) -> dict[str, Any]:
         raise UsageError(f"{len(unlabelled)} rows are not fully labelled (use true/false); first rows: "
                          f"{', '.join(unlabelled[:10])}") from None
     n = len(rows)
+    if not n:
+        raise UsageError("the sample has no rows to score") from None
     any_true = [any(lab.values()) for lab in labels]
     k = sum(any_true)
-    per_code: dict[str, list[int]] = {}
-    for r, hit in zip(rows, any_true):
-        bucket = per_code.setdefault(codes_by_key[r["mdr_report_key"]], [0, 0])
-        bucket[0] += hit
-        bucket[1] += 1
+    row_codes = [codes_by_key[r["mdr_report_key"]] for r in rows]
+    sizes: dict[str, int] = {}
+    for code in row_codes:
+        sizes[code] = sizes.get(code, 0) + 1
+    strata = sample["strata"]
+    volumes = {code: eligible_estimate(strata[code]) for code in sorted(strata)}
+    unsampled = [code for code, volume in volumes.items() if volume > 0 and code not in sizes]
+    if unsampled:
+        raise UsageError(f"codes with eligible events but no sampled row: {', '.join(unsampled)}; the event-level "
+                         "share cannot be estimated (run sample with --n at least the number of codes)") from None
+    total = sum(volumes.values(), Fraction(0))
+    weights = {code: volumes[code] / total for code in volumes}
+
+    def hits_by_code(marks: list[bool]) -> dict[str, int]:
+        out = dict.fromkeys(sizes, 0)
+        for code, hit in zip(row_codes, marks):
+            out[code] += hit
+        return out
+
+    def block(marks: list[bool]) -> tuple[Fraction, dict[str, Any]]:
+        exact, est = _weighted(hits_by_code(marks), sizes, weights, volumes)
+        hits = sum(marks)
+        return exact, {"k": hits, "n": n, "share": float(exact), "ci95": [est["ci_low"], est["ci_high"]],
+                       "n_eff": est["n_eff"], "unweighted_share": hits / n}
+
+    exact, headline = block(any_true)
+    per_code = hits_by_code(any_true)
     return {
-        "n": n, "any_true": k, "share": k / n if n else None, "ci95": wilson(k, n), "ci_method": "wilson",
-        "bars": BARS, "verdict": verdict(k, n) if n else None,
-        "per_column": {c: _share(sum(lab[c] for lab in labels), n) for c in LABEL_COLUMNS},
-        "per_product_code": {code: _share(hit, total) for code, (hit, total) in sorted(per_code.items())},
+        "estimand": ESTIMAND, "n": n, "any_true": k, "share": headline["share"], "ci95": headline["ci95"],
+        "ci_method": CI_METHOD, "n_eff": headline["n_eff"], "bars": BARS, "verdict": verdict(exact),
+        "unweighted_sample": {**_share(k, n), "note": UNWEIGHTED_NOTE},
+        "per_column": {c: block([lab[c] for lab in labels])[1] for c in LABEL_COLUMNS},
+        "per_product_code": {code: {**_share(per_code[code], sizes[code]), "weight": float(weights[code]),
+                                    "eligible_estimate": float(volumes[code]),
+                                    "basis": strata[code].get("basis")}
+                             for code in sorted(sizes)},
     }
 
 
@@ -359,8 +447,9 @@ def cmd_score(args: argparse.Namespace) -> int:
            "sheet_sha256": sha256_hex(Path(args.sheet).read_bytes()), **code_stamps()}
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     write_json_atomic(args.out, out)
-    print(f"n1: {out['any_true']}/{out['n']} narratives carry information beyond the codes; verdict {out['verdict']}"
-          f" (data_label={data_label}); wrote {args.out}")
+    print(f"n1: {out['any_true']}/{out['n']} sampled narratives carry information beyond the codes; event-level "
+          f"share {out['share']:.4f} (weighted by code volume); verdict {out['verdict']} (data_label={data_label}); "
+          f"wrote {args.out}")
     return 0
 
 

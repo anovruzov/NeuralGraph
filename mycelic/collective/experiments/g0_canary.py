@@ -51,9 +51,20 @@ summary exist; ``lexical`` uses no model (no ledger); ``routing`` uses a routing
 endpoints are all ``any-simulated`` (one machine plays every simulated site). Everything is synthetic, and nothing
 here measures a model.
 
-Exit 0 when no canary and no narrative shingle crossed, the site ledgers are clean and the positive control found
-both; 1 otherwise; 2 on a usage or configuration error. ``known_limitation`` entries (class-c ids leaving as cell
-keys with ``require_master_data`` off) do not fail the run. The one wall-clock value is ``created_at``.
+**The model path (audit round 3).** In ``fake`` and ``routing`` mode ``leakage.json`` carries ``model_path``: the
+extraction records by extractor and error kind (from each site's extraction summary), the judge's attempts, the
+attempts a model answered (a reply, valid or not) and the failed ones by kind (from the site ledgers), and the
+degraded verdicts. Its ``problems`` list, counts only, names every way the run did not go through the models it
+names: no extraction record answered by a model, extraction records with no model answer (a transport failure, or
+held back by the breaker as ``not_sent``), no judge call made or none answered, judge calls with no model answer,
+degraded verdicts. A model reply that failed validation was still an answer and is not a problem. Before, a routing
+run against a server that was down wrote ``passed: true`` with every record sensed lexically and every verdict
+``unknown``.
+
+Exit 0 when no canary and no narrative shingle crossed, the site ledgers are clean, the positive control found both
+and ``model_path`` lists no problem; 1 otherwise; 2 on a usage or configuration error. ``known_limitation`` entries
+(class-c ids leaving as cell keys with ``require_master_data`` off) do not fail the run. The one wall-clock value is
+``created_at``.
 """
 from __future__ import annotations
 
@@ -87,7 +98,7 @@ from ..followup.service import ConclusionView, FollowupRefused, FollowupService
 from ..inference.fake import FakeProvider
 from ..inference.ledger import read_ledger
 from ..inference.routing import ConfigError, RoutingConfig, load_routing, missing_env, parse_routing
-from ..inference.runtime import Runtime
+from ..inference.runtime import VALIDATION_KINDS, Runtime
 from ..jsonio import StrictJsonError, canonical_bytes, canonical_dumps, strict_load
 from ..leakage import Artifact, LeakageError, plant_canaries, scan, write_manifest
 from ..packs.canonical import Canonicaliser
@@ -148,6 +159,8 @@ class G0Context:
     conclusion_ids: list[str] = field(default_factory=list)
     followup_totals: dict[str, Any] = field(default_factory=dict)
     run_files_totals: dict[str, Any] = field(default_factory=dict)
+    extraction: dict[str, dict[str, int]] = field(default_factory=lambda: {"extractors": {}, "errors": {}})
+    degraded_verdicts: int = 0
 
 
 @dataclass(frozen=True)
@@ -199,6 +212,9 @@ def edge_stage(ctx: G0Context) -> tuple[list[Artifact], list[Artifact]]:
             summary = site.extract("lexical" if runtime is None else "model")
             t["extracted"] += summary.records
             t["claims"] += summary.claims
+            for name, counts in (("extractors", summary.extractors), ("errors", summary.errors)):
+                for key, n in counts.items():
+                    ctx.extraction[name][key] = ctx.extraction[name].get(key, 0) + n
         ctx.clock.set(ctx.emit_at)
         for site in sites:
             cells = site.emit_cells(ctx.as_of)
@@ -279,6 +295,7 @@ def pushdown_stage(ctx: G0Context) -> tuple[list[Artifact], list[Artifact]]:
         verdicts = dict.fromkeys(("confirm", "refute", "unknown"), 0)
         for row in verdict_rows:
             verdicts[row["body"]["verdict"]] += 1
+            ctx.degraded_verdicts += row["body"]["quality"] == "degraded"
         statuses = dict.fromkeys(STATUSES, 0)
         for c in conclusions:
             statuses[c.status] += 1
@@ -612,6 +629,52 @@ def _positive_control(ctx: G0Context, manifest: Any, narratives: list[str]) -> d
             "shingle_overlap_bytes": report["shingle_overlap_bytes"]}
 
 
+def _counts(items: Any) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for item in items:
+        out[item] = out.get(item, 0) + 1
+    return dict(sorted(out.items()))
+
+
+def model_path(ctx: G0Context) -> dict[str, Any] | None:
+    """Whether the run went through the models it names (audit round 3); None in lexical mode. Counts only."""
+    if ctx.mode == "lexical":
+        return None
+    extractors = dict(sorted(ctx.extraction["extractors"].items()))
+    errors = dict(sorted(ctx.extraction["errors"].items()))
+    records = sum(extractors.values())
+    answered = sum(n for name, n in extractors.items() if name.startswith("model:"))
+    unanswered = {kind: n for kind, n in errors.items() if kind not in VALIDATION_KINDS}
+    rows = []
+    for site_id in ctx.sites:
+        ledger = ctx.out / "edge" / f"site-{site_id}.ledger.jsonl"
+        if ledger.exists():
+            rows += [row for row in read_ledger(ledger) if row["task"] == JUDGE_TASK]
+    reached = sum(1 for row in rows if row["ok"] or row["error_kind"] in VALIDATION_KINDS)
+    failed = _counts(row["error_kind"] for row in rows if not row["ok"])
+    lost = {kind: n for kind, n in failed.items() if kind not in VALIDATION_KINDS}
+    problems = []
+    if records and not answered:
+        problems.append("no extraction record was answered by a model")
+    if unanswered:
+        problems.append(f"{sum(unanswered.values())} extraction records got no model answer "
+                        f"({', '.join(f'{k} {n}' for k, n in unanswered.items())})")
+    if not rows:
+        problems.append("no judge call was made")
+    elif not reached:
+        problems.append("no judge call was answered by a model")
+    if lost:
+        problems.append(f"{sum(lost.values())} judge calls got no model answer "
+                        f"({', '.join(f'{k} {n}' for k, n in lost.items())})")
+    if ctx.degraded_verdicts:
+        problems.append(f"{ctx.degraded_verdicts} verdicts were degraded (the judge failed on more than half of a "
+                        "question's records)")
+    return {"extract": {"records": records, "model_answered": answered, "extractors": extractors, "errors": errors},
+            "judge": {"attempts": len(rows), "model_answered": reached, "failed": failed,
+                      "degraded_verdicts": ctx.degraded_verdicts},
+            "problems": problems}
+
+
 def _ingest_day(records: tuple[dict[str, Any], ...]) -> date:
     return date.fromisoformat(max(r["received_date"] for r in records)) + timedelta(days=1)
 
@@ -660,9 +723,10 @@ def run(args: argparse.Namespace) -> int:
     report["artifact_classes"] = dict(sorted(report["artifact_classes"].items()))
     positive = _positive_control(ctx, manifest, narratives)
     hygiene_report = report["site_ledger_hygiene"]
+    path = model_path(ctx)
     passed = (report["hit_count"] == 0 and report["shingle_overlap_bytes"] == 0 and not hygiene_report["hits"]
               and hygiene_report["shingle_overlap_bytes"] == 0 and positive["canary_hits"] > 0
-              and positive["shingle_overlap_bytes"] > 0)
+              and positive["shingle_overlap_bytes"] > 0 and not (path and path["problems"]))
     result = {
         "kind": "g0_leakage", "schema_version": 1, "synthetic": True, "data_label": "synthetic",
         "pack": pack.id, "pack_version": pack.version, "illustrative": pack.illustrative,
@@ -674,13 +738,15 @@ def run(args: argparse.Namespace) -> int:
         "stages": [stage.name for stage in STAGES], "positive_control": positive,
         "edge_totals": dict(ctx.totals), "pushdown_totals": dict(ctx.pushdown_totals),
         "followup_totals": dict(ctx.followup_totals), "run_files_totals": dict(ctx.run_files_totals),
-        "passed": passed,
+        "model_path": path, "passed": passed,
         **report, **code_stamps(), "created_at": utc_clock(),
     }
     write_json_atomic(out / "leakage.json", result)
     print(f"g0: pack={result['pack']} canaries={result['canaries_planted']} hits={result['hit_count']} "
           f"shingle_overlap_bytes={result['shingle_overlap_bytes']} "
           f"known_limitation={len(result['known_limitation'])} -> {'PASS' if passed else 'FAIL'}")
+    for problem in (path or {}).get("problems", []):
+        print(f"g0: model path: {problem}")
     return 0 if passed else 1
 
 

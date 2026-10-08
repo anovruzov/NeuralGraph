@@ -28,11 +28,13 @@ verification failure; ``timeout`` and ``too_large`` never are. Error bodies are 
 no body, header or reason phrase is ever stored, logged or raised. The only headers read are ``Content-Type``,
 ``Retry-After`` (ASCII digits only, capped at 30 s) and ``X-Mycelic-Fake``.
 
-Proxies are decided per connection from the environment, never by mutating ``os.environ``: loopback, private and
-link-local IP literals and ``localhost`` always connect directly; other hosts use ``http_proxy``/``https_proxy``
-unless ``no_proxy`` matches (absolute-form request for http, a ``CONNECT`` tunnel for https). Proxy credentials are
-not supported. The ``Authorization`` header is sent only when the endpoint names an ``api_key_env`` that is set;
-the key is read at call time and never stored on any object.
+Proxies are decided per connection from the environment, never by mutating ``os.environ``, and only for an
+endpoint that may use one (:func:`endpoint_proxy`; ``Endpoint.uses_env_proxy``: by default only an ``external``
+one, since a request to an endpoint inside a site's or HQ's boundary carries data that must not pass an off-site
+gateway): loopback, private and link-local IP literals and ``localhost`` always connect directly; other hosts use
+``http_proxy``/``https_proxy`` unless ``no_proxy`` matches (absolute-form request for http, a ``CONNECT`` tunnel for
+https). Proxy credentials are not supported. The ``Authorization`` header is sent only when the endpoint names an
+``api_key_env`` that is set; the key is read at call time and never stored on any object.
 """
 from __future__ import annotations
 
@@ -148,6 +150,15 @@ def proxy_for(url: str, environ: Mapping[str, str] | None = None) -> str | None:
     if urllib.request.proxy_bypass_environment(parts.netloc, proxies):
         return None
     return proxy if "://" in proxy else "http://" + proxy
+
+
+def endpoint_proxy(endpoint: Endpoint, environ: Mapping[str, str] | None = None) -> str | None:
+    """The proxy a request to ``endpoint`` goes through: :func:`proxy_for` its base URL when the endpoint may use
+    the environment's proxy (``Endpoint.uses_env_proxy``), else None (a direct connection). The fake provider makes
+    no connection."""
+    if endpoint.provider == "fake" or not endpoint.base_url or not endpoint.uses_env_proxy:
+        return None
+    return proxy_for(endpoint.base_url, environ)
 
 
 # --------------------------------------------------------------------------------------------------- one HTTP try
@@ -325,8 +336,8 @@ def _one_try(endpoint: Endpoint, method: str, path: str, body: bytes | None, *, 
     conn = sock = resp = None
     try:
         try:
-            conn, target = _connection(endpoint, url, proxy_for(url, environ), min(endpoint.connect_timeout_s,
-                                                                                   remaining()))
+            conn, target = _connection(endpoint, url, endpoint_proxy(endpoint, environ),
+                                       min(endpoint.connect_timeout_s, remaining()))
             conn.response_class = _deadline_response(deadline)
             conn.connect()
         except ssl.SSLCertVerificationError:

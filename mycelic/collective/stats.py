@@ -6,6 +6,13 @@ recomputed bit for bit from the run file.
 * :func:`percentile` uses linear interpolation between closest ranks, ``rank = (n - 1) * p / 100`` (numpy's
   default ``'linear'`` method), so p50 of ``[1, 2, 3, 4]`` is 2.5.
 * :func:`wilson` is the Wilson score interval in closed form (95% by default), clamped to ``[0, 1]``.
+* :func:`stratified_share` ``(strata)``: each stratum is ``(weight, k, n, N)``, its population weight (the weights
+  sum to 1) and ``k`` hits among ``n`` units drawn by simple random sampling without replacement from its ``N``.
+  ``share = sum w_h p_h`` with ``p_h = k_h / n_h``; ``variance = sum w_h^2 (1 - n_h / N_h) s_h^2 / n_h`` with
+  ``s_h^2 = p_h (1 - p_h) n_h / (n_h - 1)`` (0 when ``n_h = 1``). The 95% interval is Wilson's at the effective
+  sample size ``n_eff = share (1 - share) / variance`` (Kish's design effect), capped at the total sample size ``n``
+  and equal to it when the variance or ``share (1 - share)`` is 0, so it is never narrower than a simple random
+  sample of ``n`` with the same share.
 * :func:`sign_test` is the exact two-sided sign test on paired differences with zeros dropped:
   ``p = min(1, 2 * sum_{i <= min(n+, n-)} C(n, i) / 2^n)``, summed in integers before the one final division.
 * :func:`paired_bootstrap` is a percentile bootstrap of the mean paired difference.
@@ -13,6 +20,11 @@ recomputed bit for bit from the run file.
   to find), never 1.0 by convention.
 * :func:`bootstrap_f1` resamples records (each a ``(tp, fp, fn)`` triple) with replacement and recomputes the
   pooled F1; resamples whose F1 is undefined are counted in ``undefined`` and left out of the percentiles.
+* :func:`paired_bootstrap_f1` ``(a, b)``: two sides' ``(tp, fp, fn)`` triples for the same records (paired by
+  index). ``diff`` is ``F1(sum a) - F1(sum b)``, the difference of the pooled (micro) F1s; each of ``B`` replicates
+  draws ``n`` record indices with replacement and scores both sides on that one draw. A replicate where either F1 is
+  undefined is counted in ``undefined`` and left out of the percentiles. A record with no counts on either side
+  (nothing labelled, nothing predicted) adds nothing to either F1, so it cannot pull the difference toward 0.
 
 The detector tails (G4). "sf" means the inclusive upper tail ``P(X >= m)``; every ``*_logsf`` is its natural log,
 computed in log space so that counts up to 8*10^9 stay finite, and is never above 0.0:
@@ -142,6 +154,39 @@ def wilson(k: int, n: int, z: float = Z95) -> tuple[float, float] | None:
     return low, high
 
 
+def _wilson_real(p: float, n: float, z: float) -> tuple[float, float]:
+    z2 = z * z
+    denom = 1 + z2 / n
+    center = (p + z2 / (2 * n)) / denom
+    half = z * math.sqrt(p * (1 - p) / n + z2 / (4 * n * n)) / denom
+    return (0.0 if p == 0 else max(0.0, center - half)), (1.0 if p == 1 else min(1.0, center + half))
+
+
+def stratified_share(strata: Sequence[tuple[float, int, int, float]], z: float = Z95) -> dict[str, Any]:
+    if not isinstance(strata, (list, tuple)) or not strata:
+        raise ValueError("strata must be a non-empty list") from None
+    rows = []
+    for item in strata:
+        if not isinstance(item, (list, tuple)) or len(item) != 4:
+            raise ValueError("each stratum must be (weight, k, n, N)") from None
+        w, k, n, big_n = _real_arg(item[0], "weight"), _int_arg(item[1], "k", 0), _int_arg(item[2], "n", 1), \
+            _real_arg(item[3], "N")
+        if w < 0 or k > n or big_n < n:
+            raise ValueError("need weight >= 0, k <= n and N >= n") from None
+        rows.append((w, k, n, big_n))
+    if not math.isclose(math.fsum(r[0] for r in rows), 1.0, rel_tol=0.0, abs_tol=1e-9):
+        raise ValueError("the weights must sum to 1") from None
+    share = min(1.0, max(0.0, math.fsum(w * k / n for w, k, n, _ in rows)))
+    variance = math.fsum(w * w * (1 - n / big_n) * (k / n) * (1 - k / n) / (n - 1)
+                         for w, k, n, big_n in rows if n > 1)
+    total = sum(n for _, _, n, _ in rows)
+    spread = share * (1 - share)
+    n_eff = float(total) if variance <= 0 or spread <= 0 else min(float(total), spread / variance)
+    low, high = _wilson_real(share, n_eff, z)
+    return {"share": share, "ci_low": low, "ci_high": high, "variance": max(0.0, variance), "n_eff": n_eff,
+            "n": total, "method": "stratified wilson (effective n)"}
+
+
 def sign_test(diffs: Sequence[float]) -> dict[str, Any]:
     xs = _check_numbers(diffs, "diffs")
     n_pos = sum(1 for d in xs if d > 0)
@@ -221,6 +266,52 @@ def bootstrap_f1(counts: Sequence[Sequence[int]], *, B: int, seed: int | str, al
     return {"f1": f1_from_counts(*total), "ci_low": percentile(reps, 100 * alpha / 2) if reps else None,
             "ci_high": percentile(reps, 100 * (1 - alpha / 2)) if reps else None, "B": B, "seed": seed,
             "method": "percentile", "undefined": undefined}
+
+
+def paired_bootstrap_f1(a: Sequence[Sequence[int]], b: Sequence[Sequence[int]], *, B: int, seed: int | str,
+                        alpha: float = 0.05) -> dict[str, Any]:
+    sides = []
+    for counts in (a, b):
+        rows = []
+        for row in counts:
+            if not isinstance(row, (tuple, list)) or len(row) != 3:
+                raise ValueError("counts must be (tp, fp, fn) triples") from None
+            rows.append(tuple(_check_count(v, "a count") for v in row))
+        sides.append(rows)
+    ra, rb = sides
+    if len(ra) != len(rb):
+        raise ValueError("a and b must have the same length") from None
+    if not ra:
+        raise ValueError("need at least one record") from None
+    if isinstance(B, bool) or not isinstance(B, int) or B < 1:
+        raise ValueError("B must be a positive int") from None
+    if isinstance(alpha, bool) or not isinstance(alpha, (int, float)) or not 0 < alpha < 1:
+        raise ValueError("alpha must be in (0, 1)") from None
+    if isinstance(seed, bool) or not isinstance(seed, (int, str)):
+        raise ValueError("seed must be an int or str") from None
+    rows = [x + y for x, y in zip(ra, rb)]            # (tp, fp, fn) of a, then of b, per record
+
+    def pooled(picks: Sequence[int]) -> tuple[float | None, float | None]:
+        t = [0] * 6
+        for j in picks:
+            for i, v in enumerate(rows[j]):
+                t[i] += v
+        return f1_from_counts(*t[:3]), f1_from_counts(*t[3:])
+
+    n = len(rows)
+    f1_a, f1_b = pooled(range(n))
+    rng = random.Random(seed)
+    reps, undefined = [], 0
+    for _ in range(B):
+        x, y = pooled([rng.randrange(n) for _ in range(n)])
+        if x is None or y is None:
+            undefined += 1
+        else:
+            reps.append(x - y)
+    return {"n": n, "f1_a": f1_a, "f1_b": f1_b, "diff": None if f1_a is None or f1_b is None else f1_a - f1_b,
+            "ci_low": percentile(reps, 100 * alpha / 2) if reps else None,
+            "ci_high": percentile(reps, 100 * (1 - alpha / 2)) if reps else None, "B": B, "seed": seed,
+            "method": "paired percentile", "undefined": undefined}
 
 
 # --------------------------------------------------------------------------------------------------- detector tails

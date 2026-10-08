@@ -21,6 +21,7 @@ import time
 import traceback
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 from mycelic.collective import jsonio, schemacheck
@@ -698,13 +699,61 @@ class ClientTransportTests(RuntimeCase):
         self.assertEqual(rt.run(TASK, PAYLOAD, SCHEMA, ref="r:1"), REPLY)
 
     def test_public_host_goes_through_the_proxy_in_absolute_form(self) -> None:
+        # an external endpoint (audit r3: only external ones use the environment's proxy by default)
         proxy = self.server("valid")
         env = {"http_proxy": f"http://127.0.0.1:{proxy.port}"}
-        rt = self.runtime(self.config({"a": oc("http://model.example.test:8080/v1")}), environ=env)
-        self.assertEqual(rt.run(TASK, PAYLOAD, SCHEMA, ref="r:1"), REPLY)
+        rt = self.runtime(self.config({"a": oc("http://model.example.test:8080/v1", "external")}), environ=env)
+        self.assertEqual(rt.run(STRUCTURED, PAYLOAD, SCHEMA, ref="r:1"), REPLY)
         self.assertEqual(proxy.requests[0]["target"], "http://model.example.test:8080/v1/chat/completions")
         self.assertEqual(proxy.requests[0]["headers"]["host"], "model.example.test:8080")
-        self.assertEqual(self.rows(rt)[0]["host"], "model.example.test:8080")
+        row = self.rows(rt)[0]
+        self.assertEqual((row["host"], row["proxy"], row["boundary_mode"]),
+                         ("model.example.test:8080", True, "structured_egress"))
+
+    def test_an_endpoint_inside_a_boundary_never_uses_the_environment_proxy(self) -> None:
+        # regression (audit r3): a site endpoint addressed by a host name sent the whole raw request, narrative
+        # included, to http_proxy in absolute form, while the ledger said boundary_mode own. Now it connects
+        # directly unless the routing file opts in with env_proxy, and the ledger records each attempt's proxy
+        proxy = self.server("valid")
+        env = {"http_proxy": f"http://127.0.0.1:{proxy.port}", "https_proxy": f"http://127.0.0.1:{proxy.port}"}
+        dialled: list[Any] = []
+
+        def unreachable(address: Any, *args: Any, **kwargs: Any) -> Any:
+            dialled.append(address)
+            raise OSError("test: no route to the host")
+
+        rt = self.runtime(self.config({"a": oc("http://gpu01.plant-a.lan:8000/v1", max_retries=0)}), environ=env,
+                          data_label="partner")
+        with mock.patch.object(socket, "create_connection", unreachable), self.assertRaises(InferenceError) as cm:
+            rt.run(TASK, PAYLOAD, SCHEMA, ref="r:1")
+        self.assertEqual(cm.exception.kind, "network")
+        self.assertEqual(dialled, [("gpu01.plant-a.lan", 8000)])            # the host itself, not the proxy
+        self.assertEqual(proxy.requests, [])
+        row = self.rows(rt)[0]
+        self.assertEqual((row["proxy"], row["boundary_mode"], row["data_label"], row["host"]),
+                         (False, "own", "partner", "gpu01.plant-a.lan:8000"))
+        for boundary in ("site:a", "central", "any-simulated"):
+            ep = routing.Endpoint(name="e", provider="openai_compat", boundary=boundary,
+                                  base_url="https://gpu01.plant-a.lan:8443/v1", model="m")
+            with self.subTest(boundary=boundary):
+                self.assertFalse(ep.uses_env_proxy)
+                self.assertIsNone(client.endpoint_proxy(ep, env))
+        # a routing file may opt in, for a proxy inside the boundary; the ledger then says so
+        rt = self.runtime(self.config({"a": oc("http://model.example.test:8080/v1", env_proxy=True)}), environ=env)
+        self.assertEqual(rt.run(TASK, PAYLOAD, SCHEMA, ref="r:2"), REPLY)
+        self.assertEqual(proxy.requests[0]["target"], "http://model.example.test:8080/v1/chat/completions")
+        self.assertEqual((self.rows(rt)[0]["proxy"], self.rows(rt)[0]["boundary_mode"]), (True, "own"))
+        # and an external endpoint may opt out
+        external = self.config({"a": oc("http://model.example.test:8080/v1", "external", env_proxy=False)})
+        self.assertIsNone(client.endpoint_proxy(external.endpoints["a"], env))
+        for bad, path in (({"env_proxy": "yes"}, "$.endpoints.a.env_proxy"),
+                          ({"env_proxy": 1}, "$.endpoints.a.env_proxy")):
+            with self.subTest(bad=bad), self.assertRaises(ConfigError) as err:
+                self.config({"a": oc("http://model.example.test:8080/v1", **bad)})
+            self.assertEqual(err.exception.path, path)
+        with self.assertRaises(ConfigError) as err:
+            self.config({"a": {"provider": "fake", "boundary": "site:a", "env_proxy": True}}, allow_fake=True)
+        self.assertEqual(err.exception.path, "$.endpoints.a.env_proxy")
 
     def test_https_with_a_private_ca(self) -> None:
         certs = Path(tempfile.mkdtemp(dir=self.dir))
@@ -794,7 +843,7 @@ class ClientTransportTests(RuntimeCase):
                 conn.sendall(bytes([byte]))
 
         port, heads = self.raw_server(trickling_proxy)
-        ep = Endpoint(name="h", provider="openai_compat", boundary="site:a",
+        ep = Endpoint(name="h", provider="openai_compat", boundary="external",
                       base_url="https://model.example.test:8443/v1", model="m", deadline_s=1.0, max_retries=0)
         t0 = time.monotonic()
         with self.assertRaises(client.TransportFailure) as ctx:
@@ -1460,7 +1509,7 @@ class LedgerTests(RuntimeCase):
         return rt, fake
 
     def test_exactly_the_documented_keys(self) -> None:
-        self.assertEqual(len(LEDGER_KEYS), 27)
+        self.assertEqual(len(LEDGER_KEYS), 28)
         rt, _ = self.fake_runtime()
         rt.run(TASK, PAYLOAD, SCHEMA, ref="r:1")
         self.assertEqual(set(self.rows(rt)[0]), LEDGER_KEYS)

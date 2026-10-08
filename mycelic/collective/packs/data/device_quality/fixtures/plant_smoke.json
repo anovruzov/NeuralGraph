@@ -130,8 +130,8 @@
         "plant-corrowfield",
         "plant-fennick"
       ],
-      "start_week": 14,
-      "weeks": 6,
+      "start_week": 19,
+      "weeks": 3,
       "rate_per_week": 3,
       "language": "en",
       "entity_id": "BATTERY-DOOR"

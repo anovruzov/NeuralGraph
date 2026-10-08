@@ -629,6 +629,53 @@ class G0RunnerTests(unittest.TestCase):
             self.assertEqual(code, 2, output)
             self.assertFalse(target.exists())
 
+    def test_routing_mode_fails_when_the_models_did_not_answer(self) -> None:
+        # regression (audit r3): against a server that was down, every record was sensed lexically and every
+        # verdict was unknown, yet leakage.json said passed: true (mode routing, models_fake false) and the run
+        # exited 0; nothing in it counted model answers, fallbacks or judge failures
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            dead = probe.getsockname()[1]
+        always_invalid = FakeOpenAIServer("always-invalid").start()
+        self.addCleanup(always_invalid.stop)
+        routes = {TASK_NAME: {"endpoint": "sim"}, JUDGE_TASK: {"endpoint": "sim"}}
+        for name, base_url in (("dead", f"http://127.0.0.1:{dead}/v1"), ("invalid", always_invalid.base_url)):
+            with self.subTest(server=name):
+                routing = self.tmp / f"routing-{name}.json"
+                routing.write_text(json.dumps({"schema_version": 1, "endpoints": {"sim": {
+                    "provider": "openai_compat", "boundary": "any-simulated", "base_url": base_url, "model": "m-tag",
+                    "max_retries": 0}}, "routes": routes}), encoding="utf-8")
+                out = self.tmp / f"g0-{name}"
+                code, output, _ = run_main(args("device_quality", out, "--mode", "routing", "--routing",
+                                                str(routing), records=60, seed=3))
+                self.assertEqual(code, 1, output)
+                d = json.loads((out / "leakage.json").read_text(encoding="utf-8"))
+                self.assertEqual((d["mode"], d["models_fake"], d["passed"]), ("routing", False, False))
+                self.assertEqual((d["hits"], d["shingle_overlap_bytes"]), ([], 0))      # no leak: the model path
+                path = d["model_path"]                                                   # is what failed
+                self.assertEqual((path["extract"]["records"], path["extract"]["model_answered"]), (60, 0))
+                self.assertIn("no extraction record was answered by a model", path["problems"])
+                self.assertIn("-> FAIL", output)
+                self.assertIn("g0: model path: no extraction record was answered by a model", output)
+                if name == "dead":
+                    self.assertEqual(path["extract"]["errors"]["network"] + path["extract"]["errors"]["not_sent"],
+                                     60)
+                    self.assertEqual(path["judge"]["model_answered"], 0)
+                    self.assertTrue(any(p.startswith("60 extraction records got no model answer (network ")
+                                        for p in path["problems"]), path["problems"])
+                    self.assertIn("no judge call was answered by a model", path["problems"])
+                else:                  # every reply came back and failed validation: answered, but unusable
+                    self.assertEqual(path["extract"]["errors"], {"schema_invalid": 60})
+                    self.assertGreater(path["judge"]["model_answered"], 0)
+                    self.assertGreater(path["judge"]["degraded_verdicts"], 0)
+                    self.assertFalse([p for p in path["problems"] if "got no model answer" in p])
+        lexical = self.result("dq-lexical")
+        self.assertIsNone(lexical["model_path"])
+        fake = self.result("dq-on")["model_path"]
+        self.assertEqual((fake["problems"], fake["extract"]["records"], fake["extract"]["model_answered"]),
+                         ([], 1000, 1000))
+        self.assertEqual(fake["judge"]["model_answered"], fake["judge"]["attempts"])
+
     def test_usage_errors_exit_2_and_write_nothing(self) -> None:
         busy = self.tmp / "busy"
         busy.mkdir()

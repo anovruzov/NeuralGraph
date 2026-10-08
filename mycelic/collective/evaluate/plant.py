@@ -23,8 +23,10 @@ Rules:
   then each item in list order (a decoy's ``class`` is read first, since its keys depend on it; then keys, id, entity
   type, ids, predicate, site lists, week and rate ranges, visibility and language, what the construction needs, the
   class's shape), then across items (duplicate ids, then a key planted twice). :func:`check_plant` adds the world:
-  sites of the org, master data of every counted site, the world and evaluation weeks, staleness before the
-  evaluation weeks, a high base rate's site share and a single reporter's rate against k.
+  sites of the org, master data of every counted site, the world and evaluation weeks, a stale chain's place (stale
+  at the first evaluation week and wholly inside that week's detection window, so only G4's stale filter keeps it
+  from being a candidate there; X1 scores it on candidacy, since its cooldown would hold any alert), a high base
+  rate's site share and a single reporter's rate against k.
 * **Planted records carry only the planted mention.** ``narrative_only`` (every decoy is): no codes and no structured
   entities, a narrative of one single-slot template plus filler; ``codes_only``: one specific code of the predicate,
   the structured id and filler only; ``both``: all of these. So S and the model-free R can never see a
@@ -509,8 +511,13 @@ def check_plant(spec: PlantSpec, pack: "FrozenPack", *, site_ids: Sequence[str],
             raise PlantError(f"{path}.weeks", "outside the world weeks") from None
         cls = item.decoy_class if isinstance(item, Decoy) else None
         if cls == "stale_chain":
-            if not 7 * (eval_from - item.end_week) > detectors["decoy"]["stale_days"]:
-                raise PlantError(f"{path}.start_week", "not stale before the evaluation weeks") from None
+            # stale at the first evaluation step whatever the run's as_of (that step's as_of is at least the week's
+            # Sunday plus close_lag_days), and wholly inside that step's detection window, so without G4's stale
+            # filter the chain is as strong a candidate there as when it was fresh
+            if not 7 * (eval_from - item.end_week) + pack.egress.close_lag_days > detectors["decoy"]["stale_days"]:
+                raise PlantError(f"{path}.start_week", "not stale at the first evaluation week") from None
+            if item.start_week < eval_from - detectors["window_weeks"] + 1:
+                raise PlantError(f"{path}.start_week", "not inside the first evaluation week's window") from None
         elif item.start_week < eval_from or item.end_week > eval_to:
             raise PlantError(f"{path}.start_week", "outside the evaluation weeks") from None
         if cls == "high_base_rate_everywhere" \
@@ -676,8 +683,8 @@ def labels_doc(spec: PlantSpec, pack: "FrozenPack", *, weeks: Sequence[str], eva
     decoys = []
     for d in spec.decoys:
         cls = d.decoy_class
-        if cls == "stale_chain":
-            watch = (eval_from, min(max(eval_from, d.end_week + window - 1) + grace_weeks, eval_to))
+        if cls == "stale_chain":                     # check_plant puts the whole chain in eval_from's window
+            watch = (eval_from, min(d.end_week + window - 1 + grace_weeks, eval_to))
             quiet: tuple[int, int] | None = (d.end_week + 1, watch[1])
             rule: str | None = "all_sites_zero"
         else:

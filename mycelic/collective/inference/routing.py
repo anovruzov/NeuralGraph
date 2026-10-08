@@ -18,6 +18,14 @@ for hybrid-thinking models and which spends the small token budgets of the site 
 recent vLLM) and ``chat_template_kwargs`` (a flat object of at most 8 names to booleans, ints or short strings, sent
 as is: ``{"enable_thinking": false}`` for vLLM and llama-server with a thinking chat template). Neither is sent
 unless the file names it; the server's default then applies, and the routing file's sha256 records which.
+
+``env_proxy`` (a boolean) says whether requests to the endpoint may use the environment's ``http_proxy`` /
+``https_proxy``. It defaults to true only for ``"boundary": "external"``: an endpoint inside a site's or HQ's boundary
+(``site:<id>``, ``central``, ``any-simulated``) is always connected to directly, because a site request carries raw
+record text and an environment proxy is often an off-site web gateway (audit round 3: a site endpoint addressed by a
+host name went through the proxy while the ledger said ``boundary_mode: own``). Set it to true only for a proxy that
+is itself inside that boundary. The ledger records each attempt's ``proxy``.
+
 Escalation is single-hop: the escalation endpoint's own route is never followed. Every error is a
 :class:`ConfigError` naming the JSON path of the offending value.
 """
@@ -51,7 +59,7 @@ MAX_TEMPLATE_KWARGS = 8
 _TOP_KEYS = {"schema_version", "endpoints", "routes"}
 _ENDPOINT_KEYS = {"provider", "boundary", "base_url", "model", "response_format", "transport_schema", "api_key_env",
                   "connect_timeout_s", "deadline_s", "max_retries", "max_response_bytes", "ca_file", "price", "seed",
-                  "reasoning_effort", "chat_template_kwargs"}
+                  "reasoning_effort", "chat_template_kwargs", "env_proxy"}
 _ROUTE_KEYS = {"endpoint", "escalate_to"}
 _PRICE_KEYS = {"per_mtok_in", "per_mtok_out", "usd_per_hour"}
 
@@ -101,6 +109,12 @@ class Endpoint:
     seed: int | None = None
     reasoning_effort: str | None = None
     chat_template_kwargs: tuple[tuple[str, Any], ...] | None = None
+    env_proxy: bool | None = None            # None: true only for the external boundary
+
+    @property
+    def uses_env_proxy(self) -> bool:
+        """Whether requests may use the environment's proxy: ``env_proxy`` when set, else only when external."""
+        return self.env_proxy if self.env_proxy is not None else self.boundary == "external"
 
     @property
     def host_label(self) -> str:
@@ -280,6 +294,12 @@ def _parse_endpoint(name: str, raw: Any, *, allow_fake: bool) -> Endpoint:
     if "chat_template_kwargs" in raw:
         kwargs["chat_template_kwargs"] = _check_template_kwargs(raw["chat_template_kwargs"],
                                                                 f"{path}.chat_template_kwargs")
+    if "env_proxy" in raw:
+        if not isinstance(raw["env_proxy"], bool):
+            raise ConfigError(f"{path}.env_proxy", "must be a boolean") from None
+        if provider != "openai_compat":
+            raise ConfigError(f"{path}.env_proxy", "only for openai_compat") from None
+        kwargs["env_proxy"] = raw["env_proxy"]
     return Endpoint(name=name, provider=provider, boundary=boundary, base_url=base_url, model=model, **kwargs)
 
 
