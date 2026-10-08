@@ -1,0 +1,77 @@
+{
+  "roles": {
+    "claims_manager": {
+      "label": "Claims manager"
+    },
+    "siu_investigator": {
+      "label": "SIU investigator"
+    }
+  },
+  "types": {
+    "evidence_packet": {
+      "label": "Evidence packet assembled on each line of business",
+      "tier": "T0",
+      "enabled": true,
+      "executor": "packet",
+      "args_schema": {
+        "conclusion": {
+          "kind": "conclusion_id"
+        }
+      },
+      "draft_schema": null,
+      "owner_role": "siu_investigator",
+      "daily_cap": 30,
+      "ack_days": 3,
+      "escalate_to_role": null
+    },
+    "siu_referral_draft": {
+      "label": "Draft a referral to the special investigations unit",
+      "tier": "T1",
+      "enabled": true,
+      "executor": "draft",
+      "args_schema": {
+        "conclusion": {
+          "kind": "conclusion_id"
+        },
+        "priority": {
+          "kind": "enum",
+          "values": [
+            "routine",
+            "urgent"
+          ]
+        }
+      },
+      "draft_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pattern_summary",
+          "requested_checks",
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "pattern_summary": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "requested_checks": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 400
+            }
+          }
+        }
+      },
+      "owner_role": "siu_investigator",
+      "daily_cap": 5,
+      "ack_days": 5,
+      "escalate_to_role": "claims_manager"
+    }
+  }
+}

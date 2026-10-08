@@ -1,0 +1,11 @@
+{
+  "id": "claims_integrity",
+  "version": "0.1.0",
+  "title": "Claims integrity at a fictional insurer (illustrative vocabulary)",
+  "languages": [
+    "en"
+  ],
+  "illustrative": true,
+  "disclaimer": "Fictional insurer with an illustrative vocabulary. Written by the same author as the generic code, so it shows that the code holds no domain literal; it is not evidence of generality (X3) and is never used externally.",
+  "same_author_as_code": true
+}

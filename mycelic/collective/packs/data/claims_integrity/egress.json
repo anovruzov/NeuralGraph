@@ -1,0 +1,39 @@
+{
+  "k": 5,
+  "suppress_below_days": 31,
+  "count_granularity": "week",
+  "close_lag_days": 21,
+  "min_window_weeks": 6,
+  "verdict_count_buckets": [
+    5,
+    10,
+    50
+  ],
+  "egress_entity_types": [
+    "clinic",
+    "damage_area",
+    "repair_shop",
+    "tow_operator"
+  ],
+  "require_master_data": false,
+  "never_fields": [
+    "narrative",
+    "persons.claimant_name",
+    "persons.phone",
+    "persons.plate",
+    "persons.policy_number",
+    "reporter"
+  ],
+  "central_allowed_fields": [
+    "codes",
+    "entities.clinic",
+    "entities.damage_area",
+    "entities.repair_shop",
+    "entities.tow_operator",
+    "received_date",
+    "site"
+  ],
+  "verify_max_records": 300,
+  "question_budget_per_entity_per_day": 3,
+  "question_entities_per_site_per_day": 50
+}

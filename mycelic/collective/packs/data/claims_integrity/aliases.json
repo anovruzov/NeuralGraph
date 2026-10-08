@@ -1,0 +1,23 @@
+{
+  "repair_shop": {
+    "Kestrel Auto Body": "RS-42",
+    "Harbourside Panel Works": "RS-1077"
+  },
+  "clinic": {
+    "Northgate Physio": "CL-7Q2K",
+    "Elm Street Clinic": "CL-A100"
+  },
+  "tow_operator": {
+    "Swiftline Towing": "TW-0007"
+  },
+  "damage_area": {
+    "front bumper": "FRONT-BUMPER",
+    "rear bumper": "REAR-BUMPER",
+    "windscreen": "WINDSCREEN-GLASS",
+    "windshield": "WINDSCREEN-GLASS",
+    "bonnet": "BONNET-PANEL",
+    "hood": "BONNET-PANEL",
+    "side panel": "SIDE-PANEL",
+    "door panel": "SIDE-PANEL"
+  }
+}

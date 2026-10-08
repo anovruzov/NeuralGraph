@@ -1,0 +1,132 @@
+{
+  "roles": {
+    "quality_engineer": {
+      "label": "Quality engineer"
+    },
+    "quality_manager": {
+      "label": "Quality manager"
+    },
+    "supplier_quality_engineer": {
+      "label": "Supplier quality engineer"
+    }
+  },
+  "types": {
+    "evidence_packet": {
+      "label": "Evidence packet assembled at each site",
+      "tier": "T0",
+      "enabled": true,
+      "executor": "packet",
+      "args_schema": {
+        "conclusion": {
+          "kind": "conclusion_id"
+        }
+      },
+      "draft_schema": null,
+      "owner_role": "quality_engineer",
+      "daily_cap": 50,
+      "ack_days": 2,
+      "escalate_to_role": null
+    },
+    "capa_initiation_draft": {
+      "label": "Draft a CAPA initiation for a named owner",
+      "tier": "T1",
+      "enabled": true,
+      "executor": "draft",
+      "args_schema": {
+        "conclusion": {
+          "kind": "conclusion_id"
+        },
+        "severity": {
+          "kind": "enum",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      },
+      "draft_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "affected_lots",
+          "containment",
+          "problem_statement",
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "problem_statement": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "containment": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "affected_lots": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        }
+      },
+      "owner_role": "quality_engineer",
+      "daily_cap": 10,
+      "ack_days": 5,
+      "escalate_to_role": "quality_manager"
+    },
+    "scar_draft": {
+      "label": "Draft a supplier corrective-action request",
+      "tier": "T1",
+      "enabled": true,
+      "executor": "draft",
+      "args_schema": {
+        "conclusion": {
+          "kind": "conclusion_id"
+        },
+        "supplier_id": {
+          "kind": "entity_id",
+          "entity_type": "supplier"
+        }
+      },
+      "draft_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "nonconformance",
+          "requested_actions",
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "nonconformance": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "requested_actions": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 400
+            }
+          }
+        }
+      },
+      "owner_role": "supplier_quality_engineer",
+      "daily_cap": 5,
+      "ack_days": 10,
+      "escalate_to_role": "quality_manager"
+    }
+  }
+}

@@ -1,0 +1,415 @@
+{
+  "start": "2024-01-01",
+  "sites": [
+    {
+      "id": "motor-north",
+      "label": "Motor claims, north (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "motor-south",
+      "label": "Motor claims, south (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        2,
+        6
+      ],
+      "reporters": 4
+    },
+    {
+      "id": "motor-east",
+      "label": "Motor claims, east (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        2,
+        5
+      ],
+      "reporters": 4
+    },
+    {
+      "id": "motor-west",
+      "label": "Motor claims, west (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        2,
+        5
+      ],
+      "reporters": 3
+    },
+    {
+      "id": "injury-central",
+      "label": "Injury claims, central (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        2,
+        5
+      ],
+      "reporters": 4
+    },
+    {
+      "id": "injury-coastal",
+      "label": "Injury claims, coastal (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        1,
+        4
+      ],
+      "reporters": 3
+    }
+  ],
+  "forwarding_rate": 0.1,
+  "mixed_language_rate": 0,
+  "negated_sentence_rate": 0.3,
+  "second_predicate_rate": 0.25,
+  "entity_sentence_rate": 0.3,
+  "zero_claim_rate": 0.05,
+  "predicate_weights": {
+    "duplicate_invoice": 1,
+    "inflated_labour_hours": 1,
+    "irregularity_unspecified": 0.5,
+    "prior_damage_concealed": 1,
+    "staged_collision": 0.7,
+    "supplement_after_teardown": 1.2,
+    "tow_without_dispatch": 0.8,
+    "treatment_pattern_mismatch": 1
+  },
+  "codes": {
+    "specific_rate": 0.4,
+    "generic_rate": 0.3,
+    "generic_code": "FLAG-99"
+  },
+  "fill_rates": {
+    "clinic": 0.3,
+    "damage_area": 0.4,
+    "repair_shop": 0.9,
+    "tow_operator": 0.3
+  },
+  "universe": {
+    "clinic": [
+      "CL-4MM2",
+      "CL-7Q2K",
+      "CL-A100",
+      "CL-B7X9"
+    ],
+    "damage_area": [
+      "BONNET-PANEL",
+      "FRONT-BUMPER",
+      "REAR-BUMPER",
+      "SIDE-PANEL",
+      "WINDSCREEN-GLASS"
+    ],
+    "repair_shop": [
+      "RS-1077",
+      "RS-2290",
+      "RS-310",
+      "RS-42",
+      "RS-5"
+    ],
+    "tow_operator": [
+      "TW-0007",
+      "TW-0310",
+      "TW-1200"
+    ]
+  },
+  "links": {
+    "tow_operator": {
+      "parent": "repair_shop",
+      "map": {
+        "RS-1077": [
+          "TW-1200"
+        ],
+        "RS-2290": [
+          "TW-1200"
+        ],
+        "RS-310": [
+          "TW-0310"
+        ],
+        "RS-42": [
+          "TW-0007",
+          "TW-0310"
+        ],
+        "RS-5": [
+          "TW-0007"
+        ]
+      }
+    }
+  },
+  "surface": {
+    "exact": 6,
+    "lower": 1,
+    "underscore": 1,
+    "en_dash": 1,
+    "fullwidth": 0.5,
+    "space": 0.5,
+    "alias": 2
+  },
+  "narratives": {
+    "en": {
+      "supplement_after_teardown": {
+        "affirmed": [
+          "Shop {repair_shop} filed a supplement request after the vehicle was stripped.",
+          "A supplemental estimate arrived from {repair_shop} for the {damage_area}."
+        ],
+        "negated": [
+          "No supplement request was received from {repair_shop}."
+        ]
+      },
+      "prior_damage_concealed": {
+        "affirmed": [
+          "Photos show prior damage to the {damage_area}.",
+          "The appraiser found old damage on the {damage_area} at {repair_shop}."
+        ],
+        "negated": [
+          "No prior damage was visible on the {damage_area}."
+        ]
+      },
+      "treatment_pattern_mismatch": {
+        "affirmed": [
+          "Clinic {clinic} billed identical treatment plans for unrelated claimants.",
+          "{clinic} submitted the same treatment plan for every claimant in the incident."
+        ],
+        "negated": [
+          "A review of {clinic} found no identical treatment plans."
+        ]
+      },
+      "duplicate_invoice": {
+        "affirmed": [
+          "{repair_shop} sent a duplicate invoice for one repair.",
+          "The tow fee was billed twice by {tow_operator}."
+        ],
+        "negated": [
+          "No duplicate invoice was found for {repair_shop}."
+        ]
+      },
+      "inflated_labour_hours": {
+        "affirmed": [
+          "The estimate from {repair_shop} shows excessive labour hours.",
+          "Inflated labour was billed for the {damage_area}."
+        ],
+        "negated": [
+          "The desk review found no inflated labour on the estimate."
+        ]
+      },
+      "staged_collision": {
+        "affirmed": [
+          "Witness statements suggest a staged collision.",
+          "The scene report points to a staged accident involving {tow_operator}."
+        ],
+        "negated": [
+          "The investigator found no staged accident."
+        ]
+      },
+      "tow_without_dispatch": {
+        "affirmed": [
+          "{tow_operator} billed an undispatched tow.",
+          "A phantom tow was invoiced by {tow_operator}."
+        ],
+        "negated": [
+          "No phantom tow was recorded for {tow_operator}."
+        ]
+      },
+      "irregularity_unspecified": {
+        "affirmed": [
+          "The handler flagged an irregularity on the file.",
+          "Something suspicious was noted about {repair_shop}."
+        ],
+        "negated": [
+          "No irregularity was noted on the file."
+        ]
+      }
+    }
+  },
+  "entity_sentences": {
+    "en": [
+      "The vehicle was repaired at {repair_shop}.",
+      "The claimant attended {clinic} for treatment.",
+      "{tow_operator} moved the vehicle from the scene.",
+      "Damage was reported to the {damage_area}.",
+      "{person:claimant_name} took the car to {repair_shop}."
+    ]
+  },
+  "filler": {
+    "en": [
+      "The claim was assigned to a handler.",
+      "The policyholder was contacted by phone.",
+      "Documents were requested from the claimant.",
+      "The file was reviewed by the team.",
+      "Payment was put on hold pending review.",
+      "A recorded statement was taken.",
+      "The adjuster visited the vehicle.",
+      "The broker asked for an update.",
+      "Receipts were added to the file.",
+      "The case notes were updated after the call."
+    ]
+  },
+  "persons": {
+    "claimant_name": {
+      "kind": "name",
+      "first": [
+        "Anna",
+        "Jonas",
+        "Maria",
+        "Lukas",
+        "Sofia",
+        "Elena",
+        "Tobias",
+        "Clara",
+        "Peter",
+        "Hannah",
+        "Omar",
+        "Priya",
+        "Daniel",
+        "Ingrid",
+        "Mateo",
+        "Aisha"
+      ],
+      "last": [
+        "Berger",
+        "Hoffmann",
+        "Lindqvist",
+        "Okafor",
+        "Novak",
+        "Brandt",
+        "Kessler",
+        "Moreau",
+        "Whitfield",
+        "Ferreira",
+        "Tanaka",
+        "Albrecht",
+        "Castillo",
+        "Duarte"
+      ]
+    },
+    "phone": {
+      "kind": "pattern",
+      "segments": [
+        {
+          "digit": [
+            3,
+            3
+          ]
+        },
+        {
+          "sep": "required"
+        },
+        {
+          "digit": [
+            3,
+            3
+          ]
+        },
+        {
+          "sep": "required"
+        },
+        {
+          "digit": [
+            4,
+            4
+          ]
+        }
+      ],
+      "separator": "-",
+      "case": "upper"
+    },
+    "plate": {
+      "kind": "pattern",
+      "segments": [
+        {
+          "alpha": [
+            2,
+            2
+          ]
+        },
+        {
+          "sep": "required"
+        },
+        {
+          "digit": [
+            2,
+            2
+          ]
+        },
+        {
+          "sep": "required"
+        },
+        {
+          "alpha": [
+            3,
+            3
+          ]
+        }
+      ],
+      "separator": " ",
+      "case": "upper"
+    },
+    "policy_number": {
+      "kind": "pattern",
+      "segments": [
+        {
+          "literal": "POL"
+        },
+        {
+          "digit": [
+            7,
+            7
+          ]
+        }
+      ],
+      "separator": null,
+      "case": "upper"
+    }
+  },
+  "reporter": {
+    "kind": "choice",
+    "values": [
+      "ADJ-NORTH-1",
+      "ADJ-NORTH-2",
+      "ADJ-SOUTH-1",
+      "ADJ-EAST-1",
+      "ADJ-WEST-1",
+      "ADJ-INJURY-1",
+      "ADJ-INJURY-2",
+      "ADJ-INJURY-3"
+    ]
+  },
+  "master_data": {
+    "motor-north": {
+      "repair_shop": "all",
+      "tow_operator": "all"
+    },
+    "motor-south": {
+      "repair_shop": "all",
+      "tow_operator": [
+        "TW-0007",
+        "TW-0310"
+      ]
+    },
+    "motor-east": {
+      "repair_shop": [
+        "RS-42",
+        "RS-310"
+      ],
+      "tow_operator": "all"
+    },
+    "motor-west": {
+      "repair_shop": "all",
+      "tow_operator": "all"
+    },
+    "injury-central": {
+      "clinic": "all",
+      "repair_shop": "all"
+    },
+    "injury-coastal": {
+      "clinic": [
+        "CL-7Q2K",
+        "CL-A100"
+      ],
+      "repair_shop": "all"
+    }
+  }
+}

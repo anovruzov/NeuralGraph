@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "endpoints": {
+    "central-comparator": {
+      "provider": "openai_compat",
+      "boundary": "central",
+      "base_url": "http://127.0.0.1:8001/v1",
+      "model": "central-model-tag",
+      "response_format": "json_schema",
+      "deadline_s": 600
+    }
+  },
+  "routes": {
+    "judge_candidate_raw": {"endpoint": "central-comparator"},
+    "judge_candidate_allowed": {"endpoint": "central-comparator"}
+  }
+}

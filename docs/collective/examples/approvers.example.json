@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "enterprise": "acme",
+  "approvers": [
+    {"person_label": "qe.emea.lead", "role": "quality_engineer", "unit_path": "acme/emea"},
+    {"person_label": "qe.amer.lead", "role": "quality_engineer", "unit_path": "acme/amer"},
+    {"person_label": "sqe.global", "role": "supplier_quality_engineer", "unit_path": "acme"},
+    {"person_label": "qm.global", "role": "quality_manager", "unit_path": "acme"}
+  ]
+}

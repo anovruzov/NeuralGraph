@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "endpoints": {
+    "site-a-llamaserver": {
+      "provider": "openai_compat",
+      "boundary": "site:a",
+      "base_url": "http://127.0.0.1:8080/v1",
+      "model": "local-gguf",
+      "response_format": "json_schema",
+      "transport_schema": "full",
+      "deadline_s": 300
+    },
+    "site-a-ollama": {
+      "provider": "openai_compat",
+      "boundary": "site:a",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "model": "qwen3:8b",
+      "response_format": "json_schema",
+      "reasoning_effort": "none",
+      "deadline_s": 300
+    },
+    "site-a-vllm": {
+      "provider": "openai_compat",
+      "boundary": "site:a",
+      "base_url": "http://127.0.0.1:8000/v1",
+      "model": "Qwen/Qwen3-32B",
+      "response_format": "json_schema",
+      "chat_template_kwargs": {"enable_thinking": false},
+      "deadline_s": 300
+    },
+    "external-comparator": {
+      "provider": "openai_compat",
+      "boundary": "external",
+      "base_url": "https://api.provider.example/v1",
+      "model": "provider-model-id",
+      "api_key_env": "COMPARATOR_API_KEY",
+      "deadline_s": 120
+    }
+  },
+  "routes": {
+    "extract_claims": {"endpoint": "site-a-ollama", "escalate_to": "site-a-vllm"},
+    "judge_record": {"endpoint": "site-a-ollama", "escalate_to": "site-a-vllm"}
+  }
+}

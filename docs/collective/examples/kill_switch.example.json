@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "global": "off",
+  "types": {
+    "evidence_packet": "off",
+    "capa_initiation_draft": "off",
+    "scar_draft": "on"
+  }
+}

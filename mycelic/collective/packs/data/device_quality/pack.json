@@ -1,0 +1,12 @@
+{
+  "id": "device_quality",
+  "version": "0.1.0",
+  "title": "Device quality complaints (illustrative vocabulary)",
+  "languages": [
+    "en",
+    "de"
+  ],
+  "illustrative": true,
+  "disclaimer": "This pack is an illustrative subset written for testing, not the official FDA or IMDRF code list. Its ILL- codes are invented placeholders, and its products, lots, suppliers, plants and people are fictional.",
+  "same_author_as_code": true
+}

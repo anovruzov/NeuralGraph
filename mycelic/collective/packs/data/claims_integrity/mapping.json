@@ -1,0 +1,48 @@
+{
+  "record_ref": "claim_id",
+  "site": "line_of_business",
+  "received_date": {
+    "path": "reported",
+    "format": "iso"
+  },
+  "language": "language",
+  "codes": [
+    {
+      "path": "flags[]",
+      "value_map": null
+    }
+  ],
+  "entities": {
+    "clinic": [
+      "clinic_code"
+    ],
+    "damage_area": [
+      "damage[]"
+    ],
+    "repair_shop": [
+      "shop_code"
+    ],
+    "tow_operator": [
+      "tow_ref"
+    ]
+  },
+  "primary_entity_type": "repair_shop",
+  "narrative": [
+    {
+      "path": "adjuster_notes",
+      "where": null
+    }
+  ],
+  "persons": {
+    "claimant_name": "claimant.name",
+    "phone": "claimant.phone",
+    "plate": "vehicle.plate",
+    "policy_number": "claimant.policy"
+  },
+  "reporter": "handler_id",
+  "origin_ref": "copied_from.claim_id",
+  "origin_site": "copied_from.line_of_business",
+  "required": [
+    "narrative"
+  ]
+}
