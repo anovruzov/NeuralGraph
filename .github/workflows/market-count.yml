@@ -33,7 +33,7 @@ jobs:
       - name: can a manufacturer's reports be split into its sites
         run: python tools/market/openfda_sites.py --out site-split.json --year 2024
       - name: openFDA connector check (lab run 37861226513's refused events fetch; events only)
-        run: python tools/market/openfda_connector_check.py --code JKA --date-from 20230101 --date-to 20241231
+        run: python tools/market/openfda_connector_check.py --code JKA --date-from 20230101 --date-to 20241231 --lab-request lab/requests/openfda-001.json
       - name: replay choice inputs (docs/collective/replay/CHOICE-001.md; event counts and firm names only)
         run: python tools/market/openfda_replay_inputs.py --out replay-inputs.json --word BECTON --codes JKA,FOZ,FMI,FMF,FPA,MDB --first-year 2019 --last-year 2024 --cap 10000
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

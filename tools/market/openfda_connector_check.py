@@ -42,13 +42,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--code", required=True)
     p.add_argument("--date-from", required=True)
     p.add_argument("--date-to", required=True)
+    p.add_argument("--lab-request", help="also run the lab's own fetch-events command for this request file")
     args = p.parse_args(argv)
     sys.path.insert(0, str(ROOT))
     from mycelic.collective.connectors import openfda as conn  # noqa: E402
 
-    url = conn.page_url(conn.DEFAULT_BASE_URL, "event", args.code, args.date_from, args.date_to, 5, 0)
-    print("connector url:", url)
-    print("connector url ->", status_of(url))
+    for limit in (5, 100, 1000):
+        url = conn.page_url(conn.DEFAULT_BASE_URL, "event", args.code, args.date_from, args.date_to, limit, 0)
+        print(f"connector url (limit {limit}):", url)
+        print(f"connector url (limit {limit}) ->", status_of(url))
     search = f'device.device_report_product_code:"{args.code}"+AND+date_received:[{args.date_from}+TO+{args.date_to}]'
     alt = conn.DEFAULT_BASE_URL + "/device/event.json?" + urllib.parse.urlencode(
         {"search": search, "limit": 5, "skip": 0}, safe=':[]+"')
@@ -61,6 +63,24 @@ def main(argv: list[str] | None = None) -> int:
                               cwd=ROOT, capture_output=True, text=True, timeout=300)
     print("connector cli exit:", done.returncode)
     print("connector cli stderr:", done.stderr.strip()[:2000])
+    if args.lab_request:
+        # the lab's own fetch-events command for the request, run as the lab runs it (events only)
+        import os
+        from lab import ROOT as LAB_ROOT, openfda, units
+        from lab.manifest import load_manifest
+        from lab.request import validate
+        params = validate(json.loads(Path(args.lab_request).read_text()),
+                          load_manifest(ROOT / "lab" / "models.json"))["experiments"]["openfda"]
+        with tempfile.TemporaryDirectory() as tmp:
+            r = Path(tmp) / "r"
+            (r / "cache").mkdir(parents=True)
+            argv = openfda.step_argvs(params, r, key=False, base_url=None)[0][1]
+            print("lab fetch-events argv:", " ".join(argv[1:]))
+            res = units.run_process(argv, units.subprocess_env(os.environ, []), cwd=LAB_ROOT, timeout_s=1200,
+                                    stdout_path=r / "out.log", stderr_path=r / "err.log")
+            print("lab fetch-events exit:", res.exit_code, "wall_s:", round(res.wall_s, 1))
+            print("lab fetch-events stdout:", (r / "out.log").read_text()[:2000])
+            print("lab fetch-events stderr:", (r / "err.log").read_text()[:2000])
     return 0
 
 
