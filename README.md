@@ -575,6 +575,8 @@ More, client by client, in the
 | **[Benchmarks](docs/BENCHMARKS.md)** | Every number across the coordination, retrieval and baseline tracks, with evidence classes |
 | **[Enterprise Hierarchy (Mycelic)](docs/MYCELIC_ENTERPRISE.md)** | The enterprise-hierarchy benchmark report; code and raw runs in [research/mycelic/](research/mycelic/) |
 | **[Collective layer (pre-pilot)](docs/collective/ARCHITECTURE.md)** | Cross-site detection, pushdown verification and approval-routed follow-up in `mycelic/collective/`. Pre-pilot, internal evidence only: synthetic, same-author data and fakes, never a measurement. Not in the service image, and the service never imports it |
+| **[Cloud lab](docs/lab/README.md)** | Runs the collective layer's experiment harnesses with real small language models on GitHub-hosted runners: pushing a request file under `lab/requests/` starts the `mycelic-lab` workflow. Each report states what its numbers are (a plumbing check with a fake model, unverified, or a measurement on a shared runner); no lab figure is quoted here |
+| **[Website](site/README.md)** | `site/index.html`, one plain HTML page about Mycelic, and how to publish it |
 | **[Research](research/README.md)** | The research track: how to reproduce every number |
 | **[Experiment Reports](research/reports/README.md)** | 18 experiments, including the ones that failed |
 | **[System Architecture](docs/ARCHITECTURE.md)** | The v1 research engine design (December 2025) |

@@ -177,6 +177,17 @@ per shard (its runner, server and units) and the report summary (everything merg
 - `lab-report-<class>-<run id>-<attempt>`: the report (`report.json`, `report.md`), the lock candidate and E1's
   comparison files; `<class>` is `plumbing` or `real`.
 
+Each summary step also prints into its job log, so a run can be read without downloading an artifact: the plan job
+prints the plan summary (`plan/summary.md`); each shard job its `provenance.json` and its summary
+(`shard/provenance.json`, `shard/summary.md`); the aggregate job the report's `report.json`, `report.md` and
+`lock-candidate.json` (`report/report.json`, `report/report.md`, `report/lock-candidate.json`). Each file stands
+between a `=== MYCELIC-LAB <label> BEGIN lines=<n> sha256=<hex> ===` line, which gives its line count and the sha256
+of the file, and a `=== MYCELIC-LAB <label> END ===` line; a missing file is a single `ABSENT` line, and an `INDEX`
+line, listing each label's line count, comes last. `provenance.json` and `report.json` are printed indented: written
+back as canonical JSON (sorted keys, no spaces, a final newline) they are the file again, with the sha256 shown;
+`lock-candidate.json` and the summaries are printed as they are. These logs are public like everything else, and
+they expire with the repository's log retention.
+
 The first line of a summary says what its numbers are not:
 
 - `PLUMBING_CHECK_LINE`: PLUMBING CHECK: no model was run

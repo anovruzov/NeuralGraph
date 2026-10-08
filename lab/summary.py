@@ -1,6 +1,7 @@
 """Markdown summaries of a lab plan, one shard or the aggregate report, in which every number is read from a run file.
 
     python -m lab.summary plan|shard|report --dir DIR [--append-to FILE] [--md-out FILE] [--sources-out FILE]
+                          [--log]
 
 ``plan`` reads ``DIR/plan-error.json``, ``DIR/plan-nothing.json`` or ``DIR/plan.json``; ``shard`` reads a shard
 root's ``status.json``, ``provenance.json`` and ``units/*/unit.json``; ``report`` reads ``DIR/report.json`` only. A
@@ -59,11 +60,32 @@ only, while its size plus the next row stays under the cap less :data:`RESERVE_B
 truncation sentence, which ends the summary. The sentence holds no count: totals are elsewhere, sourced.
 
 Exit 2 for a bad argument, an output that cannot be written or an output inside ``mycelic/``, ``research/``,
-``NeuralGraph/`` or ``.github/``; else 0. Nothing is printed on stdout.
+``NeuralGraph/`` or ``.github/``; else 0.
+
+Without ``--log`` nothing is printed on stdout. With ``--log`` the files a reader of the job log needs are printed
+there too, after the output check and before any output is written (:data:`LOG_BLOCKS`): ``plan`` prints
+``plan/summary.md``; ``shard`` prints ``shard/provenance.json``, then ``shard/summary.md``; ``report`` prints
+``report/report.json``, then ``report/report.md``, then ``report/lock-candidate.json``. A ``.md`` block is the
+Markdown the other outputs receive; ``provenance.json`` and ``report.json`` are printed pretty (sorted keys, indent
+one, literal non-ASCII; the files are canonical JSON, so ``canonical_dumps`` of the parsed body plus a newline is the
+file) and ``lock-candidate.json`` verbatim. A block is ``=== MYCELIC-LAB <label> BEGIN lines=<n> sha256=<hex> ===``
+(the hash of the file's bytes, or of the Markdown's UTF-8), its lines, then ``=== MYCELIC-LAB <label> END ===``. A
+missing file is the single line ``=== MYCELIC-LAB <label> ABSENT ===``; a file that cannot be read, decoded or
+parsed, or whose text cannot be printed line for line (no final newline, a carriage return, or a line that starts
+with ``::`` or the marker prefix), is ``=== MYCELIC-LAB <label> UNREADABLE sha256=<hex|none> ===``; a file or body
+over :data:`MAX_LOG_BYTES` is ``=== MYCELIC-LAB <label> TOO-LARGE bytes=<n> sha256=<hex> ===`` (``n`` is the
+file's size, or the body's when only the body is over), never a part of it. The last block line is
+``=== MYCELIC-LAB INDEX <label>=<state> ... ===``, a state being the line count, ``absent``, ``unreadable`` or
+``too-large``, so a reader of the log's tail knows how much to read. ``::stop-commands::<T>`` before the blocks and
+``::<T>::`` after them, where ``T`` is the sha256 of the lines between, keep the runner from acting on a workflow
+command in the printed text. Nothing else is printed: never ``plan.json``, ``status.json``, a sources file,
+a unit record, a log, a ledger or a harness file. Everything printed is already public (a step summary or an
+artifact), and provenance never holds a base URL's path or a key.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -87,6 +109,16 @@ from .units import display_class
 
 MAX_SUMMARY_BYTES = 900_000
 RESERVE_BYTES = 4096
+MAX_LOG_BYTES = 2_000_000
+LOG_MARK = "=== MYCELIC-LAB"
+# per mode, the blocks ``--log`` prints, most needed last (a log is read from its tail): (label, file under DIR or
+# None for the rendered Markdown, style)
+LOG_BLOCKS: dict[str, tuple[tuple[str, str | None, str], ...]] = {
+    "plan": (("plan/summary.md", None, "md"),),
+    "shard": (("shard/provenance.json", "provenance.json", "pretty"), ("shard/summary.md", None, "md")),
+    "report": (("report/report.json", "report.json", "pretty"), ("report/report.md", None, "md"),
+               ("report/lock-candidate.json", "lock-candidate.json", "raw")),
+}
 MODES = ("plan", "shard", "report")
 SHA_SHOWN = 12
 STYLES: dict[str, Callable[[Any], str]] = {
@@ -1074,6 +1106,94 @@ def _report_notes(doc: _Doc, src: Sources, report: dict[str, Any], units: list[t
 RENDERERS = {"plan": render_plan, "shard": render_shard, "report": render_report}
 
 
+# --------------------------------------------------------------------------------------------------- the job log
+
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _log_lines(body: str) -> list[str] | None:
+    """The lines of a body that can be printed line for line (it ends with a newline, holds no carriage return and
+    no line starts with ``::`` or the marker prefix), else None."""
+    if body == "":
+        return []
+    if not body.endswith("\n") or "\r" in body:
+        return None
+    lines = body[:-1].split("\n")
+    if any(line.startswith(("::", LOG_MARK)) for line in lines):
+        return None
+    return lines
+
+
+def _log_block(label: str, root: Path, rel: str | None, style: str, md: str) -> tuple[list[str], str]:
+    """One block's lines and its INDEX entry: the rendered Markdown (``rel`` None), or the file ``root / rel``
+    pretty-printed (``pretty``) or verbatim (``raw``)."""
+    head = f"{LOG_MARK} {label}"
+    if rel is None:
+        try:
+            data = md.encode("utf-8")
+        except UnicodeEncodeError:
+            return [f"{head} UNREADABLE sha256=none ==="], "unreadable"
+    else:
+        try:
+            data = (root / rel).read_bytes()
+        except (FileNotFoundError, NotADirectoryError):
+            return [f"{head} ABSENT ==="], "absent"
+        except OSError:
+            return [f"{head} UNREADABLE sha256=none ==="], "unreadable"
+    sha = _sha256(data)
+    unreadable = [f"{head} UNREADABLE sha256={sha} ==="], "unreadable"
+    if len(data) > MAX_LOG_BYTES:
+        return [f"{head} TOO-LARGE bytes={len(data)} sha256={sha} ==="], "too-large"
+    try:
+        if rel is None:
+            body = md
+        elif style == "pretty":
+            body = json.dumps(strict_load(data), indent=1, sort_keys=True, ensure_ascii=False) + "\n"
+        else:
+            body = data.decode("utf-8")
+        size = len(body.encode("utf-8"))
+    except (ValueError, TypeError, RecursionError):  # StrictJsonError and the Unicode errors are ValueErrors
+        return unreadable
+    if size > MAX_LOG_BYTES:
+        return [f"{head} TOO-LARGE bytes={size} sha256={sha} ==="], "too-large"
+    lines = _log_lines(body)
+    if lines is None:
+        return unreadable
+    return [f"{head} BEGIN lines={len(lines)} sha256={sha} ===", *lines, f"{head} END ==="], str(len(lines))
+
+
+def log_text(mode: str, root: Path, md: str) -> str:
+    """What ``--log`` prints for ``mode``: its blocks (``md`` is the rendered summary) and the INDEX line, between
+    ``::stop-commands::<T>`` and ``::<T>::``, ``T`` being the sha256 of the lines between."""
+    inner: list[str] = []
+    index: list[str] = []
+    for label, rel, style in LOG_BLOCKS[mode]:
+        lines, state = _log_block(label, Path(root), rel, style, md)
+        inner += lines
+        index.append(f"{label}={state}")
+    inner.append(f"{LOG_MARK} INDEX {' '.join(index)} ===")
+    joined = "\n".join(inner)
+    token = _sha256(joined.encode("utf-8"))
+    return f"::stop-commands::{token}\n{joined}\n::{token}::\n"
+
+
+def _print_log(text: str) -> None:
+    """UTF-8 on stdout whatever its encoding, flushed; a stdout that cannot be written is reported on stderr and
+    changes no exit code."""
+    try:
+        sys.stdout.flush()
+        buffer = getattr(sys.stdout, "buffer", None)
+        if buffer is None:
+            sys.stdout.write(text)
+            sys.stdout.flush()
+        else:
+            buffer.write(text.encode("utf-8"))
+            buffer.flush()
+    except OSError:
+        print("error: the log blocks cannot be printed", file=sys.stderr)
+
+
 # --------------------------------------------------------------------------------------------------- CLI
 
 def _parser() -> argparse.ArgumentParser:
@@ -1084,6 +1204,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--append-to", help="append the Markdown here (the step summary)")
     p.add_argument("--md-out", help="write the Markdown here")
     p.add_argument("--sources-out", help="write where each number came from here")
+    p.add_argument("--log", action="store_true", help="also print the summary and its run files on stdout, between "
+                                                       "markers (for the job log)")
     return p
 
 
@@ -1096,6 +1218,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: no output may lie inside {name}/", file=sys.stderr)
             return EXIT_USAGE
     text, entries = RENDERERS[args.mode](Path(args.dir))
+    if args.log:
+        _print_log(log_text(args.mode, Path(args.dir), text))
     sources = {"schema_version": 1, "kind": "lab_summary_sources", "mode": args.mode, "sources": entries}
     try:
         if args.append_to:

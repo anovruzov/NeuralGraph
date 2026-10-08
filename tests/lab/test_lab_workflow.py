@@ -218,6 +218,18 @@ class WorkflowTests(unittest.TestCase):
                 self.assertIs(s.get("continue-on-error"), True, (job, s))
         self.assertEqual(checked, 4 + 1 + 3)
 
+    def test_summary_steps_print_into_the_job_log(self) -> None:
+        """The three summary steps, one per job that renders a summary, each end with ``--log``: the job log then
+        holds the summary and the run files a reader needs (``lab.summary``), even when no artifact can be read."""
+        summaries = [(job, s["run"]) for job, s in runs() if s["run"].startswith("python -m lab.summary ")]
+        self.assertEqual([(job, run.split()[3]) for job, run in summaries],
+                         [("plan", "plan"), ("run", "shard"), ("aggregate", "report")])
+        for _, run in summaries:
+            with self.subTest(run=run[:40]):
+                self.assertTrue(run.endswith(" --log"), run)
+                self.assertEqual(run.count("--log"), 1)
+        self.assertEqual(TEXT.count("--log"), 3)
+
     def test_artifact_names_and_plan_artifact_output(self) -> None:
         self.assertEqual(JOBS["plan"]["outputs"]["plan_artifact"], PLAN_ARTIFACT)
         uploads = {job: [s for s in steps(job) if uses(s) == "actions/upload-artifact"] for job in JOBS}

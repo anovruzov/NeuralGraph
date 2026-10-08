@@ -59,7 +59,7 @@ jobs:
       - if: ${{ !cancelled() }}
         run: >-
           python -m lab.summary plan --dir "$RUNNER_TEMP/lab-plan" --append-to "$GITHUB_STEP_SUMMARY"
-          --md-out "$RUNNER_TEMP/lab-plan/summary.md" --sources-out "$RUNNER_TEMP/lab-plan/summary.sources.json"
+          --md-out "$RUNNER_TEMP/lab-plan/summary.md" --sources-out "$RUNNER_TEMP/lab-plan/summary.sources.json" --log
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -225,7 +225,7 @@ jobs:
         run: >-
           python -m lab.summary shard --dir "$RUNNER_TEMP/lab-shard" --append-to "$GITHUB_STEP_SUMMARY"
           --md-out "$RUNNER_TEMP/lab-shard/summary/summary.md"
-          --sources-out "$RUNNER_TEMP/lab-shard/summary/summary.sources.json"
+          --sources-out "$RUNNER_TEMP/lab-shard/summary/summary.sources.json" --log
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -266,7 +266,7 @@ jobs:
       - if: ${{ !cancelled() }}
         run: >-
           python -m lab.summary report --dir "$RUNNER_TEMP/lab-report" --append-to "$GITHUB_STEP_SUMMARY"
-          --md-out "$RUNNER_TEMP/lab-report/report.md" --sources-out "$RUNNER_TEMP/lab-report/report.sources.json"
+          --md-out "$RUNNER_TEMP/lab-report/report.md" --sources-out "$RUNNER_TEMP/lab-report/report.sources.json" --log
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

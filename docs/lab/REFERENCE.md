@@ -686,6 +686,12 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | `lab-run-<run id>-<attempt>-<shard>` | one sealed shard root |
 | `lab-report-<class>-<run id>-<attempt>` | `report.json`, `report.md`, `report.sources.json`, `plan.json`, `lock-candidate.json` and E1's comparison files |
 
+The workflow's summary steps pass `--log`, so `lab.summary` also prints into the job log, between
+`=== MYCELIC-LAB <label> BEGIN lines=<n> sha256=<hex> ===` and `=== MYCELIC-LAB <label> END ===` lines inside a
+`::stop-commands::` window, the files labelled `plan/summary.md`; `shard/provenance.json` and `shard/summary.md`; and
+`report/report.json`, `report/report.md` and `report/lock-candidate.json`, then an `INDEX` line; a missing file prints
+`ABSENT`, one that cannot be read or printed line for line `UNREADABLE`, and one over 2,000,000 bytes `TOO-LARGE`.
+
 Artifacts are kept for the request's `retention_days`. Caches (`actions/cache`): `lab-server-<tag>-<sha16>` holds the
 verified server archive and `lab-gguf-<key>-<sha16>` a verified model file; a run restores only caches of its own
 branch or the default branch, and an entry unused for 7 days is removed.

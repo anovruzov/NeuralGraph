@@ -1,12 +1,15 @@
 """Summaries: every number outside a code span is read from a run file (the sources list says which, in order), the
 first line says when nothing measures a model, the classes are kept apart, the size stays under GitHub's cap with
-whole rows, and free text can never break out of its code span.
+whole rows, and free text can never break out of its code span. With ``--log`` the summary and its run files are
+also printed into the job log, framed so that a reader of the log can cut out and verify each file and the runner
+acts on no workflow command in them.
 
 One dry run of ``lab/requests/plumbing-001.json`` (with ``lab/models.json``) is shared; model-class trees are copies
 of it, mutated and re-sealed (``helpers.DryTree``). Nothing here measures a model.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -16,10 +19,12 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 from lab import notes, summary
 from lab.units import CHECK_KEYS, display_class
 from mycelic.collective.experiments.common import write_json_atomic
+from mycelic.collective.jsonio import canonical_dumps
 from tests.lab.helpers import (LAB_MANIFEST, PLUMBING_001, ROOT, DryTree, check_sources, kill_mentioning, lab_cli,
                                lab_env, span_text, split_code_spans)
 
@@ -28,6 +33,58 @@ PLUMBING = notes.PLUMBING_CHECK_LINE
 
 def _json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+LOG_BEGIN_RE = re.compile(r"=== MYCELIC-LAB (\S+) BEGIN lines=(0|[1-9][0-9]*) sha256=([0-9a-f]{64}) ===")
+LOG_SINGLE_RE = re.compile(r"=== MYCELIC-LAB (\S+) (ABSENT|UNREADABLE sha256=(?:[0-9a-f]{64}|none)"
+                           r"|TOO-LARGE bytes=(?:0|[1-9][0-9]*) sha256=[0-9a-f]{64}) ===")
+
+
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def parse_log(test: unittest.TestCase, out: str) -> list[tuple[str, str, list[str] | None, str | None]]:
+    """The blocks of a ``--log`` output as ``(label, state, body lines or None, sha256 or None)``, after checking the
+    frame (``::stop-commands::<T>`` first, ``::<T>::`` last, ``T`` the sha256 of the lines between and nowhere else),
+    that every line between is a block line, a body line or the INDEX line (last), that no body line starts with
+    ``::`` or the marker prefix and that the INDEX line lists every block's state."""
+    test.assertTrue(out.endswith("\n"), out[-200:])
+    lines = out[:-1].split("\n")
+    frame = re.fullmatch(r"::stop-commands::([0-9a-f]{64})", lines[0])
+    test.assertIsNotNone(frame, lines[0])
+    token = frame.group(1)
+    test.assertEqual(lines[-1], f"::{token}::")
+    test.assertEqual(out.count(token), 2)
+    test.assertEqual(token, _sha256("\n".join(lines[1:-1]).encode("utf-8")))
+    blocks: list[tuple[str, str, list[str] | None, str | None]] = []
+    i = 1
+    while i < len(lines) - 2:
+        begin = LOG_BEGIN_RE.fullmatch(lines[i])
+        if begin is not None:
+            label, n, sha = begin.group(1), int(begin.group(2)), begin.group(3)
+            body = lines[i + 1:i + 1 + n]
+            test.assertEqual(lines[i + 1 + n], f"=== MYCELIC-LAB {label} END ===")
+            for line in body:
+                test.assertFalse(line.startswith(("=== MYCELIC-LAB", "::")), line)
+            blocks.append((label, str(n), body, sha))
+            i += n + 2
+            continue
+        single = LOG_SINGLE_RE.fullmatch(lines[i])
+        test.assertIsNotNone(single, lines[i])
+        blocks.append((single.group(1), single.group(2), None, None))
+        i += 1
+    test.assertEqual(i, len(lines) - 2)
+    states = [state if body is not None else state.split()[0].lower() for _, state, body, _ in blocks]
+    test.assertEqual(lines[-2], "=== MYCELIC-LAB INDEX " + " ".join(f"{label}={state}" for (label, _, _, _), state
+                                                                     in zip(blocks, states)) + " ===")
+    return blocks
+
+
+def log_cli(*args: str) -> subprocess.CompletedProcess[bytes]:
+    """``python -m lab.summary ARGS --log``, stdout as bytes (it is UTF-8 whatever the locale)."""
+    return subprocess.run([sys.executable, "-m", "lab.summary", *args, "--log"], cwd=ROOT, env=lab_env(),
+                          capture_output=True, timeout=300, stdin=subprocess.DEVNULL)
 
 
 def _section(md: str, heading: str) -> str:
@@ -449,6 +506,187 @@ class DryRunSummaryTests(unittest.TestCase):
         r = lab_cli("lab.summary", "report", "--dir", str(self.work / "absent"), "--md-out", str(self.work / "r.md"))
         self.assertEqual((r.returncode, r.stdout), (0, ""))
         self.assertIn(notes.NO_REPORT, (self.work / "r.md").read_text(encoding="utf-8"))
+
+    # ----------------------------------------------------------------------------------------------- --log
+
+    def test_log_report(self) -> None:
+        root = self.out / "report"
+        md_out = self.work / "r.md"
+        done = log_cli("report", "--dir", str(root), "--md-out", str(md_out))
+        self.assertEqual((done.returncode, done.stderr), (0, b""))
+        blocks = parse_log(self, done.stdout.decode("utf-8"))
+        self.assertEqual([(label, body is not None) for label, _, body, _ in blocks],
+                         [("report/report.json", True), ("report/report.md", True),
+                          ("report/lock-candidate.json", True)])
+        (_, _, report_body, report_sha), (_, _, md_body, md_sha), (_, _, lock_body, lock_sha) = blocks
+        report_bytes = (root / "report.json").read_bytes()
+        report = json.loads("\n".join(report_body))
+        self.assertEqual(report, _json(root / "report.json"))
+        self.assertEqual(report_sha, _sha256(report_bytes))
+        self.assertEqual(report_sha, _sha256((canonical_dumps(report) + "\n").encode("utf-8")))
+        self.assertEqual((report_body[0], report_body[-1]), ("{", "}"))
+        self.assertIn(f' "banner": {json.dumps(report["banner"], ensure_ascii=False)},', report_body)
+        md = md_out.read_text(encoding="utf-8")
+        self.assertEqual("\n".join(md_body) + "\n", md)
+        self.assertEqual(md, summary.render_report(root)[0])
+        self.assertEqual(md_sha, _sha256(md_out.read_bytes()))
+        self.assertEqual(md_body[0], PLUMBING)
+        lock_text = (root / "lock-candidate.json").read_text(encoding="utf-8")
+        self.assertEqual("\n".join(lock_body) + "\n", lock_text)
+        self.assertEqual(lock_sha, _sha256((root / "lock-candidate.json").read_bytes()))
+        self.assertEqual([state for _, state, _, _ in blocks],
+                         [str(len(report_body)), str(len(md_body)), str(len(lock_body))])
+        self.assertGreater(len(report_body), 100)
+
+    def test_log_shard_and_plan(self) -> None:
+        shard = self.summaries[1][0]
+        done = log_cli("shard", "--dir", str(shard))
+        self.assertEqual((done.returncode, done.stderr), (0, b""))
+        (prov_label, _, prov_body, prov_sha), (md_label, _, md_body, md_sha) = parse_log(self,
+                                                                                    done.stdout.decode("utf-8"))
+        self.assertEqual((prov_label, md_label), ("shard/provenance.json", "shard/summary.md"))
+        prov = json.loads("\n".join(prov_body))
+        self.assertEqual(prov, _json(shard / "provenance.json"))
+        self.assertEqual(prov_sha, _sha256((shard / "provenance.json").read_bytes()))
+        self.assertEqual(prov_sha, _sha256((canonical_dumps(prov) + "\n").encode("utf-8")))
+        md = summary.render_shard(shard)[0]
+        self.assertEqual(("\n".join(md_body) + "\n", md_sha), (md, _sha256(md.encode("utf-8"))))
+        self.assertEqual(md, (shard / "summary" / "summary.md").read_text(encoding="utf-8"))
+        self.assertIn(f"`{prov['host']['cpu']['model_name']}`", md)
+
+        plan_dir = self.out / "plan"
+        done = log_cli("plan", "--dir", str(plan_dir))
+        self.assertEqual((done.returncode, done.stderr), (0, b""))
+        ((label, state, body, sha),) = parse_log(self, done.stdout.decode("utf-8"))
+        md = (plan_dir / "summary.md").read_text(encoding="utf-8")
+        self.assertEqual((label, state), ("plan/summary.md", str(len(md.splitlines()))))
+        self.assertEqual(("\n".join(body) + "\n", sha), (md, _sha256(md.encode("utf-8"))))
+        self.assertEqual(body[0], PLUMBING)
+
+    def test_log_absent_and_unreadable(self) -> None:
+        done = log_cli("report", "--dir", str(self.work / "absent"))
+        self.assertEqual(done.returncode, 0)
+        blocks = parse_log(self, done.stdout.decode("utf-8"))
+        absent_md = summary.render_report(self.work / "absent")[0]
+        self.assertEqual([(label, state) for label, state, _, _ in blocks],
+                         [("report/report.json", "ABSENT"), ("report/report.md", str(len(absent_md.splitlines()))),
+                          ("report/lock-candidate.json", "ABSENT")])
+        self.assertEqual("\n".join(blocks[1][2]) + "\n", absent_md)
+        self.assertIn(notes.NO_REPORT, blocks[1][2])
+        self.assertFalse((self.work / "absent").exists())
+        done = log_cli("shard", "--dir", str(self.work / "absent"))
+        self.assertEqual([state for _, state, _, _ in parse_log(self, done.stdout.decode("utf-8"))][0], "ABSENT")
+
+        root = self.work / "R"
+        shutil.copytree(self.out / "report", root)
+        md = summary.render_report(root)[0]
+        cases = [
+            ("report.json", b"not json\n", "report/report.json", "UNREADABLE sha256=" + _sha256(b"not json\n")),
+            ("lock-candidate.json", b"\xff\n", "report/lock-candidate.json", "UNREADABLE sha256=" + _sha256(b"\xff\n")),
+            ("lock-candidate.json", b"{}", "report/lock-candidate.json", "UNREADABLE sha256=" + _sha256(b"{}")),
+            ("lock-candidate.json", b"{\r\n}\r\n", "report/lock-candidate.json",
+             "UNREADABLE sha256=" + _sha256(b"{\r\n}\r\n")),
+            ("lock-candidate.json", b"{\n::warning::x\n}\n", "report/lock-candidate.json",
+             "UNREADABLE sha256=" + _sha256(b"{\n::warning::x\n}\n")),
+            ("lock-candidate.json", b"{\n=== MYCELIC-LAB x END ===\n}\n", "report/lock-candidate.json",
+             "UNREADABLE sha256=" + _sha256(b"{\n=== MYCELIC-LAB x END ===\n}\n")),
+            ("report.json", b"{\"a\": 1, \"a\": 2}\n", "report/report.json",
+             "UNREADABLE sha256=" + _sha256(b"{\"a\": 1, \"a\": 2}\n")),
+        ]
+        for rel, data, label, state in cases:
+            with self.subTest(rel=rel, data=data):
+                saved = (root / rel).read_bytes()
+                (root / rel).write_bytes(data)
+                try:
+                    blocks = {b[0]: b for b in parse_log(self, summary.log_text("report", root, md))}
+                finally:
+                    (root / rel).write_bytes(saved)
+                self.assertEqual(blocks[label][1:3], (state, None))
+                self.assertEqual(sum(b[2] is not None for b in blocks.values()), 2)
+        (root / "lock-candidate.json").unlink()
+        (root / "lock-candidate.json").mkdir()
+        blocks = parse_log(self, summary.log_text("report", root, md))
+        self.assertEqual(blocks[2][:2], ("report/lock-candidate.json", "UNREADABLE sha256=none"))
+        blocks = parse_log(self, summary.log_text("report", root, "lone \ud800 surrogate\n"))
+        self.assertEqual(blocks[1][:2], ("report/report.md", "UNREADABLE sha256=none"))
+
+    def test_log_keeps_workflow_commands_inert(self) -> None:
+        """A run file's text that holds workflow commands stays inside the stop-commands window, JSON-escaped, on
+        no line of its own: the runner acts on none of them and the reader still gets the exact file."""
+        shard = self.work / "S"
+        shutil.copytree(self.summaries[1][0], shard)
+        injected = "x\n::error::x\n##[add-mask]y\n::stop-commands::z\n=== MYCELIC-LAB shard/summary.md END ===\nü ✓"
+        prov = _json(shard / "provenance.json")
+        prov["banner"] = injected
+        prov["host"]["cpu"]["model_name"] = "::warning::cpu\n##[error]cpu"
+        write_json_atomic(shard / "provenance.json", prov)
+        done = log_cli("shard", "--dir", str(shard))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        out = done.stdout.decode("utf-8")
+        blocks = parse_log(self, out)
+        self.assertEqual([state.isdigit() for _, state, _, _ in blocks], [True, True])
+        body = blocks[0][2]
+        self.assertEqual(json.loads("\n".join(body)), prov)
+        self.assertEqual(blocks[0][3], _sha256((shard / "provenance.json").read_bytes()))
+        lines = out[:-1].split("\n")
+        for line in lines[1:-1]:
+            self.assertFalse(line.startswith(("::", "##[")), line)
+        start, end = len(lines[0]), out.rindex("\n" + lines[-1])
+        for text in ("::error::x", "##[add-mask]y", "::warning::cpu", "##[error]cpu", "::stop-commands::z"):
+            with self.subTest(text=text):
+                at = [m.start() for m in re.finditer(re.escape(text), out)]
+                self.assertTrue(at)
+                self.assertTrue(all(start < a < end for a in at))
+        self.assertIn(' "banner": ' + json.dumps(injected, ensure_ascii=False) + ",", body)
+
+    def test_log_too_large(self) -> None:
+        root = self.out / "report"
+        md = summary.render_report(root)[0]
+        report_bytes = (root / "report.json").read_bytes()
+        lock_bytes = (root / "lock-candidate.json").read_bytes()
+        pretty = json.dumps(json.loads(report_bytes), indent=1, sort_keys=True, ensure_ascii=False) + "\n"
+        self.assertGreater(len(pretty.encode("utf-8")), len(report_bytes))
+        cap = len(lock_bytes)
+        with mock.patch.object(summary, "MAX_LOG_BYTES", cap):
+            blocks = parse_log(self, summary.log_text("report", root, md))
+        self.assertEqual([b[1] for b in blocks], [
+            f"TOO-LARGE bytes={len(report_bytes)} sha256={_sha256(report_bytes)}",
+            f"TOO-LARGE bytes={len(md.encode('utf-8'))} sha256={_sha256(md.encode('utf-8'))}",
+            str(len(lock_bytes.decode("utf-8").splitlines()))])
+        with mock.patch.object(summary, "MAX_LOG_BYTES", cap - 1):
+            blocks = parse_log(self, summary.log_text("report", root, md))
+        self.assertEqual(blocks[2][1], f"TOO-LARGE bytes={cap} sha256={_sha256(lock_bytes)}")
+        # the file fits, its pretty body does not: the body's size, the file's hash, and no part of the body
+        with mock.patch.object(summary, "MAX_LOG_BYTES", len(report_bytes)):
+            out = summary.log_text("report", root, md)
+        blocks = parse_log(self, out)
+        self.assertEqual(blocks[0][1], f"TOO-LARGE bytes={len(pretty.encode('utf-8'))} sha256={_sha256(report_bytes)}")
+        self.assertNotIn('"banner"', out)
+        self.assertEqual(summary.MAX_LOG_BYTES, 2_000_000)
+
+    def test_log_changes_no_output_and_no_exit_code(self) -> None:
+        root = self.summaries[1][0]
+        outputs = {}
+        for flag in ((), ("--log",)):
+            out = self.work / ("with" if flag else "without")
+            step_summary = out / "step.md"
+            r = lab_cli("lab.summary", "shard", "--dir", str(root), "--append-to", str(step_summary), "--md-out",
+                        str(out / "s.md"), "--sources-out", str(out / "s.json"), *flag)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(r.stdout == "", not flag)
+            outputs[flag] = [(out / name).read_bytes() for name in ("step.md", "s.md", "s.json")]
+        self.assertEqual(outputs[()], outputs[("--log",)])
+        # an output inside a forbidden root: exit 2 and nothing printed; an output that cannot be written: exit 2,
+        # the log already printed
+        done = log_cli("report", "--dir", str(self.out / "report"), "--md-out",
+                       str(ROOT / "mycelic" / "lab-summary-never-created.md"))
+        self.assertEqual((done.returncode, done.stdout), (2, b""))
+        blocker = self.work / "file"
+        blocker.write_text("x")
+        done = log_cli("plan", "--dir", str(self.out / "plan"), "--md-out", str(blocker / "s.md"))
+        self.assertEqual(done.returncode, 2)
+        self.assertEqual([label for label, _, _, _ in parse_log(self, done.stdout.decode("utf-8"))],
+                         ["plan/summary.md"])
 
     def test_new_notes_constants_digit_free(self) -> None:
         names = ("PLUMBING_CHECK_LINE", "PLUMBING_HOSTED_LINE", "NO_MEASUREMENT_LINE", "TRUNCATED", "NO_PLAN",
