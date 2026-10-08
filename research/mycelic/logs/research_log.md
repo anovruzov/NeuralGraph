@@ -828,3 +828,53 @@ support threshold for rare facets, which the rejected weak-bit mechanism
 was aimed at. Ranker evaluation on the final dumps, held-out seeds: the
 hierarchy's candidates go from AUC 0.69 (hand score) to 0.85 (learned),
 found under the cap 0.365 → 0.620 at the same kept count; A2 0.74 → 0.74.
+
+## Iteration 25 — v4: a ranker of H's own, and the register cut after enrichment
+
+A three-agent loop (analyst → engineer → refuter), with every decision taken on
+calibration-side seeds 500–539 and a held-out criterion fixed before any code
+changed: mean found of H_mycelic_full at 10k on the unread seeds 15–29 ≥ 0.70.
+
+The analyst found that the final register is the top 600 of about 3,000
+candidates of the last synthesis, so ordering alone decides it. It also found
+that the cut ran *before* `_enrich`: the ranker scored every candidate with
+its triage-context features still at zero. The missing signal is structural:
+a gold facet is a same-day cluster of independent witnesses from one region,
+consecutive facets sit in different regions, decoy facets spread over two to
+four regions, and stale chains carry later negative witnesses.
+
+What changed:
+- ten candidate features computed from the hybrid DP's chosen clusters,
+  using signatures only through set equality and size;
+- an H-only ranker fitted on production-pipeline dumps of 40 seeds, with
+  decoy weight 10, chosen by a rule fixed in advance out of four arms;
+- the register cut moved after enrichment.
+
+Every other architecture is bit-identical (commit 794b44d). On seeds 500–539,
+end-to-end leave-one-seed-out, found rose from 0.626 to 0.701.
+
+The refuter found no leakage. Scrambling every signature value left all
+registers bit-identical. It then made the one held-out read:
+
+```
+                       found prod → v4   Δ [95% CI]              decoy all     D5
+  15–29 (criterion)    0.625 → 0.713     +0.088 [+0.053,+0.122]  .375 → .268   .767 → .273
+  0–29 pooled          0.620 → 0.703     +0.083 [+0.058,+0.109]  .380 → .261   .773 → .243
+  50k seeds 0–2        0.587 → 0.583     −0.003 [−0.060,+0.040]
+  A2 (unchanged)       10k 0.743, 50k 0.797
+```
+
+The criterion is met on the mean. The interval on the level, [0.678, 0.750],
+straddles 0.70.
+
+Caveats carried forward:
+- there is no gain at 50k;
+- H now has a ranker of its own while A2 keeps the shared 3-seed ranker, so
+  H-vs-A2 is not like-for-like (and A2 still leads);
+- the found gain comes from the same-day witness features and the decoy gain
+  from region purity, both regularities of this generator.
+
+The experiments are recorded in `artifacts/ledger_v5.jsonl`. Seeds 0–29 are
+now development data. The v5 programme (target 0.90, sealed final set
+3000–3029, frozen guardrails and plateau rule) is pre-registered in
+`PROTOCOL_V5.md`.
