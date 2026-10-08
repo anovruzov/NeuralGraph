@@ -56,3 +56,24 @@ says, in a later commit.
 - A channel's found recalls count only as far as they exceed its own `expected_found` under the circular-shift null;
   the replay matches on product code alone, not on cause.
 - The declaration above (`yes`) travels with every number from this replay.
+
+## Applied (from the probe's output, after the rule was committed in `58140ed`)
+
+The `market-count` workflow ran the probe in run
+[37859888847](https://github.com/anovruzov/NeuralGraph/actions/runs/37859888847) (job 113592831380, 2026-10-08
+23:33 UTC); its output, copied from the log, is `inputs-001.json` here (each code's yearly counts sum to the totals the
+probe printed, and the rule's window recomputes from them).
+
+- **Window:** 2023-01-01 to 2024-12-31 (2 years). Over 2019–2024 or any window of 3 or more years, fewer than 3 codes
+  fit the cap.
+- **Codes:** JKA 9,010, FOZ 9,204, FMI 9,039 and MDB 1,633 reports from all manufacturers in the window. FMF (10,336)
+  and FPA (58,125, of which 47,209 in 2024) do not fit.
+- **Recalling firms:** the ten names the probe returned, in its order: `Becton Dickinson & Company`;
+  `Becton Dickinson & Co.`; `Becton Dickinson Medical Systems`; `Becton, Dickinson and Company, BD Biosciences`;
+  `Becton Dickinson and Company`; `Becton Dickinson Infusion Therapy`; `Becton Dickinson Infusion Therapy Systems,
+  Inc.`; `Becton, Dickinson and Company, BD Bio Sciences`; `Becton Dickinson Infusion Therapy Systems Inc.`;
+  `Becton, Dickinson and Company`. A recall filed under another spelling is out of scope and is counted only as
+  `other_firm`.
+- **Run sizing** (not an analysis setting): the unit gets 150 minutes and the job 200.
+
+`lab/requests/openfda-001.json` holds exactly these settings and is pushed in its own commit; that push starts the run.

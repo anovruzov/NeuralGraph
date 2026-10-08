@@ -417,12 +417,16 @@ class SelfTestTests(unittest.TestCase):
         self.assertEqual(steps("plan")[steps("plan").index(step("plan", "plan")) - 1].get("run"), SELF_TEST)
 
     def test_after_the_founders_edits(self) -> None:
+        requests = self.root / "lab" / "requests"
+        before = {p.name for p in requests.glob("*.json")}
         founder_edits(self.root)
         manifest = load_manifest(self.root / "lab" / "models.json")
         self.assertIsNotNone(manifest.lock.server)
         self.assertEqual(sorted(manifest.lock.models), ["a-0p5b"])
         self.assertLessEqual({"big-hosted", "c-1b"}, set(manifest.models))
-        self.assertEqual(len(list((self.root / "lab" / "requests").glob("*.json"))), 6)
+        # the guide's five requests plus whatever requests the repository already holds (pushed runs stay committed)
+        added = {f"{name}-001.json" for name in ("check", "smoke", "main", "hosted-comparison", "openfda-replay")}
+        self.assertEqual({p.name for p in requests.glob("*.json")}, before | added)
         done = self.run_in_copy(shlex.split(SELF_TEST))
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         done = self.run_in_copy(["python", "-m", "unittest", "tests.lab.test_lab_shipped",

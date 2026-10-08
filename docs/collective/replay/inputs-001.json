@@ -1,0 +1,150 @@
+{
+ "cap": 10000,
+ "first_year": 2019,
+ "group": {
+  "FMF": {
+   "2019": 3412,
+   "2020": 2529,
+   "2021": 2693,
+   "2022": 1864,
+   "2023": 1898,
+   "2024": 1923
+  },
+  "FMI": {
+   "2019": 3692,
+   "2020": 3067,
+   "2021": 3449,
+   "2022": 3948,
+   "2023": 4002,
+   "2024": 2147
+  },
+  "FOZ": {
+   "2019": 2262,
+   "2020": 1797,
+   "2021": 1856,
+   "2022": 2021,
+   "2023": 2253,
+   "2024": 2350
+  },
+  "FPA": {
+   "2019": 293,
+   "2020": 406,
+   "2021": 610,
+   "2022": 525,
+   "2023": 651,
+   "2024": 753
+  },
+  "JKA": {
+   "2019": 6208,
+   "2020": 3491,
+   "2021": 3378,
+   "2022": 3068,
+   "2023": 4161,
+   "2024": 4129
+  },
+  "MDB": {
+   "2019": 2,
+   "2020": 7,
+   "2021": 1097,
+   "2022": 558,
+   "2023": 1090,
+   "2024": 327
+  }
+ },
+ "kind": "openfda_replay_inputs",
+ "last_year": 2024,
+ "note": "event counts by date_received from every manufacturer (totals) and from names containing the word (group); recalling-firm names only, no recall count, date, code or cause",
+ "order": [
+  "JKA",
+  "FOZ",
+  "FMI",
+  "FMF",
+  "FPA",
+  "MDB"
+ ],
+ "recalling_firm_names": [
+  "Becton Dickinson & Company",
+  "Becton Dickinson & Co.",
+  "Becton Dickinson Medical Systems",
+  "Becton, Dickinson and Company, BD Biosciences",
+  "Becton Dickinson and Company",
+  "Becton Dickinson Infusion Therapy",
+  "Becton Dickinson Infusion Therapy Systems, Inc.",
+  "Becton, Dickinson and Company, BD Bio Sciences",
+  "Becton Dickinson Infusion Therapy Systems Inc.",
+  "Becton, Dickinson and Company"
+ ],
+ "totals": {
+  "FMF": {
+   "2019": 5863,
+   "2020": 5334,
+   "2021": 5874,
+   "2022": 5233,
+   "2023": 5214,
+   "2024": 5122
+  },
+  "FMI": {
+   "2019": 4896,
+   "2020": 4245,
+   "2021": 4532,
+   "2022": 4885,
+   "2023": 4986,
+   "2024": 4053
+  },
+  "FOZ": {
+   "2019": 4365,
+   "2020": 3797,
+   "2021": 4674,
+   "2022": 4133,
+   "2023": 4430,
+   "2024": 4774
+  },
+  "FPA": {
+   "2019": 11227,
+   "2020": 9563,
+   "2021": 10414,
+   "2022": 13393,
+   "2023": 10916,
+   "2024": 47209
+  },
+  "JKA": {
+   "2019": 6469,
+   "2020": 3774,
+   "2021": 3610,
+   "2022": 3375,
+   "2023": 4400,
+   "2024": 4610
+  },
+  "MDB": {
+   "2019": 147,
+   "2020": 37,
+   "2021": 1184,
+   "2022": 643,
+   "2023": 1232,
+   "2024": 401
+  }
+ },
+ "window": {
+  "codes": [
+   "JKA",
+   "FOZ",
+   "FMI",
+   "MDB"
+  ],
+  "date_from": "20230101",
+  "date_to": "20241231",
+  "not_fitting": [
+   "FMF",
+   "FPA"
+  ],
+  "reports": {
+   "FMI": 9039,
+   "FOZ": 9204,
+   "JKA": 9010,
+   "MDB": 1633
+  },
+  "run": true,
+  "years": 2
+ },
+ "word": "BECTON"
+}
