@@ -16,7 +16,7 @@ manifest declares, which the provision step checks against the hub on every run.
 | `a-0p5b` | gguf | `lab-a-0p5b` | `Qwen/Qwen2.5-0.5B-Instruct-GGUF` | `qwen2.5-0.5b-instruct-q4_k_m.gguf` | `main` | apache-2.0 | the smallest rung of the size ladder: the check run's model, the smoke run's canary-scan model, and an E2 model of the main run |
 | `a-1p5b` | gguf | `lab-a-1p5b` | `Qwen/Qwen2.5-1.5B-Instruct-GGUF` | `qwen2.5-1.5b-instruct-q4_k_m.gguf` | `main` | apache-2.0 | the next rung: an E2 model of the main run and of the hosted comparison |
 | `a-4b` | gguf | `lab-a-4b` | `Qwen/Qwen3-4B-GGUF` | `Qwen3-4B-Q4_K_M.gguf` | `main` | apache-2.0 | the largest local rung: E1's reference in the main run; served with `--reasoning off` (its `server_args`), since the warm-up refuses a server that returns reasoning content |
-| `b-2b` | gguf | `lab-b-2b` | `ibm-granite/granite-3.3-2b-instruct-GGUF` | `granite-3.3-2b-instruct-Q4_K_M.gguf` | `main` | apache-2.0 | a second publisher family, so the main run does not compare one family with itself |
+| `b-2b` | gguf | `lab-b-2b` | `ibm-granite/granite-3.3-2b-instruct-GGUF` | `granite-3.3-2b-instruct-Q4_K_M.gguf` | `main` | apache-2.0 | a second publisher family, so the main run does not compare one family with itself; served with `--reasoning off` (its `server_args`), because the check run's warm-up stopped at the token limit without it |
 | `fake-a` | fake | `lab-fake-a` | | | | | the plumbing run's fake model (persona `valid`) |
 | `fake-b` | fake | `lab-fake-b` | | | | | the plumbing run's second fake model (persona `valid`) |
 

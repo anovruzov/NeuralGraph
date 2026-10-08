@@ -1,5 +1,42 @@
 {
   "schema_version": 1,
-  "server": null,
-  "models": {}
+  "server": {
+    "tag": "b11476",
+    "asset": "llama-b11476-bin-ubuntu-x64.tar.gz",
+    "sha256": "2cda5ff9363967f1aba5b5b096032e1b7d9eb568b011769282bf34e4f1cf4b5e"
+  },
+  "models": {
+    "a-0p5b": {
+      "repo": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+      "file": "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+      "revision": "main",
+      "commit": "9217f5db79a29953eb74d5343926648285ec7e67",
+      "sha256": "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db",
+      "size": 491400032
+    },
+    "a-1p5b": {
+      "repo": "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+      "file": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+      "revision": "main",
+      "commit": "91cad51170dc346986eccefdc2dd33a9da36ead9",
+      "sha256": "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e",
+      "size": 1117320736
+    },
+    "a-4b": {
+      "repo": "Qwen/Qwen3-4B-GGUF",
+      "file": "Qwen3-4B-Q4_K_M.gguf",
+      "revision": "main",
+      "commit": "bc640142c66e1fdd12af0bd68f40445458f3869b",
+      "sha256": "7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5",
+      "size": 2497280256
+    },
+    "b-2b": {
+      "repo": "ibm-granite/granite-3.3-2b-instruct-GGUF",
+      "file": "granite-3.3-2b-instruct-Q4_K_M.gguf",
+      "revision": "main",
+      "commit": "7cdf86ccd1f1bb3491c9b7017b033f2e51367397",
+      "sha256": "ac71e9e32c0bea919b409c5918f69ca74339854b0319c5065e4e9fb6d95c4852",
+      "size": 1545303328
+    }
+  }
 }

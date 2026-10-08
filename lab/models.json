@@ -76,7 +76,7 @@
       "ctx_per_slot": 16384,
       "e3_ctx_per_slot": 4096,
       "e2_ctx_per_slot": 32768,
-      "server_args": []
+      "server_args": ["--reasoning", "off"]
     },
     "fake-a": {
       "kind": "fake",
