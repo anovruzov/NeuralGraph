@@ -419,7 +419,7 @@ class DryRunSummaryTests(unittest.TestCase):
                  "NOT_RUN", "NO_ARTIFACT", "OTHER_PLAN", "ALTERED", "AMBIGUOUS_ARTIFACTS", "FILES_DIFFER",
                  "UNIT_RECORD_INVALID", "STEP_FAILED", "CPU_MODELS_DIFFER", "WORLD_DIGEST_DIFFERS", "WORLD_DIGEST_SAME",
                  "NOT_PINNED", "DISPATCH_BY_HAND", "PLAN_FIX_HINT", "LOCK_UNCHANGED", "LOCK_NEW",
-                 "LOCK_CONFLICT_NOTE", "LOCK_NOT_COMPUTED")
+                 "LOCK_CONFLICT_NOTE", "LOCK_NOT_COMPUTED", "G0_MODEL_PATH")
         values = [(name, getattr(notes, name)) for name in names]
         values += [(f"HEADINGS.{k}", v) for k, v in notes.HEADINGS.items()]
         values += [(f"COLUMNS.{k}", v) for k, v in notes.COLUMNS.items()]
@@ -443,19 +443,60 @@ class DryRunSummaryTests(unittest.TestCase):
                     "p_at_forty", "ap", "alerts", "false_alarms", "lift", "estimate", "ci_low", "ci_high",
                     "candidates", "true", "supported", "ap_pushdown", "ap_stats", "raw_text", "fallback_share",
                     "records_done", "extract_median_s", "judge_median_s", "estimate_minutes", "suggested_minutes",
-                    "plant", "weeks")
+                    "plant", "weeks", "found_net", "chance_found", "model_path_problems", "decision_metric", "diff")
         for key in new_keys:
             with self.subTest(key=key):
                 self.assertIn(key, {**notes.HEADINGS, **notes.COLUMNS})
                 self.assertIsNone(re.search(r"[0-9]", key))
         self.assertEqual(list(notes.SIM_CHANNEL_LABELS), ["X_model", "X_lexical", "S", "R_mf", "U", "single_site",
                                                           "rules"])
+        self.assertEqual({k: notes.COLUMNS[k] for k in ("found_net", "chance_found", "model_path_problems",
+                                                        "decision_metric", "diff")},
+                         {"found_net": "found net of chance", "chance_found": "chance finds",
+                          "model_path_problems": "model path problems", "decision_metric": "decision metric",
+                          "diff": "difference"})
         for key in ("plan", "refused", "nothing", "shard", "report", "shards", "units", "no-result", "model",
                     "unverified", "plumbing", "no-model", "e3", "g0", "latency", "provision", "lock", "notes"):
             self.assertIn(key, notes.HEADINGS)
         self.assertEqual(notes.HEADINGS["model"], "Model on runner CPU")
         self.assertEqual(notes.HEADINGS["unverified"], "Unverified: not measurements")
         self.assertEqual(notes.HEADINGS["plumbing"], "Plumbing checks (fake provider): not model measurements")
+
+
+class G0ModelPathColumnTests(unittest.TestCase):
+    """The G0 table's model path problems column: only when a row counts them, every count sourced."""
+
+    def render(self, problems: list[Any]) -> tuple[str, list[dict[str, Any]], Path]:
+        tmp = Path(tempfile.mkdtemp(prefix="lab-summary-g0-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        rows = [{"unit": f"g0-m{i}", "model": f"m{i}", "display_class": "unverified", "pack": "device_quality",
+                 "seed": 1, "records": 1000, "passed": False, "canaries_planted": 20, "hit_count": 0,
+                 "shingle_overlap_bytes": 0, "positive_control": {"canary_hits": 20}, "world_digest": "a" * 64,
+                 "protocol_records": 1000, "below_protocol": False, "model_path_problems": n}
+                for i, n in enumerate(problems)]
+        report = {"kind": "lab_report", "result_class": "real", "contains_measurements": False, "unit_count": 0,
+                  "shard_count": 0, "g0": rows,
+                  "units": [{"unit": r["unit"], "experiment": "g0", "model": r["model"], "status": "invalid",
+                             "display_class": "unverified", "shard": "s001-x", "wall_s": 1.0} for r in rows]}
+        write_json_atomic(tmp / "report.json", report)
+        md, sources = summary.render_report(tmp)
+        return md, sources, tmp
+
+    def test_column_only_with_counts(self) -> None:
+        md, sources, root = self.render([None, None])
+        check_sources(self, md, sources, root)
+        self.assertNotIn(notes.COLUMNS["model_path_problems"], md)
+        md, sources, root = self.render([2, None])
+        check_sources(self, md, sources, root)
+        g0 = _section(md, notes.HEADINGS["g0"]).splitlines()
+        self.assertIn("| unit | model | pack | seed | records | passed | canaries planted | canary hits | shingle "
+                      "overlap bytes | positive control hits | model path problems | world digest |", g0)
+        self.assertIn("| `g0-m0` | `m0` | `device_quality` | 1 | 1000 | no | 20 | 0 | 0 | 20 | 2 | `aaaaaaaaaaaa` |",
+                      g0)
+        self.assertIn("| `g0-m1` | `m1` | `device_quality` | 1 | 1000 | no | 20 | 0 | 0 | 20 | n/a | `aaaaaaaaaaaa` "
+                      "|", g0)
+        self.assertEqual([e["pointer"] for e in sources if e["pointer"].endswith("model_path_problems")],
+                         ["/g0/0/model_path_problems"])
 
 
 if __name__ == "__main__":

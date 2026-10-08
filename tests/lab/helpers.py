@@ -27,6 +27,8 @@ DATA = ROOT / "tests" / "lab" / "data"
 MANIFEST_TEST = DATA / "manifest-test.json"
 PLUMBING_MIN = DATA / "requests" / "plumbing-min.json"
 PLUMBING_001 = ROOT / "lab" / "requests" / "plumbing-001.json"
+PLUMBING_DRYRUN_ARGS = ("lab.dryrun", "--request", "lab/requests/plumbing-001.json", "--out")
+TEMPLATES = ROOT / "lab" / "templates"
 LAB_MANIFEST = ROOT / "lab" / "models.json"
 GIT_IDENTITY = ("-c", "user.name=lab", "-c", "user.email=lab@invalid")
 

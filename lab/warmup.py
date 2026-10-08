@@ -134,8 +134,8 @@ def judge_example(pack: FrozenPack, record: Mapping[str, Any], narrative: str) -
 
 def e2_worst_payloads(unit: Mapping[str, Any], rehearsal: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     """(the worst ``judge_candidate_raw`` payload, the matching ``judge_candidate_allowed`` payload) of an E2 unit;
-    see the module docstring. The record shape mirrors ``e2_pushdown``'s central_raw payload (an integration note:
-    a test pins it against the harness's own requests)."""
+    see the module docstring. The record shape mirrors ``e2_pushdown``'s central_raw payload (listed in
+    ``docs/lab/INTEGRATION.md``; a test pins it against the harness's own requests)."""
     p = unit["params"]
     pack = load_pack(p["pack"])
     spec = load_plant(ROOT / p["plant_path"], pack)

@@ -23,30 +23,9 @@ secrets, routing, preflight and call shares), ``units`` (the harness adapters: E
 the lab adds to the collective's), ``aggregate``, ``summary`` and ``dryrun``; ``plants/`` holds the lab's plant
 specs. The lab imports only the standard library, ``mycelic`` and itself.
 
-Integration notes for the collective layer (the lab never edits ``mycelic/``; each is a hook or a risk to resolve when
-the branches merge):
-
-1. ``experiments.e2_pushdown`` lets an ``InferenceError`` from a central or site call escape: it exits 1 with a
-   traceback. The lab maps that exit to :data:`~lab.notes.E2_ABORTED` and keeps the ledgers it wrote.
-2. ``lab.warmup.e2_worst_payloads`` mirrors the private payload shape of ``e2_pushdown._central_raw``; a test pins it
-   against the harness's own requests, and a public payload builder upstream would remove the copy.
-3. E2's site ledgers live under the run's ``work/seed-*/edge/``; the lab collects exactly those ledgers from ``work/``.
-4. ``e1_extract compare --run-dirs`` is the one harness option taking several values, so its directories follow it as
-   separate argv elements (absolute, lab-made paths); every other option is one ``--flag=value`` element.
-5. Audit r2's verifier and extractor circuit breaker changes the judge call counts the E2 projection multiplies, and
-   the runtime's checked synthetic exemptions are a merge risk for the lab's synthetic-labelled runs: re-run the
-   all-experiments dry run (``tests/lab/data/requests/all-experiments.json``) on the trial merge.
-6. E2's central task has ``max_tokens`` 64. A hosted reasoning model can exhaust it on thinking; the hosted preflight
-   catches a ``finish_reason`` of ``length`` on the canary and fails the key (:data:`~lab.notes.HOSTED_LENGTH`).
-7. The client always sends ``temperature`` 0 and, for ``json_schema``, a strict schema. A hosted model that refuses
-   either fails the preflight with HTTP 400 (the remedy names ``json_object`` and ``none``, which helps only for the
-   schema); a runtime hook to omit ``temperature`` would admit those models.
-8. ``e1_extract run`` writes the host's whole ``/models`` listing into ``run.json`` (``models_listed``), which is part
-   of a public artifact and may list account-specific model ids; ``e2.json`` records ``central_routing_sha256`` over
-   the scratch routing file that holds the base URL (a hash, not the URL). A hook that records only whether the
-   requested model was listed would remove the first.
-9. The hosted call bound (``lab.request``, ``lab.plan``) assumes one repair per ``runtime.run`` call and at most
-   ``top_n`` central candidates per seed: re-check it on the trial merge with the audit's circuit breaker changes.
+Integration with the collective layer (the lab never edits ``mycelic/``): the shims that keep the lab running on
+both the collective it was built on and its phase-2 work, the hooks wanted upstream and the open risks are in
+``docs/lab/INTEGRATION.md``.
 
 GitHub Models is not built: the lab has no code for it and the workflow asks for no ``models`` permission.
 

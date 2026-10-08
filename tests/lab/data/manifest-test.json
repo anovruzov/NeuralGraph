@@ -69,7 +69,8 @@
         "per_mtok_out": 2.0
       },
       "deadline_s": 60,
-      "max_retries": 1
+      "max_retries": 1,
+      "context_tokens": 32768
     },
     "h-b": {
       "kind": "hosted",

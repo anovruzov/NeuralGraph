@@ -1,7 +1,8 @@
 """Repository guards for the lab.
 
-* no model-family name in lab code, docs, tests or test stubs (model names belong only in the manifest and request
-  files);
+* no model-family name in lab code, docs, tests, test stubs or the lab workflow (model names belong only in the
+  manifest, the request and template files, kept results and ``docs/lab/MODELS.md``);
+* no lab Python reads kept results (``lab/results/``);
 * no server program, release tag or asset literal in lab Python (they come from the manifest), no hub host and no
   concrete release download URL, and the GitHub API host exactly once (the provision step's constant);
 * lab Python never passes the harnesses' dirty-tree override, and every harness argv is ``--flag=value`` only;
@@ -24,7 +25,9 @@ from tests.lab.helpers import MANIFEST_TEST, ROOT, make_plan, plumbing_min, sim_
 from tests.mycelic.test_collective_guards import model_name_hits
 
 LAB = ROOT / "lab"
-NAME_SCAN_EXCLUDED = ("lab/models.json", "lab/models.lock.json")
+DOCS = ROOT / "docs" / "lab"
+WORKFLOW = ROOT / ".github" / "workflows" / "mycelic-lab.yml"
+NAME_SCAN_EXCLUDED = ("lab/models.json", "lab/models.lock.json", "docs/lab/MODELS.md")
 DIRTY_OVERRIDE = "--allow-" + "dirty"
 
 
@@ -33,7 +36,8 @@ def lab_python() -> list[Path]:
 
 
 def name_scan_excluded(rel: str) -> bool:
-    """The manifest, the lock, request and template files and results: the places model names may appear."""
+    """The manifest, the lock, request and template files, results and the models page: the places model names may
+    appear."""
     parts = rel.split("/")
     in_json_dir = len(parts) == 3 and parts[0] == "lab" and parts[1] in ("requests", "templates")
     return (rel in NAME_SCAN_EXCLUDED or (in_json_dir and rel.endswith(".json"))
@@ -41,23 +45,39 @@ def name_scan_excluded(rel: str) -> bool:
 
 
 def name_scan_files() -> list[Path]:
+    """Every file of ``lab/``, ``tests/lab/`` and ``docs/lab/`` and the lab workflow, less the exclusions."""
     files = []
-    for base in (LAB, ROOT / "tests" / "lab"):
+    for base in (LAB, ROOT / "tests" / "lab", DOCS):
         for path in sorted(base.rglob("*")):
             if not path.is_file() or "__pycache__" in path.parts or path.suffix == ".pyc":
                 continue
             if not name_scan_excluded(path.relative_to(ROOT).as_posix()):
                 files.append(path)
-    return files
+    return [*files, WORKFLOW]
 
 
 class LabGuardTests(unittest.TestCase):
     def test_exclusions(self) -> None:
         for rel in ("lab/models.json", "lab/models.lock.json", "lab/requests/x.json", "lab/templates/y.json",
-                    "lab/results/a/b.md"):
+                    "lab/results/a/b.md", "docs/lab/MODELS.md"):
             self.assertTrue(name_scan_excluded(rel), rel)
-        for rel in ("lab/units.py", "lab/requests/sub/x.json", "lab/README.md", "tests/lab/data/manifest-test.json"):
+        for rel in ("lab/units.py", "lab/requests/sub/x.json", "lab/README.md", "tests/lab/data/manifest-test.json",
+                    "docs/lab/README.md", "docs/lab/REFERENCE.md", "docs/lab/INTEGRATION.md", "lab/requests/README.md",
+                    ".github/workflows/mycelic-lab.yml"):
             self.assertFalse(name_scan_excluded(rel), rel)
+
+    def test_scan_scope(self) -> None:
+        files = name_scan_files()
+        for rel in ("docs/lab/README.md", "docs/lab/REFERENCE.md", "docs/lab/INTEGRATION.md", "lab/requests/README.md",
+                    ".github/workflows/mycelic-lab.yml"):
+            self.assertIn(ROOT / rel, files, rel)
+        self.assertNotIn(ROOT / "docs" / "lab" / "MODELS.md", files)
+        self.assertTrue((ROOT / "docs" / "lab" / "MODELS.md").is_file())
+
+    def test_no_lab_python_reads_results(self) -> None:
+        for path in lab_python():
+            with self.subTest(path=path.name):
+                self.assertNotIn("lab/results", path.read_text(encoding="utf-8"))
 
     def test_no_model_names(self) -> None:
         files = name_scan_files()

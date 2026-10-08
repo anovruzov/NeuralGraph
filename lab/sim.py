@@ -25,25 +25,33 @@ its ledgers).
 
 1. setup: plant the world; ``labels.json`` is the plant's labels plus ``seeds: [{seed, planted_records}]``;
 2. ``list_models`` on every routed endpoint (``models_fake``);
-3. the runtimes (:class:`ObservedRuntime`, which times every ``run`` for :class:`Progress`), on a ``SimClock`` set to
-   the pipeline's own stamp;
+3. the runtimes (:class:`ObservedRuntime`, which times every ``run`` for :class:`Progress` and memoizes every
+   extraction), on a ``SimClock`` set to the pipeline's own stamp;
 4. judge warm-up: :data:`JUDGE_WARMUP_CALLS` single judge calls on the first site's first record
    (``warmup.judge_example``);
 5. the model pipeline (:func:`run_pipeline` with the runtimes, in ``work/model``): each site extracts its own records
    with the model (a reply invalid after its repair, or a failed call, falls back to the lexical extractor and is
    counted); after exactly :data:`PREFLIGHT_RECORDS` extraction records the projection check runs (below);
 6. the lexical pipeline (``baselines.run_pipeline``, in ``work/lexical``), for ``X_lexical``;
-7. the channels, with X1's public functions and the tie salt: ``X_model`` and ``S`` (``hq_results`` over the model
+7. the no-plant control, when the collective's harness scores one (:data:`HARNESS_CONTROL`: its ``channel_block``
+   takes ``control_events``): the same seed's world without the plant (``world.records``) through the model pipeline
+   (``work/control-model``, every runtime ``replaying``: an extraction the planted run made is replayed from its
+   memo, not sent again) and the lexical pipeline (``work/control-lexical``), and its channels' windowed events; the
+   scorecard's ``control`` block counts the replayed calls and the misses (sent and ledgered, never observed);
+8. the channels, with X1's public functions and the tie salt: ``X_model`` and ``S`` (``hq_results`` over the model
    pipeline's HQ store), ``X_lexical`` (the lexical pipeline's X), ``R_mf`` and ``U`` (``exact_result`` over
    ``r_mf_cells`` and ``u_cells``), ``single_site`` and ``rules``; alerts before the evaluation weeks are dropped
-   (``eval_events``), and ``channel_block``, ``pattern_outcome`` and ``lift`` read them against the labels;
-8. pushdown: the ``X_model`` candidates whose first candidate week is an evaluation week, by (-snapshot score,
+   (``eval_events``), and ``channel_block``, ``pattern_outcome`` and ``lift`` read them against the labels. With the
+   control, ``channel_block`` also gets the control's events and, for the detector channels, the stale chains'
+   candidate weeks (X1's own inputs), and the lifts compare ``harness.net_found`` (finds net of chance);
+9. pushdown: the ``X_model`` candidates whose first candidate week is an evaluation week, by (-snapshot score,
    sha256(tie salt | key)), the first ``--top-n``, verified in (snapshot as_of, key) order with ``verify_stored`` at
    each snapshot's ``as_of``; every site answers with its own runtime (``SiteVerifier``, seeded demo secret). Items
    are labelled as E2 labels them (:func:`pushdown_label`); AP is ``stats.tie_averaged_ap`` of the pushdown score
    (``STATUS_RANK * 1_000_000 + support lower bound``) and of the detector's snapshot score;
-9. the raw-text scan (:func:`scan_pipeline`) of everything that crossed in the model pipeline, with a positive control;
-10. the scorecard; everything opened is closed in a ``finally``.
+10. the raw-text scan (:func:`scan_pipeline`) of everything that crossed in the model pipeline (``work/model`` only,
+    never the control's), with a positive control;
+11. the scorecard; everything opened is closed in a ``finally``.
 
 **Projection.** At the 20th extraction record (phase ``extract`` only, on the extracting thread) :func:`projection`
 compares ``extract p50 x remaining records + judge p50 x top_n x judge calls per candidate`` with
@@ -56,24 +64,27 @@ request: measured (the run's total) for a complete run, projected (elapsed plus 
 **Files** under ``<runs dir>/sim/<run id>/``: ``labels.json``, ``progress.json`` (rewritten atomically at setup,
 after the warm-up, every :data:`PROGRESS_EVERY` extraction records, at each phase change, after each candidate and at
 the end, so a killed run leaves a readable estimate), ``scorecard.json``, ``edge/site-<id>.ledger.jsonl`` and
-``work/`` (both pipelines' stores and logs; the lab collects only the first four and deletes ``work/``).
+``work/`` (every pipeline's stores and logs; the lab collects only the first four and deletes ``work/``).
 
 **The scorecard** (``kind: lab_sim_scorecard``) is validated (:func:`scorecard_problems`) before it is written:
 ``stamps`` (``synthetic``, ``internal_only``, ``blind: false``, ``measurement`` and its reasons), ``world``,
-``settings``, ``endpoint``, ``extraction`` (per site: records, claims, model and fallback counts, errors per kind,
-drops, invalid claims; ``passed`` when every site used only the model and the fallback and the fallback share is at
-most :data:`MAX_SIM_FALLBACK_SHARE`), ``latency`` (the ledgers' successful calls, ``stats.percentile`` rounded to 3
-places as ``aggregate.latency_rows`` does), ``channels``, ``patterns``, ``lifts``, ``pushdown``,
-``raw_text_crossed``, ``scan``, ``projection``, ``code``, ``timings``, ``notes``, ``paths`` and ``content_hash``
-(sha256 of the canonical JSON without :data:`CONTENT_HASH_EXCLUDES`, so equal across processes, hash seeds, run ids,
-ports and machines). A complete run has every result block; a skipped one none.
+``settings``, ``endpoint``, ``extraction`` (per site: records, claims, model and fallback counts, errors per kind of
+:data:`EXTRACTION_ERROR_KINDS`, drops, invalid claims; ``passed`` when every site used only the model and the fallback
+and the fallback share is at most :data:`MAX_SIM_FALLBACK_SHARE`), ``latency`` (the ledgers' successful calls,
+``stats.percentile`` rounded to 3 places as ``aggregate.latency_rows`` does), ``channels`` (the harness's own channel
+block schema, ``harness._CHANNEL_BLOCK``), ``patterns``, ``lifts`` (``harness._LIFT``), ``control`` (null without the
+no-plant control or for a skipped run), ``pushdown``, ``raw_text_crossed``, ``scan``, ``projection``, ``code``,
+``timings``, ``notes``, ``paths`` and ``content_hash`` (sha256 of the canonical JSON without
+:data:`CONTENT_HASH_EXCLUDES`, so equal across processes, hash seeds, run ids, ports and machines). A complete run has
+every result block; a skipped one none.
 
 **Honesty rules.** ``measurement`` is true only when no fake took part (``measurement_flag`` over the routed
 endpoints, every site-ledger row and the model listing) and model participation passed, and never for a skipped run;
 ``measurement_reasons`` names each failing rule. Every figure comes from the functions X1 and E2 use; the lexical
 extractor is exact on generator text, so ``X_model`` can only match or trail ``X_lexical`` here (``lexical_exact``);
 ``R_mf`` is model-free (``r_model_free``); with fewer than ten patterns nothing is interpretable as an estimate
-(``few_patterns``). Text only: the scan covers bytes, not counts or timing.
+(``few_patterns``); exactly one of ``no_control`` and ``chance_control`` says whether chance finds were left out. Text
+only: the scan covers bytes, not counts or timing.
 
 **Exit codes**: 0 complete, scan passed and participation passed; 1 complete with the scan or participation failing,
 or skipped by the projection; 2 usage, configuration or plant error (nothing written; the dry-run contract of
@@ -81,15 +92,17 @@ or skipped by the projection; 2 usage, configuration or plant error (nothing wri
 is one line (``sim: plant=.. seed=.. status=.. measurement=.. raw_text_crossed=.. -> <scorecard> (synthetic, internal
 only)``), which a shard never prints.
 
-**Integration note.** :func:`run_pipeline` copies ``mycelic.collective.evaluate.baselines.run_pipeline`` at b861362
-and adds a ``runtimes`` parameter (model extraction) and the per-site summaries; an upstream ``runtimes`` hook would
-remove the copy, and ``tests/lab/test_lab_sim.py`` (``PipelineEquivalenceTests``) catches drift. The collective's
-Audit r2 items are merge risks for G7: synthetic exemptions checked in the runtime, a circuit breaker in the extractor
-and verifier (which would change fallback counts), and X1's timing-aware chance finds.
+**Integration.** :func:`run_pipeline` copies ``mycelic.collective.evaluate.baselines.run_pipeline`` at b861362 and
+adds a ``runtimes`` parameter (model extraction) and the per-site summaries; ``tests/lab/test_lab_sim.py``
+(``PipelineEquivalenceTests``) catches drift. :data:`HARNESS_CONTROL`, :data:`EXTRACTION_ERROR_KINDS` and the
+schemas read from ``harness._CHANNEL_BLOCK`` and ``harness._LIFT`` follow the installed collective by data shape;
+``docs/lab/INTEGRATION.md`` lists each shim, the hooks wanted upstream and when to remove them.
 """
 from __future__ import annotations
 
 import argparse
+import copy
+import inspect
 import math
 import sys
 import threading
@@ -103,6 +116,7 @@ from typing import Any, Mapping, Sequence
 from mycelic.collective import schemacheck, stats
 from mycelic.collective.detect.detectors import TIE_SALT_RE
 from mycelic.collective.detect.store import CollectiveStore
+from mycelic.collective.edge import extract as extract_module
 from mycelic.collective.edge.egress import read_log
 from mycelic.collective.edge.extract import DROP_REASONS, FALLBACK_EXTRACTOR, TASK_NAME
 from mycelic.collective.edge.site import EdgeSite, ExtractSummary
@@ -119,6 +133,7 @@ from mycelic.collective.experiments.common import (DryRun, UsageError, check_run
 from mycelic.collective.experiments.e2_pushdown import STATUS_SCALE, UNKNOWN_REASONS, SimClock
 from mycelic.collective.inference.client import list_models
 from mycelic.collective.inference.errors import KINDS as ERROR_KINDS
+from mycelic.collective.inference.errors import InferenceError
 from mycelic.collective.inference.ledger import read_ledger
 from mycelic.collective.inference.routing import ConfigError, RoutingConfig, load_routing
 from mycelic.collective.inference.runtime import Runtime
@@ -164,11 +179,18 @@ SCAN_METHOD = ("leakage.scan narrative shingles (24 characters) of every record 
                "directory (receive log, questions, collective database and its WAL) and every receive and question "
                "row body; positive control: the first site's own database and its WAL")
 ROUTING_PROBLEM = "the routing file must route both tasks to any-simulated openai_compat endpoints without escalation"
-PHASES = ("setup", "warmup", "extract", "lexical", "channels", "pushdown", "scan", "done", "skipped_projection")
-TIMING_KEYS = ("setup_s", "list_models_s", "warmup_s", "model_pipeline_s", "lexical_pipeline_s", "channels_s",
-               "pushdown_s", "scan_s", "total_s")
+PHASES = ("setup", "warmup", "extract", "lexical", "channels", "pushdown", "scan", "done", "skipped_projection",
+          "control")
+TIMING_KEYS = ("setup_s", "list_models_s", "warmup_s", "model_pipeline_s", "lexical_pipeline_s", "control_pipeline_s",
+               "channels_s", "pushdown_s", "scan_s", "total_s")
 LABELS = ("true", "decoy", "background")
 STATUS_VALUES = ("complete", "skipped_projection")
+CONTROL_NOTES = ("no_control", "chance_control")
+DETECTOR_CHANNELS = ("X_model", "X_lexical", "S", "R_mf", "U")
+# the collective's harness scores a no-plant control when its channel_block takes one (read from its signature)
+HARNESS_CONTROL = "control_events" in inspect.signature(harness.channel_block).parameters
+_NOT_SENT = getattr(extract_module, "NOT_SENT", None)
+EXTRACTION_ERROR_KINDS = tuple(ERROR_KINDS) + ((_NOT_SENT,) if _NOT_SENT is not None else ())
 
 
 # --------------------------------------------------------------------------------------------------- plants
@@ -433,14 +455,47 @@ class Progress:
 
 class ObservedRuntime(Runtime):
     """A :class:`~mycelic.collective.inference.runtime.Runtime` that reports the wall seconds of every ``run`` (its
-    repair attempt included, a failure too) to ``observer``; ``single`` is not observed."""
+    repair attempt included, a failure too) to ``observer``; ``single`` is not observed.
+
+    It also memoizes every extraction (``TASK_NAME``) ``run``: the key is the sha256 of the canonical task name,
+    endpoint and payload (``model_payload`` is a function of the record, so a record has the same key in the planted
+    and the control world), the value the result or the ``InferenceError`` it raised. While ``replaying`` (the no-plant
+    control), an extraction found in the memo returns a copy of its result or raises its error again, without a model
+    call, a ledger row or an observation (``replayed``); one not found is called through and ledgered but not observed
+    (``replay_misses``), so the planted run's progress and projection stay its own."""
 
     def __init__(self, config: RoutingConfig, *, observer: Progress, **kwargs: Any) -> None:
         super().__init__(config, **kwargs)
         self.observer = observer
+        self.memo: dict[str, tuple[str, Any]] = {}
+        self.replaying = False
+        self.replayed = 0
+        self.replay_misses = 0
 
     def run(self, task: TaskSpec, payload: dict[str, Any], schema: Any, *, ref: str,
             endpoint: str | None = None) -> dict[str, Any]:
+        if task.name != TASK_NAME:
+            return self._observed(task, payload, schema, ref, endpoint)
+        key = sha256_hex(canonical_bytes({"task": task.name, "endpoint": endpoint, "payload": payload}))
+        if not self.replaying:
+            try:
+                result = self._observed(task, payload, schema, ref, endpoint)
+            except InferenceError as exc:
+                self.memo[key] = ("error", exc)
+                raise
+            self.memo[key] = ("ok", copy.deepcopy(result))
+            return result
+        if key in self.memo:
+            self.replayed += 1
+            outcome, value = self.memo[key]
+            if outcome == "error":
+                raise value
+            return copy.deepcopy(value)
+        self.replay_misses += 1
+        return super().run(task, payload, schema, ref=ref, endpoint=endpoint)
+
+    def _observed(self, task: TaskSpec, payload: dict[str, Any], schema: Any, ref: str,
+                  endpoint: str | None) -> dict[str, Any]:
         t0 = time.perf_counter()
         try:
             return super().run(task, payload, schema, ref=ref, endpoint=endpoint)
@@ -571,14 +626,11 @@ def _enum(values: Sequence[str]) -> dict[str, Any]:
 
 
 def _channel_schema(name: str) -> dict[str, Any]:
-    vis = _O({"units": _NAT, "found": _NAT, "recall": _NNUM})
-    return _O({
-        "label": _const(SIM_CHANNEL_LABELS[name]), "ranked": _const(name != "rules"), "units": _NAT, "found": _NAT,
-        "recall": _NNUM, "by_visibility": _O({v: vis for v in VISIBILITIES}), "median_delay_weeks": _NNUM,
-        "median_lead_weeks": _NNUM, "precision_at_40": _NNUM, "average_precision": _NNUM, "false_alarms": _NAT,
-        "false_alarms_per_week": _NUM, "alerts": _NAT, "decoys_alerted": _O({c: _NAT for c in DECOY_CLASSES}),
-        "per_seed": _A(_O({"seed": _NAT, "found": _NAT, "recall": _NNUM, "alerts": _NAT, "false_alarms": _NAT,
-                           "false_alarms_per_week": _NUM, "precision_at_40": _NNUM, "average_precision": _NNUM}))})
+    """The collective harness's own channel block (``harness._CHANNEL_BLOCK``, so the scorecard tracks whatever the
+    installed harness writes), with this channel's label and ranking as constants."""
+    block = copy.deepcopy(harness._CHANNEL_BLOCK)
+    block["properties"].update(label=_const(SIM_CHANNEL_LABELS[name]), ranked=_const(name != "rules"))
+    return block
 
 
 @lru_cache(maxsize=None)
@@ -586,7 +638,7 @@ def _schema(site_ids: tuple[str, ...]) -> schemacheck.Schema:
     latency = _O({"n": _NAT, "p50_ms": _NNUM, "p95_ms": _NNUM})
     outcome = _O({"found": _BOOL, "first_alert_week": _NSTR, "delay_weeks": _NINT, "lead_weeks": _NINT})
     site = _O({"ingested": _NAT, "records": _NAT, "claims": _NAT, "model": _NAT, "fallback": _NAT,
-               "fallback_share": _NNUM, "errors": _O({k: _NAT for k in ERROR_KINDS}),
+               "fallback_share": _NNUM, "errors": _O({k: _NAT for k in EXTRACTION_ERROR_KINDS}),
                "drops": _O({r: _NAT for r in DROP_REASONS}), "invalid_claims": _NAT})
     return schemacheck.compile(_O({
         "kind": _const("lab_sim_scorecard"), "schema_version": _const(SCHEMA_VERSION), "run_id": _STR,
@@ -610,9 +662,9 @@ def _schema(site_ids: tuple[str, ...]) -> schemacheck.Schema:
         "patterns": _T("array", nullable=True, items=_O({
             "id": _STR, "key": _STR, "visibility": _enum(VISIBILITIES), "sites": _A(_STR),
             "outcomes": _O({c: outcome for c in CHANNELS})})),
-        "lifts": _O({name: _O({"estimate": _NUM, "ci_low": _NUM, "ci_high": _NUM, "B": _POS, "seed": _STR,
-                               "method": _STR, "n_patterns": _NAT, "n_seeds": _NAT, "n_units": _NAT})
-                     for name, _, _ in LIFTS}, nullable=True),
+        "lifts": _O({name: harness._LIFT for name, _, _ in LIFTS}, nullable=True),
+        "control": _O({"world": _const("no-plant"), "records": _NAT, "replayed_calls": _NAT, "replay_misses": _NAT},
+                      nullable=True),
         "pushdown": _O({
             "detected": _NAT, "n": _NAT, "n_true": _NAT, "labels": _O({label: _NAT for label in LABELS}),
             "statuses": _O({s: _NAT for s in STATUSES}),
@@ -679,7 +731,7 @@ def _extraction(summaries: Mapping[str, ExtractSummary], ingested: Mapping[str, 
         sites[sid] = {"ingested": ingested[sid], "records": s.records, "claims": s.claims,
                       "model": s.extractors.get(extractor, 0), "fallback": fallback,
                       "fallback_share": round(fallback / s.records, 6) if s.records else None,
-                      "errors": {k: s.errors.get(k, 0) for k in ERROR_KINDS},
+                      "errors": {k: s.errors.get(k, 0) for k in EXTRACTION_ERROR_KINDS},
                       "drops": {r: s.drops.get(r, 0) for r in DROP_REASONS}, "invalid_claims": s.invalid_claims}
     records = sum(v["records"] for v in sites.values())
     fallback = sum(v["fallback"] for v in sites.values())
@@ -766,16 +818,46 @@ def _since(t0: float) -> float:
 
 def _channels(pack: FrozenPack, model: Pipeline, lexical: Pipeline, records: Sequence[Mapping[str, Any]],
               master_data: Mapping[str, Mapping[str, Sequence[str]]], weeks: Sequence[str],
-              salt: str) -> tuple[dict[str, Any], dict[str, list[dict[str, Any]]]]:
-    """(X_model's detection result, every channel's alert events), with X1's functions."""
+              salt: str) -> tuple[dict[str, dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+    """(the detection result of each of :data:`DETECTOR_CHANNELS`, every channel's alert events), with X1's
+    functions."""
     hq = hq_results(model.store, as_of=model.as_of, tie_salt=salt)
-    x_lexical = hq_results(lexical.store, as_of=lexical.as_of, tie_salt=salt)["X"]
-    r_mf = exact_result(pack, model.org, r_mf_cells(pack, records, master_data=master_data, last_week=weeks[-1]),
-                        as_of=model.as_of, run_channel="S", tie_salt=salt)
-    u = exact_result(pack, model.org, u_cells(model), as_of=model.as_of, run_channel="X", tie_salt=salt)
-    return hq["X"], {"X_model": detector_alerts(hq["X"]), "X_lexical": detector_alerts(x_lexical),
-                     "S": detector_alerts(hq["S"]), "R_mf": detector_alerts(r_mf), "U": detector_alerts(u),
-                     "single_site": single_site_alerts(model, tie_salt=salt), "rules": rule_alerts(hq["X"])}
+    results = {"X_model": hq["X"], "X_lexical": hq_results(lexical.store, as_of=lexical.as_of, tie_salt=salt)["X"],
+               "S": hq["S"],
+               "R_mf": exact_result(pack, model.org, r_mf_cells(pack, records, master_data=master_data,
+                                                                last_week=weeks[-1]),
+                                    as_of=model.as_of, run_channel="S", tie_salt=salt),
+               "U": exact_result(pack, model.org, u_cells(model), as_of=model.as_of, run_channel="X", tie_salt=salt)}
+    events = {name: detector_alerts(result) for name, result in results.items()}
+    events.update(single_site=single_site_alerts(model, tie_salt=salt), rules=rule_alerts(hq["X"]))
+    return results, events
+
+
+def _score(results: Mapping[str, Any], events: Mapping[str, list[dict[str, Any]]],
+           control: Mapping[str, list[dict[str, Any]]] | None, labels: Mapping[str, Any], index: Mapping[str, int],
+           evaluation_weeks: int, seed: int, first: str, last: str
+           ) -> tuple[dict[str, Any], dict[str, dict[str, list[bool]]]]:
+    """(every channel's block, every channel's found per pattern for the lifts), with the harness's functions. With
+    the no-plant control (``control``, the control world's windowed events), each block also scores the control's and
+    the chance finds and, for the detector channels, a stale chain's candidacy as X1 does (each candidate week of the
+    stale chains' keys inside the evaluation weeks); the lifts then compare finds net of chance (``harness.net_found``).
+    Without it, the blocks and the lifts are the raw finds."""
+    patterns = labels["patterns"]
+    if control is None:
+        channels = {name: harness.channel_block(name, SIM_CHANNEL_LABELS[name], {seed: events[name]}, labels, index,
+                                                evaluation_weeks) for name in CHANNELS}
+        found = {name: {p["id"]: [harness.pattern_outcome(events[name], p, index)["found"]] for p in patterns}
+                 for name in CHANNELS}
+        return channels, found
+    stale = {key for d in labels["decoys"] if d["class"] == "stale_chain" for key in d["keys"]}
+    candidates = {name: ([e for e in harness.eval_events(baselines.detector_candidates(results[name]), first, last)
+                          if e["key"] in stale] if name in DETECTOR_CHANNELS else None) for name in CHANNELS}
+    channels = {name: harness.channel_block(name, SIM_CHANNEL_LABELS[name], {seed: events[name]}, labels, index,
+                                            evaluation_weeks, {seed: control[name]}, {seed: candidates[name]})
+                for name in CHANNELS}
+    found = {name: {p["id"]: [harness.net_found(events[name], control[name], p, index)] for p in patterns}
+             for name in CHANNELS}
+    return channels, found
 
 
 def run(args: argparse.Namespace, c: _Checked, started: float) -> int:
@@ -815,10 +897,10 @@ def run(args: argparse.Namespace, c: _Checked, started: float) -> int:
     # 3 to 9
     (out_dir / "edge").mkdir()
     clock = SimClock(pipeline_stamp(pack, weeks))
-    runtimes: dict[str, Runtime] = {}
-    model = lexical = None
+    runtimes: dict[str, ObservedRuntime] = {}
+    model = lexical = control_model = control_lexical = None
     skipped: dict[str, Any] | None = None
-    extraction = channels = patterns = lifts = pushdown = scanned = None
+    extraction = channels = patterns = lifts = pushdown = scanned = control = None
     try:
         for sid in site_ids:
             runtimes[sid] = ObservedRuntime(config, observer=progress, boundary=f"site:{sid}",
@@ -854,26 +936,46 @@ def run(args: argparse.Namespace, c: _Checked, started: float) -> int:
                                              weeks=weeks, workdir=out_dir / "work" / "lexical")
             timings["lexical_pipeline_s"] = _since(t0)
 
+            control_events = None
+            if HARNESS_CONTROL:
+                progress.set_phase("control")
+                t0 = time.perf_counter()
+                for runtime in runtimes.values():
+                    runtime.replaying = True
+                control_model, _, _ = run_pipeline(pack, list(world.records), site_ids=site_ids,
+                                                   master_data=world.master_data, weeks=weeks,
+                                                   workdir=out_dir / "work" / "control-model", runtimes=runtimes)
+                control_lexical = baselines.run_pipeline(pack, list(world.records), site_ids=site_ids,
+                                                         master_data=world.master_data, weeks=weeks,
+                                                         workdir=out_dir / "work" / "control-lexical")
+                for runtime in runtimes.values():
+                    runtime.replaying = False
+                _, control_events = _channels(pack, control_model, control_lexical, list(world.records),
+                                              world.master_data, weeks, args.tie_salt)
+                control_events = {name: harness.eval_events(e, first, last) for name, e in control_events.items()}
+                control = {"world": "no-plant", "records": len(world.records),
+                           "replayed_calls": sum(r.replayed for r in runtimes.values()),
+                           "replay_misses": sum(r.replay_misses for r in runtimes.values())}
+                timings["control_pipeline_s"] = _since(t0)
+
             progress.set_phase("channels")
             t0 = time.perf_counter()
-            x_model, events = _channels(pack, model, lexical, records, world.master_data, weeks, args.tie_salt)
+            results, events = _channels(pack, model, lexical, records, world.master_data, weeks, args.tie_salt)
             events = {name: harness.eval_events(e, first, last) for name, e in events.items()}
-            channels = {name: harness.channel_block(name, SIM_CHANNEL_LABELS[name], {args.seed: events[name]},
-                                                    labels, index, evaluation_weeks) for name in CHANNELS}
+            channels, found = _score(results, events, control_events, labels, index, evaluation_weeks, args.seed,
+                                     first, last)
             outcomes = {(p["id"], name): harness.pattern_outcome(events[name], p, index)
                         for p in labels["patterns"] for name in CHANNELS}
             patterns = [{"id": p["id"], "key": p["key"], "visibility": p["visibility"], "sites": list(p["sites"]),
                          "outcomes": {name: outcomes[(p["id"], name)] for name in CHANNELS}}
                         for p in labels["patterns"]]
-            found = {name: {p["id"]: [outcomes[(p["id"], name)]["found"]] for p in labels["patterns"]}
-                     for name in CHANNELS}
             lifts = {name: harness.lift(name, found[a], found[b], B=args.bootstrap_b, seed=args.bootstrap_seed)
                      for name, a, b in LIFTS}
             timings["channels_s"] = _since(t0)
 
             progress.set_phase("pushdown")
             t0 = time.perf_counter()
-            pushdown = _pushdown(model, x_model, runtimes, clock, labels, weeks, args, progress)
+            pushdown = _pushdown(model, results["X_model"], runtimes, clock, labels, weeks, args, progress)
             timings["pushdown_s"] = _since(t0)
 
             progress.set_phase("scan")
@@ -883,7 +985,7 @@ def run(args: argparse.Namespace, c: _Checked, started: float) -> int:
     finally:
         for runtime in runtimes.values():
             runtime.close()
-        for pipeline in (model, lexical):
+        for pipeline in (model, lexical, control_model, control_lexical):
             if pipeline is not None:
                 pipeline.close()
 
@@ -926,7 +1028,7 @@ def run(args: argparse.Namespace, c: _Checked, started: float) -> int:
                      "listing": {k: listing[k] for k in ("ok", "http_status", "fake", "ids")}},
         "extraction": extraction,
         "latency": {task: _latency(rows, task) for task in (TASK_NAME, JUDGE_TASK)},
-        "channels": channels, "patterns": patterns, "lifts": lifts, "pushdown": pushdown,
+        "channels": channels, "patterns": patterns, "lifts": lifts, "control": control, "pushdown": pushdown,
         "raw_text_crossed": scanned["shingle_overlap_bytes"] if scanned is not None else None, "scan": scanned,
         "projection": {"checked": checked is not None, "after_records": PREFLIGHT_RECORDS, **core,
                        "judge_calls_assumed": c.plant.judge_calls_per_candidate, "top_n": args.top_n,
@@ -938,7 +1040,8 @@ def run(args: argparse.Namespace, c: _Checked, started: float) -> int:
                  "lab_code_hash": code_hash(sorted((ROOT / "lab").rglob("*.py")), ROOT)},
         "timings": timings,
         "notes": [key for key in SIM_NOTES
-                  if key != "few_patterns" or len(c.spec.patterns) < harness.FEW_PATTERNS],
+                  if (key != "few_patterns" or len(c.spec.patterns) < harness.FEW_PATTERNS)
+                  and (key not in CONTROL_NOTES or key == ("chance_control" if control is not None else "no_control"))],
         "paths": {"run_dir": str(out_dir.resolve()), "routing": str(Path(args.routing).resolve()),
                   "plant": str(c.plant.path)},
         "content_hash_excludes": list(CONTENT_HASH_EXCLUDES),

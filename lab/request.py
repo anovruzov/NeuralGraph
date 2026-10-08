@@ -40,7 +40,8 @@ are refused at every level::
      "detector_author": "<1..80 printable characters>",   # default "mycelic engineering"
      "top_n": 5..60,                      # candidates per seed
      "min_candidates": 1..top_n,          # default top_n
-     "central": "self" | "<a hosted model of $.models>",   # default "self": the model under test itself
+     "central": "self" | "<a hosted model of $.models>",   # default "self": the model under test itself; a hosted
+                                                           # entry needs context_tokens (HOSTED_CENTRAL_CONTEXT)
      "bootstrap_b": 1000..20000,          # default 10000
      "bootstrap_seed": <seed>}            # default 1
 
@@ -192,6 +193,8 @@ DATE_PROBLEM = "must be a calendar date YYYYMMDD"
 LOCATION_PROBLEM = "must be lab/requests/<name>.json"
 HOSTED_PLACE = ("a hosted model runs only in e1 or as e2.central: the simulation and the canary scan run each site's "
                 "model inside the runner, and E3 measures this runner")
+HOSTED_CENTRAL_CONTEXT = ("a hosted central comparator needs context_tokens in its manifest entry (the context one "
+                          "request gets on the host)")
 MAX_HOSTED_CALLS = 1000000
 
 
@@ -529,6 +532,8 @@ def _e2(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[
         name = _string(value, f"{path}.central", 24)
         if name != "self" and (name not in models or manifest.models[name]["kind"] != "hosted"):
             raise RequestError(f"{path}.central", "must be self or a hosted model of $.models") from None
+        if name != "self" and manifest.models[name]["context_tokens"] is None:
+            raise RequestError(f"{path}.central", HOSTED_CENTRAL_CONTEXT) from None
         return name
 
     out["central"] = _optional(block, "central", "self", central)

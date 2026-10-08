@@ -22,7 +22,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 from unittest import mock
 
 from lab import ROOT as LAB_ROOT
@@ -44,6 +44,7 @@ from lab.warmup import e2_worst_payloads
 from mycelic.collective.experiments import e1_extract, e2_pushdown
 from mycelic.collective.inference.fakeserver import FakeOpenAIServer, request_payload
 from mycelic.collective.inference.ledger import read_ledger
+from mycelic.collective.inference.routing import parse_routing
 from mycelic.collective.inference.tasks import render_messages
 from mycelic.collective.jsonio import canonical_bytes
 from mycelic.collective.packs import loader
@@ -166,8 +167,21 @@ class AllExperimentsDryRunTests(unittest.TestCase):
         self.assertEqual(block["e1_json"], "e1/e1/compare/e1.json")
         self.assertEqual(sorted(block["endpoints"]), ["fake-a", "fake-b"])
         self.assertEqual(sorted(block["paired"]), ["fake-a"])
-        self.assertEqual(block["paired"]["fake-a"]["against"], "fake-b")
-        self.assertEqual(block["paired"]["fake-a"]["ci_low"], e1["paired"]["fake-a"]["ci95"][0])
+        paired, entry = block["paired"]["fake-a"], e1["paired"]["fake-a"]
+        self.assertEqual(paired["against"], "fake-b")
+        # the harness's paired entry has one of two shapes: the decision on micro field F1 (a field_f1 object, the
+        # per-record mean difference under per_record_field_f1) or on the per-record mean field F1 at the top level
+        if isinstance(entry.get("field_f1"), dict):
+            expected = ("micro_field_f1", entry["field_f1"]["diff"], *entry["field_f1"]["ci95"],
+                        entry["per_record_field_f1"]["mean_diff"], entry["per_record_field_f1"]["sign_p"],
+                        entry["withheld_reason"])
+        else:
+            expected = ("per_record_mean_field_f1", entry["mean_diff"], *entry["ci95"], entry["mean_diff"],
+                        entry["sign_p"], None)
+        self.assertEqual((paired["decision_metric"], paired["diff"], paired["ci_low"], paired["ci_high"],
+                          paired["mean_diff"], paired["sign_p"], paired["withheld_reason"]), expected)
+        self.assertIsNotNone(paired["ci_low"])
+        self.assertEqual((paired["n"], paired["underpowered"]), (entry["n"], entry["underpowered"]))
         self.assertTrue(all(u["included"] for u in block["units"]))
         self.assertEqual(len(block["units"]), 6)
         self.assertNotIn("created_at", json.dumps(block))
@@ -296,7 +310,10 @@ class AllExperimentsDryRunTests(unittest.TestCase):
         for path in files:
             doc = _json(path)
             (name, endpoint), = doc["endpoints"].items()
-            self.assertEqual({f: endpoint[f] for f in e1_extract.PINNED_ENDPOINT_FIELDS}, pinned[name])
+            # pinned as the harness pins them: the parsed endpoint's attributes, a mapping as a JSON object
+            parsed = parse_routing(doc, check_env=False).endpoints[name]
+            now = {f: getattr(parsed, f) for f in e1_extract.PINNED_ENDPOINT_FIELDS}
+            self.assertEqual({f: dict(v) if isinstance(v, Mapping) else v for f, v in now.items()}, pinned[name])
             other = e1_endpoint(plan["models"][name], "http://other.invalid/v1")
             self.assertEqual({**endpoint, "base_url": None}, {**other, "base_url": None})
             self.assertEqual(doc["routes"], {})
@@ -424,8 +441,10 @@ class E1LabelOrderTests(unittest.TestCase):
                                  "json_validity_rate": 1.0, "valid_after_repair_rate": 1.0, "exact_match": {},
                                  "latency_ms_p50": 900.0, "latency_ms_p95": 1500.0, "model_mismatch": False}
                           for name in ("m-a", "m-b")},
-            "paired": {"m-a": {"against": "m-b", "n": 600, "mean_diff": 0.01, "ci_low": -0.02, "ci_high": 0.04,
-                               "sign_p": 0.5, "underpowered": False, "non_inferior": True, "kill_flag": False}}}
+            "paired": {"m-a": {"against": "m-b", "n": 600, "decision_metric": "micro_field_f1", "diff": 0.02,
+                               "ci_low": -0.02, "ci_high": 0.04, "mean_diff": 0.01, "sign_p": 0.5,
+                               "underpowered": False, "non_inferior": True, "kill_flag": False,
+                               "withheld_reason": None}}}
         block.update(changes)
         report = {"schema_version": 1, "kind": "lab_report", "result_class": "real", "contains_measurements": True,
                   "banner": None, "request": {}, "plan": {}, "unit_count": 0, "shard_count": 0, "shards": [],
@@ -441,7 +460,11 @@ class E1LabelOrderTests(unittest.TestCase):
         header = next(i for i, line in enumerate(lines) if "| non-inferior | kill flag |" in line)
         self.assertLess(label, header)
         self.assertNotIn(E1_VERDICTS_WITHHELD, lines)
-        self.assertEqual(lines[header + 2].count("|"), 11)
+        self.assertEqual(lines[header + 2].count("|"), 13)
+        self.assertIn("| model | against | paired records | decision metric | difference | interval low | interval "
+                      "high | mean difference | sign test p | underpowered | non-inferior | kill flag |", lines)
+        self.assertIn("| `m-a` | `m-b` | 600 | `micro_field_f1` | 0.020 | -0.020 | 0.040 | 0.010 | 0.500 | no | yes "
+                      "| no |", lines)
         check_sources(self, md, sources, root)
 
     def test_withheld_without_verdict_columns(self) -> None:
@@ -1012,10 +1035,11 @@ class PlanTests(unittest.TestCase):
             "plant_path": "mycelic/collective/packs/data/device_quality/fixtures/plant_e2_smoke.json", "sites": 6,
             "seeds": [1], "seed": 1, "weeks": 52, "eval_from": 20, "eval_to": 51, "grace_weeks": 4,
             "tie_salt": "lab-e2", "detector_author": "mycelic engineering", "top_n": 5, "min_candidates": 5,
-            "central": "self", "bootstrap_b": 1000, "bootstrap_seed": 1})
+            "central": "self", "bootstrap_b": 1000, "bootstrap_seed": 1, "central_context_tokens": 32768})
         x1 = by_id["x1"]
         self.assertEqual((x1["model"], x1["kind"], x1["seeds"]), (None, "none", [1]))
-        self.assertEqual(sorted(x1["params"]), sorted(set(e2["params"]) - {"top_n", "min_candidates", "central"}))
+        self.assertEqual(sorted(x1["params"]), sorted(set(e2["params"]) - {"top_n", "min_candidates", "central",
+                                                                           "central_context_tokens"}))
         self.assertEqual(x1["params"]["tie_salt"], "lab-x1")
         openfda = by_id["openfda"]
         self.assertEqual((openfda["model"], openfda["kind"], openfda["seeds"], openfda["env"]), (None, "none", [], []))
@@ -1136,6 +1160,29 @@ class GuardTests(unittest.TestCase):
         self.assertIn("--labels=/plan/prereg/e1/labels.jsonl", argv)
         self.assertIn("--endpoint=fake-a", argv)
         self.assertIn("--repeat=1", argv)
+
+    def test_e2_central_context_flag(self) -> None:
+        plan = _json(_Shared.get().out / "plan" / "plan.json")
+        e2 = next(u for u in plan["units"] if u["experiment"] == "e2")
+        self.assertEqual(e2["params"]["central_context_tokens"], 32768)
+        for present in (True, False):
+            with self.subTest(present=present), mock.patch.object(units, "E2_CENTRAL_CONTEXT", present):
+                argv = units.build_argv(e2, Path("/out"), Path("/out/routing/x.json"), prereg=Path("/plan"))
+                flags = [a for a in argv if a.startswith("--central-context-tokens")]
+                self.assertEqual(flags, ["--central-context-tokens=32768"] if present else [])
+                self.assertTrue(all(ARG_RE.fullmatch(a) for a in argv[4:]))
+        changed = {**e2, "params": {**e2["params"], "central_context_tokens": 65536}}
+        with mock.patch.object(units, "E2_CENTRAL_CONTEXT", True):
+            argv = units.build_argv(changed, Path("/out"), Path("/out/routing/x.json"), prereg=Path("/plan"))
+        self.assertIn("--central-context-tokens=65536", argv)
+
+    def test_e2_central_context_follows_the_installed_harness(self) -> None:
+        import argparse
+        (run,) = [a.choices["run"] for a in e2_pushdown._parser()._actions
+                  if isinstance(a, argparse._SubParsersAction)]
+        options = {o for a in run._actions for o in a.option_strings}
+        self.assertEqual(units.E2_CENTRAL_CONTEXT, "--central-context-tokens" in options)
+        self.assertIn("--central-routing", options)
 
     def test_compare_argv_has_absolute_run_dirs(self) -> None:
         argv = lab_aggregate.e1_compare_argv(Path("p.json"), [Path("rel/b-2"), Path("rel/a-1")], Path("out"), False)

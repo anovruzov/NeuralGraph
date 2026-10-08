@@ -17,10 +17,10 @@ from typing import Any, Callable
 from unittest import mock
 
 from lab import ROOT, check_keys, gh_data, gh_property, safe_path
-from lab.manifest import (ARGS_CROSS, ARGS_PROBLEM, ARGS_REPEAT, REPIN, REVISION_PROBLEM, ManifestError,
-                          load_manifest, parse_server_args)
+from lab.manifest import (ARGS_CROSS, ARGS_PROBLEM, ARGS_REPEAT, CONTEXT_TOKENS_RANGE, REPIN, REVISION_PROBLEM,
+                          ManifestError, load_manifest, parse_server_args)
 from lab.notes import PLACEHOLDER
-from lab.request import PACK_PROBLEM, RequestError, load_request, validate
+from lab.request import HOSTED_CENTRAL_CONTEXT, PACK_PROBLEM, RequestError, load_request, validate
 from tests.lab.helpers import MANIFEST_TEST, PLUMBING_MIN, lab_cli, plumbing_min, run_plan, sim_block, write_json
 
 MANIFEST = load_manifest(MANIFEST_TEST)
@@ -480,6 +480,22 @@ class ExperimentBlockTests(unittest.TestCase):
                     self.blocks(**{name: block})
                 self.assertEqual((caught.exception.path, caught.exception.problem), ("$.models[0]", problems[name]))
 
+    def test_hosted_central_needs_context_tokens(self) -> None:
+        self.assertEqual(HOSTED_CENTRAL_CONTEXT, "a hosted central comparator needs context_tokens in its manifest "
+                                                 "entry (the context one request gets on the host)")
+        obj = plumbing_min()
+        obj["models"] = ["fake-a", "fake-b", "h-b"]
+        obj["experiments"] = {"e2": {**E2, "models": ["fake-a"], "central": "h-b"}}
+        with self.assertRaises(RequestError) as caught:
+            validate(obj, MANIFEST)
+        self.assertEqual((caught.exception.path, caught.exception.problem),
+                         ("$.experiments.e2.central", HOSTED_CENTRAL_CONTEXT))
+        obj["models"][2] = "h-a"
+        obj["experiments"]["e2"]["central"] = "h-a"
+        with self.assertRaises(RequestError) as caught:
+            validate(obj, MANIFEST)
+        self.assertEqual(caught.exception.path, "$.hosted")
+
     def test_block_order(self) -> None:
         with self.assertRaises(RequestError) as caught:
             self.blocks(x1={**X1, "seeds": []}, e1={**E1, "runs": 2})
@@ -661,6 +677,24 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(MANIFEST.models["tiny-gguf"]["ctx_per_slot"], 16384)
         self.assertEqual(MANIFEST.server["threads"], "physical")
         self.assertEqual(MANIFEST.server["cache_ram_mib"], 1024)
+
+    def test_hosted_context_tokens(self) -> None:
+        self.assertEqual(CONTEXT_TOKENS_RANGE, (2048, 2000000))
+        self.assertEqual(MANIFEST.models["h-a"]["context_tokens"], 32768)
+        self.assertIsNone(MANIFEST.models["h-b"]["context_tokens"])
+        for value in (2048, 2000000):
+            with self.subTest(value=value):
+                m = copy.deepcopy(self.manifest)
+                m["models"]["h-b"]["context_tokens"] = value
+                self.assertEqual(self._load(m).models["h-b"]["context_tokens"], value)
+        for value in (2047, 2000001, True, False, 32768.0, "32768", None):
+            with self.subTest(value=value):
+                m = copy.deepcopy(self.manifest)
+                m["models"]["h-b"]["context_tokens"] = value
+                self._refused(m, "$.models.h-b.context_tokens", "must be an int in [2048, 2000000]")
+        m = copy.deepcopy(self.manifest)
+        m["models"]["tiny-gguf"]["context_tokens"] = 4096
+        self._refused(m, "$.models.tiny-gguf.context_tokens", "unknown key")
 
     def test_gguf_needs_a_server(self) -> None:
         m = copy.deepcopy(self.manifest)

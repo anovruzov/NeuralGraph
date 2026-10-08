@@ -24,8 +24,9 @@ longer hashes as recorded the unit is ``excluded`` (``a unit file differs from t
 without the unit's record gives ``not_run`` (the prepare problem, else the failed step, as the reason); a shard
 without an artifact gives ``not_run`` and any other state ``excluded``, with the state's sentence as the reason. Units
 that ran to a result give one E3 row per cell of their ``e3.json``, one G0 row per ``leakage.json`` (never its hit
-lists), one sim row per complete ``scorecard.json`` (:data:`SIM_CHANNEL_FIELDS` of each channel, the lifts, the
-pushdown summary, the raw text crossed and the fallback share; never an item or a key) and their ledgers' successful
+lists), one sim row per complete ``scorecard.json`` (:data:`SIM_CHANNEL_FIELDS` of each channel, ``found_net`` and
+``chance_found`` null when the harness ran no no-plant control, the lifts, the pushdown summary, the raw text crossed
+and the fallback share; never an item or a key) and their ledgers' successful
 calls, grouped into latency rows by display class, model, CPU model, experiment and task (CPU models are never
 pooled): ``n`` and the 50th and 95th percentiles in ms (``stats.percentile``, rounded to 3 places). A hosted unit's
 CPU model is null (its calls ran on the host), and the central rows of an E2 unit with a hosted central comparator
@@ -35,8 +36,9 @@ unit with a record, whatever its status (a skipped or timed-out one included), a
 its collected ``scorecard.json`` or, failing that, ``progress.json`` reads: records done of all, the measured
 extraction and judge medians in seconds, the estimate and the suggested minutes for the next request.
 ``notes.sim_world_digest`` groups the sim rows by (plant, seed, weeks): one world digest per group is
-``consistent``. G0 rows also carry the protocol's record count (:data:`G0_PROTOCOL_RECORDS`, STRATEGY 11.2) and
-whether the scan was below it.
+``consistent``. G0 rows also carry the protocol's record count (:data:`G0_PROTOCOL_RECORDS`, STRATEGY 11.2),
+whether the scan was below it and ``model_path_problems``, the number of problems ``leakage.json``'s ``model_path``
+lists (null when it has none: a harness without the model-path check).
 
 E2 rows (one per ``e2.json``) copy its stamps, the protocol minimums, the central comparator, the candidates, the
 conditions' AP and precision at k, the ratio, the raw text bytes, the pushdown statuses and resolvability share and the
@@ -55,7 +57,8 @@ id ``compare``, ``--runs-dir DIR/e1``, ``--allow-incomplete`` exactly when a non
 in ``DIR/e1/compare.stdout.log`` and ``.stderr.log``); a refusal is :data:`~lab.notes.E1_COMPARE_FAILED`. The block
 holds the labels, the prereg's thresholds, every repeat's status, the excluded models, the endpoints without runs,
 ``measurement`` and ``verdicts_shown`` (a measurement shown in the ``model`` or ``hosted-api`` class only), the
-pooled F1 blocks per model, the paired comparison against the reference and ``hosted_endpoints`` (the hosted models
+pooled F1 blocks per model, the paired comparison against the reference (:func:`_e1_paired`, which reads either
+shape of the harness's paired entry and names the ``decision_metric``) and ``hosted_endpoints`` (the hosted models
 among the endpoints), never e1.json's clock or paths (``e1_json`` is its path relative to ``DIR``). Its
 ``display_class`` is ``plumbing`` when any compared unit is, ``model`` when all are, ``hosted-api`` when all are
 ``model`` or ``hosted-api``, else ``unverified``.
@@ -119,7 +122,8 @@ UNIT_FIELDS = ("status", "status_reason", "measurement_class", "class_reason", "
 E3_FIELDS = ("workload", "task", "concurrency", "measured", "ok", "ttft_s", "e2e_s", "decode_tok_s", "throughput")
 G0_FIELDS = ("pack", "pack_version", "seed", "records", "passed", "canaries_planted", "hit_count",
              "shingle_overlap_bytes", "world_digest")
-SIM_CHANNEL_FIELDS = ("found", "units", "recall", "precision_at_40", "average_precision", "alerts", "false_alarms")
+SIM_CHANNEL_FIELDS = ("found", "units", "recall", "precision_at_40", "average_precision", "alerts", "false_alarms",
+                      "found_net", "chance_found")
 SIM_LIFT_FIELDS = ("estimate", "ci_low", "ci_high")
 G0_PROTOCOL_RECORDS = 1000
 E1_MODULE = "mycelic.collective.experiments.e1_extract"
@@ -127,6 +131,8 @@ E1_FILES = ("run.json", "predictions.jsonl", "ledger.jsonl")
 E1_COMPARE_TIMEOUT_S = 1200
 E1_JSON = "e1/e1/compare/e1.json"
 E1_F1 = ("field_f1", "claim_f1", "entity_f1", "predicate_f1")
+E1_PAIRED_KEYS = ("against", "n", "decision_metric", "diff", "ci_low", "ci_high", "mean_diff", "sign_p",
+                  "underpowered", "non_inferior", "kill_flag", "withheld_reason")
 E2_CONDITION_FIELDS = ("ap", "ap_ci_low", "ap_ci_high", "precision_at_k")
 OPENFDA_CHANNEL_FIELDS = ("in_scope", "found", "recall_rate", "median_lead_days", "post_recall_alerts", "false_alarms",
                           "false_alarms_per_week")
@@ -347,13 +353,15 @@ def _g0_row(row: dict[str, Any], root: Path) -> dict[str, Any] | None:
         return None
     control = result.get("positive_control")
     records = result.get("records")
+    problems = _get(result, "model_path", "problems")
     return {"unit": row["unit"], "model": row["model"], "display_class": row["display_class"],
             **{k: result.get(k) for k in G0_FIELDS},
             "positive_control": ({"canary_hits": control.get("canary_hits"),
                                   "shingle_overlap_bytes": control.get("shingle_overlap_bytes")}
                                  if isinstance(control, dict) else None),
             "protocol_records": G0_PROTOCOL_RECORDS,
-            "below_protocol": records < G0_PROTOCOL_RECORDS if _is_int(records) else None}
+            "below_protocol": records < G0_PROTOCOL_RECORDS if _is_int(records) else None,
+            "model_path_problems": len(problems) if isinstance(problems, list) else None}
 
 
 def _e2_row(row: dict[str, Any], root: Path, unit: dict[str, Any]) -> dict[str, Any] | None:
@@ -459,12 +467,23 @@ def _e1_endpoint(block: Any) -> dict[str, Any]:
 
 
 def _e1_paired(entry: Any) -> dict[str, Any]:
-    ci = _get(entry, "ci95")
+    """One paired entry of ``e1.json`` in either shape the harness writes, read by its data shape: with a
+    ``field_f1`` object (the decision on micro field F1; the per-record mean difference and the sign test under
+    ``per_record_field_f1``) or without one (the decision on the per-record mean field F1, every value at the top
+    level, no withheld reason). A malformed entry gives nulls, never an error."""
+    if not isinstance(entry, dict):
+        return dict.fromkeys(E1_PAIRED_KEYS)
+    micro = isinstance(entry.get("field_f1"), dict)
+    decision = entry["field_f1"] if micro else entry
+    secondary = _get(entry, "per_record_field_f1") if micro else entry
+    ci = _get(decision, "ci95")
     ci = ci if isinstance(ci, list) and len(ci) == 2 else [None, None]
-    return {"against": _get(entry, "against"), "n": _get(entry, "n"), "mean_diff": _get(entry, "mean_diff"),
-            "ci_low": ci[0], "ci_high": ci[1], "sign_p": _get(entry, "sign_p"),
-            "underpowered": _get(entry, "underpowered"), "non_inferior": _get(entry, "non_inferior"),
-            "kill_flag": _get(entry, "kill_flag")}
+    return {"against": entry.get("against"), "n": entry.get("n"),
+            "decision_metric": "micro_field_f1" if micro else "per_record_mean_field_f1",
+            "diff": _get(decision, "diff" if micro else "mean_diff"), "ci_low": ci[0], "ci_high": ci[1],
+            "mean_diff": _get(secondary, "mean_diff"), "sign_p": _get(secondary, "sign_p"),
+            "underpowered": entry.get("underpowered"), "non_inferior": entry.get("non_inferior"),
+            "kill_flag": entry.get("kill_flag"), "withheld_reason": entry.get("withheld_reason") if micro else None}
 
 
 def e1_compare_argv(prereg: Path, run_dirs: list[Path], out: Path, allow_incomplete: bool) -> list[str]:

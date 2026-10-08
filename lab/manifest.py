@@ -20,7 +20,8 @@
                             "response_format": "json_schema" | "json_object" | "none",   # default json_schema
                             "transport_schema": "full" | "reduced",                      # default full
                             "price": {"per_mtok_in": <USD>, "per_mtok_out": <USD>},     # optional
-                            "deadline_s": 10..3600, "max_retries": 0..5}}}              # default 300 and 2
+                            "deadline_s": 10..3600, "max_retries": 0..5,                # default 300 and 2
+                            "context_tokens": 2048..2000000}}}                          # optional
 
 ``server`` is required when any gguf model is listed; a request's provider is ``fake`` or ``server.program``.
 Model keys match ``[a-z0-9][a-z0-9-]{0,23}``; ``none`` is reserved for model-free shard groups and ``hosted`` for the
@@ -38,11 +39,14 @@ lab itself sets (model, alias, host, port, threads, slots, context, seed, cache,
 A ``hosted`` entry names a model on the one OpenAI-compatible host the two hosted repository secrets point at
 (``lab.hosted``: its base URL and key); it has no alias, no file and no server. ``model`` is the id the host expects
 (the pattern of an alias). ``price`` is the host's USD price per million input and output tokens, each a finite number
-in [0, 1000]; without it the cost is not estimated (null). No hosted entry ships in ``lab/models.json``: the id depends
-on the host and the price on the account. An example::
+in [0, 1000]; without it the cost is not estimated (null). ``context_tokens`` is the context one request gets on the
+host (:data:`CONTEXT_TOKENS_RANGE`; null when absent): an E2 central comparator needs it (``lab.request``), because the
+pushdown harness withholds the bar verdict when a central prompt may have reached it. No hosted entry ships in
+``lab/models.json``: the id depends on the host and the price on the account. An example::
 
-    "big-hosted": {"kind": "hosted", "model": "<the host's model id>", "response_format": "json_schema",
-                   "price": {"per_mtok_in": 0.5, "per_mtok_out": 1.5}, "deadline_s": 300, "max_retries": 2}
+    "big-hosted": {"kind": "hosted", "model": "<the host's model id>", "context_tokens": 32768,
+                   "response_format": "json_schema", "price": {"per_mtok_in": 0.5, "per_mtok_out": 1.5},
+                   "deadline_s": 300, "max_retries": 2}
 
 The lock sits next to the manifest as ``<stem>.lock.json``::
 
@@ -103,11 +107,13 @@ _SERVER_REQUIRED = _SERVER_KEYS[:8]
 _FAKE_KEYS = ("kind", "alias", "persona", "response_format", "transport_schema")
 _GGUF_KEYS = ("kind", "alias", "gguf", "response_format", "transport_schema", *CTX_DEFAULTS, "server_args")
 _GGUF_REF_KEYS = ("repo", "file", "revision", "license")
-_HOSTED_KEYS = ("kind", "model", "response_format", "transport_schema", "price", "deadline_s", "max_retries")
+_HOSTED_KEYS = ("kind", "model", "response_format", "transport_schema", "price", "deadline_s", "max_retries",
+                "context_tokens")
 _PRICE_KEYS = ("per_mtok_in", "per_mtok_out")
 PRICE_MAX = 1000
 HOSTED_DEADLINE_S = (10, 3600, 300)
 HOSTED_MAX_RETRIES = (0, 5, 2)
+CONTEXT_TOKENS_RANGE = (2048, 2000000)
 _LOCK_KEYS = ("schema_version", "server", "models")
 _LOCK_SERVER_KEYS = ("tag", "asset", "sha256")
 _LOCK_MODEL_KEYS = ("repo", "file", "revision", "commit", "sha256", "size")
@@ -339,6 +345,8 @@ def _hosted(path: str, raw: dict[str, Any]) -> dict[str, Any]:
         "price": _price(raw["price"], f"{path}.price") if "price" in raw else None,
         "deadline_s": _int(raw.get("deadline_s", default), low, high, f"{path}.deadline_s"),
         "max_retries": _int(raw.get("max_retries", retries_default), retries_low, retries_high, f"{path}.max_retries"),
+        "context_tokens": (_int(raw["context_tokens"], *CONTEXT_TOKENS_RANGE, f"{path}.context_tokens")
+                           if "context_tokens" in raw else None),
     }
 
 

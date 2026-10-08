@@ -28,24 +28,26 @@ harness environment is the handle's (``lab.hosted.unit_environ``): the allowlist
 stripped key and never the base URL.
 
 Adapters (``ADAPTERS``; every harness writes under ``work/<unit>/<experiment>/<run id>``, its kind being the
-experiment): ``e3`` runs ``experiments.e3_latency`` (boundary ``central``) and keeps ``e3.json`` and
-``ledger.jsonl``; ``g0`` runs ``experiments.g0_canary --mode routing`` (boundary ``any-simulated``, both routed
-tasks on the endpoint) and keeps ``leakage.json`` and ``edge/site-*.ledger.jsonl``; ``sim`` runs ``lab.sim`` (the
-same routing as G0, with ``--budget-seconds`` the unit's whole seconds less :data:`SIM_BUDGET_MARGIN_S`, at least 1)
-and keeps ``scorecard.json``, ``progress.json``, ``labels.json`` and ``edge/site-*.ledger.jsonl``; ``e1`` runs
+experiment): ``e3`` runs ``experiments.e3_latency`` (boundary ``central``) and keeps ``e3.json`` and ``ledger.jsonl``;
+``g0`` runs ``experiments.g0_canary --mode routing`` (boundary ``any-simulated``, both routed tasks on the endpoint)
+and keeps ``leakage.json`` and ``edge/site-*.ledger.jsonl``; ``sim`` runs ``lab.sim`` (the same routing as G0, with
+``--budget-seconds`` the unit's whole seconds less :data:`SIM_BUDGET_MARGIN_S`, at least 1) and keeps
+``scorecard.json``, ``progress.json``, ``labels.json`` and ``edge/site-*.ledger.jsonl``; ``e1`` runs
 ``experiments.e1_extract run`` (the preregistered prereg and labels, one repeat of one model) and keeps ``run.json``,
 ``predictions.jsonl`` and ``ledger.jsonl``; ``e2`` runs ``experiments.e2_pushdown run`` (the preregistered X1 prereg,
 site routing at ``any-simulated`` and a central endpoint at ``central`` on the same server: central is the model
-itself) and keeps ``e2.json``, ``central.ledger.jsonl`` and ``work/seed-*/edge/site-*.ledger.jsonl``; ``x1`` runs
-``evaluate.harness run`` and keeps ``scorecard.json`` and ``labels.json``; ``openfda`` is ``lab.openfda``'s steps
-(caches' manifests, the replay's prereg, signals and score, and the sheets). Nothing else is collected: no
-``private/``, no other ``work/``, no SQLite file, no ``pages/``, no ``hq*`` or ``followup/`` directory. E1, E2 and X1
-need the preregistration (:mod:`lab.prereg`): without it they fail with :data:`~lab.notes.PREREG_MISSING` and nothing
-starts. An E2 unit behind a model server is first projected (:func:`e2_projection`): the rehearsal's call counts
-times the warm-up's latencies, against :data:`lab.sim.PROJECTION_SHARE` of the unit's time; above it the unit is
-``skipped`` with the projection recorded and no harness started.
+itself; ``--central-context-tokens``, the plan's ``central_context_tokens``, only when the installed harness takes it,
+:data:`E2_CENTRAL_CONTEXT`) and keeps ``e2.json``, ``central.ledger.jsonl`` and
+``work/seed-*/edge/site-*.ledger.jsonl``; ``x1`` runs ``evaluate.harness run`` and keeps ``scorecard.json`` and
+``labels.json``; ``openfda`` is ``lab.openfda``'s steps (caches' manifests, the replay's prereg, signals and score,
+and the sheets). Nothing else is collected: no ``private/``, no other ``work/``, no SQLite file, no ``pages/``, no
+``hq*`` or ``followup/`` directory. E1, E2 and X1 need the preregistration (:mod:`lab.prereg`): without it they fail
+with :data:`~lab.notes.PREREG_MISSING` and nothing starts. An E2 unit behind a model server is first projected
+(:func:`e2_projection`): the rehearsal's call counts times the warm-up's latencies, against
+:data:`lab.sim.PROJECTION_SHARE` of the unit's time; above it the unit is ``skipped`` with the projection recorded and
+no harness started.
 
-Status, from :func:`harness_status` and then the participation check:
+Status, from :func:`harness_status`, then the participation check, then G0's model path:
 
 * ``timed_out`` whenever the wait timed out; ``interrupted`` for exit 130 or SIGINT; ``failed`` for another signal,
   for exit 2 (the harness refused its configuration) and for any exit the adapter does not expect;
@@ -70,6 +72,9 @@ Status, from :func:`harness_status` and then the participation check:
   checked in that order. A harness that exits 0 although
   the model never answered (E3 counts its failures, G0 and the sim fall back to the lexical extractor) can therefore
   never be ``ok``.
+* G0's model path, last (:func:`g0_status`): an ``ok`` or ``result_fail`` G0 unit whose ``leakage.json`` lists
+  ``model_path`` problems while nothing leaked is ``invalid`` (:data:`~lab.notes.G0_MODEL_PATH`); a harness without
+  ``model_path`` is judged as before.
 
 The measurement class (:func:`measurement_class`) says what the numbers are: ``plumbing`` when a fake answered (a
 fake manifest entry, the ``--provider fake`` override, or any ledger row carrying the fake-server marker),
@@ -103,6 +108,7 @@ SIGTERM, then SIGKILL after 10 s, and after every exit the group is SIGKILLed ag
 """
 from __future__ import annotations
 
+import argparse
 import math
 import os
 import re
@@ -119,6 +125,7 @@ from typing import Any, Callable, Mapping
 from mycelic.collective.edge.extract import TASK_NAME
 from mycelic.collective.edge.verify import JUDGE_TASK
 from mycelic.collective.experiments.common import utc_clock, write_json_atomic
+from mycelic.collective.experiments import e2_pushdown
 from mycelic.collective.experiments.e2_pushdown import CENTRAL_TASKS
 from mycelic.collective.experiments.e3_latency import WORKLOADS
 from mycelic.collective.inference.client import is_private_host
@@ -130,11 +137,11 @@ from mycelic.collective.packs.loader import load_pack
 from . import ROOT
 from . import hosted as lab_hosted
 from . import prereg as lab_prereg
-from .notes import (E2_ABORTED, E3_FAILURES, FAKE_SERVER_NOTE, HARNESS_INTERRUPTED, HARNESS_USAGE, KILLED_BY_SIGNAL,
-                    LAB_ROUTING, LOW_PARTICIPATION, NO_MODEL_CALLS, PREREG_MISSING, RESULT_CONTRADICTS_EXIT,
-                    RESULT_MISSING, SHARD_INTERRUPTED, SIM_LOW_PARTICIPATION, SIM_PROJECTED, TIMED_OUT,
-                    UNEXPECTED_EXIT)
-from .server import EXIT_GRACE_S, WATCH_INTERVAL_S, FakeServer, exit_reason
+from .notes import (E2_ABORTED, E3_FAILURES, FAKE_SERVER_NOTE, G0_MODEL_PATH, HARNESS_INTERRUPTED, HARNESS_USAGE,
+                    KILLED_BY_SIGNAL, LAB_ROUTING, LOW_PARTICIPATION, NO_MODEL_CALLS, PREREG_MISSING,
+                    RESULT_CONTRADICTS_EXIT, RESULT_MISSING, SHARD_INTERRUPTED, SIM_LOW_PARTICIPATION, SIM_PROJECTED,
+                    TIMED_OUT, UNEXPECTED_EXIT)
+from .server import EXIT_GRACE_S, LOG_LINE_CAP, WATCH_INTERVAL_S, FakeServer, exit_reason, printable
 from .sim import PROJECTION_SHARE, suggested_minutes
 
 ENV_ALLOWLIST = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "SSL_CERT_FILE", "SSL_CERT_DIR", "HTTP_PROXY",
@@ -161,6 +168,17 @@ DISPLAY_CLASSES = ("model", "hosted-api", "unverified", "plumbing", "no-model", 
 HOSTED_ROUTING = "hosted-routing"
 MODEL_VERIFIED_BY = ("lock", "hf-api")
 SERVER_VERIFIED_BY = ("lock", "github-api", "first-use")
+
+
+def _e2_central_context() -> bool:
+    """Whether the installed pushdown harness's ``run`` takes ``--central-context-tokens``, read from its own parser."""
+    for action in e2_pushdown._parser()._actions:
+        if isinstance(action, argparse._SubParsersAction) and "run" in action.choices:
+            return any("--central-context-tokens" in a.option_strings for a in action.choices["run"]._actions)
+    return False
+
+
+E2_CENTRAL_CONTEXT = _e2_central_context()
 
 
 class ShardInterrupted(BaseException):
@@ -281,6 +299,8 @@ def build_argv(unit: Mapping[str, Any], out: Path, routing_path: Path, server_no
                  ("allow-external-raw", "synthetic"), ("data-label", "synthetic"),
                  ("deadline-seconds", E2_DEADLINE_SECONDS), ("bootstrap-b", p["bootstrap_b"]),
                  ("bootstrap-seed", p["bootstrap_seed"]), ("runs-dir", runs_dir)]
+        if E2_CENTRAL_CONTEXT:
+            flags.append(("central-context-tokens", p["central_context_tokens"]))
     elif unit["experiment"] == "x1":
         flags = [("prereg", prereg / "prereg" / "x1" / "x1" / "prereg.json"), ("plant", ROOT / p["plant_path"]),
                  ("seeds", ",".join(str(s) for s in sorted(p["seeds"]))), ("run-id", unit["run_id"]),
@@ -460,6 +480,23 @@ def _sim_status(exit_code: int, result: Any) -> tuple[str, str | None]:
     if exit_code != (0 if all(passed) else 1):
         return "failed", RESULT_CONTRADICTS_EXIT
     return ("ok", None) if passed[0] else ("result_fail", None)
+
+
+def g0_status(status: str | None, reason: str | None, result: Any) -> tuple[str | None, str | None]:
+    """G0's model path, read by data shape: an ``ok`` or ``result_fail`` G0 unit whose ``leakage.json`` has a
+    ``model_path`` listing problems, with nothing leaked (no canary hit, no shingle overlap, no site-ledger hit or
+    overlap), is ``invalid`` (:data:`~lab.notes.G0_MODEL_PATH` and the harness's problems): the scan did not test the
+    model in the loop. A leak stays ``result_fail``; a result without ``model_path`` keeps its status."""
+    model_path = result.get("model_path") if isinstance(result, dict) else None
+    problems = model_path.get("problems") if isinstance(model_path, dict) else None
+    if status not in ("ok", "result_fail") or not isinstance(problems, list) or not problems:
+        return status, reason
+    hygiene = result.get("site_ledger_hygiene")
+    no_leak = (result.get("hit_count") == 0 and result.get("shingle_overlap_bytes") == 0 and isinstance(hygiene, dict)
+               and hygiene.get("hits") == [] and hygiene.get("shingle_overlap_bytes") == 0)
+    if not no_leak:
+        return status, reason
+    return "invalid", printable(f"{G0_MODEL_PATH}: " + "; ".join(str(p) for p in problems), LOG_LINE_CAP)
 
 
 def participation(experiment: str, rows: list[dict[str, Any]], required: list[str],
@@ -1006,6 +1043,8 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
             record_participation, problem = participation(experiment, rows, required_tasks(unit), result)
             if problem is not None:
                 status, reason = "invalid", problem
+    if experiment == "g0":
+        status, reason = g0_status(status, reason, result)
     if serving is not None and proc is not None and server_exit is None and not interrupted \
             and status not in ("ok", "result_fail"):
         # requests that just failed may have met a killed server that is not reaped yet: name the exit if it comes

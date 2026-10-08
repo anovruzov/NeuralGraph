@@ -7,18 +7,19 @@ Paths are relative to the current directory; in event mode that is the repositor
 ``--request`` accepts any regular ``<name>.json`` file; event mode finds the request with ``discover.py`` and
 requires ``lab/requests/<name>.json``.
 
-A unit is one experiment on one model: ``<experiment>-<model>`` (``unit_id``), run under the run id
-``<unit>-<8 hex of sha256(request sha256 | unit)>``; a sim unit is one model and one seed, ``sim-<model>-s<seed>``,
-whose params are the plant, its pack, the weeks, ``lab.sim.world_settings`` (evaluation weeks and grace), the sim's
-tie salt, bootstrap settings, ``top_n`` and the seed. An E1 unit is one model and one repeat, ``e1-<model>-r<k>``
-(params: the labels' pack, the labels, the model as ``endpoint``, the reference, ``repeat``, ``runs``,
-``margin_points``, ``seed`` and ``bootstrap_b``); an E2 unit is one model, ``e2-<model>`` (params: the block's world
-and harness settings, the plant's repository path ``plant_path``, the pack's site count ``sites``, the sorted seeds and
-the first of them as ``seed``); ``x1`` and ``openfda`` are one model-free unit each (model None, kind ``none``; X1
-takes E2's params without ``top_n``, ``min_candidates`` and ``central``, openFDA the normalised block plus
-``requests_estimate``). A unit's ``kind`` is its model's manifest kind (``hosted`` for an E1 unit of a hosted model).
-A unit that calls the hosted provider (``lab.hosted.role``: an E1 unit of a hosted model, an E2 unit whose ``central``
-is hosted) has ``needs_secret`` true and ``env`` ``["MYCELIC_LAB_HOSTED_API_KEY"]``; every other unit false and ``[]``.
+A unit is one experiment on one model: ``<experiment>-<model>`` (``unit_id``), run under the run id ``<unit>-<8 hex of
+sha256(request sha256 | unit)>``; a sim unit is one model and one seed, ``sim-<model>-s<seed>``, whose params are the
+plant, its pack, the weeks, ``lab.sim.world_settings`` (evaluation weeks and grace), the sim's tie salt, bootstrap
+settings, ``top_n`` and the seed. An E1 unit is one model and one repeat, ``e1-<model>-r<k>`` (params: the labels'
+pack, the labels, the model as ``endpoint``, the reference, ``repeat``, ``runs``, ``margin_points``, ``seed`` and
+``bootstrap_b``); an E2 unit is one model, ``e2-<model>`` (params: the block's world and harness settings, the plant's
+repository path ``plant_path``, the pack's site count ``sites``, the sorted seeds, the first of them as ``seed`` and
+``central_context_tokens``, :func:`central_context_tokens`); ``x1`` and ``openfda`` are one model-free unit each
+(model None, kind ``none``; X1 takes E2's params without ``top_n``, ``min_candidates``, ``central`` and
+``central_context_tokens``, openFDA the normalised block plus ``requests_estimate``). A unit's ``kind`` is its model's
+manifest kind (``hosted`` for an E1 unit of a hosted model). A unit that calls the hosted provider
+(``lab.hosted.role``: an E1 unit of a hosted model, an E2 unit whose ``central`` is hosted) has ``needs_secret`` true
+and ``env`` ``["MYCELIC_LAB_HOSTED_API_KEY"]``; every other unit false and ``[]``.
 
 A shard is the set of units one runner job executes: units are grouped by (label, needs_secret), the label being the
 model (``none`` for model-free units, ``hosted`` for every hosted unit, whatever its key), and inside a group placed
@@ -99,7 +100,7 @@ from mycelic.collective.jsonio import canonical_dumps, sha256_hex
 
 from . import EXIT_OK, EXIT_USAGE, ROOT, LabError, display_path, gh_data, gh_property, safe_path, shown_path
 from .discover import REQUEST_PATH_RE, DiscoveryError, discover, git
-from .manifest import Manifest, ManifestError, cache_dir, cache_key, cache_prefix, load_manifest
+from .manifest import CTX_DEFAULTS, Manifest, ManifestError, cache_dir, cache_key, cache_prefix, load_manifest
 from mycelic.collective.packs import loader
 
 from .hosted import HAS_VAR, KEY_VAR, PREFLIGHT_MAX_CALLS, preflight_tasks, role, unit_bound
@@ -170,6 +171,15 @@ def _world_params(block: dict[str, Any]) -> dict[str, Any]:
             **{k: block[k] for k in ("weeks", "eval_from", "eval_to", "grace_weeks", "tie_salt", "detector_author")}}
 
 
+def central_context_tokens(central: str, model: str, manifest: Manifest) -> int:
+    """The context one E2 central request gets: a hosted central comparator's ``context_tokens``; for ``self``, the
+    model's ``e2_ctx_per_slot`` (its E2 server start's one slot), or ``CTX_DEFAULTS["e2_ctx_per_slot"]`` for an entry
+    without one (fake)."""
+    if central != "self":
+        return manifest.models[central]["context_tokens"]
+    return manifest.models[model].get("e2_ctx_per_slot", CTX_DEFAULTS["e2_ctx_per_slot"])
+
+
 def _unit(request: Request, manifest: Manifest, experiment: str, model: str | None, suffix: str, minutes: int,
           params: dict[str, Any], seeds: list[int]) -> dict[str, Any]:
     uid = unit_id(experiment, model, suffix)
@@ -196,8 +206,9 @@ def build_units(request: Request, manifest: Manifest) -> list[dict[str, Any]]:
             params = {**_world_params(block), **{key: block[key] for key in ("top_n", "min_candidates", "central",
                                                                               "bootstrap_b", "bootstrap_seed")}}
             for model in block["models"]:
-                units.append(_unit(request, manifest, "e2", model, "", block["minutes"], dict(params),
-                                   list(params["seeds"])))
+                units.append(_unit(request, manifest, "e2", model, "", block["minutes"],
+                                   {**params, "central_context_tokens": central_context_tokens(
+                                       block["central"], model, manifest)}, list(params["seeds"])))
         elif experiment == "x1":
             params = {**_world_params(block), **{key: block[key] for key in ("bootstrap_b", "bootstrap_seed")}}
             units.append(_unit(request, manifest, "x1", None, "", block["minutes"], params, list(params["seeds"])))

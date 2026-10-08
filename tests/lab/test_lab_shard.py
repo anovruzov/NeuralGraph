@@ -23,16 +23,18 @@ from unittest import mock
 from lab import shard as lab_shard
 from lab import units
 from lab.manifest import cache_dir, cache_key, cache_prefix
-from lab.notes import (BUDGET_EXHAUSTED, E3_FAILURES, HARNESS_INTERRUPTED, HARNESS_USAGE, KILLED_BY_SIGNAL,
-                       LOW_PARTICIPATION, NO_MODEL_CALLS, NOT_PREPARED, PROVISION_FAILED_SERVER,
-                       RESULT_CONTRADICTS_EXIT, RESULT_MISSING, SHARD_INTERRUPTED, TIMED_OUT, UNEXPECTED_EXIT)
+from lab.notes import (BUDGET_EXHAUSTED, E3_FAILURES, G0_MODEL_PATH, HARNESS_INTERRUPTED, HARNESS_USAGE,
+                       KILLED_BY_SIGNAL, LOW_PARTICIPATION, NO_MODEL_CALLS, NOT_PREPARED, PLUMBING_BANNER,
+                       PLUMBING_CHECK_LINE, PROVISION_FAILED_SERVER, RESULT_CONTRADICTS_EXIT, RESULT_MISSING,
+                       SHARD_INTERRUPTED, TIMED_OUT, UNEXPECTED_EXIT)
 from lab.responder import Responder, ResponderError
 from mycelic.collective import schemacheck
 from mycelic.collective.experiments.e3_latency import WORKLOADS
 from mycelic.collective.inference.tasks import data_block
 from mycelic.collective.packs.loader import load_pack
-from tests.lab.helpers import (MANIFEST_TEST, MODEL_KEY, ROOT, StubWorld, call_main, git, kill_mentioning, lab_cli,
-                               make_plan, pids_mentioning, plumbing_min, split_code_spans, wait_until, write_json)
+from tests.lab.helpers import (MANIFEST_TEST, MODEL_KEY, PLUMBING_DRYRUN_ARGS, ROOT, StubWorld, call_main, git,
+                               kill_mentioning, lab_cli, make_plan, pids_mentioning, plumbing_min, split_code_spans,
+                               wait_until, write_json)
 
 ARG_RE = re.compile(r"--[a-z][a-z0-9-]*=.*")
 SIM_SITES = [s["id"] for s in load_pack("device_quality").generator["sites"][:6]]
@@ -89,7 +91,7 @@ class PlumbingDryRunTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.tmp = Path(tempfile.mkdtemp(prefix="lab-dryrun-"))
         cls.out = cls.tmp / "D"
-        cls.done = lab_cli("lab.dryrun", "--request", "lab/requests/plumbing-001.json", "--out", str(cls.out))
+        cls.done = lab_cli(*PLUMBING_DRYRUN_ARGS, str(cls.out))
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -98,6 +100,12 @@ class PlumbingDryRunTests(unittest.TestCase):
 
     def _units(self) -> list[dict[str, Any]]:
         return [_json(p) for p in sorted(self.out.glob("shards/*/units/*/unit.json"))]
+
+    def test_report_banner(self) -> None:
+        self.assertEqual(self.done.returncode, 0, self.done.stderr)
+        md = (self.out / "report" / "report.md").read_text(encoding="utf-8")
+        self.assertEqual(md.splitlines()[0], PLUMBING_CHECK_LINE)
+        self.assertEqual(_json(self.out / "report" / "report.json")["banner"], PLUMBING_BANNER)
 
     def test_exit_and_one_status_line_per_unit(self) -> None:
         self.assertEqual(self.done.returncode, 0, self.done.stderr)
@@ -247,7 +255,11 @@ class ParticipationDryRunTests(unittest.TestCase):
 
     def test_g0_invalid_naming_extract_claims(self) -> None:
         record = self.records["g0-fake-fail"]
-        self.assertEqual((record["exit_code"], record["status"]), (0, "invalid"))
+        # a G0 harness that checks its model path fails the run itself (exit 1) when no model answered
+        leakage = _json(next((self.tmp / "D").glob(f"shards/*/runs/g0/{record['run_id']}/leakage.json")))
+        model_path = leakage.get("model_path")
+        problems = isinstance(model_path, dict) and bool(model_path.get("problems"))
+        self.assertEqual((record["exit_code"], record["status"]), (1 if problems else 0, "invalid"))
         self.assertIn("extract_claims", record["status_reason"])
         self.assertEqual(record["participation"]["tasks"]["extract_claims"]["ok"], 0)
 
@@ -382,6 +394,53 @@ class StatusMapTests(unittest.TestCase):
         for experiment, code, timed_out, result, expected in rows:
             with self.subTest(experiment=experiment, code=code, timed_out=timed_out):
                 self.assertEqual(units.harness_status(experiment, code, timed_out, result), expected)
+
+
+class G0ModelPathTests(unittest.TestCase):
+    """G0's model path (a ``model_path`` block in ``leakage.json``), read by data shape (``units.g0_status``)."""
+
+    CLEAN = {"kind": "g0_leakage", "passed": True, "hit_count": 0, "shingle_overlap_bytes": 0,
+             "site_ledger_hygiene": {"hits": [], "shingle_overlap_bytes": 0}}
+    PROBLEMS = ["no extraction record was answered by a model", "3 judge calls got no model answer (timeout 3)"]
+
+    def status(self, exit_code: int, result: dict[str, Any]) -> tuple[str | None, str | None]:
+        return units.g0_status(*units.harness_status("g0", exit_code, False, result), result)
+
+    def test_problems_without_a_leak_are_invalid(self) -> None:
+        result = {**self.CLEAN, "passed": False, "model_path": {"problems": self.PROBLEMS}}
+        self.assertEqual(self.status(1, result), ("invalid", f"{G0_MODEL_PATH}: {'; '.join(self.PROBLEMS)}"))
+        self.assertEqual(G0_MODEL_PATH, "the canary scan found no leak, but its model path had problems, so it "
+                                        "did not test the model in the loop")
+
+    def test_a_leak_with_problems_stays_a_fail(self) -> None:
+        for leak in ({"hit_count": 1}, {"shingle_overlap_bytes": 40},
+                     {"site_ledger_hygiene": {"hits": [{"canary": "x"}], "shingle_overlap_bytes": 0}},
+                     {"site_ledger_hygiene": {"hits": [], "shingle_overlap_bytes": 24}}):
+            with self.subTest(leak=leak):
+                result = {**self.CLEAN, "passed": False, "model_path": {"problems": self.PROBLEMS}, **leak}
+                self.assertEqual(self.status(1, result), ("result_fail", None))
+
+    def test_without_model_path_or_problems_as_before(self) -> None:
+        self.assertEqual(self.status(0, self.CLEAN), ("ok", None))
+        self.assertEqual(self.status(1, {**self.CLEAN, "passed": False}), ("result_fail", None))
+        self.assertEqual(self.status(0, {**self.CLEAN, "model_path": {"problems": []}}), ("ok", None))
+        self.assertEqual(self.status(0, {**self.CLEAN, "model_path": None}), ("ok", None))
+        self.assertEqual(self.status(1, {**self.CLEAN, "passed": False, "model_path": {"problems": "x"}}),
+                         ("result_fail", None))
+
+    def test_only_ok_or_result_fail_is_downgraded(self) -> None:
+        result = {**self.CLEAN, "passed": False, "model_path": {"problems": self.PROBLEMS}}
+        for status, reason in (("failed", RESULT_MISSING), ("timed_out", TIMED_OUT), ("invalid", LOW_PARTICIPATION)):
+            with self.subTest(status=status):
+                self.assertEqual(units.g0_status(status, reason, result), (status, reason))
+
+    def test_reason_is_capped_printable(self) -> None:
+        result = {**self.CLEAN, "passed": False, "model_path": {"problems": ["x" * 500, "y\n"]}}
+        status, reason = self.status(1, result)
+        self.assertEqual(status, "invalid")
+        self.assertTrue(reason.startswith(G0_MODEL_PATH))
+        self.assertLessEqual(len(reason), 400)
+        self.assertTrue(reason.isprintable())
 
 
 def _row(task: str, attempt: int, ok: bool, fake: bool = True) -> dict[str, Any]:

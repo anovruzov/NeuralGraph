@@ -149,6 +149,12 @@ SIM_NOTES = {
                     "patterns and one seed, so they are not interpretable as estimates.",
     "r_model_free": "R here is model-free: the same detectors over the fields allowed to leave, with no model; it is "
                     "not the strategy's R.",
+    "no_control": "No no-plant control ran: a pattern the channel would also have found without the plant counts as "
+                  "found, and the lifts compare raw finds.",
+    "chance_control": "A no-plant control ran: the same seed's world without the plant went through the same "
+                      "pipelines, and a find the control made as early is a chance find; the net counts and the lifts "
+                      "leave chance finds out. The control's model extractions were replayed from the planted run for "
+                      "the records both worlds share.",
 }
 SIM_MEASUREMENT_REASONS = {
     "fake_model": "a fake model answered: a fake endpoint, a fake model listing or a fake-server marker",
@@ -200,6 +206,8 @@ OPENFDA_PUBLIC_FLAG = ("The replay's measurement flag says only that both caches
                        "measures no model.")
 SHEETS_LABEL = ("No labels were generated: {n_one} and openFDA {e_one} have no result until a human labels and "
                 "commits the sheet.")
+G0_MODEL_PATH = ("the canary scan found no leak, but its model path had problems, so it did not test the model in "
+                 "the loop")
 G0_BELOW_PROTOCOL = ("Some canary scans used fewer records than the protocol scan, whose size the protocol records "
                      "column gives: they are smaller checks, not the protocol scan.")
 E2_SIZING_NOTE = ("Pushdown sizing: the model-free rehearsal's call counts times this runner's warm-up latencies, "
@@ -429,6 +437,7 @@ COLUMNS = {
     "hits": "canary hits",
     "shingle_bytes": "shingle overlap bytes",
     "control_hits": "positive control hits",
+    "model_path_problems": "model path problems",
     "world": "world digest",
     "task": "task",
     "n": "calls",
@@ -450,6 +459,8 @@ COLUMNS = {
     "shard_count": "Shards",
     "channel": "channel",
     "found": "found",
+    "found_net": "found net of chance",
+    "chance_found": "chance finds",
     "patterns": "patterns",
     "recall": "recall",
     "p_at_forty": "precision in the top forty",
@@ -486,6 +497,8 @@ COLUMNS = {
     "p50_ms": "median ms",
     "mismatch": "model mismatch",
     "against": "against",
+    "decision_metric": "decision metric",
+    "diff": "difference",
     "mean_diff": "mean difference",
     "sign_p": "sign test p",
     "underpowered": "underpowered",

@@ -25,21 +25,24 @@ model's alias column shows its model id. A shard summary of a shard with hosted 
 key the model id, the preflight's status and reason, the calls used and the shard's share, and whether the host listed
 the model.
 
-A report's class sections hold, for its sim rows, a channels table (each channel key's meaning listed under it), a
-lifts table and a pushdown table; then E2 (its labels first: synthetic, below the protocol minimum when a row is, the
-central comparator being the model itself; then the conditions, ratio and candidates tables; the bar verdict only for
-a row whose central comparator is not the model itself), X1 (its label, then the channels and lifts tables), openFDA
-(its label and what its measurement flag means, then the channels and fetch tables, then the sheets label and the
-sheets table) and, once, in the class section of its display class, E1: its label, then the endpoints table, then the
-paired table, whose non-inferiority and kill-flag columns appear only when the block's ``verdicts_shown`` (a model
-measurement, or a hosted API result) and are otherwise replaced by the withheld sentence; a block that was not
-compared shows its reason instead. When hosted models were among the endpoints, the hosted label follows the E1
-label. The class sections come in the order of :data:`CLASS_ORDER`: ``model``, then ``hosted-api`` (hosted API
-results, never measured on this runner), then the rest. A G0 table gains a protocol records column, after its note,
-when a scan was below the protocol size. After the class sections, a sizing table of every sim unit (whatever its
-result) with what it measured and the minutes it suggests for the next request, then the E2 sizing table, then (with
-hosted keys) the hosted calls and estimated cost table followed by its note; the notes add the sim world-digest groups
-and the sim notes the rows carry.
+A report's class sections hold, for its sim rows, a channels table (each channel key's meaning listed under it; the
+found net of chance and chance finds columns only when a row has them, that is when the harness ran a no-plant control),
+a lifts table and a pushdown table; then E2 (its labels first: synthetic, below the protocol minimum when a row is, the
+central comparator being the model itself; then the conditions, ratio and candidates tables; the bar verdict only for a
+row whose central comparator is not the model itself), X1 (its label, then the channels and lifts tables), openFDA (its
+label and what its measurement flag means, then the channels and fetch tables, then the sheets label and the sheets
+table) and, once, in the class section of its display class, E1: its label, then the endpoints table, then the paired
+table, whose non-inferiority and kill-flag columns appear only when the block's ``verdicts_shown`` (a model measurement,
+or a hosted API result) and are otherwise replaced by the withheld sentence; a block that was not compared shows its
+reason instead. When hosted models were among the endpoints, the hosted label follows the E1 label. The paired table
+names each row's ``decision_metric`` (micro field F1, or the per-record mean field F1 of a harness without it) and its
+difference and interval, then the per-record mean difference and the sign test. The class sections come in the order of
+:data:`CLASS_ORDER`: ``model``, then ``hosted-api`` (hosted API results, never measured on this runner), then the rest.
+A G0 table gains a protocol records column, after its note, when a scan was below the protocol size, and a model path
+problems column when a row counts them. After the class sections, a sizing table of every sim unit (whatever its result)
+with what it measured and the minutes it suggests for the next request, then the E2 sizing table, then (with hosted
+keys) the hosted calls and estimated cost table followed by its note; the notes add the sim world-digest groups and the
+sim notes the rows carry.
 
 The first line says what the numbers are not: ``PLUMBING CHECK: no model was run`` for a plumbing plan, shard or
 report, ``NO MEASUREMENT: ...`` for a real shard or report without a unit of display class ``model`` or
@@ -620,6 +623,8 @@ def _class_section(doc: _Doc, src: Sources, cls: str, units: list[tuple[int, dic
         if below:
             doc.add("\n" + G0_BELOW_PROTOCOL)
 
+        model_path = any(r.get("model_path_problems") is not None for _, r in g0)
+
         def g0_rows() -> Any:
             for i, r in g0:
                 at = ("g0", i)
@@ -627,15 +632,18 @@ def _class_section(doc: _Doc, src: Sources, cls: str, units: list[tuple[int, dic
                         code(r.get("pack"), table=True), src.num(f, pointer(*at, "seed"), "int"),
                         src.num(f, pointer(*at, "records"), "int")]
                 protocol = [src.num(f, pointer(*at, "protocol_records"), "int")] if below else []
-                yield [*head, *protocol, yes_no(r.get("passed")),
-                       src.num(f, pointer(*at, "canaries_planted"), "int"),
-                       src.num(f, pointer(*at, "hit_count"), "int"),
-                       src.num(f, pointer(*at, "shingle_overlap_bytes"), "int"),
-                       src.num(f, pointer(*at, "positive_control", "canary_hits"), "int"),
-                       code(short(r.get("world_digest")), table=True)]
+                cells = [*head, *protocol, yes_no(r.get("passed")),
+                         src.num(f, pointer(*at, "canaries_planted"), "int"),
+                         src.num(f, pointer(*at, "hit_count"), "int"),
+                         src.num(f, pointer(*at, "shingle_overlap_bytes"), "int"),
+                         src.num(f, pointer(*at, "positive_control", "canary_hits"), "int")]
+                if model_path:
+                    cells.append(src.num(f, pointer(*at, "model_path_problems"), "int"))
+                yield [*cells, code(short(r.get("world_digest")), table=True)]
 
         doc.table(["unit", "model", "pack", "seed", "records", *(["protocol_records"] if below else []), "passed",
-                   "canaries", "hits", "shingle_bytes", "control_hits", "world"], g0_rows)
+                   "canaries", "hits", "shingle_bytes", "control_hits",
+                   *(["model_path_problems"] if model_path else []), "world"], g0_rows)
     sim = [(i, r) for i, r in rows("sim") if r.get("display_class") == cls]
     if sim:
         _sim_tables(doc, src, sim)
@@ -669,6 +677,7 @@ def _sim_tables(doc: _Doc, src: Sources, sim: list[tuple[int, dict[str, Any]]]) 
         return [name for name in order if name in found]
 
     channels = present("channels", SIM_CHANNEL_LABELS)
+    net = any(_get(r, "channels", name, "found_net") is not None for _, r in sim for name in channels)
 
     def channel_rows() -> Any:
         for i, r in sim:
@@ -676,15 +685,19 @@ def _sim_tables(doc: _Doc, src: Sources, sim: list[tuple[int, dict[str, Any]]]) 
                 if not isinstance(_get(r, "channels", name), dict):
                     continue
                 at = ("sim", i, "channels", name)
-                yield [code(r.get("unit"), table=True), code(r.get("model"), table=True), code(name, table=True),
-                       src.num(f, pointer(*at, "found"), "int"), src.num(f, pointer(*at, "units"), "int"),
-                       src.num(f, pointer(*at, "recall"), "f3"), src.num(f, pointer(*at, "precision_at_40"), "f3"),
+                cells = [code(r.get("unit"), table=True), code(r.get("model"), table=True), code(name, table=True),
+                         src.num(f, pointer(*at, "found"), "int")]
+                if net:
+                    cells += [src.num(f, pointer(*at, "found_net"), "int"),
+                              src.num(f, pointer(*at, "chance_found"), "int")]
+                yield [*cells, src.num(f, pointer(*at, "units"), "int"), src.num(f, pointer(*at, "recall"), "f3"),
+                       src.num(f, pointer(*at, "precision_at_40"), "f3"),
                        src.num(f, pointer(*at, "average_precision"), "f3"), src.num(f, pointer(*at, "alerts"), "int"),
                        src.num(f, pointer(*at, "false_alarms"), "int")]
 
     _heading(doc, "sim", 4)
-    doc.table(["unit", "model", "channel", "found", "patterns", "recall", "p_at_forty", "ap", "alerts", "false_alarms"],
-              channel_rows)
+    doc.table(["unit", "model", "channel", "found", *(["found_net", "chance_found"] if net else []), "patterns",
+               "recall", "p_at_forty", "ap", "alerts", "false_alarms"], channel_rows)
     for name in channels:
         doc.add(("\n" if name == channels[0] else "") + f"- {code(name)}: {SIM_CHANNEL_LABELS[name]}")
     lifts = present("lifts", SIM_LIFT_LABELS)
@@ -887,13 +900,14 @@ def _e1_tables(doc: _Doc, src: Sources, e1: dict[str, Any]) -> None:
             at = ("e1", "paired", name)
             verdicts = [yes_no(_get(paired, name, "non_inferior")), yes_no(_get(paired, name, "kill_flag"))]
             yield [code(name, table=True), code(_get(paired, name, "against"), table=True),
-                   src.num(f, pointer(*at, "n"), "int"), src.num(f, pointer(*at, "mean_diff"), "f3"),
-                   src.num(f, pointer(*at, "ci_low"), "f3"), src.num(f, pointer(*at, "ci_high"), "f3"),
+                   src.num(f, pointer(*at, "n"), "int"), code(_get(paired, name, "decision_metric"), table=True),
+                   src.num(f, pointer(*at, "diff"), "f3"), src.num(f, pointer(*at, "ci_low"), "f3"),
+                   src.num(f, pointer(*at, "ci_high"), "f3"), src.num(f, pointer(*at, "mean_diff"), "f3"),
                    src.num(f, pointer(*at, "sign_p"), "f3"), yes_no(_get(paired, name, "underpowered")),
                    *(verdicts if shown else [])]
 
-    doc.table(["model", "against", "pairs", "mean_diff", "ci_low", "ci_high", "sign_p", "underpowered",
-               *(["non_inferior", "kill_flag"] if shown else [])], paired_rows)
+    doc.table(["model", "against", "pairs", "decision_metric", "diff", "ci_low", "ci_high", "mean_diff", "sign_p",
+               "underpowered", *(["non_inferior", "kill_flag"] if shown else [])], paired_rows)
     if not shown:
         doc.add("\n" + E1_VERDICTS_WITHHELD)
     left_out = e1.get("endpoints_without_runs")

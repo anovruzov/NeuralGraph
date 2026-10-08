@@ -14,6 +14,7 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+import lab.sim as lab_sim
 from lab import aggregate as lab_aggregate
 from lab import provision
 from lab.notes import (AMBIGUOUS_ARTIFACTS, ALTERED, FILES_DIFFER, LOCK_CONFLICT, NO_ARTIFACT, OTHER_PLAN,
@@ -268,7 +269,10 @@ class AggregateTests(unittest.TestCase):
                 (row,) = [r for r in report["sim"] if r["unit"] == unit["unit"]]
                 for name, block in scorecard["channels"].items():
                     for key in lab_aggregate.SIM_CHANNEL_FIELDS:
-                        self.assertEqual(row["channels"][name][key], block[key], (name, key))
+                        # found_net and chance_found are written only by a harness that runs a no-plant control
+                        self.assertEqual(key in block, lab_sim.HARNESS_CONTROL or key not in ("found_net",
+                                                                                              "chance_found"))
+                        self.assertEqual(row["channels"][name][key], block.get(key), (name, key))
                 for name, block in scorecard["lifts"].items():
                     for key in lab_aggregate.SIM_LIFT_FIELDS:
                         self.assertEqual(row["lifts"][name][key], block[key], (name, key))
@@ -293,6 +297,9 @@ class AggregateTests(unittest.TestCase):
                     self.assertEqual(row[key], leakage[key], key)
                 self.assertEqual(row["positive_control"], {k: leakage["positive_control"][k]
                                                            for k in ("canary_hits", "shingle_overlap_bytes")})
+                model_path = leakage.get("model_path")
+                self.assertEqual(row["model_path_problems"],
+                                 len(model_path["problems"]) if isinstance(model_path, dict) else None)
                 self.assertNotIn("hits", row)
                 self.assertNotIn("shingle_hits", row)
         self.assertEqual(cells, 8)
@@ -443,6 +450,57 @@ class AggregateTests(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------------------------------- provision and lock
+
+class CompatRowTests(unittest.TestCase):
+    """The rows that read either shape the collective writes: E1's paired entry and G0's model path."""
+
+    BASE = {"against": "m-b", "n": 600, "dropped": {"only_model": 0, "only_reference": 0}, "mean_diff": -0.01,
+            "ci95": [-0.03, 0.02], "B": 1000, "seed": "e1:1:m-a", "sign": {"p_value": 0.4}, "sign_p": 0.4,
+            "underpowered": False, "non_inferior": True, "kill_flag": False}
+    PHASE2 = {"against": "m-b", "n": 600, "dropped": {"only_model": 0, "only_reference": 0},
+              "field_f1": {"endpoint": 0.9, "reference": 0.92, "diff": -0.02, "ci95": [-0.04, 0.01], "B": 1000,
+                           "seed": "e1:1:m-a:field_f1_diff", "undefined": 0},
+              "per_record_field_f1": {"mean_diff": -0.015, "ci95": [-0.05, 0.02], "B": 1000, "seed": "e1:1:m-a",
+                                      "sign": {"p_value": 0.3}, "sign_p": 0.3},
+              "underpowered": False, "withheld_reason": "measurement_false", "non_inferior": None, "kill_flag": None}
+
+    def test_e1_paired_base_shape(self) -> None:
+        self.assertEqual(lab_aggregate._e1_paired(self.BASE), {
+            "against": "m-b", "n": 600, "decision_metric": "per_record_mean_field_f1", "diff": -0.01,
+            "ci_low": -0.03, "ci_high": 0.02, "mean_diff": -0.01, "sign_p": 0.4, "underpowered": False,
+            "non_inferior": True, "kill_flag": False, "withheld_reason": None})
+
+    def test_e1_paired_phase2_shape(self) -> None:
+        self.assertEqual(lab_aggregate._e1_paired(self.PHASE2), {
+            "against": "m-b", "n": 600, "decision_metric": "micro_field_f1", "diff": -0.02, "ci_low": -0.04,
+            "ci_high": 0.01, "mean_diff": -0.015, "sign_p": 0.3, "underpowered": False, "non_inferior": None,
+            "kill_flag": None, "withheld_reason": "measurement_false"})
+
+    def test_e1_paired_malformed(self) -> None:
+        nulls = dict.fromkeys(lab_aggregate.E1_PAIRED_KEYS)
+        for entry in (None, [], "x", 3):
+            with self.subTest(entry=entry):
+                self.assertEqual(lab_aggregate._e1_paired(entry), nulls)
+        broken = {**self.PHASE2, "field_f1": {"diff": "x", "ci95": [1]}, "per_record_field_f1": None}
+        got = lab_aggregate._e1_paired(broken)
+        self.assertEqual((got["decision_metric"], got["diff"], got["ci_low"], got["ci_high"], got["mean_diff"],
+                          got["sign_p"]), ("micro_field_f1", "x", None, None, None, None))
+        self.assertEqual(list(got), list(lab_aggregate.E1_PAIRED_KEYS))
+
+    def _g0_row(self, leakage: dict[str, Any]) -> dict[str, Any] | None:
+        tmp = Path(tempfile.mkdtemp(prefix="lab-g0-row-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        write_json(tmp / "runs" / "g0" / "g0-x-12345678" / "leakage.json", leakage)
+        return lab_aggregate._g0_row({"unit": "g0-x", "run_id": "g0-x-12345678", "model": "x",
+                                      "display_class": "plumbing"}, tmp)
+
+    def test_g0_model_path_problems(self) -> None:
+        base = {"kind": "g0_leakage", "records": 50, "passed": True, "positive_control": {"canary_hits": 3}}
+        self.assertIsNone(self._g0_row(base)["model_path_problems"])
+        self.assertEqual(self._g0_row({**base, "model_path": {"problems": []}})["model_path_problems"], 0)
+        self.assertEqual(self._g0_row({**base, "model_path": {"problems": ["a", "b"]}})["model_path_problems"], 2)
+        self.assertIsNone(self._g0_row({**base, "model_path": None})["model_path_problems"])
+
 
 class LockTests(unittest.TestCase):
     def setUp(self) -> None:

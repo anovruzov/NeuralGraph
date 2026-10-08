@@ -3,6 +3,7 @@ added, found in throwaway git repositories (a bare ``origin``, a work clone that
 """
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import os
@@ -17,7 +18,7 @@ from typing import Any
 from unittest import mock
 
 from lab.discover import discover
-from lab.manifest import load_manifest
+from lab.manifest import CTX_DEFAULTS, load_manifest
 from lab.notes import (BAD_REQUEST_NAME, BRANCH_DELETED, CHECKOUT_MISMATCH, DEFAULT_BRANCH, DELETE_ONLY,
                        MERGE_SEVERAL, NO_BASE, NO_REQUEST_CHANGE, NOT_A_BRANCH, SEVERAL_REQUESTS)
 from lab import plan as lab_plan
@@ -369,7 +370,8 @@ class OutputBudgetTests(TempDirTest):
                           ("s005-none", "none", ["x1"], 5, 30)])
         self.assertEqual([e["openfda"] for e in plan["matrix"]["include"]], [False] * 5)
         self.assertEqual((plan["result_class"], plan["provision"], plan["retention_days"]), ("plumbing", [], 7))
-        self.assertEqual(sorted(p.name for p in (ROOT / "lab" / "requests").iterdir()), ["plumbing-001.json"])
+        self.assertEqual(sorted(p.name for p in (ROOT / "lab" / "requests").iterdir()),
+                         ["README.md", "plumbing-001.json"])
 
         requests = self.tmp / "lab" / "requests"
         requests.mkdir(parents=True)
@@ -392,7 +394,34 @@ class OutputBudgetTests(TempDirTest):
         self.assertEqual([(s["kind"], s["model"], [experiments[u] for u in s["units"]], s["planned_minutes"],
                            s["timeout_minutes"]) for s in plan["shards"]],
                          [("gguf", model, ["sim", "g0", "e3"], 305, 330)])
-        self.assertEqual(sorted(p.name for p in (ROOT / "lab" / "templates").iterdir()), ["check.json", "smoke.json"])
+        self.assertEqual(sorted(p.name for p in (ROOT / "lab" / "templates").iterdir()),
+                         ["check.json", "hosted-comparison.json", "main.json", "openfda-replay.json", "smoke.json"])
+
+
+class CentralContextTests(unittest.TestCase):
+    """An E2 unit's ``central_context_tokens``: the context one central request gets."""
+
+    def test_by_central_and_model_kind(self) -> None:
+        manifest = load_manifest(MANIFEST_TEST)
+        models = {**manifest.models, "tiny-gguf": {**manifest.models["tiny-gguf"], "e2_ctx_per_slot": 8192},
+                  "h-a": {**manifest.models["h-a"], "context_tokens": 65536}}
+        changed = dataclasses.replace(manifest, models=models)
+        self.assertEqual(lab_plan.central_context_tokens("self", "tiny-gguf", changed), 8192)
+        self.assertNotIn("e2_ctx_per_slot", changed.models["fake-a"])
+        self.assertEqual(lab_plan.central_context_tokens("self", "fake-a", changed), CTX_DEFAULTS["e2_ctx_per_slot"])
+        self.assertEqual(lab_plan.central_context_tokens("h-a", "fake-a", changed), 65536)
+        self.assertEqual(lab_plan.central_context_tokens("h-a", "tiny-gguf", changed), 65536)
+
+    def test_in_the_unit_params(self) -> None:
+        obj = plumbing_min()
+        obj["experiments"] = {"e2": {"minutes": 5, "pack": "device_quality", "plant": "plant_e2_smoke", "seeds": [1],
+                                     "weeks": 52, "eval_from": 20, "eval_to": 51, "top_n": 5}}
+        with tempfile.TemporaryDirectory(prefix="lab-plan-") as tmp:
+            path = write_json(Path(tmp) / "e2-ctx.json", obj)
+            request = load_request(path, load_manifest(MANIFEST_TEST))
+        plan = lab_plan.build_plan(request, load_manifest(MANIFEST_TEST), "unknown")
+        self.assertEqual({u["unit"]: u["params"]["central_context_tokens"] for u in plan["units"]},
+                         {"e2-fake-a": 32768, "e2-fake-b": 32768})
 
 
 # --------------------------------------------------------------------------------------------------- discovery

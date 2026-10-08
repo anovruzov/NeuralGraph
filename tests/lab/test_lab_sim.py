@@ -9,6 +9,7 @@ import contextlib
 import copy
 import functools
 import hashlib
+import inspect
 import io
 import json
 import math
@@ -29,21 +30,26 @@ from lab import request as lab_request
 from lab import shard as lab_shard
 from lab import summary, units
 from lab.manifest import load_manifest
-from lab.notes import (HARNESS_INTERRUPTED, HARNESS_USAGE, HEADINGS, LOW_PARTICIPATION, NO_MODEL_CALLS,
-                       RESULT_CONTRADICTS_EXIT, RESULT_MISSING, SIM_LOW_PARTICIPATION, SIM_NOTES, SIM_PROJECTED,
-                       SIM_WORLD_DIFFERS, SIM_WORLD_SAME, SIZING_NOTE, TIMED_OUT, UNEXPECTED_EXIT)
+from lab.notes import (COLUMNS, HARNESS_INTERRUPTED, HARNESS_USAGE, HEADINGS, LOW_PARTICIPATION, NO_MODEL_CALLS,
+                       RESULT_CONTRADICTS_EXIT, RESULT_MISSING, SIM_CHANNEL_LABELS, SIM_LOW_PARTICIPATION, SIM_NOTES,
+                       SIM_PROJECTED, SIM_WORLD_DIFFERS, SIM_WORLD_SAME, SIZING_NOTE, TIMED_OUT, UNEXPECTED_EXIT)
 from lab.plan import build_plan
 from lab.request import RequestError, load_request, validate
 from lab.responder import Responder
 from lab.warmup import warm_tasks
-from mycelic.collective.edge.extract import TASK_NAME
+from mycelic.collective.edge import extract as extract_module
+from mycelic.collective.edge.extract import TASK_NAME, extraction_schema, extraction_task, model_payload
 from mycelic.collective.edge.site import EdgeSite
 from mycelic.collective.edge.verify import JUDGE_TASK
 from mycelic.collective.evaluate import baselines, harness
 from mycelic.collective.evaluate.plant import check_plant, labels_doc, load_plant, plant
+from mycelic.collective.experiments.e2_pushdown import SimClock
 from mycelic.collective.experiments.e2_pushdown import _label as e2_label
+from mycelic.collective.inference.errors import KINDS as ERROR_KINDS
+from mycelic.collective.inference.errors import InferenceError
 from mycelic.collective.inference.fakeserver import FakeOpenAIServer, request_payload
 from mycelic.collective.inference.ledger import read_ledger
+from mycelic.collective.inference.routing import load_routing
 from mycelic.collective.jsonio import canonical_bytes
 from mycelic.collective.packs.generator import generate, world_digest
 from mycelic.collective.packs.loader import load_pack
@@ -137,6 +143,15 @@ class SimSettingsTests(unittest.TestCase):
         self.assertEqual((spec.planted_by, spec.planter_saw_detector_code, spec.prereg_sha256),
                          ("mycelic lab (same author as the detector code)", True, None))
         self.assertEqual((len(spec.patterns), len(spec.decoys)), (4, 2))
+
+    def test_phases_and_timings(self) -> None:
+        self.assertEqual(lab_sim.PHASES, ("setup", "warmup", "extract", "lexical", "channels", "pushdown", "scan",
+                                          "done", "skipped_projection", "control"))
+        self.assertEqual(lab_sim.TIMING_KEYS, ("setup_s", "list_models_s", "warmup_s", "model_pipeline_s",
+                                               "lexical_pipeline_s", "control_pipeline_s", "channels_s", "pushdown_s",
+                                               "scan_s", "total_s"))
+        self.assertEqual(lab_sim.DETECTOR_CHANNELS, ("X_model", "X_lexical", "S", "R_mf", "U"))
+        self.assertEqual(set(lab_sim.CHANNELS) - set(lab_sim.DETECTOR_CHANNELS), {"single_site", "rules"})
 
     def test_sim_small_fits_seeds_one_to_three(self) -> None:
         harness.check_settings(PACK, sites=6, weeks=34, eval_from=19, eval_to=33, grace_weeks=4)
@@ -433,9 +448,11 @@ class FakeServerSimTests(unittest.TestCase):
         self.assertEqual([p["id"] for p in self.doc_a["patterns"]], ["p1", "p2", "p3", "p4"])
         for p in self.doc_a["patterns"]:
             self.assertEqual(sorted(p["outcomes"]), sorted(lab_sim.CHANNELS))
+        control = "chance_control" if lab_sim.HARNESS_CONTROL else "no_control"
         self.assertEqual(self.doc_a["notes"], ["synthetic_internal", "lexical_exact", "few_patterns",
-                                               "r_model_free"])
-        self.assertEqual(list(SIM_NOTES), self.doc_a["notes"])
+                                               "r_model_free", control])
+        self.assertEqual([k for k in SIM_NOTES if k not in lab_sim.CONTROL_NOTES] + [control], self.doc_a["notes"])
+        self.assertEqual(lab_sim.CONTROL_NOTES, ("no_control", "chance_control"))
 
     def test_extraction_per_site(self) -> None:
         extraction = self.doc_a["extraction"]
@@ -524,6 +541,61 @@ class FakeServerSimTests(unittest.TestCase):
         self.assertEqual((world["eval_from_week"], world["eval_to_week"], world["evaluation_weeks"]),
                          ("2024-W20", "2024-W34", 15))
 
+    def test_control_block(self) -> None:
+        """The no-plant control runs exactly when the installed harness scores one (its channel_block takes control
+        events); its model extractions are all replayed from the planted run, so the control adds no model call."""
+        doc = self.doc_a
+        self.assertEqual(lab_sim.HARNESS_CONTROL,
+                         "control_events" in inspect.signature(harness.channel_block).parameters)
+        self.assertEqual(doc["control"], self.doc_b["control"])
+        if lab_sim.HARNESS_CONTROL:
+            # the valid fake answers each generated record's one planted extraction call, and the control world is
+            # exactly the generated records
+            self.assertEqual(doc["control"], {"world": "no-plant", "records": len(self.world.records),
+                                              "replayed_calls": len(self.world.records), "replay_misses": 0})
+            self.assertIn("chance_control", doc["notes"])
+            self.assertNotIn("no_control", doc["notes"])
+            self.assertIsNotNone(doc["timings"]["control_pipeline_s"])
+            for name, block in doc["channels"].items():
+                with self.subTest(channel=name):
+                    self.assertEqual(block["found_net"] + block["chance_found"], block["found"])
+            for name, _, _ in lab_sim.LIFTS:
+                self.assertIn("basis", doc["lifts"][name])
+        else:
+            self.assertIsNone(doc["control"])
+            self.assertIn("no_control", doc["notes"])
+            self.assertNotIn("chance_control", doc["notes"])
+            self.assertIsNone(doc["timings"]["control_pipeline_s"])
+            for block in doc["channels"].values():
+                self.assertNotIn("found_net", block)
+        self.assertEqual(sorted(p.name for p in (self.run_a / "work").iterdir()),
+                         sorted(["model", "lexical", *(["control-model", "control-lexical"]
+                                                       if lab_sim.HARNESS_CONTROL else [])]))
+
+    def test_schema_follows_the_installed_harness(self) -> None:
+        channel = harness._CHANNEL_BLOCK["properties"]
+        for name, block in self.doc_a["channels"].items():
+            with self.subTest(channel=name):
+                self.assertEqual(sorted(block), sorted(channel))
+                schema = lab_sim._channel_schema(name)
+                self.assertEqual(sorted(schema["properties"]), sorted(channel))
+                self.assertEqual((schema["properties"]["label"]["const"], schema["properties"]["ranked"]["const"]),
+                                 (SIM_CHANNEL_LABELS[name], name != "rules"))
+        for block in self.doc_a["lifts"].values():
+            self.assertEqual(sorted(block), sorted(harness._LIFT["properties"]))
+        self.assertNotIn("label", harness._CHANNEL_BLOCK["properties"]["label"])
+        relabelled = copy.deepcopy(self.doc_a)
+        relabelled["channels"]["S"]["label"] = "another label"
+        self.assertTrue(lab_sim.scorecard_problems(relabelled))
+
+    def test_extraction_error_kinds(self) -> None:
+        not_sent = getattr(extract_module, "NOT_SENT", None)
+        self.assertEqual("not_sent" in lab_sim.EXTRACTION_ERROR_KINDS, not_sent is not None)
+        self.assertEqual(lab_sim.EXTRACTION_ERROR_KINDS,
+                         tuple(ERROR_KINDS) + ((not_sent,) if not_sent is not None else ()))
+        for site in self.doc_a["extraction"]["sites"].values():
+            self.assertEqual(sorted(site["errors"]), sorted(lab_sim.EXTRACTION_ERROR_KINDS))
+
     def test_no_database_outside_work(self) -> None:
         for run in (self.run_a, self.run_b):
             for path in run.rglob("*"):
@@ -534,6 +606,82 @@ class FakeServerSimTests(unittest.TestCase):
                              ["edge", "labels.json", "progress.json", "scorecard.json", "work"])
             self.assertEqual(sorted(p.name for p in (run / "edge").iterdir()),
                              sorted(f"site-{sid}.ledger.jsonl" for sid in SITE_IDS))
+
+
+class _Observer:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+
+    def observe(self, boundary: str, task: str, seconds: float) -> None:
+        self.calls.append((boundary, task))
+
+
+class ReplayMemoTests(unittest.TestCase):
+    """``ObservedRuntime``'s extraction memo against the fake server: while replaying (the no-plant control), a
+    planted call's result or error comes back without a model call, a ledger row or an observation; a miss is sent and
+    ledgered but not observed."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tmp = Path(tempfile.mkdtemp(prefix="lab-sim-memo-"))
+        cls.valid = FakeOpenAIServer("valid", responder=Responder(PACK)).start()
+        cls.failing = FakeOpenAIServer("unauthorized", responder=Responder(PACK)).start()
+        _, _, records = sim_world()
+        cls.payloads = [model_payload(r, PACK)[0] for r in records[:3]]
+        cls.task, cls.schema = extraction_task(PACK), extraction_schema(PACK)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.valid.stop()
+        cls.failing.stop()
+        shutil.rmtree(cls.tmp, True)
+
+    def runtime(self, base_url: str, name: str) -> tuple[lab_sim.ObservedRuntime, _Observer, Path]:
+        config = load_routing(write_routing(self.tmp / f"{name}.json", base_url), tasks=[TASK_NAME, JUDGE_TASK],
+                              check_env=False)
+        observer, ledger = _Observer(), self.tmp / f"{name}.ledger.jsonl"
+        runtime = lab_sim.ObservedRuntime(config, observer=observer, boundary=f"site:{SITE_IDS[0]}",
+                                          ledger_path=ledger, run_id="memo", clock=SimClock("2024-09-01T00:00:00Z"),
+                                          data_label="synthetic", simulation=True)
+        self.addCleanup(runtime.close)
+        return runtime, observer, ledger
+
+    def test_a_replayed_call_makes_no_model_call(self) -> None:
+        runtime, observer, ledger = self.runtime(self.valid.base_url, "hit")
+        result = runtime.run(self.task, self.payloads[0], self.schema, ref="x:1")
+        self.assertEqual(len(runtime.memo), 1)
+        rows, calls = len(read_ledger(ledger)), list(observer.calls)
+        self.assertEqual(calls, [(f"site:{SITE_IDS[0]}", TASK_NAME)])
+        runtime.replaying = True
+        again = runtime.run(self.task, self.payloads[0], self.schema, ref="x:9")
+        self.assertEqual(again, result)
+        again["claims"] = "changed"
+        self.assertEqual(runtime.run(self.task, self.payloads[0], self.schema, ref="x:10"), result)
+        self.assertEqual((runtime.replayed, runtime.replay_misses), (2, 0))
+        self.assertEqual((len(read_ledger(ledger)), observer.calls), (rows, calls))
+
+    def test_a_miss_is_sent_and_ledgered_but_not_observed(self) -> None:
+        runtime, observer, ledger = self.runtime(self.valid.base_url, "miss")
+        runtime.run(self.task, self.payloads[0], self.schema, ref="x:1")
+        rows, calls = len(read_ledger(ledger)), list(observer.calls)
+        runtime.replaying = True
+        runtime.run(self.task, self.payloads[1], self.schema, ref="x:2")
+        self.assertEqual((runtime.replayed, runtime.replay_misses), (0, 1))
+        self.assertEqual(len(read_ledger(ledger)), rows + 1)
+        self.assertEqual(observer.calls, calls)
+
+    def test_a_stored_error_is_raised_again(self) -> None:
+        runtime, observer, ledger = self.runtime(self.failing.base_url, "error")
+        with self.assertRaises(InferenceError) as first:
+            runtime.run(self.task, self.payloads[2], self.schema, ref="x:1")
+        rows, calls = len(read_ledger(ledger)), list(observer.calls)
+        self.assertEqual(len(calls), 1)
+        runtime.replaying = True
+        with self.assertRaises(InferenceError) as again:
+            runtime.run(self.task, self.payloads[2], self.schema, ref="x:2")
+        self.assertIs(again.exception, first.exception)
+        self.assertEqual((runtime.replayed, runtime.replay_misses), (1, 0))
+        self.assertEqual((len(read_ledger(ledger)), observer.calls), (rows, calls))
 
 
 class _EmptyClaims(Responder):
@@ -1058,7 +1206,7 @@ def _sim_row(unit: str, digest: str, seed: int = 1) -> dict[str, Any]:
             "lifts": {name: {"estimate": 0.5, "ci_low": 0.25, "ci_high": 0.75} for name, _, _ in lab_sim.LIFTS},
             "pushdown": {"n": 10, "n_true": 4, "supported": 4, "ap_pushdown": 1.0, "ap_stats_only": 0.8},
             "raw_text_crossed": 0, "fallback_share": 0.0,
-            "notes": ["synthetic_internal", "lexical_exact", "few_patterns", "r_model_free"]}
+            "notes": ["synthetic_internal", "lexical_exact", "few_patterns", "r_model_free", "no_control"]}
 
 
 class AggregateSimTests(unittest.TestCase):
@@ -1100,12 +1248,20 @@ class AggregateSimTests(unittest.TestCase):
             self.assertIn(HEADINGS[key], md)
         self.assertIn(SIZING_NOTE, md)
         for key, sentence in SIM_NOTES.items():
-            self.assertIn(sentence, md, key)
+            if key == "chance_control":
+                self.assertNotIn(sentence, md)
+            else:
+                self.assertIn(sentence, md, key)
+        self.assertNotIn(COLUMNS["found_net"], md)
+        self.assertNotIn(COLUMNS["chance_found"], md)
         pointers = {e["pointer"] for e in entries}
         for i in range(len(rows)):
             for name in lab_sim.CHANNELS:
                 for key in lab_aggregate.SIM_CHANNEL_FIELDS:
-                    self.assertIn(f"/sim/{i}/channels/{name}/{key}", pointers)
+                    if key in ("found_net", "chance_found"):
+                        self.assertNotIn(f"/sim/{i}/channels/{name}/{key}", pointers)
+                    else:
+                        self.assertIn(f"/sim/{i}/channels/{name}/{key}", pointers)
             for name, _, _ in lab_sim.LIFTS:
                 for key in lab_aggregate.SIM_LIFT_FIELDS:
                     self.assertIn(f"/sim/{i}/lifts/{name}/{key}", pointers)
@@ -1126,6 +1282,30 @@ class AggregateSimTests(unittest.TestCase):
         self.assertIn(SIM_WORLD_SAME, md)
         self.assertNotIn(SIM_WORLD_DIFFERS, md)
         check_sources(self, md, entries, root)
+
+    def test_summary_renders_the_control_columns(self) -> None:
+        """Rows with a no-plant control (the phase-2 harness) show found net of chance and chance finds, sourced; a
+        row without them in the same table renders n/a there."""
+        rows = [_sim_row("sim-a-s1", "a" * 64), _sim_row("sim-b-s1", "a" * 64)]
+        rows[0]["notes"][-1] = "chance_control"
+        for i, name in enumerate(lab_sim.CHANNELS):
+            rows[0]["channels"][name].update(found_net=i % 3, chance_found=3 - i % 3)
+        md, entries, root = self._render(rows)
+        check_sources(self, md, entries, root)
+        header = ("| unit | model | channel | found | found net of chance | chance finds | patterns | recall | precision "
+                  "in the top forty | average precision | alerts | false alarms |")
+        self.assertIn(header, md.splitlines())
+        self.assertIn("| `sim-a-s1` | `fake-a` | `S` | 3 | 2 | 1 | 4 | 0.750 | 0.100 | 0.600 | 12 | 8 |",
+                      md.splitlines())
+        self.assertIn("| `sim-b-s1` | `fake-a` | `S` | 3 | n/a | n/a | 4 | 0.750 | 0.100 | 0.600 | 12 | 8 |",
+                      md.splitlines())
+        pointers = {e["pointer"] for e in entries}
+        for name in lab_sim.CHANNELS:
+            for key in ("found_net", "chance_found"):
+                self.assertIn(f"/sim/0/channels/{name}/{key}", pointers)
+                self.assertNotIn(f"/sim/1/channels/{name}/{key}", pointers)
+        self.assertIn(SIM_NOTES["chance_control"], md)
+        self.assertIn(SIM_NOTES["no_control"], md)
 
 
 if __name__ == "__main__":

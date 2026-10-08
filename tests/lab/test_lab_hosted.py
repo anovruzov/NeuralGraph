@@ -56,7 +56,8 @@ HOSTED_UNITS = ("e1-h-a-r1", "e1-h-a-r2", "e1-h-a-r3")
 FAKE_UNITS = ("e1-fake-a-r1", "e1-fake-a-r2", "e1-fake-a-r3")
 SHARD_RE = re.compile(r"s[0-9]{3}-hosted")
 H_A = {"kind": "hosted", "model": "lab-hosted-a", "response_format": "json_schema", "transport_schema": "full",
-       "price": {"per_mtok_in": 1.0, "per_mtok_out": 2.0}, "deadline_s": 60, "max_retries": 1}
+       "price": {"per_mtok_in": 1.0, "per_mtok_out": 2.0}, "deadline_s": 60, "max_retries": 1,
+       "context_tokens": 32768}
 
 
 def _json(path: Path) -> Any:
@@ -146,11 +147,12 @@ class ManifestTests(unittest.TestCase):
         _, _, models = parse_manifest(_manifest_with({"kind": "hosted", "model": "lab-x"}))
         self.assertEqual(models["h"], {"kind": "hosted", "model": "lab-x", "response_format": "json_schema",
                                        "transport_schema": "full", "price": None, "deadline_s": 300,
-                                       "max_retries": 2})
+                                       "max_retries": 2, "context_tokens": None})
         self.assertEqual(MANIFEST.models["h-a"], H_A)
         self.assertEqual(MANIFEST.models["h-b"], {"kind": "hosted", "model": "lab-hosted-b",
                                                   "response_format": "json_schema", "transport_schema": "reduced",
-                                                  "price": None, "deadline_s": 60, "max_retries": 0})
+                                                  "price": None, "deadline_s": 60, "max_retries": 0,
+                                                  "context_tokens": None})
 
     def test_refusals(self) -> None:
         base = {"kind": "hosted", "model": "lab-x"}
