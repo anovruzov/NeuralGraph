@@ -57,7 +57,9 @@ opinions or forecasts ("would you use...").
    how long after the first complaint?" *(whether cross-site cases happen, and the lag)*
 2. "Where do complaint narratives and investigation records live? Can a central team read every site's text today?
    If not, what stops it?" *(the constraint; record which reason: privacy law, works council, customer contract,
-   separate systems, language, or none)*
+   separate systems, language, or none)* Then: "Could weekly counts by product, lot and failure mode leave the
+   site, knowing they show that a given complaint exists there?" *(whether the counts that do leave are acceptable:
+   X5 measured that they reveal this, `docs/collective/LEAKAGE.md` section 12)*
 3. "How is trending across sites done today: which tool, which team, how often? What does it cost a year, licences
    and people?" *(current spend: the ACV anchor)*
 4. "Your last field action or recall: what did it cost, all in? Looking back, when did the first signal sit in your
@@ -75,9 +77,9 @@ Record what was said, not impressions; a number not given stays blank and is nev
 this repository (it holds people's names and companies' figures); the repository gets only the counts and the
 decisions in section 4.
 
-| Date | Company | Role | Cross-site case in 2 years | Text cannot be pooled | Reason | Trending spend per year | Last field action cost | Code gives failure mode | Audit | Next step |
-|---|---|---|---|---|---|---|---|---|---|---|
-| | | | yes / no | yes / no | | $ | $ | often / sometimes / rarely | yes / maybe / no | |
+| Date | Company | Role | Cross-site case in 2 years | Text cannot be pooled | Reason | Counts may leave | Trending spend per year | Last field action cost | Code gives failure mode | Audit | Next step |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| | | | yes / no | yes / no | | yes / no / unsure | $ | $ | often / sometimes / rarely | yes / maybe / no | |
 
 ## 4. Decision rules, fixed before the first call
 
@@ -89,6 +91,7 @@ Read after 10 calls (interim) and after 20 (final). Each rule names what it chan
 | ACV anchor = median stated trending spend per year | Used only when at least 5 calls give a number | Replaces the $100–300k range in `MARKET.md` 3.1 |
 | Cross-site cases | Fewer than 5 of 20 recall one in two years | Early warning is a rare need: verification leads the pitch |
 | Audit | At least 2 "yes" | The Phase-1 audit is scheduled; at 0, the offer is revised, not the questions |
+| Counts may leave | Fewer than half of the calls where text cannot be pooled say yes | The presence cells need a mitigation that keeps detection before any pilot (a code change, measured by a new X5 prereg) |
 | Codes | Most say the code rarely gives the failure mode | N1 on a partner's internal records is the next experiment; if most say "often", discovery from narratives falls behind verification |
 
 These thresholds were written before any call. The founder may change them before the first call, recording the change

@@ -242,6 +242,7 @@ the signal: each field needs its own N1-style audit, on real data, before anyone
 |---|---|---|
 | Do narratives carry signal the codes miss? | N1 on real openFDA narratives (the lab's openFDA units) | If not, rank 1 falls and the pitch becomes verification, not discovery. The pre-registered constructed illustration of such a case failed on all three attempts (`docs/collective/b1/attempts/`): with structured fields filled at realistic rates, R or S caught the case about as early as X |
 | Is the constraint real? | X6: 20 discovery calls (questions and decision rules: `DISCOVERY.md`) | The constraint share, and so the beachhead size |
+| May the counts leave? | X6 asks it; X5 (synthetic) showed the weekly counts, including presence below k, reveal whether a known complaint is at a site and which failure it carries | If buyers refuse, the presence cells need a mitigation that keeps detection (a code change and a new X5 prereg) before any pilot |
 | What do device makers pay? | X6 asks for current trending and PMS spend and the cost of the last field action | ACV |
 | Does the cross-site view find cases earlier than one site alone? | The Phase-1 signal audit on a partner's data | Whether there is a product |
 
