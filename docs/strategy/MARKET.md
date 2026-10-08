@@ -179,7 +179,9 @@ output). What it means for the strategy:
 The public replay (STRATEGY 9.3) runs inside one manufacturer and needs a field that splits its reports into "sites".
 Each report names the plant or legal entity that made the device (`device.manufacturer_d_name`) and its country
 [COUNT: `tools/market/openfda_sites.py`, run [37854721760](https://github.com/anovruzov/NeuralGraph/actions/runs/37854721760),
-job 113576035422, 2026-10-08 22:39 UTC; the output, copied from the log, is `docs/strategy/data/site-split.json`].
+job 113576035422, 2026-10-08 22:39 UTC; the per-code split below is run
+[37858992788](https://github.com/anovruzov/NeuralGraph/actions/runs/37858992788), job 113589962421, 23:22 UTC, whose
+group figures are identical; its output, copied from the log, is `docs/strategy/data/site-split.json`].
 Reports received in 2024; a group is every report whose manufacturer name contains the word, sorted by how even the
 split by name is:
 
@@ -199,7 +201,8 @@ country values include blank and `*`, as the reports carry them. What it means f
 founder's choice, not the choice):
 
 - **The name is a usable site field for some groups.** Stryker's names are mostly plants or divisions
-  (Orthopaedics-Mahwah, Medical-Kalamazoo, Endoscopy-San Jose) and none holds more than a quarter of the reports.
+  (Orthopaedics-Mahwah, Medical-Kalamazoo, Endoscopy-San Jose) and none holds more than a quarter of the reports
+  (but each of its codes comes from one plant: below).
   Becton's split is as even, but several of its largest names are spellings of one company; the replay matches names
   exactly and merges nothing, so each spelling would be its own site.
 - **One name dominates elsewhere**: 87.0% for Boston Scientific, 71.2% for Baxter, 63.2% for Medtronic (its Puerto
@@ -209,6 +212,32 @@ founder's choice, not the choice):
 - **The prereg must list every name to include**, since the manufacturer field is matched exactly.
 - A "site" here is the plant named on the report, not a site holding its own records; the replay's label already
   says so ("public data, artificial partitioning, not a confidentiality demonstration").
+
+**Per product code the split mostly disappears.** The replay looks for a code rising at several sites, so what
+matters is how many plants report each code. Of the 80 group-and-code pairs (each group's ten most reported codes),
+45 have one name holding at least 90% of the code's reports. Stryker, the most even group by name, makes nearly every
+code at one plant (9 of its 10 codes at 92% or more). The codes reported by two or more names with at least 100 reports
+each, the largest name holding less than 62%:
+
+| Group | Code | Reports | Names with ≥100 | Largest name's share | Largest names (reports) | Distinct plants? |
+|---|---|---|---|---|---|---|
+| BECTON | FMI | 2,147 | 6 | 29.3% | "BECTON DICKINSON" 628; "BECTON, DICKINSON & CO., (BD)" 323; Dun Laoghaire, Ireland 269 | Yes, with spellings of one company among them |
+| BECTON | FMF | 1,923 | 3 | 44.4% | "BECTON DICKINSON" 853; Medical Systems 735; Industrias Cirurgicas (Brazil) 116 | Yes |
+| MEDTRONIC | LWS | 4,621 | 5 | 44.8% | Europe SARL 2,072; Puerto Rico Operations 1,014; Singapore Operations 856 | Yes |
+| BECTON | JKA | 4,129 | 4 | 45.3% | "(BD)" 1,870; Broken Bow 922; "& CO., (BD)" 873 | Yes, with spellings of one company among them |
+| BECTON | MDB | 327 | 2 | 46.5% | Caribe 152; Sparks 144 | Yes |
+| BECTON | FPA | 753 | 3 | 47.4% | "BECTON DICKINSON" 357; "(BD)" 175; Infusion Therapy Systems 108 | Partly |
+| ABBOTT | MGB | 11,644 | 2 | 53.5% | "ABBOTT VASCULAR INC." 6,233; "ABBOTT VASCULAR" 5,405 | No: two spellings |
+| BAXTER | FRN | 4,457 | 2 | 54.3% | Baxter International Inc. 2,422; Baxter Healthcare Corporation 1,990 | No: two legal entities, no plant named |
+| PHILIPS | MKJ | 4,543 | 2 | 55.1% | North America 2,505; Goldway (Shenzhen) 2,036 | Yes |
+| PHILIPS | MHX | 1,005 | 2 | 55.7% | Medizin Systeme Böblingen 560; "PHILIPS MEDICAL SYSTEMS" 424 | Probably |
+| PHILIPS | DSI | 674 | 2 | 59.8% | "PHILIPS MEDICAL SYSTEMS" 403; Böblingen 267 | Probably |
+| BECTON | FOZ | 2,350 | 4 | 60.6% | Infusion Therapy Systems 1,423; "BECTON DICKINSON" 569; Industrias Cirurgicas (Brazil) 198 | Yes |
+| STRYKER | GEI | 352 | 2 | 61.1% | Endoscopy-San Jose 215; Instruments 116 | Yes |
+
+So for a replay whose sites are plants, Becton Dickinson offers the most codes made at several plants (6 of its 10
+codes above), then Medtronic's LWS and Philips' MKJ; Stryker, Boston Scientific and Abbott offer almost none. The
+"distinct plants?" column is read from the names alone, not checked against FDA registrations.
 
 ## 4. Why the expansion path is automotive and industrial, then networks
 

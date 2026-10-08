@@ -6,6 +6,196 @@
    "largest_name_share": 0.4368,
    "names_with_min_reports": 16,
    "reports": 90153,
+   "top_codes": [
+    {
+     "code": "QLG",
+     "largest_name_share": 0.8447,
+     "names_with_min_reports": 3,
+     "reports": 35113,
+     "top_names": [
+      {
+       "name": "ABBOTT DIABETES CARE INC",
+       "reports": 29659
+      },
+      {
+       "name": "ABBOTT DIABETES CARE LTD",
+       "reports": 5298
+      },
+      {
+       "name": "ABBOTT DIABETES CARE INC.",
+       "reports": 115
+      }
+     ]
+    },
+    {
+     "code": "MGB",
+     "largest_name_share": 0.5353,
+     "names_with_min_reports": 2,
+     "reports": 11644,
+     "top_names": [
+      {
+       "name": "ABBOTT VASCULAR INC.",
+       "reports": 6233
+      },
+      {
+       "name": "ABBOTT VASCULAR",
+       "reports": 5405
+      },
+      {
+       "name": "ABBOTT VASCULAR INC",
+       "reports": 3
+      }
+     ]
+    },
+    {
+     "code": "QBJ",
+     "largest_name_share": 0.8993,
+     "names_with_min_reports": 3,
+     "reports": 6873,
+     "top_names": [
+      {
+       "name": "ABBOTT DIABETES CARE LTD",
+       "reports": 6181
+      },
+      {
+       "name": "ABBOTT DIABETES CARE INC",
+       "reports": 415
+      },
+      {
+       "name": "ABBOTT DIABETES CARE INC.",
+       "reports": 234
+      }
+     ]
+    },
+    {
+     "code": "PZE",
+     "largest_name_share": 0.9961,
+     "names_with_min_reports": 1,
+     "reports": 4934,
+     "top_names": [
+      {
+       "name": "ABBOTT DIABETES CARE INC",
+       "reports": 4915
+      },
+      {
+       "name": "ABBOTT DIABETES CARE INC.",
+       "reports": 14
+      },
+      {
+       "name": "ABBOTT DIABETES CARE LTD",
+       "reports": 3
+      }
+     ]
+    },
+    {
+     "code": "NBW",
+     "largest_name_share": 0.9986,
+     "names_with_min_reports": 1,
+     "reports": 4386,
+     "top_names": [
+      {
+       "name": "ABBOTT DIABETES CARE INC",
+       "reports": 4380
+      },
+      {
+       "name": "ABBOTT DIABETES CARE INC.",
+       "reports": 6
+      }
+     ]
+    },
+    {
+     "code": "LGW",
+     "largest_name_share": 0.9977,
+     "names_with_min_reports": 1,
+     "reports": 3847,
+     "top_names": [
+      {
+       "name": "ABBOTT MEDICAL",
+       "reports": 3838
+      },
+      {
+       "name": "ST. JUDE MEDICAL/ ABBOTT MEDICAL",
+       "reports": 3
+      },
+      {
+       "name": "ST. JUDE/ABBOTT MEDICAL",
+       "reports": 2
+      }
+     ]
+    },
+    {
+     "code": "NKM",
+     "largest_name_share": 0.9987,
+     "names_with_min_reports": 1,
+     "reports": 2327,
+     "top_names": [
+      {
+       "name": "ABBOTT MEDICAL",
+       "reports": 2324
+      },
+      {
+       "name": "ABBOTT VASCULAR INC.",
+       "reports": 2
+      },
+      {
+       "name": "ABBOTT VASCULAR",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "PMP",
+     "largest_name_share": 1.0,
+     "names_with_min_reports": 1,
+     "reports": 2074,
+     "top_names": [
+      {
+       "name": "ABBOTT MEDICAL",
+       "reports": 2074
+      }
+     ]
+    },
+    {
+     "code": "NIK",
+     "largest_name_share": 0.9885,
+     "names_with_min_reports": 1,
+     "reports": 1568,
+     "top_names": [
+      {
+       "name": "ABBOTT",
+       "reports": 1550
+      },
+      {
+       "name": "ABBOTT MEDICAL",
+       "reports": 6
+      },
+      {
+       "name": "ST. JUDE MEDICAL / ABBOTT MEDICAL",
+       "reports": 4
+      }
+     ]
+    },
+    {
+     "code": "NVN",
+     "largest_name_share": 0.831,
+     "names_with_min_reports": 1,
+     "reports": 1195,
+     "top_names": [
+      {
+       "name": "ABBOTT",
+       "reports": 993
+      },
+      {
+       "name": "ST. JUDE MEDICAL / ABBOTT MEDICAL",
+       "reports": 55
+      },
+      {
+       "name": "ST. JUDE / ABBOTT MEDICAL",
+       "reports": 48
+      }
+     ]
+    }
+   ],
    "top_countries": [
     {
      "country": "US",
@@ -84,6 +274,188 @@
    "largest_name_share": 0.712,
    "names_with_min_reports": 2,
    "reports": 14421,
+   "top_codes": [
+    {
+     "code": "FRN",
+     "largest_name_share": 0.5434,
+     "names_with_min_reports": 2,
+     "reports": 4457,
+     "top_names": [
+      {
+       "name": "BAXTER INTERNATIONAL INC.",
+       "reports": 2422
+      },
+      {
+       "name": "BAXTER HEALTHCARE CORPORATION",
+       "reports": 1990
+      },
+      {
+       "name": "BAXTER INTERNATIONAL INC",
+       "reports": 42
+      }
+     ]
+    },
+    {
+     "code": "KDJ",
+     "largest_name_share": 0.7568,
+     "names_with_min_reports": 2,
+     "reports": 3022,
+     "top_names": [
+      {
+       "name": "BAXTER HEALTHCARE CORPORATION",
+       "reports": 2287
+      },
+      {
+       "name": "BAXTER INTERNATIONAL INC.",
+       "reports": 719
+      },
+      {
+       "name": "BAXTER INTERNATIONAL INC",
+       "reports": 13
+      }
+     ]
+    },
+    {
+     "code": "MEB",
+     "largest_name_share": 1.0,
+     "names_with_min_reports": 1,
+     "reports": 1143,
+     "top_names": [
+      {
+       "name": "BAXTER HEALTHCARE CORPORATION",
+       "reports": 1143
+      }
+     ]
+    },
+    {
+     "code": "FPA",
+     "largest_name_share": 0.6684,
+     "names_with_min_reports": 2,
+     "reports": 1140,
+     "top_names": [
+      {
+       "name": "BAXTER HEALTHCARE CORPORATION",
+       "reports": 762
+      },
+      {
+       "name": "BAXTER INTERNATIONAL INC.",
+       "reports": 372
+      },
+      {
+       "name": "BAXTER HEALTHCARE CORPORATION.",
+       "reports": 2
+      }
+     ]
+    },
+    {
+     "code": "LHI",
+     "largest_name_share": 0.9838,
+     "names_with_min_reports": 1,
+     "reports": 1114,
+     "top_names": [
+      {
+       "name": "BAXTER HEALTHCARE CORPORATION",
+       "reports": 1096
+      },
+      {
+       "name": "BAXTER INTERNATIONAL INC.",
+       "reports": 17
+      },
+      {
+       "name": "BAXTER HEALTHCARE CORPORATION.",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "FKX",
+     "largest_name_share": 0.7437,
+     "names_with_min_reports": 2,
+     "reports": 1077,
+     "top_names": [
+      {
+       "name": "BAXTER HEALTHCARE CORPORATION",
+       "reports": 801
+      },
+      {
+       "name": "BAXTER INTERNATIONAL INC.",
+       "reports": 267
+      },
+      {
+       "name": "BAXTER INTERNATIONAL INC",
+       "reports": 6
+      }
+     ]
+    },
+    {
+     "code": "KDI",
+     "largest_name_share": 0.9929,
+     "names_with_min_reports": 1,
+     "reports": 845,
+     "top_names": [
+      {
+       "name": "BAXTER HEALTHCARE CORPORATION",
+       "reports": 839
+      },
+      {
+       "name": "BAXTER INTERNATIONAL INC.",
+       "reports": 4
+      },
+      {
+       "name": "BAXTER HEALTHCARE CORPORATION.",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "FNL",
+     "largest_name_share": 0.9505,
+     "names_with_min_reports": 1,
+     "reports": 465,
+     "top_names": [
+      {
+       "name": "BAXTER HEALTHCARE CORPORATION",
+       "reports": 442
+      },
+      {
+       "name": "BAXTER HEALTHCARE/HILL-ROM, INC.",
+       "reports": 14
+      },
+      {
+       "name": "BAXTER HEALTHCARE / HILL-ROM, INC.",
+       "reports": 5
+      }
+     ]
+    },
+    {
+     "code": "FJI",
+     "largest_name_share": 1.0,
+     "names_with_min_reports": 1,
+     "reports": 150,
+     "top_names": [
+      {
+       "name": "BAXTER HEALTHCARE CORPORATION",
+       "reports": 150
+      }
+     ]
+    },
+    {
+     "code": "KPE",
+     "largest_name_share": 0.6818,
+     "names_with_min_reports": 0,
+     "reports": 110,
+     "top_names": [
+      {
+       "name": "BAXTER HEALTHCARE CORPORATION",
+       "reports": 75
+      },
+      {
+       "name": "BAXTER INTERNATIONAL INC.",
+       "reports": 35
+      }
+     ]
+    }
+   ],
    "top_countries": [
     {
      "country": "",
@@ -146,6 +518,204 @@
    "largest_name_share": 0.249,
    "names_with_min_reports": 15,
    "reports": 14258,
+   "top_codes": [
+    {
+     "code": "JKA",
+     "largest_name_share": 0.4529,
+     "names_with_min_reports": 4,
+     "reports": 4129,
+     "top_names": [
+      {
+       "name": "BECTON, DICKINSON AND COMPANY (BD)",
+       "reports": 1870
+      },
+      {
+       "name": "BECTON, DICKINSON & CO. (BROKEN BOW)",
+       "reports": 922
+      },
+      {
+       "name": "BECTON, DICKINSON & CO., (BD)",
+       "reports": 873
+      }
+     ]
+    },
+    {
+     "code": "FOZ",
+     "largest_name_share": 0.6055,
+     "names_with_min_reports": 4,
+     "reports": 2350,
+     "top_names": [
+      {
+       "name": "BECTON DICKINSON INFUSION THERAPY SYSTEMS INC.",
+       "reports": 1423
+      },
+      {
+       "name": "BECTON DICKINSON",
+       "reports": 569
+      },
+      {
+       "name": "BECTON DICKINSON INDUSTRIAS CIRURGICAS, LTDA.",
+       "reports": 198
+      }
+     ]
+    },
+    {
+     "code": "FMI",
+     "largest_name_share": 0.2925,
+     "names_with_min_reports": 6,
+     "reports": 2147,
+     "top_names": [
+      {
+       "name": "BECTON DICKINSON",
+       "reports": 628
+      },
+      {
+       "name": "BECTON, DICKINSON & CO., (BD)",
+       "reports": 323
+      },
+      {
+       "name": "BECTON DICKNSON AND CO. - DUN LAOGHAIRE CO, IRELAND",
+       "reports": 269
+      }
+     ]
+    },
+    {
+     "code": "FMF",
+     "largest_name_share": 0.4436,
+     "names_with_min_reports": 3,
+     "reports": 1923,
+     "top_names": [
+      {
+       "name": "BECTON DICKINSON",
+       "reports": 853
+      },
+      {
+       "name": "BECTON DICKINSON MEDICAL SYSTEMS",
+       "reports": 735
+      },
+      {
+       "name": "BECTON DICKINSON IND. CIRURGICAS LTDA",
+       "reports": 116
+      }
+     ]
+    },
+    {
+     "code": "FPA",
+     "largest_name_share": 0.4741,
+     "names_with_min_reports": 3,
+     "reports": 753,
+     "top_names": [
+      {
+       "name": "BECTON DICKINSON",
+       "reports": 357
+      },
+      {
+       "name": "BECTON, DICKINSON & CO., (BD)",
+       "reports": 175
+      },
+      {
+       "name": "BECTON DICKINSON INFUSION THERAPY SYSTEMS INC.",
+       "reports": 108
+      }
+     ]
+    },
+    {
+     "code": "LON",
+     "largest_name_share": 0.7005,
+     "names_with_min_reports": 2,
+     "reports": 384,
+     "top_names": [
+      {
+       "name": "BECTON DICKINSON & CO. (SPARKS)",
+       "reports": 269
+      },
+      {
+       "name": "BECTON, DICKINSON & CO. (SPARKS)",
+       "reports": 115
+      }
+     ]
+    },
+    {
+     "code": "ONB",
+     "largest_name_share": 0.9913,
+     "names_with_min_reports": 1,
+     "reports": 343,
+     "top_names": [
+      {
+       "name": "BECTON DICKINSON",
+       "reports": 340
+      },
+      {
+       "name": "BD/BECTON DICKINSON",
+       "reports": 1
+      },
+      {
+       "name": "BECTON DICKINSON AND COMPANY",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "MDB",
+     "largest_name_share": 0.4648,
+     "names_with_min_reports": 2,
+     "reports": 327,
+     "top_names": [
+      {
+       "name": "BECTON DICKINSON CARIBE LTD.",
+       "reports": 152
+      },
+      {
+       "name": "BECTON DICKINSON & CO. (SPARKS)",
+       "reports": 144
+      },
+      {
+       "name": "BECTON, DICKINSON & CO. (SPARKS)",
+       "reports": 29
+      }
+     ]
+    },
+    {
+     "code": "NGT",
+     "largest_name_share": 0.6978,
+     "names_with_min_reports": 1,
+     "reports": 225,
+     "top_names": [
+      {
+       "name": "BECTON DICKINSON",
+       "reports": 157
+      },
+      {
+       "name": "BECTON DICKINSON, S.A.",
+       "reports": 30
+      },
+      {
+       "name": "BECTON, DICKINSON AND CO.",
+       "reports": 30
+      }
+     ]
+    },
+    {
+     "code": "GIM",
+     "largest_name_share": 0.8738,
+     "names_with_min_reports": 1,
+     "reports": 214,
+     "top_names": [
+      {
+       "name": "BECTON, DICKINSON & CO. (BROKEN BOW)",
+       "reports": 187
+      },
+      {
+       "name": "BECTON DICKINSON",
+       "reports": 15
+      },
+      {
+       "name": "BECTON, DICKINSON AND COMPANY (BD)",
+       "reports": 11
+      }
+     ]
+    }
+   ],
    "top_countries": [
     {
      "country": "US",
@@ -232,6 +802,188 @@
    "largest_name_share": 0.8701,
    "names_with_min_reports": 4,
    "reports": 64739,
+   "top_codes": [
+    {
+     "code": "LWS",
+     "largest_name_share": 0.9986,
+     "names_with_min_reports": 1,
+     "reports": 11291,
+     "top_names": [
+      {
+       "name": "BOSTON SCIENTIFIC CORPORATION",
+       "reports": 11275
+      },
+      {
+       "name": "BOSTON SCIENTIFIC CORP.",
+       "reports": 9
+      },
+      {
+       "name": "BOSTON SCIENTIFIC",
+       "reports": 5
+      }
+     ]
+    },
+    {
+     "code": "LWP",
+     "largest_name_share": 0.9991,
+     "names_with_min_reports": 1,
+     "reports": 7547,
+     "top_names": [
+      {
+       "name": "BOSTON SCIENTIFIC CORPORATION",
+       "reports": 7540
+      },
+      {
+       "name": "BOSTON SCIENTIFIC CORP.",
+       "reports": 5
+      },
+      {
+       "name": "BOSTON SCIENTFIC",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "LGW",
+     "largest_name_share": 0.7404,
+     "names_with_min_reports": 2,
+     "reports": 7220,
+     "top_names": [
+      {
+       "name": "BOSTON SCIENTIFIC NEUROMODULATION",
+       "reports": 5346
+      },
+      {
+       "name": "BOSTON SCIENTIFIC NEUROMODULATION CORPORATION",
+       "reports": 1840
+      },
+      {
+       "name": "BOSTON SCIENTIFIC CORPORATION",
+       "reports": 24
+      }
+     ]
+    },
+    {
+     "code": "NVN",
+     "largest_name_share": 0.9985,
+     "names_with_min_reports": 1,
+     "reports": 5819,
+     "top_names": [
+      {
+       "name": "BOSTON SCIENTIFIC CORPORATION",
+       "reports": 5810
+      },
+      {
+       "name": "BOSTON SCIENTIFIC CORP.",
+       "reports": 5
+      },
+      {
+       "name": "BOSTON SCIENTIFIC",
+       "reports": 3
+      }
+     ]
+    },
+    {
+     "code": "FHW",
+     "largest_name_share": 1.0,
+     "names_with_min_reports": 1,
+     "reports": 2350,
+     "top_names": [
+      {
+       "name": "BOSTON SCIENTIFIC CORPORATION",
+       "reports": 2350
+      }
+     ]
+    },
+    {
+     "code": "NIK",
+     "largest_name_share": 0.9991,
+     "names_with_min_reports": 1,
+     "reports": 2310,
+     "top_names": [
+      {
+       "name": "BOSTON SCIENTIFIC CORPORATION",
+       "reports": 2308
+      },
+      {
+       "name": "BOSTON SCIENTIFIC",
+       "reports": 2
+      }
+     ]
+    },
+    {
+     "code": "NVY",
+     "largest_name_share": 0.9981,
+     "names_with_min_reports": 1,
+     "reports": 2098,
+     "top_names": [
+      {
+       "name": "BOSTON SCIENTIFIC CORPORATION",
+       "reports": 2094
+      },
+      {
+       "name": "BOSTON SCIENTIFIC CORP.",
+       "reports": 3
+      },
+      {
+       "name": "BOSTON SCIENTIFIC",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "EZY",
+     "largest_name_share": 1.0,
+     "names_with_min_reports": 1,
+     "reports": 2074,
+     "top_names": [
+      {
+       "name": "BOSTON SCIENTIFIC CORPORATION",
+       "reports": 2074
+      }
+     ]
+    },
+    {
+     "code": "NGV",
+     "largest_name_share": 0.999,
+     "names_with_min_reports": 1,
+     "reports": 2064,
+     "top_names": [
+      {
+       "name": "BOSTON SCIENTIFIC CORPORATION",
+       "reports": 2062
+      },
+      {
+       "name": "BOSTON SCIENTIFIC CORP.",
+       "reports": 1
+      },
+      {
+       "name": "BOSTON SCIENTIFIC CORP., MARINA BAY CUST. FULFILLMENT CENTER",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "DTB",
+     "largest_name_share": 0.9853,
+     "names_with_min_reports": 1,
+     "reports": 1497,
+     "top_names": [
+      {
+       "name": "BOSTON SCIENTIFIC CORPORATION",
+       "reports": 1475
+      },
+      {
+       "name": "BOSTON SCIENTIFIC",
+       "reports": 7
+      },
+      {
+       "name": "BOSTON SCIENTIFIC CORP.",
+       "reports": 7
+      }
+     ]
+    }
+   ],
    "top_countries": [
     {
      "country": "US",
@@ -298,6 +1050,192 @@
    "largest_name_share": 0.702,
    "names_with_min_reports": 2,
    "reports": 2745,
+   "top_codes": [
+    {
+     "code": "BSZ",
+     "largest_name_share": 0.9961,
+     "names_with_min_reports": 1,
+     "reports": 1528,
+     "top_names": [
+      {
+       "name": "GE MEDICAL SYSTEMS (CHINA) CO., LTD (WUXI)",
+       "reports": 1522
+      },
+      {
+       "name": "GE HEALTHCARE / DATEX-OHMEDA, INC.",
+       "reports": 3
+      },
+      {
+       "name": "GE HEALTHCARE FINLAND OY",
+       "reports": 2
+      }
+     ]
+    },
+    {
+     "code": "ITX",
+     "largest_name_share": 0.9942,
+     "names_with_min_reports": 1,
+     "reports": 695,
+     "top_names": [
+      {
+       "name": "GE HEALTHCARE AUSTRIA GMBH & CO OG",
+       "reports": 691
+      },
+      {
+       "name": "GE VINGMED ULTRASOUND AS",
+       "reports": 3
+      },
+      {
+       "name": "GE ULTRASOUND KOREA, LTD.",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "CBK",
+     "largest_name_share": 1.0,
+     "names_with_min_reports": 1,
+     "reports": 403,
+     "top_names": [
+      {
+       "name": "GE MEDICAL SYSTEMS (CHINA) CO., LTD (WUXI)",
+       "reports": 403
+      }
+     ]
+    },
+    {
+     "code": "LNH",
+     "largest_name_share": 0.5405,
+     "names_with_min_reports": 0,
+     "reports": 37,
+     "top_names": [
+      {
+       "name": "GE MEDICAL SYSTEMS, LLC",
+       "reports": 20
+      },
+      {
+       "name": "GE HEALTHCARE (TIANJIN) COMPANY LIMITED",
+       "reports": 8
+      },
+      {
+       "name": "GE HEALTHCARE MANUFACTURING LLC",
+       "reports": 3
+      }
+     ]
+    },
+    {
+     "code": "FMZ",
+     "largest_name_share": 0.8929,
+     "names_with_min_reports": 0,
+     "reports": 28,
+     "top_names": [
+      {
+       "name": "GE MEDICAL SYSTEMS ULTRASOUND&PRIMARY CARE DIAGLLC",
+       "reports": 25
+      },
+      {
+       "name": "GE MEDICAL SYSTEMS ULTRASOUND & PRIMARYCAREDIAGLLC",
+       "reports": 2
+      },
+      {
+       "name": "GE MEDICAL SYSTEMS ULTRASOUND",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "JAK",
+     "largest_name_share": 0.4286,
+     "names_with_min_reports": 0,
+     "reports": 7,
+     "top_names": [
+      {
+       "name": "GE MEDICAL SYSTEMS, LLC",
+       "reports": 3
+      },
+      {
+       "name": "GE HANGWEI MEDICAL SYSTEMS CO., LTD.",
+       "reports": 2
+      },
+      {
+       "name": "GE HEALTHCARE JAPAN CORPORATION",
+       "reports": 2
+      }
+     ]
+    },
+    {
+     "code": "KPR",
+     "largest_name_share": 0.8,
+     "names_with_min_reports": 0,
+     "reports": 5,
+     "top_names": [
+      {
+       "name": "GE HANGWEI MEDICAL SYSTEMS CO., LTD.",
+       "reports": 4
+      },
+      {
+       "name": "GE MEDICAL SYSTEMS, LLC",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "KPS",
+     "largest_name_share": 0.6,
+     "names_with_min_reports": 0,
+     "reports": 5,
+     "top_names": [
+      {
+       "name": "GE MEDICAL SYSTEMS ISRAEL",
+       "reports": 3
+      },
+      {
+       "name": "GE MEDICAL SYSTEMS ISRAEL, FUNCTIONAL IMAGING",
+       "reports": 2
+      }
+     ]
+    },
+    {
+     "code": "MHX",
+     "largest_name_share": 0.4,
+     "names_with_min_reports": 0,
+     "reports": 5,
+     "top_names": [
+      {
+       "name": "GE MEDICAL SYSTEMS",
+       "reports": 2
+      },
+      {
+       "name": "GE MEDICAL SYSTEMS INFORMATION TECHNOLOGIES, INC.",
+       "reports": 2
+      },
+      {
+       "name": "GE MEDICAL SYSTEMS (CHINA) CO., LTD (WUXI)",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "IYN",
+     "largest_name_share": 0.5,
+     "names_with_min_reports": 0,
+     "reports": 4,
+     "top_names": [
+      {
+       "name": "GE ULTRASOUND KOREA, LTD.",
+       "reports": 2
+      },
+      {
+       "name": "BK MEDICAL APS (PART OF GE HEALTHCARE)",
+       "reports": 1
+      },
+      {
+       "name": "GE MEDICAL SYSTEMS ULTRASOUND AND PRIMARY CARE DIA",
+       "reports": 1
+      }
+     ]
+    }
+   ],
    "top_countries": [
     {
      "country": "CH",
@@ -388,6 +1326,196 @@
    "largest_name_share": 0.6316,
    "names_with_min_reports": 23,
    "reports": 274186,
+   "top_codes": [
+    {
+     "code": "OZP",
+     "largest_name_share": 0.9136,
+     "names_with_min_reports": 2,
+     "reports": 129587,
+     "top_names": [
+      {
+       "name": "MEDTRONIC PUERTO RICO OPERATIONS CO.",
+       "reports": 118393
+      },
+      {
+       "name": "MEDTRONIC MINIMED",
+       "reports": 11159
+      },
+      {
+       "name": "MEDTRONIC ENGINEERING AND INNOVATION CENTER (MEIC)",
+       "reports": 21
+      }
+     ]
+    },
+    {
+     "code": "PQF",
+     "largest_name_share": 0.9996,
+     "names_with_min_reports": 1,
+     "reports": 22386,
+     "top_names": [
+      {
+       "name": "MEDTRONIC MINIMED",
+       "reports": 22376
+      },
+      {
+       "name": "MEDTRONIC PUERTO RICO OPERATIONS CO.",
+       "reports": 10
+      }
+     ]
+    },
+    {
+     "code": "OYC",
+     "largest_name_share": 0.9542,
+     "names_with_min_reports": 3,
+     "reports": 17124,
+     "top_names": [
+      {
+       "name": "MEDTRONIC PUERTO RICO OPERATIONS CO.",
+       "reports": 16340
+      },
+      {
+       "name": "MEDTRONIC-CHENGDU",
+       "reports": 563
+      },
+      {
+       "name": "MEDTRONIC MINIMED",
+       "reports": 221
+      }
+     ]
+    },
+    {
+     "code": "LGW",
+     "largest_name_share": 0.8348,
+     "names_with_min_reports": 3,
+     "reports": 12385,
+     "top_names": [
+      {
+       "name": "MEDTRONIC PUERTO RICO OPERATIONS CO.",
+       "reports": 10339
+      },
+      {
+       "name": "MEDTRONIC NEUROMODULATION",
+       "reports": 1661
+      },
+      {
+       "name": "MEDTRONIC MED REL MEDTRONIC PUERTO RICO",
+       "reports": 338
+      }
+     ]
+    },
+    {
+     "code": "PKU",
+     "largest_name_share": 0.9999,
+     "names_with_min_reports": 1,
+     "reports": 9648,
+     "top_names": [
+      {
+       "name": "MEDTRONIC MINIMED",
+       "reports": 9647
+      },
+      {
+       "name": "MEDTRONIC PUERTO RICO OPERATIONS CO.",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "OZO",
+     "largest_name_share": 0.9967,
+     "names_with_min_reports": 1,
+     "reports": 7765,
+     "top_names": [
+      {
+       "name": "MEDTRONIC PUERTO RICO OPERATIONS CO.",
+       "reports": 7739
+      },
+      {
+       "name": "MEDTRONIC MINIMED",
+       "reports": 26
+      }
+     ]
+    },
+    {
+     "code": "NPT",
+     "largest_name_share": 0.9918,
+     "names_with_min_reports": 1,
+     "reports": 5506,
+     "top_names": [
+      {
+       "name": "MEDTRONIC HEART VALVES DIVISION",
+       "reports": 5461
+      },
+      {
+       "name": "MEDTRONIC MEXICO S. DE R.L. DE CV",
+       "reports": 18
+      },
+      {
+       "name": "MEDTRONIC IRELAND",
+       "reports": 16
+      }
+     ]
+    },
+    {
+     "code": "EZW",
+     "largest_name_share": 0.7785,
+     "names_with_min_reports": 3,
+     "reports": 5409,
+     "top_names": [
+      {
+       "name": "MEDTRONIC PUERTO RICO OPERATIONS CO.",
+       "reports": 4211
+      },
+      {
+       "name": "MEDTRONIC NEUROMODULATION",
+       "reports": 1072
+      },
+      {
+       "name": "MEDTRONIC MED REL MEDTRONIC PUERTO RICO",
+       "reports": 116
+      }
+     ]
+    },
+    {
+     "code": "LWS",
+     "largest_name_share": 0.4484,
+     "names_with_min_reports": 5,
+     "reports": 4621,
+     "top_names": [
+      {
+       "name": "MEDTRONIC EUROPE SARL",
+       "reports": 2072
+      },
+      {
+       "name": "MEDTRONIC PUERTO RICO OPERATIONS CO.",
+       "reports": 1014
+      },
+      {
+       "name": "MEDTRONIC SINGAPORE OPERATIONS",
+       "reports": 856
+      }
+     ]
+    },
+    {
+     "code": "LZG",
+     "largest_name_share": 0.9714,
+     "names_with_min_reports": 2,
+     "reports": 4617,
+     "top_names": [
+      {
+       "name": "MEDTRONIC PUERTO RICO OPERATIONS CO.",
+       "reports": 4485
+      },
+      {
+       "name": "MEDTRONIC MINIMED",
+       "reports": 131
+      },
+      {
+       "name": "MEDTRONIC, INC.",
+       "reports": 1
+      }
+     ]
+    }
+   ],
    "top_countries": [
     {
      "country": "US",
@@ -478,6 +1606,196 @@
    "largest_name_share": 0.4996,
    "names_with_min_reports": 8,
    "reports": 14845,
+   "top_codes": [
+    {
+     "code": "OWB",
+     "largest_name_share": 0.9881,
+     "names_with_min_reports": 1,
+     "reports": 6118,
+     "top_names": [
+      {
+       "name": "PHILIPS MEDICAL SYSTEMS NEDERLAND B.V.",
+       "reports": 6045
+      },
+      {
+       "name": "PHILIPS INDIA LTD.",
+       "reports": 55
+      },
+      {
+       "name": "PHILIPS MEDICAL SYSTEMS",
+       "reports": 18
+      }
+     ]
+    },
+    {
+     "code": "MKJ",
+     "largest_name_share": 0.5514,
+     "names_with_min_reports": 2,
+     "reports": 4543,
+     "top_names": [
+      {
+       "name": "PHILIPS NORTH AMERICA LLC",
+       "reports": 2505
+      },
+      {
+       "name": "PHILIPS GOLDWAY (SHENZHEN) INDUSTRIAL INC.",
+       "reports": 2036
+      },
+      {
+       "name": "PHILIPS MEDICAL SYSTEMS",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "IZI",
+     "largest_name_share": 0.9977,
+     "names_with_min_reports": 1,
+     "reports": 1325,
+     "top_names": [
+      {
+       "name": "PHILIPS MEDICAL SYSTEMS NEDERLAND B.V.",
+       "reports": 1322
+      },
+      {
+       "name": "PHILIPS MEDICAL SYSTEMS",
+       "reports": 3
+      }
+     ]
+    },
+    {
+     "code": "MHX",
+     "largest_name_share": 0.5572,
+     "names_with_min_reports": 2,
+     "reports": 1005,
+     "top_names": [
+      {
+       "name": "PHILIPS MEDIZIN SYSTEME B\u00d6BLINGEN GMBH",
+       "reports": 560
+      },
+      {
+       "name": "PHILIPS MEDICAL SYSTEMS",
+       "reports": 424
+      },
+      {
+       "name": "PHILIPS NORTH AMERICA LLC",
+       "reports": 11
+      }
+     ]
+    },
+    {
+     "code": "DSI",
+     "largest_name_share": 0.5979,
+     "names_with_min_reports": 2,
+     "reports": 674,
+     "top_names": [
+      {
+       "name": "PHILIPS MEDICAL SYSTEMS",
+       "reports": 403
+      },
+      {
+       "name": "PHILIPS MEDIZIN SYSTEME B\u00d6BLINGEN GMBH",
+       "reports": 267
+      },
+      {
+       "name": "PHILIPS NORTH AMERICA LLC",
+       "reports": 2
+      }
+     ]
+    },
+    {
+     "code": "BZD",
+     "largest_name_share": 0.375,
+     "names_with_min_reports": 0,
+     "reports": 192,
+     "top_names": [
+      {
+       "name": "PHILIPS / RESPIRONICS, INC.",
+       "reports": 72
+      },
+      {
+       "name": "PHILIPS/RESPIRONICS, INC.",
+       "reports": 37
+      },
+      {
+       "name": "PHILIPS / RESPIRONICS INC.",
+       "reports": 28
+      }
+     ]
+    },
+    {
+     "code": "LNH",
+     "largest_name_share": 0.9086,
+     "names_with_min_reports": 1,
+     "reports": 186,
+     "top_names": [
+      {
+       "name": "PHILIPS ELECTRONICS NEDERLAND B.V.",
+       "reports": 169
+      },
+      {
+       "name": "PHILIPS MEDICAL SYSTEMS NEDERLAND B.V.",
+       "reports": 17
+      }
+     ]
+    },
+    {
+     "code": "IYN",
+     "largest_name_share": 0.75,
+     "names_with_min_reports": 1,
+     "reports": 184,
+     "top_names": [
+      {
+       "name": "PHILIPS ULTRASOUND, INC",
+       "reports": 138
+      },
+      {
+       "name": "PHILIPS ULTRASOUND",
+       "reports": 44
+      },
+      {
+       "name": "PHILIPS ULTRASOUND (SHANGHAI) CO., LTD",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "HGM",
+     "largest_name_share": 0.9942,
+     "names_with_min_reports": 1,
+     "reports": 172,
+     "top_names": [
+      {
+       "name": "PHILIPS MEDIZIN SYSTEME B\u00d6BLINGEN GMBH",
+       "reports": 171
+      },
+      {
+       "name": "PHILIPS MEDICAL SYSTEMS",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "JEQ",
+     "largest_name_share": 0.9762,
+     "names_with_min_reports": 0,
+     "reports": 84,
+     "top_names": [
+      {
+       "name": "PHILIPS ORAL HEALTHCARE, LLC",
+       "reports": 82
+      },
+      {
+       "name": "PHILIPS ELECTRONICS LTD",
+       "reports": 1
+      },
+      {
+       "name": "PHILIPS/PHILIPS AUSTRIA GMBH",
+       "reports": 1
+      }
+     ]
+    }
+   ],
    "top_countries": [
     {
      "country": "NL",
@@ -556,6 +1874,200 @@
    "largest_name_share": 0.2346,
    "names_with_min_reports": 10,
    "reports": 10455,
+   "top_codes": [
+    {
+     "code": "ERL",
+     "largest_name_share": 0.9755,
+     "names_with_min_reports": 1,
+     "reports": 816,
+     "top_names": [
+      {
+       "name": "STRYKER INSTRUMENTS-A DIVISION OF STRYKER CORP",
+       "reports": 796
+      },
+      {
+       "name": "STRYKER INSTRUMENTS",
+       "reports": 11
+      },
+      {
+       "name": "STRYKER CORPORATION",
+       "reports": 6
+      }
+     ]
+    },
+    {
+     "code": "HSB",
+     "largest_name_share": 0.9987,
+     "names_with_min_reports": 1,
+     "reports": 789,
+     "top_names": [
+      {
+       "name": "STRYKER GMBH",
+       "reports": 788
+      },
+      {
+       "name": "STRYKER LEIBINGER GMBH & CO. KG",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "FPO",
+     "largest_name_share": 0.9945,
+     "names_with_min_reports": 1,
+     "reports": 724,
+     "top_names": [
+      {
+       "name": "STRYKER MEDICAL-KALAMAZOO",
+       "reports": 720
+      },
+      {
+       "name": "STRYKER MEDICAL",
+       "reports": 4
+      }
+     ]
+    },
+    {
+     "code": "MBH",
+     "largest_name_share": 0.9927,
+     "names_with_min_reports": 1,
+     "reports": 682,
+     "top_names": [
+      {
+       "name": "STRYKER ORTHOPAEDICS-MAHWAH",
+       "reports": 677
+      },
+      {
+       "name": "STRYKER IRELAND OSTEONICS",
+       "reports": 4
+      },
+      {
+       "name": "STRYKER ORTHOPAEDICS-LIMERICK",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "HWE",
+     "largest_name_share": 0.9225,
+     "names_with_min_reports": 1,
+     "reports": 542,
+     "top_names": [
+      {
+       "name": "STRYKER INSTRUMENTS-A DIVISION OF STRYKER CORP",
+       "reports": 500
+      },
+      {
+       "name": "STRYKER GMBH",
+       "reports": 30
+      },
+      {
+       "name": "STRYKER INSTRUMENTS",
+       "reports": 8
+      }
+     ]
+    },
+    {
+     "code": "LPH",
+     "largest_name_share": 0.992,
+     "names_with_min_reports": 1,
+     "reports": 499,
+     "top_names": [
+      {
+       "name": "STRYKER ORTHOPAEDICS-MAHWAH",
+       "reports": 495
+      },
+      {
+       "name": "STRYKER / HOWMEDICA OSTEONICS CORP",
+       "reports": 1
+      },
+      {
+       "name": "STRYKER / HOWMEDICA OSTEONICS CORP.",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "HBE",
+     "largest_name_share": 0.9643,
+     "names_with_min_reports": 1,
+     "reports": 476,
+     "top_names": [
+      {
+       "name": "STRYKER INSTRUMENTS-A DIVISION OF STRYKER CORP",
+       "reports": 459
+      },
+      {
+       "name": "STRYKER CORPORATION",
+       "reports": 8
+      },
+      {
+       "name": "STRYKER INSTRUMENTS",
+       "reports": 5
+      }
+     ]
+    },
+    {
+     "code": "FNL",
+     "largest_name_share": 0.9665,
+     "names_with_min_reports": 1,
+     "reports": 388,
+     "top_names": [
+      {
+       "name": "STRYKER MEDICAL-KALAMAZOO",
+       "reports": 375
+      },
+      {
+       "name": "STRYKER MEDICAL",
+       "reports": 12
+      },
+      {
+       "name": "STRYKER CORPORATION",
+       "reports": 1
+      }
+     ]
+    },
+    {
+     "code": "GEI",
+     "largest_name_share": 0.6108,
+     "names_with_min_reports": 2,
+     "reports": 352,
+     "top_names": [
+      {
+       "name": "STRYKER ENDOSCOPY-SAN JOSE",
+       "reports": 215
+      },
+      {
+       "name": "STRYKER INSTRUMENTS-A DIVISION OF STRYKER CORP",
+       "reports": 116
+      },
+      {
+       "name": "STRYKER INSTRUMENTS",
+       "reports": 8
+      }
+     ]
+    },
+    {
+     "code": "GCJ",
+     "largest_name_share": 0.941,
+     "names_with_min_reports": 1,
+     "reports": 271,
+     "top_names": [
+      {
+       "name": "STRYKER ENDOSCOPY-SAN JOSE",
+       "reports": 255
+      },
+      {
+       "name": "STRYKER ENDOSCOPY",
+       "reports": 8
+      },
+      {
+       "name": "STRYKER CORPORATION",
+       "reports": 5
+      }
+     ]
+    }
+   ],
    "top_countries": [
     {
      "country": "US",
