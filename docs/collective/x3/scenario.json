@@ -1,0 +1,429 @@
+{
+  "kind": "collective_demo_scenario",
+  "schema_version": 1,
+  "pack": "it_incidents",
+  "seed": 7,
+  "weeks": 40,
+  "company": "Corvane Group (fictional)",
+  "illustration": "A constructed illustration for an internal generality check of a third field: a desktop client release crashes after an update, written only in ticket narratives in English and German at several subsidiaries. It is not evidence that codes miss such cases.",
+  "tie_salt": "x3-it-incidents-demo",
+  "org": {
+    "schema_version": 1,
+    "enterprise": "corvane",
+    "sites": [
+      {
+        "site_id": "it-ashcombe",
+        "unit_path": "corvane/gb/ashcombe",
+        "country": "GB",
+        "display_name": "Ashcombe Freight IT (fictional)"
+      },
+      {
+        "site_id": "it-brackenford",
+        "unit_path": "corvane/gb/brackenford",
+        "country": "GB",
+        "display_name": "Brackenford Retail IT (fictional)"
+      },
+      {
+        "site_id": "it-calderwick",
+        "unit_path": "corvane/ie/calderwick",
+        "country": "IE",
+        "display_name": "Calderwick Logistics IT (fictional)"
+      },
+      {
+        "site_id": "it-dornfeld",
+        "unit_path": "corvane/de/dornfeld",
+        "country": "DE",
+        "display_name": "Dornfeld Handel IT (fiktiv)"
+      },
+      {
+        "site_id": "it-eichenau",
+        "unit_path": "corvane/at/eichenau",
+        "country": "AT",
+        "display_name": "Eichenau Werke IT (fiktiv)"
+      },
+      {
+        "site_id": "it-farrowdale",
+        "unit_path": "corvane/gb/farrowdale",
+        "country": "GB",
+        "display_name": "Farrowdale Services IT (fictional)"
+      }
+    ]
+  },
+  "master_data_additions": [
+    {
+      "site": "it-ashcombe",
+      "entity_type": "change_request",
+      "ids": [
+        "CHG0040777"
+      ]
+    },
+    {
+      "site": "it-ashcombe",
+      "entity_type": "software_release",
+      "ids": [
+        "REL/2408/04"
+      ]
+    },
+    {
+      "site": "it-brackenford",
+      "entity_type": "change_request",
+      "ids": [
+        "CHG0040777"
+      ]
+    },
+    {
+      "site": "it-brackenford",
+      "entity_type": "software_release",
+      "ids": [
+        "REL/2408/11"
+      ]
+    },
+    {
+      "site": "it-calderwick",
+      "entity_type": "software_release",
+      "ids": [
+        "REL/2408/04"
+      ]
+    },
+    {
+      "site": "it-dornfeld",
+      "entity_type": "change_request",
+      "ids": [
+        "CHG0040777"
+      ]
+    },
+    {
+      "site": "it-dornfeld",
+      "entity_type": "software_release",
+      "ids": [
+        "REL/2408/04"
+      ]
+    },
+    {
+      "site": "it-eichenau",
+      "entity_type": "software_release",
+      "ids": [
+        "REL/2408/11"
+      ]
+    },
+    {
+      "site": "it-farrowdale",
+      "entity_type": "change_request",
+      "ids": [
+        "CHG0040777"
+      ]
+    },
+    {
+      "site": "it-farrowdale",
+      "entity_type": "software_release",
+      "ids": [
+        "REL/2408/04"
+      ]
+    }
+  ],
+  "approvers": {
+    "schema_version": 1,
+    "enterprise": "corvane",
+    "approvers": [
+      {
+        "person_label": "pm-owner.corvane",
+        "role": "problem_manager",
+        "unit_path": "corvane"
+      },
+      {
+        "person_label": "ops-escalation.corvane",
+        "role": "it_operations_lead",
+        "unit_path": "corvane"
+      },
+      {
+        "person_label": "vm-owner.corvane",
+        "role": "vendor_manager",
+        "unit_path": "corvane"
+      }
+    ]
+  },
+  "followups": [
+    {
+      "type": "evidence_packet",
+      "args": {}
+    },
+    {
+      "type": "problem_record_draft",
+      "args": {
+        "impact": "medium"
+      }
+    }
+  ],
+  "items": [
+    {
+      "id": "hero-client-crash",
+      "role": "hero",
+      "label": "A desktop client release crashing after an update, written only in the ticket narratives",
+      "key": {
+        "entity_type": "software_release",
+        "entity_id": "REL/2408/04",
+        "predicate": "crash_after_update"
+      },
+      "visibility": "narrative_only",
+      "start_week": 33,
+      "weeks": 6,
+      "sites": [
+        {
+          "site": "it-ashcombe",
+          "language": "en",
+          "rate_per_week": 1
+        },
+        {
+          "site": "it-calderwick",
+          "language": "en",
+          "rate_per_week": 1
+        },
+        {
+          "site": "it-dornfeld",
+          "language": "de",
+          "rate_per_week": 1
+        }
+      ],
+      "codes": [
+        "ITC-9000"
+      ],
+      "structured": [
+        {
+          "entity_type": "it_service",
+          "ids": [
+            "FILE-SHARE",
+            "MAIL-SERVICE",
+            "REMOTE-ACCESS"
+          ],
+          "fill_rate": 1.0
+        }
+      ],
+      "narratives": {
+        "en": [
+          "The desktop client on release {release} crashed after the update and users lost their open sessions."
+        ],
+        "de": [
+          "Der Desktop-Client mit Release {release} ist nach dem Update abgestürzt."
+        ]
+      },
+      "slots": {
+        "release": "REL/2408/04"
+      },
+      "filler": [
+        2,
+        2
+      ],
+      "reporter": "pool",
+      "copies": []
+    },
+    {
+      "id": "sibling-rollout",
+      "role": "sibling",
+      "label": "The same release at a subsidiary that runs it without the failure",
+      "key": {
+        "entity_type": "software_release",
+        "entity_id": "REL/2408/04",
+        "predicate": null
+      },
+      "visibility": "none",
+      "start_week": 33,
+      "weeks": 6,
+      "sites": [
+        {
+          "site": "it-farrowdale",
+          "language": "en",
+          "rate_per_week": 1
+        }
+      ],
+      "codes": [
+        "ITC-9100"
+      ],
+      "structured": [
+        {
+          "entity_type": "it_service",
+          "ids": [
+            "FILE-SHARE"
+          ],
+          "fill_rate": 1.0
+        }
+      ],
+      "narratives": {
+        "en": [
+          "Release {release} was rolled out to the branch desktops."
+        ]
+      },
+      "slots": {
+        "release": "REL/2408/04"
+      },
+      "filler": [
+        2,
+        2
+      ],
+      "reporter": "pool",
+      "copies": []
+    },
+    {
+      "id": "decoy-generic-rise",
+      "role": "decoy",
+      "label": "A rise in the generic other or unspecified category across several services, after a new portal",
+      "key": {
+        "entity_type": "it_service",
+        "entity_id": "SERVICE-PORTAL",
+        "predicate": "incident_unspecified"
+      },
+      "visibility": "codes_only",
+      "start_week": 33,
+      "weeks": 6,
+      "sites": [
+        {
+          "site": "it-ashcombe",
+          "language": "en",
+          "rate_per_week": 1
+        },
+        {
+          "site": "it-brackenford",
+          "language": "en",
+          "rate_per_week": 1
+        },
+        {
+          "site": "it-calderwick",
+          "language": "en",
+          "rate_per_week": 1
+        },
+        {
+          "site": "it-dornfeld",
+          "language": "de",
+          "rate_per_week": 1
+        },
+        {
+          "site": "it-eichenau",
+          "language": "de",
+          "rate_per_week": 1
+        }
+      ],
+      "codes": [
+        "ITC-9000"
+      ],
+      "structured": [
+        {
+          "entity_type": "it_service",
+          "ids": [
+            "SERVICE-PORTAL",
+            "PRINT-SERVICE",
+            "ERP-FINANCE",
+            "SIGN-IN"
+          ],
+          "fill_rate": 1.0
+        }
+      ],
+      "narratives": {
+        "en": [
+          "A user asked how to raise a request in the new portal."
+        ],
+        "de": [
+          "Ein Benutzer fragte, wie man im neuen Portal eine Anfrage stellt."
+        ]
+      },
+      "slots": {},
+      "filler": [
+        1,
+        2
+      ],
+      "reporter": "pool",
+      "copies": []
+    },
+    {
+      "id": "decoy-forwarded-echo",
+      "role": "decoy",
+      "label": "An echo: a subsidiary's tickets forwarded, marked, to other service desks",
+      "key": {
+        "entity_type": "change_request",
+        "entity_id": "CHG0040777",
+        "predicate": "packet_loss"
+      },
+      "visibility": "narrative_only",
+      "start_week": 34,
+      "weeks": 4,
+      "sites": [
+        {
+          "site": "it-brackenford",
+          "language": "en",
+          "rate_per_week": 2
+        }
+      ],
+      "codes": [],
+      "structured": [],
+      "narratives": {
+        "en": [
+          "Packet loss started after change {chg}."
+        ]
+      },
+      "slots": {
+        "chg": "CHG0040777"
+      },
+      "filler": [
+        1,
+        2
+      ],
+      "reporter": "pool",
+      "copies": [
+        {
+          "to_site": "it-ashcombe",
+          "marked": true
+        },
+        {
+          "to_site": "it-dornfeld",
+          "marked": true
+        },
+        {
+          "to_site": "it-farrowdale",
+          "marked": true
+        }
+      ]
+    },
+    {
+      "id": "decoy-alert-storm",
+      "role": "decoy",
+      "label": "An alert storm from a single monitoring source on a new release at a pair of subsidiaries",
+      "key": {
+        "entity_type": "software_release",
+        "entity_id": "REL/2408/11",
+        "predicate": "latency_degradation"
+      },
+      "visibility": "narrative_only",
+      "start_week": 34,
+      "weeks": 5,
+      "sites": [
+        {
+          "site": "it-brackenford",
+          "language": "en",
+          "rate_per_week": 3
+        },
+        {
+          "site": "it-eichenau",
+          "language": "de",
+          "rate_per_week": 3
+        }
+      ],
+      "codes": [],
+      "structured": [],
+      "narratives": {
+        "en": [
+          "Monitoring alert: high latency on hosts running release {rel}."
+        ],
+        "de": [
+          "Monitoring-Alarm: hohe Latenz auf Hosts mit Release {rel}."
+        ]
+      },
+      "slots": {
+        "rel": "REL/2408/11"
+      },
+      "filler": [
+        1,
+        2
+      ],
+      "reporter": "single",
+      "copies": []
+    }
+  ]
+}

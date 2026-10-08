@@ -19,6 +19,7 @@
         }
       },
       "draft_schema": null,
+      "template": null,
       "owner_role": "siu_investigator",
       "daily_cap": 30,
       "ack_days": 3,
@@ -67,6 +68,14 @@
             }
           }
         }
+      },
+      "template": {
+        "title": "headline",
+        "pattern_summary": [
+          "summary",
+          "evidence"
+        ],
+        "requested_checks": "for_owner"
       },
       "owner_role": "siu_investigator",
       "daily_cap": 5,

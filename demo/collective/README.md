@@ -36,7 +36,24 @@ German. This is the narrative-only case, constructed on purpose:
   everything that crossed are shown with it.
 - **An extended internal beat** (not in the cut): the supported conclusion becomes a read-only evidence packet
   assembled inside each plant and a CAPA draft for a named owner, each approved and run once. It is built ahead of X4
-  and not measured.
+  and not measured. Since B1 the draft is filled from the conclusion and the plants' packets through the pack's
+  template, field by field: the title names the failure mode and the lot, the problem statement adds each confirming
+  plant's evidence (its support bucket, codes and co-mentioned ids, all already sent to HQ), the affected lots are the
+  conclusion's lot and any lot the packets name, and the containment is left for the named owner to write; the
+  scorecard gives every field its source, and the screen says "left for the named owner to write" where the template
+  writes nothing of substance.
+
+**Why X sees what S and R do not, here.** The screen says it beside the S and R caption: by construction, X reads this
+case perfectly, because the scenario author wrote the hero narratives in the pack's own words and the plants read them
+with the deterministic lexical stand-in. Extraction is not tested by this run (that is E1 and N1).
+
+**What this run does not show.** On the committed run R (model-free) flags a key of this case (the product under the
+generic code) at the top rank in X's own week, and S flags another (the lot under the same code) a week later; the
+screen shows both. So this run does not show a case that the fields allowed to leave miss, which is the case STRATEGY
+9.2's cut needs. The G8 recording that the final review read is kept, byte-identical, as superseded evidence
+(`docs/collective/evidence/superseded/collective-halvern-g10/`). **B1's constructed codes-miss illustration has not
+been built**: its second step, a separate constructed scenario fixed in advance by `docs/collective/b1/PREREG.md`, was
+never made, so no committed run shows a case the fields allowed to leave miss.
 
 ## Modes
 
@@ -56,7 +73,9 @@ approvals, and the badge says RECORDED. `--replay` and `--export` show a recorde
 says RECORDED whatever mode the run was made in (`screen.json`'s `presentation`); the footer keeps how it was made
 (`mode`: a scripted run, or one driven live in the console). Without
 `--routing`, every plant's model is a deterministic stand-in (no model) and the screen says so; with a routing file
-the plants are simulated in one process with one shared model, which the screen also says (RUNBOOK section 16).
+to a model the plants are simulated in one process with one shared model, which the screen also says; with one that
+sends every plant's calls to a local test server, the screen says that instead and names no shared model (RUNBOOK
+section 16).
 
 ## The run-file contract
 
@@ -77,7 +96,8 @@ tests check. After any change to the engine, the scenario or the code it runs:
 
 1. record a new run: `python demo/collective/collective_demo.py --record demo/collective/recorded/<new-run-id>`
    (the directory's name becomes the run id);
-2. delete the old directory under `demo/collective/recorded/` (exactly one run is committed);
+2. delete the old directory under `demo/collective/recorded/` (exactly one run is committed; the committed run is
+   `collective-halvern-b1a`);
 3. run the lint on the new directory and run `python -m pytest tests/mycelic/test_collective_demo.py -q`.
 
 ## What it does not show

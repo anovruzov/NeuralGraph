@@ -29,6 +29,7 @@ from mycelic.collective.inference.tasks import data_block
 from mycelic.collective.jsonio import canonical_dumps
 from mycelic.collective.packs.canonical import Canonicaliser
 from mycelic.collective.packs.loader import load_pack, thaw
+from tests.mycelic.test_collective_guards import BUILTIN_PACKS
 
 CLOCK = "2026-01-01T00:00:00.000Z"
 LOOPBACK = ("127.0.0.1", "::1", "localhost")
@@ -49,7 +50,7 @@ def tearDownModule() -> None:
     socket.create_connection = _real_create_connection
 
 
-PACKS = {pid: load_pack(pid) for pid in ("device_quality", "claims_integrity")}
+PACKS = {pid: load_pack(pid) for pid in BUILTIN_PACKS}
 DQ = PACKS["device_quality"]
 
 

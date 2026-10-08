@@ -2089,3 +2089,783 @@ Mutation check, on a scratch copy outside the worktree: with `pending_non_synthe
 `pending_non_synthetic()` in `edge/site.py`, the new test's non-synthetic case fails ("SiteError not raised"); the
 unmutated code passes it. No fabric file, pack file or SQLite schema changed; only
 `tests/mycelic/test_collective_edge.py` and this file.
+
+## B1 (round 4, gate 1 of 4): an honest codes-miss illustration in the demo
+
+The final review found that the committed demo case is not one the restricted central baseline misses: R
+(model-free) flags the product under the generic code at the top rank in X's own week, and S flags the lot a week
+later. STRATEGY 9.2 names a case that R misses or mis-ranks and pushdown resolves as the cut's centre; this run is not
+one, and the draft it ends with repeated one line and listed no lots. B1 keeps that run as evidence, fixes the draft,
+the attribution and the wording around the first scenario, and adds a second, constructed scenario in two commits:
+**B1a** (sections 1 to 4 of the brief: everything before any codes-miss world exists, including the pre-registration)
+and **B1b** (the scenario, the engine's attribution rule and its screen, the attempts and the re-recordings).
+**Status (audit round 4): only B1a was committed. B1's constructed codes-miss illustration has not been built**: no
+B1b commit, no `demo/collective/scenario_codes_miss.json`, no `docs/collective/b1/attempts/` and no run of it exist,
+and the only recorded run is `collective-halvern-b1a`, which shows no case the allowed fields miss.
+
+### B1a: the draft template, source attribution, one sites wording, the superseded run and the pre-registration
+
+**Base.** Branch `mycelic-collective-phase2` at b0af5b8 (audit round 3), a clean worktree. Nothing is committed by
+the engineer. No codes-miss world was built, previewed or detected in B1a: `scenario_codes_miss.json` and
+`docs/collective/b1/attempts/` do not exist yet. To write the cast into the pre-registration the engineer read the pack
+data only (the generator's sites, universe, links, fill rates and master data, and `window_weeks`), never a world.
+
+**Scope: fabric files changed: none.** Frozen and unchanged (`git diff --name-only b0af5b8` empty):
+`mycelic/collective/{detect,edge,evaluate}/`, `stats.py`, `jsonio.py`, `schemacheck.py`, `experiments/common.py`;
+`DETECT_SHA256` is unchanged. Changed: `packs/loader.py`, both packs' `followups.json`, `followup/drafts.py`,
+`demo/collective/{collective_demo.py,screen.py,README.md,SCRIPT.md}`, `docs/collective/{ARCHITECTURE,INTEGRATION,
+LEAKAGE,PACKS,RUNBOOK}.md` and five test files. Added: `docs/collective/b1/PREREG.md`,
+`docs/collective/evidence/superseded/collective-halvern-g10/README.md` and the run
+`demo/collective/recorded/collective-halvern-b1a/`. Moved (`git mv`, byte-identical; the six b0af5b8 sha256 values are
+pinned in `SupersededEvidenceTests`): `demo/collective/recorded/collective-halvern-g10/` to
+`docs/collective/evidence/superseded/collective-halvern-g10/`.
+
+| Part | What changed | Tests |
+|---|---|---|
+| Draft template (pack data, loader) | Every follow-up type gains the required key `template`, after `draft_schema`: null unless the executor is `draft`; for a draft type one source per required property (`PACKS.md` 1.3). `FollowupType.template`; `template` joins `RESERVED`. The loader refuses, each with a fixed problem at the template's path: the key set or not against the executor, unknown and missing properties, an unknown source, a duplicate list entry, a source that does not fit the property's type (a list on an array, an empty or too-long list included), and `entity_ids:` of a type that may not leave a site | `TemplateLoaderTests` (every refusal, the built-in templates, other legal forms changing only `config_hash`, `RESERVED`, only `config_hash` differs from G5) |
+| Template drafter (`drafts.py`) | `template_draft` fills `headline`, `summary`, `evidence` (one clause per ok packet), `for_owner` (`FOR_OWNER_TEXT` or `[]`), `entity_ids:<type>` and `confirming_sites`; cuts strings at whole clauses, then the evidence, then the last space, and arrays at `maxItems`; `template_sources`, `SOURCES`, `EVIDENCE_NONE`. `DraftWriter`, the schema check and the scope scan are unchanged; no clause format tripped the scan in either pack | `TemplateDraftTests` (every pack under `BUILTIN_ROOT`, every enabled draft type, every egress entity type, ok, partial and failed packet sets with the packs' own site ids and every bucket label: schema-valid, scope-clean, distinct non-empty strings, the entity-ids rule, confirming sites, the clause-boundary cut on a 120-packet payload, dropping the evidence, the space cut, `EVIDENCE_NONE`, a model draft ignoring the template and still scope-checked) |
+| Source attribution (`collective_demo.py`) | The scorecard's draft block gives each field and list a `source`; `field_sources(ft, label, ledger_source)`: the template's sources when no model wrote the draft (stand-in, template, local test server), `model` for a routed model, else the ledger's (`edited`) | `DraftSourceAndStampTests`; `_HeroAssertions.assert_draft` on the fixture recordings and the committed run (affected lots recomputed from the hero key and the ok packets' co-mentions, distinct title, problem statement and containment, every source) |
+| One sites wording | `sites_stamp(routed, providers)` sets `stamps.shared_model` and the trace's `sites_note`: `SITES_NOTE` only when an extract or judge call went to a model; `TEST_SERVER_SITES_NOTE` for a run routed to a local test server; none without routing | `DraftSourceAndStampTests::test_sites_stamp_*`; `ExportReplayTests::test_routing_fake_server_end_to_end` rewritten |
+| X by construction | `detection.by_construction` gains `X` and `x_reason` (`X_BY_CONSTRUCTION` when the extract label is not a model's); the screen shows "By construction, X reads this case perfectly: " with the reason as an item | `_HeroAssertions.assert_detection`; `HonestyTests::test_screen_sentences_follow_flags` now toggles it too |
+| Screen | A `for_owner` field or list reads "left for the named owner to write"; an empty list from another source "none in the conclusion or the packets"; "none listed" is gone | `DraftSourceAndStampTests::test_the_screen_shows_each_draft_field_by_its_source` |
+| Evidence | The G8 run moved to `docs/collective/evidence/superseded/collective-halvern-g10/` with a README naming why it is superseded and pointing into its scorecard | `SupersededEvidenceTests` (sha256 pins, portability, README pointers resolve, the README's claims checked against the scorecard) |
+| Pre-registration | `docs/collective/b1/PREREG.md`: the Tarnwick cast, the shift, the realism constraints, `CODES_MISS_RULE`, `STATEMENT` and `AUTHOR_NOTE` verbatim, seed 29, the eight robustness seeds, the grid, the attempt rules and the disclosure. Never edited after B1a | `SupersededEvidenceTests::test_the_prereg_is_committed_with_the_cast_and_the_rule` |
+
+**Pack hashes (only `config_hash` changed).** `B1_CONFIG_HASHES` (`test_collective_pushdown.py`, after
+`R2_CONFIG_HASHES`); the vocabulary, detector and fixtures hashes are G5's.
+
+| Pack | `config_hash` (R2) | `config_hash` (B1) |
+|---|---|---|
+| `device_quality` | `ac59c4cbb418509f02c8cef3cfb738fa65849f659844f6286e90a676f8c2276f` | `9de50cd4f690ba8876c7e1abb62f6fca886d1c5b96c00b048fa54d0c0c8a9d2d` |
+| `claims_integrity` | `12d62cdfcab0c3fab0a0f1f11f1809df08aacce691b7dee41d3a86c7085deb7a` | `0ddf016d5bdb7f345528db831b9d174831fa15327518c3e9ddbd5781008c19a6` |
+
+**Code hashes that change** (`packs/loader.py` is in each file list; first 32 hex, b0af5b8 then B1a):
+
+| Hash | b0af5b8 | B1a |
+|---|---|---|
+| X1 (`harness.EVAL_CODE_FILES`) | `e41939185b7f9e4dfc60d83460bac6a5` | `58be1775321f1ee74abdff055b71a09f` |
+| E1 (`e1_extract.E1_CODE_FILES`) | `37073e7a005d4cf2977466d0b8b6b322` | `07c08295d7eeeff6eadcaa1db80ee500` |
+| E2 (`e2_pushdown.E2_CODE_FILES`) | `50199a9d42b29a5df0947c127da3ab37` | `73183f3e994195d990ae494748194ce8` |
+| openFDA replay (`openfda_replay.REPLAY_CODE_FILES`) | `a5283e561bf97889135fac08ce1de0a0` | `2a0125d962aeead5b8693f3ac1d6f8c8` |
+
+**The committed run.** `demo/collective/recorded/collective-halvern-b1a` is the only run under `recorded/`:
+`content_hash` `8e851b4b796fc72165880791866ad11e`, scenario digest `63533d7ef51943361aa3d6f4ecd9d40e` (unchanged from
+G8), every check ok, the lint green. Its detection blocks are the G8 run's: R (model-free) still flags the product
+under the generic code at the top rank in X's week, and the screen and README say so. `--record` took 15.2 s (the
+command's own `record:` line; wall clock 15.5 s with interpreter start-up), sandbox engineering timing, not a product
+figure.
+
+### Test counts (sandbox timing, not a product figure)
+
+Both suites with `TMPDIR` on tmpfs, `nats-server` on the path; the b0af5b8 column is the same command on an export of
+that commit, run in this sandbox the same day.
+
+| Command | b0af5b8 | B1a |
+|---|---|---|
+| `python -m pytest tests/mycelic -q -p no:warnings` | 1017 passed (27,378 subtests), 0 skipped, in 806 s | 1033 passed (27,480 subtests) = 1017 + 16 new, 0 skipped, in 798 s |
+| `python -m pytest NeuralGraph/tests -q -p no:warnings` | not re-run (no file under `NeuralGraph/` changed) | 222 passed, 1 skipped (119 subtests) in 5 s; the skip is the pre-existing one every earlier round lists |
+
+The added suite time is within the run-to-run noise (the B1a run was 8 s faster). The 16 new tests take under a second
+on their own (`TemplateLoaderTests` and `TemplateDraftTests`: 10 tests in 0.7 s); `DraftSourceAndStampTests` and
+`SupersededEvidenceTests` add no recording (their 30 s on their own is the module's two shared recordings in
+`setUpModule`, which the full suite already runs). G0 (`--records 1000 --seed 11`) exits 0 for both packs with `hits`
+empty and `shingle_overlap_bytes` 0 (8.3 s and 8.2 s); the E5 tests pass.
+
+### Earlier tests whose expectation changed
+
+Changed, never weakened:
+
+- `test_collective_followup.py`: `PacketDraftTests::test_drafts_from_structured_inputs_only` checked the template
+  draft against the conclusion's own scope; the evidence now names the packets' co-mentions, so it checks the
+  service's scope (the conclusion's plus the packets' co-mentions, `FollowupService._scope`) and also asserts that the
+  conclusion's scope alone refuses the evidence field (`out_of_scope_id`). Its claims-pack title assertion is the new
+  headline, and the summary is asserted at the start of `pattern_summary`, with `EVIDENCE_NONE` at its end (no packet)
+  and `requested_checks` empty. `PackFollowupTests` pins `B1_CONFIG_HASHES` and asserts the hash differs from G6, G7
+  and R2. The T2 type of the `DQX_EDITS` pack copy gains `"template": null` (the key is required).
+- `test_collective_pushdown.py` (`test_only_config_hash_changed_against_g5`) and `test_collective_evaluate.py`
+  (`test_the_loader_accepts_plant_files_and_hashes_none_of_them`): the pinned config hash is B1's, and each asserts it
+  differs from R2's and G7's.
+- `test_collective_demo.py`: `test_routing_fake_server_end_to_end` asserted "one shared model" for a run routed to the
+  fake server; it now asserts `shared_model` false, `TEST_SERVER_SITES_NOTE`, no "shared model" in any screen text or
+  item, template sources and `by_construction.X`. `HonestyTests::test_screen_sentences_follow_flags` also toggles
+  `by_construction.X`.
+
+### Merge notes
+
+1. **No fabric change and no fabric integration point.**
+2. **Only `config_hash` changed in both packs.** A site store, HQ store or follow-up ledger created with the R2 hash
+   is refused (`config_hash` / `ledger_info mismatch`); rebuild them. A pack copy elsewhere (the lab's fixtures, the
+   third pack of B4) needs the `template` key on every follow-up type, `null` unless it drafts.
+3. **Every X1, E1, E2 and openFDA-replay prereg made before B1 is refused** (the code hashes above): the lab team must
+   re-make its preregs on this commit before a run.
+4. **Scorecard and trace schema.** The demo scorecard's draft fields and lists carry `source`, `by_construction` carries
+   `X` and `x_reason`, and the trace's `sites_note` may be `TEST_SERVER_SITES_NOTE`. The trace's `draft` events are
+   unchanged (no source). The superseded G8 run does not validate against the new scorecard schema and is not linted
+   as a run; its `screen.json` still validates, so `--replay` of that directory works.
+5. **G0 byte figures** in `LEAKAGE.md` sections 10 and 11 are re-measured (the drafts restate the packets' evidence);
+   G0 still exits 0 with `hits` empty and `shingle_overlap_bytes` 0 for both packs.
+
+### Disagreements and residuals, for the reviewer
+
+- **The evidence follows the summary after one space**, as the brief's list rule says, so the problem statement reads
+  "... (conclusion c-... v1) plant-ashvale: confirm, support 3-9, ...". A separator such as " Evidence: " would read
+  better but is not in the brief.
+- **The clause format was not changed** for the scope scan: with the packs' own site ids, every bucket label and
+  every code label, no clause trips it. Synthetic site ids such as `site-ok-000` do (the device pack reads `ok-000` as
+  a product id), so the tests use the packs' site ids or letter-only ids; a real site id of that shape would make the
+  draft fail `out_of_scope_id`, visibly, never pass.
+- **`LEAKAGE.md` section 11's committed-run figure** said 49,452 run-file bytes while the G8 run's own `leakage.json`
+  says 49,571; it now quotes the B1a run's own value.
+
+## B2 (round 4, gate 2 of 4): sealed, procedurally blind X1
+
+B2 runs X1 (STRATEGY 11.2) on both built-in packs as properly as is honest in this sandbox, in four local commits the
+orchestrator authorises in order: **B2a** freezes the evaluation code, the planter brief and the results template;
+**B2b** derives ten fresh seeds and makes one prereg per pack on the clean B2a tree; a fresh planter agent, given only
+the brief, writes the specs in a tmpfs sandbox; **B2c** seals them; **B2d** runs the harness once per pack and writes
+`RESULTS.md` from the template. **The planter and the detector author are the same AI system: the blinding is
+procedural only, STRATEGY 11.2's X1 is not met, and every result is synthetic and internal only.**
+
+### B2a: the freeze (harness, brief, template, tests, docs)
+
+**Base.** Branch `mycelic-collective-phase2` at d8feab1 (B1a), a clean worktree. Nothing is committed by the
+engineer. No seed, prereg or sealed spec of B2 exists in this tree, no harness `run` used any of them, and the
+engineer has not opened any planter file (see "A planter run before B2a" below).
+
+**Scope.** Under `mycelic/` only `mycelic/collective/evaluate/harness.py` changed (`git diff --name-only d8feab1 --
+mycelic/`). `plant.py`, `baselines.py`, `detect/`, `edge/`, `packs/*.py`, `stats.py`, `jsonio.py`,
+`schemacheck.py` and `experiments/common.py` are unchanged, and `DETECT_SHA256` still matches. Also changed:
+`tests/mycelic/test_collective_evaluate.py`, `docs/collective/{RUNBOOK,ARCHITECTURE,INTEGRATION}.md`. Added:
+`tests/mycelic/test_collective_x1_sealed.py`, `docs/collective/x1/PLANTER_BRIEF.md`,
+`docs/collective/x1/RESULTS_TEMPLATE.md`. No RUNBOOK placeholder was added, so `test_collective_guards.py` is unchanged.
+
+| Part | What changed | Tests |
+|---|---|---|
+| Channel intervals | `interval_blocks` merges `recall_net_ci` (patterns resampled; the lifts' per-seed net found), `precision_at_40_ci`, `average_precision_ci` and `false_alarms_per_week_ci` (seeds with a value resampled) into every channel block, the ablation's included; seed string `x1:<seed>:<channel>:<metric>`; null without a cluster; `channel_block`'s signature is unchanged | `MetricTests::test_interval_blocks_on_hand_built_inputs`, `ScorecardSchemaTests::test_every_channel_carries_its_intervals_and_the_rate_strata`, the ablation in `PlantedConstructionTests`, `assert_interval_blocks` |
+| Adjusted lifts | `lift(family_size=1)`: `alpha_adjusted = 0.05 / family_size`, `ci_low_adjusted`, `ci_high_adjusted` from a second call with the same seed string (same replicates, nested); `x1.verdict` reads the unadjusted interval | `MetricTests::test_lifts_carry_an_adjusted_interval_from_the_same_replicates` |
+| Prereg keys | `family_size` (1 to `MAX_FAMILY_SIZE` = 100, `--family-size`, default 1) and `planter_relation` (`PLANTER_RELATIONS`, `--planter-relation`, default `unstated`), required in the closed `PREREG_SCHEMA`, validated in `cmd_prereg` with `UsageError` | `HarnessTests::test_prereg_pins_the_family_size_and_the_planter_relation`, `test_read_prereg_refuses_a_prereg_without_or_with_a_bad_family_size_or_relation` |
+| x1 block | `family_size`, `planter_relation`, `independent`, `counts_as_strategy_x1`, `caveats` (`SAME_SYSTEM_CAVEAT`, `UNSTATED_CAVEAT`); `eligible`, `reasons` and `verdict` unchanged; keyword defaults keep earlier callers working | `MetricTests::test_x1_relation_family_size_and_caveats` (the full truth table) |
+| Rate strata | each scorecard pattern carries `rate_per_week`; `by_rate_per_week` rows (ascending) of `found_net` and `recall_net` per channel | `MetricTests::test_rate_strata_split_net_recall_by_planted_rate` |
+| check-plant | refuses a non-null `prereg_sha256` that is not the prereg file's sha256 (`run`'s message, `check_binding`); `--construct` builds every prereg seed's world and plant (`construct_every_seed`) and prints `construction: ok (seeds=N)`, or exits 2 with the error plus ` (seed <s>)` and no stdout; a dry run constructs nothing; without the flag the output is unchanged | `HarnessTests::test_check_plant_refuses_a_foreign_binding_and_accepts_a_matching_or_null_one`, `test_check_plant_construct_builds_every_prereg_seed_and_writes_nothing`, `test_check_plant_construct_names_the_seed_of_a_construction_failure`; `test_check_plant_prints_the_prereg_sha_and_writes_nothing` unchanged |
+| Schemas, notes | `SCORECARD_SCHEMA` and `PREREG_SCHEMA` stay closed; `NOTES` gains the two B2 sentences; docstring and CLI help | `ScorecardSchemaTests::test_the_schema_rejects_tampering` (new cases), `DeterminismTests` (B2 prereg flags; the new blocks equal across processes) |
+| Planter brief | `docs/collective/x1/PLANTER_BRIEF.md`: the planter's whole prompt (role, permitted reads, forbidden reads, commands, outputs, world, format with a skeleton, decoy classes, the rules check-plant enforces, the brief's own rules, procedure, names and paths) | `PlanterBriefTests` (forbidden words, classes, `PLANTED_BY`, `PERMITTED_READS`, bands, k, the 4-of-6 rule against the packs and against `check_plant`, portability, model names) |
+| Brief rules | `brief_problems` and `brief_main` in `test_collective_x1_sealed.py` (fixed messages, never a value) | `BriefRuleTests` (smoke specs, a passing spec, each rule alone, `brief_main`) |
+| Results template | `docs/collective/x1/RESULTS_TEMPLATE.md`: the catalog (six `always` sentences with the corrected blind sentence, the governing-interval and multiple-comparisons texts, ten interpretations in order with their conditions, ten row groups, the format) and the sections `RESULTS.md` follows | `TemplateTests` (closed shape, pinned texts, evaluator, expander, renderer, formatter), `TemplateOnAScorecardTests` (every scorecard row and condition pointer resolves on a one-seed smoke scorecard) |
+
+**The brief audit (for the reviewer).** The brief states only the world shape (six sites, 104 weeks, `start`,
+evaluation weeks 26 to 103), k (3 and 5), the stale bands (19 to 21 and 19 to 20), the 4-of-6 sites rule, master
+data, template, alias and code availability, and the class shapes, all of which check-plant reveals. It names no
+prereg as readable (the wrapper hands the prereg to check-plant, which prints its sha256), and adds `mapping.json`
+to the permitted reads (structured entity types). `PLANTED_BY` is 77 characters.
+
+**Pre-stated for B2b to B2d** (written before any seed, prereg or spec of B2 exists):
+
+- **Seed rule.** `seed_i = 1 + int(sha256(f'x1-sealed:{B2a}:{i}'.encode()).hexdigest()[:8], 16) % 100000` for
+  `i = 0, 1, ...`, where `{B2a}` is the B2a commit's 40-hex sha. A candidate is excluded when it repeats an earlier
+  candidate (`duplicate`) or when this prints anything (`found: <path>:<line>`, the first hit):
+
+  ```
+  git -C <worktree> grep -n -w -e <value> <B2a> -- tests docs demo mycelic/collective
+  ```
+
+  The first 10 accepted values, sorted, are the seeds; `docs/collective/x1/seeds.json` records every candidate up to
+  the tenth accepted one.
+- **B2b prereg command**, per pack, on the clean B2a tree, with `TMPDIR=/dev/shm/b2/tmp`, then `cp` byte-identical to
+  `docs/collective/x1/<pack>/prereg.json`:
+
+  ```
+  python -m mycelic.collective.evaluate.harness prereg --pack <pack> --seeds <seeds> --weeks 104 --eval-from 26 --eval-to 103 --grace-weeks 4 --tie-salt x1-sealed-<pack> --detector-author 'mycelic collective engineer agent' --family-size 2 --planter-relation same_system_procedural --bootstrap-b 10000 --bootstrap-seed 1 --run-id x1-sealed-<pack>-prereg --runs-dir /dev/shm/b2/runs
+  ```
+
+- **Sandbox** (built from the committed B2b tree; nobody changes the worktree from the B2b commit until the planter
+  finishes): `/dev/shm/b2/planter/BRIEF.md` (byte-identical to `PLANTER_BRIEF.md`), `packs/<pack>/<the seven pack
+  files>` (byte-identical), an empty `specs/`, and `check-plant` (mode 755) made from
+  `docs/collective/x1/check-plant.sh.in` with `@REPO@` set to the worktree and `@LOG@` to
+  `/dev/shm/b2/check_plant_calls.jsonl`, outside the sandbox. Every sandbox file's sha256 goes into SEAL.
+- **Prompt form.** Exactly the bytes of `PLANTER_BRIEF.md` followed by `\nSandbox: /dev/shm/b2/planter\n`;
+  `prompt_sha256` is the sha256 of the exact text the orchestrator passed to the spawn call.
+- **B2d run command**, per pack, at HEAD == B2c on a clean tree, never `--allow-dirty`, with `TMPDIR=/dev/shm/b2/tmp`:
+
+  ```
+  python -m mycelic.collective.evaluate.harness run --prereg docs/collective/x1/<pack>/prereg.json --plant mycelic/collective/packs/data/<pack>/fixtures/plant_x1_sealed.json --seeds <the ten seeds> --run-id x1-sealed-<pack> --runs-dir /dev/shm/b2/runs
+  ```
+
+**Code hashes that change** (`harness.py` is in each file list; first 32 hex, d8feab1 then this worktree; the B2a
+values are recomputed on the committed tree by the reviewer, since any later edit of `harness.py` changes them):
+
+| Hash | d8feab1 | B2a |
+|---|---|---|
+| X1 (`harness.EVAL_CODE_FILES`) | `58be1775321f1ee74abdff055b71a09f` | `e7d5d82e3b9805358718b5927b6cca89` |
+| E2 (`e2_pushdown.E2_CODE_FILES`) | `73183f3e994195d990ae494748194ce8` | `7428e57c6c9e2b5f4e7d7a93d80a45bc` |
+| openFDA replay (`openfda_replay.REPLAY_CODE_FILES`) | `2a0125d962aeead5b8693f3ac1d6f8c8` | `452219e81aa711fb97387d8bc5da9663` |
+| E1 (`e1_extract.E1_CODE_FILES`, no `harness.py`) | `07c08295d7eeeff6eadcaa1db80ee500` | unchanged |
+
+No pack file changed: every pack hash is B1's.
+
+**Test counts (sandbox timing, not a product figure).** Both suites with `TMPDIR` on tmpfs and `nats-server` on the
+path; the d8feab1 column is B1a's recorded run.
+
+| Command | d8feab1 | B2a (this worktree) |
+|---|---|---|
+| `python -m pytest tests/mycelic -q -p no:warnings` | 1033 passed (27,480 subtests), 0 skipped, in 798 s | 1061 passed (27,620 subtests) = 1033 + 28 new, 0 skipped, in 761 s |
+| `python -m pytest NeuralGraph/tests -q -p no:warnings` | 222 passed, 1 skipped (119 subtests) | 222 passed, 1 skipped (119 subtests) in 5 s; the skip is the pre-existing one |
+
+The 28 new tests are 10 in `test_collective_evaluate.py` (the module: 75 tests in 80 s on its own) and 18 in
+`test_collective_x1_sealed.py` (9 s on its own, most of it the one-seed smoke scorecard of
+`TemplateOnAScorecardTests`).
+
+**Earlier tests whose expectation changed** (changed, never weakened):
+
+- `test_collective_evaluate.py`: `MetricTests::test_x1_eligibility_and_verdict` compared the whole x1 block; it now
+  includes the five new keys at their defaults (`family_size` 1, `unstated`, `independent` false,
+  `counts_as_strategy_x1` false, `[UNSTATED_CAVEAT]`). `DeterminismTests` makes its prereg with `--family-size 2
+  --planter-relation same_system_procedural` and also asserts the x1 additions, the adjusted lifts, the interval blocks
+  and `by_rate_per_week` equal across the two processes. `ScorecardSchemaTests::test_the_schema_rejects_tampering` gains
+  seven cases; `PlantedConstructionTests::test_the_x1_block_lifts_and_ablation` also checks the ablation's interval
+  blocks. `HarnessTests.prereg` gained a `seeds` keyword (a helper, no expectation).
+- `test_collective_e2.py` is unchanged and passes: its preregs come from the harness CLI, so the defaults fill the new
+  keys.
+
+**Merge notes.**
+
+1. **No fabric change and no fabric integration point.**
+2. **Every X1, E2 and openFDA-replay prereg made before B2a is refused** (the code hashes above; an X1 or E2 prereg
+   also lacks the two required keys). Re-make them on this commit; E1 preregs are unaffected.
+3. **Prereg and scorecard keys are added** (both schemas closed): the prereg's `family_size` and `planter_relation`; the
+   scorecard's four channel interval blocks, the lifts' adjusted fields, the x1 additions, `patterns[].rate_per_week`
+   and `by_rate_per_week`. A scorecard written before B2a fails the new schema; a consumer that copies the schema needs
+   the new keys.
+4. **check-plant refuses a mismatched binding** (before, only `run` did) and has `--construct`. The lab's argv keeps
+   working (both prereg flags are optional); a lab-made prereg gets `unstated` and family size 1, so its scorecard
+   carries `UNSTATED_CAVEAT` and `counts_as_strategy_x1` false.
+
+**A planter run before B2a (out of procedure; recorded, not used).** Before this freeze existed, the orchestrator
+spawned a planter that wrote one spec per pack and a declaration under `<scratchpad>/sealed_plants/` (outside the
+repository). As the orchestrator relayed the planter's report: it was given the full B2 design brief rather than
+`PLANTER_BRIEF.md` (which did not exist yet), and that text names detector mechanisms (through the forbidden-word
+list), the alert cut, the channels and the grace weeks; a listing of `loader.py` showed it detector setting names; so
+it set `planter_saw_detector_code` to true in both specs. There was no sandbox, no wrapper and no call log, and
+`prereg_sha256` is null in both specs because no prereg existed. The engineer has not opened these files; it only
+checked their sha256 against the relayed values (`sha256sum`, equal):
+
+| File | Bytes | sha256 |
+|---|---|---|
+| `specs/device_quality.json` | 19407 | `b34159af684607d836bd4b5379f0f8b6a94eec6f480de33cc9bd27d9e183db3f` |
+| `specs/claims_integrity.json` | 20035 | `24b8d490ddca5134c8279eb20daed21a20026952bfafa204c27c25d072223c6a` |
+| `declaration.json` | 4119 | `904bae9b16fc55059198399f698fe56627b050ddee2ef001af7d1386d5b8fe25` |
+
+They cannot be sealed as they are: an unbound spec fails the brief's rules, binding means changing `prereg_sha256`,
+which only a planter may do (after B2b, and it changes the bytes and so `plant`'s RNG, so construction must be
+re-checked at the prereg seeds), and a run on them would be ineligible (`planter_saw_detector_code` true). An
+eligible run needs the designed procedure: a fresh agent given exactly `PLANTER_BRIEF.md` in the B2b sandbox. Either
+way the run is recorded in `SEAL.json` `history` at B2c.
+
+### Disagreements and residuals, for the reviewer
+
+- **The construction-failure test uses five `de` filler sentences, not one.** The loader refuses fewer than five
+  (`S_FILLER` `minItems` 5), so the design's one-sentence pack copy cannot load. With five there are 5 + 20 + 60 = 85
+  filler-only texts, fewer than the 100 records of the test's `codes_only` `de` pattern, so construction fails at the
+  first seed whatever the draw.
+- **A dry run with `--construct` constructs nothing.** It checks the prereg, the pins, the world, the spec and its
+  binding (a foreign binding still exits 2), then emits; construction is the expensive part and writes nothing, so
+  the contract ("creates nothing") holds either way.
+- **On a construction failure check-plant prints nothing on stdout**, so `prereg_sha256:` appears only on success,
+  as the brief's procedure says.
+- **`passing_spec` is a brief-rule fixture**, built from pack ids and predicates; it meets every brief rule with the
+  least slack the single-rule cases need but is not a spec check-plant would accept. The sealed specs themselves are
+  checked against check-plant at B2c.
+- **`x1.caveats` is an enum list** in the schema (only the two caveat sentences), stricter than a free string list.
+- **The template's catalog writes every pointer out** (`/channels/{channel}/recall`, `/channels/{channel}/recall_net`,
+  ...) instead of the design's brace lists, so that only the five named placeholders and `{i}` need expanding. A
+  pointer that passes through null (an ineligible run's `/x1/verdict/pass`, rules' `precision_at_40_ci`) shows `null`;
+  a missing key is an error. Each SEAL row appears once: the packs' prereg and fixture rows are in `Lab handoff`, their
+  pack, pattern and decoy counts in `Protocol`. `By construction and warnings` and `Cost` are row groups of their own
+  in each pack's section.
+- **`==` and `!=` compare a bool only with a bool** in the condition evaluator, and an ordering op on a bool is false,
+  so `true` never equals `1`.
+
+## B3 (round 4, gate 3 of 4): X5, leakage beyond text, measured by an HQ-level red team
+
+B3 builds X5 (STRATEGY 6.4 and 11.2) and publishes its result as `LEAKAGE.md` section 12, "the leakage figure", in
+whatever direction it falls, in three local commits the orchestrator authorises in order: **B3a** the code, tests and
+docs; **B3b** the prereg (`docs/collective/x5/prereg.json`), made on the clean B3a tree before any `x5.json` exists;
+**B3c** one `run` of that prereg at HEAD = B3b, its `x5.json` and the filled section 12. **Everything is synthetic,
+same-author (the worlds, the red team and the defences come from the same AI system) and internal only; it is never a
+buyer claim.**
+
+### B3a: the code, tests and docs
+
+**Base.** Branch `mycelic-collective-phase2` at 202dd531 (B2a), a clean worktree. B2 committed only B2a (no seeds,
+seal or results) and B1 only B1a, so the base of every B3 check is 202dd531 and "the X1 code hash" is B2a's.
+
+**Scope.** Under `mycelic/` exactly three files differ from 202dd531 (`git diff --name-only 202dd531 -- mycelic/`):
+`experiments/__init__.py` (one docstring entry, "X5 (leakage beyond text, B3)") and the new
+`experiments/x5_inference.py` and `experiments/x5_attacks.py`. Also changed: `tests/mycelic/test_collective_guards.py`
+and `docs/collective/{LEAKAGE,RUNBOOK,ARCHITECTURE,INTEGRATION}.md`; added: `tests/mycelic/test_collective_x5.py`.
+`g0_canary.py`, `common.py`, `stats.py`, `leakage.py` (so `NOT_COVERED` is byte-unchanged), every file of every
+code-hash list of X1, E2, E1 and the openFDA replay, every pack file, `demo/` and `docs/collective/evidence/` are
+unchanged (`git diff --quiet 202dd531 -- demo docs/collective/evidence mycelic/collective/packs
+mycelic/collective/experiments/g0_canary.py mycelic/collective/experiments/common.py mycelic/collective/stats.py
+mycelic/collective/leakage.py`), so the demo's committed `leakage.json` files are byte-identical. No RUNBOOK
+placeholder was added.
+
+| Part | What | Tests (`test_collective_x5.py` unless named) |
+|---|---|---|
+| Split and strata | `split_members` (seeded coin per original, a copy follows its origin); `a1_targets` (balanced (site, week) strata, single-class strata dropped and counted, copies never targets) | `SplitTests` |
+| Variant copies | `write_variant`: `k<K>` (k and `bucket_edges`), `rmd_flipped`, `minus_type` (`mapping.primary_entity_type`: vocabulary, egress, question templates; a copy that does not load is a `UsageError` naming pack and type), `volume`; canonical JSON plus a newline; `a5_fields` (person fields of kind `name`) | `VariantPackTests` (buckets, hash deltas, the own-k rewrite changes nothing, device `lot` refused) |
+| Lexical rows | `lexical_rows` equals what a fake-mode site stores (`RecordStore.emission_inputs`) | `LexicalRowsTests` (both packs, a real pipeline) |
+| Facts | `Extractor`: cells by channel with covered weeks and the four-week span, usage, verdicts (confirm, newest week and the zeros after it, refute, unknown by master data, budget and no_secret silent, truncated open), packets, follow-up, HQ results, run files, deduplicated strings, week indexes | `FactExtractorTests` (hand-built artifact bodies, a year boundary) |
+| Attacks | `x5_attacks`: `FactIndex`, A1 score, `calibrate` and the coin, A2 with the prior chain, A3 bound propagation, A4, A5, A6; no attack function takes truth | `AttackTests` (constructed mini-worlds; signatures inspected) |
+| A6 probe | `a6_probe`: fresh `EdgeSite` and `SiteVerifier` per site from `as_of + 1` day, the per-entity budget per day, a `budget` answer asked again and counted, never read as absence | `A6ProbeTests` (a real site and verifier; HQ's own questions spend the day's budget first) |
+| Statistics | `label`, `value`, `summarise` (Wilson, cluster bootstrap, nested Bonferroni from the same seed), `incremental`; primary B versus exploratory B | `StatsLabelTests` |
+| Prereg and run | the closed prereg schema, the seed rule, the pins (code, packs, copies, worlds), dirty and existing-directory refusals, the dry runs and the estimate line, the cap | `PreregRunTests` |
+| x5.json | the closed results schema built from the prereg, portability, the self-scan, `content_hash`, the full matrix | `SchemaScanTests` (one tiny run made in `setUpModule`) |
+| Determinism | one tiny prereg run twice in subprocesses under `PYTHONHASHSEED` 0 and 1 | `DeterminismTests` |
+| Controls | `controls_block`, `control_exit`; injected cells pass the extractor and are refused by `check_artifact` | `ControlTests` |
+| Section 12 | the skeleton's fixed texts; `leakage_section` rows resolved by an independent parser with `format_value` and `lookup` from `test_collective_x1_sealed`; the bar; the NOT_COVERED mapping | `LeakageSectionTests` |
+| Code hash | every `mycelic.collective` module loaded with `x5_inference` is in `X5_CODE_FILES` | `ImportClosureTests` |
+| Guards | `STDLIB_ONLY_MODULES` 60 to 62, `CLI_MODULES` (`prereg`, `run`), `DETERMINISTIC_MODULES`, `X5AttacksImportGuardTests` (static guard, snippets, an injected import, `TYPE_CHECKING` only for the pack type, the fresh-interpreter module set), the RUNBOOK commands | `test_collective_guards.py` |
+
+**Hashes that do not change** (recomputed on this worktree; first 32 hex): X1 (`harness.eval_code_hash()`)
+`e7d5d82e3b9805358718b5927b6cca89` (B2a's; there is no SEAL); E2 `7428e57c6c9e2b5f4e7d7a93d80a45bc`; openFDA replay
+`452219e81aa711fb97387d8bc5da9663`; E1 `07c08295d7eeeff6eadcaa1db80ee500`; `device_quality` config `9de50cd4`,
+vocabulary `e46f5211`, detector `c9462f62`, fixtures `dc4b70b7`; `claims_integrity` config `0ddf016d`, vocabulary
+`028b7603`, detector `2041fe9b`, fixtures `a2e8936b` (B1's). **The X5 code hash** (`x5_inference.x5_code_hash()`,
+`X5_CODE_FILES`) is `dea481ca619129e1f42f685256834e81` on this worktree; the reviewer recomputes it on the committed B3a tree.
+
+**Test counts (sandbox timing, not a product figure).** Both suites with `TMPDIR` on tmpfs and `nats-server` on the
+path; the 202dd531 column is B2a's recorded run.
+
+| Command | 202dd531 | B3a (this worktree) |
+|---|---|---|
+| `python -m pytest tests/mycelic -q -p no:warnings` | 1061 passed (27,620 subtests), 0 skipped, in 761 s | 1122 passed (27,940 subtests) = 1061 + 61 new, 0 skipped, in 765 s |
+| `python -m pytest NeuralGraph/tests -q -p no:warnings` | 222 passed, 1 skipped (119 subtests) | 222 passed, 1 skipped (119 subtests) in 4 s; the skip is the pre-existing one |
+
+The 61 new tests are 54 in `test_collective_x5.py` (22 s on its own, most of it the tiny run of `setUpModule` and the
+two determinism subprocesses) and 7 in `test_collective_guards.py` (`X5AttacksImportGuardTests`, six, and
+`RunbookCommandTests::test_commands_cover_the_b3_clis`). No earlier test's expectation changed except
+`StdlibOnlyTests` (the module count, 60 to 62).
+
+**Rehearsals (sandbox, dirty tree, `--allow-dirty`; deleted afterwards; not results).** The B3b prereg command with
+`--allow-dirty` (seeds derived from 202dd531, not from B3a) wrote its prereg in 41 s, needed 54 of 60 pipelines and
+excluded one `claims_integrity` volume shadow world by the generator-capacity rule; `run --dry-run` on it printed the
+estimate line (54 pipelines, 14 worlds, 11 shadow worlds). A one-seed run of both packs with every variant, attack, type
+and simulated transform at the default B (explicit seeds 101 and shadow 102, n = 1000) exited 0 after 632 s with every
+control holding. No attack outcome of a rehearsal is reported anywhere: the result is B3c's. **Correction (audit round
+4):** that run was the whole experiment (every variant, attack, type and transform) at the pre-registered n, on the one
+seed 101 (B3b's five seeds derive from the B3a commit), and a run exits 0 only after writing `x5.json` and
+`leakage_section.md` (every label and the bar outcome); B3a's code also prints the bar outcome on its last line. The
+preregs and the run's two output files were deleted without a sha256, the outcome was not recorded, and whether code or
+rules changed after it was not recorded, so the outcome counts as seen and B3a's code, label rules, primary family and
+bar were fixed after it. The B3a commit message's "No X5 prereg was made and no x5.json written" is wrong. LEAKAGE.md
+section 12 ("Rehearsal disclosure") and the audit round 4 section below carry the disclosure.
+
+**Merge notes.**
+
+1. **No fabric change and no fabric integration point.** X5 reads G0's artifacts through their own modules.
+2. **A new CLI**, `python -m mycelic.collective.experiments.x5_inference` (`prereg`, `run`), and a new run kind,
+   `runs/x5/<id>/`.
+3. **No prereg is invalidated.** No file of the X1, E2, E1 or openFDA-replay code-hash lists changed, so every B2a
+   value holds and every earlier prereg still pins.
+4. **The lab runs no X5.** Nothing under `lab/` or `.github/` changed and no lab request names X5.
+5. **The B2b note.** B2b's pre-stated prereg is "made on the clean B2a tree", and the harness's `prereg` stamps
+   `code_commit` = HEAD. After B3 lands HEAD is no longer B2a: `eval_code_hash` is unchanged, so a B2b prereg made
+   later still pins the same evaluation code, but its `code_commit` would name a later commit than the one B2a's text
+   states. B3 does not resolve this; the orchestrator decides.
+
+**Deviations from the gate text and the design, all checked by reading the tree or by probes in `/dev/shm`
+(sandbox, same-day; not product figures).**
+
+- **Volume is four times, not ten.** The generator refuses ("narrative uniqueness exhausted") `claims_integrity` at
+  ten times at its 34-week minimum and at five times at 93 weeks for 3 of 5 seeds, and `device_quality` at ten times at
+  83 weeks; four times at the default world's weeks generated for 5 of 5 seeds in both packs (about 8,000 to 8,300
+  records and 4,000 members per world). The prereg's `--volume-factor` defaults to 4; a seed whose volume world does
+  not generate in every pack is skipped and recorded in `volume_excluded` ("generator capacity").
+- **No domain literals in code, so rules instead of names.** The removed type is `mapping.primary_entity_type`
+  (`device_quality` product, `claims_integrity` repair_shop; device `lot` is refused because the capa template uses
+  `entity_ids:lot`); the A5 fields are the generator's person fields of kind `name`. `POSITIVE_EXPECTED` is the
+  label constant, since the label word is also a device predicate.
+- **Six sentence templates, not five.** The Bonferroni interval contains the 95% one, but a 95% interval above 0 can
+  have a Bonferroni interval within [-0.05, 0.05], so (leak, at_chance) can occur; it has its own sentence, and it
+  still fails the bar (the bar reads the 95% label).
+- **The bar sentences do not quote the phrase.** They say "the claim that nothing leaks beyond text may not be made"
+  instead of quoting "no leakage", so the docs never hold that phrase in an X5 result.
+- **`x5.json` additions.** Each entry carries `family` (`primary` or `exploratory`); each world block carries
+  `records` and `originals` beside members and non-members; `rules.selection` carries `packs`, because canonical JSON
+  sorts object keys and `leakage_section` takes every order from a list; the prereg also records `stamps`, each pack's
+  `min_window_weeks` and `k_settings`, and `cap.needed`. A covered fact is one per week and channel of a bundle's span.
+- **Seeds.** The volume seeds are the first two seeds, in ascending order, whose volume world generates in every pack
+  (so both packs share them); explicit `--volume-seeds` must be among `--seeds`.
+- **A3 reads a verdict's support as a sum over both channels** (a record's claim for a key is in exactly one channel,
+  `edge.extract.pair`). Where a site's judge and its extraction disagree that constraint can be off: it can make the
+  attack less accurate (an empty interval falls back to the prior), never the evaluation wrong, since truth is the
+  sites' own rows.
+- **The tiny test fixture uses n = 400.** At n = 200 the device world had too few A4 pairs for the `k1_reference` A4
+  control to be labelled `leak` at B = 100 (the run exits 2, as it should); 400 gives a fixture that holds every
+  control.
+- **A harness self-check that fails** (a recomputed detection that differs from the stored run, an A6 probe past its
+  day cap, a world that no longer matches its digest during the run) exits 2 with `harness error:` and writes
+  nothing.
+
+**Pre-stated for B3b and B3c** (written after the rehearsals above, whose prereg and `x5.json` were deleted, and before
+the B3b prereg; corrected in audit round 4, which also changed the X5 code and therefore its hash):
+
+- **B3b**, on the clean B3a tree, with `TMPDIR=/dev/shm/b3/tmp`, then `cp` byte-identical to
+  `docs/collective/x5/prereg.json`:
+
+  ```
+  python -m mycelic.collective.experiments.x5_inference prereg --packs device_quality,claims_integrity --n 1000 --bootstrap-seed x5-b3 --run-id x5-b3-prereg --runs-dir /dev/shm/b3/runs
+  ```
+
+  The defaults give five seeds and three shadow seeds from the B3a commit, volume factor 4, k settings 2 and 10
+  (device buckets k2 [2, 10, 50] and k10 [10, 50]; claims k2 [2, 10, 50] and k10 [10, 50]), every variant, attack,
+  artifact type and simulated transform, four A6 targets per site, B 10,000 (primary) and 2,000, and a cap of 60
+  pipelines, of which 54 are needed.
+- **B3c**, at HEAD = B3b on a clean tree, never `--allow-dirty`, in the background with a log in `/dev/shm/b3`, then
+  `cp` of `x5.json` to `docs/collective/x5/x5.json` and `leakage_section.md` spliced between LEAKAGE's markers:
+
+  ```
+  python -m mycelic.collective.experiments.x5_inference run --prereg docs/collective/x5/prereg.json --run-id x5-b3 --runs-dir /dev/shm/b3/runs --work-dir /dev/shm/b3/work
+  ```
+
+  The first run is the result. If it exits non-zero or shows a harness bug: stop, record the exit code, the `x5.json`
+  sha256 if written and the controls block here, and report; never re-run with changed code or settings and present
+  that as the result. `/dev/shm/b3` is removed afterwards.
+
+### Disagreements and residuals, for the reviewer
+
+- **An unexpected exception exits 1** (Python's default), which is also the negative control's code; the harness
+  catches its own refusals (exit 2) but not a crash. A crash prints a traceback and writes nothing.
+- **The detection result is recomputed** with `detect(...)` on HQ's store and checked equal to the stored candidates;
+  a mismatch is a harness error, never a result.
+- **`run` names pin differences in two steps**: the code and pack hashes first (no world is built), then the copies'
+  and the worlds' (after building them in the work directory).
+
+## B4 (round 4, gate 4 of 4): a third field as a data-only pack (it_incidents)
+
+B4 builds `it_incidents`, a built-in pack for the multi-site IT operations incidents of a fictional group (six
+subsidiaries, English and German), **as data only**, and records what the data could and could not express. It is the
+internal generality proxy of STRATEGY section 4.4: **same author as the generic code; internal only; not X3 by a
+non-author; not a buyer claim.** The AI system that wrote the generic code wrote the requirements, the pack and these
+tests, having read that code, so nothing here measures X3 (STRATEGY section 11.2) and no figure of it goes to a buyer.
+
+### B4a and B4b
+
+**B4a** (`b2bf466`, parent `1cee431`, the B3a commit) adds only `docs/collective/x3/REQUIREMENTS.md`: requirements
+R01 to R27 of the field, written before any file of the pack existed (`git ls-tree -r b2bf466 --
+mycelic/collective/packs/data/it_incidents` is empty). It is not edited afterwards; no requirement was added later
+(`effort.json` `requirements_added_after_b4a` is empty).
+
+**B4b** (the commit after B4a) adds the pack directory
+`mycelic/collective/packs/data/it_incidents/` (copied from `device_quality`, then every file rewritten; the openFDA
+mapping and the E2 plant spec deleted), `tests/mycelic/test_collective_x3.py`, the evidence under `docs/collective/x3/`
+(`scenario.json`, `effort.json`, `g0/leakage.json`, `x1_smoke/{prereg,labels,scorecard}.json` and the six demo run
+files under `demo/x3-it-incidents-demo/`), generalised loops in ten collective test modules, and this section, `PACKS.md`
+sections 1 to 4 and `ARCHITECTURE.md` section 11.5.
+
+**Zero code change.** `git diff --numstat 1cee431 -- mycelic demo ':(exclude)mycelic/collective/packs/data/it_incidents'`
+is empty and so is `git ls-files --others --exclude-standard` over the same pathspec: no file under `mycelic/` or
+`demo/` outside the pack directory was changed or added. No gap blocked the loader check, G0, the X1 smoke or the demo,
+so none was fixed. `EffortTests` recomputes this.
+
+**The it_incidents hashes** (`B4_HASHES` in `tests/mycelic/test_collective_pushdown.py`; `PACKS.md` section 2):
+
+| Hash | Value |
+|---|---|
+| `config_hash` | `946becb0adece13f2274bf70eb33af81541a98e0587efbd43377c51b52cb29ac` |
+| `vocabulary_hash` | `95f71002cfe225ff5e7254c7d3dec34d9aa0aad351fdc1312ea62d5152afc6b5` |
+| `detector_hash` | `8dfb97e3ddc76743dc217da9e4cbd712e90f54322616780107f13f4f03b99ffb` |
+| `fixtures_hash` | `f562c907631d25d9a7ccd64752df69d1bb5cbffcdac488f8a335818af45ac14e` |
+
+**Unchanged hashes.** The code hashes equal B3a's: X1 (`harness.eval_code_hash()`)
+`e7d5d82e3b9805358718b5927b6cca89bb4912c733fccd7f14c89f61a9234161`, E1 (`e1_extract.e1_code_hash()`)
+`07c08295d7eeeff6eadcaa1db80ee5004b3dacf3ceb415c1e3ae126ca67ec229`, E2 (`e2_pushdown.e2_code_hash()`)
+`7428e57c6c9e2b5f4e7d7a93d80a45bc4a06694a3d01b274c12617e69b1d32be`, the openFDA replay
+(`openfda_replay.replay_code_hash()`) `452219e81aa711fb97387d8bc5da9663e7765af8f8f5b17ae6617e8acb0b9525` and X5
+(`x5_inference.x5_code_hash()`) `dea481ca619129e1f42f685256834e81ec76e27995287fb21b54c33025d01816`; none of them hashes
+pack data. `device_quality` and `claims_integrity` keep their G5 hashes with B1's config hash
+(`test_every_builtin_pack_is_pinned`). The X1 smoke prereg's `code_hash` equals `harness.eval_code_hash()`.
+
+**The pack, in short.** Entity types `it_service` (alias-only, eight services, English and German phrasings and
+acronyms as aliases), `config_item` (host names `aaa-bb(bb)-nnnn`, lower case, **the first built-in type that never
+leaves a site**: `egress` false, `entities.config_item` a never field, counted by `build_cells` as `non_egress_type`),
+`software_release` (`REL/nnnn/nn`, with slashes), `vendor` (`VND-nnnn`, names as aliases) and `change_request`
+(`CHG` plus seven digits); eleven failure-mode predicates and the generic `incident_unspecified`; codes `ITC-*` mapped
+from tool labels; an export mapping with a journal filter (work notes and comments only); k 3, close lag 14 days;
+`detectors.json` a byte copy of the template's; three rules, none on (`software_release`, `crash_after_update`);
+follow-ups `evidence_packet`, `problem_record_draft` (owner `problem_manager`) and `vendor_escalation_draft` (owner
+`vendor_manager`, proposable only on vendor keys); 46 hand-labelled fixtures; `fixtures/plant_smoke.json` (three
+patterns, one decoy per class, a construction smoke, not blind, never a result). No pack term had to be renamed
+(`effort.json` `term_renames` is empty); the data choices made to fit the generic code are `fit_to_code_choices`.
+
+### B4 effort and evidence (pointers)
+
+Every effort and evidence figure is in the committed files; this table only points at them (`PointerTests` resolves
+each row).
+
+| Pointer | What it holds |
+|---|---|
+| `docs/collective/x3/effort.json#/totals` | files, lines and bytes of the pack directory, and its lines changed against the template |
+| `docs/collective/x3/effort.json#/files` | the same per file |
+| `docs/collective/x3/effort.json#/code_lines_changed` | code lines changed outside the pack directory |
+| `docs/collective/x3/effort.json#/code_numstat` | the numstat those lines come from |
+| `docs/collective/x3/effort.json#/test_lines_added` | test lines added and deleted, per test module |
+| `docs/collective/x3/effort.json#/docs_lines_added` | doc lines added and deleted under `docs/collective/*.md` |
+| `docs/collective/x3/effort.json#/requirements` | per requirement: status and how |
+| `docs/collective/x3/effort.json#/gaps` | the generality gaps |
+| `docs/collective/x3/effort.json#/presentation_gaps` | device nouns in the demo's screen texts |
+| `docs/collective/x3/effort.json#/logic_gaps` | demo checks whose meaning does not fit the field |
+| `docs/collective/x3/effort.json#/fixture_lexical_f1` | the lexical extractor on the fixtures (hand-labelled by the same author; not a measurement) |
+| `docs/collective/x3/effort.json#/fixture_disagreements` | the fixtures where it differs from the labels |
+| `docs/collective/x3/effort.json#/attempts` | every G0, X1 smoke and demo attempt |
+| `docs/collective/x3/effort.json#/wall_clock` | the AI agent's wall clock per milestone, not engineer-hours |
+| `docs/collective/x3/g0/leakage.json#/hits` | G0's canary hits (1,000 records, seed 11) |
+| `docs/collective/x3/g0/leakage.json#/shingle_overlap_bytes` | G0's narrative overlap |
+| `docs/collective/x3/g0/leakage.json#/positive_control` | the scanner's positive control |
+| `docs/collective/x3/x1_smoke/scorecard.json#/channels` | the X1 construction smoke per channel (synthetic, same author, not a measurement) |
+| `docs/collective/x3/x1_smoke/scorecard.json#/x1` | why the smoke does not count as X1 |
+| `docs/collective/x3/demo/x3-it-incidents-demo/scorecard.json#/checks` | the demo's checks |
+| `docs/collective/x3/demo/x3-it-incidents-demo/scorecard.json#/hero/detection` | X, S, R-mf, U and single site on the demo's hero key |
+
+### Gaps, by name
+
+**Generality gaps** (`effort.json` `gaps`; each symptom is reproduced by `GapTests` on a copy of the pack; none
+blocking, none fixed): G4-01 a separator other than `-` or `/` (addresses, FQDNs, host:port; R03); G4-02 dotted
+versions (R04); G4-03 two-hop links (R06); G4-04 sub-day timestamps (R10); G4-05 priority as a field or a code (R09);
+G4-06 an alias-only id as its own acronym (R05); G4-07 change windows (R07); G4-08 alert storms in the background world
+(R11); G4-09 a rising generic-code rate in the background world (R15); G4-10 locales as languages (R26); G4-11 HTML
+paragraphs as one sentence (R18); G4-12 German separable verbs, G4-13 unlisted inflections and compounds, G4-14
+negation beyond the token window (all R13); G4-15 sentence-level pairing (R17); G4-16 per-subsidiary host universes
+(R02); G4-17 the generator's ticket-number form (R01); G4-18 forwards re-keyed without their origin (R12).
+
+**Presentation gaps** (`effort.json` `presentation_gaps`, recomputed by `EffortTests` from the files): device-field
+nouns ("plant", "complaint") in `demo/collective/screen.py` (`SINGLE_NO_LATER`, `SINGLE_LATER`, `NOT_ASKED`,
+`PREPARING`, `TASK_TEXTS`, `ROLE_TEXTS` and texts of `_problem`, `_check` and `_followup`) and in
+`collective_demo.CHECK_TEXTS`; `console.html` holds none. The IT demo's screen therefore says "plants" for
+subsidiaries and "complaints" for tickets. Not fixed in this gate (the brief: never fixed here); the number lint passes.
+
+**Logic gaps**: none; every check of the demo is ok.
+
+### Evidence runs, allow-dirty and attempts
+
+- **Loader check**: `python -m mycelic.collective.packs.loader check it_incidents` printed `pack: it_incidents 0.1.0
+  (source builtin)` and the four hashes above.
+- **G0**: `--pack it_incidents --records 1000 --seed 11` passed; `leakage.json` is copied byte-identical. Its
+  `known_limitation` is empty (the pack has `require_master_data` on).
+- **X1 smoke**: `prereg`, `check-plant --construct` and `run` (run ids `x3-smoke-prereg`, `x3-smoke-run`, one seed,
+  104 weeks, evaluation weeks 26 to 103) each exited 0. **The pack was untracked when it ran, so the harness needed
+  `--allow-dirty`**: the prereg and the scorecard stamp it (`allow_dirty` true, `code.code_dirty` true). It is a
+  construction smoke on a same-author plant, not an evaluation and not X1. `prereg.json` and `labels.json` are
+  byte-identical copies; in `scorecard.json` only `paths` was rewritten to repository-relative or `<runs-dir>/...`
+  strings (`paths` is outside `content_hash`, which recomputes unchanged). **In this smoke X did not beat single-site
+  or U**: X recalled fewer of the planted patterns than single-site and U, which recalled all of them, and S and R-mf
+  recalled none (`/channels`). On a same-author plant that says nothing about X1 either way.
+- **Demo**: `docs/collective/x3/scenario.json` (schema version 1 keys only) puts a desktop-client release
+  (`software_release`) crashing after an update, written only in ticket narratives in English and German, at three
+  subsidiaries, with a sibling, a generic-category rise, a marked echo and an alert storm as decoys. Its illustration
+  says it is a constructed illustration for an internal generality check of a third field, not evidence that codes
+  miss such cases. `--record` passed every check and `lint_numbers.py` passes on the committed copy; a fresh
+  `--record` reproduces its `content_hash` (`DemoTests`).
+- **Attempts**: one G0 trial at 200 records before the evidence run and two evidence runs; two X1 smoke attempts;
+  four demo recordings, every check ok each time: a trial from a scratch copy of the scenario, the same bytes from
+  `docs/collective/x3/scenario.json` (the same `content_hash`), a run after two decoy labels were reworded to hold no
+  number word (the lint had passed, since decoy labels are run-file values, not static screen text), and the committed
+  run. The second G0 evidence run, the second X1 smoke attempt and the fourth recording were made in review round 1,
+  after fixture `INC0100045` was relabelled (below): the fixtures hash changed, the X1 prereg and scorecard and the
+  demo scorecard carry it, and a generated world's parameters carry it too, so G0's `world_digest` changed. G0's
+  result, the X1 channel results and the demo's checks are the same as before. All are listed in `effort.json`
+  `attempts`.
+- **Review round 1 changes to the evidence**: fixture `INC0100045` (a certificate expired on a host overnight, "with
+  no impact on the mail service") had labelled the mail service with a negated certificate expiry; the text negates
+  an impact, not an expiry, so the mail service is now an entity-only claim (predicate null). The lexical extractor
+  still disagrees (it gives the mail service the expiry), so the disagreement stays, now under R17 (G4-15). R03 is
+  `not_expressible` (addresses, host:port pairs and fully qualified host names cannot be recognised at all; they stay
+  in only because the narrative never leaves) and R05 `approximated` (the ids are descriptive because an id cannot be
+  its own acronym, G4-06). `wall_clock` `end` is the end of the review round's revision, so the span from
+  `evidence_done` to `end` includes the time the work waited for review.
+
+### Scope and the shallow-clone behaviour
+
+**B2's sealed X1 stays scoped to `device_quality` and `claims_integrity`.** `docs/collective/x1/PLANTER_BRIEF.md`
+(frozen at B2a) names "the two built-in packs" and those two; so do `RESULTS_TEMPLATE.md`, `b1/PREREG.md`, LEAKAGE
+section 12 and the B2 and B3 RUNBOOK sections. None was edited. `it_incidents` is outside B2's and B3's frozen scope;
+`LoopCoverageTests` excludes `test_collective_x1_sealed.py` and `test_collective_x5.py` by name for that reason.
+
+**The git checks of `EffortTests`** compare base `1cee431` with the commit that added `docs/collective/x3/effort.json`
+(`git log --diff-filter=A --format=%H -- docs/collective/x3/effort.json`), or with the worktree plus its untracked
+files while that commit does not exist yet, so later commits never change them. In a shallow clone without the base
+commit (the main CI's `checkout@v4` fetches depth 1), they assert that `git rev-parse --is-shallow-repository` prints
+`true` and then check only the internal consistency of the recorded numbers.
+
+### Test counts (sandbox timing, not a product figure)
+
+Both suites with `TMPDIR` on tmpfs and `nats-server` on the path; the 1cee431 column is the same command on an export
+of that commit (B3a), run in this sandbox the same day, directly after the B4b run. Both runs in the table had the
+sandbox to themselves and are review round 1's.
+
+| Command | 1cee431 | B4b (this worktree) |
+|---|---|---|
+| `python -m pytest tests/mycelic -q -p no:warnings` | 1122 passed (27,940 subtests), 0 skipped, in 754 s | 1158 passed (39,772 subtests) = 1122 + 36 new, 0 skipped, in 806 s |
+| `python -m pytest NeuralGraph/tests -q -p no:warnings` | 222 passed, 1 skipped (119 subtests) in 5 s | 222 passed, 1 skipped (119 subtests) in 4 s; the skip is the pre-existing one |
+
+The suite takes 53 s longer (806 s against 754 s). Run-to-run noise here is of the same order: the first round's runs
+gave 752 s and 728 s for 1cee431 (the second while other work shared the sandbox) and 814 s for B4b, so the added time
+is known only to within that noise. The 36 new tests are 32 in `test_collective_x3.py` (18 s on its own, 11 s of it
+the fresh demo recording of `DemoTests` and 2 s the small G0 run of `PipelineTests`), the three `LoopCoverageTests` in
+`test_collective_guards.py` (2 s) and `test_every_builtin_pack_is_pinned` in `test_collective_packs.py`. The ten
+renamed tests (below) are counted once each, not as new. The 11,832 further subtests are the generalised loops running
+on `it_incidents` too and the subtests of the new tests. No test was skipped, removed or weakened.
+
+In the first round, a full run on this worktree ended with 1 failed and 1157 passed:
+`EffortTests::test_closed_header_statement_and_labels` failed on a provisional `effort.json` whose `end` had been logged
+before a re-logged `evidence_done`. The test was right; `end` was logged again and `effort.json` regenerated. In
+review round 1 the full runs above were made before the last edits, which were a docstring in
+`test_collective_guards.py` and this section's figures; `effort.json` was regenerated after them, and
+`test_collective_x3.py` and `test_collective_guards.py` were run again (both pass).
+
+### Earlier tests whose expectation changed
+
+- `test_collective_guards.py`: `test_terms_cover_both_packs` became `test_terms_cover_every_builtin_pack` (each
+  built-in pack's own terms are non-empty and in the scanned set, plus the old assertions); `pack_terms` reads every
+  built-in pack; new `BUILTIN_PACKS` and `LoopCoverageTests` (the generalised collections and tables equal the built-in
+  packs; an AST scan finds every for loop or comprehension over a literal tuple, list or set whose elements name two
+  or more distinct built-in packs anywhere inside them, as bare ids, table rows, call arguments or module-level names
+  bound to a pack, and each one must be in `PACK_SPECIFIC_LOOPS`, keyed by file and the qualified name of its
+  enclosing function, with its reason). Review round 1 found that the scan's first version looked only at a row's
+  first element, so it missed two literal loops of `G0RunnerTests` in `test_collective_leakage.py`; the scan now
+  walks every element, and its self-test flags rows like `("dq-on", "device_quality")` and calls like
+  `args("claims_integrity", ...)`.
+- Generalised to every built-in pack (each loop or table now also runs on `it_incidents`): `test_collective_packs.py`
+  (`PACKS`, `EGRESS_EXPECTED`, the hash subprocess, new `test_every_builtin_pack_is_pinned`),
+  `test_collective_extract.py` and `test_collective_e1.py` (`PACKS`, `WORLDS`; `test_claims_integrity_reduced_smoke`
+  became `test_reduced_smoke_on_every_other_builtin_pack`, with the exact-match types read from each pack and still
+  `[clinic, repair_shop]` for the claims pack), `test_collective_edge.py` and `test_collective_leakage.py` (`PACK_IDS`,
+  `KEY`; `test_every_class_on_both_packs` renamed), `test_collective_pushdown.py` (`PACKS`, template coverage, the
+  judge on fixtures and on a world, the G0 pushdown-stage runs;
+  `test_both_packs_pass_with_every_pushdown_artifact_scanned` renamed), `test_collective_detect.py` (`PACKS`, `VOCAB`,
+  new `DETECTOR_DEFAULTS`; `test_both_packs_load_with_the_documented_values` and `test_generated_worlds_of_both_packs`
+  renamed), `test_collective_followup.py` (the G0 follow-up-stage runs and the E5 smoke over `E5_INJECTIONS`;
+  `test_both_packs_pass_with_every_follow_up_artifact_scanned` renamed), `test_collective_evaluate.py`
+  (`SMOKE_FIXTURES`; `test_both_smoke_fixtures_parse_and_check` became
+  `test_every_builtin_smoke_fixture_parses_and_checks`; the stale-chain test and the plant-file listing test),
+  `test_collective_leakage.py` `G0RunnerTests` (the master-data-on G0 run of every built-in pack, `ON_RUNS`, one more
+  1,000-record run for `it_incidents`; `test_master_data_on_for_both_packs` became
+  `test_master_data_on_for_every_builtin_pack` and `test_run_files_stage_both_packs` became
+  `test_run_files_stage_every_builtin_pack`).
+- Unchanged and pack-specific (`PACK_SPECIFIC_LOOPS`): the hash-history tests of the two original packs, the G6
+  pushdown values and follow-up settings, the device pack's supplier-keyed draft, the store-mismatch cases, and
+  `G0RunnerTests`' single-pack option cases (master data off on the device pack, the claims pack's default, lexical
+  mode).
+
+### Merge notes
+
+1. **The lab is untouched.** Nothing under `lab/` or `.github/` changed; the new pack is simply available to any
+   harness that takes `--pack`, and the cloud lab can run its fixtures as they are.
+2. **Existing hashes are unchanged**, code and pack (above), so no prereg is invalidated and no recorded run changes;
+   `demo/collective/recorded/**` and `demo/collective/scenario.json` were not touched.
+3. **Suites take longer**: every generic per-pack test now also runs on `it_incidents` (one more G0 run in each of the
+   pushdown and follow-up stage classes and in `G0RunnerTests`, one more E5 smoke, one more E1 reduced smoke, more
+   worlds), plus
+   `test_collective_x3.py` (one demo recording, one small G0 run, an in-test prereg). The measured time is above.
+4. **A merge that adds a fourth built-in pack** fails `LoopCoverageTests` until the pack's rows are added to the
+   generalised tables, and `test_every_builtin_pack_is_pinned` until its hashes are pinned.
+
+### Disagreements and residuals, for the reviewer
+
+- **No numeric floor on the fixtures' lexical F1.** A floor would pull labels toward the extractor; the fixtures are
+  labelled from the text and the five disagreements are recorded with their gaps (`fixture_disagreements`).
+- **The background world cannot show storms or a rising generic category** (G4-08, G4-09); the X1 plant and the demo
+  scenario construct them. The generator's ticket numbers are not INC numbers (G4-17), while the fixtures and the
+  export test use INC numbers.
+- **Presentation gaps are left as they are**: the demo's screen speaks of plants and complaints for an IT group. A
+  generic fix (pack-supplied site and record nouns) would change `screen.py`, which this gate may not.
+- **The demo's background is the pack's generic world**: R-mf does not catch the hero key, but its related alerts hold
+  a generic-code key of one of the hero's services at rank 1 (`hero/detection` in the demo scorecard). The IT scenario
+  is an illustration for this generality check, not B1's codes-miss case.
+- **`effort.json` is evidence of the same author's work**; the wall clock is an AI agent's, not engineer-hours, and
+  says nothing about X3.
+
+## Audit round 4 (three confirmed findings)
+
+**Base.** Branch `mycelic-collective-phase2` at 499557a (B4b), a clean worktree. Nothing is committed by the engineer.
+Gate B1's second step (the codes-miss scenario) and B3's B3b and B3c are not part of this round.
+
+**Scope: fabric files changed: none.** Changed: `mycelic/collective/experiments/{x5_attacks,x5_inference}.py` (the
+only code), `docs/collective/{ARCHITECTURE,INTEGRATION,LEAKAGE,RUNBOOK}.md`,
+`docs/collective/evidence/superseded/collective-halvern-g10/README.md`, `demo/collective/{README,SCRIPT}.md` and
+`tests/mycelic/test_collective_{x5,demo,x3}.py`. Unchanged: every other file under `mycelic/` and `demo/`, the
+recorded run, every pack, `docs/collective/b1/PREREG.md` and the B4 evidence under `docs/collective/x3/` (its
+`effort.json` keeps the code hashes B4b recorded).
+
+| # | Finding | Fix | Regression test |
+|---|---|---|---|
+| 1 | B1's constructed codes-miss illustration does not exist (only B1a was committed), but the superseded run's README, ARCHITECTURE 17.9, the demo README and the B1 plan described it as present or as being added | Every page a reader sees says so: "B1's constructed codes-miss illustration has not been built" (the superseded README names only the B1a run, whose own scorecard still shows R (model-free) flagging a key of the case in X's week; the demo README and SCRIPT say no committed run shows a case the allowed fields miss, and SCRIPT tells the presenter never to refer to one; ARCHITECTURE 17.9 and INTEGRATION B1 carry the status) | `CodesMissStatusTests::test_the_pages_say_whether_the_codes_miss_illustration_exists` (while no `scenario_codes_miss.json` or `b1/attempts/` exists: the five pages carry the sentence, none carries the four overclaiming phrases, and `recorded/` holds only `collective-halvern-b1a`; once one exists, the pages other than this log must drop the sentence), `test_every_recorded_run_a_page_names_exists`; it fails on HEAD's pages |
+| 2 | A full X5 rehearsal (both packs, every variant, attack, type and transform, n = 1000, seed 101) exited 0 before B3a froze the code and the bar, so it wrote `x5.json` with every label and the bar outcome; the commit message said no `x5.json` was written, the plan said it was written before any `x5.json` existed, LEAKAGE said the bar was fixed before running, and no sha256 or outcome was kept | LEAKAGE section 12 gains the "Rehearsal disclosure" above the result markers (what ran, that the outcome counts as seen, that nothing was recorded, that the result is pre-registered only with respect to the B3b prereg's own seeds, that the commit message is wrong, and this round's own code change) and drops "fixed before running"; INTEGRATION B3a gains a correction and the plan's heading no longer claims to precede every `x5.json`; the prereg's note "frozen ... before any attack outcome exists" is replaced by `REHEARSAL_NOTE`; RUNBOOK 18 gains "A rehearsal is an outcome" (record sha256 values and the outcome before deleting, and disclose) | `LeakageSectionTests::test_the_rehearsal_before_the_freeze_is_disclosed` (the disclosure's facts, its place before the markers, the prereg notes of a fresh prereg, the INTEGRATION correction, the RUNBOOK rule, the removed phrases) |
+| 3 | A1's per-artifact-type and reference entries used one threshold calibrated on the union of the shadow cells and divided by keys of a channel the type cannot carry, so a single-channel type could never score a mixed-channel member 1: the per-type and reference entries understated membership, the incremental entry overstated what HQ's artifacts add | A score counts only the keys of the channels the attacked type carries (`x5_attacks.A1_CHANNELS`: codes for `cells_codes` and the allowed-fields reference, text for `cells_text`); `shadow_stats` calibrates one threshold per (setting, type) on that type's own shadow facts (`a1_threshold_types`: the cell types, `all` from the shadow cells, and at a pipeline variant's own setting the reference from R (model-free)'s cells of the shadow members and `allowed_plus_all`); `evaluate` takes the per-type thresholds; `A1_calibrated` is not applicable to a type with no shadow analogue (`A1_SHADOW_REASON`: verdicts, packets, follow-up, HQ results and run files, which only `A1_fixed` reads); `x5.json`'s `shadow.a1_thresholds` is per setting and type; the prereg's `a1_threshold_rule` says all of it; LEAKAGE 12, ARCHITECTURE 18.5, 18.6 and 18.10 | `A1PerTypeTests` (five tests: the channels and a mixed-channel member scoring 1 only with them; the applicability of both A1 forms on every type; `evaluate` applying each type's own threshold and channels and refusing a borrowed one; `shadow_stats`' calibrate inputs, call by call, equal to scores recomputed on each type's own shadow facts for both packs, with every keyed member scoring 1 on its own codes cells; the tiny run's per-type threshold block, the not-applicable entries and the schema refusing a single number) |
+
+**Hashes.** The X5 code hash (`x5_inference.x5_code_hash()`) changes from
+`dea481ca619129e1f42f685256834e81ec76e27995287fb21b54c33025d01816` (B3a, B4b) to
+`73a4e487727a7e665301d499a7d5d9c66f7a9b90c81e1445a72ce9bd49d03516`. X1 `e7d5d82e...`, E1 `07c08295...`, E2
+`7428e57c...`, the openFDA replay `452219e8...` and every pack hash are unchanged (`EffortTests` and
+`test_every_builtin_pack_is_pinned`).
+
+**Test-fixture probe (sandbox, test settings; a diagnostic, not a result).** The tiny run of `test_collective_x5.py`
+(`device_quality`, n = 400, seed 11, shadow seed 12, variants default, `k1_reference` and `a5_injected`, B = 100) was
+run once on HEAD's code (an export of 499557a under `/dev/shm`) and once on this round's tree; both run directories
+are deleted. Of the 252 results entries, 234 are identical. The 18 that differ are `A1_calibrated` and `A1_fixed` on
+`cells_codes`, `cells_text`, `allowed_fields_reference` and `allowed_plus_all` (default), the same two on the two
+cell types of `k1_reference`, and six `A1_calibrated` entries now not applicable; the two simulated transforms differ
+only in their A1 cell-type entries. Every `all` entry, the primary entries, the controls and the bar are identical. On
+the default variant (474 A1 targets), `A1_calibrated` accuracy on `cells_codes` moved from 0.608 to 0.892 (coverage
+0.985 to 0.785: records with no codes key now take the coin), on `cells_text` from 0.593 to 0.859 (coverage 0.749), on
+the reference from 0.608 to 0.892, and the incremental entry of `allowed_plus_all` from 0.755 (95% CI 0.699 to 0.817)
+to 0.186 (0.128 to 0.247). Every calibrated threshold of that run is 1.0, except 0.0 at `drop_lt_k`, the same values
+the union gave: once a type scores only its own channel's keys, a member's keys are all present in its own cells, so
+the channel rule removes the cap and the per-type calibration keeps any type from borrowing another's threshold.
+These figures come from the probe's own `x5.json` files; they are a test fixture's, quoted only to show the fix.
+
+### Earlier tests whose expectation changed
+
+Changed, never weakened:
+
+- `test_collective_demo.py`: `SupersededEvidenceTests::test_the_readme_says_why_and_points_into_the_scorecard`
+  required the phrase "superseded by the B1 runs", which named runs that do not exist (finding 1); it requires
+  "superseded by the B1a run".
+- `test_collective_x3.py`: `EvidenceTests::test_the_code_hashes_are_the_pinned_ones` required the live X5 hash to
+  equal B4b's; it now requires `X5_CODE_HASH_R4`, asserts that it differs from B4b's, and still requires `effort.json`
+  to hold B4b's hashes, which this round does not touch.
+
+### Merge notes
+
+1. **No fabric change and no fabric integration point.**
+2. **The X5 code hash changes** (above). No X5 prereg exists in the repository, so none is invalidated, but the
+   pre-stated B3b ("on the clean B3a tree") can no longer use the B3a tree: the B3b prereg must be made on a commit
+   that contains this round, and its seeds then derive from that commit (`SEED_RULE` reads `code_commit`). That is
+   the orchestrator's call.
+3. **`x5.json` and prereg shape.** `shadow.a1_thresholds` maps each cell setting to an object of per-type
+   thresholds; `A1_calibrated` is `not_applicable` on six types; the prereg's `a1_threshold_rule` and `notes` changed.
+4. **No recorded run changes**: the demo's committed run, its lint and the superseded evidence's six files are
+   byte-identical; only Markdown around them changed.
+5. **The lab is untouched.**
+
+### Disagreements and residuals, for the reviewer
+
+- **Finding 1: `docs/collective/b1/PREREG.md` is not edited.** It says it is never edited after B1a; its "written in
+  B1b" is the plan it fixed in advance. Every page that points to it now says the illustration has not been built.
+  The b1a run's screen and scorecard were not re-recorded: they describe that run truthfully (R flags the product in
+  X's week) and name no B1b. Building the illustration itself is the rest of gate B1, not this fix.
+- **Finding 2: the B3a commit message is not rewritten** (no history rewriting); INTEGRATION B3a and LEAKAGE 12
+  correct it. Whether anyone read the rehearsal's bar line cannot be established now, so the disclosure treats the
+  outcome as seen. Nothing in code stops a future rehearsal; the RUNBOOK rule makes one a recorded, disclosed event.
+  This round's own X5 runs were the two tiny-fixture runs above (test settings, one device world, B = 100), recorded
+  here; no X5 run at the pre-registered size was made.
+- **Finding 3: channels and calibration together.** Calibration alone (the review's probe: thresholds 0.167 and 0.25)
+  would leave `A1_fixed` capped, since it needs a score of 1. With the channel rule, `cells_text` gives 0.859 on the
+  fixture where the review's unrestricted per-type threshold gave 0.863: records with no text key take the coin here,
+  while a low threshold over every key still reads some of them, so the restricted form is not stronger on every type
+  (the difference is within the fixture's noise). The reference's incremental entry is 0.186, against the 0.245 the
+  review estimated with calibration alone.
+- **Finding 3: membership on the non-cell types is measured by `A1_fixed` only**, which can understate it. Calibrating
+  them would need a pipeline per shadow world and variant; the prereg's cap is 60 pipelines and B3b needs 54, so this
+  round does not add them. `all` is still calibrated on the shadow cells, its only part with a shadow analogue; the
+  review found the primary family unaffected, and the fixture's `all` entries are unchanged.

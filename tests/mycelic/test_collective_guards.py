@@ -9,7 +9,11 @@
 * DeterminismTests: no wall clock or unseeded randomness in the modules that must replay bit for bit.
 * RunbookCommandTests: every command in ``docs/collective/RUNBOOK.md`` runs with ``--dry-run`` appended, with the
   network blocked, and creates nothing.
-* DomainLiteralTests: the generic collective code holds no domain-pack literal (G2).
+* DomainLiteralTests: the generic collective code holds no domain-pack literal of any built-in pack (G2; every
+  built-in pack since B4).
+* LoopCoverageTests: every generalised per-pack collection and table of the collective tests covers exactly the
+  built-in packs (:data:`BUILTIN_PACKS`), and every loop over a literal list of built-in packs is allow-listed
+  with a reason (B4).
 * HqImportGuardTests: the HQ detection modules (``mycelic/collective/detect``) and, since G6, the pushdown modules
   (``mycelic/collective/pushdown``) import nothing site-side (the site verifier included), no harness and no model
   client (static check and a fresh interpreter) (G4, G6).
@@ -23,6 +27,9 @@
   interpreter) (G7).
 * ApprovalCallSiteTests: outside the allow-list (``followup/service.py``, the G0 runner's simulated owner, the demo
   console and ``tests/``) nothing under ``mycelic/`` or ``demo/`` calls ``approve``, ``edit`` or ``reject`` (G7).
+* X5AttacksImportGuardTests: the X5 attacks (``experiments/x5_attacks.py``) are pure: no file, store, network or
+  process module, nothing site-side, no harness, leakage scan, run file or world generator, and no model client;
+  the pack type only under ``TYPE_CHECKING`` (static check and a fresh interpreter) (B3).
 
 ``forbidden_imports``, ``model_name_hits``, ``nondeterminism`` and ``domain_literal_hits`` are importable for
 reviewers' probes.
@@ -43,6 +50,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
+from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -122,6 +130,8 @@ STDLIB_ONLY_MODULES = (
     "mycelic.collective.edge.packets",
     "mycelic.collective.experiments.e5_injection",
     "mycelic.collective.runfiles",
+    "mycelic.collective.experiments.x5_attacks",
+    "mycelic.collective.experiments.x5_inference",
 )
 CLI_MODULES = (
     ("mycelic.collective.experiments.e3_latency",),
@@ -144,6 +154,8 @@ CLI_MODULES = (
     ("mycelic.collective.experiments.e2_pushdown", "run"),
     ("mycelic.collective.experiments.e5_injection",),
     ("mycelic.collective.followup.ledger", "verify"),
+    ("mycelic.collective.experiments.x5_inference", "prereg"),
+    ("mycelic.collective.experiments.x5_inference", "run"),
 )
 NAME_SCAN_ROOTS = ("mycelic/collective", "docs/collective", "demo/collective", "tests/mycelic/test_collective_*.py",
                    "runs/.gitignore")
@@ -194,6 +206,8 @@ DETERMINISTIC_MODULES = (
     "mycelic/collective/followup/outcome.py",
     "mycelic/collective/edge/packets.py",
     "mycelic/collective/runfiles.py",
+    "mycelic/collective/experiments/x5_attacks.py",
+    "mycelic/collective/experiments/x5_inference.py",
     "demo/collective/scenario.py",
     "demo/collective/screen.py",
     "demo/collective/lint_numbers.py",
@@ -577,7 +591,7 @@ def _run_without_site_packages(*args: str) -> subprocess.CompletedProcess[str]:
 
 class StdlibOnlyTests(unittest.TestCase):
     def test_every_collective_module_imports_without_site_packages(self) -> None:
-        self.assertEqual(len(STDLIB_ONLY_MODULES), 60)
+        self.assertEqual(len(STDLIB_ONLY_MODULES), 62)
         code = "import importlib\n" + "".join(f"importlib.import_module({m!r})\n" for m in STDLIB_ONLY_MODULES)
         r = _run_without_site_packages("-c", code)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -888,6 +902,116 @@ class HqImportGuardTests(unittest.TestCase):
         self.assertIn("mycelic.collective.detect.detectors", loaded)
         self.assertEqual([m for m in loaded if _forbidden(m, HQ_FORBIDDEN) and m not in HQ_ALLOWED_LOADED], [])
         self.assertEqual([m for m in loaded if m.startswith("mycelic.collective.inference")], list(HQ_ALLOWED_LOADED))
+        self.assertEqual([m for m in loaded if _forbidden(m, FORBIDDEN_LOADED) and not m.startswith("mycelic.")], [])
+
+
+X5_ATTACKS = ROOT / "mycelic" / "collective" / "experiments" / "x5_attacks.py"
+X5_ATTACKS_MODULE = "mycelic.collective.experiments.x5_attacks"
+# what the X5 attacks may never import (B3): no file, store, network or process module; nothing site-side, no
+# pushdown, follow-up or detection code, no leakage scan, run file, harness or world generator, neither the X5
+# orchestrator nor G0, and no model client. The pack type may be named only under TYPE_CHECKING.
+X5_ATTACKS_FORBIDDEN = ("sqlite3", "os", "pathlib", "io", "shutil", "tempfile", "subprocess", "socket",
+                        "mycelic.collective.edge", "mycelic.collective.pushdown", "mycelic.collective.followup",
+                        "mycelic.collective.detect", "mycelic.collective.inference", "mycelic.collective.leakage",
+                        "mycelic.collective.runfiles", "mycelic.collective.evaluate",
+                        "mycelic.collective.packs.generator", "mycelic.collective.experiments.x5_inference",
+                        "mycelic.collective.experiments.g0_canary", "openai", "anthropic", "ollama", "llama_cpp",
+                        "vllm", "transformers", "torch")
+X5_ATTACKS_ALLOWED_LOADED = ("mycelic", "mycelic.version", "mycelic.collective", "mycelic.collective.stats",
+                             "mycelic.collective.jsonio", "mycelic.collective.experiments", X5_ATTACKS_MODULE)
+X5_POSITIVE_IMPORTS = (
+    "import sqlite3",
+    "import os",
+    "from pathlib import Path",
+    "import io",
+    "from ..edge.site import build_cells",
+    "from ..edge import egress",
+    "from ..pushdown.questions import build_question",
+    "from ..followup.ledger import FollowupLedger",
+    "from ..detect.store import HqReader",
+    "from ..inference import fake",
+    "from .. import leakage",
+    "from .. import runfiles",
+    "from ..evaluate.baselines import r_mf_cells",
+    "from ..packs.generator import world_digest",
+    "from ..packs import generator",
+    "from . import x5_inference",
+    "from .x5_inference import lexical_rows",
+    "from .g0_canary import make_world",
+    "import mycelic.collective.edge.records as rec",
+    "import openai",
+)
+X5_NEGATIVE_IMPORTS = (
+    "from .. import stats",
+    "from ..stats import wilson",
+    "from ..jsonio import canonical_dumps",
+    "import math",
+    "import random",
+    "from dataclasses import dataclass",
+    "from typing import TYPE_CHECKING",
+)
+
+
+def type_checking_only(source: str, prefix: str) -> list[str]:
+    """Every import of a module under ``prefix`` that is not inside an ``if TYPE_CHECKING:`` block."""
+    tree = ast.parse(source)
+    guarded: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.If) and isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING":
+            guarded.update(id(n) for child in node.body for n in ast.walk(child))
+    hits = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names = [a.name for a in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            base = _resolve(X5_ATTACKS_MODULE, node.level, node.module) or ""
+            names = [base] + [f"{base}.{a.name}" for a in node.names]
+        else:
+            continue
+        if any(_forbidden(n, (prefix,)) for n in names) and id(node) not in guarded:
+            hits.append(f"line {node.lineno}")
+    return hits
+
+
+class X5AttacksImportGuardTests(unittest.TestCase):
+    def test_x5_attacks_imports_nothing_forbidden(self) -> None:
+        self.assertEqual(forbidden_imports(X5_ATTACKS.read_text(encoding="utf-8"), X5_ATTACKS_MODULE,
+                                           X5_ATTACKS_FORBIDDEN), [])
+
+    def test_checker_flags_every_positive_snippet(self) -> None:
+        for snippet in X5_POSITIVE_IMPORTS:
+            with self.subTest(snippet=snippet):
+                self.assertTrue(forbidden_imports(snippet, X5_ATTACKS_MODULE, X5_ATTACKS_FORBIDDEN))
+
+    def test_checker_passes_every_negative_snippet(self) -> None:
+        for snippet in X5_NEGATIVE_IMPORTS:
+            with self.subTest(snippet=snippet):
+                self.assertEqual(forbidden_imports(snippet, X5_ATTACKS_MODULE, X5_ATTACKS_FORBIDDEN), [])
+
+    def test_checker_flags_an_injected_import_in_a_copy_of_x5_attacks(self) -> None:
+        source = X5_ATTACKS.read_text(encoding="utf-8")
+        for line in ("import sqlite3", "from ..edge.site import build_cells", "from .x5_inference import WorldData"):
+            with self.subTest(line=line):
+                self.assertTrue(forbidden_imports(source + "\n" + line + "\n", X5_ATTACKS_MODULE,
+                                                  X5_ATTACKS_FORBIDDEN))
+
+    def test_the_pack_type_only_under_type_checking(self) -> None:
+        self.assertEqual(type_checking_only(X5_ATTACKS.read_text(encoding="utf-8"), "mycelic.collective.packs"), [])
+        guarded = "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from ..packs.loader import FrozenPack\n"
+        self.assertEqual(type_checking_only(guarded, "mycelic.collective.packs"), [])
+        self.assertEqual(type_checking_only("from ..packs.loader import FrozenPack\n", "mycelic.collective.packs"),
+                         ["line 1"])
+
+    def test_fresh_interpreter_loads_only_the_allowed_modules(self) -> None:
+        code = f"import json, sys\nimport {X5_ATTACKS_MODULE}\nprint(json.dumps(sorted(sys.modules)))\n"
+        r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, timeout=120,
+                           env={**os.environ, "PYTHONPATH": str(ROOT)})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        loaded = json.loads(r.stdout.strip().splitlines()[-1])
+        self.assertIn(X5_ATTACKS_MODULE, loaded)
+        self.assertEqual([m for m in loaded if (m == "mycelic" or m.startswith("mycelic."))
+                          and m not in X5_ATTACKS_ALLOWED_LOADED], [])
+        self.assertNotIn("sqlite3", loaded)
         self.assertEqual([m for m in loaded if _forbidden(m, FORBIDDEN_LOADED) and not m.startswith("mycelic.")], [])
 
 
@@ -1353,6 +1477,13 @@ class RunbookCommandTests(unittest.TestCase):
             self.assertTrue(any(needle in c for c in demo), needle)
         self.assertTrue(any(c.startswith("python demo/collective/lint_numbers.py ") for c in commands))
 
+    def test_commands_cover_the_b3_clis(self) -> None:
+        commands = runbook_commands()
+        self.assertIn("python -m mycelic.collective.experiments.x5_inference prereg --packs "
+                      "device_quality,claims_integrity --n 1000 --run-id <run-id> --runs-dir runs", commands)
+        self.assertIn("python -m mycelic.collective.experiments.x5_inference run --prereg <prereg-file> --run-id "
+                      "<run-id> --runs-dir runs --work-dir runs/x5-work/<run-id>", commands)
+
     def test_every_command_dry_runs_offline_and_creates_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             values = {k: v.format(tmp=tmp) for k, v in RUNBOOK_PLACEHOLDERS.items()}
@@ -1377,6 +1508,8 @@ class RunbookCommandTests(unittest.TestCase):
 # --------------------------------------------------------------------------------------------------- domain literals
 
 PACK_DATA = ROOT / "mycelic" / "collective" / "packs" / "data"
+# every built-in pack (B4): the generic test loops of the collective tests iterate this, not a literal list
+BUILTIN_PACKS = tuple(sorted(p.name for p in PACK_DATA.iterdir() if (p / "pack.json").is_file()))
 DOMAIN_SCAN_EXCLUDED = ("mycelic/collective/packs/data",)
 OPENFDA_LITERAL_SCOPE = ("mycelic/collective/packs/*.py", "mycelic/collective/edge/*.py",
                          "mycelic/collective/experiments/e1_extract.py")
@@ -1386,18 +1519,24 @@ OPENFDA_SEGMENT_EXEMPT = ("text",)
 ILLUSTRATIVE_CODE_MARK = "ILL-"
 
 
+def pack_terms_of(pack: str) -> set[str]:
+    """Type, predicate, code, rule, template, follow-up type and role ids of one built-in pack."""
+    d = PACK_DATA / pack
+    vocabulary = json.loads((d / "vocabulary.json").read_text(encoding="utf-8"))
+    followups = json.loads((d / "followups.json").read_text(encoding="utf-8"))
+    terms = set(vocabulary["entity_types"]) | set(vocabulary["predicates"])
+    terms |= set(json.loads((d / "codes.json").read_text(encoding="utf-8")))
+    terms |= set(json.loads((d / "rules.json").read_text(encoding="utf-8"))["rules"])
+    terms |= set(json.loads((d / "questions.json").read_text(encoding="utf-8"))["templates"])
+    terms |= set(followups["types"]) | set(followups["roles"])
+    return terms
+
+
 def pack_terms() -> set[str]:
-    """Type, predicate, code, rule, template, follow-up type and role ids of both built-in packs."""
+    """The terms of every built-in pack (:data:`BUILTIN_PACKS`)."""
     terms: set[str] = set()
-    for pack in ("device_quality", "claims_integrity"):
-        d = PACK_DATA / pack
-        vocabulary = json.loads((d / "vocabulary.json").read_text(encoding="utf-8"))
-        followups = json.loads((d / "followups.json").read_text(encoding="utf-8"))
-        terms |= set(vocabulary["entity_types"]) | set(vocabulary["predicates"])
-        terms |= set(json.loads((d / "codes.json").read_text(encoding="utf-8")))
-        terms |= set(json.loads((d / "rules.json").read_text(encoding="utf-8"))["rules"])
-        terms |= set(json.loads((d / "questions.json").read_text(encoding="utf-8"))["templates"])
-        terms |= set(followups["types"]) | set(followups["roles"])
+    for pack in BUILTIN_PACKS:
+        terms |= pack_terms_of(pack)
     return terms
 
 
@@ -1469,7 +1608,7 @@ def generic_code_files() -> list[Path]:
 
 
 class DomainLiteralTests(unittest.TestCase):
-    """No pack term (type, predicate, code, rule, template, follow-up type or role id of either built-in pack)
+    """No pack term (type, predicate, code, rule, template, follow-up type or role id of any built-in pack)
     appears in generic code as an identifier (name, argument, def or class name, keyword argument, import alias,
     attribute) or as a whole string constant (f-string constant parts included; docstrings excluded), and no
     string constant there contains 'ILL-'. This check does not catch a term inside a longer literal (a substring)
@@ -1491,7 +1630,14 @@ class DomainLiteralTests(unittest.TestCase):
         out.append("code = 'ILL-0001'")
         return out
 
-    def test_terms_cover_both_packs(self) -> None:
+    def test_terms_cover_every_builtin_pack(self) -> None:
+        # B4: was test_terms_cover_both_packs; each built-in pack's own terms are now checked to be in the scan
+        self.assertGreaterEqual(len(BUILTIN_PACKS), 3)
+        for pack in BUILTIN_PACKS:
+            with self.subTest(pack=pack):
+                own = pack_terms_of(pack)
+                self.assertTrue(own)
+                self.assertLessEqual(own, self.terms)
         self.assertGreater(len(self.terms), 40)
         self.assertTrue(any(t.startswith(ILLUSTRATIVE_CODE_MARK) for t in self.terms))
 
@@ -1543,6 +1689,158 @@ class DomainLiteralTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIn(name, string_constants(f"x = {name!r}"))
                 self.assertNotIn(name, string_constants(f'def f():\n    """{name}"""\n'))
+
+
+# --------------------------------------------------------------------------------------------------- loop coverage
+
+LOOP_SCAN_FILES = tuple(f"test_collective_{name}.py" for name in (
+    "packs", "extract", "e1", "edge", "leakage", "pushdown", "detect", "followup", "evaluate", "guards"))
+# not scanned and not generalised: their frozen scope names the two packs it was sealed for
+LOOP_SCAN_EXCLUDED = {"test_collective_x1_sealed.py": "B2/B3 sealed scope names its two packs",
+                      "test_collective_x5.py": "B2/B3 sealed scope names its two packs"}
+# every remaining loop over a literal list of built-in packs, with why it stays, by file and the qualified name of
+# its enclosing function
+PACK_SPECIFIC_LOOPS = {
+    ("test_collective_packs.py", "TemplateLoaderTests.test_only_the_config_hash_differs_from_g5"):
+        "the G5 and B1 hash history of the two original packs",
+    ("test_collective_pushdown.py", "PackPushdownConfigTests.test_only_config_hash_changed_against_g5"):
+        "the G5 to B1 hash history of the two original packs",
+    ("test_collective_followup.py", "PackFollowupTests.test_only_config_hash_changed_against_g6"):
+        "the G6 to B1 hash history of the two original packs",
+    ("test_collective_followup.py", "PackFollowupTests.test_the_new_args_shapes_and_the_unchanged_settings"):
+        "pins the G6 follow-up settings of the two original packs",
+    ("test_collective_followup.py",
+     "PackFollowupTests.test_scar_is_proposable_only_on_supplier_keys_and_every_other_type_on_any_key"):
+        "the device pack's supplier-keyed draft; test_collective_x3 checks the vendor draft",
+    ("test_collective_evaluate.py", "PlantSpecTests.test_the_loader_accepts_plant_files_and_hashes_none_of_them"):
+        "the R2, G7 and B1 hash history of the two original packs",
+    ("test_collective_detect.py", "StoreTests.test_store_info_mismatch"):
+        "store mismatch cases: the claims pack stands for another pack id",
+    ("test_collective_leakage.py", "G0RunnerTests.setUpClass"):
+        "G0RunnerTests' single-pack option cases (master data off, the pack default, lexical mode); the "
+        "master-data-on run of every built-in pack is ON_RUNS",
+}
+# (test module, attribute path) of every generalised per-pack collection or table: its pack ids are its values (a
+# tuple of ids or of packs) or its keys (a mapping)
+GENERALISED = (
+    ("test_collective_packs", "PACKS"), ("test_collective_packs", "EGRESS_EXPECTED"),
+    ("test_collective_extract", "PACKS"), ("test_collective_e1", "PACKS"), ("test_collective_e1", "WORLDS"),
+    ("test_collective_edge", "PACK_IDS"), ("test_collective_edge", "PACKS"), ("test_collective_edge", "KEY"),
+    ("test_collective_leakage", "PACK_IDS"), ("test_collective_leakage", "PACKS"),
+    ("test_collective_leakage", "ON_RUNS"),
+    ("test_collective_pushdown", "PACKS"), ("test_collective_detect", "PACKS"), ("test_collective_detect", "VOCAB"),
+    ("test_collective_followup", "TemplateDraftTests.PACKS"), ("test_collective_followup", "E5_INJECTIONS"),
+    ("test_collective_evaluate", "SMOKE_FIXTURES"), ("test_collective_detect", "DETECTOR_DEFAULTS"),
+)
+
+
+def _pack_ids(value: Any) -> set[str]:
+    if isinstance(value, Mapping):
+        return set(value)
+    return {v if isinstance(v, str) else v.id for v in value}
+
+
+def _constant_pack_ids(node: ast.AST) -> set[str]:
+    return {n.value for n in ast.walk(node) if isinstance(n, ast.Constant) and n.value in BUILTIN_PACKS}
+
+
+def _pack_aliases(tree: ast.AST) -> dict[str, set[str]]:
+    """Module-level names bound to a value that names built-in pack ids (``DQ = load_pack('device_quality')``), with
+    the ids each one names."""
+    out: dict[str, set[str]] = {}
+    for node in getattr(tree, "body", ()):
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name) and _constant_pack_ids(node.value):
+                out.setdefault(target.id, set()).update(_constant_pack_ids(node.value))
+            elif isinstance(target, ast.Tuple) and isinstance(node.value, ast.Tuple):
+                for t, v in zip(target.elts, node.value.elts):
+                    if isinstance(t, ast.Name) and _constant_pack_ids(v):
+                        out.setdefault(t.id, set()).update(_constant_pack_ids(v))
+    return out
+
+
+def literal_pack_loops(source: str) -> list[tuple[str, int]]:
+    """``(qualified name of the enclosing function, such as ``Class.method``, or '<module>', line)`` of every for loop
+    or comprehension whose iterable is a literal tuple, list or set naming two or more distinct built-in packs anywhere
+    inside its elements: as ids, or as module-level names bound to one (a table row ``("dq-on", "device_quality")`` or
+    a call ``args("claims_integrity", ...)`` counts as well as a bare id)."""
+    tree = ast.parse(source)
+    aliases = _pack_aliases(tree)
+
+    def pack_ids(node: ast.AST) -> set[str]:
+        named = {pid for n in ast.walk(node) if isinstance(n, ast.Name) for pid in aliases.get(n.id, ())}
+        return _constant_pack_ids(node) | named
+
+    found: list[tuple[str, int]] = []
+
+    def visit(node: ast.AST, function: str) -> None:
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            function = node.name if function == "<module>" else f"{function}.{node.name}"
+        iters = []
+        if isinstance(node, (ast.For, ast.AsyncFor)):
+            iters.append(node.iter)
+        elif isinstance(node, ast.comprehension):
+            iters.append(node.iter)
+        for it in iters:
+            if isinstance(it, (ast.Tuple, ast.List, ast.Set)) and len(set().union(*map(pack_ids, it.elts))) >= 2:
+                found.append((function, it.lineno))
+        for child in ast.iter_child_nodes(node):
+            visit(child, function)
+
+    visit(tree, "<module>")
+    return found
+
+
+class LoopCoverageTests(unittest.TestCase):
+    """B4: the generic checks of the collective tests run on every built-in pack. Each generalised collection or
+    table covers exactly :data:`BUILTIN_PACKS`, and a loop over a literal list of built-in packs is allowed only where
+    :data:`PACK_SPECIFIC_LOOPS` says why it stays pack-specific."""
+
+    def test_generalised_collections_and_tables_cover_every_builtin_pack(self) -> None:
+        for module_name, attribute in GENERALISED:
+            with self.subTest(module=module_name, attribute=attribute):
+                value: Any = importlib.import_module(f"tests.mycelic.{module_name}")
+                for part in attribute.split("."):
+                    value = getattr(value, part)
+                self.assertEqual(_pack_ids(value), set(BUILTIN_PACKS))
+
+    def test_every_literal_pack_loop_is_allow_listed_with_a_reason(self) -> None:
+        here = Path(__file__).resolve().parent
+        self.assertEqual(set(LOOP_SCAN_FILES) & set(LOOP_SCAN_EXCLUDED), set())
+        for name in (*LOOP_SCAN_FILES, *LOOP_SCAN_EXCLUDED):
+            self.assertTrue((here / name).is_file(), name)
+        found = {(name, function) for name in LOOP_SCAN_FILES
+                 for function, _ in literal_pack_loops((here / name).read_text(encoding="utf-8"))}
+        self.assertEqual(found - set(PACK_SPECIFIC_LOOPS), set())        # every literal loop is allow-listed
+        self.assertEqual(set(PACK_SPECIFIC_LOOPS) - found, set())        # and no allow-list entry is stale
+        self.assertTrue(all(reason for reason in PACK_SPECIFIC_LOOPS.values()))
+
+    def test_the_scan_flags_literal_loops_and_passes_generalised_ones(self) -> None:
+        a, b = BUILTIN_PACKS[:2]
+        flagged = (f"for p in ({a!r}, {b!r}):\n    pass\n", f"x = [p for p in [{a!r}, {b!r}]]\n",
+                   f"A = load({a!r})\nB = load({b!r})\ndef f():\n    for p in (A, B):\n        pass\n",
+                   f"A, B = P[{a!r}], P[{b!r}]\nfor p, q in ((A, 1), (B, 2)):\n    pass\n",
+                   # the pack is not a row's first element, or sits inside a call or behind an alias in the row
+                   f"for name, pid in (('a-on', {a!r}), ('b-on', {b!r})):\n    pass\n",
+                   f"for name, argv in (('a', f({a!r}, 1)), ('b', f({b!r}, records=3))):\n    pass\n",
+                   f"A = load({a!r})\ndef f():\n    for c in (('x', A.f), ('y', g({b!r}))):\n        pass\n")
+        for source in flagged:
+            with self.subTest(source=source):
+                self.assertTrue(literal_pack_loops(source))
+        passed = ("for p in BUILTIN_PACKS:\n    pass\n", f"for p in ({a!r},):\n    pass\n",
+                  f"x = {{{a!r}: 1, {b!r}: 2}}\nfor p in x:\n    pass\n", f"y = ({a!r}, {b!r})\n",
+                  # cases of one pack, however many
+                  f"for argv in (f({a!r}, 1), f({a!r}, 2), ('c', f({a!r}, 3))):\n    pass\n",
+                  f"A = load({a!r})\nfor t in (A.f, A.g, ('x', {a!r})):\n    pass\n")
+        for source in passed:
+            with self.subTest(source=source):
+                self.assertEqual(literal_pack_loops(source), [])
+        self.assertEqual(literal_pack_loops(f"def g():\n    for p in ({a!r}, {b!r}):\n        pass\n"),
+                         [("g", 2)])
+        self.assertEqual(literal_pack_loops(f"class C:\n    def g(self):\n        x = [p for p in ({a!r}, {b!r})]\n"),
+                         [("C.g", 3)])
 
 
 if __name__ == "__main__":

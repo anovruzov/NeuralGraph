@@ -39,12 +39,13 @@ from mycelic.collective.packs.generator import generate
 from mycelic.collective.packs.loader import FrozenPack, PackError, load_pack
 from tests.mycelic.test_collective_edge import (_SQL_STATEMENT, Clock, coded, pack_copy, string_constants,
                                                universe_master)
+from tests.mycelic.test_collective_guards import BUILTIN_PACKS
 
 ROOT = Path(__file__).resolve().parents[2]
 DETECT = ROOT / "mycelic" / "collective" / "detect"
 DQ = load_pack("device_quality")
 CI = load_pack("claims_integrity")
-PACKS = {"device_quality": DQ, "claims_integrity": CI}
+PACKS = {pid: load_pack(pid) for pid in BUILTIN_PACKS}
 NOW = "2028-01-03T08:00:00Z"
 ENTERPRISE = "acme"
 SIX = (("s1", "acme/emea/de"), ("s2", "acme/emea/fr"), ("s3", "acme/amer/us"), ("s4", "acme/amer/ca"),
@@ -61,7 +62,16 @@ VOCAB = {
                          "preds": ("staged_collision", "duplicate_invoice", "inflated_labour_hours",
                                    "prior_damage_concealed", "tow_without_dispatch"),
                          "bg": ("damage_area", "FRONT-BUMPER", "irregularity_unspecified")},
+    "it_incidents": {"type": "software_release", "ids": ("REL/2401/07", "REL/2402/03", "REL/2403/12", "REL/2404/21",
+                                                         "REL/2405/02", "REL/2406/15", "REL/2407/09"),
+                     "preds": ("memory_leak", "crash_after_update", "license_exhausted", "latency_degradation",
+                               "data_sync_failure"),
+                     "bg": ("it_service", "FILE-SHARE", "incident_unspecified")},
 }
+# per built-in pack: the documented detector defaults that differ between packs (PACKS.md section 1.1) and the egress
+# values the detectors read: (alert budget, stale_days, k, close_lag_days)
+DETECTOR_DEFAULTS = {"device_quality": (5, 42, 3, 14), "claims_integrity": (4, 56, 5, 21),
+                     "it_incidents": (5, 42, 3, 14)}
 
 
 def org_dict(sites: Sequence[tuple[str, str]] = SIX, enterprise: str = ENTERPRISE) -> dict[str, Any]:
@@ -232,14 +242,15 @@ class HqCase(unittest.TestCase):
 # =================================================================================================== config
 
 class DetectorConfigTests(HqCase):
-    def test_both_packs_load_with_the_documented_values(self) -> None:
+    def test_every_builtin_pack_loads_with_the_documented_values(self) -> None:
         common = {"cooldown_weeks": 4, "baseline_weeks": 26, "window_weeks": 8, "min_history_weeks": 12,
                   "alpha_site": 0.01, "lambda_floor": 0.01, "p_min": 0.01, "p_max": 0.25, "burst_min_sites": 2,
                   "pmi_smoothing": 0.5, "pmi_delta": 1.0, "cooccurrence_min_sites": 2, "res_conf_threshold": 0.95,
                   "echo_min_ratio": 0.5, "base_rate_site_fraction": 0.5, "bias": -4.0}
         weights = {"burst_surprise": 0.35, "pmi_rise": 0.5, "log_independent_roots": 0.4, "supporting_sites": 0.3,
                    "low_res_conf": -1.0, "echo": -1.5, "few_reporters_share": -1.0, "high_base_rate": -1.5}
-        for pack, budget, stale, k, lag in ((DQ, 5, 42, 3, 14), (CI, 4, 56, 5, 21)):
+        for pid, (budget, stale, k, lag) in DETECTOR_DEFAULTS.items():
+            pack = PACKS[pid]
             with self.subTest(pack=pack.id):
                 cfg = DetectorConfig.from_pack(pack)
                 for name, value in {**common, "alert_budget_per_week": budget, "stale_days": stale, "k": k,
@@ -788,7 +799,7 @@ class ImputationTests(HqCase):
         return hq.run(), x
 
     def test_all_suppressed_windows_and_baselines_use_the_hand_bounds(self) -> None:
-        for pack in (DQ, CI):
+        for pack in PACKS.values():
             with self.subTest(pack=pack.id):
                 k = pack.egress.k
                 result, x = self.world(pack)
@@ -1241,7 +1252,7 @@ class RankerTests(HqCase):
     def test_features_order_and_closed_weights(self) -> None:
         self.assertEqual(FEATURES, ("burst_surprise", "pmi_rise", "log_independent_roots", "supporting_sites",
                                     "low_res_conf", "echo", "few_reporters_share", "high_base_rate"))
-        for pack in (DQ, CI):
+        for pack in PACKS.values():
             self.assertEqual(tuple(DetectorConfig.from_pack(pack).weights), FEATURES)
             self.assertEqual(sorted(pack.detectors["ranker"]["weights"]), sorted(FEATURES))
 
@@ -1718,8 +1729,8 @@ class DecisionUnitOrgChangeTests(HqCase):
 # =================================================================================================== end to end
 
 class EndToEndTests(HqCase):
-    def test_generated_worlds_of_both_packs(self) -> None:
-        for pack in (DQ, CI):
+    def test_generated_worlds_of_every_builtin_pack(self) -> None:
+        for pack in PACKS.values():
             with self.subTest(pack=pack.id):
                 root = Path(tempfile.mkdtemp(dir=self.tmp))
                 world = generate(pack, 4, 6, 40)

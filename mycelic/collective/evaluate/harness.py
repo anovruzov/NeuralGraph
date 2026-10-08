@@ -2,8 +2,8 @@
 
     python -m mycelic.collective.evaluate.harness prereg --pack P --seeds 1,2,3 --eval-from F --eval-to T
         --tie-salt S --detector-author NAME [--sites 6] [--weeks 52] [--grace-weeks 4] [--bootstrap-b 10000]
-        [--bootstrap-seed 1] --run-id ID [--allow-dirty]
-    python -m mycelic.collective.evaluate.harness check-plant --prereg FILE --plant FILE
+        [--bootstrap-seed 1] [--family-size 1] [--planter-relation unstated] --run-id ID [--allow-dirty]
+    python -m mycelic.collective.evaluate.harness check-plant --prereg FILE --plant FILE [--construct]
     python -m mycelic.collective.evaluate.harness run --prereg FILE --plant FILE --seeds 1,2,3 --run-id ID
         [--ablation-k1] [--allow-dirty]
 
@@ -13,11 +13,15 @@ same id is refused).
 
 **What is pinned.** ``prereg`` writes ``runs/x1/<id>/prereg.json`` with the pack's four hashes, the hash of every
 file the evaluation runs (:data:`EVAL_CODE_FILES`), the seeds, world size, evaluation weeks, grace, tie salt,
-detector author and bootstrap settings, before any plant spec or outcome is seen. ``run`` refuses (exit 2, writing
-no scorecard) a changed pack hash or code hash (every differing name is listed), other seeds, an existing run
-directory, a plant spec bound to another prereg (its ``prereg_sha256``, when not null, must be the prereg file's
-sha256, which ``check-plant`` prints for the planter), and dirty or unknown code state under
-:data:`EVAL_DIRTY_PATHS` without ``--allow-dirty`` (stamped).
+detector author, bootstrap settings, the number of primary tests the run belongs to (``family_size``) and the
+planter's stated relation to the detector author (``planter_relation``, one of :data:`PLANTER_RELATIONS`), before any
+plant spec or outcome is seen. ``run`` refuses (exit 2, writing no scorecard) a changed pack hash or code hash (every
+differing name is listed), other seeds, an existing run directory, a plant spec bound to another prereg (its
+``prereg_sha256``, when not null, must be the prereg file's sha256, which ``check-plant`` prints for the planter),
+and dirty or unknown code state under :data:`EVAL_DIRTY_PATHS` without ``--allow-dirty`` (stamped). ``check-plant``
+refuses the same foreign binding; with ``--construct`` it also builds the plant into every prereg seed's world
+(construction only: no pipeline, no detection, no outcome), so a seed-dependent construction failure shows before
+a spec is sealed.
 
 **What a run does.** Per seed: generate the world, plant the spec, run the real pipeline (``baselines``), and read
 every channel: X and S from HQ's store, R (model-free), U, rules and single_site, and with ``--ablation-k1`` the
@@ -31,7 +35,10 @@ world the plant's alert came first, and the cooldown after it can suppress that 
 channel reports its control finds (any week in the window) and its chance finds, and ``found_net`` counts the
 planted finds that are not chance finds. Recall is pooled over patterns x seeds; precision@40 and AP are
 tie-averaged per seed over distinct alerted keys (score: the key's best alert) and averaged over seeds; lifts are
-cluster bootstraps over patterns of each pattern's per-seed differences in net found. A decoy fails a channel that
+cluster bootstraps over patterns of each pattern's per-seed differences in net found, each with a second interval at
+``0.05 / family_size`` from the same replicates. Every channel also carries cluster-bootstrap intervals: net recall
+over patterns, precision@40, AP and false alarms per week over seeds; ``by_rate_per_week`` splits net recall by the
+patterns' planted rate. A decoy fails a channel that
 alerts on its key inside its watch span; a stale chain also fails a channel with candidates (all but rules and
 single_site) that keeps its key a candidate there, because the cooldown after its fresh alert in burn-in would hold
 any alert (``decoys_failed``; ``decoys_alerted`` counts alerts only). Diagnostics: the quiet precondition of the
@@ -39,7 +46,9 @@ structural decoys, the X flags at a decoy's detection, suppression shares and th
 of G4's per-site test.
 
 **What the scorecard says about itself.** ``stamps`` are ``synthetic: true``, ``internal_only: true`` and
-``measurement: false``; ``blind`` is self-declared (``blind_basis``). It is validated against
+``measurement: false``; ``blind`` is self-declared (``blind_basis``). ``x1`` echoes the prereg's ``planter_relation``
+and ``family_size``: only an ``independent`` planter's passing verdict ``counts_as_strategy_x1``, and the other
+relations carry a caveat. It is validated against
 :data:`SCORECARD_SCHEMA` before it is written. ``content_hash`` is the sha256 of its canonical JSON without
 ``content_hash``, ``created_at``, ``run_id``, ``paths`` and ``timings``, so it is the same across processes, hash
 seeds, run ids and work directories. G5 makes no model call: X uses the lexical extractor.
@@ -82,6 +91,10 @@ MAX_WEEKS = 520
 MAX_GRACE = 52
 MAX_AUTHOR = 80
 MIN_BOOTSTRAP_B = 1000
+MAX_FAMILY_SIZE = 100
+PLANTER_RELATIONS = ("independent", "same_system_procedural", "unstated")
+INTERVAL_METRICS = ("recall_net", "precision_at_40", "average_precision", "false_alarms_per_week")
+ALPHA = 0.05
 X1_MIN_ITEMS = 20
 FEW_PATTERNS = 10
 MAX_RATE_SEARCH = 1000
@@ -95,6 +108,10 @@ KNOWN_HARD_NOTE = "copies without origin markers count as independent at each si
 NET_BASIS = ("found in the planted world and not found as early or earlier in the same seed's no-plant "
              "control world")
 FEW_PATTERNS_WARNING = "fewer than 10 patterns: the lift intervals are unstable"
+SAME_SYSTEM_CAVEAT = "Procedural blinding only: the planter and the detector author are the same AI system."
+UNSTATED_CAVEAT = ("The prereg does not state the planter's relation to the detector author, so this run cannot count "
+                   "as STRATEGY's X1.")
+CAVEATS = {"independent": [], "same_system_procedural": [SAME_SYSTEM_CAVEAT], "unstated": [UNSTATED_CAVEAT]}
 MIN_RATE_LABEL = ("analytic: constant weekly counts, G4's per-site D2 tests only (rate_at_k_text_background: X with "
                   "the background in text-only cells and the planted rate in codes cells, two tests at alpha_site / "
                   "2); not a measurement")
@@ -110,6 +127,10 @@ NOTES = [
     "finds the same unit in the same week or earlier; a control alert that comes only later does not void it. "
     "control_found counts the control's finds in any week of the window; found and recall include chance finds; "
     "found_net and recall_net do not, and the lifts use found_net.",
+    "recall_net_ci resamples whole patterns; precision_at_40_ci, average_precision_ci and false_alarms_per_week_ci "
+    "resample seeds (n_clusters), so with few seeds they are coarse.",
+    "Each lift also carries an interval at alpha_adjusted = 0.05 / family_size from the same bootstrap replicates; "
+    "x1.verdict reads the unadjusted 95% interval (STRATEGY section 11.2).",
 ]
 PREREG_NOTES = ["Settings, code and pack are frozen and hashed here before any plant spec or outcome is seen."]
 
@@ -195,12 +216,16 @@ PREREG_SCHEMA = schemacheck.compile(_O({
                       "grace_weeks": typed_schema("integer", minimum=0, maximum=MAX_GRACE), "top_k": _const(TOP_K)}),
     "tie_salt": typed_schema("string", pattern=TIE_SALT_RE.pattern),
     "detector_author": typed_schema("string", minLength=1, maxLength=MAX_AUTHOR),
-    "bootstrap": _O({"B": typed_schema("integer", minimum=MIN_BOOTSTRAP_B), "seed": _INT}), "notes": _A(_STR)}))
+    "bootstrap": _O({"B": typed_schema("integer", minimum=MIN_BOOTSTRAP_B), "seed": _INT}),
+    "family_size": typed_schema("integer", minimum=1, maximum=MAX_FAMILY_SIZE),
+    "planter_relation": _enum(PLANTER_RELATIONS), "notes": _A(_STR)}))
 
 _CHANNEL_ENUM = _enum([*CHANNELS, *ABLATION_CHANNELS])
 _EVENT = _O({"week": _WEEK, "rank": _NINT, "key": _STR, "score": _NNUM, "site": _NSTR})
 _VIS_BLOCK = _O({"units": _NAT, "found": _NAT, "recall": _NNUM, "control_found": _NAT, "chance_found": _NAT,
                  "found_net": _NAT, "recall_net": _NNUM})
+_INTERVAL = _O({"estimate": _NUM, "ci_low": _NUM, "ci_high": _NUM, "B": _POS, "seed": _STR, "method": _STR,
+                "clusters": _enum(["patterns", "seeds"]), "n_clusters": _POS}, nullable=True)
 _CHANNEL_BLOCK = _O({
     "label": _STR, "ranked": _BOOL, "units": _NAT, "found": _NAT, "recall": _NNUM, "control_found": _NAT,
     "control_recall": _NNUM, "control_alerts": _NAT, "chance_found": _NAT, "found_net": _NAT, "recall_net": _NNUM,
@@ -211,9 +236,11 @@ _CHANNEL_BLOCK = _O({
     "per_seed": _A(_O({"seed": _NAT, "found": _NAT, "recall": _NNUM, "control_found": _NAT, "chance_found": _NAT,
                        "found_net": _NAT,
                        "alerts": _NAT, "control_alerts": _NAT, "false_alarms": _NAT, "false_alarms_per_week": _NUM,
-                       "precision_at_40": _NNUM, "average_precision": _NNUM}))})
+                       "precision_at_40": _NNUM, "average_precision": _NNUM})),
+    **{f"{metric}_ci": _INTERVAL for metric in INTERVAL_METRICS}})
 _LIFT = _O({"estimate": _NUM, "ci_low": _NUM, "ci_high": _NUM, "B": _POS, "seed": _STR, "method": _STR,
-            "basis": _const(NET_BASIS), "n_patterns": _NAT, "n_seeds": _NAT, "n_units": _NAT})
+            "basis": _const(NET_BASIS), "n_patterns": _NAT, "n_seeds": _NAT, "n_units": _NAT,
+            "alpha_adjusted": _NUM, "ci_low_adjusted": _NUM, "ci_high_adjusted": _NUM})
 _FLAGS = _O({"echo": _BOOL, "few_reporters_sites": _A(_STR), "high_base_rate": _BOOL}, nullable=True)
 _SUPPRESSION = {"cells": _NAT, "cells_n_suppressed": _NAT, "share_n_suppressed": _NNUM}
 _HASH_NAMES = ("config_hash", "vocabulary_hash", "detector_hash", "fixtures_hash", "code_hash", "org_hash",
@@ -244,8 +271,10 @@ SCORECARD_SCHEMA = schemacheck.compile(_O({
                               "recall": _NNUM, "control_recall": _NNUM, "recall_net": _NNUM})),
     "known_hard_cases": _A(_O({"decoy_id": _STR, "class": _STR, "seed": _NAT, "note": _const(KNOWN_HARD_NOTE),
                                "alerted": _O({c: _BOOL for c in CHANNELS})})),
+    "by_rate_per_week": _A(_O({"rate_per_week": _POS, "patterns": _POS, "units": _NAT,
+                               "channels": _O({c: _O({"found_net": _NAT, "recall_net": _NNUM}) for c in CHANNELS})})),
     "patterns": _A(_O({"id": _STR, "key": _STR, "visibility": _enum(VISIBILITIES), "sites": _A(_STR),
-                       "start_week": _WEEK, "end_week": _WEEK,
+                       "rate_per_week": _POS, "start_week": _WEEK, "end_week": _WEEK,
                        "outcomes": _A(_O({"seed": _NAT, "channel": _CHANNEL_ENUM, "found": _BOOL,
                                           "first_alert_week": _NSTR, "delay_weeks": _NINT, "lead_weeks": _NINT,
                                           "found_in_control": _BOOL, "chance_find": _BOOL}))})),
@@ -267,7 +296,10 @@ SCORECARD_SCHEMA = schemacheck.compile(_O({
     "warnings": _A(_STR),
     "x1": _O({"eligible": _BOOL, "reasons": _A(_STR),
               "verdict": _O({"lift_ci_low_above_0": _BOOL, "precision_at_40_at_least_0_25": _BOOL, "pass": _BOOL},
-                            nullable=True)}),
+                            nullable=True),
+              "family_size": typed_schema("integer", minimum=1, maximum=MAX_FAMILY_SIZE),
+              "planter_relation": _enum(PLANTER_RELATIONS), "independent": _BOOL, "counts_as_strategy_x1": _BOOL,
+              "caveats": _A(_enum([SAME_SYSTEM_CAVEAT, UNSTATED_CAVEAT]))}),
     "notes": _A(_STR),
     "paths": _O({name: _STR for name in ("pack_ref", "prereg", "plant", "run_dir", "workdir")}),
     "timings": _O({"total_s": _NUM, "per_seed_s": _A(_NUM)}),
@@ -315,6 +347,18 @@ def parse_seeds(text: str) -> list[int]:
     if len(set(seeds)) != len(seeds):
         raise UsageError("--seeds lists a seed twice") from None
     return sorted(seeds)
+
+
+def parse_family_size(text: str) -> int:
+    if not text.isascii() or not text.isdigit() or not 1 <= int(text) <= MAX_FAMILY_SIZE:
+        raise UsageError(f"--family-size must be an int in [1, {MAX_FAMILY_SIZE}]") from None
+    return int(text)
+
+
+def parse_planter_relation(text: str) -> str:
+    if text not in PLANTER_RELATIONS:
+        raise UsageError(f"--planter-relation must be one of {', '.join(PLANTER_RELATIONS)}") from None
+    return text
 
 
 def check_settings(pack: FrozenPack, *, sites: int, weeks: int, eval_from: int, eval_to: int,
@@ -525,15 +569,58 @@ def channel_block(channel: str, label: str, per_seed_events: Mapping[int, Sequen
             "alerts": total_alerts, "decoys_alerted": alerted, "decoys_failed": failed, "per_seed": per_seed}
 
 
+def _interval(clusters: Sequence[Sequence[float]], *, B: int, seed: str, unit: str) -> dict[str, Any]:
+    boot = stats.cluster_bootstrap_mean(clusters, B=B, seed=seed, alpha=ALPHA)
+    return {"estimate": boot["mean"], "ci_low": boot["ci_low"], "ci_high": boot["ci_high"], "B": boot["B"],
+            "seed": boot["seed"], "method": boot["method"], "clusters": unit, "n_clusters": boot["n_clusters"]}
+
+
+def interval_blocks(channel: str, block: Mapping[str, Any], net: Mapping[str, Sequence[bool]], *, B: int,
+                    seed: int) -> dict[str, Any]:
+    """The 95% cluster-bootstrap intervals merged into ``block`` (one channel's :func:`channel_block`):
+    ``recall_net_ci`` resamples whole patterns (``net``: each pattern's per-seed net found, the lifts' input), the
+    other three resample the seeds whose per-seed value is not null. Each is null without a cluster (no pattern; or,
+    for precision and AP, an unranked channel). Seed string ``x1:<seed>:<channel>:<metric>``."""
+    out: dict[str, Any] = {"recall_net_ci": _interval([[int(f) for f in net[p]] for p in sorted(net)], B=B,
+                                                      seed=f"x1:{seed}:{channel}:recall_net", unit="patterns")
+                           if net else None}
+    for metric in INTERVAL_METRICS[1:]:
+        values = [[r[metric]] for r in block["per_seed"] if r[metric] is not None]
+        out[f"{metric}_ci"] = (_interval(values, B=B, seed=f"x1:{seed}:{channel}:{metric}", unit="seeds")
+                               if values else None)
+    return out
+
+
 def lift(name: str, found_a: Mapping[str, Sequence[bool]], found_b: Mapping[str, Sequence[bool]], *, B: int,
-         seed: int) -> dict[str, Any]:
+         seed: int, family_size: int = 1) -> dict[str, Any]:
     """Cluster bootstrap over patterns of the per-seed differences found_a - found_b (each -1, 0 or 1); the harness
-    passes net found (:data:`NET_BASIS`)."""
+    passes net found (:data:`NET_BASIS`). The adjusted interval (``alpha_adjusted = 0.05 / family_size``) comes from
+    the same seed string, so from the same replicates, and nests the 95% one."""
     clusters = [[int(a) - int(b) for a, b in zip(found_a[p], found_b[p])] for p in sorted(found_a)]
-    boot = stats.cluster_bootstrap_mean(clusters, B=B, seed=f"x1:{seed}:{name}")
+    boot = stats.cluster_bootstrap_mean(clusters, B=B, seed=f"x1:{seed}:{name}", alpha=ALPHA)
+    alpha_adjusted = ALPHA / family_size
+    adjusted = stats.cluster_bootstrap_mean(clusters, B=B, seed=f"x1:{seed}:{name}", alpha=alpha_adjusted)
     return {"estimate": boot["mean"], "ci_low": boot["ci_low"], "ci_high": boot["ci_high"], "B": boot["B"],
             "seed": boot["seed"], "method": boot["method"], "basis": NET_BASIS, "n_patterns": len(clusters),
-            "n_seeds": len(clusters[0]) if clusters else 0, "n_units": boot["n_units"]}
+            "n_seeds": len(clusters[0]) if clusters else 0, "n_units": boot["n_units"],
+            "alpha_adjusted": alpha_adjusted, "ci_low_adjusted": adjusted["ci_low"],
+            "ci_high_adjusted": adjusted["ci_high"]}
+
+
+def rate_strata(patterns: Sequence[Mapping[str, Any]], found: Mapping[str, Mapping[str, Sequence[bool]]],
+                n_seeds: int) -> list[dict[str, Any]]:
+    """``by_rate_per_week``: one row per distinct planted rate, ascending, with each channel's net found and net
+    recall over that rate's patterns x seeds (``found``: channel -> pattern id -> per-seed net found)."""
+    rows = []
+    for rate in sorted({p["rate_per_week"] for p in patterns}):
+        ids = [p["id"] for p in patterns if p["rate_per_week"] == rate]
+        units = len(ids) * n_seeds
+        channels = {}
+        for name in CHANNELS:
+            n = sum(1 for i in ids for f in found[name][i] if f)
+            channels[name] = {"found_net": n, "recall_net": _recall(n, units)}
+        rows.append({"rate_per_week": rate, "patterns": len(ids), "units": units, "channels": channels})
+    return rows
 
 
 def _lb(cell: CellRow) -> int:
@@ -618,7 +705,9 @@ def min_detectable_rate(pack: FrozenPack) -> dict[str, Any]:
 
 
 def x1_block(*, blind: bool, bound: bool, n_patterns: int, n_decoys: int, lift_x: Mapping[str, Any],
-             precision_x: float | None) -> dict[str, Any]:
+             precision_x: float | None, planter_relation: str = "unstated", family_size: int = 1) -> dict[str, Any]:
+    """Eligibility and the verdict (STRATEGY section 11.2, on the unadjusted 95% interval), and what the prereg says
+    about the planter: only an independent planter's passing verdict counts as STRATEGY's X1."""
     reasons = [text for failing, text in (
         (not blind, "not blind (self-declared: planter_saw_detector_code or planted_by equals the detector author)"),
         (not bound, "the plant spec is not bound to the prereg (prereg_sha256 is null)"),
@@ -629,7 +718,11 @@ def x1_block(*, blind: bool, bound: bool, n_patterns: int, n_decoys: int, lift_x
         above = lift_x["ci_low"] > 0
         precise = precision_x is not None and precision_x >= 0.25
         verdict = {"lift_ci_low_above_0": above, "precision_at_40_at_least_0_25": precise, "pass": above and precise}
-    return {"eligible": not reasons, "reasons": reasons, "verdict": verdict}
+    independent = planter_relation == "independent"
+    return {"eligible": not reasons, "reasons": reasons, "verdict": verdict, "family_size": family_size,
+            "planter_relation": planter_relation, "independent": independent,
+            "counts_as_strategy_x1": bool(not reasons and independent and verdict is not None and verdict["pass"]),
+            "caveats": list(CAVEATS[planter_relation])}
 
 
 # --------------------------------------------------------------------------------------------------- one seed
@@ -710,13 +803,17 @@ def build_scorecard(*, run_id: str, pack: FrozenPack, prereg: Mapping[str, Any],
     per_channel = {name: {s: runs[s]["events"][name] for s in seeds} for name in names}
     per_control = {name: {s: runs[s]["control_events"][name] for s in seeds} for name in names}
     per_candidates = {name: {s: runs[s]["candidates"].get(name) for s in seeds} for name in names}
-    blocks = {name: channel_block(name, CHANNEL_LABELS[name] if name in CHANNEL_LABELS else ABLATION_LABEL,
-                                  per_channel[name], labels, index, evaluation_weeks, per_control[name],
-                                  per_candidates[name])
-              for name in names}
     found = {name: {p["id"]: [net_found(per_channel[name][s], per_control[name][s], p, index) for s in seeds]
-                    for p in patterns} for name in CHANNELS}
-    lifts = {name: lift(name, found[a], found[b], B=boot["B"], seed=boot["seed"]) for name, a, b in LIFTS}
+                    for p in patterns} for name in names}
+    blocks = {}
+    for name in names:
+        block = channel_block(name, CHANNEL_LABELS[name] if name in CHANNEL_LABELS else ABLATION_LABEL,
+                              per_channel[name], labels, index, evaluation_weeks, per_control[name],
+                              per_candidates[name])
+        blocks[name] = {**block, **interval_blocks(name, block, found[name], B=boot["B"], seed=boot["seed"])}
+    family_size = prereg["family_size"]
+    lifts = {name: lift(name, found[a], found[b], B=boot["B"], seed=boot["seed"], family_size=family_size)
+             for name, a, b in LIFTS}
     blind = is_blind(spec, prereg["detector_author"])
     bound = spec.prereg_sha256 is not None
     warnings = [FEW_PATTERNS_WARNING] if len(patterns) < FEW_PATTERNS else []
@@ -776,8 +873,9 @@ def build_scorecard(*, run_id: str, pack: FrozenPack, prereg: Mapping[str, Any],
         "ablation": ({"label": ABLATION_LABEL, "channels": {name: blocks[name] for name in ABLATION_CHANNELS}}
                      if ablation_k1 else None),
         "lifts": lifts, "by_construction": by_construction, "known_hard_cases": known_hard,
+        "by_rate_per_week": rate_strata(patterns, found, len(seeds)),
         "patterns": [{"id": p["id"], "key": p["key"], "visibility": p["visibility"], "sites": list(p["sites"]),
-                      "start_week": p["start_week"], "end_week": p["end_week"],
+                      "rate_per_week": p["rate_per_week"], "start_week": p["start_week"], "end_week": p["end_week"],
                       "outcomes": [{"seed": s, "channel": name, **pattern_outcome(per_channel[name][s], p, index),
                                     "found_in_control": pattern_outcome(per_control[name][s], p, index)["found"],
                                     "chance_find": chance_find(per_channel[name][s], per_control[name][s], p,
@@ -791,7 +889,8 @@ def build_scorecard(*, run_id: str, pack: FrozenPack, prereg: Mapping[str, Any],
                            for name in names],
         "warnings": warnings,
         "x1": x1_block(blind=blind, bound=bound, n_patterns=len(patterns), n_decoys=len(decoys),
-                       lift_x=lifts["X_minus_single_site"], precision_x=blocks["X"]["precision_at_40"]),
+                       lift_x=lifts["X_minus_single_site"], precision_x=blocks["X"]["precision_at_40"],
+                       planter_relation=prereg["planter_relation"], family_size=family_size),
         "notes": list(NOTES), "paths": dict(paths), "timings": dict(timings),
         "content_hash_excludes": list(CONTENT_HASH_EXCLUDES),
     }
@@ -811,6 +910,8 @@ def cmd_prereg(args: argparse.Namespace) -> int:
             raise UsageError(f"--detector-author must be 1 to {MAX_AUTHOR} printable characters") from None
         if args.bootstrap_b < MIN_BOOTSTRAP_B:
             raise UsageError(f"--bootstrap-b must be >= {MIN_BOOTSTRAP_B}") from None
+        family_size = parse_family_size(args.family_size)
+        planter_relation = parse_planter_relation(args.planter_relation)
         out_dir = run_dir(args.runs_dir, KIND, args.run_id)
         dry = DryRun(f"{CLI} prereg") if args.dry_run else None
         if dry is not None and not is_builtin_ref(args.pack) and not Path(args.pack).exists():
@@ -844,7 +945,8 @@ def cmd_prereg(args: argparse.Namespace) -> int:
         "evaluation": {"eval_from": args.eval_from, "eval_to": args.eval_to, "eval_from_week": weeks[args.eval_from],
                        "eval_to_week": weeks[args.eval_to], "grace_weeks": args.grace_weeks, "top_k": TOP_K},
         "tie_salt": args.tie_salt, "detector_author": args.detector_author,
-        "bootstrap": {"B": args.bootstrap_b, "seed": args.bootstrap_seed}, "notes": list(PREREG_NOTES),
+        "bootstrap": {"B": args.bootstrap_b, "seed": args.bootstrap_seed}, "family_size": family_size,
+        "planter_relation": planter_relation, "notes": list(PREREG_NOTES),
     }
     out_dir.mkdir(parents=True)
     digest = write_json_atomic(out_dir / "prereg.json", doc)
@@ -880,6 +982,22 @@ def load_checked_plant(path: str, pack: FrozenPack, prereg: Mapping[str, Any]) -
     return spec
 
 
+def check_binding(spec: PlantSpec, prereg_sha: str) -> None:
+    if spec.prereg_sha256 is not None and spec.prereg_sha256 != prereg_sha:
+        raise UsageError("the plant spec's prereg_sha256 is not the sha256 of this prereg file") from None
+
+
+def construct_every_seed(spec: PlantSpec, pack: FrozenPack, prereg: Mapping[str, Any]) -> None:
+    """``check-plant --construct``: generate each prereg seed's world, in order, and plant the spec into it; the first
+    construction failure is a UsageError naming its seed. Construction only: no pipeline, detection or outcome."""
+    w = prereg["world"]
+    for seed in w["seeds"]:
+        try:
+            plant(generate(pack, seed, w["sites"], w["weeks"]), spec, pack)
+        except (PlantError, GeneratorError) as exc:
+            raise UsageError(f"{exc} (seed {seed})") from None
+
+
 def cmd_check_plant(args: argparse.Namespace) -> int:
     dry = DryRun(f"{CLI} check-plant") if args.dry_run else None
     try:
@@ -896,12 +1014,17 @@ def cmd_check_plant(args: argparse.Namespace) -> int:
             raise UsageError(f"pinned values differ from the prereg: {', '.join(differing)}") from None
         check_world(pack, prereg)
         spec = load_checked_plant(args.plant, pack, prereg)
+        check_binding(spec, sha256_hex(data))
+        if dry is not None:
+            return dry.emit()
+        if args.construct:
+            construct_every_seed(spec, pack, prereg)
     except (UsageError, PlantError, GeneratorError) as exc:
         return fail(str(exc))
-    if dry is not None:
-        return dry.emit()
     print(f"prereg_sha256: {sha256_hex(data)}")
     print(f"plant: ok (patterns={len(spec.patterns)} decoys={len(spec.decoys)})")
+    if args.construct:
+        print(f"construction: ok (seeds={len(prereg['world']['seeds'])})")
     return 0
 
 
@@ -931,8 +1054,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         check_clean(args.allow_dirty, dry, dirty)
         check_world(pack, prereg)
         spec = load_checked_plant(args.plant, pack, prereg)
-        if spec.prereg_sha256 is not None and spec.prereg_sha256 != prereg_sha:
-            raise UsageError("the plant spec's prereg_sha256 is not the sha256 of this prereg file") from None
+        check_binding(spec, prereg_sha)
         if dry is not None:
             for name in ("labels.json", "scorecard.json", "work/seed-<seed>/planted/", "work/seed-<seed>/control/"):
                 dry.write(str(out_dir / name))
@@ -1006,12 +1128,19 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--detector-author", required=True, help="who wrote the detector code (blindness check)")
     s.add_argument("--bootstrap-b", type=int, default=10000)
     s.add_argument("--bootstrap-seed", type=int, default=1)
+    s.add_argument("--family-size", default="1",
+                   help=f"how many primary tests share the run's error rate (1 to {MAX_FAMILY_SIZE}); each lift also "
+                        "gets an interval at 0.05 / family-size")
+    s.add_argument("--planter-relation", default="unstated",
+                   help=f"the planter's relation to the detector author: {', '.join(PLANTER_RELATIONS)}")
     s.add_argument("--run-id", required=True)
     s.add_argument("--allow-dirty", action="store_true")
     common(s)
     s = sub.add_parser("check-plant", help="check a plant spec against a prereg and print the prereg's sha256")
     s.add_argument("--prereg", required=True)
     s.add_argument("--plant", required=True)
+    s.add_argument("--construct", action="store_true",
+                   help="also plant the spec into every prereg seed's world (construction only, no detection)")
     common(s)
     s = sub.add_parser("run", help="run every seed and write labels.json and scorecard.json")
     s.add_argument("--prereg", required=True)

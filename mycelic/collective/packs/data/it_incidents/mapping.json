@@ -1,0 +1,79 @@
+{
+  "record_ref": "number",
+  "site": "company",
+  "received_date": {
+    "path": "opened_date",
+    "format": "iso"
+  },
+  "language": "language",
+  "codes": [
+    {
+      "path": "category",
+      "value_map": {
+        "Application / Crash after update": "ITC-1100",
+        "Security / Certificate": "ITC-1200",
+        "Storage / Disk space": "ITC-1300",
+        "Application / Memory": "ITC-1400",
+        "Access / Authentication": "ITC-1500",
+        "Backup / Job failure": "ITC-1600",
+        "Performance / Slow response": "ITC-1700",
+        "Network / Packet loss": "ITC-1800",
+        "Integration / Data sync": "ITC-1900",
+        "Licensing / Capacity": "ITC-2000",
+        "Change / Failed change": "ITC-2100",
+        "Other": "ITC-9000",
+        "Inquiry / Unknown cause": "ITC-9100"
+      }
+    }
+  ],
+  "entities": {
+    "change_request": [
+      "caused_by_change"
+    ],
+    "config_item": [
+      "cmdb_ci"
+    ],
+    "it_service": [
+      "service"
+    ],
+    "software_release": [
+      "affected_releases[]"
+    ],
+    "vendor": [
+      "vendor.id"
+    ]
+  },
+  "primary_entity_type": "it_service",
+  "narrative": [
+    {
+      "path": "short_description",
+      "where": null
+    },
+    {
+      "path": "description",
+      "where": null
+    },
+    {
+      "path": "journal[].text",
+      "where": {
+        "field": "kind",
+        "in": [
+          "work_note",
+          "comment"
+        ]
+      }
+    }
+  ],
+  "persons": {
+    "assignee_name": "assignee_name",
+    "requester_email": "requester_email",
+    "requester_name": "requester_name",
+    "requester_phone": "requester_phone"
+  },
+  "reporter": "opened_by",
+  "origin_ref": "forwarded_from.number",
+  "origin_site": "forwarded_from.company",
+  "required": [
+    "narrative"
+  ]
+}

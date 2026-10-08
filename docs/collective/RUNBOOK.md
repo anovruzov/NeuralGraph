@@ -21,6 +21,8 @@ This runbook covers what you run on your own machines (STRATEGY sections 11.2 an
   exported or driven live from a console (sections 15 to 17). **Fictional company, synthetic data, an illustration;
   internal use only (STRATEGY section 9.1 puts synthetic-fixture results off the YC demo's screen; showing it to YC
   is the founder's decision); never a measurement.**
+- **part 3, X5** (B3): leakage beyond text, measured by a red team that holds only what HQ holds, on synthetic worlds
+  (section 18). **Synthetic, same-author and internal only; the published leakage figure is LEAKAGE.md section 12.**
 
 None of these produced a number in the sandbox where the code was written. Model weights and api.fda.gov could not
 be reached there, so every figure has to come from your runs. The E1 harness was rehearsed against local fake
@@ -573,6 +575,23 @@ python -m mycelic.collective.evaluate.harness prereg --pack <pack> --seeds <seed
 `--eval-from` must leave room for the detectors' window and history (the command says how much); weeks before it
 are burn-in. Send `runs/x1/<run-id>/prereg.json` to the planter.
 
+Two optional flags state what the run is (B2), and both are pinned in the prereg and echoed in the scorecard's `x1`
+block:
+
+- `--planter-relation` says who planted: `independent` (not the detector author, and not the same AI system: the
+  only relation whose passing verdict counts as STRATEGY's X1), `same_system_procedural` (the same AI system, blinded
+  only by procedure) or `unstated` (the default, which carries a caveat and can never count);
+- `--family-size` is the number of primary tests that share the run's error rate (default 1). Each lift then also
+  carries an interval at `0.05 / family-size` from the same bootstrap replicates; `x1.verdict` still reads the
+  unadjusted 95% interval (STRATEGY section 11.2). With one primary test per pack over two packs, use 2:
+
+```
+python -m mycelic.collective.evaluate.harness prereg --pack <pack> --seeds <seeds> --weeks 104 --eval-from 26 --eval-to 103 --tie-salt <tie-salt> --detector-author "<detector-author>" --family-size 2 --planter-relation same_system_procedural --run-id <run-id>
+```
+
+A family size outside 1 to 100 or another relation is refused (`error: ...`, exit 2). A prereg made before B2 has
+neither key and is refused by `check-plant` and `run`; make it again.
+
 **Step 2 (planter): check the spec** against the prereg until it prints `plant: ok`. It also prints the prereg's
 sha256 for the spec's `prereg_sha256`:
 
@@ -580,7 +599,16 @@ sha256 for the spec's `prereg_sha256`:
 python -m mycelic.collective.evaluate.harness check-plant --prereg <prereg-file> --plant <plant-file>
 ```
 
-Errors name a JSON path and a fixed problem, for example `plant: $.decoys[3].sites: too few sites`.
+Errors name a JSON path and a fixed problem, for example `plant: $.decoys[3].sites: too few sites`. A spec whose
+`prereg_sha256` is not null and not this prereg's sha256 is refused here too, as `run` refuses it. With
+`--construct`, check-plant also builds the plant into every prereg seed's world (construction only: no pipeline, no
+detection, no outcome) and prints a third line, `construction: ok (seeds=<n>)`; a seed-dependent construction
+failure (for example `narrative uniqueness exhausted`, too many reports sharing too few possible texts) exits 2 and
+names its seed, so it shows before a spec is sealed rather than in `run`:
+
+```
+python -m mycelic.collective.evaluate.harness check-plant --construct --prereg <prereg-file> --plant <plant-file>
+```
 
 **Step 3 (detector author): run every seed.** `run` refuses (exit 2, no scorecard) a changed pack or code hash
 (listing every changed name), other seeds, a spec bound to another prereg, an existing run id and uncommitted code:
@@ -598,7 +626,14 @@ suppression. Ctrl-C exits 130 and leaves a partial run directory; start again un
 - `x1.eligible` is true only when the run is blind (self-declared), the spec is bound to the prereg, and there are
   at least 20 patterns and 20 decoys; `x1.reasons` lists every failing condition. Only then is `x1.verdict` filled:
   `lift_ci_low_above_0` (the 95% cluster-bootstrap interval of `lifts.X_minus_single_site` excludes 0),
-  `precision_at_40_at_least_0_25` and `pass`.
+  `precision_at_40_at_least_0_25` and `pass`. `x1` also echoes the prereg's `planter_relation` and `family_size`:
+  `counts_as_strategy_x1` is true only for an eligible, passing run whose planter is `independent`, and `caveats`
+  says why a `same_system_procedural` or `unstated` run cannot count.
+- Every channel carries 95% cluster-bootstrap intervals: `recall_net_ci` resamples whole patterns;
+  `precision_at_40_ci`, `average_precision_ci` and `false_alarms_per_week_ci` resample seeds, so with few seeds
+  they are coarse (null where no seed has a value: rules is unranked). Each lift also carries `alpha_adjusted`,
+  `ci_low_adjusted` and `ci_high_adjusted`. `by_rate_per_week` splits each channel's net recall by the patterns'
+  planted rate, and each pattern carries its `rate_per_week`.
 - `channels.<name>` gives recall (found / patterns x seeds), recall by visibility, median delay and lead in weeks,
   tie-averaged precision@40 and AP, false alarms per week, how many decoys of each class alerted
   (`decoys_alerted`) and how many failed (`decoys_failed`: the same, except that a stale chain also fails a channel
@@ -622,6 +657,43 @@ suppression. Ctrl-C exits 130 and leaves a partial run directory; start again un
 - `warnings` include decoys that were not quiet elsewhere (background noise on their key) and fewer than 10
   patterns.
 - `content_hash` is reproducible: the same prereg and spec give the same hash on any machine and run id.
+
+### 11.1 The sealed protocol (B2)
+
+B2 runs X1 on both built-in packs as properly as is honest without an outside planter. **The planter and the
+detector author are the same AI system, so the blinding is procedural only and STRATEGY 11.2's X1 is not met**;
+the planted text comes from the detector author's own pack templates; the results are synthetic and internal only.
+Everything lives in `docs/collective/x1/` (the brief, the results template, and later the seeds, the preregs, the
+seal and the results); the sealed specs will ship as `fixtures/plant_x1_sealed.json` in each pack.
+
+**Roles.** The orchestrator spawns the agents and authorises each commit. The engineer (the detector author) writes
+the code, the preregs and the seal, runs the evaluation and never writes or edits a spec, a declaration or a call log.
+The planter is a fresh agent whose prompt is exactly `docs/collective/x1/PLANTER_BRIEF.md` plus one line naming its
+sandbox; it may read only the files the brief lists (never a prereg) and may run only the sandbox's `check-plant`
+wrapper. The reviewer checks each commit and never modifies tracked files.
+
+**The sandbox** (tmpfs, built from the committed tree after the prereg commit): `BRIEF.md` (the brief, byte-identical),
+`packs/<pack>/` with the seven pack files the brief lists, an empty `specs/`, and `check-plant`, the wrapper made from
+`docs/collective/x1/check-plant.sh.in` (added with the preregs): it runs `check-plant --construct` against the committed
+prereg, then the brief's own rules (`brief_main` in `tests/mycelic/test_collective_x1_sealed.py`), and appends each call
+to a log kept outside the sandbox.
+
+**The four commits**, in this order, each a local commit the orchestrator authorises:
+
+1. **B2a freeze**: the evaluation code (`harness.py` is the only file under `mycelic/` that changes), the planter
+   brief and the results template, with every outcome's sentence written in advance.
+2. **B2b preregs**: ten fresh seeds derived from the B2a commit (`seeds.json`), one prereg per pack made on the clean
+   B2a tree with `--family-size 2 --planter-relation same_system_procedural`, and the wrapper template.
+3. **B2c seal**: the planter's specs (byte-identical, bound to the preregs), its declaration and the wrapper's call
+   log, sealed in `SEAL.json` before any evaluation.
+4. **B2d results**: one `run` per pack at the seal commit on a clean tree, the scorecards, and `RESULTS.md` written
+   from the template.
+
+**The rules.** No harness `run` with the B2 preregs, seeds or specs before the seal commit (`check-plant
+--construct` is construction only and allowed). Never `--allow-dirty`. The first evaluation is the result: no re-run
+with changed code or settings, no re-seed, no re-plant; any later run is post-hoc and reported beside it. Claim words
+follow `x1.verdict.pass` and are never "X1 passed"; `counts_as_strategy_x1` stays false for a same-system planter.
+The exact commands and commit records are in `docs/collective/INTEGRATION.md`, section B2.
 
 ## 12. The openFDA public replay (STRATEGY section 9.3)
 
@@ -943,7 +1015,13 @@ python demo/collective/collective_demo.py --serve --cut
 The plants can extract and judge with a model you serve (section 2) instead of the stand-in. On one machine every
 plant is simulated in one process with one shared model; the screen says "sites simulated in one process, one shared
 model" and names the endpoint and the model tag, and `measurement` stays false. **Never show this run to a buyer
-either:** the world is still synthetic and same-author.
+either:** the world is still synthetic and same-author. When every plant's call went to a local test server that
+marks its answers as fake (the tests' fake server), there is no model to share: the providers read "local test server
+(fake marker), no model", `stamps.shared_model` is false and the screen says "sites simulated in one process; every
+site's calls went to one local test server (fake marker)" (B1; up to B1 such a run also said "one shared model").
+With a model, the by-construction caption for X is gone (`by_construction.X` false: a model's extraction is not the
+author's own sentences read back), and a draft a model wrote shows every field's source as `model`: the model ignores
+the pack's draft template.
 
 The routing file routes `extract_claims` and `judge_record` (and any `escalate_to`) to `openai_compat` endpoints at
 boundary `any-simulated`; `draft_followup` is optional (`central` or `any-simulated`; without it HQ's template drafter
@@ -985,8 +1063,10 @@ the error kinds, and writes nothing.
   **run driven live in the console** (`--serve`: the presenter approved each follow-up, acting as the named owner,
   `approval: live`, and each execution was requested once; with `--cut` the follow-ups were approved by script,
   `approval: recorded`). Say which one you are showing.
-- **Simulated:** the plants run in one process; the stand-in model reads the pack's own sentences perfectly; the
-  follow-up layer is built ahead of X4 and not measured; the outcome is "not yet checked".
+- **Simulated:** the plants run in one process; the stand-in model reads the pack's own sentences perfectly (the
+  screen says so in the caption "By construction, X reads this case perfectly"); the follow-up layer is built ahead of
+  X4 and not measured; the CAPA draft is the pack template's, filled from the conclusion and the packets, with its
+  containment left for the named owner; the outcome is "not yet checked".
 - **Send back** the six run files of a `--routing` recording, with a note on the server (section 2). They hold no
   narrative, no path, no host or user name and no key; the run's own scans and the lint check that. `ledger.jsonl`
   holds HQ's own model calls only; a plant's usage is in `scorecard.json` `ledger.site_usage`, only as the
@@ -995,3 +1075,52 @@ the error kinds, and writes nothing.
 - **What the demo does not replace:** E2 (section 13) measures pushdown against central reading; X1 (section 11) is
   the blind planted-pattern test; the public replay (section 12) is the real-data result. Until they run, the demo's
   real-data line says "not yet measured".
+
+# Part 3: X5 (B3)
+
+## 18. X5: leakage beyond text (synthetic, internal only)
+
+X5 (STRATEGY 6.4 and 11.2) asks whether what crosses the Boundary (counts, buckets, verdicts, packets, ids) reveals
+individual records to someone holding only what HQ holds. The harness builds the packs' synthetic worlds, runs G0's
+four stages on each world's member records, turns every HQ artifact into facts, mounts membership, attribute, count,
+reporter-linkage, person-name and presence attacks against matched chance baselines, and writes `x5.json` with
+LEAKAGE.md section 12's body beside it (`leakage_section.md`). ARCHITECTURE section 18 describes the design; the
+published result is LEAKAGE.md section 12. **Everything is synthetic, same-author (the worlds, the red team and the
+defences come from the same AI system) and internal only; X5 here is never a buyer claim.**
+
+Freeze the settings, the code, the pack copies and every world first (the seeds come from the commit; the prereg
+records every candidate and every world digest):
+
+```
+python -m mycelic.collective.experiments.x5_inference prereg --packs device_quality,claims_integrity --n 1000 --run-id <run-id> --runs-dir runs
+```
+
+Then run that prereg once (the work directory holds one world's pipeline at a time and is removed at the end; with
+`--dry-run` the command prints an `estimate:` line of the work from the prereg: pipelines, worlds, A6 questions and
+bootstrap cells, most of the time going to the bootstrap intervals):
+
+```
+python -m mycelic.collective.experiments.x5_inference run --prereg <prereg-file> --run-id <run-id> --runs-dir runs --work-dir runs/x5-work/<run-id>
+```
+
+Exit codes: 0 done; 1 the negative control (person names) is not at chance; 2 a usage, pin, schema, portability or
+self-scan error (nothing written), or a positive control the harness failed to label `leak` ("harness cannot detect a
+known leak"; `x5.json` is written for diagnosis); 130 interrupted.
+
+**Honesty rules for X5.**
+
+- **The first run of a prereg is the result.** A run with changed code or settings is a different experiment, with a
+  new prereg; never re-run until the labels look better.
+- **Never use `--allow-dirty` for a published run.** It is stamped in the prereg and in `x5.json`, and a dirty run
+  is a rehearsal.
+- **A rehearsal is an outcome.** A `run` that exits 0 has written `x5.json` with every label and the bar outcome, and
+  prints the bar on its last line, whatever the tree or the seeds. Rehearse with a dry run or the test fixture's
+  sizes; if a fuller rehearsal is unavoidable, record its prereg's and its `x5.json`'s sha256 and its outcome in
+  `INTEGRATION.md` before deleting them, and disclose it beside the result. The one full rehearsal made before B3a's
+  freeze was not recorded so; LEAKAGE.md section 12 discloses it.
+- **Exit 1 or 2 means stop.** Investigate before publishing anything; a failed control is reported, not hidden.
+- **Report whatever the labels say.** A `leak` label on a primary attack means STRATEGY 11.2's X5 bar fails on these
+  worlds, and LEAKAGE.md section 12 opens with that sentence. Never say "no leakage" unless every primary attack is
+  `at_chance` at the Bonferroni level, and even then only for these synthetic worlds.
+- **Send back `x5.json` only** (it holds counts, labels and intervals; no narrative, name, id, path or 64-hex token;
+  the harness checks that before writing). Never send the work directory.

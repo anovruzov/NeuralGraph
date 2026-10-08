@@ -99,6 +99,15 @@ GEN_KINDS = ("name", "pattern", "choice")
 RATES = ("forwarding_rate", "mixed_language_rate", "negated_sentence_rate", "second_predicate_rate",
          "entity_sentence_rate", "zero_claim_rate")
 MAX_DRAFT_STRING = 4000
+# a draft type's template (B1): where the template drafter takes each required property of the draft schema from. A
+# string property takes a text source or for_owner, or a list of 1 to MAX_TEMPLATE_PARTS distinct text sources (joined
+# with a space); an array of strings takes entity_ids:<egress entity type>, confirming_sites or for_owner
+TEMPLATE_TEXT_SOURCES = ("headline", "summary", "evidence")
+TEMPLATE_FOR_OWNER = "for_owner"
+TEMPLATE_STRING_SOURCES = (*TEMPLATE_TEXT_SOURCES, TEMPLATE_FOR_OWNER)
+TEMPLATE_ARRAY_SOURCES = ("confirming_sites", TEMPLATE_FOR_OWNER)
+TEMPLATE_ENTITY_IDS = "entity_ids:"
+MAX_TEMPLATE_PARTS = 3
 
 # ----------------------------------------------------------------------------------------- the formats' key names
 
@@ -132,8 +141,8 @@ _TEMPLATE_KEYS = ("text", "entity_types", "predicates")
 _QUESTIONS_KEYS = ("templates", "pushdown")
 _PUSHDOWN_KEYS = ("min_confirming_sites", "min_independent_roots", "min_independent_reporters", "freshness_days",
                   "max_sibling_sites")
-_FOLLOWUP_KEYS = ("label", "tier", "enabled", "executor", "args_schema", "draft_schema", "owner_role", "daily_cap",
-                  "ack_days", "escalate_to_role")
+_FOLLOWUP_KEYS = ("label", "tier", "enabled", "executor", "args_schema", "draft_schema", "template", "owner_role",
+                  "daily_cap", "ack_days", "escalate_to_role")
 _ARG_KEYS = MappingProxyType({"entity_id": ("kind", "entity_type"), "predicate": ("kind",), "conclusion_id": ("kind",),
                               "enum": ("kind", "values"), "integer": ("kind", "minimum", "maximum")})
 _GENERATOR_KEYS = ("start", "sites", *RATES, "predicate_weights", "codes", "fill_rates", "universe", "links",
@@ -322,6 +331,7 @@ class FollowupType:
     executor: str
     args: Mapping[str, Any]
     draft_schema: Mapping[str, Any] | None
+    template: Mapping[str, Any] | None
     owner_role: str
     daily_cap: int
     ack_days: int
@@ -1128,7 +1138,51 @@ def _compiles(f: str, path: str, schema: Any) -> schemacheck.Schema:
     return compiled
 
 
-def _followups(b: _Build) -> tuple[dict[str, Role], dict[str, FollowupType]]:
+def _template_kind(prop: Any) -> str | None:
+    """What a template source may fill: ``'string'``, ``'array'`` (of strings) or None; a list type counts by its
+    first element."""
+    def base(node: Any) -> Any:
+        t = node.get("type") if isinstance(node, dict) else None
+        return t[0] if isinstance(t, list) and t else t
+
+    if base(prop) == "string":
+        return "string"
+    if base(prop) == "array" and base(prop.get("items")) == "string":
+        return "array"
+    return None
+
+
+def _template(f: str, path: str, template: Any, draft: Mapping[str, Any], egress: Egress) -> None:
+    """A draft type's template: exactly one source per required property of its draft schema, of a form that fits
+    the property's type (B1). Every refusal names a fixed problem, never a value."""
+    required = draft.get("required") if isinstance(draft.get("required"), list) else []
+    props = draft.get("properties") if isinstance(draft.get("properties"), dict) else {}
+    _object(f, path, template, sorted(required))
+    misfit = "template source does not fit the property's type"
+    for name in sorted(template):
+        ppath, source = _child(path, name), template[name]
+        kind = _template_kind(props.get(name))
+        if isinstance(source, list):
+            if kind != "string" or not 1 <= len(source) <= MAX_TEMPLATE_PARTS:
+                raise PackError(f, ppath, misfit) from None
+            for i, part in enumerate(source):
+                if not isinstance(part, str) or part not in TEMPLATE_TEXT_SOURCES:
+                    raise PackError(f, f"{ppath}[{i}]", "unknown template source") from None
+                if part in source[:i]:
+                    raise PackError(f, f"{ppath}[{i}]", "duplicate template source") from None
+            continue
+        entity = isinstance(source, str) and source.startswith(TEMPLATE_ENTITY_IDS)
+        if not isinstance(source, str) or not (entity or source in TEMPLATE_STRING_SOURCES
+                                               or source in TEMPLATE_ARRAY_SOURCES):
+            raise PackError(f, ppath, "unknown template source") from None
+        if not ((kind == "string" and source in TEMPLATE_STRING_SOURCES)
+                or (kind == "array" and (entity or source in TEMPLATE_ARRAY_SOURCES))):
+            raise PackError(f, ppath, misfit) from None
+        if entity and source[len(TEMPLATE_ENTITY_IDS):] not in egress.egress_entity_types:
+            raise PackError(f, ppath, "not an egress entity type") from None
+
+
+def _followups(b: _Build, egress: Egress) -> tuple[dict[str, Role], dict[str, FollowupType]]:
     f = "followups.json"
     raw = _object(f, "$", b.files[f], ("roles", "types"))
     roles_raw = _map(f, "$.roles", raw["roles"], ID_RE, "role id", lo=1, hi=50, reserved=True)
@@ -1147,7 +1201,7 @@ def _followups(b: _Build) -> tuple[dict[str, Role], dict[str, FollowupType]]:
             raise PackError(f, _child(path, "tier"), "T3 is not an action type") from None
         if isinstance(tier, str) and tier not in TIERS:
             raise PackError(f, _child(path, "tier"), "tier must be T0, T1 or T2") from None
-        _check(f, path, {k: ft[k] for k in _FOLLOWUP_KEYS if k not in ("args_schema", "draft_schema")},
+        _check(f, path, {k: ft[k] for k in _FOLLOWUP_KEYS if k not in ("args_schema", "draft_schema", "template")},
                S_FOLLOWUP_SCALARS)
         if tier == "T2" and ft["enabled"]:
             raise PackError(f, _child(path, "enabled"), "T2 writes are off") from None
@@ -1200,9 +1254,15 @@ def _followups(b: _Build) -> tuple[dict[str, Role], dict[str, FollowupType]]:
             missing = _draft_strings(draft, dpath)
             if missing is not None:
                 raise PackError(f, missing, "draft_schema string without maxLength") from None
+        template = ft["template"]
+        if (template is not None) != (ft["executor"] == "draft"):
+            raise PackError(f, _child(path, "template"), "template is set exactly when executor is draft") from None
+        if template is not None:
+            _template(f, _child(path, "template"), template, draft, egress)
         out[name] = FollowupType(id=name, label=ft["label"], tier=tier, enabled=ft["enabled"],
                                  executor=ft["executor"], args=freeze(args),
-                                 draft_schema=None if draft is None else freeze(draft), owner_role=ft["owner_role"],
+                                 draft_schema=None if draft is None else freeze(draft),
+                                 template=None if template is None else freeze(template), owner_role=ft["owner_role"],
                                  daily_cap=ft["daily_cap"], ack_days=ft["ack_days"],
                                  escalate_to_role=ft["escalate_to_role"], compiled_args=freeze(compiled))
     return roles, out
@@ -1482,7 +1542,7 @@ def load_pack_dir(directory: str | os.PathLike[str], *, expected_id: str | None 
     detectors = _detectors(b, egress)
     rules = _rules(b, egress)
     questions, pushdown = _questions(b, egress)
-    roles, followups = _followups(b)
+    roles, followups = _followups(b, egress)
     generator = _generator(b, mappings["mapping"], aliases)
     hashes = compute_hashes(files, [line for _, line in fixture_lines])
     resolved = directory.resolve()

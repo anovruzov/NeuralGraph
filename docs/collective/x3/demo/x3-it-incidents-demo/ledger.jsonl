@@ -1,0 +1,1 @@
+{"attempt":1,"boundary_mode":"own","cost_basis":"fake","data_label":"synthetic","endpoint":"hq-fake","error_kind":null,"fake_marker":true,"latency_ms":0.0,"model_requested":"fake","ok":true,"provider":"fake","site":"hq","task":"draft_followup","tokens_in":342,"tokens_out":237}

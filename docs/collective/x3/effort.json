@@ -1,0 +1,1094 @@
+{
+  "kind": "x3_effort",
+  "schema_version": 1,
+  "statement": "same author as the generic code; internal only; not X3 by a non-author; not a buyer claim",
+  "base_commit": "1cee4312617def1dda86a9cc408bf6bd5553c30c",
+  "requirements_commit": "b2bf466b3b1caa3410d89dc1c751b006bb98d092",
+  "requirements_sha256": "14319825260aa7c897aeada7277ccd519eb21ba5cdf357e1251683d527e9be3d",
+  "template_pack": "device_quality",
+  "template_files_sha256": {
+    "aliases.json": "c7d36c9e4a867a753198db7ed7334e8af56e7f14c54af988da848f35f78d9bbd",
+    "codes.json": "cafadd8bf7ca91004335135d85a0ec23da353f2797f8d8ec7abac87c572090cd",
+    "detectors.json": "b24d3ba279dcc1e7c304199d1dcf8c73b9f6948a990e83b04ba8b305901b32db",
+    "egress.json": "793d5b530d189a22092b843a80979e40ae569af40cbb0a4fe9b8c6d40725ce77",
+    "fixtures/plant_e2_smoke.json": "42f868eb2e3127a024b0c66457ae17edeba751f6fd1a57500a726e34501c85c4",
+    "fixtures/plant_smoke.json": "03f47dc6fdf9d0e87688eb90216587f1de5e8a13303f005600e73fab8e16bd53",
+    "fixtures/records.jsonl": "ff1ef6c62daaa86c3f422d9914ba411911c3068f48b541b1ee6d84a3cd3796e3",
+    "followups.json": "4354c7820084d4acf7d6728af497d0db0a2838ed53a29bed18589312b9cdcade",
+    "generator.json": "102f8157feb63db82a0ad77088587f796b9fb800d2c207aaf4fa7791acf5a140",
+    "mapping.json": "c4bf9bd271a8fb09f30078ad0f6fe43e6ea304a9a26a04323076ec3b24f4a3f6",
+    "mapping_openfda.json": "fe8b7b378d355a5f3437b447bc350f707521da2ad27052fa15f8704b15ee919b",
+    "pack.json": "dc858db0176a04c30abd01e4d43b52bcd377a6007d27f9991e201b8240a36599",
+    "questions.json": "e3c232d5d436840e815ceb505f7af1f3d46caf93fddf082b082128b2fbab9f57",
+    "rules.json": "de3c84dce633c92150fe91811bd2e62b496bfebe78befa4af1ab49f3e89102d2",
+    "vocabulary.json": "42f26f4c758576d0150d7bef42ff6863c421ab0c645fb7a28bb14148af5c092e"
+  },
+  "requirements": [
+    {
+      "id": "R01",
+      "status": "approximated",
+      "how": "mapping.json maps the export's ticket number (record_ref number) and a forward's origin ticket and subsidiary (forwarded_from.number, forwarded_from.company); the fixtures use INC plus seven digits; generated worlds use the generator's own ref form",
+      "gap_id": "G4-17"
+    },
+    {
+      "id": "R02",
+      "status": "approximated",
+      "how": "config_item has the id format aaa-bb(bb)-nnnn in lower case with '-' (site code, role, number); it is the pack's one non-egress type, so host names never leave; the world universe is group-wide",
+      "gap_id": "G4-16"
+    },
+    {
+      "id": "R03",
+      "status": "not_expressible",
+      "how": "not expressible as data: an IPv4 or IPv6 address, a host:port pair or a fully qualified host name cannot be an entity type, so the pack cannot recognise, count or protect them as such (a fully qualified host name reads as its host part, the configuration item, because '.' ends an id); they stay inside a subsidiary only because the narrative they are quoted in is a never field",
+      "gap_id": "G4-01"
+    },
+    {
+      "id": "R04",
+      "status": "approximated",
+      "how": "software_release ids are REL/nnnn/nn with '/' (also read with '-', '_' or an en dash), linked to vendors; one release appears at several subsidiaries; dotted versions are text only",
+      "gap_id": "G4-02"
+    },
+    {
+      "id": "R05",
+      "status": "approximated",
+      "how": "it_service is a closed alias-only list of eight services with English and German phrasings, compounds and acronyms as aliases; an id cannot be its own acronym (G4-06), so the canonical ids are descriptive names (REMOTE-ACCESS with alias VPN) rather than the acronyms the field uses",
+      "gap_id": "G4-06"
+    },
+    {
+      "id": "R06",
+      "status": "approximated",
+      "how": "one hop is expressible (config_item linked to it_service in the world); the business-service level is not",
+      "gap_id": "G4-03"
+    },
+    {
+      "id": "R07",
+      "status": "approximated",
+      "how": "change_request (CHG plus seven digits) is an egress entity type mapped from the incident's caused_by_change; planned windows are not expressible",
+      "gap_id": "G4-07"
+    },
+    {
+      "id": "R08",
+      "status": "expressible",
+      "how": "vendor (VND-nnnn) with vendor names as aliases; software_release is linked to vendor in the world",
+      "gap_id": null
+    },
+    {
+      "id": "R09",
+      "status": "not_expressible",
+      "how": "no record field and no code kind holds priority, impact or urgency",
+      "gap_id": "G4-05"
+    },
+    {
+      "id": "R10",
+      "status": "not_expressible",
+      "how": "only a calendar date reaches a record; times and zones are dropped or rejected",
+      "gap_id": "G4-04"
+    },
+    {
+      "id": "R11",
+      "status": "approximated",
+      "how": "a single-reporter burst is built by the plant decoy class single_reporter and the scenario's reporter single, and the ranker's few_reporters_share feature reads it; the background world has none",
+      "gap_id": "G4-08"
+    },
+    {
+      "id": "R12",
+      "status": "approximated",
+      "how": "marked forwards map through forwarded_from and are discounted as echoes; re-keyed copies without origin count as independent roots",
+      "gap_id": "G4-18"
+    },
+    {
+      "id": "R13",
+      "status": "approximated",
+      "how": "English and German lexicons and negation cues, both in one record with language null (the union is used); separable verbs, unlisted inflections and negation beyond the window are gaps G4-12 to G4-14",
+      "gap_id": "G4-12"
+    },
+    {
+      "id": "R14",
+      "status": "expressible",
+      "how": "four person fields (requester name, e-mail and phone, assignee) are never fields; a mention equal to a person value is dropped; names in the text stay in the narrative, which never leaves",
+      "gap_id": null
+    },
+    {
+      "id": "R15",
+      "status": "approximated",
+      "how": "the generic code ITC-9000 is drawn at a constant rate; the scenario's codes_only decoy builds a rise across services",
+      "gap_id": "G4-09"
+    },
+    {
+      "id": "R16",
+      "status": "expressible",
+      "how": "codes ITC-1100 to ITC-2100 map the categories to failure-mode predicates, and mapping.json's value map maps the tool labels to codes",
+      "gap_id": null
+    },
+    {
+      "id": "R17",
+      "status": "approximated",
+      "how": "eleven failure-mode predicates and a generic one, each with English and German lexicons; the lexical extractor gives a failure mode to every entity of its sentence, including one named only as unaffected (G4-15)",
+      "gap_id": "G4-15"
+    },
+    {
+      "id": "R18",
+      "status": "approximated",
+      "how": "markup and log lines are read as text; HTML paragraphs without whitespace between them are one sentence",
+      "gap_id": "G4-11"
+    },
+    {
+      "id": "R19",
+      "status": "expressible",
+      "how": "never_fields hold the narrative, the reporter, every person field and entities.config_item; central_allowed_fields hold codes, the four egress entity types, received_date and site; cells are weekly and k-suppressed",
+      "gap_id": null
+    },
+    {
+      "id": "R20",
+      "status": "expressible",
+      "how": "the world's master data is partial for software_release, vendor and change_request at three subsidiaries, and require_master_data is true",
+      "gap_id": null
+    },
+    {
+      "id": "R21",
+      "status": "expressible",
+      "how": "mapping.json reads journal[].text where kind is work_note or comment (system entries dropped) and maps tool category labels through a value map",
+      "gap_id": null
+    },
+    {
+      "id": "R22",
+      "status": "expressible",
+      "how": "evidence_packet (T0), problem_record_draft for the problem manager and vendor_escalation_draft for the vendor manager (T1), each approved by its owner; no T2 write is enabled",
+      "gap_id": null
+    },
+    {
+      "id": "R23",
+      "status": "expressible",
+      "how": "six generator sites in English and German with different volumes; the demo org places them in GB, IE, DE and AT",
+      "gap_id": null
+    },
+    {
+      "id": "R24",
+      "status": "expressible",
+      "how": "count_granularity week and close_lag_days 14",
+      "gap_id": null
+    },
+    {
+      "id": "R25",
+      "status": "expressible",
+      "how": "rules.json holds the certificate-expiry-per-service, backup-failure-per-vendor and failed-change rules",
+      "gap_id": null
+    },
+    {
+      "id": "R26",
+      "status": "not_expressible",
+      "how": "locales are refused as pack languages and have no value map; a de-DE record gets no lexicon",
+      "gap_id": "G4-10"
+    },
+    {
+      "id": "R27",
+      "status": "expressible",
+      "how": "the question templates ask about tickets in operational wording with the allowed placeholders only",
+      "gap_id": null
+    }
+  ],
+  "requirements_added_after_b4a": [],
+  "structural_diff_vs_template": {
+    "template": {
+      "entity_types": [
+        "component",
+        "lot",
+        "product",
+        "supplier"
+      ],
+      "id_format_kinds": {
+        "lot": [
+          "literal",
+          "digit",
+          "alpha"
+        ],
+        "product": [
+          "alpha",
+          "sep",
+          "digit"
+        ],
+        "supplier": [
+          "literal",
+          "digit"
+        ]
+      },
+      "separators": {
+        "lot": null,
+        "product": "-",
+        "supplier": null
+      },
+      "alias_only_types": [
+        "component"
+      ],
+      "egress_types": [
+        "component",
+        "lot",
+        "product",
+        "supplier"
+      ],
+      "non_egress_types": [],
+      "link_depth": 1,
+      "languages": [
+        "en",
+        "de"
+      ],
+      "predicates": 11,
+      "person_fields": [
+        "clinician_name",
+        "patient_name",
+        "patient_ref"
+      ],
+      "mapping_features": {
+        "code_value_map": false,
+        "narrative_where": true,
+        "fan_out": true,
+        "forward_origin": true,
+        "site_path": true,
+        "date_format": "iso"
+      }
+    },
+    "pack": {
+      "entity_types": [
+        "change_request",
+        "config_item",
+        "it_service",
+        "software_release",
+        "vendor"
+      ],
+      "id_format_kinds": {
+        "change_request": [
+          "literal",
+          "digit"
+        ],
+        "config_item": [
+          "alpha",
+          "sep",
+          "alpha",
+          "sep",
+          "digit"
+        ],
+        "software_release": [
+          "literal",
+          "sep",
+          "digit",
+          "sep",
+          "digit"
+        ],
+        "vendor": [
+          "literal",
+          "sep",
+          "digit"
+        ]
+      },
+      "separators": {
+        "change_request": null,
+        "config_item": "-",
+        "software_release": "/",
+        "vendor": "-"
+      },
+      "alias_only_types": [
+        "it_service"
+      ],
+      "egress_types": [
+        "change_request",
+        "it_service",
+        "software_release",
+        "vendor"
+      ],
+      "non_egress_types": [
+        "config_item"
+      ],
+      "link_depth": 1,
+      "languages": [
+        "en",
+        "de"
+      ],
+      "predicates": 12,
+      "person_fields": [
+        "assignee_name",
+        "requester_email",
+        "requester_name",
+        "requester_phone"
+      ],
+      "mapping_features": {
+        "code_value_map": true,
+        "narrative_where": true,
+        "fan_out": true,
+        "forward_origin": true,
+        "site_path": true,
+        "date_format": "iso"
+      }
+    },
+    "link_depth_required": 2
+  },
+  "files": [
+    {
+      "path": "mycelic/collective/packs/data/it_incidents/aliases.json",
+      "lines": 51,
+      "bytes": 1600,
+      "lines_changed_vs_template": 47
+    },
+    {
+      "path": "mycelic/collective/packs/data/it_incidents/codes.json",
+      "lines": 67,
+      "bytes": 1860,
+      "lines_changed_vs_template": 39
+    },
+    {
+      "path": "mycelic/collective/packs/data/it_incidents/detectors.json",
+      "lines": 42,
+      "bytes": 811,
+      "lines_changed_vs_template": 0
+    },
+    {
+      "path": "mycelic/collective/packs/data/it_incidents/egress.json",
+      "lines": 40,
+      "bytes": 834,
+      "lines_changed_vs_template": 13
+    },
+    {
+      "path": "mycelic/collective/packs/data/it_incidents/fixtures/plant_smoke.json",
+      "lines": 194,
+      "bytes": 4427,
+      "lines_changed_vs_template": 65
+    },
+    {
+      "path": "mycelic/collective/packs/data/it_incidents/fixtures/records.jsonl",
+      "lines": 46,
+      "bytes": 30530,
+      "lines_changed_vs_template": 46
+    },
+    {
+      "path": "mycelic/collective/packs/data/it_incidents/followups.json",
+      "lines": 160,
+      "bytes": 3834,
+      "lines_changed_vs_template": 39
+    },
+    {
+      "path": "mycelic/collective/packs/data/it_incidents/generator.json",
+      "lines": 685,
+      "bytes": 18485,
+      "lines_changed_vs_template": 382
+    },
+    {
+      "path": "mycelic/collective/packs/data/it_incidents/mapping.json",
+      "lines": 79,
+      "bytes": 1771,
+      "lines_changed_vs_template": 46
+    },
+    {
+      "path": "mycelic/collective/packs/data/it_incidents/pack.json",
+      "lines": 12,
+      "bytes": 659,
+      "lines_changed_vs_template": 3
+    },
+    {
+      "path": "mycelic/collective/packs/data/it_incidents/questions.json",
+      "lines": 31,
+      "bytes": 818,
+      "lines_changed_vs_template": 10
+    },
+    {
+      "path": "mycelic/collective/packs/data/it_incidents/rules.json",
+      "lines": 28,
+      "bytes": 816,
+      "lines_changed_vs_template": 16
+    },
+    {
+      "path": "mycelic/collective/packs/data/it_incidents/vocabulary.json",
+      "lines": 431,
+      "bytes": 9238,
+      "lines_changed_vs_template": 260
+    }
+  ],
+  "diff_method": "lines_changed_vs_template is the sum of (j2 - j1) over the non-equal opcodes of difflib.SequenceMatcher(None, template_lines, pack_lines, autojunk=False) against the same-named file of the template pack, or every line when the template has no such file; lines are text.splitlines() and bytes the file size",
+  "totals": {
+    "files": 13,
+    "lines": 1866,
+    "bytes": 75683,
+    "lines_changed_vs_template": 966
+  },
+  "term_renames": [],
+  "fit_to_code_choices": [
+    {
+      "requirement_id": "R05",
+      "choice": "Service ids are descriptive (REMOTE-ACCESS, SIGN-IN, ERP-FINANCE) and the acronyms (VPN, SSO, ERP) are aliases.",
+      "why": "An alias that folds to its own target is an alias chain (G4-06)."
+    },
+    {
+      "requirement_id": "R02",
+      "choice": "Host role segments avoid alias words (gw, fin and idp, not vpn, erp or sso).",
+      "why": "An alias inside a host name (cal-vpn-0601) is also read as a service mention, so the generator's gold would differ from lexical extraction."
+    },
+    {
+      "requirement_id": "R23",
+      "choice": "The six sites, their volumes and reporter pools copy the template's.",
+      "why": "Test runtime and the generic tests' floors (more than 500 records in six sites by 52 weeks, unique narratives at 104 weeks), not field realism."
+    },
+    {
+      "requirement_id": "R13",
+      "choice": "Negated templates put the cue directly before the term, German templates use the listed phrase exactly, and 'volle Festplatte' was added so a German negation can precede the term.",
+      "why": "The generic tests require the generator's gold to equal lexical extraction on every record; negation is a token window and terms are contiguous."
+    },
+    {
+      "requirement_id": "R26",
+      "choice": "The pack's languages are the bare codes en and de.",
+      "why": "Locales are refused (G4-10)."
+    },
+    {
+      "requirement_id": "R04",
+      "choice": "Release ids are REL/nnnn/nn with slashes.",
+      "why": "Dotted versions cannot be an id format (G4-02)."
+    },
+    {
+      "requirement_id": "R01",
+      "choice": "Fixture record refs are INC plus seven digits.",
+      "why": "The generator's ref form is fixed (G4-17); fixtures are written by hand."
+    },
+    {
+      "requirement_id": "R03",
+      "choice": "Fixtures quote an FQDN, an IPv4 address and a dotted version only in the narrative, none as a label.",
+      "why": "Addresses cannot be typed (G4-01)."
+    }
+  ],
+  "test_lines_added": {
+    "added": 1400,
+    "deleted": 72,
+    "files": [
+      {
+        "path": "tests/mycelic/test_collective_detect.py",
+        "added": 18,
+        "deleted": 7
+      },
+      {
+        "path": "tests/mycelic/test_collective_e1.py",
+        "added": 21,
+        "deleted": 9
+      },
+      {
+        "path": "tests/mycelic/test_collective_edge.py",
+        "added": 4,
+        "deleted": 2
+      },
+      {
+        "path": "tests/mycelic/test_collective_evaluate.py",
+        "added": 12,
+        "deleted": 6
+      },
+      {
+        "path": "tests/mycelic/test_collective_extract.py",
+        "added": 2,
+        "deleted": 1
+      },
+      {
+        "path": "tests/mycelic/test_collective_followup.py",
+        "added": 12,
+        "deleted": 8
+      },
+      {
+        "path": "tests/mycelic/test_collective_guards.py",
+        "added": 185,
+        "deleted": 13
+      },
+      {
+        "path": "tests/mycelic/test_collective_leakage.py",
+        "added": 18,
+        "deleted": 8
+      },
+      {
+        "path": "tests/mycelic/test_collective_packs.py",
+        "added": 20,
+        "deleted": 7
+      },
+      {
+        "path": "tests/mycelic/test_collective_pushdown.py",
+        "added": 16,
+        "deleted": 11
+      },
+      {
+        "path": "tests/mycelic/test_collective_x3.py",
+        "added": 1092,
+        "deleted": 0
+      }
+    ]
+  },
+  "docs_lines_added": {
+    "added": 397,
+    "deleted": 30,
+    "files": [
+      {
+        "path": "docs/collective/ARCHITECTURE.md",
+        "added": 24,
+        "deleted": 9
+      },
+      {
+        "path": "docs/collective/INTEGRATION.md",
+        "added": 244,
+        "deleted": 0
+      },
+      {
+        "path": "docs/collective/PACKS.md",
+        "added": 85,
+        "deleted": 21
+      },
+      {
+        "path": "docs/collective/x3/REQUIREMENTS.md",
+        "added": 44,
+        "deleted": 0
+      }
+    ]
+  },
+  "code_files_changed": [],
+  "code_lines_changed": 0,
+  "code_numstat": [],
+  "code_hashes": {
+    "X1": "e7d5d82e3b9805358718b5927b6cca89bb4912c733fccd7f14c89f61a9234161",
+    "E1": "07c08295d7eeeff6eadcaa1db80ee5004b3dacf3ceb415c1e3ae126ca67ec229",
+    "E2": "7428e57c6c9e2b5f4e7d7a93d80a45bc4a06694a3d01b274c12617e69b1d32be",
+    "openfda_replay": "452219e81aa711fb97387d8bc5da9663e7765af8f8f5b17ae6617e8acb0b9525",
+    "X5": "dea481ca619129e1f42f685256834e81ec76e27995287fb21b54c33025d01816"
+  },
+  "gaps": [
+    {
+      "id": "G4-01",
+      "requirement_id": "R03",
+      "file": "mycelic/collective/packs/loader.py",
+      "symptom": [
+        "vocabulary.json: $.entity_types.ip_address.separator: enum"
+      ],
+      "why_data_cannot": "An id format's separator is a closed choice of '-', '/' or none (loader schema S_ET), and the canonicaliser ends an id at any other punctuation, so a dotted or colon-separated address, a host:port pair or a fully qualified host name cannot be an entity type.",
+      "minimal_generic_fix": "Allow '.' and ':' as type separators in the loader schema and the canonicaliser's separator classes, with a rule for a full stop that ends a sentence.",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-02",
+      "requirement_id": "R04",
+      "file": "mycelic/collective/packs/loader.py",
+      "symptom": [
+        "vocabulary.json: $.entity_types.software_version.separator: enum"
+      ],
+      "why_data_cannot": "The same closed separator choice refuses a dotted version such as 7.4.2 as an id format; slashed or hyphenated release ids are expressible.",
+      "minimal_generic_fix": "As G4-01: '.' as a type separator.",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-03",
+      "requirement_id": "R06",
+      "file": "mycelic/collective/packs/loader.py",
+      "symptom": [
+        "generator.json: $.links.config_item.parent: link chain (a parent may not itself be linked)"
+      ],
+      "why_data_cannot": "The loader refuses a link whose parent is itself linked, and the generator draws a linked type from an unlinked parent only, so configuration item to technical service to business service cannot be written; one hop is.",
+      "minimal_generic_fix": "Allow link chains without cycles in the loader and draw linked types in parent-first order in generator.entities().",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-04",
+      "requirement_id": "R10",
+      "file": "mycelic/collective/packs/connector.py",
+      "symptom": [
+        "map_rows: rejected {'bad_date': 1} for opened_at 2024-03-04T08:15:00+01:00"
+      ],
+      "why_data_cannot": "A record holds one calendar date (received_date, formats iso or yyyymmdd); a timestamp with a time and a zone is rejected as bad_date, and nothing below a day reaches detection.",
+      "minimal_generic_fix": "A datetime format that keeps the date part (and, if detection should use it, a sub-day field in the record).",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-05",
+      "requirement_id": "R09",
+      "file": "mycelic/collective/packs/connector.py",
+      "symptom": [
+        "mapping.json: $.priority: unknown key",
+        "codes.json: $.P1.predicate: type"
+      ],
+      "why_data_cannot": "The record's keys are closed (connector.RECORD_KEYS, mapping keys in the loader) and every code must name a predicate, so priority, impact and urgency can be neither a record field nor a code.",
+      "minimal_generic_fix": "An optional, pack-declared attribute map in the record with its own egress rule, or a code kind without a predicate.",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-06",
+      "requirement_id": "R05",
+      "file": "mycelic/collective/packs/loader.py",
+      "symptom": [
+        "aliases.json: $.it_service.vpn: alias chain"
+      ],
+      "why_data_cannot": "An alias that folds to the folded form of its own target is refused as an alias chain, so an alias-only id cannot be its own acronym (id VPN with alias vpn); descriptive ids with acronym aliases are expressible.",
+      "minimal_generic_fix": "Accept an alias equal to its own target's folded form.",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-07",
+      "requirement_id": "R07",
+      "file": "mycelic/collective/packs/connector.py",
+      "symptom": [
+        "mapping.json: $.change_window: unknown key"
+      ],
+      "why_data_cannot": "No record field holds a time range, so a change's planned window cannot be mapped; the change id and the incident's link to it are expressible.",
+      "minimal_generic_fix": "Optional interval fields in the record, with their own egress rule.",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-08",
+      "requirement_id": "R11",
+      "file": "mycelic/collective/packs/generator.py",
+      "symptom": [
+        "generator.json: $.alert_storm_rate: unknown key",
+        "seed-7 world: every site's independent records use its whole reporter pool: True; the largest share of one reporter at a site is 0.31"
+      ],
+      "why_data_cannot": "The world spec has no storm setting and the generator draws each independent record's reporter uniformly from its site's pool, so the background world has no alert storms; plant single_reporter decoys and scenario reporter single construct them.",
+      "minimal_generic_fix": "A storm rate in generator.json (a share of records from one automated reporter within a week).",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-09",
+      "requirement_id": "R15",
+      "file": "mycelic/collective/packs/generator.py",
+      "symptom": [
+        "generator.json: $.codes.generic_rate: type"
+      ],
+      "why_data_cannot": "The generic-code rate is one number for the whole world, so a background rise of the generic category cannot be specified; a scenario codes_only decoy constructs one.",
+      "minimal_generic_fix": "A per-week rate schedule in generator.json.",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-10",
+      "requirement_id": "R26",
+      "file": "mycelic/collective/edge/extract.py",
+      "symptom": [
+        "pack.json: $.languages[0]: pattern",
+        "mapping.json: $.language: type",
+        "a de-DE record: language_supported False, claims [('it_service', 'PRINT-SERVICE', None, False)]"
+      ],
+      "why_data_cannot": "Pack languages are two- or three-letter codes, the mapping's language is a path without a value map, and the extractor selects lexicons only for an exact pack language, so a de-DE record gets no lexicon: entities only, no predicate.",
+      "minimal_generic_fix": "Map a locale to its language (the part before '-') in the extractor, or a language value map in mapping.json.",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-11",
+      "requirement_id": "R18",
+      "file": "mycelic/collective/packs/canonical.py",
+      "symptom": [
+        "split_sentences: 1 span(s) for '<p>The mailbox is fine.</p><p>The printers went down after lunch.</p>'",
+        "fixture INC0100020: lexical claims [('it_service', 'MAIL-SERVICE', 'incident_unspecified', False), ('it_service', 'PRINT-SERVICE', 'incident_unspecified', False)], labels [('it_service', 'MAIL-SERVICE', None, False), ('it_service', 'PRINT-SERVICE', 'incident_unspecified', False)]"
+      ],
+      "why_data_cannot": "Sentences split only after [.!?;] plus whitespace or at a newline, so HTML paragraphs without whitespace between them are one sentence and every entity there takes every predicate there.",
+      "minimal_generic_fix": "Split at block-level markup boundaries too.",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-12",
+      "requirement_id": "R13",
+      "file": "mycelic/collective/edge/extract.py",
+      "symptom": [
+        "fixture INC0100017: lexical claims [('config_item', 'brk-idp-0801', None, False)], labels [('config_item', 'brk-idp-0801', 'crash_after_update', False)]"
+      ],
+      "why_data_cannot": "Lexicon terms are contiguous phrases, so a German separable verb ('stuerzt ... ab' around other words) is not matched however the lexicon is written.",
+      "minimal_generic_fix": "Terms with a gap (two parts within a token distance) in the lexicon format.",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-13",
+      "requirement_id": "R13",
+      "file": "mycelic/collective/packs/canonical.py",
+      "symptom": [
+        "fixture INC0100018: lexical claims [('it_service', 'REMOTE-ACCESS', None, False)], labels [('it_service', 'REMOTE-ACCESS', 'packet_loss', False)]"
+      ],
+      "why_data_cannot": "Terms match whole words exactly (word-bounded), so an inflected or compounded form that is not listed ('Paketverlusten') is missed; every form must be listed.",
+      "minimal_generic_fix": "Per-language affix rules or stemming before matching.",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-14",
+      "requirement_id": "R13",
+      "file": "mycelic/collective/edge/extract.py",
+      "symptom": [
+        "fixture INC0100013: lexical claims [('software_release', 'REL/2402/03', 'memory_leak', False)], labels [('software_release', 'REL/2402/03', 'memory_leak', True)]"
+      ],
+      "why_data_cannot": "Negation is a token window (negation_window, at most 8 in the loader); a cue farther away ('was ruled out' after an id) does not negate, and widening the window would negate unrelated predicates.",
+      "minimal_generic_fix": "Clause-aware negation scope.",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-15",
+      "requirement_id": "R17",
+      "file": "mycelic/collective/edge/extract.py",
+      "symptom": [
+        "fixture INC0100045: lexical claims [('config_item', 'brk-idp-0801', 'certificate_expiry', False), ('it_service', 'MAIL-SERVICE', 'certificate_expiry', False)], labels [('config_item', 'brk-idp-0801', 'certificate_expiry', False), ('it_service', 'MAIL-SERVICE', None, False)]"
+      ],
+      "why_data_cannot": "The lexical extractor pairs every predicate with every entity of its sentence, so the mail service, named only as unaffected ('with no impact on the mail service'), takes the certificate expiry.",
+      "minimal_generic_fix": "Phrase-level attachment in the lexical extractor (a model extractor is E1's question).",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-16",
+      "requirement_id": "R02",
+      "file": "mycelic/collective/packs/generator.py",
+      "symptom": [
+        "generator.json: $.universe.it-ashcombe: invalid entity type id",
+        "seed-7 world: 90 records at it-ashcombe name a configuration item with another subsidiary's site code"
+      ],
+      "why_data_cannot": "The id universe is one per world and master data does not constrain what the generator draws, so a subsidiary's records name hosts of every subsidiary; per-site universes are refused by the loader.",
+      "minimal_generic_fix": "Per-site universes, or drawing id-format entities from the site's master data.",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-17",
+      "requirement_id": "R01",
+      "file": "mycelic/collective/packs/generator.py",
+      "symptom": [
+        "seed-7 world: every record_ref is '<site id>-<six digits>': True (first it-ashcombe-000001); 0 are INC followed by seven digits"
+      ],
+      "why_data_cannot": "Generated record refs are '<site id>-<six digits>' (generator.generate), so the synthetic world never shows INC numbers; the mapping maps an export's ticket number and its forwarded origin.",
+      "minimal_generic_fix": "A ref pattern in generator.json.",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    },
+    {
+      "id": "G4-18",
+      "requirement_id": "R12",
+      "file": "mycelic/collective/packs/connector.py",
+      "symptom": [
+        "map_rows: (record_ref, origin_ref) [('INC0300001', None), ('INC0300002', 'INC0300001'), ('INC0300003', None)]; the re-keyed copy INC0300003 is its own root",
+        "plant hard-case decoy classes: ['cross_site_unmarked_copies']"
+      ],
+      "why_data_cannot": "A forward is known only from its origin fields; a copy re-keyed without them maps as its own record and counts as its own root, which the harness keeps as the hard-case decoy class cross_site_unmarked_copies.",
+      "minimal_generic_fix": "None inside the boundary rules: recognising an unmarked copy needs its text at another site.",
+      "blocking": false,
+      "fixed": false,
+      "lines_changed": 0
+    }
+  ],
+  "presentation_gaps": [
+    {
+      "id": "G4-P01",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "SINGLE_NO_LATER",
+      "literal": "One plant alone also caught this failure mode, running the same detectors on its own records, no later than X: on this case the cross-site view is not earlier than a single site, so it shows no collective lift",
+      "noun": "plant"
+    },
+    {
+      "id": "G4-P02",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "SINGLE_LATER",
+      "literal": "One plant alone also caught this failure mode, running the same detectors on its own records, later than X",
+      "noun": "plant"
+    },
+    {
+      "id": "G4-P03",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "NOT_ASKED",
+      "literal": "Not asked yet: press check with sites, and each plant answers from its own records",
+      "noun": "plant"
+    },
+    {
+      "id": "G4-P04",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "PREPARING",
+      "literal": "Preparing the run: each plant ingests its own records and sends its suppressed weekly counts",
+      "noun": "plant"
+    },
+    {
+      "id": "G4-P05",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "TASK_TEXTS",
+      "literal": "Extraction at the plants: ",
+      "noun": "plants"
+    },
+    {
+      "id": "G4-P06",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "TASK_TEXTS",
+      "literal": "Checks at the plants: ",
+      "noun": "plants"
+    },
+    {
+      "id": "G4-P07",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "ROLE_TEXTS",
+      "literal": "contributing plant",
+      "noun": "plant"
+    },
+    {
+      "id": "G4-P08",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "ROLE_TEXTS",
+      "literal": "sibling plant",
+      "noun": "plant"
+    },
+    {
+      "id": "G4-P09",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "_problem",
+      "literal": "Plants with the case",
+      "noun": "plants"
+    },
+    {
+      "id": "G4-P10",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "_problem",
+      "literal": " plants, ",
+      "noun": "plants"
+    },
+    {
+      "id": "G4-P11",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "_problem",
+      "literal": "Complaints in the case",
+      "noun": "complaints"
+    },
+    {
+      "id": "G4-P12",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "_problem",
+      "literal": " complaints carry the code: ",
+      "noun": "complaints"
+    },
+    {
+      "id": "G4-P13",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "_problem",
+      "literal": "Code on the complaints",
+      "noun": "complaints"
+    },
+    {
+      "id": "G4-P14",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "_problem",
+      "literal": "Plants: ",
+      "noun": "plants"
+    },
+    {
+      "id": "G4-P15",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "_problem",
+      "literal": "Plant",
+      "noun": "plant"
+    },
+    {
+      "id": "G4-P16",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "_problem",
+      "literal": "problem-plants",
+      "noun": "plants"
+    },
+    {
+      "id": "G4-P17",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "_check",
+      "literal": "HQ asks the plants: ",
+      "noun": "plants"
+    },
+    {
+      "id": "G4-P18",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "_check",
+      "literal": "Plant",
+      "noun": "plant"
+    },
+    {
+      "id": "G4-P19",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "_check",
+      "literal": "Every counted confirm resolves to the plant's own records: ",
+      "noun": "plant"
+    },
+    {
+      "id": "G4-P20",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "_check",
+      "literal": "Evidence resolvable at the plants",
+      "noun": "plants"
+    },
+    {
+      "id": "G4-P21",
+      "file": "demo/collective/screen.py",
+      "constant_or_function": "_followup",
+      "literal": "Plant",
+      "noun": "plant"
+    },
+    {
+      "id": "G4-P22",
+      "file": "demo/collective/collective_demo.py",
+      "constant_or_function": "CHECK_TEXTS",
+      "literal": "At least three contributing plants confirm",
+      "noun": "plants"
+    },
+    {
+      "id": "G4-P23",
+      "file": "demo/collective/collective_demo.py",
+      "constant_or_function": "CHECK_TEXTS",
+      "literal": "At least one sibling plant refutes",
+      "noun": "plant"
+    },
+    {
+      "id": "G4-P24",
+      "file": "demo/collective/collective_demo.py",
+      "constant_or_function": "CHECK_TEXTS",
+      "literal": "Every counted confirm resolves at its own plant",
+      "noun": "plant"
+    },
+    {
+      "id": "G4-P25",
+      "file": "demo/collective/collective_demo.py",
+      "constant_or_function": "CHECK_TEXTS",
+      "literal": "The evidence packet is complete, one ok packet per contributing plant",
+      "noun": "plant"
+    },
+    {
+      "id": "G4-P26",
+      "file": "demo/collective/collective_demo.py",
+      "constant_or_function": "CHECK_TEXTS",
+      "literal": "The scanner finds canaries and narrative text in a plant's own database",
+      "noun": "plant"
+    }
+  ],
+  "logic_gaps": [],
+  "demo_lint": {
+    "exit_code": 0,
+    "violations": []
+  },
+  "attempts": {
+    "g0": [
+      {
+        "attempt": 1,
+        "what": "--records 200 --seed 11 into a scratch directory, a trial before the evidence run",
+        "outcome": "exit 0, PASS"
+      },
+      {
+        "attempt": 2,
+        "what": "the evidence command, --records 1000 --seed 11",
+        "outcome": "exit 0, PASS; copied byte-identical as g0/leakage.json"
+      },
+      {
+        "attempt": 3,
+        "what": "review round 1: the evidence command again, --records 1000 --seed 11, after fixture INC0100045 was relabelled (a generated world's parameters carry the fixtures hash, so its world_digest changed)",
+        "outcome": "exit 0, PASS; only created_at and world_digest differ from attempt 2; copied byte-identical as g0/leakage.json, replacing attempt 2's copy"
+      }
+    ],
+    "x1_smoke": [
+      {
+        "attempt": 1,
+        "what": "the evidence commands (prereg, check-plant --construct, run) with run ids x3-smoke-prereg and x3-smoke-run, --allow-dirty",
+        "outcome": "each exited 0; prereg and labels copied byte-identical, the scorecard with only its paths rewritten"
+      },
+      {
+        "attempt": 2,
+        "what": "review round 1: the same evidence commands and run ids into a fresh runs directory, after fixture INC0100045 was relabelled (the fixtures hash changed, and the prereg and scorecard carry it)",
+        "outcome": "each exited 0 with the same channel results as attempt 1; prereg and labels copied byte-identical, the scorecard with only its paths rewritten; these replace attempt 1's files"
+      }
+    ],
+    "demo": [
+      {
+        "attempt": 1,
+        "what": "--record of the scenario from a scratch path, before it was written byte-identical to docs/collective/x3/scenario.json",
+        "outcome": "exit 0, every check ok",
+        "failing_checks": []
+      },
+      {
+        "attempt": 2,
+        "what": "--record of docs/collective/x3/scenario.json",
+        "outcome": "exit 0, every check ok, the same content_hash as attempt 1",
+        "failing_checks": []
+      },
+      {
+        "attempt": 3,
+        "what": "two decoy labels reworded to hold no number word (the lint had passed: decoy labels are run-file values, not static screen text), then --record of docs/collective/x3/scenario.json again",
+        "outcome": "exit 0, every check ok, a new content_hash; this run is copied as demo/x3-it-incidents-demo",
+        "failing_checks": []
+      },
+      {
+        "attempt": 4,
+        "what": "review round 1: --record of docs/collective/x3/scenario.json again after the fixture relabel (the scorecard carries the pack's fixtures digest)",
+        "outcome": "exit 0, every check ok; only the fixtures digest, timings, timestamps and content_hash changed; this run replaces attempt 3's copy",
+        "failing_checks": []
+      }
+    ]
+  },
+  "fixture_lexical_f1": {
+    "value": 0.978494623655914,
+    "tp": 91,
+    "fp": 1,
+    "fn": 3,
+    "records": 46,
+    "metric": "micro field F1 (e1_extract.record_counts field counts, micro_f1)",
+    "label": "hand-labelled by the same author; not a measurement"
+  },
+  "fixture_disagreements": [
+    {
+      "record_ref": "INC0100013",
+      "reason": "negation beyond the window: 'was ruled out' follows 'memory leak' after the release id",
+      "gap_id": "G4-14"
+    },
+    {
+      "record_ref": "INC0100017",
+      "reason": "German separable verb: 'stuerzt ... ab' around 'seit dem Update'",
+      "gap_id": "G4-12"
+    },
+    {
+      "record_ref": "INC0100018",
+      "reason": "German inflection: 'Paketverlusten' (dative plural) is not a listed form",
+      "gap_id": "G4-13"
+    },
+    {
+      "record_ref": "INC0100020",
+      "reason": "HTML paragraphs without whitespace are one sentence, so the mailbox takes the printers' outage",
+      "gap_id": "G4-11"
+    },
+    {
+      "record_ref": "INC0100045",
+      "reason": "sentence-level pairing: the mail service, named only as unaffected ('with no impact on the mail service'), takes the certificate expiry",
+      "gap_id": "G4-15"
+    }
+  ],
+  "evidence": {
+    "requirements": "docs/collective/x3/REQUIREMENTS.md",
+    "scenario": "docs/collective/x3/scenario.json",
+    "g0": "docs/collective/x3/g0/leakage.json",
+    "x1_smoke_prereg": "docs/collective/x3/x1_smoke/prereg.json",
+    "x1_smoke_labels": "docs/collective/x3/x1_smoke/labels.json",
+    "x1_smoke_scorecard": "docs/collective/x3/x1_smoke/scorecard.json",
+    "demo": "docs/collective/x3/demo/x3-it-incidents-demo"
+  },
+  "wall_clock": {
+    "label": "AI agent wall clock, not engineer-hours",
+    "start": "2026-10-08T15:55:02Z",
+    "requirements_committed": "2026-10-08T15:56:44Z",
+    "pack_start": "2026-10-08T15:59:34Z",
+    "pack_loaded": "2026-10-08T16:10:37Z",
+    "evidence_done": "2026-10-08T16:43:44Z",
+    "end": "2026-10-08T18:28:49Z"
+  }
+}

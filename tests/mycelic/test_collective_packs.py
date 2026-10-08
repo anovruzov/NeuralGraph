@@ -1,6 +1,6 @@
 """Domain packs: loading, freezing and hashing, malformed packs, id formats, the canonicaliser, the disclaimer, the
-seeded world generator and the connector. Everything runs on the two built-in packs or on copies of them in a
-temporary directory; nothing touches the network.
+seeded world generator and the connector. Everything runs on the built-in packs (every generic check on each of
+them, B4) or on copies of them in a temporary directory; nothing touches the network.
 """
 from __future__ import annotations
 
@@ -28,9 +28,13 @@ from mycelic.collective.packs.connector import ConnectorError, check_record, map
 from mycelic.collective.packs.generator import GeneratorError, generate, world_digest
 from mycelic.collective.packs.loader import (BUILTIN_ROOT, FILES, HASH_SCOPES, PackError, RESERVED, compute_hashes,
                                              load_pack, load_pack_dir)
+from tests.mycelic.test_collective_guards import BUILTIN_PACKS
 
 ROOT = Path(__file__).resolve().parents[2]
-PACKS = ("device_quality", "claims_integrity")
+PACKS = BUILTIN_PACKS
+# per built-in pack: k and the verdict count buckets
+EGRESS_EXPECTED = {"device_quality": (3, [3, 10, 50]), "claims_integrity": (5, [5, 10, 50]),
+                   "it_incidents": (3, [3, 10, 50])}
 HEX64 = re.compile(r"[0-9a-f]{64}")
 ID = re.compile(r"[a-z][a-z0-9_]{1,40}")
 _LOADED: dict[str, loader.FrozenPack] = {}
@@ -134,8 +138,7 @@ class LoadTests(TempCase):
                                  {t for t, et in p.entity_types.items() if et.egress})
 
     def test_egress_and_detector_values(self) -> None:
-        expected = {"device_quality": (3, [3, 10, 50]), "claims_integrity": (5, [5, 10, 50])}
-        for pid, (k, buckets) in expected.items():
+        for pid, (k, buckets) in EGRESS_EXPECTED.items():
             p = pack(pid)
             with self.subTest(pack=pid):
                 self.assertEqual(p.egress.k, k)
@@ -355,7 +358,7 @@ def _parsed(pid: str) -> tuple[dict[str, Any], list[Any]]:
 class HashTests(TempCase):
     def test_stable_across_processes_and_hash_seeds(self) -> None:
         code = ("import json; from mycelic.collective.packs.loader import load_pack;"
-                "print(json.dumps([load_pack(p).hashes() for p in ('device_quality', 'claims_integrity')]))")
+                f"print(json.dumps([load_pack(p).hashes() for p in {PACKS!r}]))")
         outputs = []
         for seed in ("0", "4242"):
             r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, timeout=120,
@@ -648,6 +651,121 @@ class MalformedPackTests(TempCase):
                         outcomes["pack_error"] += 1
         self.assertEqual(sum(outcomes.values()), len(names) * 6)
         self.assertGreater(outcomes["pack_error"], 0)
+
+
+# =================================================================================================== templates
+
+_CAPA_T = ("types", "capa_initiation_draft", "template")
+_CAPA_P = "$.types.capa_initiation_draft.template"
+_MISFIT = "template source does not fit the property's type"
+
+
+def _integer_property(obj: Any) -> None:
+    schema = obj["types"]["capa_initiation_draft"]["draft_schema"]
+    schema["properties"]["revision"] = {"type": "integer", "minimum": 0}
+    schema["required"].append("revision")
+    obj["types"]["capa_initiation_draft"]["template"]["revision"] = "headline"
+
+
+# (name, edit, expected path, expected problem)
+TEMPLATE_REFUSALS = [
+    ("unknown key", _set(_CAPA_T + ("extra",), "headline"), _CAPA_P + ".extra", "unknown key"),
+    ("missing key", _del(_CAPA_T + ("containment",)), _CAPA_P + ".containment", "missing key"),
+    ("not an object", _set(_CAPA_T, "headline"), _CAPA_P, "must be an object"),
+    ("unknown source", _set(_CAPA_T + ("title",), "narrative"), _CAPA_P + ".title", "unknown template source"),
+    ("a null source", _set(_CAPA_T + ("title",), None), _CAPA_P + ".title", "unknown template source"),
+    ("unknown list entry", _set(_CAPA_T + ("problem_statement",), ["summary", "for_owner"]),
+     _CAPA_P + ".problem_statement[1]", "unknown template source"),
+    ("duplicate list entry", _set(_CAPA_T + ("problem_statement",), ["summary", "evidence", "summary"]),
+     _CAPA_P + ".problem_statement[2]", "duplicate template source"),
+    ("a text source on an array", _set(_CAPA_T + ("affected_lots",), "headline"), _CAPA_P + ".affected_lots",
+     _MISFIT),
+    ("an entity source on a string", _set(_CAPA_T + ("title",), "entity_ids:lot"), _CAPA_P + ".title", _MISFIT),
+    ("confirming sites on a string", _set(_CAPA_T + ("containment",), "confirming_sites"), _CAPA_P + ".containment",
+     _MISFIT),
+    ("a list on an array", _set(_CAPA_T + ("affected_lots",), ["summary"]), _CAPA_P + ".affected_lots", _MISFIT),
+    ("an empty list", _set(_CAPA_T + ("problem_statement",), []), _CAPA_P + ".problem_statement", _MISFIT),
+    ("a list of four", _set(_CAPA_T + ("problem_statement",), ["headline", "summary", "evidence", "summary"]),
+     _CAPA_P + ".problem_statement", _MISFIT),
+    ("a source on an integer property", _integer_property, _CAPA_P + ".revision", _MISFIT),
+    ("a non-egress entity type", _set(_CAPA_T + ("affected_lots",), "entity_ids:patient_ref"),
+     _CAPA_P + ".affected_lots", "not an egress entity type"),
+    ("a template on a non-draft type", _set(("types", "evidence_packet", "template"), {"title": "headline"}),
+     "$.types.evidence_packet.template", "template is set exactly when executor is draft"),
+    ("a draft type without a template", _set(_CAPA_T, None), _CAPA_P,
+     "template is set exactly when executor is draft"),
+    ("a non-draft type without the key", _del(("types", "evidence_packet", "template")),
+     "$.types.evidence_packet.template", "missing key"),
+]
+
+
+class TemplateLoaderTests(TempCase):
+    """B1: ``followups.json``'s ``template``, one source per required property of a draft type's schema."""
+
+    def test_each_refusal_names_its_path_and_a_fixed_problem(self) -> None:
+        for i, (name, fn, path, problem) in enumerate(TEMPLATE_REFUSALS):
+            with self.subTest(case=name):
+                d = self.copy(name=f"template{i}")
+                self.edit(d, "followups.json", fn)
+                with self.assertRaises(PackError) as cm:
+                    load_pack(str(d))
+                self.assertEqual((cm.exception.file, cm.exception.path, cm.exception.problem),
+                                 ("followups.json", path, problem))
+                for word in ("narrative", "patient_ref"):
+                    self.assertNotIn(word, cm.exception.problem)
+
+    def test_every_built_in_type_carries_a_template_exactly_when_it_drafts(self) -> None:
+        for pid in PACKS:
+            raw = json.loads((BUILTIN_ROOT / pid / "followups.json").read_text(encoding="utf-8"))
+            for name, ft in pack(pid).followups.items():
+                with self.subTest(pack=pid, type=name):
+                    self.assertIn("template", raw["types"][name])
+                    self.assertEqual(list(raw["types"][name]).index("template"),
+                                     list(raw["types"][name]).index("draft_schema") + 1)
+                    self.assertEqual(ft.template is None, ft.executor != "draft")
+                    if ft.template is not None:
+                        self.assertEqual(sorted(ft.template), sorted(ft.draft_json_schema()["required"]))
+                        self.assertEqual(loader.thaw(ft.template), raw["types"][name]["template"])
+
+    def test_other_forms_load_and_change_only_the_config_hash(self) -> None:
+        base = pack("device_quality")
+        for i, template in enumerate((
+                {"title": "summary", "problem_statement": ["evidence", "headline", "summary"],
+                 "containment": "evidence", "affected_lots": "confirming_sites"},
+                {"title": ["headline"], "problem_statement": "for_owner", "containment": ["summary", "evidence"],
+                 "affected_lots": "for_owner"})):
+            with self.subTest(template=i):
+                d = self.copy(name=f"forms{i}")
+                self.edit(d, "followups.json", _set(_CAPA_T, template))
+                p = load_pack(str(d))
+                self.assertEqual(loader.thaw(p.followups["capa_initiation_draft"].template), template)
+                self.assertEqual({k for k in base.hashes() if base.hashes()[k] != p.hashes()[k]}, {"config_hash"})
+
+    def test_template_is_reserved_and_names_no_built_in_id(self) -> None:
+        self.assertIn("template", RESERVED)
+        self.assertIn("template", loader._FOLLOWUP_KEYS)
+        for pid in PACKS:
+            p = pack(pid)
+            ids = [p.id, *p.entity_types, *p.predicates, *p.roles, *p.questions, *p.followups, *p.rules, *p.codes]
+            self.assertNotIn("template", ids)
+
+    def test_only_the_config_hash_differs_from_g5(self) -> None:
+        from tests.mycelic.test_collective_pushdown import B1_CONFIG_HASHES, G5_HASHES
+        for pid in ("device_quality", "claims_integrity"):           # the G5 history; B4_HASHES pins it_incidents
+            with self.subTest(pack=pid):
+                hashes = pack(pid).hashes()
+                self.assertEqual({k for k in hashes if hashes[k] != G5_HASHES[pid][k]}, {"config_hash"})
+                self.assertEqual(hashes["config_hash"], B1_CONFIG_HASHES[pid])
+
+    def test_every_builtin_pack_is_pinned(self) -> None:
+        # B4: device and claims are pinned by their G5 hashes with B1's config hash, it_incidents by B4_HASHES
+        from tests.mycelic.test_collective_pushdown import B1_CONFIG_HASHES, B4_HASHES, G5_HASHES
+        pins = {pid: {**G5_HASHES[pid], "config_hash": B1_CONFIG_HASHES[pid]} for pid in G5_HASHES}
+        pins.update(B4_HASHES)
+        self.assertEqual(set(pins), set(PACKS))
+        for pid in PACKS:
+            with self.subTest(pack=pid):
+                self.assertEqual(pack(pid).hashes(), pins[pid])
 
 
 # =================================================================================================== id formats

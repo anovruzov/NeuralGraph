@@ -8,6 +8,7 @@ replaying it, the lexical judge); no number here measures a model. Temporary dir
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import io
 import json
 import os
@@ -20,6 +21,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Callable, Mapping
 from unittest import mock
 
@@ -34,7 +36,7 @@ from mycelic.collective.evaluate.baselines import org_for_sites
 from mycelic.collective.experiments import e5_injection
 from mycelic.collective.followup import drafts, ledger as ledger_module
 from mycelic.collective.followup.drafts import (DRAFT_TASK, DraftError, DraftWriter, draft_payload,
-                                                draft_scope_problem, template_draft)
+                                                draft_scope_problem, template_draft, template_sources)
 from mycelic.collective.followup.executors import ExecContext, OutboxExecutor, PacketExecutor
 from mycelic.collective.followup.ledger import (KINDS, PAYLOAD_KEYS, Entry, FollowupLedger, LedgerConflict,
                                                 LedgerError, LedgerTx, verify_chain)
@@ -49,11 +51,13 @@ from mycelic.collective.inference.routing import parse_routing
 from mycelic.collective.inference.runtime import Runtime
 from mycelic.collective.jsonio import canonical_bytes, sha256_hex, strict_load
 from mycelic.collective.packs.canonical import Canonicaliser
-from mycelic.collective.packs.loader import FrozenPack, load_pack, thaw
+from mycelic.collective.packs.loader import BUILTIN_ROOT, FrozenPack, freeze, load_pack, thaw
 from tests.mycelic.test_collective_edge import pack_copy, record, universe_master
+from tests.mycelic.test_collective_guards import BUILTIN_PACKS
 from tests.mycelic.test_collective_leakage import run_main
-from tests.mycelic.test_collective_pushdown import (AS_OF, G5_HASHES, G6_CONFIG_HASHES, R2_CONFIG_HASHES, Clock,
-                                                    MiniWorld, crack_records, other_records)
+from tests.mycelic.test_collective_pushdown import (AS_OF, B1_CONFIG_HASHES, G5_HASHES, G6_CONFIG_HASHES,
+                                                    G7_CONFIG_HASHES, R2_CONFIG_HASHES, Clock, MiniWorld,
+                                                    crack_records, other_records)
 
 ROOT = Path(__file__).resolve().parents[2]
 DQ = load_pack("device_quality")
@@ -79,7 +83,7 @@ DQX_EDITS = {
     ("followups.json", "types", "scar_draft", "enabled"): False,
     ("followups.json", "types", "qms_write"): {
         "label": "Open the record in the QMS", "tier": "T2", "enabled": False, "executor": "write",
-        "args_schema": {"conclusion": {"kind": "conclusion_id"}}, "draft_schema": None,
+        "args_schema": {"conclusion": {"kind": "conclusion_id"}}, "draft_schema": None, "template": None,
         "owner_role": "quality_engineer", "daily_cap": 1, "ack_days": 1, "escalate_to_role": None},
 }
 
@@ -277,8 +281,10 @@ class PackFollowupTests(unittest.TestCase):
                 self.assertEqual({k: v for k, v in pack.hashes().items() if k != "config_hash"},
                                  {k: v for k, v in G5_HASHES[pack.id].items() if k != "config_hash"})
                 self.assertNotEqual(pack.config_hash, G6_CONFIG_HASHES[pack.id])
-                # G7's hash, changed since only by audit round 2's egress.json key
-                self.assertEqual(pack.config_hash, R2_CONFIG_HASHES[pack.id])
+                # G7's hash, changed since by audit round 2's egress.json key and B1's followups.json template key
+                self.assertNotEqual(pack.config_hash, G7_CONFIG_HASHES[pack.id])
+                self.assertNotEqual(pack.config_hash, R2_CONFIG_HASHES[pack.id])
+                self.assertEqual(pack.config_hash, B1_CONFIG_HASHES[pack.id])
 
     def test_the_new_args_shapes_and_the_unchanged_settings(self) -> None:
         conclusion = {"kind": "conclusion_id"}
@@ -2119,14 +2125,22 @@ class PacketDraftTests(FollowupCase):
                     self.assertNotIn(absent, data)
                 draft = template_draft(DQ)(payload)
                 self.assertEqual(schemacheck.compile(ft.draft_json_schema()).validate(draft), [])
-                self.assertIsNone(draft_scope_problem(DQ, view.scope_ids, draft))
+                # B1: the evidence names the packets' co-mentions, which the service's scope holds (view.scope_ids
+                # plus every packet's co-mentions) and the conclusion's own scope does not
+                scope = view.scope_ids | {(m["entity_type"], m["entity_id"]) for p in result["packets"]
+                                          for m in p["co_mentions"]}
+                self.assertIsNone(draft_scope_problem(DQ, scope, draft))
+                evidence_field = next(k for k, v in template_sources(ft).items() if "evidence" in v.split("+"))
+                self.assertEqual(draft_scope_problem(DQ, view.scope_ids, draft), f"$.{evidence_field}")
                 runtime = central_runtime(DQ, self.tmp / f"central-{ft.id}.jsonl", f.clock)
                 self.addCleanup(runtime.close)
                 written, reason = DraftWriter(DQ, runtime=runtime).write(ft, payload, ref="d:0123456789abcdef:1",
-                                                                         scope=view.scope_ids)
+                                                                         scope=scope)
                 self.assertEqual((written, reason), (draft, None))
-                self.assertEqual(DraftWriter(DQ, runtime=None).write(ft, payload, ref="d:x:1", scope=view.scope_ids),
+                self.assertEqual(DraftWriter(DQ, runtime=None).write(ft, payload, ref="d:x:1", scope=scope),
                                  (draft, None))
+                self.assertEqual(DraftWriter(DQ, runtime=None).write(ft, payload, ref="d:x:1",
+                                                                     scope=view.scope_ids), (None, "out_of_scope_id"))
         ci_view = type(view)(**{**view.__dict__, "entity_type": "repair_shop", "entity_id": "RS-120",
                                 "predicate": "duplicate_invoice",
                                 "candidate_key": "repair_shop:RS-120:duplicate_invoice",
@@ -2136,7 +2150,13 @@ class PacketDraftTests(FollowupCase):
         draft = template_draft(CI)(payload)
         self.assertEqual(schemacheck.compile(ft.draft_json_schema()).validate(draft), [])
         self.assertIsNone(draft_scope_problem(CI, ci_view.scope_ids, draft))
-        self.assertIn("Duplicate invoice on Repair shop RS-120: supported, 2 confirming site(s)", draft["title"])
+        # B1: the title is the headline, and the summary opens the pattern summary
+        self.assertEqual(draft["title"], "Draft a referral to the special investigations unit: Duplicate invoice on "
+                                         "Repair shop RS-120")
+        self.assertTrue(draft["pattern_summary"].startswith("Duplicate invoice on Repair shop RS-120: supported, 2 "
+                                                            "confirming site(s)"), draft["pattern_summary"])
+        self.assertTrue(draft["pattern_summary"].endswith(drafts.EVIDENCE_NONE), draft["pattern_summary"])
+        self.assertEqual(draft["requested_checks"], [])
         # the scope scan: alias words pass (D8); out-of-scope ids, lookalikes and unknown space forms do not
         scope = view.scope_ids
         for text, ok in (("Display fault on Product model SD-9", True), ("display and alarm", True),
@@ -2288,6 +2308,225 @@ def cell(site: str, week: str, n: int | None, channel: str = "text_only") -> Cel
     return CellRow(site, "product", "SD-9", "crack", week, channel, n, n, n, None, "b" * 64, "2026-08-01")
 
 
+def _letters(i: int) -> str:
+    return "".join(chr(ord("a") + (i // 26 ** k) % 26) for k in (2, 1, 0))
+
+
+def _template_packets(pack: FrozenPack, entity_type: str, entity_id: str, n_ok: int, *,
+                      others: bool = True) -> list[dict[str, Any]]:
+    """Packet summaries as ``draft_payload`` passes them: ``n_ok`` ok packets with codes and co-mentions (another id
+    of the conclusion's type among them), and, with ``others``, a refuting and a silent packet. The sites are the
+    pack world's own site ids while they last (the ok ones first, the others last), then ``site-<letters>``."""
+    labels = packet_labels(pack)
+    universe = pack.generator["universe"]
+    codes = sorted(pack.codes)
+    world = [site["id"] for site in pack.generator["sites"]]
+    names = world[:-2] if n_ok <= len(world) - 2 else [f"site-{_letters(i)}" for i in range(n_ok)]
+    out = []
+    for i in range(n_ok):
+        mentions = [(t, universe[t][(i + j) % len(universe[t])]) for j, t in enumerate(sorted(universe))
+                    if t in pack.egress.egress_entity_types]
+        mentions = sorted({m for m in mentions if m != (entity_type, entity_id)})
+        out.append({"site": names[i], "status": "ok", "verdict": "confirm",
+                    "support_bucket": labels[1 + i % (len(labels) - 1)],
+                    "codes": [{"code": codes[i % len(codes)], "n": labels[1]},
+                              {"code": codes[(i + 1) % len(codes)], "n": PACKET_SUPPRESSED}]
+                    if codes[i % len(codes)] < codes[(i + 1) % len(codes)] else [{"code": codes[0], "n": labels[1]}],
+                    "co_mentions": [{"entity_type": t, "entity_id": e, "n": labels[1 + (i + k) % (len(labels) - 1)]}
+                                    for k, (t, e) in enumerate(mentions)]})
+    if others:
+        out += [{"site": world[-2], "status": "no_confirmed_records", "verdict": "refute",
+                 "support_bucket": None, "codes": [], "co_mentions": []},
+                {"site": world[-1], "status": "no_verdict", "verdict": None, "support_bucket": None, "codes": [],
+                 "co_mentions": []}]
+    return sorted(out, key=lambda p: p["site"])
+
+
+def _template_payload(pack: FrozenPack, ft: Any, entity_type: str, packets: list[dict[str, Any]]) -> dict[str, Any]:
+    entity_id = pack.generator["universe"][entity_type][0]
+    predicate = sorted(pack.predicates)[0]
+    sites = [p["site"] for p in packets if p["status"] == "ok"] or [pack.generator["sites"][0]["id"]]
+    payload = {
+        "followup_type": ft.id, "type_label": ft.label, "tier": ft.tier, "args": {"conclusion": "c-" + "a" * 32},
+        "conclusion": {
+            "conclusion_id": "c-" + "a" * 32, "version": 2, "candidate_key": f"{entity_type}:{entity_id}:{predicate}",
+            "entity_type": entity_type, "entity_type_label": pack.entity_types[entity_type].label,
+            "entity_id": entity_id, "predicate": predicate, "predicate_label": pack.predicates[predicate].label,
+            "status": "supported", "window": {"start_week": "2026-W10", "end_week": "2026-W15"},
+            "confirming_sites": sites, "decision_unit": "t/region-0", "support_lb": 3, "roots_lb": 3,
+            "reporters_lb": 3, "newest_week": "2026-W15"},
+        "packets": packets}
+    return strict_load(canonical_bytes(payload))
+
+
+def _with_type(pack: FrozenPack, ft: Any, *, template: Mapping[str, Any] | None = None,
+               max_length: Mapping[str, int] | None = None) -> tuple[FrozenPack, Any]:
+    """A pack whose draft type has another template or other string caps (a frozen copy; nothing on disk)."""
+    schema = ft.draft_json_schema()
+    for name, cap in (max_length or {}).items():
+        schema["properties"][name]["maxLength"] = cap
+    changed = dataclasses.replace(ft, draft_schema=freeze(schema),
+                                  template=freeze(dict(template if template is not None else thaw(ft.template))))
+    return dataclasses.replace(pack, followups=MappingProxyType({**pack.followups, ft.id: changed})), changed
+
+
+class TemplateDraftTests(unittest.TestCase):
+    """B1: the template drafter fills each property from the source its pack template names, on draft-payload-shaped
+    inputs over every built-in pack and every enabled draft type, with ok, partial and failed packet sets."""
+
+    PACKS = tuple(load_pack(p.name) for p in sorted(BUILTIN_ROOT.iterdir()) if (p / "pack.json").is_file())
+
+    def cases(self):
+        for pack in self.PACKS:
+            for ft in pack.followups.values():
+                if ft.executor != "draft" or not ft.enabled:
+                    continue
+                for entity_type in pack.egress.egress_entity_types:
+                    entity_id = pack.generator["universe"][entity_type][0]
+                    for name, packets in (("ok", _template_packets(pack, entity_type, entity_id, 3, others=False)),
+                                          ("partial", _template_packets(pack, entity_type, entity_id, 1)),
+                                          ("failed", [])):
+                        yield pack, ft, entity_type, name, _template_payload(pack, ft, entity_type, packets)
+
+    def test_drafts_are_schema_valid_scope_clean_distinct_and_follow_their_sources(self) -> None:
+        seen = set()
+        for pack, ft, entity_type, name, payload in self.cases():
+            seen.add((pack.id, ft.id, name))
+            with self.subTest(pack=pack.id, type=ft.id, entity_type=entity_type, packets=name):
+                self.assertEqual(tuple(sorted(payload)), drafts.PAYLOAD_KEYS)
+                self.assertEqual(tuple(sorted(payload["conclusion"])), drafts.CONCLUSION_KEYS)
+                self.assertTrue(all(tuple(sorted(p)) == drafts.PACKET_SUMMARY_KEYS for p in payload["packets"]))
+                draft = template_draft(pack)(payload)
+                schema = ft.draft_json_schema()
+                self.assertEqual(schemacheck.compile(schema).validate(draft), [])
+                c = payload["conclusion"]
+                ok = [p for p in payload["packets"] if p["status"] == "ok"]
+                scope = {(c["entity_type"], c["entity_id"])} | {(m["entity_type"], m["entity_id"])
+                                                                for p in payload["packets"] for m in p["co_mentions"]}
+                self.assertIsNone(draft_scope_problem(pack, scope, draft))
+                sources = template_sources(ft)
+                self.assertEqual(sorted(sources), sorted(schema["required"]))
+                texts = [draft[k] for k, v in sources.items() if isinstance(draft[k], str) and v != "for_owner"]
+                self.assertTrue(texts)
+                self.assertTrue(all(texts))
+                self.assertEqual(len(set(texts)), len(texts))
+                for key, source in sources.items():
+                    value = draft[key]
+                    if source == "for_owner":
+                        self.assertEqual(value, [] if isinstance(value, list) else drafts.FOR_OWNER_TEXT)
+                    elif source.startswith("entity_ids:"):
+                        t = source.split(":", 1)[1]
+                        want = sorted(({c["entity_id"]} if c["entity_type"] == t else set())
+                                      | {m["entity_id"] for p in ok for m in p["co_mentions"] if m["entity_type"] == t})
+                        self.assertEqual(value, want[:schema["properties"][key].get("maxItems", len(want))])
+                    if "headline" in source.split("+"):
+                        self.assertTrue(value.startswith(f"{ft.label}: {c['predicate_label']} on "
+                                                         f"{c['entity_type_label']} {c['entity_id']}"), value)
+                    if "evidence" in source.split("+"):
+                        for p in ok:
+                            self.assertIn(f"{p['site']}: confirm, support {p['support_bucket']}", value)
+                        if not ok:
+                            self.assertTrue(value.endswith(drafts.EVIDENCE_NONE), value)
+                        else:
+                            self.assertNotIn(drafts.EVIDENCE_NONE, value)
+                silent = [p["site"] for p in payload["packets"] if p["status"] != "ok"]
+                for value in draft.values():           # a packet that is not ok adds no clause
+                    for absent in (*silent, "no_confirmed_records", "no_verdict", "refute"):
+                        self.assertNotIn(absent, json.dumps(value))
+        self.assertEqual({(p, n) for p, _, n in seen},
+                         {(pack.id, n) for pack in self.PACKS for n in ("ok", "partial", "failed")})
+
+    def test_the_built_in_templates_and_their_sources(self) -> None:
+        by_type = {ft.id: template_sources(ft) for pack in self.PACKS for ft in pack.followups.values()}
+        self.assertEqual(by_type["capa_initiation_draft"], {"affected_lots": "entity_ids:lot", "containment": "for_owner",
+                                                             "problem_statement": "summary+evidence",
+                                                             "title": "headline"})
+        self.assertEqual(by_type["scar_draft"], {"nonconformance": "summary+evidence", "requested_actions": "for_owner",
+                                                  "title": "headline"})
+        self.assertEqual(by_type["siu_referral_draft"], {"pattern_summary": "summary+evidence",
+                                                         "requested_checks": "for_owner", "title": "headline"})
+        self.assertEqual(by_type["evidence_packet"], {})
+        self.assertEqual(drafts.SOURCES, ("headline", "summary", "evidence", "for_owner", "confirming_sites",
+                                          "entity_ids"))
+        for text in (drafts.FOR_OWNER_TEXT, drafts.EVIDENCE_NONE):
+            self.assertIsNone(re.search(r"[0-9]", text))
+
+    def test_entity_ids_on_a_lot_conclusion_with_lot_co_mentions_and_confirming_sites(self) -> None:
+        dq = next(p for p in self.PACKS if p.id == "device_quality")
+        ft = dq.followups["capa_initiation_draft"]
+        packets = _template_packets(dq, "lot", dq.generator["universe"]["lot"][0], 3)
+        payload = _template_payload(dq, ft, "lot", packets)
+        lots = sorted({payload["conclusion"]["entity_id"]} | {m["entity_id"] for p in packets if p["status"] == "ok"
+                                                              for m in p["co_mentions"] if m["entity_type"] == "lot"})
+        self.assertGreater(len(lots), 1)
+        self.assertEqual(template_draft(dq)(payload)["affected_lots"], lots)
+        schema = ft.draft_json_schema()
+        schema["properties"]["affected_lots"]["maxItems"] = 1
+        capped = dataclasses.replace(dq, followups=MappingProxyType({**dq.followups, ft.id: dataclasses.replace(
+            ft, draft_schema=freeze(schema))}))
+        self.assertEqual(template_draft(capped)(payload)["affected_lots"], lots[:1])
+        # a product conclusion with no lot co-mention lists none
+        product = _template_payload(dq, ft, "product", [])
+        self.assertEqual(template_draft(dq)(product)["affected_lots"], [])
+        sites, _ = _with_type(dq, ft, template={**thaw(ft.template), "affected_lots": "confirming_sites"})
+        self.assertEqual(template_draft(sites)(payload)["affected_lots"], payload["conclusion"]["confirming_sites"])
+
+    def test_a_long_evidence_is_cut_at_a_clause_boundary_then_dropped_then_cut_at_a_space(self) -> None:
+        dq = next(p for p in self.PACKS if p.id == "device_quality")
+        ft = dq.followups["capa_initiation_draft"]
+        packets = _template_packets(dq, "lot", dq.generator["universe"]["lot"][0], 120, others=False)
+        payload = _template_payload(dq, ft, "lot", packets)
+        full = template_draft(dq)(payload)
+        cap = ft.draft_json_schema()["properties"]["problem_statement"]["maxLength"]
+        text = full["problem_statement"]
+        def alone(*chosen: dict[str, Any]) -> str:        # the same conclusion with fewer packets
+            return template_draft(dq)({**payload, "packets": list(chosen)})["problem_statement"]
+
+        summary = alone()[:-len(" " + drafts.EVIDENCE_NONE)]
+        self.assertLessEqual(len(text), cap)
+        self.assertTrue(text.startswith(summary + " site-aaa: "), text[:300])
+        clauses = text[len(summary) + 1:].split("; ")
+        self.assertEqual([c.split(":", 1)[0] for c in clauses], [f"site-{_letters(i)}" for i in range(len(clauses))])
+        self.assertLess(len(clauses), len(packets))
+        following = alone(packets[len(clauses)])[len(summary) + 1:]
+        self.assertGreater(len(text) + len("; ") + len(following), cap)
+        self.assertEqual(clauses[-1], alone(packets[len(clauses) - 1])[len(summary) + 1:])
+        self.assertEqual(text, alone(*packets[:len(clauses)]))
+        # no clause fits: the evidence part goes; the summary stays whole
+        tight, _ = _with_type(dq, ft, max_length={"problem_statement": len(summary) + 5})
+        self.assertEqual(template_draft(tight)(payload)["problem_statement"], summary)
+        # not even the summary fits: a cut at the last space, never inside a token
+        tighter, _ = _with_type(dq, ft, max_length={"problem_statement": 40, "title": 25})
+        cut = template_draft(tighter)(payload)
+        for key, limit in (("problem_statement", 40), ("title", 25)):
+            self.assertLessEqual(len(cut[key]), limit)
+            whole = full[key] if key == "title" else summary
+            self.assertTrue(whole.startswith(cut[key]))
+            self.assertEqual(whole[len(cut[key])], " ")
+        self.assertEqual(drafts._fit(("headline",), {"headline": "abcdefghij"}, (), 4), "abcd")
+        self.assertEqual(drafts._fit(("headline", "evidence"), {"headline": "a b"}, ("x" * 9,), 5), "a b")
+
+    def test_a_model_draft_ignores_the_template_and_is_still_checked(self) -> None:
+        dq = next(p for p in self.PACKS if p.id == "device_quality")
+        ft = dq.followups["capa_initiation_draft"]
+        payload = _template_payload(dq, ft, "lot", _template_packets(dq, "lot", dq.generator["universe"]["lot"][0],
+                                                                        2))
+        own = {"title": "A model's own title", "problem_statement": "A model's own statement",
+               "containment": "Quarantine", "affected_lots": []}
+        provider = FakeProvider()
+        provider.register(DRAFT_TASK, lambda p: dict(own))
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        runtime = central_runtime(dq, tmp / "central.jsonl", Clock(NOW), provider=provider)
+        self.addCleanup(runtime.close)
+        scope = {(payload["conclusion"]["entity_type"], payload["conclusion"]["entity_id"])}
+        self.assertEqual(DraftWriter(dq, runtime=runtime).write(ft, payload, ref="d:0123456789abcdef:1", scope=scope),
+                         (own, None))
+        provider.register(DRAFT_TASK, lambda p: {**own, "containment": "Ask supplier V1002"})
+        self.assertEqual(DraftWriter(dq, runtime=runtime).write(ft, payload, ref="d:0123456789abcdef:2", scope=scope),
+                         (None, "out_of_scope_id"))
+
+
 class OutcomeTests(FollowupCase):
     def run_eval(self, cells: list[CellRow], *, as_of: str = "2026-08-01", coverage: Mapping[str, str] | None = None,
                  post_start: str | None = None, sites: tuple[str, ...] = ("s1", "s2")) -> dict[str, Any]:
@@ -2388,6 +2627,11 @@ def e5_argv(pack: str, out: Path, entity_type: str, injected: str, *extra: str) 
             injected, "--out", str(out), *extra]
 
 
+# per built-in pack: the egress id-format type and the canonical id the smoke injects (in no world and no config text)
+E5_INJECTIONS = {"device_quality": ("supplier", "V9999"), "claims_integrity": ("repair_shop", "RS-99999"),
+                 "it_incidents": ("vendor", "VND-9999")}
+
+
 class InjectionSmokeTests(unittest.TestCase):
     """E5 as a synthetic plumbing smoke (not E5): the lexical extractor or a fake replaying it, simulated approvals."""
 
@@ -2396,8 +2640,7 @@ class InjectionSmokeTests(unittest.TestCase):
         cls._tmp = tempfile.TemporaryDirectory()
         cls.tmp = Path(cls._tmp.name)
         cls.runs = {}
-        for pack, entity_type, injected in (("device_quality", "supplier", "V9999"),
-                                            ("claims_integrity", "repair_shop", "RS-99999")):
+        for pack, (entity_type, injected) in E5_INJECTIONS.items():
             out = cls.tmp / pack
             cls.runs[pack] = (run_e5(e5_argv(pack, out, entity_type, injected)), out)
 
@@ -2406,8 +2649,7 @@ class InjectionSmokeTests(unittest.TestCase):
         cls._tmp.cleanup()
 
     def test_no_injected_id_reaches_any_follow_up_artifact(self) -> None:
-        for pack, (entity_type, injected) in (("device_quality", ("supplier", "V9999")),
-                                              ("claims_integrity", ("repair_shop", "RS-99999"))):
+        for pack, (entity_type, injected) in E5_INJECTIONS.items():
             with self.subTest(pack=pack):
                 (code, out, err), path = self.runs[pack]
                 self.assertEqual(code, 0, out + err)
@@ -2507,7 +2749,7 @@ class LeakageStageTests(unittest.TestCase):
         cls._tmp = tempfile.TemporaryDirectory()
         cls.tmp = Path(cls._tmp.name)
         cls.runs = {}
-        for name in ("device_quality", "claims_integrity"):
+        for name in BUILTIN_PACKS:
             argv = g0_argv(name, cls.tmp / name)
             code, out, err = run_main(argv)
             cls.runs[name] = (code, out + err, cls.tmp / name)
@@ -2516,8 +2758,8 @@ class LeakageStageTests(unittest.TestCase):
     def tearDownClass(cls) -> None:
         cls._tmp.cleanup()
 
-    def test_both_packs_pass_with_every_follow_up_artifact_scanned(self) -> None:
-        for name in ("device_quality", "claims_integrity"):
+    def test_every_builtin_pack_passes_with_every_follow_up_artifact_scanned(self) -> None:
+        for name in BUILTIN_PACKS:
             with self.subTest(pack=name):
                 code, output, out = self.runs[name]
                 self.assertEqual(code, 0, output)
@@ -2546,7 +2788,7 @@ class LeakageStageTests(unittest.TestCase):
                                  len([r for r in read_log(out / "hq" / "receive.jsonl")
                                       if r["artifact_type"] == "packet"]))
                 approvers = json.loads((out / "followup" / "approvers.json").read_text(encoding="utf-8"))
-                pack = DQ if name == "device_quality" else CI
+                pack = load_pack(name)
                 self.assertEqual([a["person_label"] for a in approvers["approvers"]],
                                  [f"g0-{role}" for role in sorted(pack.roles)])
                 for line in (out / "followup" / "outbox.jsonl").read_bytes().splitlines():

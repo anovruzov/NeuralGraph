@@ -58,13 +58,14 @@ from mycelic.collective.pushdown.orchestrator import Orchestrator, constructed_c
 from mycelic.collective.pushdown.questions import (PushdownError, build_question, question_window, render_text,
                                                    select_template)
 from tests.mycelic.test_collective_edge import pack_copy, record, universe_master
-from tests.mycelic.test_collective_guards import (HQ_FORBIDDEN, HQ_ALLOWED_LOADED, FORBIDDEN_LOADED, _forbidden,
-                                                  forbidden_imports)
+from tests.mycelic.test_collective_guards import (BUILTIN_PACKS, HQ_FORBIDDEN, HQ_ALLOWED_LOADED, FORBIDDEN_LOADED,
+                                                  _forbidden, forbidden_imports)
 from tests.mycelic.test_collective_leakage import run_main
 
 ROOT = Path(__file__).resolve().parents[2]
 DQ = load_pack("device_quality")
 CI = load_pack("claims_integrity")
+PACKS = {pid: load_pack(pid) for pid in BUILTIN_PACKS}
 AS_OF = "2026-04-26"                        # closes 2026-W15 for the device pack: the window is 2026-W10..2026-W15
 W15_DAYS = ("2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-11", "2026-04-12")
 G5_HASHES = {   # the G5 values (51f3b09); G6 changed only config_hash (D4, D5)
@@ -85,6 +86,14 @@ G7_CONFIG_HASHES = {"device_quality": "285935198ba34f2e194dc175cffd1f8f62c494d03
 # audit round 2 added egress.json's question_entities_per_site_per_day, so again only config_hash
 R2_CONFIG_HASHES = {"device_quality": "ac59c4cbb418509f02c8cef3cfb738fa65849f659844f6286e90a676f8c2276f",
                     "claims_integrity": "12d62cdfcab0c3fab0a0f1f11f1809df08aacce691b7dee41d3a86c7085deb7a"}
+# B1 added followups.json's template key (every type; null where the executor is not draft), so again only config_hash
+B1_CONFIG_HASHES = {"device_quality": "9de50cd4f690ba8876c7e1abb62f6fca886d1c5b96c00b048fa54d0c0c8a9d2d",
+                    "claims_integrity": "0ddf016d5bdb7f345528db831b9d174831fa15327518c3e9ddbd5781008c19a6"}
+# B4 added the third built-in pack, pure data; its four hashes (re-pin after any edit of its files)
+B4_HASHES = {"it_incidents": {"config_hash": "946becb0adece13f2274bf70eb33af81541a98e0587efbd43377c51b52cb29ac",
+                              "vocabulary_hash": "95f71002cfe225ff5e7254c7d3dec34d9aa0aad351fdc1312ea62d5152afc6b5",
+                              "detector_hash": "8dfb97e3ddc76743dc217da9e4cbd712e90f54322616780107f13f4f03b99ffb",
+                              "fixtures_hash": "f562c907631d25d9a7ccd64752df69d1bb5cbffcdac488f8a335818af45ac14e"}}
 # sha256 of detect/{rules,org}.py at 51f3b09 and of detectors.py after the review fixes (D2's codes test in X, D3's
 # shared nuisance imputation, A3 per entity type; G5 to G8: 7d4ca86b...): detection changes only on purpose, and a
 # change re-pins it here
@@ -233,7 +242,7 @@ class PackPushdownConfigTests(WorldCase):
                                                      max_sibling_sites=2))
         self.assertEqual((DQ.egress.verdict_count_buckets, CI.egress.verdict_count_buckets), ((3, 10, 50), (5, 10, 50)))
         self.assertIn("damage_area", CI.questions["count_pattern_on_entity"].entity_types)
-        for pack in (DQ, CI):
+        for pack in PACKS.values():                     # B4: every built-in pack has a template per egress type
             for t in pack.egress.egress_entity_types:
                 self.assertTrue(any(t in q.entity_types and q.predicates is None for q in pack.questions.values()))
         with self.assertRaises(AttributeError):
@@ -293,7 +302,8 @@ class PackPushdownConfigTests(WorldCase):
                 self.assertNotEqual(pack.config_hash, old["config_hash"])
                 self.assertNotEqual(pack.config_hash, G6_CONFIG_HASHES[pack.id])
                 self.assertNotEqual(pack.config_hash, G7_CONFIG_HASHES[pack.id])
-                self.assertEqual(pack.config_hash, R2_CONFIG_HASHES[pack.id])
+                self.assertNotEqual(pack.config_hash, R2_CONFIG_HASHES[pack.id])
+                self.assertEqual(pack.config_hash, B1_CONFIG_HASHES[pack.id])
         copy = pack_copy(self.tmp, "device_quality", {("questions.json", "pushdown", "max_sibling_sites"): 3})
         self.assertEqual({k for k in DQ.hashes() if DQ.hashes()[k] != copy.hashes()[k]}, {"config_hash"})
 
@@ -770,7 +780,7 @@ class VerifyTests(WorldCase):
         return len(claims)
 
     def test_the_lexical_judge_agrees_with_every_stored_claim_on_the_fixtures(self) -> None:
-        for pack in (DQ, CI):
+        for pack in PACKS.values():
             records = [{**dict(fx.record), "site": "fx", "codes": list(fx.record["codes"]),
                         "entities": {t: list(v) for t, v in fx.record["entities"].items()},
                         "persons": dict(fx.record["persons"])} for fx in pack.fixtures]
@@ -778,7 +788,7 @@ class VerifyTests(WorldCase):
             self.assertGreaterEqual(self.assert_judge_agrees(pack, s), 40)
 
     def test_the_lexical_judge_agrees_with_every_stored_claim_on_a_generated_world(self) -> None:
-        for pack in (DQ, CI):
+        for pack in PACKS.values():
             world = generate(pack, 5, len(pack.generator["sites"]), 34)
             sid = world.params["site_ids"][0]
             s = self.loaded([r for r in world.records if r["site"] == sid], pack=pack, sid=sid,
@@ -2036,10 +2046,9 @@ class LeakageStageTests(unittest.TestCase):
         cls._tmp = tempfile.TemporaryDirectory()
         cls.tmp = Path(cls._tmp.name)
         cls.runs = {}
-        for name, argv in (("device_quality", g0_argv("device_quality", cls.tmp / "dq")),
-                           ("claims_integrity", g0_argv("claims_integrity", cls.tmp / "ci")),
-                           ("lexical", g0_argv("device_quality", cls.tmp / "lexical", "--mode", "lexical",
-                                               records=300))):
+        runs = [(pid, g0_argv(pid, cls.tmp / pid)) for pid in BUILTIN_PACKS]
+        runs.append(("lexical", g0_argv("device_quality", cls.tmp / "lexical", "--mode", "lexical", records=300)))
+        for name, argv in runs:
             code, out, err = run_main(argv)
             cls.runs[name] = (code, out + err, Path(argv[argv.index("--out") + 1]))
 
@@ -2052,8 +2061,8 @@ class LeakageStageTests(unittest.TestCase):
         self.assertEqual(code, 0, output)
         return json.loads((out / "leakage.json").read_text(encoding="utf-8"))
 
-    def test_both_packs_pass_with_every_pushdown_artifact_scanned(self) -> None:
-        for name in ("device_quality", "claims_integrity"):
+    def test_every_builtin_pack_passes_with_every_pushdown_artifact_scanned(self) -> None:
+        for name in BUILTIN_PACKS:
             with self.subTest(pack=name):
                 d, out = self.result(name), self.runs[name][2]
                 # G7 added the followup stage after pushdown and G8 the run_files stage after it; every pushdown

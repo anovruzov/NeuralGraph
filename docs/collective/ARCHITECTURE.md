@@ -9,7 +9,8 @@ replay); section 15 describes G6 (pushdown verification: narrow questions answer
 verdicts, the commit gate, and the E2 harness); section 16 describes G7 (approval-routed follow-up on supported
 conclusions, built ahead of E2 and X4 and unvalidated); section 17 describes G8 (the end-to-end demo for a fictional
 multi-site device maker: the run-file contract, the screen with per-number provenance, the console and the number
-lint).
+lint); section 18 describes B3 (X5: what the artifacts that leave reveal beyond text, measured on synthetic worlds by
+a red team that holds only what HQ holds).
 
 **No real-model number is produced in this sandbox.** Model weights and the openFDA API cannot be reached from it, so
 every test runs against a deterministic in-process fake or a local fake HTTP server. Every harness output says so in
@@ -190,7 +191,7 @@ Replies are validated locally against the full schema, even when the wire carrie
 | Stdlib only | All 60 collective modules import (G8 adds `runfiles`), and the twenty CLIs (G2 adds the five E1 subcommands and `packs.loader check`; G3 adds `experiments.g0_canary`; G4 adds none; G5 adds `evaluate.harness` `prereg`, `check-plant` and `run` and `experiments.openfda_replay` `prereg`, `signals` and `score`; G6 adds `experiments.e2_pushdown run`; G7 adds `experiments.e5_injection` and `followup.ledger verify`) answer `--help`, under `python -S`; so do the demo's two scripts, `demo/collective/collective_demo.py` and `lint_numbers.py` (G8), and `demo/collective/{scenario,screen}.py` import there |
 | No model names | No model-family name in collective code, docs or tests. The matcher holds sha256 digests only. Example tags live only in `docs/collective/examples/`. |
 | Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats`, the runtime modules, the pack modules, `edge/{extract,weeks,records,egress,site,verify}.py`, `leakage.py`, every `detect/*.py` and every `pushdown/*.py` (`ClockEntropyTests` checks by glob that each detect and pushdown module is listed), every `evaluate/*.py`, `experiments/openfda_replay.py`, `experiments/e2_pushdown.py`, every `followup/*.py` and `edge/packets.py` (`ClockEntropyTests` checks the follow-up modules by glob too; the harnesses stamp `created_at` through `common.utc_clock` and time with `time.perf_counter`, both allowed), `runfiles.py` and the demo's `scenario.py`, `screen.py` and `lint_numbers.py` (G8) |
-| Domain literals (G2, G8) | No pack term (entity type, predicate, code, rule, template, follow-up type or role id of either built-in pack) is an identifier or a whole string constant in generic collective code or in any `demo/collective/*.py` (G8: every domain value of the demo comes from `scenario.json` or the pack), no string constant there contains `ILL-`, and no openFDA field name is a string constant in the pack, extraction or E1 code (one documented exemption: `text`, the payload key the brief fixes) |
+| Domain literals (G2, G8) | No pack term (entity type, predicate, code, rule, template, follow-up type or role id of any built-in pack) is an identifier or a whole string constant in generic collective code or in any `demo/collective/*.py` (G8: every domain value of the demo comes from `scenario.json` or the pack), no string constant there contains `ILL-`, and no openFDA field name is a string constant in the pack, extraction or E1 code (one documented exemption: `text`, the payload key the brief fixes) |
 | Runbook | Every RUNBOOK command runs with `--dry-run`, with the network blocked, and creates nothing |
 | HQ imports (G4, G6) | No `detect/*.py` and no `pushdown/*.py` imports `edge.records`, `edge.site`, `edge.extract`, `edge.verify` (the site verifier, G6), `packs.generator`, `evaluate`, `leakage`, `experiments`, any `inference` module or a model client (AST check with relative imports resolved); a fresh interpreter importing every detect and pushdown module loads none of them except `inference` and `inference.errors`, which the Boundary's validator pulls in. `test_collective_pushdown.py::PushdownImportGuardTests` repeats it for pushdown and pins `detect/{detectors,rules,org}.py` to their G5 bytes |
 | Evaluation imports (G5) | No `evaluate/*.py` and not `experiments/openfda_replay.py` imports any `mycelic.collective.inference` module or a model client (`EvaluateImportGuardTests`, the same AST check; `edge.site` pulls in `inference.ledger` transitively, which is allowed). G5 makes no model call: X uses the lexical extractor |
@@ -289,7 +290,7 @@ never folded); leftmost-longest matches bounded by non-alphanumerics and never f
 alphanumeric (`SD-9-B` is rejected, `SD-90` is never `SD-9`); a lookalike with a non-ASCII letter or digit is
 unresolved and counted (`homoglyph`, `non_ascii_digit`); a space-separated form resolves only to an id the site
 knows (alias targets plus its master data), else it is counted as `space_unknown`; then alias phrases. Every span
-indexes the original text. Exact matches carry confidence 1.0, aliases 0.95 and variants 0.9 in both packs.
+indexes the original text. Exact matches carry confidence 1.0, aliases 0.95 and variants 0.9 in every built-in pack.
 
 ### 11.3 Extraction and its post-processing
 
@@ -303,7 +304,7 @@ find nothing there), `no_entity` (a predicate with no entity and no primary) or 
 `res_conf` is that of the text's own occurrence, not of the model's spelling. An out-of-enum type or predicate is a
 schema failure (one repair, then the lexical fallback, or an empty result in E1), not a drop. A boundary refusal
 propagates. The fake provider's `lexical_handler` reproduces the lexical extractor's claims byte for byte, which
-the tests check on every fixture of both packs.
+the tests check on every fixture of every built-in pack.
 
 The lexical extractor pairs per distinct entity and distinct (predicate, negated) in a sentence, carrying their
 multiplicities, so its work is linear in the narrative with a factor the pack bounds (at most two per predicate) and
@@ -329,6 +330,20 @@ a paired percentile bootstrap over records (`stats.paired_bootstrap_f1`); the pe
 an exact sign test are reported beside it as secondary (a claim-free record scores 1.0 on both sides there, so it
 dilutes that difference; audit round 3 moved the verdict off it). With `measurement: false` the verdicts are
 withheld (null).
+
+### 11.5 B4: a third built-in pack, as data only
+
+B4 added `it_incidents` (multi-site IT operations incidents at a fictional group; `PACKS.md` section 3) as a pack
+directory and nothing else: **no file under `mycelic/` or `demo/` outside `mycelic/collective/packs/data/it_incidents/`
+changed or was added**, so every code hash (X1, E1, E2, the openFDA replay, X5) is unchanged and the two earlier packs'
+hashes are too. What the data could not express is recorded, not fixed, as generality gaps in
+`docs/collective/x3/effort.json` (none blocked the loader, G0, the X1 smoke or the demo): an id separator other than
+`-` or `/`, two-hop links, sub-day timestamps, record fields such as priority or a change window, locales as
+languages, a varying generic-code rate or reporter storm in the background world, per-site id universes, and the
+lexical extractor's contiguous terms, token-window negation, sentence-level pairing and sentence split. It is the
+first built-in pack with an entity type that never leaves a site (`config_item`, `egress` false): its claims stay in
+the site store and `build_cells` counts them as `non_egress_type`. Same author as the generic code: internal evidence
+that a new field can be configuration, not X3.
 
 ## 12. G3: the site boundary
 
@@ -756,7 +771,7 @@ At the built-in packs' synthetic volumes every weekly cell is `'<k'` (G3 merge n
 - **Few reporters and `res_conf` are invisible**: both need an int `n`. Echo cannot be shown either, since a
   `'<k'` `n` caps `root_ratio_ub` at 1.0.
 
-The end-to-end test runs generated worlds of both packs through `EdgeSite`, the receive log, the store and both
+The end-to-end test runs generated worlds of every built-in pack through `EdgeSite`, the receive log, the store and both
 runs. What it printed in this sandbox, quoted only as **synthetic, same-author world, not a measurement** (seed 4, 40
 weeks, six sites): `device_quality` X 3,155 cells, 27 candidates (12 from the detectors), 12 alerts, 18 rule hits;
 S 1,367 cells, 9 candidates (2), 2 alerts, 7 rule hits. `claims_integrity` X 2,854 cells, 20 candidates (11),
@@ -924,8 +939,8 @@ The scorecard carries each channel's label verbatim. The R-mf label states the g
 
 **What R-mf reads (amendment A5).** A record is read only through `record[field]` for an allowed top-level field and
 `record["entities"][t]` for an allowed `entities.t`; it is never iterated and its narrative, persons, reporter and
-origin are never read (a test uses a record that fails on any other access). Both built-in packs allow `codes`,
-`entities.*`, `received_date` and `site`, and the reporter is a mandatory never field, so R-mf cannot drop forwarded
+origin are never read (a test uses a record that fails on any other access). Every built-in pack allows `codes`,
+`entities.*` of its egress types, `received_date` and `site`, and the reporter is a mandatory never field, so R-mf cannot drop forwarded
 copies and counts every record as its own root and reporter (`n_roots = n_reporters = n`). It applies exactly the
 cells' egress-type and master-data rules, so it differs from S only by record level, no suppression and no forwarded
 removal. **The exact channels (U, R-mf, the k=1 ablation) can never raise G4's `few_reporters` flag**, which is
@@ -973,7 +988,22 @@ Alert events are `{week, rank, key, score, site}`; events before the evaluation 
 - **Lifts** `X_minus_single_site` (the collective lift), `X_minus_S` and `X_minus_R_mf`: per pattern, the list over
   seeds of `net_found_a - net_found_b` (`basis`: "found in the planted world and not found as early or earlier in
   the same seed's no-plant control world"); the estimate is the pooled mean; the 95% interval is `stats.cluster_bootstrap_mean`
-  (whole patterns resampled, B and seed from the prereg, seed string `x1:<seed>:<name>`).
+  (whole patterns resampled, B and seed from the prereg, seed string `x1:<seed>:<name>`). **B2:** each lift also
+  carries `alpha_adjusted` (`0.05 / family_size`, from the prereg) and `ci_low_adjusted` / `ci_high_adjusted`, from a
+  second call with the same seed string, so the same replicates: the adjusted interval nests the 95% one, and with
+  `family_size` 1 it equals it. `x1.verdict` reads the unadjusted interval (STRATEGY section 11.2).
+- **Channel intervals (B2).** `harness.interval_blocks` adds four 95% blocks to every channel block, the ablation's
+  included (`channel_block` itself is unchanged), each null or `{estimate, ci_low, ci_high, B, seed, method,
+  clusters, n_clusters}` from `stats.cluster_bootstrap_mean` with seed string `x1:<seed>:<channel>:<metric>`:
+  `recall_net_ci` resamples whole patterns, each holding its per-seed net found (the lifts' input; `clusters:
+  "patterns"`, null without patterns), and its estimate is `recall_net` exactly; `precision_at_40_ci`,
+  `average_precision_ci` and `false_alarms_per_week_ci` resample the seeds whose per-seed value is not null
+  (`clusters: "seeds"`), null when none has one (rules), and their estimates are the channel's values (false alarms
+  per week to within 1e-12, a mean of per-seed rates against a pooled rate). With few seeds the seed intervals are
+  coarse.
+- **Rate strata (B2).** Each scorecard pattern carries its `rate_per_week` (the plant format's one rate: the exact
+  records per counted site per week), and `by_rate_per_week` holds one row per distinct rate, ascending:
+  `{rate_per_week, patterns, units, channels: {<channel>: {found_net, recall_net}}}` over `CHANNELS`, on net found.
 - **Minimum detectable rate** (analytic, pack only): for a constant weekly background `b` in `0..2k` at a site with
   full history, the smallest weekly rate `r` for which G4's D2 site test certainly exceeds, with `c = window_weeks x
   lb(b + r)` against `max(lambda_floor, ub(b))`, at the pack's k and with k=1. For `device_quality` (k=3) the rates
@@ -995,12 +1025,28 @@ seeds (1 to 100 unique ints, sorted), sites, weeks (at least `baseline_weeks + w
 the detector author and the bootstrap's B (at least 1000) and seed. Uncommitted or unknown code state under
 `EVAL_DIRTY_PATHS` is refused without `--allow-dirty`, which is stamped.
 
+**B2 prereg keys.** The prereg also pins `family_size` (1 to `MAX_FAMILY_SIZE` = 100, `--family-size`, default 1:
+how many primary tests share the run's error rate) and `planter_relation` (one of `PLANTER_RELATIONS`:
+`independent`, `same_system_procedural`, `unstated`; `--planter-relation`, default `unstated`). Both are required in
+the closed `PREREG_SCHEMA`; `cmd_prereg` refuses other values with a `UsageError` (`error: ...`, exit 2, nothing
+written; no argparse `choices`, so the refusal has the CLI's own form). The flags are optional, so earlier argv works;
+a prereg made before B2 lacks the keys and `read_prereg`, which E2 shares, refuses it.
+
 `run` checks, in this order, and exits 2 writing no scorecard: the run id and a new run directory; the prereg's
 closed structure; `--seeds` equal to the prereg's; the pack; the pins (`config_hash`, `vocabulary_hash`,
 `detector_hash`, `fixtures_hash` and the code hash; every differing name is listed); the dirty rule; the plant spec
 (`parse_plant` and `check_plant`) and its binding: a non-null `prereg_sha256` must equal the sha256 of the prereg
 file. `check-plant` prints that sha256 for the planter and writes nothing. Ctrl-C exits 130 and leaves a partial run
 directory that a later run with the same id refuses.
+
+**B2 check-plant.** `check-plant` refuses a foreign binding with `run`'s message (`check_binding`), so a planter who
+pastes a wrong sha256 learns it at once. `--construct` then builds the plant into every prereg seed's world, in seed
+order (`generate`, then `plant`; `construct_every_seed`), and prints a third line, `construction: ok (seeds=<n>)`; a
+`PlantError` or `GeneratorError` exits 2 with its text plus ` (seed <seed>)`, and nothing is printed on stdout. It is
+construction only (no pipeline, no detection, no outcome), so it is a check, not an evaluation. `plant`'s RNG is
+seeded by the spec's sha256 and the world seed, so a failure such as `narrative uniqueness exhausted` can depend on the
+seed and on the spec's exact bytes; without `--construct` it first appears in `run`. A dry run with `--construct`
+checks everything but constructs nothing. Without `--construct` the output is unchanged.
 
 ### 14.6 Scorecard and content hash
 
@@ -1022,6 +1068,17 @@ quiet elsewhere), the `x1` block and notes.
 detector author, compared case-folded with whitespace collapsed), a plant bound to the prereg, and at least 20
 patterns and 20 decoys; `reasons` lists every failing condition and `verdict` is null unless eligible
 (`lift_ci_low_above_0` for `X_minus_single_site`, `precision_at_40_at_least_0_25`, `pass`).
+
+**B2 additions.** `x1` also holds `family_size` and `planter_relation` (echoed from the prereg), `independent`
+(`planter_relation == "independent"`), `counts_as_strategy_x1` (eligible, independent, and a verdict that passes) and
+`caveats`: `SAME_SYSTEM_CAVEAT` ("Procedural blinding only: the planter and the detector author are the same AI
+system.") for `same_system_procedural`, `UNSTATED_CAVEAT` ("The prereg does not state the planter's relation to the
+detector author, so this run cannot count as STRATEGY's X1.") for `unstated`, none for `independent`. `eligible`,
+`reasons` and `verdict` are computed exactly as before. Each pattern carries `rate_per_week`, every channel block the
+four interval blocks, every lift its adjusted interval, and the top level `by_rate_per_week` (14.4). `NOTES` gains
+two sentences: the seed intervals resample seeds and are coarse with few seeds, and each lift's adjusted interval
+comes from the same replicates while `x1.verdict` reads the unadjusted 95% one. `SCORECARD_SCHEMA` and
+`PREREG_SCHEMA` stay closed.
 
 `content_hash` is the sha256 of the canonical JSON without `$.content_hash`, `$.created_at`, `$.run_id`, `$.paths`
 and `$.timings` (`content_hash_excludes`, written in the file). The pipeline clock is constant, every RNG is seeded
@@ -1081,7 +1138,9 @@ synthetic data, not a measurement).
 
 - **Synthetic, same-author worlds.** The pack, the world generator, the planted templates and the detector were
   written by one author; a planted pattern uses the pack's own templates, which the lexical extractor reads
-  perfectly. A smoke run is not blind, and blindness is self-declared even when it is claimed.
+  perfectly. A smoke run is not blind, and blindness is self-declared even when it is claimed. When the planter is
+  the same AI system as the detector author (B2), blindness is procedural at best: `planter_relation` says so, and
+  `counts_as_strategy_x1` stays false.
 - **Penalty decoys alert when the budget is free.** G4 penalises echo, few reporters and a high base rate in the
   ranker; with budget to spare they alert, and the scorecard reports it.
 - **R-mf is not R.** STRATEGY's R includes a frontier model reading the allowed fields; E2 (G6) approximates it.
@@ -1091,6 +1150,19 @@ synthetic data, not a measurement).
   synthetic cache served by a local stub.
 
 Nothing is ported from `origin/claude/mycelic-implementation-vr034p` in G5 (`INTEGRATION.md`).
+
+### 14.9 The sealed X1 run (B2)
+
+`docs/collective/x1/` holds the sealed, procedurally blind X1 run on the two packs B2 names, `device_quality` and
+`claims_integrity` (B4's `it_incidents` is outside its frozen scope): `PLANTER_BRIEF.md` (the
+planter's whole prompt, frozen at B2a: what it may read and run, the world, the spec format, the rules check-plant
+enforces and the brief's own rules) and `RESULTS_TEMPLATE.md` (frozen at B2a: the fixed sentences, the
+interpretation sentences and the conditions that select them, and the pointer rows `RESULTS.md` will show). Later
+commits add the seeds, the preregs, the wrapper template, the seal and the results. The planter and the detector
+author are the same AI system, so the blinding is procedural only and STRATEGY 11.2's X1 is not met; the results are
+synthetic and internal only. The protocol is RUNBOOK section 11.1; the commits and commands are in `INTEGRATION.md`,
+section B2. `tests/mycelic/test_collective_x1_sealed.py` checks the brief, the brief's own rules (`brief_problems`,
+also run by the sandbox's wrapper) and the template's helpers.
 
 ## 15. G6: pushdown verification
 
@@ -1179,7 +1251,7 @@ the entity-records bucket and a reference; an unknown has no bucket, week or ref
 `truncated` false, `secret_mode` is `none` exactly when the reason is `no_secret`, and `verdict_id` is the sha256 of
 the canonical body without `verdict_id` and `evidence_ref`.
 
-**Buckets.** `verdict_buckets(pack)` is `('<k', 'k-9', '10-49', '50+')` for both built-in packs (`k` is 3 or 5),
+**Buckets.** `verdict_buckets(pack)` is `('<k', 'k-9', '10-49', '50+')` for every built-in pack (`k` is 3 or 5),
 `bucket_of(n)` maps an int `n >= 1` (a bool, a float or 0 is a `ValueError`) and `bucket_lower` gives 1 for `'<k'`
 and the low end otherwise.
 
@@ -1299,7 +1371,7 @@ a malformed secret file (`VerifyError`, no value in its text). `answer(question)
 lexical extractor and `pair`: `mentions_entity` is yes when the entity is a codes-channel entity or in any text claim
 (negated and entity-only claims included), `describes_predicate` when the triple is a paired claim; for a language
 the pack does not cover, every answer that is not yes is `unclear`. Every claim a site stored for a record makes it
-answer yes/yes on that record (tested on both packs' fixtures and a generated world). A narrative that writes a JSON
+answer yes/yes on that record (tested on every built-in pack's fixtures and a generated world). A narrative that writes a JSON
 answer without the predicate stays at no; with a real model that is an E5 item (prompt injection through record
 text).
 
@@ -1796,9 +1868,32 @@ status, verdict, support_bucket, codes, co_mentions}`: structured only. `DraftWr
 (data class `structured`, 2,048 tokens) on a `central` runtime (a runtime bound elsewhere is refused) with one repair,
 or fills `template_draft` without one; the draft must pass the type's `draft_schema` and the id-scope scan, else
 `draft_failed` with a reason from `DRAFT_FAILURE_REASONS` (the inference error kinds and `out_of_scope_id`). The
-ledger ref is `d:<last 16 of the key>:<attempt>`, never a record ref. The template's summary is `'<predicate label> on
-<entity type label> <entity id>: supported, <n> confirming site(s), weeks <start> to <end> (conclusion <id>
-v<version>)'`, and each required string property gets `'<type label>: <summary>'` cut at its `maxLength`.
+ledger ref is `d:<last 16 of the key>:<attempt>`, never a record ref.
+
+**The template drafter and source attribution (B1).** The template drafter fills each property from the source its
+type's pack `template` names (`PACKS.md` section 1.3; `drafts.template_sources` gives one word per property, a list
+joined with `+`, such as `summary+evidence`): `headline` is `'<type label>: <predicate label> on <entity type label>
+<entity id>'`; `summary` is `'<predicate label> on <entity type label> <entity id>: supported, <n> confirming site(s),
+weeks <start> to <end> (conclusion <id> v<version>)'`; `evidence` is one clause per packet with status `ok`, in payload
+order (`'<site>: <verdict>, support <bucket>'`, then `', codes: <code label> (<n>), ...'` and `', named with: <entity
+type label> <id> (<n>), ...'`), joined with `'; '`, or `drafts.EVIDENCE_NONE` without an ok packet (a refuting or
+silent packet adds no clause); a list joins its parts with a space; `for_owner` is `drafts.FOR_OWNER_TEXT` for a
+string and `[]` for an array; `entity_ids:<type>` is the sorted unique ids of that type among the conclusion's entity
+and every ok packet's co-mentions; `confirming_sites` is the conclusion's confirming sites. A string longer than its
+`maxLength` loses whole evidence clauses from the end, then the evidence part, then is cut at the last space (inside a
+token only when it has none); an array is cut to `maxItems`. The schema check and the id-scope scan apply as before:
+every id the evidence names is the conclusion's or a co-mention already in the scope. Up to B1 every required string
+was `'<type label>: <summary>'` and every array `[]`, so the committed CAPA draft's title, problem statement and
+containment were one sentence and its affected lots were empty, although the conclusion is about a lot (the
+superseded G8 run, `docs/collective/evidence/superseded/collective-halvern-g10/`).
+
+The demo's scorecard gives each draft field and list its **source** (`fields [{name, value, source}]`, `lists [{name,
+items, source}]`; the block's own `source` stays the ledger's, `generated` or `edited`). `collective_demo.field_sources`
+returns the template's sources for a generated draft whose provider label is the stand-in, the template or a local
+test server (no model wrote it), `model` for a generated draft from a routed model (which ignores the template), and
+`edited` for a human edit. The screen shows a field or list sourced `for_owner` as "left for the named owner to write"
+(not its filler value), and an empty list from another source as "none in the conclusion or the packets"; up to B1 an
+empty list read "none listed".
 
 **Outbox** (T1 executor): one canonical line `{schema_version, key, conclusion_id, type, tier, version, draft, owner,
 approved_by, targets, label}` (the built-ahead label), flushed and synced; the result is `{outbox, line_sha256,
@@ -2068,7 +2163,252 @@ nothing written.
 - **R here is model-free.** It is not STRATEGY's R, which includes a frontier model reading the allowed fields; E2's
   `central_allowed` condition approximates that R.
 - **No X4 and no E2.** The follow-up beat is built ahead of X4 and unmeasured; pushdown with a real small model is E2,
-  which has not run. With `--routing` the plants share one model in one process.
+  which has not run. With `--routing` to a model the plants share one model in one process (section 17.9).
 - **Text only.** The scans show that planted text did not cross; they say nothing about what counts and buckets reveal
   (X5, `LEAKAGE.md` section 7).
 - **No fabric wiring.** The console reads run files, not fabric events (`INTEGRATION.md`, G8 merge notes).
+
+### 17.9 B1: the first scenario's run, re-recorded
+
+The final review of phase 2 found that the committed G8 run shows no case the allowed fields miss: R (model-free) flags
+the product under the generic code at the top rank in X's own week, and S flags the lot a week later (the run is kept,
+byte-identical, as `docs/collective/evidence/superseded/collective-halvern-g10/`, with a README pointing into its
+scorecard). B1 keeps the first scenario unchanged and adds, in its first commit (B1a), what the review found missing
+around it. A second commit (B1b) was to add the constructed codes-miss scenario that `docs/collective/b1/PREREG.md`
+fixed before any of its worlds existed; **B1's constructed codes-miss illustration has not been built**: no B1b
+commit, codes-miss scenario, attempt or run exists (`INTEGRATION.md`, audit round 4). What B1a changed:
+
+- **The draft** is filled from the conclusion and the ok packets through the pack template, each field with its source
+  (section 16.9); the screen leaves the `for_owner` field to the owner.
+- **X by construction.** `detection.by_construction` gains `X` (bool) and `x_reason`: `X` is true when the extract
+  provider label is the stand-in, a local test server or the template (none of them a model), with `x_reason` =
+  `collective_demo.X_BY_CONSTRUCTION` ("the hero narratives were written by the scenario author in the pack lexicon
+  and read by the deterministic lexical handler; extraction is not tested here (see E1 and N1)"); otherwise false and
+  null. The screen shows it as a caption beside the S and R one: "By construction, X reads this case perfectly: "
+  followed by the reason as an item. It is a property of the stand-in, not a result: up to B1 the screen said why S and
+  R cannot see the key and nothing about why X could.
+- **One wording for the sites.** `collective_demo.sites_stamp(routed, providers)` gives `stamps.shared_model` and the
+  trace's `sites_note`: a routed run whose extract or judge calls went to a model shares one model across the simulated
+  sites (`SITES_NOTE`, "sites simulated in one process, one shared model"); a routed run whose site calls all went to a
+  local test server shares none (`TEST_SERVER_SITES_NOTE`, "sites simulated in one process; every site's calls went to
+  one local test server (fake marker)", and `shared_model` false); without routing there is no note. Up to B1 any
+  routed run said "one shared model" while its provider labels said "no model".
+- **The committed run** is `demo/collective/recorded/collective-halvern-b1a` (scenario digest unchanged); its
+  detection blocks are the G8 run's, so R (model-free) still flags a key of this case in X's week and the screen still
+  says so. That is why B1 planned a second scenario rather than re-reading this one; since it was not built, no
+  committed run shows the case STRATEGY 9.2's cut needs.
+
+## 18. B3: X5, leakage beyond text
+
+**Synthetic, same-author and internal only.** The worlds, the red team and the defences come from the same AI system,
+on the packs' synthetic generators, in fake mode; X5 here describes these artifacts on these worlds and is never a
+buyer claim (`x5_attacks.STATEMENT`). The published figure is `LEAKAGE.md` section 12, filled from `x5.json`; the
+commands are RUNBOOK section 18.
+
+| Part | File | Purpose |
+|---|---|---|
+| Orchestration | `experiments/x5_inference.py` | the CLI (`prereg`, `run`), the variant pack copies, the worlds and the member split, one G0 pipeline per (pack, variant, seed), the A6 probe, the fact extractors, the targets and their truth, the shadow statistics, the derived variants and simulated transforms, the closed schemas, the self-scan and `leakage_section` |
+| Attacks | `experiments/x5_attacks.py` | pure: `Fact` and `FactIndex`, what the attacker knows per target, A1 to A6, the applicability table, the labels, the per-target values, `summarise` and `incremental`; it imports `stats` only (no file, store, site, generator or model code: `X5AttacksImportGuardTests`) |
+
+No other file under `mycelic/` changed: G0, the detectors, the Boundary, the packs and `stats.py` are byte-identical
+to B2a, and X5 adds no SQL of its own (it reads stores through their own methods).
+
+### 18.1 Threat model and holdings
+
+The red team is HQ. It holds every artifact HQ holds after G0's stages on a world (edge, pushdown, follow-up, run
+files), one artifact type each: `cells_codes` and `cells_text` (the cell bundles split by channel), `usage_summary`,
+`verdicts_passive` (HQ's own questions and the verdicts that answered them), `packets`, `followup` (the follow-up
+ledger's entries, the outbox and the central draft ledger), `hq_results` (the detection result, recomputed with the
+run's channel and tie salt and checked equal to the stored candidates, and the latest conclusion row of every
+conclusion) and `run_files` (`trace.json`, `approvals.jsonl`, `scorecard.json`, `ledger.jsonl`); `all` is the union.
+It may also ask questions of its own through a real `SiteVerifier` per site, under the pack's budgets
+(`verdicts_active`, A6). It knows the pack, the lexical extractor and every site's master data. It never sees a site
+database, a narrative, a person or reporter value, a site's `packets/` directory or the generator's gold.
+
+Two reference types are not HQ holdings: `allowed_fields_reference` is R (model-free)'s exact per-record cells, the
+fields policy lets a central system read (`baselines.r_mf_cells`, codes channel), and `allowed_plus_all` adds HQ's
+artifacts to it; the incremental entry measures what the artifacts add over the allowed fields on the same targets.
+
+### 18.2 Data flow
+
+```
+prereg:  packs -> variant copies (hashed) -> worlds per seed (digested) -> prereg.json
+run:     check pins (code, packs, copies, worlds)
+         per pack: shadow worlds -> priors and A1 thresholds (lexical rows, build_cells; no pipeline)
+                   per pipeline variant, per seed:
+                     make_world(2n) -> split -> members -> build_context + run_stages (fake) -> boundary mark
+                     -> passive facts (receive log, questions, packets, ledger, outbox, store, run files)
+                     -> A6 probe (fresh EdgeSite + SiteVerifier per site, from as_of + 1 day) -> active facts
+                     -> true rows (RecordStore.emission_inputs), R_mf cells -> delete the world directory
+                     -> targets and truth -> attacks -> outcomes
+                   default worlds also feed k1_reference, a5_injected and the simulated transforms
+         summarise (Wilson, cluster bootstrap, labels) -> controls, bar -> schema, portability, self-scan
+         -> x5.json, leakage_section.md
+```
+
+The work directory holds the variant copies and one world's pipeline at a time; it is removed at the end and on
+every refusal. Every world is generated from the base pack, except volume worlds, which come from the volume copy
+(the generator reads the volume and the egress types), so variants of one seed share members and `as_of`.
+
+### 18.3 Facts
+
+`Fact(source, site, first, last, entity_type, entity_id, predicate, channel, field, lo, hi, text)` says that an
+artifact of type `source` puts the quantity `field` of (entity, predicate, channel) at `site` over the week indexes
+`[first, last]` (weeks counted from the generator's start, so the attacks never parse weeks) in `[lo, hi]` (`hi`
+null: unbounded). A predicate of null is an entity-level fact; a channel of null sums both channels (a record's claim
+for a key is in exactly one channel). The extractors:
+
+- **cells**: `n`, `n_roots` and `n_reporters` per cell (`'<k'` is `[1, k-1]`), and one `covered` fact per week and
+  channel of each bundle's span, so a covered week without a cell for an egress-able key reads as 0;
+- **usage summaries**: `calls` per group over the summary's span, with no entity;
+- **verdicts** (joined to their question): a confirm's support, roots and reporters buckets over the window, support
+  at least 1 in its newest week and 0 in every later week of the window; a refute's zero support and its entity-records
+  bucket; an unknown without a wire reason, for an id that passes the site's master-data rule, as zero records (an
+  `unclear` unknown is misread as absence, which counts against the attacker); `budget` and `no_secret` say nothing;
+  a truncated verdict leaves every bucket open above;
+- **packets**: the stored verdict's buckets, each pack code as a lower bound on its predicate, each co-mention;
+- **follow-up**: the packets inside executed results, and every egress id a draft, outbox line or ledger payload
+  names, as presence over the conclusion's window at its confirming sites;
+- **HQ results**: per candidate snapshot each site's window count and the contributing sites; per conclusion its
+  confirming sites, its newest week and its refuting siblings;
+- **run files**: `trace.json`'s verdicts (no truncation flag there, so buckets are open above) and `approvals.jsonl`
+  as follow-up;
+- **strings**: every string leaf of every item, per (source, site, span), deduplicated; A5 reads only these.
+
+### 18.4 Targets and truth
+
+Truth is computed apart and meets a prediction only in `x5_attacks.outcome`; no attack function takes a truth
+argument (a test inspects the signatures). Forwarded copies are never targets. Clusters are (seed, site, week), and
+(seed, site, window start) for A6.
+
+- **A1**: original records of each (site, week) stratum, every record of the smaller class and a seeded sample of
+  the larger, so the baseline is 0.5 exactly; single-class strata are dropped and counted. The attacker's keys are its
+  own lexical extraction of the record (egress types, the site's master-data rule).
+- **A2**: member originals with an affirmed gold predicate and a canonical structured entity; truth is the set of
+  affirmed predicates.
+- **A3**: every true cell (site, key, week, channel) with 1 <= n < k, from the sites' own emission rows; truth is n
+  (never `n_roots`).
+- **A4**: every pair of records in a true cell with 2 <= n < k; truth is a shared reporter (an unknown reporter is one
+  shared reporter, as `build_cells` counts it). At k = 2 a cell of 2 is exact, so A4 is not applicable there.
+- **A5**: member originals times the pack's name fields (the generator's person fields of kind `name`); truth is the
+  surname.
+- **A6**: (site, entity, window) for a seeded sample of askable ids per site (master-data ids of types with an id
+  format, every id of alias-only types); truth is a member record at the site in the window naming the entity in its
+  gold claims or its structured entities.
+
+### 18.5 Attacks
+
+- **A1 membership**: the share of the record's keys with a positive fact at its site whose span holds its week,
+  counting only the keys of the channels the attacked type can carry (`x5_attacks.A1_CHANNELS`: the codes channel for
+  `cells_codes` and the allowed-fields reference, the text channel for `cells_text`, both otherwise); `A1_calibrated`
+  predicts member at the threshold calibrated on that type's own shadow facts, so it applies only to the types with a
+  shadow analogue (`A1_CALIBRATED_TYPES`: the cell types, `all` and the two reference types), and `A1_fixed` when every
+  key is present; no such key takes a seeded coin (uncovered).
+- **A2 predicate attribute inference**: per predicate, the number of the record's entities with a positive fact at its
+  site and week; the argmax, ties and no support broken by the shadow prior chain.
+- **A3 count inference**: interval bounds on the (site, key)'s weekly counts per channel over the connected span of its
+  facts, propagated to a fixpoint (cell counts, covered zeros, verdict and packet sums, presence, the zeros after a
+  newest week); the shadow mode inside the target's interval, cut to [1, k-1].
+- **A4 reporter linkage**: from the target cell's `n` and `n_reporters` only (`n_reporters` at most 1: same; an exact
+  `n` with as many reporters: different); otherwise the shadow majority.
+- **A5 person names (negative control)**: the field's generator surnames found among the string facts at the site and
+  week; on real artifacts nothing names a person.
+- **A6 presence oracle**: a confirm or a refute says the site holds the entity in the window.
+
+The applicability table (`x5_attacks.applicability`, copied into the prereg) marks every (variant, attack, artifact
+type) as applicable, not applicable (with a reason: usage summaries name no entity; `A1_calibrated` needs a type with
+shadow facts to calibrate on; A4 reads cell counts only; A6 reads only the attacker's own questions; the k1 reference
+replaces only the cells; the injected control tests A5 only) or not run (A6 on the volume variant).
+
+### 18.6 Shadow
+
+Shadow worlds never run a pipeline. Their lexical rows (`lexical_rows`, equal to what a fake-mode site stores; a test
+checks it) are cut into cells at each variant's settings (k, master-data rule, egress types; k = 1 for the reference;
+each simulated transform), which give the A1 threshold per setting and artifact type (`a1_threshold_types`), each on the
+type's own shadow facts and scoring only the keys of its channels: the two cell types, `all` (the shadow cells of both
+channels, its only part with a shadow analogue) and, at a pipeline variant's own setting, the allowed-fields reference
+(R (model-free)'s exact cells of the shadow members) and `allowed_plus_all` (both); the threshold is the score among the
+sorted distinct shadow scores that maximises shadow accuracy, the smallest on ties. Up to audit round 4 one threshold,
+calibrated on the union of the shadow cells, served every type. They also give the A2 prior chain, the distribution of n
+below k (A3), the same-reporter share (A4), the surname counts per field (A5), the presence share per (site, entity)
+(A6) and the A6 predicate per entity. `x5.json` carries only counts, thresholds and modes from them, never a prior
+table.
+
+### 18.7 Variants, controls and mitigations
+
+| Variant | Kind | What changes |
+|---|---|---|
+| `default` | pipeline | nothing |
+| `k2`, `k10` | pipeline | egress k and the verdict buckets (k, then the pack's higher edges) |
+| `rmd_flipped` | pipeline | `require_master_data` negated |
+| `minus_type` | pipeline | the pack's primary entity type (`mapping.primary_entity_type`) no longer leaves: vocabulary, egress and the question templates |
+| `volume` | pipeline | every site's weekly volume times the factor; worlds of factor times 2n records |
+| `k1_reference` | derived | the default worlds' cells rebuilt at k = 1 (reference, not deployable); the positive control of A1 to A4 |
+| `a5_injected` | derived | a `'<k'` text cell naming each A5 target's surname added to its site's bundle; the positive control of A5 |
+
+The copies are written as canonical JSON into the work directory and their four hashes are pinned in the prereg.
+Pipelines run in the order packs, then default, the k variants, `rmd_flipped`, `minus_type`, `volume`, then seeds,
+against `--max-pipelines`; a variant that cannot run all its seeds runs none, and a default that cannot run in full
+stops the run.
+
+**Controls.** Each positive control must be labelled `leak` on `all` (exit 2 otherwise); the negative control, A5 on
+`all` for every pack and measured variant, must be `at_chance` or `inconclusive` with 0 inside its interval (exit 1
+otherwise). The injected cells are refused by the Boundary (a test checks `check_artifact`).
+
+**Mitigations.** The measured knobs are the pipeline variants. The simulated transforms of the default worlds,
+`drop_lt_k` (cells below k removed, so a missing cell means at most k - 1) and `four_week` (cells rebuilt over
+four-week periods at the pack's k), are labelled "simulated: not implemented in the Boundary; implementing it is a
+code change"; they report the cells before and after and re-run A1 to A5 on the cell types and `all`, with every
+other artifact the unmitigated run's (detection is not re-run).
+
+**Designed disclosures** (STRATEGY 6.4) are reported apart and never labelled: the share of members whose every key
+has a `'<k'` or exact cell at their site and week, and the share of exact cells whose count is right.
+
+### 18.8 Statistics and labels
+
+Per entry: the targets, the coverage (the share the attack decided from the artifact), the accuracy with a Wilson
+interval, the matched baseline's accuracy, and the advantage: the mean per-target value (A1 `2c - 1`, the others the
+attack's correctness minus the baseline's) with a cluster-bootstrap percentile interval (`stats.cluster_bootstrap_mean`,
+seed `<bootstrap seed>:<pack>:<variant>:<attack>:<type>`). The label reads only that interval: `leak` when
+`ci_low > 0`, `at_chance` when it lies within [-0.05, 0.05], otherwise `inconclusive` (and with no target). The eight
+primary tests use B = 10,000 and carry a Bonferroni interval at 0.05 / 8 from the same seed; every other entry uses
+B = 2,000 and is exploratory. The incremental entry bootstraps the per-target difference between `allowed_plus_all`
+and `allowed_fields_reference`. The bar is `fails` when any primary 95% label is `leak`, `met` when every primary
+Bonferroni label is `at_chance`, else `undecided`; its sentence and each primary sentence come from fixed templates.
+
+### 18.9 Outputs
+
+`prereg.json` (`x5_prereg`, closed schema): the packs and their copies' hashes, the code hash (`X5_CODE_FILES`, every
+module the run loads; a test checks the import closure), the commit and dirty state, the seeds (derived from the
+commit, every candidate recorded), every world digest, the selections, the applicability table, the rules, the
+primary family, the bootstrap, the A6 settings, the cap and the NOT_COVERED mapping. `run` refuses, naming each,
+any change of the code hash, a pack hash, a copy hash or a world digest.
+
+`x5.json` (`x5_results`, a closed schema built from the prereg): the stamps and statement, the rules, the primary
+family, per pack and variant the copies' hashes, per world the pipeline and A6 counts, facts and targets, the shadow
+counts and the designed disclosures, the uniform results matrix (every pack, variant, attack and artifact type, with
+`status` run, not_applicable or not_run), the primary pointers and sentences, the controls, the mitigations, the
+NOT_COVERED mapping, the bar, the timings and a content hash (without `created_at`, `run_id` and `timings`). Every
+digest is 32 hex. Before writing, the run checks the schema, portability (no path, host, user or 64-hex token) and a
+self-scan (no narrative shingle of any generated world, no person, surname or reporter value as a whole token); a
+failure writes nothing. `leakage_section.md` is rendered from the validated document only: the bar sentence, the
+primary sentences, the statement and pointer-row tables whose every cell is `format_value` of the field its pointer
+names.
+
+### 18.10 What X5 here does not show
+
+- **Fake, lexical extraction only.** The sites run the fake provider, which replays the lexical extractor and judge,
+  and the attacker knows that extractor and the master data; a real model's errors are not modelled.
+- **Usage covers one ingest week**, because every record is extracted on the simulated ingest day; weekly usage
+  volumes are not attacked.
+- **Tiny pack universes** (a handful of products and suppliers) make keys collide between records often, so
+  membership is likely understated relative to a real catalogue.
+- **A4 does not decompose window reporter buckets**; it reads cell-level counts only.
+- **Volume is four times the built-in volume, not ten**: the generator runs out of unique narratives above that.
+- **A6 is a small sample** of entities per site, not an exhaustive presence oracle.
+- **Calibrated membership only where shadow worlds have an analogue.** Shadow worlds run no pipeline, so the verdict,
+  packet, follow-up, HQ-results and run-file types are attacked for membership by `A1_fixed` (every key present) only,
+  which can understate them, and `all` is calibrated on the shadow cells alone.
+- **No detection re-run under the simulated transforms**: they replace the cells and keep every other artifact.
+- **Same author.** The red team knows the defences it attacks because it wrote them; an independent red team may
+  find more.

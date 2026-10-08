@@ -82,7 +82,8 @@ from mycelic.collective.edge.weeks import closed_through, iso_week, next_week  #
 from mycelic.collective.evaluate import baselines  # noqa: E402
 from mycelic.collective.experiments.common import (RUN_ID_RE, DryRun, UsageError, code_commit,  # noqa: E402
                                                     code_dirty, code_hash, utc_clock)
-from mycelic.collective.followup.drafts import DRAFT_TASK, DraftWriter, template_draft  # noqa: E402
+from mycelic.collective.followup.drafts import (DRAFT_TASK, DraftWriter, template_draft,  # noqa: E402
+                                                template_sources)
 from mycelic.collective.followup.executors import ExecContext, OutboxExecutor, PacketExecutor  # noqa: E402
 from mycelic.collective.followup.ledger import LEDGER_FILE, FollowupLedger  # noqa: E402
 from mycelic.collective.followup.policy import (BUILT_AHEAD_LABEL, OUTCOME_LABEL, SYSTEM, KillSwitch,  # noqa: E402
@@ -119,6 +120,11 @@ STUB_LABEL = "deterministic stand-in, no model"
 TEST_SERVER_LABEL = "local test server (fake marker), no model"
 TEMPLATE_LABEL = "template, no model"
 SITES_NOTE = "sites simulated in one process, one shared model"
+TEST_SERVER_SITES_NOTE = ("sites simulated in one process; every site's calls went to one local test server (fake "
+                          "marker)")
+NO_MODEL_LABELS = (STUB_LABEL, TEST_SERVER_LABEL, TEMPLATE_LABEL)
+X_BY_CONSTRUCTION = ("the hero narratives were written by the scenario author in the pack lexicon and read by the "
+                     "deterministic lexical handler; extraction is not tested here (see E1 and N1)")
 LEDGER_SCOPE = ("HQ's own model calls, row by row; a site's calls only as the usage summaries that crossed its "
                 "Boundary, k-suppressed")
 X4_NOT_MEASURED = "not measured"
@@ -246,7 +252,7 @@ SCORECARD_SCHEMA = _obj({
                        "related": _RELATED}),
             "S": _CHANNEL, "R_mf": _CHANNEL, "U": _CHANNEL, "single_site": _CHANNEL,
             "r_caught": _B, "s_caught": _B,
-            "by_construction": _obj({"S": _B, "R_mf": _B, "reason": _NS}),
+            "by_construction": _obj({"S": _B, "R_mf": _B, "reason": _NS, "X": _B, "x_reason": _NS}),
             "rule_candidates": _arr(_S),
             "rule_hits_case_keys": _arr(_obj({"rule_id": _S, "key": _S, "first_week": _WEEK})),
             "channel_labels": _arr(_obj({"channel": {"type": "string", "enum": list(CHANNELS)}, "label": _S}))}),
@@ -275,8 +281,8 @@ SCORECARD_SCHEMA = _obj({
                                                    "codes": _arr(_obj({"code": _S, "code_label": _S, "n": _S})),
                                                    "co_mentions": _CO}))}),
             "draft": _nobj({**_FOLLOWUP_PART, "version": _NI, "source": _NS,
-                            "fields": _arr(_obj({"name": _S, "value": _S})),
-                            "lists": _arr(_obj({"name": _S, "items": _arr(_S)}))}),
+                            "fields": _arr(_obj({"name": _S, "value": _S, "source": _S})),
+                            "lists": _arr(_obj({"name": _S, "items": _arr(_S), "source": _S}))}),
             "ledger_head": _NH32, "ledger_entries": _NI,
             "outcome": _nobj({"status": {"type": "string", "const": OUTCOME_STATUS}, "label": _S})})}),
     "decoys": _arr(_obj({"id": _S, "label": _S, "keys": _arr(_S), "x_alerted": _B, "x_best_rank": _NI,
@@ -308,7 +314,8 @@ TRACE_SCHEMA = _obj({
                   "fictional": {"type": "boolean", "const": True}, "synthetic": {"type": "boolean", "const": True},
                   "internal_only": {"type": "boolean", "const": True},
                   "approval": {"type": "string", "enum": ["recorded", "live"]},
-                  "sites_note": {"type": ["string", "null"], "enum": [SITES_NOTE, None]}, "replay_command": _S}),
+                  "sites_note": {"type": ["string", "null"], "enum": [SITES_NOTE, TEST_SERVER_SITES_NOTE, None]},
+                  "replay_command": _S}),
     "org": _obj({"enterprise": _S, "sites": _arr(_obj({
         "site_id": _S, "display_name": _S, "country": _S, "unit_path": _S,
         "hero_role": {"type": ["string", "null"], "enum": ["contributing", "sibling", None]}}))}),
@@ -553,6 +560,26 @@ def _first_alerts(alerts: Sequence[Mapping[str, Any]], keys: set[str], first: st
         if a["key"] in keys and first <= a["week"] <= last and a["key"] not in out:
             out[a["key"]] = a
     return out
+
+
+def sites_stamp(routed: bool, providers: Sequence[Mapping[str, Any]]) -> tuple[bool, str | None]:
+    """``(shared_model, sites_note)``: a routed run whose extract or judge calls went to a model shares one model
+    across the simulated sites (:data:`SITES_NOTE`); a routed run whose site calls all went to the stand-in or a local
+    test server shares none (:data:`TEST_SERVER_SITES_NOTE`); without routing there is no note."""
+    labels = {p["task"]: p["label"] for p in providers}
+    shared = routed and any(labels.get(task) not in NO_MODEL_LABELS for task in ("extract", "judge"))
+    if shared:
+        return True, SITES_NOTE
+    return False, TEST_SERVER_SITES_NOTE if routed else None
+
+
+def field_sources(ft: Any, draft_provider_label: str, ledger_source: str) -> dict[str, str]:
+    """Where each draft field came from: the template's source (``drafts.template_sources``) for a generated draft
+    written without a model, ``model`` for one a model wrote, else the ledger's source (``edited``)."""
+    if ledger_source == "generated" and draft_provider_label in NO_MODEL_LABELS:
+        return template_sources(ft)
+    source = "model" if ledger_source == "generated" else ledger_source
+    return {name: source for name in sorted(ft.draft_json_schema()["properties"])}
 
 
 # =================================================================================================== routing
@@ -1218,7 +1245,7 @@ class DemoEngine:
                                     any_marked or bool(r["fake_marker"]))
         return {name: flags.get(name, (False, True, True, False)) for _, name in TASKS if name != DRAFT_TASK}
 
-    def _followup_doc(self) -> dict[str, Any]:
+    def _followup_doc(self, draft_label: str) -> dict[str, Any]:
         if self.followup_reason is not None or not self.followups:
             reason = self.followup_reason if self.followup_reason is not None else (
                 "not_alerted" if self.detection is None or not self.detection["X"]["caught"] else "not_yet_checked"
@@ -1248,7 +1275,11 @@ class DemoEngine:
                 parts["packet"] = {**common, "result_status": f.result_status, "packets": packets}
             else:
                 version, draft, source = state.drafts[-1] if state and state.drafts else (None, {}, None)
-                parts["draft"] = {**common, "version": version, "source": source, **_draft_parts(draft)}
+                sources = field_sources(ft, draft_label, source) if source is not None else {}
+                drafted = _draft_parts(draft)
+                parts["draft"] = {**common, "version": version, "source": source,
+                                  "fields": [{**f, "source": sources[f["name"]]} for f in drafted["fields"]],
+                                  "lists": [{**x, "source": sources[x["name"]]} for x in drafted["lists"]]}
         return {"proposed": True, "reason": None, "label": BUILT_AHEAD_LABEL, "x4": X4_NOT_MEASURED,
                 "packet": parts["packet"], "draft": parts["draft"], "ledger_head": self.ledger_head,
                 "ledger_entries": self.ledger_entries,
@@ -1305,13 +1336,21 @@ class DemoEngine:
             labels.append({"key": k, "entity_type_label": pack.entity_types[t].label, "entity_id": i,
                            "predicate_label": pack.predicates[p].label})
         after = self.scans[0] if self.scans else None
+        providers = self._providers()
+        labels_by_task = {p["task"]: p["label"] for p in providers}
+        shared_model, _ = sites_stamp(self.routing is not None, providers)
+        # X reads the hero perfectly when its narratives went to the lexical handler (the stand-in, a test server
+        # replaying it, or the template); a model's extraction is E1's question, not this run's (B1)
+        x_by = labels_by_task["extract"] in NO_MODEL_LABELS
+        detection = {**self.detection, "by_construction": {**self.detection["by_construction"], "X": x_by,
+                                                           "x_reason": X_BY_CONSTRUCTION if x_by else None}}
         scorecard = {
             "kind": "collective_demo_scorecard", "schema_version": SCHEMA_VERSION, "run_id": self.run_id,
             "created_at": utc_clock(), "mode": self.mode,
             "stamps": {"fictional": True, "synthetic": True, "internal_only": True, "illustration": True,
                        "measurement": False, "same_author_pack": pack.same_author_as_code,
                        "approval": self.approval, "sites_simulated": True,
-                       "shared_model": self.routing is not None, "secret_mode": "seeded-demo"},
+                       "shared_model": shared_model, "secret_mode": "seeded-demo"},
             "company": sc.company, "illustration": sc.illustration,
             "scenario": {"digest": sc.digest, "seed": sc.seed, "weeks": sc.weeks, "first_week": world.weeks[0],
                          "last_week": self.last_week, "as_of": self.as_of, "sites": len(self.site_ids),
@@ -1327,7 +1366,7 @@ class DemoEngine:
                      "alert_budget_per_week": pack.detectors["alert_budget_per_week"],
                      "window_weeks": pack.detectors["window_weeks"],
                      "min_window_weeks": pack.egress.min_window_weeks},
-            "providers": self._providers(),
+            "providers": providers,
             "hero": {
                 "key": {"entity_type": key.entity_type, "entity_type_label": pack.entity_types[key.entity_type].label,
                         "entity_id": key.entity_id, "predicate": key.predicate,
@@ -1336,7 +1375,8 @@ class DemoEngine:
                 "sites": [{"site": s, "language": lang} for s, lang, _ in hero.sites],
                 "window": {"start_week": world.weeks[hero.start_week], "end_week": self.last_week},
                 "case_keys": list(world.case_keys), "case_key_labels": labels,
-                "detection": self.detection, "pushdown": self.pushdown, "followup": self._followup_doc()},
+                "detection": detection, "pushdown": self.pushdown,
+                "followup": self._followup_doc(labels_by_task["draft"])},
             "decoys": [{k: v for k, v in d.items() if not k.startswith("_")} for d in self.decoys],
             "leakage": {"scope": "text-only", "canaries_planted": len(self.manifest.canaries),
                         "window_chars": SHINGLE_CHARS,
@@ -1351,15 +1391,17 @@ class DemoEngine:
             "content_hash_excludes": list(CONTENT_HASH_EXCLUDES), "content_hash": "0" * 32,
         }
         scorecard["content_hash"] = runfiles.content_hash(scorecard, CONTENT_HASH_EXCLUDES)
-        trace = self._trace(final)
+        trace = self._trace(final, providers)
         approvals = runfiles.project_entries(self.entries, label=BUILT_AHEAD_LABEL)
         leakage = self._leakage_doc()
         return {"scorecard.json": runfiles.shorten(scorecard), "trace.json": runfiles.shorten(trace),
                 "ledger.jsonl": runfiles.shorten(ledger_rows), "leakage.json": runfiles.shorten(leakage),
                 "approvals.jsonl": approvals}
 
-    def _trace(self, final: bool) -> dict[str, Any]:
+    def _trace(self, final: bool, providers: Sequence[Mapping[str, Any]] | None = None) -> dict[str, Any]:
         sc = self.sc
+        _, sites_note = sites_stamp(self.routing is not None,
+                                    self._providers() if providers is None else providers)
         roles: dict[str, str] = {}
         for item in sc.items:
             for s in item.site_ids:
@@ -1374,7 +1416,7 @@ class DemoEngine:
                          "duration_s": self.rec.elapsed() if final else None, "company": sc.company,
                          "fictional": True, "synthetic": True, "internal_only": True,
                          "approval": self.approval,
-                         "sites_note": SITES_NOTE if self.routing is not None else None,
+                         "sites_note": sites_note,
                          "replay_command": f"{PROG} --replay {relative if relative else '<run-dir>'}"},
                 "org": {"enterprise": sc.org.enterprise, "sites": [
                     {"site_id": s["site_id"], "display_name": s["display_name"], "country": s["country"],

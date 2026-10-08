@@ -43,7 +43,7 @@ from mycelic.collective import runfiles  # noqa: E402
 from mycelic.collective.edge.egress import verdict_buckets  # noqa: E402
 from mycelic.collective.edge.extract import TASK_NAME, lexical_handler  # noqa: E402
 from mycelic.collective.edge.verify import DEMO_SECRET_PREFIX, JUDGE_TASK, lexical_judge  # noqa: E402
-from mycelic.collective.followup.drafts import DRAFT_TASK, template_draft  # noqa: E402
+from mycelic.collective.followup.drafts import DRAFT_TASK, template_draft, template_sources  # noqa: E402
 from mycelic.collective.followup.policy import OUTCOME_LABEL  # noqa: E402
 from mycelic.collective.inference.fakeserver import FakeOpenAIServer, request_payload  # noqa: E402
 from mycelic.collective.jsonio import canonical_bytes, sha256_hex  # noqa: E402
@@ -420,6 +420,9 @@ class _HeroAssertions:
         self.assertEqual((det["S"]["rank"], det["R_mf"]["rank"]), (None, None))
         self.assertEqual((det["s_caught"], det["r_caught"]), (det["S"]["caught"], det["R_mf"]["caught"]))
         self.assertEqual((det["by_construction"]["S"], det["by_construction"]["R_mf"]), (True, True))
+        # B1: the stand-in reads the author's sentences, so X reads this case perfectly by construction, and says so
+        self.assertEqual((det["by_construction"]["X"], det["by_construction"]["x_reason"]),
+                         (True, demo.X_BY_CONSTRUCTION))
         self.assertEqual(det["rule_candidates"], [])
         self.assertIn(hero["key"]["key"], hero["case_keys"])
         for channel in ("X", "S", "R_mf", "U", "single_site"):
@@ -430,6 +433,11 @@ class _HeroAssertions:
         # regression: the S and R rows read only "not alerted" while both baselines ranked another key of the same
         # case first; each row now names the failure mode its rank is for and the first other case key it flagged
         blocks = {b["id"]: b for b in docs["screen.json"]["blocks"]}
+        x_caption = blocks["alert-by-construction-x"]
+        self.assertEqual((x_caption["beat"], x_caption["kind"]), ("alert", "caption"))
+        self.assertEqual("".join(p["text"] or items[p["item"]]["display"] for p in x_caption["parts"]),
+                         scr.BY_CONSTRUCTION_X + demo.X_BY_CONSTRUCTION)
+        self.assertEqual(items["x_by_construction"]["src"], "scorecard.json#/hero/detection/by_construction/x_reason")
         caption = "".join(p["text"] or items[p["item"]]["display"] for p in blocks["alert-key"]["parts"])
         self.assertTrue(caption.startswith(scr.THIS_MODE), caption)
         self.assertIn(items["hero_key_id"]["display"], caption)
@@ -497,6 +505,48 @@ class _HeroAssertions:
         approvals = [e for e in docs["trace.json"]["events"] if e["type"] == "approval"]
         self.assertEqual(sorted(e["data"]["key"] for e in approvals), sorted([packet["key"], draft["key"]]))
         self.assertEqual({e["data"]["mode"] for e in approvals}, {approval})
+        self.assert_draft(docs)
+
+    def assert_draft(self, docs: dict[str, Any]) -> None:
+        """B1: the CAPA draft is filled from the conclusion and the ok packets, field by field, with each field's
+        source; the screen leaves the owner's field to the owner and lists what the conclusion names."""
+        sc = docs["scorecard.json"]
+        pack = scn.load_scenario().pack
+        fu = sc["hero"]["followup"]
+        draft = fu["draft"]
+        ft = pack.followups[draft["type"]]
+        label = {p["task"]: p["label"] for p in sc["providers"]}["draft"]
+        sources = {f["name"]: f["source"] for f in draft["fields"]} | {x["name"]: x["source"] for x in draft["lists"]}
+        self.assertEqual(sources, demo.field_sources(ft, label, draft["source"]))
+        self.assertEqual(sources, template_sources(ft))
+        key = sc["hero"]["key"]
+        ok = [p for p in fu["packet"]["packets"] if p["status"] == "ok"]
+        self.assertTrue(ok)
+        for lst in draft["lists"]:
+            if lst["source"].startswith("entity_ids:"):
+                t = lst["source"].split(":", 1)[1]
+                want = sorted(({key["entity_id"]} if key["entity_type"] == t else set())
+                              | {m["entity_id"] for p in ok for m in p["co_mentions"] if m["entity_type"] == t})
+                self.assertEqual(lst["items"], want)
+        lots = next(x for x in draft["lists"] if x["name"] == "affected_lots")
+        self.assertEqual(lots["source"], "entity_ids:lot")
+        self.assertIn(key["entity_id"], lots["items"])
+        values = {f["name"]: f["value"] for f in draft["fields"]}
+        strings = [values[n] for n in ("title", "problem_statement", "containment")]
+        self.assertEqual(len(set(strings)), 3, strings)
+        self.assertTrue(all(strings))
+        screen = docs["screen.json"]
+        items = {i["id"]: i for i in screen["items"]}
+        rendered = {}
+        for block in screen["blocks"]:
+            if block["kind"] == "draft_field":
+                name = items[block["parts"][0]["item"]]["display"]
+                rendered[name] = "".join(p["text"] or items[p["item"]]["display"] for p in block["parts"][2:])
+        self.assertEqual(rendered["containment"], scr.FOR_OWNER)
+        self.assertEqual(rendered["title"], values["title"])
+        self.assertEqual(rendered["affected_lots"], ", ".join(lots["items"]))
+        self.assertNotIn("none listed", " ".join(screen_texts(screen)))
+        self.assertNotIn(values["containment"], [i["display"] for i in screen["items"]])
 
     def assert_no_baseline_numbers(self, docs: dict[str, Any]) -> None:
         for name in runfiles.PRIMARY_FILES:
@@ -823,6 +873,184 @@ class LintTests(unittest.TestCase):
                 scr.parse_display(display, fmt)
 
 
+# --------------------------------------------------------------------------------------------------- B1a
+
+SUPERSEDED = ROOT / "docs" / "collective" / "evidence" / "superseded" / "collective-halvern-g10"
+G10_SHA256 = {   # the six files as committed at b0af5b8 under demo/collective/recorded/collective-halvern-g10
+    "approvals.jsonl": "a638cde44c144c7d72ce61f67ef31e43669c18940974363a23915d89cff8a2fc",
+    "leakage.json": "55fd516231651a257b764bbe9d166195274e1efdc93b1ea7b99eb46ee17adc40",
+    "ledger.jsonl": "0398570fa3b42f2691f4dc33a9a552ef425d608976a1a6205b5952190e495c1a",
+    "scorecard.json": "7a8d7690466832f84d907ed16aba3e1b818bdd37c737803343dff68f6156080b",
+    "screen.json": "8c7c51eaf3813e15bb8c7b1f6a99189bb90003db4fc9cc0a70ef9c2749a8bccd",
+    "trace.json": "442e28a8b9e94fe650760bdc5ca196b6f16cb599342cce12a6e5afb74ac24ad7",
+}
+G10_POINTERS = ("/hero/detection/X/detection_week", "/hero/detection/R_mf/related/0", "/hero/detection/S/related/0",
+                "/hero/followup/draft/fields", "/hero/followup/draft/lists/0")
+
+
+class DraftSourceAndStampTests(unittest.TestCase):
+    """B1: where each draft field came from, and what the sites note says for each kind of routing."""
+
+    def test_field_sources_follow_the_provider_label_and_the_ledger_source(self) -> None:
+        pack = scn.load_scenario().pack
+        for ft in pack.followups.values():
+            if ft.executor != "draft":
+                continue
+            names = sorted(ft.draft_json_schema()["properties"])
+            with self.subTest(type=ft.id):
+                for label in (demo.STUB_LABEL, demo.TEMPLATE_LABEL, demo.TEST_SERVER_LABEL):
+                    self.assertEqual(demo.field_sources(ft, label, "generated"), template_sources(ft))
+                    self.assertEqual(demo.field_sources(ft, label, "edited"), {n: "edited" for n in names})
+                model = "sim: model m-tag, structured inputs only, at HQ"
+                self.assertEqual(demo.field_sources(ft, model, "generated"), {n: "model" for n in names})
+                self.assertEqual(demo.field_sources(ft, model, "edited"), {n: "edited" for n in names})
+                self.assertNotEqual(template_sources(ft), {n: "model" for n in names})
+
+    def test_sites_stamp_for_a_routed_model_a_test_server_and_no_routing(self) -> None:
+        def providers(site_label: str) -> list[dict[str, Any]]:
+            return [{"task": "extract", "label": site_label}, {"task": "judge", "label": site_label},
+                    {"task": "draft", "label": demo.TEMPLATE_LABEL}]
+
+        model = "sim: model m-tag, " + demo.SITES_NOTE
+        self.assertEqual(demo.sites_stamp(True, providers(model)), (True, demo.SITES_NOTE))
+        self.assertEqual(demo.sites_stamp(True, providers(demo.TEST_SERVER_LABEL)),
+                         (False, demo.TEST_SERVER_SITES_NOTE))
+        self.assertEqual(demo.sites_stamp(False, providers(demo.STUB_LABEL)), (False, None))
+        mixed = providers(demo.TEST_SERVER_LABEL)
+        mixed[1]["label"] = model
+        self.assertEqual(demo.sites_stamp(True, mixed), (True, demo.SITES_NOTE))
+        self.assertNotIn("shared model", demo.TEST_SERVER_SITES_NOTE)
+        self.assertIn(demo.TEST_SERVER_SITES_NOTE, demo.TRACE_SCHEMA["properties"]["meta"]["properties"]
+                      ["sites_note"]["enum"])
+
+
+    def test_the_screen_shows_each_draft_field_by_its_source(self) -> None:
+        base = {k: v for k, v in load(committed_dir()).items() if k in runfiles.PRIMARY_FILES}
+        draft = base["scorecard.json"]["hero"]["followup"]["draft"]
+        self.assertTrue(draft["fields"] and draft["lists"])
+        cases = (("template", None, None), ("model", "model", "model"), ("edited", "edited", "edited"),
+                 ("owner's list", None, "for_owner"), ("empty entity list", None, "entity_ids:lot"))
+        for name, field_source, list_source in cases:
+            docs = copy.deepcopy(base)
+            d = docs["scorecard.json"]["hero"]["followup"]["draft"]
+            for f in d["fields"]:
+                f["source"] = field_source or f["source"]
+            for x in d["lists"]:
+                x["source"] = list_source or x["source"]
+                if name == "empty entity list":
+                    x["items"] = []
+            screen = scr.build_screen(docs, mode="record", phase="complete")
+            items = {i["id"]: i for i in screen["items"]}
+            with self.subTest(case=name):
+                for j, f in enumerate(d["fields"]):
+                    block = next(b for b in screen["blocks"] if b["id"] == f"followup-field-{j}")
+                    texts = [p["text"] for p in block["parts"] if p["text"] is not None]
+                    if f["source"] == "for_owner":
+                        self.assertIn(scr.FOR_OWNER, texts)
+                        self.assertNotIn(f"draft_field_{j}", items)
+                    else:
+                        self.assertEqual(items[f"draft_field_{j}"]["display"], f["value"])
+                        self.assertNotIn(scr.FOR_OWNER, texts)
+                for j, x in enumerate(d["lists"]):
+                    block = next(b for b in screen["blocks"] if b["id"] == f"followup-list-{j}")
+                    texts = [p["text"] for p in block["parts"] if p["text"] is not None]
+                    shown = [items[p["item"]]["display"] for p in block["parts"][2:] if p["item"] is not None]
+                    if x["source"] == "for_owner":
+                        self.assertEqual((texts[-1], shown), (scr.FOR_OWNER, []))
+                    elif not x["items"]:
+                        self.assertEqual((texts[-1], shown), (scr.NONE_IN_CONCLUSION, []))
+                    else:
+                        self.assertEqual(shown, x["items"])
+                        self.assertNotIn(scr.NONE_IN_CONCLUSION, texts)
+                self.assertNotIn("none listed", " ".join(screen_texts(screen)))
+
+
+class SupersededEvidenceTests(unittest.TestCase):
+    """B1: the G8 recording of the first scenario moved, byte-identical, to the superseded evidence."""
+
+    def test_the_six_files_are_byte_identical_and_portable(self) -> None:
+        self.assertEqual(sorted(p.name for p in SUPERSEDED.iterdir()), sorted([*runfiles.RUN_FILES, "README.md"]))
+        forbidden = [str(ROOT), str(Path.home()), socket.gethostname(), getpass.getuser()]
+        for name, digest in G10_SHA256.items():
+            with self.subTest(file=name):
+                data = (SUPERSEDED / name).read_bytes()
+                self.assertEqual(hashlib.sha256(data).hexdigest(), digest)
+                self.assertEqual(runfiles.portability_problems(data, forbidden=forbidden), [])
+        self.assertNotIn(SUPERSEDED.name, [p.name for p in RECORDED.iterdir()])
+
+    def test_the_readme_says_why_and_points_into_the_scorecard(self) -> None:
+        readme = (SUPERSEDED / "README.md").read_text(encoding="utf-8")
+        docs = load(SUPERSEDED)
+        for pointer in G10_POINTERS:
+            with self.subTest(pointer=pointer):
+                self.assertIn(f"`{pointer}`", readme)
+                node = docs["scorecard.json"]
+                for token in pointer.split("/")[1:]:
+                    node = node[int(token)] if isinstance(node, list) else node[token]
+                self.assertIsNotNone(node)
+        det = docs["scorecard.json"]["hero"]["detection"]
+        self.assertEqual(det["R_mf"]["related"][0]["week"], det["X"]["detection_week"])
+        self.assertGreater(det["S"]["related"][0]["week"], det["X"]["detection_week"])
+        fields = docs["scorecard.json"]["hero"]["followup"]["draft"]["fields"]
+        self.assertEqual(len({f["value"] for f in fields}), 1)
+        self.assertEqual(docs["scorecard.json"]["hero"]["followup"]["draft"]["lists"][0]["items"], [])
+        for phrase in ("R (model-free)", "repeated one line", "superseded by the B1a run"):
+            self.assertIn(phrase, readme)
+
+    def test_the_prereg_is_committed_with_the_cast_and_the_rule(self) -> None:
+        prereg = (ROOT / "docs" / "collective" / "b1" / "PREREG.md").read_text(encoding="utf-8")
+        for needle in ("| Main seed | 29 |", "| Robustness seeds | 31, 37, 41, 43, 47, 53, 59, 61 |",
+                       "Tarnwick Devices (fictional)", "`lot:L10002:overheat`", "CODES_MISS_RULE",
+                       "Cap: three attempts", "holds_strict: holds, and neither channel has strict_no_later."):
+            self.assertIn(needle, prereg)
+
+
+CODES_MISS_SCENARIO = DEMO_DIR / "scenario_codes_miss.json"
+CODES_MISS_ATTEMPTS = ROOT / "docs" / "collective" / "b1" / "attempts"
+NOT_BUILT = "codes-miss illustration has not been built"
+CODES_MISS_PAGES = ("docs/collective/evidence/superseded/collective-halvern-g10/README.md", "demo/collective/README.md",
+                    "demo/collective/SCRIPT.md", "docs/collective/ARCHITECTURE.md", "docs/collective/INTEGRATION.md")
+# what the pages said while only B1a existed (audit round 4, finding 1)
+CODES_MISS_OVERCLAIMS = ("B1b adds", "B1b: that run again", "second step adds", "superseded by the B1 runs")
+RUN_PAGES = ("docs/collective/evidence/superseded/collective-halvern-g10/README.md", "demo/collective/README.md",
+             "demo/collective/SCRIPT.md", "docs/collective/ARCHITECTURE.md", "docs/collective/LEAKAGE.md",
+             "docs/collective/RUNBOOK.md")
+
+
+class CodesMissStatusTests(unittest.TestCase):
+    """Audit round 4, finding 1: the pages a reader sees say that B1's constructed codes-miss illustration has not
+    been built for as long as it has not, and name no recorded run that does not exist."""
+
+    def test_the_pages_say_whether_the_codes_miss_illustration_exists(self) -> None:
+        built = CODES_MISS_SCENARIO.exists() or CODES_MISS_ATTEMPTS.exists()
+        for rel in CODES_MISS_PAGES:
+            text = " ".join((ROOT / rel).read_text(encoding="utf-8").split())
+            with self.subTest(page=rel, built=built):
+                if built:
+                    if not rel.endswith("INTEGRATION.md"):       # the log keeps its history
+                        self.assertNotIn(NOT_BUILT, text)
+                    continue
+                self.assertIn(NOT_BUILT, text)
+                if rel.endswith("INTEGRATION.md"):                # the log quotes what the pages said
+                    continue
+                for phrase in CODES_MISS_OVERCLAIMS:
+                    self.assertNotIn(phrase, text)
+        if not built:
+            self.assertEqual([p.name for p in RECORDED.iterdir()], ["collective-halvern-b1a"])
+            # what the pages say of that run: R (model-free) flags a key of the case in X's own week
+            det = load(RECORDED / "collective-halvern-b1a")["scorecard.json"]["hero"]["detection"]
+            self.assertEqual(det["R_mf"]["related"][0]["week"], det["X"]["detection_week"])
+
+    def test_every_recorded_run_a_page_names_exists(self) -> None:
+        named = set()
+        for rel in RUN_PAGES:
+            for run_id in re.findall(r"recorded/([A-Za-z0-9_.-]+)", (ROOT / rel).read_text(encoding="utf-8")):
+                named.add(run_id)
+                with self.subTest(page=rel, run=run_id):
+                    self.assertTrue((RECORDED / run_id / "scorecard.json").is_file())
+        self.assertIn("collective-halvern-b1a", named)
+
+
 # --------------------------------------------------------------------------------------------------- honesty
 
 def _both(raw: dict[str, Any]) -> None:
@@ -900,6 +1128,8 @@ class HonestyTests(unittest.TestCase):
                         det = docs["scorecard.json"]["hero"]["detection"]
                         det["R_mf"]["caught"], det["S"]["caught"] = r_caught, s_caught
                         det["by_construction"]["S"] = by_construction
+                        det["by_construction"]["X"] = by_construction
+                        det["by_construction"]["x_reason"] = demo.X_BY_CONSTRUCTION if by_construction else None
                         if not related:
                             det["R_mf"]["related"], det["S"]["related"] = [], []
                         screen = scr.build_screen(docs, mode="record", phase="complete")
@@ -908,6 +1138,7 @@ class HonestyTests(unittest.TestCase):
                             self.assertEqual(scr.R_ALSO in texts, r_caught)
                             self.assertEqual(scr.S_ALSO in texts, s_caught)
                             self.assertEqual(scr.BY_CONSTRUCTION in texts, by_construction)
+                            self.assertEqual(scr.BY_CONSTRUCTION_X in texts, by_construction)
                             for sentence, channel in ((scr.R_RELATED, "R_mf"), (scr.S_RELATED, "S")):
                                 blocks = blocks_with_text(screen, sentence)
                                 self.assertEqual(len(blocks), len(det[channel]["related"]))
@@ -1455,11 +1686,22 @@ class ExportReplayTests(unittest.TestCase):
         sc = docs["scorecard.json"]
         labels = {p["task"]: p["label"] for p in sc["providers"]}
         self.assertEqual((labels["extract"], labels["judge"], labels["draft"]), (demo.TEST_SERVER_LABEL,) * 3)
-        self.assertTrue(sc["stamps"]["shared_model"])
+        # B1: every call went to a local test server, so there is no model to share: the stamp, the trace and the
+        # screen say so, and nothing says "shared model" next to "no model" (up to B1 the sites note said both)
+        self.assertFalse(sc["stamps"]["shared_model"])
         self.assertFalse(sc["stamps"]["measurement"])
-        self.assertEqual(docs["trace.json"]["meta"]["sites_note"], "sites simulated in one process, one shared model")
-        self.assertIn("sites simulated in one process, one shared model",
-                      [i["display"] for i in docs["screen.json"]["items"]])
+        self.assertEqual(docs["trace.json"]["meta"]["sites_note"], demo.TEST_SERVER_SITES_NOTE)
+        screen = docs["screen.json"]
+        self.assertIn(demo.TEST_SERVER_SITES_NOTE, [i["display"] for i in screen["items"]])
+        for text in screen_texts(screen) + [i["display"] for i in screen["items"]]:
+            self.assertNotIn("shared model", text)
+        draft = sc["hero"]["followup"]["draft"]
+        ft = pack.followups[draft["type"]]
+        self.assertEqual({f["name"]: f["source"] for f in draft["fields"]} | {x["name"]: x["source"]
+                                                                               for x in draft["lists"]},
+                         template_sources(ft))
+        self.assertEqual((sc["hero"]["detection"]["by_construction"]["X"],
+                          sc["hero"]["detection"]["by_construction"]["x_reason"]), (True, demo.X_BY_CONSTRUCTION))
         self.assertGreater(len(srv.chat_requests), 0)
         self.assertEqual(run_lint(str(out)).returncode, 0)
         for provider, boundary in (("openai_compat", "site:plant-ashvale"), ("fake", "any-simulated")):

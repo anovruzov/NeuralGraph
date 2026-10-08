@@ -1,0 +1,12 @@
+{
+  "id": "it_incidents",
+  "version": "0.1.0",
+  "title": "IT operations incidents at a fictional group (illustrative vocabulary)",
+  "languages": [
+    "en",
+    "de"
+  ],
+  "illustrative": true,
+  "disclaimer": "This pack is an illustrative vocabulary for the IT operations incidents of a fictional group, written for testing. Its ITC- codes are invented placeholders, and its services, vendors, releases, changes, hosts, subsidiaries and people are fictional. It was written by the same author as the generic code, as an internal generality measurement (B4); it is not X3 by a non-author and it is never used externally.",
+  "same_author_as_code": true
+}
