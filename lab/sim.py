@@ -195,6 +195,8 @@ CONTROL_NOTES = ("no_control", "chance_control")
 DETECTOR_CHANNELS = ("X_model", "X_lexical", "S", "R_mf", "U")
 # the collective's harness scores a no-plant control when its channel_block takes one (read from its signature)
 HARNESS_CONTROL = "control_events" in inspect.signature(harness.channel_block).parameters
+# the collective's harness adds bootstrap intervals to each channel block when it has interval_blocks
+HARNESS_INTERVALS = hasattr(harness, "interval_blocks")
 _NOT_SENT = getattr(extract_module, "NOT_SENT", None)
 EXTRACTION_ERROR_KINDS = tuple(ERROR_KINDS) + ((_NOT_SENT,) if _NOT_SENT is not None else ())
 
@@ -997,6 +999,10 @@ def run(args: argparse.Namespace, c: _Checked, started: float) -> int:
             events = {name: harness.eval_events(e, first, last) for name, e in events.items()}
             channels, found = _score(results, events, control_events, labels, index, evaluation_weeks, args.seed,
                                      first, last)
+            if HARNESS_INTERVALS:
+                channels = {name: {**block, **harness.interval_blocks(name, block, found[name], B=args.bootstrap_b,
+                                                                     seed=args.bootstrap_seed)}
+                            for name, block in channels.items()}
             outcomes = {(p["id"], name): harness.pattern_outcome(events[name], p, index)
                         for p in labels["patterns"] for name in CHANNELS}
             patterns = [{"id": p["id"], "key": p["key"], "visibility": p["visibility"], "sites": list(p["sites"]),
