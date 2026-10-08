@@ -19,7 +19,10 @@ propose follow-up work, which a named owner approves.
 and diagnostics makers.** It ranks first on fit, not size: the keys that link records across sites are non-personal
 (lot, part, supplier, failure mode); post-market trending is a regulatory duty; the narratives are often in local
 languages or under transfer limits; and a late signal costs a recall. It is conditional on two open questions:
-whether the codes already carry the signal (N1) and whether the narratives really cannot be centralised (X6).
+whether the codes already carry the signal (N1) and whether the narratives really cannot be centralised (X6). The
+first real-data measurement (section 3.5) leans against the first: in FDA's public reports for the ten busiest
+product codes, the coded problems are mostly specific, so the pitch leads with verification across sites without
+pooling text.
 
 **Best expansion by value pool: field quality across plants, dealers and suppliers in automotive and industrial
 manufacturing** (section 4), then **cross-company supplier-quality networks**, where pooling is impossible by
@@ -134,6 +137,42 @@ detection on one recall pays for years of licence; that is a hypothesis until a 
   manufacturing or complaint-handling when a type contains "manufactur" or "complaint"; the firm-name grouping lower-
   cases the name and removes punctuation and legal-form suffixes, which merges some owner/operator numbers of one
   group and can wrongly merge unrelated firms of the same name.
+
+### 3.5 What real device complaint reports look like (a real-data measurement)
+
+The first measurement on real data in this repository describes the reports, not the product
+[COUNT: `tools/market/openfda_coverage.py`, run [37853960251](https://github.com/anovruzov/NeuralGraph/actions/runs/37853960251),
+job 113573533112, 2026-10-08 22:31 UTC]. FDA received **2,627,151** device adverse-event reports in 2024 (openFDA
+MAUDE, `date_received`). For the ten product codes with the most of them, on a sample of 200 reports each (the first
+100 the API returns and 100 from the middle of the result set: not a random sample):
+
+| Product code | Reports, 2024 | Most frequent coded problem in the sample | Real lot number | Narrative text | Coded problems all generic |
+|---|---|---|---|---|---|
+| DZE | 697,102 | Failure to Osseointegrate | 85.5% | 100% | 15.0% |
+| QBJ | 347,117 | Wireless Communication Problem | 74.0% | 100% | 0.5% |
+| QFG | 273,190 | Pumping Stopped | 11.5% | 100% | 6.0% |
+| OZP | 129,592 | Power Problem | 90.0% | 100% | 8.5% |
+| BZD | 68,264 | Degraded | 0.0% | 100% | 1.0% |
+| FRN | 57,731 | Corroded | 5.0% | 100% | 0.5% |
+| FPA | 47,209 | Loss of or Failure to Bond | 62.0% | 100% | 0.5% |
+| QLG | 35,116 | Incorrect, Inadequate or Imprecise Result or Readings | 1.0% | 100% | 2.0% |
+| LGW | 35,077 | Adverse Event Without Identified Device or Use Problem | 68.0% | 100% | 18.5% |
+| FTR | 30,284 | Material Rupture | 88.0% | 100% | 19.5% |
+
+"Real lot number" excludes placeholders (UNK, NI, N/A and similar); "all generic" is the share of coded reports whose
+every coded device problem says no specific problem was identified or no code applies (the list is in the run's
+output). What it means for the strategy:
+
+- **Narratives are always there**, so a site-side reader has material in every report.
+- **Lot numbers split the field in two**: six codes carry a real lot in 62–90% of reports, four in at most 11.5%.
+  Where lots are filled, a central view over the allowed fields sees lot clusters directly, which is what defeated
+  the constructed codes-miss case (B1b); where they are not, only the narrative or the site's own records can link
+  reports to a lot.
+- **The coded problems are mostly specific** (0.5–19.5% generic-only). In FDA's public data the premise that "the
+  codes say only that a device malfunctioned" is the exception, not the rule. These are the codes manufacturers file
+  with FDA; whether internal complaint codes are coarser is what N1 and the Phase-1 audit must measure on a partner's
+  own records. **Until then, lead the pitch with verification across sites without pooling text, not with discovery
+  the codes miss.**
 
 ## 4. Why the expansion path is automotive and industrial, then networks
 
