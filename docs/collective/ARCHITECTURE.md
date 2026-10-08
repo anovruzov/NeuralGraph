@@ -9,7 +9,8 @@ replay); section 15 describes G6 (pushdown verification: narrow questions answer
 verdicts, the commit gate, and the E2 harness); section 16 describes G7 (approval-routed follow-up on supported
 conclusions, built ahead of E2 and X4 and unvalidated); section 17 describes G8 (the end-to-end demo for a fictional
 multi-site device maker: the run-file contract, the screen with per-number provenance, the console and the number
-lint).
+lint); section 18 describes B3 (X5: what the artifacts that leave reveal beyond text, measured on synthetic worlds by
+a red team that holds only what HQ holds).
 
 **No real-model number is produced in this sandbox.** Model weights and the openFDA API cannot be reached from it, so
 every test runs against a deterministic in-process fake or a local fake HTTP server. Every harness output says so in
@@ -2179,3 +2180,207 @@ before any of its worlds existed. What B1a changed:
 - **The committed run** is `demo/collective/recorded/collective-halvern-b1a` (scenario digest unchanged); its
   detection blocks are the G8 run's, so R (model-free) still flags a key of this case in X's week and the screen still
   says so. That is why B1b adds a second scenario rather than re-reading this one.
+
+## 18. B3: X5, leakage beyond text
+
+**Synthetic, same-author and internal only.** The worlds, the red team and the defences come from the same AI system,
+on the packs' synthetic generators, in fake mode; X5 here describes these artifacts on these worlds and is never a
+buyer claim (`x5_attacks.STATEMENT`). The published figure is `LEAKAGE.md` section 12, filled from `x5.json`; the
+commands are RUNBOOK section 18.
+
+| Part | File | Purpose |
+|---|---|---|
+| Orchestration | `experiments/x5_inference.py` | the CLI (`prereg`, `run`), the variant pack copies, the worlds and the member split, one G0 pipeline per (pack, variant, seed), the A6 probe, the fact extractors, the targets and their truth, the shadow statistics, the derived variants and simulated transforms, the closed schemas, the self-scan and `leakage_section` |
+| Attacks | `experiments/x5_attacks.py` | pure: `Fact` and `FactIndex`, what the attacker knows per target, A1 to A6, the applicability table, the labels, the per-target values, `summarise` and `incremental`; it imports `stats` only (no file, store, site, generator or model code: `X5AttacksImportGuardTests`) |
+
+No other file under `mycelic/` changed: G0, the detectors, the Boundary, the packs and `stats.py` are byte-identical
+to B2a, and X5 adds no SQL of its own (it reads stores through their own methods).
+
+### 18.1 Threat model and holdings
+
+The red team is HQ. It holds every artifact HQ holds after G0's stages on a world (edge, pushdown, follow-up, run
+files), one artifact type each: `cells_codes` and `cells_text` (the cell bundles split by channel), `usage_summary`,
+`verdicts_passive` (HQ's own questions and the verdicts that answered them), `packets`, `followup` (the follow-up
+ledger's entries, the outbox and the central draft ledger), `hq_results` (the detection result, recomputed with the
+run's channel and tie salt and checked equal to the stored candidates, and the latest conclusion row of every
+conclusion) and `run_files` (`trace.json`, `approvals.jsonl`, `scorecard.json`, `ledger.jsonl`); `all` is the union.
+It may also ask questions of its own through a real `SiteVerifier` per site, under the pack's budgets
+(`verdicts_active`, A6). It knows the pack, the lexical extractor and every site's master data. It never sees a site
+database, a narrative, a person or reporter value, a site's `packets/` directory or the generator's gold.
+
+Two reference types are not HQ holdings: `allowed_fields_reference` is R (model-free)'s exact per-record cells, the
+fields policy lets a central system read (`baselines.r_mf_cells`, codes channel), and `allowed_plus_all` adds HQ's
+artifacts to it; the incremental entry measures what the artifacts add over the allowed fields on the same targets.
+
+### 18.2 Data flow
+
+```
+prereg:  packs -> variant copies (hashed) -> worlds per seed (digested) -> prereg.json
+run:     check pins (code, packs, copies, worlds)
+         per pack: shadow worlds -> priors and A1 thresholds (lexical rows, build_cells; no pipeline)
+                   per pipeline variant, per seed:
+                     make_world(2n) -> split -> members -> build_context + run_stages (fake) -> boundary mark
+                     -> passive facts (receive log, questions, packets, ledger, outbox, store, run files)
+                     -> A6 probe (fresh EdgeSite + SiteVerifier per site, from as_of + 1 day) -> active facts
+                     -> true rows (RecordStore.emission_inputs), R_mf cells -> delete the world directory
+                     -> targets and truth -> attacks -> outcomes
+                   default worlds also feed k1_reference, a5_injected and the simulated transforms
+         summarise (Wilson, cluster bootstrap, labels) -> controls, bar -> schema, portability, self-scan
+         -> x5.json, leakage_section.md
+```
+
+The work directory holds the variant copies and one world's pipeline at a time; it is removed at the end and on
+every refusal. Every world is generated from the base pack, except volume worlds, which come from the volume copy
+(the generator reads the volume and the egress types), so variants of one seed share members and `as_of`.
+
+### 18.3 Facts
+
+`Fact(source, site, first, last, entity_type, entity_id, predicate, channel, field, lo, hi, text)` says that an
+artifact of type `source` puts the quantity `field` of (entity, predicate, channel) at `site` over the week indexes
+`[first, last]` (weeks counted from the generator's start, so the attacks never parse weeks) in `[lo, hi]` (`hi`
+null: unbounded). A predicate of null is an entity-level fact; a channel of null sums both channels (a record's claim
+for a key is in exactly one channel). The extractors:
+
+- **cells**: `n`, `n_roots` and `n_reporters` per cell (`'<k'` is `[1, k-1]`), and one `covered` fact per week and
+  channel of each bundle's span, so a covered week without a cell for an egress-able key reads as 0;
+- **usage summaries**: `calls` per group over the summary's span, with no entity;
+- **verdicts** (joined to their question): a confirm's support, roots and reporters buckets over the window, support
+  at least 1 in its newest week and 0 in every later week of the window; a refute's zero support and its entity-records
+  bucket; an unknown without a wire reason, for an id that passes the site's master-data rule, as zero records (an
+  `unclear` unknown is misread as absence, which counts against the attacker); `budget` and `no_secret` say nothing;
+  a truncated verdict leaves every bucket open above;
+- **packets**: the stored verdict's buckets, each pack code as a lower bound on its predicate, each co-mention;
+- **follow-up**: the packets inside executed results, and every egress id a draft, outbox line or ledger payload
+  names, as presence over the conclusion's window at its confirming sites;
+- **HQ results**: per candidate snapshot each site's window count and the contributing sites; per conclusion its
+  confirming sites, its newest week and its refuting siblings;
+- **run files**: `trace.json`'s verdicts (no truncation flag there, so buckets are open above) and `approvals.jsonl`
+  as follow-up;
+- **strings**: every string leaf of every item, per (source, site, span), deduplicated; A5 reads only these.
+
+### 18.4 Targets and truth
+
+Truth is computed apart and meets a prediction only in `x5_attacks.outcome`; no attack function takes a truth
+argument (a test inspects the signatures). Forwarded copies are never targets. Clusters are (seed, site, week), and
+(seed, site, window start) for A6.
+
+- **A1**: original records of each (site, week) stratum, every record of the smaller class and a seeded sample of
+  the larger, so the baseline is 0.5 exactly; single-class strata are dropped and counted. The attacker's keys are its
+  own lexical extraction of the record (egress types, the site's master-data rule).
+- **A2**: member originals with an affirmed gold predicate and a canonical structured entity; truth is the set of
+  affirmed predicates.
+- **A3**: every true cell (site, key, week, channel) with 1 <= n < k, from the sites' own emission rows; truth is n
+  (never `n_roots`).
+- **A4**: every pair of records in a true cell with 2 <= n < k; truth is a shared reporter (an unknown reporter is one
+  shared reporter, as `build_cells` counts it). At k = 2 a cell of 2 is exact, so A4 is not applicable there.
+- **A5**: member originals times the pack's name fields (the generator's person fields of kind `name`); truth is the
+  surname.
+- **A6**: (site, entity, window) for a seeded sample of askable ids per site (master-data ids of types with an id
+  format, every id of alias-only types); truth is a member record at the site in the window naming the entity in its
+  gold claims or its structured entities.
+
+### 18.5 Attacks
+
+- **A1 membership**: the share of the record's keys with a positive fact at its site whose span holds its week;
+  `A1_calibrated` predicts member at the shadow threshold, `A1_fixed` when every key is present; no key takes a seeded
+  coin (uncovered).
+- **A2 predicate attribute inference**: per predicate, the number of the record's entities with a positive fact at its
+  site and week; the argmax, ties and no support broken by the shadow prior chain.
+- **A3 count inference**: interval bounds on the (site, key)'s weekly counts per channel over the connected span of its
+  facts, propagated to a fixpoint (cell counts, covered zeros, verdict and packet sums, presence, the zeros after a
+  newest week); the shadow mode inside the target's interval, cut to [1, k-1].
+- **A4 reporter linkage**: from the target cell's `n` and `n_reporters` only (`n_reporters` at most 1: same; an exact
+  `n` with as many reporters: different); otherwise the shadow majority.
+- **A5 person names (negative control)**: the field's generator surnames found among the string facts at the site and
+  week; on real artifacts nothing names a person.
+- **A6 presence oracle**: a confirm or a refute says the site holds the entity in the window.
+
+The applicability table (`x5_attacks.applicability`, copied into the prereg) marks every (variant, attack, artifact
+type) as applicable, not applicable (with a reason: usage summaries name no entity; A4 reads cell counts only; A6
+reads only the attacker's own questions; the k1 reference replaces only the cells; the injected control tests A5
+only) or not run (A6 on the volume variant).
+
+### 18.6 Shadow
+
+Shadow worlds never run a pipeline. Their lexical rows (`lexical_rows`, equal to what a fake-mode site stores; a test
+checks it) are cut into cells at each variant's settings (k, master-data rule, egress types; k = 1 for the reference;
+each simulated transform), which give the A1 threshold per setting: the score among the sorted distinct shadow scores
+that maximises shadow accuracy, the smallest on ties. They also give the A2 prior chain, the distribution of n below k
+(A3), the same-reporter share (A4), the surname counts per field (A5), the presence share per (site, entity) (A6) and
+the A6 predicate per entity. `x5.json` carries only counts, thresholds and modes from them, never a prior table.
+
+### 18.7 Variants, controls and mitigations
+
+| Variant | Kind | What changes |
+|---|---|---|
+| `default` | pipeline | nothing |
+| `k2`, `k10` | pipeline | egress k and the verdict buckets (k, then the pack's higher edges) |
+| `rmd_flipped` | pipeline | `require_master_data` negated |
+| `minus_type` | pipeline | the pack's primary entity type (`mapping.primary_entity_type`) no longer leaves: vocabulary, egress and the question templates |
+| `volume` | pipeline | every site's weekly volume times the factor; worlds of factor times 2n records |
+| `k1_reference` | derived | the default worlds' cells rebuilt at k = 1 (reference, not deployable); the positive control of A1 to A4 |
+| `a5_injected` | derived | a `'<k'` text cell naming each A5 target's surname added to its site's bundle; the positive control of A5 |
+
+The copies are written as canonical JSON into the work directory and their four hashes are pinned in the prereg.
+Pipelines run in the order packs, then default, the k variants, `rmd_flipped`, `minus_type`, `volume`, then seeds,
+against `--max-pipelines`; a variant that cannot run all its seeds runs none, and a default that cannot run in full
+stops the run.
+
+**Controls.** Each positive control must be labelled `leak` on `all` (exit 2 otherwise); the negative control, A5 on
+`all` for every pack and measured variant, must be `at_chance` or `inconclusive` with 0 inside its interval (exit 1
+otherwise). The injected cells are refused by the Boundary (a test checks `check_artifact`).
+
+**Mitigations.** The measured knobs are the pipeline variants. The simulated transforms of the default worlds,
+`drop_lt_k` (cells below k removed, so a missing cell means at most k - 1) and `four_week` (cells rebuilt over
+four-week periods at the pack's k), are labelled "simulated: not implemented in the Boundary; implementing it is a
+code change"; they report the cells before and after and re-run A1 to A5 on the cell types and `all`, with every
+other artifact the unmitigated run's (detection is not re-run).
+
+**Designed disclosures** (STRATEGY 6.4) are reported apart and never labelled: the share of members whose every key
+has a `'<k'` or exact cell at their site and week, and the share of exact cells whose count is right.
+
+### 18.8 Statistics and labels
+
+Per entry: the targets, the coverage (the share the attack decided from the artifact), the accuracy with a Wilson
+interval, the matched baseline's accuracy, and the advantage: the mean per-target value (A1 `2c - 1`, the others the
+attack's correctness minus the baseline's) with a cluster-bootstrap percentile interval (`stats.cluster_bootstrap_mean`,
+seed `<bootstrap seed>:<pack>:<variant>:<attack>:<type>`). The label reads only that interval: `leak` when
+`ci_low > 0`, `at_chance` when it lies within [-0.05, 0.05], otherwise `inconclusive` (and with no target). The eight
+primary tests use B = 10,000 and carry a Bonferroni interval at 0.05 / 8 from the same seed; every other entry uses
+B = 2,000 and is exploratory. The incremental entry bootstraps the per-target difference between `allowed_plus_all`
+and `allowed_fields_reference`. The bar is `fails` when any primary 95% label is `leak`, `met` when every primary
+Bonferroni label is `at_chance`, else `undecided`; its sentence and each primary sentence come from fixed templates.
+
+### 18.9 Outputs
+
+`prereg.json` (`x5_prereg`, closed schema): the packs and their copies' hashes, the code hash (`X5_CODE_FILES`, every
+module the run loads; a test checks the import closure), the commit and dirty state, the seeds (derived from the
+commit, every candidate recorded), every world digest, the selections, the applicability table, the rules, the
+primary family, the bootstrap, the A6 settings, the cap and the NOT_COVERED mapping. `run` refuses, naming each,
+any change of the code hash, a pack hash, a copy hash or a world digest.
+
+`x5.json` (`x5_results`, a closed schema built from the prereg): the stamps and statement, the rules, the primary
+family, per pack and variant the copies' hashes, per world the pipeline and A6 counts, facts and targets, the shadow
+counts and the designed disclosures, the uniform results matrix (every pack, variant, attack and artifact type, with
+`status` run, not_applicable or not_run), the primary pointers and sentences, the controls, the mitigations, the
+NOT_COVERED mapping, the bar, the timings and a content hash (without `created_at`, `run_id` and `timings`). Every
+digest is 32 hex. Before writing, the run checks the schema, portability (no path, host, user or 64-hex token) and a
+self-scan (no narrative shingle of any generated world, no person, surname or reporter value as a whole token); a
+failure writes nothing. `leakage_section.md` is rendered from the validated document only: the bar sentence, the
+primary sentences, the statement and pointer-row tables whose every cell is `format_value` of the field its pointer
+names.
+
+### 18.10 What X5 here does not show
+
+- **Fake, lexical extraction only.** The sites run the fake provider, which replays the lexical extractor and judge,
+  and the attacker knows that extractor and the master data; a real model's errors are not modelled.
+- **Usage covers one ingest week**, because every record is extracted on the simulated ingest day; weekly usage
+  volumes are not attacked.
+- **Tiny pack universes** (a handful of products and suppliers) make keys collide between records often, so
+  membership is likely understated relative to a real catalogue.
+- **A4 does not decompose window reporter buckets**; it reads cell-level counts only.
+- **Volume is four times the built-in volume, not ten**: the generator runs out of unique narratives above that.
+- **A6 is a small sample** of entities per site, not an exhaustive presence oracle.
+- **No detection re-run under the simulated transforms**: they replace the cells and keep every other artifact.
+- **Same author.** The red team knows the defences it attacks because it wrote them; an independent red team may
+  find more.

@@ -23,6 +23,9 @@
   interpreter) (G7).
 * ApprovalCallSiteTests: outside the allow-list (``followup/service.py``, the G0 runner's simulated owner, the demo
   console and ``tests/``) nothing under ``mycelic/`` or ``demo/`` calls ``approve``, ``edit`` or ``reject`` (G7).
+* X5AttacksImportGuardTests: the X5 attacks (``experiments/x5_attacks.py``) are pure: no file, store, network or
+  process module, nothing site-side, no harness, leakage scan, run file or world generator, and no model client;
+  the pack type only under ``TYPE_CHECKING`` (static check and a fresh interpreter) (B3).
 
 ``forbidden_imports``, ``model_name_hits``, ``nondeterminism`` and ``domain_literal_hits`` are importable for
 reviewers' probes.
@@ -121,6 +124,8 @@ STDLIB_ONLY_MODULES = (
     "mycelic.collective.edge.packets",
     "mycelic.collective.experiments.e5_injection",
     "mycelic.collective.runfiles",
+    "mycelic.collective.experiments.x5_attacks",
+    "mycelic.collective.experiments.x5_inference",
 )
 CLI_MODULES = (
     ("mycelic.collective.experiments.e3_latency",),
@@ -143,6 +148,8 @@ CLI_MODULES = (
     ("mycelic.collective.experiments.e2_pushdown", "run"),
     ("mycelic.collective.experiments.e5_injection",),
     ("mycelic.collective.followup.ledger", "verify"),
+    ("mycelic.collective.experiments.x5_inference", "prereg"),
+    ("mycelic.collective.experiments.x5_inference", "run"),
 )
 NAME_SCAN_ROOTS = ("mycelic/collective", "docs/collective", "demo/collective", "tests/mycelic/test_collective_*.py",
                    "runs/.gitignore")
@@ -193,6 +200,8 @@ DETERMINISTIC_MODULES = (
     "mycelic/collective/followup/outcome.py",
     "mycelic/collective/edge/packets.py",
     "mycelic/collective/runfiles.py",
+    "mycelic/collective/experiments/x5_attacks.py",
+    "mycelic/collective/experiments/x5_inference.py",
     "demo/collective/scenario.py",
     "demo/collective/screen.py",
     "demo/collective/lint_numbers.py",
@@ -575,7 +584,7 @@ def _run_without_site_packages(*args: str) -> subprocess.CompletedProcess[str]:
 
 class StdlibOnlyTests(unittest.TestCase):
     def test_every_collective_module_imports_without_site_packages(self) -> None:
-        self.assertEqual(len(STDLIB_ONLY_MODULES), 60)
+        self.assertEqual(len(STDLIB_ONLY_MODULES), 62)
         code = "import importlib\n" + "".join(f"importlib.import_module({m!r})\n" for m in STDLIB_ONLY_MODULES)
         r = _run_without_site_packages("-c", code)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -886,6 +895,116 @@ class HqImportGuardTests(unittest.TestCase):
         self.assertIn("mycelic.collective.detect.detectors", loaded)
         self.assertEqual([m for m in loaded if _forbidden(m, HQ_FORBIDDEN) and m not in HQ_ALLOWED_LOADED], [])
         self.assertEqual([m for m in loaded if m.startswith("mycelic.collective.inference")], list(HQ_ALLOWED_LOADED))
+        self.assertEqual([m for m in loaded if _forbidden(m, FORBIDDEN_LOADED) and not m.startswith("mycelic.")], [])
+
+
+X5_ATTACKS = ROOT / "mycelic" / "collective" / "experiments" / "x5_attacks.py"
+X5_ATTACKS_MODULE = "mycelic.collective.experiments.x5_attacks"
+# what the X5 attacks may never import (B3): no file, store, network or process module; nothing site-side, no
+# pushdown, follow-up or detection code, no leakage scan, run file, harness or world generator, neither the X5
+# orchestrator nor G0, and no model client. The pack type may be named only under TYPE_CHECKING.
+X5_ATTACKS_FORBIDDEN = ("sqlite3", "os", "pathlib", "io", "shutil", "tempfile", "subprocess", "socket",
+                        "mycelic.collective.edge", "mycelic.collective.pushdown", "mycelic.collective.followup",
+                        "mycelic.collective.detect", "mycelic.collective.inference", "mycelic.collective.leakage",
+                        "mycelic.collective.runfiles", "mycelic.collective.evaluate",
+                        "mycelic.collective.packs.generator", "mycelic.collective.experiments.x5_inference",
+                        "mycelic.collective.experiments.g0_canary", "openai", "anthropic", "ollama", "llama_cpp",
+                        "vllm", "transformers", "torch")
+X5_ATTACKS_ALLOWED_LOADED = ("mycelic", "mycelic.version", "mycelic.collective", "mycelic.collective.stats",
+                             "mycelic.collective.jsonio", "mycelic.collective.experiments", X5_ATTACKS_MODULE)
+X5_POSITIVE_IMPORTS = (
+    "import sqlite3",
+    "import os",
+    "from pathlib import Path",
+    "import io",
+    "from ..edge.site import build_cells",
+    "from ..edge import egress",
+    "from ..pushdown.questions import build_question",
+    "from ..followup.ledger import FollowupLedger",
+    "from ..detect.store import HqReader",
+    "from ..inference import fake",
+    "from .. import leakage",
+    "from .. import runfiles",
+    "from ..evaluate.baselines import r_mf_cells",
+    "from ..packs.generator import world_digest",
+    "from ..packs import generator",
+    "from . import x5_inference",
+    "from .x5_inference import lexical_rows",
+    "from .g0_canary import make_world",
+    "import mycelic.collective.edge.records as rec",
+    "import openai",
+)
+X5_NEGATIVE_IMPORTS = (
+    "from .. import stats",
+    "from ..stats import wilson",
+    "from ..jsonio import canonical_dumps",
+    "import math",
+    "import random",
+    "from dataclasses import dataclass",
+    "from typing import TYPE_CHECKING",
+)
+
+
+def type_checking_only(source: str, prefix: str) -> list[str]:
+    """Every import of a module under ``prefix`` that is not inside an ``if TYPE_CHECKING:`` block."""
+    tree = ast.parse(source)
+    guarded: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.If) and isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING":
+            guarded.update(id(n) for child in node.body for n in ast.walk(child))
+    hits = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names = [a.name for a in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            base = _resolve(X5_ATTACKS_MODULE, node.level, node.module) or ""
+            names = [base] + [f"{base}.{a.name}" for a in node.names]
+        else:
+            continue
+        if any(_forbidden(n, (prefix,)) for n in names) and id(node) not in guarded:
+            hits.append(f"line {node.lineno}")
+    return hits
+
+
+class X5AttacksImportGuardTests(unittest.TestCase):
+    def test_x5_attacks_imports_nothing_forbidden(self) -> None:
+        self.assertEqual(forbidden_imports(X5_ATTACKS.read_text(encoding="utf-8"), X5_ATTACKS_MODULE,
+                                           X5_ATTACKS_FORBIDDEN), [])
+
+    def test_checker_flags_every_positive_snippet(self) -> None:
+        for snippet in X5_POSITIVE_IMPORTS:
+            with self.subTest(snippet=snippet):
+                self.assertTrue(forbidden_imports(snippet, X5_ATTACKS_MODULE, X5_ATTACKS_FORBIDDEN))
+
+    def test_checker_passes_every_negative_snippet(self) -> None:
+        for snippet in X5_NEGATIVE_IMPORTS:
+            with self.subTest(snippet=snippet):
+                self.assertEqual(forbidden_imports(snippet, X5_ATTACKS_MODULE, X5_ATTACKS_FORBIDDEN), [])
+
+    def test_checker_flags_an_injected_import_in_a_copy_of_x5_attacks(self) -> None:
+        source = X5_ATTACKS.read_text(encoding="utf-8")
+        for line in ("import sqlite3", "from ..edge.site import build_cells", "from .x5_inference import WorldData"):
+            with self.subTest(line=line):
+                self.assertTrue(forbidden_imports(source + "\n" + line + "\n", X5_ATTACKS_MODULE,
+                                                  X5_ATTACKS_FORBIDDEN))
+
+    def test_the_pack_type_only_under_type_checking(self) -> None:
+        self.assertEqual(type_checking_only(X5_ATTACKS.read_text(encoding="utf-8"), "mycelic.collective.packs"), [])
+        guarded = "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from ..packs.loader import FrozenPack\n"
+        self.assertEqual(type_checking_only(guarded, "mycelic.collective.packs"), [])
+        self.assertEqual(type_checking_only("from ..packs.loader import FrozenPack\n", "mycelic.collective.packs"),
+                         ["line 1"])
+
+    def test_fresh_interpreter_loads_only_the_allowed_modules(self) -> None:
+        code = f"import json, sys\nimport {X5_ATTACKS_MODULE}\nprint(json.dumps(sorted(sys.modules)))\n"
+        r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, timeout=120,
+                           env={**os.environ, "PYTHONPATH": str(ROOT)})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        loaded = json.loads(r.stdout.strip().splitlines()[-1])
+        self.assertIn(X5_ATTACKS_MODULE, loaded)
+        self.assertEqual([m for m in loaded if (m == "mycelic" or m.startswith("mycelic."))
+                          and m not in X5_ATTACKS_ALLOWED_LOADED], [])
+        self.assertNotIn("sqlite3", loaded)
         self.assertEqual([m for m in loaded if _forbidden(m, FORBIDDEN_LOADED) and not m.startswith("mycelic.")], [])
 
 
@@ -1350,6 +1469,13 @@ class RunbookCommandTests(unittest.TestCase):
         for needle in ("--serve", "--replay <recorded-dir>", "--export <page-file>"):
             self.assertTrue(any(needle in c for c in demo), needle)
         self.assertTrue(any(c.startswith("python demo/collective/lint_numbers.py ") for c in commands))
+
+    def test_commands_cover_the_b3_clis(self) -> None:
+        commands = runbook_commands()
+        self.assertIn("python -m mycelic.collective.experiments.x5_inference prereg --packs "
+                      "device_quality,claims_integrity --n 1000 --run-id <run-id> --runs-dir runs", commands)
+        self.assertIn("python -m mycelic.collective.experiments.x5_inference run --prereg <prereg-file> --run-id "
+                      "<run-id> --runs-dir runs --work-dir runs/x5-work/<run-id>", commands)
 
     def test_every_command_dry_runs_offline_and_creates_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

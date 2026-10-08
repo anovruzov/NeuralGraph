@@ -2380,3 +2380,152 @@ way the run is recorded in `SEAL.json` `history` at B2c.
   in each pack's section.
 - **`==` and `!=` compare a bool only with a bool** in the condition evaluator, and an ordering op on a bool is false,
   so `true` never equals `1`.
+
+## B3 (round 4, gate 3 of 4): X5, leakage beyond text, measured by an HQ-level red team
+
+B3 builds X5 (STRATEGY 6.4 and 11.2) and publishes its result as `LEAKAGE.md` section 12, "the leakage figure", in
+whatever direction it falls, in three local commits the orchestrator authorises in order: **B3a** the code, tests and
+docs; **B3b** the prereg (`docs/collective/x5/prereg.json`), made on the clean B3a tree before any `x5.json` exists;
+**B3c** one `run` of that prereg at HEAD = B3b, its `x5.json` and the filled section 12. **Everything is synthetic,
+same-author (the worlds, the red team and the defences come from the same AI system) and internal only; it is never a
+buyer claim.**
+
+### B3a: the code, tests and docs
+
+**Base.** Branch `mycelic-collective-phase2` at 202dd531 (B2a), a clean worktree. B2 committed only B2a (no seeds,
+seal or results) and B1 only B1a, so the base of every B3 check is 202dd531 and "the X1 code hash" is B2a's.
+
+**Scope.** Under `mycelic/` exactly three files differ from 202dd531 (`git diff --name-only 202dd531 -- mycelic/`):
+`experiments/__init__.py` (one docstring entry, "X5 (leakage beyond text, B3)") and the new
+`experiments/x5_inference.py` and `experiments/x5_attacks.py`. Also changed: `tests/mycelic/test_collective_guards.py`
+and `docs/collective/{LEAKAGE,RUNBOOK,ARCHITECTURE,INTEGRATION}.md`; added: `tests/mycelic/test_collective_x5.py`.
+`g0_canary.py`, `common.py`, `stats.py`, `leakage.py` (so `NOT_COVERED` is byte-unchanged), every file of every
+code-hash list of X1, E2, E1 and the openFDA replay, every pack file, `demo/` and `docs/collective/evidence/` are
+unchanged (`git diff --quiet 202dd531 -- demo docs/collective/evidence mycelic/collective/packs
+mycelic/collective/experiments/g0_canary.py mycelic/collective/experiments/common.py mycelic/collective/stats.py
+mycelic/collective/leakage.py`), so the demo's committed `leakage.json` files are byte-identical. No RUNBOOK
+placeholder was added.
+
+| Part | What | Tests (`test_collective_x5.py` unless named) |
+|---|---|---|
+| Split and strata | `split_members` (seeded coin per original, a copy follows its origin); `a1_targets` (balanced (site, week) strata, single-class strata dropped and counted, copies never targets) | `SplitTests` |
+| Variant copies | `write_variant`: `k<K>` (k and `bucket_edges`), `rmd_flipped`, `minus_type` (`mapping.primary_entity_type`: vocabulary, egress, question templates; a copy that does not load is a `UsageError` naming pack and type), `volume`; canonical JSON plus a newline; `a5_fields` (person fields of kind `name`) | `VariantPackTests` (buckets, hash deltas, the own-k rewrite changes nothing, device `lot` refused) |
+| Lexical rows | `lexical_rows` equals what a fake-mode site stores (`RecordStore.emission_inputs`) | `LexicalRowsTests` (both packs, a real pipeline) |
+| Facts | `Extractor`: cells by channel with covered weeks and the four-week span, usage, verdicts (confirm, newest week and the zeros after it, refute, unknown by master data, budget and no_secret silent, truncated open), packets, follow-up, HQ results, run files, deduplicated strings, week indexes | `FactExtractorTests` (hand-built artifact bodies, a year boundary) |
+| Attacks | `x5_attacks`: `FactIndex`, A1 score, `calibrate` and the coin, A2 with the prior chain, A3 bound propagation, A4, A5, A6; no attack function takes truth | `AttackTests` (constructed mini-worlds; signatures inspected) |
+| A6 probe | `a6_probe`: fresh `EdgeSite` and `SiteVerifier` per site from `as_of + 1` day, the per-entity budget per day, a `budget` answer asked again and counted, never read as absence | `A6ProbeTests` (a real site and verifier; HQ's own questions spend the day's budget first) |
+| Statistics | `label`, `value`, `summarise` (Wilson, cluster bootstrap, nested Bonferroni from the same seed), `incremental`; primary B versus exploratory B | `StatsLabelTests` |
+| Prereg and run | the closed prereg schema, the seed rule, the pins (code, packs, copies, worlds), dirty and existing-directory refusals, the dry runs and the estimate line, the cap | `PreregRunTests` |
+| x5.json | the closed results schema built from the prereg, portability, the self-scan, `content_hash`, the full matrix | `SchemaScanTests` (one tiny run made in `setUpModule`) |
+| Determinism | one tiny prereg run twice in subprocesses under `PYTHONHASHSEED` 0 and 1 | `DeterminismTests` |
+| Controls | `controls_block`, `control_exit`; injected cells pass the extractor and are refused by `check_artifact` | `ControlTests` |
+| Section 12 | the skeleton's fixed texts; `leakage_section` rows resolved by an independent parser with `format_value` and `lookup` from `test_collective_x1_sealed`; the bar; the NOT_COVERED mapping | `LeakageSectionTests` |
+| Code hash | every `mycelic.collective` module loaded with `x5_inference` is in `X5_CODE_FILES` | `ImportClosureTests` |
+| Guards | `STDLIB_ONLY_MODULES` 60 to 62, `CLI_MODULES` (`prereg`, `run`), `DETERMINISTIC_MODULES`, `X5AttacksImportGuardTests` (static guard, snippets, an injected import, `TYPE_CHECKING` only for the pack type, the fresh-interpreter module set), the RUNBOOK commands | `test_collective_guards.py` |
+
+**Hashes that do not change** (recomputed on this worktree; first 32 hex): X1 (`harness.eval_code_hash()`)
+`e7d5d82e3b9805358718b5927b6cca89` (B2a's; there is no SEAL); E2 `7428e57c6c9e2b5f4e7d7a93d80a45bc`; openFDA replay
+`452219e81aa711fb97387d8bc5da9663`; E1 `07c08295d7eeeff6eadcaa1db80ee500`; `device_quality` config `9de50cd4`,
+vocabulary `e46f5211`, detector `c9462f62`, fixtures `dc4b70b7`; `claims_integrity` config `0ddf016d`, vocabulary
+`028b7603`, detector `2041fe9b`, fixtures `a2e8936b` (B1's). **The X5 code hash** (`x5_inference.x5_code_hash()`,
+`X5_CODE_FILES`) is `dea481ca619129e1f42f685256834e81` on this worktree; the reviewer recomputes it on the committed B3a tree.
+
+**Test counts (sandbox timing, not a product figure).** Both suites with `TMPDIR` on tmpfs and `nats-server` on the
+path; the 202dd531 column is B2a's recorded run.
+
+| Command | 202dd531 | B3a (this worktree) |
+|---|---|---|
+| `python -m pytest tests/mycelic -q -p no:warnings` | 1061 passed (27,620 subtests), 0 skipped, in 761 s | 1122 passed (27,940 subtests) = 1061 + 61 new, 0 skipped, in 765 s |
+| `python -m pytest NeuralGraph/tests -q -p no:warnings` | 222 passed, 1 skipped (119 subtests) | 222 passed, 1 skipped (119 subtests) in 4 s; the skip is the pre-existing one |
+
+The 61 new tests are 54 in `test_collective_x5.py` (22 s on its own, most of it the tiny run of `setUpModule` and the
+two determinism subprocesses) and 7 in `test_collective_guards.py` (`X5AttacksImportGuardTests`, six, and
+`RunbookCommandTests::test_commands_cover_the_b3_clis`). No earlier test's expectation changed except
+`StdlibOnlyTests` (the module count, 60 to 62).
+
+**Rehearsals (sandbox, dirty tree, `--allow-dirty`; deleted afterwards; not results).** The B3b prereg command with
+`--allow-dirty` (seeds derived from 202dd531, not from B3a) wrote its prereg in 41 s, needed 54 of 60 pipelines and
+excluded one `claims_integrity` volume shadow world by the generator-capacity rule; `run --dry-run` on it printed the
+estimate line (54 pipelines, 14 worlds, 11 shadow worlds). A one-seed run of both packs with every variant, attack,
+type and simulated transform at the default B (explicit seeds 101 and shadow 102, n = 1000) exited 0 after 632 s with
+every control holding. No attack outcome of a rehearsal is reported anywhere: the result is B3c's.
+
+**Merge notes.**
+
+1. **No fabric change and no fabric integration point.** X5 reads G0's artifacts through their own modules.
+2. **A new CLI**, `python -m mycelic.collective.experiments.x5_inference` (`prereg`, `run`), and a new run kind,
+   `runs/x5/<id>/`.
+3. **No prereg is invalidated.** No file of the X1, E2, E1 or openFDA-replay code-hash lists changed, so every B2a
+   value holds and every earlier prereg still pins.
+4. **The lab runs no X5.** Nothing under `lab/` or `.github/` changed and no lab request names X5.
+5. **The B2b note.** B2b's pre-stated prereg is "made on the clean B2a tree", and the harness's `prereg` stamps
+   `code_commit` = HEAD. After B3 lands HEAD is no longer B2a: `eval_code_hash` is unchanged, so a B2b prereg made
+   later still pins the same evaluation code, but its `code_commit` would name a later commit than the one B2a's text
+   states. B3 does not resolve this; the orchestrator decides.
+
+**Deviations from the gate text and the design, all checked by reading the tree or by probes in `/dev/shm`
+(sandbox, same-day; not product figures).**
+
+- **Volume is four times, not ten.** The generator refuses ("narrative uniqueness exhausted") `claims_integrity` at
+  ten times at its 34-week minimum and at five times at 93 weeks for 3 of 5 seeds, and `device_quality` at ten times at
+  83 weeks; four times at the default world's weeks generated for 5 of 5 seeds in both packs (about 8,000 to 8,300
+  records and 4,000 members per world). The prereg's `--volume-factor` defaults to 4; a seed whose volume world does
+  not generate in every pack is skipped and recorded in `volume_excluded` ("generator capacity").
+- **No domain literals in code, so rules instead of names.** The removed type is `mapping.primary_entity_type`
+  (`device_quality` product, `claims_integrity` repair_shop; device `lot` is refused because the capa template uses
+  `entity_ids:lot`); the A5 fields are the generator's person fields of kind `name`. `POSITIVE_EXPECTED` is the
+  label constant, since the label word is also a device predicate.
+- **Six sentence templates, not five.** The Bonferroni interval contains the 95% one, but a 95% interval above 0 can
+  have a Bonferroni interval within [-0.05, 0.05], so (leak, at_chance) can occur; it has its own sentence, and it
+  still fails the bar (the bar reads the 95% label).
+- **The bar sentences do not quote the phrase.** They say "the claim that nothing leaks beyond text may not be made"
+  instead of quoting "no leakage", so the docs never hold that phrase in an X5 result.
+- **`x5.json` additions.** Each entry carries `family` (`primary` or `exploratory`); each world block carries
+  `records` and `originals` beside members and non-members; `rules.selection` carries `packs`, because canonical JSON
+  sorts object keys and `leakage_section` takes every order from a list; the prereg also records `stamps`, each pack's
+  `min_window_weeks` and `k_settings`, and `cap.needed`. A covered fact is one per week and channel of a bundle's span.
+- **Seeds.** The volume seeds are the first two seeds, in ascending order, whose volume world generates in every pack
+  (so both packs share them); explicit `--volume-seeds` must be among `--seeds`.
+- **A3 reads a verdict's support as a sum over both channels** (a record's claim for a key is in exactly one channel,
+  `edge.extract.pair`). Where a site's judge and its extraction disagree that constraint can be off: it can make the
+  attack less accurate (an empty interval falls back to the prior), never the evaluation wrong, since truth is the
+  sites' own rows.
+- **The tiny test fixture uses n = 400.** At n = 200 the device world had too few A4 pairs for the `k1_reference` A4
+  control to be labelled `leak` at B = 100 (the run exits 2, as it should); 400 gives a fixture that holds every
+  control.
+- **A harness self-check that fails** (a recomputed detection that differs from the stored run, an A6 probe past its
+  day cap, a world that no longer matches its digest during the run) exits 2 with `harness error:` and writes
+  nothing.
+
+**Pre-stated for B3b and B3c** (written before any B3 prereg or `x5.json` exists):
+
+- **B3b**, on the clean B3a tree, with `TMPDIR=/dev/shm/b3/tmp`, then `cp` byte-identical to
+  `docs/collective/x5/prereg.json`:
+
+  ```
+  python -m mycelic.collective.experiments.x5_inference prereg --packs device_quality,claims_integrity --n 1000 --bootstrap-seed x5-b3 --run-id x5-b3-prereg --runs-dir /dev/shm/b3/runs
+  ```
+
+  The defaults give five seeds and three shadow seeds from the B3a commit, volume factor 4, k settings 2 and 10
+  (device buckets k2 [2, 10, 50] and k10 [10, 50]; claims k2 [2, 10, 50] and k10 [10, 50]), every variant, attack,
+  artifact type and simulated transform, four A6 targets per site, B 10,000 (primary) and 2,000, and a cap of 60
+  pipelines, of which 54 are needed.
+- **B3c**, at HEAD = B3b on a clean tree, never `--allow-dirty`, in the background with a log in `/dev/shm/b3`, then
+  `cp` of `x5.json` to `docs/collective/x5/x5.json` and `leakage_section.md` spliced between LEAKAGE's markers:
+
+  ```
+  python -m mycelic.collective.experiments.x5_inference run --prereg docs/collective/x5/prereg.json --run-id x5-b3 --runs-dir /dev/shm/b3/runs --work-dir /dev/shm/b3/work
+  ```
+
+  The first run is the result. If it exits non-zero or shows a harness bug: stop, record the exit code, the `x5.json`
+  sha256 if written and the controls block here, and report; never re-run with changed code or settings and present
+  that as the result. `/dev/shm/b3` is removed afterwards.
+
+### Disagreements and residuals, for the reviewer
+
+- **An unexpected exception exits 1** (Python's default), which is also the negative control's code; the harness
+  catches its own refusals (exit 2) but not a crash. A crash prints a traceback and writes nothing.
+- **The detection result is recomputed** with `detect(...)` on HQ's store and checked equal to the stored candidates;
+  a mismatch is a harness error, never a result.
+- **`run` names pin differences in two steps**: the code and pack hashes first (no world is built), then the copies'
+  and the worlds' (after building them in the work directory).

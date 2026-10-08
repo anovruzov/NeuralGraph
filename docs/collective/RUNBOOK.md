@@ -21,6 +21,8 @@ This runbook covers what you run on your own machines (STRATEGY sections 11.2 an
   exported or driven live from a console (sections 15 to 17). **Fictional company, synthetic data, an illustration;
   internal use only (STRATEGY section 9.1 puts synthetic-fixture results off the YC demo's screen; showing it to YC
   is the founder's decision); never a measurement.**
+- **part 3, X5** (B3): leakage beyond text, measured by a red team that holds only what HQ holds, on synthetic worlds
+  (section 18). **Synthetic, same-author and internal only; the published leakage figure is LEAKAGE.md section 12.**
 
 None of these produced a number in the sandbox where the code was written. Model weights and api.fda.gov could not
 be reached there, so every figure has to come from your runs. The E1 harness was rehearsed against local fake
@@ -1073,3 +1075,47 @@ the error kinds, and writes nothing.
 - **What the demo does not replace:** E2 (section 13) measures pushdown against central reading; X1 (section 11) is
   the blind planted-pattern test; the public replay (section 12) is the real-data result. Until they run, the demo's
   real-data line says "not yet measured".
+
+# Part 3: X5 (B3)
+
+## 18. X5: leakage beyond text (synthetic, internal only)
+
+X5 (STRATEGY 6.4 and 11.2) asks whether what crosses the Boundary (counts, buckets, verdicts, packets, ids) reveals
+individual records to someone holding only what HQ holds. The harness builds the packs' synthetic worlds, runs G0's
+four stages on each world's member records, turns every HQ artifact into facts, mounts membership, attribute, count,
+reporter-linkage, person-name and presence attacks against matched chance baselines, and writes `x5.json` with
+LEAKAGE.md section 12's body beside it (`leakage_section.md`). ARCHITECTURE section 18 describes the design; the
+published result is LEAKAGE.md section 12. **Everything is synthetic, same-author (the worlds, the red team and the
+defences come from the same AI system) and internal only; X5 here is never a buyer claim.**
+
+Freeze the settings, the code, the pack copies and every world first (the seeds come from the commit; the prereg
+records every candidate and every world digest):
+
+```
+python -m mycelic.collective.experiments.x5_inference prereg --packs device_quality,claims_integrity --n 1000 --run-id <run-id> --runs-dir runs
+```
+
+Then run that prereg once (the work directory holds one world's pipeline at a time and is removed at the end; with
+`--dry-run` the command prints an `estimate:` line of the work from the prereg: pipelines, worlds, A6 questions and
+bootstrap cells, most of the time going to the bootstrap intervals):
+
+```
+python -m mycelic.collective.experiments.x5_inference run --prereg <prereg-file> --run-id <run-id> --runs-dir runs --work-dir runs/x5-work/<run-id>
+```
+
+Exit codes: 0 done; 1 the negative control (person names) is not at chance; 2 a usage, pin, schema, portability or
+self-scan error (nothing written), or a positive control the harness failed to label `leak` ("harness cannot detect a
+known leak"; `x5.json` is written for diagnosis); 130 interrupted.
+
+**Honesty rules for X5.**
+
+- **The first run of a prereg is the result.** A run with changed code or settings is a different experiment, with a
+  new prereg; never re-run until the labels look better.
+- **Never use `--allow-dirty` for a published run.** It is stamped in the prereg and in `x5.json`, and a dirty run
+  is a rehearsal.
+- **Exit 1 or 2 means stop.** Investigate before publishing anything; a failed control is reported, not hidden.
+- **Report whatever the labels say.** A `leak` label on a primary attack means STRATEGY 11.2's X5 bar fails on these
+  worlds, and LEAKAGE.md section 12 opens with that sentence. Never say "no leakage" unless every primary attack is
+  `at_chance` at the Bonferroni level, and even then only for these synthetic worlds.
+- **Send back `x5.json` only** (it holds counts, labels and intervals; no narrative, name, id, path or 64-hex token;
+  the harness checks that before writing). Never send the work directory.

@@ -4,7 +4,8 @@
 site boundary for them and for narrative text. STRATEGY section 6.4 calls this the weakest leak mode: counts and
 claims can reveal things that no text scan sees. X5 (attribute and membership inference by a red team holding an
 HQ-level token) must run before anyone says "no leakage". Every `leakage.json` says `"scope": "text-only"` and lists
-what it does not cover (section 7).
+what it does not cover (section 7). Section 12 is X5 on synthetic worlds (B3): the published leakage figure, filled
+from its run file whichever way it falls.
 
 Every number in this document comes from runs in the worktree on **synthetic data** (the packs' seeded worlds, with
 fictional sites, products, people and narratives) and a **fake model** (an in-process provider that replays the
@@ -490,3 +491,117 @@ against a rebuilt world in the tests (`CommittedRunTests`).
 **What the run-file checks do not cover.** They are text checks, as everything here: they cannot show that a run
 file's counts, buckets, ranks or co-mentions reveal nothing (section 7, X5). A run with `--routing` names the endpoint
 and the model tag the founder configured; that is a label, not a secret.
+
+## 12. X5: leakage beyond text (the published figure)
+
+X5 here is synthetic, same-author and internal only: the worlds, the red team and the defences were written by the
+same AI system on the packs' synthetic generators, so these figures describe these artifacts on these worlds and are
+never a buyer claim.
+
+Sections 1 to 11 show that text did not leave. X5 (STRATEGY 6.4 and 11.2) asks what the things that do leave (counts,
+buckets, verdicts, packets, ids, ranks) reveal about individual records, against a pass bar fixed before running: at
+chance or near it. `experiments/x5_inference.py` runs it (RUNBOOK section 18, ARCHITECTURE section 18) and
+`experiments/x5_attacks.py` holds the attacks as pure functions. Whatever the result, it is published here; nothing
+in this section is a "no leakage" claim unless the stored labels below say so.
+
+**What the red team holds.** Exactly what HQ holds after G0's four stages (edge, pushdown, follow-up, run files) on a
+world's member records, each as its own artifact type: the cells by channel (`cells_codes`, `cells_text`), the usage
+summaries (`usage_summary`), HQ's own questions and verdicts (`verdicts_passive`), the packets (`packets`), the drafts,
+outbox, approvals ledger and central draft ledger (`followup`), HQ's store results (the detection result, recomputed
+from the store, and the conclusions, `hq_results`) and the run files (`run_files`); `all` is their union. It knows
+the packs, the lexical extractor and every site's master data. It never holds a site database, a narrative, a
+person or reporter value, a site's packet directory or the generator's truth.
+
+**What it may do.** Read those artifacts, and ask questions of its own through the real, budgeted site verifier
+(`verdicts_active`, attack A6): a few sampled entities per site, every window of the pack's minimum length, starting
+the day after the pipeline's `as_of`, never more new windows per entity per day than the pack's budget. A `budget`
+answer is asked again on a later day and never read as absence.
+
+**The worlds.** Each world is a pack's seeded synthetic world of 2n records; an original record is a member by a
+seeded coin, a forwarded copy follows its origin, and only members go through the pipeline, so non-members are the
+matched outsiders for membership. Shadow worlds (other seeds) never run a pipeline: they give every prior and the A1
+threshold, never target-world truth. Variants: `default` (the pack), `k2` and `k10` (egress k and the verdict
+buckets), `rmd_flipped` (`require_master_data` negated), `minus_type` (the pack's primary entity type no longer
+leaves) and `volume` (every site's weekly volume times the pre-registered factor); `k1_reference` replaces the default
+worlds' cells by exact counts (reference, not deployable) and `a5_injected` adds a cell naming each A5 target's
+surname after the Boundary (a positive control; the Boundary would refuse it).
+
+**The attacks** (per-target truth never reaches an attack function; each has a matched chance baseline that uses the
+same targets and the attacker's knowledge minus the artifact):
+
+| Attack | Target | Truth | Matched baseline |
+|---|---|---|---|
+| A1 membership (`A1_calibrated` primary, `A1_fixed` exploratory) | original records of a (site, week) stratum, balanced | member or not | 0.5 exactly |
+| A2 predicate attribute inference | member records with a structured entity and an affirmed predicate | the record's affirmed predicates | the shadow prior chain (entity and site, entity, type, overall) |
+| A3 count inference inside the protected range | every true cell with 1 <= n < k | n | the shadow mode over [1, k-1] |
+| A4 reporter linkage inside the protected range | every pair of records in a true cell with 2 <= n < k | same reporter or not | the shadow majority |
+| A5 person-name negative control | member records with a name field | the surname | the shadow mode per field |
+| A6 presence oracle | sampled (site, entity, window) | a member record at the site names the entity in the window | the shadow presence share |
+
+**Labels** (pre-registered; read only from the cluster-bootstrap interval of the advantage over the matched
+baseline, clusters (seed, site, week), for A6 (seed, site, window start); Wilson intervals of the accuracy are shown,
+never used for a label):
+
+- `leak`: `ci_low > 0`
+- `at_chance`: `-0.05 <= ci_low and ci_high <= 0.05`
+- `inconclusive`: `otherwise`, and every entry with no target
+
+Only the eight primary tests (A1_calibrated, A2, A3 and A4 on `all`, default variant, both packs) also carry a
+Bonferroni label, at alpha 0.05 / 8 from the same bootstrap replicates (so its interval contains the 95% one); every
+other entry is exploratory.
+
+**The primary sentences** (`x5_attacks.SENTENCES`, keyed by the 95% label and the Bonferroni label; one per primary
+test, in pack order, then A1_calibrated, A2, A3, A4). Since the Bonferroni interval contains the 95% one, six pairs
+can occur:
+
+- (leak, leak): On {pack}, {attack_name} leaks: advantage {estimate} over chance (95% CI {ci_low} to {ci_high}),
+  above 0 at the 95% and at the Bonferroni level for {family_size} tests; this fails STRATEGY 11.2's X5 bar (at chance
+  or near it).
+- (leak, at_chance): On {pack}, {attack_name} shows a leak at the 95% level (advantage {estimate}, 95% CI {ci_low} to
+  {ci_high}) that lies within 0.05 of chance at the Bonferroni level for {family_size} tests; this still fails
+  STRATEGY 11.2's X5 bar (at chance or near it), since the pre-registered bar reads the 95% label.
+- (leak, inconclusive): On {pack}, {attack_name} shows a leak at the 95% level (advantage {estimate}, 95% CI {ci_low}
+  to {ci_high}) that does not stay above 0 at the Bonferroni level for {family_size} tests; this still fails STRATEGY
+  11.2's X5 bar (at chance or near it), since the attack is not shown to be at chance.
+- (at_chance, at_chance): On {pack}, {attack_name} is at chance: advantage {estimate} (95% CI {ci_low} to {ci_high}),
+  within 0.05 of chance at the 95% and at the Bonferroni level for {family_size} tests; this meets STRATEGY 11.2's X5
+  bar for this attack on synthetic, same-author worlds.
+- (at_chance, inconclusive): On {pack}, {attack_name} is within 0.05 of chance at the 95% level only (advantage
+  {estimate}, 95% CI {ci_low} to {ci_high}), not at the Bonferroni level for {family_size} tests; inconclusive against
+  STRATEGY 11.2's X5 bar.
+- (inconclusive, inconclusive): On {pack}, {attack_name} is inconclusive: advantage {estimate} (95% CI {ci_low} to
+  {ci_high}); this run does not decide STRATEGY 11.2's X5 bar for this attack.
+
+**The bar sentence** (`x5_attacks.BAR_SENTENCES`; exactly one opens the result: `fails` when any primary 95% label is
+`leak`, else `met` when every primary Bonferroni label is `at_chance`, else `undecided`):
+
+- fails: STRATEGY 11.2's X5 bar fails on these synthetic worlds: at least one primary attack leaks at the 95% level;
+  the claim that nothing leaks beyond text may not be made.
+- met: STRATEGY 11.2's X5 bar is met on these synthetic, same-author worlds only: all {family_size} primary attacks
+  are at chance at the Bonferroni level; this describes these artifacts on these worlds and is never a buyer claim.
+- undecided: STRATEGY 11.2's X5 bar is undecided on these synthetic worlds: no primary attack leaks at the 95% level,
+  but not every primary attack is at chance at the Bonferroni level; the claim that nothing leaks beyond text may not
+  be made.
+
+**Controls.** Positive controls, in real artifact formats and read by the run's own extractors, must be labelled
+`leak` on `all`: `k1_reference` for A1_calibrated, A2, A3 and A4, and `a5_injected` for A5; otherwise the run exits 2
+("harness cannot detect a known leak") and nothing is published. The negative control is A5 on `all` for every pack
+and measured variant (nothing that crosses names a person): it must be `at_chance` or `inconclusive` with an interval
+that holds 0, otherwise the run exits 1 and nothing is published until it is investigated.
+
+**Designed disclosures** (STRATEGY 6.4; separate rows, never labelled `leak`, never mixed into A3 or A4): a `'<k'`
+cell says an entity had at least one record with a predicate at a site in a week, and a cell of at least k is an exact
+count. A1 and A2 do read the `'<k'` presence cells, because that is the X5 question; if they leak, presence cells are
+the cause and the simulated transforms below show what removing or coarsening them would buy.
+
+**Mitigations.** The measured knobs are the variants (`k2`, `k10`, `rmd_flipped`, `minus_type`, `volume`), each run
+through the whole pipeline. The simulated transforms (`drop_lt_k`: cells below k removed; `four_week`: cells rebuilt
+over four-week periods at the pack's k) are labelled exactly "simulated: not implemented in the Boundary; implementing
+it is a code change": they replace only the cells, keep the rest of the unmitigated run's artifacts and do not re-run
+detection.
+
+### The result
+
+<!-- x5:begin -->
+Filled at B3c from docs/collective/x5/x5.json; nothing here until then.
+<!-- x5:end -->
