@@ -2532,6 +2532,46 @@ the B3b prereg; corrected in audit round 4, which also changed the X5 code and t
   sha256 if written and the controls block here, and report; never re-run with changed code or settings and present
   that as the result. `/dev/shm/b3` is removed afterwards.
 
+### B3b and B3c: what ran, and the result
+
+- **B3b** (commit `a91fd21`): the prereg command above, made on `0856dde` rather than on the B3a tree, since audit
+  round 4 had changed the X5 code (its merge note says the prereg must be made on a commit that contains it); clean
+  tree, `allow_dirty` false; 54 of 60 pipelines needed. `docs/collective/x5/prereg.json`, sha256 `1836ce69...bc7f2f`.
+- **B3c**: the `run` command above, once, on a clean tree without `--allow-dirty`, in the background with its log in
+  `/dev/shm/b3`. Started 2026-10-08 22:35:38 UTC, finished 23:15:09 UTC (`timings.total_s` 2,232.8), **exit 0**.
+  `x5.json` sha256 `00d9d1a264553d67c2b3b3f3a3eb23760bbc9a606fb8ed43b6f62b85266c5dcb` (839,230 bytes), content hash
+  `a5d2f9f341bfc025ef6f24f9e3b0f545`, copied byte-identical to `docs/collective/x5/x5.json`; `leakage_section.md`
+  sha256 `0cf03248eda78aa021edd9f2d1e71f51f8ab6030d2209b08ae18b809488cdd83`, spliced byte-identical between
+  LEAKAGE's markers. `/dev/shm/b3` was removed afterwards.
+- **A commit landed during the run.** HEAD was `a91fd21` when the run started; `d9d65c4` (a public-data probe under
+  `tools/market/`, its test and the market workflow; nothing under `mycelic/`, `git diff a91fd21 d9d65c4 -- mycelic/`
+  is empty) was committed at 22:38:16 UTC. The run reads `code_commit` when it writes `x5.json`, so `x5.json` names
+  `d9d65c4` (its `prereg_code_commit` is `0856dde`); `code_dirty` is false and `code_hash` equals the prereg's, which
+  the run checks before building any world. No other commit was made until the run had finished.
+- **The result: the bar fails.** On both packs, membership inference (A1, calibrated) and predicate attribute
+  inference (A2) leak at the 95% and the Bonferroni level: A1 advantage 0.971 (device_quality) and 0.956
+  (claims_integrity), A2 0.701 and 0.676. Count inference inside the protected range (A3) and reporter linkage (A4)
+  are at chance on both. Every control holds (10 positive, 12 negative). LEAKAGE section 12 carries every row.
+- **Where the leak comes from** (exploratory rows of the same run): the cells. The two cell types alone give A1
+  0.764 and 0.744 (device_quality, codes and text channels) and 0.657 and 0.800 (claims_integrity); verdicts,
+  packets, follow-up, HQ results and run files are each at chance for A1. The allowed-fields reference (exact counts
+  of the fields a central system may already receive) gives A1 0.763 and 0.656 and A2 0.362 and 0.277; the cells add
+  A1 0.208 and 0.300 and A2 0.339 and 0.397 beyond it. The `'<k'` presence cells, STRATEGY 6.4's designed
+  disclosure, are what section 12's design note said would be the cause if A1 or A2 leaked.
+- **The measured knobs do not close it**: A1 on `all` is 0.957 at k2 and 0.975 at k10 (device_quality), 0.895 and
+  0.965 (claims_integrity); `minus_type` 0.853 and 0.851; `volume` 0.899 and 0.916.
+- **The simulated transforms** (not implemented in the Boundary): removing every cell below k (`drop_lt_k`) brings A1
+  on the cells to chance and A1 on `all` to 0.073 (device_quality, still `leak`) and to chance (claims_integrity),
+  with A2 on `all` at 0.018 and 0.026 (`leak`); but in these worlds it removes every cell but 3 of 16,323 and all
+  16,292, so it would remove the detection signal with them. Four-week cells remove 4 to 5% of the cells and leave
+  A1 on `all` at 0.958 and 0.941.
+- **What may be said.** Text and person values did not leave (sections 1 to 11; A5 is at chance on every artifact type
+  of every measured variant, 162 entries, and leaks only in the injected positive control, as designed). The
+  counts that leave tell an attacker who already holds a candidate record whether that record is in a site's data,
+  and which failure mode it carries, with high accuracy on these synthetic, same-author worlds. "Nothing leaks
+  beyond text" may not be said. Closing this would be a code change (for example noise on presence, or a threshold
+  that keeps detection), measured by a new X5 prereg; none is made here.
+
 ### Disagreements and residuals, for the reviewer
 
 - **An unexpected exception exits 1** (Python's default), which is also the negative control's code; the harness

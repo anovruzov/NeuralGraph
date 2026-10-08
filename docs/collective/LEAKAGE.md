@@ -631,5 +631,424 @@ also computes a bar outcome every time the suite runs; it is a fixture and is ne
 ### The result
 
 <!-- x5:begin -->
-Filled at B3c from docs/collective/x5/x5.json; nothing here until then.
+STRATEGY 11.2's X5 bar fails on these synthetic worlds: at least one primary attack leaks at the 95% level; the claim that nothing leaks beyond text may not be made.
+
+On device_quality, membership inference (A1, calibrated threshold) leaks: advantage 0.971 over chance (95% CI 0.965 to 0.977), above 0 at the 95% and at the Bonferroni level for 8 tests; this fails STRATEGY 11.2's X5 bar (at chance or near it).
+On device_quality, predicate attribute inference (A2) leaks: advantage 0.701 over chance (95% CI 0.687 to 0.715), above 0 at the 95% and at the Bonferroni level for 8 tests; this fails STRATEGY 11.2's X5 bar (at chance or near it).
+On device_quality, count inference inside the protected range (A3) is at chance: advantage 0.000 (95% CI 0.000 to 0.000), within 0.05 of chance at the 95% and at the Bonferroni level for 8 tests; this meets STRATEGY 11.2's X5 bar for this attack on synthetic, same-author worlds.
+On device_quality, reporter linkage inside the protected range (A4) is at chance: advantage 0.000 (95% CI 0.000 to 0.000), within 0.05 of chance at the 95% and at the Bonferroni level for 8 tests; this meets STRATEGY 11.2's X5 bar for this attack on synthetic, same-author worlds.
+On claims_integrity, membership inference (A1, calibrated threshold) leaks: advantage 0.956 over chance (95% CI 0.948 to 0.964), above 0 at the 95% and at the Bonferroni level for 8 tests; this fails STRATEGY 11.2's X5 bar (at chance or near it).
+On claims_integrity, predicate attribute inference (A2) leaks: advantage 0.676 over chance (95% CI 0.661 to 0.690), above 0 at the 95% and at the Bonferroni level for 8 tests; this fails STRATEGY 11.2's X5 bar (at chance or near it).
+On claims_integrity, count inference inside the protected range (A3) is at chance: advantage 0.000 (95% CI 0.000 to 0.000), within 0.05 of chance at the 95% and at the Bonferroni level for 8 tests; this meets STRATEGY 11.2's X5 bar for this attack on synthetic, same-author worlds.
+On claims_integrity, reporter linkage inside the protected range (A4) is at chance: advantage 0.000 (95% CI 0.000 to 0.000), within 0.05 of chance at the 95% and at the Bonferroni level for 8 tests; this meets STRATEGY 11.2's X5 bar for this attack on synthetic, same-author worlds.
+
+X5 here is synthetic, same-author and internal only: the worlds, the red team and the defences were written by the same AI system on the packs' synthetic generators, so these figures describe these artifacts on these worlds and are never a buyer claim.
+
+### Primary (8 tests; Bonferroni alpha 0.006)
+
+| Pointer | n | coverage | accuracy | baseline | advantage | 95% CI | label | Bonferroni CI | Bonferroni label |
+|---|---|---|---|---|---|---|---|---|---|
+| `/results/device_quality/default/A1_calibrated/all` | 5530 | 0.988 | 0.986 | 0.500 | 0.971 | [0.965, 0.977] | leak | [0.962, 0.979] | leak |
+| `/results/device_quality/default/A2/all` | 4364 | 0.997 | 0.886 | 0.185 | 0.701 | [0.687, 0.715] | leak | [0.681, 0.721] | leak |
+| `/results/device_quality/default/A3/all` | 16320 | 0.031 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A4/all` | 162 | 0.000 | 0.741 | 0.741 | 0.000 | [0.000, 0.000] | at_chance | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A1_calibrated/all` | 5214 | 0.984 | 0.978 | 0.500 | 0.956 | [0.948, 0.964] | leak | [0.944, 0.967] | leak |
+| `/results/claims_integrity/default/A2/all` | 4131 | 1.000 | 0.863 | 0.188 | 0.676 | [0.661, 0.690] | leak | [0.655, 0.696] | leak |
+| `/results/claims_integrity/default/A3/all` | 16292 | 0.123 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A4/all` | 276 | 0.000 | 0.772 | 0.772 | 0.000 | [0.000, 0.000] | at_chance | [0.000, 0.000] | at_chance |
+
+### By artifact type (default variant; exploratory)
+
+| Pointer | n | coverage | accuracy | baseline | advantage | 95% CI | label |
+|---|---|---|---|---|---|---|---|
+| `/results/device_quality/default/A1_calibrated/cells_codes` | 5530 | 0.788 | 0.882 | 0.500 | 0.764 | [0.747, 0.782] | leak |
+| `/results/device_quality/default/A1_calibrated/cells_text` | 5530 | 0.744 | 0.872 | 0.500 | 0.744 | [0.727, 0.761] | leak |
+| `/results/device_quality/default/A1_calibrated/allowed_fields_reference` | 5530 | 0.788 | 0.881 | 0.500 | 0.763 | [0.746, 0.780] | leak |
+| `/results/device_quality/default/A1_calibrated/allowed_plus_all` | 5530 | 0.988 | 0.986 | 0.500 | 0.971 | [0.965, 0.977] | leak |
+| `/results/device_quality/default/A1_fixed/cells_codes` | 5530 | 0.788 | 0.882 | 0.500 | 0.764 | [0.747, 0.782] | leak |
+| `/results/device_quality/default/A1_fixed/cells_text` | 5530 | 0.744 | 0.872 | 0.500 | 0.744 | [0.727, 0.761] | leak |
+| `/results/device_quality/default/A1_fixed/verdicts_passive` | 5530 | 0.988 | 0.501 | 0.500 | 0.001 | [-0.004, 0.007] | at_chance |
+| `/results/device_quality/default/A1_fixed/verdicts_active` | 5530 | 0.988 | 0.500 | 0.500 | 0.001 | [-0.004, 0.005] | at_chance |
+| `/results/device_quality/default/A1_fixed/packets` | 5530 | 0.988 | 0.501 | 0.500 | 0.003 | [-0.002, 0.008] | at_chance |
+| `/results/device_quality/default/A1_fixed/followup` | 5530 | 0.988 | 0.501 | 0.500 | 0.003 | [-0.003, 0.008] | at_chance |
+| `/results/device_quality/default/A1_fixed/hq_results` | 5530 | 0.988 | 0.501 | 0.500 | 0.001 | [-0.004, 0.007] | at_chance |
+| `/results/device_quality/default/A1_fixed/run_files` | 5530 | 0.988 | 0.502 | 0.500 | 0.004 | [-0.003, 0.010] | at_chance |
+| `/results/device_quality/default/A1_fixed/all` | 5530 | 0.988 | 0.986 | 0.500 | 0.971 | [0.964, 0.977] | leak |
+| `/results/device_quality/default/A1_fixed/allowed_fields_reference` | 5530 | 0.788 | 0.881 | 0.500 | 0.763 | [0.745, 0.780] | leak |
+| `/results/device_quality/default/A1_fixed/allowed_plus_all` | 5530 | 0.988 | 0.986 | 0.500 | 0.971 | [0.965, 0.977] | leak |
+| `/results/device_quality/default/A2/cells_codes` | 4364 | 0.845 | 0.547 | 0.185 | 0.363 | [0.345, 0.380] | leak |
+| `/results/device_quality/default/A2/cells_text` | 4364 | 0.696 | 0.659 | 0.185 | 0.474 | [0.459, 0.489] | leak |
+| `/results/device_quality/default/A2/verdicts_passive` | 4364 | 0.310 | 0.193 | 0.185 | 0.008 | [-0.000, 0.016] | at_chance |
+| `/results/device_quality/default/A2/verdicts_active` | 4364 | 0.134 | 0.212 | 0.185 | 0.027 | [0.021, 0.033] | leak |
+| `/results/device_quality/default/A2/packets` | 4364 | 0.184 | 0.184 | 0.185 | -0.001 | [-0.007, 0.005] | at_chance |
+| `/results/device_quality/default/A2/followup` | 4364 | 0.234 | 0.179 | 0.185 | -0.005 | [-0.013, 0.002] | at_chance |
+| `/results/device_quality/default/A2/hq_results` | 4364 | 0.310 | 0.193 | 0.185 | 0.008 | [-0.000, 0.016] | at_chance |
+| `/results/device_quality/default/A2/run_files` | 4364 | 0.375 | 0.185 | 0.185 | 0.000 | [-0.009, 0.009] | at_chance |
+| `/results/device_quality/default/A2/allowed_fields_reference` | 4364 | 0.848 | 0.547 | 0.185 | 0.362 | [0.344, 0.379] | leak |
+| `/results/device_quality/default/A2/allowed_plus_all` | 4364 | 0.997 | 0.886 | 0.185 | 0.701 | [0.688, 0.715] | leak |
+| `/results/device_quality/default/A3/cells_codes` | 16320 | 0.000 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A3/cells_text` | 16320 | 0.000 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A3/verdicts_passive` | 16320 | 0.000 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A3/verdicts_active` | 16320 | 0.000 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A3/packets` | 16320 | 0.000 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A3/followup` | 16320 | 0.000 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A3/hq_results` | 16320 | 0.000 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A3/run_files` | 16320 | 0.000 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A3/allowed_fields_reference` | 16320 | 0.434 | 0.994 | 0.990 | 0.004 | [0.003, 0.006] | leak |
+| `/results/device_quality/default/A3/allowed_plus_all` | 16320 | 0.446 | 0.994 | 0.990 | 0.004 | [0.003, 0.005] | leak |
+| `/results/device_quality/default/A4/cells_codes` | 162 | 0.000 | 0.741 | 0.741 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A4/cells_text` | 162 | 0.000 | 0.741 | 0.741 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A4/allowed_fields_reference` | 162 | 0.000 | 0.741 | 0.741 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A4/allowed_plus_all` | 162 | 0.000 | 0.741 | 0.741 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A5/cells_codes` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A5/cells_text` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A5/usage_summary` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A5/verdicts_passive` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A5/verdicts_active` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A5/packets` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A5/followup` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A5/hq_results` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A5/run_files` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A5/all` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A5/allowed_fields_reference` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A5/allowed_plus_all` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A6/verdicts_active` | 9216 | 1.000 | 1.000 | 0.685 | 0.315 | [0.306, 0.325] | leak |
+| `/results/claims_integrity/default/A1_calibrated/cells_codes` | 5214 | 0.668 | 0.829 | 0.500 | 0.657 | [0.636, 0.678] | leak |
+| `/results/claims_integrity/default/A1_calibrated/cells_text` | 5214 | 0.814 | 0.900 | 0.500 | 0.800 | [0.784, 0.817] | leak |
+| `/results/claims_integrity/default/A1_calibrated/allowed_fields_reference` | 5214 | 0.668 | 0.828 | 0.500 | 0.656 | [0.635, 0.677] | leak |
+| `/results/claims_integrity/default/A1_calibrated/allowed_plus_all` | 5214 | 0.984 | 0.978 | 0.500 | 0.956 | [0.948, 0.964] | leak |
+| `/results/claims_integrity/default/A1_fixed/cells_codes` | 5214 | 0.668 | 0.829 | 0.500 | 0.657 | [0.637, 0.678] | leak |
+| `/results/claims_integrity/default/A1_fixed/cells_text` | 5214 | 0.814 | 0.900 | 0.500 | 0.800 | [0.783, 0.816] | leak |
+| `/results/claims_integrity/default/A1_fixed/verdicts_passive` | 5214 | 0.984 | 0.499 | 0.500 | -0.002 | [-0.009, 0.005] | at_chance |
+| `/results/claims_integrity/default/A1_fixed/verdicts_active` | 5214 | 0.984 | 0.499 | 0.500 | -0.003 | [-0.008, 0.003] | at_chance |
+| `/results/claims_integrity/default/A1_fixed/packets` | 5214 | 0.984 | 0.497 | 0.500 | -0.005 | [-0.012, 0.002] | at_chance |
+| `/results/claims_integrity/default/A1_fixed/followup` | 5214 | 0.984 | 0.498 | 0.500 | -0.004 | [-0.012, 0.003] | at_chance |
+| `/results/claims_integrity/default/A1_fixed/hq_results` | 5214 | 0.984 | 0.499 | 0.500 | -0.002 | [-0.009, 0.005] | at_chance |
+| `/results/claims_integrity/default/A1_fixed/run_files` | 5214 | 0.984 | 0.498 | 0.500 | -0.003 | [-0.011, 0.005] | at_chance |
+| `/results/claims_integrity/default/A1_fixed/all` | 5214 | 0.984 | 0.978 | 0.500 | 0.956 | [0.948, 0.964] | leak |
+| `/results/claims_integrity/default/A1_fixed/allowed_fields_reference` | 5214 | 0.668 | 0.828 | 0.500 | 0.656 | [0.635, 0.675] | leak |
+| `/results/claims_integrity/default/A1_fixed/allowed_plus_all` | 5214 | 0.984 | 0.978 | 0.500 | 0.956 | [0.948, 0.964] | leak |
+| `/results/claims_integrity/default/A2/cells_codes` | 4131 | 0.750 | 0.466 | 0.188 | 0.278 | [0.261, 0.296] | leak |
+| `/results/claims_integrity/default/A2/cells_text` | 4131 | 0.771 | 0.717 | 0.188 | 0.529 | [0.513, 0.545] | leak |
+| `/results/claims_integrity/default/A2/verdicts_passive` | 4131 | 0.519 | 0.199 | 0.188 | 0.011 | [-0.001, 0.023] | at_chance |
+| `/results/claims_integrity/default/A2/verdicts_active` | 4131 | 0.245 | 0.216 | 0.188 | 0.028 | [0.020, 0.036] | leak |
+| `/results/claims_integrity/default/A2/packets` | 4131 | 0.319 | 0.185 | 0.188 | -0.003 | [-0.013, 0.007] | at_chance |
+| `/results/claims_integrity/default/A2/followup` | 4131 | 0.389 | 0.182 | 0.188 | -0.005 | [-0.016, 0.005] | at_chance |
+| `/results/claims_integrity/default/A2/hq_results` | 4131 | 0.519 | 0.199 | 0.188 | 0.011 | [-0.000, 0.022] | at_chance |
+| `/results/claims_integrity/default/A2/run_files` | 4131 | 0.575 | 0.195 | 0.188 | 0.008 | [-0.005, 0.020] | at_chance |
+| `/results/claims_integrity/default/A2/allowed_fields_reference` | 4131 | 0.756 | 0.464 | 0.188 | 0.277 | [0.259, 0.296] | leak |
+| `/results/claims_integrity/default/A2/allowed_plus_all` | 4131 | 1.000 | 0.862 | 0.188 | 0.674 | [0.660, 0.688] | leak |
+| `/results/claims_integrity/default/A3/cells_codes` | 16292 | 0.000 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A3/cells_text` | 16292 | 0.000 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A3/verdicts_passive` | 16292 | 0.000 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A3/verdicts_active` | 16292 | 0.000 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A3/packets` | 16292 | 0.000 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A3/followup` | 16292 | 0.000 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A3/hq_results` | 16292 | 0.000 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A3/run_files` | 16292 | 0.000 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A3/allowed_fields_reference` | 16292 | 0.356 | 0.989 | 0.984 | 0.005 | [0.004, 0.006] | leak |
+| `/results/claims_integrity/default/A3/allowed_plus_all` | 16292 | 0.426 | 0.989 | 0.984 | 0.005 | [0.004, 0.006] | leak |
+| `/results/claims_integrity/default/A4/cells_codes` | 276 | 0.000 | 0.772 | 0.772 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A4/cells_text` | 276 | 0.000 | 0.772 | 0.772 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A4/allowed_fields_reference` | 276 | 0.000 | 0.772 | 0.772 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A4/allowed_plus_all` | 276 | 0.000 | 0.772 | 0.772 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A5/cells_codes` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A5/cells_text` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A5/usage_summary` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A5/verdicts_passive` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A5/verdicts_active` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A5/packets` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A5/followup` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A5/hq_results` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A5/run_files` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A5/all` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A5/allowed_fields_reference` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A5/allowed_plus_all` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A6/verdicts_active` | 10392 | 1.000 | 1.000 | 0.771 | 0.229 | [0.220, 0.237] | leak |
+
+### By k (exploratory)
+
+| Pointer | n | coverage | accuracy | baseline | advantage | 95% CI | label |
+|---|---|---|---|---|---|---|---|
+| `/results/device_quality/k2/A1_calibrated/all` | 5530 | 0.988 | 0.978 | 0.500 | 0.957 | [0.949, 0.964] | leak |
+| `/results/device_quality/k2/A2/all` | 4364 | 0.997 | 0.821 | 0.185 | 0.636 | [0.621, 0.652] | leak |
+| `/results/device_quality/k2/A3/all` | 16158 | 0.000 | 1.000 | 1.000 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/k10/A1_calibrated/all` | 5530 | 0.988 | 0.988 | 0.500 | 0.975 | [0.969, 0.981] | leak |
+| `/results/device_quality/k10/A2/all` | 4364 | 0.997 | 0.906 | 0.185 | 0.721 | [0.708, 0.735] | leak |
+| `/results/device_quality/k10/A3/all` | 16323 | 0.078 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/k10/A4/all` | 171 | 0.000 | 0.749 | 0.749 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/k2/A1_calibrated/all` | 5214 | 0.984 | 0.947 | 0.500 | 0.895 | [0.882, 0.907] | leak |
+| `/results/claims_integrity/k2/A2/all` | 4131 | 1.000 | 0.702 | 0.188 | 0.514 | [0.498, 0.530] | leak |
+| `/results/claims_integrity/k2/A3/all` | 16028 | 0.000 | 1.000 | 1.000 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/k10/A1_calibrated/all` | 5214 | 0.984 | 0.983 | 0.500 | 0.965 | [0.958, 0.973] | leak |
+| `/results/claims_integrity/k10/A2/all` | 4131 | 1.000 | 0.874 | 0.188 | 0.686 | [0.671, 0.700] | leak |
+| `/results/claims_integrity/k10/A3/all` | 16292 | 0.147 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/k10/A4/all` | 276 | 0.000 | 0.772 | 0.772 | 0.000 | [0.000, 0.000] | at_chance |
+
+### By variant: rmd_flipped and minus_type (exploratory)
+
+| Pointer | n | coverage | accuracy | baseline | advantage | 95% CI | label |
+|---|---|---|---|---|---|---|---|
+| `/results/device_quality/rmd_flipped/A1_calibrated/all` | 5530 | 0.988 | 0.987 | 0.500 | 0.974 | [0.968, 0.980] | leak |
+| `/results/device_quality/rmd_flipped/A2/all` | 4364 | 1.000 | 0.899 | 0.185 | 0.714 | [0.700, 0.728] | leak |
+| `/results/device_quality/rmd_flipped/A3/all` | 17418 | 0.030 | 0.991 | 0.991 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/rmd_flipped/A4/all` | 165 | 0.000 | 0.745 | 0.745 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/minus_type/A1_calibrated/all` | 5530 | 0.861 | 0.927 | 0.500 | 0.853 | [0.839, 0.866] | leak |
+| `/results/device_quality/minus_type/A2/all` | 4364 | 0.704 | 0.677 | 0.185 | 0.492 | [0.477, 0.507] | leak |
+| `/results/device_quality/minus_type/A3/all` | 9441 | 0.036 | 0.992 | 0.992 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/minus_type/A4/all` | 75 | 0.000 | 0.760 | 0.760 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/rmd_flipped/A1_calibrated/all` | 5214 | 0.965 | 0.968 | 0.500 | 0.936 | [0.926, 0.946] | leak |
+| `/results/claims_integrity/rmd_flipped/A2/all` | 4131 | 0.944 | 0.806 | 0.188 | 0.618 | [0.603, 0.633] | leak |
+| `/results/claims_integrity/rmd_flipped/A3/all` | 12247 | 0.134 | 0.983 | 0.983 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/rmd_flipped/A4/all` | 216 | 0.000 | 0.778 | 0.778 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/minus_type/A1_calibrated/all` | 5214 | 0.912 | 0.926 | 0.500 | 0.851 | [0.837, 0.865] | leak |
+| `/results/claims_integrity/minus_type/A2/all` | 4131 | 0.732 | 0.663 | 0.188 | 0.475 | [0.459, 0.490] | leak |
+| `/results/claims_integrity/minus_type/A3/all` | 10130 | 0.145 | 0.986 | 0.986 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/minus_type/A4/all` | 149 | 0.000 | 0.758 | 0.758 | 0.000 | [0.000, 0.000] | at_chance |
+
+### Volume (exploratory)
+
+| Pointer | n | coverage | accuracy | baseline | advantage | 95% CI | label |
+|---|---|---|---|---|---|---|---|
+| `/results/device_quality/volume/A1_calibrated/all` | 11732 | 0.987 | 0.949 | 0.500 | 0.899 | [0.891, 0.907] | leak |
+| `/results/device_quality/volume/A2/all` | 6882 | 0.998 | 0.572 | 0.215 | 0.358 | [0.343, 0.373] | leak |
+| `/results/device_quality/volume/A3/all` | 24733 | 0.005 | 0.954 | 0.954 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/volume/A4/all` | 1142 | 0.000 | 0.807 | 0.807 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/volume/A1_calibrated/all` | 11256 | 0.982 | 0.958 | 0.500 | 0.916 | [0.908, 0.923] | leak |
+| `/results/claims_integrity/volume/A2/all` | 6601 | 1.000 | 0.724 | 0.191 | 0.533 | [0.520, 0.546] | leak |
+| `/results/claims_integrity/volume/A3/all` | 24561 | 0.009 | 0.931 | 0.931 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/volume/A4/all` | 2023 | 0.000 | 0.750 | 0.750 | 0.000 | [0.000, 0.000] | at_chance |
+
+### Designed disclosures (STRATEGY 6.4; never labelled leak)
+
+| Pointer | cells below k | members with keys | members with every key present | exact cells | exact counts correct | label |
+|---|---|---|---|---|---|---|
+| `/packs/device_quality/variants/default/designed_disclosures` | 16320 | 4625 | 1.000 | 3 | 1.000 | designed disclosure, STRATEGY 6.4 |
+| `/packs/device_quality/variants/k2/designed_disclosures` | 16158 | 4625 | 1.000 | 165 | 1.000 | designed disclosure, STRATEGY 6.4 |
+| `/packs/device_quality/variants/k10/designed_disclosures` | 16323 | 4625 | 1.000 | 0 | null | designed disclosure, STRATEGY 6.4 |
+| `/packs/device_quality/variants/rmd_flipped/designed_disclosures` | 17418 | 4628 | 1.000 | 3 | 1.000 | designed disclosure, STRATEGY 6.4 |
+| `/packs/device_quality/variants/minus_type/designed_disclosures` | 9441 | 4025 | 1.000 | 0 | null | designed disclosure, STRATEGY 6.4 |
+| `/packs/device_quality/variants/volume/designed_disclosures` | 24733 | 7293 | 1.000 | 58 | 1.000 | designed disclosure, STRATEGY 6.4 |
+| `/packs/claims_integrity/variants/default/designed_disclosures` | 16292 | 4426 | 1.000 | 0 | null | designed disclosure, STRATEGY 6.4 |
+| `/packs/claims_integrity/variants/k2/designed_disclosures` | 16028 | 4426 | 1.000 | 264 | 1.000 | designed disclosure, STRATEGY 6.4 |
+| `/packs/claims_integrity/variants/k10/designed_disclosures` | 16292 | 4426 | 1.000 | 0 | null | designed disclosure, STRATEGY 6.4 |
+| `/packs/claims_integrity/variants/rmd_flipped/designed_disclosures` | 12247 | 4323 | 1.000 | 0 | null | designed disclosure, STRATEGY 6.4 |
+| `/packs/claims_integrity/variants/minus_type/designed_disclosures` | 10130 | 4112 | 1.000 | 0 | null | designed disclosure, STRATEGY 6.4 |
+| `/packs/claims_integrity/variants/volume/designed_disclosures` | 24561 | 7092 | 1.000 | 0 | null | designed disclosure, STRATEGY 6.4 |
+
+### Allowed-fields reference (exploratory)
+
+| Pointer | n | coverage | accuracy | baseline | advantage | 95% CI | label |
+|---|---|---|---|---|---|---|---|
+| `/results/device_quality/default/A1_calibrated/allowed_fields_reference` | 5530 | 0.788 | 0.881 | 0.500 | 0.763 | [0.746, 0.780] | leak |
+| `/results/device_quality/default/A1_calibrated/allowed_plus_all` | 5530 | 0.988 | 0.986 | 0.500 | 0.971 | [0.965, 0.977] | leak |
+| `/results/device_quality/default/A1_fixed/allowed_fields_reference` | 5530 | 0.788 | 0.881 | 0.500 | 0.763 | [0.745, 0.780] | leak |
+| `/results/device_quality/default/A1_fixed/allowed_plus_all` | 5530 | 0.988 | 0.986 | 0.500 | 0.971 | [0.965, 0.977] | leak |
+| `/results/device_quality/default/A2/allowed_fields_reference` | 4364 | 0.848 | 0.547 | 0.185 | 0.362 | [0.344, 0.379] | leak |
+| `/results/device_quality/default/A2/allowed_plus_all` | 4364 | 0.997 | 0.886 | 0.185 | 0.701 | [0.688, 0.715] | leak |
+| `/results/device_quality/default/A3/allowed_fields_reference` | 16320 | 0.434 | 0.994 | 0.990 | 0.004 | [0.003, 0.006] | leak |
+| `/results/device_quality/default/A3/allowed_plus_all` | 16320 | 0.446 | 0.994 | 0.990 | 0.004 | [0.003, 0.005] | leak |
+| `/results/device_quality/default/A4/allowed_fields_reference` | 162 | 0.000 | 0.741 | 0.741 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A4/allowed_plus_all` | 162 | 0.000 | 0.741 | 0.741 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A5/allowed_fields_reference` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A5/allowed_plus_all` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A1_calibrated/allowed_fields_reference` | 5214 | 0.668 | 0.828 | 0.500 | 0.656 | [0.635, 0.677] | leak |
+| `/results/claims_integrity/default/A1_calibrated/allowed_plus_all` | 5214 | 0.984 | 0.978 | 0.500 | 0.956 | [0.948, 0.964] | leak |
+| `/results/claims_integrity/default/A1_fixed/allowed_fields_reference` | 5214 | 0.668 | 0.828 | 0.500 | 0.656 | [0.635, 0.675] | leak |
+| `/results/claims_integrity/default/A1_fixed/allowed_plus_all` | 5214 | 0.984 | 0.978 | 0.500 | 0.956 | [0.948, 0.964] | leak |
+| `/results/claims_integrity/default/A2/allowed_fields_reference` | 4131 | 0.756 | 0.464 | 0.188 | 0.277 | [0.259, 0.296] | leak |
+| `/results/claims_integrity/default/A2/allowed_plus_all` | 4131 | 1.000 | 0.862 | 0.188 | 0.674 | [0.660, 0.688] | leak |
+| `/results/claims_integrity/default/A3/allowed_fields_reference` | 16292 | 0.356 | 0.989 | 0.984 | 0.005 | [0.004, 0.006] | leak |
+| `/results/claims_integrity/default/A3/allowed_plus_all` | 16292 | 0.426 | 0.989 | 0.984 | 0.005 | [0.004, 0.006] | leak |
+| `/results/claims_integrity/default/A4/allowed_fields_reference` | 276 | 0.000 | 0.772 | 0.772 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A4/allowed_plus_all` | 276 | 0.000 | 0.772 | 0.772 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A5/allowed_fields_reference` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A5/allowed_plus_all` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+
+### Incremental over the allowed-fields reference (exploratory)
+
+| Pointer | n | advantage | 95% CI | label |
+|---|---|---|---|---|
+| `/results/device_quality/default/A1_calibrated/allowed_plus_all/incremental` | 5530 | 0.208 | [0.191, 0.225] | leak |
+| `/results/device_quality/default/A1_fixed/allowed_plus_all/incremental` | 5530 | 0.208 | [0.192, 0.225] | leak |
+| `/results/device_quality/default/A2/allowed_plus_all/incremental` | 4364 | 0.339 | [0.323, 0.355] | leak |
+| `/results/device_quality/default/A3/allowed_plus_all/incremental` | 16320 | -0.000 | [-0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A4/allowed_plus_all/incremental` | 162 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/default/A5/allowed_plus_all/incremental` | 9372 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A1_calibrated/allowed_plus_all/incremental` | 5214 | 0.300 | [0.280, 0.320] | leak |
+| `/results/claims_integrity/default/A1_fixed/allowed_plus_all/incremental` | 5214 | 0.300 | [0.280, 0.321] | leak |
+| `/results/claims_integrity/default/A2/allowed_plus_all/incremental` | 4131 | 0.397 | [0.380, 0.415] | leak |
+| `/results/claims_integrity/default/A3/allowed_plus_all/incremental` | 16292 | -0.000 | [-0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A4/allowed_plus_all/incremental` | 276 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/default/A5/allowed_plus_all/incremental` | 4504 | 0.000 | [0.000, 0.000] | at_chance |
+
+### Controls
+
+| Pointer | expected | label | holds |
+|---|---|---|---|
+| `/controls/positive/0` | leak | leak | true |
+| `/controls/positive/1` | leak | leak | true |
+| `/controls/positive/2` | leak | leak | true |
+| `/controls/positive/3` | leak | leak | true |
+| `/controls/positive/4` | leak | leak | true |
+| `/controls/positive/5` | leak | leak | true |
+| `/controls/positive/6` | leak | leak | true |
+| `/controls/positive/7` | leak | leak | true |
+| `/controls/positive/8` | leak | leak | true |
+| `/controls/positive/9` | leak | leak | true |
+| `/controls/negative/0` | at_chance or inconclusive, with ci_low <= 0 <= ci_high | at_chance | true |
+| `/controls/negative/1` | at_chance or inconclusive, with ci_low <= 0 <= ci_high | at_chance | true |
+| `/controls/negative/2` | at_chance or inconclusive, with ci_low <= 0 <= ci_high | at_chance | true |
+| `/controls/negative/3` | at_chance or inconclusive, with ci_low <= 0 <= ci_high | at_chance | true |
+| `/controls/negative/4` | at_chance or inconclusive, with ci_low <= 0 <= ci_high | at_chance | true |
+| `/controls/negative/5` | at_chance or inconclusive, with ci_low <= 0 <= ci_high | at_chance | true |
+| `/controls/negative/6` | at_chance or inconclusive, with ci_low <= 0 <= ci_high | at_chance | true |
+| `/controls/negative/7` | at_chance or inconclusive, with ci_low <= 0 <= ci_high | at_chance | true |
+| `/controls/negative/8` | at_chance or inconclusive, with ci_low <= 0 <= ci_high | at_chance | true |
+| `/controls/negative/9` | at_chance or inconclusive, with ci_low <= 0 <= ci_high | at_chance | true |
+| `/controls/negative/10` | at_chance or inconclusive, with ci_low <= 0 <= ci_high | at_chance | true |
+| `/controls/negative/11` | at_chance or inconclusive, with ci_low <= 0 <= ci_high | at_chance | true |
+
+### NOT_COVERED mapping
+
+| Pointer | item | attacks | artifact type | reason |
+|---|---|---|---|---|
+| `/not_covered/0` | Attribute inference on counts and claims (X5). | A2, A3 | null | null |
+| `/not_covered/1` | Membership inference (X5). | A1_calibrated, A1_fixed | null | null |
+| `/not_covered/2` | Differencing between verdict buckets and weekly cells (G6, X5). | A3 | null | null |
+| `/not_covered/3` | Cross-site duplicates without an origin marker, which each site counts as independent (X5). |  | null | not attacked: an independence (detection-integrity) limit, not a disclosure of a record value; X1 known_hard_cases covers it |
+| `/not_covered/4` | Presence or absence of an entity at a site in a question window, revealed by a refute versus an unknown; limited, not prevented, by the per-entity and per-site daily question budgets (G6, X5); with require_master_data only for master-data ids, and never through a person value or the reporter. | A6 | verdicts_active | null |
+| `/not_covered/5` | Bucket transitions between overlapping question windows for one key, which can narrow a count inside its bucket (G6, X5). | A3, A6 | null | null |
+| `/not_covered/6` | A packet discloses, for one window, which pack codes and which master-data ids co-occur with the key in at least k confirmed records at a site, as count buckets (G7, X5). | A2 | packets | null |
+
+### Mitigations: measured knobs (exploratory)
+
+| Pointer | n | coverage | accuracy | baseline | advantage | 95% CI | label |
+|---|---|---|---|---|---|---|---|
+| `/results/device_quality/k2/A1_calibrated/all` | 5530 | 0.988 | 0.978 | 0.500 | 0.957 | [0.949, 0.964] | leak |
+| `/results/device_quality/k2/A2/all` | 4364 | 0.997 | 0.821 | 0.185 | 0.636 | [0.621, 0.652] | leak |
+| `/results/device_quality/k2/A3/all` | 16158 | 0.000 | 1.000 | 1.000 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/k10/A1_calibrated/all` | 5530 | 0.988 | 0.988 | 0.500 | 0.975 | [0.969, 0.981] | leak |
+| `/results/device_quality/k10/A2/all` | 4364 | 0.997 | 0.906 | 0.185 | 0.721 | [0.708, 0.735] | leak |
+| `/results/device_quality/k10/A3/all` | 16323 | 0.078 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/k10/A4/all` | 171 | 0.000 | 0.749 | 0.749 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/rmd_flipped/A1_calibrated/all` | 5530 | 0.988 | 0.987 | 0.500 | 0.974 | [0.968, 0.980] | leak |
+| `/results/device_quality/rmd_flipped/A2/all` | 4364 | 1.000 | 0.899 | 0.185 | 0.714 | [0.700, 0.728] | leak |
+| `/results/device_quality/rmd_flipped/A3/all` | 17418 | 0.030 | 0.991 | 0.991 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/rmd_flipped/A4/all` | 165 | 0.000 | 0.745 | 0.745 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/minus_type/A1_calibrated/all` | 5530 | 0.861 | 0.927 | 0.500 | 0.853 | [0.839, 0.866] | leak |
+| `/results/device_quality/minus_type/A2/all` | 4364 | 0.704 | 0.677 | 0.185 | 0.492 | [0.477, 0.507] | leak |
+| `/results/device_quality/minus_type/A3/all` | 9441 | 0.036 | 0.992 | 0.992 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/minus_type/A4/all` | 75 | 0.000 | 0.760 | 0.760 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/volume/A1_calibrated/all` | 11732 | 0.987 | 0.949 | 0.500 | 0.899 | [0.891, 0.907] | leak |
+| `/results/device_quality/volume/A2/all` | 6882 | 0.998 | 0.572 | 0.215 | 0.358 | [0.343, 0.373] | leak |
+| `/results/device_quality/volume/A3/all` | 24733 | 0.005 | 0.954 | 0.954 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/device_quality/volume/A4/all` | 1142 | 0.000 | 0.807 | 0.807 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/k2/A1_calibrated/all` | 5214 | 0.984 | 0.947 | 0.500 | 0.895 | [0.882, 0.907] | leak |
+| `/results/claims_integrity/k2/A2/all` | 4131 | 1.000 | 0.702 | 0.188 | 0.514 | [0.498, 0.530] | leak |
+| `/results/claims_integrity/k2/A3/all` | 16028 | 0.000 | 1.000 | 1.000 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/k10/A1_calibrated/all` | 5214 | 0.984 | 0.983 | 0.500 | 0.965 | [0.958, 0.973] | leak |
+| `/results/claims_integrity/k10/A2/all` | 4131 | 1.000 | 0.874 | 0.188 | 0.686 | [0.671, 0.700] | leak |
+| `/results/claims_integrity/k10/A3/all` | 16292 | 0.147 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/k10/A4/all` | 276 | 0.000 | 0.772 | 0.772 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/rmd_flipped/A1_calibrated/all` | 5214 | 0.965 | 0.968 | 0.500 | 0.936 | [0.926, 0.946] | leak |
+| `/results/claims_integrity/rmd_flipped/A2/all` | 4131 | 0.944 | 0.806 | 0.188 | 0.618 | [0.603, 0.633] | leak |
+| `/results/claims_integrity/rmd_flipped/A3/all` | 12247 | 0.134 | 0.983 | 0.983 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/rmd_flipped/A4/all` | 216 | 0.000 | 0.778 | 0.778 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/minus_type/A1_calibrated/all` | 5214 | 0.912 | 0.926 | 0.500 | 0.851 | [0.837, 0.865] | leak |
+| `/results/claims_integrity/minus_type/A2/all` | 4131 | 0.732 | 0.663 | 0.188 | 0.475 | [0.459, 0.490] | leak |
+| `/results/claims_integrity/minus_type/A3/all` | 10130 | 0.145 | 0.986 | 0.986 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/minus_type/A4/all` | 149 | 0.000 | 0.758 | 0.758 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/volume/A1_calibrated/all` | 11256 | 0.982 | 0.958 | 0.500 | 0.916 | [0.908, 0.923] | leak |
+| `/results/claims_integrity/volume/A2/all` | 6601 | 1.000 | 0.724 | 0.191 | 0.533 | [0.520, 0.546] | leak |
+| `/results/claims_integrity/volume/A3/all` | 24561 | 0.009 | 0.931 | 0.931 | 0.000 | [0.000, 0.000] | at_chance |
+| `/results/claims_integrity/volume/A4/all` | 2023 | 0.000 | 0.750 | 0.750 | 0.000 | [0.000, 0.000] | at_chance |
+
+### Mitigations: simulated transforms (simulated: not implemented in the Boundary; implementing it is a code change)
+
+| Pointer | label | cells before | cells after | removed cell share |
+|---|---|---|---|---|
+| `/mitigations/simulated/device_quality/drop_lt_k` | simulated: not implemented in the Boundary; implementing it is a code change | 16323 | 3 | 1.000 |
+| `/mitigations/simulated/device_quality/four_week` | simulated: not implemented in the Boundary; implementing it is a code change | 16323 | 15621 | 0.043 |
+| `/mitigations/simulated/claims_integrity/drop_lt_k` | simulated: not implemented in the Boundary; implementing it is a code change | 16292 | 0 | 1.000 |
+| `/mitigations/simulated/claims_integrity/four_week` | simulated: not implemented in the Boundary; implementing it is a code change | 16292 | 15414 | 0.054 |
+
+### Mitigations: simulated transforms, re-run attacks (exploratory)
+
+| Pointer | n | coverage | accuracy | baseline | advantage | 95% CI | label |
+|---|---|---|---|---|---|---|---|
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A1_calibrated/cells_codes` | 5530 | 0.788 | 0.502 | 0.500 | 0.004 | [-0.012, 0.019] | at_chance |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A1_calibrated/cells_text` | 5530 | 0.744 | 0.505 | 0.500 | 0.009 | [-0.009, 0.027] | at_chance |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A1_calibrated/all` | 5530 | 0.988 | 0.536 | 0.500 | 0.073 | [0.052, 0.093] | leak |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A1_fixed/cells_codes` | 5530 | 0.788 | 0.495 | 0.500 | -0.009 | [-0.025, 0.007] | at_chance |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A1_fixed/cells_text` | 5530 | 0.744 | 0.504 | 0.500 | 0.008 | [-0.009, 0.026] | at_chance |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A1_fixed/all` | 5530 | 0.988 | 0.502 | 0.500 | 0.005 | [-0.002, 0.012] | at_chance |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A2/cells_codes` | 4364 | 0.001 | 0.184 | 0.185 | -0.000 | [-0.001, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A2/cells_text` | 4364 | 0.001 | 0.186 | 0.185 | 0.001 | [0.000, 0.002] | at_chance |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A2/all` | 4364 | 0.455 | 0.203 | 0.185 | 0.018 | [0.008, 0.029] | leak |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A3/cells_codes` | 16320 | 0.000 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A3/cells_text` | 16320 | 0.000 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A3/all` | 16320 | 0.000 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A4/cells_codes` | 162 | 0.000 | 0.741 | 0.741 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A4/cells_text` | 162 | 0.000 | 0.741 | 0.741 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A4/all` | 162 | 0.000 | 0.741 | 0.741 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A5/cells_codes` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A5/cells_text` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/drop_lt_k/entries/A5/all` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/four_week/entries/A1_calibrated/cells_codes` | 5530 | 0.788 | 0.861 | 0.500 | 0.722 | [0.702, 0.741] | leak |
+| `/mitigations/simulated/device_quality/four_week/entries/A1_calibrated/cells_text` | 5530 | 0.744 | 0.865 | 0.500 | 0.729 | [0.711, 0.747] | leak |
+| `/mitigations/simulated/device_quality/four_week/entries/A1_calibrated/all` | 5530 | 0.988 | 0.979 | 0.500 | 0.958 | [0.951, 0.966] | leak |
+| `/mitigations/simulated/device_quality/four_week/entries/A1_fixed/cells_codes` | 5530 | 0.788 | 0.861 | 0.500 | 0.722 | [0.703, 0.740] | leak |
+| `/mitigations/simulated/device_quality/four_week/entries/A1_fixed/cells_text` | 5530 | 0.744 | 0.865 | 0.500 | 0.729 | [0.711, 0.747] | leak |
+| `/mitigations/simulated/device_quality/four_week/entries/A1_fixed/all` | 5530 | 0.988 | 0.979 | 0.500 | 0.958 | [0.951, 0.966] | leak |
+| `/mitigations/simulated/device_quality/four_week/entries/A2/cells_codes` | 4364 | 0.925 | 0.507 | 0.185 | 0.322 | [0.305, 0.340] | leak |
+| `/mitigations/simulated/device_quality/four_week/entries/A2/cells_text` | 4364 | 0.833 | 0.601 | 0.185 | 0.416 | [0.401, 0.433] | leak |
+| `/mitigations/simulated/device_quality/four_week/entries/A2/all` | 4364 | 0.997 | 0.771 | 0.185 | 0.586 | [0.571, 0.601] | leak |
+| `/mitigations/simulated/device_quality/four_week/entries/A3/cells_codes` | 16320 | 0.000 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/four_week/entries/A3/cells_text` | 16320 | 0.000 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/four_week/entries/A3/all` | 16320 | 0.011 | 0.990 | 0.990 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/four_week/entries/A4/cells_codes` | 162 | 0.037 | 0.741 | 0.741 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/four_week/entries/A4/cells_text` | 162 | 0.012 | 0.741 | 0.741 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/four_week/entries/A4/all` | 162 | 0.049 | 0.741 | 0.741 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/four_week/entries/A5/cells_codes` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/four_week/entries/A5/cells_text` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/device_quality/four_week/entries/A5/all` | 9372 | 0.000 | 0.073 | 0.073 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A1_calibrated/cells_codes` | 5214 | 0.668 | 0.500 | 0.500 | -0.000 | [-0.020, 0.019] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A1_calibrated/cells_text` | 5214 | 0.814 | 0.498 | 0.500 | -0.004 | [-0.020, 0.010] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A1_calibrated/all` | 5214 | 0.984 | 0.500 | 0.500 | -0.001 | [-0.006, 0.004] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A1_fixed/cells_codes` | 5214 | 0.668 | 0.508 | 0.500 | 0.017 | [-0.004, 0.038] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A1_fixed/cells_text` | 5214 | 0.814 | 0.501 | 0.500 | 0.001 | [-0.014, 0.017] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A1_fixed/all` | 5214 | 0.984 | 0.500 | 0.500 | -0.001 | [-0.009, 0.008] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A2/cells_codes` | 4131 | 0.000 | 0.188 | 0.188 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A2/cells_text` | 4131 | 0.000 | 0.188 | 0.188 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A2/all` | 4131 | 0.665 | 0.214 | 0.188 | 0.026 | [0.013, 0.039] | leak |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A3/cells_codes` | 16292 | 0.000 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A3/cells_text` | 16292 | 0.000 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A3/all` | 16292 | 0.000 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A4/cells_codes` | 276 | 0.000 | 0.772 | 0.772 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A4/cells_text` | 276 | 0.000 | 0.772 | 0.772 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A4/all` | 276 | 0.000 | 0.772 | 0.772 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A5/cells_codes` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A5/cells_text` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/drop_lt_k/entries/A5/all` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A1_calibrated/cells_codes` | 5214 | 0.668 | 0.811 | 0.500 | 0.622 | [0.601, 0.643] | leak |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A1_calibrated/cells_text` | 5214 | 0.814 | 0.886 | 0.500 | 0.771 | [0.755, 0.788] | leak |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A1_calibrated/all` | 5214 | 0.984 | 0.970 | 0.500 | 0.941 | [0.932, 0.950] | leak |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A1_fixed/cells_codes` | 5214 | 0.668 | 0.811 | 0.500 | 0.622 | [0.600, 0.643] | leak |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A1_fixed/cells_text` | 5214 | 0.814 | 0.886 | 0.500 | 0.771 | [0.754, 0.789] | leak |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A1_fixed/all` | 5214 | 0.984 | 0.970 | 0.500 | 0.941 | [0.932, 0.950] | leak |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A2/cells_codes` | 4131 | 0.891 | 0.444 | 0.188 | 0.256 | [0.237, 0.275] | leak |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A2/cells_text` | 4131 | 0.909 | 0.643 | 0.188 | 0.456 | [0.439, 0.471] | leak |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A2/all` | 4131 | 1.000 | 0.753 | 0.188 | 0.565 | [0.551, 0.581] | leak |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A3/cells_codes` | 16292 | 0.000 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A3/cells_text` | 16292 | 0.000 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A3/all` | 16292 | 0.036 | 0.984 | 0.984 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A4/cells_codes` | 276 | 0.000 | 0.772 | 0.772 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A4/cells_text` | 276 | 0.000 | 0.772 | 0.772 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A4/all` | 276 | 0.000 | 0.772 | 0.772 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A5/cells_codes` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A5/cells_text` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+| `/mitigations/simulated/claims_integrity/four_week/entries/A5/all` | 4504 | 0.000 | 0.070 | 0.070 | 0.000 | [0.000, 0.000] | at_chance |
+
+Not applicable: 620 entries; not run: 24 entries (each with its status and reason under `/results` in x5.json).
 <!-- x5:end -->

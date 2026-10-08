@@ -134,5 +134,7 @@ tests check. After any change to the engine, the scenario or the code it runs:
   is E2 (RUNBOOK section 13), which has not run.
 - **R here is model-free.** It is not STRATEGY's R, which includes a frontier model reading the allowed fields; E2's
   central_allowed condition approximates that R.
-- **Text only.** The leakage scans show that planted text did not cross; they say nothing about what counts reveal
-  (X5).
+- **Text only.** The leakage scans show that planted text did not cross; they say nothing about what counts reveal.
+  X5 measured that on synthetic worlds (`docs/collective/LEAKAGE.md` section 12) and its bar fails: the weekly cells
+  that leave, including the presence cells below k, let an attacker who holds a candidate record tell whether it is
+  in a site's data and which failure mode it carries.
