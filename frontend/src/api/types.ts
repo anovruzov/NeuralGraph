@@ -417,8 +417,9 @@ export interface Goal {
   title: string;
   objective: string;
   success_criteria: SuccessCriterion[];
-  baseline: string | null;
-  measurement_source: string | null;
+  /** metric -> value (numbers), or {note} for a free-text baseline */
+  baseline: Record<string, number | string> | null;
+  measurement_source: MeasurementSource | null;
   deadline: string | null;
   priority: number;
   status: GoalStatus;
@@ -435,6 +436,13 @@ export interface Goal {
   updated_at: string;
   loop?: Loop | null;
   counts?: { questions: number; open_questions: number; discoveries: number; claims: number };
+}
+
+export interface MeasurementSource {
+  source?: string;
+  metric?: string;
+  domains?: string[];
+  [key: string]: unknown;
 }
 
 export type LoopState = 'active' | 'waiting' | 'paused' | 'budget_exhausted' | 'blocked' | 'failed' | 'completed' | 'stopped' | string;
@@ -461,8 +469,9 @@ export interface GoalCreateBody {
   scope_unit_id?: string;
   parent_goal_id?: string;
   success_criteria?: SuccessCriterion[];
-  baseline?: string;
-  measurement_source?: string;
+  /** "metric=52, other=3" or free text; the server stores {metric: number} or {note} */
+  baseline?: string | Record<string, number | string>;
+  measurement_source?: string | MeasurementSource;
   deadline?: string;
   priority?: number;
   permitted_actions?: string[];

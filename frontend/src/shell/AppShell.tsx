@@ -140,8 +140,9 @@ export function AppShell() {
           <PersonaSwitcher />
           <NotificationsBell />
           <div className="menu" ref={menuRef}>
-            <button type="button" className="btn btn--ghost" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}>
-              <Glyph type="user" size={12} /> {me.user.name}
+            <button type="button" className="btn btn--ghost topbar__user" aria-haspopup="menu" aria-expanded={menuOpen} aria-label={`Account menu for ${me.user.name}`}
+                    onClick={() => setMenuOpen((o) => !o)}>
+              <Glyph type="user" size={12} /> <span className="topbar__user-name">{me.user.name}</span>
             </button>
             {menuOpen ? (
               <div className="menu__list" role="menu">

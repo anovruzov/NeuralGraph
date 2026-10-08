@@ -31,6 +31,60 @@ _STEP_FOR_STATUS = {"draft": "question.route", "routed": "question.route", "coll
                     "verifying": "question.commit"}
 
 
+_DIRECTIONS = {"down": "decrease", "decrease": "decrease", "lower": "decrease", "up": "increase", "increase": "increase", "higher": "increase",
+               "reach": "reach", "at_least": "increase", "at_most": "decrease"}
+
+
+def _number(v: Any) -> Any:
+    """A numeric string ("24", "52.5") becomes a number; anything else is returned unchanged."""
+    if isinstance(v, str):
+        try:
+            f = float(v.strip())
+            return int(f) if f.is_integer() else f
+        except ValueError:
+            return v
+    return v
+
+
+def normalize_measurement_fields(data: dict[str, Any]) -> dict[str, Any]:
+    """One shape for the measurement fields whatever the client sent (the UI posts strings):
+
+    * ``success_criteria[].target``: numeric strings become numbers; ``direction``: up/down aliases become increase/decrease
+    * ``baseline``: a ``{metric: number}`` map; "metric=52, other=3" is parsed into one; other text is kept as ``{"note": text}``
+    * ``measurement_source``: an object; plain text becomes ``{"source": text}``
+    """
+    if "success_criteria" in data and data["success_criteria"] is not None:
+        out = []
+        for c in data["success_criteria"] or []:
+            if not isinstance(c, dict) or not str(c.get("metric") or "").strip():
+                continue
+            c = dict(c)
+            c["metric"] = str(c["metric"]).strip()
+            c["target"] = _number(c.get("target"))
+            if c.get("direction"):
+                c["direction"] = _DIRECTIONS.get(str(c["direction"]).strip().lower(), str(c["direction"]))
+            if "baseline" in c:
+                c["baseline"] = _number(c["baseline"])
+            out.append(c)
+        data["success_criteria"] = out
+    if "baseline" in data:
+        b = data["baseline"]
+        if isinstance(b, str):
+            text = b.strip()
+            pairs = [x.split("=", 1) for x in text.replace(";", ",").split(",") if "=" in x]
+            parsed = {k.strip(): _number(v.strip()) for k, v in pairs if k.strip()}
+            data["baseline"] = parsed if parsed and all(isinstance(v, (int, float)) for v in parsed.values()) else ({"note": text} if text else None)
+        elif isinstance(b, dict):
+            data["baseline"] = {str(k): _number(v) for k, v in b.items()}
+    if "measurement_source" in data:
+        m = data["measurement_source"]
+        if isinstance(m, str):
+            data["measurement_source"] = {"source": m.strip()} if m.strip() else {}
+        elif m is None:
+            data["measurement_source"] = {}
+    return data
+
+
 def _clamp(x: float) -> float:
     return max(0.0, min(1.0, x))
 
@@ -178,7 +232,7 @@ class GoalService:
         objective = (data.get("objective") or "").strip()
         if not title or not objective:
             raise ValueError("title and objective are required")
-        data = dict(data)
+        data = normalize_measurement_fields(dict(data))
         data["assignees"] = self._validate_assignees(tenant_id, data.get("assignees"))
         data["dependencies"] = self._validate_dependencies(tenant_id, data.get("dependencies"))
         budget = dict(self.org.policy(tenant_id, "default_goal_budget", {}) or {})
@@ -227,7 +281,7 @@ class GoalService:
         bad = set(fields) - allowed
         if bad:
             raise ValueError(f"cannot update {sorted(bad)}")
-        fields = dict(fields)
+        fields = normalize_measurement_fields(dict(fields))
         if "assignees" in fields:
             fields["assignees"] = self._validate_assignees(g["tenant_id"], fields["assignees"])
         if "dependencies" in fields:

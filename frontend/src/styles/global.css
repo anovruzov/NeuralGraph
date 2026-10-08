@@ -100,8 +100,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
   height: var(--topbar-h); display: flex; align-items: center; gap: 12px; padding: 0 20px;
   background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20;
 }
-.topbar__org { font-weight: 600; }
+.topbar__org { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topbar__spacer { flex: 1; }
+.topbar > * { flex-shrink: 0; }
+.topbar > .topbar__org, .topbar > .persona-switcher { flex-shrink: 1; min-width: 0; }
+.persona-switcher__select { width: auto; max-width: 260px; min-width: 0; }
+.topbar__user-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
 .topbar__toggle { display: none; }
 .content { padding: 20px 24px 48px; max-width: 1320px; width: 100%; }
 .content--wide { max-width: none; }
@@ -349,8 +353,13 @@ legend { font-size: var(--fs-sm); color: var(--text-2); padding: 0 4px; }
 @media (max-width: 600px) {
   .grid--2, .grid--3, .grid--4 { grid-template-columns: 1fr; }
   .content { padding: 12px; }
-  .topbar { padding: 0 12px; }
+  .topbar { padding: 0 12px; gap: 8px; }
   .topbar__org { display: none; }
+  /* phone width: the account button shows its icon only (its name is in the aria-label and the menu), the persona
+     switcher drops its label and shrinks */
+  .topbar__user-name, .persona-switcher__label { display: none; }
+  .persona-switcher__select { max-width: 132px; }
+  .menu__list { right: 0; max-width: calc(100vw - 24px); }
   .msg { max-width: 95%; }
   /* tables become cards */
   .table-wrap { border: 0; background: transparent; overflow: visible; }

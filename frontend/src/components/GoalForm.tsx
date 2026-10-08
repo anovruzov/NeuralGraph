@@ -23,6 +23,12 @@ export interface GoalFormProps {
 }
 
 /** Create (POST /goals) or edit (PATCH /goals/{id}) a goal with every field from API.md. */
+function baselineText(b: Record<string, number | string> | string | null | undefined): string {
+  if (b == null) return '';
+  if (typeof b === 'string') return b;
+  return Object.entries(b).map(([k, v]) => (k === 'note' ? String(v) : `${k}=${v}`)).join(', ');
+}
+
 export function GoalForm({ existing, defaultScopeUnitId, defaultParentGoalId, onDone, onCancel }: GoalFormProps) {
   const me = useSession();
   const toast = useToast();
@@ -34,8 +40,9 @@ export function GoalForm({ existing, defaultScopeUnitId, defaultParentGoalId, on
   const [scopeUnit, setScopeUnit] = useState(existing?.scope_unit_id ?? defaultScopeUnitId ?? '');
   const [parentGoal, setParentGoal] = useState(existing?.parent_goal_id ?? defaultParentGoalId ?? '');
   const [criteria, setCriteria] = useState<SuccessCriterion[]>(existing?.success_criteria?.length ? existing.success_criteria : [{ metric: '', target: '', direction: 'down' }]);
-  const [baseline, setBaseline] = useState(existing?.baseline ?? '');
-  const [measurement, setMeasurement] = useState(existing?.measurement_source ?? '');
+  // the server keeps {metric: value} / {note} and {source, metric, domains}; the form edits them as text
+  const [baseline, setBaseline] = useState(baselineText(existing?.baseline));
+  const [measurement, setMeasurement] = useState(typeof existing?.measurement_source === 'string' ? existing.measurement_source : existing?.measurement_source?.source ?? '');
   const [deadline, setDeadline] = useState(toDateInput(existing?.deadline));
   const [priority, setPriority] = useState(String(existing?.priority ?? 3));
   const [permitted, setPermitted] = useState<string[]>(existing?.permitted_actions ?? PERMITTED_ACTIONS);
@@ -86,7 +93,11 @@ export function GoalForm({ existing, defaultScopeUnitId, defaultParentGoalId, on
       if (scopeUnit) body.scope_unit_id = scopeUnit;
       if (parentGoal) body.parent_goal_id = parentGoal;
       if (baseline.trim()) body.baseline = baseline.trim();
-      if (measurement.trim()) body.measurement_source = measurement.trim();
+      if (measurement.trim()) {
+        // keep the metric and routing domains the goal already has; only the source text is edited here
+        const prev = existing?.measurement_source && typeof existing.measurement_source === 'object' ? existing.measurement_source : {};
+        body.measurement_source = { ...prev, source: measurement.trim() };
+      }
       if (deadline) body.deadline = new Date(`${deadline}T00:00:00Z`).toISOString();
       const b: Record<string, number> = {};
       for (const [k, v] of Object.entries(budget)) if (v !== '') b[k] = Number(v);
@@ -174,7 +185,7 @@ export function GoalForm({ existing, defaultScopeUnitId, defaultParentGoalId, on
         </div>
       </fieldset>
       <div className="form-row">
-        <Field label="Baseline">{(id) => <Input id={id} value={baseline} onChange={(e) => setBaseline(e.target.value)} placeholder="e.g. 52h median" />}</Field>
+        <Field label="Baseline" hint="metric=value pairs, e.g. resolution_time_hours=52">{(id) => <Input id={id} value={baseline} onChange={(e) => setBaseline(e.target.value)} placeholder="resolution_time_hours=52" />}</Field>
         <Field label="Measurement source">{(id) => <Input id={id} value={measurement} onChange={(e) => setMeasurement(e.target.value)} placeholder="ticketing export" />}</Field>
         <Field label="Deadline">{(id) => <Input id={id} type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />}</Field>
         <Field label="Priority" hint="1 (low) – 5 (high)">

@@ -5,7 +5,7 @@ import { useLiveEvents } from '../api/events';
 import type { ActorRef, Goal, GoalAction, GoalDetail, Loop, Outcome } from '../api/types';
 import { useSession } from '../auth/AuthProvider';
 import { GoalForm } from '../components/GoalForm';
-import { fmtDate, fmtNum, fmtUsd, titleCase } from '../components/format';
+import { fmtBaseline, fmtDate, fmtMeasurementSource, fmtNum, fmtUsd, titleCase } from '../components/format';
 import { DiscoveryList, GoalList, LoopBadge, ProgressDisplay, QuestionList } from '../components/Lists';
 import { LoopPanel } from '../components/LoopPanel';
 import { Badge, Button, Drawer, Empty, ErrorPanel, Field, Input, Loading, Meter, PageHeader, Section, Select, StatusBadge, Textarea, confirmAction } from '../components/ui';
@@ -220,9 +220,9 @@ export function GoalDetailPage() {
                     )}
                     <dl className="kv" style={{ marginTop: 8 }}>
                       <dt>Baseline</dt>
-                      <dd>{goal.baseline ?? '—'}</dd>
+                      <dd>{fmtBaseline(goal.baseline)}</dd>
                       <dt>Measured from</dt>
-                      <dd>{goal.measurement_source ?? '—'}</dd>
+                      <dd>{fmtMeasurementSource(goal.measurement_source)}</dd>
                       <dt>Deadline</dt>
                       <dd>{fmtDate(goal.deadline, false)}</dd>
                     </dl>

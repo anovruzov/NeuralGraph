@@ -355,3 +355,22 @@ async def test_agent_ignores_malformed_model_citations(db, org, auth, authz):
     chat = await agents.create_chat(p, "unit", o["dept"]["unit_id"])
     out = await agents.send(p, chat["chat_id"], "How long do deploy approvals take?")
     assert [(c["type"], c["id"]) for c in out["citations"]] == [("claim", claim["claim_id"])]
+
+
+# ------------------------------------------------------------------------------------------------ UI-shaped goal fields
+async def test_goal_created_from_the_form_measures_progress(db, org, auth, authz):
+    """The goal form posts strings ("24", "down", "resolution_time_hours=52", "ticketing export"); they are normalized
+    so progress can be computed and the detail page receives one shape."""
+    s = await T.build(db, org, auth, authz)
+    o = await T.seed_org(org, auth, authz, s["transport"])
+    p = authz.principal_for_user(o["petra"]["user_id"])
+    g = await s["goals"].create_goal(p, {"title": "Faster tickets", "objective": "Reduce resolution time", "owner_type": "unit", "owner_id": o["region"]["unit_id"],
+                                         "success_criteria": [{"metric": "resolution_time_hours", "target": "24", "direction": "down"}],
+                                         "baseline": "resolution_time_hours=52", "measurement_source": "ticketing export"})
+    assert g["success_criteria"] == [{"metric": "resolution_time_hours", "target": 24, "direction": "decrease"}]
+    assert g["baseline"] == {"resolution_time_hours": 52} and g["measurement_source"] == {"source": "ticketing export"}
+    await s["goals"].add_outcome(p, g["goal_id"], kind="measurement", value={"metric": "resolution_time_hours", "value": 38})
+    prog = await s["goals"].recompute_progress(g["goal_id"])
+    assert prog["known"] is True and prog["value"] == 0.5          # 52 -> 38 of the way to 24
+    upd = await s["goals"].update_goal(p, g["goal_id"], {"baseline": "52h median"})
+    assert upd["baseline"] == {"note": "52h median"}

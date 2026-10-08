@@ -506,3 +506,25 @@ async def test_run_holder_with_injected_transport_and_core(tmp_path: Path, trans
     summary = await asyncio.wait_for(task, 5)
     assert summary["holder_id"] == HOLDER and summary["counters"]["handled"] == 2
     assert core.beats[-1][0] == "offline" and core.beats[-1][1]["documents"] == 1
+
+
+async def test_embedded_holders_reconcile_with_the_registry(tmp_path: Path, db, org, transport) -> None:
+    """Holders registered by another process after start-up are started; revoked ones are stopped."""
+    tenant = await org.create_tenant("Acme", "acme")
+    tid = tenant["tenant_id"]
+    ana = await org.create_user(tid, "ana@example.com", "Ana")
+    embedded = EmbeddedHolders(SimpleNamespace(holders_dir=str(tmp_path / "holders")), db, org, transport, llm_factory=FakeLLMClient,
+                               router=StubRouter(), heartbeat_interval=1000.0)
+    await embedded.start()
+    try:
+        assert embedded.holder_ids() == []
+        late, _ = await org.register_holder(tid, owner_type="user", owner_id=ana["user_id"], name="registered later", mode="embedded", domains=["ops"])
+        out = await embedded.reconcile()
+        assert out["started"] == [late["holder_id"]] and embedded.service(late["holder_id"]) is not None
+        assert (await embedded.reconcile()) == {"started": [], "stopped": []}          # idempotent
+        async with db.tx() as c:
+            c.execute("UPDATE holders SET status='revoked' WHERE holder_id=?", (late["holder_id"],))
+        out = await embedded.reconcile()
+        assert out["stopped"] == [late["holder_id"]] and embedded.service(late["holder_id"]) is None
+    finally:
+        await embedded.stop()

@@ -90,3 +90,20 @@ export function artifactPath(type: string, id: string): string | null {
       return null;
   }
 }
+
+/** A goal baseline ({metric: value} or {note}) as one readable line. */
+export function fmtBaseline(b: Record<string, number | string> | string | null | undefined): string {
+  if (b == null) return '—';
+  if (typeof b === 'string') return b || '—';
+  const parts = Object.entries(b).map(([k, v]) => (k === 'note' ? String(v) : `${k.replace(/_/g, ' ')}: ${v}`));
+  return parts.length ? parts.join(' · ') : '—';
+}
+
+/** A goal's measurement source ({source, metric, domains}) as one readable line. */
+export function fmtMeasurementSource(m: { source?: string; metric?: string; domains?: string[] } | string | null | undefined): string {
+  if (m == null) return '—';
+  if (typeof m === 'string') return m || '—';
+  const head = [m.source, m.metric ? `(${m.metric.replace(/_/g, ' ')})` : ''].filter(Boolean).join(' ');
+  const domains = Array.isArray(m.domains) && m.domains.length ? `domains: ${m.domains.join(', ')}` : '';
+  return [head, domains].filter(Boolean).join(' · ') || '—';
+}

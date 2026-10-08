@@ -187,14 +187,16 @@ replaces the hash, so the old key stops working at once.
 
 1. Owner or admin: UI holder page > Rotate key, or `POST /api/holders/{holder_id}/rotate-key` -> `{key}`
    (shown once; the action is audited as `holder.rotate_key`).
-2. Update the holder process: the `--key` argument / `MYCELIC_HOLDER_KEY` (compose: `MYCELIC_HOLDER_KEY_A` in
-   `.env`), restart it. Until then the holder's heartbeats fail (401) and its status goes `offline`; queued
-   questions wait for it up to the question timeout.
+2. Update the holder process: `MYCELIC_HOLDER_KEY` (compose: `MYCELIC_HOLDER_KEY_A` in `.env`), restart it. Until
+   then the holder's heartbeats fail (401) and its status goes `offline`; queued questions wait for it up to the
+   question timeout. Rotation also renews the holder's envelope-signing salt, so envelopes signed for the old key
+   are rejected. An embedded holder is restarted by the API automatically.
 3. NATS credentials are separate: change the password in `nats.conf` (the `$NATS_HOLDER_A_PASSWORD` variable)
    and in the holder's `MYCELIC_NATS_PASSWORD`, reload NATS (`nats-server --signal reload`).
 
-`MYCELIC_SECRET_KEY` signs the envelopes the core sends to holders. Rotate it only with all holders stopped,
-then restart everything; envelopes signed before the rotation are rejected by holders after it.
+`MYCELIC_SECRET_KEY` derives every holder's envelope-signing key (HMAC of the secret, the holder id and a
+per-holder salt; the signature covers the reply subject too). Rotate it only with all holders stopped, then restart
+everything; envelopes signed before the rotation are rejected by holders after it.
 
 ## Revoking access
 
@@ -236,10 +238,12 @@ attempt (`GET /api/admin/jobs?status=dead`, `job_attempts`).
 
 ## Budget exhaustion
 
-Every goal has a budget (`tokens`, `usd`, `questions`, `followup_depth`) and `budget_spent`; questions carry
-their own. When a loop cannot reserve budget for the next question its state becomes `budget_exhausted`
-with an explanation, it stops calling models, and the goal page shows it. API calls that would exceed a
-budget return 429.
+Every goal has a budget (`tokens`, `usd`, `questions`, `followup_depth`, and `period`: `total` or a renewing
+`day` / `week` / `month`, UTC) and `budget_spent`; questions carry their own. Usage is charged from the ledger before
+every model call. When a budget is spent the loop state becomes `budget_exhausted` with an explanation and the
+renewal time (`budget_renews_at`); no model is called for that goal until the period renews or the budget is
+raised. A question mid-flight keeps its responses and resumes then; a discovery written after the budget ran out is
+labelled `deterministic_fallback`. API calls that would exceed a budget return 429.
 
 To continue: raise the budget (`PATCH /api/goals/{goal_id} {"budget": {...}}` or the goal page) and resume
 the loop (`POST /api/goals/{goal_id}/loop {"action": "resume"}`). To see where the money went: Admin > Usage

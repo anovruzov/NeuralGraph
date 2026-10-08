@@ -32,8 +32,9 @@ MERIDIAN_SLUG = "meridian"
 ORBITAL_SLUG = "orbital"
 HOLDER_A = "hold_demo_a"          # Elin Dahl's holder: a separate process in the verification scenario
 HOLDER_B = "hold_demo_b"          # Marcus Lund's holder: the second separate process
-DEMO_GOAL_TITLE = ("[Demo] Identify recurring operational blockers across teams, verify their causes, and propose measurable "
-                   "actions that reduce resolution time.")
+DEMO_GOAL_OBJECTIVE = ("Identify recurring operational blockers across teams, verify their causes, and propose measurable actions that "
+                       "reduce resolution time.")
+DEMO_GOAL_TITLE = f"[Demo] {DEMO_GOAL_OBJECTIVE}"
 # The order in which the loop asks: what the scenario document lists first is what the verification checks first.
 DEMO_DOMAIN_ORDER = ["deployments", "approvals", "on-call", "escalation", "customs", "dispatch", "support", "metrics"]
 
@@ -331,8 +332,7 @@ async def _create_goal(rt: Any, users: dict[str, str], units: dict[str, str]) ->
     petra = rt.authz.principal_for_user(users["petra"])
     goal = await rt.goals.create_goal(petra, {
         "title": DEMO_GOAL_TITLE,
-        "objective": ("Identify recurring operational blockers across teams, verify their causes with independent evidence, and propose "
-                      "measurable actions that reduce ticket resolution time."),
+        "objective": DEMO_GOAL_OBJECTIVE,
         "owner_type": "unit", "owner_id": units["europe"], "scope_unit_id": units["europe"],
         "success_criteria": [{"metric": "resolution_time_hours", "target": 24, "direction": "decrease"}],
         "baseline": {"resolution_time_hours": 52},

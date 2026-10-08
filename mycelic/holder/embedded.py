@@ -10,6 +10,8 @@ The API uses :meth:`get` to reach a holder's store directly for the owner's memo
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import inspect
 import logging
 from pathlib import Path
@@ -57,17 +59,57 @@ class EmbeddedHolders:
     # ------------------------------------------------------------------ lifecycle
     async def start(self) -> None:
         self.running = True
+        await self.reconcile()
+        logger.info("embedded holders running: %d", len(self._services))
+        # holders registered later by another process (a seed command, another API instance) or revoked elsewhere are
+        # picked up on the next pass, so a running API never leaves an embedded holder's routed questions unanswered
+        self._reconcile_task = asyncio.create_task(self._reconcile_loop(), name="embedded-holders-reconcile")
+
+    async def reconcile(self) -> dict[str, list[str]]:
+        """Start every embedded, non-revoked holder of the registry that is not running here; stop revoked ones."""
+        started, stopped = [], []
+        wanted: set[str] = set()
         for tenant in self.org.list_tenants():
             for holder in self.org.list_holders(tenant["tenant_id"]):
-                if holder.get("mode") == "embedded" and holder.get("status") != "revoked":
+                if holder.get("mode") != "embedded":
+                    continue
+                if holder.get("status") == "revoked":
+                    if holder["holder_id"] in self._services:
+                        await self.remove(holder["holder_id"])
+                        stopped.append(holder["holder_id"])
+                    continue
+                wanted.add(holder["holder_id"])
+                if holder["holder_id"] not in self._services:
                     try:
                         await self.ensure(holder["holder_id"])
+                        started.append(holder["holder_id"])
                     except Exception:
                         logger.exception("could not start embedded holder %s", holder["holder_id"])
-        logger.info("embedded holders running: %d", len(self._services))
+        for holder_id in [h for h in self._services if h not in wanted]:
+            await self.remove(holder_id)          # deleted from the registry
+            stopped.append(holder_id)
+        if started or stopped:
+            logger.info("embedded holders reconciled: started %d, stopped %d", len(started), len(stopped))
+        return {"started": started, "stopped": stopped}
+
+    async def _reconcile_loop(self) -> None:
+        interval = max(2.0, min(self.heartbeat_interval, 30.0))
+        while self.running:
+            await asyncio.sleep(interval)
+            try:
+                await self.reconcile()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("embedded holder reconciliation failed")
 
     async def stop(self) -> None:
         self.running = False
+        task = getattr(self, "_reconcile_task", None)
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await task
         for holder_id, svc in list(self._services.items()):
             try:
                 await svc.stop()

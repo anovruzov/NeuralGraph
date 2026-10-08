@@ -38,9 +38,9 @@ export function PersonaSwitcher() {
   }
 
   return (
-    <label className="row" style={{ gap: 6 }}>
-      <span className="xs muted nowrap">Persona</span>
-      <select className="select select--sm" style={{ width: 'auto', maxWidth: 260 }} value={me.user.user_id} disabled={busy} onChange={(e) => void onChange(e.target.value)} aria-label="Switch demonstration persona">
+    <label className="row persona-switcher" style={{ gap: 6 }}>
+      <span className="xs muted nowrap persona-switcher__label">Persona</span>
+      <select className="select select--sm persona-switcher__select" value={me.user.user_id} disabled={busy} onChange={(e) => void onChange(e.target.value)} aria-label="Switch demonstration persona">
         {!personas.some((p) => p.user_id === me.user.user_id) ? <option value={me.user.user_id}>{me.user.name}</option> : null}
         {personas.map((p) => (
           <option key={p.user_id} value={p.user_id}>
