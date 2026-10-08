@@ -17,7 +17,7 @@ Date of this record: 2026-10-08. Branch `claude/mycelic-implementation-vr034p`.
 
 | Suite | Command | Result |
 |---|---|---|
-| Mycelic | `.venv/bin/python -m pytest mycelic/tests -q` | **169 passed, 2 skipped**. The two skips are the NATS JetStream tests, which need a server; see the next row. |
+| Mycelic | `.venv/bin/python -m pytest mycelic/tests -q` | **246 passed, 2 skipped**. The two skips are the NATS JetStream tests, which need a server; see the next row. |
 | Mycelic, NATS transport | `MYCELIC_TEST_NATS_URL=nats://127.0.0.1:4333 .venv/bin/python -m pytest mycelic/tests/test_transport.py -k nats` against a local `nats-server` 2.11.4 started with `-js` | **3 passed**: publish, subscribe and request round trip; a durable consumer survives a reconnect |
 | NeuralGraph library | `.venv/bin/python -m pytest NeuralGraph/tests -q` | **222 passed, 1 skipped, 119 subtests passed** |
 | Frontend types | `cd frontend && npx tsc --noEmit` (strict) | passes |
@@ -66,6 +66,12 @@ Coverage by area (test files under `mycelic/tests/`):
   - the exact demonstration goal, labelled `[Demo]`
   - every hierarchy level and role, a team member in a cross-functional project, the second tenant
   - copied and stale evidence; idempotence
+- **Ingestion, Phase A (`test_ingest_*.py`, `test_evidence_events.py`).** All offline; no third-party app is contacted.
+  - canonical events, normalization, ACL inheritance and audience filtering, token encryption, the durable ingest queue
+  - the taxonomy, personal domains, classification and corrections; the shard registry; holder migrations
+  - deletion that purges content and derived text; revised, unavailable and restored evidence; kind caps on status
+  - the coordinator side: question audience, routing by nested and aliased domains, domains published from heartbeats,
+    and a finding that never counts support from its own contradiction
 - **Scenario (`test_scenario.py`).** Runs the whole simulated demonstration below as one test, in about 8 seconds.
 
 ## 2. Simulated end-to-end demonstration: `python -m mycelic scenario`
@@ -79,7 +85,7 @@ Coverage by area (test files under `mycelic/tests/`):
 
 All data is fictional (DEMO_SCENARIO.md).
 
-**Result: 12 of 12 checks pass.** It passed on every run of the last 8 consecutive runs, and inside `pytest` (`test_scenario.py`).
+**Result: 12 of 12 checks pass.** It passed on each of the last 3 consecutive fresh runs after the ingestion integration, and inside `pytest` (`test_scenario.py`). `--data-dir` must be new or empty: a reused directory is refused, because the idempotent seed would keep the earlier holder keys.
 
 | Check | What it proves |
 |---|---|
@@ -151,7 +157,7 @@ embedded holders, standalone worker, and standalone `holder-a` and `holder-b`, e
 | OpenAI-compatible models / embeddings | **NOT VERIFIED** | No key or endpoint configured. |
 | NATS JetStream transport | **VERIFIED locally** | A real `nats-server` 2.11 with JetStream, in the transport tests and in the full distributed compose topology (section 3). This was on one machine, not across hosts. |
 | Public deployment (Fly.io / Render configs in `deploy/mycelic/`) | **NOT DEPLOYED** | No Fly or Render credentials are configured. AWS credentials exist in the environment but are not an authorized target for this application; using them needs the owner's explicit decision. |
-| Third-party app connectors (GitHub, Slack, Gmail, Drive, …) | **NOT IMPLEMENTED YET** | Design in `INGESTION.md`; implementation is in progress (Phase A). No platform is claimed as supported. |
+| Third-party app connectors (GitHub, Slack, Gmail, Drive, …) | **NOT IMPLEMENTED YET** | The framework (Phase A) is built and tested offline with the `local_export` connector only. No third-party platform is claimed as supported. |
 
 ## 5. Known limitations
 

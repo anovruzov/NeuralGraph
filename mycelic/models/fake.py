@@ -289,6 +289,8 @@ def evaluate_responses(inp: dict[str, Any]) -> dict[str, Any]:
     groups = _Groups(n)
     disagreements: list[dict[str, Any]] = []
     in_disagreement: set[int] = set()
+    agreeing: list[tuple[int, int]] = []
+    disagreeing: set[tuple[int, int]] = set()
     for i in range(n):
         for k in range(i + 1, n):
             a, b = responses[i][1], responses[k][1]
@@ -299,6 +301,7 @@ def evaluate_responses(inp: dict[str, Any]) -> dict[str, Any]:
             negation_mismatch = has_negation(a) != has_negation(b)
             if numeric_mismatch or negation_mismatch:
                 in_disagreement.update((i, k))
+                disagreeing.add((i, k))
                 if numeric_mismatch:
                     summary = f"Numbers differ: {', '.join(sorted(na))} vs {', '.join(sorted(nb))}"
                 else:
@@ -309,7 +312,15 @@ def evaluate_responses(inp: dict[str, Any]) -> dict[str, Any]:
                     "b_response_ids": [_id_of(responses[k][0], "response_id", "id")],
                 })
             else:
-                groups.union(i, k)
+                agreeing.append((i, k))
+    # agreement is not transitive: two responses that disagree directly never end up in one finding through a third
+    # response that agrees with both (the finding would claim support from its own contradiction)
+    for i, k in agreeing:
+        ci = [x for x in range(n) if groups.find(x) == groups.find(i)]
+        ck = [x for x in range(n) if groups.find(x) == groups.find(k)]
+        if any((min(x, y), max(x, y)) in disagreeing for x in ci for y in ck):
+            continue
+        groups.union(i, k)
 
     findings: list[dict[str, Any]] = []
     for cluster in groups.clusters():

@@ -753,8 +753,8 @@ class IngestPipeline:
                                                   resurrectable=outcome == "redaction", affected_ref_ids=affected, purged=True)
                 self._recount_domains_sync(c, old, shard)
                 if w.get("doc_id"):
-                    # interim value until the coordinator accepts 'deleted' (INGESTION.md G10): 'retracted' withdraws the refs
-                    self._evidence_event_sync(c, ev, "retracted", {"affected_ref_ids": affected, "reason": reason, "deletion": outcome})
+                    # 'deleted': the coordinator withdraws the refs and purges its own copy of the content (E11)
+                    self._evidence_event_sync(c, ev, "deleted", {"affected_ref_ids": affected, "reason": reason, "deletion": outcome})
 
             if doc is not None:
                 await store.delete_document(ev.record_id, reason, status=status, extra_sync=extra_delete, optimize=False)

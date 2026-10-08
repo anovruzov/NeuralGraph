@@ -170,9 +170,27 @@ A claim committed from evidence revised after the holder answered is born `stale
   completing or archiving cancels the live questions and revokes their open routes.
 - **Disagreement.** A disagreement side that is already a committed finding *is* that finding (the
   majority statement becomes contested, never supported beside a copy); each distinct response set is
-  committed once. An investigation retracts a record only when every holder behind it answered (a
+  committed once. Agreement is not transitive: when a model puts two responses that contradict each
+  other into one finding, the side that is not the finding's own statement is committed on its own and
+  contests it, so a finding never counts support from its own contradiction. An investigation retracts a record only when every holder behind it answered (a
   timeout or decline is not evidence) and the winning side brings a source root it did not already
   rest on; otherwise the conflict stays under investigation and the goal owner is asked to decide. A
   conflict closed as `unresolved` leaves both claims as hypotheses.
 - **Routing failures** are recorded on the question with a cooldown; the loop becomes `blocked` only
   when no authorized holder serves its scope at all, and a blocked loop keeps its scheduled check.
+
+## D14. Domains route through the tenant taxonomy; the coordinator never sees record content
+
+- **One matching rule on both sides.** The coordinator (`Authorizer.can_route`) and the holder
+  (`EvidenceStore._policy_reason`) both use `ingest.domains.domains_overlap` with the tenant's
+  taxonomy (its `domain_taxonomy` / `domain_aliases` rows, or the default taxonomy). A domain matches
+  its ancestors and descendants; flat legacy names resolve through aliases. Personal domains never
+  route across the organization.
+- **Domains are published as counts.** A holder reports `{domain_id: count}` for its ingested records
+  in heartbeats (above its publication threshold, never personal domains). The coordinator adds known
+  tenant domains to the holder's routable `domains`, so ingestion makes a holder reachable without an
+  administrator retagging it; an owner can turn this off (`export_policy.auto_domains: false`).
+- **The audience travels with the question.** The coordinator enumerates who may read a question's
+  claims and sends that list with the question; the holder compares it with each source's members
+  and withholds member-restricted records otherwise. The audience is fixed at routing time (see the
+  limitation in INGESTION.md).

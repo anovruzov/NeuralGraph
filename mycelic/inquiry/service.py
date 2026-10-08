@@ -97,6 +97,7 @@ class QuestionService:
         self.question_timeout_seconds = question_timeout_seconds
         self.cooldown_seconds = cooldown_seconds
         self.max_followup_depth = max_followup_depth
+        self._audience_cache: dict[tuple[Any, ...], dict[str, Any]] = {}
 
     # ------------------------------------------------------------------ reads
     def get(self, question_id: str) -> dict[str, Any] | None:
@@ -403,11 +404,37 @@ class QuestionService:
             raise TransportError(f"{failed} route(s) could not be published; will retry")
         return out
 
+    def question_audience(self, q: Mapping[str, Any]) -> dict[str, Any]:
+        """Every principal who can read the question's responses and the claims committed from them: the users the
+        authorization engine lets see an artifact with the question's scope and visibility, plus the asker. Complete by
+        construction (enumerated from the tenant's active users), so a holder can compare it with a source's members.
+        Cached briefly per (scope, visibility, asker) and invalidated by any write to the database."""
+        pol = q.get("policy") or {}
+        row = {"tenant_id": q["tenant_id"], "visibility": pol.get("visibility", "unit"), "scope_unit_id": q.get("scope_unit_id"),
+               "asker_id": q["asker_id"] if q.get("asker_type") == "user" else None}
+        key = (q["tenant_id"], row["visibility"], row["scope_unit_id"], row["asker_id"], self.db.revision, self.db.data_version())
+        cached = self._audience_cache.get(key)
+        if cached is not None:
+            return cached
+        ids = []
+        for u in self.db.all("SELECT user_id FROM users WHERE tenant_id=? AND status='active'", (q["tenant_id"],)):
+            p = self.authz.principal_for_user(u["user_id"])
+            if p is not None and self.authz.can_view_scoped(p, row, resource_type="claim"):
+                ids.append(u["user_id"])
+        out = {"principal_ids": sorted(ids), "complete": True, "owner": False}
+        if len(self._audience_cache) > 256:
+            self._audience_cache.clear()
+        self._audience_cache[key] = out
+        return out
+
     async def publish_pending_routes(self, q: Mapping[str, Any]) -> tuple[int, int]:
         """Publish (or republish) every pending route of a collecting question. Returns (published, failed)."""
         question_id = q["question_id"]
         pending = rows_to_dicts(self.db.all("SELECT * FROM question_routes WHERE question_id=? AND status='pending'", (question_id,)))
         payload_base = {"question_id": question_id, "text": q["text"], "kind": q["kind"], "goal_id": q.get("goal_id"), "scope_unit_id": q.get("scope_unit_id"),
+                        # who will be able to read what this question produces: a holder discloses member-restricted
+                        # records only to an audience entirely inside the source's members (mycelic/ingest/acl.py)
+                        "audience": self.question_audience(q),
                         "candidate_domains": q.get("candidate_domains") or [], "valid_from": q.get("valid_from"), "valid_to": q.get("valid_to"),
                         "policy": {k: v for k, v in (q.get("policy") or {}).items() if k != "exclude_holder_ids"}, "budget": {"max_refs": 8}, "asked_at": q.get("updated_at")}
         published = failed = 0

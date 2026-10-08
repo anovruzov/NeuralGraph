@@ -30,12 +30,24 @@ reference while building.
 >   counts), E15 `classify_domains` (task, fake rules, fake). Tests: `mycelic/tests/test_ingest_*.py`.
 > * Deviations from this document: record and source permissions follow decision 2 (`visibility: public | members |
 >   private` with `member_ids` and/or `membership_ref`, resolved at use time) instead of §4.7's five visibilities; the
->   requesting audience travels with a question as `audience: {principal_ids, complete, owner}` and is absent today, so
->   restricted records are withheld from coordinator questions until the coordinator fills it; `retract_document` purges
->   content like `delete_document`; deletions publish `evidence_event` `retracted` (the interim value of G10).
+>   requesting audience travels with a question as `audience: {principal_ids, complete, owner}`; `retract_document`
+>   purges content like `delete_document`.
+>
+> **Implementation status (Phase A, coordinator side, 2026-10-08).**
+> * Built: `coord.db` migration `0002_ingestion.sql` (§5.3 tables); E8 (`Authorizer.can_route` matches through the
+>   tenant taxonomy and its aliases, like the holder); E11–E13 and G22 (evidence events `revised | retracted | deleted |
+>   unavailable | restored`, deletion purges derived text per tenant policy, no ingested titles in prompts, events or
+>   audit, kind caps status, `evidence_health` on discoveries); every routed question carries its `audience` (the users
+>   the authorization engine lets read the question's claims, enumerated, so `complete: true`); deletions publish
+>   `deleted`; heartbeats publish ingested tenant-taxonomy domains into `holders.domains` (never personal or unknown
+>   ones, at most 64, off with `export_policy.auto_domains: false`). Tests: `mycelic/tests/test_evidence_events.py`,
+>   `mycelic/tests/test_ingest_integration.py`.
+> * Known limitation: the audience is fixed when a question is routed. A grant made later on a claim derived from a
+>   member-restricted record widens who can read that claim's text (not the record itself, which raw access still
+>   re-checks at the holder). Until claims carry the audience they were disclosed to, grants on such claims should be
+>   made with that in mind.
 > * Not built yet: provider connectors (GitHub, Slack, Gmail, Drive), `ConnectorHttp`, the webhook API, the per-holder
->   scheduler/runtime, E9, cross-app linking (§8), shard splits and fan-out (§7.3+), and the coordinator-side items
->   (E8 `can_route`, E11–E13, `coord.db` additions of §5.3).
+>   scheduler/runtime, E9, cross-app linking (§8), shard splits and fan-out (§7.3+), and the Integrations UI.
 
 ---
 

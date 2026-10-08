@@ -72,6 +72,14 @@ Visibility is enforced server-side: every list is already filtered for the calle
 | GET | `/me/memory/recent?limit=` | → `{items:[memory]}` |
 
 Holder process endpoints (bearer = holder key): `POST /holders/{holder_id}/heartbeat {stats}`; the rest of holder ↔ core traffic goes over the transport.
+When `stats.ingest.domains` (`{domain_id: count}`, counts only) names tenant-taxonomy domains the holder does not list yet, they are added to its
+`domains` (so questions about them can reach it) and audited as `holder.domains_published`; personal and unknown domains are ignored, a holder
+lists at most 64 domains, and `export_policy.auto_domains: false` keeps a hand-curated list. Question routing matches domains through the
+tenant taxonomy: a question about `engineering` reaches a holder in `engineering.dependencies`, and legacy names resolve through aliases.
+
+Question envelope delivered to a holder (transport kind `question`): `{question_id, text, kind, goal_id, scope_unit_id, audience:{principal_ids, complete, owner},
+candidate_domains, valid_from, valid_to, policy, budget, asked_at}`. `audience` lists every user who will be able to read what the question produces;
+a holder discloses a member-restricted record only when that list lies inside the source's members.
 
 ## Agent chat
 

@@ -15,6 +15,7 @@ from .util import hmac_sign, j, jl, new_id, now_iso, plus_seconds, token, token_
 UNIT_TYPES = ("executive", "region", "subsidiary", "department", "team", "project")
 HIERARCHY = ("executive", "region", "subsidiary", "department", "team")   # top -> bottom; any level may be omitted
 ROLES = ("employee", "team_lead", "department_lead", "subsidiary_lead", "regional_lead", "executive", "org_admin")
+MAX_HOLDER_DOMAINS = 64                   # routable domains per holder (published from ingestion or set by hand)
 LEAD_ROLES = frozenset({"team_lead", "department_lead", "subsidiary_lead", "regional_lead", "executive"})
 ROLE_FOR_UNIT_TYPE = {"team": "team_lead", "department": "department_lead", "subsidiary": "subsidiary_lead",
                       "region": "regional_lead", "executive": "executive", "project": "team_lead"}
@@ -429,13 +430,33 @@ class OrgService:
             d.pop("key_hash", None)
         return out
 
+    @staticmethod
+    def _taxonomy_ids_sync(c: sqlite3.Connection, tenant_id: str) -> set[str]:
+        """The tenant's domain ids (its configured taxonomy, else the default one). Personal domains are never in it."""
+        ids = {r["domain_id"] for r in c.execute("SELECT domain_id FROM domain_taxonomy WHERE tenant_id=? AND status='active' AND domain_id NOT LIKE 'personal.%'", (tenant_id,))}
+        if ids or c.execute("SELECT 1 FROM domain_taxonomy WHERE tenant_id=? LIMIT 1", (tenant_id,)).fetchone():
+            return ids
+        from .ingest.domains import UNCLASSIFIED, default_taxonomy
+        return {d for d, dom in default_taxonomy().domains.items() if dom.status == "active" and dom.scope == "tenant" and d != UNCLASSIFIED}
+
     async def holder_heartbeat(self, holder_id: str, *, stats: dict | None = None, status: str = "online") -> None:
         async with self.db.tx() as c:
-            r = c.execute("SELECT tenant_id, status FROM holders WHERE holder_id=?", (holder_id,)).fetchone()
+            r = c.execute("SELECT tenant_id, status, domains, export_policy FROM holders WHERE holder_id=?", (holder_id,)).fetchone()
             if r is None or r["status"] == "revoked":
                 return
             c.execute("UPDATE holders SET status=?, last_heartbeat_at=?, stats=CASE WHEN ? THEN ? ELSE stats END, updated_at=? WHERE holder_id=?",
                       (status, now_iso(), int(stats is not None), j(stats), now_iso(), holder_id))
+            # domains the holder's ingested records belong to (counts only, tenant taxonomy only, at least the holder's
+            # publication threshold) become routable for questions, unless the owner curates the list by hand
+            reported = ((stats or {}).get("ingest") or {}).get("domains") or {}
+            if reported and (jl(r["export_policy"], {}) or {}).get("auto_domains", True) is not False:
+                current = list(jl(r["domains"], []) or [])
+                known = self._taxonomy_ids_sync(c, r["tenant_id"])
+                added = sorted(d for d in reported if isinstance(d, str) and d in known and d not in current)[:max(0, MAX_HOLDER_DOMAINS - len(current))]
+                if added:
+                    c.execute("UPDATE holders SET domains=? WHERE holder_id=?", (j(current + added), holder_id))
+                    self.db.audit_sync(c, r["tenant_id"], "holder", holder_id, "holder.domains_published", resource_type="holder", resource_id=holder_id,
+                                       detail={"added": added})
             if r["status"] != status:
                 self.db.emit_sync(c, r["tenant_id"], "holder.status", ref_type="holder", ref_id=holder_id, payload={"status": status}, audience={"roles": ["org_admin"], "visibility": "org"})
 

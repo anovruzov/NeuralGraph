@@ -114,6 +114,7 @@ class Authorizer:
         self.db = db
         self.org = org
         self._scope_cache: dict[tuple[str, int], tuple[set[str], set[str]]] = {}
+        self._taxonomy_cache: dict[str, tuple[tuple[Any, ...], Any]] = {}
 
     # ------------------------------------------------------------------ principals
     def principal_for_user(self, user_id: str, *, session_kind: str = "web") -> Principal | None:
@@ -203,6 +204,30 @@ class Authorizer:
         return {g["resource_id"] for g in p.grants if g["resource_type"] == resource_type and order.get(g["level"], 0) >= need}
 
     # ------------------------------------------------------------------ generic visibility
+    def tenant_taxonomy(self, tenant_id: str | None) -> Any:
+        """The tenant's domain taxonomy from the coordination DB (``domain_taxonomy`` / ``domain_aliases``), or the
+        default taxonomy when the tenant has not configured one. Cached until the database changes."""
+        from .ingest.domains import Domain, Taxonomy, default_taxonomy
+        key = (tenant_id or "", self.db.revision, self.db.data_version())
+        hit = self._taxonomy_cache.get(tenant_id or "")
+        if hit is not None and hit[0] == key:
+            return hit[1]
+        rows = self.db.all("SELECT domain_id, parent_id, name, description, status FROM domain_taxonomy WHERE tenant_id=?", (tenant_id,)) if tenant_id else []
+        if rows:
+            aliases = {r["alias"]: r["domain_id"] for r in self.db.all("SELECT alias, domain_id FROM domain_aliases WHERE tenant_id=?", (tenant_id,))}
+            tax = Taxonomy([Domain(r["domain_id"], r["name"], r["parent_id"], r["description"] or "", status=r["status"]) for r in rows], aliases)
+        else:
+            tax = default_taxonomy()
+        self._taxonomy_cache[tenant_id or ""] = (key, tax)
+        return tax
+
+    def _domains_overlap(self, tenant_id: str | None, a: set[str], b: set[str]) -> bool:
+        try:
+            from .ingest.domains import domains_overlap
+        except ImportError:  # pragma: no cover - a build without the ingestion package keeps exact matching
+            return False
+        return domains_overlap(a, b, self.tenant_taxonomy(tenant_id))
+
     def can_view_scoped(self, p: Principal, row: Mapping[str, Any], *, resource_type: str) -> bool:
         """Visibility rule for claims / discoveries / goals / questions (rows carry tenant_id, visibility,
         scope_unit_id and optionally owner_user_id / owner_type+owner_id / created_by_id)."""
@@ -367,7 +392,9 @@ class Authorizer:
                 return False, "unit holder is outside the question's scope"
         domains = set(holder.get("domains") or [])
         wanted = set(question.get("candidate_domains") or [])
-        if domains and wanted and not (domains & wanted) and "*" not in domains:
+        # nested domains match through the tenant taxonomy (a question about `engineering` reaches a holder whose
+        # records are in `engineering.dependencies`; legacy flat names resolve through aliases)
+        if domains and wanted and "*" not in domains and not (domains & wanted) and not self._domains_overlap(question.get("tenant_id") or holder.get("tenant_id"), domains, wanted):
             return False, "no matching evidence domain"
         if asker is not None and asker.kind in ("user", "loop") and not asker.is_system:
             # the asker must themselves be allowed to see the question's scope

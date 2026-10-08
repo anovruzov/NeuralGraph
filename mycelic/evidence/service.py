@@ -224,6 +224,8 @@ def policy_problems(export_policy: dict[str, Any] | None) -> list[str]:
         v = p.get(k)
         if v is not None and (isinstance(v, bool) or not isinstance(v, int) or v < 0):
             problems.append(f"{k} must be a non-negative integer")
+    if p.get("auto_domains") is not None and not isinstance(p["auto_domains"], bool):
+        problems.append("auto_domains must be true or false")
     return problems
 
 

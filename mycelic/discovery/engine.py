@@ -663,13 +663,15 @@ class LoopEngine:
                 """A disagreement side that is a finding already committed above (its responses are part of that finding's
                 support) is that finding: the majority statement becomes contested instead of supported next to a copy."""
                 ids = set(resp_ids)
+                best: tuple[int, str] | None = None
                 for rids, ftext, cid in finding_claims:
-                    if (ids and ids <= rids) or (not ids and text.strip() == ftext):
-                        return cid
-                return None
+                    # the most specific match wins: a side already committed on its own is that claim, not the finding around it
+                    if ((ids and ids <= rids) or (not ids and text.strip() == ftext)) and (best is None or len(rids) < best[0]):
+                        best = (len(rids), cid)
+                return best[1] if best else None
 
-            async def side_claim(resp_ids: list[str], text: str, conflict_with: list[str], summary: str) -> str | None:
-                cid = existing_side(resp_ids, text)
+            async def side_claim(resp_ids: list[str], text: str, conflict_with: list[str], summary: str, *, own: bool = False) -> str | None:
+                cid = None if own else existing_side(resp_ids, text)
                 if cid is not None:
                     return cid
                 # one claim per distinct response set, however many disagreement pairs name it
@@ -688,12 +690,23 @@ class LoopEngine:
                     continue
                 summary = d.get("summary") or "responses disagree"
                 ra, rb = list(d.get("a_response_ids") or []), list(d.get("b_response_ids") or [])
-                ca = await side_claim(ra, d["a_text"], [], summary)
-                if ca is None:
-                    continue
-                pre_b = existing_side(rb, d["b_text"])
-                cb = pre_b if pre_b is not None else await side_claim(rb, d["b_text"], [ca], summary)
-                if cb is None or cb == ca:
+                ea, eb = existing_side(ra, d["a_text"]), existing_side(rb, d["b_text"])
+                if ea is not None and ea == eb:
+                    # both sides sit inside one finding (the model clustered responses that contradict each other): the side
+                    # that is not the finding's own statement becomes its own claim, so the finding is contested by it
+                    # instead of supported despite it
+                    ftext = next(t for _, t, cid in finding_claims if cid == ea)
+                    a_is_finding = d["a_text"].strip() == ftext or (d["b_text"].strip() != ftext and len(ra) >= len(rb))
+                    if a_is_finding:
+                        ca, cb = ea, await side_claim(rb, d["b_text"], [ea], summary, own=True)
+                    else:
+                        ca, cb = await side_claim(ra, d["a_text"], [ea], summary, own=True), ea
+                else:
+                    ca = await side_claim(ra, d["a_text"], [], summary)
+                    if ca is None:
+                        continue
+                    cb = eb if eb is not None else await side_claim(rb, d["b_text"], [ca], summary)
+                if ca is None or cb is None or cb == ca:
                     continue
                 kc = await self.knowledge.open_conflict(principal, tid, ca, cb, summary, question_id=qid)
                 claim_ids.extend([ca, cb])

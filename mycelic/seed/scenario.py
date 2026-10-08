@@ -885,19 +885,25 @@ async def check_i_worker_restart(ctx: Ctx) -> None:
     claims_final = rt.knowledge.list_claims(ctx.sysp, question_id=qid, include_retracted=True)
     discs = rt.knowledge.list_discoveries(ctx.sysp, goal_id=ctx.gid)
     discs_q = [d for d in discs if d.get("question_id") == qid]
+    # the commit step's own discovery (exactly one, whatever the replays) and at most one escalated copy above its unit
+    originals = [r["object_id"] for r in rt.db.all("SELECT object_id FROM revisions WHERE object_type='discovery' AND version=1 AND json_extract(after, '$.idempotency_key')=?",
+                                                   (f"disc:{qid}",))]
+    copies = [d for d in discs_q if d["discovery_id"] not in originals]
     attempts = rt.jobs.attempts(job.job_id)
     outcomes = [a.get("outcome") for a in attempts]
-    evaluation = (rt.engine._checkpoint(qid).get("state") or {}).get("evaluation") or {}
-    expected_claims = len([f for f in evaluation.get("findings") or [] if f.get("text")]) + 2 * len(evaluation.get("disagreements") or [])
+    # the claims the evaluation committed, as its checkpoint recorded them (findings plus distinct disagreement sides)
+    committed_ids = set((rt.engine._checkpoint(qid).get("state") or {}).get("claim_ids") or [])
+    expected_claims = len(committed_ids)
     replay = await rt.engine.evaluate(job)       # a third evaluate of the same job: a no-op
     claims_replay = len(rt.knowledge.list_claims(ctx.sysp, question_id=qid, include_retracted=True))
     texts = [c["text"] for c in claims_final]
-    ok = len(claims_final) == claims_after_first == claims_replay == expected_claims and len(discs_q) == 1 and len(set(texts)) == len(texts) \
+    ok = len(claims_final) == claims_after_first == claims_replay == expected_claims > 0 and {c["claim_id"] for c in claims_final} == committed_ids \
+        and len(originals) == 1 and len(copies) <= 1 and len(set(texts)) == len(texts) \
         and outcomes[:1] == ["lost_lease"] and "ok" in outcomes and replay.get("skipped") is not None and bool(first.get("claims"))
     ctx.record("i. worker restart preserves progress without duplicating effects", ok,
                f"question {qid}: evaluate job {job.job_id} attempts={outcomes} (w-crashed abandoned the lease after writing, w-scenario-3 requeued and "
-               f"replayed it); claims after crash={claims_after_first}, final={len(claims_final)}, expected from the evaluation={expected_claims}, "
-               f"after a third evaluate={claims_replay} (replay result {replay}); discoveries for the question={len(discs_q)}; status={rt.questions.get(qid)['status']}")
+               f"replayed it); claims after crash={claims_after_first}, final={len(claims_final)}, committed by the evaluation checkpoint={expected_claims}, "
+               f"after a third evaluate={claims_replay} (replay result {replay}); discoveries for the question={len(originals)} (+{len(copies)} escalated copy); status={rt.questions.get(qid)['status']}")
 
 
 async def check_k_progress_without_client(ctx: Ctx) -> None:
@@ -1042,6 +1048,15 @@ async def run_scenario(rt: Runtime | None = None, *, data_dir: str | None = None
     base.mkdir(parents=True, exist_ok=True)
     report: dict[str, Any] = {"started_at": now_iso(), "data_dir": str(base), "checks": [], "api": {}, "holders": {}, "timings": {}, "notes": []}
     own_rt = rt is None
+    if own_rt and data_dir and any(base.iterdir()):
+        # every check assumes a fresh organization (and the seed is idempotent, so a reused directory keeps old holder
+        # keys the new holder processes cannot use); a directory the caller named is never deleted on their behalf
+        report["checks"].append({"name": "scenario setup", "passed": False,
+                                 "evidence": f"--data-dir {base} is not empty; pass a new or empty directory (or omit it for a temporary one)"})
+        report["duration_seconds"] = round(time.monotonic() - t_start, 1)
+        report["passed"] = False
+        report["table"] = print_table(report)
+        return report
     if own_rt:
         rt = build_runtime(scenario_settings(base))
     procs: dict[str, HolderProcess] = {}
@@ -1143,7 +1158,7 @@ async def run_scenario(rt: Runtime | None = None, *, data_dir: str | None = None
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="mycelic scenario", description="Run the Mycelic verification scenario and print a PASS/FAIL table.")
-    parser.add_argument("--data-dir", default=None, help="run inside this directory instead of a temporary one (kept afterwards)")
+    parser.add_argument("--data-dir", default=None, help="run inside this new or empty directory instead of a temporary one (kept afterwards)")
     parser.add_argument("--timeout", type=float, default=120.0, help="overall time budget in seconds")
     parser.add_argument("--keep", action="store_true", help="keep the temporary data directory for inspection")
     parser.add_argument("--json", default=None, help="also write the report as JSON to this path")

@@ -240,7 +240,7 @@ async def test_a_delete_withdraws_content_and_emits_an_evidence_event(tmp_path: 
     assert raw["text"] == "" and raw["chunk_text"] is None and raw["status"] == "deleted"
     # the same evidence_event the holder already sends for withdrawals, naming every exported reference
     ev = pipe.publisher.of("evidence_event")
-    assert len(ev) == 1 and ev[0]["event"] == "retracted" and set(ev[0]["affected_ref_ids"]) == refs and ev[0]["reason"] == "deleted_at_source"
+    assert len(ev) == 1 and ev[0]["event"] == "deleted" and set(ev[0]["affected_ref_ids"]) == refs and ev[0]["reason"] == "deleted_at_source"
     tomb = c.execute("SELECT * FROM deletion_tombstones WHERE record_id=?", (rid,)).fetchone()
     assert tomb["purged_at"] and tomb["propagated_at"] and set(json.loads(tomb["affected_ref_ids"])) == refs
     # a late edit for the deleted object cannot resurrect it
@@ -303,7 +303,7 @@ async def test_deletion_publishes_a_signed_evidence_event_over_the_holder_transp
     await wait_for(lambda: len(events.items) == 1 and len(results.items) >= 1)
     env = events.items[0]
     assert env.kind == "evidence_event" and env.verify("rk-test") and env.payload["holder_id"] == store.holder_id
-    assert env.payload["event"] == "retracted" and refs and set(env.payload["affected_ref_ids"]) == refs
+    assert env.payload["event"] == "deleted" and refs and set(env.payload["affected_ref_ids"]) == refs
     assert results.items[0].kind == "ingest_result" and results.items[0].payload["document"] is None
     await transport.close()
     await store.close()
