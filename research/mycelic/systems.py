@@ -264,10 +264,12 @@ def _kos_from_claims(corpus: Corpus, ul: UserLayer, idx: np.ndarray,
                 origin_users={u} if keep_lineage else set(),
                 pos_tmax=int(ex.t[i]) if ex.polarity[i] > 0 else -1,
                 neg_tmax=int(ex.t[i]) if ex.polarity[i] < 0 else -1)
+            out[(pred, anchor)].src = [int(ex.rid[i])]   # evaluator-only provenance
         else:
             k.tmin = min(k.tmin, int(ex.t[i]))
             k.tmax = max(k.tmax, int(ex.t[i]))
             k.n_raw += 1
+            k.src.append(int(ex.rid[i]))
             if len(k.sigs) < MAX_SIGS:
                 k.sigs.add(int(ex.sig[i]))
             if len(k.evidence) < MAX_EVIDENCE:
@@ -914,9 +916,11 @@ class Hierarchy:
                     q_tag=3, origin_users={uid} if self.cfg.lineage else set(),
                     pos_tmax=int(ex.t[i]) if ex.polarity[i] > 0 else -1,
                     neg_tmax=int(ex.t[i]) if ex.polarity[i] < 0 else -1)
+                out[key].src = [int(ex.rid[i])]          # evaluator-only provenance
             else:
                 k.tmin = min(k.tmin, int(ex.t[i])); k.tmax = max(k.tmax, int(ex.t[i]))
                 k.n_raw += 1
+                k.src.append(int(ex.rid[i]))
                 if len(k.sigs) < MAX_SIGS:
                     k.sigs.add(int(ex.sig[i]))
                 if len(k.evidence) < MAX_EVIDENCE:
@@ -1701,9 +1705,11 @@ def _flat_kos(corpus: Corpus, ex: ExtractResult, keep_lineage: bool) -> List[KO]
                 origin_users={u} if keep_lineage else set(),
                 pos_tmax=int(ex.t[i]) if ex.polarity[i] > 0 else -1,
                 neg_tmax=int(ex.t[i]) if ex.polarity[i] < 0 else -1)
+            out[(pred, anchor)].src = [int(ex.rid[i])]   # evaluator-only provenance
         else:
             k.tmin = min(k.tmin, int(ex.t[i])); k.tmax = max(k.tmax, int(ex.t[i]))
             k.n_raw += 1
+            k.src.append(int(ex.rid[i]))
             if len(k.sigs) < MAX_SIGS:
                 k.sigs.add(int(ex.sig[i]))
             if len(k.evidence) < MAX_EVIDENCE:

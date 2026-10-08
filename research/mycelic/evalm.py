@@ -58,6 +58,60 @@ def _match_sets(hyps, patterns: List[Pattern], stem: np.ndarray,
     return out
 
 
+def _supported_found(ranked, real: List[Pattern], gold: Gold, stem: np.ndarray,
+                     lenient: bool) -> Dict[str, float]:
+    """Supported found (PROTOCOL_V5 §4).  Gold pattern p counts when some
+    register hypothesis matches it under the primary rule AND at least
+    max(2, ceil(|p.preds| / 2)) of p's links are backed: a member object of
+    the hypothesis with that predicate was built from one of p's own evidence
+    records (gold.evidence[p.pid]).
+
+    Two pointer sets are scored:
+      * found_supported      - the object's full provenance (ops.ko_sources:
+                               every record it was built from).  This is the
+                               protocol metric.  Every architecture's objects
+                               carry it alike, so no system is penalised for
+                               how its merges truncate pointers.
+      * found_supported_ptr6 - only the <= MAX_EVIDENCE pointers the object
+                               actually carries (KO.evidence).  Diagnostic:
+                               the difference is the truncation bias, which
+                               falls on systems whose pools merge many records
+                               into one object per (predicate, entity).
+    Both are over the whole ranked register, like found_anywhere_in_register;
+    rare_supported is the same count over the rare gold patterns."""
+    from .ops import ko_sources
+    m = _match_sets(ranked, real, stem, lenient, mode="primary")
+    n_sup = n_ptr = n_rare_sup = 0
+    for p in real:
+        idxs = m.get(p.pid)
+        if not idxs:
+            continue
+        gev = set(gold.evidence.get(p.pid, []))
+        ps = set(p.preds)
+        need = max(2, (len(p.preds) + 1) // 2)
+        sup = ptr = False
+        for i in idxs:
+            h = ranked[i]
+            b_full = b_ptr = 0
+            for pr in set(h.preds) & ps:
+                ks = [k for k in h.kos if k.pred == pr]
+                if any(gev.intersection(ko_sources(k)) for k in ks):
+                    b_full += 1
+                if any(gev.intersection(k.evidence) for k in ks):
+                    b_ptr += 1
+            sup = sup or b_full >= need
+            ptr = ptr or b_ptr >= need
+            if sup and ptr:
+                break
+        n_sup += sup
+        n_ptr += ptr
+        n_rare_sup += sup and p.rare
+    n_rare = sum(1 for p in real if p.rare)
+    return {"found_supported": n_sup / max(1, len(real)),
+            "found_supported_ptr6": n_ptr / max(1, len(real)),
+            "rare_supported": n_rare_sup / max(1, n_rare)}
+
+
 @dataclass
 class Metrics:
     d: Dict[str, float]
@@ -379,6 +433,7 @@ def evaluate(corpus: Corpus, gold: Gold, res: RunResult,
         out[f"recall_at_{K}"] = rank_p[f"recall_at_{K}"]
         out[f"precision_at_{K}"] = rank_p[f"precision_at_{K}"]
     out["found_anywhere_in_register"] = rank_p["n_found"] / max(1, len(real))
+    out.update(_supported_found(ranked, real, gold, stem, lenient))
     out["cost_per_correct_discovery"] = (out["compute_units"] /
                                          max(1, n_correct))
     out["usd_per_correct_discovery"] = out["usd_estimate"] / max(1, n_correct)

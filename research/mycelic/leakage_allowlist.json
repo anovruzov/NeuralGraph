@@ -2,893 +2,913 @@
  "_doc": "Every access to hidden information in research/mycelic/*.py (except test_leakage.py), as found by test_leakage.scan(). Key: file::function::token. count = accesses allowed at that site. Categories: SCORING, GENERATOR, OPERATOR-SIM, SHORTCUT (see docs/mycelic_v5/ORACLE_AUDIT.md). A new site or a higher count fails test_leakage; classify it here and in the audit.",
  "sites": {
   "arm_paired.py::run_arms::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "paired runner row: evaluate()"
   },
   "calibrate.py::calibrate::attr:gold": {
-   "count": 4,
    "category": "SCORING",
+   "count": 4,
    "why": "knob fitting: evaluate() on calibration seeds"
   },
   "calibrate.py::calibrate_ct::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "knob fitting: evaluate() on calibration seeds"
   },
   "calibrate.py::calibrate_evidence::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "knob fitting: evaluate() on calibration seeds"
   },
   "calibrator.py::_dump_arch::attr:decoy_type": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "calibrator labelling: candidate dumps labelled against gold for ranker fitting on TUNE seeds"
   },
   "calibrator.py::_dump_arch::attr:discoverable": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "calibrator labelling: candidate dumps labelled against gold for ranker fitting on TUNE seeds"
   },
   "calibrator.py::_dump_arch::attr:gold": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "calibrator labelling: candidate dumps labelled against gold for ranker fitting on TUNE seeds"
   },
   "calibrator.py::_dump_arch::attr:patterns": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "calibrator labelling: candidate dumps labelled against gold for ranker fitting on TUNE seeds"
   },
   "calibrator.py::_dump_arch::attr:rare": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "calibrator labelling: candidate dumps labelled against gold for ranker fitting on TUNE seeds"
   },
   "calibrator.py::_dump_arch::attr:real": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "calibrator labelling: candidate dumps labelled against gold for ranker fitting on TUNE seeds"
   },
   "calibrator.py::dump::attr:discoverable": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "calibrator labelling: candidate dumps labelled against gold for ranker fitting on TUNE seeds"
   },
   "calibrator.py::dump::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "calibrator labelling: candidate dumps labelled against gold for ranker fitting on TUNE seeds"
   },
   "calibrator.py::dump::attr:patterns": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "calibrator labelling: candidate dumps labelled against gold for ranker fitting on TUNE seeds"
   },
   "calibrator.py::dump::attr:rare": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "calibrator labelling: candidate dumps labelled against gold for ranker fitting on TUNE seeds"
   },
   "calibrator.py::dump::attr:real": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "calibrator labelling: candidate dumps labelled against gold for ranker fitting on TUNE seeds"
   },
   "calibrator.py::select_archs::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "ranker adoption chosen from evaluated metrics"
   },
   "corpus.py::<module>::attr:discoverable": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "__main__ smoke print of gold sizes"
   },
   "corpus.py::<module>::attr:rare": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "__main__ smoke print of gold sizes"
   },
   "corpus.py::<module>::name:KIND_ANOMALY": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "record-kind constants"
   },
   "corpus.py::<module>::name:KIND_DECOY": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "record-kind constants"
   },
   "corpus.py::<module>::name:KIND_DUP": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "record-kind constants"
   },
   "corpus.py::<module>::name:KIND_FACET": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "record-kind constants"
   },
   "corpus.py::<module>::name:KIND_FALSE": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "record-kind constants"
   },
   "corpus.py::<module>::name:KIND_NAMES": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "record-kind constants"
   },
   "corpus.py::<module>::name:KIND_NOTABLE": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "record-kind constants"
   },
   "corpus.py::<module>::name:KIND_ROUTINE": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "record-kind constants"
   },
   "corpus.py::<module>::name:KIND_STALE": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "record-kind constants"
   },
   "corpus.py::<module>::name:make_gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "__main__ smoke print of gold sizes"
   },
   "corpus.py::Corpus.stats::attr:contradiction_pairs": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "world statistics for reports"
   },
   "corpus.py::Corpus.stats::attr:decoy_type": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "world statistics for reports"
   },
   "corpus.py::Corpus.stats::attr:notable_records": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "world statistics for reports"
   },
   "corpus.py::Corpus.stats::attr:patterns": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "world statistics for reports"
   },
   "corpus.py::Corpus.stats::attr:rare": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "world statistics for reports"
   },
   "corpus.py::Corpus.stats::attr:real": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "world statistics for reports"
   },
   "corpus.py::Corpus.stats::field:kind": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "world statistics for reports"
   },
   "corpus.py::Corpus.stats::name:KIND_NAMES": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "world statistics for reports"
   },
   "corpus.py::Corpus.text::field:t": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "renderer: realises the true tuple as the observable note text"
   },
   "corpus.py::Corpus.tokens::field:anchor": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "renderer: realises the true tuple as the observable note text"
   },
   "corpus.py::Corpus.tokens::field:aux": {
-   "count": 2,
    "category": "GENERATOR",
+   "count": 2,
    "why": "renderer: realises the true tuple as the observable note text"
   },
   "corpus.py::Corpus.tokens::field:event": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "renderer: realises the true tuple as the observable note text"
   },
   "corpus.py::Corpus.tokens::field:polarity": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "renderer: realises the true tuple as the observable note text"
   },
   "corpus.py::Corpus.tokens::field:pred": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "renderer: realises the true tuple as the observable note text"
   },
   "corpus.py::Corpus::name:Pattern": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "Corpus.patterns field annotation"
   },
   "corpus.py::build_corpus::attr:contradicted": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::attr:facet_records": {
-   "count": 6,
    "category": "GENERATOR",
+   "count": 6,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::attr:facet_times": {
-   "count": 3,
    "category": "GENERATOR",
+   "count": 3,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::attr:facet_users": {
-   "count": 2,
    "category": "GENERATOR",
+   "count": 2,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::field:anchor": {
-   "count": 4,
    "category": "GENERATOR",
+   "count": 4,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::field:event": {
-   "count": 3,
    "category": "GENERATOR",
+   "count": 3,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::field:kind": {
-   "count": 5,
    "category": "GENERATOR",
+   "count": 5,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::field:polarity": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::field:pred": {
-   "count": 4,
    "category": "GENERATOR",
+   "count": 4,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::field:salience": {
-   "count": 2,
    "category": "GENERATOR",
+   "count": 2,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::field:superseded": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::field:t": {
-   "count": 3,
    "category": "GENERATOR",
+   "count": 3,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::field:veracity": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::name:KIND_ANOMALY": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::name:KIND_DECOY": {
-   "count": 2,
    "category": "GENERATOR",
+   "count": 2,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::name:KIND_DUP": {
-   "count": 2,
    "category": "GENERATOR",
+   "count": 2,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::name:KIND_FACET": {
-   "count": 2,
    "category": "GENERATOR",
+   "count": 2,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::name:KIND_FALSE": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::name:KIND_NOTABLE": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::name:KIND_ROUTINE": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::name:KIND_STALE": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::name:Pattern": {
-   "count": 4,
    "category": "GENERATOR",
+   "count": 4,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::name:_near_miss": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::write:anchor": {
-   "count": 5,
    "category": "GENERATOR",
+   "count": 5,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::write:aux": {
-   "count": 5,
    "category": "GENERATOR",
+   "count": 5,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::write:event": {
-   "count": 6,
    "category": "GENERATOR",
+   "count": 6,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::write:facet": {
-   "count": 5,
    "category": "GENERATOR",
+   "count": 5,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::write:group": {
-   "count": 5,
    "category": "GENERATOR",
+   "count": 5,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::write:kind": {
-   "count": 6,
    "category": "GENERATOR",
+   "count": 6,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::write:polarity": {
-   "count": 5,
    "category": "GENERATOR",
+   "count": 5,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::write:pred": {
-   "count": 5,
    "category": "GENERATOR",
+   "count": 5,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::write:salience": {
-   "count": 5,
    "category": "GENERATOR",
+   "count": 5,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::write:t": {
-   "count": 5,
    "category": "GENERATOR",
+   "count": 5,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::build_corpus::write:veracity": {
-   "count": 5,
    "category": "GENERATOR",
+   "count": 5,
    "why": "world construction: writes the hidden record fields, plants patterns and decoys"
   },
   "corpus.py::make_gold::attr:contradicted": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "answer-key construction; consumed only by the evaluator"
   },
   "corpus.py::make_gold::attr:facet_records": {
-   "count": 2,
    "category": "GENERATOR",
+   "count": 2,
    "why": "answer-key construction; consumed only by the evaluator"
   },
   "corpus.py::make_gold::attr:families": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "answer-key construction; consumed only by the evaluator"
   },
   "corpus.py::make_gold::attr:notable_records": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "answer-key construction; consumed only by the evaluator"
   },
   "corpus.py::make_gold::attr:patterns": {
-   "count": 2,
    "category": "GENERATOR",
+   "count": 2,
    "why": "answer-key construction; consumed only by the evaluator"
   },
   "corpus.py::make_gold::attr:rare": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "answer-key construction; consumed only by the evaluator"
   },
   "corpus.py::make_gold::attr:real": {
-   "count": 2,
    "category": "GENERATOR",
+   "count": 2,
    "why": "answer-key construction; consumed only by the evaluator"
   },
   "corpus.py::make_gold::field:event": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "answer-key construction; consumed only by the evaluator"
   },
   "corpus.py::make_gold::name:Gold": {
-   "count": 2,
    "category": "GENERATOR",
+   "count": 2,
    "why": "answer-key construction; consumed only by the evaluator"
   },
   "evalm.py::_match_sets::name:Pattern": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "evaluator: matches the register against gold after the run"
   },
-  "evalm.py::evaluate::attr:contradicted": {
-   "count": 1,
+  "evalm.py::_supported_found::attr:evidence": {
    "category": "SCORING",
+   "count": 1,
+   "why": "supported-found metric: gold evidence record ids, read by the evaluator after the run"
+  },
+  "evalm.py::_supported_found::attr:rare": {
+   "category": "SCORING",
+   "count": 2,
+   "why": "supported-found metric: rare-pattern breakdown, evaluator only"
+  },
+  "evalm.py::_supported_found::name:Gold": {
+   "category": "SCORING",
+   "count": 1,
+   "why": "supported-found metric: type annotation of the gold object passed to the evaluator"
+  },
+  "evalm.py::_supported_found::name:Pattern": {
+   "category": "SCORING",
+   "count": 1,
+   "why": "supported-found metric: type annotation of the gold patterns passed to the evaluator"
+  },
+  "evalm.py::evaluate::attr:contradicted": {
+   "category": "SCORING",
+   "count": 1,
    "why": "evaluator: matches the register against gold after the run"
   },
   "evalm.py::evaluate::attr:decoy_type": {
-   "count": 4,
    "category": "SCORING",
+   "count": 4,
    "why": "evaluator: matches the register against gold after the run"
   },
   "evalm.py::evaluate::attr:discoverable": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "evaluator: matches the register against gold after the run"
   },
   "evalm.py::evaluate::attr:evidence": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "evaluator: matches the register against gold after the run"
   },
   "evalm.py::evaluate::attr:facet_records": {
-   "count": 3,
    "category": "SCORING",
+   "count": 3,
    "why": "evaluator: matches the register against gold after the run"
   },
   "evalm.py::evaluate::attr:families": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "evaluator: matches the register against gold after the run"
   },
   "evalm.py::evaluate::attr:hallucinated": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "evaluator: matches the register against gold after the run"
   },
   "evalm.py::evaluate::attr:independent_sources": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "evaluator: matches the register against gold after the run"
   },
   "evalm.py::evaluate::attr:patterns": {
-   "count": 4,
    "category": "SCORING",
+   "count": 4,
    "why": "evaluator: matches the register against gold after the run"
   },
   "evalm.py::evaluate::attr:rare": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "evaluator: matches the register against gold after the run"
   },
   "evalm.py::evaluate::attr:real": {
-   "count": 3,
    "category": "SCORING",
+   "count": 3,
    "why": "evaluator: matches the register against gold after the run"
   },
   "evalm.py::evaluate::attr:top_supported": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "evaluator: matches the register against gold after the run"
   },
   "evalm.py::evaluate::field:anchor": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "evaluator: matches the register against gold after the run"
   },
   "evalm.py::evaluate::field:event": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "evaluator: matches the register against gold after the run"
   },
   "evalm.py::evaluate::field:pred": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "evaluator: matches the register against gold after the run"
   },
   "evalm.py::evaluate::name:Gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "evaluator: matches the register against gold after the run"
   },
   "experiments.py::_row::attr:discoverable": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "experiment row: evaluate() and gold size"
   },
   "experiments.py::_row::attr:gold": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "experiment row: evaluate() and gold size"
   },
   "experiments.py::e12_provenance::field:anchor": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "provenance metric: checks the true anchor of each cited evidence record after the run"
   },
   "live_rank.py::build::attr:discoverable": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "builds the blind live-ranking task and its answer key (keys/); the hallucinated filter chooses which candidates are shown to the live model, it is not a system decision"
   },
   "live_rank.py::build::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "builds the blind live-ranking task and its answer key (keys/); the hallucinated filter chooses which candidates are shown to the live model, it is not a system decision"
   },
   "live_rank.py::build::attr:hallucinated": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "builds the blind live-ranking task and its answer key (keys/); the hallucinated filter chooses which candidates are shown to the live model, it is not a system decision"
   },
   "live_rank.py::build::attr:patterns": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "builds the blind live-ranking task and its answer key (keys/); the hallucinated filter chooses which candidates are shown to the live model, it is not a system decision"
   },
   "live_tasks.py::build::field:anchor": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "builds the live primitive-operator task file and its answer key from the true fields"
   },
   "live_tasks.py::build::field:aux": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "builds the live primitive-operator task file and its answer key from the true fields"
   },
   "live_tasks.py::build::field:pred": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "builds the live primitive-operator task file and its answer key from the true fields"
   },
   "loss_accounting.py::_best_match::name:Pattern": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "loss funnel: traces each gold pattern through a finished run"
   },
   "loss_accounting.py::_facets_extracted::attr:facet_records": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "loss funnel: traces each gold pattern through a finished run"
   },
   "loss_accounting.py::_facets_extracted::attr:spurious": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "loss funnel: traces each gold pattern through a finished run"
   },
   "loss_accounting.py::_facets_extracted::name:Pattern": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "loss funnel: traces each gold pattern through a finished run"
   },
   "loss_accounting.py::_flat_rows::attr:discoverable": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "loss funnel: traces each gold pattern through a finished run"
   },
   "loss_accounting.py::_flat_rows::attr:facet_records": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "loss funnel: traces each gold pattern through a finished run"
   },
   "loss_accounting.py::_flat_rows::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "loss funnel: traces each gold pattern through a finished run"
   },
   "loss_accounting.py::_flat_rows::attr:patterns": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "loss funnel: traces each gold pattern through a finished run"
   },
   "loss_accounting.py::_flat_rows::attr:rare": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "loss funnel: traces each gold pattern through a finished run"
   },
   "loss_accounting.py::_hier_rows::attr:discoverable": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "loss funnel: traces each gold pattern through a finished run"
   },
   "loss_accounting.py::_hier_rows::attr:facet_records": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "loss funnel: traces each gold pattern through a finished run"
   },
   "loss_accounting.py::_hier_rows::attr:facet_users": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "loss funnel: traces each gold pattern through a finished run"
   },
   "loss_accounting.py::_hier_rows::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "loss funnel: traces each gold pattern through a finished run"
   },
   "loss_accounting.py::_hier_rows::attr:patterns": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "loss funnel: traces each gold pattern through a finished run"
   },
   "loss_accounting.py::_hier_rows::attr:rare": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "loss funnel: traces each gold pattern through a finished run"
   },
   "ops.py::ExtractResult.take::attr:spurious": {
-   "count": 1,
    "category": "OPERATOR-SIM",
+   "count": 1,
    "why": "marks claims the extraction operator invented; read only by loss accounting and tests"
   },
   "ops.py::extract::attr:spurious": {
-   "count": 2,
    "category": "OPERATOR-SIM",
+   "count": 2,
    "why": "marks claims the extraction operator invented; read only by loss accounting and tests"
   },
   "ops.py::extract::field:anchor": {
-   "count": 1,
    "category": "OPERATOR-SIM",
+   "count": 1,
    "why": "O1 claim extraction: reads the true tuple and corrupts it at tier rates (recall coin, chain-neighbour predicate slip, per-author near-miss entity slip, spurious claims); day and polarity copied exactly"
   },
   "ops.py::extract::field:event": {
-   "count": 1,
    "category": "OPERATOR-SIM",
+   "count": 1,
    "why": "O1c echo detector: sig = true event id, replaced by a coarse (pred, anchor, day/3) key for 8% of records; decisions use sigs only as identities (test_leakage test a)"
   },
   "ops.py::extract::field:polarity": {
-   "count": 1,
    "category": "OPERATOR-SIM",
+   "count": 1,
    "why": "O1 claim extraction: reads the true tuple and corrupts it at tier rates (recall coin, chain-neighbour predicate slip, per-author near-miss entity slip, spurious claims); day and polarity copied exactly"
   },
   "ops.py::extract::field:pred": {
-   "count": 1,
    "category": "OPERATOR-SIM",
+   "count": 1,
    "why": "O1 claim extraction: reads the true tuple and corrupts it at tier rates (recall coin, chain-neighbour predicate slip, per-author near-miss entity slip, spurious claims); day and polarity copied exactly"
   },
   "ops.py::extract::field:t": {
-   "count": 1,
    "category": "OPERATOR-SIM",
+   "count": 1,
    "why": "O1 claim extraction: reads the true tuple and corrupts it at tier rates (recall coin, chain-neighbour predicate slip, per-author near-miss entity slip, spurious claims); day and polarity copied exactly"
   },
   "ops.py::extract::kw:spurious": {
-   "count": 2,
    "category": "OPERATOR-SIM",
+   "count": 2,
    "why": "marks claims the extraction operator invented; read only by loss accounting and tests"
   },
   "ops.py::extract::name:_near_miss_map": {
-   "count": 1,
    "category": "OPERATOR-SIM",
+   "count": 1,
    "why": "O2 entity-slip table of the extraction operator (built from entity names)"
   },
   "ops.py::extract::name:near_miss": {
-   "count": 2,
    "category": "OPERATOR-SIM",
+   "count": 2,
    "why": "O2 entity-slip table of the extraction operator (built from entity names)"
   },
   "ops.py::synthesize::kw:hallucinated": {
-   "count": 1,
    "category": "OPERATOR-SIM",
+   "count": 1,
    "why": "O3h hallucination injection marks its inventions for the evaluator"
   },
   "ops.py::unsupported::attr:hallucinated": {
-   "count": 1,
    "category": "SHORTCUT",
+   "count": 1,
    "why": "S3 (ORACLE_AUDIT.md): descent / question / completion / family routing and the ranker gate skip candidates by the simulator's hallucination flag; observable replacement ops.OBSERVABLE['unsupported_by_evidence'] (no evidence object) is exact - identical registers"
   },
   "quick_paired.py::run_pair::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "paired runner row: evaluate()"
   },
   "runner.py::build_world::name:_near_miss_map": {
-   "count": 1,
    "category": "OPERATOR-SIM",
+   "count": 1,
    "why": "builds the extraction operator's entity-slip table per world; passed only to ops.extract"
   },
   "runner.py::build_world::name:make_gold": {
-   "count": 1,
    "category": "GENERATOR",
+   "count": 1,
    "why": "builds the answer key beside the world; World.gold is read only by evaluate()"
   },
   "runner.py::run_matrix::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "experiment driver passes World.gold to evaluate()"
   },
   "systems.py::Hierarchy._reextract::field:anchor": {
-   "count": 1,
    "category": "SHORTCUT",
+   "count": 1,
    "why": "S2 (ORACLE_AUDIT.md): local re-extraction finds 'notes that name the entity' by the true anchor field (misses aux mentions, under-charges reads); observable replacement ops.OBSERVABLE['reextract_lookup'] (token match on the agent's own notes); local_reextract is off in every frozen configuration"
   },
   "systems.py::_lexical_index::field:pred": {
-   "count": 1,
    "category": "SHORTCUT",
+   "count": 1,
    "why": "S1 (ORACLE_AUDIT.md): the A / A2 lexical prefilter is keyed on the record's true predicate; observable replacement ops.OBSERVABLE['lexical_index'] (surface-phrase match on the rendered text) is exact on this generator - identical registers on TUNE 580-599"
   },
   "test_mycelic.py::TestCorpus.setUp::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.setUp::name:make_gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_all_five_decoy_classes_present::attr:decoy_type": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_all_five_decoy_classes_present::attr:patterns": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_all_five_decoy_classes_present::attr:real": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_deterministic::field:anchor": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_deterministic::field:pred": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_echoes_repeat_wording_independents_do_not::field:event": {
-   "count": 3,
    "category": "SCORING",
+   "count": 3,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_entity_locality::attr:discoverable": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_entity_locality::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_entity_locality::attr:patterns": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_entity_locality::field:anchor": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_no_single_user_holds_a_whole_pattern::attr:facet_records": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_no_single_user_holds_a_whole_pattern::attr:patterns": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_no_single_user_holds_a_whole_pattern::attr:real": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_patterns_span_multiple_regions::attr:discoverable": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_patterns_span_multiple_regions::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_patterns_span_multiple_regions::attr:patterns": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestCorpus.test_patterns_span_multiple_regions::attr:real": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestMetrics.test_empty_report_scores_zero_not_nan::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestMetrics.test_found_is_at_least_recall_at_100::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestMetrics.test_strict_match_never_exceeds_primary::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestOperators.test_entity_errors_are_per_agent_not_per_mention::attr:spurious": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestOperators.test_entity_errors_are_per_agent_not_per_mention::field:anchor": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestSystems.test_ablating_lineage_destroys_lineage_accuracy::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestSystems.test_descent_does_not_broadcast::attr:discoverable": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestSystems.test_descent_does_not_broadcast::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestSystems.test_descent_does_not_broadcast::attr:patterns": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestSystems.test_kernel_context_is_comparable_across_architectures::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestSystems.test_oracle_has_near_total_evidence_coverage::attr:gold": {
-   "count": 1,
    "category": "SCORING",
+   "count": 1,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestSystems.test_random_rank_has_the_same_candidates_as_its_parent::attr:gold": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "test harness: checks generator and operator invariants against ground truth"
   },
   "test_mycelic.py::TestSystems.test_runs_are_deterministic::attr:gold": {
-   "count": 2,
    "category": "SCORING",
+   "count": 2,
    "why": "test harness: checks generator and operator invariants against ground truth"
   }
  }

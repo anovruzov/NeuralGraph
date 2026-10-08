@@ -317,10 +317,16 @@ class KO:
     owner.  ``branches`` records, per org level, the distinct ancestor nodes
     that contributed - this is what independent-support counting uses.
     """
+    # ``src`` is not a dataclass field: it is the object's full provenance
+    # (every source record id it was built from, untruncated), kept for the
+    # EVALUATOR only (evalm "found_supported").  No decision reads it; the
+    # bounded ``evidence`` list (MAX_EVIDENCE pointers) is what the systems
+    # carry and serialise.  Set by the KO builders in systems.py and extended
+    # by _merge_into; absent on a KO built elsewhere (see ko_sources).
     __slots__ = ("pred", "anchor", "tmin", "tmax", "polarity", "n_raw",
                  "sigs", "evidence", "branches", "lineage", "owner", "level",
                  "conf", "importance", "novelty", "contra", "revisions",
-                 "q_tag", "origin_users", "pos_tmax", "neg_tmax")
+                 "q_tag", "origin_users", "pos_tmax", "neg_tmax", "src")
     pred: int
     anchor: int
     tmin: int
@@ -355,6 +361,15 @@ MAX_SIGS = 64             # bounded sketch of distinct source signatures
 MAX_USERS = 32
 
 
+def ko_sources(k: KO) -> List[int]:
+    """Every source record id `k` was built from (evaluator-only provenance,
+    see KO.src); the carried evidence pointers when no provenance was kept."""
+    try:
+        return k.src
+    except AttributeError:
+        return k.evidence
+
+
 def _merge_into(a: KO, b: KO, keep_lineage: bool = True) -> None:
     a.tmin = min(a.tmin, b.tmin)
     a.tmax = max(a.tmax, b.tmax)
@@ -363,6 +378,11 @@ def _merge_into(a: KO, b: KO, keep_lineage: bool = True) -> None:
     a.n_raw += b.n_raw
     if len(a.sigs) < MAX_SIGS:
         a.sigs |= b.sigs
+    # evaluator-only provenance (KO.src): untruncated, never read by a decision
+    try:
+        a.src.extend(ko_sources(b))
+    except AttributeError:
+        pass
     if len(a.evidence) < MAX_EVIDENCE:
         a.evidence.extend(b.evidence[:MAX_EVIDENCE - len(a.evidence)])
     if keep_lineage:
