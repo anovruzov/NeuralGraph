@@ -15,6 +15,9 @@ field. D001 measures what the drafted pack reads, on real public records:
 This rule is committed before any of the drafter's code exists and before any MSHA record value is seen. How it is
 built is in `BUILD-D001.md`. The sources are in `SOURCES.md`.
 
+**Amended before any run, on 2026-10-09.** The section of that name, just before "Runs", changes rules 1.3 to 1.7,
+2.2, 4, 5, 7, 8 and M1, and adds to the declaration. Where it disagrees with the text above it, it wins.
+
 ## The declaration
 
 - The rule was written by the AI system that wrote this repository's code.
@@ -391,6 +394,141 @@ Every reader runs on the same records through the same pinned lexical extractor.
   downloads is a failed run.
 - **Changes:** a change before any run is an amendment, recorded here as such. Any change after a run has started is
   a new choice file.
+
+## Amended before any run, 2026-10-09
+
+No value of either source has been seen. No run has happened, and no run file exists. Two reviews of the build found
+rules that would fail a privacy check by construction, and words that claim more than the test shows. Each change
+below replaces the text it names. Where the sections above disagree with this one, this one wins. `BUILD-D001.md`
+lists four conflicts the build found with the rule as written; this section settles all four.
+
+### A1. Dates (rule 1.3)
+
+- **Was:** the part of a date value before its first space or `T` is parsed.
+- **Now:** the part before the first space, or before a `T` that is followed by a digit, is parsed.
+- **Why:** an upper-case `OCT` holds a `T`. Every October date written `04-OCT-2021` would fail to parse. The MSHA
+  date column could then miss the 0.95 share, and every MSHA draft would fail. An ISO time such as
+  `2021-10-04T08:00` is still cut.
+
+### A2. One refusal for every string taken from records (rules 1.3 to 1.7 and 8)
+
+The rule refused values in three places, with three different sets: the drafter (training rows only), the check
+(every row, every pack string, keys included) and the last guard (both arms pooled, the whole report, as written).
+They now share one definition, computed by one function that all three call.
+
+- **The refused values** of an export are the folded values of its record-id, site and forbidden columns, in every
+  row of the export.
+- **A string is refused** when, folded, it:
+  1. equals a refused value;
+  2. holds, as whole words, a forbidden value of at least 4 characters that holds a letter, or a record-id or site
+     value of at least 5 characters (rule 8's lengths);
+  3. equals a word of a forbidden value that has two or more words. A word is a run of letters and digits. Only
+     words of letters alone, at least 4 of them, count. This catches a surname inside a name, or a model inside a
+     vehicle.
+- **A lexicon term is refused** when the term or any of its words is refused. This refuses everything the old
+  rule 1.5 refused.
+- **Rule 1.3:** the drafter reads the record-id, site and forbidden columns in every row, only to build the refused
+  values. It still never reads a narrative, a category or any other value of a row outside the training window.
+  These columns hold no label and no text. A refusal can only remove a term or a category; it can never add one.
+- **Rule 1.5:** a refused term is not a candidate. `draft.json` counts the terms that passed the floor and were
+  refused.
+- **Rule 1.4:** a category is left out of every pack file, as if it were under the floor, when any string the
+  drafter would write or print for it is refused: a spelling, its label as cut, its id or its placeholder. The
+  pipeline then counts it as an unmapped code. `draft.json` counts such categories and never names them. This
+  settles BUILD conflict 2: a missing-value marker such as `?`, filed both as a category and in a forbidden column,
+  is left out instead of failing the floor.
+- **Rule 1.6:** a declared entity value is left out when it or its id is refused.
+
+### A3. The privacy floor check (rule 1.7, item 3)
+
+- **Was:** no string in any pack file, keys included, folds equal to a value of a forbidden, site or record-id
+  column, and no lexicon term holds a site or forbidden value as whole words.
+- **Now:**
+  - **3a.** The strings the drafter derived from records are the specific predicates' ids, labels and lexicon terms
+    (placeholders included), their code labels, the value map's spellings, and the declared entity types' ids and
+    aliases. A2 refuses none of them: a term by the term rule, every other one by the string rule.
+  - **3b.** Every other string of the pack is the template's. The check rebuilds every pack file from the neutral
+    template, the language file and the strings of 3a, and requires the same content. A string written anywhere
+    else fails the floor.
+- **Why:** the old rule compared the template's own words and keys with record values. NHTSA's sites are lower-cased
+  states, and Idaho's `id` equals the key `id` in `pack.json`. One complaint from Idaho would have failed every NHTSA
+  pack, with no record value in it. 3b keeps the old rule's reach: a value planted at a template position, a key
+  included, still fails.
+
+### A4. Terms the loader would refuse (rule 1.5)
+
+A candidate term longer than 64 characters, the loader's limit, is not a candidate. This settles BUILD conflict 4.
+
+### A5. The last guard (rule 8)
+
+- **Was:** the whole report was scanned, case-sensitive, for the forbidden values of both arms, and for record ids,
+  site values and narrative 8-grams.
+- **Now:** per arm, the guard reads the strings the report prints that came from records: category labels,
+  predicate ids, lexicon terms and error texts. A string is a hit when A2 refuses it against that arm's exports
+  (every row of every company of the arm), or when it holds 8 consecutive tokens of a narrative of those exports.
+  The report's fixed words, its keys, the settings' company labels and the definition file's lines do not come from
+  records and are not scanned.
+- A hit, or an export the guard cannot read, withholds the report. The withheld report gives the hit counts by kind
+  and names the kinds it found. M3 fails.
+- **A withheld report withholds everything that carries the same strings.** The arm files and the drafted packs are
+  then not uploaded. Without a report, nothing but the job log is kept.
+- **A company whose pack failed the privacy floor** has no label, id or term printed or uploaded. Its arm file gives
+  counts only.
+- A value of one company that appears in the printed strings of another company of the same arm is still a hit.
+- **Why:** one equipment cell spelled `Other`, `UNKNOWN` or `FORD` in any MSHA row would have withheld the whole
+  report. The old guard matched the report's own words ("Other share") and the other arm's make names. It missed a
+  surname inside a name, and it matched folded terms against values as written. This settles BUILD conflict 3.
+
+### A6. NHTSA's vehicle column (rule 2.2)
+
+`vehicle` is declared forbidden. Rule 8 says the run never prints a vehicle, yet a model name could have been learned
+as a term. By A2, the make and model words of every vehicle in a make's export are refused as terms. The hand packs
+still read the vehicle as their entity.
+
+### A7. The matched space against `pack-v2/` (rule 2.2)
+
+- **Now:** a record's gold in a hand pack's matched space is the hand predicate of each filed name that the hand pack
+  maps to a predicate C reaches.
+- `pack/` maps exactly one name to each specific code, so this changes nothing for `pack/` or for C2.
+- `pack-v2/` maps two names to each of three codes. Before, a reader that named the merged predicate for a record
+  filed under the name outside C was counted wrong. Now it is not. `pack-v2/` decides nothing.
+
+### A8. Words that said more than the test shows (rules 4, 5, 7 and M1)
+
+- **Rule 4:** the label-names control is a mechanical split of each label. It is not how a person would start a hand
+  pack.
+- **Rule 5:** C1's interval resamples the sampled records of these companies (c1 to c5). It is not an interval for
+  mine accidents in general. The report says so.
+- **Rule 7, if D001 passes:** "no worse than the component-name list `pack/`, within the margin, on vehicle
+  complaints". Most of `pack/`'s lexicons are the component names themselves. The report prints, beside C2, how many
+  names each make's matched space holds.
+- **M1:** the per-field code is the download scripts and every module they import from `tools/`. For NHTSA that adds
+  `tools/market/nhtsa_export.py` and `tools/market/vehicle_pack.py`. The report gives each file's line count, and the
+  code hash covers them.
+- **The report** prints each criterion's deciding values unrounded, beside the comparison it makes.
+
+### A9. The declaration, added
+
+The language file's header words (site words such as `mine` and `location`; category words such as
+`classification`, `type` and `component`) and its missing-value markers (`no value found`, `?`, `unknown or other`)
+were chosen by an author who knows both sources' headers and, from general knowledge, their marker conventions.
+`no value found` decides whether such an MSHA classification can become a scored predicate. The roles-right count
+therefore says little, and for MSHA nothing. The report says so beside it.
+
+### The settings
+
+`D001-settings.json` changes with this amendment: `params` gain the refusal lengths of A2 and the term limit of A4;
+`report_guard` keeps only the n-gram length; NHTSA's forbidden columns add `vehicle`; each arm lists its download code
+(A8). The run file names the amended file's sha256.
+
+### What these changes risk
+
+- A word of a company, equipment or vehicle name that is also an ordinary word, such as "materials" or "machinery",
+  is refused as a term. A category whose label equals such a word is left out. Each makes the drafted pack weaker,
+  never stronger. The permuted-labels control learns from the same eligible terms, and a category left out is gone
+  for every reader. The report counts both.
+- Reading the identifying columns of test rows lets test rows remove terms. They cannot add one, and no test label or
+  narrative is read.
 
 ## Runs
 
