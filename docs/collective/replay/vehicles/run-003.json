@@ -1,0 +1,9 @@
+{
+  "purpose": "Public replay V002 (CHOICE-V002.md, committed in e47e77d before this run): CHEVROLET, JEEP, HONDA, NISSAN and DODGE with V001's settings and frozen pack, combined by Fisher's method against 0.05/3 per channel. Declares saw_recall_outcomes yes. The first run is the result.",
+  "makes": ["CHEVROLET", "JEEP", "HONDA", "NISSAN", "DODGE"],
+  "date_from": "20230101",
+  "date_to": "20241231",
+  "lookback_weeks": 26,
+  "post_weeks": 26,
+  "saw_recall_outcomes": "yes"
+}
