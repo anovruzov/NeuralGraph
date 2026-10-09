@@ -817,21 +817,22 @@ class RunTests(unittest.TestCase):
         self.assertEqual(doc["ledger_sha256"], hashlib.sha256((run / "ledger.jsonl").read_bytes()).hexdigest())
 
     def test_a_slow_unit_stops_at_its_budget_not_its_timeout(self) -> None:
-        """``lab.units.run_unit`` with a fake server that takes five seconds a call and a unit seven seconds past
-        the lab's margin: the run stops itself in its second call, before the unit's timeout, so the unit reads
-        J1_STOPPED with its final run.json, not timed_out."""
+        """``lab.units.run_unit`` with a fake server that takes five seconds a call, a unit of nine seconds and the
+        margin cut to three, so the budget is six: the second call is still running when the budget ends, and would
+        end after the unit's timeout. The run cuts it short and exits on its own, so the unit reads J1_STOPPED with
+        its final run.json, not timed_out."""
         unit = next(u for u in self.p.plan["units"] if u["unit"] == "j1-fake-b-p1")
         plan = json.loads(json.dumps(self.p.plan))
         plan["models"]["fake-b"]["persona"] = "slow"
         out = self.tmp / "shard"
-        record = units.run_unit(dict(unit, shard="s002-fake-b"), plan, out,
-                                timeout_s=units.SIM_BUDGET_MARGIN_S + 7, provider_override="fake",
-                                prereg=lab_prereg.load_prereg(self.p.plan_path))
+        with mock.patch.object(units, "SIM_BUDGET_MARGIN_S", 3):
+            record = units.run_unit(dict(unit, shard="s002-fake-b"), plan, out, timeout_s=9,
+                                    provider_override="fake", prereg=lab_prereg.load_prereg(self.p.plan_path))
         self.assertEqual((record["status"], record["status_reason"], record["exit_code"]), ("failed", J1_STOPPED, 1))
-        self.assertLess(record["wall_s"], units.SIM_BUDGET_MARGIN_S + 7)
+        self.assertLess(record["wall_s"], 9)
         doc = json.loads((out / "runs" / "j1" / unit["run_id"] / "run.json").read_text(encoding="utf-8"))
         self.assertEqual((doc["complete"], doc["stopped"], doc["questions_done"]), (False, "budget", 1))
-        self.assertEqual(doc["budget_seconds"], 7)
+        self.assertEqual(doc["budget_seconds"], 6)
         self.assertIsNotNone(doc["verdicts_sha256"])
 
     def test_it_stops_at_its_budget(self) -> None:

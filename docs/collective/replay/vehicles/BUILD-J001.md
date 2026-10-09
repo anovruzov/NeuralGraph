@@ -200,8 +200,8 @@ server (`mycelic/collective/inference/fakeserver.py`) with the lab's `Responder`
    than 1% of records left out withholds the headline.
 6. **Stops.** At the budget: `complete: false`, exit 1. A call still running at the budget is cut short, and the
    final run.json is written. SIGTERM gives exit 130 and the final run.json. A unit whose fake server takes five
-   seconds a call reads `J1_STOPPED`, not `timed_out`. After two consecutive server-down failures: the rest are not
-   sent.
+   seconds a call, with the margin cut so that the call in flight would outlast the unit's timeout, reads
+   `J1_STOPPED`, not `timed_out`. After two consecutive server-down failures: the rest are not sent.
 7. **Pins.** A changed labels file, questions file, pack, code hash or endpoint pin exits 2 before any call, with
    no ledger row.
 8. **Scoring.** Balanced accuracy equals accuracy. The intervals equal `stats.cluster_bootstrap_mean` on the same
