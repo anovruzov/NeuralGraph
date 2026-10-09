@@ -614,6 +614,132 @@ settings and the pass bars are as frozen. The code is in `research/routing_spike
 15. **Where the result lives.** `run.py run` writes `runs/routing_spike/<run id>/result.json` (git-ignored), with
     every route, gate status and verdict sha256. The committed copy is described in section 11.
 
+## 11. Run 1
+
+**The first run is the result.** Synthetic, `measurement: false`, one illustrative pack, a same-author plant spec. It
+is a spike result that informs decisions 1 and 2. It decides neither. Every figure below comes from the run file
+through the commands in Appendix B.
+
+**The run.** `python -m research.routing_spike.run run --run-id run-1 --jobs 4`, on commit `e285c6c` (the prereg
+commit), in-process mode, 4 worker processes on a 4-core machine. The prereg check passed: `prereg.json` sha256
+`824e9ee0…2c98e303`, code hash `5a10c6a3…7db5c3e`, no uncommitted change under the spike's code paths. All 40 worlds
+(20 seeds, planted and no-plant) ran in 1,392.8 s; the whole command took 1,409.8 s. A planted world took 233.7 to
+255.7 s, a no-plant world 14.9 to 33.1 s. The run file `runs/routing_spike/run-1/result.json` has sha256
+`de13dcc7…dbf38b783e`.
+
+**Verdict: pass.** Every integrity check held, the primary lower end is above 0, and the no-plant upper end is at most
+0.05.
+
+| | Statistic | 95% interval | Bar | Met |
+|---|---|---|---|---|
+| Primary: found net, R − U, mean over 20 seeds | +19.4525 patterns | [18.5675, 20.4275] | lower end > 0 | yes |
+| No-plant: false-conclusion rate, R − U, mean over 20 seeds | +0.0296 | [0.0130, 0.0485] | upper end ≤ 0.05 | yes, by 0.0015 |
+
+Both are `stats.paired_bootstrap` with B = 10,000 and the pre-registered seeds. Per seed, D(s) = F_R − F_U ran from
+16.15 to 25.4. No find was a chance find in any arm, so found and found net are equal everywhere.
+
+**The world.** Every planted world gave 60 candidates (85 to 95 detected). Those 60 held a true candidate for 45 to 53
+patterns per world, 991 in all. The no-plant worlds gave 202 candidates in all (5 to 13 per world, every detected
+candidate). Planted worlds held 3,657 to 3,707 records, no-plant worlds 1,257 to 1,307. No site answered `unknown` with
+reason `budget` in any A pass, so every world ran in the shared-answer mode.
+
+**The arms** (found net: total over 20 seeds, and the per-seed range; no-plant: `supported` conclusions on the 202
+no-plant candidates; planted false: `supported` conclusions on planted-world candidates true for no pattern). U is the
+mean over its 20 subsets.
+
+| Arm | Found net, total | Per seed | No-plant supported | Pooled rate | Planted false |
+|---|---|---|---|---|---|
+| R, routed | 558 | 24 to 35 | 8 | 0.0396 | 61 |
+| U, random (mean of 20 subsets) | 168.95 | 7.0 to 10.45 | 2.35 | 0.0116 | 39.45 |
+| A, every site | 529 | 23 to 31 | 8 | 0.0396 | 60 |
+| O, oracle (reads the plant spec) | 570 | 24 to 35 | 8 | 0.0396 | 61 |
+| R1, key cells only | 567 | 25 to 34 | 8 | 0.0396 | 68 |
+| R0, cell-blind | 198 | 6 to 14 | 3 | 0.0149 | 36 |
+| P, placebo | 180 | 6 to 15 | 4 | 0.0198 | 36 |
+
+Of R's 61 planted-world false conclusions, 48 are on `high_base_rate_everywhere` decoys, 5 on
+`cross_site_unmarked_copies`, 4 on `single_reporter` and 4 on background candidates.
+
+**Secondary comparisons** (paired bootstrap over seeds, B = 10,000, seed `routing-spike:<a>-<b>`; no bar):
+
+| Comparison | Mean | 95% interval |
+|---|---|---|
+| R1 − U | +19.9025 | [19.1175, 20.775] |
+| R0 − U | +1.4525 | [0.61, 2.325] |
+| P − U | +0.5525 | [−0.28, 1.3825] |
+| R − U, patterns at 2 sites | +13.8475 | [12.9225, 14.77] |
+| R − U, patterns at 3 sites | +5.605 | [4.9725, 6.2726] |
+| R − A | +1.45 | [0.75, 2.15] |
+| R − O | −0.6 | [−0.95, −0.25] |
+
+**Integrity checks** (all held):
+
+1. Leakage: 0 bytes of narrative overlap and 0 canary hits in 285,301,456 scanned bytes.
+2. Crossing types: 113,562 question frames and 240 describe frames, nothing else. No intake refusal. Each site's
+   descriptor was byte-identical in all 40 worlds.
+3. Imports: `hq` and `wire` load none of the forbidden modules, statically or in a fresh interpreter; `publish` loads
+   neither the backend module nor the retrieval package.
+4. Router blindness: every order but O's byte-identical after the narratives were rewritten, the graphs deleted and the
+   plant spec removed, in all 40 worlds.
+5. Shared candidates: one list per world, its sha256 recorded; every route label asked every candidate.
+6. Equal budget: every route had 3 sites (A: 6).
+7. Answer identity: every (question, site) verdict was byte-identical across the labels that asked it.
+8. Fabric: one note per candidate and route, each with HQ's gate status, every `supported` note passing 3.5 items 3
+   and 4, and every fabric service idle before it closed.
+9. Equivalence: with the shipped retrieval swapped in, 360 of 360 (question, site) verdicts on seed 1's planted world
+   were byte-identical to `SiteVerifier.answer`'s.
+10. Code and settings: as above.
+
+The extra reported check also held: in every route of every world, `route_selected` came before any retrieval event.
+
+**Site side.**
+
+- Sites answered 8,412 (question, site) pairs. Tesseract ranked for 8,126 of them; in the other 286 the id was outside
+  the site's master data, so nothing was read (step 4 of 1.4). The median ranking time was 0.462 s per question
+  (0.483 s in planted worlds, 0.201 s in no-plant worlds), the 95th percentile 0.681 s, with four worlds running at
+  once. A site graph held 498 to 699 nodes in planted worlds (median 601.5) and 152 to 253 in no-plant worlds.
+- Tesseract returned a median of 78 nodes per ranking, of which a median of 15 were in the question window, while the
+  window held a median of 132 of the site's own records. The L = 50 cut never removed a record. In 6,793 rankings the
+  window held more than 50 own records, so those verdicts carry `truncated: true`.
+- On the same questions the shipped retrieval found 81,785 in-window records; 37,725 of them (46%) were not among the
+  records Tesseract kept. The Tesseract site's verdict matched the shipped verifier's in 7,716 of 8,412 (question, site)
+  pairs (91.7%).
+- Bytes: a question at most 497 B, a verdict at most 623 B, a descriptor at most 337 B. HQ's exported bytes per
+  coordinator query averaged 3,634.8 B (at most 7,043 B) over 36,452 queries.
+
+**Why R found more than A.** On true candidates, R concluded `supported` where A concluded `contested` 37 times, and A
+concluded `supported` where R concluded `hypothesis` 8 times. In all 37, every site that refuted was outside R's three
+sites. The gate marks a conclusion `contested` when a contributing site refutes. Asking every site also asks the
+contributing sites whose Tesseract read missed the confirming records.
+
+**What this shows.**
+
+- The path runs end to end: per-site NeuralGraph, Tesseract through `NeuralGraphMemoryAdapter`, a two-kind byte
+  interface, `TesseractCoordinator` with rank fusion and holder selection, the shipped gate, and conclusions in the
+  fabric with reconstructable lineage that the scorer cross-checks against both sides' logs. The done-criterion of
+  plan item 3.2 is met on this synthetic world.
+- As section 6 predicted, the pass is close to guaranteed here. R1, the key's own cells alone, does as well as R
+  (+19.90 over U against +19.45). R0, which removes the key's own window cells, gains only +1.45 [0.61, 2.33] over U.
+  So nearly all of R's gain is the key's own cells marking the holders. That is weak evidence for decision 2. It does
+  not show that a router can find holders the cells do not mark.
+- The placebo matches U (P − U +0.55, interval across 0), so the router's code path does not favour sites by itself.
+- Routing costs false conclusions. On no-plant worlds R concluded `supported` on 8 of 202 candidates, U on 2.35. The
+  bar held by 0.0015. On planted worlds R's false conclusions are mostly high-base-rate decoys, which every arm that
+  asks the key's holders also confirms (A 48, O 48).
+- Site retrieval is the shared loss, not the router. Even asking every site found 529 of the 991 patterns with a true
+  candidate, and the oracle 570. Tesseract kept 54% of the records the shipped retrieval reads. The L = 50 cut played
+  no part: Tesseract returns only its stores' top candidates, about 78 of the site's nodes, before the window filter.
+
+**For decision 1.** The narrow interface was enough: HQ reached each site only through `describe` and `question`
+bytes. Process mode gave byte-identical verdicts in the test (deviation 2). The adapter needed a `claim_projection`,
+since its default claim content is a node's text. Ranking cost about half a second per question at about 600 nodes on
+this machine. `hq` and `wire` load no numpy and no retrieval package; the site process loads both. It does not choose
+between options (a) and (b).
+
+**Committed copies.** `docs/collective/routing_spike/run-1.json` is the run file without its routes section (sha256
+`f38c1b88…dc5d62c5a`). `docs/collective/routing_spike/run-1-routes.json` holds, per world, every route, gate status and
+verdict sha256 in a compact form (sha256 `9f184072…edf5b6289`). Appendix B gives the script that wrote both.
+
 ## Appendix A. Commands behind the numbers
 
 Run in this worktree on commit `95b2a1e`, Python 3, offline.
@@ -810,4 +936,199 @@ $ grep -n "247 of" docs/collective/ARCHITECTURE.md
 1571:... What the rehearsal does say is about the **pool**: 247 of
 $ grep -n "def fake_embedding" NeuralGraph/chat_memory/llm.py
 201:def fake_embedding(text: str, dim: int = 256) -> list[float]:
+```
+
+## Appendix B. Commands behind Run 1
+
+Run in this worktree after the run, on the run's files. The run itself:
+
+```
+$ PYTHONPATH=. python3 -m research.routing_spike.run run --run-id run-1 --jobs 4
+...
+routing spike: verdict=pass primary mean R-U=19.4525 [18.5675, 20.4275] noplant R-U=0.0296 [0.0130, 0.0485] -> runs/routing_spike/run-1/result.json sha256=de13dcc782326ebcae9a09d4cd20d0ae0dc339b90a71d3ce1f9284dbf38b783e (synthetic)
+```
+
+**The committed copies.** The script, run with
+`python3 export.py runs/routing_spike/run-1/result.json docs/collective/routing_spike/run-1.json docs/collective/routing_spike/run-1-routes.json`:
+
+```python
+import json, sys
+src, out_summary, out_routes = sys.argv[1:4]
+d = json.load(open(src))
+ra = d.pop("routes_and_answers")
+dumps = lambda o: json.dumps(o, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+open(out_summary, "w").write(dumps(d) + "\n")
+compact = {}
+for name, w in sorted(ra.items()):
+    idx = {s: i for i, s in enumerate(w["site_ids"])}
+    order = [c["question_id"] for c in w["candidates"]]
+    compact[name] = {
+        "site_ids": w["site_ids"],
+        "candidates": [[c["key"], c["question_id"], c["as_of"], c["week"], c["label"], c["pattern"], c["decoy_class"]]
+                       for c in w["candidates"]],
+        "answers": [[[idx[s], a["verdict"], a["reason"], a["source"], a["sha256"]] for s, a in sorted(w["answers"][q].items())]
+                    for q in order],
+        "routes": {label: [w["routes"][label][q]["route"] + ":" + w["routes"][label][q]["status"] for q in order]
+                   for label in sorted(w["routes"])},
+    }
+open(out_routes, "w").write(dumps({"kind": "routing_spike_routes", "synthetic": True, "measurement": False,
+                                   "format": {"candidates": "[key, question_id, as_of, snapshot week, label, pattern, decoy class]",
+                                              "answers": "per candidate, per site: [site index, verdict, wire reason, source, sha256 of the verdict bytes]",
+                                              "routes": "per route label, per candidate: site indices into site_ids, then ':' and the gate status"},
+                                   "worlds": compact}) + "\n")
+```
+
+```
+$ sha256sum runs/routing_spike/run-1/result.json docs/collective/routing_spike/*.json
+de13dcc782326ebcae9a09d4cd20d0ae0dc339b90a71d3ce1f9284dbf38b783e  runs/routing_spike/run-1/result.json
+824e9ee0383ef43651a0b4c6103078a6e75bbd6f2001bb6f1e1769552c98e303  docs/collective/routing_spike/prereg.json
+9f184072fa30228d29d423b689ba9a9fbd2e1ad25aaf63792f2ddb4edf5b6289  docs/collective/routing_spike/run-1-routes.json
+f38c1b884919fcd21cd8a31cd6362cb6470cee76ca27b4b42725daddc5d62c5a  docs/collective/routing_spike/run-1.json
+```
+
+**Every figure in section 11.** The script, run with
+`python3 run1_facts.py runs/routing_spike/run-1/result.json`. Its last blocks read the site stores' own verdict logs,
+the sites' local Tesseract diagnostics and the per-world files, harness side:
+
+```python
+import collections, json, statistics as st, sys
+d = json.load(open(sys.argv[1]))
+s, ps = d["statistics"], d["per_seed"]
+print("verdict", d["verdict"]["verdict"], "| failed checks", d["verdict"]["failed_checks"])
+print("checks", {k: v["ok"] for k, v in d["checks"].items()})
+for k in ("primary", "noplant"):
+    x = s[k]
+    print(k, "mean", round(x["mean_diff"], 4), "ci", round(x["ci_low"], 4), round(x["ci_high"], 4), "pass", x["pass"],
+          "B", x["B"], "seed", x["seed"])
+print("D(s) = F_R - F_U", [round(r - u, 2) for r, u in zip(ps["R"]["found_net"], ps["U"]["found_net"])])
+for arm in ("R", "U", "A", "O", "R1", "R0", "P"):
+    f = ps[arm]["found_net"]
+    t = s["totals"][arm]
+    print(f"{arm}: found_net per seed min {min(f)} median {st.median(f)} max {max(f)} | total {t['found_net_total']:g}"
+          f" chance {t['chance_total']:g} | no-plant supported {t['noplant_supported_total']:g} of"
+          f" {t['noplant_candidates_total']} pooled {t['noplant_pooled_rate']:.4f}"
+          f" | planted-world false supported {t['planted_false_supported_total']:g}")
+for x in s["secondary"]:
+    print("secondary", x["a"], "-", x["b"], x["stratum"] or "all", "mean", round(x["mean_diff"], 4), "ci",
+          round(x["ci_low"], 4), round(x["ci_high"], 4), "seed", x["seed"])
+print("no-plant rate per seed R", [round(v, 4) for v in ps["R"]["noplant_rate"]])
+print("no-plant rate per seed U", [round(v, 4) for v in ps["U"]["noplant_rate"]])
+print("planted-world false supported by class", json.dumps(d["planted_false_by_class"]))
+w = d["worlds"]
+pl = [w[k] for k in sorted(w) if k.endswith("planted")]
+npl = [w[k] for k in sorted(w) if k.endswith("noplant")]
+print("planted candidates", sorted({x["candidates"] for x in pl}), "detected min/max", min(x["detected"] for x in pl),
+      max(x["detected"] for x in pl), "| records min/max", min(x["records"] for x in pl), max(x["records"] for x in pl))
+print("no-plant candidates total", sum(x["candidates"] for x in npl), "per seed min/max",
+      min(x["candidates"] for x in npl), max(x["candidates"] for x in npl), "| records min/max",
+      min(x["records"] for x in npl), max(x["records"] for x in npl))
+print("answer modes", sorted({x["answers_mode"] for x in w.values()}), "budget unknowns",
+      sum(x["budget_unknowns"] for x in w.values()))
+tt = [x["timings"]["world_total_s"] + x["timings"]["build_s"] for x in pl]
+tn = [x["timings"]["world_total_s"] + x["timings"]["build_s"] for x in npl]
+print("world seconds planted min/median/max", round(min(tt), 1), round(st.median(tt), 1), round(max(tt), 1),
+      "| no-plant", round(min(tn), 1), round(st.median(tn), 1), round(max(tn), 1))
+print("run", json.dumps({k: d["run"][k] for k in ("command", "mode", "jobs", "worlds_s", "total_s")}))
+ss = d["site_side"]
+print("site side", json.dumps({k: v for k, v in ss.items() if k != "nodes_per_site"}))
+nodes = collections.defaultdict(list)
+for name, per in ss["nodes_per_site"].items():
+    nodes[name.rsplit("-", 1)[1]] += list(per.values())
+print("nodes per site", {k: (min(v), st.median(v), max(v)) for k, v in nodes.items()})
+b = d["bytes"]
+print("bytes", json.dumps(b), "| exported per query mean", round(b["hq_exported_per_query"]["total"] /
+                                                                   b["hq_exported_per_query"]["n"], 1))
+ra = d["routes_and_answers"]
+true_per_seed, c, where = [], collections.Counter(), collections.Counter()
+for name in sorted(ra):
+    if not name.endswith("planted"):
+        continue
+    wd = ra[name]
+    true_per_seed.append(len({x["pattern"] for x in wd["candidates"] if x["label"] == "true"}))
+    for x in wd["candidates"]:
+        if x["label"] != "true":
+            continue
+        q = x["question_id"]
+        r, a = wd["routes"]["R"][q]["status"], wd["routes"]["A"][q]["status"]
+        if r == "supported" and a != "supported":
+            c[f"R supported, A {a}"] += 1
+            r_route = {wd["site_ids"][int(i)] for i in wd["routes"]["R"][q]["route"]}
+            refuters = [site for site, ans in wd["answers"][q].items() if ans["verdict"] == "refute"]
+            where["every refuting site outside R's route" if not set(refuters) & r_route else "a refuter in R's route"] += 1
+        if a == "supported" and r != "supported":
+            c[f"A supported, R {r}"] += 1
+print("patterns with a true candidate per planted world", true_per_seed, "total", sum(true_per_seed))
+print("R against A on true candidates", dict(c), dict(where))
+print("shipped records kept by Tesseract", round(1 - ss["shipped_outside_tesseract_kept"] / ss["shipped_found"], 4),
+      "| verdict agreement", round(ss["agreement_same"] / ss["agreement_pairs"], 4))
+import glob, pathlib, sqlite3
+reasons = collections.Counter()
+for path in glob.glob(str(pathlib.Path(sys.argv[1]).parent / "worlds" / "*" / "edge" / "site-*.sqlite3")):
+    if ".graph." in path:
+        continue
+    con = sqlite3.connect(path)
+    reasons.update(r for (r,) in con.execute("SELECT local_reason FROM verdict_log"))
+    con.close()
+print("site-side local reasons of every stored verdict", dict(reasons))
+diag = [json.loads(line) for p in glob.glob(str(pathlib.Path(sys.argv[1]).parent / "worlds" / "*" / "edge" /
+                                               "site-*.tesseract.jsonl")) for line in open(p) if line.strip()]
+print("site diagnostics: rankings", len(diag), "| nodes Tesseract returned, median", st.median(r["returned"] for r in diag),
+      "| of them in the window, median", st.median(r["in_window_returned"] for r in diag),
+      "| own records in the window, median", st.median(r["own_in_window"] for r in diag),
+      "| rankings where L = 50 cut anything", sum(r["in_window_returned"] > 50 for r in diag),
+      "| rankings with more than 50 own records in the window (truncated)", sum(r["own_in_window"] > 50 for r in diag))
+ck = d["checks"]
+print("leakage", {k: ck["1_leakage"][k] for k in ("overlap_bytes", "scanned_bytes")}, "| equivalence",
+      {k: ck["9_equivalence"][k] for k in ("pairs", "differing")}, "| descriptors constant per site",
+      ck["2_crossing_types"]["descriptors_constant_per_site"], "| answer modes", ck["7_answer_identity"]["modes"])
+docs = [json.load(open(p)) for p in sorted(glob.glob(str(pathlib.Path(sys.argv[1]).parent / "worlds" / "*" / "world.json")))]
+kinds = collections.Counter()
+for x in docs:
+    kinds.update(x["checks"]["crossing"]["request_kinds"])
+print("worlds", len(docs), "| wire requests by kind", dict(kinds), "| intake refusals",
+      sum(x["checks"]["crossing"]["hq_intake_refusals"] for x in docs), "| canary hits",
+      sum(x["checks"]["leakage"]["canary_hits"] for x in docs), "| route_selected first in every route of every world",
+      all(x["checks"]["trace_route_selected_first"]["ok"] for x in docs))
+```
+
+Output:
+
+```
+verdict pass | failed checks []
+checks {'10_code_and_settings': True, '1_leakage': True, '2_crossing_types': True, '3_imports': True, '4_router_blindness': True, '5_shared_candidates': True, '6_equal_budget': True, '7_answer_identity': True, '8_fabric': True, '9_equivalence': True}
+primary mean 19.4525 ci 18.5675 20.4275 pass True B 10000 seed routing-spike:primary
+noplant mean 0.0296 ci 0.013 0.0485 pass True B 10000 seed routing-spike:noplant
+D(s) = F_R - F_U [17.0, 18.35, 19.6, 18.55, 25.4, 18.75, 19.05, 20.8, 20.55, 19.25, 23.45, 17.35, 20.4, 18.2, 19.25, 21.5, 16.15, 17.9, 17.4, 20.15]
+R: found_net per seed min 24.0 median 28.0 max 35.0 | total 558 chance 0 | no-plant supported 8 of 202 pooled 0.0396 | planted-world false supported 61
+U: found_net per seed min 7.0 median 8.55 max 10.45 | total 168.95 chance 0 | no-plant supported 2.35 of 202 pooled 0.0116 | planted-world false supported 39.45
+A: found_net per seed min 23.0 median 26.0 max 31.0 | total 529 chance 0 | no-plant supported 8 of 202 pooled 0.0396 | planted-world false supported 60
+O: found_net per seed min 24.0 median 28.5 max 35.0 | total 570 chance 0 | no-plant supported 8 of 202 pooled 0.0396 | planted-world false supported 61
+R1: found_net per seed min 25.0 median 28.0 max 34.0 | total 567 chance 0 | no-plant supported 8 of 202 pooled 0.0396 | planted-world false supported 68
+R0: found_net per seed min 6.0 median 10.0 max 14.0 | total 198 chance 0 | no-plant supported 3 of 202 pooled 0.0149 | planted-world false supported 36
+P: found_net per seed min 6.0 median 9.0 max 15.0 | total 180 chance 0 | no-plant supported 4 of 202 pooled 0.0198 | planted-world false supported 36
+secondary R1 - U all mean 19.9025 ci 19.1175 20.775 seed routing-spike:R1-U
+secondary R0 - U all mean 1.4525 ci 0.61 2.325 seed routing-spike:R0-U
+secondary P - U all mean 0.5525 ci -0.28 1.3825 seed routing-spike:P-U
+secondary R - U 2 mean 13.8475 ci 12.9225 14.77 seed routing-spike:R-U:2-site
+secondary R - U 3 mean 5.605 ci 4.9725 6.2726 seed routing-spike:R-U:3-site
+secondary R - A all mean 1.45 ci 0.75 2.15 seed routing-spike:R-A
+secondary R - O all mean -0.6 ci -0.95 -0.25 seed routing-spike:R-O
+no-plant rate per seed R [0.0, 0.0, 0.0, 0.0769, 0.0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.1667, 0.0, 0.0833, 0.0833, 0.0, 0.0909, 0.0, 0.0909, 0.125, 0.0]
+no-plant rate per seed U [0.0, 0.0, 0.0, 0.0269, 0.0, 0.02, 0.0, 0.0, 0.0, 0.0, 0.0333, 0.0, 0.0417, 0.0417, 0.0, 0.0182, 0.0, 0.0182, 0.025, 0.0]
+planted-world false supported by class {"A": {"background": 5.0, "decoy:cross_site_unmarked_copies": 3.0, "decoy:high_base_rate_everywhere": 48.0, "decoy:single_reporter": 4.0}, "O": {"background": 4.0, "decoy:cross_site_unmarked_copies": 5.0, "decoy:high_base_rate_everywhere": 48.0, "decoy:single_reporter": 4.0}, "P": {"background": 1.0, "decoy:cross_site_unmarked_copies": 1.0, "decoy:high_base_rate_everywhere": 33.0, "decoy:single_reporter": 1.0}, "R": {"background": 4.0, "decoy:cross_site_unmarked_copies": 5.0, "decoy:high_base_rate_everywhere": 48.0, "decoy:single_reporter": 4.0}, "R0": {"background": 1.0, "decoy:cross_site_unmarked_copies": 2.0, "decoy:high_base_rate_everywhere": 32.0, "decoy:single_reporter": 1.0}, "R1": {"background": 5.0, "decoy:cross_site_unmarked_copies": 6.0, "decoy:high_base_rate_everywhere": 53.0, "decoy:single_reporter": 4.0}, "U": {"background": 1.4500000000000006, "decoy:cross_site_unmarked_copies": 1.4000000000000006, "decoy:high_base_rate_everywhere": 35.750000000000036, "decoy:single_reporter": 0.8500000000000002}}
+planted candidates [60] detected min/max 85 95 | records min/max 3657 3707
+no-plant candidates total 202 per seed min/max 5 13 | records min/max 1257 1307
+answer modes ['shared'] budget unknowns 0
+world seconds planted min/median/max 233.7 244.7 255.7 | no-plant 14.9 26.5 33.1
+run {"command": "python -m research.routing_spike.run run --run-id run-1 --jobs 4", "mode": "in_process", "jobs": 4, "worlds_s": 1392.8050513039998, "total_s": 1409.8203363989996}
+site side {"agreement_pairs": 8412, "agreement_same": 7716, "shipped_found": 81785, "shipped_outside_tesseract_kept": 37725, "tesseract_queries": 8126, "tesseract_seconds_median": 0.4624453310007084, "tesseract_seconds_median_noplant": 0.20130460650034365, "tesseract_seconds_median_planted": 0.48256455400041887, "tesseract_seconds_p95": 0.6805269407486776}
+nodes per site {'noplant': (152, 193.0, 253), 'planted': (498, 601.5, 699)}
+bytes {"descriptor": {"max": 337, "n": 240, "total": 80360}, "hq_exported_per_query": {"max": 7043, "n": 36452, "total": 132495967}, "question": {"max": 497, "n": 8412, "total": 3835092}, "verdict": {"max": 623, "n": 8412, "total": 5136299}} | exported per query mean 3634.8
+patterns with a true candidate per planted world [50, 51, 50, 46, 50, 51, 50, 49, 49, 46, 53, 45, 50, 49, 51, 50, 50, 48, 51, 52] total 991
+R against A on true candidates {'R supported, A contested': 37, 'A supported, R hypothesis': 8} {"every refuting site outside R's route": 37}
+shipped records kept by Tesseract 0.5387 | verdict agreement 0.9173
+site-side local reasons of every stored verdict {None: 7646, 'unclear': 477, 'not_master_data': 286, 'no_records': 3}
+site diagnostics: rankings 8126 | nodes Tesseract returned, median 78.0 | of them in the window, median 15.0 | own records in the window, median 132.0 | rankings where L = 50 cut anything 0 | rankings with more than 50 own records in the window (truncated) 6793
+leakage {'overlap_bytes': 0, 'scanned_bytes': 285301456} | equivalence {'pairs': 360, 'differing': 0} | descriptors constant per site True | answer modes ['shared']
+worlds 40 | wire requests by kind {'describe': 240, 'question': 113562} | intake refusals 0 | canary hits 0 | route_selected first in every route of every world True
 ```
