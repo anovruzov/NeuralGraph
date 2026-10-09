@@ -1,0 +1,42 @@
+{
+  "alert_budget_per_week": 5,
+  "cooldown_weeks": 4,
+  "baseline_weeks": 26,
+  "window_weeks": 8,
+  "min_history_weeks": 12,
+  "burst": {
+    "alpha_site": 0.001,
+    "lambda_floor": 0.01,
+    "p_min": 0.01,
+    "p_max": 0.25,
+    "min_sites": 3
+  },
+  "cooccurrence": {
+    "pmi_smoothing": 0.5,
+    "pmi_delta": 1.0,
+    "min_sites": 3
+  },
+  "resolution": {
+    "res_conf_min": 0.95
+  },
+  "independence": {
+    "echo_min_ratio": 0.5
+  },
+  "decoy": {
+    "stale_days": 42,
+    "base_rate_site_fraction": 0.5
+  },
+  "ranker": {
+    "bias": -4.0,
+    "weights": {
+      "burst_surprise": 0.35,
+      "pmi_rise": 0.5,
+      "log_independent_roots": 0.4,
+      "supporting_sites": 0.3,
+      "low_res_conf": -1.0,
+      "echo": -1.5,
+      "few_reporters_share": -1.0,
+      "high_base_rate": -1.5
+    }
+  }
+}

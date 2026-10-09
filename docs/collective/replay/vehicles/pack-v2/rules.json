@@ -1,0 +1,12 @@
+{
+  "rules": {
+    "multi_state_engine": {
+      "label": "Engine complaints on one vehicle in several states",
+      "entity_type": "vehicle",
+      "predicate": "engine",
+      "min_sites": 2,
+      "min_count_per_site": 2,
+      "window_weeks": 8
+    }
+  }
+}

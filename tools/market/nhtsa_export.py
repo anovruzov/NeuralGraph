@@ -11,7 +11,10 @@ inputs of ``mycelic.collective.pilot.audit run``:
   type vehicle, with a two-letter consumer state and a known model year: ``odino``, ``state`` (lower-cased: each state
   is a site), ``received``, ``components[]`` (the complaint's top-level component categories; a category outside the
   pack's becomes ``UNKNOWN OR OTHER``), ``vehicle`` (make-model-year, ``vehicle_pack.vehicle_id``) and ``summary``
-  (the narrative). Nothing else: no VIN, city, dealer, incident state or operator's name.
+  (the narrative). Nothing else: no VIN, city, dealer, incident state or operator's name. When the pack's mapping
+  names a reporter column (vehicle pack v2), each row also carries its own ``odino`` there: NHTSA publishes no
+  complainant id, so each complaint counts as its own reporter instead of all of them as one unknown reporter. A pack
+  that names none (``pack/``, replays V001 to V003) gets exactly the columns above.
 * ``outcomes.csv``: one row per recall campaign and vehicle of the make whose Part 573 report was received
   (``RCDATE``) in the window, vehicle recalls only: ``outcome_id`` (``CAMPNO/vehicle``), ``opened``, the vehicle, and
   the predicate of the recall's component category when the campaign names exactly one of the pack's categories for
@@ -55,15 +58,17 @@ INVESTIGATION_KINDS = ("PE", "DP")
 _STATE = re.compile(r"[A-Z]{2}")
 _DATE = re.compile(r"\d{8}")
 _MAKE = re.compile(r"[A-Z0-9][A-Z0-9 -]{0,39}")
+EXPORT_COLUMNS = ("odino", "state", "received", "components", "vehicle", "summary")
 
 
 def _field(row: Sequence[str], i: int) -> str:
     return row[i].strip() if i < len(row) else ""
 
 
-def complaints(rows: Iterable[Sequence[str]], make: str, date_from: str, date_to: str,
-               categories: set[str]) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    """The export rows (one per ODINO, in ODINO order) and the counts of what was kept and dropped."""
+def complaints(rows: Iterable[Sequence[str]], make: str, date_from: str, date_to: str, categories: set[str],
+               reporter: str | None = None) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """The export rows (one per ODINO, in ODINO order) and the counts of what was kept and dropped; with
+    ``reporter``, a column of that name holding each row's own ODINO."""
     counts: Counter[str] = Counter()
     by: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -92,6 +97,8 @@ def complaints(rows: Iterable[Sequence[str]], make: str, date_from: str, date_to
         if entry is None:
             by[odino] = {"odino": odino, "state": state.lower(), "received": day, "components": [cat],
                          "vehicle": vid, "summary": _field(row, C_DESCR)}
+            if reporter is not None:
+                by[odino][reporter] = odino
             continue
         if entry["vehicle"] != vid:
             counts["second_vehicle_rows"] += 1
@@ -191,6 +198,14 @@ def pack_categories(pack_dir: Path) -> tuple[set[str], dict[str, str]]:
     return set(value_map), predicate_of
 
 
+def pack_reporter(pack_dir: Path) -> str | None:
+    """The reporter column the pack's mapping reads, or None; only a new plain column the export can write."""
+    path = json.loads((pack_dir / "mapping.json").read_text(encoding="utf-8"))["reporter"]
+    if path is not None and (not re.fullmatch(r"[a-z_]{1,40}", path) or path in EXPORT_COLUMNS):
+        raise ValueError(f"the exporter writes a reporter only to a new plain column: {path!r}")
+    return path
+
+
 def _rows(blob: bytes) -> Iterator[list[str]]:
     with zipfile.ZipFile(io.BytesIO(blob)) as z:
         for name in z.namelist():
@@ -229,6 +244,7 @@ def main(argv: list[str] | None = None) -> int:
     run = json.loads(Path(args.run).read_text(encoding="utf-8"))
     makes, first, last = run_makes(run), run["date_from"], run["date_to"]
     categories, predicate_of = pack_categories(Path(args.pack))
+    reporter = pack_reporter(Path(args.pack))
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from mycelic.collective.pilot.audit import write_csv  # noqa: E402
     source = run.get("outcomes", "recalls")
@@ -239,7 +255,7 @@ def main(argv: list[str] | None = None) -> int:
     for make in makes:
         out = Path(args.out) / make if "makes" in run else Path(args.out)
         out.mkdir(parents=True, exist_ok=True)
-        export, c_counts = complaints(_rows(complaint_blob), make, first, last, categories)
+        export, c_counts = complaints(_rows(complaint_blob), make, first, last, categories, reporter)
         write_csv(export, out / "export.csv")
         outcomes, o_counts = outcome_rows(_rows(outcome_blob), make, first, last, predicate_of)
         write_outcomes(outcomes, out / "outcomes.csv")

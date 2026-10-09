@@ -1,0 +1,122 @@
+{
+  "NHT-001": {
+    "label": "Engine",
+    "predicate": "engine",
+    "specific": true
+  },
+  "NHT-002": {
+    "label": "Electrical System",
+    "predicate": "electrical_system",
+    "specific": true
+  },
+  "NHT-003": {
+    "label": "Air Bags",
+    "predicate": "air_bags",
+    "specific": true
+  },
+  "NHT-004": {
+    "label": "Power Train",
+    "predicate": "power_train",
+    "specific": true
+  },
+  "NHT-005": {
+    "label": "Steering",
+    "predicate": "steering",
+    "specific": true
+  },
+  "NHT-006": {
+    "label": "Service Brakes",
+    "predicate": "service_brakes",
+    "specific": true
+  },
+  "NHT-007": {
+    "label": "Fuel/Propulsion System",
+    "predicate": "fuel_propulsion_system",
+    "specific": true
+  },
+  "NHT-008": {
+    "label": "Structure",
+    "predicate": "structure",
+    "specific": true
+  },
+  "NHT-009": {
+    "label": "Suspension",
+    "predicate": "suspension",
+    "specific": true
+  },
+  "NHT-010": {
+    "label": "Vehicle Speed Control",
+    "predicate": "vehicle_speed_control",
+    "specific": true
+  },
+  "NHT-011": {
+    "label": "Exterior Lighting",
+    "predicate": "exterior_lighting",
+    "specific": true
+  },
+  "NHT-012": {
+    "label": "Visibility/Wiper",
+    "predicate": "visibility_wiper",
+    "specific": true
+  },
+  "NHT-013": {
+    "label": "Forward Collision Avoidance",
+    "predicate": "forward_collision_avoidance",
+    "specific": true
+  },
+  "NHT-014": {
+    "label": "Electronic Stability Control (Esc)",
+    "predicate": "electronic_stability_control_esc",
+    "specific": true
+  },
+  "NHT-015": {
+    "label": "Wheels",
+    "predicate": "wheels",
+    "specific": true
+  },
+  "NHT-016": {
+    "label": "Seat Belts",
+    "predicate": "seat_belts",
+    "specific": true
+  },
+  "NHT-017": {
+    "label": "Tires",
+    "predicate": "tires",
+    "specific": true
+  },
+  "NHT-018": {
+    "label": "Seats",
+    "predicate": "seats",
+    "specific": true
+  },
+  "NHT-022": {
+    "label": "Lane Departure",
+    "predicate": "lane_departure",
+    "specific": true
+  },
+  "NHT-023": {
+    "label": "Latches/Locks/Linkages",
+    "predicate": "latches_locks_linkages",
+    "specific": true
+  },
+  "NHT-024": {
+    "label": "Back Over Prevention",
+    "predicate": "back_over_prevention",
+    "specific": true
+  },
+  "NHT-025": {
+    "label": "Equipment",
+    "predicate": "equipment",
+    "specific": true
+  },
+  "NHT-026": {
+    "label": "Child Seat",
+    "predicate": "child_seat",
+    "specific": true
+  },
+  "NHT-999": {
+    "label": "Unknown or other component",
+    "predicate": "unknown_or_other",
+    "specific": false
+  }
+}
