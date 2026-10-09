@@ -1,0 +1,93 @@
+From 6ebafd4911f9d2b8bfdc9441e820784e899c5819 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 05:58:52 +0000
+Subject: [PATCH 5/5] Architecture audit v1: coverage table and confirmed
+ causes
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/ARCHITECTURE_AUDIT.md | 71 ++++++++++++++++++++++
+ 1 file changed, 71 insertions(+)
+ create mode 100644 research/mycelic_e2e/ARCHITECTURE_AUDIT.md
+
+diff --git a/research/mycelic_e2e/ARCHITECTURE_AUDIT.md b/research/mycelic_e2e/ARCHITECTURE_AUDIT.md
+new file mode 100644
+index 0000000..82d3320
+--- /dev/null
++++ b/research/mycelic_e2e/ARCHITECTURE_AUDIT.md
+@@ -0,0 +1,71 @@
++# Architecture audit — Mycelic implementation vs. the benchmarks that claimed to measure it
++
++Version 1 (2026-10-09 ~06:15 UTC). Evidence sources: runtime trace `audit/TRACE_FINDINGS.md` + `audit/trace_output.json`
++(ENGINEER-A, reproducible with `python research/mycelic_e2e/audit/trace_one_event.py`), custody audit
++`custody/OLD_BENCHMARKS.md` (REVIEWER-1), stage map `plan/PLAN_v1.md` §A (PLANNER), and code reads by the orchestrator.
++This file is updated with the architecture-gate reports of the scored runs (§4).
++
++## 1. Verdict on the hypothesis
++
++> "Current benchmarks bypass ingestion, individual NeuralGraphs, hypergraph routing, or other core runtime pieces."
++
++**Confirmed for every published accuracy number.**
++
++- The `research/mycelic` enterprise benchmark (E1–E12, vNext v3/v4/v5) imports no implementation code. Its holders are
++  numpy rows, its routing is a random draw, and its extraction reads the ground truth. It is simulation-only.
++- The live Qwen3-1.7B harness replaces only the extraction step and then runs the same simulator. It is partial-path.
++- `research/ingest_bench` runs real ingestion into one holder, with no coordinator, loop or gate. It is component-only.
++- The seed scenario does run the whole system, but its documents mostly bypass the connector path
++  (`EvidenceStore.ingest_document`), and it checks pass/fail, not accuracy.
++- LoCoMo measures a different retriever (Tesseract), which the implementation's holders do not use.
++
++The **hypergraph** does not exist in any branch. There was nothing for a benchmark to bypass: it had to be built
++(§3, WP1).
++
++## 2. Coverage table (required component → evidence)
++
++"Old" = the published benchmark path. "E2E v1" = the successor harness (`bench/`). The "runtime trace" and "persisted effect"
++columns come from the single-event trace. They are replaced by gate counts per scored run once runs exist.
++
++| required component | production entry point | old benchmark call path | E2E v1 call path | runtime trace (single event) | persisted effect observed | gap / status |
++|---|---|---|---|---|---|---|
++| raw event → adapter/normalization | `ingest/connectors/local_export.py:normalize` → `ingest/events.py:CanonicalEvent.create/compute_root` | none (simulator rows) | JSONL in holder import root → `POST /api/holders/{id}/connectors` + `/sync` | sync report `raw_items 1, enqueued 1` | `ingest_records` row with record_key, object_key, source_root_id, author entity, created_at_src | rejected lines leave no per-line disposition (DEFECT e → ENGINEER-D) |
++| tenant/domain/authz/shard | `pipeline.py:_event_problems`, `acl.py:narrow`, `domains.py:DomainClassifier`, `shards.py:route_write_sync` | none | implicit in sync | domain `operations.logistics` (method llm/fake), shard s0 | `domain_memberships`, `record_locator` | same topic classified 3 ways across holders. `published_domains` needs ≥5 records per domain |
++| durable idempotent ingestion | `queue.py:IngestQueue`, `pipeline.py:dedupe/_finish_sync` | none | implicit; fault files | dup/replay/out-of-order probes | `applied_events` outcomes new/update/historical/duplicate | PASS on duplicates, replay, out-of-order. Undated record looks fresh (DEFECT → ENGINEER-D) |
++| the correct individual NeuralGraph | `holder/embedded.py:EmbeddedHolders.ensure` (one `EvidenceStore` = NeuralGraph `chat_memory` store per holder) | none (numpy rows) | one user holder per user, one unit holder per department/team | memory written in the owner's holder file only | `documents/messages/memories/FTS` in `<holder>.db` | NeuralGraph LLM extraction off by default. Pattern entity linking (`ingest/linking.py`) on |
++| graph construction / index updates | `evidence/service.py:_write_chunks_sync`, `ingest/linking.py:link_record` | none | implicit | 3 entities (document, domain, person) | entity graph rows, relations for recognised vocabulary | entities limited to the linker's vocabulary (services, components, symptoms, tracker keys, email domains) |
++| hypergraph membership & lineage | **none before tonight**. WP1: `knowledge/hypergraph.py`, migration `0005_hypergraph.sql` | none | written inside `commit_claim`, conflicts, discoveries, heartbeats | n/a (did not exist) | n/a | BUILT TONIGHT (WP1), under review |
++| authorized cross-domain routing | `inquiry/service.py:candidate_holders/route` + `authz.py:can_route` | coin flip in simulator | loop questions and asker questions routed by the worker | 4 routes (authorized) | `question_routes`, `question.route` audit | **unranked `holders[:10]` in registry order** (`inquiry/service.py:369`). WP1 adds `inquiry/routing.py:rank_holders` |
++| retrieval & evidence reconstruction | `evidence/service.py:answer_question` (NeuralGraph hybrid retrieval) → `inquiry/service.py:handle_response` → `knowledge` refs | none | implicit | memory retrieved (1 hit) but answer rejected | `exports` row ↔ coordinator `evidence_refs` (root, object_key) | **FIRST LOSS POINT**: deterministic `answer_from_evidence` needs ≥2 shared tokens. The loop's templated question shares 0 with a plainly worded record |
++| inquiry / continual-discovery loop | `discovery/engine.py:LoopEngine.tick/route_question/collect/evaluate/commit` | none | goals + questions via API, worker drains | 2 gap questions, 4 routes, 4 responses | `questions`, `responses`, `question_runs` | a domain is never re-asked after one gap question. No candidate domains → loop idle |
++| evidence / commit gate | `knowledge/gate.py:CommitGate.check`, `knowledge/support.py:compute_support` | none | implicit | "1 independent source root(s); policy needs 2" → hypothesis | `claims`, `claim_evidence`, `derivations`, `claim.gate` audit | forwards with own commentary counted as independent (DEFECT f → ENGINEER-D). Cross-department requirement absent (O3 → WP1) |
++| final answer / discovery | `knowledge/service.py:create_discovery`, API reads | simulator register | asker-view dumps scored by `bench/score.py` | discovery `kind hypothesis` | `discoveries`, revisions | — |
++| tenant isolation & disclosure | `authz.py` everywhere | simulated privacy counters | cross-tenant + denied-access task classes | 403/404 everywhere. Members-only content withheld | audit rows | refused asker can read opaque holder ids and rejection reasons of units it cannot see (DEFECT h2) |
++| deletion / retention | `ingest/service.py:delete_record`, `knowledge/service.py:on_evidence_event` | none | delete faults | holder purge complete | tombstones, withdrawals | verbatim text survives in 7 coordinator tables after deletion (DEFECT d, open) |
++
++## 3. Confirmed causes (evidence-backed), ordered by impact on end-to-end accuracy
++
++1. **Routing is unranked at scale.** `QuestionService.route` keeps the first `budget.holders` (10) authorized holders in
++   registry order. With ~1,000 authorized holders in scope, evidence held by 3 specific people is reached by chance.
++   Code: `mycelic/inquiry/service.py:369-370`.
++2. **The deterministic answer step is lexical.** A holder answers only if the question shares ≥2 stemmed content tokens
++   with a retrieved chunk (`models/fake.py:answer_from_evidence`). The loop's own questions are templates naming a domain,
++   so plainly worded evidence is retrieved and then dropped (trace stage 6–7). This is a property of the deterministic
++   provider. All deterministic results are labelled as such.
++3. **No cross-unit corroboration rule.** The gate counts independent roots but not how many departments they come from,
++   so a single-department cluster passes as a cross-department finding.
++4. **Common origin partly lost.** `forwarded_from` is used for the root only when the origin is a local record.
++   Forwards with commentary in different holders count as independent support.
++5. **Rejections are silent.** Malformed or refused input leaves only a counter. There is no per-item disposition.
++
++## 4. Gate reports of scored runs
++
++_(filled from `bench/arch_gate.py` output per run)_
++
++## 5. Remaining gaps (not repaired tonight unless listed in MORNING_HANDOFF.md)
++
++- NATS transport and separate holder processes are not exercised by the E2E harness (single process, SQLite outbox).
++  No distributed-transport or distributed-recovery claim is made.
++- Coordinator text retention after deletion (DEFECT d) and the h2 metadata disclosure.
++- NeuralGraph LLM extraction is off in the production composition, so graph construction relies on the pattern
++  linker.
+-- 
+2.43.0
+
