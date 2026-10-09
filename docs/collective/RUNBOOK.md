@@ -1155,3 +1155,15 @@ and same-author, and its found counts are never evidence; a found count in any a
 beats its own chance column; send back `audit.json` only with the company's consent, since its review list names their
 record ids.
 
+Both commands also run two comparators, unless `--no-comparators` is given: **P**, every site's record-level cells
+pooled into one site before the same detectors, and **PRR**, a disproportionality test of each entity and failure
+against all others. Neither changes X, S, model-free R or the review list.
+
+**The power check comes first** (`docs/collective/POWER.md`). It plants ramps and sextuplings in synthetic worlds shaped
+by a background file and reports each channel's power. A replay is pre-registered only with a passing check at the
+signal size, history and look-back its choice file assumes. Exit codes: 0 the gate passes; 1 it fails; 2 a usage error.
+
+```
+python -m mycelic.collective.pilot.power run --pack <pack-dir> --background <background-file> --out runs/power/<run-id>
+```
+
