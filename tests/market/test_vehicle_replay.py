@@ -25,6 +25,7 @@ def _load(name: str):
 V = _load("vehicle_pack")
 E = _load("nhtsa_export")
 S = _load("vehicle_summary")
+I = _load("nhtsa_inv_probe")
 COUNTS = [["ENGINE", 5000], ["AIR BAGS", 4000], ["ENGINE AND ENGINE COOLING", 1500], ["VISIBILITY/WIPER", 1800],
           ["VISIBILITY", 1200], ["UNKNOWN OR OTHER", 9000], ["SERVICE BRAKES, HYDRAULIC", 1100],
           ["SERVICE BRAKES", 3000], ["TRAILER HITCHES", 200]]
@@ -225,6 +226,28 @@ class SummaryTests(unittest.TestCase):
                 self.assertEqual(S.main([tmp]), 0)
             self.assertEqual(sorted(json.loads(buf.getvalue())["makes"]), ["HONDA", "NISSAN"])
             self.assertEqual(S.main([str(Path(tmp) / "HONDA")]), 1)   # no make directories under it
+
+
+class InvestigationProbeTests(unittest.TestCase):
+    def test_reads_only_the_shape(self) -> None:
+        import io
+        import zipfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("FLAT_INV.txt", "PE23001\tFORD\tF-150\t2021\tSECRET SUMMARY\nPE23002\tJEEP\tWRANGLER\t2020\tX\n")
+        blobs = {I.INV_DOC: b"INVESTIGATIONS field list", I.INV_CANDIDATES[0]: buf.getvalue()}
+
+        def get(url: str) -> bytes:
+            if url not in blobs:
+                raise OSError("404")
+            return blobs[url]
+        got = I.probe(get)
+        self.assertEqual(got["files"][I.INV_CANDIDATES[0]]["rows"], 2)
+        self.assertEqual(got["files"][I.INV_CANDIDATES[0]]["fields_per_row"], {5: 2})
+        self.assertIn("error", got["files"][I.INV_CANDIDATES[1]])
+        text = json.dumps(got)
+        for content in ("SECRET", "FORD", "PE23001", "WRANGLER"):
+            self.assertNotIn(content, text)
 
 
 if __name__ == "__main__":
