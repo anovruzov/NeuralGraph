@@ -76,10 +76,10 @@ comparison's ``endpoints`` entry. ``endpoint_scores_reason`` is null when they w
 (:data:`~lab.notes.PREREG_MISSING`, :data:`~lab.notes.E1_SCORES_UNPINNED`).
 
 **J1** (``j1``; null without J1 units), judge test J001 (:func:`j1_block`): the labels and questions records, the
-settings, the lexical judge's scores on every record from the preregistration, and per model its parts, whether it is
-complete, its display class, its scores pooled over its finished parts, the lexical judge's on the same records, the
-paired difference, the records left out, and the headline of rule 7 or why there is none. No verdict line, question
-or narrative is copied.
+settings, the lexical judge's and the record-blind control's scores on every record from the preregistration, and per
+model its parts, whether it is complete, its display class, its scores pooled over its finished parts (with each
+predicate's confirms), the lexical judge's and the control's on the same records, the paired difference, the records
+left out, and the headline of rule 7 or why there is none. No verdict line, question or narrative is copied.
 
 **Re-aggregation** (``reaggregation``; null unless ``--reaggregation FILE`` names a request, ``lab.reaggregate``):
 the request (path, sha256, run id, purpose), the aggregating checkout's ``commit`` and ``lab_code_hash``, and what
@@ -728,10 +728,14 @@ def _j1_lines(data: bytes) -> list[dict[str, Any]] | None:
     return lines
 
 
-def _j1_part(unit: dict[str, Any], source: E1Source, prereg_sha: str) -> tuple[list[dict[str, Any]] | None, Any]:
+def _j1_part(unit: dict[str, Any], source: E1Source, prereg_sha: str,
+             questions: list[dict[str, Any]]) -> tuple[list[dict[str, Any]] | None, Any]:
     """(verdict lines, run.json) of one J1 unit's collected files. The lines only when the unit's record lists
-    ``run.json`` and ``verdicts.jsonl`` and run.json is a J1 run of this preregistration, endpoint and part whose
-    ``verdicts_sha256`` is the file's."""
+    ``run.json`` and ``verdicts.jsonl``, run.json is a J1 run of this preregistration (``prereg_sha256``), endpoint and
+    part whose ``verdicts_sha256`` is the file's, and every line is the one the runner writes for a preregistered
+    question of the part, each question at most once (:func:`lab.j1.line_problem`: its question, answers, verdict by
+    the one verdict rule, and ``scored``). A line that differs, however its hashes were stamped, keeps the part from
+    finishing."""
     _, record, root = source
     if record is None or root is None:
         return None, None
@@ -748,19 +752,26 @@ def _j1_part(unit: dict[str, Any], source: E1Source, prereg_sha: str) -> tuple[l
             or run.get("endpoint") != unit["model"] or run.get("part") != unit["params"]["part"]
             or run.get("verdicts_sha256") != sha256_hex(data)):
         return None, run
-    return _j1_lines(data), run
+    lines = _j1_lines(data)
+    mine = {q["question_id"]: q for q in questions if q["part"] == unit["params"]["part"]}
+    if lines is None or len({line["question_id"] for line in lines}) != len(lines):
+        return None, run
+    if any(line["question_id"] not in mine or lab_j1.line_problem(mine[line["question_id"]], line) is not None
+           for line in lines):
+        return None, run
+    return lines, run
 
 
 def _j1_model(model: str, units: list[dict[str, Any]], sources: dict[str, E1Source], prereg_sha: str,
-              questions: list[dict[str, Any]], lexical: list[dict[str, Any]], settings: dict[str, Any],
-              fallback: str) -> dict[str, Any]:
+              questions: list[dict[str, Any]], lexical: list[dict[str, Any]], prior: list[dict[str, Any]],
+              settings: dict[str, Any], fallback: str) -> dict[str, Any]:
     """One model's J1 entry (see :func:`j1_block`)."""
     b, seed = settings["bootstrap_b"], settings["bootstrap_seed"]
     planned = {k: sum(1 for q in questions if q["part"] == k) for k in range(1, settings["parts"] + 1)}
     parts, pooled, measured = [], [], []
     for unit in sorted(units, key=lambda u: u["params"]["part"]):
         row = sources[unit["unit"]][0]
-        lines, run = _j1_part(unit, sources[unit["unit"]], prereg_sha)
+        lines, run = _j1_part(unit, sources[unit["unit"]], prereg_sha, questions)
         part = unit["params"]["part"]
         ok = (row["status"] == "ok" and lines is not None and isinstance(run, dict) and run.get("complete") is True
               and len(lines) == planned.get(part) and {line["question_id"] for line in lines}
@@ -778,8 +789,8 @@ def _j1_model(model: str, units: list[dict[str, Any]], sources: dict[str, E1Sour
         "parts_planned": settings["parts"], "parts_finished": len(parts_ok), "parts_ok": parts_ok, "parts": parts,
         "complete": complete,
         "partial": not complete and bool(parts_ok), "display_class": cls,
-        "measurement": all(measured) if measured else None, "scores": None, "lexical": None, "paired": None,
-        "records_dropped": None, "dropped_share": None, "withheld_reason": None, "headline": None,
+        "measurement": all(measured) if measured else None, "scores": None, "lexical": None, "prior": None,
+        "paired": None, "records_dropped": None, "dropped_share": None, "withheld_reason": None, "headline": None,
         "headline_reason": None}
     if pooled:
         scores = lab_j1.score(questions, pooled, bootstrap_b=b, bootstrap_seed=seed)
@@ -787,6 +798,8 @@ def _j1_model(model: str, units: list[dict[str, Any]], sources: dict[str, E1Sour
         entry.update(scores=scores, records_dropped=scores["records_dropped"], dropped_share=scores["dropped_share"],
                      lexical=(lab_j1.score(questions, lexical, bootstrap_b=b, bootstrap_seed=seed, records=refs)
                               if refs else None),
+                     prior=(lab_j1.score(questions, prior, bootstrap_b=b, bootstrap_seed=seed, records=refs)
+                            if refs else None),
                      paired=lab_j1.paired(questions, pooled, lexical, bootstrap_b=b, bootstrap_seed=seed))
     share = entry["dropped_share"]
     if share is not None and share > settings["withhold_share"]:
@@ -803,11 +816,13 @@ def _j1_model(model: str, units: list[dict[str, Any]], sources: dict[str, E1Sour
 def j1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]) -> dict[str, Any] | None:
     """The report's ``j1`` block (null without J1 units); ``sources`` maps each J1 unit to (its row, its record, its
     shard root). It needs the verified preregistration (else its reason is :data:`~lab.notes.PREREG_MISSING`): the
-    questions, the lexical judge's verdict lines and its scores on every record. Per model: each part's unit, status,
-    display class and whether it finished (status ``ok``, a complete run.json of this preregistration whose verdicts
-    hash as stamped and cover the part's questions); ``complete`` (every part finished); the display class (``model``
-    only when every part with a result is); the scores pooled over the finished parts (``lab.j1.score``), the
-    lexical judge's on the same records and the paired difference; the records left out and their share; and the
+    questions, the lexical judge's and the record-blind control's verdict lines and their scores on every record. Per
+    model: each part's unit, status, display class and whether it finished (status ``ok``, a complete run.json of this
+    preregistration whose verdicts hash as stamped, cover the part's questions and are each the line the runner writes
+    for its question, :func:`_j1_part`); ``complete`` (every part finished); the display class (``model`` only when
+    every part with a result is); the scores pooled over the finished parts (``lab.j1.score``, with each predicate's
+    confirms in ``by_predicate``), the lexical judge's and the record-blind control's on the same records (the control
+    decides nothing) and the paired difference; the records left out and their share; and the
     headline (rule 7), only for a complete model of display class ``model`` whose runs say ``measurement: true`` and
     whose transport failures left out at most the preregistered share, else null with ``headline_reason``
     (:data:`~lab.notes.J1_INCOMPLETE`, :data:`~lab.notes.J1_NOT_MEASURED` or :data:`~lab.notes.J1_WITHHELD`). An
@@ -819,7 +834,8 @@ def j1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
     shown = [sources[u["unit"]][0]["display_class"] for u in units
              if sources[u["unit"]][0]["display_class"] != "no-result"]
     block: dict[str, Any] = {"label": "public_nhtsa", "reason": None, "display_class": _class_of(shown, fallback),
-                             "labels": None, "questions": None, "settings": None, "lexical": None, "models": {}}
+                             "labels": None, "questions": None, "settings": None, "lexical": None, "prior": None,
+                             "models": {}}
     try:
         prereg = load_prereg(plan_path)
         manifest = prereg.manifest["j1"]
@@ -827,22 +843,23 @@ def j1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
         prereg_sha = sha256_hex((prereg.dir / manifest["prereg"]).read_bytes())
         questions = lab_j1.read_questions((base / "questions.jsonl").read_bytes())
         lexical = _j1_lines((base / "lexical.jsonl").read_bytes())
+        prior = _j1_lines((base / "prior.jsonl").read_bytes())
         settings = {k: manifest[k] for k in ("parts", "seed", "bootstrap_b", "bootstrap_seed")}
     except (PreregError, OSError, StrictJsonError, lab_j1.J1Error, KeyError, TypeError):
         block["reason"] = PREREG_MISSING
         return block
-    if lexical is None:
+    if lexical is None or prior is None or not isinstance(manifest.get("prior"), dict):
         block["reason"] = PREREG_MISSING
         return block
     settings["withhold_share"] = lab_j1.WITHHOLD_SHARE
     labels, asked = manifest["labels"], manifest["questions"]
     block.update(labels={k: labels.get(k) for k in ("source", "pack", "n", "seed", "records", "claims", "sha256")},
                  questions={k: asked.get(k) for k in ("records", "questions", "parts", "part_records", "seed",
-                                                      "sha256")},
-                 settings=settings, lexical=manifest["lexical"])
+                                                      "negative_draw", "sha256")},
+                 settings=settings, lexical=manifest["lexical"], prior=manifest["prior"])
     for model in sorted({u["model"] for u in units}):
         block["models"][model] = _j1_model(model, [u for u in units if u["model"] == model], sources, prereg_sha,
-                                           questions, lexical, settings, fallback)
+                                           questions, lexical, prior, settings, fallback)
     return block
 
 
@@ -1143,7 +1160,7 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
     request = plan["request"]
     e1 = e1_block(plan, plan_path, e1_sources, out)
     j1 = j1_block(plan, plan_path, j1_sources)
-    sealed_roots =[root for state, root in (states[s["shard"]] for s in plan["shards"])
+    sealed_roots = [root for state, root in (states[s["shard"]] for s in plan["shards"])
                     if state == "sealed" and root is not None]
     sealed = [root.path for root in sealed_roots]
     hosted = hosted_totals(plan, sealed, hosted_sources)

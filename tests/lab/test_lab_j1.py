@@ -14,10 +14,16 @@ import functools
 import hashlib
 import io
 import json
+import os
 import random
 import shutil
+import signal
 import socket
+import subprocess
+import sys
 import tempfile
+import threading
+import time
 import unittest
 import zipfile
 from pathlib import Path
@@ -33,7 +39,7 @@ from lab import summary as lab_summary
 from lab import units
 from lab.goldlabels import NHTSA_MAKES, NHTSA_PACK, build_labels
 from lab.manifest import load_manifest
-from lab.notes import (J1_INCOMPLETE, J1_NOT_MEASURED, J1_STOPPED, J1_WITHHELD, NO_MEASUREMENT_LINE,
+from lab.notes import (J1_INCOMPLETE, J1_NOT_MEASURED, J1_PRIOR_NOTE, J1_STOPPED, J1_WITHHELD, NO_MEASUREMENT_LINE,
                        RESULT_CONTRADICTS_EXIT)
 from lab.plan import build_plan
 from lab.request import (J1_LABELS_PROBLEM, NHTSA_HOSTED, RequestError, load_request, validate)
@@ -43,6 +49,7 @@ from mycelic.collective.edge.records import WindowRecord
 from mycelic.collective.edge.verify import decide, judge_payload, lexical_judge
 from mycelic.collective.inference.fakeserver import FakeOpenAIServer, request_payload
 from mycelic.collective.inference.ledger import read_ledger
+from mycelic.collective.inference.tasks import REPAIR_MARKER
 from mycelic.collective.jsonio import canonical_bytes, canonical_dumps
 from mycelic.collective.packs import loader
 from mycelic.collective.packs.canonical import Canonicaliser
@@ -126,6 +133,39 @@ def records(n: int = 40) -> dict[str, dict[str, Any]]:
     return {r["record_ref"]: r for r, _ in j1.parse_labels(labels(n))}
 
 
+SPECIFIC = sorted(p for p in PACK.predicates if p != "unknown_or_other")
+
+
+@functools.lru_cache(maxsize=None)
+def skewed_labels(n: int, seed: int = 7) -> bytes:
+    """Constructed label lines (not NHTSA's): each record filed under one predicate, or two for about three in ten,
+    drawn with weights that halve every third predicate, so a few predicates hold most filings."""
+    rng = random.Random(seed)
+    weights = [2 ** -(i / 3) for i in range(len(SPECIFIC))]
+    lines = []
+    for i in range(n):
+        filed = {rng.choices(SPECIFIC, weights)[0]}
+        if rng.random() < 0.3:
+            filed.add(rng.choices(SPECIFIC, weights)[0])
+        record = {"record_ref": f"R{i:05d}", "language": "en", "codes": [], "entities": {"vehicle": ["V-1"]},
+                  "narrative": "constructed"}
+        gold = [{"entity_type": "vehicle", "entity_id": "V-1", "predicate": p} for p in sorted(filed)]
+        lines.append(canonical_dumps({"record": record, "gold": gold}) + "\n")
+    return "".join(lines).encode("utf-8")
+
+
+def expected_negative(qs: list[dict[str, Any]], q: dict[str, Any], seed: int = 1) -> str:
+    """Rule 2's negative for ``q``'s record, computed here from the rule's words, not from ``lab.j1``: the candidates
+    are the pack's predicates less the filed ones, their twins and unknown_or_other; each holds as many positions as
+    other records' positives ask it; ``randrange(total)`` of the record's seeded generator picks one."""
+    ref, filed = q["record_ref"], q["filed"]
+    twins = {j1.twin_of(p) for p in filed} - {None}
+    left = sorted(set(PACK.predicates) - set(filed) - {"unknown_or_other"} - twins)
+    asked = [o["predicate"] for o in qs if o["kind"] == "positive" and o["record_ref"] != ref]
+    positions = [p for p in left for _ in range(asked.count(p))]
+    return positions[random.Random(f"j1:{seed}:{ref}:negative").randrange(len(positions))]
+
+
 def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -158,11 +198,67 @@ class QuestionTests(unittest.TestCase):
                 self.assertEqual((pos["question_id"], neg["question_id"]), (f"{ref}:positive", f"{ref}:negative"))
                 self.assertEqual(pos["filed"], filed)
                 self.assertEqual(pos["predicate"], random.Random(f"j1:1:{ref}:positive").choice(filed))
-                self.assertEqual(neg["predicate"], random.Random(f"j1:1:{ref}:negative").choice(left))
+                self.assertEqual(neg["predicate"], expected_negative(qs, pos))
+                self.assertEqual(j1.candidates(PACK, filed), left)
                 self.assertIn(pos["predicate"], filed)
                 self.assertNotIn(neg["predicate"], [*filed, "unknown_or_other", *twins])
+                # a negative is a predicate some other record's positive asks
+                self.assertIn(neg["predicate"], {o["predicate"] for o in qs[0::2] if o["record_ref"] != ref})
                 self.assertEqual(pos["entity_id"], recs[ref]["entities"]["vehicle"][0])
                 self.assertEqual((pos["entity_type"], neg["entity_id"]), ("vehicle", pos["entity_id"]))
+
+    def test_the_weighted_draw(self) -> None:
+        """Each choice holds as many positions as its weight, in sorted order; a choice of weight 0 is never drawn; the
+        same key draws the same choice; no weight at all is refused."""
+        weights = {"a": 1, "b": 0, "c": 3}
+        for i in range(200):
+            key = f"k{i}"
+            pick = random.Random(key).randrange(4)
+            with self.subTest(key=key):
+                self.assertEqual(j1.draw_negative(["a", "b", "c"], weights, key), ["a", "c", "c", "c"][pick])
+        drawn = {j1.draw_negative(["a", "b", "c"], weights, f"k{i}") for i in range(200)}
+        self.assertEqual(drawn, {"a", "c"})
+        self.assertEqual(j1.draw_negative(["b", "z"], {"z": 2}, "k"), "z")
+        with self.assertRaises(j1.J1Error):
+            j1.draw_negative(["a", "b"], {"c": 5}, "k")
+        with self.assertRaises(j1.J1Error):
+            j1.draw_negative(["a"], {"a": -1}, "k")
+
+    def test_a_record_no_other_positive_can_answer_is_refused(self) -> None:
+        """Two records filed under the same one predicate: neither has a negative any other record's positive asks."""
+        lines = [line for line in skewed_labels(40).split(b"\n") if line][:2]
+        same = [json.loads(line) for line in lines]
+        for doc in same:
+            doc["gold"] = [dict(doc["gold"][0], predicate="engine")]
+        with self.assertRaises(j1.J1Error):
+            j1.build_questions(PACK, "".join(canonical_dumps(d) + "\n" for d in same).encode("utf-8"), seed=1,
+                               parts=1)
+
+    def test_the_predicate_alone_tells_almost_nothing(self) -> None:
+        """On a constructed, skewed draw, each common predicate is asked about as often as a negative as as a
+        positive, and the record-blind control scores near 0.5. The same records with the first rule's uniform
+        negatives give the control far more: that is the leak the amended rule closes."""
+        data = skewed_labels(600)
+        qs = j1.read_questions(j1.build_questions(PACK, data, seed=1, parts=1)[0])
+        self.assertEqual(j1.read_questions(j1.build_questions(PACK, data, seed=1, parts=1)[0]), qs)
+        for pos, neg in zip(qs[0::2], qs[1::2]):
+            self.assertEqual(neg["predicate"], expected_negative(qs, pos))
+        common = 0
+        for p in SPECIFIC:
+            pos = sum(1 for q in qs if q["predicate"] == p and q["kind"] == "positive")
+            neg = sum(1 for q in qs if q["predicate"] == p and q["kind"] == "negative")
+            if pos + neg >= 40:
+                common += 1
+                with self.subTest(predicate=p):
+                    self.assertLess(abs(pos / (pos + neg) - 0.5), 0.15, (pos, neg))
+        self.assertGreaterEqual(common, 5)
+        amended = j1.score(qs, j1.prior_verdicts(qs), bootstrap_b=1000, bootstrap_seed=1)
+        self.assertLess(abs(amended["balanced_accuracy"]["value"] - 0.5), 0.1)
+        uniform = [dict(q, predicate=random.Random(f"j1:1:{q['record_ref']}:negative").choice(
+                   j1.candidates(PACK, q["filed"]))) if q["kind"] == "negative" else q for q in qs]
+        first = j1.score(uniform, j1.prior_verdicts(uniform), bootstrap_b=1000, bootstrap_seed=1)
+        self.assertGreater(first["balanced_accuracy"]["value"], 0.65)
+        self.assertGreater(first["balanced_accuracy"]["ci_low"], amended["balanced_accuracy"]["ci_high"])
 
     def test_a_negative_is_never_a_filed_component_s_other_name(self) -> None:
         """Records filed under one name of a pair, across many seeds: the other name is never asked as a negative."""
@@ -177,16 +273,22 @@ class QuestionTests(unittest.TestCase):
                     self.assertNotIn(q["predicate"], {j1.twin_of(p) for p in q["filed"]})
                     self.assertNotEqual(q["predicate"], "unknown_or_other")
 
-    def test_dropping_a_record_leaves_the_others_unchanged(self) -> None:
+    def test_dropping_a_record_changes_only_what_it_weighed(self) -> None:
+        """The other records' positives and entities stay; their negatives are drawn again with the counts of the
+        records left (the amended rule 2 weighs every other record's positive), and still follow the rule."""
         lines = labels().split(b"\n")
         shorter = b"\n".join(lines[1:])
         dropped = j1.parse_labels(lines[0])[0][0]["record_ref"]
+        after = j1.read_questions(j1.build_questions(PACK, shorter, seed=1, parts=2)[0])
 
-        def strip(qs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-            return [{k: v for k, v in q.items() if k != "part"} for q in qs if q["record_ref"] != dropped]
+        def keep(qs: list[dict[str, Any]], kind: str) -> list[dict[str, Any]]:
+            return [{k: v for k, v in q.items() if k != "part"} for q in qs
+                    if q["record_ref"] != dropped and q["kind"] == kind]
 
-        self.assertEqual(strip(questions()), strip(j1.read_questions(j1.build_questions(PACK, shorter, seed=1,
-                                                                                          parts=2)[0])))
+        self.assertEqual(keep(questions(), "positive"), keep(after, "positive"))
+        self.assertNotIn(dropped, {q["record_ref"] for q in after})
+        for pos, neg in zip(after[0::2], after[1::2]):
+            self.assertEqual(neg["predicate"], expected_negative(after, pos))
 
     def test_parts(self) -> None:
         _, record = j1.build_questions(PACK, labels(150), seed=1, parts=6)
@@ -262,6 +364,45 @@ class LexicalTests(unittest.TestCase):
         self.assertIn(("negative", "refute"), verdicts)
 
 
+def _q(ref: str, kind: str, predicate: str) -> dict[str, Any]:
+    return {"question_id": f"{ref}:{kind}", "record_ref": ref, "part": 1, "kind": kind, "entity_type": "vehicle",
+            "entity_id": "V-1", "predicate": predicate, "filed": []}
+
+
+class PriorTests(unittest.TestCase):
+    """The record-blind control of rule 5 (added before any run)."""
+
+    def test_by_hand(self) -> None:
+        """A: engine+, tires-. B: engine+, air_bags-. C: tires+, engine-. D: air_bags+, tires-.
+        A's engine+ sees B's engine+ and C's engine-: a tie, refuted. C's engine- sees A's and B's engine+: confirmed.
+        A's tires- sees C's tires+ and D's tires-: a tie, refuted. D's tires- sees C's tires+ and A's tires-: refuted.
+        C's tires+ sees A's and D's tires-: refuted. B's air_bags- sees D's air_bags+: confirmed. D's air_bags+ sees
+        B's air_bags-: refuted."""
+        qs = [_q("A", "positive", "engine"), _q("A", "negative", "tires"), _q("B", "positive", "engine"),
+              _q("B", "negative", "air_bags"), _q("C", "positive", "tires"), _q("C", "negative", "engine"),
+              _q("D", "positive", "air_bags"), _q("D", "negative", "tires")]
+        lines = j1.prior_verdicts(qs)
+        self.assertEqual([line["verdict"] for line in lines],
+                         ["refute", "refute", "refute", "confirm", "refute", "confirm", "refute", "refute"])
+        for q, line in zip(qs, lines):
+            with self.subTest(question=q["question_id"]):
+                self.assertEqual(sorted(line), sorted(j1.LINE_KEYS))
+                self.assertEqual((line["question_id"], line["kind"], line["predicate"]),
+                                 (q["question_id"], q["kind"], q["predicate"]))
+                self.assertEqual((line["mentions_entity"], line["error_kind"], line["scored"]), ("yes", None, True))
+                reply = {"mentions_entity": "yes", "describes_predicate": line["describes_predicate"]}
+                self.assertEqual(line["verdict"], j1.verdict(j1.stand_in(q["record_ref"]), reply))
+                self.assertIsNone(j1.line_problem(q, line))
+
+    def test_it_reads_only_the_questions(self) -> None:
+        """The same questions give the same lines whatever the records say: the control takes no record at all."""
+        qs = questions()
+        self.assertEqual(j1.prior_verdicts(qs), j1.prior_verdicts([dict(q) for q in qs]))
+        moved = [dict(q, entity_id="OTHER") for q in qs]
+        self.assertEqual([line["verdict"] for line in j1.prior_verdicts(moved)],
+                         [line["verdict"] for line in j1.prior_verdicts(qs)])
+
+
 # --------------------------------------------------------------------------------------------------- scoring
 
 def _line(q: dict[str, Any], verdict: str, scored: bool = True, error_kind: str | None = None) -> dict[str, Any]:
@@ -315,6 +456,27 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(filtered["records_not_judged"], 1)
         self.assertEqual(lexical, dict(filtered, records_not_judged=0))
 
+    def test_confirms_per_predicate(self) -> None:
+        """``by_predicate``: per predicate and kind, the scored questions, the confirms and their rate."""
+        s = j1.score(self.qs, self.lines, bootstrap_b=1000, bootstrap_seed=1)
+        by = s["by_predicate"]
+        self.assertEqual(sorted(by), sorted({q["predicate"] for q in self.qs}))
+        for kind in j1.KINDS:
+            self.assertEqual(sum(cells[kind]["questions"] for cells in by.values()), 40)
+        for predicate, cells in by.items():
+            for kind in j1.KINDS:
+                mine = [line for q, line in zip(self.qs, self.lines)
+                        if q["predicate"] == predicate and q["kind"] == kind]
+                confirmed = sum(1 for line in mine if line["verdict"] == "confirm")
+                with self.subTest(predicate=predicate, kind=kind):
+                    self.assertEqual(cells[kind], {"questions": len(mine), "confirmed": confirmed,
+                                                   "confirm_rate": confirmed / len(mine) if mine else None})
+        lines = list(self.lines)
+        lines[0] = _line(self.qs[0], "unknown", scored=False, error_kind="timeout")
+        dropped = j1.score(self.qs, lines, bootstrap_b=1000, bootstrap_seed=1)["by_predicate"]
+        for kind in j1.KINDS:
+            self.assertEqual(sum(cells[kind]["questions"] for cells in dropped.values()), 39)
+
     def test_a_part_that_stopped_leaves_records_not_judged(self) -> None:
         s = j1.score(self.qs, self.lines[:21], bootstrap_b=1000, bootstrap_seed=1)
         self.assertEqual((s["records_scored"], s["records_not_judged"], s["records_dropped"]), (10, 30, 0))
@@ -355,20 +517,33 @@ class ScoringTests(unittest.TestCase):
 
 class _Scripted:
     """The lab's responder, except for the payloads of chosen questions: ``invalid`` ones get a reply the schema
-    refuses (so the repair fails too), ``drop`` ones a dropped connection; ``seen`` counts every call."""
+    refuses (so the repair fails too); ``repaired`` ones get it only before the repair note, then the good reply;
+    ``drop`` ones a dropped connection; ``slow`` ones wait that many seconds first, after setting their ``arrived``
+    event. ``seen`` counts every call and ``repairs`` holds the payload of every request that carried a repair note."""
 
-    def __init__(self, invalid: list[dict[str, Any]] = (), drop: list[dict[str, Any]] = ()) -> None:
+    def __init__(self, invalid: list[dict[str, Any]] = (), drop: list[dict[str, Any]] = (),
+                 repaired: list[dict[str, Any]] = (), slow: dict[bytes, float] | None = None) -> None:
         self.base = Responder(PACK)
         self.invalid = {canonical_bytes(p) for p in invalid}
         self.drop = {canonical_bytes(p) for p in drop}
+        self.repaired = {canonical_bytes(p) for p in repaired}
+        self.slow = dict(slow or {})
+        self.arrived = threading.Event()
         self.seen = 0
+        self.repairs: list[bytes] = []
 
     def __call__(self, request: dict[str, Any]) -> dict[str, Any]:
         self.seen += 1
         key = canonical_bytes(request_payload(request))
+        repair = REPAIR_MARKER in request["messages"][-1]["content"]
+        if repair:
+            self.repairs.append(key)
+        if key in self.slow:
+            self.arrived.set()
+            time.sleep(self.slow[key])
         if key in self.drop:
             raise RuntimeError("dropped")
-        if key in self.invalid:
+        if key in self.invalid or (key in self.repaired and not repair):
             return {"mentions_entity": "perhaps", "describes_predicate": "yes"}
         return self.base(request)
 
@@ -407,8 +582,8 @@ class PreregTests(unittest.TestCase):
         p = _Prereg.get()
         m = p.manifest["j1"]
         self.assertEqual(sorted(path.name for path in p.dir.iterdir()),
-                         ["labels.json", "labels.jsonl", "lexical.json", "lexical.jsonl", "prereg.json",
-                          "questions.json", "questions.jsonl", "routing.json"])
+                         ["labels.json", "labels.jsonl", "lexical.json", "lexical.jsonl", "prereg.json", "prior.json",
+                          "prior.jsonl", "questions.json", "questions.jsonl", "routing.json"])
         doc = json.loads((p.dir / "prereg.json").read_text(encoding="utf-8"))
         self.assertEqual(sorted(doc), sorted(j1.PREREG_KEYS))
         self.assertEqual((doc["kind"], doc["boundary"], doc["data_label"], doc["parts"], doc["seed"]),
@@ -417,10 +592,14 @@ class PreregTests(unittest.TestCase):
         self.assertEqual(doc["questions"]["sha256"],
                          hashlib.sha256((p.dir / "questions.jsonl").read_bytes()).hexdigest())
         self.assertEqual(doc["lexical"]["sha256"], hashlib.sha256((p.dir / "lexical.jsonl").read_bytes()).hexdigest())
+        self.assertEqual(doc["prior"]["sha256"], hashlib.sha256((p.dir / "prior.jsonl").read_bytes()).hexdigest())
+        self.assertEqual(doc["questions"]["negative_draw"], "other_records_positive_frequency")
         self.assertEqual(doc["task"], j1.task_pins())
         self.assertEqual((doc["task"]["name"], doc["task"]["max_tokens"]), ("judge_record", 256))
         self.assertEqual(doc["code_hash"], j1.code_hash())
-        self.assertIn("mycelic/collective/edge/verify.py", doc["code_files"])
+        for name in ("mycelic/collective/edge/verify.py", "mycelic/collective/experiments/e1_extract.py",
+                     "mycelic/collective/experiments/common.py", "lab/j1.py"):
+            self.assertIn(name, doc["code_files"])
         self.assertEqual([e["name"] for e in doc["endpoints"]], ["fake-a", "fake-b"])
         self.assertEqual({e["boundary"] for e in doc["endpoints"]}, {"site:lab"})
         self.assertEqual((doc["twins"], doc["excluded"]), ([list(t) for t in j1.TWINS], ["unknown_or_other"]))
@@ -432,6 +611,10 @@ class PreregTests(unittest.TestCase):
         qs = j1.read_questions((p.dir / "questions.jsonl").read_bytes())
         self.assertEqual(lexical, j1.lexical_verdicts(PACK, (p.dir / "labels.jsonl").read_bytes(), qs))
         self.assertEqual(m["lexical"], j1.score(qs, lexical, bootstrap_b=1000, bootstrap_seed=1))
+        prior = [json.loads(line) for line in (p.dir / "prior.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(prior, j1.prior_verdicts(qs))
+        self.assertEqual(m["prior"], json.loads((p.dir / "prior.json").read_text(encoding="utf-8")))
+        self.assertEqual(m["prior"], j1.score(qs, prior, bootstrap_b=1000, bootstrap_seed=1))
         lab_prereg.load_prereg(p.plan_path)
 
     def test_the_plan_summary_shows_the_preregistration(self) -> None:
@@ -439,6 +622,8 @@ class PreregTests(unittest.TestCase):
         md, sources = lab_summary.render_plan(p.tmp / "plan")
         self.assertIn("`J1` labels: source `nhtsa`, records 40", md)
         self.assertIn("lexical judge, every record: balanced accuracy", md)
+        self.assertIn("`J1` record-blind control, every record: balanced accuracy", md)
+        self.assertIn(J1_PRIOR_NOTE, md)
         check_sources(self, md, sources, p.tmp / "plan")
 
     def test_the_archive_is_fetched_once(self) -> None:
@@ -536,14 +721,118 @@ class RunTests(unittest.TestCase):
         self.assertEqual(doc["failures"]["model"], {"questions": 1, "by_kind": {"schema_invalid": 1}})
         self.assertEqual(doc["failures"]["transport"], {"questions": 1, "by_kind": {"network": 1}})
         self.assertTrue(doc["complete"])
+        # rule 3's one repair: the invalid reply was asked again once, with the repair note, and failed again
+        rows = read_ledger(run / "ledger.jsonl")
+        ref_bad, ref_gone = (f"j1-1-{self.qs.index(q):04d}" for q in (bad, gone))
+        self.assertEqual([(r["attempt"], r["error_kind"]) for r in rows if r["ref"] == ref_bad],
+                         [(1, "schema_invalid"), (2, "schema_invalid")])
+        self.assertEqual(scripted.repairs, [canonical_bytes(j1.payload(PACK, bad, self.recs[bad["record_ref"]]))])
+        self.assertEqual([(r["attempt"], r["error_kind"]) for r in rows if r["ref"] == ref_gone], [(1, "network")])
         score = j1.score(self.qs, lines, bootstrap_b=1000, bootstrap_seed=1)
         self.assertEqual((score["records_scored"], score["records_dropped"]), (19, 1))
         self.assertEqual(score["failures"]["model"]["questions"], 1)
         # the lab counts the invalid reply as the model's answer, so the part stays valid
-        record, problem = units.participation("j1", read_ledger(run / "ledger.jsonl"), ["judge_record"], doc)
+        record, problem = units.participation("j1", rows, ["judge_record"], doc)
         self.assertEqual(record["tasks"]["judge_record"]["attempted"], 40)
         self.assertEqual(record["tasks"]["judge_record"]["ok"], 39)
         self.assertIsNone(problem)
+
+    def test_one_repair_after_an_invalid_reply(self) -> None:
+        """A first reply the schema refuses, then a valid one after the repair note: the verdict is the repaired
+        reply's, with no error, and the ledger holds both attempts."""
+        fixed = self.qs[5]
+        payload = j1.payload(PACK, fixed, self.recs[fixed["record_ref"]])
+        scripted = _Scripted(repaired=[payload])
+        server = self.server(scripted)
+        code, _, err, run = self.run_j1(self.argv(self.routing(server.base_url)))
+        self.assertEqual(code, 0, err)
+        doc, lines = self.read(run)
+        lexical = {json.loads(x)["question_id"]: json.loads(x)
+                   for x in (self.p.dir / "lexical.jsonl").read_text(encoding="utf-8").splitlines()}
+        line = next(line for line in lines if line["question_id"] == fixed["question_id"])
+        self.assertEqual(line, lexical[fixed["question_id"]])
+        self.assertEqual((line["error_kind"], line["scored"], line["mentions_entity"]), (None, True, "yes"))
+        rows = read_ledger(run / "ledger.jsonl")
+        self.assertEqual([(r["attempt"], r["ok"], r["error_kind"]) for r in rows if r["ref"] == "j1-1-0005"],
+                         [(1, False, "schema_invalid"), (2, True, None)])
+        self.assertEqual(scripted.repairs, [canonical_bytes(payload)])
+        self.assertEqual(doc["failures"], {"model": {"questions": 0, "by_kind": {}},
+                                           "transport": {"questions": 0, "by_kind": {}}})
+        record, problem = units.participation("j1", rows, ["judge_record"], doc)
+        self.assertEqual((record["tasks"]["judge_record"]["ok"], problem), (40, None))
+
+    def test_participation_reads_each_call_s_last_row(self) -> None:
+        """A call whose repair hit a transport failure is not answered; one whose repair failed validation is."""
+
+        def row(ref: str, attempt: int, ok: bool, kind: str | None) -> dict[str, Any]:
+            return {"task": "judge_record", "ref": ref, "attempt": attempt, "ok": ok, "error_kind": kind}
+
+        rows = [row("a", 1, True, None), row("b", 1, False, "schema_invalid"), row("b", 2, False, "json_invalid"),
+                row("c", 1, False, "schema_invalid"), row("c", 2, False, "timeout"), row("d", 1, False, "network"),
+                row("e", 1, False, "json_invalid"), row("e", 2, True, None)]
+        record, _ = units.participation("j1", rows, ["judge_record"], {})
+        self.assertEqual((record["tasks"]["judge_record"]["attempted"], record["tasks"]["judge_record"]["ok"]), (5, 3))
+
+    def test_a_call_still_running_at_the_budget_is_cut_short(self) -> None:
+        """The budget's timer stops a call in flight: the run keeps what it judged, writes its final run.json at
+        once, and reads as stopped (J1_STOPPED), not as a timeout."""
+        slow = self.qs[1]
+        scripted = _Scripted(slow={canonical_bytes(j1.payload(PACK, slow, self.recs[slow["record_ref"]])): 4.0})
+        server = self.server(scripted)
+        handlers = {name: signal.getsignal(getattr(signal, name)) for name in ("SIGALRM", "SIGTERM", "SIGINT")}
+        t0 = time.monotonic()
+        code, _, err, run = self.run_j1(self.argv(self.routing(server.base_url), budget=1))
+        elapsed = time.monotonic() - t0
+        self.assertEqual(code, 1, err)
+        self.assertLess(elapsed, 3.5)
+        doc, lines = self.read(run)
+        self.assertEqual((doc["complete"], doc["stopped"], doc["questions_done"], len(lines)), (False, "budget", 1, 1))
+        self.assertEqual(lines[0]["question_id"], self.qs[0]["question_id"])
+        self.assertEqual(doc["verdicts_sha256"], hashlib.sha256((run / "verdicts.jsonl").read_bytes()).hexdigest())
+        self.assertEqual(doc["ledger_sha256"], hashlib.sha256((run / "ledger.jsonl").read_bytes()).hexdigest())
+        self.assertIsNotNone(doc["finished_at"])
+        self.assertEqual(units.harness_status("j1", code, False, doc), ("failed", J1_STOPPED))
+        self.assertEqual({name: signal.getsignal(getattr(signal, name)) for name in handlers}, handlers)
+        self.assertEqual(signal.getitimer(signal.ITIMER_REAL), (0.0, 0.0))
+
+    def test_sigterm_stops_the_run_and_writes_its_final_run_json(self) -> None:
+        """``lab.j1 run`` in its own process, sent SIGTERM during a call (as a shard stops a unit): exit 130, and the
+        final run.json says interrupted, with the verdicts it kept and its files' hashes."""
+        slow = self.qs[2]
+        scripted = _Scripted(slow={canonical_bytes(j1.payload(PACK, slow, self.recs[slow["record_ref"]])): 20.0})
+        server = self.server(scripted)
+        argv = self.argv(self.routing(server.base_url))
+        proc = subprocess.Popen([sys.executable, "-m", "lab.j1", *argv], cwd=ROOT, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        self.addCleanup(lambda: proc.poll() is None and proc.kill())
+        self.assertTrue(scripted.arrived.wait(60))
+        proc.send_signal(signal.SIGTERM)
+        _, err = proc.communicate(timeout=30)
+        self.assertEqual(proc.returncode, 130, err.decode("utf-8", "replace"))
+        doc, lines = self.read(self.tmp / "runs" / "j1" / "r1")
+        self.assertEqual((doc["complete"], doc["stopped"], doc["questions_done"], len(lines)),
+                         (False, "interrupted", 2, 2))
+        run = self.tmp / "runs" / "j1" / "r1"
+        self.assertEqual(doc["verdicts_sha256"], hashlib.sha256((run / "verdicts.jsonl").read_bytes()).hexdigest())
+        self.assertEqual(doc["ledger_sha256"], hashlib.sha256((run / "ledger.jsonl").read_bytes()).hexdigest())
+
+    def test_a_slow_unit_stops_at_its_budget_not_its_timeout(self) -> None:
+        """``lab.units.run_unit`` with a fake server that takes five seconds a call and a unit seven seconds past
+        the lab's margin: the run stops itself in its second call, before the unit's timeout, so the unit reads
+        J1_STOPPED with its final run.json, not timed_out."""
+        unit = next(u for u in self.p.plan["units"] if u["unit"] == "j1-fake-b-p1")
+        plan = json.loads(json.dumps(self.p.plan))
+        plan["models"]["fake-b"]["persona"] = "slow"
+        out = self.tmp / "shard"
+        record = units.run_unit(dict(unit, shard="s002-fake-b"), plan, out,
+                                timeout_s=units.SIM_BUDGET_MARGIN_S + 7, provider_override="fake",
+                                prereg=lab_prereg.load_prereg(self.p.plan_path))
+        self.assertEqual((record["status"], record["status_reason"], record["exit_code"]), ("failed", J1_STOPPED, 1))
+        self.assertLess(record["wall_s"], units.SIM_BUDGET_MARGIN_S + 7)
+        doc = json.loads((out / "runs" / "j1" / unit["run_id"] / "run.json").read_text(encoding="utf-8"))
+        self.assertEqual((doc["complete"], doc["stopped"], doc["questions_done"]), (False, "budget", 1))
+        self.assertEqual(doc["budget_seconds"], 7)
+        self.assertIsNotNone(doc["verdicts_sha256"])
 
     def test_it_stops_at_its_budget(self) -> None:
         server = self.server()
@@ -704,7 +993,10 @@ class J001DryRunTests(unittest.TestCase):
                          (None, "plumbing", ["a-0p5b", "a-1p5b", "a-4b"]))
         self.assertEqual((block["labels"]["records"], block["questions"]["questions"],
                           block["questions"]["part_records"]), (150, 300, [25] * 6))
-        lexical = block["lexical"]
+        lexical, prior = block["lexical"], block["prior"]
+        manifest = json.loads((self.dry.out / "plan" / "prereg" / "prereg.json").read_text(encoding="utf-8"))
+        self.assertEqual((lexical, prior), (manifest["j1"]["lexical"], manifest["j1"]["prior"]))
+        self.assertEqual(block["questions"]["negative_draw"], "other_records_positive_frequency")
         for name, entry in block["models"].items():
             with self.subTest(model=name):
                 self.assertEqual((entry["complete"], entry["parts_finished"], entry["display_class"]),
@@ -713,6 +1005,10 @@ class J001DryRunTests(unittest.TestCase):
                 for metric in j1.METRICS:
                     self.assertEqual(entry["scores"][metric], lexical[metric], metric)
                     self.assertEqual(entry["lexical"][metric], lexical[metric], metric)
+                    self.assertEqual(entry["prior"][metric], prior[metric], metric)
+                # the fake answers as the lexical judge does, predicate by predicate
+                self.assertEqual(entry["scores"]["by_predicate"], lexical["by_predicate"])
+                self.assertEqual(entry["prior"]["by_predicate"], prior["by_predicate"])
                 self.assertEqual((entry["paired"]["n"], entry["paired"]["mean_diff"]), (150, 0.0))
                 self.assertEqual(entry["records_dropped"], 0)
 
@@ -722,6 +1018,9 @@ class J001DryRunTests(unittest.TestCase):
         self.assertEqual(md.splitlines()[0], NO_MEASUREMENT_LINE)
         self.assertIn("#### Judge test: the verifier's narrow question, per model, beside the lexical judge", md)
         self.assertIn("| `a-4b` | `plumbing` | 6 of 6 |", md)
+        self.assertIn("- record-blind control, every record: balanced accuracy", md)
+        self.assertIn("| control balanced accuracy |", md)
+        self.assertIn(J1_PRIOR_NOTE, md)
         sources = json.loads((root / "report.sources.json").read_text(encoding="utf-8"))["sources"]
         check_sources(self, md, sources, root)
         plan_md = (self.dry.out / "plan" / "summary.md").read_text(encoding="utf-8")
@@ -821,6 +1120,77 @@ class AggregateTests(unittest.TestCase):
         self.tree.reseal(shard)
         entry = self.aggregate()["models"]["a-0p5b"]
         self.assertEqual((entry["complete"], entry["parts_ok"]), (False, [1, 3, 4, 5, 6]))
+
+    def restamp(self, model: str, part: int, *, lines: Callable[[list[dict[str, Any]]], None] | None = None,
+                run: Callable[[dict[str, Any]], None] | None = None) -> None:
+        """Change one part's verdict lines or run.json and stamp every hash again, as a hand edit that knew the
+        hashes would: run.json's ``verdicts_sha256``, the unit record and the shard's seal."""
+        unit = next(u for u in self.tree.plan["units"] if u["unit"] == f"j1-{model}-p{part}")
+        shard = next(s["shard"] for s in self.tree.plan["shards"] if unit["unit"] in s["units"])
+        rel = f"runs/j1/{unit['run_id']}/verdicts.jsonl"
+        got = [json.loads(x) for x in self.tree.path(shard, rel).read_text(encoding="utf-8").splitlines()]
+        if lines is not None:
+            lines(got)
+        data = "".join(canonical_dumps(line) + "\n" for line in got).encode("utf-8")
+        self.tree.replace_unit_file(shard, unit["unit"], rel, data)
+        run_rel = f"runs/j1/{unit['run_id']}/run.json"
+        doc = self.tree.read(shard, run_rel)
+        doc["verdicts_sha256"] = hashlib.sha256(data).hexdigest()
+        if run is not None:
+            run(doc)
+        self.tree.replace_unit_file(shard, unit["unit"], run_rel, canonical_bytes(doc) + b"\n")
+        self.tree.reseal(shard)
+
+    def test_a_part_of_another_preregistration_is_not_finished(self) -> None:
+        self.restamp("a-1p5b", 3, run=lambda doc: doc.update(prereg_sha256="0" * 64))
+        entry = self.aggregate()["models"]["a-1p5b"]
+        self.assertEqual((entry["complete"], entry["parts_ok"]), (False, [1, 2, 4, 5, 6]))
+        self.assertEqual(entry["headline_reason"], J1_INCOMPLETE)
+
+    def test_a_restamped_line_that_breaks_the_rule_is_not_finished(self) -> None:
+        """Each line must be the runner's line for its question: its verdict recomputed from its two answers by the
+        one verdict rule, its kind, predicate and record those of the preregistered question, ``scored`` from its
+        error kind, each question once. Hashes stamped again do not save a line that differs."""
+
+        def first(match: Callable[[dict[str, Any]], bool], change: dict[str, Any]) -> Callable[[list], None]:
+            def edit(lines: list[dict[str, Any]]) -> None:
+                next(line for line in lines if match(line)).update(change)
+            return edit
+
+        cases = {   # one part each, so one aggregate reads them all
+            ("a-0p5b", 1): first(lambda x: x["verdict"] == "confirm", {"verdict": "refute"}),
+            ("a-0p5b", 2): first(lambda x: x["kind"] == "positive", {"kind": "negative"}),
+            ("a-0p5b", 3): first(lambda x: x["kind"] == "negative", {"predicate": "unknown_or_other"}),
+            ("a-0p5b", 4): first(lambda x: True, {"record_ref": "999999"}),
+            ("a-0p5b", 5): first(lambda x: x["mentions_entity"] == "yes", {"mentions_entity": "maybe"}),
+            ("a-0p5b", 6): first(lambda x: True, {"scored": False}),
+            ("a-1p5b", 1): first(lambda x: True, {"error_kind": "timeout"}),
+            ("a-1p5b", 2): lambda lines: lines.append(dict(lines[0])),
+        }
+        for (model, part), edit in cases.items():
+            self.restamp(model, part, lines=edit)
+        models = self.aggregate()["models"]
+        for (model, part) in cases:
+            with self.subTest(model=model, part=part):
+                row = next(p for p in models[model]["parts"] if p["part"] == part)
+                self.assertEqual((row["status"], row["ok"]), ("ok", False))
+        self.assertEqual((models["a-0p5b"]["parts_ok"], models["a-1p5b"]["parts_ok"]), ([], [3, 4, 5, 6]))
+        self.assertEqual(models["a-4b"]["parts_ok"], [1, 2, 3, 4, 5, 6])
+
+    def test_a_restamped_line_that_keeps_the_rule_is_scored_as_written(self) -> None:
+        """The check is the rule, not the content: answers and verdict changed together still finish the part, and
+        the scores follow them."""
+
+        def refute_first_confirm(lines: list[dict[str, Any]]) -> None:
+            line = next(line for line in lines if line["verdict"] == "confirm" and line["kind"] == "positive")
+            line.update(describes_predicate="no", verdict="refute")
+
+        before = self.aggregate()["models"]["a-0p5b"]["scores"]["sensitivity"]["value"]
+        self.restamp("a-0p5b", 2, lines=refute_first_confirm)
+        shutil.rmtree(self.tmp / "R", True)
+        entry = self.aggregate()["models"]["a-0p5b"]
+        self.assertEqual((entry["complete"], entry["parts_ok"]), (True, [1, 2, 3, 4, 5, 6]))
+        self.assertAlmostEqual(entry["scores"]["sensitivity"]["value"], before - 1 / 150, places=12)
 
     def test_without_the_preregistration(self) -> None:
         (self.tree.root / "plan" / "prereg" / "prereg.json").unlink()

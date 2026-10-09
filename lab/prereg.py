@@ -14,7 +14,8 @@
 * J1 (judge test J001, ``lab.j1``), in this process: :func:`lab.goldlabels.build_labels` (``nhtsa``) writes
   ``D/prereg/j1/labels.jsonl`` and ``labels.json``; ``lab.j1.build_questions`` ``questions.jsonl`` and
   ``questions.json``; the verifier's lexical judge, on every question's payload before any model runs,
-  ``lexical.jsonl`` (its verdict lines) and ``lexical.json`` (``lab.j1.score`` on every record); ``routing.json`` pins
+  ``lexical.jsonl`` (its verdict lines) and ``lexical.json`` (``lab.j1.score`` on every record); the record-blind
+  control (``lab.j1.prior_verdicts``, which reads no record) ``prior.jsonl`` and ``prior.json``; ``routing.json`` pins
   every J1 model (``lab.j1.routing_doc`` at :data:`PLACEHOLDER_BASE_URL`); and ``prereg.json`` (``lab.j1.prereg_doc``:
   the hashes, the judge task's instructions, schema and ``max_tokens``, the code hash and files, the endpoints' pins,
   the boundary, the data label, the seeds, ``parts``, the twins, the excluded predicate and the bootstrap settings);
@@ -29,8 +30,8 @@
 Last, ``D/prereg/prereg.json`` (the manifest): the plan's sha256, the sha256 and size of every other file under
 ``D/prereg``, and per experiment (null when the plan has none) the labels record, endpoints, reference and prereg path
 (E1), the prereg path (X1), the prereg path, plant path and rehearsal (E2), and the labels and questions records, the
-lexical judge's scores, the endpoints, the prereg path and the settings (J1). Every shard and the aggregate call
-:func:`load_prereg` before they use any of it. Harness logs go to ``D/prereg-logs/<step>.stdout.log`` and
+lexical judge's and the record-blind control's scores, the endpoints, the prereg path and the settings (J1). Every
+shard and the aggregate call :func:`load_prereg` before they use any of it. Harness logs go to ``D/prereg-logs/<step>.stdout.log`` and
 ``.stderr.log`` (capped; not in the manifest). Each subprocess gets the units' environment allowlist, the repository
 as its directory, and :data:`STEP_TIMEOUT_S` (:data:`REHEARSAL_TIMEOUT_S` for the rehearsal).
 
@@ -309,8 +310,10 @@ def _j1(plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path,
         lexical_lines = lab_j1.lexical_verdicts(pack, data, lines)
     except lab_j1.J1Error as err:
         raise _StepFailed("$.experiments.j1", err.problem) from None
-    lexical_bytes = lab_j1.jsonl_bytes(lexical_lines)
+    prior_lines = lab_j1.prior_verdicts(lines)
+    lexical_bytes, prior_bytes = lab_j1.jsonl_bytes(lexical_lines), lab_j1.jsonl_bytes(prior_lines)
     lexical = lab_j1.score(lines, lexical_lines, bootstrap_b=p["bootstrap_b"], bootstrap_seed=p["bootstrap_seed"])
+    prior = lab_j1.score(lines, prior_lines, bootstrap_b=p["bootstrap_b"], bootstrap_seed=p["bootstrap_seed"])
     endpoints = sorted({u["model"] for u in units})
     routing = lab_j1.routing_doc(plan["models"], endpoints, PLACEHOLDER_BASE_URL)
     j1 = root / "prereg" / "j1"
@@ -321,12 +324,14 @@ def _j1(plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path,
     write_json_atomic(j1 / "questions.json", questions)
     (j1 / "lexical.jsonl").write_bytes(lexical_bytes)
     write_json_atomic(j1 / "lexical.json", lexical)
+    (j1 / "prior.jsonl").write_bytes(prior_bytes)
+    write_json_atomic(j1 / "prior.json", prior)
     write_json_atomic(j1 / "routing.json", routing)
     write_json_atomic(j1 / "prereg.json", lab_j1.prereg_doc(
         pack=pack, pack_ref=labels["pack"], labels=record, questions=questions,
-        lexical_sha256=sha256_hex(lexical_bytes), routing=routing, seed=p["seed"], parts=p["parts"],
-        bootstrap_b=p["bootstrap_b"], bootstrap_seed=p["bootstrap_seed"]))
-    return {"labels": record, "questions": questions, "lexical": lexical, "endpoints": endpoints,
+        lexical_sha256=sha256_hex(lexical_bytes), prior_sha256=sha256_hex(prior_bytes), routing=routing,
+        seed=p["seed"], parts=p["parts"], bootstrap_b=p["bootstrap_b"], bootstrap_seed=p["bootstrap_seed"]))
+    return {"labels": record, "questions": questions, "lexical": lexical, "prior": prior, "endpoints": endpoints,
             "prereg": "prereg/j1/prereg.json", "parts": p["parts"], "seed": p["seed"],
             "bootstrap_b": p["bootstrap_b"], "bootstrap_seed": p["bootstrap_seed"]}
 

@@ -52,10 +52,15 @@ Pure parts, called in-process by the plan job, the aggregate and the tests:
 - `TWINS`: the three old/new pairs of `CHOICE-J001.md` (trap 2), and `EXCLUDED = ("unknown_or_other",)`.
 - `build_questions(pack, labels_bytes, *, seed, parts) -> (bytes, record)`. One canonical line per question, in
   record order, positive before negative: `{"question_id", "record_ref", "part", "kind", "entity_type",
-  "entity_id", "predicate", "filed"}`. The positive and negative are drawn by
-  `random.Random(f"j1:{seed}:{record_ref}:positive")` and `...:negative`, choosing from sorted lists (rule 2).
-  Record `i` of `n` goes to part `i * parts // n + 1`. The record holds the count, the size of each part and the
-  sha256.
+  "entity_id", "predicate", "filed"}`. The positive is drawn by `random.Random(f"j1:{seed}:{record_ref}:positive")`
+  from the sorted filed predicates. The negative follows rule 2 as amended before any run (`draw_negative`): the
+  sorted candidates, each weighted by the other records' positives that ask it, and
+  `random.Random(f"j1:{seed}:{record_ref}:negative").randrange(total)`. Record `i` of `n` goes to part
+  `i * parts // n + 1`. The record holds the count, the size of each part, the negative draw's name and the sha256.
+- `prior_verdicts(questions)`: the record-blind control of rule 5 (added before any run), as verdict lines. It reads
+  only the questions.
+- `line_problem(question, line)`: why a stored verdict line is not the line the runner writes for that question, or
+  None. The aggregate uses it.
 - `window_record(label_record) -> WindowRecord`. Codes `[]` (refuse a label record that has any), structured from
   its `entities`, the narrative, the language. `judge_payload` never sends persons or the reporter.
 - `payload(pack, question, label_record)`: `verify.judge_payload(pack, {"params": {...}}, window_record(...))`.
@@ -66,9 +71,11 @@ Pure parts, called in-process by the plan job, the aggregate and the tests:
   - sensitivity, specificity, balanced accuracy, accuracy and the unknown share;
   - each as `{"value", "ci_low", "ci_high"}` from `stats.cluster_bootstrap_mean`, one cluster per record (its two
     0/1 values), seed `f"j1:{bootstrap_seed}"`;
-  - the answer-pair counts per kind, the failures by kind, the records scored and the records left out.
+  - the answer-pair counts per kind, the failures by kind, the records scored and the records left out;
+  - `by_predicate`: per predicate and kind, the scored questions, the confirms and the confirm rate.
 
-  `records` limits the score to a set of records, so the lexical judge can be scored on a model's records.
+  `records` limits the score to a set of records, so the lexical judge and the control can be scored on a model's
+  records.
 - `headline(model_ba, lexical_ba) -> "better" | "worse" | "not_told_apart"`, by rule 7.
 - `paired(model, lexical, ...)`: `stats.paired_bootstrap` over per-record balanced accuracy.
 - `routing_doc(models, keys, base_url)`: the one builder of J1 routing, used by the preregistration (at
@@ -76,8 +83,8 @@ Pure parts, called in-process by the plan job, the aggregate and the tests:
   with `deadline_s` 600 and `max_retries` 1. The route is `judge_record` to that key with no escalation, so
   `Runtime.run` takes the verifier's route as `SiteVerifier` does.
 - `CODE_FILES` and `code_hash()`: `edge/verify.py`, `edge/extract.py`, `edge/records.py`, `packs/canonical.py`,
-  `packs/loader.py`, `inference/*.py`, `schemacheck.py`, `jsonio.py`, `stats.py`, `lab/j1.py`, `lab/goldlabels.py`.
-  Build it the way `e1_extract.e1_code_hash` does.
+  `packs/loader.py`, `inference/*.py`, `schemacheck.py`, `jsonio.py`, `stats.py`, `experiments/e1_extract.py`,
+  `experiments/common.py`, `lab/j1.py`, `lab/goldlabels.py`. Build it the way `e1_extract.e1_code_hash` does.
 
 **The CLI,** `python -m lab.j1 run --prereg F --labels F --questions F --routing F --endpoint KEY --part K
 --run-id ID --runs-dir D --budget-seconds N`:
@@ -97,7 +104,8 @@ Pure parts, called in-process by the plan job, the aggregate and the tests:
   - Any other `InferenceError` is a transport failure: not scored.
   - An `InferenceBoundaryError` is exit 2.
   - Stop at `--budget-seconds`, or after `extract.BREAKER_AFTER` consecutive failures that `extract.server_down`
-    calls the server's, with `complete: false` and a `stopped` reason.
+    calls the server's, with `complete: false` and a `stopped` reason. A timer cuts short a call still running at
+    the budget, and SIGTERM stops the run as an interrupt, so the final `run.json` is always written.
 - **`verdicts.jsonl`,** one line per question, flushed as it goes: `{"question_id", "record_ref", "kind",
   "predicate", "mentions_entity", "describes_predicate", "verdict", "error_kind", "scored"}`. No narrative.
 - **`run.json`** (`kind: lab_j1_run`):
@@ -120,6 +128,7 @@ Pure parts, called in-process by the plan job, the aggregate and the tests:
   - `labels.jsonl` and `labels.json` (`build_labels`, as E1 does);
   - `questions.jsonl` and `questions.json`;
   - `lexical.jsonl` (the lexical judge's answers and verdict per question) and `lexical.json` (its `score`);
+  - `prior.jsonl` and `prior.json`: the same for the record-blind control;
   - `routing.json` (the pins);
   - `prereg.json` (`kind: lab_j1_prereg`): the hashes above, the judge task name, the sha256 of its instructions
     and schema, `max_tokens`, the code hash and files, the endpoints' pins, the boundary, the data label, the seeds,
@@ -140,14 +149,15 @@ Pure parts, called in-process by the plan job, the aggregate and the tests:
   - the fake server's `with_pack` list.
 - **`lab/warmup.py`:** j1 units warm `judge_record` for their pack. `pack_tasks` needs `params["seed"]`.
 - **`lab/aggregate.py`:** a `j1` block, or null without j1 units. It needs the verified preregistration. Per model:
-  - the parts planned and ok, and `complete` (every part `ok`, and its files hash as recorded);
+  - the parts planned and ok, and `complete` (every part `ok`, its run.json of this preregistration, its files
+    hash as recorded, and each verdict line the runner's line for its question: `j1.line_problem`);
   - the display class (`model` only when every part is);
-  - the scores pooled over its parts (`j1.score`), and the lexical judge's scores on the same records;
+  - the scores pooled over its parts (`j1.score`), and the lexical judge's and the control's on the same records;
   - the paired difference, the left-out records and the withheld reason;
   - the `headline`, shown only for a complete model of display class `model`, else null with the reason.
 
-  Copy the lexical judge's scores on all records from the preregistration. Latency rows come from the ledgers as
-  for every unit.
+  Copy the lexical judge's and the control's scores on all records from the preregistration. Latency rows come
+  from the ledgers as for every unit.
 - **`lab/summary.py`:** the plan summary shows the preregistered labels, questions and lexical scores. The run
   summary shows one row per model: parts finished, balanced accuracy with its interval, the lexical judge's
   balanced accuracy on the same records, the headline, sensitivity, specificity and the unknown share.
@@ -173,8 +183,11 @@ Build archives as `test_nhtsa_labels_hide_the_codes_and_score_them` does. Judge 
 server (`mycelic/collective/inference/fakeserver.py`) with the lab's `Responder`, as the E1 and E2 tests do.
 
 1. **Questions.** The same bytes twice. Per record, one positive among the filed predicates, and one negative
-   outside the filed ones, `unknown_or_other` and the filed ones' twins. Dropping a record leaves the other
-   records' questions unchanged. 150 records in 6 parts give 25 each.
+   outside the filed ones, `unknown_or_other` and the filed ones' twins, drawn by the amended rule 2 (checked
+   against the rule's words, written again in the test). Dropping a record leaves the other records' positives
+   unchanged. 150 records in 6 parts give 25 each. On a skewed constructed draw, each common predicate is asked about
+   as often as a negative as as a positive, and the record-blind control scores near 0.5; the first rule's uniform
+   negatives give it far more. The control by hand on a small case, ties included.
 2. **Payload.** It equals `judge_payload` with codes `[]` and the structured vehicle, and holds no person or
    reporter.
 3. **Lexical judge.** Its verdicts equal `decide` over `lexical_judge` per question. It never says `unknown` when
@@ -182,17 +195,21 @@ server (`mycelic/collective/inference/fakeserver.py`) with the lab's `Responder`
 4. **The real path with a fake server.** `lab.j1 run` through the fake server and the `Responder` gives every
    question the lexical judge's verdict, and `measurement` is false. This is the end-to-end check that the runner
    uses the shipped task, schema, payload and rule.
-5. **Failures.** A schema-invalid reply after the repair is `unknown` and counted. A transport failure leaves its
-   record out. More than 1% of records left out withholds the headline.
-6. **Stops.** At the budget: `complete: false`, exit 1. After two consecutive server-down failures: the rest are
-   not sent.
+5. **Failures.** A schema-invalid reply after the repair is `unknown` and counted, with both attempts in the
+   ledger. A reply valid after the repair is judged, with no error. A transport failure leaves its record out. More
+   than 1% of records left out withholds the headline.
+6. **Stops.** At the budget: `complete: false`, exit 1. A call still running at the budget is cut short, and the
+   final run.json is written. SIGTERM gives exit 130 and the final run.json. A unit whose fake server takes five
+   seconds a call reads `J1_STOPPED`, not `timed_out`. After two consecutive server-down failures: the rest are not
+   sent.
 7. **Pins.** A changed labels file, questions file, pack, code hash or endpoint pin exits 2 before any call, with
    no ledger row.
 8. **Scoring.** Balanced accuracy equals accuracy. The intervals equal `stats.cluster_bootstrap_mean` on the same
    clusters. `headline` gives better, worse and not told apart at the boundary values. The lexical judge is
    scored on the model's records.
 9. **Aggregate.** A model with a part missing gets no headline and a partial reading. A model with every part ok
-   gets one.
+   gets one. A part whose run.json names another preregistration, or whose lines break the verdict rule or name
+   another question (hashes stamped again), does not finish; a line changed together with its answers does.
 10. **Request and plan.** Every block error. J001's settings give 18 units and 9 shards. A hosted model is refused,
     and so are labels other than `nhtsa`.
 
@@ -225,3 +242,83 @@ The build follows the note above. These details were left open, and the code fix
   as R001's `bc6d092d8bca` in `CHOICE-R001.md`, so the two can be compared by eye. The full sha256 is in
   `prereg/j1/labels.json` and in the report.
 - **No run here.** The tests run the whole path with the repo's fake model server. No model has judged a narrative.
+
+### After the review, before any run (2026-10-09)
+
+An adversarial review of the build came back before any model judged. Its one blocking finding changed the rule, so
+`CHOICE-J001.md` was amended first, in its own commit (`Amended before any run, 2026-10-09`). Then the code followed.
+None of this changes a setting of rule 9.
+
+- **The negative draw** follows the amended rule 2 (`j1.draw_negative`). Each candidate holds as many positions as the
+  other records whose positive asks it, in sorted order, and `randrange(total)` of the record's seeded generator picks
+  one. The arithmetic is integer only, so the draw is the same on every platform. A record whose candidates no other
+  positive asks is refused in the plan job. The questions record and `prereg.json` name the draw
+  (`negative_draw: other_records_positive_frequency`).
+- **Dropping a record now changes other records' negatives.** Each negative weighs every other record's positive, so
+  the first build's test that dropping a record leaves the others' questions unchanged no longer holds. The test now
+  checks that the others' positives are unchanged and that every negative still follows the rule on the records left.
+- **The record-blind control** (`j1.prior_verdicts`, rule 5) is scored in the plan job on every record (`prior.json`)
+  and in the aggregate on each model's records, beside the lexical judge, and the summaries show it. It decides
+  nothing. A tie refutes. Because it leaves its own record out, a predicate asked about equally often as a positive and
+  as a negative leans it towards the wrong answer, so on a balanced draw it can score a little below 0.5. On a skewed
+  constructed draw, the tests check that it stays near 0.5 under the amended rule and scores far higher under the
+  first rule's uniform negatives.
+- **Confirms per predicate.** Every `score` holds `by_predicate`: per predicate and kind, the scored questions, the
+  confirms and the confirm rate. So `report.json` shows, for each model, the lexical judge and the control, whether a
+  judge leans on which components are common.
+- **The aggregate checks every line.** A part finishes only when each verdict line is the one the runner writes for a
+  preregistered question of that part: the same question id, record, kind and predicate; answers from the fixed list,
+  or none with an inference error kind; the verdict recomputed from the answers by the one verdict rule (`decide`,
+  through `j1.verdict_line`); `scored` from the error kind; each question once. A line that differs keeps the part
+  from finishing, even when its hashes were stamped again. The run.json's `prereg_sha256` must name this
+  preregistration, and a test now checks it.
+- **The repair is tested.** One test checks that an invalid reply is asked again once, with the repair note, and both
+  attempts are in the ledger. Another checks that a reply valid after the repair is judged, with no error.
+- **The budget stops a call in flight.** One judge call may take up to the endpoint's deadline (600 s) per attempt,
+  with a retry and a repair on top, so a check before each question could not stop a slow unit before the shard's
+  timeout. The runner now arms a timer (`SIGALRM`) for its budget. A call still running when it fires is cut short,
+  that question gets no line, and the run writes its final `run.json` (`stopped: budget`, the files' hashes) and exits
+  1, so the unit reads `J1_STOPPED`, not `timed_out`. `SIGTERM` and `SIGINT` stop the run as an interrupt
+  (`stopped: interrupted`, exit 130), also with the final `run.json`. A signal outside a call waits for the end of the
+  question's bookkeeping, so `verdicts.jsonl` holds whole questions. The budget is still the unit's seconds less
+  `SIM_BUDGET_MARGIN_S`; the margin now only covers the process start and the final write.
+- **Participation, last row.** A call counts as answered only when its last ledger row is a success or a validation
+  failure, as the runner's verdict does. A call whose repair then failed in transport is not answered.
+- **Participation comes before rule 6.** The lab's floor (`MIN_MODEL_OK_SHARE`) acts on each part before the
+  aggregate's 1% withhold. With 50 calls a part, 3 transport failures in one part make it `invalid`, so its model
+  reads `incomplete`, not `withheld`. Transport failures spread thinly over parts reach the aggregate and withhold the
+  headline as rule 6 says. Either way the model gets no headline; only the stated reason differs.
+- **`CODE_FILES`** now holds `mycelic/collective/experiments/e1_extract.py` and
+  `mycelic/collective/experiments/common.py`. The runner relies on both (`failure_class`, `read_labels`,
+  `check_data_label`, `endpoint_pins`, `measurement_flag`), so the J1 pin catches a change to them between the plan job
+  and a shard.
+
+## Size check (before any run)
+
+R002's a-4b E1 units timed out at 150 minutes (`CHOICE-R002.md`, run 1). A J1 unit is smaller: 150 records in 6
+parts give 25 records, so 50 questions, a part, one call each (two only after an invalid reply). The unit's budget is
+150 minutes less the 30-second margin: 149.5 minutes.
+
+The per-part times below come from `python3 tools/market/j001_size_check.py`: each figure named (a median or a 95th
+percentile from the runs cited), times 50 calls.
+
+| Per call | Source | Minutes a part | Budget over that |
+|---|---|---|---|
+| 4.0 s | g0-001's a-4b judge calls, median (`docs/lab/RESULTS.md`, run 8) | 3.3 | 44.9 |
+| 25.8 s | R002's a-4b extraction calls, median (`CHOICE-R002.md`, run 1) | 21.5 | 7.0 |
+| 84.981 s | check-001's a-4b E3 extraction workload, median, AMD EPYC 9V74 (`RESULTS.md`, run 1) | 70.8 | 2.1 |
+| 112.5 s | check-001's first-token median there (75.934 s) plus 256 tokens at its decode rate (7.0 a second) | 93.8 | 1.6 |
+| 86.6 s | main-001's first-token median on R002's CPU, Intel Xeon Platinum 8573C (25.681 s, `RESULTS.md`, run 5), plus 256 tokens at 4.2 a second | 72.2 | 2.1 |
+| 177 s | R002's a-4b extraction calls, 95th percentile | 147.5 | 1.0 |
+
+- **The judge prompt is the smaller one.** With the narrative at its 6,000-character cut, a judge call's messages hold
+  7,432 characters. E3's extraction workload holds 11,254. The same command renders both with the repository's own
+  `render_messages`, the judge payload from `lab.j1.payload`.
+- **A judge reply is capped at 256 tokens.** So the fourth and fifth rows are each a bound for one call on that CPU:
+  a prompt larger than any judge prompt, then a reply at the cap. Even with every reply at the cap, a part takes 93.8
+  of its 149.5 minutes on the slowest runner the lab has seen for a-4b.
+- **The last row cannot happen for a judge.** R002's 95th percentile is for extraction replies of up to 1,024 tokens
+  (`extraction_task(pack).max_tokens` on this pack).
+- **So 6 parts of 150 minutes keep a wide margin**: at least twice the time at every median the lab has for a-4b, and
+  1.6 times the bound with every reply at the cap. Rule 9 fixes the parts and the minutes; nothing here needed a
+  change, so the request stays as `CHOICE-J001.md` says.

@@ -48,8 +48,9 @@ and interval, then the per-record mean difference and the sign test. Last, compa
 and its interval, the lexical extractor's predicate F1 beside it (when the labels carry one: ``labels.public.lexical``),
 field F1, the zero-claim and transport failure shares and the drops and re-attachments by reason. J1 (judge test J001)
 comes once, in the class section of its display class (:func:`_j1_tables`): its label, the labels, questions and the
-lexical judge's balanced accuracy on every record, the lexical and headline notes, one row per model and the paired
-table; a plan's preregistration adds J1's labels, questions and the lexical judge's scores. The class sections
+lexical judge's and the record-blind control's balanced accuracy on every record, the lexical, control and headline
+notes, one row per model and the paired table; a plan's preregistration adds J1's labels, questions and the lexical
+judge's and the control's scores. The class sections
 come in the order of :data:`CLASS_ORDER`: ``model``, then ``hosted-api`` (hosted API results, never measured on this
 runner), then the rest. A G0 table gains a protocol records column, after its note, when a scan was below the
 protocol size, and a model path problems column when a row counts them. After the class sections, a sizing table of
@@ -116,9 +117,9 @@ from .notes import (BRANCH_DELETED, BY_CONSTRUCTION_LABEL, BY_CONSTRUCTION_NOTE,
                     E1_SCORES_REFUSED, E1_SCORES_UNPINNED, E1_VERDICTS_WITHHELD, E1_WITHOUT_HOSTED,
                     E2_CENTRAL_HOSTED_SKIPPED, E2_LABELS, E2_SIZING_NOTE, G0_BELOW_PROTOCOL, HEADINGS,
                     HOSTED_COST_NOTE, HOSTED_SECRETS_MISSING, J1_HEADLINE_NOTE, J1_INCOMPLETE, J1_LABEL,
-                    J1_LEXICAL_NOTE, J1_NOT_MEASURED, J1_WITHHELD, LOCK_CONFLICT_NOTE, LOCK_NEW, LOCK_NOT_COMPUTED,
-                    LOCK_UNCHANGED, MERGE_SEVERAL, NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT, NOT_A_BRANCH, NOT_PINNED,
-                    NOTES, OPENFDA_FALSE_ALARM_SCOPE, OPENFDA_LABEL, OPENFDA_PUBLIC_FLAG, OPENFDA_SAW_RECALLS,
+                    J1_LEXICAL_NOTE, J1_NOT_MEASURED, J1_PRIOR_NOTE, J1_WITHHELD, LOCK_CONFLICT_NOTE, LOCK_NEW,
+                    LOCK_NOT_COMPUTED, LOCK_UNCHANGED, MERGE_SEVERAL, NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT,
+                    NOT_A_BRANCH, NOT_PINNED, NOTES, OPENFDA_FALSE_ALARM_SCOPE, OPENFDA_LABEL, OPENFDA_PUBLIC_FLAG, OPENFDA_SAW_RECALLS,
                     OPENFDA_WARNED, PLAN_FIX_HINT, PLUMBING_CHECK_LINE, PLUMBING_HOSTED_LINE, PREREG_MISSING,
                     REAGGREGATION_LINE, SHEETS_LABEL, SIM_CHANNEL_LABELS, SIM_LIFT_LABELS, SIM_NOTES,
                     SIM_WORLD_DIFFERS, SIM_WORLD_SAME, SIZING_NOTE, TRUNCATED, UNSEALED, WORLD_DIGEST_DIFFERS,
@@ -492,6 +493,14 @@ def _prereg_section(doc: _Doc, src: Sources) -> None:
                 f"{src.num(f, pointer(*at, 'specificity', 'value'), 'f3')}; {COLUMNS['unknown_share']} "
                 f"{src.num(f, pointer(*at, 'unknown_share', 'value'), 'f3')}")
         doc.add("\n" + J1_LEXICAL_NOTE)
+        at = ("j1", "prior")
+        doc.add(f"\n- {code('J1')} {COLUMNS['prior_all']}: {COLUMNS['balanced_accuracy']} "
+                f"{src.num(f, pointer(*at, 'balanced_accuracy', 'value'), 'f3')} ({COLUMNS['ci_low']} "
+                f"{src.num(f, pointer(*at, 'balanced_accuracy', 'ci_low'), 'f3')}, {COLUMNS['ci_high']} "
+                f"{src.num(f, pointer(*at, 'balanced_accuracy', 'ci_high'), 'f3')}); {COLUMNS['sensitivity']} "
+                f"{src.num(f, pointer(*at, 'sensitivity', 'value'), 'f3')}; {COLUMNS['specificity']} "
+                f"{src.num(f, pointer(*at, 'specificity', 'value'), 'f3')}")
+        doc.add("\n" + J1_PRIOR_NOTE)
 
 
 # --------------------------------------------------------------------------------------------------- shard
@@ -1117,10 +1126,12 @@ def _e1_scores_table(doc: _Doc, src: Sources, e1: dict[str, Any], *, compared: b
 
 def _j1_tables(doc: _Doc, src: Sources, j1: dict[str, Any]) -> None:
     """J1's label, then (once the preregistration verified) the labels, questions and the lexical judge on every
-    record, the lexical and headline notes, one row per model (class, parts finished of planned, balanced accuracy and
-    its interval, the lexical judge's balanced accuracy on the same records, the headline, sensitivity, specificity,
-    the unknown share, the records left out, and why there is no headline when a model has none) and the paired
-    table (model minus lexical balanced accuracy, record by record, with its interval)."""
+    record, the record-blind control on every record, the lexical, control and headline notes, one row per model
+    (class, parts finished of planned, balanced accuracy and its interval, the lexical judge's and the control's
+    balanced accuracy on the same records, the headline, sensitivity, specificity, the unknown share, the records left
+    out, and why there is no headline when a model has none) and the paired table (model minus lexical balanced
+    accuracy, record by record, with its interval). Each predicate's confirms stay in ``report.json``
+    (``scores.by_predicate``)."""
     f = "report.json"
     _heading(doc, "j1", 4)
     doc.add("\n" + ids(J1_LABEL))
@@ -1137,7 +1148,12 @@ def _j1_tables(doc: _Doc, src: Sources, j1: dict[str, Any]) -> None:
     doc.add(f"- {COLUMNS['lexical_all']}: {COLUMNS['balanced_accuracy']} {src.num(f, pointer(*at, 'value'), 'f3')} "
             f"({COLUMNS['ci_low']} {src.num(f, pointer(*at, 'ci_low'), 'f3')}, {COLUMNS['ci_high']} "
             f"{src.num(f, pointer(*at, 'ci_high'), 'f3')})")
+    at = ("j1", "prior", "balanced_accuracy")
+    doc.add(f"- {COLUMNS['prior_all']}: {COLUMNS['balanced_accuracy']} {src.num(f, pointer(*at, 'value'), 'f3')} "
+            f"({COLUMNS['ci_low']} {src.num(f, pointer(*at, 'ci_low'), 'f3')}, {COLUMNS['ci_high']} "
+            f"{src.num(f, pointer(*at, 'ci_high'), 'f3')})")
     doc.add("\n" + J1_LEXICAL_NOTE)
+    doc.add("\n" + J1_PRIOR_NOTE)
     doc.add("\n" + J1_HEADLINE_NOTE)
     models = j1.get("models") if isinstance(j1.get("models"), dict) else {}
     named = sorted(name for name in models if isinstance(models[name], dict))
@@ -1152,6 +1168,7 @@ def _j1_tables(doc: _Doc, src: Sources, j1: dict[str, Any]) -> None:
             row += [src.num(f, pointer(*at, "scores", "balanced_accuracy", key), "f3")
                     for key in ("value", "ci_low", "ci_high")]
             row.append(src.num(f, pointer(*at, "lexical", "balanced_accuracy", "value"), "f3"))
+            row.append(src.num(f, pointer(*at, "prior", "balanced_accuracy", "value"), "f3"))
             row.append(code(entry.get("headline"), table=True))
             row += [src.num(f, pointer(*at, "scores", metric, "value"), "f3") for metric in J1_METRICS[1:]]
             row.append(src.num(f, pointer(*at, "records_dropped"), "int"))
@@ -1161,7 +1178,7 @@ def _j1_tables(doc: _Doc, src: Sources, j1: dict[str, Any]) -> None:
             yield row
 
     doc.table(["model", "class", "parts_ok", "balanced_accuracy", "ci_low", "ci_high", "lexical_balanced_accuracy",
-               "headline", "sensitivity", "specificity", "unknown_share", "records_dropped",
+               "prior_balanced_accuracy", "headline", "sensitivity", "specificity", "unknown_share", "records_dropped",
                *(["headline_reason"] if reasons else [])], model_rows)
     paired = [name for name in named if isinstance(models[name].get("paired"), dict)]
     if paired:

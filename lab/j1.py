@@ -10,13 +10,23 @@ the task and schema are ``verify.judge_task`` and ``verify.judge_schema``, the c
 escalation) and the verdict is the verifier's own ``verify.decide`` over the one record. What ``SiteVerifier.answer``
 adds around them (boundary checks, budgets, master data, secrets, storage, pooling) is not used.
 
-**Questions** (:func:`build_questions`, in the plan job, before any model runs). For each labelled record, in record
-order: the entity is its structured vehicle (a pack id); the positive is one filed predicate,
-``random.Random("j1:<seed>:<record_ref>:positive").choice`` over the sorted filed predicates; the negative is
-``random.Random("j1:<seed>:<record_ref>:negative").choice`` over the sorted pack predicates less the filed ones, less
-:data:`EXCLUDED` and less the other name of every filed predicate in :data:`TWINS`. Record ``i`` of ``n`` is in part
-``i * parts // n + 1``. One canonical line per question, the positive first: ``{"question_id"
-("<record_ref>:<kind>"), "record_ref", "part", "kind", "entity_type", "entity_id", "predicate", "filed"}``.
+**Questions** (:func:`build_questions`, in the plan job, before any model runs; rule 2 as amended before any run).
+For each labelled record, in record order: the entity is its structured vehicle (a pack id); the positive is one
+filed predicate, ``random.Random("j1:<seed>:<record_ref>:positive").choice`` over the sorted filed predicates. The
+negative follows the positives (:func:`draw_negative`): its candidates are the sorted pack predicates less the filed
+ones, less :data:`EXCLUDED` and less the other name of every filed predicate in :data:`TWINS`; each candidate weighs
+the number of *other* records whose positive asks it (leave one record out); and
+``random.Random("j1:<seed>:<record_ref>:negative").randrange(total)`` picks a position in the candidates' sorted
+order, each holding as many positions as its weight. A record whose candidates all weigh nothing is refused
+(:class:`J1Error`). So a predicate is asked as a negative about as often as as a positive, and the predicate alone
+says almost nothing about the answer. Record ``i`` of ``n`` is in part ``i * parts // n + 1``. One canonical line per
+question, the positive first: ``{"question_id" ("<record_ref>:<kind>"), "record_ref", "part", "kind", "entity_type",
+"entity_id", "predicate", "filed"}``.
+
+**The record-blind control** (:func:`prior_verdicts`, in the plan job; it decides nothing) never reads a record: a
+question about one record is confirmed when its predicate was asked more often as a positive than as a negative among
+the other records' questions, and refuted otherwise (a tie refutes). Its lines are verdict lines (``mentions_entity``
+``yes``, ``describes_predicate`` ``yes`` or ``no``), scored like every judge's.
 
 **The payload** (:func:`payload`) is ``judge_payload`` of the record as a ``WindowRecord`` with its codes empty (the
 labels hide them; a label record with codes is refused), its structured entities, language and narrative.
@@ -34,9 +44,11 @@ with a transport failure is left out (``records_dropped``), and one without both
 share each get ``{"value", "ci_low", "ci_high"}`` from ``stats.cluster_bootstrap_mean`` with one cluster per scored
 record, seed ``j1:<bootstrap_seed>``: the same draws for every metric and judge scored on the same records. Every
 scored record holds one positive and one negative, so balanced accuracy, the mean of sensitivity and specificity, is
-the accuracy on every draw: its block is the accuracy's. :func:`headline` reads a model's balanced accuracy interval
-against the lexical judge's balanced accuracy on the same records; :func:`paired` bootstraps the per-record
-difference (``stats.paired_bootstrap``).
+the accuracy on every draw: its block is the accuracy's. ``by_predicate`` counts, per predicate and kind, the scored
+questions and the confirms. :func:`headline` reads a model's balanced accuracy interval against the lexical judge's
+balanced accuracy on the same records; :func:`paired` bootstraps the per-record difference
+(``stats.paired_bootstrap``). :func:`line_problem` says why a stored verdict line is not the line the runner writes
+for its question (the aggregate's check).
 
 **The run** checks every pin before any call, each a usage error (exit 2): the prereg's kind; the labels' and the
 questions' sha256; the pack's vocabulary and config hashes; :func:`code_hash`; the judge task's instructions, schema and
@@ -46,7 +58,12 @@ part. It then judges the part's questions in order with ``Runtime.run(..., ref="
 ``InferenceError`` of a ``runtime.VALIDATION_KINDS`` kind is a model failure (``unknown``, scored), any other one a
 transport failure (not scored), and an ``InferenceBoundaryError`` exits 2. It stops before a question once
 ``--budget-seconds`` have passed (``stopped: budget``) or after ``extract.BREAKER_AFTER`` consecutive failures that
-``extract.server_down`` calls the server's (``stopped: server_down``); the rest are not sent.
+``extract.server_down`` calls the server's (``stopped: server_down``); the rest are not sent. A call still in flight
+when the budget runs out is cut short by a timer (``SIGALRM``, in the main thread) and the run stops the same way:
+the question cut short gets no line, and the final ``run.json`` is written before the unit's own timeout. ``SIGTERM``
+stops the run as an interrupt does (``stopped: interrupted``), so its final ``run.json`` is written too. A signal that
+arrives outside a call waits for the end of the question's bookkeeping, so ``verdicts.jsonl`` always holds whole
+questions.
 
 **Files** under ``<runs dir>/j1/<run id>/``: ``verdicts.jsonl`` (flushed per question), ``ledger.jsonl`` and
 ``run.json`` (``kind: lab_j1_run``; written with ``complete: false`` before the first call and again at the end): the
@@ -62,7 +79,9 @@ from __future__ import annotations
 import argparse
 import os
 import random
+import signal
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
@@ -76,6 +95,7 @@ from mycelic.collective.experiments.common import (ROOT, UsageError, check_run_i
                                                    code_hash as common_code_hash, fail, measurement_flag, run_dir,
                                                    utc_clock, write_json_atomic)
 from mycelic.collective.inference.client import list_models
+from mycelic.collective.inference.errors import KINDS as ERROR_KINDS
 from mycelic.collective.inference.errors import InferenceBoundaryError, InferenceError
 from mycelic.collective.inference.ledger import read_ledger
 from mycelic.collective.inference.routing import ConfigError, key_problem, load_routing, parse_routing
@@ -102,17 +122,20 @@ DEADLINE_S = 600
 MAX_RETRIES = 1
 MAX_PARTS = 30
 WITHHOLD_SHARE = 0.01        # more than this share of a model's records left out by transport failures withholds it
+# rule 2's negative, as amended before any run: drawn with the frequency of the other records' positives
+NEGATIVE_DRAW = "other_records_positive_frequency"
 CODE_FILES = ("mycelic/collective/edge/verify.py", "mycelic/collective/edge/extract.py",
               "mycelic/collective/edge/records.py", "mycelic/collective/packs/canonical.py",
               "mycelic/collective/packs/loader.py", "mycelic/collective/inference/*.py",
               "mycelic/collective/schemacheck.py", "mycelic/collective/jsonio.py", "mycelic/collective/stats.py",
+              "mycelic/collective/experiments/e1_extract.py", "mycelic/collective/experiments/common.py",
               "lab/j1.py", "lab/goldlabels.py")
 QUESTION_KEYS = ("question_id", "record_ref", "part", "kind", "entity_type", "entity_id", "predicate", "filed")
 LINE_KEYS = ("question_id", "record_ref", "kind", "predicate", "mentions_entity", "describes_predicate", "verdict",
              "error_kind", "scored")
-PREREG_KEYS = ("schema_version", "kind", "experiment", "pack", "labels", "questions", "lexical", "task", "code_hash",
-               "code_files", "code_commit", "code_dirty", "endpoints", "boundary", "data_label", "parts", "seed",
-               "twins", "excluded", "bootstrap_b", "bootstrap_seed", "withhold_share")
+PREREG_KEYS = ("schema_version", "kind", "experiment", "pack", "labels", "questions", "lexical", "prior", "task",
+               "code_hash", "code_files", "code_commit", "code_dirty", "endpoints", "boundary", "data_label", "parts",
+               "seed", "twins", "excluded", "bootstrap_b", "bootstrap_seed", "withhold_share")
 METRICS = ("sensitivity", "specificity", "balanced_accuracy", "accuracy", "unknown_share")
 HEADLINES = ("better", "worse", "not_told_apart")
 _clock = time.monotonic                 # the budget's clock (tests replace it)
@@ -158,23 +181,56 @@ def _entity(record: Mapping[str, Any], gold: Sequence[Mapping[str, Any]]) -> str
     return vehicles[0]
 
 
+def candidates(pack: FrozenPack, filed: Iterable[str]) -> list[str]:
+    """A record's possible negatives, sorted: the pack's predicates less the filed ones, :data:`EXCLUDED` and the other
+    name of every filed one."""
+    filed = set(filed)
+    return sorted(set(pack.predicates) - filed - set(EXCLUDED) - {twin_of(p) for p in filed})
+
+
+def draw_negative(choices: Sequence[str], weights: Mapping[str, int], key: str) -> str:
+    """Rule 2's seeded weighted draw: ``choices`` (sorted) hold positions in order, each as many as its weight in
+    ``weights`` (0 when absent), and ``random.Random(key).randrange(total)`` picks one. Integer arithmetic only, so
+    the draw is the same on every platform. Refused (:class:`J1Error`) when every choice weighs nothing."""
+    counts = [int(weights.get(c, 0)) for c in choices]
+    if any(c < 0 for c in counts):
+        raise J1Error("a negative's weight is negative")
+    total = sum(counts)
+    if total == 0:
+        raise J1Error("no other record's positive asks any predicate this record may be asked as a negative")
+    pick = random.Random(key).randrange(total)
+    for choice, count in zip(choices, counts):
+        if pick < count:
+            return choice
+        pick -= count
+    raise AssertionError("unreachable")
+
+
 def build_questions(pack: FrozenPack, labels_bytes: bytes, *, seed: int, parts: int) -> tuple[bytes, dict[str, Any]]:
     """The questions file's bytes and its record (see the module docstring)."""
     labels = parse_labels(labels_bytes)
     n = len(labels)
     if not 1 <= parts <= MAX_PARTS or n < parts:
         raise J1Error("parts must be 1 to 30 and at most the number of records")
-    lines: list[str] = []
-    sizes = [0] * parts
-    for i, (record, gold) in enumerate(labels):
+    drawn: list[tuple[str, str, list[str], str]] = []
+    for record, gold in labels:
         ref = record["record_ref"]
         entity = _entity(record, gold)
         filed = sorted({g["predicate"] for g in gold})
         if not filed or any(p not in pack.predicates for p in filed):
             raise J1Error("a labelled record has no filed predicate of the pack")
-        left = set(pack.predicates) - set(filed) - set(EXCLUDED) - {twin_of(p) for p in filed}
-        positive = random.Random(f"j1:{seed}:{ref}:positive").choice(filed)
-        negative = random.Random(f"j1:{seed}:{ref}:negative").choice(sorted(left))
+        drawn.append((ref, entity, filed, random.Random(f"j1:{seed}:{ref}:positive").choice(filed)))
+    if len({ref for ref, _, _, _ in drawn}) != n:
+        raise J1Error("two labelled records share a record_ref")
+    positives: dict[str, int] = {}
+    for _, _, _, positive in drawn:
+        positives[positive] = positives.get(positive, 0) + 1
+    lines: list[str] = []
+    sizes = [0] * parts
+    for i, (ref, entity, filed, positive) in enumerate(drawn):
+        others = dict(positives)
+        others[positive] -= 1                      # leave this record out
+        negative = draw_negative(candidates(pack, filed), others, f"j1:{seed}:{ref}:negative")
         part = i * parts // n + 1
         sizes[part - 1] += 1
         for kind, predicate in zip(KINDS, (positive, negative)):
@@ -183,7 +239,7 @@ def build_questions(pack: FrozenPack, labels_bytes: bytes, *, seed: int, parts: 
                                           "filed": filed}) + "\n")
     data = "".join(lines).encode("utf-8")
     record = {"schema_version": SCHEMA_VERSION, "kind": "lab_j1_questions", "seed": seed, "parts": parts,
-              "records": n, "questions": len(lines), "part_records": sizes,
+              "records": n, "questions": len(lines), "part_records": sizes, "negative_draw": NEGATIVE_DRAW,
               "excluded": list(EXCLUDED), "twins": [list(t) for t in TWINS], "sha256": sha256_hex(data)}
     return data, record
 
@@ -259,6 +315,54 @@ def lexical_verdicts(pack: FrozenPack, labels_bytes: bytes,
     return out
 
 
+def stand_in(record_ref: str) -> WindowRecord:
+    """A window record that holds only its ref. ``decide`` counts records and reads replies, never a record's text,
+    so the verdict of a reply is the same over this record as over the real one; the record-blind control and the
+    aggregate's check use it, so that neither reads a narrative."""
+    return WindowRecord(record_ref=record_ref, iso_week="", root_ref=record_ref, reporter_id=None, language=None,
+                        codes=[], structured={}, narrative="")
+
+
+def prior_verdicts(questions: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """The record-blind control (rule 5, added before any run): for each question, ``confirm`` when its predicate was
+    asked more often as a positive than as a negative among the other records' questions, else ``refute`` (a tie
+    refutes), as verdict lines with ``mentions_entity`` ``yes``. It never reads a record."""
+    asked: dict[tuple[str, str], int] = {}
+    for q in questions:
+        asked[(q["predicate"], q["kind"])] = asked.get((q["predicate"], q["kind"]), 0) + 1
+    out = []
+    for q in questions:
+        own = [o for o in questions if o["record_ref"] == q["record_ref"] and o["predicate"] == q["predicate"]]
+        mine = {k: sum(1 for o in own if o["kind"] == k) for k in KINDS}
+        pos = asked.get((q["predicate"], "positive"), 0) - mine["positive"]
+        neg = asked.get((q["predicate"], "negative"), 0) - mine["negative"]
+        reply = {"mentions_entity": "yes", "describes_predicate": "yes" if pos > neg else "no"}
+        out.append(verdict_line(q, stand_in(q["record_ref"]), reply, None))
+    return out
+
+
+def line_problem(question: Mapping[str, Any], line: Any) -> str | None:
+    """Why a stored verdict line is not the line the runner writes for ``question``, or None: its keys, its question
+    (id, record, kind and predicate), its answers (both in :data:`ANSWERS`, or both null with an inference error
+    kind), and its verdict and ``scored``, recomputed by :func:`verdict_line` with the one verdict rule."""
+    if not isinstance(line, Mapping) or sorted(line) != sorted(LINE_KEYS):
+        return "keys"
+    if any(line[k] != question[k] for k in ("question_id", "record_ref", "kind", "predicate")):
+        return "question"
+    m, d, kind = line["mentions_entity"], line["describes_predicate"], line["error_kind"]
+    if m is None and d is None:
+        if kind not in ERROR_KINDS:
+            return "answers"
+        reply = None
+    elif m in ANSWERS and d in ANSWERS and kind is None:
+        reply = {"mentions_entity": m, "describes_predicate": d}
+    else:
+        return "answers"
+    if dict(line) != verdict_line(question, stand_in(question["record_ref"]), reply, kind):
+        return "verdict"
+    return None
+
+
 # --------------------------------------------------------------------------------------------------- scoring
 
 def _interval(clusters: list[list[float]], b: int, seed: str) -> dict[str, Any]:
@@ -332,12 +436,20 @@ def score(questions: Sequence[Mapping[str, Any]], verdicts: Iterable[Mapping[str
                   if k in pairs[ref] and pairs[ref][k]["question_id"] in lines]
     answers = {k: {} for k in KINDS}
     verdict_counts = {k: dict.fromkeys(VERDICTS, 0) for k in KINDS}
+    by_predicate: dict[str, dict[str, dict[str, Any]]] = {}
     for ref in scored:
         for k in KINDS:
             line = lines[pairs[ref][k]["question_id"]]
             key = answer_key(line)
             answers[k][key] = answers[k].get(key, 0) + 1
             verdict_counts[k][line["verdict"]] += 1
+            cell = by_predicate.setdefault(pairs[ref][k]["predicate"],
+                                           {kind: {"questions": 0, "confirmed": 0} for kind in KINDS})[k]
+            cell["questions"] += 1
+            cell["confirmed"] += int(line["verdict"] == "confirm")
+    for cells in by_predicate.values():
+        for cell in cells.values():
+            cell["confirm_rate"] = cell["confirmed"] / cell["questions"] if cell["questions"] else None
     left = len(scored) + len(dropped)
     return {"records_scored": len(scored), "records_dropped": len(dropped), "records_not_judged": len(not_judged),
             "dropped_share": len(dropped) / left if left else None, "questions_scored": 2 * len(scored),
@@ -345,6 +457,7 @@ def score(questions: Sequence[Mapping[str, Any]], verdicts: Iterable[Mapping[str
             "balanced_accuracy": dict(accuracy), "accuracy": accuracy,
             "unknown_share": _interval(unknown, bootstrap_b, seed),
             "answers": {k: dict(sorted(answers[k].items())) for k in KINDS}, "verdicts": verdict_counts,
+            "by_predicate": dict(sorted(by_predicate.items())),
             "failures": _failures(considered), "bootstrap": {"b": bootstrap_b, "seed": seed}}
 
 
@@ -445,15 +558,16 @@ def pack_pins(pack: FrozenPack, ref: str) -> dict[str, Any]:
 
 
 def prereg_doc(*, pack: FrozenPack, pack_ref: str, labels: Mapping[str, Any], questions: Mapping[str, Any],
-               lexical_sha256: str, routing: Mapping[str, Any], seed: int, parts: int, bootstrap_b: int,
-               bootstrap_seed: int) -> dict[str, Any]:
+               lexical_sha256: str, prior_sha256: str, routing: Mapping[str, Any], seed: int, parts: int,
+               bootstrap_b: int, bootstrap_seed: int) -> dict[str, Any]:
     """``prereg/j1/prereg.json``: everything a unit checks before its first call, and the settings of rule 6."""
     return {"schema_version": SCHEMA_VERSION, "kind": "lab_j1_prereg", "experiment": "J1",
             "pack": pack_pins(pack, pack_ref),
             "labels": {k: labels[k] for k in ("source", "n", "seed", "records", "claims", "sha256")},
             "questions": {k: questions[k] for k in ("seed", "parts", "records", "questions", "part_records",
-                                                     "sha256")},
-            "lexical": {"sha256": lexical_sha256}, "task": task_pins(), "code_hash": code_hash(),
+                                                     "negative_draw", "sha256")},
+            "lexical": {"sha256": lexical_sha256}, "prior": {"sha256": prior_sha256}, "task": task_pins(),
+            "code_hash": code_hash(),
             "code_files": code_files_list(), "code_commit": code_commit(),
             "code_dirty": code_dirty(["mycelic/collective", "lab"]), "endpoints": endpoint_pins(routing),
             "boundary": BOUNDARY, "data_label": DATA_LABEL, "parts": parts, "seed": seed,
@@ -568,6 +682,58 @@ def _latency(rows: Sequence[Mapping[str, Any]]) -> tuple[float | None, float | N
     return stats.percentile(values, 50), stats.percentile(values, 95)
 
 
+class _Stop(BaseException):
+    """Raised by :class:`_Signals` inside a model call. A ``BaseException``, so no handler for ordinary errors on the
+    way up swallows it; ``reason`` is ``budget`` or ``interrupted``."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+class _Signals:
+    """The run's budget timer (``SIGALRM`` after ``budget_s``), ``SIGTERM`` and ``SIGINT``, in the main thread only.
+    A signal that arrives inside a model call (``in_call``) raises :class:`_Stop` there; one that arrives elsewhere is
+    kept in ``pending``, which the loop reads before each question. :meth:`close` cancels the timer and restores the
+    previous handlers."""
+
+    SIGNALS = ("SIGALRM", "SIGTERM", "SIGINT")
+
+    def __init__(self, budget_s: float) -> None:
+        self.pending: str | None = None
+        self.in_call = False
+        self._old: dict[int, Any] = {}
+        self._armed = (threading.current_thread() is threading.main_thread() and hasattr(signal, "setitimer")
+                       and hasattr(signal, "SIGALRM"))
+        if self._armed:
+            for name in self.SIGNALS:
+                number = getattr(signal, name)
+                self._old[number] = signal.signal(number, self._on_signal)
+            signal.setitimer(signal.ITIMER_REAL, max(0.001, float(budget_s)))
+
+    def _on_signal(self, signum: int, frame: Any) -> None:
+        if self.pending is None:
+            self.pending = "budget" if signum == signal.SIGALRM else "interrupted"
+        if self.in_call:
+            self.in_call = False
+            raise _Stop(self.pending)
+
+    def enter_call(self) -> None:
+        """Mark the start of a model call; a signal that came just before it stops the run here."""
+        self.in_call = True
+        if self.pending is not None:
+            self.in_call = False
+            raise _Stop(self.pending)
+
+    def close(self) -> None:
+        if not self._armed:
+            return
+        self._armed = False
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        for number, old in self._old.items():
+            signal.signal(number, old if old is not None else signal.SIG_DFL)
+
+
 def _execute(args: argparse.Namespace, c: _Checked) -> int:
     out = c.out_dir
     base = _base(args, c)
@@ -591,11 +757,14 @@ def _execute(args: argparse.Namespace, c: _Checked) -> int:
     interrupted = boundary = False
     listed: dict[str, Any] = {"ok": False, "ids": [], "fake": None}
     t0 = _clock()
+    signals = _Signals(args.budget_seconds)
     try:
         listed = list_models(c.endpoint)
         down = 0
         with open(out / "verdicts.jsonl", "w", encoding="utf-8", newline="\n") as fh:
             for i, q in enumerate(c.questions):
+                if signals.pending is not None:
+                    raise _Stop(signals.pending)
                 if _clock() - t0 >= args.budget_seconds:
                     stopped = "budget"
                     break
@@ -606,6 +775,7 @@ def _execute(args: argparse.Namespace, c: _Checked) -> int:
                 window = window_record(record)
                 reply, error_kind, down_now = None, None, False
                 try:
+                    signals.enter_call()
                     reply = rt.run(task, payload(c.pack, q, record), schema, ref=f"j1-{args.part}-{i:04d}")
                 except InferenceBoundaryError:
                     boundary = True
@@ -613,15 +783,21 @@ def _execute(args: argparse.Namespace, c: _Checked) -> int:
                 except InferenceError as err:
                     error_kind = err.kind
                     down_now = server_down(err, rt, JUDGE_TASK)
+                finally:
+                    signals.in_call = False
                 down = down + 1 if down_now else 0
                 line = verdict_line(q, window, reply, error_kind)
                 fh.write(canonical_dumps(line) + "\n")
                 fh.flush()
                 lines.append(line)
+    except _Stop as stop:
+        stopped = stop.reason
+        interrupted = stop.reason == "interrupted"
     except KeyboardInterrupt:
         interrupted = True
         stopped = "interrupted"
     finally:
+        signals.close()
         rt.close()
     rows = read_ledger(out / "ledger.jsonl") if (out / "ledger.jsonl").exists() else []
     p50, p95 = _latency(rows)

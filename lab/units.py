@@ -79,8 +79,11 @@ Status, from :func:`harness_status`, then the participation check, then G0's mod
   :data:`~lab.notes.SIM_LOW_PARTICIPATION`), any task with an ok share below 0.95, or an E3 run with more than 5%
   failed measured requests makes the unit invalid, checked in that order. For J1, ``ok`` counts the calls the model
   answered, a reply still invalid after its repair included: J001 scores such a reply as ``unknown`` (a model
-  failure that counts), so it is the model's answer, not its absence. A harness that exits 0 although
-  the model never answered (E3 counts its failures, G0 and the sim fall back to the lexical extractor) can therefore
+  failure that counts), so it is the model's answer, not its absence. A call's last row decides, as the runner's
+  verdict does: a call whose repair then failed in transport is not answered. This floor acts before J001's 1% rule:
+  with fifty calls a part, three or more transport failures make the part ``invalid``, so its model reads incomplete
+  rather than withheld; fewer per part, spread over parts, reach the aggregate's withhold. A harness that exits 0
+  although the model never answered (E3 counts its failures, G0 and the sim fall back to the lexical extractor) can therefore
   never be ``ok``.
 * G0's model path, last (:func:`g0_status`): an ``ok`` or ``result_fail`` G0 unit whose ``leakage.json`` lists
   ``model_path`` problems while nothing leaked is ``invalid`` (:data:`~lab.notes.G0_MODEL_PATH`); a harness without
@@ -557,11 +560,15 @@ def participation(experiment: str, rows: list[dict[str, Any]], required: list[st
         if row["ok"] is True:
             c["ok"] += 1
     if experiment in REPLY_PARTICIPATION:
-        # J1: a call counts when the model answered it, an invalid reply after its repair included (scored unknown)
-        replied: dict[str, set[str]] = {}
+        # J1: a call counts when the model answered it, an invalid reply after its repair included (scored unknown).
+        # Its last row decides, as the runner's verdict does: a repair that hit a transport failure is not answered.
+        last: dict[tuple[str, str], dict[str, Any]] = {}
         for row in rows:
+            last[(row["task"], row["ref"])] = row
+        replied: dict[str, set[str]] = {}
+        for (task, ref), row in last.items():
             if row["ok"] is True or row["error_kind"] in VALIDATION_KINDS:
-                replied.setdefault(row["task"], set()).add(row["ref"])
+                replied.setdefault(task, set()).add(ref)
         for task, c in counts.items():
             c["ok"] = len(replied.get(task, ()))
     tasks = {task: {**c, "share": round(c["ok"] / c["attempted"], 6) if c["attempted"] else None}
