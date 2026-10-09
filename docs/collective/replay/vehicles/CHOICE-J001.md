@@ -1,0 +1,188 @@
+# Judge test J001: can a small model answer the site verifier's narrow question on real complaints?
+
+R001 and R002 asked small models to read whole complaints into claims. Every model scored below a lexical extractor.
+That is open extraction, and it is not what a site model does in the product. There, HQ asks a narrow question
+about one entity and one failure, and the site's model judges each of its own records against it (pushdown
+verification, `mycelic/collective/edge/verify.py`). That judging has never been measured on real text. J001 measures
+it on the same 150 NHTSA complaints as R001 and R002, through the product's own judge, against the lexical judge the
+verifier uses when no model runs. The rule and the reading below are committed before any model judges a narrative.
+
+How the lab will run it (a new experiment kind, `j1`) is in `BUILD-J001.md`.
+
+## The declaration
+
+- The rule was written by the AI system that wrote this repository's code.
+- It has seen R001's result: every model at predicate F1 0.000, and the lexical extractor at 0.434
+  (`CHOICE-R001.md`).
+- It has seen R002's result: a-0p5b 0.026 [0.015, 0.038], a-1p5b 0.178 [0.150, 0.209] and a-4b 0.218
+  [0.185, 0.254] from its one finished repeat, each interval below the lexical 0.434 (`CHOICE-R002.md`, run 1).
+- It has also seen the other lab runs and replays as `docs/lab/RESULTS.md` records them (main-001, g0-001, V001 to
+  V003), with their timings, and the pack notes in `PACK-V2.md`.
+- It has not seen any judge reply on these narratives: no judge has run on them. It has not read R002's stored
+  replies, which sit in the run's artifacts and cannot be read from this environment. The 150 narratives are
+  rebuilt in the lab's plan job, and no copy of them is in the repository.
+- The design comes from the code and from R001 and R002, not from any J001 output.
+- R001's declaration still holds. The models may have seen public complaints in training. The answer key is the
+  components each complaint was filed under, not labels anyone checked.
+
+## The rule
+
+1. **Records: R001's and R002's, by the same code.** `lab.goldlabels`, source `nhtsa`, the pack
+   `docs/collective/replay/vehicles/pack`, 150 records drawn by `random.Random("nhtsa:1")`:
+   - complaints received 2023-01-01 to 2024-12-31 for FORD, CHEVROLET, JEEP, HONDA, NISSAN and DODGE;
+   - eligible: a narrative, one vehicle, and at least one specific component code.
+
+   The labels are rebuilt from the complaint file as published on the day of the run. If their sha256 differs from
+   R001's (`bc6d092d8bca…`), both are reported, and J001 is not on R001's records.
+2. **Questions: two per record, fixed in the plan job before any model runs.**
+   - The entity is the record's structured vehicle, as its pack id.
+   - **Positive:** one predicate the record was filed under. When there are several,
+     `random.Random("j1:1:<record_ref>:positive").choice` picks one from their sorted list.
+   - **Negative:** one predicate the record was not filed under. `random.Random("j1:1:<record_ref>:negative").choice`
+     picks it from a sorted list: the pack's predicates, less the filed ones, less `unknown_or_other`, and less the
+     other name of any filed component (the three pairs under "Traps").
+   - So 150 positives and 150 negatives: 300 questions per model. The question file's sha256 is preregistered.
+3. **The judging path: the product's, unchanged.**
+   - The payload is `judge_payload`: the question (the vehicle id, its aliases, the predicate and its label) and the
+     record (its language, its codes, its structured vehicle and its narrative cut at 6,000 characters). This pack
+     has no aliases.
+   - **The codes are hidden.** The record's codes list is empty, as it was for R001's and R002's readers.
+   - The task and schema are `judge_task()` and `judge_schema()`: task `judge_record`, answers `mentions_entity`
+     and `describes_predicate`, each `yes`, `no` or `unclear`, at most 256 output tokens.
+   - The call is `Runtime.run`, with its one repair after an invalid reply and no escalation, at boundary
+     `site:lab`, data label `public`, through the lab's pinned model server on one 4-vCPU runner.
+   - **The verdict is the verifier's own rule,** `decide`, applied to that one record:
+     - yes and yes is `confirm`;
+     - `mentions_entity` yes with `describes_predicate` no is `refute`;
+     - every other pair is `unknown`, and so is a call that failed (rule 6 says which failures are scored).
+   - Not used: what `SiteVerifier.answer` adds around these functions (the boundary checks, budgets, master data,
+     secrets and storage), and the pooling of many records into one verdict. Those decide whether a question is
+     judged and over which records, not how one record is judged.
+4. **Models:** a-0p5b, a-1p5b and a-4b (`lab/models.json`), 1 repeat each.
+   - The runtime sends temperature 0 on every call (`mycelic/collective/inference/client.py`), and the lab starts
+     its server with a fixed seed (`lab/server.py`). A second repeat would measure server noise, not sampling.
+   - The warm-up sends one judge request twice and records whether the replies matched (`repeat_identical`).
+5. **The lexical judge:** `lexical_judge` (`verify.py`), the verifier's judge when no model runs. It reads the same
+   payloads and is scored the same way, in the plan job, before any model runs.
+   - With the codes hidden, it says `mentions_entity` yes whenever the structured vehicle resolves to a pack id.
+   - It says `describes_predicate` yes only when one of the pack's phrases for the predicate is in the narrative
+     and not negated. The phrases are the category name or its parts, such as "fuel" or "wiper".
+6. **Scoring, against the filed codes** (not checked labels):
+   - a verdict is correct when it is `confirm` on a positive or `refute` on a negative; `unknown` is never correct;
+   - **sensitivity** is the share of positives confirmed, **specificity** the share of negatives refuted, and
+     **balanced accuracy** their mean;
+   - **accuracy** is the share of all questions answered correctly. Every record has one positive and one negative,
+     so accuracy equals balanced accuracy here. Both are reported;
+   - **the unknown share** is the share of questions answered `unknown`;
+   - each has a percentile-bootstrap 95% interval over records: `stats.cluster_bootstrap_mean`, B 10,000, seed
+     `j1:1`, a record's two questions drawn together, and the same draws for every judge;
+   - **a model failure** (no valid reply after the repair) is `unknown`, and counts;
+   - **a transport failure** (timeout, network, HTTP error, size limit) is the server's, not the model's. That record
+     leaves the model's scores, and the lexical judge is compared on the same records. If more than 1% of a model's
+     records leave, its verdict is withheld.
+7. **The headline, fixed now:**
+   - each model's balanced accuracy with its 95% interval, beside the lexical judge's balanced accuracy on the same
+     records;
+   - a model **judges better than the lexical judge** only if the lower end of its interval is above the lexical
+     judge's balanced accuracy, and **worse** only if the upper end is below it. Otherwise the two are **not told
+     apart** on these records;
+   - each of the three models is compared once, with no correction for three comparisons.
+8. **Reported beside the headline, deciding nothing:**
+   - sensitivity, specificity, accuracy and the unknown share, with their intervals;
+   - the count of each answer pair, for positives and for negatives;
+   - model minus lexical balanced accuracy, record by record, with a paired percentile-bootstrap interval
+     (`stats.paired_bootstrap`);
+   - failures by kind;
+   - each model's seconds per judge call (median and 95th percentile from the ledgers), per runner CPU. That is a
+     runner number, not site hardware.
+9. **Units and limits:**
+   - the 150 records, in record order, are cut into 6 parts of 25, so 50 questions a part;
+   - one unit per model and part, 18 units, each with 150 minutes;
+   - shard jobs of 330 minutes, so a shard runs 2 units of one model (300 minutes plus the lab's 25-minute shard
+     overhead), and each model gets 3 shards: 9 shards;
+   - each unit stops at its own budget and keeps what it judged;
+   - **a model is scored only when all 6 of its parts finished.** Otherwise its finished parts are reported as a
+     partial reading, and they decide nothing.
+10. **The first run is the result.** A run that fails before any model judges, for an infrastructure reason, may
+    run again unchanged. A model left incomplete gets no verdict from this run; judging it again is a new choice
+    file. Any change to a setting is a new choice file.
+
+## Why the units are this size
+
+- **R002 ran out of time.** a-4b's E1 repeats 1 and 2 did not finish 150 extraction calls in their 150-minute
+  units, so they spent more than 60 s on each call they made. a-4b's calls had a median of 25.8 s and a 95th
+  percentile of 177 s on that runner (`CHOICE-R002.md`, run 1).
+- **J001 gives each call three times that.** A unit has 50 calls in 150 minutes: 180 s a call.
+- **A judge call is the smaller call.** Its reply is two words from a fixed list, capped at 256 tokens. An
+  extraction reply on this pack is capped at 1,024 tokens. Both prompts hold the same narrative, cut at the same
+  6,000 characters.
+- **Where both were timed, judging was faster.** No judge call has run on these narratives. On generated text,
+  each model's judge calls had a lower median than its extraction calls:
+
+  | Run | Model | Judge median | Extraction median |
+  |---|---|---|---|
+  | smoke-001 (run 2) | a-0p5b | 862 ms | 2,366 ms |
+  | smoke-001 (run 2) | a-1p5b | 868 ms | 3,910 ms |
+  | smoke-001 (run 2) | a-4b | 3,435 ms | 4,274 ms |
+  | g0-001 (run 8) | a-4b | 4.0 s | 6.5 s |
+
+  The figures are from `docs/lab/RESULTS.md`, runs 2 and 8.
+- **The slowest timing the lab has for a-4b** is check-001's (run 1): a median of 85.0 s for E3's extraction
+  workload (1,500 words in, up to 200 tokens out) on an AMD EPYC 9V74. 180 s is about twice that.
+- If a part does not finish anyway, rule 9 applies: that model gets no verdict.
+
+## How it is read
+
+- **A model that judges better** answers the verifier's narrow question on these complaints better than the
+  pack's category names do. That supports "a small model at the site helps pushdown verification" on this kind of
+  text. It does not show that the model beats a lexicon a company would tune. It does not show how the verdict
+  pooled over many records behaves.
+- **A model not told apart from the lexical judge** gives no evidence that it adds anything here. The verifier's
+  lexical judge costs nothing to run.
+- **A model that judges worse** is a real negative for the site model on this text, on the task the product
+  actually gives it.
+- **Sensitivity and specificity say where a judge stands.** The lexical judge confirms a question only when that
+  component's phrase appears, not negated, in the narrative. A model can gain where a complaint describes a
+  component without naming its category. A model that confirms freely gains sensitivity and loses specificity.
+- **0.5 is no judging at all.** A judge that gives every question the same verdict, or answers without regard to
+  the record, has a balanced accuracy of 0.5.
+- **150 records give intervals several points wide.** Small differences between the models cannot be read.
+- **This is one public field.** It is not a company's records, and complaints written to a regulator are not
+  internal service notes.
+
+## Traps
+
+1. **Filed codes are not truth.** A narrative can describe a component it was not filed under, and the reverse.
+   A careful judge that confirms such a negative is scored wrong. No judge can reach 1.0, and the key costs every
+   judge, the lexical one included.
+2. **Old and new names.** NHTSA's files use an old and a new name for some components (`PACK-V2.md`). This pack
+   keeps three such pairs as separate predicates, and no text can tell the two names of a pair apart:
+
+   | Old name | New name |
+   |---|---|
+   | `engine_and_engine_cooling` | `engine` |
+   | `fuel_system_gasoline` | `fuel_propulsion_system` |
+   | `service_brakes_hydraulic` | `service_brakes` |
+
+   A negative is never the other name of a filed component. A positive is the filed name, whichever it is.
+3. **Negation.** The shipped instruction says `describes_predicate` is no when the record "says that it did not
+   happen". Complaints often state a failure as a negation: "the air bags did not deploy". A model that follows the
+   instruction to the letter can answer no on a positive. The lexical judge has its own negation cues. The
+   instruction is used unchanged, so this cost is part of what is measured.
+4. **The codes are hidden.** In the product a record's codes go into the payload, and the instruction says they
+   are statements too. With codes present the question is easier for both judges. Here both judges read only the
+   narrative and the structured vehicle.
+5. **The vehicle answer.** The vehicle is in the payload's structured entities, so `mentions_entity` should be yes
+   on every question. A model that says no or unclear there gets `unknown`, whatever it says about the failure: the
+   shipped rule needs yes for both a confirm and a refute. The answer counts show how often that happens.
+6. **Easy negatives.** Negatives are drawn at random, so most name a component the narrative never mentions.
+   Specificity is then high for any judge that reads at all. Balanced accuracy weighs it the same as sensitivity,
+   and both are reported.
+7. **Training data.** The models may have seen these public complaints. That would help them, not the lexical
+   judge.
+8. **One record a question.** The product pools a window of records into one verdict. J001 judges one record at a
+   time, so the pooling is not measured.
+
+## Runs
+
+None yet.
