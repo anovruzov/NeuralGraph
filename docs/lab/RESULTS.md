@@ -293,6 +293,24 @@ items and dropped 5,166 duplicates for 150 records a repeat. The raw replies are
 read in a later choice file. This measures three small models reading public complaints against filed codes; it does
 not measure a company's own text.
 
+## Run 8: g0-001 (the canary scan re-run with a small model in the loop): passed
+
+[Run 37938605933](https://github.com/anovruzov/NeuralGraph/actions/runs/37938605933), request
+`lab/requests/g0-001.json`, commit `95b2a1e`, 2026-10-09 13:41 to 16:15 UTC. Report from the `aggregate` job
+(113912401957): `report.md` sha256 `cc6a2cd45509…` and `report.json` `df243cf74261…`, both matching. G0 only, with
+main-001's settings: a-4b, `device_quality`, seed 1, 1,000 records, on one shard (AMD EPYC 9V74, 9,054 s).
+Synthetic data.
+
+| Canaries planted | Canary hits | Shingle overlap bytes | Positive control hits | Model path problems | Passed |
+|---|---|---|---|---|---|
+| 4,259 | 0 | 0 | 884 (42,819 overlap bytes) | 0 | yes |
+
+**The scan passes.** Main-001's one hit (run 5) was the scanner reading a planted id inside a site name the run itself
+created; with the planter now reserving the run's organisation strings, no planted text crossed any boundary in this
+run, and the positive control shows the scan finds planted text where it is put on purpose. Model calls: 1,000
+extractions at a median 6.5 s and 653 judge calls at 4.0 s. G0 covers text only, not timing, sizes or the counts
+themselves (`docs/collective/LEAKAGE.md`, section 7).
+
 ## Outside the lab: public replay V001 (vehicle complaints, model-free, real data)
 
 Not a lab run: the `vehicle-replay` workflow runs the pilot audit (`docs/collective/PILOT.md`) on two years of FORD's
