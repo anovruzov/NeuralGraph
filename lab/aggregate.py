@@ -791,8 +791,8 @@ def _j1_model(model: str, units: list[dict[str, Any]], sources: dict[str, E1Sour
         "complete": complete,
         "partial": not complete and bool(parts_ok), "display_class": cls,
         "measurement": all(measured) if measured else None, "scores": None, "lexical": None, "prior": None,
-        "prior_bound": None, "paired": None, "records_dropped": None, "dropped_share": None, "withheld_reason": None, "headline": None,
-        "headline_reason": None}
+        "prior_bound": None, "paired": None, "records_dropped": None, "dropped_share": None, "withheld_reason": None,
+        "headline": None, "headline_reason": None}
     if pooled:
         scores = lab_j1.score(questions, pooled, bootstrap_b=b, bootstrap_seed=seed)
         refs = lab_j1.scored_records(questions, pooled)
@@ -819,18 +819,18 @@ def j1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
     """The report's ``j1`` block (null without J1 units); ``sources`` maps each J1 unit to (its row, its record, its
     shard root). It needs the verified preregistration (else its reason is :data:`~lab.notes.PREREG_MISSING`): the
     questions, the lexical judge's and the record-blind control's verdict lines and their scores on every record, and
-    the predicate-only bound on every record (``lab.j1.prior_bound``, from the questions). Per
-    model: each part's unit, status, display class and whether it finished (status ``ok``, a complete run.json of this
-    preregistration whose verdicts hash as stamped, cover the part's questions and are each the line the runner writes
-    for its question, :func:`_j1_part`); ``complete`` (every part finished); the display class (``model`` only when
-    every part with a result is); the scores pooled over the finished parts (``lab.j1.score``, with each predicate's
-    confirms in ``by_predicate``), the lexical judge's and the record-blind control's on the same records and the
-    predicate-only bound on them (the control and the bound decide nothing) and the paired difference; the records left
-    out and their share; and the
-    headline (rule 7), only for a complete model of display class ``model`` whose runs say ``measurement: true`` and
-    whose transport failures left out at most the preregistered share, else null with ``headline_reason``
-    (:data:`~lab.notes.J1_INCOMPLETE`, :data:`~lab.notes.J1_NOT_MEASURED` or :data:`~lab.notes.J1_WITHHELD`). An
-    incomplete model's finished parts are a partial reading (``partial``) and decide nothing."""
+    the predicate-only bound on every record (``lab.j1.prior_bound``, from the questions). Per model: each part's
+    unit, status, display class and whether it finished (status ``ok``, a complete run.json of this preregistration
+    whose verdicts hash as stamped, cover the part's questions and are each the line the runner writes for its
+    question, :func:`_j1_part`); ``complete`` (every part finished); the display class (``model`` only when every part
+    with a result is); the scores pooled over the finished parts (``lab.j1.score``, with each predicate's confirms in
+    ``by_predicate``), the lexical judge's and the record-blind control's on the same records and the predicate-only
+    bound on them (the control and the bound decide nothing) and the paired difference; the records left out and their
+    share; and the headline (rule 7), only for a complete model of display class ``model`` whose runs say
+    ``measurement: true`` and whose transport failures left out at most the preregistered share, else null with
+    ``headline_reason`` (:data:`~lab.notes.J1_INCOMPLETE`, :data:`~lab.notes.J1_NOT_MEASURED` or
+    :data:`~lab.notes.J1_WITHHELD`). An incomplete model's finished parts are a partial reading (``partial``) and
+    decide nothing."""
     units = sorted((u for u in plan["units"] if u["experiment"] == "j1"), key=lambda u: u["unit"])
     if not units:
         return None

@@ -1181,8 +1181,8 @@ def _j1_tables(doc: _Doc, src: Sources, j1: dict[str, Any]) -> None:
             yield row
 
     doc.table(["model", "class", "parts_ok", "balanced_accuracy", "ci_low", "ci_high", "lexical_balanced_accuracy",
-               "prior_balanced_accuracy", "prior_bound", "headline", "sensitivity", "specificity", "unknown_share", "records_dropped",
-               *(["headline_reason"] if reasons else [])], model_rows)
+               "prior_balanced_accuracy", "prior_bound", "headline", "sensitivity", "specificity", "unknown_share",
+               "records_dropped", *(["headline_reason"] if reasons else [])], model_rows)
     paired = [name for name in named if isinstance(models[name].get("paired"), dict)]
     if paired:
         _heading(doc, "j1-paired", 4)
