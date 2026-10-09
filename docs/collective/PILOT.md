@@ -62,6 +62,11 @@ Two comparators run beside them unless you pass `--no-comparators`. Both read mo
   chi-squared first. The trailing window is the one change from the usual whole-database test: over the whole history,
   a slow rise is diluted and an entity that always had a high share signals once and never again.
 
+Both walk every week of your export from the first, as the detectors do, and their alerts before the first evaluated
+week are dropped, as for every channel. PRR needs no history, so a failure that is already disproportionate in your
+first weeks alerts there, is dropped, and stays cooling while it keeps signalling. A PRR alert marks when a
+disproportion starts, not when the evaluated weeks start.
+
 They answer one question: would pooling every site, or a standard pharmacovigilance test, have seen what the
 site-split channels missed? They do not change X, S, model-free R or the review list; a test checks that the audit
 gives the same numbers for those with and without them.
