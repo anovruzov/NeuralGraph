@@ -107,6 +107,12 @@ committed — the embedding cache alone is ~321 MB.
 | `RETRIEVAL_MODE` | `flat` \| `hybrid` \| `graph` \| `local_pairs` \| `mega` |
 | `OPEN_DOMAIN_*` | Open-domain prompt treatments (`KEEP_CONTEXT`, `FORCE_INFER`, `INFER_WORLD`) |
 | `LLM_REASONING_EFFORT` | Default `none`; disables Gemma/Qwen thinking |
+| `EMBEDDER=hash` | `retrieval_eval.py` only: the offline hash embedder instead of the server. Structural checks, not retrieval quality |
+
+`retrieval_eval.py` prints two scores per variant and category: `recall@k` (the gold
+answer as a substring of the first k messages) and `ev@k` (the share of the question's
+gold evidence dia_ids among the first k messages, over the `n_ev` questions that cite
+evidence).
 
 ---
 

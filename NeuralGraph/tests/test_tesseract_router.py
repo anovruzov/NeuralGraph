@@ -186,6 +186,16 @@ class RoutedStoreTypeTests(unittest.TestCase):
                     none += routed_store_type(detect_query_type(qa["question"])) is None
         self.assertEqual((none, total), (922, 1536))
 
+    def test_coverage_script_routes_the_same_way(self) -> None:
+        """research/benchmarks/router_coverage.py repeats the rule so it can run on older code."""
+        retrieval_eval_module()
+        import router_coverage  # noqa: PLC0415
+
+        for conv in load_locomo():
+            for qa in conv["qa"]:
+                scores = detect_query_type(qa["question"])
+                self.assertEqual(router_coverage.route(scores), routed_store_type(scores) or "none", qa["question"])
+
 
 class NoStoreFallbackTests(unittest.IsolatedAsyncioTestCase):
     """A route with no store falls back to every store's full candidate list.
