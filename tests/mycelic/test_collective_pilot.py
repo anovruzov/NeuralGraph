@@ -144,6 +144,27 @@ class ScoreTests(unittest.TestCase):
         self.assertEqual(s["summary"]["unexplained_alerts"], 2)
         self.assertGreaterEqual(s["summary"]["p_value"], 1 / 20)
 
+    def test_reactive_alerts_inflate_only_the_audited_null(self) -> None:
+        # every alert is a reaction after the outcome opened: nothing to find, yet the audited null rotates the
+        # reactions into the look-back and expects finds; the corrected null leaves them out and expects none
+        outcomes = [A.Outcome("O1", "2024-06-03", "product", "SD-9", None)]
+        alerts = [alert("2024-W23", "2024-06-10", "product:SD-9:leak"),
+                  alert("2024-W25", "2024-06-24", "product:SD-9:leak")]
+        s = A.score_channel(outcomes, alerts, lookback=8, post=8, available_first=date(2024, 3, 3),
+                            evaluated_weeks=20)["summary"]
+        self.assertEqual(s["found"], 0)
+        self.assertGreater(s["expected_found"], 0)
+        self.assertEqual(s["expected_found_excluding_own_post"], 0)
+        self.assertEqual(s["p_value_excluding_own_post"], 1.0)
+        # an alert before the window that is not a reaction stays in both nulls
+        early = alerts + [alert("2024-W12", "2024-03-24", "product:SD-9:leak")]
+        s = A.score_channel(outcomes, early, lookback=8, post=8, available_first=date(2024, 3, 3),
+                            evaluated_weeks=20)
+        self.assertGreater(s["summary"]["expected_found_excluding_own_post"], 0)
+        self.assertLess(s["summary"]["expected_found_excluding_own_post"], s["summary"]["expected_found"])
+        self.assertEqual([t["available_date"] for t in s["alert_timeline"]],
+                         ["2024-06-10", "2024-06-24", "2024-03-24"])
+
     def test_the_lookback_bounds_a_find(self) -> None:
         outcomes = [A.Outcome("O1", "2024-06-03", "product", "SD-9", None)]
         s = A.score_channel(outcomes, [alert("2024-W10", "2024-03-10", "product:SD-9:leak")], lookback=8, post=8,

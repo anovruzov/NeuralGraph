@@ -60,6 +60,13 @@ Every found count comes with its **chance**: the circular-shift null of the publ
 found by the same alerts moved to random times, and the share of those moves that do at least as well (`p`). A found
 count means something only as far as it beats that.
 
+Complaints often react to an issue once it is opened. The plain null rotates those reactions into the look-back, so
+it expects more finds than chance gives whenever complaints follow issues. Each channel therefore also reports the same
+null with every issue's own alerts after its opening left out (`expected_found_excluding_own_post`, its own `p`). On
+the public vehicle replays, re-scored this way, the recall null fell from 38.6 to 20.3 expected finds, and the found
+count (16) still sat at chance (`docs/handoff/HANDOFF-2026-10-09.md`). Each channel's alert timeline is kept in the
+audit file (`alert_timeline`), so the result can be re-scored without re-running.
+
 ## What the demos show, and what they do not
 
 The demo plants three known patterns in a generated six-site history of each built-in pack. Each pattern becomes an

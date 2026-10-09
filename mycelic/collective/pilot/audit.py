@@ -23,7 +23,14 @@ temporary directory that is deleted at the end. Nothing is sent anywhere.
 on its entity (and predicate, when given) was available in the ``lookback`` weeks before it was opened, and how many
 days earlier; alerts in the ``post`` weeks after it are listed apart, never counted. Each channel's found count comes
 with the replay's circular-shift null (``experiments.openfda_replay.chance_null``): the expected number found by an
-alert series of the same shape at random times, and the share of shifts that do at least as well. Then the **review
+alert series of the same shape at random times, and the share of shifts that do at least as well. Complaints react to
+an issue once it is opened, so that null also rotates each outcome's own reactive alerts (those in its ``post`` weeks)
+into its look-back, which inflates the expected count whenever complaints follow outcomes, with or without an earlier
+signal. Each channel therefore also reports the same null with every outcome's own post-opening alerts left out of its
+rotated timeline (``expected_found_excluding_own_post``, ``p_value_excluding_own_post``; the p-value counts shifts at
+least as good as the found count, plus one, over the shifts plus one, since shift zero no longer is the observed
+alignment). Every channel also lists its alert timeline (``alert_timeline``: available date, week and keys of each
+alert), so a later reader can re-score without re-running. Then the **review
 list**: every alerted pattern that matches no outcome, with the sites and record ids behind it, for the company's own
 reviewers. It is what the detectors saw that no one acted on: a missed issue, a known one never written up, or noise.
 
@@ -330,11 +337,40 @@ def score_channel(outcomes: Sequence[Outcome], alerts: Sequence[Mapping[str, Any
     chance = chance_null([{"event_date_initiated": o.opened, "product_code": o.key} for o in outcomes],
                          [{"available_date": a["available_date"], "product_codes": keys} for a, keys in keyed],
                          lookback, available_first, evaluated_weeks, found)
+    own = null_excluding_own_post(outcomes, keyed, lookback=lookback, post=post, available_first=available_first,
+                                  evaluated_weeks=evaluated_weeks, found=found)
     return {"summary": {"outcomes": len(rows), "found": found, "alerts": len(alerts),
                         "median_lead_days": leads[len(leads) // 2] if leads else None,
                         "expected_found": chance["expected_found"], "p_value": chance["p_value"],
+                        "expected_found_excluding_own_post": own["expected_found"],
+                        "p_value_excluding_own_post": own["p_value"],
                         "unexplained_alerts": len(alerts) - len(explained)},
-            "by_outcome": rows, "unexplained": [i for i in range(len(alerts)) if i not in explained]}
+            "by_outcome": rows, "unexplained": [i for i in range(len(alerts)) if i not in explained],
+            "alert_timeline": [{"available_date": a["available_date"], "week": a["week"], "keys": sorted(keys)}
+                               for a, keys in keyed]}
+
+
+def null_excluding_own_post(outcomes: Sequence[Outcome], keyed: Sequence[tuple[Mapping[str, Any], Any]], *,
+                            lookback: int, post: int, available_first: date, evaluated_weeks: int,
+                            found: int) -> dict[str, Any]:
+    """``chance_null``'s rotation, outcome by outcome, with that outcome's own post-opening alerts (on its key,
+    available from its opening to ``post`` weeks after) left out of the timeline rotated against it. Shift zero is
+    then no longer the observed alignment, so the p-value is (1 + shifts at least as good as ``found``) / (1 +
+    shifts)."""
+    if not outcomes or evaluated_weeks <= 0:
+        return {"expected_found": None, "p_value": None}
+    period = 7 * evaluated_weeks
+    totals = [0] * evaluated_weeks
+    for o in outcomes:
+        opened = _days(o.opened)
+        start, end = opened - timedelta(days=7 * lookback), opened + timedelta(days=7 * post)
+        offsets = [(_days(a["available_date"]) - available_first).days for a, keys in keyed
+                   if o.key in keys and not opened <= _days(a["available_date"]) <= end]
+        for shift in range(evaluated_weeks):
+            if any(start <= available_first + timedelta(days=(d + 7 * shift) % period) < opened for d in offsets):
+                totals[shift] += 1
+    return {"expected_found": sum(totals) / evaluated_weeks,
+            "p_value": (1 + sum(1 for x in totals if x >= found)) / (1 + evaluated_weeks)}
 
 
 def audit(pack: FrozenPack, rows: Sequence[Any], outcomes: Sequence[Outcome], *, date_from: str | None = None,
@@ -390,7 +426,8 @@ def audit(pack: FrozenPack, rows: Sequence[Any], outcomes: Sequence[Outcome], *,
             continue
         s = score_channel(in_scope, alerts, lookback=lookback, post=post, available_first=available_first,
                           evaluated_weeks=evaluated_weeks)
-        scored[name] = {"summary": s["summary"], "by_outcome": s["by_outcome"], "reason": None}
+        scored[name] = {"summary": s["summary"], "by_outcome": s["by_outcome"], "alert_timeline": s["alert_timeline"],
+                        "reason": None}
         for i in s["unexplained"]:
             a = alerts[i]
             entry = review.setdefault(a["key"], {"key": a["key"], "entity_type": a["entity_type"],
@@ -443,19 +480,23 @@ def render(doc: Mapping[str, Any]) -> str:
              f"- Issues you acted on: {doc['outcomes']['given']} given, {doc['outcomes']['in_scope']} with a look-back "
              f"in the evaluated weeks.", "",
              "## Would it have flagged them earlier?", "",
-             "| Channel | Issues found before opening | Median days earlier | Expected by chance | p | Alerts | "
-             "Alerts matching no issue |", "|---|---|---|---|---|---|---|"]
+             "| Channel | Issues found before opening | Median days earlier | Expected by chance | p | "
+             "Expected by chance, reactive alerts left out | p | Alerts | Alerts matching no issue |",
+             "|---|---|---|---|---|---|---|---|---|"]
     for name in CHANNELS:
         s = doc["channels"][name]["summary"]
         if s is None:
-            lines.append(f"| {name} | not run: {doc['channels'][name]['reason']} | | | | | |")
+            lines.append(f"| {name} | not run: {doc['channels'][name]['reason']} | | | | | | | |")
             continue
         lines.append(f"| {name} | {s['found']} of {s['outcomes']} | {_num(s['median_lead_days'])} | "
-                     f"{_num(s['expected_found'])} | {_num(s['p_value'])} | {s['alerts']} | "
-                     f"{s['unexplained_alerts']} |")
+                     f"{_num(s['expected_found'])} | {_num(s['p_value'])} | "
+                     f"{_num(s.get('expected_found_excluding_own_post'))} | "
+                     f"{_num(s.get('p_value_excluding_own_post'))} | {s['alerts']} | {s['unexplained_alerts']} |")
     lines += [""] + [f"- {doc['channel_notes'][n]}" for n in CHANNELS]
     lines += ["", "A found count means something only as far as it exceeds what chance gives: the same alerts at random "
-              "times (the circular-shift null) would find the expected number.", "", "## Per issue", "",
+              "times (the circular-shift null) would find the expected number. Complaints that react to an opened "
+              "issue inflate that number, so the second pair of columns leaves each issue's own alerts after its "
+              "opening out of the timeline rotated against it.", "", "## Per issue", "",
               "| Issue | About | Opened | " + " | ".join(CHANNELS) + " |", "|---|---|---|" + "---|" * len(CHANNELS)]
     by = {n: {r["outcome_id"]: r for r in doc["channels"][n]["by_outcome"]} for n in CHANNELS}
     for oid in [r["outcome_id"] for r in doc["channels"]["X"]["by_outcome"]] or []:
