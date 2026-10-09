@@ -57,8 +57,11 @@ Pure parts, called in-process by the plan job, the aggregate and the tests:
   sorted candidates, each weighted by the other records' positives that ask it, and
   `random.Random(f"j1:{seed}:{record_ref}:negative").randrange(total)`. Record `i` of `n` goes to part
   `i * parts // n + 1`. The record holds the count, the size of each part, the negative draw's name and the sha256.
-- `prior_verdicts(questions)`: the record-blind control of rule 5 (added before any run), as verdict lines. It reads
-  only the questions.
+- `prior_verdicts(questions)`: the record-blind control of rule 5 (as amended again before any run), as verdict
+  lines: confirm when the question's predicate is one of `PRIOR_TOP`, the four filed most in the whole complaint file.
+  It reads only each question's own predicate.
+- `prior_bound(questions, records=None)`: the predicate-only bound of rule 5, on every record or on `records`: per
+  predicate the larger of its positive and negative counts, summed, over the questions. Optimistic, no interval.
 - `line_problem(question, line)`: why a stored verdict line is not the line the runner writes for that question, or
   None. The aggregate uses it.
 - `window_record(label_record) -> WindowRecord`. Codes `[]` (refuse a label record that has any), structured from
@@ -128,7 +131,8 @@ Pure parts, called in-process by the plan job, the aggregate and the tests:
   - `labels.jsonl` and `labels.json` (`build_labels`, as E1 does);
   - `questions.jsonl` and `questions.json`;
   - `lexical.jsonl` (the lexical judge's answers and verdict per question) and `lexical.json` (its `score`);
-  - `prior.jsonl` and `prior.json`: the same for the record-blind control;
+  - `prior.jsonl` and `prior.json`: the same for the record-blind control (the manifest's `j1` block also holds the
+    predicate-only bound on every record, `prior_bound`);
   - `routing.json` (the pins);
   - `prereg.json` (`kind: lab_j1_prereg`): the hashes above, the judge task name, the sha256 of its instructions
     and schema, `max_tokens`, the code hash and files, the endpoints' pins, the boundary, the data label, the seeds,
@@ -152,7 +156,8 @@ Pure parts, called in-process by the plan job, the aggregate and the tests:
   - the parts planned and ok, and `complete` (every part `ok`, its run.json of this preregistration, its files
     hash as recorded, and each verdict line the runner's line for its question: `j1.line_problem`);
   - the display class (`model` only when every part is);
-  - the scores pooled over its parts (`j1.score`), and the lexical judge's and the control's on the same records;
+  - the scores pooled over its parts (`j1.score`), the lexical judge's and the control's on the same records, and the
+    predicate-only bound on them (`j1.prior_bound`);
   - the paired difference, the left-out records and the withheld reason;
   - the `headline`, shown only for a complete model of display class `model`, else null with the reason.
 
@@ -185,9 +190,11 @@ server (`mycelic/collective/inference/fakeserver.py`) with the lab's `Responder`
 1. **Questions.** The same bytes twice. Per record, one positive among the filed predicates, and one negative
    outside the filed ones, `unknown_or_other` and the filed ones' twins, drawn by the amended rule 2 (checked
    against the rule's words, written again in the test). Dropping a record leaves the other records' positives
-   unchanged. 150 records in 6 parts give 25 each. On a skewed constructed draw, each common predicate is asked about
-   as often as a negative as as a positive, and the record-blind control scores near 0.5; the first rule's uniform
-   negatives give it far more. The control by hand on a small case, ties included.
+   unchanged. 150 records in 6 parts give 25 each. On skewed constructed draws, each common predicate is asked about
+   as often as a negative as as a positive, and the predicate-only bound stays low on every one of twenty seeds; the
+   first rule's uniform negatives give it far more. The control by hand; its four predicates derived again from
+   `nhtsa-probe.json`; the bound by hand; on an exactly balanced draw, the control, the bound and every predicate-only
+   judge score exactly 0.5.
 2. **Payload.** It equals `judge_payload` with codes `[]` and the structured vehicle, and holds no person or
    reporter.
 3. **Lexical judge.** Its verdicts equal `decide` over `lexical_judge` per question. It never says `unknown` when
@@ -259,10 +266,8 @@ None of this changes a setting of rule 9.
   checks that the others' positives are unchanged and that every negative still follows the rule on the records left.
 - **The record-blind control** (`j1.prior_verdicts`, rule 5) is scored in the plan job on every record (`prior.json`)
   and in the aggregate on each model's records, beside the lexical judge, and the summaries show it. It decides
-  nothing. A tie refutes. Because it leaves its own record out, a predicate asked about equally often as a positive and
-  as a negative leans it towards the wrong answer, so on a balanced draw it can score a little below 0.5. On a skewed
-  constructed draw, the tests check that it stays near 0.5 under the amended rule and scores far higher under the
-  first rule's uniform negatives.
+  nothing. Its first form, built here, left each question's own record out; the second review found that this biases
+  it low, to 0 on an exactly balanced draw, and it was replaced before any run (below).
 - **Confirms per predicate.** Every `score` holds `by_predicate`: per predicate and kind, the scored questions, the
   confirms and the confirm rate. So `report.json` shows, for each model, the lexical judge and the control, whether a
   judge leans on which components are common.
@@ -292,6 +297,38 @@ None of this changes a setting of rule 9.
   `mycelic/collective/experiments/common.py`. The runner relies on both (`failure_class`, `read_labels`,
   `check_data_label`, `endpoint_pins`, `measurement_flag`), so the J1 pin catches a change to them between the plan job
   and a shard.
+
+### After the second review, before any run (2026-10-09)
+
+A second review came back before any model judged. Its blocking finding changed rule 5, so `CHOICE-J001.md` was
+amended again first, in its own commit (`Amended again before any run, 2026-10-09`). Then the code followed. None of
+this changes rule 2, the scoring, the headline or a setting of rule 9.
+
+- **The control no longer leaves a record out.** `j1.prior_verdicts` confirms a question when its predicate is one of
+  `j1.PRIOR_TOP` (`engine`, `electrical_system`, `air_bags`, `power_train`), else refutes. It reads only that
+  question's own predicate. A test derives the four again from `nhtsa-probe.json` through the pack's `mapping.json` and
+  `codes.json`, so the constant cannot drift from its source. `prereg.json`'s `prior` names the rule
+  (`whole_file_top_four`), the four and the source.
+- **The predicate-only bound** (`j1.prior_bound`) is the most any judge that sees only the predicate could score. The
+  plan job puts it on every record in the manifest (`j1.prior_bound`). The aggregate puts it in the report's `j1` block
+  on every record (`prior_bound`) and on each model's scored records (`models.<name>.prior_bound`). The summaries show
+  it beside the control. It is optimistic and has no interval, and it decides nothing.
+- **The notes and columns say what each shows.** `J1_PRIOR_NOTE` no longer says the control shows how far the
+  component alone gets a judge. The summaries gain the columns `predicate-only bound` and `predicate-only bound, every
+  record`, and `docs/lab/REFERENCE.md` gives both.
+- **The tests no longer rest on one seed.** The near-0.5 check of the old control on seed 7 is gone. On an exactly
+  balanced draw, the control, the bound and every predicate-only judge score exactly 0.5, and the first control, written
+  again in the test from its words, scores 0. On skewed constructed draws of 600 records, seeds 7 to 26, the test
+  checks that the bound stays below 0.6 under the amended draw, above 0.7 under the first, uniform draw, and at least
+  0.15 apart on each seed.
+- **The budget test arms no real timer.** `test_it_stops_at_its_budget` drives the stop by its mocked clock alone and
+  patches `signal.setitimer`, so it no longer depends on two fake calls finishing within one real second. It checks the
+  timer would have been armed for the budget and then cancelled. The timer keeps its own tests.
+
+The figures for the change are in the choice file, from `python3 tools/market/j001_control_check.py`. A mutation check
+put the first control back into `j1.prior_verdicts` and ran `PriorTests`: 3 of its 5 tests failed, with 5 failures
+(the balanced draw in each of its three cases, the control by hand, and the predicate-only reading). The other two
+test the four's source and the bound, and do not call the control.
 
 ## Size check (before any run)
 

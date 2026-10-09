@@ -235,9 +235,20 @@ class QuestionTests(unittest.TestCase):
                                parts=1)
 
     def test_the_predicate_alone_tells_almost_nothing(self) -> None:
-        """On a constructed, skewed draw, each common predicate is asked about as often as a negative as as a
-        positive, and the record-blind control scores near 0.5. The same records with the first rule's uniform
-        negatives give the control far more: that is the leak the amended rule closes."""
+        """On constructed, skewed draws (twenty seeds, not one), each common predicate is asked about as often as a
+        negative as as a positive, and the most any predicate-only judge could score (the bound, fitted to the
+        answers) stays low. The same records with the first rule's uniform negatives give the bound far more on every
+        seed: that is the leak the amended rule closes."""
+        for seed in range(7, 27):
+            data = skewed_labels(600, seed)
+            qs = j1.read_questions(j1.build_questions(PACK, data, seed=1, parts=1)[0])
+            uniform = [dict(q, predicate=random.Random(f"j1:1:{q['record_ref']}:negative").choice(
+                       j1.candidates(PACK, q["filed"]))) if q["kind"] == "negative" else q for q in qs]
+            amended, first = j1.prior_bound(qs)["value"], j1.prior_bound(uniform)["value"]
+            with self.subTest(seed=seed):
+                self.assertLess(amended, 0.6)
+                self.assertGreater(first, 0.7)
+                self.assertGreater(first - amended, 0.15)
         data = skewed_labels(600)
         qs = j1.read_questions(j1.build_questions(PACK, data, seed=1, parts=1)[0])
         self.assertEqual(j1.read_questions(j1.build_questions(PACK, data, seed=1, parts=1)[0]), qs)
@@ -252,13 +263,6 @@ class QuestionTests(unittest.TestCase):
                 with self.subTest(predicate=p):
                     self.assertLess(abs(pos / (pos + neg) - 0.5), 0.15, (pos, neg))
         self.assertGreaterEqual(common, 5)
-        amended = j1.score(qs, j1.prior_verdicts(qs), bootstrap_b=1000, bootstrap_seed=1)
-        self.assertLess(abs(amended["balanced_accuracy"]["value"] - 0.5), 0.1)
-        uniform = [dict(q, predicate=random.Random(f"j1:1:{q['record_ref']}:negative").choice(
-                   j1.candidates(PACK, q["filed"]))) if q["kind"] == "negative" else q for q in qs]
-        first = j1.score(uniform, j1.prior_verdicts(uniform), bootstrap_b=1000, bootstrap_seed=1)
-        self.assertGreater(first["balanced_accuracy"]["value"], 0.65)
-        self.assertGreater(first["balanced_accuracy"]["ci_low"], amended["balanced_accuracy"]["ci_high"])
 
     def test_a_negative_is_never_a_filed_component_s_other_name(self) -> None:
         """Records filed under one name of a pair, across many seeds: the other name is never asked as a negative."""
@@ -369,22 +373,62 @@ def _q(ref: str, kind: str, predicate: str) -> dict[str, Any]:
             "entity_id": "V-1", "predicate": predicate, "filed": []}
 
 
+def whole_file_counts() -> dict[str, int]:
+    """Filed rows per specific pack predicate in the whole complaint file, from ``nhtsa-probe.json``'s component counts
+    through the pack's mapping and codes (rule 5's words, computed here, not by ``lab.j1``)."""
+    probe = json.loads((ROOT / j1.PRIOR_SOURCE).read_text(encoding="utf-8"))
+    pack_dir = ROOT / NHTSA_PACK
+    value_map = json.loads((pack_dir / "mapping.json").read_text(encoding="utf-8"))["codes"][0]["value_map"]
+    codes = json.loads((pack_dir / "codes.json").read_text(encoding="utf-8"))
+    out: dict[str, int] = {}
+    for component, rows in probe["complaints"]["top_components"]:
+        code = value_map.get(component)
+        if code and codes[code]["specific"]:
+            out[codes[code]["predicate"]] = out.get(codes[code]["predicate"], 0) + rows
+    return out
+
+
+def leave_one_out(qs: list[dict[str, Any]]) -> list[str]:
+    """The first amended control, from its words (kept here only to show why it was replaced): confirm when the
+    predicate was asked more often as a positive than as a negative among the other records' questions."""
+    out = []
+    for q in qs:
+        others = [o for o in qs if o["record_ref"] != q["record_ref"] and o["predicate"] == q["predicate"]]
+        pos = sum(1 for o in others if o["kind"] == "positive")
+        neg = sum(1 for o in others if o["kind"] == "negative")
+        out.append("confirm" if pos > neg else "refute")
+    return out
+
+
+def balanced(names: list[str], records: int = 8) -> list[dict[str, Any]]:
+    """An exactly balanced draw: record i asks names[i % k] as its positive and names[(i + 1) % k] as its negative,
+    so with records a multiple of k each predicate is asked as often as a positive as as a negative."""
+    k = len(names)
+    return [q for i in range(records) for q in (_q(f"B{i}", "positive", names[i % k]),
+                                                _q(f"B{i}", "negative", names[(i + 1) % k]))]
+
+
 class PriorTests(unittest.TestCase):
-    """The record-blind control of rule 5 (added before any run)."""
+    """The record-blind control and the predicate-only bound of rule 5 (amended again before any run)."""
+
+    def test_the_four_are_the_whole_file_s_most_filed(self) -> None:
+        counts = whole_file_counts()
+        order = sorted(counts, key=lambda p: (-counts[p], p))
+        self.assertEqual(j1.PRIOR_TOP, tuple(order[:4]))
+        self.assertEqual(j1.PRIOR_TOP, ("engine", "electrical_system", "air_bags", "power_train"))
+        self.assertTrue(set(j1.PRIOR_TOP) <= set(PACK.predicates) - set(j1.EXCLUDED))
+        self.assertGreater(counts[order[3]], counts[order[4]])      # no tie at the cut
 
     def test_by_hand(self) -> None:
-        """A: engine+, tires-. B: engine+, air_bags-. C: tires+, engine-. D: air_bags+, tires-.
-        A's engine+ sees B's engine+ and C's engine-: a tie, refuted. C's engine- sees A's and B's engine+: confirmed.
-        A's tires- sees C's tires+ and D's tires-: a tie, refuted. D's tires- sees C's tires+ and A's tires-: refuted.
-        C's tires+ sees A's and D's tires-: refuted. B's air_bags- sees D's air_bags+: confirmed. D's air_bags+ sees
-        B's air_bags-: refuted."""
-        qs = [_q("A", "positive", "engine"), _q("A", "negative", "tires"), _q("B", "positive", "engine"),
-              _q("B", "negative", "air_bags"), _q("C", "positive", "tires"), _q("C", "negative", "engine"),
-              _q("D", "positive", "air_bags"), _q("D", "negative", "tires")]
+        """A: engine+, tires-. B: seats+, air_bags-. C: tires+, power_train-. D: electrical_system+, engine-.
+        Each question is confirmed exactly when its predicate is one of the four, whatever the other questions ask."""
+        qs = [_q("A", "positive", "engine"), _q("A", "negative", "tires"), _q("B", "positive", "seats"),
+              _q("B", "negative", "air_bags"), _q("C", "positive", "tires"), _q("C", "negative", "power_train"),
+              _q("D", "positive", "electrical_system"), _q("D", "negative", "engine")]
         lines = j1.prior_verdicts(qs)
         self.assertEqual([line["verdict"] for line in lines],
-                         ["refute", "refute", "refute", "confirm", "refute", "confirm", "refute", "refute"])
-        for q, line in zip(qs, lines):
+                         ["confirm", "refute", "refute", "confirm", "refute", "confirm", "confirm", "confirm"])
+        for i, (q, line) in enumerate(zip(qs, lines)):
             with self.subTest(question=q["question_id"]):
                 self.assertEqual(sorted(line), sorted(j1.LINE_KEYS))
                 self.assertEqual((line["question_id"], line["kind"], line["predicate"]),
@@ -393,14 +437,53 @@ class PriorTests(unittest.TestCase):
                 reply = {"mentions_entity": "yes", "describes_predicate": line["describes_predicate"]}
                 self.assertEqual(line["verdict"], j1.verdict(j1.stand_in(q["record_ref"]), reply))
                 self.assertIsNone(j1.line_problem(q, line))
+                self.assertEqual(j1.prior_verdicts([q]), [line])      # no other question counts
+        score = j1.score(qs, lines, bootstrap_b=1000, bootstrap_seed=1)
+        self.assertEqual((score["sensitivity"]["value"], score["specificity"]["value"]), (0.5, 0.25))
 
-    def test_it_reads_only_the_questions(self) -> None:
-        """The same questions give the same lines whatever the records say: the control takes no record at all."""
+    def test_it_reads_only_each_question_s_predicate(self) -> None:
+        """The same predicates give the same lines whatever the records, the entities or the other questions say."""
         qs = questions()
-        self.assertEqual(j1.prior_verdicts(qs), j1.prior_verdicts([dict(q) for q in qs]))
-        moved = [dict(q, entity_id="OTHER") for q in qs]
-        self.assertEqual([line["verdict"] for line in j1.prior_verdicts(moved)],
-                         [line["verdict"] for line in j1.prior_verdicts(qs)])
+        lines = j1.prior_verdicts(qs)
+        moved = [dict(q, entity_id="OTHER", filed=["tires"]) for q in qs]
+        self.assertEqual([line["verdict"] for line in j1.prior_verdicts(moved)], [line["verdict"] for line in lines])
+        self.assertEqual(j1.prior_verdicts(list(reversed(qs))), list(reversed(lines)))
+        self.assertEqual([line["verdict"] for line in lines],
+                         ["confirm" if q["predicate"] in j1.PRIOR_TOP else "refute" for q in qs])
+
+    def test_the_bound_by_hand(self) -> None:
+        """engine: 2 positives, 1 negative; tires: 1 positive, 2 negatives; seats: 1 positive, 1 negative. The best
+        predicate-only judge confirms engine and refutes tires: 2 + 2 + 1 right of 8 questions."""
+        qs = [_q("A", "positive", "engine"), _q("A", "negative", "tires"), _q("B", "positive", "engine"),
+              _q("B", "negative", "tires"), _q("C", "positive", "tires"), _q("C", "negative", "engine"),
+              _q("D", "positive", "seats"), _q("D", "negative", "seats")]
+        self.assertEqual(j1.prior_bound(qs), {"value": 5 / 8, "records": 4, "questions": 8})
+        self.assertEqual(j1.prior_bound(qs, ["A", "B"]), {"value": 1.0, "records": 2, "questions": 4})
+        self.assertEqual(j1.prior_bound(qs, ["D"]), {"value": 0.5, "records": 1, "questions": 2})
+        self.assertEqual(j1.prior_bound(qs, []), {"value": None, "records": 0, "questions": 0})
+        # no predicate-only judge beats it: every subset of the predicates confirmed
+        names = sorted({q["predicate"] for q in qs})
+        for mask in range(2 ** len(names)):
+            confirm = {p for i, p in enumerate(names) if mask >> i & 1}
+            right = sum((q["predicate"] in confirm) == (q["kind"] == "positive") for q in qs)
+            self.assertLessEqual(right / len(qs), j1.prior_bound(qs)["value"])
+
+    def test_a_balanced_draw(self) -> None:
+        """Each predicate asked as often both ways: any judge that answers by the predicate alone scores exactly 0.5,
+        and so do the control and the bound. The first control, leaving each record out, got every question wrong."""
+        for names in (["air_bags", "engine", "seats", "tires"], ["engine", "tires"], ["seats", "tires", "wheels"]):
+            qs = balanced(names, records=4 * len(names))
+            with self.subTest(names=names):
+                score = j1.score(qs, j1.prior_verdicts(qs), bootstrap_b=1000, bootstrap_seed=1)
+                self.assertEqual(score["balanced_accuracy"]["value"], 0.5)
+                self.assertEqual(j1.prior_bound(qs)["value"], 0.5)
+                for mask in range(2 ** len(names)):
+                    confirm = {p for i, p in enumerate(names) if mask >> i & 1}
+                    right = sum((q["predicate"] in confirm) == (q["kind"] == "positive") for q in qs)
+                    self.assertEqual(right / len(qs), 0.5)
+                first = [dict(line, verdict=v) for line, v in zip(j1.prior_verdicts(qs), leave_one_out(qs))]
+                self.assertEqual(j1.score(qs, first, bootstrap_b=1000, bootstrap_seed=1)["balanced_accuracy"]["value"],
+                                 0.0)
 
 
 # --------------------------------------------------------------------------------------------------- scoring
@@ -592,7 +675,9 @@ class PreregTests(unittest.TestCase):
         self.assertEqual(doc["questions"]["sha256"],
                          hashlib.sha256((p.dir / "questions.jsonl").read_bytes()).hexdigest())
         self.assertEqual(doc["lexical"]["sha256"], hashlib.sha256((p.dir / "lexical.jsonl").read_bytes()).hexdigest())
-        self.assertEqual(doc["prior"]["sha256"], hashlib.sha256((p.dir / "prior.jsonl").read_bytes()).hexdigest())
+        self.assertEqual(doc["prior"], {"sha256": hashlib.sha256((p.dir / "prior.jsonl").read_bytes()).hexdigest(),
+                                        "rule": "whole_file_top_four", "top": list(j1.PRIOR_TOP),
+                                        "source": "docs/collective/replay/vehicles/nhtsa-probe.json"})
         self.assertEqual(doc["questions"]["negative_draw"], "other_records_positive_frequency")
         self.assertEqual(doc["task"], j1.task_pins())
         self.assertEqual((doc["task"]["name"], doc["task"]["max_tokens"]), ("judge_record", 256))
@@ -615,6 +700,8 @@ class PreregTests(unittest.TestCase):
         self.assertEqual(prior, j1.prior_verdicts(qs))
         self.assertEqual(m["prior"], json.loads((p.dir / "prior.json").read_text(encoding="utf-8")))
         self.assertEqual(m["prior"], j1.score(qs, prior, bootstrap_b=1000, bootstrap_seed=1))
+        self.assertEqual(m["prior_bound"], j1.prior_bound(qs))
+        self.assertEqual((m["prior_bound"]["records"], m["prior_bound"]["questions"]), (40, 80))
         lab_prereg.load_prereg(p.plan_path)
 
     def test_the_plan_summary_shows_the_preregistration(self) -> None:
@@ -623,6 +710,7 @@ class PreregTests(unittest.TestCase):
         self.assertIn("`J1` labels: source `nhtsa`, records 40", md)
         self.assertIn("lexical judge, every record: balanced accuracy", md)
         self.assertIn("`J1` record-blind control, every record: balanced accuracy", md)
+        self.assertIn(f"`J1` predicate-only bound, every record: {p.manifest['j1']['prior_bound']['value']:.3f}", md)
         self.assertIn(J1_PRIOR_NOTE, md)
         check_sources(self, md, sources, p.tmp / "plan")
 
@@ -836,10 +924,16 @@ class RunTests(unittest.TestCase):
         self.assertIsNotNone(doc["verdicts_sha256"])
 
     def test_it_stops_at_its_budget(self) -> None:
+        """The check before each question, driven by the test's clock alone: no real timer is armed, so the stop
+        never depends on how fast this runner is (the timer has its own tests above)."""
         server = self.server()
         ticks = iter([0.0, 0.0, 0.5, 2.0, 3.0, 4.0])
-        with mock.patch.object(j1, "_clock", lambda: next(ticks)):
+        with mock.patch.object(j1, "_clock", lambda: next(ticks)), \
+                mock.patch.object(j1.signal, "setitimer") as setitimer:
             code, out, err, run = self.run_j1(self.argv(self.routing(server.base_url), budget=1))
+        self.assertEqual(setitimer.call_args_list,
+                         [mock.call(signal.ITIMER_REAL, 1.0), mock.call(signal.ITIMER_REAL, 0)])
+        self.assertEqual(signal.getitimer(signal.ITIMER_REAL), (0.0, 0.0))
         self.assertEqual(code, 1, err)
         doc, lines = self.read(run)
         self.assertEqual((doc["complete"], doc["stopped"], doc["questions_done"], len(lines)),
@@ -998,6 +1092,10 @@ class J001DryRunTests(unittest.TestCase):
         manifest = json.loads((self.dry.out / "plan" / "prereg" / "prereg.json").read_text(encoding="utf-8"))
         self.assertEqual((lexical, prior), (manifest["j1"]["lexical"], manifest["j1"]["prior"]))
         self.assertEqual(block["questions"]["negative_draw"], "other_records_positive_frequency")
+        qs = j1.read_questions((self.dry.out / "plan" / "prereg" / "j1" / "questions.jsonl").read_bytes())
+        self.assertEqual(block["prior_bound"], j1.prior_bound(qs))
+        self.assertEqual(block["prior_bound"], manifest["j1"]["prior_bound"])
+        self.assertEqual((block["prior_bound"]["records"], block["prior_bound"]["questions"]), (150, 300))
         for name, entry in block["models"].items():
             with self.subTest(model=name):
                 self.assertEqual((entry["complete"], entry["parts_finished"], entry["display_class"]),
@@ -1010,6 +1108,7 @@ class J001DryRunTests(unittest.TestCase):
                 # the fake answers as the lexical judge does, predicate by predicate
                 self.assertEqual(entry["scores"]["by_predicate"], lexical["by_predicate"])
                 self.assertEqual(entry["prior"]["by_predicate"], prior["by_predicate"])
+                self.assertEqual(entry["prior_bound"], block["prior_bound"])      # every record scored
                 self.assertEqual((entry["paired"]["n"], entry["paired"]["mean_diff"]), (150, 0.0))
                 self.assertEqual(entry["records_dropped"], 0)
 
@@ -1020,7 +1119,8 @@ class J001DryRunTests(unittest.TestCase):
         self.assertIn("#### Judge test: the verifier's narrow question, per model, beside the lexical judge", md)
         self.assertIn("| `a-4b` | `plumbing` | 6 of 6 |", md)
         self.assertIn("- record-blind control, every record: balanced accuracy", md)
-        self.assertIn("| control balanced accuracy |", md)
+        self.assertIn(f"- predicate-only bound, every record: {self.dry.report['j1']['prior_bound']['value']:.3f}", md)
+        self.assertIn("| control balanced accuracy | predicate-only bound |", md)
         self.assertIn(J1_PRIOR_NOTE, md)
         sources = json.loads((root / "report.sources.json").read_text(encoding="utf-8"))["sources"]
         check_sources(self, md, sources, root)

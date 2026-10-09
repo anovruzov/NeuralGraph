@@ -272,9 +272,11 @@ J1_HEADLINE_NOTE = ("The headline compares each model's balanced accuracy interv
 J1_LEXICAL_NOTE = ("The lexical judge is the verifier's judge when no model runs: it confirms a question only when one "
                    "of the pack's phrases for the component is in the narrative and not negated. It judged every "
                    "question in the plan job, before any model ran.")
-J1_PRIOR_NOTE = ("The record-blind control never reads a record: it confirms a question when its component was asked "
-                 "more often as a positive than as a negative about the other records. It shows how far the component "
-                 "alone gets a judge, and it decides nothing.")
+J1_PRIOR_NOTE = ("The record-blind control never reads a record: it confirms a question only when its component is one "
+                 "of the four filed most often in NHTSA's whole complaint file, and refutes it otherwise. It shows what "
+                 "knowing which components are common gets a judge without reading. The predicate-only bound is the "
+                 "most any judge that sees only the component could score on the same records; it is fitted to their "
+                 "answers, so it is optimistic. Neither decides anything.")
 J1_INCOMPLETE = ("not every part of this model finished, so it gets no headline: its finished parts are a partial "
                  "reading and decide nothing")
 J1_WITHHELD = ("transport failures left out more than one in a hundred of this model's records, so its headline is "
@@ -673,6 +675,8 @@ COLUMNS = {
     "lexical_all": "lexical judge, every record",
     "prior_balanced_accuracy": "control balanced accuracy",
     "prior_all": "record-blind control, every record",
+    "prior_bound": "predicate-only bound",
+    "prior_bound_all": "predicate-only bound, every record",
     "headline": "headline",
     "sensitivity": "sensitivity",
     "specificity": "specificity",

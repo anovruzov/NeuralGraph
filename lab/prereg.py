@@ -15,7 +15,8 @@
   ``D/prereg/j1/labels.jsonl`` and ``labels.json``; ``lab.j1.build_questions`` ``questions.jsonl`` and
   ``questions.json``; the verifier's lexical judge, on every question's payload before any model runs,
   ``lexical.jsonl`` (its verdict lines) and ``lexical.json`` (``lab.j1.score`` on every record); the record-blind
-  control (``lab.j1.prior_verdicts``, which reads no record) ``prior.jsonl`` and ``prior.json``; ``routing.json`` pins
+  control (``lab.j1.prior_verdicts``, which reads no record: it confirms the four predicates filed most in the whole
+  complaint file) ``prior.jsonl`` and ``prior.json``; ``routing.json`` pins
   every J1 model (``lab.j1.routing_doc`` at :data:`PLACEHOLDER_BASE_URL`); and ``prereg.json`` (``lab.j1.prereg_doc``:
   the hashes, the judge task's instructions, schema and ``max_tokens``, the code hash and files, the endpoints' pins,
   the boundary, the data label, the seeds, ``parts``, the twins, the excluded predicate and the bootstrap settings);
@@ -30,7 +31,8 @@
 Last, ``D/prereg/prereg.json`` (the manifest): the plan's sha256, the sha256 and size of every other file under
 ``D/prereg``, and per experiment (null when the plan has none) the labels record, endpoints, reference and prereg path
 (E1), the prereg path (X1), the prereg path, plant path and rehearsal (E2), and the labels and questions records, the
-lexical judge's and the record-blind control's scores, the endpoints, the prereg path and the settings (J1). Every
+lexical judge's and the record-blind control's scores, the predicate-only bound on every record
+(``lab.j1.prior_bound``), the endpoints, the prereg path and the settings (J1). Every
 shard and the aggregate call :func:`load_prereg` before they use any of it. Harness logs go to ``D/prereg-logs/<step>.stdout.log`` and
 ``.stderr.log`` (capped; not in the manifest). Each subprocess gets the units' environment allowlist, the repository
 as its directory, and :data:`STEP_TIMEOUT_S` (:data:`REHEARSAL_TIMEOUT_S` for the rehearsal).
@@ -331,7 +333,8 @@ def _j1(plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path,
         pack=pack, pack_ref=labels["pack"], labels=record, questions=questions,
         lexical_sha256=sha256_hex(lexical_bytes), prior_sha256=sha256_hex(prior_bytes), routing=routing,
         seed=p["seed"], parts=p["parts"], bootstrap_b=p["bootstrap_b"], bootstrap_seed=p["bootstrap_seed"]))
-    return {"labels": record, "questions": questions, "lexical": lexical, "prior": prior, "endpoints": endpoints,
+    return {"labels": record, "questions": questions, "lexical": lexical, "prior": prior,
+            "prior_bound": lab_j1.prior_bound(lines), "endpoints": endpoints,
             "prereg": "prereg/j1/prereg.json", "parts": p["parts"], "seed": p["seed"],
             "bootstrap_b": p["bootstrap_b"], "bootstrap_seed": p["bootstrap_seed"]}
 

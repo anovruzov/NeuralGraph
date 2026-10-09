@@ -23,10 +23,14 @@ says almost nothing about the answer. Record ``i`` of ``n`` is in part ``i * par
 question, the positive first: ``{"question_id" ("<record_ref>:<kind>"), "record_ref", "part", "kind", "entity_type",
 "entity_id", "predicate", "filed"}``.
 
-**The record-blind control** (:func:`prior_verdicts`, in the plan job; it decides nothing) never reads a record: a
-question about one record is confirmed when its predicate was asked more often as a positive than as a negative among
-the other records' questions, and refuted otherwise (a tie refutes). Its lines are verdict lines (``mentions_entity``
-``yes``, ``describes_predicate`` ``yes`` or ``no``), scored like every judge's.
+**The record-blind control** (:func:`prior_verdicts`, in the plan job; rule 5 as amended again before any run; it
+decides nothing) never reads a record and counts no question: a question is confirmed when its predicate is one of
+:data:`PRIOR_TOP`, the four filed most often in NHTSA's whole complaint file (``nhtsa-probe.json``'s component counts,
+all makes and all years, mapped to the pack's predicates), and refuted otherwise. Its lines are verdict lines
+(``mentions_entity`` ``yes``, ``describes_predicate`` ``yes`` or ``no``), scored like every judge's. **The
+predicate-only bound** (:func:`prior_bound`; it decides nothing) is the most any judge that sees only the predicate
+could score on the records scored: the sum over predicates of the larger of each one's positive and negative counts,
+over the questions. It is fitted to the answers it is scored on, so it is optimistic, and it has no interval.
 
 **The payload** (:func:`payload`) is ``judge_payload`` of the record as a ``WindowRecord`` with its codes empty (the
 labels hide them; a label record with codes is refused), its structured entities, language and narrative.
@@ -124,6 +128,11 @@ MAX_PARTS = 30
 WITHHOLD_SHARE = 0.01        # more than this share of a model's records left out by transport failures withholds it
 # rule 2's negative, as amended before any run: drawn with the frequency of the other records' positives
 NEGATIVE_DRAW = "other_records_positive_frequency"
+# rule 5's record-blind control, as amended again before any run: the four predicates filed most often in NHTSA's
+# whole complaint file, most filed first (tests/lab/test_lab_j1.py derives them from PRIOR_SOURCE through the pack)
+PRIOR_RULE = "whole_file_top_four"
+PRIOR_TOP = ("engine", "electrical_system", "air_bags", "power_train")
+PRIOR_SOURCE = "docs/collective/replay/vehicles/nhtsa-probe.json"
 CODE_FILES = ("mycelic/collective/edge/verify.py", "mycelic/collective/edge/extract.py",
               "mycelic/collective/edge/records.py", "mycelic/collective/packs/canonical.py",
               "mycelic/collective/packs/loader.py", "mycelic/collective/inference/*.py",
@@ -324,21 +333,32 @@ def stand_in(record_ref: str) -> WindowRecord:
 
 
 def prior_verdicts(questions: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    """The record-blind control (rule 5, added before any run): for each question, ``confirm`` when its predicate was
-    asked more often as a positive than as a negative among the other records' questions, else ``refute`` (a tie
-    refutes), as verdict lines with ``mentions_entity`` ``yes``. It never reads a record."""
-    asked: dict[tuple[str, str], int] = {}
-    for q in questions:
-        asked[(q["predicate"], q["kind"])] = asked.get((q["predicate"], q["kind"]), 0) + 1
+    """The record-blind control (rule 5, as amended again before any run): for each question, ``confirm`` when its
+    predicate is one of :data:`PRIOR_TOP`, else ``refute``, as verdict lines with ``mentions_entity`` ``yes``. It
+    reads only each question's own predicate: no record, and no other question."""
     out = []
     for q in questions:
-        own = [o for o in questions if o["record_ref"] == q["record_ref"] and o["predicate"] == q["predicate"]]
-        mine = {k: sum(1 for o in own if o["kind"] == k) for k in KINDS}
-        pos = asked.get((q["predicate"], "positive"), 0) - mine["positive"]
-        neg = asked.get((q["predicate"], "negative"), 0) - mine["negative"]
-        reply = {"mentions_entity": "yes", "describes_predicate": "yes" if pos > neg else "no"}
+        reply = {"mentions_entity": "yes", "describes_predicate": "yes" if q["predicate"] in PRIOR_TOP else "no"}
         out.append(verdict_line(q, stand_in(q["record_ref"]), reply, None))
     return out
+
+
+def prior_bound(questions: Sequence[Mapping[str, Any]], records: Iterable[str] | None = None) -> dict[str, Any]:
+    """The predicate-only bound (rule 5, added in the second amendment): the most any judge that sees only the
+    predicate could score on the questions of ``records`` (every record when None). Per predicate it takes the larger
+    of the positive and the negative count; ``value`` is their sum over the questions counted, or None without one.
+    It is fitted to the answers it is scored on, so it is optimistic; it has no interval."""
+    keep = set(records) if records is not None else None
+    counts: dict[str, dict[str, int]] = {}
+    refs: set[str] = set()
+    for q in questions:
+        if keep is not None and q["record_ref"] not in keep:
+            continue
+        refs.add(q["record_ref"])
+        counts.setdefault(q["predicate"], dict.fromkeys(KINDS, 0))[q["kind"]] += 1
+    asked = sum(sum(cell.values()) for cell in counts.values())
+    right = sum(max(cell.values()) for cell in counts.values())
+    return {"value": right / asked if asked else None, "records": len(refs), "questions": asked}
 
 
 def line_problem(question: Mapping[str, Any], line: Any) -> str | None:
@@ -566,7 +586,9 @@ def prereg_doc(*, pack: FrozenPack, pack_ref: str, labels: Mapping[str, Any], qu
             "labels": {k: labels[k] for k in ("source", "n", "seed", "records", "claims", "sha256")},
             "questions": {k: questions[k] for k in ("seed", "parts", "records", "questions", "part_records",
                                                      "negative_draw", "sha256")},
-            "lexical": {"sha256": lexical_sha256}, "prior": {"sha256": prior_sha256}, "task": task_pins(),
+            "lexical": {"sha256": lexical_sha256},
+            "prior": {"sha256": prior_sha256, "rule": PRIOR_RULE, "top": list(PRIOR_TOP), "source": PRIOR_SOURCE},
+            "task": task_pins(),
             "code_hash": code_hash(),
             "code_files": code_files_list(), "code_commit": code_commit(),
             "code_dirty": code_dirty(["mycelic/collective", "lab"]), "endpoints": endpoint_pins(routing),

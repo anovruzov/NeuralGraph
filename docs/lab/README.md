@@ -263,9 +263,10 @@ What each experiment's numbers mean and do not mean. Each label below is printed
 - `SHEETS_LABEL`: No labels were generated: {n_one} and openFDA {e_one} have no result until a human labels and commits the sheet.
 - J1 asks each model the verifier's narrow question about real complaints and scores the verdicts against the filed
   codes; `{j_one}` stands for J1. The plan job draws the questions and runs the lexical judge and a record-blind
-  control (which answers from the predicate alone and decides nothing) before any model runs. A model gets a
-  headline only when all its parts finished as model measurements; otherwise its finished parts are a partial
-  reading:
+  control (which confirms the four components filed most in NHTSA's whole complaint file, never reads a record and
+  decides nothing) before any model runs, and works out the predicate-only bound (the most a judge that sees only the
+  predicate could score, so optimistic; it decides nothing). A model gets a headline only when all its parts finished
+  as model measurements; otherwise its finished parts are a partial reading:
 - `J1_LABEL`: {j_one} here asks each model the site verifier's narrow question about real public NHTSA complaint narratives, one record at a time with its codes hidden, and scores each verdict against the components the complaint was filed under: filed codes, not human-checked labels.
 
 Every column and its meaning is in [REFERENCE.md](REFERENCE.md#columns), and every label in

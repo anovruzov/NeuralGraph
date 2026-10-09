@@ -76,10 +76,11 @@ comparison's ``endpoints`` entry. ``endpoint_scores_reason`` is null when they w
 (:data:`~lab.notes.PREREG_MISSING`, :data:`~lab.notes.E1_SCORES_UNPINNED`).
 
 **J1** (``j1``; null without J1 units), judge test J001 (:func:`j1_block`): the labels and questions records, the
-settings, the lexical judge's and the record-blind control's scores on every record from the preregistration, and per
-model its parts, whether it is complete, its display class, its scores pooled over its finished parts (with each
-predicate's confirms), the lexical judge's and the control's on the same records, the paired difference, the records
-left out, and the headline of rule 7 or why there is none. No verdict line, question or narrative is copied.
+settings, the lexical judge's and the record-blind control's scores on every record from the preregistration, the
+predicate-only bound on every record, and per model its parts, whether it is complete, its display class, its scores
+pooled over its finished parts (with each predicate's confirms), the lexical judge's and the control's on the same
+records and the bound on them, the paired difference, the records left out, and the headline of rule 7 or why there is
+none. No verdict line, question or narrative is copied.
 
 **Re-aggregation** (``reaggregation``; null unless ``--reaggregation FILE`` names a request, ``lab.reaggregate``):
 the request (path, sha256, run id, purpose), the aggregating checkout's ``commit`` and ``lab_code_hash``, and what
@@ -790,7 +791,7 @@ def _j1_model(model: str, units: list[dict[str, Any]], sources: dict[str, E1Sour
         "complete": complete,
         "partial": not complete and bool(parts_ok), "display_class": cls,
         "measurement": all(measured) if measured else None, "scores": None, "lexical": None, "prior": None,
-        "paired": None, "records_dropped": None, "dropped_share": None, "withheld_reason": None, "headline": None,
+        "prior_bound": None, "paired": None, "records_dropped": None, "dropped_share": None, "withheld_reason": None, "headline": None,
         "headline_reason": None}
     if pooled:
         scores = lab_j1.score(questions, pooled, bootstrap_b=b, bootstrap_seed=seed)
@@ -800,6 +801,7 @@ def _j1_model(model: str, units: list[dict[str, Any]], sources: dict[str, E1Sour
                               if refs else None),
                      prior=(lab_j1.score(questions, prior, bootstrap_b=b, bootstrap_seed=seed, records=refs)
                             if refs else None),
+                     prior_bound=lab_j1.prior_bound(questions, refs) if refs else None,
                      paired=lab_j1.paired(questions, pooled, lexical, bootstrap_b=b, bootstrap_seed=seed))
     share = entry["dropped_share"]
     if share is not None and share > settings["withhold_share"]:
@@ -816,13 +818,15 @@ def _j1_model(model: str, units: list[dict[str, Any]], sources: dict[str, E1Sour
 def j1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]) -> dict[str, Any] | None:
     """The report's ``j1`` block (null without J1 units); ``sources`` maps each J1 unit to (its row, its record, its
     shard root). It needs the verified preregistration (else its reason is :data:`~lab.notes.PREREG_MISSING`): the
-    questions, the lexical judge's and the record-blind control's verdict lines and their scores on every record. Per
+    questions, the lexical judge's and the record-blind control's verdict lines and their scores on every record, and
+    the predicate-only bound on every record (``lab.j1.prior_bound``, from the questions). Per
     model: each part's unit, status, display class and whether it finished (status ``ok``, a complete run.json of this
     preregistration whose verdicts hash as stamped, cover the part's questions and are each the line the runner writes
     for its question, :func:`_j1_part`); ``complete`` (every part finished); the display class (``model`` only when
     every part with a result is); the scores pooled over the finished parts (``lab.j1.score``, with each predicate's
-    confirms in ``by_predicate``), the lexical judge's and the record-blind control's on the same records (the control
-    decides nothing) and the paired difference; the records left out and their share; and the
+    confirms in ``by_predicate``), the lexical judge's and the record-blind control's on the same records and the
+    predicate-only bound on them (the control and the bound decide nothing) and the paired difference; the records left
+    out and their share; and the
     headline (rule 7), only for a complete model of display class ``model`` whose runs say ``measurement: true`` and
     whose transport failures left out at most the preregistered share, else null with ``headline_reason``
     (:data:`~lab.notes.J1_INCOMPLETE`, :data:`~lab.notes.J1_NOT_MEASURED` or :data:`~lab.notes.J1_WITHHELD`). An
@@ -835,7 +839,7 @@ def j1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
              if sources[u["unit"]][0]["display_class"] != "no-result"]
     block: dict[str, Any] = {"label": "public_nhtsa", "reason": None, "display_class": _class_of(shown, fallback),
                              "labels": None, "questions": None, "settings": None, "lexical": None, "prior": None,
-                             "models": {}}
+                             "prior_bound": None, "models": {}}
     try:
         prereg = load_prereg(plan_path)
         manifest = prereg.manifest["j1"]
@@ -856,7 +860,8 @@ def j1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
     block.update(labels={k: labels.get(k) for k in ("source", "pack", "n", "seed", "records", "claims", "sha256")},
                  questions={k: asked.get(k) for k in ("records", "questions", "parts", "part_records", "seed",
                                                       "negative_draw", "sha256")},
-                 settings=settings, lexical=manifest["lexical"], prior=manifest["prior"])
+                 settings=settings, lexical=manifest["lexical"], prior=manifest["prior"],
+                 prior_bound=lab_j1.prior_bound(questions))
     for model in sorted({u["model"] for u in units}):
         block["models"][model] = _j1_model(model, [u for u in units if u["model"] == model], sources, prereg_sha,
                                            questions, lexical, prior, settings, fallback)
