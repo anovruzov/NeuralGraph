@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "purpose": "Reader test R001 (docs/collective/replay/vehicles/CHOICE-R001.md, rule committed in 389d278 before this run): a-0p5b, a-1p5b and a-4b read 150 real NHTSA complaint narratives with their component codes hidden; predicate F1 against the filed codes, beside the lexical extractor on the same records. Public data; the first run is the result.",
+  "provider": "llama-server",
+  "models": ["a-0p5b", "a-1p5b", "a-4b"],
+  "job_minutes": 330,
+  "max_parallel": 16,
+  "retention_days": 30,
+  "experiments": {
+    "e1": {
+      "minutes": 150,
+      "labels": {"source": "nhtsa", "pack": "docs/collective/replay/vehicles/pack", "n": 150, "seed": 1},
+      "reference": "a-4b",
+      "margin_points": 5,
+      "runs": 3,
+      "seed": 1
+    }
+  }
+}
