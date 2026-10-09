@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "purpose": "Public replay 001 (docs/collective/replay/CHOICE-001.md): every setting follows that file's rule, applied to the market-count probe's replay inputs; model-free, so the one listed model is never served. The choices were made by the AI agent, which declares saw_recall_outcomes yes. The first run is the result.",
+  "purpose": "Public replay 001 (docs/collective/replay/CHOICE-001.md): every setting follows that file's rule, applied to the market-count probe's replay inputs; model-free, so the one listed model is never served. The choices were made by the AI agent, which declares saw_recall_outcomes yes. The first run is the result. Run 2: the first run (37861226513) was refused by openFDA before any data because the lab asked for 1000-record pages without an API key; only this sentence changed.",
   "provider": "llama-server",
   "models": [
     "a-0p5b"

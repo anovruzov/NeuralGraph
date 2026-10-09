@@ -89,3 +89,6 @@ probe printed, and the rule's window recomputes from them).
    No event page and no recall record was fetched, so nothing of the outcome was seen. The lab now asks for pages of
    100 without a key (a code fix, not a setting); the run is repeated with this request unchanged, as the rule above
    allows for a failure before scoring.
+2. **Run 2**, after the fix (commit `4c05eb1`). The lab starts when a request file changes in a push and the manual
+   trigger is not available to this agent, so only the request's `purpose` sentence changed; every setting in its
+   `openfda` block is byte-identical to run 1's.
