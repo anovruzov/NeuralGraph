@@ -1,0 +1,9 @@
+{
+  "purpose": "Diagnostic E002 (DIAG-E002.md, committed with this file): the six makes of V001 and V002 with recalls as outcomes and V002's settings and frozen pack, re-scored by the audit that now also reports the chance baseline without each outcome's own later alerts. Exploratory; not a test; V001-V003 verdicts stand.",
+  "makes": ["FORD", "CHEVROLET", "JEEP", "HONDA", "NISSAN", "DODGE"],
+  "date_from": "20230101",
+  "date_to": "20241231",
+  "lookback_weeks": 26,
+  "post_weeks": 26,
+  "saw_recall_outcomes": "yes"
+}
