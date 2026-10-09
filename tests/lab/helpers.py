@@ -64,7 +64,7 @@ def run_plan(argv: list[str]) -> tuple[int, str, str]:
     return code, out.getvalue(), err.getvalue()
 
 
-PREREG_EXPERIMENTS = ("e1", "e2", "x1")
+PREREG_EXPERIMENTS = ("e1", "e2", "x1", "j1")
 
 
 def run_prereg(plan_path: Path) -> tuple[int, str, str]:

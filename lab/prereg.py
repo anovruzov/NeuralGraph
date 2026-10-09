@@ -1,4 +1,4 @@
-"""Preregister a plan's E1, X1 and E2 units in the plan job, before any model runs.
+"""Preregister a plan's E1, J1, X1 and E2 units in the plan job, before any model runs.
 
     python -m lab.prereg --plan PLAN
 
@@ -11,6 +11,15 @@
   :data:`E1_BOUNDARY`; the synthetic raw-text
   exemption only when an endpoint lies outside every boundary, which a hosted endpoint does: ``lab.hosted.endpoint``,
   boundary ``external``) writes ``D/prereg/e1/prereg/prereg.json``;
+* J1 (judge test J001, ``lab.j1``), in this process: :func:`lab.goldlabels.build_labels` (``nhtsa``) writes
+  ``D/prereg/j1/labels.jsonl`` and ``labels.json``; ``lab.j1.build_questions`` ``questions.jsonl`` and
+  ``questions.json``; the verifier's lexical judge, on every question's payload before any model runs,
+  ``lexical.jsonl`` (its verdict lines) and ``lexical.json`` (``lab.j1.score`` on every record); the record-blind
+  control (``lab.j1.prior_verdicts``, which reads no record: it confirms the four predicates filed most in the whole
+  complaint file) ``prior.jsonl`` and ``prior.json``; ``routing.json`` pins every J1 model (``lab.j1.routing_doc``
+  at :data:`PLACEHOLDER_BASE_URL`); and ``prereg.json`` (``lab.j1.prereg_doc``:
+  the hashes, the judge task's instructions, schema and ``max_tokens``, the code hash and files, the endpoints' pins,
+  the boundary, the data label, the seeds, ``parts``, the twins, the excluded predicate and the bootstrap settings);
 * X1: the evaluation harness's prereg (run id ``x1``, ``D/prereg/x1/x1/prereg.json``) and ``check-plant``;
 * E2: the same with run id ``e2`` (``D/prereg/x1/e2/prereg.json``) and ``check-plant``, then a model-free rehearsal:
   ``e2_pushdown run`` without routing (fake site and central judges) in a scratch directory beside ``D``, removed
@@ -21,13 +30,19 @@
 
 Last, ``D/prereg/prereg.json`` (the manifest): the plan's sha256, the sha256 and size of every other file under
 ``D/prereg``, and per experiment (null when the plan has none) the labels record, endpoints, reference and prereg path
-(E1), the prereg path (X1), and the prereg path, plant path and rehearsal (E2). Every shard and the aggregate call
+(E1), the prereg path (X1), the prereg path, plant path and rehearsal (E2), and the labels and questions records, the
+lexical judge's and the record-blind control's scores, the predicate-only bound on every record
+(``lab.j1.prior_bound``), the endpoints, the prereg path and the settings (J1). Every shard and the aggregate call
 :func:`load_prereg` before they use any of it. Harness logs go to ``D/prereg-logs/<step>.stdout.log`` and
 ``.stderr.log`` (capped; not in the manifest). Each subprocess gets the units' environment allowlist, the repository
 as its directory, and :data:`STEP_TIMEOUT_S` (:data:`REHEARSAL_TIMEOUT_S` for the rehearsal).
 
-stdout is one line, ``prereg: e1 yes|no x1 yes|no e2 yes|no``. A plan that cannot be read, or a ``D/prereg`` that
-exists already, is a usage error (exit 2, nothing written). A refused step writes ``D/plan-error.json`` (source
+The NHTSA complaint archive (``nhtsa`` labels, E1's or J1's) is downloaded at most once per preregistration;
+:func:`preregister` takes a keyword-only ``nhtsa_fetch`` in its place, which only tests pass.
+
+stdout is one line, ``prereg: e1 yes|no x1 yes|no e2 yes|no j1 yes|no``. A plan that cannot be read, or a
+``D/prereg`` that exists already, is a usage error (exit 2, nothing written). A refused step writes
+``D/plan-error.json`` (source
 ``prereg``), prints ``error: <path>: <problem>`` first on stderr and an ``::error`` workflow command, and exits 2; the
 manifest is then never written, so no shard can use a partial preregistration.
 """
@@ -41,16 +56,18 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from mycelic.collective.experiments.common import write_json_atomic
 from mycelic.collective.inference.ledger import read_ledger
 from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
+from mycelic.collective.packs import loader
 
 from . import EXIT_OK, EXIT_USAGE, ROOT, shown_path
 from . import hosted as lab_hosted
+from . import j1 as lab_j1
 from . import units as lab_units
-from .goldlabels import GoldLabelsError, build_labels
+from .goldlabels import GoldLabelsError, build_labels, nhtsa_export
 from .plan import write_plan_error
 
 PLACEHOLDER_BASE_URL = "http://127.0.0.1:9/v1"
@@ -176,11 +193,13 @@ def _units(plan: Mapping[str, Any], experiment: str) -> list[dict[str, Any]]:
     return [u for u in plan["units"] if u.get("experiment") == experiment]
 
 
-def _e1(steps: _Steps, plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path) -> dict[str, Any]:
+def _e1(steps: _Steps, plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path,
+        nhtsa_fetch: Callable[[], bytes] | None = None) -> dict[str, Any]:
     params = units[0]["params"]
     labels = params["labels"]
     try:
-        data, record = build_labels(labels["source"], labels["pack"], labels["n"], labels["seed"])
+        data, record = build_labels(labels["source"], labels["pack"], labels["n"], labels["seed"],
+                                    fetch=nhtsa_fetch if labels["source"] == "nhtsa" else None)
     except GoldLabelsError as err:
         raise _StepFailed("$.experiments.e1.labels.n", err.problem) from None
     e1 = root / "prereg" / "e1"
@@ -277,6 +296,65 @@ def _e2(steps: _Steps, unit: Mapping[str, Any], root: Path) -> dict[str, Any]:
     return {"prereg": rel, "plant_path": p["plant_path"], "rehearsal": rehearsal}
 
 
+def _j1(plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path,
+        nhtsa_fetch: Callable[[], bytes] | None) -> dict[str, Any]:
+    """J1's preregistration (see the module docstring), all in this process; the manifest's ``j1`` block."""
+    p = units[0]["params"]
+    labels = p["labels"]
+    try:
+        data, record = build_labels("nhtsa", labels["pack"], labels["n"], labels["seed"], fetch=nhtsa_fetch)
+    except GoldLabelsError as err:
+        raise _StepFailed("$.experiments.j1.labels.n", err.problem) from None
+    pack = loader.load_pack(ROOT / labels["pack"])
+    try:
+        questions_bytes, questions = lab_j1.build_questions(pack, data, seed=p["seed"], parts=p["parts"])
+        lines = lab_j1.read_questions(questions_bytes)
+        lexical_lines = lab_j1.lexical_verdicts(pack, data, lines)
+    except lab_j1.J1Error as err:
+        raise _StepFailed("$.experiments.j1", err.problem) from None
+    prior_lines = lab_j1.prior_verdicts(lines)
+    lexical_bytes, prior_bytes = lab_j1.jsonl_bytes(lexical_lines), lab_j1.jsonl_bytes(prior_lines)
+    lexical = lab_j1.score(lines, lexical_lines, bootstrap_b=p["bootstrap_b"], bootstrap_seed=p["bootstrap_seed"])
+    prior = lab_j1.score(lines, prior_lines, bootstrap_b=p["bootstrap_b"], bootstrap_seed=p["bootstrap_seed"])
+    endpoints = sorted({u["model"] for u in units})
+    routing = lab_j1.routing_doc(plan["models"], endpoints, PLACEHOLDER_BASE_URL)
+    j1 = root / "prereg" / "j1"
+    j1.mkdir(parents=True)
+    (j1 / "labels.jsonl").write_bytes(data)
+    write_json_atomic(j1 / "labels.json", record)
+    (j1 / "questions.jsonl").write_bytes(questions_bytes)
+    write_json_atomic(j1 / "questions.json", questions)
+    (j1 / "lexical.jsonl").write_bytes(lexical_bytes)
+    write_json_atomic(j1 / "lexical.json", lexical)
+    (j1 / "prior.jsonl").write_bytes(prior_bytes)
+    write_json_atomic(j1 / "prior.json", prior)
+    write_json_atomic(j1 / "routing.json", routing)
+    write_json_atomic(j1 / "prereg.json", lab_j1.prereg_doc(
+        pack=pack, pack_ref=labels["pack"], labels=record, questions=questions,
+        lexical_sha256=sha256_hex(lexical_bytes), prior_sha256=sha256_hex(prior_bytes), routing=routing,
+        seed=p["seed"], parts=p["parts"], bootstrap_b=p["bootstrap_b"], bootstrap_seed=p["bootstrap_seed"]))
+    return {"labels": record, "questions": questions, "lexical": lexical, "prior": prior,
+            "prior_bound": lab_j1.prior_bound(lines), "endpoints": endpoints,
+            "prereg": "prereg/j1/prereg.json", "parts": p["parts"], "seed": p["seed"],
+            "bootstrap_b": p["bootstrap_b"], "bootstrap_seed": p["bootstrap_seed"]}
+
+
+def _once(fetch: Callable[[], bytes] | None) -> Callable[[], bytes]:
+    """``fetch``, or the NHTSA complaint archive's download, called at most once."""
+    kept: list[bytes] = []
+
+    def get() -> bytes:
+        if not kept:
+            if fetch is not None:
+                kept.append(fetch())
+            else:
+                export = nhtsa_export()
+                kept.append(export._fetch(export.COMPLAINTS_URL))
+        return kept[0]
+
+    return get
+
+
 def _file_map(root: Path) -> dict[str, dict[str, Any]]:
     files = {}
     for path in sorted((root / "prereg").rglob("*")):
@@ -288,22 +366,26 @@ def _file_map(root: Path) -> dict[str, dict[str, Any]]:
     return dict(sorted(files.items()))
 
 
-def preregister(plan_path: Path) -> dict[str, Any]:
-    """Every step the plan's units need, then the manifest; raises :class:`_StepFailed` for a refused step."""
+def preregister(plan_path: Path, *, nhtsa_fetch: Callable[[], bytes] | None = None) -> dict[str, Any]:
+    """Every step the plan's units need, then the manifest; raises :class:`_StepFailed` for a refused step.
+    ``nhtsa_fetch`` (tests only) returns the NHTSA complaint archive in place of its download."""
     plan_bytes = plan_path.read_bytes()
     plan = strict_load(plan_bytes)
     root = plan_path.parent
     (root / "prereg").mkdir()
     steps = _Steps(root)
-    e1_units, x1_units, e2_units = (_units(plan, name) for name in ("e1", "x1", "e2"))
+    e1_units, x1_units, e2_units, j1_units = (_units(plan, name) for name in ("e1", "x1", "e2", "j1"))
+    fetch = _once(nhtsa_fetch)
     manifest: dict[str, Any] = {"schema_version": 1, "kind": "lab_prereg", "plan_sha256": sha256_hex(plan_bytes),
-                                "files": {}, "e1": None, "x1": None, "e2": None}
+                                "files": {}, "e1": None, "x1": None, "e2": None, "j1": None}
     if e1_units:
-        manifest["e1"] = _e1(steps, plan, e1_units, root)
+        manifest["e1"] = _e1(steps, plan, e1_units, root, fetch)
     if x1_units:
         manifest["x1"] = {"prereg": _harness(steps, x1_units[0], "x1", root)}
     if e2_units:
         manifest["e2"] = _e2(steps, e2_units[0], root)
+    if j1_units:
+        manifest["j1"] = _j1(plan, j1_units, root, fetch)
     manifest["files"] = _file_map(root)
     write_json_atomic(root / MANIFEST, manifest)
     return manifest
@@ -340,7 +422,7 @@ def main(argv: list[str] | None = None) -> int:
     except _StepFailed as err:
         return write_plan_error(plan_path.parent, "prereg", request_path, err.path, err.problem)
     print(" ".join(["prereg:", *(f"{name} {'yes' if manifest[name] is not None else 'no'}"
-                                 for name in ("e1", "x1", "e2"))]), flush=True)
+                                 for name in ("e1", "x1", "e2", "j1"))]), flush=True)
     return EXIT_OK
 
 

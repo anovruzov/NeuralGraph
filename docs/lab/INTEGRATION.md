@@ -181,3 +181,33 @@ the committed task file to the shard's model server (or a hosted entry), write t
 of the package, and score it there, since `live_rank.py score` writes its results into the package's own
 `artifacts/`, which the lab never writes. That adapter needs a request block, a unit kind and report rows of its
 own; it is an open item, not built.
+
+## 7. The judge test's runner
+
+`lab/j1.py` (judge test J001, `docs/collective/replay/vehicles/CHOICE-J001.md`) runs the site verifier's judge on one
+record at a time. It lives in the lab and changes nothing under `mycelic/`. It uses these pinned functions read-only:
+
+- `edge/verify.py`: `judge_task` and `judge_schema` (the task, its instructions, its schema and its `max_tokens`),
+  `judge_payload` (the payload, with the record's codes empty), `lexical_judge` (the baseline, the verifier's judge when
+  no model runs), `decide` (the verdict over the one record: a reply judged, or one failure when no reply passed) and
+  `JUDGE_TASK`;
+- `edge/records.py`: `WindowRecord`, which holds a labelled record as the verifier holds one of its own (and, holding
+  only a record's ref, the record the record-blind control and the aggregate's line check pass to `decide`, which
+  counts records and reads replies, never a record's text);
+- `edge/extract.py`: `BREAKER_AFTER` and `server_down`, the verifier's own stop after the server is down;
+- `inference/runtime.py`: `Runtime.run` (one repair, no escalation in the lab's routing) and `Runtime.exemption`;
+  `VALIDATION_KINDS` sorts a failure as the model's (through `e1_extract.failure_class`, and in `lab/units.py`'s
+  participation check);
+- `experiments/e1_extract.py`: `read_labels`, `check_data_label`, `endpoint_pins` and `failure_class`, so J1 reads,
+  checks and pins exactly as E1 does;
+- `experiments/common.py`: `measurement_flag`, `code_hash`, `code_files`, `run_dir` and `write_json_atomic`;
+- `inference/errors.py`: `KINDS`, the error kinds a stored verdict line may name.
+
+Both experiment modules are in J1's code hash (`lab.j1.CODE_FILES`), beside the edge, pack, inference and stats
+modules, so a change to any of them between the plan job and a shard stops the shard before its first call.
+- `stats.py`: `cluster_bootstrap_mean`, `paired_bootstrap` and `percentile`.
+
+What `SiteVerifier.answer` adds around these functions is not used: the boundary's closed spec, the daily budgets,
+master data, secrets, storage and the pooling of a window of records into one verdict. Those decide whether a
+question is judged and over which records, not how one record is judged. A hook wanted upstream: a public verifier
+function that judges one record and returns the reply and the verdict, so the lab would not assemble the call itself.

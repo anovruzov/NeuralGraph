@@ -59,7 +59,9 @@ SINGLE_LABELS = ("PLUMBING_BANNER", "PLUMBING_HOSTED_BANNER", "PLUMBING_CHECK_LI
                  "WORLD_DIGEST_SAME", "WORLD_DIGEST_DIFFERS", "CPU_MODELS_DIFFER", "NOT_PINNED", "LOCK_UNCHANGED",
                  "LOCK_NEW", "LOCK_CONFLICT_NOTE", "LOCK_NOT_COMPUTED", "BY_CONSTRUCTION_LABEL",
                  "BY_CONSTRUCTION_NOTE", "OPENFDA_SAW_RECALLS", "OPENFDA_WARNED", "OPENFDA_FALSE_ALARM_SCOPE",
-                 "E1_SCORES_NOTE", "E1_SCORES_ONLY", "E1_SCORES_REFUSED", "E1_SCORES_UNPINNED", "REAGGREGATION_LINE")
+                 "E1_SCORES_NOTE", "E1_SCORES_ONLY", "E1_SCORES_REFUSED", "E1_SCORES_UNPINNED", "REAGGREGATION_LINE",
+                 "J1_LABEL", "J1_HEADLINE_NOTE", "J1_LEXICAL_NOTE", "J1_INCOMPLETE", "J1_WITHHELD", "J1_NOT_MEASURED",
+                 "J1_PRIOR_NOTE")
 DICT_LABELS = ("NOTES", "SIM_NOTES", "SIM_CHANNEL_LABELS", "SIM_LIFT_LABELS", "SIM_MEASUREMENT_REASONS", "E1_LABELS",
                "E2_LABELS", "CLASS_REASONS")
 REQUIRED_LABELS = (*SINGLE_LABELS, *(f"{d}.{k}" for d in DICT_LABELS for k in getattr(notes, d)))
@@ -82,7 +84,7 @@ TROUBLESHOOTING = (
     "WARMUP_LENGTH", "WARMUP_REASONING", "CONTEXT_TOO_SMALL", "SERVER_UNAVAILABLE", "NOT_PREPARED",
     # units
     "BUDGET_EXHAUSTED", "LOW_PARTICIPATION", "NO_MODEL_CALLS", "E3_FAILURES", "TIMED_OUT", "SIM_PROJECTED",
-    "SIM_LOW_PARTICIPATION", "E2_ABORTED", "PREREG_MISSING", "G0_MODEL_PATH",
+    "SIM_LOW_PARTICIPATION", "E2_ABORTED", "PREREG_MISSING", "G0_MODEL_PATH", "J1_STOPPED",
     # openFDA
     "OPENFDA_UNREACHABLE", "OPENFDA_RATE_LIMITED", "OPENFDA_FETCH_REFUSED",
     # the hosted provider
@@ -279,7 +281,7 @@ class ReferenceCompletenessTests(unittest.TestCase):
     def test_request_keys(self) -> None:
         keys = [*request._TOP_KEYS, "hosted", "max_calls", *request._E1_KEYS, *request._LABELS_KEYS,
                 *request._E2_KEYS, *request._X1_KEYS, *request._E3_KEYS, *request._G0_KEYS, *request._SIM_KEYS,
-                *request._OPENFDA_KEYS, *request._SHEET_KEYS]
+                *request._OPENFDA_KEYS, *request._SHEET_KEYS, *request._J1_KEYS]
         spans = self.spans("Request format")
         self.assertEqual(sorted({k for k in keys if k not in spans}), [])
 
@@ -594,7 +596,7 @@ class MainPlanTests(unittest.TestCase):
     def test_prereg(self) -> None:
         code, out, err = self.prereg
         self.assertEqual(code, 0, err)
-        self.assertIn("prereg: e1 yes x1 yes e2 yes", out.splitlines())
+        self.assertIn("prereg: e1 yes x1 yes e2 yes j1 no", out.splitlines())
 
 
 class RequestsReadmeTests(unittest.TestCase):
