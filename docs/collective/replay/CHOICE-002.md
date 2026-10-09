@@ -99,3 +99,29 @@ coverage 0.5, tie salt `lab-replay`, 150 unit minutes and a 200-minute job. The 
 
 `lab/requests/openfda-002.json` holds replay 001's `openfda` block with only `pack` changed (and its `purpose`), and
 is pushed in its own commit; that push starts the run.
+
+### The result
+
+[Lab run 37866601007](https://github.com/anovruzov/NeuralGraph/actions/runs/37866601007), commit `4a5a34f`,
+2026-10-09 00:48 UTC; report from the `aggregate` job (113616573922), request sha `8f6599656974`.
+
+- **Every step ran, with no warning.** Events fetched in full (FMI 9,039, FOZ 9,204, JKA 9,010, MDB 1,633, none
+  truncated) and the same 22 recall records as replay 001, 8 of them in scope and evaluable; 87 weeks were evaluated.
+- **The pack now reads the manufacturer's records:** of the reports under the listed names, 91.9% carry an identifier
+  the pack resolves (replay 001 warned that fewer than half did), 34.4% a mapped problem code, 98.7% a lot number and
+  15.7% a model number.
+
+| Channel | Alerts | Recalls found, of 8 | Expected by chance | p | False alarms | Alerts after a recall |
+|---|---|---|---|---|---|---|
+| X (model-free) | 4 | 1, 31 days before initiation | 1.16 | 0.82 | 1 | 2 |
+| S | 3 | 0 | 0.68 | 1.00 | 1 | 2 |
+| R (model-free) | 5 | 0 | 0.71 | 1.00 | 3 | 2 |
+
+- **What it shows: no early warning on this data.** With the identifiers readable, the detectors raised few alerts
+  (3 to 5 in 87 weeks) and found no recall more often than chance: X's one find is what a randomly timed alert series
+  gives (expected 1.16, p 0.82), and S and R found none. Each channel raised 2 alerts in the 26 weeks after a recall's
+  initiation, which the scorer neither credits nor counts as false.
+- **What it does not show.** One manufacturer, four product codes, eight recalls, two years; public reports, which
+  carry far less than a manufacturer's own complaint files; model-free channels; matching on product code alone. It is
+  not a test of a model reading the narratives, and not of data a customer holds. It is the first real-data test of
+  detection in this repository, and it is negative. The declaration (`yes`) stands.

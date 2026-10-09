@@ -128,11 +128,35 @@ the manufacturer's real ids, so the zero is structural (the pipeline did not see
 measurement of detection. Fetched: 28,886 event reports (none truncated) and 22 recall records, 8 of them under the
 listed firm names. The requester (the AI agent) declared it may have seen recall outcomes before choosing.
 
+## Run 4: openfda-002 (public replay 002, model-free, real data, readable identifiers)
+
+[Run 37866601007](https://github.com/anovruzov/NeuralGraph/actions/runs/37866601007), request
+`lab/requests/openfda-002.json` (replay 001's settings with the replay pack `lab/packs/device_quality_bd`, built by the
+rule in `docs/collective/replay/CHOICE-002.md` from reports received before the window), commit `4a5a34f`,
+2026-10-09 00:48 UTC; report from the `aggregate` job (113616573922). The report now carries coverage, alert counts
+and each channel's circular-shift null.
+
+| Channel | Alerts | Recalls found, of 8 | Expected by chance | p | False alarms | Post-recall alerts |
+|---|---|---|---|---|---|---|
+| X | 4 | 1 (31 days before initiation) | 1.16 | 0.82 | 1 | 2 |
+| S | 3 | 0 | 0.68 | 1.00 | 1 | 2 |
+| R (model-free) | 5 | 0 | 0.71 | 1.00 | 3 | 2 |
+
+No warning: 91.9% of the manufacturer's reports carried an identifier the pack resolves (run 3: fewer than half),
+34.4% a mapped problem code. 87 weeks evaluated. **No recall was found more often than chance**: on this public data,
+with readable identifiers, the model-free detectors gave no early warning. One manufacturer, four codes, eight
+recalls; the requester declared it may have seen recall outcomes before choosing.
+
+## Run 5: main-001, in progress
+
+[Run 37866392839](https://github.com/anovruzov/NeuralGraph/actions/runs/37866392839), request
+`lab/requests/main-001.json`, commit `3db19a0`, started 2026-10-09 00:45 UTC: the simulation over seeds 1 to 5 with
+a-0p5b, a-1p5b and a-4b (20 planted patterns per model), E1 on generator text, the 1,000-record G0 canary scan with
+a-4b, E3 for a-4b and the model-free X1 baseline; 27 units in 23 shards. Recorded here when its report is in,
+whatever it shows.
+
 ## What has not run
 
-- **main-001** (`lab/templates/main.json`): the simulation over more seeds, so that more than four planted patterns
-  decide whether a model's reading adds anything over the codes (run 2: not on one seed).
-- **A replay with a vocabulary for the manufacturer's real ids** (run 3 shows the synthetic pack's id formats do not
-  resolve them): replay 002, `docs/collective/replay/CHOICE-002.md`. **N1 and E1 on real narratives** need a person
-  to label the sheets.
+- **A replay with a model reading real narratives**, and replays of other manufacturers. **N1 and E1 on real
+  narratives** need a person to label the sheets.
 - **A hosted (non-local) model:** the lab supports one through `MYCELIC_LAB_HOSTED_API_KEY`; no key is configured.
