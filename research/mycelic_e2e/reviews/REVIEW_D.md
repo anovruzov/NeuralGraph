@@ -207,3 +207,112 @@ Event-key dedupe absorbed it (enqueued 1), so this is harmless. It is a one-time
   no ledger rows and `report.rejected == 0` (kills M4).
 - **F5 (optional).** Add an `evicted` counter to health when the 5000 cap drops rows, and give JSON-file invalid entries
   a real item hash (local_export.py:140).
+
+## Re-review: fix commit 82a7a4f (HEAD), REVIEWER-3 (`claude-opus-5-5`)
+
+I reviewed a fresh `git archive HEAD` (82a7a4f) at `$SCR/rr`, so uncommitted edits from other engineers are not included.
+I used the same probe scripts as above. **Verdict: ACCEPT. Nothing is still blocking.**
+
+### Reproduction
+
+- **Full suite:** `python -m pytest mycelic/tests -q -p no:warnings` gave **445 passed, 7 skipped in 99.37s**. The commit
+  message says 479 passed "on the shared tree"; the difference is uncommitted tests in that tree, not in HEAD.
+- **New test file:** 34 passed. It adds an S1-S6 regression test for each probe, the F4 atomicity tests at lines 251 and
+  268, the F3 tests, and the coordinator freshness tests.
+
+**Probes, independent roots (HEAD vs 93ae752):**
+
+| Probe | HEAD | 93ae752 |
+|---|---|---|
+| S1 | 1 | 2 |
+| S1b | 1 | 2 |
+| S2 | 1 | 2 |
+| S3 | 1 | 2 |
+| S4 | 1 | 3 |
+| S4b | 1 | 3 |
+| S5 | 0 + 1 unknown | 1 |
+| S6 | **1** | 2 |
+| S6 baseline | 2 | 2 |
+| S7 | 1 | 1 |
+
+- S1-S5 match the parent 9b426a3 again.
+- f1b still collapses (`test_original_and_three_forwards_with_commentary_are_one_independent_root` passes).
+- S6 = 1 is the documented cost of the content-root variant I recommended. INGESTION.md:139-143 now names it, together
+  with the S7 equivalent that already existed. The S6 test asserts only `roots <= 2`, i.e. "never inflates".
+
+**D2 at the coordinator** (`freshness(refs, freshness_days=30)`):
+
+| Case | Result |
+|---|---|
+| File with no dates | `unknown: True, freshness_at None, undated_refs 1` |
+| Undated record next to a record dated today | `unknown` (the neighbour's date is no longer used) |
+| `exported_at` header | `time_basis ingest` and `unknown` |
+
+Before the fix, all three were `stale False, age 0-0.3`.
+
+**D1 leak (F3):** the `CodeErr(code=<input text>)` probe now stores `reason 'CodeErr'`, and health shows
+`normalize:CodeErr`. No input text reaches either.
+
+**Migration:** I reran the f96f263 to HEAD upgrade probe (`mig_test.py`):
+- Migrations 1-4 applied in order and the old rows are intact.
+- Ledger rows `line:3` and `line:6` were written, health is `degraded`.
+- An edit of the old forward gets an `origin_key` and keeps `root_method content`.
+
+**Mutations** of HEAD (`$SCR/rr_mut`), number of failing tests out of 34:
+
+| Mutation | Failing tests |
+|---|---|
+| M2 export own `object_key` | 4 |
+| M3 old evidence time | 1 |
+| **M4 ledger outside the page transaction** | **1 (killed; it survived before)** |
+| M5 `str(exc)` for any exception | 2 |
+| M6 no future-time guard | 1 |
+| M7 origin-root override reinstated | 7 (incl. the S1, S2/S3, S4 and S5 tests) |
+| M8 `support.evidence_time` ignores `time_inferred` | 2 |
+| M9 any `.code` reaches the ledger | 1 |
+| M10 `exported_at` back in `_content_time` | 1 |
+| M11 `reason` uncapped | 1 |
+
+Every fix is pinned by at least one test.
+
+### F5
+
+- Done: JSON-file invalid entries now carry a hash of the item (local_export.py:141-142).
+- Not done: the eviction counter (no `evicted` anywhere in `mycelic/ingest`). It was optional and remains a follow-up.
+- Side note: the new `__sha256__` also changes the cursor digest for JSON files that contain non-object entries. The
+  effect is the same as for JSONL: a one-time full re-read after the upgrade, absorbed by event-key dedupe.
+
+### Rulings on the engineer's open questions
+
+**(a) All-undated support: freshness `unknown` (stale False) and the gate can still say `supported`.**
+**Acceptable; not blocking.**
+- It matches the existing semantics for references that carry no time at all (support.py `freshness`: no stamps means
+  `unknown`).
+- It strictly improves on the parent, which showed this case as fresh with age 0.
+- Mixed support is handled correctly: the newest *dated* reference decides, so undated references cannot rescue stale
+  evidence (M8 kills 2 tests).
+- Forcing `stale` would misstate the facts ("old" is not known). It would also block honestly undated sources forever and
+  add no security: whoever can strip dates from an export can just as easily write `created_at = now`.
+
+Recommended follow-up, not blocking: make it visible. Today `gate.py:268-285` adds no reason when `fresh["unknown"]`, so a
+`supported` claim with no dated evidence looks the same as a dated one. Add a reason such as "no dated evidence:
+freshness unknown (N undated reference(s))" there and in the recompute path (knowledge/service.py:496-500). An org
+policy knob (`require_dated_support`) could optionally demote such claims to `hypothesis`.
+
+**(b) `knowledge/service.py:939 evidence_freshness` does not select `meta`.** **Not blocking.**
+- Its only consumers are the admin overview (`api/routes_admin.py:104/116`) and the Prometheus gauge
+  `mycelic_evidence_stale` (`api/app.py:99`). Neither feeds the gate.
+- Claim status uses `freshness(supporting, ...)` on full rows (gate.py:253, knowledge/service.py:342/486), and those
+  already carry `meta`.
+- Effect today: undated references are counted as "fresh" in the dashboard, not as "unknown".
+- Fix in WP1's file: `SELECT freshness_at, observed_at, meta FROM evidence_refs ...` (knowledge/service.py:939). It should
+  go in with WP1's next change, with a one-line test.
+
+### Not blocking, noted
+
+- `test_s6_a_forged_link_can_only_merge_never_inflate` asserts `roots <= 2`. It does not pin the S6 = 1 suppression as
+  documented behaviour. That is fine, but if the owner later chooses suppression resistance, this test will not flag the
+  change.
+- As INGESTION.md:144 now states, consumers that group by `source_root_id` alone do not see origin merges. The
+  cross-department unit rule (`gate.independent_units`, gate.py:88) does use `root_groups`, so it is merge-aware. I
+  checked; no gap there.

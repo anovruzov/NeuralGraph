@@ -1,0 +1,608 @@
+From 7ce10d3640a5acbbda9d2f358e0257348e75916f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 06:49:35 +0000
+Subject: [PATCH 17/17] Harness integrity review (do not freeze yet) and dev
+ failure analysis of S1
+
+REVIEWER-4: goal-only and cross-tenant tasks mis-specified, role-revealing ids/titles, three
+vacuous gate checks; scorer arithmetic verified independently. PLANNER: every failed task first
+diverges at routing (questions carry no entity; ties broken by holder id); ingestion lost nothing.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl        |   3 +
+ research/mycelic_e2e/plan/DEV_ANALYSIS_S1.md  | 288 ++++++++++++++++++
+ .../mycelic_e2e/reviews/REVIEW_HARNESS.md     | 274 +++++++++++++++++
+ 3 files changed, 565 insertions(+)
+ create mode 100644 research/mycelic_e2e/plan/DEV_ANALYSIS_S1.md
+ create mode 100644 research/mycelic_e2e/reviews/REVIEW_HARNESS.md
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index d686182..26cbbb7 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -15,3 +15,6 @@
+ {"id": "X014", "utc": "2026-10-09T06:42Z", "kind": "custody", "what": "holdout bank sealed", "result": "templates_holdout.py moved out of the repo to /root/sealed_holdout/ (sha256 6613deee...5214); loader reads only MYCELIC_E2E_HOLDOUT_BANK; disjointness tests 12 passed with sealed bank, 10 passed + 2 skipped without", "class": "custody"}
+ {"id": "X015", "utc": "2026-10-09T06:45Z", "kind": "e2e-score", "run": "S1 + central baseline on the same sources", "agent": "WP3 (claude-sonnet-5-5)", "result": "system 78/120=0.650 Wilson95 [0.561,0.729], gate G1-G10 valid; baseline-single 111/120=0.925 [0.864,0.960]; baseline-source 107/120=0.892; 0 disclosures both; all 41 system misses are abstentions (20 claims 1 root, 11 claims 2 roots in 1 department, rest contested); hyperedges active support 841/lineage 841/discovery 641/conflict 560/entity_index 130; rank_method hypergraph 315 / domains 522; system 9,828 fake calls vs baseline 232", "class": "development (dev split), revision unclean, scorer under review", "findings": "cross_tenant dev-068/dev-082 gold mis-specified (in-tenant pattern shares context phrase) -> generator fix before freeze; raw_allowed_holder_ids empty -> raw_authority.json from org authz"}
+ {"id": "X016", "utc": "2026-10-09T06:45Z", "kind": "review", "agent": "REVIEWER-3 (claude-opus-5-5)", "subject": "82a7a4f ingestion review fixes", "result": "ACCEPT, nothing blocking: clean archive of HEAD 445 passed/7 skipped; probes S1-S5 back to 1 root/unknown, S6=1 accepted cost; D2 undated -> freshness unknown; 10 mutations each caught; rulings: all-undated support 'unknown' acceptable; evidence_freshness admin stat not blocking", "orchestrator_decision": "accepted into the candidate", "class": "review"}
++{"id": "X017", "utc": "2026-10-09T06:52Z", "kind": "review", "agent": "REVIEWER-2 (claude-opus-5-5)", "subject": "WP1 fixes F1-F11 (snapshot of working tree, base c9bb423-era)", "result": "ACCEPT except S1 (gate.py:116-118 department attribution depends on unit-id order when roots are shared within a department; blocks O3 runs); snapshot full suite 483 passed/7 skipped; heartbeat 0.5-0.7 ms at 1,500 holders (was 106 ms), cold start 1.5 s (was 66.8 s); F5 deviation accepted with conditions (no run may enable entity_include_members or threshold<5 without declaring it); pre-existing motivating_lineage label leak open", "orchestrator_decision": "S1 + lineage label leak + evidence_freshness meta assigned to WP1 engineer", "class": "review"}
++{"id": "X018", "utc": "2026-10-09T07:05Z", "kind": "review", "agent": "REVIEWER-4 (claude-opus-5-5)", "subject": "harness c254a33+737b01c and S1 artifacts", "artifact": "research/mycelic_e2e/reviews/REVIEW_HARNESS.md", "result": "DO NOT FREEZE: goal-only tasks option lottery (overlapping project scopes, multi-service claims credited), cross-tenant gold wrong/ambiguous in 4/5 (shared context ranges and service names), record id prefixes/titles reveal role, scorer disclosure checks partial, gate G7/G4/G10 vacuous or circular (mutations pass); scorer arithmetic verified (independent re-score identical 78/111/107); determinism verified; baseline 'source' recommended as primary. Excluding the 15 broken tasks: system 64/105, baselines 99/105.", "orchestrator_decision": "fixes assigned to WP2/WP3; new binding scoring rule: a supported claim naming >1 distinct entity contributes no option; baseline 'source' primary", "class": "review"}
++{"id": "X019", "utc": "2026-10-09T07:05Z", "kind": "analysis", "agent": "PLANNER (claude-fable-5-1)", "artifact": "research/mycelic_e2e/plan/DEV_ANALYSIS_S1.md", "result": "all 41 failed question tasks first diverge at routing (gold holders authorized but ranked out: rank_method=domains, entities=[] -> first-N by holder_id among 15-17); 0 ingestion losses; blind verification routed by entity to gold holders but fake compose_verification_question topic = first 5 content words -> no_evidence in 53/71; wave-1 blackout: empty heartbeat snapshot retracted all published domains for ~3 s. Hypotheses H1 term index (+~28), H2 verification topic (+25 alone), H3 one excerpt per answer, H4 tie-break, H5 heartbeat retraction fix", "orchestrator_decision": "H1+H2+H5 assigned to WP1 engineer; privacy ruling: term ids from PUBLIC records only, threshold 1 allowed for public (readable by every member), off-switch auto_terms", "class": "analysis"}
+diff --git a/research/mycelic_e2e/plan/DEV_ANALYSIS_S1.md b/research/mycelic_e2e/plan/DEV_ANALYSIS_S1.md
+new file mode 100644
+index 0000000..b2bc3d9
+--- /dev/null
++++ b/research/mycelic_e2e/plan/DEV_ANALYSIS_S1.md
+@@ -0,0 +1,288 @@
++# DEV run S1 — failure analysis (size S, seed 1, dev split)
++
++Run dir: `scratchpad/runs/S1` (run_id `run_ad994c5f75c6`, provider `deterministic-provider`, fake.py sha `2ea34d23…`).
++Score reproduced with `python -m research.mycelic_e2e.bench.score <run dir>`: **78/120 = 0.650**, Wilson [0.561, 0.729],
++disclosures 0, errors `{'tie': 1}`. Per class: cross_domain 22/40, contradiction 4/10, temporal 5/10, common_origin_pos
++1/8, fault 4/10; coincidence 10/10, common_origin_copies 7/7, single_domain 10/10, denied 10/10, cross_tenant 5/5.
++Architecture gate G1–G10 all pass (`arch_gate.json`). Everything below was read from `coord.db` / holder `evidence.db`
++(`mode=ro`), the asker views, the public task file and the dev gold.
++
++Stage codes (from the brief): (a) ingestion/root, (b) holder not routed, (c) routed but no_evidence / wrong chunk, (d)
++evaluate clustering, (e) gate, (f) extraction, (g) tie, (h) timeouts/budget/race, (i) generator/gold defect.
++
++## 0. Headline
++
++All 41 failed **question** tasks diverge first at the same place: **(b) the first question is routed to 10 of 15–17
++authorized holders by a ranking that has no signal for the question's topic**, so one or more gold holders are ranked
++out. `rank_method` was `domains` for every asker question (837 questions: 522 `domains`, 315 `hypergraph`, the latter all
++loop children). The question text names the symptom phrase ("lunar ladder") and two department names, never a service,
++and `hypergraph.entities_in_text` knows only services / tracker keys / "<x> regression" symptoms, so `entities=[]`,
++`entity_hits=0` for every candidate. After the authorization filter every candidate has `domain_overlap=1` (or 0 with no
++published domains) and the greedy loop in `inquiry/routing.py:rank_holders` breaks ties by `holder_id` (strict `>` over
++`order = sorted(remaining)`), i.e. **first-N by holder id** — the behaviour the ranker was built to replace. Gold holders
++with high ids (`hold_ca…`, `hold_d6…`, `hold_db…`, `hold_e7…`, `hold_ec…`, `hold_f7…` — the department memories) are the
++ones that lose.
++
++The recovery path exists and routes correctly — the blind verification question carries `target_entities` and is
++ranked `hypergraph`; gold holders in the other departments received it in 31/34 cases and answered with the gold
++record in 24/34 — but it is wasted at **(c)+(d)**: `fake.compose_verification_question` turns the finding into its
++first five content words ("customer case summary ledgergate", "going through last week s", "team confirms X service")
++and prefixes "Independently of any other **team** … your own **records** show …", so every holder's lexical answer rule
++(≥2 shared tokens) returns unrelated records that use the same template or contain "team", and `evaluate_responses`
++puts every response into a numeric disagreement (≥3 shared boilerplate tokens, different `{n}`) → **no findings** →
++`verified.outcome = no_evidence` (53 of 71 verification questions run-wide; 6 confirmed, 11 contradicted, 1 mixed).
++The two tasks that were rescued (dev-066, dev-067) are exactly the ones whose first five words happened to contain the
++context phrase ("retro item gilded harbor comes").
++
++The one remaining failure (dev-040, goal-only) is a **generator + answer-concatenation** defect, not a routing one.
++
++## 1. Per-class table — failed tasks
++
++Legend for the evidence column: `cands` = authorized candidates in the `question.route` audit, `gold routed k/n` = gold
++holders among the 10 chosen, `U`/`u` = unit/user holder, `verif` = the child verification question's `verified.outcome`
++and whether gold holders in other departments answered with the gold record.
++
++### cross_domain (18 failed of 40; 10 goal-only tasks: 9 ok, 1 tie)
++
++| task | first stage | evidence (one line) |
++|---|---|---|
++| dev-001 | (b) + (h) wave-1 blackout | cands=31 (domains wiped at 06:10:54, see D1), chosen incl. 4 holders with `base=0`; gold routed 0/3 → `no_evidence`, no claim, no verification |
++| dev-006 | (b)→(e) | gold routed 2/3 but both in Release Engineering (U+u) → gate "span 1 department unit(s); the question requires 2" → hypothesis; verif no_evidence (1 gold routed, junk answers) |
++| dev-008 | (b) | gold routed 1/3 (Treasury Planning memory) → 1 root → hypothesis; verif: 2 gold holders in other depts answered the gold record (16) but 8 answers → all in numeric disagreement → `no_evidence` |
++| dev-010 | (b) | cands=17, gold routed 0/3 → `no_evidence` |
++| dev-014 | (b)→(e) | gold 2/3 same dept (Platform Reliability U+u) → units rule → hypothesis; verif 0 gold routed |
++| dev-018 | (b) | gold 1/3 → 1 root; verif: 2 gold answered correctly, `no_evidence` (9 junk answers) |
++| dev-030 | (b) | gold 1/3; verif 2 gold answered correctly, `no_evidence` |
++| dev-034 | (b) | gold 1/3; verif 2 gold answered correctly, `no_evidence` |
++| dev-040 | (g)/(i) goal-only | 3 supported claims whose text is 3 concatenated excerpts naming batchrouter **and** cargoforge (both options, equal roots) → scorer tie; cargoforge is another genuine pattern of the same project |
++| dev-041 | (b) | gold 1/3 (user holder); verif 1 gold answered correctly, `no_evidence` |
++| dev-043 | (b)→(e) | gold 2/3 same dept → units rule; verif 1 gold routed, `no_evidence` |
++| dev-079 | (b)→(e) | gold 2/3 same dept → units rule → hypothesis, then `contested` by a junk verification disagreement |
++| dev-092 | (b)→(e) | gold 2/3 same dept; verif `contradicted` (junk) → claim `contested` |
++| dev-103 | (b) | gold 1/3 (user); verif 2 gold answered correctly, `no_evidence` |
++| dev-112 | (b) | gold 1/3 (user); verif 2 gold answered correctly, `no_evidence` |
++| dev-114 | (b) | gold 1/3; verif 2 gold answered correctly, `no_evidence` |
++| dev-118 | (b) | gold 1/3 (user, diversity slot); verif `contradicted` by junk → claim `contested` |
++| dev-119 | (b)→(e) | gold 2/3 same dept (Rapid Response Cell U+u) → units rule; verif 1 gold routed, `no_evidence` |
++
++### contradiction (6 failed of 10)
++
++| task | first stage | evidence |
++|---|---|---|
++| dev-028 | (b) | gold 1/3 (user) → 1 root; verif 2 gold answered the surviving value, `no_evidence` |
++| dev-061 | (b) | gold 1/3 → 1 root; verif 2 gold answered correctly, `no_evidence` |
++| dev-083 | (b) | gold 1/3 (user); verif 2 gold answered correctly, `no_evidence` |
++| dev-104 | (b)→(e) | gold 1/3 + a copy from a non-gold holder: "2 roots, 1 copied reference(s) not counted, span 1 department" → hypothesis; verif `no_evidence` |
++| dev-109 | (b) | gold 1/3 (user); verif 2 gold answered correctly, `no_evidence` |
++| dev-113 | (b)→(e) | gold 2/3 same dept (Treasury Planning U+u) → units rule; verif 1 gold routed, `no_evidence` |
++
++The retraction/edit records themselves were ingested correctly (surviving value present as `active`, the retracted side
++`revised`/absent in the holder DBs); the contradiction mechanics were never reached.
++
++### temporal (5 failed of 10)
++
++| task | first stage | evidence |
++|---|---|---|
++| dev-020 | (b) | gold 1/3 (user) → 1 root; verif 2 gold answered the current value, `no_evidence` |
++| dev-037 | (b) | gold 1/3 (user); verif 2 gold answered correctly, `no_evidence` |
++| dev-042 | (b) | gold 1/3 (user); verif 2 gold answered correctly, `no_evidence` |
++| dev-085 | (b) | gold 1/3 (user, diversity slot); verif `contradicted` by junk → `contested` |
++| dev-093 | (b) | gold 1/3 (user); verif 2 gold routed, 1 answered correctly, `no_evidence` |
++
++`valid_from` (120 days) was applied; superseded values did not reach the gate. Temporal gold is `U u u` (one unit
++holder), so these tasks are the most exposed to the user-holder tie-break.
++
++### common_origin_pos (7 failed of 8)
++
++| task | first stage | evidence |
++|---|---|---|
++| dev-004 | (b) | gold 1/2 → 1 root; verif 1 gold routed, junk → `no_evidence` |
++| dev-012 | (b) | gold 1/2; verif 1 gold answered correctly, `no_evidence` |
++| dev-016 | (b) | gold 0/2 → `no_evidence` |
++| dev-050 | (b) | gold 0/2 → `no_evidence` |
++| dev-051 | (b) | gold 0/2 → `no_evidence` |
++| dev-062 | (b) | gold 1/2; verif `contradicted` by junk → `contested` |
++| dev-081 | (b) | gold 0/2 → `no_evidence` |
++
++Both genuine roots live in the two department memories (`U U`); copies are elsewhere. The root-dedupe rule itself works
++where it was exercised (dev-104: "1 copied reference(s) not counted").
++
++### fault (6 failed of 10)
++
++| task | first stage | evidence |
++|---|---|---|
++| dev-003 (restart_mid_ingest) | (b) + (h) blackout | all 4 gold records ingested and `active`; cands=30 (wave 1), gold 0/4 → `no_evidence` |
++| dev-013 (delete) | (b)→(e) | 4 gold records active; gold 2/4 same dept → units rule; verif 1 gold answered correctly, `no_evidence` |
++| dev-021 (out_of_order) | (b) | gold 1/4; one record correctly `revised v2`; verif 3 gold routed, junk → `no_evidence` |
++| dev-031 (edit) | (b)→(e) | gold 2/4 same dept (edited record `revised v2`, fine); verif `no_evidence` |
++| dev-090 (malformed) | (b) | gold 1/4; verif 3 gold answered correctly, `no_evidence` |
++| dev-094 (duplicate) | (b)→(e) | gold 2/4 same dept; dedupe correct (17 duplicates run-wide); verif `no_evidence` |
++
++No fault task failed at (a): every gold record is present with the right root and status in its holder DB (`G10` pass).
++
++## 2. Counts per first-divergence stage (42 failures)
++
++| stage | count | detail |
++|---|---|---|
++| (b) gold holder authorized but ranked out by `max_holders=10` | **41** | 0 gold routed → `no_evidence`: 7 (dev-001, 003, 010, 016, 050, 051, 081); 1 gold routed → 1 root: 24; 2 gold routed in one department → (e) units rule: 10 |
++| ↳ of which (h) wave-1 domain blackout contributed | 2 | dev-001, dev-003 (cands 30–31, base-0 holders chosen) — see D1 |
++| (g)/(i) goal-only tie | 1 | dev-040 — see D2 |
++| (a) ingestion / root | 0 | all gold records present, roots and statuses as expected |
++| (c)+(d) as the *second* loss (verification wasted) | 34 of 34 tasks that reached a verification | gold in other departments routed 31/34, answered correctly 24/34; findings=0 because of boilerplate matches — see H2 / D3 |
++| (f) extraction wrong | 0 | every abstain in a failed task reflects "no supported claim"; extraction matched correctly where claims existed |
++
++Passing positives, for calibration: 11 of the 22 passing cross_domain tasks got exactly two gold holders from two
++departments on the first question (roots=2, units=2); 2 passed through a confirmed verification (dev-066, dev-067);
++dev-002 passed in the blackout by chance (a `base=0` gold holder was chosen).
++
++## 3. Expected-abstain classes — right answer, right reason?
++
++| class | n | abstained for the intended rule | abstained because nothing relevant was routed | note |
++|---|---|---|---|---|
++| single_domain | 10 | 8 — gate reason "independent roots span 1 department unit(s); the question requires 2" (O3) | 2 (dev-019, dev-086: 1/3 gold routed → "1 root") | intended rule is load-bearing |
++| coincidence | 10 | 5 — the gold holder answered, 1 root, no cluster with the unrelated statements → hypothesis | 5 (dev-058, 063, 071, 080, 084: 0/1 routed) | half are correct for the wrong reason |
++| common_origin_copies | 7 | 0 — the "copied reference(s)" reason never appears; with ≤1 holder routed the dedupe rule was not exercised | 7 (0/1 or 1/1 routed, copies' holders never routed) | **correct for the wrong reason**; under H1/H5 these tasks will route to the copy holders, and the A2 ablation must then break them |
++| denied | 10 | 10 — the forbidden source's holder *was* routed in 10/10 (holder-level authz allows it) and answered `no_evidence`: the record-level ACL (`EvidenceStore._allowed_memory_ids`) withheld the record; 0 foreign refs, raw checks all refused | — | intended mechanism, no leak |
++| cross_tenant | 5 | 5 — tenant-B holders never candidates ("tenant mismatch" is checked first); 2 tasks committed unrelated tenant-A claims (hypothesis/contested) | — | intended |
++
++Any routing fix must be re-checked against coincidence and copies-only: today they abstain largely because the gold
++holder was not reached, not because the decoy rule fired.
++
++## 4. Hypotheses, ranked by expected gain on the primary metric
++
++### H1 — Route the first question by the symptom phrase: a content-free term index next to the entity index (largest gain)
++
++* **Mechanism today**: `inquiry/routing.py:question_entities` → `knowledge/hypergraph.py:entities_in_text` (services,
++  tracker keys, "<x> regression") → `entity_hits=0` for every asker question; `rank_holders` falls back to
++  `domain_overlap + unit_diversity` with `holder_id` tie-break. Holder side: `evidence/service.py:_ingest_stats_sync`
++  publishes `ingest.entities` (ids with ≥ `entity_min_records` records, cap 500) via `org.py:holder_heartbeat` into
++  `entity_index` hyperedges.
++* **One-factor change**: publish, through the same heartbeat/entity-index path, hashed rare content terms of the holder's
++  public/members records (`term:<sha1[:12] of stemmed token>`, document frequency within the holder ≤ 3, cap 500 by
++  rarity, same `entity_min_records`/ACL rules as entities — private sources excluded as today); accept the `term:` kind
++  in `entities.PUBLISHABLE_ENTITY_KINDS` / `hg.is_publishable_entity`; in `question_entities` add `term:<hash>` for each
++  stemmed content token of the question text (reuse `models/fake.content_tokens`-style stemming; drop department names
++  listed in `candidate_domains`' display names). No change to weights: "lunar"+"ladder" give the 3 gold holders
++  `entity_hits=2` (+6) against 1 for domain overlap.
++* **Expected movement**: every question class. cross_domain 22→~36/40, contradiction 4→~9, temporal 5→~9,
++  common_origin_pos 1→~7, fault 4→~9 (the first question then reaches all gold holders; the units rule is satisfied on
++  the first commit without verification). Roughly +28 tasks (→ ~0.88). Implements O2(a) for arbitrary symptom wording,
++  so it is the one change that also scales to M/L (where `budget.holders=10` of hundreds).
++* **Must not break**: authz is untouched (`candidate_holders` runs first; `rank_holders` filters incidence to `allowed`);
++  no asker-visible surface changes (term hashes appear only in the `question.route` audit `entities` list — keep that
++  list hashed, never the token). Denied/cross-tenant: unaffected (holder set is the same, only its order changes).
++  coincidence: the gold holder will now be routed in 10/10 — its single statement stays 1 root → still abstain, but
++  verify. copies-only: the copy holders will now be routed → the claim gets refs from 2 holders of 1 root → the gate
++  must say "copied reference(s) not counted" → still abstain; this is the first time A2 is actually exercised.
++  Keep G8's "entity coverage" counting entities only, or extend it to terms explicitly.
++
++### H2 — Blind verification question names the finding's entity instead of its first five words
++
++* **Mechanism today**: `discovery/engine.py:_ask_verification` → `models/fake.py:compose_verification_question`:
++  `content_words(finding_text, drop_numbers=True)[:5]` + preamble "Independently of any other team: what do your own
++  records show about … ? Include dates." Holder answers need ≥2 shared tokens (`fake.answer_from_evidence`); every
++  dev record with the same template ("Customer case summary: … explains …", "Our team confirms …") qualifies, and
++  `evaluate_responses` (≥3 shared tokens → compare numbers) marks all of them as disagreements → `findings=[]` →
++  `verified.outcome=no_evidence` → `revise_claim(... "returned no independent evidence")`.
++* **One-factor change**: `_ask_verification` already computes `target_entities` via `_claim_entities`; pass their display
++  names (`ledgergate-service`) as `entities` to the task, and let `compose_verification_question` use
++  `", ".join(entities)` as the topic when present (fallback to today's words); shorten the preamble to words that no
++  observation template uses: "What do your own notes show about {topic}? Include dates." (drop "team", "records",
++  "independently"). Blindness is preserved (no number, no polarity; the entity is already in the text today whenever it
++  is among the first five words).
++* **Expected movement**: without H1, rescues the 24 "1 gold routed" + 10 "2 gold, 1 department" tasks whose
++  verification reached gold holders in the other department (31/34): ≈ +25 tasks. With H1 in place: +3–5 (tasks where
++  a user gold holder is still ranked out). Also the mechanism that keeps M/L viable.
++* **Must not break**: verification must still exclude supporters (`exclude_holder_ids`) and must not name the number.
++  Watch `_agrees` in `engine.py`: a response that concatenates two excerpts with different numbers (temporal: old+new
++  value in one holder) would read as "disagree" and open a conflict on a correct claim — pair with H3 or limit
++  `answer_from_evidence` to one excerpt for verification questions. Check contradiction tasks still produce the conflict
++  on the retracted side (they do today at the first question only when both sides are routed).
++
++### H3 — One excerpt per holder answer (or evaluate per reference), not three concatenated
++
++* **Mechanism today**: `models/fake.py:answer_from_evidence` joins up to 3 matching excerpts into one `answer`; the
++  claim text is the longest member of a cluster, so a claim can name several entities, and `numbers()` of a
++  concatenation is a set of several numbers → spurious numeric disagreement in `evaluate_responses` and in
++  `engine._agrees`.
++* **One-factor change**: `kept` limited to the single best excerpt (highest shared-token count, ties by observed_at
++  desc), or the coordinator splits a response into one evaluation unit per `evidence_ref_id` (`handle_response` keeps the
++  refs; `evaluate` builds `responses` per ref). The provider sha changes → new provider label in the ledger.
++* **Expected movement**: +1 (dev-040) directly; removes the main false-disagreement source for H2 and for goal-only
++  tasks. Independent-support correctness (6/36 today, goal-only claims report 8–12 roots because three patterns are
++  merged into one claim) becomes measurable.
++* **Must not break**: goal-only positives that currently pass with roots 8–12 (dev-005, 007, 009, 026, 033, 036, 060,
++  064, 102) must still pass: each pattern becomes its own supported claim; the scorer then picks the option with the most
++  roots — that is only unambiguous if D2 is fixed (decoys must not be other genuine patterns).
++
++### H4 — Tie-break in `rank_holders` by evidence mass, not by holder id (cheap partial substitute for H1)
++
++* **Mechanism today**: `routing.py:rank_holders` greedy loop: `adj > best_adj` strict, iteration over `sorted(remaining)`
++  → lowest `holder_id` wins every tie; a department memory with 40 records in the domain ranks equal to a user with 5.
++* **One-factor change**: add `W_RECORDS * min(1.0, records_in_wanted_domains / 20)` to `base`, taking the per-domain
++  counts the heartbeat already reports (`stats.ingest.domains` — expose them in `org.routing_holders` as
++  `published_domain_counts` so the routing view stays stats-free), or at minimum `+0.5` for `owner_type == "unit"`.
++* **Expected movement**: gold is `U U u` (cross_domain, contradiction, fault `U U u u`, common_origin `U U`): both
++  department memories get routed → first-question support from 2 departments. +15–20 tasks at S (temporal `U u u` only
++  partially). Does not scale to M/L on its own (every department has many unit holders), so it is a fallback if H1
++  slips, and a sane tie-break to keep under H1.
++* **Must not break**: single_domain still abstains by the units rule; denied/cross-tenant unchanged.
++
++### H5 — Stop treating an empty heartbeat snapshot as "all domains purged" (see D1; a correctness fix, not an accuracy gain)
++
++* `org.py:holder_heartbeat`: `published = … if auto else []` then "replaced, not accumulated": an `ingest.domains == {}`
++  report with `records > 0` (or a `dormant` beat) removes every published domain and, in the entity branch, every
++  entity-index edge, and republishes them on the next beat. Guard: when the snapshot reports records but no domains
++  (or is marked `dormant`), keep the previous publication. Runner: after `worker.start()`, wait until two consecutive
++  beats per holder report the same non-empty set before issuing wave 1.
++
++## 5. Harness / generator / scorer defects — fix before the contract freezes (not accuracy gains)
++
++**D1 — Domain/entity publication blackout during wave 1 (harness + runtime race).** `audit_log`: 168
++`holder.domains_published` rows; publication at 06:10:49–53, then at **06:10:54 all 56 holders** get
++`{"removed": [<their domain>]}` and `holder.entities_published {"published": 0}`, re-published 06:10:55–57. The runner
++logged "routable domains published by 56/56" at 06:10:54 and started the worker; wave-1 questions were routed
++06:10:54–06:11:01 (`question.route` audit) with 30–31 candidates (holders with no domains pass `_can_route`) and
++`base=0` holders chosen (dev-001: 4 of 10 chosen had `domain_overlap=0` although their current `published_domains`
++match). G4's "99 replay denials (domain drift)" are the same event. Affected: dev-000…dev-014 (9/12 question tasks in
++wave 1 failed vs 2–7/15 in later waves). Fix as H5 plus a runner stability check; re-run before any ledger row is
++compared.
++
++**D2 — Goal-only tasks are ambiguous by construction (dev-040).** `world.py:cross_domain(goal_only=True)` places the
++pattern in a project's members and the loop asks "What recurring operational blockers related to <family> …"; the
++answer legitimately contains every goal-only pattern of that family/project, and `options_for` draws decoys from the
++tenant's services, which include those patterns' gold entities (dev-040 options: ledgergate, dockforge,
++**batchrouter**, **cargoforge** — cargoforge is dev-064's gold, same project). With H3 the extraction becomes a roots
++comparison between two genuine patterns (ties → wrong). Fix in the generator: decoy options of a goal-only task must
++exclude entities of any pattern whose records are reachable from the same goal scope; add a test.
++
++**D3 — Lexical contract has a gap.** `templates_dev.py` guarantees ≥2 shared tokens question↔record and ≥3 between
++agreeing records, but observation templates share 5–8 boilerplate tokens *across different patterns* ("customer case
++summary … explains … counted … affected accounts"), so any two records of the same template with different `{n}` are a
++numeric disagreement for `fake.evaluate_responses`; "Our team confirms …" and "… for the team …" share "team" with the
++verification preamble. This is invisible as long as only the asker question is answered (its tokens are the ctx words),
++and fatal for every loop-composed question. Either the template bank must keep cross-pattern overlap < 3 content tokens
++(and the holdout bank must be checked by the same predicate — do not open it, extend the existing predicate test), or
++the deterministic evaluator must compare numbers only between responses that mention the same entity id. Decide and
++record in BENCHMARK_CONTRACT §2 before freeze; H2/H3 reduce the exposure but do not remove it.
++
++**D4 — Routing audit is not self-explanatory.** `question.route.detail.scores` lists only the chosen holders; the
++ranked-out candidates' parts had to be reconstructed. Add the top `2 × max_holders` candidates with their parts, and
++the tie-break rule, to the detail (G4 can then assert "no candidate with a strictly higher base was left out").
++
++**D5 — Scorer / view nits (no score impact in S1).** `latency_s` is computed from second-resolution timestamps (all
++1.0); the asker view carries only the task question's claims, which is right for O1 but means a loop follow-up that
++commits the answer under a child question is invisible to extraction — acceptable, but write it into the contract.
++`independent_support_correctness` (6/36) is dominated by concatenated goal-only claims (H3/D2) and by 2-holder claims
++against `genuine_roots=3`; keep it as a supporting metric only.
++
++## 6. Suggested order for the overnight
++
++1. D1/H5 (race) and D2 (generator) — otherwise every later comparison carries wave-1 noise and a built-in tie.
++2. H1 (term index) — one factor, re-run S1; expect ≥0.85. Record the `question.route` `rank_method` distribution: asker
++   questions must now show `hypergraph`.
++3. H2 (+H3 for the concatenation) — one factor on top; expect the remaining 1-gold-routed cases to close and
++   `verified.outcome` to flip from `no_evidence` to `confirmed` for most children.
++4. H4 only if H1 is not ready; D3 decision written into the contract either way.
++5. Re-run the abstain classes after each step and look at *reasons* (single_domain "span 1 department", copies-only
++   "copied reference(s) not counted"), not just the abstain count.
+diff --git a/research/mycelic_e2e/reviews/REVIEW_HARNESS.md b/research/mycelic_e2e/reviews/REVIEW_HARNESS.md
+new file mode 100644
+index 0000000..81880a5
+--- /dev/null
++++ b/research/mycelic_e2e/reviews/REVIEW_HARNESS.md
+@@ -0,0 +1,274 @@
++# REVIEW-4: benchmark integrity of the Mycelic-E2E v1 harness (pre-freeze)
++
++Reviewer: REVIEW-4, model `claude-opus-5-5`. Scope: `research/mycelic_e2e/bench/` at 737b01c (WP2 c254a33 + WP3), contract
++`BENCHMARK_CONTRACT.md`, `plan/PLAN_v1.md` §B/§F, dev run artifacts `runs/S1`, `runs/S1-baseline-single`, `runs/S1-baseline-source`
++(seed 1, size S). Read-only: no code or run directory was modified. All mutation tests ran on copies in the reviewer's scratch directory.
++Nothing under `/root/sealed_holdout` or any holdout file was opened.
++
++Reproducible scripts (reviewer scratch, `rev4/`): `rescore.py` (independent scorer), `derive.py` (gold derivability from raw
++records), `accretion.py` (baseline support analysis), `determinism.py` + `srcdet.py`, `gaterun.py` (gate on mutated copies).
++
++## Verdict summary
++
++| # | item | verdict |
++|---|---|---|
++| 1a | goal-only tasks: scope = a project whose members are exactly the observers; at S, 3 projects share members, so 3 golds answer one question | **MUST-FIX-BEFORE-FREEZE** |
++| 1b | cross-tenant tasks: the "foreign" context also exists in the asker's own tenant (4/5 tasks); gold `abstain` wrong for 2 | **MUST-FIX-BEFORE-FREEZE** |
++| 1c | record ids (`o`/`d`/`c`/`f`/`n` prefixes) and titles (`Housekeeping` = coincidence decoy) carry the record's role into the runtime | **MUST-FIX-BEFORE-FREEZE** (cheap; fatal for a live-model row) |
++| 1d | temporal class is identifiable from public fields; its validity window was chosen with knowledge of the gold ages | DISCLOSE |
++| 1e | question/goal text never names the gold or any option (checked 120/120); task ids shuffled | OK |
++| 2a | scorer arithmetic: independent re-score equals `score.json` for every task (78 / 111 / 107) | OK |
++| 2b | forbidden-holder check is holder-level (over-broad); tenant check reads a field the system views never carry | **MUST-FIX-BEFORE-FREEZE** |
++| 2c | raw access checked for the first 40 refs only; other refs count as disclosures | MUST-FIX (latent at S, real at M/L) |
++| 2d | extraction credits claims that name several entities when the distractors happen not to collide | **MUST-FIX** (with 1a) |
++| 2e | scope = the task question only (loop questions under the same goal ignored); denominator; errors; `raw_authority.json` | OK, DISCLOSE the scope |
++| 3 | class mix 40/10/10/8+7/10/10/10/5/10 = 120; the other 105 question tasks have derivable, unambiguous gold | OK (apart from 1a, 1b) |
++| 4 | baseline fairness: `single` beats `source` only on the broken goal-only tasks; `source` is the fair primary | DISCLOSE + report `source` as primary |
++| 5 | architecture gate: G3 is real; G7 harness-write, G4 authorization replay and G10 fault evidence are vacuous or circular | **MUST-FIX-BEFORE-FREEZE** (G7, G4, G10); DISCLOSE (G2, G8) |
++| 6 | determinism: same seed gives byte-identical tasks and sources | OK; DISCLOSE that results depend on wave order |
++
++Sensitivity, for information only and not a replacement metric: removing the 15 defective tasks (10 goal-only and 5
++cross-tenant) gives system 64/105 (61.0 %), baseline-single 99/105, baseline-source 99/105. On the rest, the two baseline
++variants are identical.
++
++---
++
++## 1. Leakage of gold, labels or roles into the system under test
++
++**1a. Goal-only tasks (MUST-FIX).** `world.py:547` sets the goal scope to the project, and `world.py:554` sets `policy={}`
++(no two-department requirement). The project's members are exactly the four holders that carry the observations, and the
++asker (`proj.members[0]`) holds one of them, so the scope alone identifies the gold holders. Worse, at size S
++`world.py:231-232` gives projects p0, p2 and p4 the same members (`t0-u00008, -09, -12, -13`), and p1 and p3 the same
++members too. That holds for both tenants (checked with `generate(1,'S')`; at M the five member sets are distinct). The
++goal-only observation templates (`GOAL_OBS_TEMPLATES`) are generic ("recurring … blocker … caused by"), so tasks dev-009,
++dev-026 and dev-060 are the same question from the same person over the same holders, with three different golds. Evidence:
++
++- dev-040 (gold `batchrouter`) also lists `cargoforge`, the gold of dev-064, among its options. All three runs score it as a tie, so wrong.
++- Each of the 9 goal-only tasks the system got right, and each of the 9 that baseline-single got right, was credited from
++  supported claims naming 2 to 5 services: every goal-only pattern of the project, or of the tenant for the baseline. They
++  scored only because the other services were not among the 4 options (`rev4/accretion.py`, and the listing in §4).
++
++The goal-only class (10 of the 40 positives) is therefore an option lottery. Fix:
++1. Make project member sets disjoint (assert it at every size).
++2. Give each goal-only pattern a distinguishing topic that the goal objective names (for example its context phrase).
++3. With 2d, treat a claim that names more than one world entity as ambiguous.
++
++**1b. Cross-tenant tasks (MUST-FIX).** `world.py:396-397` gives both tenants the same reserved context range
++(`reserved_next = [60, 60]`). Tenant 0 hosts the cross-tenant patterns asked from tenant 1, and the reverse, so a tenant-0
++asker who asks about context 60 or 61 (whose pattern lives in tenant 1) finds a real cross-department pattern with that
++same context in their own tenant. `derive.py` over the final raw records shows:
++
++| task | asker tenant | in-tenant pattern with the asked context | in-tenant service among the options? |
++|---|---|---|---|
++| dev-046 | t0 | none | — |
++| dev-059 | t1 | `ledgersync`, 2 departments, 3 roots | no |
++| dev-068 | t0 | `yardhub`, 2 departments, 3 roots | **yes** |
++| dev-075 | t0 | `manifestgate`, 2 departments, 3 roots | no |
++| dev-082 | t1 | `dockforge`, 2 departments, 3 roots | **yes** |
++
++For dev-068 and dev-082 the gold `abstain` is wrong. Both baselines answered exactly `yardhub` and `dockforge` there and
++were marked wrong (cross-tenant 3/5). The system abstained and was marked right, even though the answer is derivable in
++its own tenant. For dev-059 and dev-075, `abstain` scores as correct only because of the option draw.
++
++The options also come from the other tenant's entity list (`world.py:760`), and both tenants draw service names from one
++140-name pool. As a result the forbidden markers are not unique: `manifestgate-service` is dev-082's forbidden marker and
++also a real tenant-1 service (the gold of dev-036). The goal loop of dev-082 produced a supported claim naming it, from
++tenant-1 data, with 0 forbidden-root references.
++
++Fix:
++1. Use disjoint reserved ranges per tenant, and assert that no context used by a cross-tenant pattern occurs in the asker's tenant.
++2. Make the service names disjoint across tenants, or draw cross-tenant distractors from the asker's tenant.
++
++**1c. Role carried by ids and titles (MUST-FIX, cheap).** `events.py:40` writes `"id": rec.rid`, and `Planner.rid`
++(`world.py:429`) prefixes the id with the record's role:
++
++| prefix | role | records in S1 sources |
++|---|---|---|
++| `o` | observation | 416 |
++| `d` | coincidence decoy | 30 |
++| `c` | forwarded copy | 22 |
++| `f` | filler | 141 |
++| `n` | private note | 20 |
++
++Titles do the same:
++
++| title | role | source line |
++|---|---|---|
++| "Field note" | observation | `world.py:506` |
++| "Housekeeping" | coincidence decoy (30 records) | `world.py:706` |
++| "Fwd: field note" | forwarded copy | `world.py:674` |
++| "Notice" | filler | |
++| "Personal note" | private note | |
++
++Titles reach the asker's view: the baseline's dev-005 view lists 20 references titled "Field note". The deterministic
++provider ignores these cues, but a live model sees them. Fix: hash the ids (for example `sha256(seed|rid)[:12]`) and draw
++titles from one shared pool for every role.
++
++**1d. Temporal class (DISCLOSE).** Only temporal tasks use the "currently / As of now" templates and carry
++`valid_from_days=120` (`world.py:531`). From public fields the class separates perfectly (10/10, 0 false positives). The
++superseded observations are 200–260 days old and the new ones 8–40 days old (`world.py:temporal`), so the 120-day window
++does the supersession for both system and baseline. The class measures whether the window filter is honoured, not
++temporal reasoning.
++
++**1e. OK.** No question, goal title or objective contains the gold or any option name (120/120). Task ids are shuffled.
++Options are not sent to the system (`issue.py:issue_task`). The gold file is written by `run.py` (through `GoldSink`) into
++the run directory before the runtime starts, in the same process. The runtime never reads it, but this is part of the
++§6 limitation; also, the `gold.py` docstring's claim that "nothing else imports this module" is false (`run.py` and
++`baseline_central.py` import it).
++
++## 2. Scorer (`score.py`)
++
++**2a. Independent re-score (OK).** `rev4/rescore.py` does not import `score.py`. It applies the contract rule to the views,
++the gold and `raw_authority.json`, and matches the stored per-task result exactly:
++
++| run | correct | per-task differences |
++|---|---:|---:|
++| S1 | 78 | 0 |
++| S1-baseline-single | 111 | 0 |
++| S1-baseline-source | 107 | 0 |
++
++The denominator is all 120 tasks. A missing view, error, timeout or unresolved question scores wrong, and `score_run`
++raises on any mismatch between the task set and the gold.
++
++**2b. Disclosure checks: one over-broad, one vacuous (MUST-FIX).**
++- *Over-broad:* `score.py:365` marks a reference as foreign when its holder appears in `forbidden_holder_ids`. Those
++  holders, such as department holders, also hold public records the asker may legitimately see. Evidence: the goal-level
++  claims of dev-044 and dev-099 (denied) cite 3 references from forbidden holders each, with 0 forbidden roots. Had those
++  claims been in the question view, both tasks would have been scored as leaks and the run would have failed compliance.
++  Fix: count a reference as foreign only when its root is forbidden or its tenant differs, or when its holder is forbidden
++  and it comes from the restricted source.
++- *Vacuous:* `score.py:362` reads `view["tenant_id"]`, which `issue.collect_view` (`issue.py:73`) never writes. The
++  cross-tenant reference check therefore never runs for system views; the baseline views do carry the field. Fix: write
++  `tenant_id` in `collect_view`.
++
++**2c. Raw-access checks capped at 40 references (MUST-FIX, latent).** `issue.py:119` checks raw access for the first 40
++references only. In `score.py`, every other reference whose holder is not in the allowed set becomes `raw_unchecked` and
++counts as a disclosure (`raw_checks_enabled=True`). The S1 maximum is 24 references per view, so nothing was affected, but
++at M or L sizes this produces false leaks. Fix: check every reference, or exclude the unchecked ones.
++
++**2d. Multi-entity claims (MUST-FIX with 1a).** Matching only against the K=4 options means a claim naming five services
++is credited whenever the other four are not options. See 1a: 18 credited goal-only answers across the system and
++baseline-single. Fix: the public task carries the world's entity vocabulary (not gold), and a supported claim naming ≥2
++vocabulary entities counts as ambiguous, which the existing rule then scores as a tie.
++
++**2e. OK, with disclosures.**
++- `raw_authority.json` (from `baseline_central._authority`) is answer-free. It is computed from the post-run organization
++  tables and the public asker only, using `can_view_raw_evidence`.
++- Extraction scope is the task question's claims only. I checked `coord.db` (a copy) for every wrong question task: in
++  none of them did a supported claim from another question under the same goal name the gold, so no correct answer was
++  hidden. The scope does help the system on expected-abstain classes, though: in 17 question tasks, supported goal-loop
++  claims name a non-gold option. Six of those tasks are expected-abstain (2 coincidence, 1 single-domain, 1 denied,
++  2 cross-tenant), and all six would turn wrong if goal output were counted. Disclose this.
++- Latent mismatch: `issue.RESOLVED` includes `investigated`, but `score.RESOLVED_STATUSES` (`score.py:45`) does not, so an
++  `investigated` question would score as unresolved, hence wrong. S1 had none. Align the two lists.
++
++## 3. Generator defects and gold correctness
++
++- **Class mix: OK.** `TASK_MIX` and the per-class n in S1 give exactly 40/10/10/15 (8+7)/10/10/10/5/10 = 120. Goal-only = 10 of the 40.
++- **Gold derivability (`rev4/derive.py`).** Method: take the final state of the records (edits applied, deletions removed,
++  stale out-of-order versions dropped), count public records plus members-only records whose members include the asker,
++  apply the validity window, and collapse forwarded copies onto the original's root. Result: all 105 question tasks other
++  than the 5 cross-tenant ones have derivable, unambiguous gold.
++  - Every positive has its gold service stated with the task's context in ≥2 departments with ≥2 roots, and covering the asked departments.
++  - No other option is derivable.
++  - No expected-abstain task (coincidence, single-domain, denied, common-origin copies) has a derivable option.
++- **Defective tasks:** dev-068 and dev-082 have wrong gold; dev-059 and dev-075 are ambiguous (1b). All 10 goal-only
++  tasks are ambiguous at S (1a). dev-040 is unwinnable for every run.
++
++## 4. Baseline fairness
++
++- **`single` is structurally different.** It sends one response per task (`baseline_central.py`, `variant == "single"`).
++  `fake.evaluate_responses` therefore has no pair to compare: no disagreement is ever detected, the finding's references are
++  all retained chunks, and the claim text is all excerpts joined together. The system and the `source` variant get
++  pairwise agreement and disagreement checks.
++- **Quantified on S1 correct positives:**
++
++  | run | supported claims naming the gold | refs not stating the gold pattern | claims naming >1 service | claims with root count inflated by non-pattern refs |
++  |---|---:|---:|---:|---:|
++  | baseline-single | 71 | 38 of 261 | 9 | 9 |
++  | baseline-source | 67 | 22 of 237 | 5 | 5 |
++
++  Every case is a goal-only task. For question tasks the retrieval rule (≥2 shared tokens) keeps only chunks of the task's
++  context, so no accretion occurred: 0 of the 62 question-task claims named a second service. Accretion inflated root
++  counts (up to 12) but never flipped the 2-root minimum. The system accretes the same way inside each holder's 3-chunk
++  response; all 27 of its supported multi-service claims naming the gold are in goal-only tasks.
++- **The 111 vs 107 gap between the variants is exactly four goal-only tasks** (dev-026, dev-036, dev-060, dev-064), that
++  is, the 1a defect.
++- **Recommendation:** report `source` as the primary baseline. It caps each origin at 3 chunks and 10 origins, mirroring
++  the system's 10 holders × 3, and runs the same pairwise evaluator. Report `single` as secondary.
++- **Apples-to-apples?** Partly. The same in both:
++  - raw files (byte copies)
++  - `local_export` connector and pipeline
++  - fake provider
++  - commit gate and policy, including `min_independent_units`, with true origin holders
++  - validity window
++  - task set and ask order
++  - evidence budget of 30
++
++  Differences to disclose:
++  - The baseline does not simulate replay or restart faults, so two fault tasks are easier for it.
++  - The baseline answers each task statelessly. The system runs the 120 tasks in waves of 15 on shared state (S1: 358
++    contested claims, 560 conflict edges by the end), so its results depend on wave composition and order.
++  - Goal-only queries differ: the baseline uses the goal title plus objective, the system its loop's generic question.
++  - Baseline raw checks are computed in-process with the API's rule, not through the API.
++
++## 5. Architecture gate (`arch_gate.py`): mutation tests on scratch copies of S1's `coord.db` and holder stores
++
++| copy | mutation | gate result | meaning |
++|---|---|---|---|
++| base | none | valid (reproduces `arch_gate.json`) | — |
++| M1 | supported claim `support.independent_roots` set to 1 | **G3 fails** ("1 < policy 2", "1 != recomputed 8") | G3 is a real check |
++| M2 | supported claim text rewritten to "TAMPERED by harness: zzzfake-service is the cause." | **valid** | harness writes go undetected |
++| M3 | a routed holder's domains and published domains set to `legal.contracts`, outside its question's domains | **valid** | the authorization replay tolerates it |
++| M4 | duplicate traces removed from every holder store, feed totals set to 0 | G10 fails, but only because of the `replay` flag in `sources_manifest` | no per-injection evidence check |
++
++- **G7 (MUST-FIX).** The "harness never wrote" check rests on `harness_db_opens`, which `run.py` never writes. S1 reports
++  `harness_opens_declared: 0`, so the check is vacuous, as M2 shows. The scorer reads views written by the harness, and
++  nothing cross-checks those views against `coord.db`. (I checked by hand: the per-question claim counts in S1 views equal
++  the database counts.) Fix: the gate compares every view claim's id, status, text and support with the `coord.db` row
++  and its revision, and `run.py` records its database opens.
++- **G4 (MUST-FIX).** Every replay denial with reason "no matching evidence domain" is tolerated as "domain drift"
++  (`arch_gate.py:498`) without checking that drift happened. S1 has 99 such denials, all accepted, and M3 passes. Fix:
++  compare against the domains recorded at route time in the audit detail, or run scored runs with `strict_domains`.
++  DISCLOSE: the ranker assertion passes on any route ranked by the hypergraph (315 of 837 were; 522 were ranked by `domains`).
++- **G10 (MUST-FIX).** The contract asks for "duplicates recorded as `applied_events.outcome='duplicate'`" and "an
++  `ingest_queue` row leased twice". S1 meets neither yet passes. Evidence from the copies:
++  - applied_events: 0 duplicate rows; queue rows leased more than once: 0.
++  - Duplicate evidence comes from `ingest_stage_metrics` `enqueue/duplicate = 603`, which any re-sync produces.
++  - The declared fault counts come from the system's own feed report, so the check is circular. With dedupe ablated, the
++    feed reports 0 duplicates and the duplicate check never fires.
++  - The restart check passes on `max_incr_checkpoint_version >= 2` (`arch_gate.py:841`), which `page_size=3` produces
++    with or without a restart.
++  - `deleted_markers_checked = 0`, because `run.py` writes no `fault_plan.json`.
++
++  Fix: `run.py` writes a non-gold `fault_plan.json` (holder to fault kind, injected duplicate record ids, deleted texts as
++  markers), and G10 checks each injected record.
++- **G2 (DISCLOSE / cheap fix).** G2 checks distinct files, private records only with their owner, and no shared
++  connector. It does not check that each source landed in the holder named in `sources_manifest`.
++- **G8 (DISCLOSE).** Entity coverage is measured against the holders' own extracted entities, which is circular (104/104),
++  not against gold entities as §B.7 states.
++- **G1, G5, G6 and G9 look sound.** They were not mutation-tested.
++
++## 6. Determinism and reproducibility (OK)
++
++- Two independent builds with seed 1 at size S produce the same public-task sha256 (`262476928adf5f74…`, equal to S1's
++  file), the same record-list hash and the same world fingerprint (`50dc7750…`). Seed 2 differs.
++- Regenerating the sources with S1's `started_utc` gives 119/119 byte-identical files. The sources depend on the
++  run-start clock only through absolute timestamps; ages are fixed.
++- The task and world set is built before materialization and does not depend on runtime state; ids are a key map only.
++- DISCLOSE: the system's score depends on wave size and order (shared state across tasks), which the frozen contract
++  should fix (`--wave`, task order).
++
++## Minimal pre-freeze fix list
++
++1. `world.py:396-397`: disjoint reserved context ranges per tenant, plus an assertion that a cross-tenant context does not
++   occur in the asker's tenant. Disjoint service-name pools per tenant, or cross-tenant distractors drawn from the asker's
++   tenant (`world.py:760`).
++2. `world.py:231-232, 547, 554`: disjoint project member sets, and goal-only objectives that name the pattern's topic.
++3. `score.py` extraction: count a claim naming ≥2 world entities as ambiguous, with the entity vocabulary in the public
++   file. `score.py:365`: foreign = forbidden root, or other tenant.
++4. `issue.py:73,119`: write `tenant_id` and check every reference's raw access. Align the resolved-status lists.
++5. `events.py:40` and `world.py` titles: opaque ids and role-independent titles.
++6. `arch_gate.py`: view↔database cross-check (G7), verified domain drift (G4), and per-injection fault evidence from a
++   `fault_plan.json` written by `run.py` (G10).
++7. Re-run S1 (system plus both baseline variants) after 1–5, then freeze. Report `source` as the primary baseline.
+-- 
+2.43.0
+
