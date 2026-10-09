@@ -1,12 +1,13 @@
 name: onboard-probe
 
-# Schema-and-volume probe of the public CFPB consumer complaint database (tools/onboard/cfpb_probe.py): complaint
-# counts per year, field names, the API's aggregation buckets and the bulk export's size; no complaint's text. It
-# decides whether a pack-drafting test can use a field no pack covers. Prints between markers and uploads an artifact.
+# Schema-only probes of public record sources a pack-drafting test could use in a field no pack covers. Run 1 asked the
+# CFPB complaint database (tools/onboard/cfpb_probe.py), which refused every request from the runner with 403. This
+# run asks the candidates in tools/onboard/source_probe.py: status, size, field names and row counts; no record's values.
+# Prints between markers and uploads an artifact.
 on:
   push:
     branches-ignore: [main]
-    paths: ["tools/onboard/cfpb_probe.py", ".github/workflows/onboard-probe.yml"]
+    paths: ["tools/onboard/source_probe.py", ".github/workflows/onboard-probe.yml"]
   workflow_dispatch:
 
 permissions:
@@ -15,7 +16,7 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -24,11 +25,11 @@ jobs:
         with:
           python-version: "3.11"
       - name: probe
-        run: python tools/onboard/cfpb_probe.py --out cfpb-probe.json
+        run: python tools/onboard/source_probe.py --out source-probe.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: onboard-probe
-          path: cfpb-probe.json
+          path: source-probe.json
           if-no-files-found: warn
           retention-days: 30
