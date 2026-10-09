@@ -285,7 +285,18 @@ seen recall news in training, and is reported whatever it showed.
 
 On public complaints in two fields, counting across sites did not flag recalls or investigations earlier than
 randomly timed alerts would. Across the six makes it alerted on 14 recall outcomes before the recall and on 51 in
-the 26 weeks after. For this document that means three things:
+the 26 weeks after.
+
+Two later checks narrow what the replays could have shown:
+- **The chance baseline overstated chance.** It rotated complaints that react to a recall into the look-back. Re-scored
+  with each outcome's own later alerts left out (`DIAG-E002.md`), chance expects 16.37 recall finds instead of 30.46,
+  and 5.64 investigation finds instead of 9.07. The found counts (14 and 6) sit at that corrected level: at chance, not
+  below it. The corrected baseline has its own biases, in either direction (`PILOT.md`).
+- **The detectors could not have seen a signal of the size the data carry.** On a synthetic background shaped like
+  these complaints (`docs/collective/POWER.md`, run 002), a ramp of 0.1 matching complaints a week over two years,
+  about what DIAG-E001 measured, was found by none of X, S and R_mf in 30 tries with a 26-week look-back. No setting
+  of rate and history reaches 80% at that look-back. A pooled national channel catches a planted sextupling 36 times
+  in 60, against 8 to 10 for the state-split channels. For this document that means three things:
 - **The discovery pitch has no real-data support yet.** The YC sentence in section 1 stays a market statement, and
   none of it is a result.
 - **Public data is spent as a test bed.** It reaches neither a company's own complaint, warranty and service records
