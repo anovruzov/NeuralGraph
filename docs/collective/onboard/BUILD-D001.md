@@ -373,6 +373,17 @@ Counts from `python -m pytest <file> -q` on this branch:
 | `tests/mycelic/test_collective_guards.py` | 83 passed, 721 subtests passed |
 | `tests/mycelic/test_collective_x3.py` (the hash pins, untouched) | 32 passed, 141 subtests passed |
 
+The full suites on the build commit, each by `python -m pytest <dir> -q`:
+
+| Suite | On this branch | On `539ca60` |
+|---|---|---|
+| `tests/mycelic` | 1620 passed, 1 xfailed, 45514 subtests passed | 1540 passed, 1 xfailed, 45407 subtests passed |
+| `NeuralGraph/tests` | 264 passed, 1 skipped, 305 subtests passed | not run |
+| `tests/onboard` and `tests/market` | 95 passed, 35 subtests passed | not run |
+| `tests/lab` | 578 passed, 17372 subtests passed | not run |
+
+No test failed in any of these runs.
+
 `actionlint` 1.7.12 reports nothing on the workflow. It ran without `shellcheck`, which this machine lacks, so the
 `run:` scripts were not linted.
 
