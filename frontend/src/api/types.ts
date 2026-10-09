@@ -1130,6 +1130,28 @@ export interface SyncReport {
   yielded: boolean;
 }
 
+export interface ShardRow {
+  shard_id: string;
+  holder_id: string;
+  ordinal: number;
+  partition: { domain_ids?: string[]; time_from?: string; time_to?: string };
+  placement: string;
+  status: string;
+  health: string;
+  stats: { records?: number; active_memories?: number; matrix_bytes?: number; file_bytes?: number; write_p95_ms?: number; query_p95_ms?: number };
+  last_backup_at: string | null;
+  updated_at: string;
+}
+
+export interface ShardRecommendation {
+  holder_id: string;
+  shard_id: string;
+  action: 'split' | 'split_by_time' | 'none_movable' | 'quota_reached' | string;
+  domain_ids: string[];
+  metric: string;
+  signals: Record<string, number>;
+}
+
 export interface AdminConnectorRow {
   connector_id: string;
   holder_id: string;

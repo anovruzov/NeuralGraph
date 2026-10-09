@@ -178,6 +178,7 @@ export function IntegrationsPage() {
         ) : null}
       </Section>
       <ConnectedAppsAdmin />
+      <ShardsAdmin holderNames={Object.fromEntries((holders.data?.items ?? []).map((h) => [h.holder_id, h.name]))} />
     </div>
   );
 }
@@ -210,6 +211,82 @@ function ConnectedAppsAdmin() {
             { key: 'sync', header: 'Last sync', render: (r) => (r.last_sync_at ? ago(r.last_sync_at) : 'never') },
           ]}
         />
+      )}
+    </Section>
+  );
+}
+
+const MIB = 1024 * 1024;
+
+/** Where each holder's memory lives on disk: one file per holder until measured load justifies splitting a domain out.
+ * Counts and sizes only; a split runs only when an administrator approves a recommendation. */
+function ShardsAdmin({ holderNames }: { holderNames: Record<string, string> }) {
+  const shards = useAsync(() => api.integrations.shards(), []);
+  const toast = useToast();
+  const [busy, setBusy] = useState<string | null>(null);
+  const split = async (r: { holder_id: string; domain_ids: string[] }) => {
+    const name = holderNames[r.holder_id] ?? r.holder_id;
+    if (!confirmAction(`Move ${r.domain_ids.join(', ')} of ${name} into its own file? Searches of a split memory read every file and are slower.`)) return;
+    setBusy(r.holder_id);
+    try {
+      const out = await api.integrations.split(r.holder_id, r.domain_ids);
+      toast.push(`Split started (${out.migration.state})`, 'ok');
+      await shards.reload();
+    } catch (e) {
+      toast.error(e, 'Split refused');
+    } finally {
+      setBusy(null);
+    }
+  };
+  const recs = shards.data?.recommendations ?? [];
+  return (
+    <Section title="Memory storage" meta={shards.data ? `${shards.data.items.length} file(s)` : undefined}>
+      <p className="sm muted" style={{ maxWidth: 760 }}>
+        Each memory starts as one file. When one grows past a measured limit for a day (vector index size, memory count, file size or latency), a
+        domain can be moved into its own file. Splitting is never automatic, and it makes searches of that memory slower.
+      </p>
+      {shards.error ? (
+        <ErrorPanel error={shards.error} retry={() => void shards.reload()} />
+      ) : shards.loading && !shards.data ? (
+        <Loading />
+      ) : (
+        <>
+          {recs.length ? (
+            <ul className="sm" style={{ margin: '0 0 12px', paddingLeft: 18 }}>
+              {recs.map((r) => (
+                <li key={`${r.holder_id}:${r.shard_id}`}>
+                  <b>{holderNames[r.holder_id] ?? r.holder_id}</b>: {r.metric} over its limit.{' '}
+                  {r.action === 'split' ? (
+                    <>
+                      Recommended: move <code>{r.domain_ids.join(', ')}</code> into its own file.{' '}
+                      <Button size="sm" busy={busy === r.holder_id} onClick={() => void split(r)}>Approve split</Button>
+                    </>
+                  ) : r.action === 'split_by_time' ? (
+                    'One domain carries the whole load; only a split by time would help (not available yet).'
+                  ) : r.action === 'quota_reached' ? (
+                    'This memory already has the maximum number of files.'
+                  ) : (
+                    'No domain can be moved.'
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <Table
+            rows={shards.data?.items ?? []}
+            rowKey={(r) => `${r.holder_id}:${r.shard_id}`}
+            empty="No memory has reported its storage yet."
+            columns={[
+              { key: 'holder', header: 'Memory', render: (r) => <span>{holderNames[r.holder_id] ?? r.holder_id}<div className="xs muted">{r.shard_id}</div></span> },
+              { key: 'part', header: 'Holds', render: (r) => (r.partition.domain_ids?.length ? <code>{r.partition.domain_ids.join(', ')}</code> : <span className="muted">everything else</span>) },
+              { key: 'status', header: 'Status', render: (r) => <span><StatusBadge status={r.status} />{r.health && r.health !== 'ok' ? <> <Badge tone="warn">{r.health}</Badge></> : null}</span> },
+              { key: 'records', header: 'Records', num: true, render: (r) => fmtNum(r.stats.records ?? 0) },
+              { key: 'mem', header: 'Memories', num: true, render: (r) => fmtNum(r.stats.active_memories ?? 0) },
+              { key: 'size', header: 'Index / file', num: true, render: (r) => `${((r.stats.matrix_bytes ?? 0) / MIB).toFixed(1)} / ${((r.stats.file_bytes ?? 0) / MIB).toFixed(1)} MiB` },
+              { key: 'backup', header: 'Last backup', render: (r) => (r.last_backup_at ? ago(r.last_backup_at) : 'never') },
+            ]}
+          />
+        </>
       )}
     </Section>
   );

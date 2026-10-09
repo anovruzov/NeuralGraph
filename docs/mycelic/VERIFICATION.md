@@ -9,7 +9,7 @@ What was verified, how, and what was not. Three kinds of evidence are kept apart
    marked **VERIFIED** only when it actually ran against the real service; otherwise it is **NOT VERIFIED**, with the
    reason.
 
-Date of this record: 2026-10-08. Branch `claude/mycelic-implementation-vr034p`.
+Date of this record: 2026-10-09. Branch `claude/mycelic-implementation-vr034p`.
 
 ---
 
@@ -17,8 +17,8 @@ Date of this record: 2026-10-08. Branch `claude/mycelic-implementation-vr034p`.
 
 | Suite | Command | Result |
 |---|---|---|
-| Mycelic | `.venv/bin/python -m pytest mycelic/tests -q` | **277 passed, 2 skipped**. The two skips are the NATS JetStream tests, which need a server; see the next row. |
-| Mycelic, NATS transport | `MYCELIC_TEST_NATS_URL=nats://127.0.0.1:4333 .venv/bin/python -m pytest mycelic/tests/test_transport.py -k nats` against a local `nats-server` 2.11.4 started with `-js` | **3 passed**: publish, subscribe and request round trip; a durable consumer survives a reconnect |
+| Mycelic | `.venv/bin/python -m pytest mycelic/tests -q` | **393 passed, 7 skipped**. Three skips are the NATS JetStream tests, which need a server (next row); four are the opt-in live connector tests (GitHub, Slack, Gmail, Drive), which need real credentials (section 4). |
+| Mycelic, NATS transport | `MYCELIC_TEST_NATS_URL=nats://127.0.0.1:4333 .venv/bin/python -m pytest mycelic/tests/test_transport.py -k nats` against a local `nats-server` 2.11.4 started with `-js` | **4 passed**: publish, subscribe and request round trip; a durable consumer survives a reconnect; sealed connector control reaches an external holder and leaves no copy in the stream (re-run 2026-10-09) |
 | NeuralGraph library | `.venv/bin/python -m pytest NeuralGraph/tests -q` | **222 passed, 1 skipped, 119 subtests passed** |
 | Frontend types | `cd frontend && npx tsc --noEmit` (strict) | passes |
 | Frontend build | `cd frontend && npm run build` | passes |
@@ -83,6 +83,19 @@ Coverage by area (test files under `mycelic/tests/`):
   - "why this domain": record domains with method and evidence, sticky corrections
   - uploads: DOCX, PDF, CSV, JSON and JSONL with their bounds
   - one regression test per finding of the independent Phase A review
+  - Gmail through the API: OAuth with PKCE, a backfill, and a Pub/Sub push authenticated by the URL token (a wrong token
+    gets 401); one Google OAuth client registers Gmail and Drive
+- **Connectors (`test_connector_github.py`, `_slack.py`, `_gmail.py`, `_drive.py`, `_cross_app.py`, `test_connector_http.py`).**
+  Against offline mocks of each provider: sync, cursors and their recovery, webhooks or push, OAuth, rate limits and
+  quota errors, permissions mapped to record ACLs, deletions (confirmed, inferred, sticky), crash recovery; one holder fed
+  by all four apps shares entities across them, deduplicates forwards, and keeps restricted content inside its audience.
+- **Shards (`test_ingest_shards.py`, `test_ingest_shards_api.py`).** Thresholds sustained over a window and the
+  recommended subtree; the split (copy, catch-up, cutover, cleanup) with no loss and no duplicates, resumed after a crash
+  at each of 12 points; sticky routing; fan-out search marked partial or truncated; the single-shard path unchanged; the
+  audience filter in every shard; traversal across shards; backup and restore with deletion replay; shard files reached
+  only through their holder; the admin API (admin only, audited); Connected apps' record views after a split.
+- **Demo apps (`test_apps_demo.py`).** Off unless enabled; four simulated apps connected, idempotently, only by the
+  server process.
 - **Scenario (`test_scenario.py`).** Runs the whole simulated demonstration below as one test, in about 8 seconds.
 
 ## 2. Simulated end-to-end demonstration: `python -m mycelic scenario`
@@ -169,8 +182,20 @@ embedded holders, standalone worker, and standalone `holder-a` and `holder-b`, e
 - The admin Integrations (connector metadata) and Domains (taxonomy) pages render.
 - No horizontal scrolling at 390 px; no console errors besides the login page's expected session probe.
 
-**Simulated demo apps in the container** (`docker-compose.local.yml` with `MYCELIC_DEMO_APPS=1`, rebuilt image, clean
-volume, `seed` run next to the server):
+**All four simulated apps and the storage view** (same setup, image rebuilt after the shard and Gmail/Drive merges,
+clean volume):
+- GitHub, Slack and Google Drive connected organization-wide to the Platform team memory (12, 10 and 5 records) and
+  Gmail to Ana's personal memory (12 messages from two labels), all "simulated demo data", all active.
+- Published routable domains: `engineering` (13) and `infrastructure.ci-cd` (9) for the Platform memory,
+  `sales.renewals` (5) for Ana's.
+- Browser (Priya, Ana, Tomas): Connected apps for both memories; a Gmail record's drawer explains its domain ("the source
+  is mapped to it"); the admin page lists the four connections with granted scopes and the new "Memory storage" table
+  (one file per memory, records, memories, sizes, last backup). No horizontal scrolling at 390 px.
+- The discovery loop kept running next to ingestion: within about 10 minutes of the seed, 17 questions, 12 claims and
+  11 discoveries, with no dead jobs.
+
+**Simulated demo apps in the container** (first run: GitHub and Slack; `docker-compose.local.yml` with
+`MYCELIC_DEMO_APPS=1`, rebuilt image, clean volume, `seed` run next to the server):
 - The server hosts the GitHub and Slack mocks on loopback and connects the Platform team memory, organization-wide, as
   Priya: 12 GitHub and 10 Slack records, both connections named "simulated demo data", no dead queue items.
 - With each included source mapped to a domain (repo → `engineering`, `#deployments` → `infrastructure.ci-cd`), the

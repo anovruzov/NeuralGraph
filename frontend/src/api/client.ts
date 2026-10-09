@@ -277,6 +277,8 @@ export const integrations = {
   correctDomains: (holder_id: string, record_id: string, body: { add?: string[]; remove?: string[]; primary?: string; reason?: string }) =>
     post<T.IngestRecordDetail>(`/holders/${holder_id}/records/${record_id}/domains`, body),
   admin: () => get<T.ListResponse<T.AdminConnectorRow> & { totals: { by_type: Record<string, number>; by_status: Record<string, number> } }>('/admin/integrations'),
+  shards: () => get<T.ListResponse<T.ShardRow> & { recommendations: T.ShardRecommendation[] }>('/admin/shards'),
+  split: (holder_id: string, domain_ids: string[]) => post<{ migration: { migration_id: string; state: string } }>(`/admin/shards/${holder_id}/split`, { domain_ids }),
   domains: () => get<T.TaxonomyResponse>('/domains'),
   setDomains: (body: { upsert?: { domain_id: string; name?: string; description?: string }[]; deprecate?: string[]; aliases?: { alias: string; domain_id: string }[] }) =>
     put<T.TaxonomyResponse>('/admin/domains', body),
