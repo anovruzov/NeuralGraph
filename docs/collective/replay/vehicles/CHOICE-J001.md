@@ -76,12 +76,24 @@ How the lab will run it (a new experiment kind, `j1`) is in `BUILD-J001.md`.
    - With the codes hidden, it says `mentions_entity` yes whenever the structured vehicle resolves to a pack id.
    - It says `describes_predicate` yes only when one of the pack's phrases for the predicate is in the narrative
      and not negated. The phrases are the category name or its parts, such as "fuel" or "wiper".
-   - **The record-blind control** (added before any run, see below) never reads the record and decides nothing.
-     - For a question about one record, it confirms when that question's predicate was asked more often as a
-       positive than as a negative among the other records' questions. Otherwise it refutes, a tie included.
+   - **The record-blind control** (added before any run, and amended again before any run, see below) never reads
+     the record and decides nothing.
+     - It confirms a question when its predicate is one of the four filed most often in the whole NHTSA complaint
+       file: `engine`, `electrical_system`, `air_bags` and `power_train`. Otherwise it refutes.
+     - The four are fixed now, from the component counts in `nhtsa-probe.json` (all makes, all years) mapped to the
+       pack's predicates. Four is the number with the largest balanced accuracy under the amended draw on those
+       counts. No label of the 150 records chose them.
      - It is scored like the lexical judge, in the plan job, on every record and on each model's records, and it is
        shown beside the lexical judge.
-     - It shows how far a judge can get from the predicate alone on these records.
+     - It shows what a judge gets on these questions from knowing which components are filed most, without reading
+       the record.
+   - **The predicate-only bound** (added in the second amendment, see below) decides nothing either.
+     - It is the most any judge that sees only the predicate could score on the records scored. For each predicate it
+       takes the answer, confirm or refute, that is right more often there.
+     - So its balanced accuracy is the sum, over the predicates, of the larger of each one's positive and negative
+       counts, divided by the number of questions.
+     - It is fitted to the answers it is scored on, so it is optimistic. It has no interval.
+     - It is computed in the plan job on every record, and on each model's records.
 6. **Scoring, against the filed codes** (not checked labels):
    - a verdict is correct when it is `confirm` on a positive or `refute` on a negative; `unknown` is never correct;
    - **sensitivity** is the share of positives confirmed, **specificity** the share of negatives refuted, and
@@ -110,8 +122,8 @@ How the lab will run it (a new experiment kind, `j1`) is in `BUILD-J001.md`.
    - failures by kind;
    - each model's seconds per judge call (median and 95th percentile from the ledgers), per runner CPU. That is a
      runner number, not site hardware;
-   - the record-blind control's balanced accuracy, sensitivity and specificity, with their intervals, on the same
-     records as each model;
+   - the record-blind control's balanced accuracy, sensitivity and specificity, with their intervals, and the
+     predicate-only bound, on the same records as each model;
    - per predicate, how often each judge confirmed it, for positives and for negatives.
 9. **Units and limits:**
    - the 150 records, in record order, are cut into 6 parts of 25, so 50 questions a part;
@@ -168,6 +180,68 @@ amended draw cannot reach exactly 0.5: a record's own filed predicate is never i
 asked a little less often as negatives than as positives. The record-blind control measures what is left on the real
 records.
 
+## Amended again before any run, 2026-10-09
+
+Still no model had judged a narrative, and no question file had been drawn on the real records, when this was changed.
+It changes only the record-blind control of rule 5, what rule 8 reports beside it, and how the two are read. Rule 2,
+the scoring, the headline and every setting of rule 9 are unchanged. Neither the control nor the new bound decides
+anything.
+
+**What changed.**
+- Rule 5's control. It confirmed a question when its predicate was asked more often as a positive than as a negative
+  among the other records' questions. It now confirms when the predicate is one of the four filed most often in the
+  whole complaint file.
+- Rule 5 gains the predicate-only bound. Rule 8 reports it beside the control.
+- "How it is read" says what each of the two shows.
+
+**Why.** A second review of the build found that the first control did not show how far the predicate alone gets a
+judge. It was biased low.
+- Leaving a question's own record out moves the count against that question. A positive takes one positive off its
+  predicate's count, and a negative takes one negative off.
+- So when a predicate is asked as often as a positive as as a negative, or once more as a positive, every question on
+  it gets the wrong answer.
+- The amended draw of rule 2 aims at that balance. The more balanced the draw, the nearer the control goes to 0, not
+  to 0.5. On an exactly balanced draw it scores 0.
+- Rule 10 freezes the first run's report. Printed beside each model, a control at its mean in the table below (0.436
+  or 0.445) would have read as a predicate-only baseline, and one below what the predicate alone gives.
+
+The new control never counts the questions it is scored on, so it has no such artefact. On an exactly balanced draw,
+any judge that answers by the predicate alone scores 0.5, and so do the new control and the bound.
+
+**The four predicates.** `python3 tools/market/j001_prior_probe.py`, the first amendment's command, scores a judge
+that confirms the K most-filed components under the amended draw, on the whole file's counts. Its largest balanced
+accuracy is 0.512, at K 4. `python3 tools/market/j001_control_check.py` names the four: `engine`,
+`electrical_system`, `air_bags` and `power_train`.
+
+**The figures.** They come from `python3 tools/market/j001_control_check.py`.
+- It draws constructed labels of 150 records. Each record is filed under predicates drawn with the whole-file counts
+  as weights.
+- One set has one filed predicate a record. The other aims at 1.37 a record, as R001's labels have (206 claims on 150
+  records, `CHOICE-R001.md`); its draws averaged 1.36.
+- The questions are drawn by J001's own code (`lab.j1.build_questions`) under the amended rule 2. For comparison, the
+  same records are also given rule 2's first, uniform negatives.
+- These are not J001's records. Each row is over 40 draws.
+
+| Labels | Negative draw | Judge | Mean | Smallest | Largest |
+|---|---|---|---|---|---|
+| one filed predicate a record | amended | first control (leave one out) | 0.445 | 0.213 | 0.553 |
+| one filed predicate a record | amended | new control (top four) | 0.507 | 0.467 | 0.547 |
+| one filed predicate a record | amended | predicate-only bound | 0.565 | 0.537 | 0.597 |
+| 1.36 filed predicates a record | amended | first control (leave one out) | 0.436 | 0.273 | 0.550 |
+| 1.36 filed predicates a record | amended | new control (top four) | 0.517 | 0.483 | 0.560 |
+| 1.36 filed predicates a record | amended | predicate-only bound | 0.567 | 0.540 | 0.600 |
+| 1.36 filed predicates a record | first, uniform | new control (top four) | 0.693 | 0.623 | 0.740 |
+| 1.36 filed predicates a record | first, uniform | predicate-only bound | 0.768 | 0.723 | 0.807 |
+
+On an exactly balanced draw of 8 constructed records, the same command gives the first control 0.000, and the new
+control and the bound 0.500 each.
+
+- The first control fell as low as 0.213 on a draw where the predicate tells little.
+- The new control stays near 0.5 under the amended draw, and well above it under the first, uniform draw. So it would
+  still show a leak like the one the first amendment closed.
+- The bound is above 0.5 on every draw, because it is fitted to the answers. It is the most a judge that sees only the
+  predicate could get, not what one would get.
+
 ## Why the units are this size
 
 - **R002 ran out of time.** a-4b's E1 repeats 1 and 2 did not finish 150 extraction calls in their 150-minute
@@ -212,7 +286,12 @@ records.
   - A judge that answers by the predicate alone, without reading the record, has 0.5 only when each predicate is
     asked as a negative as often as it is asked as a positive. The amended draw of rule 2 makes that nearly so, not
     exactly: a record's own filed predicate is never its negative.
-  - The record-blind control (rule 5) shows how far the predicate alone gets on these records. It decides nothing.
+  - The record-blind control (rule 5, amended again before any run) shows what knowing which components are filed
+    most gets a judge on these records. It is fitted to nothing in them.
+  - The predicate-only bound (rule 5) shows the most that knowing only the predicate could get on these records. It
+    is fitted to their answers, so it is optimistic: it sits above 0.5 even where the predicate tells little.
+  - Neither decides anything. A model's balanced accuracy at or below the bound does not show that the model reads
+    the record. Its confirms per predicate (rule 8) show where it leans.
 - **150 records give intervals several points wide.** Small differences between the models cannot be read.
 - **This is one public field.** It is not a company's records, and complaints written to a regulator are not
   internal service notes.
