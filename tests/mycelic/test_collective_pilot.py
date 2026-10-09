@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import contextlib
 import csv
+import importlib.util
 import io
 import json
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -170,6 +171,77 @@ class ScoreTests(unittest.TestCase):
         s = A.score_channel(outcomes, [alert("2024-W10", "2024-03-10", "product:SD-9:leak")], lookback=8, post=8,
                             available_first=date(2024, 3, 3), evaluated_weeks=20)
         self.assertEqual(s["summary"]["found"], 0)
+
+
+def _tool(name: str) -> Any:
+    spec = importlib.util.spec_from_file_location(name, ROOT / "tools" / "market" / f"{name}.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+RW = _tool("reactive_world")
+
+
+class ReactiveWorldTests(unittest.TestCase):
+    """The two nulls over 20 seeds of synthetic worlds (``tools/market/reactive_world.py``). The pass criteria in the
+    three ``test_*_world_*`` tests were written before the check first ran, and are not to be moved after it."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.result = RW.check(20)
+        cls.n = RW.OUTCOMES
+
+    def test_reactive_world_corrected_null_matches_found_and_audited_null_overstates(self) -> None:
+        w = self.result["worlds"]["reactive"]
+        self.assertEqual(w["mean_found"], 0)            # by construction: no alert on an outcome's key before it opens
+        self.assertLessEqual(abs(w["mean_expected_found_excluding_own_post"] - w["mean_found"]), 0.02 * self.n)
+        self.assertGreaterEqual(w["mean_expected_found"] - w["mean_found"], 0.10 * self.n)
+
+    def test_background_world_found_lies_between_the_two_nulls(self) -> None:
+        # no pre-signal, so found is what chance gives. Leaving out everything on the key in the post window also
+        # leaves out the background there, so the corrected null should fall short of found (by about a quarter at
+        # these settings: about 22 of 87 weeks are left out), but by less than half; the audited null overstates it
+        w = self.result["worlds"]["background"]
+        self.assertLess(w["mean_expected_found_excluding_own_post"], w["mean_found"])
+        self.assertGreaterEqual(w["mean_expected_found_excluding_own_post"], 0.5 * w["mean_found"])
+        self.assertGreaterEqual(w["mean_expected_found"] - w["mean_found"], 0.10 * self.n)
+
+    def test_presignal_world_corrected_null_separates_it(self) -> None:
+        w = self.result["worlds"]["presignal"]
+        self.assertGreaterEqual(w["mean_found"] - w["mean_expected_found_excluding_own_post"], 0.15 * self.n)
+        self.assertGreaterEqual(w["p_value_excluding_own_post_below_alpha"], 18)
+
+    def test_the_worlds_are_what_they_say(self) -> None:
+        for seed in (1, 2):
+            outcomes, reactive = RW.world("reactive", seed)
+            o2, background = RW.world("background", seed)
+            o3, presignal = RW.world("presignal", seed)
+            self.assertEqual(outcomes, o2)
+            self.assertEqual(outcomes, o3)
+            self.assertEqual(len(outcomes), RW.OUTCOMES)
+            self.assertEqual({o.key for o in outcomes}, {f"vehicle:V{n:02d}" for n in range(RW.OUTCOMES)})
+            for a in reactive:
+                self.assertTrue(a in background and a in presignal)
+            for a in background:
+                self.assertIn(a, presignal)
+            opened = {f"vehicle:{o.entity_id}:engine": o.opened for o in outcomes}
+            for a in reactive:                          # reactions only, never before the opening
+                if a["key"] in opened:
+                    self.assertGreaterEqual(a["available_date"], opened[a["key"]])
+            added = [a for a in presignal if a not in background]
+            self.assertTrue(added)
+            for a in added:                             # the pre-signal: odd outcomes, in the 8 weeks before opening
+                self.assertEqual(int(a["entity_id"][1:]) % 2, 1)
+                gap = (date.fromisoformat(opened[a["key"]]) - date.fromisoformat(a["available_date"])).days
+                self.assertTrue(0 < gap <= 7 * RW.PRE_WEEKS, gap)
+            last = RW.AVAILABLE_FIRST + timedelta(weeks=RW.EVALUATED_WEEKS - 1)
+            for a in presignal:                         # every alert inside the evaluated weeks
+                self.assertTrue(RW.AVAILABLE_FIRST.isoformat() <= a["available_date"] <= last.isoformat())
+        self.assertEqual(self.result["label"], RW.LABEL)
+        self.assertIn("synthetic", RW.LABEL)
+        with self.assertRaises(ValueError):
+            RW.world("calm", 1)
 
 
 class EndToEndTests(unittest.TestCase):
