@@ -1,0 +1,608 @@
+{
+ "n": 1000,
+ "agree": true,
+ "machine": {
+  "platform": "Linux-6.18.44-fc-v80-x86_64-with-glibc2.39",
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "cpus": 4,
+  "mem": "16480952 kB",
+  "python": "3.13.16",
+  "sqlite": "3.45.1"
+ },
+ "workdir": "/tmp/mycelic_perf_n1000_ipb9gql4",
+ "started_utc": "2026-10-09T05:46:55Z",
+ "profile_mode": "discovery",
+ "rss_start_mb": 41.9,
+ "build_runtime_s": 0.211,
+ "embedder": {
+  "runtime_embedder": "HashEmbeddings",
+  "dim": 256,
+  "model": "hash-bow-256",
+  "router_providers": [
+   "fake"
+  ],
+  "tiers": {
+   "light": "fake:mycelic-fake-light",
+   "standard": "fake:mycelic-fake-standard",
+   "heavy": "fake:mycelic-fake-heavy"
+  }
+ },
+ "tenant": {
+  "n_users": 1000,
+  "register_tenant_s": 0.059,
+  "units_s": 0.043,
+  "depts": 10,
+  "teams": 100,
+  "users_memberships_holders_total_s": 0.7,
+  "per_user_total_ms": 0.7,
+  "create_user": {
+   "n": 1000,
+   "mean_ms": 0.229,
+   "p50_ms": 0.0,
+   "p95_ms": 0.0,
+   "max_ms": 11.435,
+   "sum_s": 0.229
+  },
+  "add_membership": {
+   "n": 1000,
+   "mean_ms": 0.247,
+   "p50_ms": 0.0,
+   "p95_ms": 0.0,
+   "max_ms": 13.179,
+   "sum_s": 0.247
+  },
+  "register_holder": {
+   "n": 1000,
+   "mean_ms": 0.221,
+   "p50_ms": 0.0,
+   "p95_ms": 0.0,
+   "max_ms": 12.357,
+   "sum_s": 0.221
+  },
+  "tenant_total_s": 0.802,
+  "coord_db_bytes": 3268608,
+  "tables_rows": {
+   "users": 1001,
+   "memberships": 1002,
+   "holders": 1000,
+   "org_units": 111,
+   "audit_log": 3115,
+   "events": 1113
+  }
+ },
+ "rss_after_tenant_mb": 57.4,
+ "open": {
+  "n_holders": 1000,
+  "open_all_s": 28.427,
+  "open_all_cpu_s": 22.194,
+  "open_each": {
+   "n": 1000,
+   "mean_ms": 28.384,
+   "p50_ms": 26.0,
+   "p95_ms": 42.0,
+   "max_ms": 571.841,
+   "sum_s": 28.384
+  },
+  "first10_mean_ms": 27.827,
+  "last10_mean_ms": 19.324,
+  "rss_before_mb": 57.4,
+  "rss_after_mb": 1215.4,
+  "rss_growth_mb_per_open_holder": 1.158,
+  "rss_series": [
+   {
+    "open": 100,
+    "rss_mb": 175.4,
+    "fds": 310
+   },
+   {
+    "open": 200,
+    "rss_mb": 290.9,
+    "fds": 610
+   },
+   {
+    "open": 300,
+    "rss_mb": 406.2,
+    "fds": 910
+   },
+   {
+    "open": 400,
+    "rss_mb": 521.7,
+    "fds": 1210
+   },
+   {
+    "open": 500,
+    "rss_mb": 637.2,
+    "fds": 1510
+   },
+   {
+    "open": 600,
+    "rss_mb": 752.7,
+    "fds": 1810
+   },
+   {
+    "open": 700,
+    "rss_mb": 868.1,
+    "fds": 2110
+   },
+   {
+    "open": 800,
+    "rss_mb": 984.4,
+    "fds": 2410
+   },
+   {
+    "open": 900,
+    "rss_mb": 1099.8,
+    "fds": 2710
+   },
+   {
+    "open": 1000,
+    "rss_mb": 1215.2,
+    "fds": 3010
+   }
+  ],
+  "fds_before": 10,
+  "fds_after": 3010,
+  "fds_per_holder": 3.0,
+  "open_stores_in_memory": 1000,
+  "disk_per_holder_empty_bytes": 1202856,
+  "disk_per_holder_by_file_bytes": {
+   ".db": 4096,
+   ".db-shm": 32768,
+   ".db-wal": 1165992
+  },
+  "files_per_holder": [
+   "evidence.db",
+   "evidence.db-shm",
+   "evidence.db-wal"
+  ],
+  "idle_cpu_fraction_of_one_core": 0.161,
+  "reconcile_noop_s": 0.0533,
+  "close_one": {
+   "n": 20,
+   "mean_ms": 5.465,
+   "p50_ms": 5.0,
+   "p95_ms": 8.0,
+   "max_ms": 7.88,
+   "sum_s": 0.109
+  },
+  "reopen_one": {
+   "n": 20,
+   "mean_ms": 19.385,
+   "p50_ms": 7.0,
+   "p95_ms": 18.0,
+   "max_ms": 244.65,
+   "sum_s": 0.388
+  }
+ },
+ "ingest": {
+  "records_per_user": 5,
+  "records_processed": 5000,
+  "wall_s": 77.149,
+  "cpu_s": 73.539,
+  "aggregate_records_per_s": 64.81,
+  "per_holder_total": {
+   "n": 1000,
+   "mean_ms": 76.869,
+   "p50_ms": 61.0,
+   "p95_ms": 105.0,
+   "max_ms": 1626.566,
+   "sum_s": 76.869
+  },
+  "connect_discover": {
+   "n": 1000,
+   "mean_ms": 33.382,
+   "p50_ms": 26.0,
+   "p95_ms": 45.0,
+   "max_ms": 820.503,
+   "sum_s": 33.382
+  },
+  "drain_process": {
+   "n": 1000,
+   "mean_ms": 43.487,
+   "p50_ms": 34.0,
+   "p95_ms": 60.0,
+   "max_ms": 1286.06,
+   "sum_s": 43.487
+  },
+  "per_holder_records_per_s_mean": 65.05,
+  "rss_before_mb": 1247.2,
+  "rss_after_mb": 1998.3,
+  "peak_rss_mb": 1998.3,
+  "sample_holders": 20,
+  "documents_per_holder_sampled": 5.0,
+  "memories_per_holder_sampled": 5.0,
+  "disk_per_holder_after_bytes": 3130884,
+  "disk_per_holder_after_by_file_bytes": {
+   ".db": 18186,
+   ".db-shm": 32768,
+   ".db-wal": 3079930
+  },
+  "disk_sampled_holders_after_checkpoint_db_bytes": 755507,
+  "transport_messages": 3078,
+  "transport_by_kind": {
+   "heartbeat": 2078,
+   "ingest_result": 1000
+  },
+  "model_usage_rows_during_ingest": 160,
+  "model_usage_by_purpose": {
+   "classify_domains": 160
+  },
+  "profile": null
+ },
+ "discovery": {
+  "core_inbound_catchup_s": 2.518,
+  "core_inbound_catchup_cpu_s": 2.183,
+  "transport_messages_at_start": 3078,
+  "goal_id": "goal_3a07be37647542a680ae",
+  "rounds": [
+   {
+    "round": 0,
+    "wall_s": 28.752,
+    "cpu_s": 27.463,
+    "new_questions": 12,
+    "quiet": true
+   },
+   {
+    "round": 1,
+    "wall_s": 1.598,
+    "cpu_s": 1.594,
+    "new_questions": 0,
+    "quiet": true
+   }
+  ],
+  "wall_s": 30.371,
+  "cpu_s": 29.079,
+  "finished": true,
+  "jobs_counts": {
+   "done": 62
+  },
+  "job_errors": [],
+  "jobs_by_kind": {
+   "loop.tick": {
+    "n": 14,
+    "mean_ms": 268.077,
+    "p50_ms": 222.0,
+    "p95_ms": 362.0,
+    "max_ms": 662.601,
+    "sum_s": 3.753
+   },
+   "question.collect": {
+    "n": 12,
+    "mean_ms": 1.545,
+    "p50_ms": 1.0,
+    "p95_ms": 1.0,
+    "max_ms": 10.278,
+    "sum_s": 0.019
+   },
+   "question.commit": {
+    "n": 12,
+    "mean_ms": 12.267,
+    "p50_ms": 12.0,
+    "p95_ms": 14.0,
+    "max_ms": 13.999,
+    "sum_s": 0.147
+   },
+   "question.evaluate": {
+    "n": 12,
+    "mean_ms": 67.603,
+    "p50_ms": 66.0,
+    "p95_ms": 78.0,
+    "max_ms": 81.314,
+    "sum_s": 0.811
+   },
+   "question.route": {
+    "n": 12,
+    "mean_ms": 1279.272,
+    "p50_ms": 1257.0,
+    "p95_ms": 1398.0,
+    "max_ms": 1536.089,
+    "sum_s": 15.351
+   }
+  },
+  "ticks": 14,
+  "tick_time": {
+   "n": 14,
+   "mean_ms": 268.077,
+   "p50_ms": 222.0,
+   "p95_ms": 362.0,
+   "max_ms": 662.601,
+   "sum_s": 3.753
+  },
+  "model_calls_total": 178,
+  "model_calls_by_task": {
+   "identify_gap": 10,
+   "draft_question": 12,
+   "answer_from_evidence": 120,
+   "evaluate_responses": 12,
+   "synthesize_discovery": 12,
+   "record_outcome": 12
+  },
+  "model_usage_rows_by_purpose": {
+   "answer_from_evidence": 120,
+   "classify_domains": 160,
+   "draft_question": 12,
+   "evaluate_responses": 12,
+   "identify_gap": 10,
+   "record_outcome": 12,
+   "synthesize_discovery": 12
+  },
+  "questions": 12,
+  "questions_by_status": {
+   "committed": 12
+  },
+  "questions_by_kind_depth": {
+   "gap/d0": 12
+  },
+  "routes_total": 120,
+  "routes_by_status": {
+   "answered": 120
+  },
+  "routes_per_question": {
+   "min": 10,
+   "max": 10,
+   "mean": 10.0
+  },
+  "responses_by_status": {
+   "answered": 120
+  },
+  "claims_by_status": {
+   "supported": 12
+  },
+  "discoveries": 12,
+  "route_call": {
+   "n": 12,
+   "mean_ms": 1278.89,
+   "p50_ms": 1257.0,
+   "p95_ms": 1397.0,
+   "max_ms": 1535.507,
+   "sum_s": 15.347
+  },
+  "candidate_holders_call": {
+   "n": 12,
+   "mean_ms": 269.964,
+   "p50_ms": 262.0,
+   "p95_ms": 290.0,
+   "max_ms": 383.107,
+   "sum_s": 3.24
+  },
+  "domains_for_goal_call": {
+   "n": 14,
+   "mean_ms": 250.954,
+   "p50_ms": 211.0,
+   "p95_ms": 324.0,
+   "max_ms": 649.543,
+   "sum_s": 3.513
+  },
+  "profile": {
+   "tottime": [
+    {
+     "where": "~:0",
+     "func": "<method 'execute' of 'sqlite3.Connection' objects>",
+     "ncalls": 514861,
+     "tottime_s": 7.939,
+     "cumtime_s": 7.939
+    },
+    {
+     "where": "~:0",
+     "func": "<method 'fetchall' of 'sqlite3.Cursor' objects>",
+     "ncalls": 221104,
+     "tottime_s": 5.654,
+     "cumtime_s": 5.654
+    },
+    {
+     "where": "/usr/lib/python3.13/json/decoder.py:351",
+     "func": "raw_decode",
+     "ncalls": 295655,
+     "tottime_s": 1.475,
+     "cumtime_s": 1.475
+    },
+    {
+     "where": "mycelic/db/coord.py:57",
+     "func": "tx",
+     "ncalls": 11362,
+     "tottime_s": 1.166,
+     "cumtime_s": 3.037
+    },
+    {
+     "where": "mycelic/db/coord.py:144",
+     "func": "row_to_dict",
+     "ncalls": 93411,
+     "tottime_s": 0.721,
+     "cumtime_s": 3.673
+    },
+    {
+     "where": "~:0",
+     "func": "<method 'fetchone' of 'sqlite3.Cursor' objects>",
+     "ncalls": 256159,
+     "tottime_s": 0.654,
+     "cumtime_s": 0.654
+    },
+    {
+     "where": "/usr/lib/python3.13/asyncio/locks.py:182",
+     "func": "set",
+     "ncalls": 5693602,
+     "tottime_s": 0.587,
+     "cumtime_s": 0.789
+    },
+    {
+     "where": "/usr/lib/python3.13/json/decoder.py:340",
+     "func": "decode",
+     "ncalls": 295655,
+     "tottime_s": 0.584,
+     "cumtime_s": 2.455
+    },
+    {
+     "where": "mycelic/authz.py:364",
+     "func": "can_route",
+     "ncalls": 26580,
+     "tottime_s": 0.494,
+     "cumtime_s": 4.802
+    },
+    {
+     "where": "/usr/lib/python3.13/asyncio/events.py:113",
+     "func": "__init__",
+     "ncalls": 60306,
+     "tottime_s": 0.404,
+     "cumtime_s": 0.486
+    },
+    {
+     "where": "/usr/lib/python3.13/json/__init__.py:304",
+     "func": "loads",
+     "ncalls": 295655,
+     "tottime_s": 0.332,
+     "cumtime_s": 2.878
+    },
+    {
+     "where": "~:0",
+     "func": "<method 'get' of 'dict' objects>",
+     "ncalls": 1208019,
+     "tottime_s": 0.329,
+     "cumtime_s": 0.329
+    },
+    {
+     "where": "mycelic/ingest/domains.py:237",
+     "func": "default_taxonomy",
+     "ncalls": 4172,
+     "tottime_s": 0.326,
+     "cumtime_s": 1.267
+    },
+    {
+     "where": "mycelic/authz.py:153",
+     "func": "_scopes",
+     "ncalls": 72060,
+     "tottime_s": 0.298,
+     "cumtime_s": 1.262
+    },
+    {
+     "where": "/usr/lib/python3.13/json/encoder.py:207",
+     "func": "iterencode",
+     "ncalls": 14400,
+     "tottime_s": 0.284,
+     "cumtime_s": 0.284
+    }
+   ],
+   "cumulative": [
+    {
+     "where": "/usr/lib/python3.13/asyncio/base_events.py:1981",
+     "func": "_run_once",
+     "ncalls": 57,
+     "tottime_s": 0.093,
+     "cumtime_s": 30.315
+    },
+    {
+     "where": "/usr/lib/python3.13/asyncio/events.py:87",
+     "func": "_run",
+     "ncalls": 64056,
+     "tottime_s": 0.053,
+     "cumtime_s": 30.008
+    },
+    {
+     "where": "~:0",
+     "func": "<method 'run' of '_contextvars.Context' objects>",
+     "ncalls": 64056,
+     "tottime_s": 0.068,
+     "cumtime_s": 29.955
+    },
+    {
+     "where": "mycelic/discovery/worker.py:228",
+     "func": "_loop",
+     "ncalls": 65,
+     "tottime_s": 0.001,
+     "cumtime_s": 20.415
+    },
+    {
+     "where": "mycelic/discovery/worker.py:146",
+     "func": "run_once",
+     "ncalls": 127,
+     "tottime_s": 0.002,
+     "cumtime_s": 20.41
+    },
+    {
+     "where": "mycelic/discovery/worker.py:171",
+     "func": "_process",
+     "ncalls": 62,
+     "tottime_s": 0.002,
+     "cumtime_s": 20.13
+    },
+    {
+     "where": "research/mycelic_e2e/perf/perf_bench.py:328",
+     "func": "handle",
+     "ncalls": 62,
+     "tottime_s": 0.001,
+     "cumtime_s": 20.082
+    },
+    {
+     "where": "mycelic/discovery/engine.py:1249",
+     "func": "handle",
+     "ncalls": 62,
+     "tottime_s": 0.056,
+     "cumtime_s": 20.081
+    },
+    {
+     "where": "mycelic/discovery/engine.py:536",
+     "func": "route_question",
+     "ncalls": 12,
+     "tottime_s": 0.0,
+     "cumtime_s": 15.351
+    },
+    {
+     "where": "research/mycelic_e2e/perf/perf_bench.py:348",
+     "func": "route",
+     "ncalls": 12,
+     "tottime_s": 0.001,
+     "cumtime_s": 15.347
+    },
+    {
+     "where": "mycelic/inquiry/service.py:351",
+     "func": "route",
+     "ncalls": 12,
+     "tottime_s": 0.01,
+     "cumtime_s": 15.346
+    },
+    {
+     "where": "mycelic/inquiry/service.py:433",
+     "func": "publish_pending_routes",
+     "ncalls": 12,
+     "tottime_s": 0.002,
+     "cumtime_s": 12.066
+    },
+    {
+     "where": "mycelic/inquiry/service.py:408",
+     "func": "question_audience",
+     "ncalls": 12,
+     "tottime_s": 0.111,
+     "cumtime_s": 11.941
+    },
+    {
+     "where": "mycelic/db/coord.py:97",
+     "func": "all",
+     "ncalls": 212624,
+     "tottime_s": 0.265,
+     "cumtime_s": 10.875
+    },
+    {
+     "where": "mycelic/authz.py:120",
+     "func": "principal_for_user",
+     "ncalls": 12012,
+     "tottime_s": 0.158,
+     "cumtime_s": 8.829
+    }
+   ],
+   "total_s": 29.809
+  },
+  "micro_list_holders_ms": 24.388,
+  "micro_can_route_all_holders_ms": 132.559,
+  "micro_can_route_per_holder_us": 132.6,
+  "micro_question_audience_uncached_ms": 840.311,
+  "audience_size": 1,
+  "micro_question_audience_cached_ms": 0.016
+ },
+ "peak_rss_mb": 2026.8,
+ "rss_end_mb": 2026.8,
+ "fds_end": 3010,
+ "total_disk_bytes": {
+  "coord_db_files": 23588824,
+  "holders": 3100031552
+ },
+ "shutdown_s": 20.448
+}

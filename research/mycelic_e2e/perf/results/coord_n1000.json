@@ -1,0 +1,20 @@
+{
+ "n": 1000,
+ "rss_start_mb": 40.2,
+ "tenant_create_s": 0.71,
+ "tenant_per_user_ms": 0.613,
+ "coord_db_bytes": 3264512,
+ "list_holders_ms": 11.85,
+ "holders": 1000,
+ "can_route_all_holders_ms": 123.14,
+ "candidate_holders_ms": 197.87,
+ "routable_holders": 170,
+ "rejected_holders": 830,
+ "domains_for_goal_ms": 216.85,
+ "domains_for_goal_holders": 1000,
+ "domains_found": 12,
+ "question_audience_uncached_ms": 252.79,
+ "audience_size": 1,
+ "question_audience_cached_ms": 0.01,
+ "peak_rss_mb": 67.7
+}

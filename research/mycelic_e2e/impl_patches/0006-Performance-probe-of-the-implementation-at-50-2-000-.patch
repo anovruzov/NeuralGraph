@@ -1,0 +1,4921 @@
+From 7685db380956bdabe8e35018b5cb4a19fe78842f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 06:06:08 +0000
+Subject: [PATCH 6/7] Performance probe of the implementation at 50-2,000 users
+ (10k extrapolated)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl        |   1 +
+ research/mycelic_e2e/perf/PERF_PROBE.md       | 382 +++++++++++
+ .../perf/bench_coordinator_scale.py           |  80 +++
+ research/mycelic_e2e/perf/perf_bench.py       | 534 +++++++++++++++
+ .../mycelic_e2e/perf/results/coord_n1000.json |  20 +
+ .../perf/results/coord_n10000.json            |  20 +
+ .../mycelic_e2e/perf/results/coord_n2000.json |  20 +
+ .../mycelic_e2e/perf/results/coord_n500.json  |  20 +
+ .../mycelic_e2e/perf/results/coord_n5000.json |  20 +
+ .../perf/results/coord_pinned_n10000.json     |  20 +
+ .../perf/results/coord_pinned_n2000.json      |  20 +
+ .../perf/results/coord_pinned_n5000.json      |  20 +
+ research/mycelic_e2e/perf/results/n1000.json  | 392 +++++++++++
+ .../perf/results/n1000_isolated.json          | 392 +++++++++++
+ research/mycelic_e2e/perf/results/n200.json   | 392 +++++++++++
+ research/mycelic_e2e/perf/results/n2000.json  | 392 +++++++++++
+ research/mycelic_e2e/perf/results/n50.json    | 389 +++++++++++
+ .../perf/results/prof_discovery_n1000.json    | 608 ++++++++++++++++++
+ .../perf/results/prof_ingest_n1000.json       | 456 +++++++++++++
+ .../perf/results/prof_ingest_n300.json        | 456 +++++++++++++
+ research/mycelic_e2e/perf/summarize.py        |  88 +++
+ 21 files changed, 4722 insertions(+)
+ create mode 100644 research/mycelic_e2e/perf/PERF_PROBE.md
+ create mode 100644 research/mycelic_e2e/perf/bench_coordinator_scale.py
+ create mode 100644 research/mycelic_e2e/perf/perf_bench.py
+ create mode 100644 research/mycelic_e2e/perf/results/coord_n1000.json
+ create mode 100644 research/mycelic_e2e/perf/results/coord_n10000.json
+ create mode 100644 research/mycelic_e2e/perf/results/coord_n2000.json
+ create mode 100644 research/mycelic_e2e/perf/results/coord_n500.json
+ create mode 100644 research/mycelic_e2e/perf/results/coord_n5000.json
+ create mode 100644 research/mycelic_e2e/perf/results/coord_pinned_n10000.json
+ create mode 100644 research/mycelic_e2e/perf/results/coord_pinned_n2000.json
+ create mode 100644 research/mycelic_e2e/perf/results/coord_pinned_n5000.json
+ create mode 100644 research/mycelic_e2e/perf/results/n1000.json
+ create mode 100644 research/mycelic_e2e/perf/results/n1000_isolated.json
+ create mode 100644 research/mycelic_e2e/perf/results/n200.json
+ create mode 100644 research/mycelic_e2e/perf/results/n2000.json
+ create mode 100644 research/mycelic_e2e/perf/results/n50.json
+ create mode 100644 research/mycelic_e2e/perf/results/prof_discovery_n1000.json
+ create mode 100644 research/mycelic_e2e/perf/results/prof_ingest_n1000.json
+ create mode 100644 research/mycelic_e2e/perf/results/prof_ingest_n300.json
+ create mode 100644 research/mycelic_e2e/perf/summarize.py
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index daf80dd..6077b41 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -7,3 +7,4 @@
+ {"id": "X006", "utc": "2026-10-09T05:35Z", "kind": "custody", "what": "hypergraph search", "command": "grep -rni 'hypergraph|hyperedge|incidence' across main and the three active branches", "result": "no hypergraph implementation in any branch", "class": "audit"}
+ {"id": "X007", "utc": "2026-10-09T05:55Z", "kind": "custody-audit", "agent": "REVIEWER-1 (reported model id claude-opus-5-5)", "artifact": "research/mycelic_e2e/custody/OLD_BENCHMARKS.md", "result": "simulator E1-E12/v3/v4/v5 = simulation-only (imports no implementation code; oracle-assisted extraction ops.py:239-241); live Qwen harness = partial-path (model replaces extraction only, live/run.py:564-566); ingest_bench = component-only (real connector+pipeline+one EvidenceStore, no coordinator/loop/gate); seed scenario = end-to-end functional synthetic pass/fail (reproduced 13/13 in 11.5s), not an accuracy benchmark; LoCoMo = component-only on a different retriever, gold-category switch at runner.py:858 when USE_SPEAKER_PROFILES=1 (off by default)", "class": "audit"}
+ {"id": "X008", "utc": "2026-10-09T06:10Z", "kind": "trace", "agent": "ENGINEER-A (reported model id claude-sonnet-5-5)", "command": "python research/mycelic_e2e/audit/trace_one_event.py", "artifact": "research/mycelic_e2e/audit/TRACE_FINDINGS.md, trace_output.json", "result": "raw event intact through connector, normalization, queue(new), domain, shard, holder NeuralGraph store, outbox, coordinator document.ingested; FIRST LOSS at holder answer step: loop's templated question shares 0 content tokens with the memory -> fake answer_from_evidence no_evidence -> 0 claims. Probes: duplicate PASS, restart/replay PASS, out-of-order PASS, author edit -> contested not superseded (DEFECT), edit+delete -> coordinator keeps verbatim text in 7 tables (DEFECT), malformed lines counted but no per-line disposition + undated record gets ingest time (DEFECT), forwarded_from with own words -> 3 roots (DEFECT), 3-obs/2-dept routed+supported PASS (only with declared domains), denied access PASS content / metadata leak of refused holder ids (DEFECT h2), cross-tenant PASS", "provider": "deterministic (fake.py)", "host": "cloud container", "class": "partial-path trace (single event, in-process API)"}
++{"id": "X009", "utc": "2026-10-09T06:05Z", "kind": "perf-probe", "agent": "ENGINEER-B (reported model id claude-sonnet-5-5)", "artifact": "research/mycelic_e2e/perf/PERF_PROBE.md, perf/results/*.json", "result": "in-process stack, fake provider, hash-256 embedder, 5 records/user: N=2000 users open+ingest+one discovery pass 409 s (+92 s shutdown), peak RSS 3.98 GB; ingest 108->36.5 rec/s as N 50->2000; routing question.route 69/1107/3330 ms at N=200/1000/2000; every question capped at 10 holders in registry order; 10k in one process infeasible (RSS ~20 GB est., fds ~30k > 20k limit, ingest 62-101 min est.); coordinator-only at 10k: candidate_holders 8.5-9.3 s, question_audience 21-24 s per route (measured)", "host": "cloud container 4 vCPU/15.7 GB, shared with other agents (+-25%)", "class": "component perf (measured + extrapolated, labelled)"}
+diff --git a/research/mycelic_e2e/perf/PERF_PROBE.md b/research/mycelic_e2e/perf/PERF_PROBE.md
+new file mode 100644
+index 0000000..41f9d8e
+--- /dev/null
++++ b/research/mycelic_e2e/perf/PERF_PROBE.md
+@@ -0,0 +1,382 @@
++# Mycelic end-to-end performance probe (ENGINEER-B)
++
++Run: 2026-10-09 05:35-06:08 UTC, this cloud container (4 vCPU Intel Xeon @ 2.10 GHz, 15.7 GB RAM, no swap, Python 3.13.16, SQLite 3.45.1,
++`ulimit -n` 20000, 26 GB free disk). Code under test: `f96f263` (branch `claude/mycelic-implementation-vr034p`) without modification; every `file:line` below is a line of `git show f96f263:<file>`.
++**Code pinning.** Other engineers began editing production files in `/home/user/ng-impl` at 05:51 UTC (new `0005_hypergraph.sql`, `inquiry/routing.py`, edits to `inquiry/service.py`, `discovery/engine.py`, `org.py`, `holder/embedded.py`, ...). The main-table runs (N=50/200/1000/2000, the three profiles) all started between 05:45 and 05:55 and had imported their modules before the first edit to any module they use, so they ran f96f263 logic (the N=1000 ingest profile started 05:55, before the 05:56-06:00 edits to `embedded.py`, `evidence/service.py`, `org.py`). The isolated N=1000 rerun and the `coord_pinned_*` reruns were made from a `git archive f96f263` copy, so they are unaffected by those edits. The first coordinator-only runs (`coord_n*.json`) started after `0005_hypergraph.sql` appeared, so their `coord.db` carries that extra migration (unused by the measured functions).
++Every number below was produced by the scripts listed here; "measured" means it comes from a run, "extrapolated" means arithmetic on measured points
++(the formula is given). Nothing was run on the MacBook bridge.
++
++## What was measured, and how
++
++The real stack, in one Python process per run (so RSS is clean): `build_runtime()` (CoordDB `coord.db`, `SqliteTransport`, `DefaultModelRouter` with the
++deterministic `FakeProvider`, `EmbeddedHolders`), one **embedded holder per user** (`EvidenceStore` on a NeuralGraph store, `HolderService` transport consumer,
++`IngestRuntime`), records fed through the `local_export` connector -> `IngestPipeline` -> `EvidenceStore`, and the real `LoopEngine` + `DiscoveryWorker`
++(2 job loops + scheduler + core-inbound consumer) driving one goal. Only the model provider is the shipped fake.
++
++* **Organization.** root (executive) -> departments of 100 users -> teams of 10 users (N=1000: 10 departments, 100 teams). One user, one membership
++  (`team_lead` for each team's first, else `employee`), one embedded holder per user. Each team's holders register 2 of the 12 top-level taxonomy domains
++  (rotating), so every domain is held by about 1/6 of the holders.
++* **Records.** 5 per user (3 in the user's first domain, 2 in the second), ~290 characters each, one chunk each, dated yesterday (fresh). All holders of a
++  domain say the same thing (the fake evaluator treats differing figures as contradictions; `--disagree` produces that variant, not used in the tables).
++* **Embeddings.** Default everywhere is the deterministic hash embedder, no model, no network: the runtime embedder is `HashEmbeddings(dim=256)`
++  (`hash-bow-256`, `mycelic/models/openai_provider.py:236`, from `NeuralGraph.chat_memory.llm.fake_embedding`); a bare `EvidenceStore` uses the equivalent
++  `HashEmbedder` (`mycelic/evidence/service.py:261`). `MYCELIC_EMBED_PROVIDER=hash` is the default (`mycelic/config.py`).
++* **Discovery "full pass".** One goal owned by the root unit (scope = whole org), `max_concurrent_questions=3` (bench setting), budget large enough not to bind.
++  Round 0 = the loop as activated and left to run until the job queue is empty; each later round = the scheduled check coming due (`enqueue_tick`), until a
++  tick asks nothing new. All runs ended after round 1 (0 new questions) with `jobs: done` only and no job errors.
++* **Isolation.** Each run is pinned to one core (`taskset -c`); up to three runs (cores 0-2) were in flight at once, so the main table is not from a quiet
++  machine. `results/n1000_isolated.json` is an N=1000 rerun from a clean f96f263 export with only one other pinned process (a coordinator-only probe) running; the comparison and the run-to-run spread are in the last section.
++
++Scripts (all under `research/mycelic_e2e/perf/`):
++
++| file | what |
++|---|---|
++| `perf_bench.py` | the full per-N run: tenant -> open N holders -> ingest -> discovery; `--profile ingest|discovery` adds cProfile to that phase |
++| `bench_coordinator_scale.py` | coordinator-only routing costs (tenant + N holders registered, none opened), so N=10,000 fits in memory |
++| `summarize.py` | prints the tables and the cProfile top-15 below from `results/*.json` |
++| `results/n{50,200,1000,2000}.json`, `results/n1000_isolated.json` | raw output of the full runs (`n1000_isolated` from a clean f96f263 export, one other pinned probe running) |
++| `results/coord_n{500,1000,2000,5000,10000}.json`, `results/coord_pinned_n{2000,5000,10000}.json` | raw output of the coordinator-only runs (the `pinned` ones from a clean f96f263 export) |
++| `results/prof_ingest_n300.json`, `prof_ingest_n1000.json`, `prof_discovery_n1000.json` | raw cProfile runs (cProfile slows the run, use for shares not for seconds) |
++
++Reproduce: `python research/mycelic_e2e/perf/perf_bench.py --n 1000 --out research/mycelic_e2e/perf/results/n1000.json`.
++
++## Findings (answers to the four questions)
++
++### 1. Tenant, users, memberships, holders; open/close; disk; RSS; open-store limit
++
++* **Creating the tenant is cheap and linear.** 0.7-0.9 ms per user for user + membership + holder rows (one transaction each): 0.14 s at N=50, 0.77 s at N=1000,
++  1.9 s at N=2000, and, coordinator-only, **4.0-4.2 s at N=5000 and 8.4-14.4 s at N=10,000 (measured twice; the 14.4 s run shared the machine with an N=1000 run)**. `coord.db` is 26.5 MB at 10,000 users.
++* **Opening a holder** (create `evidence.db`, apply migrations, start the transport consumer, ingest runtime, first heartbeat): **~28-32 ms each, flat in N**
++  (N=1000: 29.4 s for all; N=2000: 55.9 s). Closing one: 6-8 ms. Reopening an existing file: 5-7 ms (one N=1000 sample shows 16.8 ms; noisy).
++* **No cache or limit on open stores.** `EmbeddedHolders` keeps every embedded holder's `EvidenceStore`, `HolderService` and `IngestRuntime` in plain dicts
++  (`mycelic/holder/embedded.py:55-57`), `start()` -> `reconcile()` (`:74`) -> `ensure()` (`:148`) opens all of them, and nothing evicts (no LRU, no max-open: grep finds none). So memory,
++  file descriptors and background tasks all grow linearly with N.
++* **RSS: 1.156-1.216 MB per open holder** (N=1000: 57 -> 1215 MB; N=2000: 58 -> 2370 MB; the per-holder figure is constant to three digits). Ingesting
++  5 records per holder adds about 0.8 MB each: whole-run peak RSS **2.0 GB at N=1000 and 3.98 GB at N=2000** (~2.0 MB per holder).
++* **File descriptors: exactly 3 per open holder** (`evidence.db`, `-wal`, `-shm`): 3010 at N=1000. The limit here is 20,000.
++* **Disk per holder:** an empty holder is **1.2 MB on disk** (`evidence.db` 4 KB + `-wal` 1.17 MB + `-shm` 33 KB; the WAL is not checkpointed). After 5 records:
++  3.1 MB with WAL, **0.756 MB main file after a WAL checkpoint** (sample of 20 holders, constant across N).
++* **Idle cost of N open holders** (nothing happening, 8 s sample): 0.008 / 0.042 / 0.144 / 0.283 of one core at N=50 / 200 / 1000 / 2000. Each holder owns a
++  transport consumer that polls every 0.25 s, a heartbeat loop (20 s) and an ingest tick (5 s); every coordinator commit also wakes all N consumers.
++* **Shutdown is quadratic:** `Runtime.stop()` took 0.5 / 2.0 / 22 / 92 s at N=50 / 200 / 1000 / 2000. Not profiled (suspects: `CoordDB.remove_waker` is
++  a `list.remove` per consumer, `mycelic/db/coord.py:83`, and each holder's final `store.stats()` + heartbeat in `EmbeddedHolders.stop`, `holder/embedded.py:117-130`).
++
++### 2. Ingestion throughput (connector -> pipeline -> EvidenceStore, hash embeddings)
++
++Per run: connect `local_export`, discover + include its source, `IngestRuntime.drain()` (sync, process queue, flush batch, publish), for each holder in turn; the
++other N-1 holders' consumers and loops run in the same event loop.
++
++| N | records | wall s | aggregate rec/s | ms per record | per-holder (5 rec) mean / p95 ms |
++|---|---|---|---|---|---|
++| 50 | 250 | 2.3 | 107.9 | 9.3 | 46 / 66 |
++| 200 | 1,000 | 10.4 | 96.3 | 10.4 | 52 / 69 |
++| 1000 | 5,000 | 78.0 | 64.1 | 15.6 | 78 / 109 |
++| 2000 | 10,000 | 274.1 | 36.5 | 27.4 | 137 / 273 |
++
++(The standalone single-holder `research/ingest_bench` figure on this class of machine is 136-169 rec/s for the same pipeline, so the N=50 value is in line.)
++Per-record cost **rises with the number of open holders** even though each holder's own work is identical: 9 ms -> 27 ms. Aggregate throughput is bounded by
++one core, because holders share one Python process and one event loop; each holder in isolation would run at ~100-110 rec/s. Model calls during ingest:
++`classify_domains` only, 0 / 40 / 160 / 340 (about 0.17 per holder, ambiguous records going to the fake model); there are no embedding model calls.
++Messages published to the transport: one `ingest_result` batch per holder plus a heartbeat per holder per minute.
++
++### 3. One discovery goal over N holders
++
++Measured over the whole pass (round 0 + the closing empty round); 12 domains exist from N=200 up, 6 at N=50:
++
++| N | wall s | questions | routes | model calls | mean tick ms | mean `question.route` ms | `domains_for_goal` ms/tick |
++|---|---|---|---|---|---|---|---|
++| 50 | 2.7 | 6 | 60 | 89 | 13 | 24 | 4.2 |
++| 200 | 5.2 | 12 | 120 | 178 | 42 | 69 | 31 |
++| 1000 | 22.0 | 12 | 120 | 178 | 197 | 1107 | 181 |
++| 2000 | 63.2 | 12 | 120 | 178 | 640 | 3330 | 620 |
++
++* **Model calls (fake) do not grow with N** once the domains are saturated: 178 = `answer_from_evidence` 120 (12 questions x 10 holders), `draft_question` 12,
++  `evaluate_responses` 12, `synthesize_discovery` 12, `record_outcome` 12, `identify_gap` 10. With a real model the discovery bill is therefore flat in N.
++* **Questions routed:** one gap question per uncovered domain (12), three per tick (`max_concurrent_questions`), 14 ticks in total.
++* **Routing does NOT fan out to every holder, but it scans all of them.** Delivery is capped at 10 holders per question (`budget.holders`, default 10,
++  `mycelic/inquiry/service.py:369-370`: `holders = holders[:max_holders]`); every question got exactly 10 routes, all answered. But `candidate_holders`
++  (`inquiry/service.py:340`, called from `route` at `:351`) runs `Authorizer.can_route` for **all** N holders first, `domains_for_goal` (`discovery/engine.py:252`) does the same for all holders **on every tick**,
++  and `question_audience` (`inquiry/service.py:408`) builds a `Principal` (4 SQL reads) for **every active user on every route**. The list is `ORDER BY name`
++  (`org.py:418`) and cut at 10, so from reading the code (not measured) the same lexicographically-first holders answer every question: at N=1000 about 160 holders
++  match a domain and 10 are ever asked. For the end-to-end benchmark this bounds how much of the ingested evidence the loop can reach.
++* **The routing cost is superlinear in N.** Per route: 24 / 69 / 1107 / 3330 ms (x16 for x5 N, then x3 for x2 N). Coordinator-only, measured at
++  larger N (see table): `question_audience` 0.25 s at N=1000, 0.58-0.86 s at 2000, 5.6-6.8 s at 5000, **21.3-24.5 s at 10,000** (per route); `candidate_holders` 0.20 / 0.39-0.44 / 2.1 / **8.5-9.3 s**;
++  `domains_for_goal` 0.22 / 0.39 / 2.1-2.3 / **7.6-9.1 s per tick** (ranges are the two independent runs). The full system is slower than the coordinator-only probe for `question_audience` (929 ms vs 253 ms at N=1000, 2813 vs 582 ms at N=2000, i.e. 3.7x and 4.8x) and
++  1.2-1.6x for `candidate_holders` and `domains_for_goal`; the likely cause is the heartbeat `stats` JSON that holder rows carry in the full system and that is re-decoded for every user and holder (295k `json.loads` in the profile), not verified separately.
++* **Transport catch-up** before the first tick: the core-inbound consumer works through the holders' heartbeats and `ingest_result`s at ~1.1 ms per message:
++  0.1 / 0.27 / 3.1 / 15.6 s at N=50 / 200 / 1000 / 2000 (14,000 messages at N=2000).
++
++### 4. Hotspots (cProfile top-15 tables are at the end; `file:line` as of `f96f263`)
++
++Ingestion (profile N=300, per-record work; N=1000 adds the per-holder background load):
++
++1. `mycelic/ingest/domains.py:714 classify` is 64% of `process_item` (16.4 s of 25.5 s): `rule_candidates` (`:495`) re-tokenizes and re-stems the whole taxonomy's keyword lists for
++   every record (`_tokens` `:375`, `_kw` `:387`: 303 tokenizations per record, `NeuralGraph/chat_memory/textutil.py:43 stem` and `:60 fold` 813k and 456k calls), and the embedding stage
++   (`:566`, `score` `:573`) computes pure-Python 256-d cosines against each centroid (`_cos` `:397`, 6.8M generator iterations; `CentroidIndex.get` `:428`).
++   Both are cacheable per taxonomy version / vectorizable with numpy.
++2. SQLite statements: 236 `execute` calls per record (354,727 / 1,500), 19% of profiled time (`mycelic/evidence/store.py:179 run_in_tx` and the pipeline's per-record transactions).
++3. At N=1000 (profile 196 s): `SqliteTransport._consume` (`mycelic/transport/sqlite_transport.py:198`) is **28%** (54.6 s; 1.3M loop passes, i.e. ~13 per holder per second, with a
++   `call_later` timer each via `_wait_for_wake` `:89`) and the holder heartbeat loop (`holder/service.py:137`, `store.stats()` + two coordinator commits per beat) is **15%** (29 s);
++   the actual per-record work (`process_item`) is 40%. `CoordDB.tx` (`mycelic/db/coord.py:57`) sets every consumer's event after every commit (`:76`).
++
++Discovery (profile N=1000, 30 s profiled):
++
++1. `question_audience` (`inquiry/service.py:408`) = 11.9 s of the 15.3 s spent in `QuestionService.route`: it calls `Authorizer.principal_for_user` (`authz.py:120`, 12,012 calls,
++   8.8 s cum) for every user; each builds memberships, grants and holders from SQL (`org.py:302`, `:360`, `:433`).
++   The cache key includes `db.revision` (`:416`), so any commit by anyone invalidates it.
++2. `Authorizer.can_route` (`authz.py:364`, 26,580 calls, 4.8 s cum): `self.org.descendants(scope)` (`authz.py:384`, `org.py:197`) is a `LIKE path%` query returning the whole
++   scope's units, **once per holder**, which makes the scan O(N x units) = quadratic (measured: 8.0-8.2 s for 10,000 holders, 60 ms for 500). `tenant_taxonomy` (`authz.py:206`) is rebuilt
++   on every `db.revision` change (`default_taxonomy` `ingest/domains.py:237`, 4,172 calls, 1.3 s cum).
++3. `OrgService.list_holders` (`org.py:418`) JSON-decodes four columns of every holder row on each call (295k `json.loads` in the profile).
++4. `LoopEngine.domains_for_goal` (`discovery/engine.py:252`) re-runs 1 and 2 over all holders on every tick.
++
++## Extrapolation to 10,000 users (labelled)
++
++| quantity at N=10,000 | value | basis |
++|---|---|---|
++| create tenant + 10,000 users + memberships + holders | **8.4-14.4 s** | **measured** twice (coordinator-only) |
++| coord.db size | 26.5 MB | measured |
++| `can_route` over all holders / `candidate_holders` / `domains_for_goal` / `question_audience` | 8.0-8.2 s / 8.5-9.3 s / 7.6-9.1 s per tick / 21.3-24.5 s per route | **measured** (coordinator-only; a lower bound for the full system, which was 1.2-1.6x slower for the first three and 3.7-4.8x slower for `question_audience` at N=1000-2000) |
++| open 10,000 holders | ~290 s | extrapolated, 29 ms x N (flat per-holder cost, measured to N=2000) |
++| RSS after opening / peak with 5 records each | 11.6 GB / ~20 GB | extrapolated, 1.16 MB and 2.0 MB per holder (constant, measured to 2000); machine has 15.7 GB and no swap: **does not fit** |
++| open file descriptors | 30,000 | extrapolated, 3 per holder; `ulimit -n` is 20,000: **fails near N = 6,600** |
++| disk | ~31 GB with WAL (7.6 GB main files after checkpoint) | extrapolated, 3.13 MB and 0.756 MB per holder; 26 GB free here |
++| ingest 50,000 records | ~62-101 min | extrapolated, ms/record = 27.4 + s x (N - 2000) with s = 0.0065 (200 -> 1000 slope) to 0.0118 (1000 -> 2000 slope), i.e. 74-122 ms per record; not reachable anyway |
++| one discovery pass | **>= 8.1 min** (12 x (9.3 + 21.3) s routes + 14 x 7.6 s ticks, coordinator-only numbers); ~22 min if the full-system factors seen at N=1000-2000 hold (audience x4, others x1.3) | lower bound is arithmetic on measured values; the upper figure is extrapolated; plus ~1 min of transport catch-up for ~50,000 messages |
++| idle CPU of the open holders | ~1.4 cores | extrapolated, 0.14 core per 1000 holders |
++| `Runtime.stop()` | ~38 min if the quadratic trend holds | extrapolated (0.5 / 2 / 22 / 92 s measured) |
++
++**10,000 users in one process is not possible on this machine** (RAM, file descriptors, disk), and would not be fast enough if it were.
++
++## Recommendation: the largest scenario for ingest + one full discovery pass in <= 25 minutes here
++
++| N (5 records/user) | open + ingest + catch-up + discovery | status |
++|---|---|---|
++| 1,000 | 29 + 78 + 3 + 22 = 132 s (2.2 min) | measured |
++| 2,000 | 56 + 274 + 16 + 63 = 409 s (6.8 min) | **measured**, largest completed full run (plus 92 s shutdown) |
++| 3,000 | ~12-14 min | extrapolated: open 87 s; ingest 15,000 rec at 34-39 ms = 8.5-10 min; discovery 116-142 s; catch-up ~23 s |
++| 4,000 | ~19-24 min | extrapolated, on the edge; ingest 20,000 rec at 40-51 ms = 13.5-17 min; RSS ~8 GB |
++| 5,000 | ~27-36 min | extrapolated, over budget; ingest 25,000 rec at 47-63 ms = 20-26 min; RSS ~10 GB |
++
++**Recommended: N = 2,000 users as the verified size (6.8 min); N = 3,000 as the ceiling to plan for (~12-14 min, extrapolated, RSS ~6 GB, ~9,000 fds, leaves headroom for the model-free scenario overhead).** N = 4,000 is possible only if the ingest slope stays at its lower estimate. Do not plan on more in one process. Extrapolation formulas: open = 29 ms x N; ingest = N x 5 x (27.4 + s x (N - 2000)) ms with s = 0.0065 (200->1000 slope) to 0.0118 (1000->2000 slope); discovery = 63 s x (N/2000)^k with k = 1.5 to 2 (the 1000->2000 points give k = 1.5); catch-up = 15.6 s x N/2000.
++To go beyond: run holders in separate processes (`mycelic/holder/process.py` exists), which also removes the per-commit wake-up of N consumers, or feed only a subset of
++users with records (an idle holder costs ~29 ms to open and 1.2 MB RAM, an ingested one 2 MB).
++
++Fixes that would help most, in order of effect on this benchmark:
++
++1. **`question_audience` / `principal_for_user`** (`inquiry/service.py:408`, `authz.py:120`): compute the audience once per (scope, visibility) with set queries over `memberships`
++   instead of one `Principal` (4 queries) per user, and key the cache on the membership/hierarchy tables, not `db.revision`. It is 78% of `QuestionService.route` time in the N=1000 profile.
++2. **`can_route` scan** (`authz.py:364`, `org.py:197`, `org.py:418`, `engine.py:252`): hoist `org.descendants(scope)` out of the per-holder loop (compute the closure once per call), cache `list_holders`
++   decoded rows, do the domain match in SQL, and stop re-scanning all holders on each tick. Removes the quadratic term (8 s -> well under 1 s at 10,000).
++3. **Transport consumers** (`transport/sqlite_transport.py:198`, `db/coord.py:76`): one shared poller/dispatcher for all embedded holders (or per-subject wake-ups) instead of N tasks each woken by
++   every commit, and spread holder heartbeats (`holder/service.py:137`) rather than N independent 20 s loops. Reclaims ~40% of ingest CPU at N=1000 and the idle load.
++4. **Domain classification** (`ingest/domains.py:375-428, 495, 566-573`): precompute stemmed keyword tuples per taxonomy version and use numpy for centroid cosines; ~60% of per-record time at small N.
++5. **Holder lifecycle** (`holder/embedded.py`): open stores lazily with an LRU (RSS 1.2 MB, 3 fds, a polling consumer per holder), and fix the quadratic `stop()`.
++
++## Caveats
++
++* Synthetic content (5 near-identical short notes per user, 12 domains), fake model, hash embeddings: the retrieval and discovery quality numbers of a real run will differ; only cost and
++  scaling are claimed. With `--disagree` (differing figures) the loop adds contradiction follow-ups and ~2x the model calls; that variant was run only at small N during development and is not reported.
++* cProfile inflates wall time 2-3x; use the profile tables for shares. The profiled N=300 ingestion run covered only the ingest phase.
++* `max_concurrent_questions=3` and the 12-domain taxonomy set the number of questions (12) and ticks (14); a different taxonomy or goal changes those, not the per-question costs above.
++* Timing runs shared the machine with two other pinned runs of mine; the isolated N=1000 rerun is compared below.
++* Not measured: holders in separate processes, NATS transport, a real model or embedding endpoint, the HTTP API, multiple tenants, multi-process ingestion scaling.
++
++
++## Run-to-run spread (same code, same N)
++
++Full N=1000 run, first (`n1000.json`, three runs sharing the machine) vs the pinned-code rerun (`n1000_isolated.json`, one other probe running):
++
++| measure | n1000 | n1000_isolated |
++|---|---|---|
++| open all holders, s | 29.4 | 24.0 |
++| idle CPU of 1000 open holders | 0.144 | 0.172 |
++| ingest wall s / aggregate rec/s | 78.0 / 64.1 | 87.6 / 57.1 |
++| core-inbound catch-up s | 3.06 | 4.66 |
++| discovery wall s (questions, model calls) | 22.0 (12, 178) | 26.8 (12, 178) |
++| mean tick ms / mean `question.route` ms | 197 / 1107 | 275 / 1269 |
++| `question_audience` uncached ms | 929 | 950 |
++| peak RSS MB / RSS after open MB | 2026 / 1215 | 2025 / 1216 |
++| shutdown s | 22.0 | 27.1 |
++
++Counts (questions, routes, model calls) and memory are identical between the runs; times differ by up to 25-40% (the rerun was slower on ingest and discovery, faster on opening), so treat any single
++timing here as +-25%, and the 2x-per-doubling trends (which are larger than that) as real. Coordinator-only pairs (`coord_nN.json` vs `coord_pinned_nN.json`) agree within 15% on `can_route`, `candidate_holders`,
++`domains_for_goal` and differ by 10-40% on `question_audience` (21.3 vs 24.5 s at 10,000).
++
++## Raw tables (generated by `summarize.py` from `results/*.json`)
++
++| measure | N=50 | N=200 | N=1000 | N=2000 |
++|---|---|---|---|---|
++| tenant+units+users+memberships+holders, total s | 0.139 | 0.225 | 0.772 | 1.896 |
++| per user (user+membership+holder rows), ms | 1.306 | 0.805 | 0.69 | 0.862 |
++| coord.db bytes after tenant | 790528 | 1232896 | 3284992 | 5881856 |
++| open all N holders, s | 1.579 | 6.44 | 29.414 | 55.936 |
++| open one holder mean / p95 ms | 31.518 / 52.0 | 32.171 / 41.0 | 29.383 / 44.0 | 27.944 / 41.0 |
++| first10 / last10 open mean ms | 54.533 / 25.492 | 32.95 / 28.13 | 29.426 / 19.169 | 31.883 / 23.682 |
++| close one holder mean ms (n=20) | 7.526 | 5.677 | 7.052 | 8.154 |
++| reopen one holder mean ms (n=20) | 5.83 | 5.482 | 16.768 | 6.965 |
++| RSS before -> after open, MB | 55.3 -> 116.1 | 55.8 -> 290.3 | 57.4 -> 1215.3 | 58.3 -> 2370.4 |
++| RSS per open holder, MB | 1.216 | 1.173 | 1.158 | 1.156 |
++| fds per open holder | 3.0 | 3.0 | 3.0 | 3.0 |
++| disk per empty holder, bytes (db / -wal / -shm) | 1202856 (4096 / 1165992 / 32768) | 1202856 (4096 / 1165992 / 32768) | 1202856 (4096 / 1165992 / 32768) | 1202856 (4096 / 1165992 / 32768) |
++| idle CPU of N open holders (fraction of 1 core) | 0.008 | 0.042 | 0.144 | 0.283 |
++| no-op reconcile() pass, s | 0.0025 | 0.0127 | 0.1072 | 0.1532 |
++| ingest: records | 250 | 1000 | 5000 | 10000 |
++| ingest: wall s | 2.317 | 10.382 | 77.957 | 274.123 |
++| ingest: aggregate records/s | 107.88 | 96.32 | 64.14 | 36.48 |
++| ingest: per holder (5 rec) mean ms | 46.025 | 51.649 | 77.668 | 136.74 |
++| ingest: per holder p95 ms | 66.0 | 69.0 | 109.0 | 273.0 |
++| ingest: per-holder records/s (mean) | 108.64 | 96.81 | 64.38 | 36.57 |
++| ingest: model calls | 0 | 40 | 160 | 340 |
++| ingest: disk/holder incl WAL, bytes | 2955501 | 3093976 | 3130859 | 3135418 |
++| ingest: db-only/holder after checkpoint (sample), bytes | 755712 | 755302 | 755507 | 756122 |
++| transport msgs after ingest (heartbeat+ingest_result) | 116 | 400 | 3419 | 14000 |
++| core-inbound catch-up s (cpu s) | 0.103 (0.094) | 0.268 (0.232) | 3.059 (2.523) | 15.586 (13.378) |
++| discovery: rounds (wall s each) | 1.686, 1.014 | 4.095, 1.057 | 20.216, 1.722 | 61.124, 2.058 |
++| discovery: total wall s / cpu s | 2.702 / 2.613 | 5.157 / 4.565 | 21.97 / 20.833 | 63.241 / 60.933 |
++| discovery: finished | True | True | True | True |
++| discovery: questions (by kind/depth) | 6 {'gap/d0': 6} | 12 {'gap/d0': 12} | 12 {'gap/d0': 12} | 12 {'gap/d0': 12} |
++| discovery: ticks, mean tick ms | 8, 13.016 | 14, 41.784 | 14, 196.965 | 14, 639.861 |
++| discovery: routes total (per question) | 60 (10.0) | 120 (10.0) | 120 (10.0) | 120 (10.0) |
++| discovery: model calls total | 89 | 178 | 178 | 178 |
++| discovery: model calls by task | {'identify_gap': 5, 'draft_question': 6, 'answer_from_evidence': 60, 'evaluate_responses': 6, 'synthesize_discovery': 6, 'record_outcome': 6} | {'identify_gap': 10, 'draft_question': 12, 'answer_from_evidence': 120, 'evaluate_responses': 12, 'synthesize_discovery': 12, 'record_outcome': 12} | {'identify_gap': 10, 'draft_question': 12, 'answer_from_evidence': 120, 'evaluate_responses': 12, 'synthesize_discovery': 12, 'record_outcome': 12} | {'identify_gap': 10, 'draft_question': 12, 'answer_from_evidence': 120, 'evaluate_responses': 12, 'synthesize_discovery': 12, 'record_outcome': 12} |
++| question.route job mean ms | 23.559 | 68.569 | 1107.469 | 3329.639 |
++|   of which candidate_holders mean ms | 7.123 | 24.096 | 238.602 | 514.95 |
++| domains_for_goal (per tick) mean ms | 4.177 | 31.319 | 181.245 | 619.806 |
++| loop.tick mean ms | 13.016 | 41.784 | 196.965 | 639.861 |
++| question.evaluate / commit mean ms | 18.002 / 4.249 | 20.997 / 15.217 | 21.832 / 5.068 | 23.685 / 8.222 |
++| micro: list_holders ms | 1.253 | 5.303 | 63.253 | 970.868 |
++| micro: can_route over all holders ms (us/holder) | 3.656 (73.2) | 16.81 (84.1) | 186.449 (186.5) | 423.988 (212.0) |
++| micro: question_audience uncached ms | 8.898 | 41.487 | 928.575 | 2813.31 |
++| peak RSS MB (whole run) | 164.6 | 462.3 | 2025.6 | 3975.7 |
++| shutdown s | 0.469 | 1.98 | 22.014 | 91.683 |
++| job errors | [] | [] | [] | [] |
++
++### cProfile top 15, phase `discovery`, N=1000 (file prof_discovery_n1000.json; profiled total 29.809 s)
++
++
++by own time
++
++| where | function | calls | own s | cum s |
++|---|---|---|---|---|
++| ~:0 | <method 'execute' of 'sqlite3.Connection' objects> | 514861 | 7.939 | 7.939 |
++| ~:0 | <method 'fetchall' of 'sqlite3.Cursor' objects> | 221104 | 5.654 | 5.654 |
++| /usr/lib/python3.13/json/decoder.py:351 | raw_decode | 295655 | 1.475 | 1.475 |
++| mycelic/db/coord.py:57 | tx | 11362 | 1.166 | 3.037 |
++| mycelic/db/coord.py:144 | row_to_dict | 93411 | 0.721 | 3.673 |
++| ~:0 | <method 'fetchone' of 'sqlite3.Cursor' objects> | 256159 | 0.654 | 0.654 |
++| /usr/lib/python3.13/asyncio/locks.py:182 | set | 5693602 | 0.587 | 0.789 |
++| /usr/lib/python3.13/json/decoder.py:340 | decode | 295655 | 0.584 | 2.455 |
++| mycelic/authz.py:364 | can_route | 26580 | 0.494 | 4.802 |
++| /usr/lib/python3.13/asyncio/events.py:113 | __init__ | 60306 | 0.404 | 0.486 |
++| /usr/lib/python3.13/json/__init__.py:304 | loads | 295655 | 0.332 | 2.878 |
++| ~:0 | <method 'get' of 'dict' objects> | 1208019 | 0.329 | 0.329 |
++| mycelic/ingest/domains.py:237 | default_taxonomy | 4172 | 0.326 | 1.267 |
++| mycelic/authz.py:153 | _scopes | 72060 | 0.298 | 1.262 |
++| /usr/lib/python3.13/json/encoder.py:207 | iterencode | 14400 | 0.284 | 0.284 |
++
++by cumulative time
++
++| where | function | calls | own s | cum s |
++|---|---|---|---|---|
++| /usr/lib/python3.13/asyncio/base_events.py:1981 | _run_once | 57 | 0.093 | 30.315 |
++| /usr/lib/python3.13/asyncio/events.py:87 | _run | 64056 | 0.053 | 30.008 |
++| ~:0 | <method 'run' of '_contextvars.Context' objects> | 64056 | 0.068 | 29.955 |
++| mycelic/discovery/worker.py:228 | _loop | 65 | 0.001 | 20.415 |
++| mycelic/discovery/worker.py:146 | run_once | 127 | 0.002 | 20.41 |
++| mycelic/discovery/worker.py:171 | _process | 62 | 0.002 | 20.13 |
++| research/mycelic_e2e/perf/perf_bench.py:328 | handle | 62 | 0.001 | 20.082 |
++| mycelic/discovery/engine.py:1249 | handle | 62 | 0.056 | 20.081 |
++| mycelic/discovery/engine.py:536 | route_question | 12 | 0.0 | 15.351 |
++| research/mycelic_e2e/perf/perf_bench.py:348 | route | 12 | 0.001 | 15.347 |
++| mycelic/inquiry/service.py:351 | route | 12 | 0.01 | 15.346 |
++| mycelic/inquiry/service.py:433 | publish_pending_routes | 12 | 0.002 | 12.066 |
++| mycelic/inquiry/service.py:408 | question_audience | 12 | 0.111 | 11.941 |
++| mycelic/db/coord.py:97 | all | 212624 | 0.265 | 10.875 |
++| mycelic/authz.py:120 | principal_for_user | 12012 | 0.158 | 8.829 |
++
++### cProfile top 15, phase `ingest`, N=1000 (file prof_ingest_n1000.json; profiled total 196.164 s)
++
++
++by own time
++
++| where | function | calls | own s | cum s |
++|---|---|---|---|---|
++| ~:0 | <method 'execute' of 'sqlite3.Connection' objects> | 3573441 | 31.957 | 31.957 |
++| ~:0 | <built-in method builtins.sum> | 1630020 | 12.872 | 22.657 |
++| NeuralGraph/chat_memory/textutil.py:43 | stem | 2715610 | 5.627 | 9.669 |
++| /usr/lib/python3.13/asyncio/events.py:129 | __lt__ | 16278592 | 4.939 | 6.716 |
++| mycelic/db/coord.py:57 | tx | 42320 | 4.423 | 15.752 |
++| NeuralGraph/chat_memory/textutil.py:63 | <genexpr> | 15579688 | 4.162 | 5.802 |
++| mycelic/transport/sqlite_transport.py:198 | _consume | 1306429 | 3.909 | 54.57 |
++| ~:0 | <method 'join' of 'str' objects> | 1846066 | 3.38 | 9.308 |
++| /usr/lib/python3.13/asyncio/events.py:113 | __init__ | 1355837 | 3.308 | 5.431 |
++| /usr/lib/python3.13/asyncio/locks.py:200 | wait | 2612838 | 3.306 | 7.126 |
++| /usr/lib/python3.13/asyncio/locks.py:182 | set | 21163429 | 3.305 | 8.826 |
++| ~:0 | <method 'fetchone' of 'sqlite3.Cursor' objects> | 1708331 | 3.237 | 3.237 |
++| mycelic/transport/sqlite_transport.py:89 | _wait_for_wake | 2612838 | 2.951 | 25.933 |
++| ~:0 | <built-in method _heapq.heappop> | 1129499 | 2.947 | 8.216 |
++| /usr/lib/python3.13/asyncio/base_events.py:806 | call_at | 1355837 | 2.59 | 10.41 |
++
++by cumulative time
++
++| where | function | calls | own s | cum s |
++|---|---|---|---|---|
++| /usr/lib/python3.13/asyncio/base_events.py:1981 | _run_once | 6129 | 2.508 | 204.837 |
++| /usr/lib/python3.13/asyncio/events.py:87 | _run | 1420704 | 1.53 | 192.414 |
++| ~:0 | <method 'run' of '_contextvars.Context' objects> | 1420704 | 1.735 | 190.883 |
++| mycelic/ingest/runtime.py:163 | tick | 43461 | 0.258 | 101.496 |
++| research/mycelic_e2e/perf/perf_bench.py:478 | run | 3035 | 0.005 | 101.152 |
++| research/mycelic_e2e/perf/perf_bench.py:255 | phase_ingest | 3035 | 0.103 | 101.146 |
++| mycelic/ingest/runtime.py:199 | drain | 3036 | 0.03 | 98.583 |
++| mycelic/ingest/pipeline.py:510 | process_available | 1003 | 0.141 | 87.172 |
++| mycelic/ingest/pipeline.py:563 | process_item | 5000 | 0.322 | 79.517 |
++| mycelic/transport/sqlite_transport.py:198 | _consume | 1306429 | 3.909 | 54.57 |
++| mycelic/ingest/domains.py:714 | classify | 5000 | 0.129 | 54.142 |
++| ~:0 | <method 'execute' of 'sqlite3.Connection' objects> | 3573441 | 31.957 | 31.957 |
++| mycelic/holder/service.py:137 | _heartbeat_loop | 10020 | 0.046 | 29.214 |
++| mycelic/ingest/domains.py:566 | _embedding_stage | 5000 | 0.258 | 28.853 |
++| mycelic/holder/service.py:142 | _safe_heartbeat | 10000 | 0.042 | 28.839 |
++
++### cProfile top 15, phase `ingest`, N=300 (file prof_ingest_n300.json; profiled total 35.583 s)
++
++
++by own time
++
++| where | function | calls | own s | cum s |
++|---|---|---|---|---|
++| ~:0 | <method 'execute' of 'sqlite3.Connection' objects> | 354727 | 6.871 | 6.871 |
++| ~:0 | <built-in method builtins.sum> | 484140 | 3.833 | 6.764 |
++| NeuralGraph/chat_memory/textutil.py:43 | stem | 813670 | 1.677 | 2.864 |
++| NeuralGraph/chat_memory/textutil.py:63 | <genexpr> | 4670558 | 1.224 | 1.713 |
++| ~:0 | <method 'join' of 'str' objects> | 539108 | 0.974 | 2.724 |
++| mycelic/ingest/domains.py:400 | <genexpr> | 6823350 | 0.706 | 0.706 |
++| ~:0 | <built-in method builtins.len> | 4679345 | 0.645 | 0.645 |
++| mycelic/ingest/domains.py:428 | get | 26550 | 0.553 | 3.218 |
++| mycelic/ingest/domains.py:495 | rule_candidates | 1500 | 0.552 | 7.05 |
++| mycelic/ingest/domains.py:375 | _tokens | 454500 | 0.535 | 5.92 |
++| ~:0 | <built-in method unicodedata.combining> | 4295072 | 0.5 | 0.5 |
++| NeuralGraph/chat_memory/textutil.py:60 | fold | 456000 | 0.499 | 3.342 |
++| ~:0 | <method 'endswith' of 'str' objects> | 2930266 | 0.487 | 0.487 |
++| ~:0 | <built-in method zlib.compress> | 3000 | 0.433 | 0.433 |
++| NeuralGraph/chat_memory/llm.py:201 | fake_embedding | 6930 | 0.428 | 1.663 |
++
++by cumulative time
++
++| where | function | calls | own s | cum s |
++|---|---|---|---|---|
++| /usr/lib/python3.13/asyncio/base_events.py:1981 | _run_once | 1835 | 0.177 | 37.469 |
++| /usr/lib/python3.13/asyncio/events.py:87 | _run | 101712 | 0.099 | 36.491 |
++| ~:0 | <method 'run' of '_contextvars.Context' objects> | 101712 | 0.123 | 36.391 |
++| research/mycelic_e2e/perf/perf_bench.py:478 | run | 906 | 0.001 | 31.305 |
++| research/mycelic_e2e/perf/perf_bench.py:255 | phase_ingest | 906 | 0.026 | 31.303 |
++| mycelic/ingest/runtime.py:163 | tick | 3332 | 0.027 | 30.687 |
++| mycelic/ingest/runtime.py:199 | drain | 906 | 0.008 | 30.562 |
++| mycelic/ingest/pipeline.py:510 | process_available | 301 | 0.047 | 26.943 |
++| mycelic/ingest/pipeline.py:563 | process_item | 1500 | 0.09 | 25.482 |
++| mycelic/ingest/domains.py:714 | classify | 1500 | 0.037 | 16.419 |
++| mycelic/ingest/domains.py:566 | _embedding_stage | 1500 | 0.073 | 9.021 |
++| mycelic/ingest/domains.py:573 | score | 26550 | 0.113 | 8.756 |
++| mycelic/evidence/store.py:179 | run_in_tx | 7204 | 0.07 | 7.581 |
++| mycelic/ingest/domains.py:495 | rule_candidates | 1500 | 0.552 | 7.05 |
++| ~:0 | <method 'execute' of 'sqlite3.Connection' objects> | 354727 | 6.871 | 6.871 |
+diff --git a/research/mycelic_e2e/perf/bench_coordinator_scale.py b/research/mycelic_e2e/perf/bench_coordinator_scale.py
+new file mode 100644
+index 0000000..75f1d66
+--- /dev/null
++++ b/research/mycelic_e2e/perf/bench_coordinator_scale.py
+@@ -0,0 +1,80 @@
++"""Coordinator-side routing cost at N users WITHOUT opening holder stores (so N = 10,000 fits in memory): measured, not extrapolated.
++
++Creates the tenant (N users, memberships, N embedded holders registered in coord.db) and times the O(N) / O(N^2) pieces a discovery
++tick and a question route run: OrgService.list_holders, Authorizer.can_route over all holders, QuestionService.candidate_holders,
++LoopEngine.domains_for_goal (per tick), QuestionService.question_audience (per route, uncached), plus tenant creation.
++
++    python research/mycelic_e2e/perf/bench_coordinator_scale.py --n 10000 --out research/mycelic_e2e/perf/results/coord_n10000.json
++"""
++from __future__ import annotations
++
++import argparse
++import asyncio
++import json
++import os
++import shutil
++import sys
++import tempfile
++import time
++from pathlib import Path
++
++sys.path.insert(0, str(Path(__file__).resolve().parent))
++import perf_bench as pb  # noqa: E402
++
++
++def timed(fn, reps: int = 1):
++    best = []
++    for _ in range(reps):
++        a = time.perf_counter()
++        r = fn()
++        best.append(time.perf_counter() - a)
++    return r, round(1000 * min(best), 2)
++
++
++async def run(n: int) -> dict:
++    base = Path(tempfile.mkdtemp(prefix=f"mycelic_coord_n{n}_", dir=os.environ.get("PERF_TMP", "/tmp")))
++    out: dict = {"n": n, "rss_start_mb": pb.rss_mb()}
++    rt = pb.build_runtime(pb.bench_settings(base), with_holders=False)
++    t0 = time.perf_counter()
++    ctx = await pb.phase_tenant(rt, n)
++    out["tenant_create_s"] = round(time.perf_counter() - t0, 2)
++    out["tenant_per_user_ms"] = ctx["timing"]["per_user_total_ms"]
++    out["coord_db_bytes"] = ctx["timing"]["coord_db_bytes"]
++    tid = ctx["tenant_id"]
++    admin = rt.authz.principal_for_user(ctx["admin_id"])
++    goal = await rt.goals.create_goal(admin, {"title": "g", "objective": "o", "owner_type": "unit", "owner_id": ctx["root"],
++                                              "budget": {"tokens": 10**7, "usd": 100, "questions": 500}}, activate=True)
++    loop_p = rt.authz.principal_for_loop(tid, goal)
++    q = {"question_id": "q_probe", "tenant_id": tid, "scope_unit_id": ctx["root"], "policy": {"visibility": "unit"}, "asker_type": "loop",
++         "asker_id": f"goal:{goal['goal_id']}", "goal_id": goal["goal_id"], "candidate_domains": ["engineering"]}
++    hs, out["list_holders_ms"] = timed(lambda: rt.org.list_holders(tid), 2)
++    out["holders"] = len(hs)
++    _, out["can_route_all_holders_ms"] = timed(lambda: [rt.authz.can_route(q, h) for h in hs], 2)
++    (ok, rej), out["candidate_holders_ms"] = timed(lambda: rt.questions.candidate_holders(q, asker=loop_p), 2)
++    out["routable_holders"], out["rejected_holders"] = len(ok), len(rej)
++    (dom, hh), out["domains_for_goal_ms"] = timed(lambda: rt.engine.domains_for_goal(goal), 2)
++    out["domains_for_goal_holders"], out["domains_found"] = len(hh), len(dom)
++
++    def aud():
++        rt.questions._audience_cache.clear()
++        return rt.questions.question_audience(q)
++    a, out["question_audience_uncached_ms"] = timed(aud, 1)
++    out["audience_size"] = len(a["principal_ids"])
++    _, out["question_audience_cached_ms"] = timed(lambda: rt.questions.question_audience(q), 1)
++    # a second, unrelated write invalidates the cache (db.revision is in its key): the steady state of a busy coordinator
++    out["peak_rss_mb"] = pb.peak_rss_mb()
++    await rt.stop()
++    shutil.rmtree(base, ignore_errors=True)
++    return out
++
++
++if __name__ == "__main__":
++    ap = argparse.ArgumentParser()
++    ap.add_argument("--n", type=int, required=True)
++    ap.add_argument("--out", default="")
++    a = ap.parse_args()
++    res = asyncio.run(run(a.n))
++    txt = json.dumps(res, indent=1)
++    if a.out:
++        Path(a.out).write_text(txt)
++    print(txt)
+diff --git a/research/mycelic_e2e/perf/perf_bench.py b/research/mycelic_e2e/perf/perf_bench.py
+new file mode 100644
+index 0000000..3e59dab
+--- /dev/null
++++ b/research/mycelic_e2e/perf/perf_bench.py
+@@ -0,0 +1,534 @@
++"""Performance probe of the in-process Mycelic stack: tenant+holders, ingestion, one discovery goal (see PERF_PROBE.md).
++
++One process per N (so RSS is clean). The system under test is the real one: coordinator CoordDB (coord.db), SqliteTransport,
++one EmbeddedHolders holder per user (EvidenceStore on a NeuralGraph store, HolderService transport consumer, IngestRuntime),
++local_export connector -> IngestPipeline -> EvidenceStore, hash-256 embeddings, the deterministic fake model provider and the
++real LoopEngine / DiscoveryWorker. Nothing is mocked except the model provider (FakeProvider) which the product ships.
++
++    python research/mycelic_e2e/perf/perf_bench.py --n 200 --out perf/results/n200.json
++    python research/mycelic_e2e/perf/perf_bench.py --n 200 --profile ingest --out perf/results/prof_ingest_n200.json
++"""
++from __future__ import annotations
++
++import argparse
++import asyncio
++import cProfile
++import io
++import json
++import logging
++import os
++import platform
++import pstats
++import shutil
++import sqlite3
++import statistics
++import sys
++import tempfile
++import time
++from datetime import datetime, timedelta, timezone
++from collections import Counter, defaultdict
++from pathlib import Path
++from typing import Any
++
++ROOT = Path(__file__).resolve().parents[3]
++sys.path.insert(0, str(ROOT))
++logging.disable(logging.CRITICAL)
++
++from mycelic.config import Settings  # noqa: E402
++from mycelic.runtime import build_runtime, build_worker  # noqa: E402
++from mycelic.util import token  # noqa: E402
++
++TOP_DOMAINS = ["engineering", "infrastructure", "product", "sales", "finance", "legal", "operations", "research",
++               "customer-support", "security", "hr", "executive-strategy"]
++TEAM_SIZE = 10
++TEAMS_PER_DEPT = 10
++
++
++# ------------------------------------------------------------------------------------------------ small helpers
++def rss_mb() -> float:
++    for line in Path("/proc/self/status").read_text().splitlines():
++        if line.startswith("VmRSS:"):
++            return round(int(line.split()[1]) / 1024, 1)
++    return -1.0
++
++
++def peak_rss_mb() -> float:
++    for line in Path("/proc/self/status").read_text().splitlines():
++        if line.startswith("VmHWM:"):
++            return round(int(line.split()[1]) / 1024, 1)
++    return -1.0
++
++
++def n_fds() -> int:
++    return len(os.listdir("/proc/self/fd"))
++
++
++def dir_bytes(p: Path, pattern: str = "*") -> int:
++    return sum(f.stat().st_size for f in p.rglob(pattern) if f.is_file())
++
++
++def disk_by_suffix(holders_dir: Path, n: int) -> dict[str, int]:
++    tot: dict[str, int] = defaultdict(int)
++    for f in holders_dir.rglob("evidence.db*"):
++        tot[f.suffix or ".db"] += f.stat().st_size
++    return {k: round(v / max(1, n)) for k, v in sorted(tot.items())}
++
++
++def pct(xs: list[float], p: float) -> float | None:
++    if not xs:
++        return None
++    s = sorted(xs)
++    return round(s[min(len(s) - 1, int(round(p * (len(s) - 1))))], 3)
++
++
++def dist(xs: list[float]) -> dict[str, Any]:
++    if not xs:
++        return {"n": 0}
++    return {"n": len(xs), "mean_ms": round(1000 * statistics.fmean(xs), 3), "p50_ms": round(1000 * pct(xs, 0.5), 3),
++            "p95_ms": round(1000 * pct(xs, 0.95), 3), "max_ms": round(1000 * max(xs), 3), "sum_s": round(sum(xs), 3)}
++
++
++def machine() -> dict[str, Any]:
++    cpu = next((l.split(":", 1)[1].strip() for l in Path("/proc/cpuinfo").read_text().splitlines() if l.startswith("model name")), "")
++    mem = next((l.split(":", 1)[1].strip() for l in Path("/proc/meminfo").read_text().splitlines() if l.startswith("MemTotal")), "")
++    return {"platform": platform.platform(), "cpu": cpu, "cpus": os.cpu_count(), "mem": mem, "python": platform.python_version(),
++            "sqlite": sqlite3.sqlite_version}
++
++
++def bench_settings(base: Path) -> Settings:
++    s = Settings()
++    s.data_dir = base
++    s.coord_db = str(base / "coord.db")
++    s.holders_dir = str(base / "holders")
++    s.host, s.port, s.public_url = "127.0.0.1", 0, ""
++    s.secret_key = token(32)
++    s.demo_mode, s.embedded_holders, s.run_worker_in_api = False, True, False
++    s.transport = "sqlite"
++    s.embed_provider = "hash"
++    s.loop_question_timeout_seconds = 60          # collect is pulled forward as soon as every routed holder has answered
++    s.loop_max_concurrent_questions = 3
++    s.loop_cooldown_seconds = 900
++    s.loop_max_followup_depth = 2
++    s.worker_concurrency = 2
++    s.worker_lease_seconds = 120.0
++    s.log_json = False
++    return s
++
++
++class Prof:
++    """cProfile around one phase; ``top(n)`` returns the n costliest functions by cumulative and by own time."""
++
++    def __init__(self, enabled: bool) -> None:
++        self.p = cProfile.Profile() if enabled else None
++
++    def __enter__(self):
++        if self.p:
++            self.p.enable()
++        return self
++
++    def __exit__(self, *a):
++        if self.p:
++            self.p.disable()
++
++    def top(self, n: int = 15) -> dict[str, Any] | None:
++        if not self.p:
++            return None
++        out: dict[str, Any] = {}
++        for key in ("tottime", "cumulative"):
++            buf = io.StringIO()
++            st = pstats.Stats(self.p, stream=buf)
++            st.sort_stats(key)
++            rows = []
++            for (fn, line, name), (cc, nc, tt, ct, _callers) in sorted(st.stats.items(), key=lambda kv: -(kv[1][2] if key == "tottime" else kv[1][3]))[:n]:
++                try:
++                    rel = str(Path(fn).relative_to(ROOT))
++                except ValueError:
++                    rel = fn.split("site-packages/")[-1] if "site-packages" in fn else fn
++                rows.append({"where": f"{rel}:{line}", "func": name, "ncalls": nc, "tottime_s": round(tt, 3), "cumtime_s": round(ct, 3)})
++            out[key] = rows
++        out["total_s"] = round(sum(v[2] for v in pstats.Stats(self.p).stats.values()), 3)
++        return out
++
++
++# ------------------------------------------------------------------------------------------------ phase 1: tenant
++async def phase_tenant(rt, n: int) -> dict[str, Any]:
++    org, auth = rt.org, rt.auth
++    t: dict[str, Any] = {"n_users": n}
++    t0 = time.perf_counter()
++    reg = await auth.register_tenant(org_name="Perf Org", slug="perf", admin_email="admin@perf.test", admin_name="Admin", password="password123")
++    t["register_tenant_s"] = round(time.perf_counter() - t0, 3)
++    tid, root = reg["tenant"]["tenant_id"], reg["root_unit"]["unit_id"]
++    n_teams = max(1, -(-n // TEAM_SIZE))
++    n_depts = max(1, -(-n_teams // TEAMS_PER_DEPT))
++    t0 = time.perf_counter()
++    depts = [await org.create_unit(tid, "department", f"Dept {i}", parent_id=root) for i in range(n_depts)]
++    teams = [await org.create_unit(tid, "team", f"Team {i}", parent_id=depts[i // TEAMS_PER_DEPT]["unit_id"]) for i in range(n_teams)]
++    t["units_s"] = round(time.perf_counter() - t0, 3)
++    t["depts"], t["teams"] = n_depts, n_teams
++    users, d_user, d_mem, d_hold = [], [], [], []
++    t_all = time.perf_counter()
++    for i in range(n):
++        team_i = i // TEAM_SIZE
++        doms = [TOP_DOMAINS[team_i % len(TOP_DOMAINS)], TOP_DOMAINS[(team_i + 1) % len(TOP_DOMAINS)]]
++        a = time.perf_counter()
++        u = await org.create_user(tid, f"user{i}@perf.test", f"User {i}")
++        b = time.perf_counter()
++        await org.add_membership(tid, u["user_id"], teams[team_i]["unit_id"], "team_lead" if i % TEAM_SIZE == 0 else "employee")
++        c = time.perf_counter()
++        h, _key = await org.register_holder(tid, owner_type="user", owner_id=u["user_id"], name=f"User {i} notes", mode="embedded", domains=doms)
++        d = time.perf_counter()
++        d_user.append(b - a); d_mem.append(c - b); d_hold.append(d - c)
++        users.append({"i": i, "user_id": u["user_id"], "holder_id": h["holder_id"], "team": teams[team_i]["unit_id"], "domains": doms, "email": u["email"]})
++    t["users_memberships_holders_total_s"] = round(time.perf_counter() - t_all, 3)
++    t["per_user_total_ms"] = round(1000 * (time.perf_counter() - t_all) / max(1, n), 3)
++    t["create_user"], t["add_membership"], t["register_holder"] = dist(d_user), dist(d_mem), dist(d_hold)
++    t["tenant_total_s"] = round(t["register_tenant_s"] + t["units_s"] + t["users_memberships_holders_total_s"], 3)
++    t["coord_db_bytes"] = Path(rt.settings.coord_db).stat().st_size
++    t["tables_rows"] = {name: rt.db.scalar(f"SELECT COUNT(*) FROM {name}") for name in ("users", "memberships", "holders", "org_units", "audit_log", "events")}
++    return {"timing": t, "tenant_id": tid, "root": root, "admin_id": reg["user"]["user_id"], "users": users, "teams": [x["unit_id"] for x in teams]}
++
++
++# ------------------------------------------------------------------------------------------------ phase 2: open holders
++async def phase_open(rt, users: list[dict], base: Path) -> dict[str, Any]:
++    h = rt.holders
++    o: dict[str, Any] = {"n_holders": len(users)}
++    await rt.transport.start()
++    rss0, fd0, cpu0, t0 = rss_mb(), n_fds(), time.process_time(), time.perf_counter()
++    per, series = [], []
++    step = max(1, len(users) // 10)
++    for k, u in enumerate(users):
++        a = time.perf_counter()
++        await h.ensure(u["holder_id"])
++        per.append(time.perf_counter() - a)
++        if (k + 1) % step == 0 or k + 1 == len(users):
++            series.append({"open": k + 1, "rss_mb": rss_mb(), "fds": n_fds()})
++    h.running = True
++    o["open_all_s"] = round(time.perf_counter() - t0, 3)
++    o["open_all_cpu_s"] = round(time.process_time() - cpu0, 3)
++    o["open_each"] = dist(per)
++    o["first10_mean_ms"] = round(1000 * statistics.fmean(per[:10]), 3)
++    o["last10_mean_ms"] = round(1000 * statistics.fmean(per[-10:]), 3)
++    o["rss_before_mb"], o["rss_after_mb"] = rss0, rss_mb()
++    o["rss_growth_mb_per_open_holder"] = round((o["rss_after_mb"] - rss0) / max(1, len(users)), 3)
++    o["rss_series"] = series
++    o["fds_before"], o["fds_after"] = fd0, n_fds()
++    o["fds_per_holder"] = round((o["fds_after"] - fd0) / max(1, len(users)), 2)
++    o["open_stores_in_memory"] = len(h._stores)
++    o["disk_per_holder_empty_bytes"] = round(dir_bytes(Path(rt.settings.holders_dir)) / max(1, len(users)))
++    o["disk_per_holder_by_file_bytes"] = disk_by_suffix(Path(rt.settings.holders_dir), len(users))
++    o["files_per_holder"] = sorted({f.name for f in Path(rt.settings.holders_dir).rglob("*") if f.is_file()})[:8]
++    # idle cost of N open holders: transport consumers poll, heartbeat and ingest loops run
++    c0, w0 = time.process_time(), time.perf_counter()
++    await asyncio.sleep(8.0)
++    o["idle_cpu_fraction_of_one_core"] = round((time.process_time() - c0) / (time.perf_counter() - w0), 3)
++    # one reconcile pass with every holder already running (the API runs this every ~20 s)
++    a = time.perf_counter()
++    await h.reconcile()
++    o["reconcile_noop_s"] = round(time.perf_counter() - a, 4)
++    # close / reopen individual holders
++    sample = [u["holder_id"] for u in users[:: max(1, len(users) // 20)]][:20]
++    close_t, reopen_t = [], []
++    for hid in sample:
++        a = time.perf_counter(); await h.remove(hid); close_t.append(time.perf_counter() - a)
++    for hid in sample:
++        a = time.perf_counter(); await h.ensure(hid); reopen_t.append(time.perf_counter() - a)
++    o["close_one"], o["reopen_one"] = dist(close_t), dist(reopen_t)
++    return o
++
++
++# ------------------------------------------------------------------------------------------------ phase 3: ingestion
++CREATED_AT = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")      # fresh enough not to be stale
++AGREE = True        # holders of one domain report the same figure (supported claims); False: figures differ per user (contested claims)
++WORDS = ["alpha", "bravo", "delta", "gamma", "kappa", "omega", "sigma", "theta", "zeta", "lambda", "tango", "victor", "yankee", "zulu"]
++
++
++def record_text(i: int, k: int, domain: str) -> tuple[str, str]:
++    """Text of record k of user i. No per-user digits unless --disagree (the fake evaluator treats differing figures as contradictions)."""
++    title = f"{domain} notes {i}-{k}"
++    days = "two" if AGREE else str(2 + (i + k) % 5)
++    w1, w2 = WORDS[(i + k) % len(WORDS)], WORDS[(i // 3 + 2 * k) % len(WORDS)]
++    text = (f"Recurring operational blocker related to {domain}: approvals for {domain} changes take {days} days because the review board meets twice a week. "
++            f"Tickets stay open while we wait; caused by the {domain} review backlog in the {w1} queue, noted by the {w2} group.")
++    return title, text
++
++
++async def phase_ingest(rt, users: list[dict], base: Path, records_per_user: int, prof: Prof) -> dict[str, Any]:
++    h = rt.holders
++    exp = base / "exports"
++    exp.mkdir(exist_ok=True)
++    per_holder, connect_t, drain_t = [], [], []
++    rss0, cpu0 = rss_mb(), time.process_time()
++    total_records = 0
++    t_wall0 = time.perf_counter()
++    with prof:
++        for u in users:
++            i = u["i"]
++            ing = h.ingest(u["holder_id"])
++            lines = [json.dumps({"type": "source", "id": f"u{i}-notes", "name": f"User {i} notes", "source_type": "channel", "visibility": "public",
++                                 "domains": u["domains"][:1]})]
++            for k in range(records_per_user):
++                dom = u["domains"][k % 2]
++                title, text = record_text(i, k, dom)
++                lines.append(json.dumps({"type": "document", "id": f"u{i}-r{k}", "author": u["email"], "created_at": CREATED_AT, "title": title, "text": text}))
++            p = exp / f"u{i}.jsonl"
++            p.write_text("\n".join(lines) + "\n", encoding="utf-8")
++            a = time.perf_counter()
++            con = await ing.service.add_connector("local_export", created_by=u["user_id"],
++                                                  config={"source_app": "notes", "account_id": f"u{i}", "paths": [str(p)], "auto_include": True})
++            await ing.service.discover_sources(con["connector_id"])
++            for s in ing.service.sources(con["connector_id"]):
++                if s.selection != "included":
++                    await ing.service.set_source(s.source_id, actor=u["user_id"], selection="included")
++            b = time.perf_counter()
++            r = await ing.drain()
++            c = time.perf_counter()
++            connect_t.append(b - a); drain_t.append(c - b); per_holder.append(c - a)
++            total_records += r["processed"]
++    wall = time.perf_counter() - t_wall0
++    out: dict[str, Any] = {"records_per_user": records_per_user, "records_processed": total_records, "wall_s": round(wall, 3),
++                           "cpu_s": round(time.process_time() - cpu0, 3), "aggregate_records_per_s": round(total_records / wall, 2),
++                           "per_holder_total": dist(per_holder), "connect_discover": dist(connect_t), "drain_process": dist(drain_t),
++                           "per_holder_records_per_s_mean": round(records_per_user / statistics.fmean(per_holder), 2),
++                           "rss_before_mb": rss0, "rss_after_mb": rss_mb(), "peak_rss_mb": peak_rss_mb()}
++    # what landed
++    docs = mems = vec = 0
++    for u in users[:: max(1, len(users) // 20)][:20]:
++        st = h.get(u["holder_id"])
++        c = st.store._conn
++        docs += c.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
++        mems += c.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
++    sample_n = len(users[:: max(1, len(users) // 20)][:20])
++    out["sample_holders"] = sample_n
++    out["documents_per_holder_sampled"] = round(docs / sample_n, 2)
++    out["memories_per_holder_sampled"] = round(mems / sample_n, 2)
++    out["disk_per_holder_after_bytes"] = round(dir_bytes(Path(rt.settings.holders_dir), "*.db*") / len(users))
++    out["disk_per_holder_after_by_file_bytes"] = disk_by_suffix(Path(rt.settings.holders_dir), len(users))
++    for u in users[:: max(1, len(users) // 20)][:20]:                      # WAL folded into the main file for the sampled holders
++        h.get(u["holder_id"]).store._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
++    out["disk_sampled_holders_after_checkpoint_db_bytes"] = round(statistics.fmean(
++        Path(h.store_path(u["holder_id"])).stat().st_size for u in users[:: max(1, len(users) // 20)][:20]))
++    out["transport_messages"] = rt.db.scalar("SELECT COUNT(*) FROM transport_messages")
++    out["transport_by_kind"] = {r[0]: r[1] for r in rt.db.all("SELECT json_extract(payload,'$.kind') k, COUNT(*) FROM transport_messages GROUP BY k")}
++    out["model_usage_rows_during_ingest"] = rt.db.scalar("SELECT COUNT(*) FROM model_usage")
++    out["model_usage_by_purpose"] = {r[0]: r[1] for r in rt.db.all("SELECT purpose, COUNT(*) FROM model_usage GROUP BY purpose")}
++    out["profile"] = prof.top(15)
++    return out
++
++
++# ------------------------------------------------------------------------------------------------ phase 4: discovery
++class Instr:
++    """Wraps engine.handle (per job kind) and the fake provider (per task) to count calls and time."""
++
++    def __init__(self, rt) -> None:
++        self.by_kind: dict[str, list[float]] = defaultdict(list)
++        self.model_calls: Counter = Counter()
++        eng = rt.engine
++        orig = eng.handle
++
++        async def handle(job, _o=orig):
++            t0 = time.perf_counter()
++            try:
++                return await _o(job)
++            finally:
++                self.by_kind[job.kind].append(time.perf_counter() - t0)
++        eng.handle = handle
++        prov = rt.router.providers["fake"]
++        oc = prov.complete
++
++        async def complete(messages, *, model, **kw):
++            from mycelic.models.fake import parse_task_prompt
++            user = next((m.get("content", "") for m in reversed(messages) if m.get("role") == "user"), "")
++            task, _ = parse_task_prompt(user)
++            self.model_calls[task or "?"] += 1
++            return await oc(messages, model=model, **kw)
++        prov.complete = complete
++        oq = rt.questions.route
++        self.route_t: list[float] = []
++
++        async def route(qid, **kw):
++            t0 = time.perf_counter()
++            try:
++                return await oq(qid, **kw)
++            finally:
++                self.route_t.append(time.perf_counter() - t0)
++        rt.questions.route = route
++        ocand = rt.questions.candidate_holders
++        self.cand_t: list[float] = []
++
++        def cand(q, **kw):
++            t0 = time.perf_counter()
++            try:
++                return ocand(q, **kw)
++            finally:
++                self.cand_t.append(time.perf_counter() - t0)
++        rt.questions.candidate_holders = cand
++        od = eng.domains_for_goal
++        self.dom_t: list[float] = []
++
++        def dom(goal, _o=od):
++            t0 = time.perf_counter()
++            try:
++                return _o(goal)
++            finally:
++                self.dom_t.append(time.perf_counter() - t0)
++        eng.domains_for_goal = dom
++
++
++async def phase_discovery(rt, ctx: dict, prof: Prof, max_wall: float, max_rounds: int = 12) -> dict[str, Any]:
++    from mycelic.util import parse_iso, utcnow
++    ins = Instr(rt)
++    d: dict[str, Any] = {}
++    tid = ctx["tenant_id"]
++    admin = rt.authz.principal_for_user(ctx["admin_id"])
++    worker = build_worker(rt)
++    # coordinator side of the transport: the core-inbound consumer sees every heartbeat / ingest_result the holders published so far
++    msgs_before = rt.db.scalar("SELECT COUNT(*) FROM transport_messages")
++    t0, c0 = time.perf_counter(), time.process_time()
++    await worker.start()                       # also starts the scheduler + 2 worker loops
++    # let the core-inbound consumer catch up on the holders' heartbeats / ingest_result batches (event-driven, in-process)
++    for _ in range(600):
++        lag = rt.db.scalar("SELECT COALESCE(MAX(id),0) FROM transport_messages") - rt.db.scalar("SELECT last_id FROM transport_cursors WHERE consumer='core-inbound'", default=0)
++        if lag <= 0:
++            break
++        await asyncio.sleep(0.1)
++    d["core_inbound_catchup_s"] = round(time.perf_counter() - t0, 3)
++    d["core_inbound_catchup_cpu_s"] = round(time.process_time() - c0, 3)
++    d["transport_messages_at_start"] = msgs_before
++    goal = await rt.goals.create_goal(admin, {"title": "Find recurring operational blockers", "objective": "Identify recurring operational blockers across all teams, verify causes",
++                                              "owner_type": "unit", "owner_id": ctx["root"], "success_criteria": [{"metric": "resolution_time_hours", "target": 24, "direction": "decrease"}],
++                                              "baseline": {"resolution_time_hours": 52}, "budget": {"tokens": 5_000_000, "usd": 100, "questions": 500, "followup_depth": 1}}, activate=True)
++    d["goal_id"] = goal["goal_id"]
++    t_start, c_start = time.perf_counter(), time.process_time()
++    rounds = []
++
++    async def wait_quiet(limit: float) -> bool:
++        quiet, t_w = 0, time.perf_counter()
++        while time.perf_counter() - t_w < limit:
++            await asyncio.sleep(0.2)
++            counts = rt.jobs.counts()
++            if not counts.get("queued") and not counts.get("leased") and rt.jobs.next_available_at() is None:
++                quiet += 1
++                if quiet >= 5:
++                    return True
++            else:
++                quiet = 0
++        return False
++
++    with prof:
++        # the production shape: the DiscoveryWorker (2 loops + scheduler + core-inbound consumer) runs next to the N holders' consumers.
++        # Round 0 is the loop as activated; every later round is the scheduled check coming due (enqueue_tick), until a tick asks nothing new.
++        for r in range(max_rounds):
++            nq0 = rt.db.scalar("SELECT COUNT(*) FROM questions WHERE goal_id=?", (goal["goal_id"],), default=0)
++            tr, cr = time.perf_counter(), time.process_time()
++            if r > 0:
++                await rt.goals.enqueue_tick(goal["goal_id"], reason="bench: scheduled check", priority=5)
++            ok = await wait_quiet(max(1.0, max_wall - (time.perf_counter() - t_start)))
++            nq1 = rt.db.scalar("SELECT COUNT(*) FROM questions WHERE goal_id=?", (goal["goal_id"],), default=0)
++            rounds.append({"round": r, "wall_s": round(time.perf_counter() - tr, 3), "cpu_s": round(time.process_time() - cr, 3), "new_questions": nq1 - nq0, "quiet": ok})
++            if not ok or (r > 0 and nq1 == nq0):
++                break
++    d["rounds"] = rounds
++    await worker.stop()
++    d["wall_s"] = round(time.perf_counter() - t_start, 3)
++    d["cpu_s"] = round(time.process_time() - c_start, 3)
++    d["finished"] = not rt.jobs.counts().get("queued") and not rt.jobs.counts().get("leased")
++    d["jobs_counts"] = dict(rt.jobs.counts())
++    d["job_errors"] = [r["last_error"][:200] for r in rt.db.all("SELECT last_error FROM jobs WHERE last_error IS NOT NULL AND last_error NOT LIKE 'lease expired%' LIMIT 5")]
++    d["jobs_by_kind"] = {k: dist(v) for k, v in sorted(ins.by_kind.items())}
++    tick = ins.by_kind.get("loop.tick", [])
++    d["ticks"] = len(tick)
++    d["tick_time"] = dist(tick)
++    d["model_calls_total"] = sum(ins.model_calls.values())
++    d["model_calls_by_task"] = dict(ins.model_calls)
++    d["model_usage_rows_by_purpose"] = {r[0]: r[1] for r in rt.db.all("SELECT purpose, COUNT(*) FROM model_usage GROUP BY purpose")}
++    qs = rt.db.all("SELECT question_id, status, candidate_domains, depth, kind FROM questions WHERE goal_id=?", (goal["goal_id"],))
++    d["questions"] = len(qs)
++    d["questions_by_status"] = dict(Counter(q["status"] for q in qs))
++    d["questions_by_kind_depth"] = dict(Counter(f"{q['kind']}/d{q['depth']}" for q in qs))
++    routes = rt.db.all("SELECT question_id, status FROM question_routes WHERE tenant_id=?", (tid,))
++    per_q = Counter(r["question_id"] for r in routes)
++    d["routes_total"] = len(routes)
++    d["routes_by_status"] = dict(Counter(r["status"] for r in routes))
++    d["routes_per_question"] = {"min": min(per_q.values(), default=0), "max": max(per_q.values(), default=0), "mean": round(statistics.fmean(per_q.values()), 2) if per_q else 0}
++    d["responses_by_status"] = {r[0]: r[1] for r in rt.db.all("SELECT status, COUNT(*) FROM responses WHERE tenant_id=? GROUP BY status", (tid,))}
++    d["claims_by_status"] = {r[0]: r[1] for r in rt.db.all("SELECT status, COUNT(*) FROM claims WHERE goal_id=? GROUP BY status", (goal["goal_id"],))}
++    d["discoveries"] = rt.db.scalar("SELECT COUNT(*) FROM discoveries WHERE goal_id=?", (goal["goal_id"],), default=0)
++    d["route_call"] = dist(ins.route_t)
++    d["candidate_holders_call"] = dist(ins.cand_t)
++    d["domains_for_goal_call"] = dist(ins.dom_t)
++    d["profile"] = prof.top(15)
++    # micro-measurements of the O(N) pieces, taken after the pass on the same data
++    q0 = rt.questions.get(qs[0]["question_id"]) if qs else None
++    if q0:
++        n_h = len(rt.org.list_holders(tid))
++        a = time.perf_counter(); hs = rt.org.list_holders(tid); d["micro_list_holders_ms"] = round(1000 * (time.perf_counter() - a), 3)
++        a = time.perf_counter()
++        for hh in hs:
++            rt.authz.can_route(q0, hh)
++        d["micro_can_route_all_holders_ms"] = round(1000 * (time.perf_counter() - a), 3)
++        d["micro_can_route_per_holder_us"] = round(1e6 * (time.perf_counter() - a) / max(1, n_h), 1)
++        rt.questions._audience_cache.clear()
++        a = time.perf_counter(); aud = rt.questions.question_audience(q0); d["micro_question_audience_uncached_ms"] = round(1000 * (time.perf_counter() - a), 3)
++        d["audience_size"] = len(aud["principal_ids"])
++        a = time.perf_counter(); rt.questions.question_audience(q0); d["micro_question_audience_cached_ms"] = round(1000 * (time.perf_counter() - a), 3)
++    return d
++
++
++# ------------------------------------------------------------------------------------------------ main
++async def run(args) -> dict[str, Any]:
++    base = Path(args.workdir or tempfile.mkdtemp(prefix=f"mycelic_perf_n{args.n}_", dir=os.environ.get("PERF_TMP", "/tmp")))
++    base.mkdir(parents=True, exist_ok=True)
++    out: dict[str, Any] = {"n": args.n, "agree": AGREE, "machine": machine(), "workdir": str(base), "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
++                           "profile_mode": args.profile}
++    out["rss_start_mb"] = rss_mb()
++    settings = bench_settings(base)
++    t0 = time.perf_counter()
++    rt = build_runtime(settings)
++    out["build_runtime_s"] = round(time.perf_counter() - t0, 3)
++    out["embedder"] = {"runtime_embedder": type(rt.embedder).__name__, "dim": getattr(rt.embedder, "dim", None), "model": getattr(rt.embedder, "model", None),
++                       "router_providers": list(rt.router.providers), "tiers": rt.router.tiers}
++    ctx = await phase_tenant(rt, args.n)
++    out["tenant"] = ctx["timing"]
++    out["rss_after_tenant_mb"] = rss_mb()
++    out["open"] = await phase_open(rt, ctx["users"], base)
++    if "ingest" in args.phases:
++        out["ingest"] = await phase_ingest(rt, ctx["users"], base, args.records_per_user, Prof(args.profile == "ingest"))
++    if "discovery" in args.phases:
++        out["discovery"] = await phase_discovery(rt, ctx, Prof(args.profile == "discovery"), args.max_wall, args.max_rounds)
++    out["peak_rss_mb"] = peak_rss_mb()
++    out["rss_end_mb"] = rss_mb()
++    out["fds_end"] = n_fds()
++    out["total_disk_bytes"] = {"coord_db_files": dir_bytes(base, "coord.db*"), "holders": dir_bytes(Path(settings.holders_dir))}
++    t0 = time.perf_counter()
++    await rt.stop()
++    out["shutdown_s"] = round(time.perf_counter() - t0, 3)
++    if not args.keep:
++        shutil.rmtree(base, ignore_errors=True)
++    return out
++
++
++def main() -> None:
++    ap = argparse.ArgumentParser()
++    ap.add_argument("--n", type=int, required=True)
++    ap.add_argument("--records-per-user", type=int, default=5)
++    ap.add_argument("--phases", default="ingest,discovery")
++    ap.add_argument("--profile", choices=["none", "ingest", "discovery"], default="none")
++    ap.add_argument("--max-wall", type=float, default=900.0)
++    ap.add_argument("--workdir", default="")
++    ap.add_argument("--keep", action="store_true")
++    ap.add_argument("--disagree", action="store_true", help="users report different figures (contested claims, contradiction follow-ups)")
++    ap.add_argument("--max-rounds", type=int, default=12)
++    ap.add_argument("--out", default="")
++    args = ap.parse_args()
++    global AGREE
++    AGREE = not args.disagree
++    res = asyncio.run(run(args))
++    txt = json.dumps(res, indent=1, default=str)
++    if args.out:
++        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
++        Path(args.out).write_text(txt)
++    print(txt)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/research/mycelic_e2e/perf/results/coord_n1000.json b/research/mycelic_e2e/perf/results/coord_n1000.json
+new file mode 100644
+index 0000000..7760c95
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/coord_n1000.json
+@@ -0,0 +1,20 @@
++{
++ "n": 1000,
++ "rss_start_mb": 40.2,
++ "tenant_create_s": 0.71,
++ "tenant_per_user_ms": 0.613,
++ "coord_db_bytes": 3264512,
++ "list_holders_ms": 11.85,
++ "holders": 1000,
++ "can_route_all_holders_ms": 123.14,
++ "candidate_holders_ms": 197.87,
++ "routable_holders": 170,
++ "rejected_holders": 830,
++ "domains_for_goal_ms": 216.85,
++ "domains_for_goal_holders": 1000,
++ "domains_found": 12,
++ "question_audience_uncached_ms": 252.79,
++ "audience_size": 1,
++ "question_audience_cached_ms": 0.01,
++ "peak_rss_mb": 67.7
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/results/coord_n10000.json b/research/mycelic_e2e/perf/results/coord_n10000.json
+new file mode 100644
+index 0000000..d8e7a67
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/coord_n10000.json
+@@ -0,0 +1,20 @@
++{
++ "n": 10000,
++ "rss_start_mb": 40.2,
++ "tenant_create_s": 8.39,
++ "tenant_per_user_ms": 0.801,
++ "coord_db_bytes": 26517504,
++ "list_holders_ms": 149.84,
++ "holders": 10000,
++ "can_route_all_holders_ms": 8209.19,
++ "candidate_holders_ms": 9250.25,
++ "routable_holders": 1670,
++ "rejected_holders": 8330,
++ "domains_for_goal_ms": 7646.21,
++ "domains_for_goal_holders": 10000,
++ "domains_found": 12,
++ "question_audience_uncached_ms": 21295.38,
++ "audience_size": 1,
++ "question_audience_cached_ms": 0.03,
++ "peak_rss_mb": 137.4
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/results/coord_n2000.json b/research/mycelic_e2e/perf/results/coord_n2000.json
+new file mode 100644
+index 0000000..6891ba0
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/coord_n2000.json
+@@ -0,0 +1,20 @@
++{
++ "n": 2000,
++ "rss_start_mb": 40.3,
++ "tenant_create_s": 1.71,
++ "tenant_per_user_ms": 0.8,
++ "coord_db_bytes": 5869568,
++ "list_holders_ms": 36.49,
++ "holders": 2000,
++ "can_route_all_holders_ms": 407.13,
++ "candidate_holders_ms": 392.86,
++ "routable_holders": 330,
++ "rejected_holders": 1670,
++ "domains_for_goal_ms": 390.64,
++ "domains_for_goal_holders": 2000,
++ "domains_found": 12,
++ "question_audience_uncached_ms": 581.91,
++ "audience_size": 1,
++ "question_audience_cached_ms": 0.01,
++ "peak_rss_mb": 71.6
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/results/coord_n500.json b/research/mycelic_e2e/perf/results/coord_n500.json
+new file mode 100644
+index 0000000..413b861
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/coord_n500.json
+@@ -0,0 +1,20 @@
++{
++ "n": 500,
++ "rss_start_mb": 40.5,
++ "tenant_create_s": 0.41,
++ "tenant_per_user_ms": 0.699,
++ "coord_db_bytes": 1970176,
++ "list_holders_ms": 6.12,
++ "holders": 500,
++ "can_route_all_holders_ms": 59.6,
++ "candidate_holders_ms": 65.59,
++ "routable_holders": 90,
++ "rejected_holders": 410,
++ "domains_for_goal_ms": 51.84,
++ "domains_for_goal_holders": 500,
++ "domains_found": 12,
++ "question_audience_uncached_ms": 124.03,
++ "audience_size": 1,
++ "question_audience_cached_ms": 0.01,
++ "peak_rss_mb": 67.8
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/results/coord_n5000.json b/research/mycelic_e2e/perf/results/coord_n5000.json
+new file mode 100644
+index 0000000..b825492
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/coord_n5000.json
+@@ -0,0 +1,20 @@
++{
++ "n": 5000,
++ "rss_start_mb": 40.3,
++ "tenant_create_s": 4.0,
++ "tenant_per_user_ms": 0.765,
++ "coord_db_bytes": 13619200,
++ "list_holders_ms": 72.92,
++ "holders": 5000,
++ "can_route_all_holders_ms": 1998.64,
++ "candidate_holders_ms": 2106.97,
++ "routable_holders": 830,
++ "rejected_holders": 4170,
++ "domains_for_goal_ms": 2068.75,
++ "domains_for_goal_holders": 5000,
++ "domains_found": 12,
++ "question_audience_uncached_ms": 5551.78,
++ "audience_size": 1,
++ "question_audience_cached_ms": 0.02,
++ "peak_rss_mb": 97.2
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/results/coord_pinned_n10000.json b/research/mycelic_e2e/perf/results/coord_pinned_n10000.json
+new file mode 100644
+index 0000000..1b144c3
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/coord_pinned_n10000.json
+@@ -0,0 +1,20 @@
++{
++ "n": 10000,
++ "rss_start_mb": 40.3,
++ "tenant_create_s": 14.4,
++ "tenant_per_user_ms": 1.389,
++ "coord_db_bytes": 26574848,
++ "list_holders_ms": 213.96,
++ "holders": 10000,
++ "can_route_all_holders_ms": 7967.61,
++ "candidate_holders_ms": 8471.31,
++ "routable_holders": 1670,
++ "rejected_holders": 8330,
++ "domains_for_goal_ms": 9139.31,
++ "domains_for_goal_holders": 10000,
++ "domains_found": 12,
++ "question_audience_uncached_ms": 24464.49,
++ "audience_size": 1,
++ "question_audience_cached_ms": 0.02,
++ "peak_rss_mb": 138.0
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/results/coord_pinned_n2000.json b/research/mycelic_e2e/perf/results/coord_pinned_n2000.json
+new file mode 100644
+index 0000000..f1bcda7
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/coord_pinned_n2000.json
+@@ -0,0 +1,20 @@
++{
++ "n": 2000,
++ "rss_start_mb": 40.4,
++ "tenant_create_s": 1.76,
++ "tenant_per_user_ms": 0.811,
++ "coord_db_bytes": 5885952,
++ "list_holders_ms": 28.64,
++ "holders": 2000,
++ "can_route_all_holders_ms": 400.91,
++ "candidate_holders_ms": 440.09,
++ "routable_holders": 330,
++ "rejected_holders": 1670,
++ "domains_for_goal_ms": 385.6,
++ "domains_for_goal_holders": 2000,
++ "domains_found": 12,
++ "question_audience_uncached_ms": 856.67,
++ "audience_size": 1,
++ "question_audience_cached_ms": 0.02,
++ "peak_rss_mb": 71.6
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/results/coord_pinned_n5000.json b/research/mycelic_e2e/perf/results/coord_pinned_n5000.json
+new file mode 100644
+index 0000000..3641f76
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/coord_pinned_n5000.json
+@@ -0,0 +1,20 @@
++{
++ "n": 5000,
++ "rss_start_mb": 40.4,
++ "tenant_create_s": 4.21,
++ "tenant_per_user_ms": 0.802,
++ "coord_db_bytes": 13594624,
++ "list_holders_ms": 83.04,
++ "holders": 5000,
++ "can_route_all_holders_ms": 2002.08,
++ "candidate_holders_ms": 2092.89,
++ "routable_holders": 830,
++ "rejected_holders": 4170,
++ "domains_for_goal_ms": 2336.46,
++ "domains_for_goal_holders": 5000,
++ "domains_found": 12,
++ "question_audience_uncached_ms": 6827.19,
++ "audience_size": 1,
++ "question_audience_cached_ms": 0.04,
++ "peak_rss_mb": 97.1
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/results/n1000.json b/research/mycelic_e2e/perf/results/n1000.json
+new file mode 100644
+index 0000000..ef459d2
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/n1000.json
+@@ -0,0 +1,392 @@
++{
++ "n": 1000,
++ "agree": true,
++ "machine": {
++  "platform": "Linux-6.18.44-fc-v80-x86_64-with-glibc2.39",
++  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
++  "cpus": 4,
++  "mem": "16480952 kB",
++  "python": "3.13.16",
++  "sqlite": "3.45.1"
++ },
++ "workdir": "/tmp/mycelic_perf_n1000_d_lwjebe",
++ "started_utc": "2026-10-09T05:46:48Z",
++ "profile_mode": "none",
++ "rss_start_mb": 42.0,
++ "build_runtime_s": 0.174,
++ "embedder": {
++  "runtime_embedder": "HashEmbeddings",
++  "dim": 256,
++  "model": "hash-bow-256",
++  "router_providers": [
++   "fake"
++  ],
++  "tiers": {
++   "light": "fake:mycelic-fake-light",
++   "standard": "fake:mycelic-fake-standard",
++   "heavy": "fake:mycelic-fake-heavy"
++  }
++ },
++ "tenant": {
++  "n_users": 1000,
++  "register_tenant_s": 0.054,
++  "units_s": 0.028,
++  "depts": 10,
++  "teams": 100,
++  "users_memberships_holders_total_s": 0.69,
++  "per_user_total_ms": 0.69,
++  "create_user": {
++   "n": 1000,
++   "mean_ms": 0.188,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 13.701,
++   "sum_s": 0.188
++  },
++  "add_membership": {
++   "n": 1000,
++   "mean_ms": 0.241,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 12.957,
++   "sum_s": 0.241
++  },
++  "register_holder": {
++   "n": 1000,
++   "mean_ms": 0.259,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 11.965,
++   "sum_s": 0.259
++  },
++  "tenant_total_s": 0.772,
++  "coord_db_bytes": 3284992,
++  "tables_rows": {
++   "users": 1001,
++   "memberships": 1002,
++   "holders": 1000,
++   "org_units": 111,
++   "audit_log": 3115,
++   "events": 1113
++  }
++ },
++ "rss_after_tenant_mb": 57.4,
++ "open": {
++  "n_holders": 1000,
++  "open_all_s": 29.414,
++  "open_all_cpu_s": 22.447,
++  "open_each": {
++   "n": 1000,
++   "mean_ms": 29.383,
++   "p50_ms": 26.0,
++   "p95_ms": 44.0,
++   "max_ms": 588.524,
++   "sum_s": 29.383
++  },
++  "first10_mean_ms": 29.426,
++  "last10_mean_ms": 19.169,
++  "rss_before_mb": 57.4,
++  "rss_after_mb": 1215.3,
++  "rss_growth_mb_per_open_holder": 1.158,
++  "rss_series": [
++   {
++    "open": 100,
++    "rss_mb": 175.4,
++    "fds": 310
++   },
++   {
++    "open": 200,
++    "rss_mb": 290.8,
++    "fds": 610
++   },
++   {
++    "open": 300,
++    "rss_mb": 406.2,
++    "fds": 910
++   },
++   {
++    "open": 400,
++    "rss_mb": 521.6,
++    "fds": 1210
++   },
++   {
++    "open": 500,
++    "rss_mb": 637.2,
++    "fds": 1510
++   },
++   {
++    "open": 600,
++    "rss_mb": 752.6,
++    "fds": 1810
++   },
++   {
++    "open": 700,
++    "rss_mb": 868.0,
++    "fds": 2110
++   },
++   {
++    "open": 800,
++    "rss_mb": 984.3,
++    "fds": 2410
++   },
++   {
++    "open": 900,
++    "rss_mb": 1099.7,
++    "fds": 2710
++   },
++   {
++    "open": 1000,
++    "rss_mb": 1215.2,
++    "fds": 3010
++   }
++  ],
++  "fds_before": 10,
++  "fds_after": 3010,
++  "fds_per_holder": 3.0,
++  "open_stores_in_memory": 1000,
++  "disk_per_holder_empty_bytes": 1202856,
++  "disk_per_holder_by_file_bytes": {
++   ".db": 4096,
++   ".db-shm": 32768,
++   ".db-wal": 1165992
++  },
++  "files_per_holder": [
++   "evidence.db",
++   "evidence.db-shm",
++   "evidence.db-wal"
++  ],
++  "idle_cpu_fraction_of_one_core": 0.144,
++  "reconcile_noop_s": 0.1072,
++  "close_one": {
++   "n": 20,
++   "mean_ms": 7.052,
++   "p50_ms": 6.0,
++   "p95_ms": 10.0,
++   "max_ms": 21.265,
++   "sum_s": 0.141
++  },
++  "reopen_one": {
++   "n": 20,
++   "mean_ms": 16.768,
++   "p50_ms": 6.0,
++   "p95_ms": 67.0,
++   "max_ms": 128.266,
++   "sum_s": 0.335
++  }
++ },
++ "ingest": {
++  "records_per_user": 5,
++  "records_processed": 5000,
++  "wall_s": 77.957,
++  "cpu_s": 73.408,
++  "aggregate_records_per_s": 64.14,
++  "per_holder_total": {
++   "n": 1000,
++   "mean_ms": 77.668,
++   "p50_ms": 61.0,
++   "p95_ms": 109.0,
++   "max_ms": 1575.073,
++   "sum_s": 77.668
++  },
++  "connect_discover": {
++   "n": 1000,
++   "mean_ms": 34.478,
++   "p50_ms": 26.0,
++   "p95_ms": 49.0,
++   "max_ms": 601.278,
++   "sum_s": 34.478
++  },
++  "drain_process": {
++   "n": 1000,
++   "mean_ms": 43.191,
++   "p50_ms": 34.0,
++   "p95_ms": 63.0,
++   "max_ms": 1260.933,
++   "sum_s": 43.191
++  },
++  "per_holder_records_per_s_mean": 64.38,
++  "rss_before_mb": 1247.1,
++  "rss_after_mb": 1998.4,
++  "peak_rss_mb": 1998.4,
++  "sample_holders": 20,
++  "documents_per_holder_sampled": 5.0,
++  "memories_per_holder_sampled": 5.0,
++  "disk_per_holder_after_bytes": 3130859,
++  "disk_per_holder_after_by_file_bytes": {
++   ".db": 18186,
++   ".db-shm": 32768,
++   ".db-wal": 3079905
++  },
++  "disk_sampled_holders_after_checkpoint_db_bytes": 755507,
++  "transport_messages": 3419,
++  "transport_by_kind": {
++   "heartbeat": 2419,
++   "ingest_result": 1000
++  },
++  "model_usage_rows_during_ingest": 160,
++  "model_usage_by_purpose": {
++   "classify_domains": 160
++  },
++  "profile": null
++ },
++ "discovery": {
++  "core_inbound_catchup_s": 3.059,
++  "core_inbound_catchup_cpu_s": 2.523,
++  "transport_messages_at_start": 3419,
++  "goal_id": "goal_50daf0e76acb487c818e",
++  "rounds": [
++   {
++    "round": 0,
++    "wall_s": 20.216,
++    "cpu_s": 19.126,
++    "new_questions": 12,
++    "quiet": true
++   },
++   {
++    "round": 1,
++    "wall_s": 1.722,
++    "cpu_s": 1.675,
++    "new_questions": 0,
++    "quiet": true
++   }
++  ],
++  "wall_s": 21.97,
++  "cpu_s": 20.833,
++  "finished": true,
++  "jobs_counts": {
++   "done": 62
++  },
++  "job_errors": [],
++  "jobs_by_kind": {
++   "loop.tick": {
++    "n": 14,
++    "mean_ms": 196.965,
++    "p50_ms": 191.0,
++    "p95_ms": 254.0,
++    "max_ms": 291.862,
++    "sum_s": 2.758
++   },
++   "question.collect": {
++    "n": 12,
++    "mean_ms": 0.355,
++    "p50_ms": 0.0,
++    "p95_ms": 0.0,
++    "max_ms": 0.546,
++    "sum_s": 0.004
++   },
++   "question.commit": {
++    "n": 12,
++    "mean_ms": 5.068,
++    "p50_ms": 5.0,
++    "p95_ms": 6.0,
++    "max_ms": 7.707,
++    "sum_s": 0.061
++   },
++   "question.evaluate": {
++    "n": 12,
++    "mean_ms": 21.832,
++    "p50_ms": 20.0,
++    "p95_ms": 25.0,
++    "max_ms": 36.522,
++    "sum_s": 0.262
++   },
++   "question.route": {
++    "n": 12,
++    "mean_ms": 1107.469,
++    "p50_ms": 1084.0,
++    "p95_ms": 1223.0,
++    "max_ms": 1593.55,
++    "sum_s": 13.29
++   }
++  },
++  "ticks": 14,
++  "tick_time": {
++   "n": 14,
++   "mean_ms": 196.965,
++   "p50_ms": 191.0,
++   "p95_ms": 254.0,
++   "max_ms": 291.862,
++   "sum_s": 2.758
++  },
++  "model_calls_total": 178,
++  "model_calls_by_task": {
++   "identify_gap": 10,
++   "draft_question": 12,
++   "answer_from_evidence": 120,
++   "evaluate_responses": 12,
++   "synthesize_discovery": 12,
++   "record_outcome": 12
++  },
++  "model_usage_rows_by_purpose": {
++   "answer_from_evidence": 120,
++   "classify_domains": 160,
++   "draft_question": 12,
++   "evaluate_responses": 12,
++   "identify_gap": 10,
++   "record_outcome": 12,
++   "synthesize_discovery": 12
++  },
++  "questions": 12,
++  "questions_by_status": {
++   "committed": 12
++  },
++  "questions_by_kind_depth": {
++   "gap/d0": 12
++  },
++  "routes_total": 120,
++  "routes_by_status": {
++   "answered": 120
++  },
++  "routes_per_question": {
++   "min": 10,
++   "max": 10,
++   "mean": 10.0
++  },
++  "responses_by_status": {
++   "answered": 120
++  },
++  "claims_by_status": {
++   "supported": 12
++  },
++  "discoveries": 12,
++  "route_call": {
++   "n": 12,
++   "mean_ms": 1107.243,
++   "p50_ms": 1084.0,
++   "p95_ms": 1223.0,
++   "max_ms": 1593.34,
++   "sum_s": 13.287
++  },
++  "candidate_holders_call": {
++   "n": 12,
++   "mean_ms": 238.602,
++   "p50_ms": 181.0,
++   "p95_ms": 282.0,
++   "max_ms": 720.739,
++   "sum_s": 2.863
++  },
++  "domains_for_goal_call": {
++   "n": 14,
++   "mean_ms": 181.245,
++   "p50_ms": 174.0,
++   "p95_ms": 220.0,
++   "max_ms": 275.53,
++   "sum_s": 2.537
++  },
++  "profile": null,
++  "micro_list_holders_ms": 63.253,
++  "micro_can_route_all_holders_ms": 186.449,
++  "micro_can_route_per_holder_us": 186.5,
++  "micro_question_audience_uncached_ms": 928.575,
++  "audience_size": 1,
++  "micro_question_audience_cached_ms": 0.011
++ },
++ "peak_rss_mb": 2025.6,
++ "rss_end_mb": 2025.6,
++ "fds_end": 3010,
++ "total_disk_bytes": {
++  "coord_db_files": 24313720,
++  "holders": 3100006832
++ },
++ "shutdown_s": 22.014
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/results/n1000_isolated.json b/research/mycelic_e2e/perf/results/n1000_isolated.json
+new file mode 100644
+index 0000000..10b5bf0
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/n1000_isolated.json
+@@ -0,0 +1,392 @@
++{
++ "n": 1000,
++ "agree": true,
++ "machine": {
++  "platform": "Linux-6.18.44-fc-v80-x86_64-with-glibc2.39",
++  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
++  "cpus": 4,
++  "mem": "16480952 kB",
++  "python": "3.13.16",
++  "sqlite": "3.45.1"
++ },
++ "workdir": "/tmp/mycelic_perf_n1000_35vz0op3",
++ "started_utc": "2026-10-09T06:01:44Z",
++ "profile_mode": "none",
++ "rss_start_mb": 49.1,
++ "build_runtime_s": 0.322,
++ "embedder": {
++  "runtime_embedder": "HashEmbeddings",
++  "dim": 256,
++  "model": "hash-bow-256",
++  "router_providers": [
++   "fake"
++  ],
++  "tiers": {
++   "light": "fake:mycelic-fake-light",
++   "standard": "fake:mycelic-fake-standard",
++   "heavy": "fake:mycelic-fake-heavy"
++  }
++ },
++ "tenant": {
++  "n_users": 1000,
++  "register_tenant_s": 0.059,
++  "units_s": 0.029,
++  "depts": 10,
++  "teams": 100,
++  "users_memberships_holders_total_s": 0.938,
++  "per_user_total_ms": 0.938,
++  "create_user": {
++   "n": 1000,
++   "mean_ms": 0.177,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 17.029,
++   "sum_s": 0.177
++  },
++  "add_membership": {
++   "n": 1000,
++   "mean_ms": 0.37,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 26.677,
++   "sum_s": 0.37
++  },
++  "register_holder": {
++   "n": 1000,
++   "mean_ms": 0.387,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 22.207,
++   "sum_s": 0.387
++  },
++  "tenant_total_s": 1.026,
++  "coord_db_bytes": 3276800,
++  "tables_rows": {
++   "users": 1001,
++   "memberships": 1002,
++   "holders": 1000,
++   "org_units": 111,
++   "audit_log": 3115,
++   "events": 1113
++  }
++ },
++ "rss_after_tenant_mb": 60.5,
++ "open": {
++  "n_holders": 1000,
++  "open_all_s": 23.957,
++  "open_all_cpu_s": 19.005,
++  "open_each": {
++   "n": 1000,
++   "mean_ms": 23.934,
++   "p50_ms": 20.0,
++   "p95_ms": 31.0,
++   "max_ms": 657.137,
++   "sum_s": 23.934
++  },
++  "first10_mean_ms": 52.87,
++  "last10_mean_ms": 16.625,
++  "rss_before_mb": 60.5,
++  "rss_after_mb": 1216.3,
++  "rss_growth_mb_per_open_holder": 1.156,
++  "rss_series": [
++   {
++    "open": 100,
++    "rss_mb": 176.3,
++    "fds": 310
++   },
++   {
++    "open": 200,
++    "rss_mb": 291.8,
++    "fds": 610
++   },
++   {
++    "open": 300,
++    "rss_mb": 407.2,
++    "fds": 910
++   },
++   {
++    "open": 400,
++    "rss_mb": 522.6,
++    "fds": 1210
++   },
++   {
++    "open": 500,
++    "rss_mb": 638.1,
++    "fds": 1510
++   },
++   {
++    "open": 600,
++    "rss_mb": 753.6,
++    "fds": 1810
++   },
++   {
++    "open": 700,
++    "rss_mb": 869.0,
++    "fds": 2110
++   },
++   {
++    "open": 800,
++    "rss_mb": 985.3,
++    "fds": 2410
++   },
++   {
++    "open": 900,
++    "rss_mb": 1100.7,
++    "fds": 2710
++   },
++   {
++    "open": 1000,
++    "rss_mb": 1216.2,
++    "fds": 3010
++   }
++  ],
++  "fds_before": 10,
++  "fds_after": 3010,
++  "fds_per_holder": 3.0,
++  "open_stores_in_memory": 1000,
++  "disk_per_holder_empty_bytes": 1202856,
++  "disk_per_holder_by_file_bytes": {
++   ".db": 4096,
++   ".db-shm": 32768,
++   ".db-wal": 1165992
++  },
++  "files_per_holder": [
++   "evidence.db",
++   "evidence.db-shm",
++   "evidence.db-wal"
++  ],
++  "idle_cpu_fraction_of_one_core": 0.172,
++  "reconcile_noop_s": 0.0838,
++  "close_one": {
++   "n": 20,
++   "mean_ms": 9.851,
++   "p50_ms": 8.0,
++   "p95_ms": 15.0,
++   "max_ms": 31.704,
++   "sum_s": 0.197
++  },
++  "reopen_one": {
++   "n": 20,
++   "mean_ms": 7.416,
++   "p50_ms": 6.0,
++   "p95_ms": 14.0,
++   "max_ms": 15.319,
++   "sum_s": 0.148
++  }
++ },
++ "ingest": {
++  "records_per_user": 5,
++  "records_processed": 5000,
++  "wall_s": 87.61,
++  "cpu_s": 77.141,
++  "aggregate_records_per_s": 57.07,
++  "per_holder_total": {
++   "n": 1000,
++   "mean_ms": 87.331,
++   "p50_ms": 70.0,
++   "p95_ms": 124.0,
++   "max_ms": 1922.764,
++   "sum_s": 87.331
++  },
++  "connect_discover": {
++   "n": 1000,
++   "mean_ms": 37.283,
++   "p50_ms": 29.0,
++   "p95_ms": 54.0,
++   "max_ms": 643.044,
++   "sum_s": 37.283
++  },
++  "drain_process": {
++   "n": 1000,
++   "mean_ms": 50.047,
++   "p50_ms": 39.0,
++   "p95_ms": 76.0,
++   "max_ms": 1884.151,
++   "sum_s": 50.047
++  },
++  "per_holder_records_per_s_mean": 57.25,
++  "rss_before_mb": 1248.8,
++  "rss_after_mb": 1998.5,
++  "peak_rss_mb": 1998.5,
++  "sample_holders": 20,
++  "documents_per_holder_sampled": 5.0,
++  "memories_per_holder_sampled": 5.0,
++  "disk_per_holder_after_bytes": 3130888,
++  "disk_per_holder_after_by_file_bytes": {
++   ".db": 18186,
++   ".db-shm": 32768,
++   ".db-wal": 3079934
++  },
++  "disk_sampled_holders_after_checkpoint_db_bytes": 755507,
++  "transport_messages": 3608,
++  "transport_by_kind": {
++   "heartbeat": 2608,
++   "ingest_result": 1000
++  },
++  "model_usage_rows_during_ingest": 160,
++  "model_usage_by_purpose": {
++   "classify_domains": 160
++  },
++  "profile": null
++ },
++ "discovery": {
++  "core_inbound_catchup_s": 4.656,
++  "core_inbound_catchup_cpu_s": 3.005,
++  "transport_messages_at_start": 3608,
++  "goal_id": "goal_239d0a75566e4eb6af2e",
++  "rounds": [
++   {
++    "round": 0,
++    "wall_s": 25.247,
++    "cpu_s": 22.46,
++    "new_questions": 12,
++    "quiet": true
++   },
++   {
++    "round": 1,
++    "wall_s": 1.561,
++    "cpu_s": 1.384,
++    "new_questions": 0,
++    "quiet": true
++   }
++  ],
++  "wall_s": 26.842,
++  "cpu_s": 23.878,
++  "finished": true,
++  "jobs_counts": {
++   "done": 62
++  },
++  "job_errors": [],
++  "jobs_by_kind": {
++   "loop.tick": {
++    "n": 14,
++    "mean_ms": 275.376,
++    "p50_ms": 228.0,
++    "p95_ms": 369.0,
++    "max_ms": 693.429,
++    "sum_s": 3.855
++   },
++   "question.collect": {
++    "n": 12,
++    "mean_ms": 0.409,
++    "p50_ms": 0.0,
++    "p95_ms": 1.0,
++    "max_ms": 0.707,
++    "sum_s": 0.005
++   },
++   "question.commit": {
++    "n": 12,
++    "mean_ms": 9.477,
++    "p50_ms": 6.0,
++    "p95_ms": 24.0,
++    "max_ms": 23.845,
++    "sum_s": 0.114
++   },
++   "question.evaluate": {
++    "n": 12,
++    "mean_ms": 25.82,
++    "p50_ms": 24.0,
++    "p95_ms": 35.0,
++    "max_ms": 36.022,
++    "sum_s": 0.31
++   },
++   "question.route": {
++    "n": 12,
++    "mean_ms": 1269.29,
++    "p50_ms": 1247.0,
++    "p95_ms": 1435.0,
++    "max_ms": 1828.491,
++    "sum_s": 15.231
++   }
++  },
++  "ticks": 14,
++  "tick_time": {
++   "n": 14,
++   "mean_ms": 275.376,
++   "p50_ms": 228.0,
++   "p95_ms": 369.0,
++   "max_ms": 693.429,
++   "sum_s": 3.855
++  },
++  "model_calls_total": 178,
++  "model_calls_by_task": {
++   "identify_gap": 10,
++   "draft_question": 12,
++   "answer_from_evidence": 120,
++   "evaluate_responses": 12,
++   "synthesize_discovery": 12,
++   "record_outcome": 12
++  },
++  "model_usage_rows_by_purpose": {
++   "answer_from_evidence": 120,
++   "classify_domains": 160,
++   "draft_question": 12,
++   "evaluate_responses": 12,
++   "identify_gap": 10,
++   "record_outcome": 12,
++   "synthesize_discovery": 12
++  },
++  "questions": 12,
++  "questions_by_status": {
++   "committed": 12
++  },
++  "questions_by_kind_depth": {
++   "gap/d0": 12
++  },
++  "routes_total": 120,
++  "routes_by_status": {
++   "answered": 120
++  },
++  "routes_per_question": {
++   "min": 10,
++   "max": 10,
++   "mean": 10.0
++  },
++  "responses_by_status": {
++   "answered": 120
++  },
++  "claims_by_status": {
++   "supported": 12
++  },
++  "discoveries": 12,
++  "route_call": {
++   "n": 12,
++   "mean_ms": 1269.051,
++   "p50_ms": 1247.0,
++   "p95_ms": 1434.0,
++   "max_ms": 1828.273,
++   "sum_s": 15.229
++  },
++  "candidate_holders_call": {
++   "n": 12,
++   "mean_ms": 261.671,
++   "p50_ms": 226.0,
++   "p95_ms": 285.0,
++   "max_ms": 758.405,
++   "sum_s": 3.14
++  },
++  "domains_for_goal_call": {
++   "n": 14,
++   "mean_ms": 259.147,
++   "p50_ms": 217.0,
++   "p95_ms": 346.0,
++   "max_ms": 682.573,
++   "sum_s": 3.628
++  },
++  "profile": null,
++  "micro_list_holders_ms": 32.672,
++  "micro_can_route_all_holders_ms": 158.697,
++  "micro_can_route_per_holder_us": 158.7,
++  "micro_question_audience_uncached_ms": 949.941,
++  "audience_size": 1,
++  "micro_question_audience_cached_ms": 0.012
++ },
++ "peak_rss_mb": 2025.1,
++ "rss_end_mb": 2025.1,
++ "fds_end": 3010,
++ "total_disk_bytes": {
++  "coord_db_files": 24776544,
++  "holders": 3100035672
++ },
++ "shutdown_s": 27.147
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/results/n200.json b/research/mycelic_e2e/perf/results/n200.json
+new file mode 100644
+index 0000000..a7d4fae
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/n200.json
+@@ -0,0 +1,392 @@
++{
++ "n": 200,
++ "agree": true,
++ "machine": {
++  "platform": "Linux-6.18.44-fc-v80-x86_64-with-glibc2.39",
++  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
++  "cpus": 4,
++  "mem": "16480952 kB",
++  "python": "3.13.16",
++  "sqlite": "3.45.1"
++ },
++ "workdir": "/tmp/mycelic_perf_n200_byo2hw42",
++ "started_utc": "2026-10-09T05:46:14Z",
++ "profile_mode": "none",
++ "rss_start_mb": 41.8,
++ "build_runtime_s": 0.237,
++ "embedder": {
++  "runtime_embedder": "HashEmbeddings",
++  "dim": 256,
++  "model": "hash-bow-256",
++  "router_providers": [
++   "fake"
++  ],
++  "tiers": {
++   "light": "fake:mycelic-fake-light",
++   "standard": "fake:mycelic-fake-standard",
++   "heavy": "fake:mycelic-fake-heavy"
++  }
++ },
++ "tenant": {
++  "n_users": 200,
++  "register_tenant_s": 0.061,
++  "units_s": 0.003,
++  "depts": 2,
++  "teams": 20,
++  "users_memberships_holders_total_s": 0.161,
++  "per_user_total_ms": 0.805,
++  "create_user": {
++   "n": 200,
++   "mean_ms": 0.172,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 8.091,
++   "sum_s": 0.034
++  },
++  "add_membership": {
++   "n": 200,
++   "mean_ms": 0.333,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 11.124,
++   "sum_s": 0.067
++  },
++  "register_holder": {
++   "n": 200,
++   "mean_ms": 0.298,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 8.878,
++   "sum_s": 0.06
++  },
++  "tenant_total_s": 0.225,
++  "coord_db_bytes": 1232896,
++  "tables_rows": {
++   "users": 201,
++   "memberships": 202,
++   "holders": 200,
++   "org_units": 23,
++   "audit_log": 627,
++   "events": 225
++  }
++ },
++ "rss_after_tenant_mb": 55.8,
++ "open": {
++  "n_holders": 200,
++  "open_all_s": 6.44,
++  "open_all_cpu_s": 5.63,
++  "open_each": {
++   "n": 200,
++   "mean_ms": 32.171,
++   "p50_ms": 29.0,
++   "p95_ms": 41.0,
++   "max_ms": 251.868,
++   "sum_s": 6.434
++  },
++  "first10_mean_ms": 32.95,
++  "last10_mean_ms": 28.13,
++  "rss_before_mb": 55.8,
++  "rss_after_mb": 290.3,
++  "rss_growth_mb_per_open_holder": 1.173,
++  "rss_series": [
++   {
++    "open": 20,
++    "rss_mb": 81.7,
++    "fds": 70
++   },
++   {
++    "open": 40,
++    "rss_mb": 105.0,
++    "fds": 130
++   },
++   {
++    "open": 60,
++    "rss_mb": 128.1,
++    "fds": 190
++   },
++   {
++    "open": 80,
++    "rss_mb": 151.3,
++    "fds": 250
++   },
++   {
++    "open": 100,
++    "rss_mb": 174.6,
++    "fds": 310
++   },
++   {
++    "open": 120,
++    "rss_mb": 197.8,
++    "fds": 370
++   },
++   {
++    "open": 140,
++    "rss_mb": 221.0,
++    "fds": 430
++   },
++   {
++    "open": 160,
++    "rss_mb": 244.1,
++    "fds": 490
++   },
++   {
++    "open": 180,
++    "rss_mb": 267.2,
++    "fds": 550
++   },
++   {
++    "open": 200,
++    "rss_mb": 290.3,
++    "fds": 610
++   }
++  ],
++  "fds_before": 10,
++  "fds_after": 610,
++  "fds_per_holder": 3.0,
++  "open_stores_in_memory": 200,
++  "disk_per_holder_empty_bytes": 1202856,
++  "disk_per_holder_by_file_bytes": {
++   ".db": 4096,
++   ".db-shm": 32768,
++   ".db-wal": 1165992
++  },
++  "files_per_holder": [
++   "evidence.db",
++   "evidence.db-shm",
++   "evidence.db-wal"
++  ],
++  "idle_cpu_fraction_of_one_core": 0.042,
++  "reconcile_noop_s": 0.0127,
++  "close_one": {
++   "n": 20,
++   "mean_ms": 5.677,
++   "p50_ms": 6.0,
++   "p95_ms": 7.0,
++   "max_ms": 7.323,
++   "sum_s": 0.114
++  },
++  "reopen_one": {
++   "n": 20,
++   "mean_ms": 5.482,
++   "p50_ms": 5.0,
++   "p95_ms": 7.0,
++   "max_ms": 8.176,
++   "sum_s": 0.11
++  }
++ },
++ "ingest": {
++  "records_per_user": 5,
++  "records_processed": 1000,
++  "wall_s": 10.382,
++  "cpu_s": 10.146,
++  "aggregate_records_per_s": 96.32,
++  "per_holder_total": {
++   "n": 200,
++   "mean_ms": 51.649,
++   "p50_ms": 49.0,
++   "p95_ms": 69.0,
++   "max_ms": 85.657,
++   "sum_s": 10.33
++  },
++  "connect_discover": {
++   "n": 200,
++   "mean_ms": 6.382,
++   "p50_ms": 6.0,
++   "p95_ms": 9.0,
++   "max_ms": 13.997,
++   "sum_s": 1.276
++  },
++  "drain_process": {
++   "n": 200,
++   "mean_ms": 45.267,
++   "p50_ms": 43.0,
++   "p95_ms": 61.0,
++   "max_ms": 76.26,
++   "sum_s": 9.053
++  },
++  "per_holder_records_per_s_mean": 96.81,
++  "rss_before_mb": 297.9,
++  "rss_after_mb": 445.0,
++  "peak_rss_mb": 445.0,
++  "sample_holders": 20,
++  "documents_per_holder_sampled": 5.0,
++  "memories_per_holder_sampled": 5.0,
++  "disk_per_holder_after_bytes": 3093976,
++  "disk_per_holder_after_by_file_bytes": {
++   ".db": 74547,
++   ".db-shm": 32768,
++   ".db-wal": 2986661
++  },
++  "disk_sampled_holders_after_checkpoint_db_bytes": 755302,
++  "transport_messages": 400,
++  "transport_by_kind": {
++   "heartbeat": 200,
++   "ingest_result": 200
++  },
++  "model_usage_rows_during_ingest": 40,
++  "model_usage_by_purpose": {
++   "classify_domains": 40
++  },
++  "profile": null
++ },
++ "discovery": {
++  "core_inbound_catchup_s": 0.268,
++  "core_inbound_catchup_cpu_s": 0.232,
++  "transport_messages_at_start": 400,
++  "goal_id": "goal_947001dd6ca64842a850",
++  "rounds": [
++   {
++    "round": 0,
++    "wall_s": 4.095,
++    "cpu_s": 3.53,
++    "new_questions": 12,
++    "quiet": true
++   },
++   {
++    "round": 1,
++    "wall_s": 1.057,
++    "cpu_s": 1.031,
++    "new_questions": 0,
++    "quiet": true
++   }
++  ],
++  "wall_s": 5.157,
++  "cpu_s": 4.565,
++  "finished": true,
++  "jobs_counts": {
++   "done": 62
++  },
++  "job_errors": [],
++  "jobs_by_kind": {
++   "loop.tick": {
++    "n": 14,
++    "mean_ms": 41.784,
++    "p50_ms": 30.0,
++    "p95_ms": 45.0,
++    "max_ms": 165.438,
++    "sum_s": 0.585
++   },
++   "question.collect": {
++    "n": 12,
++    "mean_ms": 0.295,
++    "p50_ms": 0.0,
++    "p95_ms": 0.0,
++    "max_ms": 0.364,
++    "sum_s": 0.004
++   },
++   "question.commit": {
++    "n": 12,
++    "mean_ms": 15.217,
++    "p50_ms": 6.0,
++    "p95_ms": 16.0,
++    "max_ms": 118.579,
++    "sum_s": 0.183
++   },
++   "question.evaluate": {
++    "n": 12,
++    "mean_ms": 20.997,
++    "p50_ms": 19.0,
++    "p95_ms": 27.0,
++    "max_ms": 27.534,
++    "sum_s": 0.252
++   },
++   "question.route": {
++    "n": 12,
++    "mean_ms": 68.569,
++    "p50_ms": 65.0,
++    "p95_ms": 76.0,
++    "max_ms": 99.368,
++    "sum_s": 0.823
++   }
++  },
++  "ticks": 14,
++  "tick_time": {
++   "n": 14,
++   "mean_ms": 41.784,
++   "p50_ms": 30.0,
++   "p95_ms": 45.0,
++   "max_ms": 165.438,
++   "sum_s": 0.585
++  },
++  "model_calls_total": 178,
++  "model_calls_by_task": {
++   "identify_gap": 10,
++   "draft_question": 12,
++   "answer_from_evidence": 120,
++   "evaluate_responses": 12,
++   "synthesize_discovery": 12,
++   "record_outcome": 12
++  },
++  "model_usage_rows_by_purpose": {
++   "answer_from_evidence": 120,
++   "classify_domains": 40,
++   "draft_question": 12,
++   "evaluate_responses": 12,
++   "identify_gap": 10,
++   "record_outcome": 12,
++   "synthesize_discovery": 12
++  },
++  "questions": 12,
++  "questions_by_status": {
++   "committed": 12
++  },
++  "questions_by_kind_depth": {
++   "gap/d0": 12
++  },
++  "routes_total": 120,
++  "routes_by_status": {
++   "answered": 120
++  },
++  "routes_per_question": {
++   "min": 10,
++   "max": 10,
++   "mean": 10.0
++  },
++  "responses_by_status": {
++   "answered": 120
++  },
++  "claims_by_status": {
++   "supported": 12
++  },
++  "discoveries": 12,
++  "route_call": {
++   "n": 12,
++   "mean_ms": 68.379,
++   "p50_ms": 64.0,
++   "p95_ms": 76.0,
++   "max_ms": 99.061,
++   "sum_s": 0.821
++  },
++  "candidate_holders_call": {
++   "n": 12,
++   "mean_ms": 24.096,
++   "p50_ms": 23.0,
++   "p95_ms": 28.0,
++   "max_ms": 35.35,
++   "sum_s": 0.289
++  },
++  "domains_for_goal_call": {
++   "n": 14,
++   "mean_ms": 31.319,
++   "p50_ms": 21.0,
++   "p95_ms": 33.0,
++   "max_ms": 144.302,
++   "sum_s": 0.438
++  },
++  "profile": null,
++  "micro_list_holders_ms": 5.303,
++  "micro_can_route_all_holders_ms": 16.81,
++  "micro_can_route_per_holder_us": 84.1,
++  "micro_question_audience_uncached_ms": 41.487,
++  "audience_size": 1,
++  "micro_question_audience_cached_ms": 0.009
++ },
++ "peak_rss_mb": 462.3,
++ "rss_end_mb": 462.3,
++ "fds_end": 610,
++ "total_disk_bytes": {
++  "coord_db_files": 9244368,
++  "holders": 587955504
++ },
++ "shutdown_s": 1.98
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/results/n2000.json b/research/mycelic_e2e/perf/results/n2000.json
+new file mode 100644
+index 0000000..bbcdd1f
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/n2000.json
+@@ -0,0 +1,392 @@
++{
++ "n": 2000,
++ "agree": true,
++ "machine": {
++  "platform": "Linux-6.18.44-fc-v80-x86_64-with-glibc2.39",
++  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
++  "cpus": 4,
++  "mem": "16480952 kB",
++  "python": "3.13.16",
++  "sqlite": "3.45.1"
++ },
++ "workdir": "/tmp/mycelic_perf_n2000_10l8qqhg",
++ "started_utc": "2026-10-09T05:45:58Z",
++ "profile_mode": "none",
++ "rss_start_mb": 41.8,
++ "build_runtime_s": 0.242,
++ "embedder": {
++  "runtime_embedder": "HashEmbeddings",
++  "dim": 256,
++  "model": "hash-bow-256",
++  "router_providers": [
++   "fake"
++  ],
++  "tiers": {
++   "light": "fake:mycelic-fake-light",
++   "standard": "fake:mycelic-fake-standard",
++   "heavy": "fake:mycelic-fake-heavy"
++  }
++ },
++ "tenant": {
++  "n_users": 2000,
++  "register_tenant_s": 0.066,
++  "units_s": 0.106,
++  "depts": 20,
++  "teams": 200,
++  "users_memberships_holders_total_s": 1.724,
++  "per_user_total_ms": 0.862,
++  "create_user": {
++   "n": 2000,
++   "mean_ms": 0.231,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 32.411,
++   "sum_s": 0.462
++  },
++  "add_membership": {
++   "n": 2000,
++   "mean_ms": 0.399,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 22.065,
++   "sum_s": 0.797
++  },
++  "register_holder": {
++   "n": 2000,
++   "mean_ms": 0.23,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 14.829,
++   "sum_s": 0.461
++  },
++  "tenant_total_s": 1.896,
++  "coord_db_bytes": 5881856,
++  "tables_rows": {
++   "users": 2001,
++   "memberships": 2002,
++   "holders": 2000,
++   "org_units": 221,
++   "audit_log": 6225,
++   "events": 2223
++  }
++ },
++ "rss_after_tenant_mb": 58.3,
++ "open": {
++  "n_holders": 2000,
++  "open_all_s": 55.936,
++  "open_all_cpu_s": 48.583,
++  "open_each": {
++   "n": 2000,
++   "mean_ms": 27.944,
++   "p50_ms": 26.0,
++   "p95_ms": 41.0,
++   "max_ms": 434.481,
++   "sum_s": 55.888
++  },
++  "first10_mean_ms": 31.883,
++  "last10_mean_ms": 23.682,
++  "rss_before_mb": 58.3,
++  "rss_after_mb": 2370.4,
++  "rss_growth_mb_per_open_holder": 1.156,
++  "rss_series": [
++   {
++    "open": 200,
++    "rss_mb": 291.4,
++    "fds": 610
++   },
++   {
++    "open": 400,
++    "rss_mb": 522.2,
++    "fds": 1210
++   },
++   {
++    "open": 600,
++    "rss_mb": 753.1,
++    "fds": 1810
++   },
++   {
++    "open": 800,
++    "rss_mb": 984.8,
++    "fds": 2410
++   },
++   {
++    "open": 1000,
++    "rss_mb": 1215.7,
++    "fds": 3010
++   },
++   {
++    "open": 1200,
++    "rss_mb": 1446.4,
++    "fds": 3610
++   },
++   {
++    "open": 1400,
++    "rss_mb": 1677.4,
++    "fds": 4210
++   },
++   {
++    "open": 1600,
++    "rss_mb": 1908.1,
++    "fds": 4810
++   },
++   {
++    "open": 1800,
++    "rss_mb": 2139.4,
++    "fds": 5410
++   },
++   {
++    "open": 2000,
++    "rss_mb": 2370.1,
++    "fds": 6010
++   }
++  ],
++  "fds_before": 10,
++  "fds_after": 6010,
++  "fds_per_holder": 3.0,
++  "open_stores_in_memory": 2000,
++  "disk_per_holder_empty_bytes": 1202856,
++  "disk_per_holder_by_file_bytes": {
++   ".db": 4096,
++   ".db-shm": 32768,
++   ".db-wal": 1165992
++  },
++  "files_per_holder": [
++   "evidence.db",
++   "evidence.db-shm",
++   "evidence.db-wal"
++  ],
++  "idle_cpu_fraction_of_one_core": 0.283,
++  "reconcile_noop_s": 0.1532,
++  "close_one": {
++   "n": 20,
++   "mean_ms": 8.154,
++   "p50_ms": 5.0,
++   "p95_ms": 10.0,
++   "max_ms": 62.977,
++   "sum_s": 0.163
++  },
++  "reopen_one": {
++   "n": 20,
++   "mean_ms": 6.965,
++   "p50_ms": 6.0,
++   "p95_ms": 21.0,
++   "max_ms": 21.938,
++   "sum_s": 0.139
++  }
++ },
++ "ingest": {
++  "records_per_user": 5,
++  "records_processed": 10000,
++  "wall_s": 274.123,
++  "cpu_s": 261.759,
++  "aggregate_records_per_s": 36.48,
++  "per_holder_total": {
++   "n": 2000,
++   "mean_ms": 136.74,
++   "p50_ms": 89.0,
++   "p95_ms": 273.0,
++   "max_ms": 3555.255,
++   "sum_s": 273.481
++  },
++  "connect_discover": {
++   "n": 2000,
++   "mean_ms": 61.762,
++   "p50_ms": 49.0,
++   "p95_ms": 87.0,
++   "max_ms": 1269.452,
++   "sum_s": 123.524
++  },
++  "drain_process": {
++   "n": 2000,
++   "mean_ms": 74.978,
++   "p50_ms": 39.0,
++   "p95_ms": 176.0,
++   "max_ms": 3504.859,
++   "sum_s": 149.957
++  },
++  "per_holder_records_per_s_mean": 36.57,
++  "rss_before_mb": 2430.9,
++  "rss_after_mb": 3934.1,
++  "peak_rss_mb": 3934.1,
++  "sample_holders": 20,
++  "documents_per_holder_sampled": 5.0,
++  "memories_per_holder_sampled": 5.0,
++  "disk_per_holder_after_bytes": 3135418,
++  "disk_per_holder_after_by_file_bytes": {
++   ".db": 11141,
++   ".db-shm": 32768,
++   ".db-wal": 3091509
++  },
++  "disk_sampled_holders_after_checkpoint_db_bytes": 756122,
++  "transport_messages": 14000,
++  "transport_by_kind": {
++   "heartbeat": 12000,
++   "ingest_result": 2000
++  },
++  "model_usage_rows_during_ingest": 340,
++  "model_usage_by_purpose": {
++   "classify_domains": 340
++  },
++  "profile": null
++ },
++ "discovery": {
++  "core_inbound_catchup_s": 15.586,
++  "core_inbound_catchup_cpu_s": 13.378,
++  "transport_messages_at_start": 14000,
++  "goal_id": "goal_6a129acae9ec4fa4aefd",
++  "rounds": [
++   {
++    "round": 0,
++    "wall_s": 61.124,
++    "cpu_s": 58.847,
++    "new_questions": 12,
++    "quiet": true
++   },
++   {
++    "round": 1,
++    "wall_s": 2.058,
++    "cpu_s": 2.028,
++    "new_questions": 0,
++    "quiet": true
++   }
++  ],
++  "wall_s": 63.241,
++  "cpu_s": 60.933,
++  "finished": true,
++  "jobs_counts": {
++   "done": 62
++  },
++  "job_errors": [],
++  "jobs_by_kind": {
++   "loop.tick": {
++    "n": 14,
++    "mean_ms": 639.861,
++    "p50_ms": 504.0,
++    "p95_ms": 1451.0,
++    "max_ms": 1483.496,
++    "sum_s": 8.958
++   },
++   "question.collect": {
++    "n": 12,
++    "mean_ms": 0.382,
++    "p50_ms": 0.0,
++    "p95_ms": 0.0,
++    "max_ms": 0.485,
++    "sum_s": 0.005
++   },
++   "question.commit": {
++    "n": 12,
++    "mean_ms": 8.222,
++    "p50_ms": 6.0,
++    "p95_ms": 18.0,
++    "max_ms": 24.302,
++    "sum_s": 0.099
++   },
++   "question.evaluate": {
++    "n": 12,
++    "mean_ms": 23.685,
++    "p50_ms": 23.0,
++    "p95_ms": 30.0,
++    "max_ms": 30.466,
++    "sum_s": 0.284
++   },
++   "question.route": {
++    "n": 12,
++    "mean_ms": 3329.639,
++    "p50_ms": 3329.0,
++    "p95_ms": 3460.0,
++    "max_ms": 3556.56,
++    "sum_s": 39.956
++   }
++  },
++  "ticks": 14,
++  "tick_time": {
++   "n": 14,
++   "mean_ms": 639.861,
++   "p50_ms": 504.0,
++   "p95_ms": 1451.0,
++   "max_ms": 1483.496,
++   "sum_s": 8.958
++  },
++  "model_calls_total": 178,
++  "model_calls_by_task": {
++   "identify_gap": 10,
++   "draft_question": 12,
++   "answer_from_evidence": 120,
++   "evaluate_responses": 12,
++   "synthesize_discovery": 12,
++   "record_outcome": 12
++  },
++  "model_usage_rows_by_purpose": {
++   "answer_from_evidence": 120,
++   "classify_domains": 340,
++   "draft_question": 12,
++   "evaluate_responses": 12,
++   "identify_gap": 10,
++   "record_outcome": 12,
++   "synthesize_discovery": 12
++  },
++  "questions": 12,
++  "questions_by_status": {
++   "committed": 12
++  },
++  "questions_by_kind_depth": {
++   "gap/d0": 12
++  },
++  "routes_total": 120,
++  "routes_by_status": {
++   "answered": 120
++  },
++  "routes_per_question": {
++   "min": 10,
++   "max": 10,
++   "mean": 10.0
++  },
++  "responses_by_status": {
++   "answered": 120
++  },
++  "claims_by_status": {
++   "supported": 12
++  },
++  "discoveries": 12,
++  "route_call": {
++   "n": 12,
++   "mean_ms": 3329.412,
++   "p50_ms": 3329.0,
++   "p95_ms": 3460.0,
++   "max_ms": 3556.248,
++   "sum_s": 39.953
++  },
++  "candidate_holders_call": {
++   "n": 12,
++   "mean_ms": 514.95,
++   "p50_ms": 502.0,
++   "p95_ms": 563.0,
++   "max_ms": 687.007,
++   "sum_s": 6.179
++  },
++  "domains_for_goal_call": {
++   "n": 14,
++   "mean_ms": 619.806,
++   "p50_ms": 483.0,
++   "p95_ms": 1432.0,
++   "max_ms": 1470.451,
++   "sum_s": 8.677
++  },
++  "profile": null,
++  "micro_list_holders_ms": 970.868,
++  "micro_can_route_all_holders_ms": 423.988,
++  "micro_can_route_per_holder_us": 212.0,
++  "micro_question_audience_uncached_ms": 2813.31,
++  "audience_size": 1,
++  "micro_question_audience_cached_ms": 0.012
++ },
++ "peak_rss_mb": 3975.7,
++ "rss_end_mb": 3975.7,
++ "fds_end": 6010,
++ "total_disk_bytes": {
++  "coord_db_files": 58249128,
++  "holders": 6241743096
++ },
++ "shutdown_s": 91.683
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/results/n50.json b/research/mycelic_e2e/perf/results/n50.json
+new file mode 100644
+index 0000000..2717ef4
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/n50.json
+@@ -0,0 +1,389 @@
++{
++ "n": 50,
++ "agree": true,
++ "machine": {
++  "platform": "Linux-6.18.44-fc-v80-x86_64-with-glibc2.39",
++  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
++  "cpus": 4,
++  "mem": "16480952 kB",
++  "python": "3.13.16",
++  "sqlite": "3.45.1"
++ },
++ "workdir": "/tmp/mycelic_perf_n50_txnx__bw",
++ "started_utc": "2026-10-09T05:45:58Z",
++ "profile_mode": "none",
++ "rss_start_mb": 42.0,
++ "build_runtime_s": 0.264,
++ "embedder": {
++  "runtime_embedder": "HashEmbeddings",
++  "dim": 256,
++  "model": "hash-bow-256",
++  "router_providers": [
++   "fake"
++  ],
++  "tiers": {
++   "light": "fake:mycelic-fake-light",
++   "standard": "fake:mycelic-fake-standard",
++   "heavy": "fake:mycelic-fake-heavy"
++  }
++ },
++ "tenant": {
++  "n_users": 50,
++  "register_tenant_s": 0.073,
++  "units_s": 0.001,
++  "depts": 1,
++  "teams": 5,
++  "users_memberships_holders_total_s": 0.065,
++  "per_user_total_ms": 1.306,
++  "create_user": {
++   "n": 50,
++   "mean_ms": 0.142,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 0.888,
++   "sum_s": 0.007
++  },
++  "add_membership": {
++   "n": 50,
++   "mean_ms": 0.954,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 38.199,
++   "sum_s": 0.048
++  },
++  "register_holder": {
++   "n": 50,
++   "mean_ms": 0.207,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 0.774,
++   "sum_s": 0.01
++  },
++  "tenant_total_s": 0.139,
++  "coord_db_bytes": 790528,
++  "tables_rows": {
++   "users": 51,
++   "memberships": 52,
++   "holders": 50,
++   "org_units": 7,
++   "audit_log": 161,
++   "events": 59
++  }
++ },
++ "rss_after_tenant_mb": 55.3,
++ "open": {
++  "n_holders": 50,
++  "open_all_s": 1.579,
++  "open_all_cpu_s": 1.141,
++  "open_each": {
++   "n": 50,
++   "mean_ms": 31.518,
++   "p50_ms": 26.0,
++   "p95_ms": 52.0,
++   "max_ms": 220.651,
++   "sum_s": 1.576
++  },
++  "first10_mean_ms": 54.533,
++  "last10_mean_ms": 25.492,
++  "rss_before_mb": 55.3,
++  "rss_after_mb": 116.1,
++  "rss_growth_mb_per_open_holder": 1.216,
++  "rss_series": [
++   {
++    "open": 5,
++    "rss_mb": 75.2,
++    "fds": 25
++   },
++   {
++    "open": 10,
++    "rss_mb": 76.0,
++    "fds": 40
++   },
++   {
++    "open": 15,
++    "rss_mb": 76.7,
++    "fds": 55
++   },
++   {
++    "open": 20,
++    "rss_mb": 81.3,
++    "fds": 70
++   },
++   {
++    "open": 25,
++    "rss_mb": 87.1,
++    "fds": 85
++   },
++   {
++    "open": 30,
++    "rss_mb": 92.9,
++    "fds": 100
++   },
++   {
++    "open": 35,
++    "rss_mb": 98.8,
++    "fds": 115
++   },
++   {
++    "open": 40,
++    "rss_mb": 104.5,
++    "fds": 130
++   },
++   {
++    "open": 45,
++    "rss_mb": 110.3,
++    "fds": 145
++   },
++   {
++    "open": 50,
++    "rss_mb": 116.1,
++    "fds": 160
++   }
++  ],
++  "fds_before": 10,
++  "fds_after": 160,
++  "fds_per_holder": 3.0,
++  "open_stores_in_memory": 50,
++  "disk_per_holder_empty_bytes": 1202856,
++  "disk_per_holder_by_file_bytes": {
++   ".db": 4096,
++   ".db-shm": 32768,
++   ".db-wal": 1165992
++  },
++  "files_per_holder": [
++   "evidence.db",
++   "evidence.db-shm",
++   "evidence.db-wal"
++  ],
++  "idle_cpu_fraction_of_one_core": 0.008,
++  "reconcile_noop_s": 0.0025,
++  "close_one": {
++   "n": 20,
++   "mean_ms": 7.526,
++   "p50_ms": 7.0,
++   "p95_ms": 9.0,
++   "max_ms": 15.49,
++   "sum_s": 0.151
++  },
++  "reopen_one": {
++   "n": 20,
++   "mean_ms": 5.83,
++   "p50_ms": 6.0,
++   "p95_ms": 7.0,
++   "max_ms": 7.599,
++   "sum_s": 0.117
++  }
++ },
++ "ingest": {
++  "records_per_user": 5,
++  "records_processed": 250,
++  "wall_s": 2.317,
++  "cpu_s": 2.28,
++  "aggregate_records_per_s": 107.88,
++  "per_holder_total": {
++   "n": 50,
++   "mean_ms": 46.025,
++   "p50_ms": 47.0,
++   "p95_ms": 66.0,
++   "max_ms": 72.589,
++   "sum_s": 2.301
++  },
++  "connect_discover": {
++   "n": 50,
++   "mean_ms": 3.126,
++   "p50_ms": 3.0,
++   "p95_ms": 5.0,
++   "max_ms": 6.594,
++   "sum_s": 0.156
++  },
++  "drain_process": {
++   "n": 50,
++   "mean_ms": 42.899,
++   "p50_ms": 44.0,
++   "p95_ms": 62.0,
++   "max_ms": 67.803,
++   "sum_s": 2.145
++  },
++  "per_holder_records_per_s_mean": 108.64,
++  "rss_before_mb": 119.5,
++  "rss_after_mb": 153.5,
++  "peak_rss_mb": 153.5,
++  "sample_holders": 20,
++  "documents_per_holder_sampled": 5.0,
++  "memories_per_holder_sampled": 5.0,
++  "disk_per_holder_after_bytes": 2955501,
++  "disk_per_holder_after_by_file_bytes": {
++   ".db": 285901,
++   ".db-shm": 32768,
++   ".db-wal": 2636832
++  },
++  "disk_sampled_holders_after_checkpoint_db_bytes": 755712,
++  "transport_messages": 116,
++  "transport_by_kind": {
++   "heartbeat": 66,
++   "ingest_result": 50
++  },
++  "model_usage_rows_during_ingest": 0,
++  "model_usage_by_purpose": {},
++  "profile": null
++ },
++ "discovery": {
++  "core_inbound_catchup_s": 0.103,
++  "core_inbound_catchup_cpu_s": 0.094,
++  "transport_messages_at_start": 116,
++  "goal_id": "goal_30f3de2e3e2243a48cf5",
++  "rounds": [
++   {
++    "round": 0,
++    "wall_s": 1.686,
++    "cpu_s": 1.599,
++    "new_questions": 6,
++    "quiet": true
++   },
++   {
++    "round": 1,
++    "wall_s": 1.014,
++    "cpu_s": 1.013,
++    "new_questions": 0,
++    "quiet": true
++   }
++  ],
++  "wall_s": 2.702,
++  "cpu_s": 2.613,
++  "finished": true,
++  "jobs_counts": {
++   "done": 32
++  },
++  "job_errors": [],
++  "jobs_by_kind": {
++   "loop.tick": {
++    "n": 8,
++    "mean_ms": 13.016,
++    "p50_ms": 13.0,
++    "p95_ms": 16.0,
++    "max_ms": 15.756,
++    "sum_s": 0.104
++   },
++   "question.collect": {
++    "n": 6,
++    "mean_ms": 0.278,
++    "p50_ms": 0.0,
++    "p95_ms": 0.0,
++    "max_ms": 0.43,
++    "sum_s": 0.002
++   },
++   "question.commit": {
++    "n": 6,
++    "mean_ms": 4.249,
++    "p50_ms": 4.0,
++    "p95_ms": 5.0,
++    "max_ms": 5.174,
++    "sum_s": 0.025
++   },
++   "question.evaluate": {
++    "n": 6,
++    "mean_ms": 18.002,
++    "p50_ms": 16.0,
++    "p95_ms": 22.0,
++    "max_ms": 21.984,
++    "sum_s": 0.108
++   },
++   "question.route": {
++    "n": 6,
++    "mean_ms": 23.559,
++    "p50_ms": 17.0,
++    "p95_ms": 37.0,
++    "max_ms": 37.004,
++    "sum_s": 0.141
++   }
++  },
++  "ticks": 8,
++  "tick_time": {
++   "n": 8,
++   "mean_ms": 13.016,
++   "p50_ms": 13.0,
++   "p95_ms": 16.0,
++   "max_ms": 15.756,
++   "sum_s": 0.104
++  },
++  "model_calls_total": 89,
++  "model_calls_by_task": {
++   "identify_gap": 5,
++   "draft_question": 6,
++   "answer_from_evidence": 60,
++   "evaluate_responses": 6,
++   "synthesize_discovery": 6,
++   "record_outcome": 6
++  },
++  "model_usage_rows_by_purpose": {
++   "answer_from_evidence": 60,
++   "draft_question": 6,
++   "evaluate_responses": 6,
++   "identify_gap": 5,
++   "record_outcome": 6,
++   "synthesize_discovery": 6
++  },
++  "questions": 6,
++  "questions_by_status": {
++   "committed": 6
++  },
++  "questions_by_kind_depth": {
++   "gap/d0": 6
++  },
++  "routes_total": 60,
++  "routes_by_status": {
++   "answered": 60
++  },
++  "routes_per_question": {
++   "min": 10,
++   "max": 10,
++   "mean": 10.0
++  },
++  "responses_by_status": {
++   "answered": 60
++  },
++  "claims_by_status": {
++   "supported": 6
++  },
++  "discoveries": 6,
++  "route_call": {
++   "n": 6,
++   "mean_ms": 23.377,
++   "p50_ms": 17.0,
++   "p95_ms": 37.0,
++   "max_ms": 36.853,
++   "sum_s": 0.14
++  },
++  "candidate_holders_call": {
++   "n": 6,
++   "mean_ms": 7.123,
++   "p50_ms": 5.0,
++   "p95_ms": 14.0,
++   "max_ms": 13.684,
++   "sum_s": 0.043
++  },
++  "domains_for_goal_call": {
++   "n": 8,
++   "mean_ms": 4.177,
++   "p50_ms": 4.0,
++   "p95_ms": 5.0,
++   "max_ms": 4.537,
++   "sum_s": 0.033
++  },
++  "profile": null,
++  "micro_list_holders_ms": 1.253,
++  "micro_can_route_all_holders_ms": 3.656,
++  "micro_can_route_per_holder_us": 73.2,
++  "micro_question_audience_uncached_ms": 8.898,
++  "audience_size": 1,
++  "micro_question_audience_cached_ms": 0.008
++ },
++ "peak_rss_mb": 164.6,
++ "rss_end_mb": 164.6,
++ "fds_end": 160,
++ "total_disk_bytes": {
++  "coord_db_files": 6520696,
++  "holders": 113408720
++ },
++ "shutdown_s": 0.469
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/results/prof_discovery_n1000.json b/research/mycelic_e2e/perf/results/prof_discovery_n1000.json
+new file mode 100644
+index 0000000..8c63b07
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/prof_discovery_n1000.json
+@@ -0,0 +1,608 @@
++{
++ "n": 1000,
++ "agree": true,
++ "machine": {
++  "platform": "Linux-6.18.44-fc-v80-x86_64-with-glibc2.39",
++  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
++  "cpus": 4,
++  "mem": "16480952 kB",
++  "python": "3.13.16",
++  "sqlite": "3.45.1"
++ },
++ "workdir": "/tmp/mycelic_perf_n1000_ipb9gql4",
++ "started_utc": "2026-10-09T05:46:55Z",
++ "profile_mode": "discovery",
++ "rss_start_mb": 41.9,
++ "build_runtime_s": 0.211,
++ "embedder": {
++  "runtime_embedder": "HashEmbeddings",
++  "dim": 256,
++  "model": "hash-bow-256",
++  "router_providers": [
++   "fake"
++  ],
++  "tiers": {
++   "light": "fake:mycelic-fake-light",
++   "standard": "fake:mycelic-fake-standard",
++   "heavy": "fake:mycelic-fake-heavy"
++  }
++ },
++ "tenant": {
++  "n_users": 1000,
++  "register_tenant_s": 0.059,
++  "units_s": 0.043,
++  "depts": 10,
++  "teams": 100,
++  "users_memberships_holders_total_s": 0.7,
++  "per_user_total_ms": 0.7,
++  "create_user": {
++   "n": 1000,
++   "mean_ms": 0.229,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 11.435,
++   "sum_s": 0.229
++  },
++  "add_membership": {
++   "n": 1000,
++   "mean_ms": 0.247,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 13.179,
++   "sum_s": 0.247
++  },
++  "register_holder": {
++   "n": 1000,
++   "mean_ms": 0.221,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 12.357,
++   "sum_s": 0.221
++  },
++  "tenant_total_s": 0.802,
++  "coord_db_bytes": 3268608,
++  "tables_rows": {
++   "users": 1001,
++   "memberships": 1002,
++   "holders": 1000,
++   "org_units": 111,
++   "audit_log": 3115,
++   "events": 1113
++  }
++ },
++ "rss_after_tenant_mb": 57.4,
++ "open": {
++  "n_holders": 1000,
++  "open_all_s": 28.427,
++  "open_all_cpu_s": 22.194,
++  "open_each": {
++   "n": 1000,
++   "mean_ms": 28.384,
++   "p50_ms": 26.0,
++   "p95_ms": 42.0,
++   "max_ms": 571.841,
++   "sum_s": 28.384
++  },
++  "first10_mean_ms": 27.827,
++  "last10_mean_ms": 19.324,
++  "rss_before_mb": 57.4,
++  "rss_after_mb": 1215.4,
++  "rss_growth_mb_per_open_holder": 1.158,
++  "rss_series": [
++   {
++    "open": 100,
++    "rss_mb": 175.4,
++    "fds": 310
++   },
++   {
++    "open": 200,
++    "rss_mb": 290.9,
++    "fds": 610
++   },
++   {
++    "open": 300,
++    "rss_mb": 406.2,
++    "fds": 910
++   },
++   {
++    "open": 400,
++    "rss_mb": 521.7,
++    "fds": 1210
++   },
++   {
++    "open": 500,
++    "rss_mb": 637.2,
++    "fds": 1510
++   },
++   {
++    "open": 600,
++    "rss_mb": 752.7,
++    "fds": 1810
++   },
++   {
++    "open": 700,
++    "rss_mb": 868.1,
++    "fds": 2110
++   },
++   {
++    "open": 800,
++    "rss_mb": 984.4,
++    "fds": 2410
++   },
++   {
++    "open": 900,
++    "rss_mb": 1099.8,
++    "fds": 2710
++   },
++   {
++    "open": 1000,
++    "rss_mb": 1215.2,
++    "fds": 3010
++   }
++  ],
++  "fds_before": 10,
++  "fds_after": 3010,
++  "fds_per_holder": 3.0,
++  "open_stores_in_memory": 1000,
++  "disk_per_holder_empty_bytes": 1202856,
++  "disk_per_holder_by_file_bytes": {
++   ".db": 4096,
++   ".db-shm": 32768,
++   ".db-wal": 1165992
++  },
++  "files_per_holder": [
++   "evidence.db",
++   "evidence.db-shm",
++   "evidence.db-wal"
++  ],
++  "idle_cpu_fraction_of_one_core": 0.161,
++  "reconcile_noop_s": 0.0533,
++  "close_one": {
++   "n": 20,
++   "mean_ms": 5.465,
++   "p50_ms": 5.0,
++   "p95_ms": 8.0,
++   "max_ms": 7.88,
++   "sum_s": 0.109
++  },
++  "reopen_one": {
++   "n": 20,
++   "mean_ms": 19.385,
++   "p50_ms": 7.0,
++   "p95_ms": 18.0,
++   "max_ms": 244.65,
++   "sum_s": 0.388
++  }
++ },
++ "ingest": {
++  "records_per_user": 5,
++  "records_processed": 5000,
++  "wall_s": 77.149,
++  "cpu_s": 73.539,
++  "aggregate_records_per_s": 64.81,
++  "per_holder_total": {
++   "n": 1000,
++   "mean_ms": 76.869,
++   "p50_ms": 61.0,
++   "p95_ms": 105.0,
++   "max_ms": 1626.566,
++   "sum_s": 76.869
++  },
++  "connect_discover": {
++   "n": 1000,
++   "mean_ms": 33.382,
++   "p50_ms": 26.0,
++   "p95_ms": 45.0,
++   "max_ms": 820.503,
++   "sum_s": 33.382
++  },
++  "drain_process": {
++   "n": 1000,
++   "mean_ms": 43.487,
++   "p50_ms": 34.0,
++   "p95_ms": 60.0,
++   "max_ms": 1286.06,
++   "sum_s": 43.487
++  },
++  "per_holder_records_per_s_mean": 65.05,
++  "rss_before_mb": 1247.2,
++  "rss_after_mb": 1998.3,
++  "peak_rss_mb": 1998.3,
++  "sample_holders": 20,
++  "documents_per_holder_sampled": 5.0,
++  "memories_per_holder_sampled": 5.0,
++  "disk_per_holder_after_bytes": 3130884,
++  "disk_per_holder_after_by_file_bytes": {
++   ".db": 18186,
++   ".db-shm": 32768,
++   ".db-wal": 3079930
++  },
++  "disk_sampled_holders_after_checkpoint_db_bytes": 755507,
++  "transport_messages": 3078,
++  "transport_by_kind": {
++   "heartbeat": 2078,
++   "ingest_result": 1000
++  },
++  "model_usage_rows_during_ingest": 160,
++  "model_usage_by_purpose": {
++   "classify_domains": 160
++  },
++  "profile": null
++ },
++ "discovery": {
++  "core_inbound_catchup_s": 2.518,
++  "core_inbound_catchup_cpu_s": 2.183,
++  "transport_messages_at_start": 3078,
++  "goal_id": "goal_3a07be37647542a680ae",
++  "rounds": [
++   {
++    "round": 0,
++    "wall_s": 28.752,
++    "cpu_s": 27.463,
++    "new_questions": 12,
++    "quiet": true
++   },
++   {
++    "round": 1,
++    "wall_s": 1.598,
++    "cpu_s": 1.594,
++    "new_questions": 0,
++    "quiet": true
++   }
++  ],
++  "wall_s": 30.371,
++  "cpu_s": 29.079,
++  "finished": true,
++  "jobs_counts": {
++   "done": 62
++  },
++  "job_errors": [],
++  "jobs_by_kind": {
++   "loop.tick": {
++    "n": 14,
++    "mean_ms": 268.077,
++    "p50_ms": 222.0,
++    "p95_ms": 362.0,
++    "max_ms": 662.601,
++    "sum_s": 3.753
++   },
++   "question.collect": {
++    "n": 12,
++    "mean_ms": 1.545,
++    "p50_ms": 1.0,
++    "p95_ms": 1.0,
++    "max_ms": 10.278,
++    "sum_s": 0.019
++   },
++   "question.commit": {
++    "n": 12,
++    "mean_ms": 12.267,
++    "p50_ms": 12.0,
++    "p95_ms": 14.0,
++    "max_ms": 13.999,
++    "sum_s": 0.147
++   },
++   "question.evaluate": {
++    "n": 12,
++    "mean_ms": 67.603,
++    "p50_ms": 66.0,
++    "p95_ms": 78.0,
++    "max_ms": 81.314,
++    "sum_s": 0.811
++   },
++   "question.route": {
++    "n": 12,
++    "mean_ms": 1279.272,
++    "p50_ms": 1257.0,
++    "p95_ms": 1398.0,
++    "max_ms": 1536.089,
++    "sum_s": 15.351
++   }
++  },
++  "ticks": 14,
++  "tick_time": {
++   "n": 14,
++   "mean_ms": 268.077,
++   "p50_ms": 222.0,
++   "p95_ms": 362.0,
++   "max_ms": 662.601,
++   "sum_s": 3.753
++  },
++  "model_calls_total": 178,
++  "model_calls_by_task": {
++   "identify_gap": 10,
++   "draft_question": 12,
++   "answer_from_evidence": 120,
++   "evaluate_responses": 12,
++   "synthesize_discovery": 12,
++   "record_outcome": 12
++  },
++  "model_usage_rows_by_purpose": {
++   "answer_from_evidence": 120,
++   "classify_domains": 160,
++   "draft_question": 12,
++   "evaluate_responses": 12,
++   "identify_gap": 10,
++   "record_outcome": 12,
++   "synthesize_discovery": 12
++  },
++  "questions": 12,
++  "questions_by_status": {
++   "committed": 12
++  },
++  "questions_by_kind_depth": {
++   "gap/d0": 12
++  },
++  "routes_total": 120,
++  "routes_by_status": {
++   "answered": 120
++  },
++  "routes_per_question": {
++   "min": 10,
++   "max": 10,
++   "mean": 10.0
++  },
++  "responses_by_status": {
++   "answered": 120
++  },
++  "claims_by_status": {
++   "supported": 12
++  },
++  "discoveries": 12,
++  "route_call": {
++   "n": 12,
++   "mean_ms": 1278.89,
++   "p50_ms": 1257.0,
++   "p95_ms": 1397.0,
++   "max_ms": 1535.507,
++   "sum_s": 15.347
++  },
++  "candidate_holders_call": {
++   "n": 12,
++   "mean_ms": 269.964,
++   "p50_ms": 262.0,
++   "p95_ms": 290.0,
++   "max_ms": 383.107,
++   "sum_s": 3.24
++  },
++  "domains_for_goal_call": {
++   "n": 14,
++   "mean_ms": 250.954,
++   "p50_ms": 211.0,
++   "p95_ms": 324.0,
++   "max_ms": 649.543,
++   "sum_s": 3.513
++  },
++  "profile": {
++   "tottime": [
++    {
++     "where": "~:0",
++     "func": "<method 'execute' of 'sqlite3.Connection' objects>",
++     "ncalls": 514861,
++     "tottime_s": 7.939,
++     "cumtime_s": 7.939
++    },
++    {
++     "where": "~:0",
++     "func": "<method 'fetchall' of 'sqlite3.Cursor' objects>",
++     "ncalls": 221104,
++     "tottime_s": 5.654,
++     "cumtime_s": 5.654
++    },
++    {
++     "where": "/usr/lib/python3.13/json/decoder.py:351",
++     "func": "raw_decode",
++     "ncalls": 295655,
++     "tottime_s": 1.475,
++     "cumtime_s": 1.475
++    },
++    {
++     "where": "mycelic/db/coord.py:57",
++     "func": "tx",
++     "ncalls": 11362,
++     "tottime_s": 1.166,
++     "cumtime_s": 3.037
++    },
++    {
++     "where": "mycelic/db/coord.py:144",
++     "func": "row_to_dict",
++     "ncalls": 93411,
++     "tottime_s": 0.721,
++     "cumtime_s": 3.673
++    },
++    {
++     "where": "~:0",
++     "func": "<method 'fetchone' of 'sqlite3.Cursor' objects>",
++     "ncalls": 256159,
++     "tottime_s": 0.654,
++     "cumtime_s": 0.654
++    },
++    {
++     "where": "/usr/lib/python3.13/asyncio/locks.py:182",
++     "func": "set",
++     "ncalls": 5693602,
++     "tottime_s": 0.587,
++     "cumtime_s": 0.789
++    },
++    {
++     "where": "/usr/lib/python3.13/json/decoder.py:340",
++     "func": "decode",
++     "ncalls": 295655,
++     "tottime_s": 0.584,
++     "cumtime_s": 2.455
++    },
++    {
++     "where": "mycelic/authz.py:364",
++     "func": "can_route",
++     "ncalls": 26580,
++     "tottime_s": 0.494,
++     "cumtime_s": 4.802
++    },
++    {
++     "where": "/usr/lib/python3.13/asyncio/events.py:113",
++     "func": "__init__",
++     "ncalls": 60306,
++     "tottime_s": 0.404,
++     "cumtime_s": 0.486
++    },
++    {
++     "where": "/usr/lib/python3.13/json/__init__.py:304",
++     "func": "loads",
++     "ncalls": 295655,
++     "tottime_s": 0.332,
++     "cumtime_s": 2.878
++    },
++    {
++     "where": "~:0",
++     "func": "<method 'get' of 'dict' objects>",
++     "ncalls": 1208019,
++     "tottime_s": 0.329,
++     "cumtime_s": 0.329
++    },
++    {
++     "where": "mycelic/ingest/domains.py:237",
++     "func": "default_taxonomy",
++     "ncalls": 4172,
++     "tottime_s": 0.326,
++     "cumtime_s": 1.267
++    },
++    {
++     "where": "mycelic/authz.py:153",
++     "func": "_scopes",
++     "ncalls": 72060,
++     "tottime_s": 0.298,
++     "cumtime_s": 1.262
++    },
++    {
++     "where": "/usr/lib/python3.13/json/encoder.py:207",
++     "func": "iterencode",
++     "ncalls": 14400,
++     "tottime_s": 0.284,
++     "cumtime_s": 0.284
++    }
++   ],
++   "cumulative": [
++    {
++     "where": "/usr/lib/python3.13/asyncio/base_events.py:1981",
++     "func": "_run_once",
++     "ncalls": 57,
++     "tottime_s": 0.093,
++     "cumtime_s": 30.315
++    },
++    {
++     "where": "/usr/lib/python3.13/asyncio/events.py:87",
++     "func": "_run",
++     "ncalls": 64056,
++     "tottime_s": 0.053,
++     "cumtime_s": 30.008
++    },
++    {
++     "where": "~:0",
++     "func": "<method 'run' of '_contextvars.Context' objects>",
++     "ncalls": 64056,
++     "tottime_s": 0.068,
++     "cumtime_s": 29.955
++    },
++    {
++     "where": "mycelic/discovery/worker.py:228",
++     "func": "_loop",
++     "ncalls": 65,
++     "tottime_s": 0.001,
++     "cumtime_s": 20.415
++    },
++    {
++     "where": "mycelic/discovery/worker.py:146",
++     "func": "run_once",
++     "ncalls": 127,
++     "tottime_s": 0.002,
++     "cumtime_s": 20.41
++    },
++    {
++     "where": "mycelic/discovery/worker.py:171",
++     "func": "_process",
++     "ncalls": 62,
++     "tottime_s": 0.002,
++     "cumtime_s": 20.13
++    },
++    {
++     "where": "research/mycelic_e2e/perf/perf_bench.py:328",
++     "func": "handle",
++     "ncalls": 62,
++     "tottime_s": 0.001,
++     "cumtime_s": 20.082
++    },
++    {
++     "where": "mycelic/discovery/engine.py:1249",
++     "func": "handle",
++     "ncalls": 62,
++     "tottime_s": 0.056,
++     "cumtime_s": 20.081
++    },
++    {
++     "where": "mycelic/discovery/engine.py:536",
++     "func": "route_question",
++     "ncalls": 12,
++     "tottime_s": 0.0,
++     "cumtime_s": 15.351
++    },
++    {
++     "where": "research/mycelic_e2e/perf/perf_bench.py:348",
++     "func": "route",
++     "ncalls": 12,
++     "tottime_s": 0.001,
++     "cumtime_s": 15.347
++    },
++    {
++     "where": "mycelic/inquiry/service.py:351",
++     "func": "route",
++     "ncalls": 12,
++     "tottime_s": 0.01,
++     "cumtime_s": 15.346
++    },
++    {
++     "where": "mycelic/inquiry/service.py:433",
++     "func": "publish_pending_routes",
++     "ncalls": 12,
++     "tottime_s": 0.002,
++     "cumtime_s": 12.066
++    },
++    {
++     "where": "mycelic/inquiry/service.py:408",
++     "func": "question_audience",
++     "ncalls": 12,
++     "tottime_s": 0.111,
++     "cumtime_s": 11.941
++    },
++    {
++     "where": "mycelic/db/coord.py:97",
++     "func": "all",
++     "ncalls": 212624,
++     "tottime_s": 0.265,
++     "cumtime_s": 10.875
++    },
++    {
++     "where": "mycelic/authz.py:120",
++     "func": "principal_for_user",
++     "ncalls": 12012,
++     "tottime_s": 0.158,
++     "cumtime_s": 8.829
++    }
++   ],
++   "total_s": 29.809
++  },
++  "micro_list_holders_ms": 24.388,
++  "micro_can_route_all_holders_ms": 132.559,
++  "micro_can_route_per_holder_us": 132.6,
++  "micro_question_audience_uncached_ms": 840.311,
++  "audience_size": 1,
++  "micro_question_audience_cached_ms": 0.016
++ },
++ "peak_rss_mb": 2026.8,
++ "rss_end_mb": 2026.8,
++ "fds_end": 3010,
++ "total_disk_bytes": {
++  "coord_db_files": 23588824,
++  "holders": 3100031552
++ },
++ "shutdown_s": 20.448
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/results/prof_ingest_n1000.json b/research/mycelic_e2e/perf/results/prof_ingest_n1000.json
+new file mode 100644
+index 0000000..dec4923
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/prof_ingest_n1000.json
+@@ -0,0 +1,456 @@
++{
++ "n": 1000,
++ "agree": true,
++ "machine": {
++  "platform": "Linux-6.18.44-fc-v80-x86_64-with-glibc2.39",
++  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
++  "cpus": 4,
++  "mem": "16480952 kB",
++  "python": "3.13.16",
++  "sqlite": "3.45.1"
++ },
++ "workdir": "/tmp/mycelic_perf_n1000_6t8zw2pf",
++ "started_utc": "2026-10-09T05:55:04Z",
++ "profile_mode": "ingest",
++ "rss_start_mb": 41.9,
++ "build_runtime_s": 0.175,
++ "embedder": {
++  "runtime_embedder": "HashEmbeddings",
++  "dim": 256,
++  "model": "hash-bow-256",
++  "router_providers": [
++   "fake"
++  ],
++  "tiers": {
++   "light": "fake:mycelic-fake-light",
++   "standard": "fake:mycelic-fake-standard",
++   "heavy": "fake:mycelic-fake-heavy"
++  }
++ },
++ "tenant": {
++  "n_users": 1000,
++  "register_tenant_s": 0.057,
++  "units_s": 0.029,
++  "depts": 10,
++  "teams": 100,
++  "users_memberships_holders_total_s": 0.843,
++  "per_user_total_ms": 0.843,
++  "create_user": {
++   "n": 1000,
++   "mean_ms": 0.302,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 15.441,
++   "sum_s": 0.302
++  },
++  "add_membership": {
++   "n": 1000,
++   "mean_ms": 0.298,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 12.856,
++   "sum_s": 0.298
++  },
++  "register_holder": {
++   "n": 1000,
++   "mean_ms": 0.24,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 11.173,
++   "sum_s": 0.24
++  },
++  "tenant_total_s": 0.929,
++  "coord_db_bytes": 3252224,
++  "tables_rows": {
++   "users": 1001,
++   "memberships": 1002,
++   "holders": 1000,
++   "org_units": 111,
++   "audit_log": 3115,
++   "events": 1113
++  }
++ },
++ "rss_after_tenant_mb": 57.4,
++ "open": {
++  "n_holders": 1000,
++  "open_all_s": 19.765,
++  "open_all_cpu_s": 16.564,
++  "open_each": {
++   "n": 1000,
++   "mean_ms": 19.745,
++   "p50_ms": 17.0,
++   "p95_ms": 25.0,
++   "max_ms": 496.376,
++   "sum_s": 19.745
++  },
++  "first10_mean_ms": 32.311,
++  "last10_mean_ms": 19.4,
++  "rss_before_mb": 57.4,
++  "rss_after_mb": 1215.3,
++  "rss_growth_mb_per_open_holder": 1.158,
++  "rss_series": [
++   {
++    "open": 100,
++    "rss_mb": 175.3,
++    "fds": 310
++   },
++   {
++    "open": 200,
++    "rss_mb": 290.8,
++    "fds": 610
++   },
++   {
++    "open": 300,
++    "rss_mb": 406.2,
++    "fds": 910
++   },
++   {
++    "open": 400,
++    "rss_mb": 521.6,
++    "fds": 1210
++   },
++   {
++    "open": 500,
++    "rss_mb": 637.1,
++    "fds": 1510
++   },
++   {
++    "open": 600,
++    "rss_mb": 752.6,
++    "fds": 1810
++   },
++   {
++    "open": 700,
++    "rss_mb": 868.0,
++    "fds": 2110
++   },
++   {
++    "open": 800,
++    "rss_mb": 984.3,
++    "fds": 2410
++   },
++   {
++    "open": 900,
++    "rss_mb": 1099.7,
++    "fds": 2710
++   },
++   {
++    "open": 1000,
++    "rss_mb": 1215.2,
++    "fds": 3010
++   }
++  ],
++  "fds_before": 10,
++  "fds_after": 3010,
++  "fds_per_holder": 3.0,
++  "open_stores_in_memory": 1000,
++  "disk_per_holder_empty_bytes": 1202856,
++  "disk_per_holder_by_file_bytes": {
++   ".db": 4096,
++   ".db-shm": 32768,
++   ".db-wal": 1165992
++  },
++  "files_per_holder": [
++   "evidence.db",
++   "evidence.db-shm",
++   "evidence.db-wal"
++  ],
++  "idle_cpu_fraction_of_one_core": 0.17,
++  "reconcile_noop_s": 0.0533,
++  "close_one": {
++   "n": 20,
++   "mean_ms": 6.33,
++   "p50_ms": 6.0,
++   "p95_ms": 10.0,
++   "max_ms": 11.113,
++   "sum_s": 0.127
++  },
++  "reopen_one": {
++   "n": 20,
++   "mean_ms": 20.175,
++   "p50_ms": 7.0,
++   "p95_ms": 15.0,
++   "max_ms": 266.924,
++   "sum_s": 0.404
++  }
++ },
++ "ingest": {
++  "records_per_user": 5,
++  "records_processed": 5000,
++  "wall_s": 204.839,
++  "cpu_s": 200.741,
++  "aggregate_records_per_s": 24.41,
++  "per_holder_total": {
++   "n": 1000,
++   "mean_ms": 204.273,
++   "p50_ms": 149.0,
++   "p95_ms": 553.0,
++   "max_ms": 2934.65,
++   "sum_s": 204.273
++  },
++  "connect_discover": {
++   "n": 1000,
++   "mean_ms": 65.987,
++   "p50_ms": 52.0,
++   "p95_ms": 122.0,
++   "max_ms": 945.853,
++   "sum_s": 65.987
++  },
++  "drain_process": {
++   "n": 1000,
++   "mean_ms": 138.285,
++   "p50_ms": 96.0,
++   "p95_ms": 366.0,
++   "max_ms": 2882.715,
++   "sum_s": 138.285
++  },
++  "per_holder_records_per_s_mean": 24.48,
++  "rss_before_mb": 1246.9,
++  "rss_after_mb": 1997.3,
++  "peak_rss_mb": 1997.3,
++  "sample_holders": 20,
++  "documents_per_holder_sampled": 5.0,
++  "memories_per_holder_sampled": 5.0,
++  "disk_per_holder_after_bytes": 3130917,
++  "disk_per_holder_after_by_file_bytes": {
++   ".db": 18186,
++   ".db-shm": 32768,
++   ".db-wal": 3079963
++  },
++  "disk_sampled_holders_after_checkpoint_db_bytes": 755507,
++  "transport_messages": 5000,
++  "transport_by_kind": {
++   "heartbeat": 4000,
++   "ingest_result": 1000
++  },
++  "model_usage_rows_during_ingest": 160,
++  "model_usage_by_purpose": {
++   "classify_domains": 160
++  },
++  "profile": {
++   "tottime": [
++    {
++     "where": "~:0",
++     "func": "<method 'execute' of 'sqlite3.Connection' objects>",
++     "ncalls": 3573441,
++     "tottime_s": 31.957,
++     "cumtime_s": 31.957
++    },
++    {
++     "where": "~:0",
++     "func": "<built-in method builtins.sum>",
++     "ncalls": 1630020,
++     "tottime_s": 12.872,
++     "cumtime_s": 22.657
++    },
++    {
++     "where": "NeuralGraph/chat_memory/textutil.py:43",
++     "func": "stem",
++     "ncalls": 2715610,
++     "tottime_s": 5.627,
++     "cumtime_s": 9.669
++    },
++    {
++     "where": "/usr/lib/python3.13/asyncio/events.py:129",
++     "func": "__lt__",
++     "ncalls": 16278592,
++     "tottime_s": 4.939,
++     "cumtime_s": 6.716
++    },
++    {
++     "where": "mycelic/db/coord.py:57",
++     "func": "tx",
++     "ncalls": 42320,
++     "tottime_s": 4.423,
++     "cumtime_s": 15.752
++    },
++    {
++     "where": "NeuralGraph/chat_memory/textutil.py:63",
++     "func": "<genexpr>",
++     "ncalls": 15579688,
++     "tottime_s": 4.162,
++     "cumtime_s": 5.802
++    },
++    {
++     "where": "mycelic/transport/sqlite_transport.py:198",
++     "func": "_consume",
++     "ncalls": 1306429,
++     "tottime_s": 3.909,
++     "cumtime_s": 54.57
++    },
++    {
++     "where": "~:0",
++     "func": "<method 'join' of 'str' objects>",
++     "ncalls": 1846066,
++     "tottime_s": 3.38,
++     "cumtime_s": 9.308
++    },
++    {
++     "where": "/usr/lib/python3.13/asyncio/events.py:113",
++     "func": "__init__",
++     "ncalls": 1355837,
++     "tottime_s": 3.308,
++     "cumtime_s": 5.431
++    },
++    {
++     "where": "/usr/lib/python3.13/asyncio/locks.py:200",
++     "func": "wait",
++     "ncalls": 2612838,
++     "tottime_s": 3.306,
++     "cumtime_s": 7.126
++    },
++    {
++     "where": "/usr/lib/python3.13/asyncio/locks.py:182",
++     "func": "set",
++     "ncalls": 21163429,
++     "tottime_s": 3.305,
++     "cumtime_s": 8.826
++    },
++    {
++     "where": "~:0",
++     "func": "<method 'fetchone' of 'sqlite3.Cursor' objects>",
++     "ncalls": 1708331,
++     "tottime_s": 3.237,
++     "cumtime_s": 3.237
++    },
++    {
++     "where": "mycelic/transport/sqlite_transport.py:89",
++     "func": "_wait_for_wake",
++     "ncalls": 2612838,
++     "tottime_s": 2.951,
++     "cumtime_s": 25.933
++    },
++    {
++     "where": "~:0",
++     "func": "<built-in method _heapq.heappop>",
++     "ncalls": 1129499,
++     "tottime_s": 2.947,
++     "cumtime_s": 8.216
++    },
++    {
++     "where": "/usr/lib/python3.13/asyncio/base_events.py:806",
++     "func": "call_at",
++     "ncalls": 1355837,
++     "tottime_s": 2.59,
++     "cumtime_s": 10.41
++    }
++   ],
++   "cumulative": [
++    {
++     "where": "/usr/lib/python3.13/asyncio/base_events.py:1981",
++     "func": "_run_once",
++     "ncalls": 6129,
++     "tottime_s": 2.508,
++     "cumtime_s": 204.837
++    },
++    {
++     "where": "/usr/lib/python3.13/asyncio/events.py:87",
++     "func": "_run",
++     "ncalls": 1420704,
++     "tottime_s": 1.53,
++     "cumtime_s": 192.414
++    },
++    {
++     "where": "~:0",
++     "func": "<method 'run' of '_contextvars.Context' objects>",
++     "ncalls": 1420704,
++     "tottime_s": 1.735,
++     "cumtime_s": 190.883
++    },
++    {
++     "where": "mycelic/ingest/runtime.py:163",
++     "func": "tick",
++     "ncalls": 43461,
++     "tottime_s": 0.258,
++     "cumtime_s": 101.496
++    },
++    {
++     "where": "research/mycelic_e2e/perf/perf_bench.py:478",
++     "func": "run",
++     "ncalls": 3035,
++     "tottime_s": 0.005,
++     "cumtime_s": 101.152
++    },
++    {
++     "where": "research/mycelic_e2e/perf/perf_bench.py:255",
++     "func": "phase_ingest",
++     "ncalls": 3035,
++     "tottime_s": 0.103,
++     "cumtime_s": 101.146
++    },
++    {
++     "where": "mycelic/ingest/runtime.py:199",
++     "func": "drain",
++     "ncalls": 3036,
++     "tottime_s": 0.03,
++     "cumtime_s": 98.583
++    },
++    {
++     "where": "mycelic/ingest/pipeline.py:510",
++     "func": "process_available",
++     "ncalls": 1003,
++     "tottime_s": 0.141,
++     "cumtime_s": 87.172
++    },
++    {
++     "where": "mycelic/ingest/pipeline.py:563",
++     "func": "process_item",
++     "ncalls": 5000,
++     "tottime_s": 0.322,
++     "cumtime_s": 79.517
++    },
++    {
++     "where": "mycelic/transport/sqlite_transport.py:198",
++     "func": "_consume",
++     "ncalls": 1306429,
++     "tottime_s": 3.909,
++     "cumtime_s": 54.57
++    },
++    {
++     "where": "mycelic/ingest/domains.py:714",
++     "func": "classify",
++     "ncalls": 5000,
++     "tottime_s": 0.129,
++     "cumtime_s": 54.142
++    },
++    {
++     "where": "~:0",
++     "func": "<method 'execute' of 'sqlite3.Connection' objects>",
++     "ncalls": 3573441,
++     "tottime_s": 31.957,
++     "cumtime_s": 31.957
++    },
++    {
++     "where": "mycelic/holder/service.py:137",
++     "func": "_heartbeat_loop",
++     "ncalls": 10020,
++     "tottime_s": 0.046,
++     "cumtime_s": 29.214
++    },
++    {
++     "where": "mycelic/ingest/domains.py:566",
++     "func": "_embedding_stage",
++     "ncalls": 5000,
++     "tottime_s": 0.258,
++     "cumtime_s": 28.853
++    },
++    {
++     "where": "mycelic/holder/service.py:142",
++     "func": "_safe_heartbeat",
++     "ncalls": 10000,
++     "tottime_s": 0.042,
++     "cumtime_s": 28.839
++    }
++   ],
++   "total_s": 196.164
++  }
++ },
++ "peak_rss_mb": 2000.8,
++ "rss_end_mb": 2000.8,
++ "fds_end": 3010,
++ "total_disk_bytes": {
++  "coord_db_files": 20373344,
++  "holders": 3093019184
++ },
++ "shutdown_s": 21.304
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/results/prof_ingest_n300.json b/research/mycelic_e2e/perf/results/prof_ingest_n300.json
+new file mode 100644
+index 0000000..51a6125
+--- /dev/null
++++ b/research/mycelic_e2e/perf/results/prof_ingest_n300.json
+@@ -0,0 +1,456 @@
++{
++ "n": 300,
++ "agree": true,
++ "machine": {
++  "platform": "Linux-6.18.44-fc-v80-x86_64-with-glibc2.39",
++  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
++  "cpus": 4,
++  "mem": "16480952 kB",
++  "python": "3.13.16",
++  "sqlite": "3.45.1"
++ },
++ "workdir": "/tmp/mycelic_perf_n300_1hf2kedw",
++ "started_utc": "2026-10-09T05:45:58Z",
++ "profile_mode": "ingest",
++ "rss_start_mb": 42.1,
++ "build_runtime_s": 0.283,
++ "embedder": {
++  "runtime_embedder": "HashEmbeddings",
++  "dim": 256,
++  "model": "hash-bow-256",
++  "router_providers": [
++   "fake"
++  ],
++  "tiers": {
++   "light": "fake:mycelic-fake-light",
++   "standard": "fake:mycelic-fake-standard",
++   "heavy": "fake:mycelic-fake-heavy"
++  }
++ },
++ "tenant": {
++  "n_users": 300,
++  "register_tenant_s": 0.074,
++  "units_s": 0.007,
++  "depts": 3,
++  "teams": 30,
++  "users_memberships_holders_total_s": 0.311,
++  "per_user_total_ms": 1.035,
++  "create_user": {
++   "n": 300,
++   "mean_ms": 0.209,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 21.217,
++   "sum_s": 0.063
++  },
++  "add_membership": {
++   "n": 300,
++   "mean_ms": 0.477,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 18.563,
++   "sum_s": 0.143
++  },
++  "register_holder": {
++   "n": 300,
++   "mean_ms": 0.345,
++   "p50_ms": 0.0,
++   "p95_ms": 0.0,
++   "max_ms": 26.717,
++   "sum_s": 0.104
++  },
++  "tenant_total_s": 0.392,
++  "coord_db_bytes": 1486848,
++  "tables_rows": {
++   "users": 301,
++   "memberships": 302,
++   "holders": 300,
++   "org_units": 34,
++   "audit_log": 938,
++   "events": 336
++  }
++ },
++ "rss_after_tenant_mb": 56.3,
++ "open": {
++  "n_holders": 300,
++  "open_all_s": 6.152,
++  "open_all_cpu_s": 5.385,
++  "open_each": {
++   "n": 300,
++   "mean_ms": 20.482,
++   "p50_ms": 18.0,
++   "p95_ms": 29.0,
++   "max_ms": 175.487,
++   "sum_s": 6.145
++  },
++  "first10_mean_ms": 42.157,
++  "last10_mean_ms": 19.024,
++  "rss_before_mb": 56.3,
++  "rss_after_mb": 405.9,
++  "rss_growth_mb_per_open_holder": 1.165,
++  "rss_series": [
++   {
++    "open": 30,
++    "rss_mb": 93.9,
++    "fds": 100
++   },
++   {
++    "open": 60,
++    "rss_mb": 128.6,
++    "fds": 190
++   },
++   {
++    "open": 90,
++    "rss_mb": 163.4,
++    "fds": 280
++   },
++   {
++    "open": 120,
++    "rss_mb": 198.1,
++    "fds": 370
++   },
++   {
++    "open": 150,
++    "rss_mb": 232.8,
++    "fds": 460
++   },
++   {
++    "open": 180,
++    "rss_mb": 267.4,
++    "fds": 550
++   },
++   {
++    "open": 210,
++    "rss_mb": 302.0,
++    "fds": 640
++   },
++   {
++    "open": 240,
++    "rss_mb": 336.7,
++    "fds": 730
++   },
++   {
++    "open": 270,
++    "rss_mb": 371.3,
++    "fds": 820
++   },
++   {
++    "open": 300,
++    "rss_mb": 405.8,
++    "fds": 910
++   }
++  ],
++  "fds_before": 10,
++  "fds_after": 910,
++  "fds_per_holder": 3.0,
++  "open_stores_in_memory": 300,
++  "disk_per_holder_empty_bytes": 1202856,
++  "disk_per_holder_by_file_bytes": {
++   ".db": 4096,
++   ".db-shm": 32768,
++   ".db-wal": 1165992
++  },
++  "files_per_holder": [
++   "evidence.db",
++   "evidence.db-shm",
++   "evidence.db-wal"
++  ],
++  "idle_cpu_fraction_of_one_core": 0.053,
++  "reconcile_noop_s": 0.0135,
++  "close_one": {
++   "n": 20,
++   "mean_ms": 6.956,
++   "p50_ms": 7.0,
++   "p95_ms": 9.0,
++   "max_ms": 9.587,
++   "sum_s": 0.139
++  },
++  "reopen_one": {
++   "n": 20,
++   "mean_ms": 7.29,
++   "p50_ms": 7.0,
++   "p95_ms": 9.0,
++   "max_ms": 12.739,
++   "sum_s": 0.146
++  }
++ },
++ "ingest": {
++  "records_per_user": 5,
++  "records_processed": 1500,
++  "wall_s": 37.47,
++  "cpu_s": 36.777,
++  "aggregate_records_per_s": 40.03,
++  "per_holder_total": {
++   "n": 300,
++   "mean_ms": 124.444,
++   "p50_ms": 115.0,
++   "p95_ms": 163.0,
++   "max_ms": 700.768,
++   "sum_s": 37.333
++  },
++  "connect_discover": {
++   "n": 300,
++   "mean_ms": 17.779,
++   "p50_ms": 16.0,
++   "p95_ms": 24.0,
++   "max_ms": 269.559,
++   "sum_s": 5.334
++  },
++  "drain_process": {
++   "n": 300,
++   "mean_ms": 106.665,
++   "p50_ms": 99.0,
++   "p95_ms": 138.0,
++   "max_ms": 684.994,
++   "sum_s": 32.0
++  },
++  "per_holder_records_per_s_mean": 40.18,
++  "rss_before_mb": 416.9,
++  "rss_after_mb": 639.5,
++  "peak_rss_mb": 639.5,
++  "sample_holders": 20,
++  "documents_per_holder_sampled": 5.0,
++  "memories_per_holder_sampled": 5.0,
++  "disk_per_holder_after_bytes": 3108822,
++  "disk_per_holder_after_by_file_bytes": {
++   ".db": 51063,
++   ".db-shm": 32768,
++   ".db-wal": 3024991
++  },
++  "disk_sampled_holders_after_checkpoint_db_bytes": 756122,
++  "transport_messages": 624,
++  "transport_by_kind": {
++   "heartbeat": 324,
++   "ingest_result": 300
++  },
++  "model_usage_rows_during_ingest": 40,
++  "model_usage_by_purpose": {
++   "classify_domains": 40
++  },
++  "profile": {
++   "tottime": [
++    {
++     "where": "~:0",
++     "func": "<method 'execute' of 'sqlite3.Connection' objects>",
++     "ncalls": 354727,
++     "tottime_s": 6.871,
++     "cumtime_s": 6.871
++    },
++    {
++     "where": "~:0",
++     "func": "<built-in method builtins.sum>",
++     "ncalls": 484140,
++     "tottime_s": 3.833,
++     "cumtime_s": 6.764
++    },
++    {
++     "where": "NeuralGraph/chat_memory/textutil.py:43",
++     "func": "stem",
++     "ncalls": 813670,
++     "tottime_s": 1.677,
++     "cumtime_s": 2.864
++    },
++    {
++     "where": "NeuralGraph/chat_memory/textutil.py:63",
++     "func": "<genexpr>",
++     "ncalls": 4670558,
++     "tottime_s": 1.224,
++     "cumtime_s": 1.713
++    },
++    {
++     "where": "~:0",
++     "func": "<method 'join' of 'str' objects>",
++     "ncalls": 539108,
++     "tottime_s": 0.974,
++     "cumtime_s": 2.724
++    },
++    {
++     "where": "mycelic/ingest/domains.py:400",
++     "func": "<genexpr>",
++     "ncalls": 6823350,
++     "tottime_s": 0.706,
++     "cumtime_s": 0.706
++    },
++    {
++     "where": "~:0",
++     "func": "<built-in method builtins.len>",
++     "ncalls": 4679345,
++     "tottime_s": 0.645,
++     "cumtime_s": 0.645
++    },
++    {
++     "where": "mycelic/ingest/domains.py:428",
++     "func": "get",
++     "ncalls": 26550,
++     "tottime_s": 0.553,
++     "cumtime_s": 3.218
++    },
++    {
++     "where": "mycelic/ingest/domains.py:495",
++     "func": "rule_candidates",
++     "ncalls": 1500,
++     "tottime_s": 0.552,
++     "cumtime_s": 7.05
++    },
++    {
++     "where": "mycelic/ingest/domains.py:375",
++     "func": "_tokens",
++     "ncalls": 454500,
++     "tottime_s": 0.535,
++     "cumtime_s": 5.92
++    },
++    {
++     "where": "~:0",
++     "func": "<built-in method unicodedata.combining>",
++     "ncalls": 4295072,
++     "tottime_s": 0.5,
++     "cumtime_s": 0.5
++    },
++    {
++     "where": "NeuralGraph/chat_memory/textutil.py:60",
++     "func": "fold",
++     "ncalls": 456000,
++     "tottime_s": 0.499,
++     "cumtime_s": 3.342
++    },
++    {
++     "where": "~:0",
++     "func": "<method 'endswith' of 'str' objects>",
++     "ncalls": 2930266,
++     "tottime_s": 0.487,
++     "cumtime_s": 0.487
++    },
++    {
++     "where": "~:0",
++     "func": "<built-in method zlib.compress>",
++     "ncalls": 3000,
++     "tottime_s": 0.433,
++     "cumtime_s": 0.433
++    },
++    {
++     "where": "NeuralGraph/chat_memory/llm.py:201",
++     "func": "fake_embedding",
++     "ncalls": 6930,
++     "tottime_s": 0.428,
++     "cumtime_s": 1.663
++    }
++   ],
++   "cumulative": [
++    {
++     "where": "/usr/lib/python3.13/asyncio/base_events.py:1981",
++     "func": "_run_once",
++     "ncalls": 1835,
++     "tottime_s": 0.177,
++     "cumtime_s": 37.469
++    },
++    {
++     "where": "/usr/lib/python3.13/asyncio/events.py:87",
++     "func": "_run",
++     "ncalls": 101712,
++     "tottime_s": 0.099,
++     "cumtime_s": 36.491
++    },
++    {
++     "where": "~:0",
++     "func": "<method 'run' of '_contextvars.Context' objects>",
++     "ncalls": 101712,
++     "tottime_s": 0.123,
++     "cumtime_s": 36.391
++    },
++    {
++     "where": "research/mycelic_e2e/perf/perf_bench.py:478",
++     "func": "run",
++     "ncalls": 906,
++     "tottime_s": 0.001,
++     "cumtime_s": 31.305
++    },
++    {
++     "where": "research/mycelic_e2e/perf/perf_bench.py:255",
++     "func": "phase_ingest",
++     "ncalls": 906,
++     "tottime_s": 0.026,
++     "cumtime_s": 31.303
++    },
++    {
++     "where": "mycelic/ingest/runtime.py:163",
++     "func": "tick",
++     "ncalls": 3332,
++     "tottime_s": 0.027,
++     "cumtime_s": 30.687
++    },
++    {
++     "where": "mycelic/ingest/runtime.py:199",
++     "func": "drain",
++     "ncalls": 906,
++     "tottime_s": 0.008,
++     "cumtime_s": 30.562
++    },
++    {
++     "where": "mycelic/ingest/pipeline.py:510",
++     "func": "process_available",
++     "ncalls": 301,
++     "tottime_s": 0.047,
++     "cumtime_s": 26.943
++    },
++    {
++     "where": "mycelic/ingest/pipeline.py:563",
++     "func": "process_item",
++     "ncalls": 1500,
++     "tottime_s": 0.09,
++     "cumtime_s": 25.482
++    },
++    {
++     "where": "mycelic/ingest/domains.py:714",
++     "func": "classify",
++     "ncalls": 1500,
++     "tottime_s": 0.037,
++     "cumtime_s": 16.419
++    },
++    {
++     "where": "mycelic/ingest/domains.py:566",
++     "func": "_embedding_stage",
++     "ncalls": 1500,
++     "tottime_s": 0.073,
++     "cumtime_s": 9.021
++    },
++    {
++     "where": "mycelic/ingest/domains.py:573",
++     "func": "score",
++     "ncalls": 26550,
++     "tottime_s": 0.113,
++     "cumtime_s": 8.756
++    },
++    {
++     "where": "mycelic/evidence/store.py:179",
++     "func": "run_in_tx",
++     "ncalls": 7204,
++     "tottime_s": 0.07,
++     "cumtime_s": 7.581
++    },
++    {
++     "where": "mycelic/ingest/domains.py:495",
++     "func": "rule_candidates",
++     "ncalls": 1500,
++     "tottime_s": 0.552,
++     "cumtime_s": 7.05
++    },
++    {
++     "where": "~:0",
++     "func": "<method 'execute' of 'sqlite3.Connection' objects>",
++     "ncalls": 354727,
++     "tottime_s": 6.871,
++     "cumtime_s": 6.871
++    }
++   ],
++   "total_s": 35.583
++  }
++ },
++ "peak_rss_mb": 641.6,
++ "rss_end_mb": 641.6,
++ "fds_end": 910,
++ "total_disk_bytes": {
++  "coord_db_files": 7589608,
++  "holders": 894662352
++ },
++ "shutdown_s": 3.557
++}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/perf/summarize.py b/research/mycelic_e2e/perf/summarize.py
+new file mode 100644
+index 0000000..eb5fef8
+--- /dev/null
++++ b/research/mycelic_e2e/perf/summarize.py
+@@ -0,0 +1,88 @@
++"""Print markdown tables from results/n*.json (and top-15 profile tables from results/prof_*.json) for PERF_PROBE.md."""
++from __future__ import annotations
++
++import json
++import sys
++from pathlib import Path
++
++R = Path(__file__).resolve().parent / "results"
++
++
++def load(n):
++    p = R / f"n{n}.json"
++    return json.loads(p.read_text()) if p.exists() else None
++
++
++def main() -> None:
++    ns = [n for n in (50, 200, 1000, 2000) if load(n)]
++    ds = {n: load(n) for n in ns}
++    print("| measure | " + " | ".join(f"N={n}" for n in ns) + " |")
++    print("|---|" + "---|" * len(ns))
++
++    def row(name, fn):
++        vals = []
++        for n in ns:
++            try:
++                vals.append(str(fn(ds[n])))
++            except Exception:
++                vals.append("-")
++        print(f"| {name} | " + " | ".join(vals) + " |")
++    row("tenant+units+users+memberships+holders, total s", lambda d: d["tenant"]["tenant_total_s"])
++    row("per user (user+membership+holder rows), ms", lambda d: d["tenant"]["per_user_total_ms"])
++    row("coord.db bytes after tenant", lambda d: d["tenant"]["coord_db_bytes"])
++    row("open all N holders, s", lambda d: d["open"]["open_all_s"])
++    row("open one holder mean / p95 ms", lambda d: f'{d["open"]["open_each"]["mean_ms"]} / {d["open"]["open_each"]["p95_ms"]}')
++    row("first10 / last10 open mean ms", lambda d: f'{d["open"]["first10_mean_ms"]} / {d["open"]["last10_mean_ms"]}')
++    row("close one holder mean ms (n=20)", lambda d: d["open"]["close_one"]["mean_ms"])
++    row("reopen one holder mean ms (n=20)", lambda d: d["open"]["reopen_one"]["mean_ms"])
++    row("RSS before -> after open, MB", lambda d: f'{d["open"]["rss_before_mb"]} -> {d["open"]["rss_after_mb"]}')
++    row("RSS per open holder, MB", lambda d: d["open"]["rss_growth_mb_per_open_holder"])
++    row("fds per open holder", lambda d: d["open"]["fds_per_holder"])
++    row("disk per empty holder, bytes (db / -wal / -shm)", lambda d: "{} ({} / {} / {})".format(d["open"]["disk_per_holder_empty_bytes"], *[d["open"]["disk_per_holder_by_file_bytes"].get(k) for k in (".db", ".db-wal", ".db-shm")]) if ".db-wal" in d["open"]["disk_per_holder_by_file_bytes"] else d["open"]["disk_per_holder_empty_bytes"])
++    row("idle CPU of N open holders (fraction of 1 core)", lambda d: d["open"]["idle_cpu_fraction_of_one_core"])
++    row("no-op reconcile() pass, s", lambda d: d["open"]["reconcile_noop_s"])
++    row("ingest: records", lambda d: d["ingest"]["records_processed"])
++    row("ingest: wall s", lambda d: d["ingest"]["wall_s"])
++    row("ingest: aggregate records/s", lambda d: d["ingest"]["aggregate_records_per_s"])
++    row("ingest: per holder (5 rec) mean ms", lambda d: d["ingest"]["per_holder_total"]["mean_ms"])
++    row("ingest: per holder p95 ms", lambda d: d["ingest"]["per_holder_total"]["p95_ms"])
++    row("ingest: per-holder records/s (mean)", lambda d: d["ingest"]["per_holder_records_per_s_mean"])
++    row("ingest: model calls", lambda d: sum(d["ingest"]["model_usage_by_purpose"].values()))
++    row("ingest: disk/holder incl WAL, bytes", lambda d: d["ingest"]["disk_per_holder_after_bytes"])
++    row("ingest: db-only/holder after checkpoint (sample), bytes", lambda d: d["ingest"]["disk_sampled_holders_after_checkpoint_db_bytes"])
++    row("transport msgs after ingest (heartbeat+ingest_result)", lambda d: d["ingest"]["transport_messages"])
++    row("core-inbound catch-up s (cpu s)", lambda d: f'{d["discovery"]["core_inbound_catchup_s"]} ({d["discovery"]["core_inbound_catchup_cpu_s"]})')
++    row("discovery: rounds (wall s each)", lambda d: ", ".join(f'{r["wall_s"]}' for r in d["discovery"]["rounds"]))
++    row("discovery: total wall s / cpu s", lambda d: f'{d["discovery"]["wall_s"]} / {d["discovery"]["cpu_s"]}')
++    row("discovery: finished", lambda d: d["discovery"]["finished"])
++    row("discovery: questions (by kind/depth)", lambda d: f'{d["discovery"]["questions"]} {d["discovery"]["questions_by_kind_depth"]}')
++    row("discovery: ticks, mean tick ms", lambda d: f'{d["discovery"]["ticks"]}, {d["discovery"]["tick_time"]["mean_ms"]}')
++    row("discovery: routes total (per question)", lambda d: f'{d["discovery"]["routes_total"]} ({d["discovery"]["routes_per_question"]["mean"]})')
++    row("discovery: model calls total", lambda d: d["discovery"]["model_calls_total"])
++    row("discovery: model calls by task", lambda d: d["discovery"]["model_calls_by_task"])
++    row("question.route job mean ms", lambda d: d["discovery"]["jobs_by_kind"]["question.route"]["mean_ms"])
++    row("  of which candidate_holders mean ms", lambda d: d["discovery"]["candidate_holders_call"]["mean_ms"])
++    row("domains_for_goal (per tick) mean ms", lambda d: d["discovery"]["domains_for_goal_call"]["mean_ms"])
++    row("loop.tick mean ms", lambda d: d["discovery"]["jobs_by_kind"]["loop.tick"]["mean_ms"])
++    row("question.evaluate / commit mean ms", lambda d: f'{d["discovery"]["jobs_by_kind"]["question.evaluate"]["mean_ms"]} / {d["discovery"]["jobs_by_kind"]["question.commit"]["mean_ms"]}')
++    row("micro: list_holders ms", lambda d: d["discovery"]["micro_list_holders_ms"])
++    row("micro: can_route over all holders ms (us/holder)", lambda d: f'{d["discovery"]["micro_can_route_all_holders_ms"]} ({d["discovery"]["micro_can_route_per_holder_us"]})')
++    row("micro: question_audience uncached ms", lambda d: d["discovery"]["micro_question_audience_uncached_ms"])
++    row("peak RSS MB (whole run)", lambda d: d["peak_rss_mb"])
++    row("shutdown s", lambda d: d["shutdown_s"])
++    row("job errors", lambda d: d["discovery"]["job_errors"])
++    for f in sorted(R.glob("prof_*.json")):
++        d = json.loads(f.read_text())
++        ph = d["profile_mode"]
++        prof = (d.get("ingest") if ph == "ingest" else d.get("discovery") or {}).get("profile")
++        if not prof:
++            continue
++        print(f"\n### cProfile top 15, phase `{ph}`, N={d['n']} (file {f.name}; profiled total {prof['total_s']} s)\n")
++        for key, title in (("tottime", "by own time"), ("cumulative", "by cumulative time")):
++            print(f"\n{title}\n\n| where | function | calls | own s | cum s |\n|---|---|---|---|---|")
++            for r in prof[key]:
++                print(f"| {r['where']} | {r['func']} | {r['ncalls']} | {r['tottime_s']} | {r['cumtime_s']} |")
++
++
++if __name__ == "__main__":
++    main()
+-- 
+2.43.0
+
