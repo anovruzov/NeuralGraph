@@ -1,7 +1,7 @@
 From 2c6f2a61a40f16b50080c002a22ac7ebc53246d4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 11:22:45 +0000
-Subject: [PATCH 58/58] Post-holdout follow-ups recorded: support-revision fix
+Subject: [PATCH 58/59] Post-holdout follow-ups recorded: support-revision fix
  and corrected A4 ablation, both reviewed, dev-only
 
 VERIFIED_RESULTS section 5 adds C8-S1 (support-revision fix: 120/120, gate

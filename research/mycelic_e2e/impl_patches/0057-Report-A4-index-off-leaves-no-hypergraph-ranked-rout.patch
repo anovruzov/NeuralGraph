@@ -1,7 +1,7 @@
 From 658a093490b0227f76d93951f7594784bf725314 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 10:59:40 +0000
-Subject: [PATCH 57/58] Report: A4 (index off) leaves no hypergraph-ranked
+Subject: [PATCH 57/59] Report: A4 (index off) leaves no hypergraph-ranked
  routes, so G4's ranker assertion is skipped as under A1
 
 With A4 emptying the entity and term indexes every route is domain-ranked (C8abl-A4fix-S1: 3,317 of 3,317), so report.finalize's default expect_ranker made G4 fail and the run read INVALID G4,G8. finalize now skips the ranker assertion for A1 and A4 (RANKER_NOT_EXPECTED); G4's authorization replay still runs. G4 is deliberately not added to A4's EXPECTED_GATE_FAILURES, which would hide a real routing-authorization failure.

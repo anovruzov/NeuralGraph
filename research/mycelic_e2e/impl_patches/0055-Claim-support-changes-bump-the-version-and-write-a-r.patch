@@ -1,7 +1,7 @@
 From 195e9ad16e6133f04f0a6af3685d92fbbc044ca8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 10:44:49 +0000
-Subject: [PATCH 55/58] Claim support changes bump the version and write a
+Subject: [PATCH 55/59] Claim support changes bump the version and write a
  revision (audit trail; found by gate G7 on the holdout)
 
 KnowledgeService.sync_support_sync (the I4 path that keeps claims.support equal

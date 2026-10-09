@@ -1,7 +1,7 @@
 From 9577cc54cf84c879c29f5b47ef11ccf04fbd5b7f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 10:58:28 +0000
-Subject: [PATCH 56/58] Reviews of the post-holdout fixes (support revisions
+Subject: [PATCH 56/59] Reviews of the post-holdout fixes (support revisions
  accepted; A4 fix blocked on the report's ranker expectation)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,7 +1,7 @@
 # Morning handoff: overnight repair of 2026-10-09
 
 _Final version, written 2026-10-09 11:22 UTC. Every number here is recomputed in `VERIFIED_RESULTS.md` from the run
-directories. The ledger is `EXPERIMENTS.jsonl` (rows X000–X083)._
+directories. The ledger is `EXPERIMENTS.jsonl` (rows X000–X084)._
 
 ## 1. What you asked, and the short answer
 

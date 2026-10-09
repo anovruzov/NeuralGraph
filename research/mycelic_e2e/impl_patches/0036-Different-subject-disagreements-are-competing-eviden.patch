@@ -1,7 +1,7 @@
 From 92d3d7cab10e6a933d0a2da46657b2e41708e4ac Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 08:43:06 +0000
-Subject: [PATCH 36/58] Different-subject disagreements are competing evidence;
+Subject: [PATCH 36/59] Different-subject disagreements are competing evidence;
  contradiction follow-ups reach both sides; department round-robin routing
 
 C1: a disagreement whose sides each name exactly one subject entity (service/component/issue/repo)

@@ -1,7 +1,7 @@
 From aec440ff8ce11b16b17cad302d516f3e10f7d625 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 09:20:51 +0000
-Subject: [PATCH 47/58] Reviews: K1b and the observe query fix accepted; ledger
+Subject: [PATCH 47/59] Reviews: K1b and the observe query fix accepted; ledger
  rows for K1b, H1 and the C6 runs
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

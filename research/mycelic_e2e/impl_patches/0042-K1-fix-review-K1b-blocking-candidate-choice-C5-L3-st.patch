@@ -1,7 +1,7 @@
 From 8720c86df43e046af56767423c1ab2306ae66834 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 09:09:40 +0000
-Subject: [PATCH 42/58] K1 fix review (K1b blocking), candidate choice, C5-L3
+Subject: [PATCH 42/59] K1 fix review (K1b blocking), candidate choice, C5-L3
  stop with scale finding, ablations started
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

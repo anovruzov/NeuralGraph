@@ -1,7 +1,7 @@
 From 737b01c35b32751d3260b3c93af4ca6be19e4b71 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 06:35:58 +0000
-Subject: [PATCH 14/58] E2E v1 evaluator, central baseline, architecture gate,
+Subject: [PATCH 14/59] E2E v1 evaluator, central baseline, architecture gate,
  ledger (WP3)
 
 Isolated scorer (gold opened only by gold.py; answers from asker-visible supported-claim text only),

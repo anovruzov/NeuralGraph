@@ -1,7 +1,7 @@
 From 3c18b1a21194b959782561f8614d7470f9709027 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 10:41:42 +0000
-Subject: [PATCH 54/58] Ablation A4 replaces the index sink so no heartbeat
+Subject: [PATCH 54/59] Ablation A4 replaces the index sink so no heartbeat
  path can repopulate the index
 
 A4 patched only holder.embedded._heartbeat_stats, one of three feeders of OrgService.holder_heartbeat; the raw transport beat and the shutdown beat bypass it, so the term index flickered back every minute and was full at stop, and G8 (which reads the final coord.db) saw 112/112. A4 now replaces hypergraph.upsert_entity_index_sync and upsert_term_index_sync, the sinks every index write goes through (including the revoke / opt-out withdrawal): both return 0 and write nothing, whichever feeder delivers the beat.

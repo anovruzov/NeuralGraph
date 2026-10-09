@@ -1,7 +1,7 @@
 From 4c2774416ff8361fbc97231ff558e96c19e92232 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 09:16:04 +0000
-Subject: [PATCH 45/58] Discovery observe: new evidence refs via the goal's
+Subject: [PATCH 45/59] Discovery observe: new evidence refs via the goal's
  responses (json_each) instead of a quadratic LIKE join
 
 observe() joined every evidence_ref against every response with LIKE '%' || ref_id || '%', which scans evidence_refs once per response of the goal on every loop tick. It now drives from the goal's questions and responses and unpacks responses.evidence_ref_ids with json_each, then looks each ref up by primary key (json_valid guard for empty or malformed values).

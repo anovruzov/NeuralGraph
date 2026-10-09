@@ -1,7 +1,7 @@
 From 54fec3f0809398605d85237c9ea10b485c7f74ee Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 08:05:58 +0000
-Subject: [PATCH 30/58] Benchmark hardening before freeze: popular rivals and a
+Subject: [PATCH 30/59] Benchmark hardening before freeze: popular rivals and a
  background corpus for every person's graph
 
 Every cross-department and fault positive gets a single-department rival with the same context and a
