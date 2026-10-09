@@ -1,0 +1,9 @@
+{
+  "purpose": "Public replay V001 (CHOICE-V001.md): FORD complaints received 2023-2024, states as sites, NHTSA component categories as failures, recalls received in the window as outcomes, through the pilot audit. The AI agent chose by a stated rule and declares saw_recall_outcomes yes. The first run is the result.",
+  "make": "FORD",
+  "date_from": "20230101",
+  "date_to": "20241231",
+  "lookback_weeks": 26,
+  "post_weeks": 26,
+  "saw_recall_outcomes": "yes"
+}
