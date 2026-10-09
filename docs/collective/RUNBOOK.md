@@ -399,7 +399,9 @@ python -m mycelic.collective.experiments.e1_extract run --prereg <prereg-file> -
 the pack's vocabulary, the scoring code or any pinned endpoint setting (model, provider, boundary, response format,
 transport schema, thinking controls) changed since `prereg`. Ctrl-C leaves `run.json` with `complete: false`; start a new run id.
 When a run ends, `run.json` records the sha256 of its `predictions.jsonl` and `ledger.jsonl`; do not edit either
-file, or `compare` refuses the run.
+file, or `compare` refuses the run. With data label `public` or `synthetic` the run also writes `replies.jsonl`
+(each record's raw reply items, as the model returned them once they passed schema validation) and records its
+sha256; with any other label no reply is written.
 
 **Step 6: compare.** List every run directory of every endpoint. `compare` refuses a pre-registered endpoint
 without runs; `--allow-incomplete` accepts it (and incomplete runs), stamps that, and lists the endpoint under

@@ -35,7 +35,9 @@ itself), X1 (its label, then the channels and lifts tables, each row's eligibili
 by-construction table), openFDA (its label and what its measurement flag means, the hindsight sentence when a requester
 declared seeing recall outcomes first and the warning sentence when the replay warned, the scope of its false alarms,
 each row's declaration and warnings, then the channels and fetch tables, then the sheets label and the sheets table)
-and, once, in the class section of its display class, E1: its label, then the endpoints table, then the paired table,
+and, once, in the class section of its display class, E1: its label, then the endpoints table (with each model's
+zero-claim share), then, when the comparison carries them, the drops table (each model's post-processing counts by
+reason, pooled over repeats, after :data:`~lab.notes.E1_DROPS_NOTE`), then the paired table,
 whose non-inferiority and kill-flag columns appear only when the block's ``verdicts_shown`` (a model measurement, or a
 hosted API result) and are otherwise replaced by the withheld sentence; a block that was not compared shows its reason
 instead. When hosted models were among the endpoints, the hosted label follows the E1 label. The paired table names each
@@ -96,15 +98,15 @@ from mycelic.collective.jsonio import StrictJsonError, strict_load
 
 from . import EXIT_OK, EXIT_USAGE, forbidden_root
 from .notes import (BRANCH_DELETED, BY_CONSTRUCTION_LABEL, BY_CONSTRUCTION_NOTE, COLUMNS, CPU_MODELS_DIFFER,
-                    DEFAULT_BRANCH, DELETE_ONLY, DISPATCH_BY_HAND, E1_COMPARE_FAILED, E1_ENDPOINT_EXCLUDED,
-                    E1_HOSTED_LABEL, E1_LABELS, E1_NO_REFERENCE, E1_VERDICTS_WITHHELD, E1_WITHOUT_HOSTED,
-                    E2_CENTRAL_HOSTED_SKIPPED, E2_LABELS, E2_SIZING_NOTE, G0_BELOW_PROTOCOL, HEADINGS, HOSTED_COST_NOTE,
-                    HOSTED_SECRETS_MISSING, LOCK_CONFLICT_NOTE, LOCK_NEW, LOCK_NOT_COMPUTED, LOCK_UNCHANGED,
-                    MERGE_SEVERAL, NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT, NOT_A_BRANCH, NOT_PINNED, NOTES,
-                    OPENFDA_FALSE_ALARM_SCOPE, OPENFDA_LABEL, OPENFDA_PUBLIC_FLAG, OPENFDA_SAW_RECALLS, OPENFDA_WARNED,
-                    PLAN_FIX_HINT, PLUMBING_CHECK_LINE, PLUMBING_HOSTED_LINE, PREREG_MISSING, SHEETS_LABEL,
-                    SIM_CHANNEL_LABELS, SIM_LIFT_LABELS, SIM_NOTES, SIM_WORLD_DIFFERS, SIM_WORLD_SAME, SIZING_NOTE,
-                    TRUNCATED, UNSEALED, WORLD_DIGEST_DIFFERS, WORLD_DIGEST_SAME, X1_LABEL)
+                    DEFAULT_BRANCH, DELETE_ONLY, DISPATCH_BY_HAND, E1_COMPARE_FAILED, E1_DROPS_NOTE,
+                    E1_ENDPOINT_EXCLUDED, E1_HOSTED_LABEL, E1_LABELS, E1_NO_REFERENCE, E1_VERDICTS_WITHHELD,
+                    E1_WITHOUT_HOSTED, E2_CENTRAL_HOSTED_SKIPPED, E2_LABELS, E2_SIZING_NOTE, G0_BELOW_PROTOCOL,
+                    HEADINGS, HOSTED_COST_NOTE, HOSTED_SECRETS_MISSING, LOCK_CONFLICT_NOTE, LOCK_NEW,
+                    LOCK_NOT_COMPUTED, LOCK_UNCHANGED, MERGE_SEVERAL, NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT,
+                    NOT_A_BRANCH, NOT_PINNED, NOTES, OPENFDA_FALSE_ALARM_SCOPE, OPENFDA_LABEL, OPENFDA_PUBLIC_FLAG,
+                    OPENFDA_SAW_RECALLS, OPENFDA_WARNED, PLAN_FIX_HINT, PLUMBING_CHECK_LINE, PLUMBING_HOSTED_LINE,
+                    PREREG_MISSING, SHEETS_LABEL, SIM_CHANNEL_LABELS, SIM_LIFT_LABELS, SIM_NOTES, SIM_WORLD_DIFFERS,
+                    SIM_WORLD_SAME, SIZING_NOTE, TRUNCATED, UNSEALED, WORLD_DIGEST_DIFFERS, WORLD_DIGEST_SAME, X1_LABEL)
 from .units import display_class
 
 MAX_SUMMARY_BYTES = 900_000
@@ -948,7 +950,8 @@ def _openfda_tables(doc: _Doc, src: Sources, rows_: list[tuple[int, dict[str, An
 
 
 def _e1_tables(doc: _Doc, src: Sources, e1: dict[str, Any]) -> None:
-    """E1's label first, then its endpoints and paired tables; the verdict columns only when ``verdicts_shown``."""
+    """E1's label first, then its endpoints, drops (when the comparison carries them) and paired tables; the verdict
+    columns only when ``verdicts_shown``."""
     f = "report.json"
     _heading(doc, "e1", 4)
     if e1.get("label") in E1_LABELS:
@@ -969,15 +972,25 @@ def _e1_tables(doc: _Doc, src: Sources, e1: dict[str, Any]) -> None:
             f"{COLUMNS['kill_below']} {src.num(f, '/e1/kill_below', 'f3')}")
     endpoints = e1.get("endpoints") if isinstance(e1.get("endpoints"), dict) else {}
     _heading(doc, "e1-endpoints", 4)
-    doc.table(["model", "runs", "field_f1", "ci_low", "ci_high", "claim_f1", "json_validity", "p50_ms", "mismatch"],
+    doc.table(["model", "runs", "field_f1", "ci_low", "ci_high", "claim_f1", "json_validity", "zero_claim_share",
+               "p50_ms", "mismatch"],
               lambda: ([code(name, table=True), src.num(f, pointer("e1", "endpoints", name, "runs"), "int"),
                         src.num(f, pointer("e1", "endpoints", name, "field_f1", "value"), "f3"),
                         src.num(f, pointer("e1", "endpoints", name, "field_f1", "ci_low"), "f3"),
                         src.num(f, pointer("e1", "endpoints", name, "field_f1", "ci_high"), "f3"),
                         src.num(f, pointer("e1", "endpoints", name, "claim_f1", "value"), "f3"),
                         src.num(f, pointer("e1", "endpoints", name, "json_validity_rate"), "f3"),
+                        src.num(f, pointer("e1", "endpoints", name, "zero_claim_share"), "f3"),
                         src.num(f, pointer("e1", "endpoints", name, "latency_ms_p50"), "f1"),
                         yes_no(_get(endpoints, name, "model_mismatch"))] for name in sorted(endpoints)))
+    dropped = [name for name in sorted(endpoints) if isinstance(_get(endpoints, name, "drops"), dict)]
+    if dropped:
+        _heading(doc, "e1-drops", 4)
+        doc.add("\n" + E1_DROPS_NOTE)
+        doc.table(["model", "drop_reason", "drop_count"], lambda: (
+            [code(name, table=True), code(reason, table=True),
+             src.num(f, pointer("e1", "endpoints", name, "drops", reason), "int")]
+            for name in dropped for reason in sorted(endpoints[name]["drops"])))
     paired = e1.get("paired") if isinstance(e1.get("paired"), dict) else {}
     shown = e1.get("verdicts_shown") is True
     _heading(doc, "e1-paired", 4)

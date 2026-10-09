@@ -421,7 +421,8 @@ class ModelExtractorTests(Case):
         result = self.server_extractor(srv).extract(r, codes_channel(r, DQ, self.canon), ref="drops-1")
         self.assertEqual(tuples(result), {("product", "SD-40", "leak", False)})
         self.assertEqual(dict(result.drops), {"empty": 1, "not_canonical": 2, "ungrounded": 1, "person_value": 1,
-                                              "duplicate": 1, "no_entity": 1})
+                                              "duplicate": 1, "no_entity": 1, "reattached_not_canonical": 0,
+                                              "reattached_ungrounded": 0})   # no primary: nothing is re-attached
         self.assertEqual(result.extractor, "model:site-model")
 
     def test_duplicates_keep_the_highest_res_conf_and_negated_is_forced_off_without_a_predicate(self) -> None:
@@ -564,6 +565,126 @@ class ModelExtractorTests(Case):
                                                                          DQ.extraction.max_output_tokens))
         for t in DQ.entity_types:
             self.assertIn(t, task.instructions)
+
+
+# =================================================================================================== R001 reading path
+
+VEHICLES = load_pack(Path(__file__).resolve().parents[2] / "docs" / "collective" / "replay" / "vehicles" / "pack")
+F150 = "THE CONTACT OWNS A 2021 FORD F-150. THE CONTACT STATED THAT WHILE DRIVING THE VEHICLE STALLED WITHOUT WARNING."
+
+
+def vehicle_record(narrative: str, vehicle: str | None = "FORD-F150-2021", *, reporter: str | None = None,
+                   ref: str = "c01") -> dict[str, Any]:
+    """A record of the vehicle pack shaped as the R001 probe (tools/market/r001_postprocess_probe.py) builds it."""
+    return {"record_ref": ref, "site": "public", "received_date": "2024-01-02", "language": None, "codes": [],
+            "entities": {"vehicle": [vehicle] if vehicle else []}, "persons": {}, "reporter": reporter,
+            "narrative": narrative, "origin_ref": None, "origin_site": None, "synthetic": False}
+
+
+class VehicleReadingPathTests(Case):
+    """R001 (CHOICE-R001.md, "What the zero most likely is"): a model reply whose vehicle does not resolve keeps its
+    predicate on the record's structured vehicle, as the lexical extractor's does, and the event is counted under
+    ``reattached_<reason>``; without a structured vehicle, a predicate, or with a person value, nothing changes."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.vcanon = Canonicaliser(VEHICLES)
+
+    def read(self, items: list[dict[str, Any]], r: dict[str, Any], ref: str, **kwargs) -> Any:
+        srv = self.server("valid", reply={"claims": items})
+        rt = self.runtime({"m": {"provider": "openai_compat", "boundary": "site:lab", "base_url": srv.base_url,
+                                 "model": "m"}}, boundary="site:lab", data_label="public")
+        model = ModelExtractor(VEHICLES, self.vcanon, rt, endpoint="m", fallback=False, **kwargs)
+        return model.extract(r, codes_channel(r, VEHICLES, self.vcanon), ref=ref)
+
+    @staticmethod
+    def item(etype: str | None, text: str | None, predicate: str | None = "engine") -> dict[str, Any]:
+        return {"entity_type": etype, "entity_text": text, "predicate": predicate, "negated": False}
+
+    def test_the_probe_shapes_give_the_gold_predicate_on_the_structured_vehicle(self) -> None:
+        r = vehicle_record(F150)
+        gold = [{"entity_type": "vehicle", "entity_id": "FORD-F150-2021", "predicate": "engine", "negated": False}]
+        cases = [("typed vehicle, null text", self.item("vehicle", None), "reattached_not_canonical"),
+                 ("the vehicle as written", self.item("vehicle", "2021 FORD F-150"), "reattached_not_canonical"),
+                 ("text without a type", self.item(None, "2021 FORD F-150"), "reattached_not_canonical"),
+                 ("null entity", self.item(None, None), None)]
+        for i, (shape, item, counted) in enumerate(cases):
+            result = self.read([item], r, f"shape-{i}")
+            claims = [{"entity_type": c.entity_type, "entity_id": c.entity_id, "predicate": c.predicate,
+                       "negated": c.negated} for c in result.claims]
+            with self.subTest(shape=shape):
+                self.assertEqual(tuples(result), {("vehicle", "FORD-F150-2021", "engine", False)})
+                self.assertEqual(result.claims[0].res_conf, codes_channel(r, VEHICLES, self.vcanon).primary.res_conf)
+                self.assertEqual(micro_f1([record_counts(claims, gold)["predicate"]])["value"], 1.0)
+                self.assertEqual({k: n for k, n in result.drops.items() if n},
+                                 {counted: 1} if counted is not None else {})
+
+    def test_an_ungrounded_vehicle_text_is_reattached_and_counted_as_ungrounded(self) -> None:
+        result = self.read([self.item("vehicle", "2018 TOYOTA CAMRY", "steering"), self.item("vehicle", None)],
+                           vehicle_record(F150), "ungrounded-1")
+        self.assertEqual(tuples(result), {("vehicle", "FORD-F150-2021", "steering", False),
+                                          ("vehicle", "FORD-F150-2021", "engine", False)})
+        self.assertEqual({k: n for k, n in result.drops.items() if n},
+                         {"reattached_ungrounded": 1, "reattached_not_canonical": 1})
+
+    def test_an_id_the_scanner_does_not_read_there_is_reattached_as_ungrounded(self) -> None:
+        """'SD-9' trimmed from 'SD-9-B' is grounded and canonicalises, but the scanner reads no SD-9 in the text (no
+        matching occurrence): with a structured product the predicate goes to it, counted as ungrounded."""
+        r = record("The SD-9-B pump cracked.", entities={"product": ["SD-40"]})
+        srv = self.server("valid", reply={"claims": [{"entity_type": "product", "entity_text": "SD-9",
+                                                      "predicate": "crack", "negated": False}]})
+        result = self.server_extractor(srv).extract(r, codes_channel(r, DQ, self.canon), ref="near-primary")
+        self.assertEqual(tuples(result), {("product", "SD-40", "crack", False)})
+        self.assertEqual({k: n for k, n in result.drops.items() if n}, {"reattached_ungrounded": 1})
+
+    def test_a_vehicle_named_as_the_pack_writes_it_is_its_own_entity(self) -> None:
+        result = self.read([self.item("vehicle", "FORD-F150-2021")],
+                           vehicle_record("MY FORD-F150-2021 STALLED.", "HONDA-CRV-2020"), "named-1")
+        self.assertEqual(tuples(result), {("vehicle", "FORD-F150-2021", "engine", False)})
+        self.assertEqual({k: n for k, n in result.drops.items() if n}, {})
+
+    def test_without_a_structured_vehicle_or_a_predicate_items_are_dropped_as_before(self) -> None:
+        no_vehicle = vehicle_record(F150, None)
+        result = self.read([self.item("vehicle", None), self.item("vehicle", "2021 FORD F-150"),
+                            self.item("vehicle", "2018 TOYOTA CAMRY"), self.item(None, None)], no_vehicle, "none-1")
+        self.assertEqual(result.claims, ())
+        self.assertEqual({k: n for k, n in result.drops.items() if n},
+                         {"not_canonical": 2, "ungrounded": 1, "no_entity": 1})
+        result = self.read([self.item("vehicle", None, None), self.item("vehicle", "2021 FORD F-150", None),
+                            self.item("vehicle", "2018 TOYOTA CAMRY", None)], vehicle_record(F150), "none-2")
+        self.assertEqual(result.claims, ())
+        self.assertEqual({k: n for k, n in result.drops.items() if n}, {"not_canonical": 2, "ungrounded": 1})
+
+    def test_a_person_value_is_never_reattached(self) -> None:
+        r = vehicle_record(F150 + " JOHN DOE REPORTED IT.", reporter="JOHN DOE")
+        stated = self.read([self.item("vehicle", "JOHN DOE")], r, "person-1")
+        self.assertEqual((stated.claims, stated.drops["person_value"]), ((), 1))
+        unstated = self.read([self.item("vehicle", "JOHN DOE")], vehicle_record(F150, reporter="JOHN DOE"),
+                             "person-2")
+        self.assertEqual((unstated.claims, unstated.drops["ungrounded"], unstated.drops["reattached_ungrounded"]),
+                         ((), 1, 0))
+
+    def test_duplicates_after_reattachment_are_counted_once_each(self) -> None:
+        result = self.read([self.item("vehicle", None), self.item(None, None), self.item("vehicle", "2021 FORD F-150")],
+                           vehicle_record(F150), "dup-1")
+        self.assertEqual(tuples(result), {("vehicle", "FORD-F150-2021", "engine", False)})
+        self.assertEqual({k: n for k, n in result.drops.items() if n},
+                         {"reattached_not_canonical": 2, "duplicate": 2})
+
+    def test_the_reply_sink_gets_the_validated_items_before_post_processing(self) -> None:
+        items = [self.item("vehicle", "2021 FORD F-150"), self.item(None, None, "air_bags")]
+        seen: list[tuple[str, Any]] = []
+        result = self.read(items, vehicle_record(F150), "sink-1", reply_sink=lambda ref, got: seen.append((ref, got)))
+        self.assertEqual(seen, [("sink-1", items)])
+        self.assertEqual(len(result.claims), 2)
+        srv = self.server("always-invalid", invalid_reply={"claims": [self.item("vehicle", None, "bogus")]})
+        rt = self.runtime({"m": {"provider": "openai_compat", "boundary": "site:lab", "base_url": srv.base_url,
+                                 "model": "m"}}, boundary="site:lab", data_label="public")
+        r = vehicle_record(F150)
+        failed = ModelExtractor(VEHICLES, self.vcanon, rt, endpoint="m", fallback=False,
+                                reply_sink=lambda ref, got: seen.append((ref, got))).extract(
+            r, codes_channel(r, VEHICLES, self.vcanon), ref="sink-2")
+        self.assertEqual((failed.error_kind, len(seen)), ("schema_invalid", 1))
 
 
 # =================================================================================================== pairing

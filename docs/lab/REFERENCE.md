@@ -177,8 +177,9 @@ A shard's artifact holds (`lab/shard.py`):
 - `provision/` and `server/`: the prepared server and model records, and the server's logs;
 - `routing/`: the routing files the harnesses read (a hosted base URL is redacted);
 - `units/<unit>/`: `unit.json` (the unit record), `stdout.log` and `stderr.log` (each cut to its last 64 KiB);
-- `runs/<experiment>/<run id>/`: the harness files the lab keeps (result files and ledgers; never a database, a
-  private directory or raw scratch);
+- `runs/<experiment>/<run id>/`: the harness files the lab keeps (result files and ledgers, and E1's raw replies,
+  `replies.jsonl`, which its harness writes for public or synthetic data only; never a database, a private directory
+  or raw scratch);
 - `provenance.json` and `status.json` (below); `summary/`, added by the summary step after the seal.
 
 ## Provenance and status files
@@ -309,6 +310,7 @@ The experiments' labels:
 - `E1_ENDPOINT_EXCLUDED`: A model without a complete set of valid repeats was left out: the comparison is stamped incomplete and lists it among the endpoints without runs.
 - `E1_VERDICTS_WITHHELD`: Verdicts withheld: non-inferiority and the kill flag are shown only for a model measurement, beneath the label above.
 - `E1_HOSTED_LABEL`: Hosted endpoints answered {e_one} over the network: their scores are not deterministic across repeats, and raw synthetic text was sent to the configured host.
+- `E1_DROPS_NOTE`: Reasons that start with reattached count predicates kept on the record's structured entity after the model named an entity that did not resolve: they are not losses. Every other reason counts reply items that post-processing dropped.
 
 Sizing and cost:
 
@@ -560,7 +562,10 @@ synthetic worlds describe synthetic worlds.
 | field F one | micro F1 over (record, field, value) of the model's claims against the labels, pooled over repeats | accuracy on real narratives |
 | claim F one | F1 over whole claims against the labels, pooled over repeats | accuracy on real narratives |
 | valid JSON share | the share of extraction calls whose first reply was valid | accuracy |
+| zero-claim share | the share of scored records, pooled over repeats, whose prediction holds no claim | records without a finding: the gold of a record can be empty too |
 | model mismatch | whether a reply named a model other than the requested one | n/a: not a number |
+| drop reason | a post-processing reason from the harness's run.json: a dropped reply item, or a reattached_ reason (a predicate kept on the record's structured entity after the model named an entity that did not resolve) | a loss when it starts with reattached |
+| reply items | reply items counted under the reason, summed over the model's repeats | records |
 | against | the reference model of a paired comparison | n/a: not a number |
 | decision metric | which difference decides non-inferiority: micro field F1, or the per-record mean field F1 of a harness without it | n/a: not a number |
 | difference | the model's decision metric minus the reference's over the shared records | a difference on real narratives |
@@ -663,7 +668,8 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Baselines blind to narrative-only patterns by construction | per sim or X1 row, S and R_mf on the plant's narrative_only patterns, with the harness's label |
 | Preregistration, fixed before any model runs | E1's labels, X1's and E2's prereg hashes, E2's rehearsal |
 | Extraction compared across models | E1's label, labels, reference and thresholds |
-| Extraction per model, pooled over repeats | E1's per-model scores |
+| Extraction per model, pooled over repeats | E1's per-model scores and zero-claim share |
+| Extraction drops by reason, pooled over repeats | E1's post-processing counts per model and reason (`drops` of each endpoint in report.json), after the sentence that reattached reasons are not losses |
 | Extraction paired against the reference | E1's paired comparison with the reference |
 | Pushdown verification against central reading: conditions | E2's labels and conditions |
 | Pushdown ratio and verdict | E2's ratio and, for a hosted central, the bar verdict |

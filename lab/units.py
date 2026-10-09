@@ -34,7 +34,8 @@ and keeps ``leakage.json`` and ``edge/site-*.ledger.jsonl``; ``sim`` runs ``lab.
 ``--budget-seconds`` the unit's whole seconds less :data:`SIM_BUDGET_MARGIN_S`, at least 1) and keeps
 ``scorecard.json``, ``progress.json``, ``labels.json`` and ``edge/site-*.ledger.jsonl``; ``e1`` runs
 ``experiments.e1_extract run`` (the preregistered prereg and labels, one repeat of one model) and keeps ``run.json``,
-``predictions.jsonl`` and ``ledger.jsonl``; ``e2`` runs ``experiments.e2_pushdown run`` (the preregistered X1 prereg,
+``predictions.jsonl``, ``ledger.jsonl`` and ``replies.jsonl`` (the raw replies, which the harness writes for public
+or synthetic data only); ``e2`` runs ``experiments.e2_pushdown run`` (the preregistered X1 prereg,
 site routing at ``any-simulated`` and a central endpoint at ``central`` on the same server: central is the model
 itself; ``--central-context-tokens``, the plan's ``central_context_tokens``, only when the installed harness takes it,
 :data:`E2_CENTRAL_CONTEXT`) and keeps ``e2.json``, ``central.ledger.jsonl`` and
@@ -243,7 +244,7 @@ ADAPTERS = {
                    ("scorecard.json", "progress.json", "labels.json", "edge/site-*.ledger.jsonl"),
                    ("edge/site-*.ledger.jsonl",)),
     "e1": Adapter("e1", "mycelic.collective.experiments.e1_extract", (), "", 900, "run.json",
-                  ("run.json", "predictions.jsonl", "ledger.jsonl"), ("ledger.jsonl",), "run"),
+                  ("run.json", "predictions.jsonl", "ledger.jsonl", "replies.jsonl"), ("ledger.jsonl",), "run"),
     "e2": Adapter("e2", "mycelic.collective.experiments.e2_pushdown", (JUDGE_TASK,), "any-simulated", 900, "e2.json",
                   ("e2.json", "central.ledger.jsonl", E2_SITE_LEDGERS), ("central.ledger.jsonl", E2_SITE_LEDGERS),
                   "run"),

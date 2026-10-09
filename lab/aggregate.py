@@ -51,14 +51,16 @@ and the two sheets' sizes, and every step's status. No row copies an item, a key
 preregistration must verify (``lab.prereg.load_prereg``, else the reason is :data:`~lab.notes.PREREG_MISSING`). A
 model is complete when every repeat ``1..runs`` is ``ok`` and its files verify (a unit whose files differ from its
 record is excluded); an incomplete reference means no comparison (:data:`~lab.notes.E1_NO_REFERENCE`). Otherwise each
-complete model's ``run.json``, ``predictions.jsonl`` and ``ledger.jsonl`` are copied byte for byte to
-``DIR/e1/runs/<run id>/`` and the prereg to ``DIR/e1/prereg.json``, and ``e1_extract compare`` runs over them (run
-id ``compare``, ``--runs-dir DIR/e1``, ``--allow-incomplete`` exactly when a non-reference model was left out; its log
+complete model's ``run.json``, ``predictions.jsonl``, ``ledger.jsonl`` and (when collected) ``replies.jsonl`` are
+copied byte for byte to ``DIR/e1/runs/<run id>/`` and the prereg to ``DIR/e1/prereg.json``, and ``e1_extract
+compare`` runs over them (run id ``compare``, ``--runs-dir DIR/e1``, ``--allow-incomplete`` exactly when a
+non-reference model was left out; its log
 in ``DIR/e1/compare.stdout.log`` and ``.stderr.log``); a refusal is :data:`~lab.notes.E1_COMPARE_FAILED`. The block
 holds the labels, the prereg's thresholds, every repeat's status, the excluded models, the endpoints without runs,
 ``measurement`` and ``verdicts_shown`` (a measurement shown in the ``model`` or ``hosted-api`` class only), the
-pooled F1 blocks per model, the paired comparison against the reference (:func:`_e1_paired`, which reads either
-shape of the harness's paired entry and names the ``decision_metric``) and ``hosted_endpoints`` (the hosted models
+pooled F1 blocks per model (with the extraction ``drops`` by reason and the ``zero_claim_share``,
+:func:`_e1_endpoint`), the paired comparison against the reference (:func:`_e1_paired`, which reads either shape of
+the harness's paired entry and names the ``decision_metric``) and ``hosted_endpoints`` (the hosted models
 among the endpoints), never e1.json's clock or paths (``e1_json`` is its path relative to ``DIR``). Its
 ``display_class`` is ``plumbing`` when any compared unit is, ``model`` when all are, ``hosted-api`` when all are
 ``model`` or ``hosted-api``, else ``unverified``.
@@ -130,7 +132,7 @@ SIM_LIFT_FIELDS = ("estimate", "ci_low", "ci_high")
 BY_CONSTRUCTION_FIELDS = ("channel", "visibility", "label", "recall")
 G0_PROTOCOL_RECORDS = 1000
 E1_MODULE = "mycelic.collective.experiments.e1_extract"
-E1_FILES = ("run.json", "predictions.jsonl", "ledger.jsonl")
+E1_FILES = ("run.json", "predictions.jsonl", "ledger.jsonl", "replies.jsonl")
 E1_COMPARE_TIMEOUT_S = 1200
 E1_JSON = "e1/e1/compare/e1.json"
 E1_F1 = ("field_f1", "claim_f1", "entity_f1", "predicate_f1")
@@ -483,7 +485,10 @@ def _class_of(classes: list[str], fallback: str) -> str:
 
 
 def _e1_endpoint(block: Any) -> dict[str, Any]:
+    """One endpoint block of ``e1.json``: ``drops`` (post-processing counts by reason over the model's repeats;
+    ``reattached_*`` are predicates kept, not losses) and ``zero_claim_share`` are null from a harness without them."""
     exact = _get(block, "exact_match")
+    drops = _get(block, "drops")
     return {"runs": _get(block, "runs"),
             **{name: {k: _get(block, name, k) for k in ("value", "ci_low", "ci_high")} for name in E1_F1},
             "json_validity_rate": _get(block, "json_validity_rate"),
@@ -491,7 +496,9 @@ def _e1_endpoint(block: Any) -> dict[str, Any]:
             "exact_match": ({t: {k: _get(entry, k) for k in ("n", "matches", "rate")}
                              for t, entry in sorted(exact.items())} if isinstance(exact, dict) else None),
             "latency_ms_p50": _get(block, "latency_ms_p50"), "latency_ms_p95": _get(block, "latency_ms_p95"),
-            "model_mismatch": _get(block, "model_mismatch")}
+            "model_mismatch": _get(block, "model_mismatch"),
+            "drops": dict(sorted(drops.items())) if isinstance(drops, dict) else None,
+            "zero_claim_share": _get(block, "zero_claim_share")}
 
 
 def _e1_paired(entry: Any) -> dict[str, Any]:

@@ -204,7 +204,9 @@ from the G1 note and remain integration notes until a gate needs them.
 - **A1.** No `out_of_enum` drop. The extraction schema carries the type and predicate enums (with null), the
   runtime validates replies locally, and an out-of-enum value is `schema_invalid`: one repair, then the lexical
   fallback (`extractor: fallback`, `error_kind: schema_invalid`), or an empty result in E1 (`fallback=False`).
-  `DROP_REASONS` is exactly `empty, not_canonical, ungrounded, person_value, duplicate, no_entity`.
+  `DROP_REASONS` is exactly `empty, not_canonical, ungrounded, person_value, duplicate, no_entity`. (After R001,
+  `DROP_REASONS` also holds `reattached_not_canonical` and `reattached_ungrounded`: counts of predicates the model
+  post-processing kept on the primary entity when the item's entity failed, not losses; ARCHITECTURE 11.3.)
 - **A2.** `pair()` pairs text predicates with the extractor's own entity pairs and with every structured entity, and
   code predicates with entities named only in the text; there is no record-level cross product of text predicates
   with text entities. See the refinement below for negated pairs.

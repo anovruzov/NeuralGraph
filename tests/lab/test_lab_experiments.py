@@ -34,7 +34,7 @@ from lab import prereg as lab_prereg
 from lab import shard as lab_shard
 from lab import units
 from lab.goldlabels import GOLD_KEYS, GoldLabelsError, build_labels
-from lab.notes import (COLUMNS, CONTEXT_TOO_SMALL, E1_COMPARE_FAILED, E1_ENDPOINT_EXCLUDED, E1_LABELS,
+from lab.notes import (COLUMNS, CONTEXT_TOO_SMALL, E1_COMPARE_FAILED, E1_DROPS_NOTE, E1_ENDPOINT_EXCLUDED, E1_LABELS,
                        E1_NO_REFERENCE, E1_VERDICTS_WITHHELD, E2_LABELS, HARNESS_USAGE, HEADINGS,
                        OPENFDA_FALSE_ALARM_SCOPE, OPENFDA_LABEL, OPENFDA_RATE_LIMITED, OPENFDA_SAW_RECALLS,
                        OPENFDA_UNREACHABLE, PREREG_MISSING, SHEETS_LABEL, STEP_SKIPPED, X1_LABEL)
@@ -188,6 +188,32 @@ class AllExperimentsDryRunTests(unittest.TestCase):
         self.assertTrue(all(u["included"] for u in block["units"]))
         self.assertEqual(len(block["units"]), 6)
         self.assertNotIn("created_at", json.dumps(block))
+        for name, endpoint in block["endpoints"].items():     # R001's follow-up: drops and the zero-claim share
+            with self.subTest(endpoint=name):
+                self.assertEqual(endpoint["drops"], e1["endpoints"][name]["drops"])
+                self.assertIn("reattached_not_canonical", endpoint["drops"])
+                self.assertEqual(endpoint["zero_claim_share"], e1["endpoints"][name]["zero_claim_share"])
+                self.assertIsInstance(endpoint["zero_claim_share"], float)
+        md = (self.out / "report" / "report.md").read_text(encoding="utf-8").splitlines()
+        heading = md.index("#### " + HEADINGS["e1-drops"])
+        self.assertLess(md.index("#### " + HEADINGS["e1-endpoints"]), heading)
+        self.assertLess(heading, md.index("#### " + HEADINGS["e1-paired"]))
+        self.assertEqual(md[heading + 2], E1_DROPS_NOTE)
+        self.assertEqual(md[heading + 4],
+                         f"| {COLUMNS['model']} | {COLUMNS['drop_reason']} | {COLUMNS['drop_count']} |")
+        rows = md[heading + 6:md.index("#### " + HEADINGS["e1-paired"])]
+        self.assertTrue(any(row.startswith("| `fake-a` | `reattached_not_canonical` | ") for row in rows), rows)
+
+    def test_e1_raw_replies_are_kept_for_synthetic_labels(self) -> None:
+        for unit in ("e1-fake-a-r1", "e1-fake-b-r3"):
+            record = _record(self.out, unit)
+            run = f"runs/e1/{record['run_id']}"
+            with self.subTest(unit=unit):
+                self.assertEqual(sorted(record["files"]), sorted(f"{run}/{name}" for name in lab_aggregate.E1_FILES))
+                stamped = _json(self.out / "shards" / _shard_of(self.out, unit) / run / "run.json")["replies_sha256"]
+                self.assertEqual(stamped, record["files"][f"{run}/replies.jsonl"]["sha256"])
+                copied = self.out / "report" / "e1" / "runs" / record["run_id"] / "replies.jsonl"
+                self.assertEqual(hashlib.sha256(copied.read_bytes()).hexdigest(), stamped)
 
     def test_e2_outputs(self) -> None:
         record = _record(self.out, "e2-fake-a")
@@ -497,6 +523,42 @@ class E1LabelOrderTests(unittest.TestCase):
     def test_fixtures_label(self) -> None:
         md, _, _ = self.report(label="fixtures")
         self.assertIn(ids(E1_LABELS["fixtures"]), md.splitlines())
+
+    def test_drops_follow_the_endpoints_and_every_number_is_sourced(self) -> None:
+        endpoints = {name: {"runs": 3, **{f: {"value": 0.9, "ci_low": 0.85, "ci_high": 0.95}
+                                          for f in lab_aggregate.E1_F1},
+                            "json_validity_rate": 1.0, "valid_after_repair_rate": 1.0, "exact_match": {},
+                            "latency_ms_p50": 900.0, "latency_ms_p95": 1500.0, "model_mismatch": False,
+                            "drops": {"not_canonical": 2, "reattached_not_canonical": 150}, "zero_claim_share": 0.25}
+                     for name in ("m-a", "m-b")}
+        md, sources, root = self.report(endpoints=endpoints)
+        lines = md.splitlines()
+        heading = lines.index("#### " + HEADINGS["e1-drops"])
+        self.assertLess(lines.index("#### " + HEADINGS["e1-endpoints"]), heading)
+        self.assertLess(heading, lines.index("#### " + HEADINGS["e1-paired"]))
+        self.assertEqual(lines[heading + 2], E1_DROPS_NOTE)
+        self.assertEqual(lines[heading + 4:heading + 10],
+                         [f"| {COLUMNS['model']} | {COLUMNS['drop_reason']} | {COLUMNS['drop_count']} |",
+                          "| --- | --- | --- |", "| `m-a` | `not_canonical` | 2 |",
+                          "| `m-a` | `reattached_not_canonical` | 150 |", "| `m-b` | `not_canonical` | 2 |",
+                          "| `m-b` | `reattached_not_canonical` | 150 |"])
+        self.assertIn(f"| {COLUMNS['json_validity']} | {COLUMNS['zero_claim_share']} |", md)
+        self.assertIn("| `m-a` | 3 | 0.900 | 0.850 | 0.950 | 0.900 | 1.000 | 0.250 | 900.0 | no |", lines)
+        check_sources(self, md, sources, root)
+
+    def test_a_comparison_without_drops_shows_no_drops_table(self) -> None:
+        md, sources, root = self.report()
+        self.assertNotIn(HEADINGS["e1-drops"], md)
+        self.assertNotIn(E1_DROPS_NOTE, md)
+        check_sources(self, md, sources, root)
+
+    def test_the_aggregate_copies_drops_and_the_zero_claim_share(self) -> None:
+        got = lab_aggregate._e1_endpoint({"runs": 3, "drops": {"ungrounded": 1, "duplicate": 2},
+                                          "zero_claim_share": 0.5})
+        self.assertEqual((list(got["drops"].items()), got["zero_claim_share"]),
+                         ([("duplicate", 2), ("ungrounded", 1)], 0.5))
+        older = lab_aggregate._e1_endpoint({"runs": 3})             # a harness that wrote neither
+        self.assertEqual((older["drops"], older["zero_claim_share"]), (None, None))
 
 
 # --------------------------------------------------------------------------------------------------- E2 serving

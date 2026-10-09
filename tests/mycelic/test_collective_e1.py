@@ -1037,6 +1037,125 @@ class PrimaryMetricVerdictTests(E1Case):
         self.assertEqual(boot["diff"], stats.f1_from_counts(11, 1, 4) - 1.0)
 
 
+def gold_items(pid: str, ref: str) -> list[dict[str, Any]]:
+    """The reply items :func:`responder` sends for a record (persona A)."""
+    return [{"entity_type": None if g["entity_text"] is None else g["entity_type"], "entity_text": g["entity_text"],
+             "predicate": g["predicate"], "negated": g["negated"]} for g in WORLDS[pid].gold[ref]]
+
+
+class RawRepliesAndDropsTests(E1Case):
+    """R001's follow-up: raw replies kept for public and synthetic data only, and post-processing's counts by reason
+    with the zero-claim share in every endpoint block of e1.json."""
+
+    def test_replies_are_written_for_public_and_synthetic_data_only(self) -> None:
+        base = independent(self.pid, 4)
+        real = [{**r, "synthetic": False} for r in base]
+        sets = {"synthetic": base, "public": [{**r, "site": "public"} for r in real], "partner": real}
+        srv = self.server(responder=responder(self.pid, base))
+        routing = self.routing({"model-a": self.oc(srv), "model-b": self.oc(srv)})
+        for label, records in sets.items():
+            with self.subTest(data_label=label):
+                labels = self.labels(self.pid, records, name=f"labels-{label}.jsonl")
+                prereg, _ = self.prereg(labels, routing, run_id=f"pre-{label}", data_label=label)
+                _, out, _ = self.cli("run", "--prereg", str(prereg), "--labels", str(labels), "--routing",
+                                     str(routing), "--endpoint", "model-a", "--repeat", "1", "--run-id", f"dry-{label}",
+                                     "--runs-dir", str(self.runs), "--dry-run")
+                self.assertEqual("replies.jsonl" in out, label != "partner", out)
+                d, _ = self.run_one(prereg, labels, routing, "model-a", 1, run_id=f"run-{label}")
+                run = load_json_file(d / "run.json")
+                refs = [json.loads(line)["record_ref"] for line in (d / "predictions.jsonl").read_text().splitlines()]
+                if label == "partner":
+                    self.assertFalse((d / "replies.jsonl").exists())
+                    self.assertIsNone(run["replies_sha256"])
+                    self.assertEqual(sorted(p.name for p in d.iterdir()),
+                                     ["ledger.jsonl", "predictions.jsonl", "run.json"])
+                    continue
+                data = (d / "replies.jsonl").read_bytes()
+                self.assertEqual(run["replies_sha256"], sha256_hex(data))
+                lines = [json.loads(line) for line in data.decode("utf-8").splitlines()]
+                self.assertEqual(data.decode("utf-8"), "".join(canonical_dumps(line) + "\n" for line in lines))
+                self.assertEqual([line["record_ref"] for line in lines], refs)
+                for line in lines:
+                    self.assertEqual(sorted(line), ["items", "record_ref"])
+                    self.assertEqual(line["items"], gold_items(self.pid, line["record_ref"]))
+
+    def test_a_record_without_a_valid_reply_has_null_items(self) -> None:
+        records = independent(self.pid, 3)
+        labels = self.labels(self.pid, records)
+        bad = {"claims": [{"entity_type": "widget", "entity_text": "x", "predicate": None, "negated": False}]}
+        srv = self.server("always-invalid", invalid_reply=bad)
+        routing = self.routing({"model-a": self.oc(srv), "model-b": self.oc(srv)})
+        prereg, _ = self.prereg(labels, routing)
+        d, _ = self.run_one(prereg, labels, routing, "model-a", 1)
+        lines = [json.loads(line) for line in (d / "replies.jsonl").read_text().splitlines()]
+        self.assertEqual([line["items"] for line in lines], [None] * len(records))
+        predictions = [json.loads(line) for line in (d / "predictions.jsonl").read_text().splitlines()]
+        self.assertEqual({p["error_kind"] for p in predictions}, {"schema_invalid"})
+
+    def test_compare_checks_stamped_replies_and_reads_runs_without_them(self) -> None:
+        env = self.flow(4)
+        dirs = self.all_runs(env)
+        target = dirs[2] / "replies.jsonl"
+        original = target.read_bytes()
+        target.write_bytes(original.splitlines(keepends=True)[0])
+        _, err = self.compare(env["prereg"], dirs, run_id="edited", expect=2)
+        self.assertIn("replies.jsonl sha256 of run", err)
+        target.write_bytes(original)
+        for d in dirs:                                          # runs written before replies were kept
+            run = load_json_file(d / "run.json")
+            del run["replies_sha256"]
+            (d / "run.json").write_text(canonical_dumps(run) + "\n", encoding="utf-8")
+            (d / "replies.jsonl").unlink()
+        self.compare(env["prereg"], dirs, run_id="older")
+        run = load_json_file(dirs[0] / "run.json")
+        (dirs[0] / "run.json").write_text(canonical_dumps({**run, "replies_sha256": 7}) + "\n", encoding="utf-8")
+        _, err = self.compare(env["prereg"], dirs, run_id="bad-stamp", expect=2)
+        self.assertIn("not a valid e1 run.json (replies_sha256)", err)
+
+    def test_drops_and_the_zero_claim_share_reach_every_endpoint_block(self) -> None:
+        """Persona B names the primary entity's type without its text (as an R001 reader did) and returns nothing for
+        one record: the predicates are re-attached and counted, and the empty record is a zero-claim record."""
+        records = independent(self.pid, 8)
+        labels = self.labels(self.pid, records)
+        by_text = {r["narrative"]: r for r in records}
+        primary = PACKS[self.pid].mapping()["primary_entity_type"]
+        empty = records[0]["record_ref"]
+
+        def typed(request: dict) -> dict:
+            ref = by_text[request_payload(request)["text"]]["record_ref"]
+            items = [] if ref == empty else gold_items(self.pid, ref)
+            return {"claims": [{**i, "entity_type": primary} if i["entity_type"] is None else i for i in items]}
+
+        a, b = self.server(responder=responder(self.pid, records)), self.server(responder=typed)
+        routing = self.routing({"model-a": self.oc(a, model="tag-a"), "model-b": self.oc(b, model="tag-b")})
+        prereg, _ = self.prereg(labels, routing)
+        dirs = self.all_runs({"prereg": prereg, "labels": labels, "routing": routing})
+        doc = load_json_file(self.compare(prereg, dirs)[0])
+        typed_items = sum(1 for r in records[1:] for i in gold_items(self.pid, r["record_ref"])
+                          if i["entity_type"] is None)
+        self.assertGreater(typed_items, 0)
+        for name, runs in (("model-a", dirs[:3]), ("model-b", dirs[3:])):
+            block = doc["endpoints"][name]
+            summed: dict[str, int] = {}
+            for d in runs:
+                for k, v in load_json_file(d / "run.json")["metrics"]["drops"].items():
+                    summed[k] = summed.get(k, 0) + v
+            predictions = [json.loads(line) for d in runs
+                           for line in (d / "predictions.jsonl").read_text().splitlines()]
+            scored = [p for p in predictions if p["scored"]]
+            with self.subTest(endpoint=name):
+                self.assertEqual(block["drops"], summed)
+                self.assertEqual(list(block["drops"]), sorted(block["drops"]))
+                self.assertEqual(block["zero_claim_share"], sum(1 for p in scored if not p["claims"]) / len(scored))
+        self.assertEqual(doc["endpoints"]["model-b"]["drops"]["reattached_not_canonical"], 3 * typed_items)
+        self.assertEqual(doc["endpoints"]["model-a"]["drops"]["reattached_not_canonical"], 0)
+        no_gold = sum(1 for r in records if not gold_items(self.pid, r["record_ref"]))
+        self.assertEqual(doc["endpoints"]["model-a"]["zero_claim_share"], no_gold / len(records))
+        self.assertEqual(doc["endpoints"]["model-b"]["zero_claim_share"],
+                         (no_gold + bool(gold_items(self.pid, empty))) / len(records))
+        self.assertGreater(doc["endpoints"]["model-b"]["field_f1"]["value"], 0.8)
+
+
 class ExternalRawTests(E1Case):
     def setup_endpoints(self, n: int = 6, *, synthetic: bool = True) -> dict[str, Any]:
         records = independent(self.pid, n)
