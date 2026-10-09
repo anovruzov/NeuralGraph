@@ -1,0 +1,26 @@
+{
+  "roles": {
+    "safety_engineer": {
+      "label": "Vehicle safety engineer"
+    }
+  },
+  "types": {
+    "evidence_packet": {
+      "label": "Evidence packet assembled in each state",
+      "tier": "T0",
+      "enabled": true,
+      "executor": "packet",
+      "args_schema": {
+        "conclusion": {
+          "kind": "conclusion_id"
+        }
+      },
+      "draft_schema": null,
+      "template": null,
+      "owner_role": "safety_engineer",
+      "daily_cap": 50,
+      "ack_days": 2,
+      "escalate_to_role": null
+    }
+  }
+}

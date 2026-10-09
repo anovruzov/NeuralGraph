@@ -1,0 +1,1168 @@
+{
+ "kind": "null_candidate_rate",
+ "label": "synthetic null world: generated records, nothing planted",
+ "pack": {
+  "config_hash": "30e7df2c41b8be6b5359bd8748ba19b6ac514161928aa53ea4429ca177bd3659",
+  "detector_hash": "6aa5128ab3e08056fb7b84e23a4c20ff27872551b4eedd66cd12677277002d86",
+  "fixtures_hash": "d631dc98be1ab10e9b3a6f62e60a8109a7bab556a8640b40af4ed23227af25aa",
+  "id": "vehicle_complaints",
+  "version": "0.2.0",
+  "vocabulary_hash": "771149ad852a712039486bb2bfaf8ca13b26d23e6202cbd8487defd99a85893c"
+ },
+ "seeds": [
+  1,
+  2,
+  3
+ ],
+ "settings": {
+  "L1": {
+   "detector_hash": "ce3844a2e5a61535de071664fc8f1f6165e9cf0b67ca08fc296642c67fa5442f",
+   "detectors": {
+    "alert_budget_per_week": 5,
+    "baseline_weeks": 26,
+    "burst": {
+     "alpha_site": 0.001,
+     "lambda_floor": 0.01,
+     "min_sites": 2,
+     "p_max": 0.25,
+     "p_min": 0.01
+    },
+    "cooccurrence": {
+     "min_sites": 2,
+     "pmi_delta": 1.0,
+     "pmi_smoothing": 0.5
+    },
+    "cooldown_weeks": 4,
+    "decoy": {
+     "base_rate_site_fraction": 0.5,
+     "stale_days": 42
+    },
+    "independence": {
+     "echo_min_ratio": 0.5
+    },
+    "min_history_weeks": 12,
+    "ranker": {
+     "bias": -4.0,
+     "weights": {
+      "burst_surprise": 0.35,
+      "echo": -1.5,
+      "few_reporters_share": -1.0,
+      "high_base_rate": -1.5,
+      "log_independent_roots": 0.4,
+      "low_res_conf": -1.0,
+      "pmi_rise": 0.5,
+      "supporting_sites": 0.3
+     }
+    },
+    "resolution": {
+     "res_conf_min": 0.95
+    },
+    "window_weeks": 8
+   },
+   "per_seed": [
+    {
+     "R_mf": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "S": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "X": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "seed": 1
+    },
+    {
+     "R_mf": {
+      "busiest_quarter": {
+       "candidate_steps": 2,
+       "rate": 6.385696040868455e-05,
+       "series": 360,
+       "series_ever": 1,
+       "series_ever_share": 0.002777777777777778,
+       "tests": 31320
+      },
+      "candidate_steps": 2,
+      "evaluated_weeks": 87,
+      "rate": 1.596424010217114e-05,
+      "series": 1440,
+      "series_ever": 1,
+      "series_ever_share": 0.0006944444444444445,
+      "tests": 125280
+     },
+     "S": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "X": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "seed": 2
+    },
+    {
+     "R_mf": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "S": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "X": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "seed": 3
+    }
+   ],
+   "pooled": {
+    "R_mf": {
+     "all": {
+      "candidate_steps": 2,
+      "rate": 5.321413367390379e-06,
+      "series": 4320,
+      "series_ever": 1,
+      "series_ever_share": 0.0002314814814814815,
+      "tests": 375840
+     },
+     "busiest_quarter": {
+      "candidate_steps": 2,
+      "rate": 2.1285653469561517e-05,
+      "series": 1080,
+      "series_ever": 1,
+      "series_ever_share": 0.000925925925925926,
+      "tests": 93960
+     }
+    },
+    "S": {
+     "all": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 4320,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 375840
+     },
+     "busiest_quarter": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 1080,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 93960
+     }
+    },
+    "X": {
+     "all": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 4320,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 375840
+     },
+     "busiest_quarter": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 1080,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 93960
+     }
+    },
+    "max_rate": 5.321413367390379e-06,
+    "max_series_ever_share": 0.0002314814814814815
+   }
+  },
+  "L2": {
+   "detector_hash": "6aa5128ab3e08056fb7b84e23a4c20ff27872551b4eedd66cd12677277002d86",
+   "detectors": {
+    "alert_budget_per_week": 5,
+    "baseline_weeks": 26,
+    "burst": {
+     "alpha_site": 0.001,
+     "lambda_floor": 0.01,
+     "min_sites": 3,
+     "p_max": 0.25,
+     "p_min": 0.01
+    },
+    "cooccurrence": {
+     "min_sites": 3,
+     "pmi_delta": 1.0,
+     "pmi_smoothing": 0.5
+    },
+    "cooldown_weeks": 4,
+    "decoy": {
+     "base_rate_site_fraction": 0.5,
+     "stale_days": 42
+    },
+    "independence": {
+     "echo_min_ratio": 0.5
+    },
+    "min_history_weeks": 12,
+    "ranker": {
+     "bias": -4.0,
+     "weights": {
+      "burst_surprise": 0.35,
+      "echo": -1.5,
+      "few_reporters_share": -1.0,
+      "high_base_rate": -1.5,
+      "log_independent_roots": 0.4,
+      "low_res_conf": -1.0,
+      "pmi_rise": 0.5,
+      "supporting_sites": 0.3
+     }
+    },
+    "resolution": {
+     "res_conf_min": 0.95
+    },
+    "window_weeks": 8
+   },
+   "per_seed": [
+    {
+     "R_mf": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "S": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "X": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "seed": 1
+    },
+    {
+     "R_mf": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "S": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "X": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "seed": 2
+    },
+    {
+     "R_mf": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "S": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "X": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "seed": 3
+    }
+   ],
+   "pooled": {
+    "R_mf": {
+     "all": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 4320,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 375840
+     },
+     "busiest_quarter": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 1080,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 93960
+     }
+    },
+    "S": {
+     "all": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 4320,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 375840
+     },
+     "busiest_quarter": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 1080,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 93960
+     }
+    },
+    "X": {
+     "all": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 4320,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 375840
+     },
+     "busiest_quarter": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 1080,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 93960
+     }
+    },
+    "max_rate": 0.0,
+    "max_series_ever_share": 0.0
+   }
+  },
+  "L3": {
+   "detector_hash": "69a8a554c7d62e1a9654a5bb166ed75ced0fca63d466fadfc5cde999edb45d0e",
+   "detectors": {
+    "alert_budget_per_week": 5,
+    "baseline_weeks": 26,
+    "burst": {
+     "alpha_site": 0.001,
+     "lambda_floor": 0.01,
+     "min_sites": 4,
+     "p_max": 0.25,
+     "p_min": 0.01
+    },
+    "cooccurrence": {
+     "min_sites": 4,
+     "pmi_delta": 1.0,
+     "pmi_smoothing": 0.5
+    },
+    "cooldown_weeks": 4,
+    "decoy": {
+     "base_rate_site_fraction": 0.5,
+     "stale_days": 42
+    },
+    "independence": {
+     "echo_min_ratio": 0.5
+    },
+    "min_history_weeks": 12,
+    "ranker": {
+     "bias": -4.0,
+     "weights": {
+      "burst_surprise": 0.35,
+      "echo": -1.5,
+      "few_reporters_share": -1.0,
+      "high_base_rate": -1.5,
+      "log_independent_roots": 0.4,
+      "low_res_conf": -1.0,
+      "pmi_rise": 0.5,
+      "supporting_sites": 0.3
+     }
+    },
+    "resolution": {
+     "res_conf_min": 0.95
+    },
+    "window_weeks": 8
+   },
+   "per_seed": [
+    {
+     "R_mf": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "S": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "X": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "seed": 1
+    },
+    {
+     "R_mf": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "S": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "X": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "seed": 2
+    },
+    {
+     "R_mf": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "S": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "X": {
+      "busiest_quarter": {
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
+      },
+      "candidate_steps": 0,
+      "evaluated_weeks": 87,
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
+     },
+     "seed": 3
+    }
+   ],
+   "pooled": {
+    "R_mf": {
+     "all": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 4320,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 375840
+     },
+     "busiest_quarter": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 1080,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 93960
+     }
+    },
+    "S": {
+     "all": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 4320,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 375840
+     },
+     "busiest_quarter": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 1080,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 93960
+     }
+    },
+    "X": {
+     "all": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 4320,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 375840
+     },
+     "busiest_quarter": {
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 1080,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 93960
+     }
+    },
+    "max_rate": 0.0,
+    "max_series_ever_share": 0.0
+   }
+  },
+  "pack": {
+   "detector_hash": "325b125afa2d8ae473384ed5802b6dd284a93ad3e83c853a065e8c5fb4582779",
+   "detectors": {
+    "alert_budget_per_week": 5,
+    "baseline_weeks": 26,
+    "burst": {
+     "alpha_site": 0.01,
+     "lambda_floor": 0.01,
+     "min_sites": 2,
+     "p_max": 0.25,
+     "p_min": 0.01
+    },
+    "cooccurrence": {
+     "min_sites": 2,
+     "pmi_delta": 1.0,
+     "pmi_smoothing": 0.5
+    },
+    "cooldown_weeks": 4,
+    "decoy": {
+     "base_rate_site_fraction": 0.5,
+     "stale_days": 42
+    },
+    "independence": {
+     "echo_min_ratio": 0.5
+    },
+    "min_history_weeks": 12,
+    "ranker": {
+     "bias": -4.0,
+     "weights": {
+      "burst_surprise": 0.35,
+      "echo": -1.5,
+      "few_reporters_share": -1.0,
+      "high_base_rate": -1.5,
+      "log_independent_roots": 0.4,
+      "low_res_conf": -1.0,
+      "pmi_rise": 0.5,
+      "supporting_sites": 0.3
+     }
+    },
+    "resolution": {
+     "res_conf_min": 0.95
+    },
+    "window_weeks": 8
+   },
+   "per_seed": [
+    {
+     "R_mf": {
+      "busiest_quarter": {
+       "candidate_steps": 256,
+       "rate": 0.008173690932311623,
+       "series": 360,
+       "series_ever": 54,
+       "series_ever_share": 0.15,
+       "tests": 31320
+      },
+      "candidate_steps": 256,
+      "evaluated_weeks": 87,
+      "rate": 0.0020434227330779057,
+      "series": 1440,
+      "series_ever": 54,
+      "series_ever_share": 0.0375,
+      "tests": 125280
+     },
+     "S": {
+      "busiest_quarter": {
+       "candidate_steps": 151,
+       "rate": 0.004821200510855684,
+       "series": 360,
+       "series_ever": 42,
+       "series_ever_share": 0.11666666666666667,
+       "tests": 31320
+      },
+      "candidate_steps": 151,
+      "evaluated_weeks": 87,
+      "rate": 0.001205300127713921,
+      "series": 1440,
+      "series_ever": 42,
+      "series_ever_share": 0.029166666666666667,
+      "tests": 125280
+     },
+     "X": {
+      "busiest_quarter": {
+       "candidate_steps": 256,
+       "rate": 0.008173690932311623,
+       "series": 360,
+       "series_ever": 66,
+       "series_ever_share": 0.18333333333333332,
+       "tests": 31320
+      },
+      "candidate_steps": 294,
+      "evaluated_weeks": 87,
+      "rate": 0.002346743295019157,
+      "series": 1440,
+      "series_ever": 84,
+      "series_ever_share": 0.058333333333333334,
+      "tests": 125280
+     },
+     "seed": 1
+    },
+    {
+     "R_mf": {
+      "busiest_quarter": {
+       "candidate_steps": 301,
+       "rate": 0.009610472541507025,
+       "series": 360,
+       "series_ever": 50,
+       "series_ever_share": 0.1388888888888889,
+       "tests": 31320
+      },
+      "candidate_steps": 301,
+      "evaluated_weeks": 87,
+      "rate": 0.0024026181353767563,
+      "series": 1440,
+      "series_ever": 50,
+      "series_ever_share": 0.034722222222222224,
+      "tests": 125280
+     },
+     "S": {
+      "busiest_quarter": {
+       "candidate_steps": 187,
+       "rate": 0.005970625798212005,
+       "series": 360,
+       "series_ever": 42,
+       "series_ever_share": 0.11666666666666667,
+       "tests": 31320
+      },
+      "candidate_steps": 187,
+      "evaluated_weeks": 87,
+      "rate": 0.0014926564495530014,
+      "series": 1440,
+      "series_ever": 42,
+      "series_ever_share": 0.029166666666666667,
+      "tests": 125280
+     },
+     "X": {
+      "busiest_quarter": {
+       "candidate_steps": 317,
+       "rate": 0.0101213282247765,
+       "series": 360,
+       "series_ever": 67,
+       "series_ever_share": 0.18611111111111112,
+       "tests": 31320
+      },
+      "candidate_steps": 352,
+      "evaluated_weeks": 87,
+      "rate": 0.00280970625798212,
+      "series": 1440,
+      "series_ever": 82,
+      "series_ever_share": 0.05694444444444444,
+      "tests": 125280
+     },
+     "seed": 2
+    },
+    {
+     "R_mf": {
+      "busiest_quarter": {
+       "candidate_steps": 335,
+       "rate": 0.010696040868454661,
+       "series": 360,
+       "series_ever": 51,
+       "series_ever_share": 0.14166666666666666,
+       "tests": 31320
+      },
+      "candidate_steps": 335,
+      "evaluated_weeks": 87,
+      "rate": 0.0026740102171136653,
+      "series": 1440,
+      "series_ever": 51,
+      "series_ever_share": 0.035416666666666666,
+      "tests": 125280
+     },
+     "S": {
+      "busiest_quarter": {
+       "candidate_steps": 207,
+       "rate": 0.0066091954022988505,
+       "series": 360,
+       "series_ever": 44,
+       "series_ever_share": 0.12222222222222222,
+       "tests": 31320
+      },
+      "candidate_steps": 207,
+      "evaluated_weeks": 87,
+      "rate": 0.0016522988505747126,
+      "series": 1440,
+      "series_ever": 44,
+      "series_ever_share": 0.030555555555555555,
+      "tests": 125280
+     },
+     "X": {
+      "busiest_quarter": {
+       "candidate_steps": 323,
+       "rate": 0.010312899106002554,
+       "series": 360,
+       "series_ever": 61,
+       "series_ever_share": 0.16944444444444445,
+       "tests": 31320
+      },
+      "candidate_steps": 359,
+      "evaluated_weeks": 87,
+      "rate": 0.002865581098339719,
+      "series": 1440,
+      "series_ever": 75,
+      "series_ever_share": 0.052083333333333336,
+      "tests": 125280
+     },
+     "seed": 3
+    }
+   ],
+   "pooled": {
+    "R_mf": {
+     "all": {
+      "candidate_steps": 892,
+      "rate": 0.002373350361856109,
+      "series": 4320,
+      "series_ever": 155,
+      "series_ever_share": 0.03587962962962963,
+      "tests": 375840
+     },
+     "busiest_quarter": {
+      "candidate_steps": 892,
+      "rate": 0.009493401447424436,
+      "series": 1080,
+      "series_ever": 155,
+      "series_ever_share": 0.14351851851851852,
+      "tests": 93960
+     }
+    },
+    "S": {
+     "all": {
+      "candidate_steps": 545,
+      "rate": 0.0014500851426138782,
+      "series": 4320,
+      "series_ever": 128,
+      "series_ever_share": 0.02962962962962963,
+      "tests": 375840
+     },
+     "busiest_quarter": {
+      "candidate_steps": 545,
+      "rate": 0.005800340570455513,
+      "series": 1080,
+      "series_ever": 128,
+      "series_ever_share": 0.11851851851851852,
+      "tests": 93960
+     }
+    },
+    "X": {
+     "all": {
+      "candidate_steps": 1005,
+      "rate": 0.0026740102171136653,
+      "series": 4320,
+      "series_ever": 241,
+      "series_ever_share": 0.05578703703703704,
+      "tests": 375840
+     },
+     "busiest_quarter": {
+      "candidate_steps": 896,
+      "rate": 0.00953597275436356,
+      "series": 1080,
+      "series_ever": 194,
+      "series_ever_share": 0.17962962962962964,
+      "tests": 93960
+     }
+    },
+    "max_rate": 0.0026740102171136653,
+    "max_series_ever_share": 0.05578703703703704
+   }
+  }
+ },
+ "sites": 60,
+ "vehicles": [
+  "ACME-ROADSTER-2015",
+  "ACME-HAULER-2015",
+  "BOLT-COMPACT-2015",
+  "BOLT-WAGON-2015",
+  "ZEPHYR-VAN-2015",
+  "ZEPHYR-COUPE-2015",
+  "ACME-ROADSTER-2016",
+  "ACME-HAULER-2016",
+  "BOLT-COMPACT-2016",
+  "BOLT-WAGON-2016",
+  "ZEPHYR-VAN-2016",
+  "ZEPHYR-COUPE-2016",
+  "ACME-ROADSTER-2017",
+  "ACME-HAULER-2017",
+  "BOLT-COMPACT-2017",
+  "BOLT-WAGON-2017",
+  "ZEPHYR-VAN-2017",
+  "ZEPHYR-COUPE-2017",
+  "ACME-ROADSTER-2018",
+  "ACME-HAULER-2018",
+  "BOLT-COMPACT-2018",
+  "BOLT-WAGON-2018",
+  "ZEPHYR-VAN-2018",
+  "ZEPHYR-COUPE-2018",
+  "ACME-ROADSTER-2019",
+  "ACME-HAULER-2019",
+  "BOLT-COMPACT-2019",
+  "BOLT-WAGON-2019",
+  "ZEPHYR-VAN-2019",
+  "ZEPHYR-COUPE-2019",
+  "ACME-ROADSTER-2020",
+  "ACME-HAULER-2020",
+  "BOLT-COMPACT-2020",
+  "BOLT-WAGON-2020",
+  "ZEPHYR-VAN-2020",
+  "ZEPHYR-COUPE-2020",
+  "ACME-ROADSTER-2021",
+  "ACME-HAULER-2021",
+  "BOLT-COMPACT-2021",
+  "BOLT-WAGON-2021",
+  "ZEPHYR-VAN-2021",
+  "ZEPHYR-COUPE-2021",
+  "ACME-ROADSTER-2022",
+  "ACME-HAULER-2022",
+  "BOLT-COMPACT-2022",
+  "BOLT-WAGON-2022",
+  "ZEPHYR-VAN-2022",
+  "ZEPHYR-COUPE-2022",
+  "ACME-ROADSTER-2023",
+  "ACME-HAULER-2023",
+  "BOLT-COMPACT-2023",
+  "BOLT-WAGON-2023",
+  "ZEPHYR-VAN-2023",
+  "ZEPHYR-COUPE-2023",
+  "ACME-ROADSTER-2024",
+  "ACME-HAULER-2024",
+  "BOLT-COMPACT-2024",
+  "BOLT-WAGON-2024",
+  "ZEPHYR-VAN-2024",
+  "ZEPHYR-COUPE-2024"
+ ],
+ "weeks": 106,
+ "worlds": [
+  {
+   "records": 31873,
+   "seed": 1,
+   "sites": 60
+  },
+  {
+   "records": 31626,
+   "seed": 2,
+   "sites": 60
+  },
+  {
+   "records": 32010,
+   "seed": 3,
+   "sites": 60
+  }
+ ]
+}

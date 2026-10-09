@@ -1,0 +1,10 @@
+{
+  "purpose": "Diagnostic E002, run 6 (DIAG-E002.md): the six makes of V003 with NHTSA preliminary evaluations and defect petitions as outcomes, V003's settings and frozen pack, re-scored by the audit that also reports the chance baseline without each outcome's own later alerts. Exploratory; not a test; V003's verdict stands.",
+  "makes": ["FORD", "CHEVROLET", "JEEP", "HONDA", "NISSAN", "DODGE"],
+  "outcomes": "investigations",
+  "date_from": "20230101",
+  "date_to": "20241231",
+  "lookback_weeks": 26,
+  "post_weeks": 26,
+  "saw_recall_outcomes": "yes"
+}

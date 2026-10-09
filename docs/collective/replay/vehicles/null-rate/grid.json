@@ -1,0 +1,6 @@
+{
+  "pack": {},
+  "L1": {"burst.alpha_site": 0.001},
+  "L2": {"burst.alpha_site": 0.001, "burst.min_sites": 3, "cooccurrence.min_sites": 3},
+  "L3": {"burst.alpha_site": 0.001, "burst.min_sites": 4, "cooccurrence.min_sites": 4}
+}

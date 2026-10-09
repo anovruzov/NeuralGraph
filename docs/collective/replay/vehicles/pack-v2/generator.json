@@ -1,0 +1,1120 @@
+{
+  "start": "2024-01-01",
+  "sites": [
+    {
+      "id": "state-01",
+      "label": "State 01 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-02",
+      "label": "State 02 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-03",
+      "label": "State 03 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-04",
+      "label": "State 04 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-05",
+      "label": "State 05 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-06",
+      "label": "State 06 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-07",
+      "label": "State 07 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-08",
+      "label": "State 08 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-09",
+      "label": "State 09 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-10",
+      "label": "State 10 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-11",
+      "label": "State 11 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-12",
+      "label": "State 12 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-13",
+      "label": "State 13 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-14",
+      "label": "State 14 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-15",
+      "label": "State 15 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-16",
+      "label": "State 16 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-17",
+      "label": "State 17 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-18",
+      "label": "State 18 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-19",
+      "label": "State 19 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-20",
+      "label": "State 20 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-21",
+      "label": "State 21 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-22",
+      "label": "State 22 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-23",
+      "label": "State 23 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-24",
+      "label": "State 24 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-25",
+      "label": "State 25 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-26",
+      "label": "State 26 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-27",
+      "label": "State 27 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-28",
+      "label": "State 28 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-29",
+      "label": "State 29 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-30",
+      "label": "State 30 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-31",
+      "label": "State 31 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-32",
+      "label": "State 32 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-33",
+      "label": "State 33 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-34",
+      "label": "State 34 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-35",
+      "label": "State 35 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-36",
+      "label": "State 36 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-37",
+      "label": "State 37 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-38",
+      "label": "State 38 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-39",
+      "label": "State 39 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-40",
+      "label": "State 40 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-41",
+      "label": "State 41 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-42",
+      "label": "State 42 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-43",
+      "label": "State 43 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-44",
+      "label": "State 44 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-45",
+      "label": "State 45 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-46",
+      "label": "State 46 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-47",
+      "label": "State 47 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-48",
+      "label": "State 48 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-49",
+      "label": "State 49 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-50",
+      "label": "State 50 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-51",
+      "label": "State 51 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-52",
+      "label": "State 52 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-53",
+      "label": "State 53 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-54",
+      "label": "State 54 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-55",
+      "label": "State 55 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-56",
+      "label": "State 56 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-57",
+      "label": "State 57 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-58",
+      "label": "State 58 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-59",
+      "label": "State 59 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-60",
+      "label": "State 60 (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    }
+  ],
+  "forwarding_rate": 0.08,
+  "negated_sentence_rate": 0.3,
+  "second_predicate_rate": 0.25,
+  "entity_sentence_rate": 0.3,
+  "zero_claim_rate": 0.05,
+  "mixed_language_rate": 0,
+  "predicate_weights": {
+    "engine": 1,
+    "electrical_system": 1,
+    "air_bags": 1,
+    "power_train": 1,
+    "steering": 1,
+    "service_brakes": 1,
+    "fuel_propulsion_system": 1,
+    "structure": 1,
+    "suspension": 1,
+    "vehicle_speed_control": 1,
+    "exterior_lighting": 1,
+    "visibility_wiper": 1,
+    "forward_collision_avoidance": 1,
+    "electronic_stability_control_esc": 1,
+    "wheels": 1,
+    "seat_belts": 1,
+    "tires": 1,
+    "seats": 1,
+    "lane_departure": 1,
+    "latches_locks_linkages": 1,
+    "back_over_prevention": 1,
+    "equipment": 1,
+    "child_seat": 1,
+    "unknown_or_other": 1
+  },
+  "codes": {
+    "specific_rate": 0.5,
+    "generic_rate": 0.2,
+    "generic_code": "NHT-999"
+  },
+  "fill_rates": {
+    "vehicle": 1.0
+  },
+  "universe": {
+    "vehicle": [
+      "ACME-ROADSTER-2021",
+      "ACME-ROADSTER-2022",
+      "ACME-HAULER-2020",
+      "BOLT-COMPACT-2023",
+      "BOLT-COMPACT-2024",
+      "ZEPHYR-VAN-2022"
+    ]
+  },
+  "links": {},
+  "surface": {
+    "exact": 6,
+    "lower": 1,
+    "underscore": 1,
+    "en_dash": 1,
+    "fullwidth": 0.5,
+    "space": 0.5,
+    "alias": 0
+  },
+  "narratives": {
+    "en": {
+      "engine": {
+        "affirmed": [
+          "The owner reported a problem with the engine of the {vehicle}.",
+          "The engine of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the engine was found on the {vehicle}."
+        ]
+      },
+      "electrical_system": {
+        "affirmed": [
+          "The owner reported a problem with the electrical system of the {vehicle}.",
+          "The electrical system of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the electrical system was found on the {vehicle}."
+        ]
+      },
+      "air_bags": {
+        "affirmed": [
+          "The owner reported a problem with the air bags of the {vehicle}.",
+          "The air bags of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the air bags was found on the {vehicle}."
+        ]
+      },
+      "power_train": {
+        "affirmed": [
+          "The owner reported a problem with the power train of the {vehicle}.",
+          "The power train of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the power train was found on the {vehicle}."
+        ]
+      },
+      "steering": {
+        "affirmed": [
+          "The owner reported a problem with the steering of the {vehicle}.",
+          "The steering of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the steering was found on the {vehicle}."
+        ]
+      },
+      "service_brakes": {
+        "affirmed": [
+          "The owner reported a problem with the service brakes of the {vehicle}.",
+          "The service brakes of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the service brakes was found on the {vehicle}."
+        ]
+      },
+      "fuel_propulsion_system": {
+        "affirmed": [
+          "The owner reported a problem with the fuel of the {vehicle}.",
+          "The fuel of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the fuel was found on the {vehicle}."
+        ]
+      },
+      "structure": {
+        "affirmed": [
+          "The owner reported a problem with the structure of the {vehicle}.",
+          "The structure of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the structure was found on the {vehicle}."
+        ]
+      },
+      "suspension": {
+        "affirmed": [
+          "The owner reported a problem with the suspension of the {vehicle}.",
+          "The suspension of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the suspension was found on the {vehicle}."
+        ]
+      },
+      "vehicle_speed_control": {
+        "affirmed": [
+          "The owner reported a problem with the vehicle speed control of the {vehicle}.",
+          "The vehicle speed control of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the vehicle speed control was found on the {vehicle}."
+        ]
+      },
+      "exterior_lighting": {
+        "affirmed": [
+          "The owner reported a problem with the exterior lighting of the {vehicle}.",
+          "The exterior lighting of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the exterior lighting was found on the {vehicle}."
+        ]
+      },
+      "visibility_wiper": {
+        "affirmed": [
+          "The owner reported a problem with the visibility of the {vehicle}.",
+          "The visibility of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the visibility was found on the {vehicle}."
+        ]
+      },
+      "forward_collision_avoidance": {
+        "affirmed": [
+          "The owner reported a problem with the forward collision avoidance of the {vehicle}.",
+          "The forward collision avoidance of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the forward collision avoidance was found on the {vehicle}."
+        ]
+      },
+      "electronic_stability_control_esc": {
+        "affirmed": [
+          "The owner reported a problem with the electronic stability control of the {vehicle}.",
+          "The electronic stability control of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the electronic stability control was found on the {vehicle}."
+        ]
+      },
+      "wheels": {
+        "affirmed": [
+          "The owner reported a problem with the wheels of the {vehicle}.",
+          "The wheels of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the wheels was found on the {vehicle}."
+        ]
+      },
+      "seat_belts": {
+        "affirmed": [
+          "The owner reported a problem with the seat belts of the {vehicle}.",
+          "The seat belts of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the seat belts was found on the {vehicle}."
+        ]
+      },
+      "tires": {
+        "affirmed": [
+          "The owner reported a problem with the tires of the {vehicle}.",
+          "The tires of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the tires was found on the {vehicle}."
+        ]
+      },
+      "seats": {
+        "affirmed": [
+          "The owner reported a problem with the seats of the {vehicle}.",
+          "The seats of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the seats was found on the {vehicle}."
+        ]
+      },
+      "lane_departure": {
+        "affirmed": [
+          "The owner reported a problem with the lane departure of the {vehicle}.",
+          "The lane departure of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the lane departure was found on the {vehicle}."
+        ]
+      },
+      "latches_locks_linkages": {
+        "affirmed": [
+          "The owner reported a problem with the latches of the {vehicle}.",
+          "The latches of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the latches was found on the {vehicle}."
+        ]
+      },
+      "back_over_prevention": {
+        "affirmed": [
+          "The owner reported a problem with the back over prevention of the {vehicle}.",
+          "The back over prevention of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the back over prevention was found on the {vehicle}."
+        ]
+      },
+      "equipment": {
+        "affirmed": [
+          "The owner reported a problem with the equipment of the {vehicle}.",
+          "The equipment of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the equipment was found on the {vehicle}."
+        ]
+      },
+      "child_seat": {
+        "affirmed": [
+          "The owner reported a problem with the child seat of the {vehicle}.",
+          "The child seat of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the child seat was found on the {vehicle}."
+        ]
+      },
+      "unknown_or_other": {
+        "affirmed": [
+          "The owner reported a problem with the unknown or other of the {vehicle}.",
+          "The unknown or other of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the unknown or other was found on the {vehicle}."
+        ]
+      }
+    }
+  },
+  "entity_sentences": {
+    "en": [
+      "The complaint concerns the {vehicle}."
+    ]
+  },
+  "filler": {
+    "en": [
+      "The customer returned the unit for evaluation.",
+      "A replacement unit was shipped to the customer.",
+      "The complaint was logged by the service desk.",
+      "Further information was requested from the user facility.",
+      "The investigation is ongoing.",
+      "The unit was received in its original packaging.",
+      "A field engineer visited the site.",
+      "The event was entered in the complaint register.",
+      "The user manual was checked for guidance.",
+      "A second unit from the same ward was reviewed.",
+      "The case was assigned to a quality engineer.",
+      "The user facility confirmed the order number.",
+      "The owner contacted the dealer.",
+      "The vehicle was towed to the dealer.",
+      "The dealer could reproduce the problem.",
+      "The incident happened on a highway.",
+      "The incident happened in a parking lot.",
+      "The owner has contacted the manufacturer.",
+      "A repair is scheduled for next week.",
+      "The vehicle was purchased new.",
+      "The vehicle was purchased used.",
+      "The dealer kept the vehicle for two days.",
+      "The owner is waiting for parts.",
+      "The owner asked for a refund."
+    ]
+  },
+  "persons": {},
+  "reporter": {
+    "kind": "pattern",
+    "segments": [
+      {
+        "literal": "RPT"
+      },
+      {
+        "sep": "required"
+      },
+      {
+        "digit": [
+          4,
+          4
+        ]
+      }
+    ],
+    "separator": "-",
+    "case": "upper"
+  },
+  "master_data": {
+    "state-01": {
+      "vehicle": "all"
+    },
+    "state-02": {
+      "vehicle": "all"
+    },
+    "state-03": {
+      "vehicle": "all"
+    },
+    "state-04": {
+      "vehicle": "all"
+    },
+    "state-05": {
+      "vehicle": "all"
+    },
+    "state-06": {
+      "vehicle": "all"
+    },
+    "state-07": {
+      "vehicle": "all"
+    },
+    "state-08": {
+      "vehicle": "all"
+    },
+    "state-09": {
+      "vehicle": "all"
+    },
+    "state-10": {
+      "vehicle": "all"
+    },
+    "state-11": {
+      "vehicle": "all"
+    },
+    "state-12": {
+      "vehicle": "all"
+    },
+    "state-13": {
+      "vehicle": "all"
+    },
+    "state-14": {
+      "vehicle": "all"
+    },
+    "state-15": {
+      "vehicle": "all"
+    },
+    "state-16": {
+      "vehicle": "all"
+    },
+    "state-17": {
+      "vehicle": "all"
+    },
+    "state-18": {
+      "vehicle": "all"
+    },
+    "state-19": {
+      "vehicle": "all"
+    },
+    "state-20": {
+      "vehicle": "all"
+    },
+    "state-21": {
+      "vehicle": "all"
+    },
+    "state-22": {
+      "vehicle": "all"
+    },
+    "state-23": {
+      "vehicle": "all"
+    },
+    "state-24": {
+      "vehicle": "all"
+    },
+    "state-25": {
+      "vehicle": "all"
+    },
+    "state-26": {
+      "vehicle": "all"
+    },
+    "state-27": {
+      "vehicle": "all"
+    },
+    "state-28": {
+      "vehicle": "all"
+    },
+    "state-29": {
+      "vehicle": "all"
+    },
+    "state-30": {
+      "vehicle": "all"
+    },
+    "state-31": {
+      "vehicle": "all"
+    },
+    "state-32": {
+      "vehicle": "all"
+    },
+    "state-33": {
+      "vehicle": "all"
+    },
+    "state-34": {
+      "vehicle": "all"
+    },
+    "state-35": {
+      "vehicle": "all"
+    },
+    "state-36": {
+      "vehicle": "all"
+    },
+    "state-37": {
+      "vehicle": "all"
+    },
+    "state-38": {
+      "vehicle": "all"
+    },
+    "state-39": {
+      "vehicle": "all"
+    },
+    "state-40": {
+      "vehicle": "all"
+    },
+    "state-41": {
+      "vehicle": "all"
+    },
+    "state-42": {
+      "vehicle": "all"
+    },
+    "state-43": {
+      "vehicle": "all"
+    },
+    "state-44": {
+      "vehicle": "all"
+    },
+    "state-45": {
+      "vehicle": "all"
+    },
+    "state-46": {
+      "vehicle": "all"
+    },
+    "state-47": {
+      "vehicle": "all"
+    },
+    "state-48": {
+      "vehicle": "all"
+    },
+    "state-49": {
+      "vehicle": "all"
+    },
+    "state-50": {
+      "vehicle": "all"
+    },
+    "state-51": {
+      "vehicle": "all"
+    },
+    "state-52": {
+      "vehicle": "all"
+    },
+    "state-53": {
+      "vehicle": "all"
+    },
+    "state-54": {
+      "vehicle": "all"
+    },
+    "state-55": {
+      "vehicle": "all"
+    },
+    "state-56": {
+      "vehicle": "all"
+    },
+    "state-57": {
+      "vehicle": "all"
+    },
+    "state-58": {
+      "vehicle": "all"
+    },
+    "state-59": {
+      "vehicle": "all"
+    },
+    "state-60": {
+      "vehicle": "all"
+    }
+  }
+}

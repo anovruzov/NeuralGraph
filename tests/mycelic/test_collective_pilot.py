@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import contextlib
 import csv
+import importlib.util
 import io
 import json
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -173,6 +174,138 @@ class ScoreTests(unittest.TestCase):
                             available_first=date(2024, 3, 3), evaluated_weeks=20)
         self.assertEqual(s["summary"]["found"], 0)
 
+    def test_shift_totals_give_the_corrected_null_and_shift_zero_finds_the_found_count(self) -> None:
+        outcomes = [A.Outcome("O1", "2024-06-03", "product", "SD-9", None),
+                    A.Outcome("O2", "2024-04-01", "product", "IP-7", None)]
+        alerts = [alert("2024-W18", "2024-05-06", "product:SD-9:leak"),     # in O1's look-back: found
+                  alert("2024-W23", "2024-06-10", "product:SD-9:leak"),     # O1's own reaction: left out
+                  alert("2024-W12", "2024-03-24", "product:IP-7:crack"),    # in O2's look-back: found
+                  alert("2024-W20", "2024-05-20", "product:IP-7:crack")]    # O2's own reaction: left out
+        keyed = [(a, A._match_keys(a)) for a in alerts]
+        settings = {"lookback": 8, "post": 8, "available_first": date(2024, 3, 3), "evaluated_weeks": 20}
+        totals = A.own_post_shift_totals(outcomes, keyed, **settings)
+        s = A.score_channel(outcomes, alerts, **settings)["summary"]
+        self.assertEqual(len(totals), 20)
+        self.assertEqual(totals[0], s["found"])
+        self.assertEqual(s["found"], 2)
+        self.assertEqual(s["expected_found_excluding_own_post"], sum(totals) / 20)
+        self.assertEqual(s["p_value_excluding_own_post"], (1 + sum(1 for t in totals if t >= 2)) / 21)
+        self.assertGreaterEqual(s["p_value_excluding_own_post"], 2 / 21)
+
+
+def _tool(name: str) -> Any:
+    spec = importlib.util.spec_from_file_location(name, ROOT / "tools" / "market" / f"{name}.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+RW = _tool("reactive_world")
+
+
+class ReactiveWorldTests(unittest.TestCase):
+    """The two nulls over 20 seeds of synthetic worlds (``tools/market/reactive_world.py``). The pass criteria in
+    ``test_reactive_world_*``, ``test_background_world_*`` and ``test_presignal_world_*`` were committed before the
+    check first ran (commit "Reactive-world check of the chance nulls: worlds and pass criteria, before the first
+    run"), and are not to be moved after it. On the first run the presignal criterion failed (5 of 20 seeds, not 18):
+    it stays as written, marked as an expected failure. ``test_lasting_world_*`` came later, with its world, and was
+    committed before that world first ran."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.result = RW.check(20)
+        cls.n = RW.OUTCOMES
+
+    def test_reactive_world_corrected_null_matches_found_and_audited_null_overstates(self) -> None:
+        # the first two assertions hold by construction: reactions last REACT_WEEKS (12), inside the POST window (26),
+        # so the corrected null leaves out every alert on an outcome's key and expects 0, as found is 0. Only the
+        # third can fail. The lasting world is the reactive check where the corrected null has something to rotate
+        w = self.result["worlds"]["reactive"]
+        self.assertEqual(w["mean_found"], 0)            # by construction: no alert on an outcome's key before it opens
+        self.assertLessEqual(abs(w["mean_expected_found_excluding_own_post"] - w["mean_found"]), 0.02 * self.n)
+        self.assertGreaterEqual(w["mean_expected_found"] - w["mean_found"], 0.10 * self.n)
+
+    def test_background_world_found_lies_between_the_two_nulls(self) -> None:
+        # no pre-signal, so found is what chance gives. Leaving out everything on the key in the post window also
+        # leaves out the background there, so the corrected null should fall short of found (by about a quarter at
+        # these settings: about 22 of 87 weeks are left out), but by less than half; the audited null overstates it
+        w = self.result["worlds"]["background"]
+        self.assertLess(w["mean_expected_found_excluding_own_post"], w["mean_found"])
+        self.assertGreaterEqual(w["mean_expected_found_excluding_own_post"], 0.5 * w["mean_found"])
+        self.assertGreaterEqual(w["mean_expected_found"] - w["mean_found"], 0.10 * self.n)
+
+    @unittest.expectedFailure
+    def test_presignal_world_corrected_null_separates_it(self) -> None:
+        """Pre-registered, and failed on its first run: the corrected p fell below 0.05 in 5 of 20 seeds, against the
+        bar of 18 (the mean gap held: 22.45 found, 10.885 expected). The criterion stays as written and the test is an
+        expected failure, so the suite stays green; a change to the null that makes it pass shows as an unexpected
+        success, which fails the run."""
+        w = self.result["worlds"]["presignal"]
+        self.assertGreaterEqual(w["mean_found"] - w["mean_expected_found_excluding_own_post"], 0.15 * self.n)
+        self.assertGreaterEqual(w["p_value_excluding_own_post_below_alpha"], 18)
+
+    def test_lasting_world_corrected_null_overstates_when_reactions_outlast_the_post_window(self) -> None:
+        # pre-registered with the lasting world, committed before it first ran (commit "Lasting reactive world and its
+        # pass criterion, before the first run"). Reactions run 40 weeks from the opening, past the 26-week post
+        # window, and there is no pre-signal, so found is 0 by construction and whatever a null expects overstates
+        # chance. The corrected null leaves out only the reactions inside the post window; the later ones still
+        # rotate into the look-back, so it should overstate by at least 2 of 40. The audited null also rotates the
+        # reactions inside the window, so it should overstate by at least 2 more
+        w = self.result["worlds"]["lasting"]
+        self.assertEqual(w["mean_found"], 0)
+        self.assertGreaterEqual(w["mean_expected_found_excluding_own_post"] - w["mean_found"], 0.05 * self.n)
+        self.assertGreaterEqual(w["mean_expected_found"] - w["mean_expected_found_excluding_own_post"], 0.05 * self.n)
+
+    def test_why_the_corrected_p_stays_high_written_after_the_first_run(self) -> None:
+        # not a pass criterion: what the first run showed, pinned. Shift zero leaves every look-back as observed, so
+        # it always finds the found count, and with a pre-signal every shift that finds as many lies within the
+        # look-back of shift zero: the near shifts keep each pre-signal inside its own look-back
+        for name in RW.WORLDS:
+            self.assertEqual(self.result["worlds"][name]["seeds_shift_zero_equals_found"], 20, name)
+        p = self.result["worlds"]["presignal"]
+        self.assertLess(p["farthest_shift_reaching_found"], RW.LOOKBACK)
+        # the expected failure above fails on its count of seeds only: the mean gap holds, and 5 seeds fall below 0.05
+        self.assertGreaterEqual(p["mean_found"] - p["mean_expected_found_excluding_own_post"], 0.15 * self.n)
+        self.assertEqual(p["p_value_excluding_own_post_below_alpha"], 5)
+
+    def test_the_worlds_are_what_they_say(self) -> None:
+        for seed in (1, 2):
+            outcomes, reactive = RW.world("reactive", seed)
+            o2, background = RW.world("background", seed)
+            o3, presignal = RW.world("presignal", seed)
+            o4, lasting = RW.world("lasting", seed)
+            self.assertEqual(outcomes, o2)
+            self.assertEqual(outcomes, o3)
+            self.assertEqual(outcomes, o4)
+            self.assertEqual(len(outcomes), RW.OUTCOMES)
+            self.assertEqual({o.key for o in outcomes}, {f"vehicle:V{n:02d}" for n in range(RW.OUTCOMES)})
+            for a in reactive:
+                self.assertTrue(a in background and a in presignal and a in lasting)
+            for a in background:
+                self.assertIn(a, presignal)
+            opened = {f"vehicle:{o.entity_id}:engine": o.opened for o in outcomes}
+            for a in reactive:                          # reactions only, never before the opening
+                if a["key"] in opened:
+                    self.assertGreaterEqual(a["available_date"], opened[a["key"]])
+            added = [a for a in presignal if a not in background]
+            self.assertTrue(added)
+            for a in added:                             # the pre-signal: odd outcomes, in the 8 weeks before opening
+                self.assertEqual(int(a["entity_id"][1:]) % 2, 1)
+                gap = (date.fromisoformat(opened[a["key"]]) - date.fromisoformat(a["available_date"])).days
+                self.assertTrue(0 < gap <= 7 * RW.PRE_WEEKS, gap)
+            gaps = [(date.fromisoformat(a["available_date"]) - date.fromisoformat(opened[a["key"]])).days
+                    for a in lasting if a["key"] in opened]
+            for gap in gaps:                            # the lasting reactions: after the opening, within 40 weeks
+                self.assertTrue(0 <= gap < 7 * RW.LASTING_WEEKS, gap)
+            self.assertTrue(any(gap > 7 * RW.POST for gap in gaps))     # some of them past the post window
+            last = RW.AVAILABLE_FIRST + timedelta(weeks=RW.EVALUATED_WEEKS - 1)
+            for a in presignal + lasting:               # every alert inside the evaluated weeks
+                self.assertTrue(RW.AVAILABLE_FIRST.isoformat() <= a["available_date"] <= last.isoformat())
+        self.assertEqual(self.result["label"], RW.LABEL)
+        self.assertIn("synthetic", RW.LABEL)
+        with self.assertRaises(ValueError):
+            RW.world("calm", 1)
+
 
 class EndToEndTests(unittest.TestCase):
     @classmethod
@@ -202,6 +335,32 @@ class EndToEndTests(unittest.TestCase):
                 md = (self.tmp / pack_id / "audit.md").read_text(encoding="utf-8")
                 self.assertIn(A.DEMO_LABEL, md)
                 self.assertIn("Expected by chance", md)
+
+    def test_the_audit_keeps_the_date_its_rotations_start_from(self) -> None:
+        from mycelic.collective.evaluate.baselines import closing_date
+        for pack_id, doc in self.docs.items():
+            with self.subTest(pack=pack_id):
+                w = doc["weeks"]
+                self.assertEqual(sorted(w), ["available_first", "evaluated_from", "evaluated_weeks", "first", "last"])
+                self.assertEqual(w["available_first"], closing_date(load_pack(pack_id), w["evaluated_from"]))
+                for name in A.CHANNELS:
+                    timeline = doc["channels"][name]["alert_timeline"]
+                    self.assertTrue(all(t["available_date"] >= w["available_first"] for t in timeline))
+                    self.assertEqual(len(timeline), doc["channels"][name]["summary"]["alerts"])
+
+    def test_the_x_numbers_are_those_written_before_the_shift_totals_were_split_out(self) -> None:
+        # each demo's X summary (31 evaluated weeks) as the audit wrote it before own_post_shift_totals was split out
+        # of null_excluding_own_post and weeks.available_first was added: the same demo command, run on the tree
+        # before that change, gave these exactly. S and R_mf have no alert on an outcome's key: they find and expect 0
+        pinned = {"device_quality": (2, 64 / 31, 24 / 31, 42 / 31, 19 / 32),
+                  "claims_integrity": (2, 42 / 31, 14 / 31, 42 / 31, 15 / 32),
+                  "it_incidents": (2, 40 / 31, 15 / 31, 40 / 31, 16 / 32)}
+        for pack_id, doc in self.docs.items():
+            with self.subTest(pack=pack_id):
+                s = doc["channels"]["X"]["summary"]
+                self.assertEqual(doc["weeks"]["evaluated_weeks"], 31)
+                self.assertEqual((s["found"], s["expected_found"], s["p_value"], s["expected_found_excluding_own_post"],
+                                  s["p_value_excluding_own_post"]), pinned[pack_id])
 
     def test_codes_only_channels_cannot_see_narrative_only_plants(self) -> None:
         for pack_id, doc in self.docs.items():

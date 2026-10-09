@@ -1,0 +1,63 @@
+{
+  "record_ref": "odino",
+  "site": "state",
+  "received_date": {
+    "path": "received",
+    "format": "yyyymmdd"
+  },
+  "language": null,
+  "codes": [
+    {
+      "path": "components[]",
+      "value_map": {
+        "ENGINE": "NHT-001",
+        "ELECTRICAL SYSTEM": "NHT-002",
+        "AIR BAGS": "NHT-003",
+        "POWER TRAIN": "NHT-004",
+        "STEERING": "NHT-005",
+        "SERVICE BRAKES": "NHT-006",
+        "FUEL/PROPULSION SYSTEM": "NHT-007",
+        "STRUCTURE": "NHT-008",
+        "SUSPENSION": "NHT-009",
+        "VEHICLE SPEED CONTROL": "NHT-010",
+        "EXTERIOR LIGHTING": "NHT-011",
+        "VISIBILITY/WIPER": "NHT-012",
+        "FORWARD COLLISION AVOIDANCE": "NHT-013",
+        "ELECTRONIC STABILITY CONTROL (ESC)": "NHT-014",
+        "WHEELS": "NHT-015",
+        "SEAT BELTS": "NHT-016",
+        "TIRES": "NHT-017",
+        "SEATS": "NHT-018",
+        "ENGINE AND ENGINE COOLING": "NHT-001",
+        "FUEL SYSTEM, GASOLINE": "NHT-007",
+        "SERVICE BRAKES, HYDRAULIC": "NHT-006",
+        "LANE DEPARTURE": "NHT-022",
+        "LATCHES/LOCKS/LINKAGES": "NHT-023",
+        "BACK OVER PREVENTION": "NHT-024",
+        "EQUIPMENT": "NHT-025",
+        "CHILD SEAT": "NHT-026",
+        "UNKNOWN OR OTHER": "NHT-999"
+      }
+    }
+  ],
+  "entities": {
+    "vehicle": [
+      "vehicle"
+    ]
+  },
+  "primary_entity_type": "vehicle",
+  "narrative": [
+    {
+      "path": "summary",
+      "where": null
+    }
+  ],
+  "persons": {},
+  "reporter": "reporter",
+  "origin_ref": null,
+  "origin_site": null,
+  "required": [
+    "narrative",
+    "reporter"
+  ]
+}

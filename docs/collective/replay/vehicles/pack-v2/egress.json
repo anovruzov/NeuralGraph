@@ -1,0 +1,29 @@
+{
+  "k": 3,
+  "suppress_below_days": 31,
+  "count_granularity": "week",
+  "close_lag_days": 14,
+  "min_window_weeks": 6,
+  "verdict_count_buckets": [
+    3,
+    10,
+    50
+  ],
+  "egress_entity_types": [
+    "vehicle"
+  ],
+  "require_master_data": true,
+  "never_fields": [
+    "narrative",
+    "reporter"
+  ],
+  "central_allowed_fields": [
+    "codes",
+    "entities.vehicle",
+    "received_date",
+    "site"
+  ],
+  "verify_max_records": 500,
+  "question_budget_per_entity_per_day": 5,
+  "question_entities_per_site_per_day": 50
+}
