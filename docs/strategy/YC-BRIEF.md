@@ -21,7 +21,7 @@ cross-unit detection would have flagged those issues earlier than chance (`docs/
 | Fabric: signed event log, lineage, verification, retention, HTTP API, SDK, MCP | Built and tested; deploys with compose and Kubernetes | `mycelic/`, `docs/DEPLOYMENT.md` |
 | Site pipeline: in-boundary reading, k-suppressed cells, the Boundary validator | Built and tested | `mycelic/collective/edge/` |
 | HQ detectors, pushdown questions, commit gate, follow-up drafts with owner approval | Built and tested | `mycelic/collective/` |
-| Packs: the same code in four fields with data-only configuration | Device complaints, insurance claims, IT incidents, vehicle complaints | `docs/collective/PACKS.md` |
+| Packs: the same code in four fields with data-only configuration | Device complaints, insurance claims, IT incidents, vehicle complaints. The IT-incidents pack was added with 0 lines of code changed: 13 data files, loaded 11 minutes after the start (AI agent wall clock, same author as the code; internal, not a buyer claim). The vehicle pack was built by rule from public NHTSA data | `docs/collective/PACKS.md`, `docs/collective/x3/effort.json` |
 | Signal audit (the pilot) with a chance baseline and a power check before any replay | Built and tested | `docs/collective/PILOT.md`, `docs/collective/POWER.md` |
 | Cloud lab: pre-registered runs of small models on shared CPU runners | Eight runs recorded | `docs/lab/RESULTS.md` |
 | Routing layer: per-site NeuralGraph and Tesseract behind the Boundary, routing HQ's questions | Research spike, not in the product path | `docs/collective/ROUTING-SPIKE.md` |
