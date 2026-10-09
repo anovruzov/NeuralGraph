@@ -12,9 +12,11 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+from mycelic.collective.evaluate.baselines import closing_date, r_mf_cells
+from mycelic.collective.experiments.openfda_replay import replay_weeks
 from mycelic.collective.packs.connector import map_rows
 from mycelic.collective.packs.generator import generate
-from mycelic.collective.packs.loader import load_pack
+from mycelic.collective.packs.loader import load_pack, thaw
 from mycelic.collective.pilot import audit as A
 from tests.mycelic.test_collective_guards import EVALUATE_FORBIDDEN, forbidden_imports
 
@@ -397,6 +399,226 @@ class EndToEndTests(unittest.TestCase):
                             str(self.tmp / "device_quality" / "outcomes.csv"), "--out", str(self.tmp / "e2")])
         self.assertEqual(code, 2)
         self.assertIn("weeks", err)
+
+
+def strip_comparators(doc: dict[str, Any]) -> dict[str, Any]:
+    """An audit document as it reads without the comparator channels."""
+    out = json.loads(json.dumps(doc))
+    out.pop("comparators", None)
+    for name in A.COMPARATORS:
+        out["channels"].pop(name, None)
+    return out
+
+
+class ComparatorUnitTests(unittest.TestCase):
+    def test_prr_and_yates_chi_squared(self) -> None:
+        prr, chi2 = A.prr_stats(6, 4, 20, 170)
+        self.assertAlmostEqual(prr, (6 / 10) / (20 / 190))
+        self.assertAlmostEqual(chi2, 200 * (abs(6 * 170 - 4 * 20) - 100) ** 2 / (10 * 190 * 26 * 174))
+        self.assertEqual(A.prr_stats(3, 0, 0, 50)[0], float("inf"))       # no other entity has the failure
+        self.assertIsNone(A.prr_stats(3, 2, 0, 0))                        # no other entity at all
+        self.assertEqual(A.prr_stats(1, 9, 10, 90), (1.0, 0.0))           # |ad - bc| below n / 2
+
+    def test_pooled_cells_sum_every_site(self) -> None:
+        def cell(week: str, n: int, conf: float) -> dict[str, Any]:
+            return {"entity_type": "product", "entity_id": "SD-9", "predicate": "leak", "iso_week": week,
+                    "channel": "codes", "n": n, "n_roots": n, "n_reporters": n, "res_conf_min": conf}
+        got = A.pooled_cells({"b": [cell("2024-W02", 2, 0.9), cell("2024-W03", 1, 1.0)],
+                              "a": [cell("2024-W02", 3, 0.97)]})
+        self.assertEqual([(c["iso_week"], c["n"], c["n_roots"], c["n_reporters"], c["res_conf_min"]) for c in got],
+                         [("2024-W02", 5, 5, 5, 0.9), ("2024-W03", 1, 1, 1, 1.0)])
+        with self.assertRaisesRegex(A.AuditError, "exact counts"):
+            A.pooled_cells({"a": [{**cell("2024-W02", 3, 0.9), "n": None}]})
+
+    def test_the_pooled_pack_changes_only_the_cross_site_minimums(self) -> None:
+        pack = load_pack("device_quality")
+        pooled = A.pooled_pack(pack)
+        want = thaw(pack.detectors)
+        want["burst"]["min_sites"] = want["cooccurrence"]["min_sites"] = 1
+        self.assertEqual(thaw(pooled.detectors), want)
+        self.assertNotEqual(pooled.detector_hash, pack.detector_hash)
+        self.assertEqual((pooled.config_hash, pooled.vocabulary_hash, pooled.rules), (pack.config_hash,
+                                                                                      pack.vocabulary_hash, pack.rules))
+        self.assertEqual(pack.detectors["burst"]["min_sites"], 2)           # the loaded pack is untouched
+
+    def test_prr_alerts_once_per_episode_under_budget_and_cooldown(self) -> None:
+        pack = load_pack("device_quality")
+        d = pack.detectors
+        self.assertEqual((d["baseline_weeks"], d["cooldown_weeks"], d["alert_budget_per_week"]), (26, 4, 5))
+        weeks = [f"2024-W{w:02d}" for w in range(1, 53)] + [f"2025-W{w:02d}" for w in range(1, 9)]
+
+        def cells(eid: str, pred: str, counts: dict[int, int]) -> list[dict[str, Any]]:
+            return [{"entity_type": "product", "entity_id": eid, "predicate": pred, "iso_week": weeks[i],
+                     "channel": "codes", "n": n} for i, n in counts.items()]
+        rows = []
+        for i in range(len(weeks)):                          # background: forty products, two failures, every week
+            for j in range(40):
+                rows += cells(f"P-{j}", "leak", {i: 2}) + cells(f"P-{j}", "crack", {i: 2})
+        rows += cells("P-0", "overheat", {10: 2, 11: 2, 12: 1})               # a burst no other product shares
+        result = A.prr_result(pack, rows, weeks, tie_salt="t")
+        # the count reaches 3 at index 11 (2024-W12); the key keeps signalling while the burst is in the 26-week
+        # window, so it cools and does not alert again
+        self.assertEqual([(a["week"], a["key"]) for a in result["alerts"]], [("2024-W12", "product:P-0:overheat")])
+        # it stops signalling at index 37 and is released four quiet steps later; a new burst then alerts again
+        late = A.prr_result(pack, rows + cells("P-0", "overheat", {50: 4}), weeks, tie_salt="t")
+        self.assertEqual([a["week"] for a in late["alerts"]], ["2024-W12", "2024-W51"])
+        soon = A.prr_result(pack, rows + cells("P-0", "overheat", {38: 4}), weeks, tie_salt="t")
+        self.assertEqual([a["week"] for a in soon["alerts"]], ["2024-W12"])     # still cooling at index 38
+        # a budget of 5 a week: six keys signal at once (P-0 is cooling), five alert, ranked by chi-squared
+        burst = []
+        for j in range(7):
+            burst += cells(f"P-{j}", "overheat", {20: 3 + j})
+        top = A.prr_result(pack, rows + burst, weeks, tie_salt="t")["alerts"]
+        at = [a for a in top if a["week"] == "2024-W21"]
+        self.assertEqual([a["key"] for a in at], [f"product:P-{j}:overheat" for j in (6, 5, 4, 3, 2)])
+        self.assertEqual([a["rank"] for a in at], [1, 2, 3, 4, 5])
+        self.assertEqual(sorted(at, key=lambda a: -a["score"]), at)
+
+
+class ComparatorEndToEndTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.tmp = Path(cls._tmp.name)
+        cls.docs = {}
+        vehicle_pack = str(ROOT / "docs" / "collective" / "replay" / "vehicles" / "pack")
+        for name, ref in (("device_quality", "device_quality"), ("vehicles", vehicle_pack)):
+            pack = A._load(ref)
+            records, outcomes = A.demo_inputs(pack, cls.tmp / name, seed=1, weeks=48)
+            rows, given = A.read_rows(records), A.read_outcomes(outcomes, pack)
+            cls.docs[name] = {flag: A.audit(pack, rows, given, synthetic=True, comparators=flag)
+                              for flag in (False, True)}
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._tmp.cleanup()
+
+    def test_x_s_and_r_mf_are_identical_with_and_without_the_comparators(self) -> None:
+        for name, docs in self.docs.items():
+            with self.subTest(pack=name):
+                off, on = docs[False], docs[True]
+                for channel in A.CHANNELS:
+                    self.assertEqual(on["channels"][channel], off["channels"][channel], channel)
+                self.assertEqual(on["review"], off["review"])
+                self.assertEqual(strip_comparators(on), json.loads(json.dumps(off)))
+                self.assertNotIn("comparators", off)
+                self.assertEqual(sorted(off["channels"]), sorted(A.CHANNELS))
+
+    def test_the_comparators_are_scored_like_the_other_channels(self) -> None:
+        for name, docs in self.docs.items():
+            with self.subTest(pack=name):
+                on = docs[True]
+                self.assertEqual(on["comparators"]["channels"], list(A.COMPARATORS))
+                for channel in A.COMPARATORS:
+                    s = on["channels"][channel]["summary"]
+                    self.assertEqual(s["outcomes"], on["outcomes"]["in_scope"])
+                    self.assertIsNotNone(s["expected_found"])
+                    self.assertEqual(len(on["channels"][channel]["alert_timeline"]), s["alerts"])
+                md = A.render(on)
+                self.assertIn("| P | ", md)
+                self.assertIn("| PRR | ", md)
+                self.assertNotIn("| P | ", A.render(docs[False]))
+
+    def test_the_cli_leaves_them_out_on_request(self) -> None:
+        d = self.tmp / "device_quality"
+        code, out, err = cli(["run", "--pack", "device_quality", "--records", str(d / "export.csv"), "--outcomes",
+                              str(d / "outcomes.csv"), "--out", str(self.tmp / "off"), "--no-comparators"])
+        self.assertEqual(code, 0, err)
+        self.assertNotIn("PRR", out)
+        doc = json.loads((self.tmp / "off" / "audit.json").read_text(encoding="utf-8"))
+        self.assertEqual(doc["channels"], json.loads(json.dumps(self.docs["device_quality"][False]["channels"])))
+
+    def test_without_r_mf_the_comparators_say_why(self) -> None:
+        pack = load_pack("device_quality")
+        egress = pack.egress.__class__(**{**pack.egress.__dict__, "central_allowed_fields": ("codes",)})
+        from dataclasses import replace
+        narrow = replace(pack, egress=egress)
+        d = self.tmp / "device_quality"
+        doc = A.audit(narrow, A.read_rows(d / "export.csv"), A.read_outcomes(d / "outcomes.csv", pack),
+                      synthetic=True)
+        self.assertIsNone(doc["channels"]["R_mf"]["summary"])
+        for channel in A.COMPARATORS:
+            self.assertIsNone(doc["channels"][channel]["summary"])
+            self.assertIn("needs model-free R's cells", doc["channels"][channel]["reason"])
+
+
+class PooledChannelTests(unittest.TestCase):
+    def test_a_burst_spread_thin_over_sites_is_seen_only_pooled(self) -> None:
+        # twelve sites, three vehicles; a background of codes every week, then eight extra engine complaints on one
+        # vehicle in eight weeks, never two at one site: no site sees a burst, the pooled count does
+        pack = A._load(str(ROOT / "docs" / "collective" / "replay" / "vehicles" / "pack"))
+        sites = [f"s{i:02d}" for i in range(1, 13)]
+        vehicles = ["SYN-V0001-2020", "SYN-V0002-2020", "SYN-V0003-2020"]
+        comps = ["AIR BAGS", "STEERING", "SUSPENSION"]
+        rows: list[dict[str, Any]] = []
+        start = date(2024, 1, 1)
+
+        def add(week: int, site: str, vehicle: str, comp: str) -> None:
+            day = start.toordinal() + 7 * week + len(rows) % 5
+            rows.append({"odino": str(len(rows) + 1), "state": site, "received": date.fromordinal(day).strftime(
+                "%Y%m%d"), "components": [comp], "vehicle": vehicle, "summary": f"Problem with the {comp.lower()}."})
+        for week in range(52):
+            for i, site in enumerate(sites):
+                add(week, site, vehicles[(week + i) % 3], comps[(week + 2 * i) % 3])
+        for k in range(8):
+            add(36 + k, sites[k], vehicles[0], "ENGINE")
+        outcome = A.Outcome("O1", "2024-10-28", "vehicle", vehicles[0], "engine")
+        doc = A.audit(pack, rows, [outcome], synthetic=True)
+        found = {n: doc["channels"][n]["by_outcome"][0]["found"] for n in A.channel_names(doc)}
+        self.assertEqual((found["X"], found["S"], found["R_mf"]), (False, False, False))
+        self.assertTrue(found["P"])
+
+
+class ComparatorWalkTests(unittest.TestCase):
+    def test_prr_walks_from_the_first_week_and_drops_early_alerts_as_the_detectors_do(self) -> None:
+        # twelve sites, three vehicles, every failure spread evenly; then engine complaints on the first vehicle from
+        # the first week, and fuel complaints on the second from week 30, both on no other vehicle
+        pack = A._load(str(ROOT / "docs" / "collective" / "replay" / "vehicles" / "pack"))
+        sites = [f"s{i:02d}" for i in range(1, 13)]
+        vehicles = ["SYN-V0001-2020", "SYN-V0002-2020", "SYN-V0003-2020"]
+        comps = ["AIR BAGS", "STEERING", "SUSPENSION"]
+        rows: list[dict[str, Any]] = []
+        start = date(2024, 1, 1)
+
+        def add(week: int, site: str, vehicle: str, comp: str) -> None:
+            day = start.toordinal() + 7 * week + len(rows) % 5
+            rows.append({"odino": str(len(rows) + 1), "state": site, "received": date.fromordinal(day).strftime(
+                "%Y%m%d"), "components": [comp], "vehicle": vehicle, "summary": f"Problem with the {comp.lower()}."})
+        for week in range(52):
+            for i, site in enumerate(sites):
+                add(week, site, vehicles[(week + i) % 3], comps[(week + 2 * i) % 3])
+            add(week, sites[week % 12], vehicles[0], "ENGINE")
+        for week in range(30, 34):
+            add(week, sites[week % 12], vehicles[1], "FUEL SYSTEM, GASOLINE")
+            add(week, sites[(week + 6) % 12], vehicles[1], "FUEL SYSTEM, GASOLINE")
+        opened = date.fromordinal(start.toordinal() + 7 * 45).isoformat()
+        outcomes = [A.Outcome("O1", opened, "vehicle", vehicles[0], "engine"),
+                    A.Outcome("O2", opened, "vehicle", vehicles[1], "fuel_system_gasoline")]
+        doc = A.audit(pack, rows, outcomes, synthetic=True)
+        found = {r["outcome_id"]: r["found"] for r in doc["channels"]["PRR"]["by_outcome"]}
+        self.assertEqual(found, {"O1": False, "O2": True})
+
+        # the same walks outside the audit: both channels walk from the export's first week
+        records = list(map_rows(rows, pack, synthetic=True).records)
+        days = sorted(r["received_date"][:10] for r in records)
+        weeks = replay_weeks(days[0], days[-1])
+        master = A._master_data(pack, records, sorted({r["site"] for r in records}))
+        cells = r_mf_cells(pack, records, master_data=master, last_week=weeks[-1])
+        raw = A.comparator_results(pack, cells, weeks, as_of=closing_date(pack, weeks[-1]), tie_salt="pilot")
+        evaluated_from = doc["weeks"]["evaluated_from"]
+        self.assertEqual(evaluated_from, weeks[19])
+        engine = f"vehicle:{vehicles[0]}:engine"
+        # PRR: the standing engine signal reaches chi-squared 4 in week index 3, alerts there, before the evaluated
+        # weeks, and keeps signalling, so it cools from then on
+        self.assertEqual([a["week"] for a in raw["PRR"]["alerts"] if a["key"] == engine], [weeks[3]])
+        # the detectors walk the same weeks and cannot alert before the evaluated weeks: no site has the history
+        self.assertEqual([w["week"] for w in raw["P"]["weeks"]], weeks)
+        self.assertEqual([w["candidates"] for w in raw["P"]["weeks"][:19]], [0] * 19)
+        # the audit keeps exactly each walk's alerts from the first evaluated week on
+        for name in A.COMPARATORS:
+            kept = [(a["week"], a["key"]) for a in raw[name]["alerts"] if a["week"] >= evaluated_from]
+            timeline = [(t["week"], max(t["keys"], key=len)) for t in doc["channels"][name]["alert_timeline"]]
+            self.assertEqual(timeline, kept, name)
 
 
 class GuardTests(unittest.TestCase):

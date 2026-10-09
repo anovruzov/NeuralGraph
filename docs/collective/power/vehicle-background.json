@@ -1,0 +1,64 @@
+{
+ "entities": {
+  "count": 1409,
+  "gamma_shape": 0.5,
+  "id_format": "SYN-V{n:04d}-2020",
+  "type": "vehicle"
+ },
+ "kind": "power_background",
+ "label": "synthetic vehicle-like background: volumes from V001 and DIAG-E001, failure shares from the probe; vehicle rates, site weights and flat time are assumptions",
+ "plant_entity_rate": [
+  0.368,
+  0.671
+ ],
+ "predicates": {
+  "air_bags": 93558,
+  "back_over_prevention": 3810,
+  "child_seat": 1235,
+  "electrical_system": 112111,
+  "electronic_stability_control_esc": 15515,
+  "engine": 115074,
+  "engine_and_engine_cooling": 8669,
+  "equipment": 3617,
+  "exterior_lighting": 25533,
+  "forward_collision_avoidance": 18147,
+  "fuel_propulsion_system": 42540,
+  "fuel_system_gasoline": 5635,
+  "lane_departure": 4462,
+  "latches_locks_linkages": 4011,
+  "power_train": 82213,
+  "seat_belts": 10789,
+  "seats": 9282,
+  "service_brakes": 53102,
+  "service_brakes_hydraulic": 5315,
+  "steering": 66721,
+  "structure": 40380,
+  "suspension": 27276,
+  "tires": 10526,
+  "unknown_or_other": 92123,
+  "vehicle_speed_control": 26812,
+  "visibility_wiper": 18228,
+  "wheels": 11511
+ },
+ "schema_version": 1,
+ "sextuple_key_rate": [
+  0.074,
+  0.174
+ ],
+ "sites": {
+  "count": 60,
+  "id_format": "s{n:02d}",
+  "skew": 1.0
+ },
+ "sources": {
+  "entities": "DIAG-E001.md run 2: 332225 complaints on 3420 vehicles in 3653 days, 0.1861 a week per vehicle; gamma shape 0.5 is an assumption",
+  "plant_entity_rate": "DIAG-E001.md run 2: investigations' matching complaints over matching share, 0.24/0.05 and 1.75/0.20 a quarter",
+  "predicates": "nhtsa-probe.json top_components (2015-2024, all makes); other categories as unknown",
+  "sextuple_key_rate": "DIAG-E001.md run 2: recalls' matching complaints, 0.97 to 2.27 a quarter",
+  "sites": "CHOICE-V001.md run 001: 60 sites; skew 1 is an assumption",
+  "time": "rates are flat over time (an assumption); one component per complaint (an assumption)",
+  "weekly_volume": "CHOICE-V001.md run 002: 27397 complaints in 731 days"
+ },
+ "start": "2021-01-04",
+ "weekly_volume": 262.35
+}

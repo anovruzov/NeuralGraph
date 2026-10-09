@@ -4,7 +4,8 @@
         [--date-from YYYY-MM-DD] [--date-to YYYY-MM-DD] [--lookback-weeks 26] [--post-weeks 26] [--tie-salt S]
     python -m mycelic.collective.pilot.audit demo --pack P --out DIR [--seed 1] [--weeks 52]
 
-Both take ``--dry-run`` (the common contract: what would be read and written, and nothing touched).
+Both take ``--no-comparators`` and ``--dry-run`` (the common contract: what would be read and written, and nothing
+touched).
 
 **Inputs.** ``--pack`` is a built-in pack id or a pack directory (a company's copy, whose ``mapping.json`` names its
 own export's fields: the first week of a pilot). ``--records`` is the export, one row per complaint, incident or
@@ -40,6 +41,23 @@ the date the rotations start from, so a later reader can re-score without re-run
 sites and record ids behind it, for the company's own reviewers. It is what the detectors saw that no one acted on: a
 missed issue, a known one never written up, or noise.
 
+**Comparators** (on by default; ``--no-comparators`` leaves them out, and X, S, R_mf and the review list come out the
+same either way). Both read model-free R's record-level cells, so neither runs when R_mf cannot:
+- **P, pooled national:** every site's R_mf cells summed into one site, then the same detector code. One site can never
+  reach the pack's cross-site minimum (``min_sites`` of D2 and D3, at least 2 in every pack), so the pooled run sets both
+  to 1 in memory (:func:`pooled_pack`); every other detector setting is the pack's, the alert budget and cooldown
+  included.
+- **PRR, disproportionality:** for each entity and failure on the pooled cells, the proportional reporting ratio
+  against every other entity of its type over the trailing ``baseline_weeks``, with Evans' criteria (PRR at least 2,
+  Yates-corrected chi-squared at least 4, at least 3 records). The trailing window is the variant: over the whole
+  history, an entity that always had a high share would signal once and never again, and a rise would be diluted.
+  Signals are ranked by chi-squared and alert under the pack's alert budget and cooldown, as the detectors do.
+Both walk every week of the export from its first, and their alerts before the first evaluated week are dropped, as
+for X, S and R_mf. The detectors cannot alert there (no site has ``min_history_weeks`` yet). PRR needs no history, so
+a failure already disproportionate before that week alerts there, is dropped, and stays cooling while it keeps
+signalling: a PRR alert marks when a disproportion starts, not when the evaluated weeks start.
+Comparators are scored like the other channels but add nothing to the review list.
+
 ``demo`` builds a synthetic history for a pack with a smoke plant (its generator and ``fixtures/plant_smoke.json``), writes it as the
 mapping's CSV export with one outcome per planted pattern, opened two weeks after the pattern ends, and audits it. It
 shows the audit running end to end in that pack's field; the plant and the detectors share an author, so its numbers
@@ -50,28 +68,35 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import sys
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from ..detect.store import RUN_CHANNELS
 from ..edge.weeks import iso_week, week_monday
-from ..evaluate.baselines import (EvaluationError, closing_date, exact_result, hq_results, r_mf_cells,
+from ..evaluate.baselines import (EvaluationError, closing_date, exact_result, hq_results, org_for_sites, r_mf_cells,
                                   run_pipeline)
 from ..experiments.common import DryRun, UsageError, fail, write_json_atomic
 from ..experiments.openfda_replay import chance_null, replay_weeks
+from ..jsonio import canonical_bytes, sha256_hex
 from ..packs.canonical import Canonicaliser
 from ..packs.connector import ConnectorError, field_values, map_rows
-from ..packs.loader import FrozenPack, PackError, is_builtin_ref, load_pack
+from ..packs.loader import FrozenPack, PackError, freeze, is_builtin_ref, load_pack, thaw
 
 CLI = "pilot.audit"
 KIND = "pilot_audit"
 SCHEMA_VERSION = 1
 ENTERPRISE = "pilot"
 CHANNELS = ("X", "S", "R_mf")
+COMPARATORS = ("P", "PRR")
+POOLED_SITE = "national"
+PRR_MIN = 2.0
+PRR_CHI2_MIN = 4.0
+PRR_N_MIN = 3
 LABEL = "local audit: computed inside your environment from your own export; nothing is sent anywhere"
 DEMO_LABEL = ("synthetic demo: generated records and planted patterns written by the same author as the detectors; "
               "it shows the audit running in this field, not that it finds real problems")
@@ -79,6 +104,14 @@ CHANNEL_NOTES = {
     "X": "X: HQ's detectors over the codes and text cells that leave the sites, k-suppressed",
     "S": "S: the same detectors over the codes cells only; a pattern written only in the narratives is invisible to it",
     "R_mf": "R, model-free: the same detectors over record-level counts of the fields the pack lets leave",
+}
+COMPARATOR_NOTES = {
+    "P": "P, pooled national (comparator): R's record-level cells of every site summed into one site, then the same "
+         "detectors, with the cross-site minimums at 1 because there is one site",
+    "PRR": "PRR, disproportionality (comparator): on the pooled cells, each entity and failure against every other "
+           "entity of its type over the trailing baseline weeks; Evans' criteria (PRR >= 2, chi-squared >= 4, "
+           "n >= 3), ranked by chi-squared under the same alert budget and cooldown, walked from the export's first "
+           "week as the detectors are",
 }
 OUTCOME_COLUMNS = ("outcome_id", "opened", "entity_type", "entity_id")
 LIST_SEP = ";"
@@ -388,9 +421,139 @@ def own_post_shift_totals(outcomes: Sequence[Outcome], keyed: Sequence[tuple[Map
     return totals
 
 
+# --------------------------------------------------------------------------------------------------- comparators
+
+def pooled_pack(pack: FrozenPack) -> FrozenPack:
+    """The pack as the pooled channel runs it: both cross-site minimums at 1, everything else the pack's. In memory
+    only (the loader refuses a minimum below 2); its detector hash is derived from the pack's own."""
+    d = thaw(pack.detectors)
+    d["burst"]["min_sites"] = 1
+    d["cooccurrence"]["min_sites"] = 1
+    derived = sha256_hex(canonical_bytes({"detector_hash": pack.detector_hash, "pooled_min_sites": 1}))
+    return replace(pack, detectors=freeze(d), detector_hash=derived)
+
+
+def pooled_cells(cells: Mapping[str, Sequence[Mapping[str, Any]]]) -> list[dict[str, Any]]:
+    """Every site's exact cells summed into one site's. R's cells count each record as its own root and reporter, so
+    the sums are exact; ``res_conf_min`` is the lowest."""
+    acc: dict[tuple[str, ...], dict[str, Any]] = {}
+    for site in sorted(cells):
+        for c in cells[site]:
+            if not all(isinstance(c[f], int) for f in ("n", "n_roots", "n_reporters")):
+                raise AuditError("pooled cells need exact counts")
+            key = (c["entity_type"], c["entity_id"], c["predicate"], c["iso_week"], c["channel"])
+            got = acc.get(key)
+            if got is None:
+                acc[key] = {f: c[f] for f in ("entity_type", "entity_id", "predicate", "iso_week", "channel", "n",
+                                              "n_roots", "n_reporters")} | {"res_conf_min": c.get("res_conf_min")}
+                continue
+            for f in ("n", "n_roots", "n_reporters"):
+                got[f] += c[f]
+            confs = [v for v in (got["res_conf_min"], c.get("res_conf_min")) if v is not None]
+            got["res_conf_min"] = min(confs) if confs else None
+    return [acc[key] for key in sorted(acc)]
+
+
+def prr_stats(a: int, b: int, c: int, d: int) -> tuple[float, float] | None:
+    """PRR and Yates-corrected chi-squared of a 2x2 table: ``a`` this entity and failure, ``b`` this entity's other
+    failures, ``c`` this failure on other entities, ``d`` the rest. None when no other entity has a record; PRR is
+    inf when ``c`` is 0; chi-squared is 0 when a margin is empty."""
+    n = a + b + c + d
+    row1, row2, col1, col2 = a + b, c + d, a + c, b + d
+    if row1 == 0 or row2 == 0:
+        return None
+    prr = math.inf if c == 0 else (a / row1) / (c / row2)
+    if col1 == 0 or col2 == 0:
+        return prr, 0.0
+    diff = max(0.0, abs(a * d - b * c) - n / 2)
+    return prr, n * diff * diff / (row1 * row2 * col1 * col2)
+
+
+def prr_result(pack: FrozenPack, cells: Sequence[Mapping[str, Any]], weeks: Sequence[str], *,
+               tie_salt: str) -> dict[str, Any]:
+    """The disproportionality channel over pooled codes cells, walked over every week of ``weeks`` from the first, as
+    the detectors walk theirs: a key signals at week W when, over the ``baseline_weeks`` ending at W (fewer at the
+    start), PRR >= 2, chi-squared >= 4 and its count >= 3. Signals not cooling are ranked by chi-squared (ties by
+    ``sha256(tie_salt|key)``) and the first ``alert_budget_per_week`` alert; a key that alerted cools until it has
+    not signalled for ``cooldown_weeks`` steps, as in the detectors. The audit drops alerts before the first evaluated
+    week (:func:`_alerts`), so a key signalling since before then is still cooling there."""
+    d = pack.detectors
+    window, budget, cooldown = d["baseline_weeks"], d["alert_budget_per_week"], d["cooldown_weeks"]
+    pos = {w: i for i, w in enumerate(weeks)}
+    nw = len(weeks)
+    raw: dict[tuple[str, ...], list[int]] = {}
+    for c in cells:
+        if c["channel"] not in RUN_CHANNELS["S"] or c["iso_week"] not in pos:
+            continue
+        i = pos[c["iso_week"]]
+        t, eid, p = c["entity_type"], c["entity_id"], c["predicate"]
+        for key in (("k", t, eid, p), ("e", t, eid), ("p", t, p), ("t", t)):
+            raw.setdefault(key, [0] * nw)[i] += c["n"]
+    prefix: dict[tuple[str, ...], list[int]] = {}
+    for key in sorted(raw):
+        acc = [0] * (nw + 1)
+        for i, v in enumerate(raw[key]):
+            acc[i + 1] = acc[i] + v
+        prefix[key] = acc
+    keys = [key for key in sorted(prefix) if key[0] == "k" and prefix[key][-1] >= PRR_N_MIN]
+    alerts: list[dict[str, Any]] = []
+    cooling: dict[str, int] = {}
+    for i in range(nw):
+        lo = max(0, i - window + 1)
+        found: dict[str, float] = {}
+        for key in keys:
+            a = prefix[key][i + 1] - prefix[key][lo]
+            if a < PRR_N_MIN:
+                continue
+            _, t, eid, p = key
+            e, q, n = (prefix[k][i + 1] - prefix[k][lo] for k in (("e", t, eid), ("p", t, p), ("t", t)))
+            stat = prr_stats(a, e - a, q - a, n - e - q + a)
+            if stat is not None and stat[0] >= PRR_MIN and stat[1] >= PRR_CHI2_MIN:
+                found[f"{t}:{eid}:{p}"] = stat[1]
+        for key in sorted(cooling):
+            if key in found:
+                cooling[key] = 0
+            else:
+                cooling[key] += 1
+                if cooling[key] >= cooldown:
+                    del cooling[key]
+        ranked = sorted((key for key in sorted(found) if key not in cooling),
+                        key=lambda key: (-found[key], sha256_hex(f"{tie_salt}|{key}")))
+        for rank, key in enumerate(ranked[:budget], start=1):
+            alerts.append({"week": weeks[i], "rank": rank, "key": key, "score": found[key]})
+            if cooldown > 0:
+                cooling[key] = 0
+    return {"alerts": alerts}
+
+
+def comparator_results(pack: FrozenPack, cells: Mapping[str, Sequence[Mapping[str, Any]]], weeks: Sequence[str], *,
+                       as_of: str, tie_salt: str) -> dict[str, dict[str, Any]]:
+    """P's detector result and PRR's result over every site's R_mf cells, each walked over every week; the audit then
+    drops the alerts before the first evaluated week from both, as from the other channels."""
+    pooled = pooled_cells(cells)
+    return {"P": exact_result(pooled_pack(pack), org_for_sites([POOLED_SITE], ENTERPRISE), {POOLED_SITE: pooled},
+                              as_of=as_of, run_channel="S", tie_salt=tie_salt),
+            "PRR": prr_result(pack, pooled, weeks, tie_salt=tie_salt)}
+
+
+def _comparators(pack: FrozenPack, pipeline: Any, cells: Mapping[str, Sequence[Mapping[str, Any]]] | None,
+                 evaluated_index: int, tie_salt: str, reason: str | None) -> dict[str, dict[str, Any]]:
+    if cells is None:
+        why = f"needs model-free R's cells: {reason}"
+        return {name: {"alerts": None, "reason": why} for name in COMPARATORS}
+    results = comparator_results(pack, cells, pipeline.weeks, as_of=pipeline.as_of, tie_salt=tie_salt)
+    return {name: {"alerts": _alerts(results[name], pipeline, "S", pipeline.weeks[evaluated_index]), "reason": None}
+            for name in COMPARATORS}
+
+
+def channel_names(doc: Mapping[str, Any]) -> tuple[str, ...]:
+    """The audit's channels, then the comparators it ran."""
+    return (*CHANNELS, *doc.get("comparators", {}).get("channels", ()))
+
+
 def audit(pack: FrozenPack, rows: Sequence[Any], outcomes: Sequence[Outcome], *, date_from: str | None = None,
           date_to: str | None = None, lookback: int = 26, post: int = 26, tie_salt: str = "pilot",
-          synthetic: bool = False) -> dict[str, Any]:
+          synthetic: bool = False, comparators: bool = True) -> dict[str, Any]:
     if pack.mapping()["site"] is None:
         raise AuditError(f"pack {pack.id}'s mapping.json has no site field: a multi-site export needs one")
     try:
@@ -418,13 +581,18 @@ def audit(pack: FrozenPack, rows: Sequence[Any], outcomes: Sequence[Outcome], *,
             hq = hq_results(pipeline.store, as_of=pipeline.as_of, tie_salt=tie_salt)
             for name in ("X", "S"):
                 channels[name] = {"alerts": _alerts(hq[name], pipeline, name, weeks[evaluated_index]), "reason": None}
+            r_cells, r_reason = None, None
             try:
                 cells = r_mf_cells(pack, records, master_data=master, last_week=weeks[-1])
                 result = exact_result(pack, pipeline.org, cells, as_of=pipeline.as_of, run_channel="S",
                                       tie_salt=tie_salt)
                 channels["R_mf"] = {"alerts": _alerts(result, pipeline, "S", weeks[evaluated_index]), "reason": None}
+                r_cells = cells
             except EvaluationError as err:
                 channels["R_mf"] = {"alerts": None, "reason": str(err)}
+                r_reason = str(err)
+            if comparators:
+                channels.update(_comparators(pack, pipeline, r_cells, evaluated_index, tie_salt, r_reason))
         finally:
             pipeline.close()
     available_first = _days(closing_date(pack, weeks[evaluated_index]))
@@ -434,7 +602,7 @@ def audit(pack: FrozenPack, rows: Sequence[Any], outcomes: Sequence[Outcome], *,
                 and available_first < _days(o.opened)]
     review: dict[str, dict[str, Any]] = {}
     scored: dict[str, Any] = {}
-    for name in CHANNELS:
+    for name in (*CHANNELS, *(COMPARATORS if comparators else ())):
         alerts = channels[name]["alerts"]
         if alerts is None:
             scored[name] = {"summary": None, "by_outcome": [], "reason": channels[name]["reason"]}
@@ -443,6 +611,8 @@ def audit(pack: FrozenPack, rows: Sequence[Any], outcomes: Sequence[Outcome], *,
                           evaluated_weeks=evaluated_weeks)
         scored[name] = {"summary": s["summary"], "by_outcome": s["by_outcome"], "alert_timeline": s["alert_timeline"],
                         "reason": None}
+        if name not in CHANNELS:
+            continue                                   # a comparator adds nothing to the review list
         for i in s["unexplained"]:
             a = alerts[i]
             entry = review.setdefault(a["key"], {"key": a["key"], "entity_type": a["entity_type"],
@@ -461,7 +631,7 @@ def audit(pack: FrozenPack, rows: Sequence[Any], outcomes: Sequence[Outcome], *,
         refs = sorted(entry["record_refs"])
         review_list.append({**entry, "alert_weeks": sorted(entry["alert_weeks"]), "sites": sorted(entry["sites"]),
                             "records": len(refs), "record_refs": refs[:MAX_REVIEW_REFS]})
-    return {
+    doc = {
         "kind": KIND, "schema_version": SCHEMA_VERSION, "label": DEMO_LABEL if synthetic else LABEL,
         "pack": {"id": pack.id, "version": pack.version, **pack.hashes()},
         "export": {"rows": mapped.rows, "records": len(records), "rejected": dict(mapped.rejected),
@@ -473,6 +643,12 @@ def audit(pack: FrozenPack, rows: Sequence[Any], outcomes: Sequence[Outcome], *,
         "outcomes": {"given": len(outcomes), "in_scope": len(in_scope),
                      "out_of_scope": [o.outcome_id for o in outcomes if o not in in_scope]},
         "channels": scored, "channel_notes": CHANNEL_NOTES, "review": review_list}
+    if comparators:
+        doc["comparators"] = {"channels": list(COMPARATORS), "notes": COMPARATOR_NOTES,
+                              "pooled_detector_hash": pooled_pack(pack).detector_hash,
+                              "prr": {"window_weeks": pack.detectors["baseline_weeks"], "prr_min": PRR_MIN,
+                                      "chi2_min": PRR_CHI2_MIN, "n_min": PRR_N_MIN}}
+    return doc
 
 
 # --------------------------------------------------------------------------------------------------- the report
@@ -498,7 +674,9 @@ def render(doc: Mapping[str, Any]) -> str:
              "| Channel | Issues found before opening | Median days earlier | Expected by chance | p | "
              "Expected by chance, reactive alerts left out | p | Alerts | Alerts matching no issue |",
              "|---|---|---|---|---|---|---|---|---|"]
-    for name in CHANNELS:
+    names = channel_names(doc)
+    notes = {**doc["channel_notes"], **doc.get("comparators", {}).get("notes", {})}
+    for name in names:
         s = doc["channels"][name]["summary"]
         if s is None:
             lines.append(f"| {name} | not run: {doc['channels'][name]['reason']} | | | | | | | |")
@@ -507,17 +685,17 @@ def render(doc: Mapping[str, Any]) -> str:
                      f"{_num(s['expected_found'])} | {_num(s['p_value'])} | "
                      f"{_num(s.get('expected_found_excluding_own_post'))} | "
                      f"{_num(s.get('p_value_excluding_own_post'))} | {s['alerts']} | {s['unexplained_alerts']} |")
-    lines += [""] + [f"- {doc['channel_notes'][n]}" for n in CHANNELS]
+    lines += [""] + [f"- {notes[n]}" for n in names]
     lines += ["", "A found count means something only as far as it exceeds what chance gives: the same alerts at random "
               "times (the circular-shift null) would find the expected number. Complaints that react to an opened "
               "issue inflate that number, so the second pair of columns leaves each issue's own alerts after its "
               "opening out of the timeline rotated against it.", "", "## Per issue", "",
-              "| Issue | About | Opened | " + " | ".join(CHANNELS) + " |", "|---|---|---|" + "---|" * len(CHANNELS)]
-    by = {n: {r["outcome_id"]: r for r in doc["channels"][n]["by_outcome"]} for n in CHANNELS}
+              "| Issue | About | Opened | " + " | ".join(names) + " |", "|---|---|---|" + "---|" * len(names)]
+    by = {n: {r["outcome_id"]: r for r in doc["channels"][n]["by_outcome"]} for n in names}
     for oid in [r["outcome_id"] for r in doc["channels"]["X"]["by_outcome"]] or []:
         first = by["X"][oid]
         cells = []
-        for n in CHANNELS:
+        for n in names:
             r = by[n].get(oid)
             cells.append("n/a" if r is None else (f"{r['lead_days']} days earlier" if r["found"] else "not flagged"))
         lines.append(f"| {oid} | `{first['key']}` | {first['opened']} | " + " | ".join(cells) + " |")
@@ -596,6 +774,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         q.add_argument("--lookback-weeks", type=int, default=26)
         q.add_argument("--post-weeks", type=int, default=26)
         q.add_argument("--tie-salt", default="pilot")
+        q.add_argument("--no-comparators", action="store_true",
+                       help="leave out the pooled national (P) and disproportionality (PRR) comparators")
         q.add_argument("--dry-run", action="store_true", help="say what would be read and written; touch nothing")
     args = p.parse_args(argv)
     if args.dry_run:
@@ -623,12 +803,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             rows, synthetic, first, last = read_rows(records_path), False, args.date_from, args.date_to
         outcomes = read_outcomes(outcomes_path, pack)
         doc = audit(pack, rows, outcomes, date_from=first, date_to=last, lookback=args.lookback_weeks,
-                    post=args.post_weeks, tie_salt=args.tie_salt, synthetic=synthetic)
+                    post=args.post_weeks, tie_salt=args.tie_salt, synthetic=synthetic,
+                    comparators=not args.no_comparators)
     except (AuditError, UsageError) as exc:
         return fail(str(exc))
     _write(doc, out)
     summary = ", ".join(f"{n} {doc['channels'][n]['summary']['found']}/{doc['channels'][n]['summary']['outcomes']}"
-                        for n in CHANNELS if doc["channels"][n]["summary"] is not None)
+                        for n in channel_names(doc) if doc["channels"][n]["summary"] is not None)
     print(f"pilot audit: {doc['label']}; found before opening {summary}; review list {len(doc['review'])} "
           f"-> {out / 'audit.md'}")
     return 0
