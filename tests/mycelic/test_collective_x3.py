@@ -88,6 +88,14 @@ CODE_HASHES = {"X1": "e7d5d82e3b9805358718b5927b6cca89bb4912c733fccd7f14c89f61a9
 # audit round 4 (finding 3, A1 per artifact type, and finding 2, the prereg's rehearsal note) changed
 # x5_attacks.py and x5_inference.py after B4b; effort.json keeps the hashes B4b recorded
 X5_CODE_HASH_R4 = "73a4e487727a7e665301d499a7d5d9c66f7a9b90c81e1445a72ce9bd49d03516"
+# R002 (ModelExtractor.postprocess re-attaches a predicate whose entity cannot be used, and E1 keeps raw replies)
+# and the G0 planter's reserved strings changed extract.py, e1_extract.py, leakage.py and g0_canary.py after audit
+# round 4; effort.json and the committed X1 smoke prereg keep the hashes recorded before (CODE_HASHES)
+LIVE_CODE_HASHES_R002 = {"X1": "07c7622705f2210023c79ea345df99c0ad960026addfa246aeda7d6e5353afc4",
+                         "E1": "f7c85e760e798970e19254be7326304be009024863a7411109d78af0ee029ed4",
+                         "E2": "58b6652642cc9a4763d0497b4d516bb1032cc3536ef4d3d87a5ca972dcb8dd34",
+                         "openfda_replay": "2c9ca04bcd079ed19d5b4ea44f9848c545bc35cf830e8348748ab496edaa045e",
+                         "X5": "3e8be5fef9f029176a28f6595c980379b72514075a3f7860121ea25c01c8a155"}
 EFFORT_KEYS = ("attempts", "base_commit", "code_files_changed", "code_hashes", "code_lines_changed", "code_numstat",
                "demo_lint", "diff_method", "docs_lines_added", "evidence", "files", "fit_to_code_choices",
                "fixture_disagreements", "fixture_lexical_f1", "gaps", "kind", "logic_gaps", "presentation_gaps",
@@ -855,8 +863,7 @@ class EvidenceTests(unittest.TestCase):
         prereg, card = strict_load(prereg_bytes), strict_load((X3 / "x1_smoke" / "scorecard.json").read_bytes())
         self.assertEqual({k: prereg["pack"][k] for k in PACK.hashes()}, B4_HASHES[PACK_ID])
         self.assertEqual((prereg["pack"]["id"], prereg["pack"]["same_author_as_code"]), (PACK_ID, True))
-        self.assertEqual(prereg["code_hash"], H.eval_code_hash())
-        self.assertEqual(prereg["code_hash"], CODE_HASHES["X1"])
+        self.assertEqual(prereg["code_hash"], CODE_HASHES["X1"])     # the X1 code the smoke ran; live: R002 pins
         self.assertTrue(prereg["allow_dirty"])
         self.assertEqual(card["content_hash"], H.content_hash(card))
         self.assertEqual(H.scorecard_problems(card), [])
@@ -873,8 +880,9 @@ class EvidenceTests(unittest.TestCase):
     def test_the_code_hashes_are_the_pinned_ones(self) -> None:
         self.assertEqual({"X1": H.eval_code_hash(), "E1": e1_extract.e1_code_hash(), "E2": e2_pushdown.e2_code_hash(),
                           "openfda_replay": openfda_replay.replay_code_hash(), "X5": x5_inference.x5_code_hash()},
-                         {**CODE_HASHES, "X5": X5_CODE_HASH_R4})
+                         LIVE_CODE_HASHES_R002)
         self.assertNotEqual(X5_CODE_HASH_R4, CODE_HASHES["X5"])
+        self.assertTrue(all(LIVE_CODE_HASHES_R002[k] != CODE_HASHES[k] for k in CODE_HASHES))
         self.assertEqual(effort()["code_hashes"], CODE_HASHES)
 
     def test_no_absolute_path_forbidden_string_or_model_name_in_x3_or_the_pack(self) -> None:

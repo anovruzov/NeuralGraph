@@ -217,7 +217,8 @@ E1_LABELS = {
                 "STRATEGY {e_one} decision, which needs human-labelled public narratives.",
     "public_nhtsa": "{e_one} here scores extraction on real public NHTSA complaint narratives, each complaint's codes "
                     "hidden, against the components it was filed under: filed codes, not human-checked labels. The "
-                    "lexical extractor's scores on the same records are in report.json at e1.labels.public.lexical.",
+                    "lexical extractor's scores on the same records are in report.json, in the extraction block's labels, "
+                    "under public and lexical.",
 }
 E2_LABELS = {
     "synthetic": "{e_two} here runs on planted synthetic worlds; the pack, the detectors and the plant were written by "

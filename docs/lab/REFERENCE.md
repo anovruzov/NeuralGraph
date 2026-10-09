@@ -394,7 +394,7 @@ E1's labels, by label source:
 
 - `E1_LABELS.generator_text`: {e_one} here scores extraction against generator ground truth on template text. It is not the STRATEGY {e_one} decision, which needs human-labelled public narratives.
 - `E1_LABELS.fixtures`: {e_one} here scores extraction against the pack's author-written fixture records. It is not the STRATEGY {e_one} decision, which needs human-labelled public narratives.
-- `E1_LABELS.public_nhtsa`: {e_one} here scores extraction on real public NHTSA complaint narratives, each complaint's codes hidden, against the components it was filed under: filed codes, not human-checked labels. The lexical extractor's scores on the same records are in report.json at e1.labels.public.lexical.
+- `E1_LABELS.public_nhtsa`: {e_one} here scores extraction on real public NHTSA complaint narratives, each complaint's codes hidden, against the components it was filed under: filed codes, not human-checked labels. The lexical extractor's scores on the same records are in report.json, in the extraction block's labels, under public and lexical.
 
 E2's labels:
 
