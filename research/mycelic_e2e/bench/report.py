@@ -26,6 +26,11 @@ def _load_json(p: Path) -> dict[str, Any] | None:
         return None
 
 
+def arch_gate_paths(d: Path) -> tuple[Path, Path]:
+    from . import arch_gate
+    return arch_gate.resolve_run_paths(d)
+
+
 def finalize(run_dir: str | Path, *, coord_db: str | Path | None = None, holders_dir: str | Path | None = None, expect_hypergraph: bool | None = None,
              expect_ranker: bool | None = None, run_id: str | None = None, ledger: str | Path | None = None, extra: dict[str, Any] | None = None,
              run_gate: bool = True) -> dict[str, Any]:
@@ -33,6 +38,15 @@ def finalize(run_dir: str | Path, *, coord_db: str | Path | None = None, holders
     ``run_id`` is given. A baseline run (``mode == 'baseline'``) has no coordinator, so its gate is recorded as ``not_applicable``."""
     from . import arch_gate
     d = Path(run_dir)
+    if run_gate and not ((d / "raw_authority.json").exists() and (d / "reach_authority.json").exists()):
+        # the asker's raw-access entitlement and reachable holders come from the organization (not gold); a system run does not write them itself
+        try:
+            from .baseline_central import write_raw_authority
+            d_coord, _ = arch_gate_paths(d)
+            if d_coord.exists():
+                write_raw_authority(d, org_db=d_coord)
+        except Exception:      # noqa: BLE001 - without the files the scorer stays strict and says so (supporting.reach_authority is None)
+            pass
     rs = score_run(d)
     (d / "score.json").write_text(json.dumps(rs.to_dict(with_tasks=True), indent=2, default=str), encoding="utf-8")
     gate = None
@@ -68,7 +82,11 @@ def _summary(d: Path) -> dict[str, Any]:
         failed = gate.get("failed") or []
         gstat = ("ablation: " if rs.ablation and not set(failed) - exp else "INVALID: ") + ",".join(failed)
     variant = (rs.manifest or {}).get("variant")
-    label = (f"baseline ({variant})" if variant else "baseline") if rs.mode == "baseline" else (f"ablation {rs.ablation}" if rs.ablation else "system")
+    if rs.mode == "baseline":
+        tag = {"source": "primary", "single": "secondary"}.get(str(variant), "")
+        label = f"baseline ({variant}{', ' + tag if tag else ''})" if variant else "baseline"
+    else:
+        label = f"ablation {rs.ablation}" if rs.ablation else "system"
     return {"dir": d, "rs": rs, "gate": gate, "gate_status": gstat, "label": label}
 
 
@@ -97,7 +115,8 @@ def render(run_dir: str | Path, extra_dirs: Sequence[str | Path] = (), out: str 
             continue
         seen.add(p.resolve())
         rows.append(_summary(p))
-    rank = lambda lbl: 0 if lbl == "system" else 1 if lbl.startswith("baseline") else 2      # noqa: E731
+    # system first, then the baseline with the primary variant (source) before the secondary one (single), then the ablations
+    rank = lambda lbl: 0 if lbl == "system" else 1 if "primary" in lbl else 2 if lbl.startswith("baseline") else 3      # noqa: E731
     rows.sort(key=lambda r: (rank(r.get("label", "")), r.get("label", ""), str(r["dir"])))
     ok = [r for r in rows if "rs" in r]
     head = ok[0]["rs"] if ok else None

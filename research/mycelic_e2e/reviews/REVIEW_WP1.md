@@ -295,3 +295,138 @@ PERF candidates=1500 candidate_holders_s=0.12 rank_holders_s=0.029 method=hyperg
       `rank_method: "fallback"`, so that a ranking bug cannot block routing.
 
 Not changed by this review: /home/user/ng-impl (except this file) and /home/user/NeuralGraph. All probes ran in the scratch archive copy.
+
+---
+
+## Re-review of the F1–F11 fixes (snapshot `snap_wp1fix`, ~06:45 UTC, uncommitted, base `82a7a4f`)
+
+Reviewer: REVIEWER-2 (`claude-opus-5-5`). Scope: WP1's files only (`knowledge/{hypergraph,gate,service}.py`,
+`inquiry/{routing,service}.py`, `discovery/engine.py` (the two transaction edits), `org.py:update_holder`,
+`evidence/service.py`, `api/routes_goals.py`, `__main__.py`, `tests/test_hypergraph*.py`). ENGINEER-E's scale hunks in the
+same diff were not reviewed. That includes `authz.py` (+175 lines: `can_route_many`, `tenant_index`, `pinned`), so this
+re-review makes no claim about `can_route` semantics after those hunks.
+
+**Verdict: ACCEPT WP1. One narrow item (S1) still blocks any run that uses `min_independent_units` (O3).** Everything else
+is fixed, and the remaining notes are non-blocking.
+
+### How it was checked
+```
+cp -r $SCR/snap_wp1fix/{mycelic,NeuralGraph,pytest.ini} $SCR/rv2      # my own copy; the snapshot is not modified
+orchestrator log $SCR/snap_wp1fix_tests.log            → 483 passed, 7 skipped in 129.39s, EXIT 0
+python -m pytest mycelic/tests/test_hypergraph_review.py mycelic/tests/test_hypergraph.py mycelic/tests/test_routing_rank.py -q → 34 passed
+python -m pytest mycelic/tests/test_review_wp1.py -q -s   (my R1–R10 probes, unchanged, plus R3b, R8b) → see below
+python -m pytest mycelic/tests/test_review_perf.py -q -s  → see F10
+```
+
+### R1–R10 and F1–F11, one by one
+
+- **F1 / R1: fixed.**
+  - Change: `KnowledgeService.sync_support_sync` (`knowledge/service.py:519`) syncs the edge from the gate's effective
+    refs and refreshes `claims.support`. `verify_consistency` now compares the edge with `claims.support`
+    (`hypergraph.py:765-767`).
+  - Probe output: `R1 claim.status hypothesis claims.support.independent_roots 1 edge.independent_roots 1 verify_consistency []`.
+- **F2 / R2: fixed.**
+  - `engine.py`: both transactions now call `self.knowledge.sync_support_sync(c, …)` after the `claim_evidence` insert.
+  - `on_evidence_event` syncs inside its first transaction. The engineer's monkeypatch test shows a failing edge write
+    rolls back the status change.
+  - `test_r2_whole_loop_leaves_a_consistent_graph` runs the demo loop to quiet and then checks `verify_consistency == []`.
+  - My probe, updated to the new transaction shape, outputs `R2 verify_consistency after the engine's own tx: []`.
+  - Residual (non-blocking): the verification replay path (`engine.py:771-773`, `outcome = "replayed"`) still skips
+    `recompute_status`. After a crash, edge and `claims.support` agree (I4 holds), but `claims.status` can lag until the
+    next recompute or sweep. Suggest calling `recompute_status` on replay; it is idempotent.
+- **F3 / R10: fixed.**
+  - `rebuild_sync` writes only missing edges, and `--regenerate` adds new versions without deleting anything.
+  - Probe output: `R10 … before rebuild: [(1, 'superseded'), (2, 'active')]  after: [(1, 'superseded'), (2, 'active')]`.
+- **F4 / R6: fixed.**
+  - `hg.scrub_claim_entities_sync` runs inside `_scrub_claim_text`. Rebuild no longer derives entities from
+    `DELETED_TEXT`.
+  - Probe output: `R6 … after purge: []`.
+- **F5 / R8: fixed.**
+  - Members-only ids are no longer published, so my original oracle probe cannot even find a `service:` id to probe with
+    (`IndexError`, as expected).
+  - New probe R8b outputs `default: {'service:parcelrouter': 5, 'symptom:timeout': 5}` and
+    `opt-in members + min 1: {… 'service:checkout': 1, 'service:dispatch': 1}`. So by default, members-only records are
+    excluded and single-record ids are excluded.
+- **F6: fixed.** `_entity_min_records(default=min_records_to_publish)` returns 5 unless the owner sets
+  `entity_min_records` (R8b above). Nothing outside the store sets `entity_include_members` or `entity_min_records`
+  (grep over the snapshot and `research/mycelic_e2e`: no hits outside the reviews).
+- **F7 / R5: fixed for what WP1 added.**
+  - `view()` empties `target_entities` and drops `trigger.claim_id` for principals without `_full_view`.
+  - Probe output: `R5 full_view: False  target_entities seen by routed owner: []`.
+  - **The older leak is still there:** the same view still returns `motivating_lineage` with the claim id *and* its text
+    as the label (`inquiry/service.py:145`). Probe output: `lineage labels: ['Deploys cause customer timeouts, tracked as issue:tracker:lgx-412']`.
+    So blind verification is still defeated for *human* responders through that channel. This was there before WP1 and is
+    not WP1's to fix, but it needs an owner and a ticket before any human-responder evaluation of blind verification.
+- **F8 / R3: fixed for the reported case; residual S1 below.**
+  - Probe output: `R3 ref 'z9' -> ('hypothesis', {'department': 1})   ref 'a0' -> ('hypothesis', {'department': 1})`.
+- **F9: fixed.**
+  - `required_units` normalizes each part separately and logs the invalid one.
+  - `routes_goals.py` returns 400 for an invalid `min_independent_units`, whether it comes from `policy` or
+    `measurement_source.policy`.
+  - Tested in `test_f9_*`.
+- **F10: fixed.**
+  - Change: an incremental index update costs O(this holder's entities). A version opens at most once per UTC day per
+    entity, and only the last 3 versions are kept.
+  - My unchanged perf probe (1,500 holders, 10 departments, 2 shared + 1 unique entity each):
+
+    `heartbeat_ms_at_n={10: 0.5, 100: 1.5, 500: 0.5, 1000: 0.7, 1500: 0.6} total_s=1.5 entity_edges=1502 one_drop_change_ms=0.6`
+
+    Before the fix: `{… 1500: 106.1} total_s=66.8 entity_edges=4500`. Latency no longer grows with H.
+  - `rank_holders` takes 0.029 s at 1,500 candidates, unchanged.
+  - Residual (non-blocking): unit and domain counts are adjusted with the holder's *current* unit
+    (`hypergraph.py:465`). After a membership move, the old unit's count stays inflated and the new unit's decrement is a
+    no-op. Only `traverse` reads those counts; routing reads live units. Acceptable for v1. Suggest recounting units when
+    the daily version opens.
+- **F11: fixed.**
+  - `entity_holders` and incidence hits are restricted to candidates (probe output: `R4 entity_holders 2, authorized with
+    the entity 2`).
+  - A single shared `unassigned` diversity bucket.
+  - Revoke and `auto_entities: false` withdraw in the same transaction (probe output: `R7 … after revoke: {}`).
+  - Traverse members are bounded (probe output: `R9 nodes: 3 members returned inside edges: 3`).
+  - First-N fallback with `rank_method: "fallback"` (`test_f11_ranking_failure_falls_back_to_first_n`).
+
+### Still blocking for O3 runs
+
+**S1: department attribution still depends on unit-id order when two roots are each shared with the same department.**
+- Where: `knowledge/gate.py:116-118`. A multi-unit root goes to an already-counted unit if possible, otherwise to
+  `min(unit_id)`. With roots processed in id order, the result depends on whether the shared department has the smallest
+  id. Unit ids are random (`new_id`).
+- Probe R3b: root `ra` is held at the same `observed_at` by the shared department S and by department X; root `rb` by S
+  and by department Y. Requirement `{"department": 2}`. Output:
+
+  `R3b shared dept smallest id -> ('hypothesis', {'department': 1})   shared dept largest id -> ('supported', {'department': 2})`
+
+- So the same evidence structure gives opposite verdicts. All of this evidence is visible inside S, so the conservative
+  answer is 1.
+- Minimal patch: attribute the multi-unit roots to the *fewest* units, not greedily by id.
+  - Process those roots in order of their candidate unit, choosing the unit that covers the most remaining multi-unit
+    roots. Break ties first by "already counted", then by unit id.
+  - Alternatively, an exact minimum by brute force when there are ≤ 8 multi-unit roots, and the greedy otherwise.
+- Add R3b as a test.
+- This blocks only runs that set `min_independent_units`. It does not block WP1's other uses.
+
+### Ruling on the engineer's F5 deviation (public-only by default; members-only ids need `export_policy.entity_include_members=true`; `entity_min_records` defaults to 5)
+
+**ACCEPT, with conditions.**
+
+The defaults are now fail-closed and stricter than §C.5. C.5 would have published members records whose audience covers
+the owning unit. Here no members record is published unless the owner opts in, and ids need 5 records. That removes both
+the R8 oracle and the k=1 problem by default.
+
+The engineer's justification holds. The holder sees the member list but not the coordinator's routing audience, so it
+cannot evaluate C.5's condition itself. Doing that properly needs a coordinator-supplied audience, as `question_audience`
+does.
+
+Conditions:
+1. **The opt-in is weaker than C.5.** It publishes ids from members-only sources regardless of whether the members cover
+   the routing audience. The source's other members never consented; only the holder owner did. Treat it as a
+   privacy-weakening configuration:
+   - No benchmark, seed or default config may set it. None does today.
+   - Any run that enables it, or lowers `entity_min_records` below 5, declares that in BENCHMARK_CONTRACT.md and in the
+     run ledger.
+   - The `holder.update` audit already records `export_policy` changes.
+2. **The audience-covered variant of C.5 stays open as a follow-up.** It means publishing members ids only when the
+   source's member set contains the owning unit's audience, which the coordinator sends to the holder.
+3. **E1's O2(a) prediction must be re-derived with threshold 5 and public-only ids.** Recall from symptom, service and
+   issue ids will be lower than under the original commit's defaults. If it is too low, the remedy is a declared, measured
+   contract parameter, not a code default.

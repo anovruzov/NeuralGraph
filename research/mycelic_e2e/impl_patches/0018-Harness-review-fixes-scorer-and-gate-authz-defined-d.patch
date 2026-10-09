@@ -1,0 +1,1660 @@
+From f434e4c63f2ecb09c5002c5b3faa565278b5db5a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 06:58:55 +0000
+Subject: [PATCH 18/19] Harness review fixes (scorer and gate): authz-defined
+ disclosure, ambiguity rule, non-vacuous G4/G7/G10
+
+A supported claim naming more than one entity identifies nothing (orchestrator rule, all modes).
+G7 cross-checks every scored view against coord.db, G4 replays routing as of the route from the
+audited domain history, G10 derives each injected fault from the sources and requires its evidence.
+The 'source' central baseline is primary. Engineer: WP3 (claude-sonnet-5-5); 94 harness tests pass;
+REVIEWER-4's four mutations now fail the gate.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl        |   1 +
+ research/mycelic_e2e/bench/arch_gate.py       | 394 ++++++++++++++----
+ .../mycelic_e2e/bench/baseline_central.py     |  50 ++-
+ research/mycelic_e2e/bench/gold.py            |   5 +-
+ research/mycelic_e2e/bench/report.py          |  23 +-
+ research/mycelic_e2e/bench/score.py           | 198 +++++++--
+ .../mycelic_e2e/bench/tests/test_arch_gate.py | 181 +++++++-
+ .../mycelic_e2e/bench/tests/test_baseline.py  |  15 +
+ .../mycelic_e2e/bench/tests/test_score.py     | 110 ++++-
+ research/mycelic_e2e/reviews/REVIEW_WP1.md    | 135 ++++++
+ 10 files changed, 972 insertions(+), 140 deletions(-)
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 26cbbb7..323f7df 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -18,3 +18,4 @@
+ {"id": "X017", "utc": "2026-10-09T06:52Z", "kind": "review", "agent": "REVIEWER-2 (claude-opus-5-5)", "subject": "WP1 fixes F1-F11 (snapshot of working tree, base c9bb423-era)", "result": "ACCEPT except S1 (gate.py:116-118 department attribution depends on unit-id order when roots are shared within a department; blocks O3 runs); snapshot full suite 483 passed/7 skipped; heartbeat 0.5-0.7 ms at 1,500 holders (was 106 ms), cold start 1.5 s (was 66.8 s); F5 deviation accepted with conditions (no run may enable entity_include_members or threshold<5 without declaring it); pre-existing motivating_lineage label leak open", "orchestrator_decision": "S1 + lineage label leak + evidence_freshness meta assigned to WP1 engineer", "class": "review"}
+ {"id": "X018", "utc": "2026-10-09T07:05Z", "kind": "review", "agent": "REVIEWER-4 (claude-opus-5-5)", "subject": "harness c254a33+737b01c and S1 artifacts", "artifact": "research/mycelic_e2e/reviews/REVIEW_HARNESS.md", "result": "DO NOT FREEZE: goal-only tasks option lottery (overlapping project scopes, multi-service claims credited), cross-tenant gold wrong/ambiguous in 4/5 (shared context ranges and service names), record id prefixes/titles reveal role, scorer disclosure checks partial, gate G7/G4/G10 vacuous or circular (mutations pass); scorer arithmetic verified (independent re-score identical 78/111/107); determinism verified; baseline 'source' recommended as primary. Excluding the 15 broken tasks: system 64/105, baselines 99/105.", "orchestrator_decision": "fixes assigned to WP2/WP3; new binding scoring rule: a supported claim naming >1 distinct entity contributes no option; baseline 'source' primary", "class": "review"}
+ {"id": "X019", "utc": "2026-10-09T07:05Z", "kind": "analysis", "agent": "PLANNER (claude-fable-5-1)", "artifact": "research/mycelic_e2e/plan/DEV_ANALYSIS_S1.md", "result": "all 41 failed question tasks first diverge at routing (gold holders authorized but ranked out: rank_method=domains, entities=[] -> first-N by holder_id among 15-17); 0 ingestion losses; blind verification routed by entity to gold holders but fake compose_verification_question topic = first 5 content words -> no_evidence in 53/71; wave-1 blackout: empty heartbeat snapshot retracted all published domains for ~3 s. Hypotheses H1 term index (+~28), H2 verification topic (+25 alone), H3 one excerpt per answer, H4 tie-break, H5 heartbeat retraction fix", "orchestrator_decision": "H1+H2+H5 assigned to WP1 engineer; privacy ruling: term ids from PUBLIC records only, threshold 1 allowed for public (readable by every member), off-switch auto_terms", "class": "analysis"}
++{"id": "X020", "utc": "2026-10-09T06:58Z", "kind": "harness-fix", "agent": "WP3 (claude-sonnet-5-5)", "result": "scorer: disclosure defined by authz reach; missing tenant_id fails scoring; ambiguity rule (claim naming >1 entity contributes no option); gate: G7 view-vs-db cross-check, G4 as-of route replay from audit history, G10 literal fault evidence derived from sources; baseline 'source' primary; 94 harness tests pass; rev4 mutations M1-M4 now all fail the gate. Information-only rescoring of old S1 views under the ambiguity rule: system 69/120, baseline-source 102/120, baseline-single 102/120", "class": "harness"}
+diff --git a/research/mycelic_e2e/bench/arch_gate.py b/research/mycelic_e2e/bench/arch_gate.py
+index 66b19b8..6a8e3e0 100644
+--- a/research/mycelic_e2e/bench/arch_gate.py
++++ b/research/mycelic_e2e/bench/arch_gate.py
+@@ -10,8 +10,12 @@ Inputs: ``check(run_dir, coord_db=..., holders_dir=..., expect_hypergraph=...)``
+ 
+ Optional run-directory files (all non-gold, written by the runner; absent files make the dependent assertion ``na``):
+ 
+-``run_manifest.json``    ``provider_label`` (G6), ``faults`` {kind: count} and ``restart_holders`` (G10), ``harness_db_opens`` (G7)
+-``fault_plan.json``      ``{"deleted_markers": [strings that must not survive in any holder table], "faults": {...}, "restart": bool}``
++``run_manifest.json``    ``provider_label`` (G6), ``n_tasks`` (G7: a run with tasks must have ``views/``), ``harness_db_opens`` (G7)
++``views/<task>.json``    the asker views the scorer reads; G7 compares each claim / reference / discovery / question in them with ``coord.db``
++``sources_manifest.json`` + ``sources/``  the raw files the harness wrote; G10 derives the injected faults from them (duplicate lines,
++                         malformed lines, delete records and the deleted record's own text, replay / restart flags), never from the
++                         system's own reports
++``fault_plan.json``      optional additions: ``{"restart": [{"holder_id", "pages_before"}], "deleted_markers": [...], "faults": {...}}``
+ ``harness_db_opens.json``  ``[{"path", "uri"}]`` every database the harness opened itself (G7 requires ``mode=ro``)
+ 
+ Layout assumptions: the coordinator's ``holders`` table lists every holder; holder ``H`` stores its control shard at
+@@ -158,12 +162,100 @@ class HolderFacts:
+     queue_open: int = 0                           # ingest_queue rows still queued / leased
+     max_incr_checkpoint_version: int = 0          # highest committed page count of an incremental stream
+     stage_duplicates: int = 0
++    stage_normalize_errors: int = 0
++    object_ids: set[str] = dataclasses.field(default_factory=set)               # provider object ids with an ingest_records row (any status)
+     rejections: int | None = None                 # ingest_rejections rows (sum of count); None when the holder schema predates the table
+     inode: tuple[int, int] | None = None
+     problems: dict[str, list[str]] = dataclasses.field(default_factory=lambda: defaultdict(list))
+     entity_ids: set[str] = dataclasses.field(default_factory=set)                # publishable entity ids (public/members records)
+ 
+ 
++def _marker_of(text: str) -> str:
++    """A distinctive, whitespace-free-safe prefix of a record's text (first line, 70 chars) used to look for it in a holder's tables."""
++    first = next((ln.strip() for ln in str(text).splitlines() if ln.strip()), "")
++    return first[:70]
++
++
++def derive_faults(run_dir: Path | None, fault_plan: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
++    """What the run's own inputs say was injected, per holder id, read from the raw source files the harness wrote before the system saw
++    them (``sources/`` + ``sources_manifest.json``), never from the system's reports: duplicate lines, malformed lines, delete records
++    (with the deleted record's own text as the marker that must not survive), edits, and the restart / replay flags. ``fault_plan.json``
++    may add ``restart: [{"holder_id", "pages_before"}]`` and ``deleted_markers``. Returns ``{holder_id: {...}}``."""
++    out: dict[str, dict[str, Any]] = {}
++    if run_dir is None:
++        return out
++    try:
++        entries = json.loads((run_dir / "sources_manifest.json").read_text(encoding="utf-8"))
++    except (OSError, ValueError, TypeError):
++        return out
++    src_dir = run_dir / "sources"
++    for e in entries:
++        hid = e.get("holder_id")
++        if not hid:
++            continue
++        f = out.setdefault(hid, {"dup_lines": 0, "malformed": 0, "deletes": 0, "edits": 0, "markers": [], "n_base": 0, "n_timed": 0, "replay": False, "restart": False,
++                                 "pages_before": None, "object_ids": set(), "files": []})
++        flags = e.get("flags") or {}
++        f["replay"] = f["replay"] or bool(flags.get("replay"))
++        f["restart"] = f["restart"] or bool(flags.get("restart"))
++        f["n_base"] += int(e.get("n_base") or 0)
++        f["files"].append(e.get("file"))
++        texts: dict[str, list[str]] = defaultdict(list)
++        deleted_ids: list[str] = []
++        seen_lines: Counter = Counter()
++        timed_lines: set[str] = set()
++        timed_base: set[str] = set()
++        for name in (e.get("file"), e.get("late_file")):
++            if not name or not (src_dir / name).is_file():
++                continue
++            lines = (src_dir / name).read_text(encoding="utf-8").splitlines()
++            for i, ln in enumerate(lines):
++                if not ln.strip():
++                    continue
++                try:
++                    rec = json.loads(ln)
++                except ValueError:
++                    f["malformed"] += 1
++                    continue
++                if not isinstance(rec, dict):
++                    f["malformed"] += 1
++                    continue
++                if rec.get("type") == "source":
++                    continue
++                if rec.get("id") in (None, ""):
++                    f["malformed"] += 1
++                    continue
++                f["object_ids"].add(str(rec["id"]))
++                seen_lines[ln] += 1
++                if any(rec.get(k) for k in ("created_at", "updated_at", "deleted_at")):
++                    timed_lines.add(ln)                 # a re-delivery (backfill) reads only records that carry a time
++                    if name == e.get("file"):
++                        timed_base.add(ln)              # the replay happens in the base phase, before the late records are appended
++                typ = str(rec.get("type") or "message").lower()
++                if typ in ("delete", "deletion"):
++                    f["deletes"] += 1
++                    deleted_ids.append(str(rec["id"]))
++                elif typ == "edit":
++                    f["edits"] += 1
++                if rec.get("text"):
++                    texts[str(rec["id"])].append(_marker_of(rec["text"]))
++        f["dup_lines"] += sum(n - 1 for n in seen_lines.values() if n > 1)
++        if flags.get("replay"):
++            f["n_timed"] += len(timed_base)             # only the re-synced connector's records come back as duplicates
++        for rid in deleted_ids:
++            f["markers"].extend(m for m in texts.get(rid, []) if m)
++    for item in (fault_plan.get("restart") if isinstance(fault_plan.get("restart"), list) else []):
++        if isinstance(item, Mapping) and item.get("holder_id"):
++            f = out.setdefault(item["holder_id"], {"dup_lines": 0, "malformed": 0, "deletes": 0, "edits": 0, "markers": [], "n_base": 0, "n_timed": 0, "replay": False,
++                                                   "restart": True, "pages_before": None, "object_ids": set(), "files": []})
++            f["restart"] = True
++            if item.get("pages_before") is not None:
++                f["pages_before"] = int(item["pages_before"])
++    for f in out.values():
++        f["markers"] = list(dict.fromkeys(f["markers"]))
++    return out
++
++
+ class _Ctx:
+     def __init__(self, run_dir: Path | None, coord_db: Path, holders_dir: Path, expect_hypergraph: bool, expect_ranker: bool,
+                  allowed_providers: Sequence[str], connector_types: Sequence[str], strict_rank: bool, strict_domains: bool,
+@@ -193,6 +285,7 @@ class _Ctx:
+         self.coord = ro_connect(self.coord_path)
+         self.tables = _tables(self.coord)
+         self.has_hypergraph = {"hyperedges", "hyperedge_members"} <= self.tables
++        self.faults = derive_faults(self.run_dir, self.fault_plan)
+         self.holders: list[HolderFacts] = []
+         for r in self.coord.execute("SELECT holder_id, tenant_id, owner_type, owner_id FROM holders ORDER BY holder_id"):
+             hdir = self.holders_dir / r["holder_id"]
+@@ -237,6 +330,7 @@ class _Ctx:
+                 h.connector_types[r["connector_id"]] = r["connector_type"]
+         for r in c.execute("SELECT DISTINCT connector_id FROM ingest_records"):
+             h.record_connector_ids.add(r["connector_id"])
++        h.object_ids.update(str(r[0]) for r in c.execute("SELECT DISTINCT source_object_id FROM ingest_records"))
+         if "applied_events" in t:
+             for r in c.execute("SELECT outcome, COUNT(*) AS n FROM applied_events GROUP BY outcome"):
+                 h.applied[r["outcome"]] += r["n"]
+@@ -270,6 +364,7 @@ class _Ctx:
+         if "ingest_rejections" in t:
+             h.rejections = (h.rejections or 0) + int(_scalar(c, "SELECT COALESCE(SUM(count),0) FROM ingest_rejections", default=0) or 0)
+         if "ingest_stage_metrics" in t:
++            h.stage_normalize_errors += int(_scalar(c, "SELECT COALESCE(SUM(count),0) FROM ingest_stage_metrics WHERE stage='normalize' AND outcome='error'", default=0) or 0)
+             h.stage_duplicates += int(_scalar(c, "SELECT COALESCE(SUM(count),0) FROM ingest_stage_metrics WHERE outcome='duplicate'", default=0) or 0)
+         for r in c.execute("""SELECT r.record_id, r.deletion_status FROM ingest_records r WHERE r.deletion_status <> 'live'"""):
+             rid = r["record_id"]
+@@ -282,7 +377,8 @@ class _Ctx:
+                 h.problems["G10.memories_survive"].append(rid)
+             if "record_entities" in t and _scalar(c, "SELECT COUNT(*) FROM record_entities WHERE record_id=?", (rid,)):
+                 h.problems["G10.entities_survive"].append(rid)
+-        if self.deleted_markers:
++        markers = list(dict.fromkeys(self.deleted_markers + self.faults.get(h.holder_id, {}).get("markers", [])))
++        if markers:
+             for name in sorted(t):
+                 if name.startswith("sqlite_"):
+                     continue
+@@ -291,7 +387,7 @@ class _Ctx:
+                 except sqlite3.Error:
+                     continue
+                 for col in cols:
+-                    for m in self.deleted_markers:
++                    for m in markers:
+                         try:
+                             n = c.execute(f'SELECT COUNT(*) FROM "{name}" WHERE CAST("{col}" AS TEXT) LIKE ?', (f"%{m}%",)).fetchone()[0]
+                         except sqlite3.Error:
+@@ -444,18 +540,41 @@ def _g3(x: _Ctx) -> GateResult:
+     return r
+ 
+ 
++def _domain_history(x: _Ctx) -> dict[str, list[tuple[int, set[str], set[str]]]]:
++    """holder id -> [(audit id, added, removed)] from the ``holder.domains_published`` audit rows, in audit order: the only record of which
++    domains a holder had published when a question was routed."""
++    hist: dict[str, list[tuple[int, set[str], set[str]]]] = defaultdict(list)
++    for a in x.coord.execute("SELECT id, resource_id, detail FROM audit_log WHERE action='holder.domains_published' ORDER BY id"):
++        d = _jl(a["detail"], {})
++        hist[a["resource_id"]].append((int(a["id"]), set(d.get("added") or []), set(d.get("removed") or [])))
++    return hist
++
++
++def _published_at(hist: Mapping[str, Sequence[tuple[int, set[str], set[str]]]], holder_id: str, upto_audit_id: int | None) -> set[str]:
++    cur: set[str] = set()
++    for aid, added, removed in hist.get(holder_id, []):
++        if upto_audit_id is not None and aid >= upto_audit_id:
++            break
++        cur = (cur | added) - removed
++    return cur
++
++
+ def _g4(x: _Ctx) -> GateResult:
++    """Routing is audited, authorized as of the moment it happened, within budget, and ranked. The authorization replay runs ``can_route`` for
++    every routed holder with the domains that holder had published at the route's audit row (rebuilt from the ``holder.domains_published``
++    history); no denial is excused as "drift". A holder whose current published domains differ from that history changed outside the audit
++    trail, which fails too."""
+     r = GateResult("G4", "routing is audited, authorized, within budget and ranked")
+     qs = x.coord.execute("SELECT * FROM questions WHERE status NOT IN ('draft','cancelled')").fetchall()
+     audits: dict[str, list[sqlite3.Row]] = defaultdict(list)
+-    for a in x.coord.execute("SELECT resource_id, outcome, detail, actor_type FROM audit_log WHERE action='question.route'"):
++    for a in x.coord.execute("SELECT id, resource_id, outcome, detail, actor_type FROM audit_log WHERE action='question.route' ORDER BY id"):
+         audits[a["resource_id"]].append(a)
+     routes: dict[str, list[str]] = defaultdict(list)
+     for rt in x.coord.execute("SELECT question_id, holder_id FROM question_routes"):
+         routes[rt["question_id"]].append(rt["holder_id"])
+     methods: Counter = Counter()
+     routed_questions = 0
+-    replay_rows: list[tuple[sqlite3.Row, list[str]]] = []
++    replay_rows: list[tuple[sqlite3.Row, list[tuple[str, int]]]] = []
+     for q in qs:
+         qid = q["question_id"]
+         rows = [a for a in audits.get(qid, []) if a["outcome"] in ("ok", "allow")]
+@@ -473,11 +592,16 @@ def _g4(x: _Ctx) -> GateResult:
+         cap = int(budget.get("holders") or DEFAULT_ROUTE_BUDGET)
+         if len(set(hs)) > cap:
+             r.fail(f"{qid}: routed to {len(set(hs))} holders, budget {cap}")
++        audited: dict[str, int] = {}
+         for a in rows:
+             d = _jl(a["detail"], {})
+-            m = d.get("rank_method")
+-            methods[m or "missing"] += 1
+-        replay_rows.append((q, sorted(set(hs))))
++            methods[d.get("rank_method") or "missing"] += 1
++            for hid in d.get("holders") or []:
++                audited.setdefault(hid, int(a["id"]))
++        unaudited = sorted(set(hs) - set(audited))
++        if rows and unaudited:
++            r.fail(f"{qid}: {len(unaudited)} routed holders are not named in the question.route audit row (e.g. {unaudited[:2]})")
++        replay_rows.append((q, [(hid, audited.get(hid, max([int(a["id"]) for a in rows] or [0]) or 0)) for hid in sorted(set(hs))]))
+     # ranker assertion
+     if x.expect_ranker:
+         if not x.has_hypergraph:
+@@ -488,26 +612,35 @@ def _g4(x: _Ctx) -> GateResult:
+             r.fail(f"{methods['missing']} route audit rows carry no rank_method", MISSING if not x.has_hypergraph else FAIL)
+         if x.strict_rank and (sum(methods.values()) - methods.get("hypergraph", 0)):
+             r.fail("strict ranking: some routes were not ranked by the hypergraph")
+-    # offline replay of can_route on a copy of the coordinator database
+-    replay = _replay_can_route(x, replay_rows)
+-    r.data["replay"] = {k: v for k, v in replay.items() if k != "denials"}
++    # domain history must explain the holders' current published domains (a change with no audit row is an unaudited write)
++    hist = _domain_history(x)
++    drift = 0
++    for row in x.coord.execute("SELECT holder_id, published_domains FROM holders"):
++        cur = set(_jl(row["published_domains"], []))
++        want = _published_at(hist, row["holder_id"], None)
++        if cur != want:
++            r.fail(f"holder {row['holder_id']}: published domains {sorted(cur)} differ from the audited history {sorted(want)} (changed outside the audit trail)")
++        if hist.get(row["holder_id"]) and len(hist[row["holder_id"]]) > 1:
++            drift += 1
++    # offline replay of can_route, as of each route, on a copy of the coordinator database
++    replay = _replay_can_route(x, replay_rows, hist)
++    r.data["replay"] = {k: v for k, v in replay.items() if k not in ("denials", "moved")}
+     reasons: Counter = Counter()
+     for d in replay.get("denials", []):
+         reasons[d["reason"]] += 1
+-        if d["reason"] == "no matching evidence domain" and not x.strict_domains:
+-            r.data["domain_drift"] = r.data.get("domain_drift", 0) + 1        # published domains moved after the route; tolerated, counted
+-            continue
+-        r.fail(f"{d['question_id']} -> {d['holder_id']}: can_route denies on replay ({d['reason']})")
++        r.fail(f"{d['question_id']} -> {d['holder_id']}: can_route denies as of the route ({d['reason']}; domains then: {d.get('domains_then')})")
+     r.data["replay_denial_reasons"] = dict(reasons)
++    r.data["holders_with_changing_domains"] = drift
++    r.data["routes_where_domains_changed_since"] = replay.get("moved", 0)
+     if replay.get("error"):
+         r.fail(f"can_route replay could not run: {replay['error']}", ERROR)
+     r.data.update({"questions": len(qs), "routed_questions": routed_questions, "rank_methods": dict(methods)})
+-    r.detail = (f"{routed_questions}/{len(qs)} questions routed; rank_method {dict(methods)}; replay denials {replay.get('denied', 0)}"
+-                + (f" ({r.data.get('domain_drift', 0)} domain drift only)" if replay.get("denied") else ""))
++    r.detail = (f"{routed_questions}/{len(qs)} questions routed; rank_method {dict(methods)}; as-of replay denials {replay.get('denied', 0)}"
++                f" (current domains differ from route-time domains on {replay.get('moved', 0)} of {replay.get('checked', 0)} routes)")
+     return r
+ 
+ 
+-def _replay_can_route(x: _Ctx, rows: Sequence[tuple[sqlite3.Row, Sequence[str]]]) -> dict[str, Any]:
++def _replay_can_route(x: _Ctx, rows: Sequence[tuple[sqlite3.Row, Sequence[tuple[str, int]]]], hist: Mapping[str, Sequence[tuple[int, set[str], set[str]]]]) -> dict[str, Any]:
+     if not rows:
+         return {"checked": 0, "denied": 0}
+     tmp = tempfile.mkdtemp(prefix="gate-replay-")
+@@ -526,23 +659,27 @@ def _replay_can_route(x: _Ctx, rows: Sequence[tuple[sqlite3.Row, Sequence[str]]]
+         try:
+             org = org_mod.OrgService(db)
+             authz = authz_mod.Authorizer(db, org)
+-            checked = denied = 0
++            checked = denied = moved = 0
+             denials = []
+             for q, hs in rows:
+                 qd = {"tenant_id": q["tenant_id"], "scope_unit_id": q["scope_unit_id"], "policy": _jl(q["policy"], {}),
+                       "candidate_domains": _jl(q["candidate_domains"], [])}
+-                for hid in hs:
++                for hid, audit_id in hs:
+                     holder = org.get_holder(hid)
+                     checked += 1
+                     if holder is None:
+                         denied += 1
+                         denials.append({"question_id": q["question_id"], "holder_id": hid, "reason": "holder not found"})
+                         continue
++                    then = _published_at(hist, hid, audit_id)
++                    if then != set(holder.get("published_domains") or []):
++                        moved += 1
++                    holder = dict(holder, published_domains=sorted(then))          # the holder as it was when the route was written
+                     ok, why = authz.can_route(qd, holder)
+                     if not ok:
+                         denied += 1
+-                        denials.append({"question_id": q["question_id"], "holder_id": hid, "reason": why})
+-            return {"checked": checked, "denied": denied, "denials": denials}
++                        denials.append({"question_id": q["question_id"], "holder_id": hid, "reason": why, "domains_then": sorted(then)})
++            return {"checked": checked, "denied": denied, "denials": denials, "moved": moved}
+         finally:
+             db._conn.close()
+     except Exception as exc:                                       # noqa: BLE001
+@@ -612,6 +749,105 @@ def _g6(x: _Ctx) -> GateResult:
+     return r
+ 
+ 
++def _view_claim_items(view: Mapping[str, Any]) -> list[Mapping[str, Any]]:
++    """Every claim payload the scorer (or the disclosure check) can read in a view: question claims, discovery claims, goal-level claims."""
++    items: list[Mapping[str, Any]] = []
++    for key in ("claims", "goal_claims"):
++        items += [i for i in (view.get(key) or []) if isinstance(i, Mapping)]
++    for key in ("discoveries", "goal_discoveries"):
++        for d in view.get(key) or []:
++            if isinstance(d, Mapping):
++                items += [i for i in (d.get("claims") or []) if isinstance(i, Mapping)]
++    return items
++
++
++def _cross_check_views(x: _Ctx, r: GateResult) -> int:
++    """Every view the scorer reads must agree with ``coord.db``: each claim's id, status, text and independent roots, each reference's holder
++    and root, each discovery's title / summary / claim ids, and the question's terminal status. A later legitimate revision is explained by a
++    revision row with a higher version; a difference with no such row, a claim the database does not know, or a question claim missing from
++    the view means the view was not read from the system."""
++    if x.run_dir is None:
++        return 0
++    vdir = x.run_dir / "views"
++    if not vdir.is_dir():
++        if x.manifest.get("n_tasks"):
++            r.fail("the run recorded tasks but has no views directory: the scorer's input cannot be cross-checked against coord.db", MISSING)
++        return 0
++    c = x.coord
++    n = 0
++    for vp in sorted(vdir.glob("*.json")):
++        try:
++            view = json.loads(vp.read_text(encoding="utf-8"))
++        except (OSError, ValueError):
++            r.fail(f"{vp.name}: unreadable view")
++            continue
++        if not isinstance(view, Mapping):
++            continue
++        n += 1
++        tag = view.get("task_id") or vp.stem
++        in_view: set[str] = set()
++        for item in _view_claim_items(view):
++            cl = item.get("claim") if isinstance(item.get("claim"), Mapping) else item
++            cid = str(cl.get("claim_id") or "")
++            if not cid:
++                continue
++            in_view.add(cid)
++            row = c.execute("SELECT status, text, version, support, question_id FROM claims WHERE claim_id=?", (cid,)).fetchone()
++            if row is None:
++                r.fail(f"{tag}: view claim {cid} does not exist in coord.db")
++                continue
++            vsup = item.get("support") if isinstance(item.get("support"), Mapping) else (cl.get("support") if isinstance(cl.get("support"), Mapping) else {})
++            dsup = _jl(row["support"], {})
++            same = (str(cl.get("status")) == row["status"] and str(cl.get("text") or "").strip() == str(row["text"]).strip()
++                    and int(vsup.get("independent_roots") or 0) == int(dsup.get("independent_roots") or 0))
++            vver = cl.get("version")
++            if not same:
++                later = vver is not None and int(row["version"]) > int(vver) and _scalar(
++                    c, "SELECT COUNT(*) FROM revisions WHERE object_type='claim' AND object_id=? AND version>?", (cid, int(vver)))
++                if not later:
++                    r.fail(f"{tag}: view claim {cid} differs from coord.db (view {cl.get('status')!r}/{vsup.get('independent_roots')} roots, "
++                           f"database {row['status']!r}/{dsup.get('independent_roots')} roots) with no later revision to explain it")
++            if cl.get("question_id") not in (None, row["question_id"]):
++                r.fail(f"{tag}: view claim {cid} names question {cl.get('question_id')} but the database says {row['question_id']}")
++            for ref in item.get("evidence") or []:
++                if not isinstance(ref, Mapping) or not ref.get("ref_id"):
++                    continue
++                er = c.execute("SELECT holder_id, source_root_id FROM evidence_refs WHERE ref_id=?", (ref["ref_id"],)).fetchone()
++                if er is None:
++                    r.fail(f"{tag}: view reference {ref['ref_id']} does not exist in coord.db")
++                elif (ref.get("holder_id") not in (None, er["holder_id"])) or (ref.get("source_root_id") not in (None, er["source_root_id"])):
++                    r.fail(f"{tag}: view reference {ref['ref_id']} differs from coord.db (holder / root)")
++        for key in ("discoveries", "goal_discoveries"):
++            for d in view.get(key) or []:
++                disc = d.get("discovery") if isinstance(d, Mapping) and isinstance(d.get("discovery"), Mapping) else d
++                if not isinstance(disc, Mapping) or not disc.get("discovery_id"):
++                    continue
++                row = c.execute("SELECT title, summary, claim_ids FROM discoveries WHERE discovery_id=?", (disc["discovery_id"],)).fetchone()
++                if row is None:
++                    r.fail(f"{tag}: view discovery {disc['discovery_id']} does not exist in coord.db")
++                    continue
++                differs = (str(disc.get("title") or "") != row["title"] or str(disc.get("summary") or "") != row["summary"]
++                           or (disc.get("claim_ids") is not None and list(disc.get("claim_ids")) != _jl(row["claim_ids"], [])))
++                if differs and not _scalar(c, "SELECT COUNT(*) FROM revisions WHERE object_type='discovery' AND object_id=? AND version>1", (disc["discovery_id"],)):
++                    r.fail(f"{tag}: view discovery {disc['discovery_id']} differs from coord.db with no later revision to explain it")
++        q = view.get("question")
++        if isinstance(q, Mapping) and q.get("question_id"):
++            qrow = c.execute("SELECT status, resolved_at FROM questions WHERE question_id=?", (q["question_id"],)).fetchone()
++            if qrow is None:
++                r.fail(f"{tag}: view question {q['question_id']} does not exist in coord.db")
++                continue
++            terminal = ("committed", "retained_uncertain", "expired", "failed", "cancelled")
++            if str(q.get("status")) in terminal and qrow["status"] != q.get("status"):
++                r.fail(f"{tag}: view says question {q['question_id']} is {q.get('status')!r}, coord.db says {qrow['status']!r}")
++            resolved = q.get("resolved_at") or qrow["resolved_at"]
++            if resolved and str(q.get("status")) in terminal:
++                hidden = [row["claim_id"] for row in c.execute("SELECT claim_id FROM claims WHERE question_id=? AND created_at<=?", (q["question_id"], resolved))
++                          if row["claim_id"] not in in_view]
++                if hidden:
++                    r.fail(f"{tag}: coord.db holds {len(hidden)} claims of question {q['question_id']} created before it resolved that the view omits (e.g. {hidden[:2]})")
++    return n
++
++
+ def _g7(x: _Ctx) -> GateResult:
+     r = GateResult("G7", "claims, discoveries and evidence were produced by the system, not written by the harness")
+     for cl in x.coord.execute("SELECT claim_id, created_by_type FROM claims").fetchall():
+@@ -670,7 +906,8 @@ def _g7(x: _Ctx) -> GateResult:
+             uri = str(o.get("uri") or "")
+             if "mode=ro" not in uri:
+                 r.fail(f"harness opened {o.get('path')} without mode=ro")
+-    r.data = {"claims": _scalar(x.coord, "SELECT COUNT(*) FROM claims"), "refs": len(refs), "harness_opens_declared": len(opens or [])}
++    checked = _cross_check_views(x, r)
++    r.data = {"claims": _scalar(x.coord, "SELECT COUNT(*) FROM claims"), "refs": len(refs), "harness_opens_declared": len(opens or []), "views_cross_checked": checked}
+     r.detail = f"{r.data['claims']} claims, {len(refs)} evidence refs traced to holder responses"
+     return r
+ 
+@@ -776,29 +1013,9 @@ def _g9(x: _Ctx) -> GateResult:
+ 
+ 
+ def _g10(x: _Ctx) -> GateResult:
+-    r = GateResult("G10", "fault dispositions: duplicates, deletions and restart are visible in the stores")
+-    faults = dict(x.manifest.get("faults") or x.fault_plan.get("faults") or {})
+-    # faults the runner declares in its own (non-gold) artifacts: per-source flags and the feeder's totals
+-    if x.run_dir is not None:
+-        try:
+-            src = json.loads((x.run_dir / "sources_manifest.json").read_text(encoding="utf-8"))
+-            for kind in ("restart", "replay"):
+-                n = sum(1 for e in src if (e.get("flags") or {}).get(kind))
+-                if n:
+-                    faults.setdefault(kind, n)
+-        except (OSError, ValueError, TypeError):
+-            pass
+-        try:
+-            feed = json.loads((x.run_dir / "feed_summary.json").read_text(encoding="utf-8"))
+-            tot = feed.get("totals") or {}
+-            if tot.get("duplicates"):
+-                faults.setdefault("duplicate", tot["duplicates"])
+-            if tot.get("normalize_errors"):
+-                faults.setdefault("malformed", tot["normalize_errors"])
+-        except (OSError, ValueError, TypeError):
+-            pass
+-    dup_applied = sum(h.applied.get("duplicate", 0) for h in x.holders)
+-    dup_stage = sum(h.stage_duplicates for h in x.holders)
++    """Fault dispositions, derived from the run's own raw inputs (``derive_faults``), not from what the system reports about itself. For every
++    holder whose source files carry a fault, the evidence of its disposition must be in that holder's store; a fault without evidence fails."""
++    r = GateResult("G10", "fault dispositions: duplicates, malformed lines, deletions, replay and restart are visible in the stores")
+     for h in x.holders:
+         for key, rows in sorted(h.problems.items()):
+             if key.startswith("G10."):
+@@ -819,39 +1036,64 @@ def _g10(x: _Ctx) -> GateResult:
+                         r.fail(f"{h.holder_id}: {row['n']} live records for one provider object {row['source_object_id']}")
+             finally:
+                 conn.close()
+-    declared = {str(k): v for k, v in faults.items()} if isinstance(faults, Mapping) else {}
+-    if declared.get("duplicate") or declared.get("duplicate_delivery") or declared.get("replay"):
+-        if dup_applied + dup_stage == 0:
+-            r.fail("duplicate delivery was injected but neither applied_events nor ingest_stage_metrics record a duplicate")
+-    rej = [h.rejections for h in x.holders if h.rejections is not None]
+-    if declared.get("malformed") and rej and sum(rej) == 0:
+-        r.fail("malformed lines were injected but ingest_rejections records none")
+-    restart_holders: list[str] = []
+-    if x.run_dir is not None:
+-        with contextlib.suppress(OSError, ValueError, TypeError):
+-            restart_holders = [e["holder_id"] for e in json.loads((x.run_dir / "sources_manifest.json").read_text(encoding="utf-8")) if (e.get("flags") or {}).get("restart")]
+-    if restart_holders:
+-        # the holder process died after its first page and came back: the sync must have resumed from the durable cursor (more than one
+-        # committed page on the incremental stream, or a queue row leased again) and left nothing half-processed
+-        by_id = {h.holder_id: h for h in x.holders}
+-        for hid in restart_holders:
+-            h = by_id.get(hid)
+-            if h is None or not h.exists:
+-                r.fail(f"restart holder {hid} has no store")
+-            elif not (h.queue_attempts_gt1 or h.max_incr_checkpoint_version >= 2):
+-                r.fail(f"restart mid-ingest was injected into {hid} but its incremental cursor never advanced past one page and no queue row was leased again")
++    by_id = {h.holder_id: h for h in x.holders}
++    totals: Counter = Counter()
++    checked_markers = 0
++    for hid, f in sorted(x.faults.items()):
++        h = by_id.get(hid)
++        if h is None or not h.exists:
++            if f["dup_lines"] or f["malformed"] or f["deletes"] or f["restart"] or f["replay"]:
++                r.fail(f"{hid}: faults were injected into its sources but the holder has no store")
++            continue
++        dup_evidence = h.applied.get("duplicate", 0) + h.stage_duplicates
++        expected_dup = f["dup_lines"] + (f["n_timed"] if f["replay"] else 0)
++        totals["dup_lines"] += f["dup_lines"]
++        totals["malformed"] += f["malformed"]
++        totals["deletes"] += f["deletes"]
++        totals["restart"] += 1 if f["restart"] else 0
++        totals["replay"] += 1 if f["replay"] else 0
++        if expected_dup and dup_evidence < expected_dup:
++            r.fail(f"{hid}: {f['dup_lines']} duplicate lines" + (f" and a replay of {f['n_timed']} timed records" if f["replay"] else "")
++                   + f" were injected; applied_events/dedupe rows show {dup_evidence} duplicate dispositions (need >= {expected_dup})")
++        if f["malformed"]:
++            seen = h.rejections if h.rejections is not None else h.stage_normalize_errors
++            if seen < f["malformed"]:
++                r.fail(f"{hid}: {f['malformed']} malformed lines were injected; the store accounts for {seen} (ingest_rejections / normalize errors)")
++        if f["deletes"]:
++            if not f["markers"]:
++                r.fail(f"{hid}: {f['deletes']} delete records were injected but no deleted string could be derived to check")
++            checked_markers += len(f["markers"])
++            if h.applied.get("delete", 0) < 1:
++                r.fail(f"{hid}: {f['deletes']} delete records were injected but applied_events holds no 'delete' disposition")
++        if f["restart"]:
++            before = f["pages_before"] if f["pages_before"] is not None else 1
++            if not (h.queue_attempts_gt1 or h.max_incr_checkpoint_version > before):
++                r.fail(f"restart mid-ingest was injected into {hid} but its incremental cursor never advanced past {before} page(s) and no queue row was leased again")
+             elif h.queue_open:
+                 r.fail(f"restart holder {hid} still has {h.queue_open} unprocessed queue rows")
+-    elif declared.get("restart") or x.fault_plan.get("restart"):
+-        if sum(h.queue_attempts_gt1 for h in x.holders) == 0:
++            missing = sorted(f["object_ids"] - h.object_ids)
++            if missing:
++                r.fail(f"restart holder {hid} never ingested {len(missing)} of its source records after resuming (e.g. {missing[:2]})")
++    # a run-level declaration (fault_plan.json / manifest) with no per-holder derivation behind it must still leave evidence
++    declared = dict(x.manifest.get("faults") or x.fault_plan.get("faults") or {})
++    dup_applied = sum(h.applied.get("duplicate", 0) for h in x.holders)
++    dup_stage = sum(h.stage_duplicates for h in x.holders)
++    if not x.faults:
++        if (declared.get("duplicate") or declared.get("duplicate_delivery") or declared.get("replay")) and dup_applied + dup_stage < int(declared.get("duplicate") or 1):
++            r.fail("duplicate delivery was injected but applied_events / ingest_stage_metrics record too few duplicates")
++        rej0 = [h.rejections for h in x.holders if h.rejections is not None]
++        if declared.get("malformed") and rej0 and sum(rej0) == 0:
++            r.fail("malformed lines were injected but ingest_rejections records none")
++        if (declared.get("restart") or x.fault_plan.get("restart")) and sum(h.queue_attempts_gt1 for h in x.holders) == 0:
+             r.fail("restart mid-ingest was injected but no ingest_queue row was leased twice")
+-    r.data = {"declared_faults": declared, "duplicates_applied_events": dup_applied, "duplicates_stage_metrics": dup_stage,
+-              "queue_rows_leased_more_than_once": sum(h.queue_attempts_gt1 for h in x.holders), "restart_holders": restart_holders,
+-              "deleted_markers_checked": len(x.deleted_markers), "ingest_rejections": sum(rej) if rej else None}
+-    if not declared and not x.deleted_markers:
+-        r.detail = "no faults declared; structural purge/uniqueness checks only"
++    rej = [h.rejections for h in x.holders if h.rejections is not None]
++    r.data = {"derived_faults": dict(totals), "declared_faults": declared, "duplicates_applied_events": dup_applied, "duplicates_stage_metrics": dup_stage,
++              "queue_rows_leased_more_than_once": sum(h.queue_attempts_gt1 for h in x.holders),
++              "deleted_markers_checked": checked_markers + len(x.deleted_markers), "ingest_rejections": sum(rej) if rej else None}
++    if not totals and not declared and not x.deleted_markers:
++        r.detail = "no faults found in the run's sources; structural purge/uniqueness checks only"
+     else:
+-        r.detail = f"declared faults {declared}; duplicates seen {dup_applied + dup_stage}"
++        r.detail = f"injected {dict(totals)}; duplicate dispositions seen {dup_applied + dup_stage}; {r.data['deleted_markers_checked']} deleted strings checked"
+     return r
+ 
+ 
+diff --git a/research/mycelic_e2e/bench/baseline_central.py b/research/mycelic_e2e/bench/baseline_central.py
+index f3f52a1..2e362ec 100644
+--- a/research/mycelic_e2e/bench/baseline_central.py
++++ b/research/mycelic_e2e/bench/baseline_central.py
+@@ -31,11 +31,11 @@ Declared differences from the system (BENCHMARK_CONTRACT §7), all of them delib
+   30 items instead of 3 (same predicate: >= 2 shared content tokens with the question);
+ * no verification question, no loop follow-up, no discovery synthesis, no hypergraph, no cross-holder independence beyond what the
+   commit gate computes from source roots (copies still de-duplicate by root);
+-* ``variant='single'`` (default, the literal PLAN §B.6 / contract §7 text): one response with all retained chunks, evaluated as one finding
+-  (its claim text is clipped to the gate's 4000-character limit). ``variant='source'`` (an extension that makes the baseline no weaker at
+-  evaluation): the retained chunks are grouped by the origin holder of their source (at most 3 chunks per origin, at most 10 origins = the
+-  system's maximum) into pseudo-responses, so ``evaluate_responses`` can cluster and detect disagreements exactly as it does over holder
+-  responses. Both are run and reported; cite the stronger one as the baseline;
++* ``variant='source'`` (default, the PRIMARY reported baseline): the retained chunks are grouped by the origin holder of their source (at most 3
++  chunks per origin, at most 10 origins = the system's maximum) into pseudo-responses, so ``evaluate_responses`` can cluster and detect
++  disagreements exactly as it does over holder responses. ``variant='single'`` (secondary; the literal PLAN §B.6 text): one response with
++  all retained chunks, evaluated as one finding (claim text clipped to the gate's 4000-character limit), which never sees a disagreement.
++  Both are run and reported, with ``source`` first;
+ * each reference carries its origin holder id (from the source -> holder map of the manifest) because the commit gate counts
+   independent departments from the holders behind the roots (``min_independent_units``); nothing else of the system run is used;
+ * goal-only tasks (no question text) are answered from ``goal title + objective`` as the query: the baseline has no loop that drafts a
+@@ -68,7 +68,8 @@ PER_ORIGIN_CAP = 3
+ MAX_ORIGINS = 10
+ CLAIM_TEXT_LIMIT = 4000         # the commit gate's schema check
+ RAW_REFUSED = 403
+-VARIANTS = ("single", "source")
++PRIMARY_VARIANT = "source"          # reported as the baseline; 'single' is the secondary, literal-text variant
++VARIANTS = ("source", "single")
+ 
+ 
+ class BaselineError(RuntimeError):
+@@ -456,8 +457,34 @@ def _authority(ctx: OrgContext, tasks: Sequence[Mapping[str, Any]], ids: Mapping
+     return out
+ 
+ 
++def _reach_authority(ctx: OrgContext, tasks: Sequence[Mapping[str, Any]], ids: Mapping[str, Mapping[str, str]]) -> dict[str, dict[str, list[str]]]:
++    """task id -> ``{"tenant_holders": all holders of the asker's tenant, "reachable_holders": the holders ``can_route`` admits for the task's
++    scope (visibility unit, no domain filter) with the asker as the routing principal}``. Organization only; no answers."""
++    tenants = ctx.tenant_ids()
++    holders: dict[str, list[dict[str, Any]]] = {}
++    cache: dict[tuple, list[str]] = {}
++    out: dict[str, dict[str, list[str]]] = {}
++    for t in tasks:
++        tid = tenants.get(t["tenant"])
++        uid = ctx.user_by_email(t["asker"]) or ids["users"].get(t.get("asker_key", ""))
++        if tid is None:
++            out[t["task_id"]] = {"tenant_holders": [], "reachable_holders": []}
++            continue
++        if tid not in holders:
++            holders[tid] = [h for h in (ctx.org.get_holder(r["holder_id"]) for r in ctx.db.all("SELECT holder_id FROM holders WHERE tenant_id=?", (tid,))) if h]
++        scope = ids["units"].get(t.get("scope_unit", ""))
++        key = (tid, uid, scope)
++        if key not in cache:
++            p = ctx.authz.principal_for_user(uid) if uid else None
++            q = {"tenant_id": tid, "scope_unit_id": scope, "policy": {"visibility": "unit"}, "candidate_domains": []}
++            cache[key] = sorted(h["holder_id"] for h in holders[tid] if ctx.authz.can_route(q, h, asker=p)[0])
++        out[t["task_id"]] = {"tenant_holders": sorted(h["holder_id"] for h in holders[tid]), "reachable_holders": cache[key]}
++    return out
++
++
+ def write_raw_authority(run_dir: str | Path, *, org_db: str | Path | None = None, out_file: str | Path | None = None) -> Path:
+-    """Write ``raw_authority.json`` (task id -> holders whose raw content the task's asker is entitled to read) for a run directory.
++    """Write ``raw_authority.json`` (task id -> holders whose raw content the task's asker is entitled to read) and ``reach_authority.json`` (the holders
++    of the asker's tenant and the ones the asker can route to) for a run directory.
+ 
+     The API lets a person read raw evidence of the holders they own and of the unit holders of units they lead
+     (``Authorizer.can_view_raw_evidence``); the scorer's "raw access refused where the asker lacks it" must not count those. The set is
+@@ -472,16 +499,18 @@ def write_raw_authority(run_dir: str | Path, *, org_db: str | Path | None = None
+     try:
+         ids = _recover_ids(ctx, manifest, tasks, _load_json(d / "ids.json")) if manifest else {"users": {}, "units": {}}
+         out = _authority(ctx, tasks, ids)
++        reach = _reach_authority(ctx, tasks, ids)
+     finally:
+         ctx.close()
+         shutil.rmtree(scratch.parent, ignore_errors=True)
+     target = Path(out_file) if out_file else d / "raw_authority.json"
+     target.write_text(json.dumps(out, indent=1, sort_keys=True), encoding="utf-8")
++    (target.parent / "reach_authority.json").write_text(json.dumps(reach, indent=1, sort_keys=True), encoding="utf-8")
+     return target
+ 
+ 
+ # ---------------------------------------------------------------------------------------------- entry point
+-def run(world_dir: str | Path, tasks_public: Sequence[Any] | None, out_dir: str | Path, *, variant: str = "single", org_db: str | Path | None = None,
++def run(world_dir: str | Path, tasks_public: Sequence[Any] | None, out_dir: str | Path, *, variant: str = PRIMARY_VARIANT, org_db: str | Path | None = None,
+         evidence_budget: int = EVIDENCE_BUDGET, split: str | None = None, log: Any = print) -> dict[str, Any]:
+     """Run the baseline on the sources of ``world_dir`` and write a scorable run directory to ``out_dir``. ``tasks_public`` defaults to the
+     public task file of ``world_dir``. Returns the run manifest."""
+@@ -542,7 +571,7 @@ async def _run(world: Path, tasks_public: Sequence[Any] | None, out: Path, varia
+                 if view["claims"]:
+                     answered_tenants.add(slug)
+             except Exception as exc:         # noqa: BLE001 - an error is a wrong answer, never a skipped task
+-                view = {"task_id": tid, "status": "error", "error": f"{type(exc).__name__}: {exc}", "latency_s": None, "question": None, "claims": [],
++                view = {"task_id": tid, "status": "error", "error": f"{type(exc).__name__}: {exc}", "tenant_id": tenant_ids.get(slug), "latency_s": None, "question": None, "claims": [],
+                         "discoveries": [], "evidence": [], "raw_checks": {}}
+             views[tid] = view
+             (out / "views" / f"{tid}.json").write_text(json.dumps(view, indent=1, default=str), encoding="utf-8")
+@@ -553,6 +582,7 @@ async def _run(world: Path, tasks_public: Sequence[Any] | None, out: Path, varia
+             (out / f"tasks_{split}.public.json").write_text(json.dumps({"split": split, "tasks": tasks}, indent=1, sort_keys=True))
+         copy_gold(world, out, split)              # a byte copy; this module never opens or parses it
+         (out / "raw_authority.json").write_text(json.dumps(_authority(ctx, tasks, ids), indent=1, sort_keys=True), encoding="utf-8")
++        (out / "reach_authority.json").write_text(json.dumps(_reach_authority(ctx, tasks, ids), indent=1, sort_keys=True), encoding="utf-8")
+         tasks_sha = hashlib.sha256((out / f"tasks_{split}.public.json").read_bytes()).hexdigest()
+         calls = ledger.calls
+         by_purpose: dict[str, int] = {}
+@@ -600,7 +630,7 @@ def main(argv: Iterable[str] | None = None) -> int:      # pragma: no cover - th
+     ap.add_argument("world_dir", help="the system run directory (sources, public tasks, data/coord.db)")
+     ap.add_argument("--out", help="the baseline run directory to write")
+     ap.add_argument("--authority-only", action="store_true", help="only write <world_dir>/raw_authority.json (for scoring the system run) and exit")
+-    ap.add_argument("--variant", choices=VARIANTS, default="single")
++    ap.add_argument("--variant", choices=VARIANTS, default=PRIMARY_VARIANT)
+     ap.add_argument("--org-db")
+     ns = ap.parse_args(list(argv) if argv is not None else None)
+     if ns.authority_only:
+diff --git a/research/mycelic_e2e/bench/gold.py b/research/mycelic_e2e/bench/gold.py
+index 52e919f..4768a0a 100644
+--- a/research/mycelic_e2e/bench/gold.py
++++ b/research/mycelic_e2e/bench/gold.py
+@@ -3,8 +3,9 @@
+ This is the ONLY module under ``research/mycelic_e2e/bench/`` that opens a gold file (``tasks_<split>`` + the gold
+ suffix). The task generator hands every task's gold to :class:`GoldSink` as it creates the task (``events.write_sources``
+ takes ``gold_writer=sink.write``); the sink never returns it. The scorer reads it back with :func:`load` after the run.
+-Nothing else imports this module: the feeder, the issuer, the runtime, the baseline and the architecture gate never see
+-gold. ``tests/test_score.py::test_only_gold_module_touches_gold_files`` greps the package for any other reference.
++Importers: ``run.py`` (writes through the sink right after the world is materialized), ``baseline_central`` (``copy_gold``: a byte
++copy of the file into a baseline run directory, never parsed) and ``score`` (reads after the run). The feeder, the issuer, the runtime
++and the architecture gate never see gold. ``tests/test_score.py::test_only_gold_module_touches_gold_files`` greps the package for any other reference.
+ 
+ Gold record fields (all optional except ``task_id`` and ``cls``; extra keys are kept verbatim):
+ 
+diff --git a/research/mycelic_e2e/bench/report.py b/research/mycelic_e2e/bench/report.py
+index 66056db..1c8d89b 100644
+--- a/research/mycelic_e2e/bench/report.py
++++ b/research/mycelic_e2e/bench/report.py
+@@ -26,6 +26,11 @@ def _load_json(p: Path) -> dict[str, Any] | None:
+         return None
+ 
+ 
++def arch_gate_paths(d: Path) -> tuple[Path, Path]:
++    from . import arch_gate
++    return arch_gate.resolve_run_paths(d)
++
++
+ def finalize(run_dir: str | Path, *, coord_db: str | Path | None = None, holders_dir: str | Path | None = None, expect_hypergraph: bool | None = None,
+              expect_ranker: bool | None = None, run_id: str | None = None, ledger: str | Path | None = None, extra: dict[str, Any] | None = None,
+              run_gate: bool = True) -> dict[str, Any]:
+@@ -33,6 +38,15 @@ def finalize(run_dir: str | Path, *, coord_db: str | Path | None = None, holders
+     ``run_id`` is given. A baseline run (``mode == 'baseline'``) has no coordinator, so its gate is recorded as ``not_applicable``."""
+     from . import arch_gate
+     d = Path(run_dir)
++    if run_gate and not ((d / "raw_authority.json").exists() and (d / "reach_authority.json").exists()):
++        # the asker's raw-access entitlement and reachable holders come from the organization (not gold); a system run does not write them itself
++        try:
++            from .baseline_central import write_raw_authority
++            d_coord, _ = arch_gate_paths(d)
++            if d_coord.exists():
++                write_raw_authority(d, org_db=d_coord)
++        except Exception:      # noqa: BLE001 - without the files the scorer stays strict and says so (supporting.reach_authority is None)
++            pass
+     rs = score_run(d)
+     (d / "score.json").write_text(json.dumps(rs.to_dict(with_tasks=True), indent=2, default=str), encoding="utf-8")
+     gate = None
+@@ -68,7 +82,11 @@ def _summary(d: Path) -> dict[str, Any]:
+         failed = gate.get("failed") or []
+         gstat = ("ablation: " if rs.ablation and not set(failed) - exp else "INVALID: ") + ",".join(failed)
+     variant = (rs.manifest or {}).get("variant")
+-    label = (f"baseline ({variant})" if variant else "baseline") if rs.mode == "baseline" else (f"ablation {rs.ablation}" if rs.ablation else "system")
++    if rs.mode == "baseline":
++        tag = {"source": "primary", "single": "secondary"}.get(str(variant), "")
++        label = f"baseline ({variant}{', ' + tag if tag else ''})" if variant else "baseline"
++    else:
++        label = f"ablation {rs.ablation}" if rs.ablation else "system"
+     return {"dir": d, "rs": rs, "gate": gate, "gate_status": gstat, "label": label}
+ 
+ 
+@@ -97,7 +115,8 @@ def render(run_dir: str | Path, extra_dirs: Sequence[str | Path] = (), out: str
+             continue
+         seen.add(p.resolve())
+         rows.append(_summary(p))
+-    rank = lambda lbl: 0 if lbl == "system" else 1 if lbl.startswith("baseline") else 2      # noqa: E731
++    # system first, then the baseline with the primary variant (source) before the secondary one (single), then the ablations
++    rank = lambda lbl: 0 if lbl == "system" else 1 if "primary" in lbl else 2 if lbl.startswith("baseline") else 3      # noqa: E731
+     rows.sort(key=lambda r: (rank(r.get("label", "")), r.get("label", ""), str(r["dir"])))
+     ok = [r for r in rows if "rs" in r]
+     head = ok[0]["rs"] if ok else None
+diff --git a/research/mycelic_e2e/bench/score.py b/research/mycelic_e2e/bench/score.py
+index cfd4482..4fb0340 100644
+--- a/research/mycelic_e2e/bench/score.py
++++ b/research/mycelic_e2e/bench/score.py
+@@ -22,10 +22,24 @@ Run directory layout (all JSON)::
+ 
+ Answer extraction (O1, identical for system, baseline and ablations): only the asker-visible TEXT of ``supported`` claims
+ (and, for goal-only tasks without claim payloads, the "Supported:" segment of discovery summaries) is matched against the K
+-option entities by canonical id, id tail or display name. One matched option -> that option; none -> ``abstain``; several
+--> the option whose matching claim reports the most independent roots; a tie -> no answer (wrong). Hypergraph membership
+-and any other system internal are never read (self-referential); the ``hypergraph`` argument is accepted for interface
+-compatibility and ignored.
++option entities by canonical id, id tail or display name. Hypergraph membership and any other system internal are never read
++(self-referential); the ``hypergraph`` argument is accepted for interface compatibility and ignored.
++
++ORCHESTRATOR RULE (binding, one rule for system, baselines and ablations): a supported claim that names MORE THAN ONE distinct
++entity of the entity vocabulary identifies nothing and contributes no option. The vocabulary is every entity the public task
++file lists (all options of all tasks, plus an optional top-level ``entities`` / ``entity_vocabulary`` list) together with anything
++the service-id pattern matches (``<name>-service`` or ``service:<name>``); an entity counts once however many of its surfaces
++(id, id tail, display name, alias) the text uses. A claim that names exactly one entity maps to that option if the entity is one of
++the task's options (an entity that is not an option maps to nothing). If no unambiguous supported claim maps to an option the
++answer is ``abstain``. Several options reached by different unambiguous claims -> the option whose claim reports the most
++independent roots; a tie -> no answer (wrong).
++
++Disclosure (an unauthorized disclosure is something the asker may not see, never something merely held by a holder that also holds
++public records): a visible reference is foreign when its source root is in the task's forbidden roots, when its tenant is not the
++asker's, or when its holder is a forbidden holder that the asker cannot reach under authorization (``reach_authority.json``: the
++holders of the asker's tenant and the holders ``can_route`` admits for the task's scope, computed from the organization). Forbidden
++markers are matched in every visible text. The check covers the question view and, when present, the goal-level output
++(``goal_claims`` / ``goal_discoveries`` / ``goal_evidence`` of the view). A view without ``tenant_id`` makes ``score_run`` raise.
+ """
+ from __future__ import annotations
+ 
+@@ -42,7 +56,7 @@ from typing import Any, Iterable, Mapping, Sequence
+ from .gold import load_for_run as _load_gold_for_run
+ 
+ ABSTAIN = "abstain"
+-RESOLVED_STATUSES = frozenset({"committed", "retained_uncertain"})                 # questions.status values that end a question
++RESOLVED_STATUSES = frozenset({"committed", "retained_uncertain", "investigated"})   # questions.status / outcome values that end a question
+ RESOLVED_OUTCOMES = frozenset({"committed", "investigated", "no_findings"})        # questions.result.outcome (only read if status is absent)
+ FAILED_STATUSES = frozenset({"failed", "expired", "cancelled"})
+ OK_RAW_REFUSALS = frozenset({401, 403, 404})
+@@ -102,6 +116,7 @@ def percentile(values: Sequence[float], q: float) -> float | None:
+ class Option:
+     label: str
+     surfaces: tuple[str, ...]
++    key: str = ""                      # canonical entity key: the lower-cased id (``service:cargorouter``), else the label
+ 
+     def pattern(self) -> re.Pattern[str]:
+         parts = []
+@@ -140,10 +155,54 @@ def parse_options(raw: Any) -> list[Option]:
+             if ":" in i:
+                 surfaces.append(i.rsplit(":", 1)[1])
+         surfaces += names
+-        out.append(Option(label=label, surfaces=tuple(dict.fromkeys(surfaces))))
++        out.append(Option(label=label, surfaces=tuple(dict.fromkeys(surfaces)), key=ids[0].strip().lower()))
+     return out
+ 
+ 
++SERVICE_RE = re.compile(r"(?<![A-Za-z0-9])([A-Za-z][A-Za-z0-9]*)-service(?![A-Za-z0-9])", re.IGNORECASE)
++SERVICE_ID_RE = re.compile(r"(?<![A-Za-z0-9])service:([A-Za-z][A-Za-z0-9]*)(?![A-Za-z0-9])", re.IGNORECASE)
++
++
++class Vocabulary:
++    """The entity vocabulary of the world (public: the options of every task, an optional explicit list) plus the service-id
++    pattern. ``entities_in(text)`` returns the canonical keys of the distinct entities a text names."""
++
++    def __init__(self, entries: Iterable[Option] = ()) -> None:
++        self._by_key: dict[str, re.Pattern[str]] = {}
++        for o in entries:
++            self.add(o)
++
++    def add(self, o: Option) -> None:
++        if o.key and o.key not in self._by_key:
++            self._by_key[o.key] = o.pattern()
++
++    def with_options(self, options: Iterable[Option]) -> "Vocabulary":
++        v = Vocabulary()
++        v._by_key = dict(self._by_key)
++        for o in options:
++            v.add(o)
++        return v
++
++    def __len__(self) -> int:
++        return len(self._by_key)
++
++    def entities_in(self, text: str) -> set[str]:
++        keys = {k for k, pat in self._by_key.items() if pat.search(text)}
++        keys |= {f"service:{m.group(1).lower()}" for m in SERVICE_RE.finditer(text)}
++        keys |= {f"service:{m.group(1).lower()}" for m in SERVICE_ID_RE.finditer(text)}
++        return keys
++
++
++def build_vocabulary(tasks: Iterable[Mapping[str, Any]], extra: Any = None) -> Vocabulary:
++    v = Vocabulary()
++    for t in tasks:
++        for o in parse_options(as_dict(t).get("options")):
++            v.add(o)
++    for o in parse_options(extra or []):
++        v.add(o)
++    return v
++
++
+ def resolve_gold_label(answer: Any, options: Sequence[Option]) -> str:
+     """The gold answer as an option label (``abstain`` stays ``abstain``); unknown strings are kept verbatim."""
+     a = _norm(answer)
+@@ -262,6 +321,7 @@ class Extracted:
+     claim_ids: list[str] = dataclasses.field(default_factory=list)         # supported claims that matched
+     source: str = "claims"             # claims | discovery_summary | none
+     supported_claims: int = 0
++    ambiguous_claims: int = 0          # supported claims that named more than one entity (they contribute no option)
+     detail: str = ""
+ 
+     @property
+@@ -295,14 +355,16 @@ def _view_problem(view: Mapping[str, Any] | None, task: Mapping[str, Any]) -> tu
+     return None
+ 
+ 
+-def extract_answer(view: Mapping[str, Any] | None, task: Any, *, hypergraph: bool = False) -> Extracted:
+-    """O1 extraction from the asker's own view. ``hypergraph`` is ignored on purpose (see module docstring)."""
++def extract_answer(view: Mapping[str, Any] | None, task: Any, *, hypergraph: bool = False, vocabulary: Vocabulary | None = None) -> Extracted:
++    """O1 extraction from the asker's own view, with the orchestrator rule on multi-entity claims (see the module docstring).
++    ``hypergraph`` is ignored on purpose. ``vocabulary`` defaults to the task's own options plus the service-id pattern."""
+     t = as_dict(task)
+     problem = _view_problem(view, t)
+     if problem is not None:
+         return Extracted(option=None, reason=problem[0], source="none", detail=problem[1])
+     assert view is not None
+     options = parse_options(t.get("options"))
++    vocab = (vocabulary or Vocabulary()).with_options(options)
+     qid = (view.get("question") or {}).get("question_id") if isinstance(view.get("question"), Mapping) else None
+     claims = [c for c in view_claims(view) if not (qid and c.question_id and c.question_id != qid)]
+     supported = [c for c in claims if c.status == "supported"]
+@@ -310,27 +372,35 @@ def extract_answer(view: Mapping[str, Any] | None, task: Any, *, hypergraph: boo
+     source = "claims"
+     if not claims and not t.get("question_text"):
+         # goal-only task whose view has discovery summaries but no claim payloads
+-        texts = [(s, 0, "") for s in discovery_supported_text(view)]
++        texts = [(s_, 0, "") for s_ in discovery_supported_text(view)]
+         source = "discovery_summary" if texts else "claims"
++    by_key = {o.key: o for o in options}
+     matches: dict[str, int] = {}
+     matched_claims: list[str] = []
+-    patterns = [(o, o.pattern()) for o in options]
++    ambiguous = 0
+     for text, roots, cid in texts:
+-        for o, pat in patterns:
+-            if pat.search(text):
+-                matches[o.label] = max(matches.get(o.label, -1), roots)
+-                if cid and cid not in matched_claims:
+-                    matched_claims.append(cid)
++        named = vocab.entities_in(text)
++        if len(named) > 1:
++            ambiguous += 1                   # names several entities: identifies nothing, contributes no option
++            continue
++        if not named:
++            continue
++        o = by_key.get(next(iter(named)))
++        if o is not None:
++            matches[o.label] = max(matches.get(o.label, -1), roots)
++            if cid and cid not in matched_claims:
++                matched_claims.append(cid)
++    common = dict(source=source if texts else "none", supported_claims=len(supported), ambiguous_claims=ambiguous)
+     if not matches:
+-        return Extracted(option=ABSTAIN, reason="ok", matches={}, claim_ids=[], source=source if texts else "none", supported_claims=len(supported))
++        return Extracted(option=ABSTAIN, reason="ok", matches={}, claim_ids=[], **common)
+     if len(matches) == 1:
+         label = next(iter(matches))
+-        return Extracted(option=label, reason="ok", matches=matches, claim_ids=matched_claims, source=source, supported_claims=len(supported))
++        return Extracted(option=label, reason="ok", matches=matches, claim_ids=matched_claims, **common)
+     ranked = sorted(matches.items(), key=lambda kv: (-kv[1], kv[0]))
+     if ranked[0][1] == ranked[1][1]:
+-        return Extracted(option=None, reason="tie", matches=matches, claim_ids=matched_claims, source=source, supported_claims=len(supported),
+-                         detail=f"{len(matches)} options matched with equal independent roots ({ranked[0][1]})")
+-    return Extracted(option=ranked[0][0], reason="ok", matches=matches, claim_ids=matched_claims, source=source, supported_claims=len(supported))
++        return Extracted(option=None, reason="tie", matches=matches, claim_ids=matched_claims,
++                         detail=f"{len(matches)} options matched by unambiguous claims with equal independent roots ({ranked[0][1]})", **common)
++    return Extracted(option=ranked[0][0], reason="ok", matches=matches, claim_ids=matched_claims, **common)
+ 
+ 
+ # ---------------------------------------------------------------------------------------------- disclosure
+@@ -347,23 +417,43 @@ class DisclosureCheck:
+         return len(self.foreign_refs) + len(self.marker_hits) + len(self.raw_open) + (len(self.raw_unchecked) if self.raw_checks_required else 0)
+ 
+ 
++def goal_level_view(view: Mapping[str, Any]) -> dict[str, Any]:
++    """The goal's own output (claims / discoveries / evidence the asker can read about the goal, beyond the task's question), when the
++    runner recorded it as ``goal_claims`` / ``goal_discoveries`` / ``goal_evidence``. Never used for extraction, only for disclosure."""
++    return {"claims": view.get("goal_claims") or [], "discoveries": view.get("goal_discoveries") or [], "evidence": view.get("goal_evidence") or []}
++
++
+ def check_disclosure(view: Mapping[str, Any] | None, task: Any, gold: Mapping[str, Any] | None, *, raw_checks_required: bool = False,
+-                     raw_allowed_extra: Iterable[str] = ()) -> DisclosureCheck:
++                     raw_allowed_extra: Iterable[str] = (), reach: Mapping[str, Iterable[str]] | None = None) -> DisclosureCheck:
++    """What the asker can see that they may not (see the module docstring). ``reach`` = ``{"tenant_holders": [...], "reachable_holders": [...]}``
++    for this task (``reach_authority.json``); without it a forbidden holder alone proves nothing, since a department holder also holds
++    public records, and only forbidden roots, forbidden markers and a ref's own tenant can mark a reference as foreign."""
+     out = DisclosureCheck(raw_checks_required=raw_checks_required)
+     if not isinstance(view, Mapping):
+         return out
+     t, g = as_dict(task), as_dict(gold)
+     claims = view_claims(view)
+     refs = all_visible_refs(view, claims)
++    gv = goal_level_view(view)
++    g_claims = view_claims(gv)
++    for rid, r in all_visible_refs(gv, g_claims).items():
++        refs.setdefault(rid, r)
+     f_holders = {str(x) for x in (g.get("forbidden_holder_ids") or [])}
+     f_roots = {str(x) for x in (g.get("forbidden_root_ids") or [])}
+     f_markers = [str(x) for x in (g.get("forbidden_markers") or []) if str(x).strip()]
+     allowed_raw = {str(x) for x in (g.get("raw_allowed_holder_ids") or [])} | {str(x) for x in raw_allowed_extra}
+     tenant = view.get("tenant_id")          # the asker's tenant id as the runner saw it (the public task carries only the slug)
+-    raw_checks = view.get("raw_checks") if isinstance(view.get("raw_checks"), Mapping) else {}
++    tenant_holders = {str(x) for x in (reach or {}).get("tenant_holders", [])} if reach else None
++    reachable = {str(x) for x in (reach or {}).get("reachable_holders", [])} if reach else None
++    raw_checks = dict(view.get("raw_checks") or {}) if isinstance(view.get("raw_checks"), Mapping) else {}
+     for rid, r in sorted(refs.items()):
+-        foreign = (str(r.get("holder_id") or "") in f_holders) or (r.get("source_root_id") and str(r["source_root_id"]) in f_roots) \
+-            or (tenant and r.get("tenant_id") and str(r["tenant_id"]) != str(tenant))
++        hid = str(r.get("holder_id") or "")
++        foreign = bool(r.get("source_root_id") and str(r["source_root_id"]) in f_roots)
++        foreign = foreign or bool(tenant and r.get("tenant_id") and str(r["tenant_id"]) != str(tenant))
++        if tenant_holders is not None and hid and hid not in tenant_holders:
++            foreign = True                                    # another tenant's holder: unreachable under any authorization
++        if reachable is not None and hid in f_holders and hid not in reachable:
++            foreign = True                                    # a forbidden holder the asker cannot route to
+         if foreign:
+             out.foreign_refs.append(rid)
+         if rid in raw_checks:
+@@ -373,12 +463,12 @@ def check_disclosure(view: Mapping[str, Any] | None, task: Any, gold: Mapping[st
+                 code = int(status)
+             except (TypeError, ValueError):
+                 code = 0
+-            if code not in OK_RAW_REFUSALS and str(r.get("holder_id") or "") not in allowed_raw:
++            if code not in OK_RAW_REFUSALS and hid not in allowed_raw:
+                 out.raw_open.append(rid)
+-        elif str(r.get("holder_id") or "") not in allowed_raw:
++        elif hid not in allowed_raw:
+             out.raw_unchecked.append(rid)
+     if f_markers:
+-        blob = "\n".join(visible_texts(view, claims, refs)).lower()
++        blob = "\n".join(visible_texts(view, claims, refs) + visible_texts(gv, g_claims, {})).lower()
+         out.marker_hits = [m for m in f_markers if m.lower() in blob]
+     return out
+ 
+@@ -402,6 +492,7 @@ class TaskScore:
+     independent_roots: int | None = None
+     genuine_roots: int | None = None
+     decoy_accepted: bool | None = None
++    ambiguous_claims: int = 0
+     lineage_holders: list[str] = dataclasses.field(default_factory=list)
+     lineage_exact: bool | None = None
+     lineage_subset: bool | None = None
+@@ -510,13 +601,20 @@ def public_gold_leaks(tasks: Iterable[Mapping[str, Any]]) -> list[str]:
+     return sorted(str(t.get("task_id")) for t in tasks if PUBLIC_FORBIDDEN_KEYS & set(as_dict(t)))
+ 
+ 
+-def load_public(path: Path) -> list[dict[str, Any]]:
++def load_public_full(path: Path) -> tuple[list[dict[str, Any]], list[Any]]:
++    """``(tasks, entity vocabulary)``: the public file's tasks and its optional top-level ``entities`` / ``entity_vocabulary`` list."""
+     data = json.loads(path.read_text(encoding="utf-8"))
++    vocab: list[Any] = []
+     if isinstance(data, Mapping):
++        vocab = list(data.get("entity_vocabulary") or data.get("entities") or [])
+         data = data.get("tasks", data)
+         if isinstance(data, Mapping):
+             data = [{"task_id": k, **as_dict(v)} for k, v in data.items()]
+-    return [as_dict(x) for x in data]
++    return [as_dict(x) for x in data], vocab
++
++
++def load_public(path: Path) -> list[dict[str, Any]]:
++    return load_public_full(path)[0]
+ 
+ 
+ def _manifest_get(m: Mapping[str, Any], *keys: str) -> Any:
+@@ -528,17 +626,27 @@ def _manifest_get(m: Mapping[str, Any], *keys: str) -> Any:
+ 
+ def score_tasks(tasks: Sequence[Mapping[str, Any]], gold: Mapping[str, Mapping[str, Any]], views: Mapping[str, Mapping[str, Any] | None], *,
+                 manifest: Mapping[str, Any] | None = None, tasks_sha256: str | None = None, hypergraph: bool = False,
+-                raw_authority: Mapping[str, Iterable[str]] | None = None) -> RunScore:
+-    """Score every task in ``tasks`` (the frozen set). A task with no entry in ``views`` is wrong (``missing_view``)."""
++                raw_authority: Mapping[str, Iterable[str]] | None = None, reach_authority: Mapping[str, Mapping[str, Iterable[str]]] | None = None,
++                vocabulary: Vocabulary | None = None, require_tenant_id: bool = True) -> RunScore:
++    """Score every task in ``tasks`` (the frozen set). A task with no entry in ``views`` is wrong (``missing_view``). A view that lacks
++    ``tenant_id`` makes the tenant check impossible, so it raises :class:`ScoreError` (pass ``require_tenant_id=False`` only in tests)."""
+     manifest = dict(manifest or {})
++    if require_tenant_id:
++        missing = sorted(tid for tid, v in views.items() if isinstance(v, Mapping) and not v.get("tenant_id"))
++        if missing:
++            raise ScoreError(f"{len(missing)} views carry no tenant_id (e.g. {missing[:3]}): the cross-tenant check cannot run; the runner must record the asker's tenant id")
++    vocab = vocabulary or build_vocabulary(tasks)
+     raw_required = bool(manifest.get("raw_checks_enabled"))
+     scores: list[TaskScore] = []
+     for task in tasks:
+         tid = str(task["task_id"])
+         view = views.get(tid)
+-        ext = extract_answer(view, task, hypergraph=hypergraph)
+-        scores.append(score_task(ext, gold.get(tid), check_disclosure(view, task, gold.get(tid), raw_checks_required=raw_required,
+-                                                                      raw_allowed_extra=(raw_authority or {}).get(tid, ())), task=task, view=view))
++        ext = extract_answer(view, task, hypergraph=hypergraph, vocabulary=vocab)
++        disc = check_disclosure(view, task, gold.get(tid), raw_checks_required=raw_required, raw_allowed_extra=(raw_authority or {}).get(tid, ()),
++                                reach=(reach_authority or {}).get(tid))
++        ts = score_task(ext, gold.get(tid), disc, task=task, view=view)
++        ts.ambiguous_claims = ext.ambiguous_claims
++        scores.append(ts)
+     return aggregate(scores, manifest=manifest, tasks_sha256=tasks_sha256)
+ 
+ 
+@@ -581,6 +689,7 @@ def aggregate(scores: Sequence[TaskScore], *, manifest: Mapping[str, Any], tasks
+                                      "raw_unchecked": sum(s.raw_unchecked for s in scores), "raw_checks_required": bool(manifest.get("raw_checks_enabled")),
+                                      "tasks_with_disclosure": sum(1 for s in scores if s.disclosures)},
+         "abstentions": sum(1 for s in scores if s.extracted == ABSTAIN),
++        "ambiguous_supported_claims": sum(s.ambiguous_claims for s in scores),
+         "positive_abstain_rate": (sum(1 for s in pos if s.extracted == ABSTAIN) / len(pos)) if pos else None,
+         "latency_s": {"n": len(lat), "p50": percentile(lat, 0.5), "p95": percentile(lat, 0.95), "mean": statistics.fmean(lat) if lat else None},
+         "model_calls": usage.get("calls"), "input_tokens": usage.get("input_tokens"), "output_tokens": usage.get("output_tokens"),
+@@ -600,18 +709,19 @@ def _file_sha256(p: Path) -> str:
+     return h.hexdigest()
+ 
+ 
+-def _load_authority(d: Path) -> dict[str, list[str]] | None:
+-    """``raw_authority.json`` (task id -> holder ids whose raw content the task's asker may legitimately read, i.e. holders they own or lead,
+-    computed by ``baseline_central.write_raw_authority`` from the organization with the API's own authorization rule). Not gold: it is
+-    derived from the org directory and says nothing about answers."""
+-    p = d / "raw_authority.json"
++def _load_authority(d: Path, name: str = "raw_authority.json") -> dict[str, Any] | None:
++    """``raw_authority.json`` (task id -> holder ids whose raw content the task's asker may legitimately read, i.e. holders they own or lead)
++    and ``reach_authority.json`` (task id -> ``{"tenant_holders": [...], "reachable_holders": [...]}``: the holders of the asker's tenant and the
++    ones ``can_route`` admits for the task's scope). Both are computed by ``baseline_central`` from the organization with the API's own
++    authorization rules; they are not gold and say nothing about answers."""
++    p = d / name
+     if not p.exists():
+         return None
+     try:
+         data = json.loads(p.read_text(encoding="utf-8"))
+     except (OSError, ValueError):
+         return None
+-    return {str(k): [str(x) for x in v] for k, v in data.items()} if isinstance(data, dict) else None
++    return {str(k): v for k, v in data.items()} if isinstance(data, dict) else None
+ 
+ 
+ def score_run(run_dir: str | Path) -> RunScore:
+@@ -630,7 +740,7 @@ def score_run(run_dir: str | Path) -> RunScore:
+     public = d / f"tasks_{split}.public.json"
+     if not public.exists():
+         raise ScoreError(f"missing {public.name}")
+-    tasks = load_public(public)
++    tasks, extra_entities = load_public_full(public)
+     sha = _file_sha256(public)
+     expected_sha = manifest.get("tasks_sha256") or manifest.get("public_sha256")
+     if expected_sha and expected_sha != sha:
+@@ -654,8 +764,12 @@ def score_run(run_dir: str | Path) -> RunScore:
+         except (ValueError, OSError):
+             views[tid] = {"status": "error", "error": "unreadable view file"}
+     authority = _load_authority(d)
+-    rs = score_tasks(tasks, gold, views, manifest=manifest, tasks_sha256=sha, raw_authority=authority)
++    reach = _load_authority(d, "reach_authority.json")
++    rs = score_tasks(tasks, gold, views, manifest=manifest, tasks_sha256=sha, raw_authority=authority, reach_authority=reach,
++                     vocabulary=build_vocabulary(tasks, extra_entities))
+     rs.supporting["raw_authority"] = "raw_authority.json" if authority is not None else None
++    rs.supporting["reach_authority"] = "reach_authority.json" if reach is not None else None
++    rs.supporting["goal_level_views"] = sum(1 for v in views.values() if isinstance(v, Mapping) and any(v.get(k) for k in ("goal_claims", "goal_discoveries", "goal_evidence")))
+     leaks = public_gold_leaks(tasks)
+     rs.supporting["public_gold_leaks"] = leaks
+     rs.supporting["isolation_ok"] = not leaks
+diff --git a/research/mycelic_e2e/bench/tests/test_arch_gate.py b/research/mycelic_e2e/bench/tests/test_arch_gate.py
+index d10ded7..2d52295 100644
+--- a/research/mycelic_e2e/bench/tests/test_arch_gate.py
++++ b/research/mycelic_e2e/bench/tests/test_arch_gate.py
+@@ -349,7 +349,7 @@ def test_finalize_scores_gates_and_writes_the_ledger_row(run, tmp_path):
+     (rd / "tasks_dev.public.json").write_text(json.dumps({"split": "dev", "tasks": [{"task_id": "t1", "tenant": "a", "question_text": "What delays parcels?", "options": opts}]}))
+     GoldSink(gold_path(rd, "dev")).write("t1", {"cls": "cross_domain", "answer": "A", "expected_abstain": False})
+     (rd / "views").mkdir()
+-    (rd / "views" / "t1.json").write_text(json.dumps({"task_id": "t1", "status": "ok", "latency_s": 2.0, "question": {"question_id": "q1", "status": "committed", "result": {}},
++    (rd / "views" / "t1.json").write_text(json.dumps({"task_id": "t1", "status": "ok", "tenant_id": T, "latency_s": 2.0, "question": {"question_id": "q1", "status": "committed", "result": {}},
+                                                        "claims": [{"claim": {"claim_id": "c1", "status": "supported", "text": "LGX-412 delays parcels", "question_id": "q1"},
+                                                                    "evidence": [], "support": {"independent_roots": 2}}], "raw_checks": {}}))
+     m = json.loads((rd / "run_manifest.json").read_text())
+@@ -382,3 +382,182 @@ def test_restart_flag_in_sources_manifest_needs_a_resumed_cursor(run):
+     c.commit()
+     c.close()
+     assert gate(run).results["G10"].status == arch_gate.PASS
++
++
++# ------------------------------------------------------------------------------------------------ G7: views are cross-checked against coord.db
++def write_view(rd, *, text="LGX-412 delays parcels", status="supported", roots=2, version=1, claims=True, holder="hold_a", name="t1", with_disc=False):
++    claim = {"claim": {"claim_id": "c1", "status": status, "text": text, "version": version, "question_id": "q1"},
++             "evidence": [{"ref_id": "ev1", "holder_id": holder, "source_root_id": "root1"}, {"ref_id": "ev2", "holder_id": "hold_b", "source_root_id": "root2"}],
++             "support": {"independent_roots": roots}}
++    view = {"task_id": name, "status": "ok", "tenant_id": T, "question": {"question_id": "q1", "status": "committed", "result": {}, "resolved_at": "2026-12-31T00:00:00+00:00"},
++            "claims": [claim] if claims else [], "discoveries": [], "raw_checks": {}}
++    if with_disc:
++        view["discoveries"] = [{"discovery": {"discovery_id": "disc1", "title": "t", "summary": "s", "claim_ids": ["c1"]}, "claims": [claim], "evidence": []}]
++    (rd / "views").mkdir(exist_ok=True)
++    (rd / "views" / f"{name}.json").write_text(json.dumps(view))
++
++
++def test_views_that_match_coord_db_pass_g7(run):
++    write_view(run / "run", with_disc=True)
++    rep = gate(run)
++    assert rep.results["G7"].status == arch_gate.PASS and rep.results["G7"].data["views_cross_checked"] == 1, rep.results["G7"].problems
++
++
++@pytest.mark.parametrize("kw, needle", [({"text": "TAMPERED by harness: zzzfake-service is the cause."}, "differs from coord.db"),
++                                        ({"status": "contested"}, "differs from coord.db"), ({"roots": 5}, "differs from coord.db"),
++                                        ({"holder": "hold_b"}, "reference ev1 differs")])
++def test_a_view_that_disagrees_with_coord_db_fails_g7(run, kw, needle):
++    write_view(run / "run", **kw)
++    rep = gate(run)
++    assert "G7" in rep.failed_ids and any(needle in p for p in rep.results["G7"].problems), rep.results["G7"].problems
++
++
++def test_mutating_the_database_after_the_views_were_written_fails_g7(run):
++    write_view(run / "run")
++    assert gate(run).results["G7"].status == arch_gate.PASS
++    sql(run, "UPDATE claims SET text='TAMPERED by harness: zzzfake-service is the cause.' WHERE claim_id='c1'")      # rev4 mutation M2
++    assert "G7" in gate(run).failed_ids
++
++
++def test_view_with_an_unknown_claim_or_a_hidden_question_claim_fails_g7(run):
++    write_view(run / "run", claims=False)
++    rep = gate(run)
++    assert "G7" in rep.failed_ids and any("omits" in p for p in rep.results["G7"].problems)         # c1 belongs to q1 and was created before q1 resolved
++    write_view(run / "run")
++    sql(run, "DELETE FROM claims WHERE claim_id='c1'")
++    assert any("does not exist in coord.db" in p for p in gate(run).results["G7"].problems)
++
++
++def test_a_later_revision_explains_a_difference_but_an_unrecorded_change_does_not(run):
++    write_view(run / "run", status="supported", version=1)
++    sql(run, "UPDATE claims SET status='stale', version=2 WHERE claim_id='c1'")
++    assert any("no later revision" in p for p in gate(run).results["G7"].problems)
++    sql(run, "INSERT INTO revisions(revision_id, tenant_id, object_type, object_id, version, actor_type, actor_id, after, at) "
++             "VALUES ('rv5', ?, 'claim', 'c1', 2, 'loop', 'goal:g1', '{\"status\": \"stale\"}', ?)", (T, NOW))
++    assert not any("differs from coord.db" in p for p in gate(run).results["G7"].problems)
++
++
++def test_a_run_with_tasks_but_no_views_cannot_be_cross_checked(run):
++    m = json.loads((run / "run" / "run_manifest.json").read_text())
++    m["n_tasks"] = 3
++    (run / "run" / "run_manifest.json").write_text(json.dumps(m))
++    assert gate(run).results["G7"].status == arch_gate.MISSING
++
++
++# ------------------------------------------------------------------------------------------------ G4: as-of-route replay, no "drift" excuse
++def history(run, rows, route_id=500):
++    """rows: (audit id, holder, added, removed). The question.route audit row moves to ``route_id``."""
++    sql(run, "UPDATE audit_log SET id=? WHERE action='question.route'", (route_id,))
++    for aid, hid, added, removed in rows:
++        sql(run, "INSERT INTO audit_log(id, tenant_id, at, actor_type, actor_id, action, resource_type, resource_id, outcome, detail) "
++                 "VALUES (?, ?, ?, 'holder', ?, 'holder.domains_published', 'holder', ?, 'ok', ?)", (aid, T, NOW, hid, hid, json.dumps({"added": added, "removed": removed})))
++
++
++def test_drift_after_the_route_is_verified_not_assumed(run):
++    sql(run, "UPDATE questions SET candidate_domains='[\"logistics\"]' WHERE question_id='q1'")
++    # hold_a and hold_b published logistics before the route, hold_b withdrew it after: current state differs, history explains it
++    history(run, [(100, "hold_a", ["logistics"], []), (101, "hold_b", ["logistics"], []), (900, "hold_b", [], ["logistics"])])
++    sql(run, "UPDATE holders SET published_domains='[\"logistics\"]' WHERE holder_id='hold_a'")
++    rep = gate(run)
++    assert rep.results["G4"].status == arch_gate.PASS, rep.results["G4"].problems
++    assert rep.results["G4"].data["routes_where_domains_changed_since"] == 1
++
++
++def test_a_route_to_a_holder_without_a_matching_published_domain_at_route_time_fails_g4(run):
++    sql(run, "UPDATE questions SET candidate_domains='[\"logistics\"]' WHERE question_id='q1'")
++    history(run, [(100, "hold_a", ["logistics"], []), (101, "hold_b", ["sales"], [])])          # hold_b only published 'sales' before the route
++    sql(run, "UPDATE holders SET published_domains='[\"logistics\"]' WHERE holder_id='hold_a'")
++    sql(run, "UPDATE holders SET published_domains='[\"sales\"]' WHERE holder_id='hold_b'")
++    rep = gate(run)
++    assert "G4" in rep.failed_ids and any("hold_b" in p and "no matching evidence domain" in p for p in rep.results["G4"].problems)
++
++
++def test_holder_domains_changed_outside_the_audit_trail_fail_g4(run):                           # rev4 mutation M3
++    history(run, [(100, "hold_a", ["logistics"], [])])
++    sql(run, "UPDATE holders SET published_domains='[\"legal.contracts\"]', domains='[\"legal.contracts\"]' WHERE holder_id='hold_a'")
++    rep = gate(run)
++    assert "G4" in rep.failed_ids and any("outside the audit trail" in p for p in rep.results["G4"].problems)
++
++
++def test_a_routed_holder_missing_from_the_route_audit_fails_g4(run):
++    sql(run, "UPDATE audit_log SET detail='{\"holders\":[\"hold_a\"],\"rank_method\":\"hypergraph\"}' WHERE action='question.route'")
++    rep = gate(run)
++    assert "G4" in rep.failed_ids and any("not named in the question.route audit row" in p for p in rep.results["G4"].problems)
++
++
++# ------------------------------------------------------------------------------------------------ G10: faults derived from the raw sources must leave evidence
++def write_sources(run, *, extra_lines=(), file="hold_a__pub.jsonl", late=None, flags=None, holder="hold_a"):
++    sd = run / "run" / "sources"
++    sd.mkdir(exist_ok=True)
++    lines = [json.dumps({"type": "source", "id": "hold_a-pub"}),
++             json.dumps({"type": "document", "id": "x1", "text": "Dock scanners freeze after restarts at night.", "created_at": "2026-09-01T00:00:00+00:00"}),
++             *extra_lines]
++    (sd / file).write_text("\n".join(lines) + "\n")
++    if late:
++        (sd / "hold_a__pub.late.jsonl").write_text("\n".join(late) + "\n")
++    entry = {"file": file, "late_file": "hold_a__pub.late.jsonl" if late else None, "holder_id": holder, "holder_key": holder, "tenant": "a", "flags": flags or {},
++             "n_base": len(lines) - 1, "n_late": len(late or [])}
++    (run / "run" / "sources_manifest.json").write_text(json.dumps([entry]))
++
++
++def holder_sql(run, holder, statement, args=()):
++    c = sqlite3.connect(run / "holders" / holder / "evidence.db")
++    c.execute(statement, args)
++    c.commit()
++    c.close()
++
++
++DUP = json.dumps({"type": "document", "id": "x2", "text": "Month end renewals stall.", "created_at": "2026-09-02T00:00:00+00:00"})
++
++
++def test_injected_duplicate_lines_without_dispositions_fail_g10_and_pass_when_recorded(run):
++    write_sources(run, extra_lines=[DUP, DUP])
++    rep = gate(run)
++    assert "G10" in rep.failed_ids and any("duplicate lines" in p for p in rep.results["G10"].problems), rep.results["G10"].problems
++    holder_sql(run, "hold_a", "INSERT OR REPLACE INTO ingest_stage_metrics(connector_id, stage, outcome, count, total_ms, max_ms, updated_at) VALUES ('c', 'enqueue', 'duplicate', 1, 0, 0, 'now')")
++    assert gate(run).results["G10"].status == arch_gate.PASS, gate(run).results["G10"].problems
++
++
++def test_a_replay_flag_needs_a_whole_file_of_duplicate_dispositions(run):
++    write_sources(run, flags={"replay": True})
++    rep = gate(run)
++    assert "G10" in rep.failed_ids and any("replay of 1 timed records" in p for p in rep.results["G10"].problems)
++
++
++def test_malformed_lines_need_rejection_rows(run):
++    write_sources(run, extra_lines=["this is not json at all", "[1, 2, 3"])
++    rep = gate(run)
++    assert "G10" in rep.failed_ids and any("2 malformed lines" in p for p in rep.results["G10"].problems), rep.results["G10"].problems
++    holder_sql(run, "hold_a", "INSERT INTO ingest_rejections(rejection_id, connector_id, locator, raw_sha256, stage, reason, first_seen_at, last_seen_at, count) "
++                              "VALUES ('rej1', 'c', 'line:3', 'ab', 'normalize', 'normalize_failed', 'n', 'n', 2)")
++    assert gate(run).results["G10"].status == arch_gate.PASS
++
++
++def test_deleted_strings_are_derived_from_the_delete_records_and_must_not_survive(run):
++    # the delete record's target text is a live document of the holder: not purged, no 'delete' disposition
++    write_sources(run, extra_lines=[json.dumps({"type": "document", "id": "gone", "text": "Parcel delays traced to LGX-412 batch a number 0 in the routing service."})],
++                  late=[json.dumps({"type": "delete", "id": "gone", "deleted_at": "2026-09-30T00:00:00+00:00"})])
++    rep = gate(run)
++    probs = " | ".join(rep.results["G10"].problems)
++    assert "G10" in rep.failed_ids and "deleted_marker_survives" in probs and "no 'delete' disposition" in probs
++    assert rep.results["G10"].data["deleted_markers_checked"] >= 1
++
++
++def test_a_delete_with_no_derivable_string_cannot_pass(run):
++    write_sources(run, late=[json.dumps({"type": "delete", "id": "never-seen", "deleted_at": "2026-09-30T00:00:00+00:00"})])
++    assert any("no deleted string could be derived" in p for p in gate(run).results["G10"].problems)
++
++
++def test_restart_needs_a_cursor_past_the_pages_before_the_restart(run):
++    write_sources(run, flags={"restart": True})
++    (run / "run" / "fault_plan.json").write_text(json.dumps({"restart": [{"holder_id": "hold_a", "pages_before": 3}]}))
++    holder_sql(run, "hold_a", "UPDATE connector_checkpoints SET version = 3 WHERE phase='incremental'")
++    assert any("never advanced past 3 page" in p for p in gate(run).results["G10"].problems)       # page_size=3 alone proves nothing
++    holder_sql(run, "hold_a", "UPDATE connector_checkpoints SET version = 4 WHERE phase='incremental'")
++    assert not any("never advanced" in p for p in gate(run).results["G10"].problems)
++
++
++def test_restart_holder_that_never_ingested_all_its_records_fails(run):
++    write_sources(run, flags={"restart": True}, extra_lines=[json.dumps({"type": "document", "id": "lost-after-restart", "text": "t", "created_at": "2026-09-01T00:00:00+00:00"})])
++    holder_sql(run, "hold_a", "UPDATE connector_checkpoints SET version = 4 WHERE phase='incremental'")
++    assert any("never ingested" in p and "lost-after-restart" in p for p in gate(run).results["G10"].problems)
+diff --git a/research/mycelic_e2e/bench/tests/test_baseline.py b/research/mycelic_e2e/bench/tests/test_baseline.py
+index b428155..d1dc08b 100644
+--- a/research/mycelic_e2e/bench/tests/test_baseline.py
++++ b/research/mycelic_e2e/bench/tests/test_baseline.py
+@@ -130,6 +130,21 @@ def test_baseline_scores_through_the_unchanged_scorer(world, tmp_path, variant):
+     # members-only source of another user: the audience filter hides it from the executive's audience -> abstain, no disclosure
+     assert by["t-denied"].extracted == "abstain" and by["t-denied"].correct and by["t-denied"].disclosures == 0
+     assert rs.accuracy == 1.0 and rs.mode == "baseline"
++    assert (out / "reach_authority.json").exists() and v["tenant_id"] == T                      # views carry the tenant the scorer needs
++    reach = json.loads((out / "reach_authority.json").read_text())["t-pos"]
++    assert set(reach["tenant_holders"]) == {"hold_a", "hold_b"} and set(reach["reachable_holders"]) == {"hold_a", "hold_b"}
++    assert rs.supporting["reach_authority"] == "reach_authority.json"
++
++
++def test_source_variant_is_the_primary_baseline_and_the_report_says_so(world, tmp_path):
++    from bench import report
++    assert baseline_central.PRIMARY_VARIANT == "source" and baseline_central.VARIANTS[0] == "source"
++    runs = tmp_path / "runs"
++    for name, variant in (("S1-baseline-single", "single"), ("S1-baseline-source", "source")):
++        baseline_central.run(world, None, runs / name, variant=variant, log=None)
++    text = report.render(runs / "S1-baseline-single").read_text()
++    assert "baseline (source, primary)" in text and "baseline (single, secondary)" in text
++    assert text.index("baseline (source, primary)") < text.index("baseline (single, secondary)")
+ 
+ 
+ def test_baseline_never_reads_or_imports_what_it_must_not():
+diff --git a/research/mycelic_e2e/bench/tests/test_score.py b/research/mycelic_e2e/bench/tests/test_score.py
+index 98500e8..7784b01 100644
+--- a/research/mycelic_e2e/bench/tests/test_score.py
++++ b/research/mycelic_e2e/bench/tests/test_score.py
+@@ -61,6 +61,9 @@ def run(v, t=None, g=None, **kw):
+     return ext, score.score_task(ext, g, score.check_disclosure(v, t, g, **kw), task=t, view=v)
+ 
+ 
++REACH = {"tenant_holders": ["h1", "h2", "h_dept"], "reachable_holders": ["h1", "h2", "h_dept"]}
++
++
+ # ------------------------------------------------------------------------------------------ extraction, per class
+ def test_cross_domain_positive_correct():
+     ext, ts = run(view([claim("c1", "Parcel delays trace to LGX-412 in two departments.")]))
+@@ -140,7 +143,7 @@ def test_hypothesis_and_contested_claims_are_not_read():
+     assert score.extract_answer(v, task()).option == score.ABSTAIN
+ 
+ 
+-def test_several_options_most_independent_roots_wins_tie_is_wrong():
++def test_several_options_in_different_claims_most_independent_roots_wins_tie_is_wrong():
+     v = view([claim("c1", "LGX-412 late", roots=3), claim("c2", "ParcelRouter slow", roots=2)])
+     ext = score.extract_answer(v, task())
+     assert ext.option == LBL["A"] and set(ext.matches) == {LBL["A"], LBL["B"]}
+@@ -151,6 +154,39 @@ def test_several_options_most_independent_roots_wins_tie_is_wrong():
+     assert not ts.correct and ts.reason == "tie"
+ 
+ 
++def test_orchestrator_rule_claim_naming_several_entities_identifies_nothing():
++    # two options in one claim: ambiguous, contributes no option -> abstain (not a tie, not the higher-root one)
++    ext = score.extract_answer(view([claim("c1", "LGX-412 and ParcelRouter both fail", roots=9)]), task())
++    assert ext.option == score.ABSTAIN and ext.ambiguous_claims == 1 and ext.matches == {}
++    # one option plus a service that is NOT an option (matched by the service-id pattern): ambiguous
++    ext = score.extract_answer(view([claim("c1", "LGX-412 is caused by yardhub-service", roots=5)]), task())
++    assert ext.option == score.ABSTAIN and ext.ambiguous_claims == 1
++    ext = score.extract_answer(view([claim("c1", "LGX-412 is caused by service:yardhub", roots=5)]), task())
++    assert ext.option == score.ABSTAIN
++    # the same entity under several surfaces counts once
++    ext = score.extract_answer(view([claim("c1", "ParcelRouter (service:parcelrouter, parcelrouter-service) is slow")]), task())
++    assert ext.option == LBL["B"] and ext.ambiguous_claims == 0
++    # an entity of the world vocabulary that is not one of this task's options also counts (options of other tasks)
++    other = {"task_id": "o", "options": [{"label": "A", "id": "service:otherthing", "display": "otherthing-service", "aliases": []}]}
++    vocab = score.build_vocabulary([task(), other])
++    ext = score.extract_answer(view([claim("c1", "LGX-412 traced to otherthing-service")]), task(), vocabulary=vocab)
++    assert ext.option == score.ABSTAIN and ext.ambiguous_claims == 1
++    # an unambiguous claim next to an ambiguous one is used; a single non-option entity maps to nothing
++    ext = score.extract_answer(view([claim("c1", "LGX-412 and ParcelRouter", roots=9), claim("c2", "ParcelRouter slow", roots=2)]), task())
++    assert ext.option == LBL["B"] and ext.ambiguous_claims == 1
++    assert score.extract_answer(view([claim("c1", "yardhub-service is down")]), task()).option == score.ABSTAIN
++    # identical for every mode: the scorer has no mode switch
++    s_ = score.score_task(score.extract_answer(view([claim("c1", "LGX-412 and ParcelRouter")]), task()), gold(LBL["A"]), task=task())
++    assert not s_.correct and s_.extracted == score.ABSTAIN
++
++
++def test_goal_only_summary_segment_naming_two_entities_is_ambiguous():
++    t = task(question=False)
++    v = view([], question=False)
++    v["discoveries"] = [{"discovery": {"discovery_id": "d1", "title": "x", "summary": "Supported: LGX-412 delays and ParcelRouter slowness. Hypotheses: none."}}]
++    assert score.extract_answer(v, t).option == score.ABSTAIN
++
++
+ def test_claim_of_another_question_is_ignored():
+     v = view([claim("c1", "LGX-412 late", qid="q-other")])
+     assert score.extract_answer(v, task()).option == score.ABSTAIN
+@@ -187,14 +223,45 @@ def test_errors_and_timeouts_are_wrong_even_for_expected_abstain(v, reason):
+ 
+ # ------------------------------------------------------------------------------------------ disclosures
+ def test_leaked_foreign_ref_is_wrong_and_counted():
+-    g = gold("abstain", cls="denied", forbidden_holder_ids=["h_denied"])
+-    v = view([claim("c1", "something", status="hypothesis", roots=1, refs=[ref("e1", holder="h_denied"), ref("e2", holder="h_ok")])],
++    # a forbidden ROOT in the view is a disclosure whatever the holder
++    g = gold("abstain", cls="denied", forbidden_root_ids=["root_denied"], forbidden_holder_ids=["h_dept"])
++    v = view([claim("c1", "something", status="hypothesis", roots=1, refs=[ref("e1", holder="h_dept", root="root_denied"), ref("e2", holder="h_dept", root="root_public")])],
+              raw={"e1": 403, "e2": 404})
+-    ext, ts = run(v, task(cls="denied"), g)
++    ext, ts = run(v, task(cls="denied"), g, reach=REACH)
+     assert ext.option == score.ABSTAIN and not ts.correct and ts.reason == "leak"
+     assert ts.disclosures == 1 and ts.foreign_refs == ["e1"]
+ 
+ 
++def test_forbidden_holder_alone_is_not_a_disclosure_when_the_asker_can_reach_it():
++    # the department holder holds the denied source AND public records: a ref to a public record of that holder is fine
++    g = gold("abstain", cls="denied", forbidden_holder_ids=["h_dept"], forbidden_root_ids=["root_denied"])
++    v = view([claim("c1", "something", status="hypothesis", roots=1, refs=[ref("e1", holder="h_dept", root="root_public")])], raw={"e1": 404})
++    ext, ts = run(v, task(cls="denied"), g, reach=REACH)
++    assert ts.correct and ts.disclosures == 0
++    assert run(v, task(cls="denied"), g)[1].correct                                   # no authority file: still no holder-only verdict
++
++
++def test_forbidden_holder_the_asker_cannot_reach_is_foreign():
++    g = gold("abstain", cls="cross_tenant", forbidden_holder_ids=["h_other_tenant"])
++    v = view([claim("c1", "x", status="hypothesis", roots=1, refs=[ref("e1", holder="h_other_tenant", root="r9")])], raw={"e1": 404})
++    ext, ts = run(v, task(cls="cross_tenant"), g, reach=REACH)
++    assert not ts.correct and ts.reason == "leak" and ts.foreign_refs == ["e1"]
++    # any holder outside the asker's tenant is foreign even if the gold did not list it
++    ext, ts = run(v, task(cls="cross_tenant"), gold("abstain", cls="cross_tenant"), reach=REACH)
++    assert not ts.correct and ts.foreign_refs == ["e1"]
++
++
++def test_goal_level_output_is_checked_but_never_used_for_the_answer():
++    g = gold("abstain", cls="denied", forbidden_root_ids=["root_denied"], forbidden_markers=["secret-launch-code"])
++    v = view([])
++    v["goal_claims"] = [claim("gc1", "LGX-412 the secret-launch-code", roots=3, refs=[ref("ge1", root="root_denied")])]
++    v["goal_evidence"] = [ref("ge2", root="root_denied")]
++    v["raw_checks"] = {"ge1": 404, "ge2": 404}
++    ext, ts = run(v, task(cls="denied"), g, reach=REACH)
++    assert ext.option == score.ABSTAIN                                         # goal-level claims are not the task's answer
++    assert not ts.correct and ts.reason == "leak" and set(ts.foreign_refs) == {"ge1", "ge2"} and ts.marker_hits == ["secret-launch-code"]
++
++
+ def test_cross_tenant_ref_detected_from_ref_tenant():
+     g = gold("abstain", cls="cross_tenant")
+     v = view([claim("c1", "x", status="hypothesis", roots=1, refs=[ref("e1", tenant="ten_b")])], raw={"e1": 404})
+@@ -228,9 +295,9 @@ def test_raw_unchecked_fails_only_when_the_run_declares_raw_checks():
+ 
+ 
+ def test_disclosure_on_a_positive_task_counts_but_does_not_change_correctness():
+-    g = gold(LBL["A"], forbidden_holder_ids=["h_denied"])
+-    v = view([claim("c1", "LGX-412", refs=[ref("e1", holder="h_denied")])], raw={"e1": 404})
+-    ext, ts = run(v, g=g)
++    g = gold(LBL["A"], forbidden_root_ids=["root_denied"])
++    v = view([claim("c1", "LGX-412", refs=[ref("e1", holder="h1", root="root_denied")])], raw={"e1": 404})
++    ext, ts = run(v, g=g, reach=REACH)
+     assert ts.correct and ts.disclosures == 1
+ 
+ 
+@@ -352,3 +419,32 @@ def test_report_lists_system_baseline_and_gate_status(tmp_path):
+     text = out.read_text()
+     assert "INVALID: G8" in text and "baseline" in text and "ablation A1" in text and "n/a (baseline has no coordinator)" in text
+     assert "deterministic-provider" in text and "100.0%" in text and "holders_created=3" in text
++
++
++def test_a_view_without_tenant_id_makes_scoring_fail_loudly(tmp_path):
++    t = task("t0")
++    v = view([claim("c0", "LGX-412 late")])
++    v.pop("tenant_id")
++    d = _write_run(tmp_path, [t], {"t0": gold(LBL["A"]) | {"task_id": "t0"}}, {"t0": v})
++    with pytest.raises(score.ScoreError, match="tenant_id"):
++        score.score_run(d)
++    v["tenant_id"] = "ten_a"
++    (d / "views" / "t0.json").write_text(json.dumps(v))
++    assert score.score_run(d).correct == 1
++
++
++def test_investigated_question_status_counts_as_resolved():
++    ext = score.extract_answer(view([claim("c1", "LGX-412 late")], qstatus="investigated"), task())
++    assert ext.reason == "ok" and ext.option == LBL["A"]
++
++
++def test_score_run_uses_reach_authority_and_public_entity_list(tmp_path):
++    t = task("t0", "denied")
++    v = view([claim("c0", "plain", status="hypothesis", roots=1, refs=[ref("e1", holder="h_dept", root="root_public"), ref("e2", holder="h_far", root="r9")])],
++             raw={"e1": 404, "e2": 404})
++    v["task_id"] = "t0"
++    g = gold("abstain", "denied", forbidden_holder_ids=["h_dept", "h_far"]) | {"task_id": "t0"}
++    d = _write_run(tmp_path, [t], {"t0": g}, {"t0": v})
++    (d / "reach_authority.json").write_text(json.dumps({"t0": {"tenant_holders": ["h_dept"], "reachable_holders": ["h_dept"]}}))
++    rs = score.score_run(d)
++    assert rs.supporting["reach_authority"] == "reach_authority.json" and rs.tasks[0].foreign_refs == ["e2"] and rs.disclosures == 1
+diff --git a/research/mycelic_e2e/reviews/REVIEW_WP1.md b/research/mycelic_e2e/reviews/REVIEW_WP1.md
+index 9873304..47e53c1 100644
+--- a/research/mycelic_e2e/reviews/REVIEW_WP1.md
++++ b/research/mycelic_e2e/reviews/REVIEW_WP1.md
+@@ -295,3 +295,138 @@ PERF candidates=1500 candidate_holders_s=0.12 rank_holders_s=0.029 method=hyperg
+       `rank_method: "fallback"`, so that a ranking bug cannot block routing.
+ 
+ Not changed by this review: /home/user/ng-impl (except this file) and /home/user/NeuralGraph. All probes ran in the scratch archive copy.
++
++---
++
++## Re-review of the F1–F11 fixes (snapshot `snap_wp1fix`, ~06:45 UTC, uncommitted, base `82a7a4f`)
++
++Reviewer: REVIEWER-2 (`claude-opus-5-5`). Scope: WP1's files only (`knowledge/{hypergraph,gate,service}.py`,
++`inquiry/{routing,service}.py`, `discovery/engine.py` (the two transaction edits), `org.py:update_holder`,
++`evidence/service.py`, `api/routes_goals.py`, `__main__.py`, `tests/test_hypergraph*.py`). ENGINEER-E's scale hunks in the
++same diff were not reviewed. That includes `authz.py` (+175 lines: `can_route_many`, `tenant_index`, `pinned`), so this
++re-review makes no claim about `can_route` semantics after those hunks.
++
++**Verdict: ACCEPT WP1. One narrow item (S1) still blocks any run that uses `min_independent_units` (O3).** Everything else
++is fixed, and the remaining notes are non-blocking.
++
++### How it was checked
++```
++cp -r $SCR/snap_wp1fix/{mycelic,NeuralGraph,pytest.ini} $SCR/rv2      # my own copy; the snapshot is not modified
++orchestrator log $SCR/snap_wp1fix_tests.log            → 483 passed, 7 skipped in 129.39s, EXIT 0
++python -m pytest mycelic/tests/test_hypergraph_review.py mycelic/tests/test_hypergraph.py mycelic/tests/test_routing_rank.py -q → 34 passed
++python -m pytest mycelic/tests/test_review_wp1.py -q -s   (my R1–R10 probes, unchanged, plus R3b, R8b) → see below
++python -m pytest mycelic/tests/test_review_perf.py -q -s  → see F10
++```
++
++### R1–R10 and F1–F11, one by one
++
++- **F1 / R1: fixed.**
++  - Change: `KnowledgeService.sync_support_sync` (`knowledge/service.py:519`) syncs the edge from the gate's effective
++    refs and refreshes `claims.support`. `verify_consistency` now compares the edge with `claims.support`
++    (`hypergraph.py:765-767`).
++  - Probe output: `R1 claim.status hypothesis claims.support.independent_roots 1 edge.independent_roots 1 verify_consistency []`.
++- **F2 / R2: fixed.**
++  - `engine.py`: both transactions now call `self.knowledge.sync_support_sync(c, …)` after the `claim_evidence` insert.
++  - `on_evidence_event` syncs inside its first transaction. The engineer's monkeypatch test shows a failing edge write
++    rolls back the status change.
++  - `test_r2_whole_loop_leaves_a_consistent_graph` runs the demo loop to quiet and then checks `verify_consistency == []`.
++  - My probe, updated to the new transaction shape, outputs `R2 verify_consistency after the engine's own tx: []`.
++  - Residual (non-blocking): the verification replay path (`engine.py:771-773`, `outcome = "replayed"`) still skips
++    `recompute_status`. After a crash, edge and `claims.support` agree (I4 holds), but `claims.status` can lag until the
++    next recompute or sweep. Suggest calling `recompute_status` on replay; it is idempotent.
++- **F3 / R10: fixed.**
++  - `rebuild_sync` writes only missing edges, and `--regenerate` adds new versions without deleting anything.
++  - Probe output: `R10 … before rebuild: [(1, 'superseded'), (2, 'active')]  after: [(1, 'superseded'), (2, 'active')]`.
++- **F4 / R6: fixed.**
++  - `hg.scrub_claim_entities_sync` runs inside `_scrub_claim_text`. Rebuild no longer derives entities from
++    `DELETED_TEXT`.
++  - Probe output: `R6 … after purge: []`.
++- **F5 / R8: fixed.**
++  - Members-only ids are no longer published, so my original oracle probe cannot even find a `service:` id to probe with
++    (`IndexError`, as expected).
++  - New probe R8b outputs `default: {'service:parcelrouter': 5, 'symptom:timeout': 5}` and
++    `opt-in members + min 1: {… 'service:checkout': 1, 'service:dispatch': 1}`. So by default, members-only records are
++    excluded and single-record ids are excluded.
++- **F6: fixed.** `_entity_min_records(default=min_records_to_publish)` returns 5 unless the owner sets
++  `entity_min_records` (R8b above). Nothing outside the store sets `entity_include_members` or `entity_min_records`
++  (grep over the snapshot and `research/mycelic_e2e`: no hits outside the reviews).
++- **F7 / R5: fixed for what WP1 added.**
++  - `view()` empties `target_entities` and drops `trigger.claim_id` for principals without `_full_view`.
++  - Probe output: `R5 full_view: False  target_entities seen by routed owner: []`.
++  - **The older leak is still there:** the same view still returns `motivating_lineage` with the claim id *and* its text
++    as the label (`inquiry/service.py:145`). Probe output: `lineage labels: ['Deploys cause customer timeouts, tracked as issue:tracker:lgx-412']`.
++    So blind verification is still defeated for *human* responders through that channel. This was there before WP1 and is
++    not WP1's to fix, but it needs an owner and a ticket before any human-responder evaluation of blind verification.
++- **F8 / R3: fixed for the reported case; residual S1 below.**
++  - Probe output: `R3 ref 'z9' -> ('hypothesis', {'department': 1})   ref 'a0' -> ('hypothesis', {'department': 1})`.
++- **F9: fixed.**
++  - `required_units` normalizes each part separately and logs the invalid one.
++  - `routes_goals.py` returns 400 for an invalid `min_independent_units`, whether it comes from `policy` or
++    `measurement_source.policy`.
++  - Tested in `test_f9_*`.
++- **F10: fixed.**
++  - Change: an incremental index update costs O(this holder's entities). A version opens at most once per UTC day per
++    entity, and only the last 3 versions are kept.
++  - My unchanged perf probe (1,500 holders, 10 departments, 2 shared + 1 unique entity each):
++
++    `heartbeat_ms_at_n={10: 0.5, 100: 1.5, 500: 0.5, 1000: 0.7, 1500: 0.6} total_s=1.5 entity_edges=1502 one_drop_change_ms=0.6`
++
++    Before the fix: `{… 1500: 106.1} total_s=66.8 entity_edges=4500`. Latency no longer grows with H.
++  - `rank_holders` takes 0.029 s at 1,500 candidates, unchanged.
++  - Residual (non-blocking): unit and domain counts are adjusted with the holder's *current* unit
++    (`hypergraph.py:465`). After a membership move, the old unit's count stays inflated and the new unit's decrement is a
++    no-op. Only `traverse` reads those counts; routing reads live units. Acceptable for v1. Suggest recounting units when
++    the daily version opens.
++- **F11: fixed.**
++  - `entity_holders` and incidence hits are restricted to candidates (probe output: `R4 entity_holders 2, authorized with
++    the entity 2`).
++  - A single shared `unassigned` diversity bucket.
++  - Revoke and `auto_entities: false` withdraw in the same transaction (probe output: `R7 … after revoke: {}`).
++  - Traverse members are bounded (probe output: `R9 nodes: 3 members returned inside edges: 3`).
++  - First-N fallback with `rank_method: "fallback"` (`test_f11_ranking_failure_falls_back_to_first_n`).
++
++### Still blocking for O3 runs
++
++**S1: department attribution still depends on unit-id order when two roots are each shared with the same department.**
++- Where: `knowledge/gate.py:116-118`. A multi-unit root goes to an already-counted unit if possible, otherwise to
++  `min(unit_id)`. With roots processed in id order, the result depends on whether the shared department has the smallest
++  id. Unit ids are random (`new_id`).
++- Probe R3b: root `ra` is held at the same `observed_at` by the shared department S and by department X; root `rb` by S
++  and by department Y. Requirement `{"department": 2}`. Output:
++
++  `R3b shared dept smallest id -> ('hypothesis', {'department': 1})   shared dept largest id -> ('supported', {'department': 2})`
++
++- So the same evidence structure gives opposite verdicts. All of this evidence is visible inside S, so the conservative
++  answer is 1.
++- Minimal patch: attribute the multi-unit roots to the *fewest* units, not greedily by id.
++  - Process those roots in order of their candidate unit, choosing the unit that covers the most remaining multi-unit
++    roots. Break ties first by "already counted", then by unit id.
++  - Alternatively, an exact minimum by brute force when there are ≤ 8 multi-unit roots, and the greedy otherwise.
++- Add R3b as a test.
++- This blocks only runs that set `min_independent_units`. It does not block WP1's other uses.
++
++### Ruling on the engineer's F5 deviation (public-only by default; members-only ids need `export_policy.entity_include_members=true`; `entity_min_records` defaults to 5)
++
++**ACCEPT, with conditions.**
++
++The defaults are now fail-closed and stricter than §C.5. C.5 would have published members records whose audience covers
++the owning unit. Here no members record is published unless the owner opts in, and ids need 5 records. That removes both
++the R8 oracle and the k=1 problem by default.
++
++The engineer's justification holds. The holder sees the member list but not the coordinator's routing audience, so it
++cannot evaluate C.5's condition itself. Doing that properly needs a coordinator-supplied audience, as `question_audience`
++does.
++
++Conditions:
++1. **The opt-in is weaker than C.5.** It publishes ids from members-only sources regardless of whether the members cover
++   the routing audience. The source's other members never consented; only the holder owner did. Treat it as a
++   privacy-weakening configuration:
++   - No benchmark, seed or default config may set it. None does today.
++   - Any run that enables it, or lowers `entity_min_records` below 5, declares that in BENCHMARK_CONTRACT.md and in the
++     run ledger.
++   - The `holder.update` audit already records `export_policy` changes.
++2. **The audience-covered variant of C.5 stays open as a follow-up.** It means publishing members ids only when the
++   source's member set contains the owning unit's audience, which the coordinator sends to the holder.
++3. **E1's O2(a) prediction must be re-derived with threshold 5 and public-only ids.** Recall from symptom, service and
++   issue ids will be lower than under the original commit's defaults. If it is too low, the remedy is a declared, measured
++   contract parameter, not a code default.
+-- 
+2.43.0
+

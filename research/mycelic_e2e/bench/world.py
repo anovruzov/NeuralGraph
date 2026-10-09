@@ -14,11 +14,12 @@ import random
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
+from .hygiene import TITLES
 from .schema import SIZES, Gold, TaskPublic, TemplateBank
 
 # tenants x (target users per tenant, structure)
 SHAPES: dict[str, dict[str, int]] = {
-    "S": dict(users=24, regions=1, subs=2, depts=2, teams=1),
+    "S": dict(users=56, regions=1, subs=2, depts=2, teams=2),       # disjoint goal-only scopes need >= 5 free employees per goal-only task
     "M": dict(users=500, regions=2, subs=2, depts=3, teams=4),
     "L": dict(users=5000, regions=3, subs=3, depts=4, teams=8),
 }
@@ -42,6 +43,18 @@ COMMENTS = ("Passing this along from the other group, it matches what we see on 
             "Sharing the note below with you since it looks like the same situation we are handling.",
             "Forwarding this to the team because it describes something we also run into here.")
 APPS = ("chat", "wiki", "tickets", "mail")
+
+
+VIS_PUBLIC_SHARE = 60                          # % of user holders whose personal source is public; the rest is visible to the owner's team only
+
+
+def _hash_int(*parts: Any) -> int:
+    return int(hashlib.sha256("|".join(str(p) for p in parts).encode()).hexdigest()[:12], 16)
+
+
+def title_for(rid: str) -> str:
+    """Role-neutral title: one shared pool for every record class, drawn by the record's opaque id."""
+    return TITLES[_hash_int("title", rid) % len(TITLES)]
 
 
 def _rng(*parts: Any) -> random.Random:
@@ -74,6 +87,8 @@ class HolderSpec:
     owner_key: str
     name: str
     dept: str | None
+    vis: str = "public"                   # visibility of the holder's main source: public | members (the owner's team)
+    peers: tuple[str, ...] = ()           # user keys of that team (the members of a members-visible source)
 
 
 @dataclass
@@ -81,7 +96,9 @@ class ProjectSpec:
     key: str
     name: str
     depts: tuple[str, str]
-    members: list[str]                    # user keys (2 from each department)
+    members: list[str]                    # user keys: 2 from the minority department, 3 from the majority one; disjoint across projects
+    maj: str = ""                         # the department with 3 members
+    asker: str = ""                       # department lead of the minority department: sees the scope, holds no observation
 
 
 @dataclass
@@ -224,16 +241,35 @@ def generate(seed: int, size: str, bank: TemplateBank) -> World:
         for u in t.users.values():
             if u.dept and u.memberships and u.memberships[0][1] in ("employee", "team_lead"):
                 employees_by_dept.setdefault(u.dept, []).append(u.key)
+        for lst in employees_by_dept.values():
+            rng.shuffle(lst)
+        used: set[str] = set()
+
+        def take(dept: str, k: int) -> list[str]:
+            got = [e for e in employees_by_dept.get(dept, []) if e not in used][:k]
+            if len(got) < k:
+                raise RuntimeError(f"department {dept} has too few free employees for disjoint goal-only projects")
+            used.update(got)
+            return got
         for pi in range(PROJECTS_PER_TENANT):
             a, b = pairs[pi % len(pairs)]
+            maj, mn = (a, b) if pi % 2 == 0 else (b, a)
             pk = f"t{ti}-p{pi}"
             t.units[pk] = UnitSpec(pk, "project", f"Cross-functional Initiative {chr(65 + pi)}{ti + 1}", root)
-            ea, eb = employees_by_dept.get(a.key, []), employees_by_dept.get(b.key, [])
-            members = [ea[(pi * 2 + k) % len(ea)] for k in range(2)] + [eb[(pi * 2 + k) % len(eb)] for k in range(2)]
-            members = list(dict.fromkeys(members))
-            t.projects.append(ProjectSpec(pk, t.units[pk].name, (a.key, b.key), members))
+            members = take(mn.key, 2) + take(maj.key, 3)
+            asker = next(u.key for u in t.users.values() if (mn.key, "department_lead") in u.memberships)
+            t.projects.append(ProjectSpec(pk, t.units[pk].name, (a.key, b.key), members, maj.key, asker))
             for mk in members:
                 t.users[mk].memberships.append((pk, "employee"))
+        # visibility of every user holder's personal source: one distribution for all classes (members of a goal-only project are public)
+        in_project = {m for p in t.projects for m in p.members}
+        teams: dict[str, list[str]] = {}
+        for u in t.users.values():
+            teams.setdefault(u.memberships[0][0], []).append(u.key)
+        for h in t.holders.values():
+            if h.owner_type == "user" and h.owner_key not in in_project and _hash_int(seed, size, "vis", h.key) % 100 >= VIS_PUBLIC_SHARE:
+                h.vis = "members"
+                h.peers = tuple(sorted(teams[t.users[h.owner_key].memberships[0][0]]))
         tenants.append(t)
     return World(seed, size, bank.name, tenants)
 
@@ -315,6 +351,10 @@ class Rec:
     version_offset_days: float = 0.0  # updated_at = created_at + offset
     missing_meta: bool = False
 
+    def __post_init__(self) -> None:
+        if self.title:                                   # one shared title pool for every class (opaque, drawn by the record id)
+            self.title = title_for(self.rid)
+
 
 @dataclass
 class TaskSpec:
@@ -343,6 +383,7 @@ class Plan:
     records: list[Rec]
     fault_plan: dict[str, Any]                    # holder key -> {"replay": bool, "restart": bool, "malformed": bool, "duplicate": [rid], "out_of_order": bool}
     world: Any = None
+    entities: list[str] = field(default_factory=list)      # the world's whole entity vocabulary (every service of both tenants): public, not gold
 
     def public(self) -> list[TaskPublic]:
         return [t.public for t in self.tasks]
@@ -393,15 +434,16 @@ class Planner:
         self.fault_plan: dict[str, Any] = {}
         self.ctx_pool = min(len(bank.ctx_adjectives), len(bank.ctx_nouns))
         self.ctx_next = [0, 0]
-        self.reserved_ctx = 60                                         # contexts 60.. exist only in the tenant a cross-tenant pattern lives in
-        self.reserved_next = [self.reserved_ctx, self.reserved_ctx]
-        names = [p + s for p in bank.service_prefixes for s in bank.service_suffixes]
-        self.svc_names: list[list[str]] = []
-        for ti in range(len(world.tenants)):
-            r = _rng(seed, world.size, split, "svc", ti)
-            cp = list(names)
-            r.shuffle(cp)
-            self.svc_names.append(cp)
+        self.reserved_ctx = 60                                         # own tasks use contexts 0..59 in either tenant (separate worlds) ...
+        self.reserved_next = [self.reserved_ctx, self.reserved_ctx + 5]  # ... a cross-tenant pattern uses a range that exists in ONE tenant only
+        self.decoy_ctx_idx = self.reserved_ctx + 10                    # one context shared by the in-scope decoys of all goal-only tasks (scopes are exclusive)
+        if self.ctx_pool < self.decoy_ctx_idx + 1:
+            raise RuntimeError(f"the bank offers {self.ctx_pool} contexts; {self.decoy_ctx_idx + 1} are needed")
+        names = sorted(p + s for p in bank.service_prefixes for s in bank.service_suffixes)
+        _rng(seed, world.size, split, "svc").shuffle(names)
+        self.svc_names: list[list[str]] = [names[0::2], names[1::2]]   # disjoint service names per tenant
+        self.reserved_holders: list[set[str]] = [{f"h-{m}" for p in t.projects for m in p.members} for t in world.tenants]
+        self.lead_holders: list[set[str]] = [{f"h-{u.key}" for u in t.users.values() if any(r == "department_lead" for _, r in u.memberships)} for t in world.tenants]
         self.svc_next = [0] * len(world.tenants)
         self.entities: list[list[str]] = [[] for _ in world.tenants]
         self.rec_counter = [0] * len(world.tenants)
@@ -428,7 +470,7 @@ class Planner:
 
     def rid(self, ti: int, tag: str) -> str:
         self.rec_counter[ti] += 1
-        return f"{tag}{ti}-{self.rec_counter[ti]:05d}"
+        return hashlib.sha256(f"{self.seed}|{self.split}|{ti}|{tag}|{self.rec_counter[ti]}".encode()).hexdigest()[:12]        # opaque: no role prefix
 
     def number(self) -> int:
         return self.rng.randint(12, 97)
@@ -438,13 +480,23 @@ class Planner:
         return m if m != n else (m % 80) + 13
 
     def dept_holders(self, t: TenantSpec, dept: str) -> list[str]:
-        """Holder keys inside a department: its unit holder, its team holders, and the user holders of its people."""
+        """Holder keys inside a department that may carry observations: its unit holder, its team holders and the user holders of its
+        people - except department leads (they ask goal-only questions) and members of a goal-only project (their scopes are exclusive)."""
         out = [f"h-{dept}"] + [f"h-{c.key}" for c in t.children(dept, "team")]
         out += [f"h-{u.key}" for u in t.users.values() if u.dept == dept]
-        return out
+        return [h for h in out if h not in self.reserved_holders[t.idx] and h not in self.lead_holders[t.idx]]
 
-    def pick_holders(self, t: TenantSpec, dept: str, k: int, avoid: Iterable[str] = ()) -> list[str]:
+    def pick_holders(self, t: TenantSpec, dept: str, k: int, avoid: Iterable[str] = (), kind: str = "reachable") -> list[str]:
+        """``reachable``: holders whose main source is public (unit holders always are), so an asker outside the owner's team can be answered
+        from them; ``hidden``: user holders whose source is visible to the owner's team only (replacement allowed when too few)."""
         pool = [h for h in self.dept_holders(t, dept) if h not in set(avoid)]
+        if kind == "hidden":
+            hid = [h for h in pool if t.holders[h].owner_type == "user" and t.holders[h].vis == "members"]
+            if not hid:
+                raise RuntimeError(f"department {dept} has no members-only holder")
+            self.rng.shuffle(hid)
+            return [hid[i % len(hid)] for i in range(k)]
+        pool = [h for h in pool if t.holders[h].vis == "public"]
         users = [h for h in pool if t.holders[h].owner_type == "user"]
         units = [h for h in pool if t.holders[h].owner_type == "unit"]
         self.rng.shuffle(users)
@@ -465,14 +517,14 @@ class Planner:
             if len(chosen) == k:
                 break
         if len(chosen) < k:
-            raise RuntimeError(f"department {dept} has fewer than {k} holders")
+            raise RuntimeError(f"department {dept} has fewer than {k} reachable holders")
         return chosen
 
     def author_for(self, t: TenantSpec, holder: str, dept: str) -> str:
         h = t.holders[holder]
         if h.owner_type == "user":
             return h.owner_key
-        people = [u.key for u in t.users.values() if u.dept == dept]
+        people = [u.key for u in t.users.values() if u.dept == dept and not any(r == "department_lead" for _, r in u.memberships)]
         return self.rng.choice(people)
 
     def pair(self, t: TenantSpec, *, same_family: bool = False, exclude_keys: Iterable[str] = ()) -> tuple[UnitSpec, UnitSpec]:
@@ -537,23 +589,7 @@ class Planner:
         ctx = self.ctx(ti)
         pid = f"p{len(self.specs)}"
         if goal_only:
-            proj = t.projects[self.proj_next[ti] % len(t.projects)]
-            self.proj_next[ti] += 1
-            a, b = t.units[proj.depts[0]], t.units[proj.depts[1]]
-            holders = [f"h-{m}" for m in proj.members]
-            tmpl = self.rng.sample(range(len(self.goal_obs)), min(len(self.goal_obs), len(holders)))
-            recs = [self.add_obs(t, h, t.users[m].dept or "", svc, ctx, n, tmpl[i % len(tmpl)], pattern=pid, days=self.rng.uniform(5, 90), templates=self.goal_obs)
-                    for i, (h, m) in enumerate(zip(holders, proj.members))]
-            scope = proj.key
-            asker = proj.members[0]
-            options, decoys = self.options_for(ti, svc)
-            fam = (a.domain or "operations").split(".")[0]
-            gt, go = self.bank.goal_only_templates[self.rng.randrange(len(self.bank.goal_only_templates))]
-            pub = TaskPublic(task_id="", split=self.split, tenant=t.slug, asker=t.users[asker].email, asker_key=asker, scope_unit=scope,
-                             goal_title=gt.format(fam=fam), goal_objective=go.format(fam=fam), goal_domains=[fam], question_text=None, candidate_domains=[],
-                             options=options, policy={}, goal_only=True)
-            return TaskSpec(pub, "cross_domain", svc_label(svc), f"service:{svc}", len(recs), [r.holder for r in recs], [a.key, b.key], decoys,
-                            note="goal-only; observations in the members of a project spanning the two departments")
+            return self.goal_only_task(ti, svc, n, ctx, pid)
         a, b = self.pair(t)
         ha = self.pick_holders(t, a.key, 2 if n_obs >= 3 else 1)
         hb = self.pick_holders(t, b.key, n_obs - len(ha))
@@ -561,6 +597,13 @@ class Planner:
         recs = []
         for i, (h, d) in enumerate([(h, a.key) for h in ha] + [(h, b.key) for h in hb]):
             recs.append(self.add_obs(t, h, d, svc, ctx, n, tmpl[i], pattern=pid, days=self.rng.uniform(5, 90)))
+        if not fault and self.rng.random() < 0.4:
+            # a further consistent observation in a source only the owner's team may read: the asker cannot reach it, so it never
+            # counts in the gold; it makes "a members-only holder states the pattern" occur in positives as well as in denied tasks
+            hd = self.rng.choice([a.key, b.key])
+            if any(t.holders[h].owner_type == "user" and t.holders[h].vis == "members" for h in self.dept_holders(t, hd)):
+                self.add_obs(t, self.pick_holders(t, hd, 1, kind="hidden")[0], hd, svc, ctx, n, self.rng.randrange(len(self.bank.obs_templates)),
+                             pattern=pid, days=self.rng.uniform(5, 90), role="hidden_obs")
         options, decoys = self.options_for(ti, svc)
         pub = self.make_public(t, a, b, ctx, options)
         spec = TaskSpec(pub, "fault" if fault else "cross_domain", svc_label(svc), f"service:{svc}", len(recs), sorted({r.holder for r in recs}), [a.key, b.key], decoys,
@@ -568,6 +611,39 @@ class Planner:
         if fault:
             self.apply_fault(t, spec, recs, svc, ctx, n, fault)
         return spec
+
+    def goal_only_task(self, ti: int, svc: str, n: int, ctx: str, pid: str) -> TaskSpec:
+        """One exclusive scope (a project of five people) holds exactly ONE hidden positive pattern (3 observations, 2 departments)
+        and one in-scope single-department decoy (2 observations, 1 department, its own service and context). The asker is the
+        department lead of the minority department: they see the scope, hold no observation, and no other task shares the scope."""
+        t = self.w.tenants[ti]
+        if self.proj_next[ti] >= len(t.projects):
+            raise RuntimeError("more goal-only tasks than projects")
+        proj = t.projects[self.proj_next[ti]]
+        self.proj_next[ti] += 1
+        mn = proj.depts[0] if proj.maj == proj.depts[1] else proj.depts[1]
+        mem_min = [m for m in proj.members if t.users[m].dept == mn]
+        mem_maj = [m for m in proj.members if t.users[m].dept == proj.maj]
+        assert len(mem_min) == 2 and len(mem_maj) == 3
+        d_svc, d_n = self.svc(ti), self.other_number(n)
+        d_ctx = f"{self.bank.ctx_adjectives[self.decoy_ctx_idx]} {self.bank.ctx_nouns[self.decoy_ctx_idx]}"
+        tmpl = self.rng.sample(range(len(self.goal_obs)), 3)
+        dtm = self.rng.sample(range(len(self.bank.goal_decoy_templates)), 2)
+        pos = [(mem_min[0], mn), (mem_min[1], mn), (mem_maj[0], proj.maj)]
+        recs = [self.add_obs(t, f"h-{m}", d, svc, ctx, n, tmpl[i], pattern=pid, days=self.rng.uniform(5, 90), templates=self.goal_obs)
+                for i, (m, d) in enumerate(pos)]
+        for i, m in enumerate(mem_maj[1:]):
+            self.add_obs(t, f"h-{m}", proj.maj, d_svc, d_ctx, d_n, dtm[i], pattern=pid, days=self.rng.uniform(5, 90), templates=self.bank.goal_decoy_templates,
+                         role="decoy_single_dept")
+        options, decoys = self.options_for(ti, svc, extra=[d_svc])
+        fam = (t.units[mn].domain or "operations").split(".")[0]
+        gt, go = self.bank.goal_only_templates[self.rng.randrange(len(self.bank.goal_only_templates))]
+        asker = proj.asker
+        pub = TaskPublic(task_id="", split=self.split, tenant=t.slug, asker=t.users[asker].email, asker_key=asker, scope_unit=proj.key,
+                         goal_title=gt.format(fam=fam, ctx=ctx), goal_objective=go.format(fam=fam, ctx=ctx), goal_domains=[fam], question_text=None,
+                         candidate_domains=[], options=options, policy={"min_independent_units": {"department": 2}}, goal_only=True)
+        return TaskSpec(pub, "cross_domain", svc_label(svc), f"service:{svc}", len(recs), [r.holder for r in recs], [mn, proj.maj], decoys,
+                        note="goal-only; exclusive project scope with one hidden pattern and one in-scope single-department decoy")
 
     def apply_fault(self, t: TenantSpec, spec: TaskSpec, recs: list[Rec], svc: str, ctx: str, n: int, fault: str) -> None:
         fp = self.fault_plan
@@ -726,24 +802,22 @@ class Planner:
                         note="three independent roots, one department; the question requires two")
 
     def denied(self, ti: int) -> TaskSpec:
+        """The pattern is stated only by holders whose personal source is visible to their own team: the asker is outside every team."""
         t = self.w.tenants[ti]
         svc, n = self.svc(ti), self.number()
         ctx = self.ctx(ti)
         a, b = self.pair(t)
         pid = f"p{len(self.specs)}"
-        ha, hb = self.pick_holders(t, a.key, 2), self.pick_holders(t, b.key, 1)
+        ha, hb = self.pick_holders(t, a.key, 2, kind="hidden"), self.pick_holders(t, b.key, 1, kind="hidden")
         tmpl = self.rng.sample(range(len(self.bank.obs_templates)), 3)
-        _scope, asker = self.scope_and_asker(t, a.key, b.key)
-        authors = [self.author_for(t, h, d) for h, d in [(ha[0], a.key), (ha[1], a.key), (hb[0], b.key)]]
-        members = sorted({u for u in authors if u != asker})
-        recs = [self.add_obs(t, h, d, svc, ctx, n, tmpl[i], pattern=pid, days=self.rng.uniform(5, 80), source="mem", members=members, role="restricted")
+        recs = [self.add_obs(t, h, d, svc, ctx, n, tmpl[i], pattern=pid, days=self.rng.uniform(5, 80), role="restricted")
                 for i, (h, d) in enumerate([(ha[0], a.key), (ha[1], a.key), (hb[0], b.key)])]
         options, decoys = self.options_for(ti, None, extra=[svc])
         decoys = [svc_label(svc)] + [d for d in decoys if d != svc_label(svc)]
         pub = self.make_public(t, a, b, ctx, options)
         return TaskSpec(pub, "denied", "abstain", None, None, [], [a.key, b.key], decoys, forbidden_holders=sorted({r.holder for r in recs}),
                         forbidden_markers=[svc_label(svc), f"service:{svc}"], forbidden_texts=[r.text for r in recs],
-                        note="the pattern lives in a members-only source that excludes the asker")
+                        note="the pattern is stated only in sources the asker may not read (members-only)")
 
     def cross_tenant(self, ti_asker: int) -> TaskSpec:
         tb = self.w.tenants[1 - ti_asker]
@@ -757,7 +831,7 @@ class Planner:
         recs = [self.add_obs(tb, h, d, svc, ctx, n, tmpl[i], pattern=pid, days=self.rng.uniform(5, 80)) for i, (h, d) in enumerate([(ha[0], a.key), (ha[1], a.key), (hb[0], b.key)])]
         # the asker lives in the other tenant: the question names that tenant's own departments
         aa, ab = self.pair(ta)
-        options, decoys = self.options_for(tb.idx, None, extra=[svc])
+        options, decoys = self.options_for(ti_asker, None, extra=[svc])        # distractors are real services of the ASKER's tenant
         decoys = [svc_label(svc)] + [d for d in decoys if d != svc_label(svc)]
         pub = self.make_public(ta, aa, ab, ctx, options)
         return TaskSpec(pub, "cross_tenant", "abstain", None, None, [], [aa.key, ab.key], decoys, forbidden_holders=sorted({r.holder for r in recs}),
@@ -820,7 +894,8 @@ class Planner:
             self.specs[idx].public.task_id = f"{self.split}-{pos:03d}"
         self.specs.sort(key=lambda s: s.public.task_id)
         self.add_filler()
-        return Plan(self.split, self.seed, self.specs, self.records, self.fault_plan, self.w)
+        return Plan(self.split, self.seed, self.specs, self.records, self.fault_plan, self.w,
+                    sorted({svc_label(e) for lst in self.entities for e in lst}))
 
     def add_filler(self) -> None:
         """Every holder that carries content gets unrelated notes, so its source domain reaches the publication threshold (5 records)

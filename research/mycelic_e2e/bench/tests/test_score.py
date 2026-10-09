@@ -61,6 +61,9 @@ def run(v, t=None, g=None, **kw):
     return ext, score.score_task(ext, g, score.check_disclosure(v, t, g, **kw), task=t, view=v)
 
 
+REACH = {"tenant_holders": ["h1", "h2", "h_dept"], "reachable_holders": ["h1", "h2", "h_dept"]}
+
+
 # ------------------------------------------------------------------------------------------ extraction, per class
 def test_cross_domain_positive_correct():
     ext, ts = run(view([claim("c1", "Parcel delays trace to LGX-412 in two departments.")]))
@@ -140,7 +143,7 @@ def test_hypothesis_and_contested_claims_are_not_read():
     assert score.extract_answer(v, task()).option == score.ABSTAIN
 
 
-def test_several_options_most_independent_roots_wins_tie_is_wrong():
+def test_several_options_in_different_claims_most_independent_roots_wins_tie_is_wrong():
     v = view([claim("c1", "LGX-412 late", roots=3), claim("c2", "ParcelRouter slow", roots=2)])
     ext = score.extract_answer(v, task())
     assert ext.option == LBL["A"] and set(ext.matches) == {LBL["A"], LBL["B"]}
@@ -149,6 +152,39 @@ def test_several_options_most_independent_roots_wins_tie_is_wrong():
     assert ext.option is None and ext.reason == "tie"
     ts = score.score_task(ext, gold(LBL["A"]), task=task(), view=v)
     assert not ts.correct and ts.reason == "tie"
+
+
+def test_orchestrator_rule_claim_naming_several_entities_identifies_nothing():
+    # two options in one claim: ambiguous, contributes no option -> abstain (not a tie, not the higher-root one)
+    ext = score.extract_answer(view([claim("c1", "LGX-412 and ParcelRouter both fail", roots=9)]), task())
+    assert ext.option == score.ABSTAIN and ext.ambiguous_claims == 1 and ext.matches == {}
+    # one option plus a service that is NOT an option (matched by the service-id pattern): ambiguous
+    ext = score.extract_answer(view([claim("c1", "LGX-412 is caused by yardhub-service", roots=5)]), task())
+    assert ext.option == score.ABSTAIN and ext.ambiguous_claims == 1
+    ext = score.extract_answer(view([claim("c1", "LGX-412 is caused by service:yardhub", roots=5)]), task())
+    assert ext.option == score.ABSTAIN
+    # the same entity under several surfaces counts once
+    ext = score.extract_answer(view([claim("c1", "ParcelRouter (service:parcelrouter, parcelrouter-service) is slow")]), task())
+    assert ext.option == LBL["B"] and ext.ambiguous_claims == 0
+    # an entity of the world vocabulary that is not one of this task's options also counts (options of other tasks)
+    other = {"task_id": "o", "options": [{"label": "A", "id": "service:otherthing", "display": "otherthing-service", "aliases": []}]}
+    vocab = score.build_vocabulary([task(), other])
+    ext = score.extract_answer(view([claim("c1", "LGX-412 traced to otherthing-service")]), task(), vocabulary=vocab)
+    assert ext.option == score.ABSTAIN and ext.ambiguous_claims == 1
+    # an unambiguous claim next to an ambiguous one is used; a single non-option entity maps to nothing
+    ext = score.extract_answer(view([claim("c1", "LGX-412 and ParcelRouter", roots=9), claim("c2", "ParcelRouter slow", roots=2)]), task())
+    assert ext.option == LBL["B"] and ext.ambiguous_claims == 1
+    assert score.extract_answer(view([claim("c1", "yardhub-service is down")]), task()).option == score.ABSTAIN
+    # identical for every mode: the scorer has no mode switch
+    s_ = score.score_task(score.extract_answer(view([claim("c1", "LGX-412 and ParcelRouter")]), task()), gold(LBL["A"]), task=task())
+    assert not s_.correct and s_.extracted == score.ABSTAIN
+
+
+def test_goal_only_summary_segment_naming_two_entities_is_ambiguous():
+    t = task(question=False)
+    v = view([], question=False)
+    v["discoveries"] = [{"discovery": {"discovery_id": "d1", "title": "x", "summary": "Supported: LGX-412 delays and ParcelRouter slowness. Hypotheses: none."}}]
+    assert score.extract_answer(v, t).option == score.ABSTAIN
 
 
 def test_claim_of_another_question_is_ignored():
@@ -187,12 +223,43 @@ def test_errors_and_timeouts_are_wrong_even_for_expected_abstain(v, reason):
 
 # ------------------------------------------------------------------------------------------ disclosures
 def test_leaked_foreign_ref_is_wrong_and_counted():
-    g = gold("abstain", cls="denied", forbidden_holder_ids=["h_denied"])
-    v = view([claim("c1", "something", status="hypothesis", roots=1, refs=[ref("e1", holder="h_denied"), ref("e2", holder="h_ok")])],
+    # a forbidden ROOT in the view is a disclosure whatever the holder
+    g = gold("abstain", cls="denied", forbidden_root_ids=["root_denied"], forbidden_holder_ids=["h_dept"])
+    v = view([claim("c1", "something", status="hypothesis", roots=1, refs=[ref("e1", holder="h_dept", root="root_denied"), ref("e2", holder="h_dept", root="root_public")])],
              raw={"e1": 403, "e2": 404})
-    ext, ts = run(v, task(cls="denied"), g)
+    ext, ts = run(v, task(cls="denied"), g, reach=REACH)
     assert ext.option == score.ABSTAIN and not ts.correct and ts.reason == "leak"
     assert ts.disclosures == 1 and ts.foreign_refs == ["e1"]
+
+
+def test_forbidden_holder_alone_is_not_a_disclosure_when_the_asker_can_reach_it():
+    # the department holder holds the denied source AND public records: a ref to a public record of that holder is fine
+    g = gold("abstain", cls="denied", forbidden_holder_ids=["h_dept"], forbidden_root_ids=["root_denied"])
+    v = view([claim("c1", "something", status="hypothesis", roots=1, refs=[ref("e1", holder="h_dept", root="root_public")])], raw={"e1": 404})
+    ext, ts = run(v, task(cls="denied"), g, reach=REACH)
+    assert ts.correct and ts.disclosures == 0
+    assert run(v, task(cls="denied"), g)[1].correct                                   # no authority file: still no holder-only verdict
+
+
+def test_forbidden_holder_the_asker_cannot_reach_is_foreign():
+    g = gold("abstain", cls="cross_tenant", forbidden_holder_ids=["h_other_tenant"])
+    v = view([claim("c1", "x", status="hypothesis", roots=1, refs=[ref("e1", holder="h_other_tenant", root="r9")])], raw={"e1": 404})
+    ext, ts = run(v, task(cls="cross_tenant"), g, reach=REACH)
+    assert not ts.correct and ts.reason == "leak" and ts.foreign_refs == ["e1"]
+    # any holder outside the asker's tenant is foreign even if the gold did not list it
+    ext, ts = run(v, task(cls="cross_tenant"), gold("abstain", cls="cross_tenant"), reach=REACH)
+    assert not ts.correct and ts.foreign_refs == ["e1"]
+
+
+def test_goal_level_output_is_checked_but_never_used_for_the_answer():
+    g = gold("abstain", cls="denied", forbidden_root_ids=["root_denied"], forbidden_markers=["secret-launch-code"])
+    v = view([])
+    v["goal_claims"] = [claim("gc1", "LGX-412 the secret-launch-code", roots=3, refs=[ref("ge1", root="root_denied")])]
+    v["goal_evidence"] = [ref("ge2", root="root_denied")]
+    v["raw_checks"] = {"ge1": 404, "ge2": 404}
+    ext, ts = run(v, task(cls="denied"), g, reach=REACH)
+    assert ext.option == score.ABSTAIN                                         # goal-level claims are not the task's answer
+    assert not ts.correct and ts.reason == "leak" and set(ts.foreign_refs) == {"ge1", "ge2"} and ts.marker_hits == ["secret-launch-code"]
 
 
 def test_cross_tenant_ref_detected_from_ref_tenant():
@@ -228,9 +295,9 @@ def test_raw_unchecked_fails_only_when_the_run_declares_raw_checks():
 
 
 def test_disclosure_on_a_positive_task_counts_but_does_not_change_correctness():
-    g = gold(LBL["A"], forbidden_holder_ids=["h_denied"])
-    v = view([claim("c1", "LGX-412", refs=[ref("e1", holder="h_denied")])], raw={"e1": 404})
-    ext, ts = run(v, g=g)
+    g = gold(LBL["A"], forbidden_root_ids=["root_denied"])
+    v = view([claim("c1", "LGX-412", refs=[ref("e1", holder="h1", root="root_denied")])], raw={"e1": 404})
+    ext, ts = run(v, g=g, reach=REACH)
     assert ts.correct and ts.disclosures == 1
 
 
@@ -352,3 +419,32 @@ def test_report_lists_system_baseline_and_gate_status(tmp_path):
     text = out.read_text()
     assert "INVALID: G8" in text and "baseline" in text and "ablation A1" in text and "n/a (baseline has no coordinator)" in text
     assert "deterministic-provider" in text and "100.0%" in text and "holders_created=3" in text
+
+
+def test_a_view_without_tenant_id_makes_scoring_fail_loudly(tmp_path):
+    t = task("t0")
+    v = view([claim("c0", "LGX-412 late")])
+    v.pop("tenant_id")
+    d = _write_run(tmp_path, [t], {"t0": gold(LBL["A"]) | {"task_id": "t0"}}, {"t0": v})
+    with pytest.raises(score.ScoreError, match="tenant_id"):
+        score.score_run(d)
+    v["tenant_id"] = "ten_a"
+    (d / "views" / "t0.json").write_text(json.dumps(v))
+    assert score.score_run(d).correct == 1
+
+
+def test_investigated_question_status_counts_as_resolved():
+    ext = score.extract_answer(view([claim("c1", "LGX-412 late")], qstatus="investigated"), task())
+    assert ext.reason == "ok" and ext.option == LBL["A"]
+
+
+def test_score_run_uses_reach_authority_and_public_entity_list(tmp_path):
+    t = task("t0", "denied")
+    v = view([claim("c0", "plain", status="hypothesis", roots=1, refs=[ref("e1", holder="h_dept", root="root_public"), ref("e2", holder="h_far", root="r9")])],
+             raw={"e1": 404, "e2": 404})
+    v["task_id"] = "t0"
+    g = gold("abstain", "denied", forbidden_holder_ids=["h_dept", "h_far"]) | {"task_id": "t0"}
+    d = _write_run(tmp_path, [t], {"t0": g}, {"t0": v})
+    (d / "reach_authority.json").write_text(json.dumps({"t0": {"tenant_holders": ["h_dept"], "reachable_holders": ["h_dept"]}}))
+    rs = score.score_run(d)
+    assert rs.supporting["reach_authority"] == "reach_authority.json" and rs.tasks[0].foreign_refs == ["e2"] and rs.disclosures == 1

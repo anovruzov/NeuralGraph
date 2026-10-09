@@ -130,6 +130,21 @@ def test_baseline_scores_through_the_unchanged_scorer(world, tmp_path, variant):
     # members-only source of another user: the audience filter hides it from the executive's audience -> abstain, no disclosure
     assert by["t-denied"].extracted == "abstain" and by["t-denied"].correct and by["t-denied"].disclosures == 0
     assert rs.accuracy == 1.0 and rs.mode == "baseline"
+    assert (out / "reach_authority.json").exists() and v["tenant_id"] == T                      # views carry the tenant the scorer needs
+    reach = json.loads((out / "reach_authority.json").read_text())["t-pos"]
+    assert set(reach["tenant_holders"]) == {"hold_a", "hold_b"} and set(reach["reachable_holders"]) == {"hold_a", "hold_b"}
+    assert rs.supporting["reach_authority"] == "reach_authority.json"
+
+
+def test_source_variant_is_the_primary_baseline_and_the_report_says_so(world, tmp_path):
+    from bench import report
+    assert baseline_central.PRIMARY_VARIANT == "source" and baseline_central.VARIANTS[0] == "source"
+    runs = tmp_path / "runs"
+    for name, variant in (("S1-baseline-single", "single"), ("S1-baseline-source", "source")):
+        baseline_central.run(world, None, runs / name, variant=variant, log=None)
+    text = report.render(runs / "S1-baseline-single").read_text()
+    assert "baseline (source, primary)" in text and "baseline (single, secondary)" in text
+    assert text.index("baseline (source, primary)") < text.index("baseline (single, secondary)")
 
 
 def test_baseline_never_reads_or_imports_what_it_must_not():

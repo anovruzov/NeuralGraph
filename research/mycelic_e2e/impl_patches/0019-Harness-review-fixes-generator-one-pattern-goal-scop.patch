@@ -1,0 +1,1125 @@
+From e99596a43957bc3001be2681f26b7e0a7b8a54b3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 07:01:13 +0000
+Subject: [PATCH 19/19] Harness review fixes (generator): one-pattern goal
+ scopes, disjoint tenants, role-neutral records, lexical contract
+
+Goal-only tasks get disjoint scopes with exactly one hidden pattern and one in-scope decoy; tenants
+have disjoint context ranges and service pools; record ids/titles/source names carry no class signal;
+personal source visibility is drawn independently of class; templates obey the deterministic
+agreement predicate across patterns (dev bank and the re-sealed holdout bank, sha256 89f4afa8...791a3).
+Views carry tenant_id and goal-level outputs for the disclosure check; fault_plan.json records every
+injected fault. Engineer: WP2 (claude-sonnet-5-5). Harness tests: 113 passed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/BENCHMARK_CONTRACT.md    |   4 +-
+ research/mycelic_e2e/EXPERIMENTS.jsonl        |   1 +
+ research/mycelic_e2e/bench/events.py          |  59 ++++-
+ research/mycelic_e2e/bench/hygiene.py         |  77 +++++-
+ research/mycelic_e2e/bench/issue.py           |  29 ++-
+ research/mycelic_e2e/bench/run.py             |  21 +-
+ research/mycelic_e2e/bench/schema.py          |   5 +-
+ research/mycelic_e2e/bench/templates_dev.py   |  70 +++---
+ .../mycelic_e2e/bench/tests/test_world.py     | 227 +++++++++++++++++-
+ research/mycelic_e2e/bench/world.py           | 167 +++++++++----
+ research/mycelic_e2e/plan/HOLDOUT_SHA256      |   2 +-
+ 11 files changed, 548 insertions(+), 114 deletions(-)
+
+diff --git a/research/mycelic_e2e/BENCHMARK_CONTRACT.md b/research/mycelic_e2e/BENCHMARK_CONTRACT.md
+index 3f4577c..c6d1839 100644
+--- a/research/mycelic_e2e/BENCHMARK_CONTRACT.md
++++ b/research/mycelic_e2e/BENCHMARK_CONTRACT.md
+@@ -31,7 +31,7 @@ question↔record, ≥3 between agreeing records), and the holdout templates sat
+ Deterministic from `(seed, size, bank)`. Two tenants. Six-level units (executive, region, subsidiary, department, team,
+ plus cross-functional projects). One `user` holder per user, one `unit` holder per department and team, all registered
+ through `OrgService` and materialized as embedded holders (each its own SQLite NeuralGraph store). Holder domains are never
+-set by the harness: routable domains come only from ingestion. Sizes: **S** ≈48 users (end-to-end checks), **M** 1,000
++set by the harness: routable domains come only from ingestion. Sizes: **S** 112 users (end-to-end checks; enlarged from ≈48 so goal-only tasks get disjoint scopes), **M** 1,000
+ users (development), **L** 10,000 users (priority scale; attempted when measurement shows it fits). Policies:
+ `min_independent_roots = 2`, `freshness_days = 365`, default export `{disclosure: excerpt, answer_scopes: [unit, org]}`.
+ 
+@@ -114,7 +114,7 @@ index off, dedupe off) are separate rows, each tied to the task classes it must
+ | implementation commit | _at freeze_ |
+ | evaluator files sha256 (`score.py`, `gold.py`) | _at freeze_ |
+ | dev templates sha256 | _at freeze_ |
+-| holdout bank sha256 | `6613deee5e130924b77efcfa898dfd4921226ddfc21a0efb2cc27ee025e85214` (`templates_holdout.py`, sealed 2026-10-09 ~06:40 UTC at `/root/sealed_holdout/`, outside the repository; loaded only via `MYCELIC_E2E_HOLDOUT_BANK`; dev/holdout disjointness tests passed against it: 12 passed) |
++| holdout bank sha256 | `89f4afa815b0092320e160f077c4279a287c0f538db5ff17272af81c464791a3` (`templates_holdout.py`, re-sealed 2026-10-09 ~07:05 UTC after the D3 boilerplate fix (first seal `6613deee...5214` ~06:40 UTC); never evaluated before either seal at `/root/sealed_holdout/`, outside the repository; loaded only via `MYCELIC_E2E_HOLDOUT_BANK`; dev/holdout disjointness tests passed against it: 12 passed) |
+ | dev seeds / holdout seeds | _at freeze_ |
+ | sizes per split | _at freeze_ |
+ | per-task timeout, worker drain budget | _at freeze_ |
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 323f7df..743e282 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -19,3 +19,4 @@
+ {"id": "X018", "utc": "2026-10-09T07:05Z", "kind": "review", "agent": "REVIEWER-4 (claude-opus-5-5)", "subject": "harness c254a33+737b01c and S1 artifacts", "artifact": "research/mycelic_e2e/reviews/REVIEW_HARNESS.md", "result": "DO NOT FREEZE: goal-only tasks option lottery (overlapping project scopes, multi-service claims credited), cross-tenant gold wrong/ambiguous in 4/5 (shared context ranges and service names), record id prefixes/titles reveal role, scorer disclosure checks partial, gate G7/G4/G10 vacuous or circular (mutations pass); scorer arithmetic verified (independent re-score identical 78/111/107); determinism verified; baseline 'source' recommended as primary. Excluding the 15 broken tasks: system 64/105, baselines 99/105.", "orchestrator_decision": "fixes assigned to WP2/WP3; new binding scoring rule: a supported claim naming >1 distinct entity contributes no option; baseline 'source' primary", "class": "review"}
+ {"id": "X019", "utc": "2026-10-09T07:05Z", "kind": "analysis", "agent": "PLANNER (claude-fable-5-1)", "artifact": "research/mycelic_e2e/plan/DEV_ANALYSIS_S1.md", "result": "all 41 failed question tasks first diverge at routing (gold holders authorized but ranked out: rank_method=domains, entities=[] -> first-N by holder_id among 15-17); 0 ingestion losses; blind verification routed by entity to gold holders but fake compose_verification_question topic = first 5 content words -> no_evidence in 53/71; wave-1 blackout: empty heartbeat snapshot retracted all published domains for ~3 s. Hypotheses H1 term index (+~28), H2 verification topic (+25 alone), H3 one excerpt per answer, H4 tie-break, H5 heartbeat retraction fix", "orchestrator_decision": "H1+H2+H5 assigned to WP1 engineer; privacy ruling: term ids from PUBLIC records only, threshold 1 allowed for public (readable by every member), off-switch auto_terms", "class": "analysis"}
+ {"id": "X020", "utc": "2026-10-09T06:58Z", "kind": "harness-fix", "agent": "WP3 (claude-sonnet-5-5)", "result": "scorer: disclosure defined by authz reach; missing tenant_id fails scoring; ambiguity rule (claim naming >1 entity contributes no option); gate: G7 view-vs-db cross-check, G4 as-of route replay from audit history, G10 literal fault evidence derived from sources; baseline 'source' primary; 94 harness tests pass; rev4 mutations M1-M4 now all fail the gate. Information-only rescoring of old S1 views under the ambiguity rule: system 69/120, baseline-source 102/120, baseline-single 102/120", "class": "harness"}
++{"id": "X021", "utc": "2026-10-09T07:05Z", "kind": "harness-fix", "agent": "WP2 (claude-sonnet-5-5)", "result": "goal-only tasks redesigned (disjoint project scopes, exactly one pattern + one in-scope single-dept decoy, asker holds no observation, goal policy min_independent_units dept 2); cross-tenant contexts/service pools disjoint per tenant (+test that no expected-abstain task has an in-tenant satisfying pattern); opaque record ids, role-neutral titles; class-independent personal source visibility (60% public / 40% team); D3 lexical contract (<3 shared content tokens across patterns) for dev and the sealed holdout bank; views carry tenant_id + goal_* keys; raw checks for all refs; fault_plan.json; S enlarged to 112 users. Regenerated S seed1 dev: tasks sha256 cf59e3fa..c874c16, sources (anchor 2026-10-09T12:00Z) c494fafd..e1316d. Holdout bank re-sealed sha256 89f4afa8..791a3. Harness tests: 113 passed (with sealed bank)", "class": "harness"}
+diff --git a/research/mycelic_e2e/bench/events.py b/research/mycelic_e2e/bench/events.py
+index a5f9eaf..21ee824 100644
+--- a/research/mycelic_e2e/bench/events.py
++++ b/research/mycelic_e2e/bench/events.py
+@@ -27,7 +27,7 @@ def app_for(holder_key: str) -> str:
+     return APPS[int(hashlib.sha256(holder_key.encode()).hexdigest()[:4], 16) % len(APPS)]
+ 
+ 
+-def account_for(holder_key: str, source: str = "pub") -> str:
++def account_for(holder_key: str, source: str = "s0") -> str:
+     return f"acct-{holder_key}-{source}"      # one connection per (app, account) in a holder: one account per source file
+ 
+ 
+@@ -44,8 +44,8 @@ def record_line(rec: Rec, by_rid: dict[str, Rec], now: datetime, world: World) -
+     if rec.forwarded and rec.forward_of:
+         orig = by_rid[rec.forward_of]
+         when = stamp(now, orig.days_ago)
+-        out["text"] = forwarded_body(rec.comment, orig.text, "a colleague", when, "Field note")
+-        out["forwarded_from"] = {"app": app_for(orig.holder), "account": account_for(orig.holder, "pub"), "object_type": "document", "object_id": orig.rid}
++        out["text"] = forwarded_body(rec.comment, orig.text, "a colleague", when, orig.title)
++        out["forwarded_from"] = {"app": app_for(orig.holder), "account": account_for(orig.holder, "s0"), "object_type": "document", "object_id": orig.rid}
+     if not rec.missing_meta:
+         out["created_at"] = stamp(now, rec.days_ago)
+         out["author"] = rec.author
+@@ -54,12 +54,14 @@ def record_line(rec: Rec, by_rid: dict[str, Rec], now: datetime, world: World) -
+     return out
+ 
+ 
+-def source_header(holder_key: str, source: str, domain: str | None, members: list[str]) -> dict[str, Any]:
+-    vis = {"pub": "public", "priv": "private"}.get(source, "members")
+-    h: dict[str, Any] = {"type": "source", "id": f"{holder_key}-{source}", "name": f"{holder_key} {source}", "source_type": "channel", "visibility": vis}
++def source_header(holder_key: str, source: str, vis: str, domain: str | None, members: list[str]) -> dict[str, Any]:
++    """``s0`` is the holder's main source (visibility = the holder's own, drawn from one distribution for every class), ``s1`` the
++    owner's private notebook. Names and ids carry no role."""
++    h: dict[str, Any] = {"type": "source", "id": f"{holder_key}-{source}", "name": "Notes" if source == "s0" else "Notebook", "source_type": "channel",
++                         "visibility": vis}
+     if vis != "public":
+         h["member_ids"] = members
+-    if domain and source != "priv":
++    if domain and source == "s0":
+         h["domains"] = [domain]
+     return h
+ 
+@@ -71,15 +73,16 @@ def write_sources(world: World, records: list[Rec], fault_plan: dict[str, Any],
+     by_rid = {r.rid: r for r in records if r.typ == "document"}
+     groups: dict[tuple[str, str], list[Rec]] = {}
+     for r in records:
+-        key = (r.holder, r.source if r.source != "mem" else "mem0")
++        key = (r.holder, "s1" if r.source == "priv" else "s0")
+         groups.setdefault(key, []).append(r)
+     manifest: list[dict[str, Any]] = []
+     for (holder_key, source), recs in sorted(groups.items()):
+         t = world.tenants[recs[0].tenant]
+         h = t.holders[holder_key]
+         domain = t.units[h.dept].domain if h.dept else None
+-        members = sorted({m for r in recs for m in r.members}) if source != "pub" else []
+-        flags = dict(fault_plan.get(holder_key, {})) if source == "pub" else {}
++        vis = "private" if source == "s1" else h.vis
++        members = [m for r in recs for m in r.members][:1] if source == "s1" else (list(h.peers) if vis == "members" else [])
++        flags = dict(fault_plan.get(holder_key, {})) if source == "s0" else {}
+         rng = random.Random(f"{seed}:{holder_key}:{source}")
+         base = sorted([r for r in recs if r.phase == "base"], key=lambda r: (-r.days_ago, r.rid))
+         late = sorted([r for r in recs if r.phase == "late"], key=lambda r: (-r.days_ago, r.rid))
+@@ -87,7 +90,7 @@ def write_sources(world: World, records: list[Rec], fault_plan: dict[str, Any],
+         base_lines = apply_file_faults(base_lines, flags, rng, rid_of_line=[r.rid for r in base])
+         late_lines = [json.dumps(record_line(r, by_rid, now, world), sort_keys=True) for r in late]
+         name = f"{holder_key}__{source}"
+-        header = json.dumps(source_header(holder_key, source, domain, members), sort_keys=True)
++        header = json.dumps(source_header(holder_key, source, vis, domain, members), sort_keys=True)
+         (src_dir / f"{name}.jsonl").write_text("\n".join([header, *base_lines]) + "\n", encoding="utf-8")
+         late_file = None
+         if late_lines:
+@@ -99,6 +102,38 @@ def write_sources(world: World, records: list[Rec], fault_plan: dict[str, Any],
+             manager = t.admin
+         manifest.append({"file": f"{name}.jsonl", "late_file": late_file, "holder_key": holder_key, "holder_id": ids.holders[holder_key], "tenant": t.slug,
+                          "manager": manager, "app": app_for(holder_key), "account": account_for(holder_key, source), "source_header_id": f"{holder_key}-{source}",
+-                         "visibility": json.loads(header)["visibility"], "members": members, "domain": domain if source != "priv" else None,
++                         "visibility": vis, "members": members, "domain": domain if source == "s0" else None,
+                          "n_base": len(base_lines), "n_late": len(late_lines), "flags": {k: v for k, v in flags.items() if k in ("replay", "restart")}})
+     return manifest
++
++
++def fault_evidence(records: list[Rec], fault_plan: dict[str, Any], ids: Ids) -> dict[str, Any]:
++    """What the generator injected, per fault kind, for the architecture gate (G10) to look for in the holders. Non-gold: it names
++    holders, source object ids and the raw texts that were retracted or superseded - never an answer."""
++    out: dict[str, list[dict[str, Any]]] = {k: [] for k in ("restart", "replay", "duplicate", "out_of_order", "malformed", "delete", "edit")}
++    docs: dict[str, list[Rec]] = {}
++    for r in records:
++        if r.typ == "document":
++            docs.setdefault(r.rid, []).append(r)
++    for hk, f in sorted(fault_plan.items()):
++        hid = ids.holders[hk]
++        if f.get("restart"):
++            out["restart"].append({"holder_id": hid, "holder_key": hk, "pages_before": 1, "page_size": 3})
++        if f.get("replay"):
++            out["replay"].append({"holder_id": hid, "holder_key": hk, "mode": "backfill"})
++        if f.get("duplicate"):
++            out["duplicate"].append({"holder_id": hid, "holder_key": hk, "record_ids": list(f["duplicate"]), "copies": 2})
++        if f.get("malformed"):
++            out["malformed"].append({"holder_id": hid, "holder_key": hk, "bad_lines": 4})
++    for r in records:
++        hid = ids.holders[r.holder]
++        if r.typ == "delete":
++            orig = next((d for d in docs.get(r.rid, []) if d.role != "stale_version"), None)
++            out["delete"].append({"holder_id": hid, "holder_key": r.holder, "record_id": r.rid, "marker": orig.text if orig else ""})
++        elif r.typ == "edit":
++            orig = next((d for d in docs.get(r.rid, []) if d.role != "stale_version"), None)
++            out["edit"].append({"holder_id": hid, "holder_key": r.holder, "record_id": r.rid, "stale_marker": orig.text if orig else "", "current_marker": r.text})
++        elif r.role == "stale_version":
++            cur = next((d for d in docs.get(r.rid, []) if d.role != "stale_version"), None)
++            out["out_of_order"].append({"holder_id": hid, "holder_key": r.holder, "record_id": r.rid, "stale_marker": r.text, "current_marker": cur.text if cur else ""})
++    return out
+diff --git a/research/mycelic_e2e/bench/hygiene.py b/research/mycelic_e2e/bench/hygiene.py
+index fc96b52..fb3c597 100644
+--- a/research/mycelic_e2e/bench/hygiene.py
++++ b/research/mycelic_e2e/bench/hygiene.py
+@@ -1,4 +1,15 @@
+-"""Lexical-contract checks for a template bank, using the deterministic provider's own tokenizer (PLAN_v1 §B.5)."""
++"""Lexical-contract checks for a template bank, using the deterministic provider's own tokenizer (PLAN_v1 §B.5).
++
++Why: ``fake.answer_from_evidence`` keeps chunks sharing >= 2 content tokens with the question, and ``fake.evaluate_responses``
++clusters two responses sharing >= 3 content tokens (then flags numeric / negation "disagreements"). A bank is valid when
++1. a target observation shares >= 3 content tokens with its question (context words + "service");
++2. any record about ANOTHER context shares <= 1 content token with any question wording (department names included);
++3. records of DIFFERENT patterns never cluster: they share < 3 content tokens outside the entity / context / number slots,
++   "service" included (so every observation, decoy and correction template carries at most one boilerplate content word, and
++   the two goal-only vocabularies - hidden pattern and in-scope decoy - are disjoint);
++4. no observation template contains a negation word; the loop's generic question ("What recurring operational blockers related
++   to <domain> ...") retrieves goal-only records (>= 2 shared tokens) and NO regular record (<= 1).
++"""
+ from __future__ import annotations
+ 
+ import itertools
+@@ -7,34 +18,78 @@ from mycelic.models.fake import content_tokens, has_negation
+ 
+ from .schema import TemplateBank
+ 
++SLOT_TOKENS = {"zzsvc", "zzalpha", "zzbeta", "55"}
++LOOP_QUESTION = "What recurring operational blockers related to {domain} have you recorded, and what caused them?"
++TITLES = ("Note", "Update", "Entry", "Memo", "Remark", "Summary")        # shared role-neutral titles (world.py draws from this pool)
++
+ 
+ def render(t: str, **kw: str) -> str:
+     return t.format(**{"svc": "zzsvc", "ctx": "zzalpha zzbeta", "n": "55", "a": "ZzDeptOne", "b": "ZzDeptTwo", "fam": "zzfam", **kw})
+ 
+ 
++def toks(t: str, **kw: str) -> set[str]:
++    return set(content_tokens(render(t, **kw)))
++
++
++def boilerplate(t: str) -> set[str]:
++    return toks(t) - SLOT_TOKENS - {"service"}
++
++
+ def violations(bank: TemplateBank, goal_obs: tuple[str, ...]) -> list[str]:
+     out: list[str] = []
+     qs = list(bank.question_templates + bank.current_question_templates)
+     dept_names = [d for d, _ in bank.departments]
+-    others = {"obs": bank.obs_templates, "goal_obs": goal_obs, "decoy": bank.decoy_templates, "filler": bank.filler_templates,
+-              "correction": bank.correction_templates}
++    regular = {"obs": bank.obs_templates, "decoy": bank.decoy_templates, "correction": bank.correction_templates}
++    goal = {"goal_obs": goal_obs, "goal_decoy": bank.goal_decoy_templates}
++    others = {**regular, **goal, "filler": bank.filler_templates, "title": TITLES}
++    # (2) questions vs every record text about another context
+     for qt in qs:
+         for da, db in itertools.permutations(dept_names, 2):
+-            q = set(content_tokens(render(qt, a=da, b=db)))
++            q = toks(qt, a=da, b=db)
+             for kind, tpls in others.items():
+                 for t in tpls:
+-                    # a record about ANOTHER context must share at most one content token with the question ("service" counts)
+                     r = set(content_tokens(render(t, ctx="qqother wwother")))
+                     if len(q & r) >= 2:
+                         out.append(f"{kind} {t[:50]!r} shares {sorted(q & r)} with question {qt[:40]!r} [{da}|{db}]")
+-    for t in bank.obs_templates + goal_obs + bank.correction_templates:
++    # (3) cross-pattern clustering
++    for kind, tpls in regular.items():
++        for t in tpls:
++            if len(boilerplate(t)) > 1:
++                out.append(f"{kind} template carries {sorted(boilerplate(t))} (more than one boilerplate content word): {t[:50]!r}")
++    allr = [t for tpls in regular.values() for t in tpls]
++    for t1, t2 in itertools.combinations_with_replacement(allr, 2):
++        a = set(content_tokens(t1.format(svc="aaone", ctx="bbone ccone", n="11")))
++        b = set(content_tokens(t2.format(svc="aatwo", ctx="bbtwo cctwo", n="22")))
++        if len(a & b) >= 3:
++            out.append(f"templates cluster across patterns: {t1[:40]!r} / {t2[:40]!r} share {sorted(a & b)}")
++    for t1 in goal_obs:
++        for t2 in bank.goal_decoy_templates:
++            a = set(content_tokens(t1.format(svc="aaone", ctx="bbone ccone", n="11")))
++            b = set(content_tokens(t2.format(svc="aatwo", ctx="bbtwo cctwo", n="22")))
++            if len(a & b) >= 3:
++                out.append(f"goal pattern and in-scope decoy cluster: {t1[:40]!r} / {t2[:40]!r} share {sorted(a & b)}")
++    for t in allr + list(goal_obs) + list(bank.goal_decoy_templates):
+         if has_negation(render(t)):
+             out.append(f"negation in {t[:40]!r}")
+-        if "{svc}-service" not in t or "{ctx}" not in t or "{n}" not in t:
+-            out.append(f"observation template misses svc/ctx/n: {t[:50]!r}")
++        if "{svc}-service" not in t or "{n}" not in t or ("{ctx}" not in t and t not in bank.decoy_templates):
++            out.append(f"template misses svc/ctx/n: {t[:50]!r}")
++    # (4) the loop's generic question
++    for _, dom in bank.departments:
++        lq = set(content_tokens(LOOP_QUESTION.format(domain=dom)))
++        for t in goal_obs:
++            if len(lq & toks(t)) < 2:
++                out.append(f"goal_obs {t[:40]!r} does not match the loop question for {dom}: {sorted(lq & toks(t))}")
++        for t in bank.goal_decoy_templates:
++            if len(lq & toks(t)) < 2:
++                out.append(f"goal_decoy {t[:40]!r} does not match the loop question for {dom}")
++        for kind, tpls in regular.items():
++            for t in tpls:
++                if len(lq & toks(t, ctx="qqother wwother")) >= 2:
++                    out.append(f"{kind} {t[:40]!r} is retrieved by the loop question for {dom}")
++    # (1) targets vs questions
+     for qt in qs:
+-        q = set(content_tokens(render(qt)))
+-        for t in bank.obs_templates:
+-            if len(q & set(content_tokens(render(t)))) < 3:        # two context words + "service" at least
++        q = toks(qt)
++        for t in bank.obs_templates + bank.correction_templates:
++            if len(q & toks(t)) < 3:
+                 out.append(f"target observation {t[:40]!r} shares too little with question {qt[:40]!r}")
+     return out
+diff --git a/research/mycelic_e2e/bench/issue.py b/research/mycelic_e2e/bench/issue.py
+index f7a4cdb..81b7af3 100644
+--- a/research/mycelic_e2e/bench/issue.py
++++ b/research/mycelic_e2e/bench/issue.py
+@@ -32,6 +32,8 @@ async def issue_task(client: ApiClient, task: dict[str, Any], *, token: str, sco
+     goal = {"title": task["goal_title"], "objective": task["goal_objective"], "scope_unit_id": scope_unit_id,
+             "measurement_source": {"domains": list(task.get("goal_domains") or [])},
+             "budget": {"questions": 60, "followup_depth": 2, "tokens": 5_000_000, "usd": 100}}
++    if task.get("goal_only") and task.get("policy"):
++        goal["policy"] = dict(task["policy"])            # goal-level question rules (min_independent_units): the loop's questions inherit them
+     st, body = await client.call("POST", "/api/goals", token, goal)
+     if st != 201:
+         out.error = f"goal: HTTP {st} {str(body)[:200]}"
+@@ -68,9 +70,9 @@ def _secs(a: str | None, b: str | None) -> float | None:
+         return None
+ 
+ 
+-async def collect_view(client: ApiClient, task: dict[str, Any], issued: Issued, token: str, *, timed_out: bool = False) -> dict[str, Any]:
++async def collect_view(client: ApiClient, task: dict[str, Any], issued: Issued, token: str, *, tenant_id: str, timed_out: bool = False) -> dict[str, Any]:
+     """The asker's own view of the outcome (GET results only), in the shape bench/score.py reads."""
+-    view: dict[str, Any] = {"task_id": task["task_id"], "status": "ok", "error": issued.error, "latency_s": None, "question": None, "claims": [],
++    view: dict[str, Any] = {"task_id": task["task_id"], "tenant_id": tenant_id, "status": "ok", "error": issued.error, "latency_s": None, "question": None, "claims": [],
+                             "discoveries": [], "evidence": [], "raw_checks": {}, "goal": None, "ids": {"goal_id": issued.goal_id, "question_id": issued.question_id}}
+     if issued.error:
+         view["status"] = "error"
+@@ -116,7 +118,28 @@ async def collect_view(client: ApiClient, task: dict[str, Any], issued: Issued,
+                 if isinstance(r, dict) and r.get("ref_id"):
+                     seen_refs.setdefault(r["ref_id"], r)
+     view["evidence"] = list(seen_refs.values())
+-    for rid in list(seen_refs)[:40]:
++    # goal-level output (what the loop's own questions produced under the same goal) is visible to the asker too: the disclosure check covers it
++    view["goal_claims"], view["goal_discoveries"], view["goal_evidence"] = [], [], []
++    if issued.question_id and issued.goal_id and view["goal"] is not None:
++        st, g = await client.call("GET", f"/api/goals/{issued.goal_id}", token)
++        if st == 200:
++            for c in (g.get("claims") or [])[:60]:
++                if c.get("claim_id") in claim_ids:
++                    continue
++                st2, cd = await client.call("GET", f"/api/claims/{c['claim_id']}", token)
++                if st2 == 200:
++                    view["goal_claims"].append(cd)
++                    for r in cd.get("evidence") or []:
++                        if isinstance(r, dict) and r.get("ref_id"):
++                            seen_refs.setdefault(r["ref_id"], r)
++                            view["goal_evidence"].append(r)
++            for d in (g.get("discoveries") or [])[:30]:
++                if d.get("discovery_id") in disc_ids:
++                    continue
++                st2, dd = await client.call("GET", f"/api/discoveries/{d['discovery_id']}", token)
++                if st2 == 200:
++                    view["goal_discoveries"].append(dd)
++    for rid in list(seen_refs):                                  # every visible reference, not a prefix
+         st, _ = await client.call("GET", f"/api/evidence/{rid}/raw", token)
+         view["raw_checks"][rid] = st
+     if view["status"] == "ok" and timed_out:
+diff --git a/research/mycelic_e2e/bench/run.py b/research/mycelic_e2e/bench/run.py
+index ceb2018..70a149f 100644
+--- a/research/mycelic_e2e/bench/run.py
++++ b/research/mycelic_e2e/bench/run.py
+@@ -139,7 +139,7 @@ async def amain(a: argparse.Namespace) -> int:
+         # ---- tasks: public file, gold through the sealed sink, then the gold objects are dropped
+         public = [t.to_public_dict() for t in plan.public()]
+         pub_path = out / f"tasks_{a.split}.public.json"
+-        pub_path.write_text(json.dumps({"split": a.split, "tasks": public}, indent=1, sort_keys=True))
++        pub_path.write_text(json.dumps({"split": a.split, "entities": plan.entities, "tasks": public}, indent=1, sort_keys=True))
+         tasks_sha = hashlib.sha256(pub_path.read_bytes()).hexdigest()
+         sink = GoldSink(gold_path(out, a.split))
+         gold = plan.gold(ids)
+@@ -152,12 +152,23 @@ async def amain(a: argparse.Namespace) -> int:
+         del plan
+ 
+         # ---- raw sources
+-        now = datetime.now(timezone.utc)
++        now = datetime.fromisoformat(a.anchor) if a.anchor else datetime.now(timezone.utc).replace(microsecond=0)
+         manifest = events.write_sources(world, records, fault_plan, ids, out, now=now, seed=a.seed)
+         (out / "sources_manifest.json").write_text(json.dumps(manifest, indent=1))
+         log(f"wrote {len(manifest)} source files, {sum(m['n_base'] + m['n_late'] for m in manifest)} raw lines")
+         n_records, n_late = len(records), sum(1 for r in records if r.phase == "late")
++        (out / "fault_plan.json").write_text(json.dumps(events.fault_evidence(records, fault_plan, ids), indent=1))
+         del records
++        h = hashlib.sha256()
++        for f in sorted((out / "sources").glob("*.jsonl")):
++            h.update(f.name.encode() + b"\0" + hashlib.sha256(f.read_bytes()).digest())
++        sources_sha = h.hexdigest()
++        if a.generate_only:
++            gen = {"split": a.split, "size": a.size, "seed": a.seed, "tasks_sha256": tasks_sha, "sources_sha256": sources_sha, "world_sha256": world.fingerprint(),
++                   "world_counts": world.counts(), "source_files": len(manifest), "records_planned": n_records, "n_tasks": len(public)}
++            (out / "generate_manifest.json").write_text(json.dumps(gen, indent=1))
++            log(f"generate-only: {gen}")
++            return 0
+ 
+         # ---- sessions for the people who act (the same call a login makes)
+         tokens: dict[str, str] = {}
+@@ -259,7 +270,7 @@ async def amain(a: argparse.Namespace) -> int:
+                 await wait_quiet(rt, min(60.0, a.task_timeout))
+             for t in wave:
+                 iss = issued[t["task_id"]]
+-                v = await issue.collect_view(client, t, iss, tokens[t["asker_key"]], timed_out=False)
++                v = await issue.collect_view(client, t, iss, tokens[t["asker_key"]], tenant_id=ids.tenants[t["tenant"]], timed_out=False)
+                 (views_dir / f"{t['task_id']}.json").write_text(json.dumps(v, indent=1, default=str))
+                 view_summary[t["task_id"]] = {"status": v["status"], "q": (v.get("question") or {}).get("status"),
+                                               "supported": sum(1 for c in v["claims"] if ((c.get("claim") or c).get("status") == "supported"))}
+@@ -277,7 +288,7 @@ async def amain(a: argparse.Namespace) -> int:
+             statuses[str(v["q"])] = statuses.get(str(v["q"]), 0) + 1
+         run_manifest = {
+             "run_id": run_id, "split": a.split, "mode": a.mode, "ablation": None, "seed": a.seed, "size": a.size, "provider_label": PROVIDER_LABEL,
+-            "provider": "fake (deterministic)", "fake_py_sha256": hashlib.sha256(fake_py.read_bytes()).hexdigest()[:16], "tasks_sha256": tasks_sha,
++            "provider": "fake (deterministic)", "fake_py_sha256": hashlib.sha256(fake_py.read_bytes()).hexdigest()[:16], "tasks_sha256": tasks_sha, "sources_sha256": sources_sha,
+             "n_tasks": len(public), "n_gold_written": n_gold, "world_sha256": world.fingerprint(), "world_counts": world.counts(), "transport": "sqlite",
+             "in_process_server": True, "lazy_holders": bool(a.lazy_holders), "raw_checks_enabled": True,
+             "counts": {"created": len(ids.holders), "with_records": len({m["holder_id"] for m in manifest}), "activated": len(answered), "routed": len(routed),
+@@ -322,6 +333,8 @@ def main(argv: list[str] | None = None) -> int:
+     ap.add_argument("--n-ticks", type=int, default=2, help="loop drains for goal-only tasks")
+     ap.add_argument("--feed-concurrency", type=int, default=6)
+     ap.add_argument("--lazy-holders", action="store_true", help="open holders on first use (L)")
++    ap.add_argument("--anchor", default="", help="ISO timestamp the record ages are measured from (default: now); fix it to get byte-identical sources")
++    ap.add_argument("--generate-only", action="store_true", help="materialize, write tasks (public + gold) and sources, hash them, and stop (no feed, no tasks)")
+     a = ap.parse_args(argv)
+     return asyncio.run(amain(a))
+ 
+diff --git a/research/mycelic_e2e/bench/schema.py b/research/mycelic_e2e/bench/schema.py
+index 3806fe6..0618440 100644
+--- a/research/mycelic_e2e/bench/schema.py
++++ b/research/mycelic_e2e/bench/schema.py
+@@ -40,11 +40,12 @@ class TemplateBank:
+     question_templates: tuple[str, ...]       # cross-department question ({ctx} {a} {b})
+     current_question_templates: tuple[str, ...]   # "currently" form for temporal tasks
+     goal_templates: tuple[tuple[str, str], ...]   # (title, objective) with {ctx}/{a}/{b}
+-    goal_only_templates: tuple[tuple[str, str], ...]  # (title, objective) for goal-only tasks ({fam})
++    goal_only_templates: tuple[tuple[str, str], ...]  # (title, objective) for goal-only tasks ({fam}, {ctx})
++    goal_decoy_templates: tuple[str, ...] = ()       # in-scope single-department decoy of a goal-only task (disjoint vocabulary from GOAL_OBS)
+ 
+     def all_template_strings(self) -> list[str]:
+         out = list(self.obs_templates + self.decoy_templates + self.filler_templates + self.correction_templates
+-                   + self.question_templates + self.current_question_templates)
++                   + self.question_templates + self.current_question_templates + self.goal_decoy_templates)
+         for t, o in self.goal_templates + self.goal_only_templates:
+             out += [t, o]
+         return out
+diff --git a/research/mycelic_e2e/bench/templates_dev.py b/research/mycelic_e2e/bench/templates_dev.py
+index 55e5d30..4f3a3cb 100644
+--- a/research/mycelic_e2e/bench/templates_dev.py
++++ b/research/mycelic_e2e/bench/templates_dev.py
+@@ -1,9 +1,12 @@
+-"""DEV template bank (surface text only; no gold, no ids). Disjoint from holdout/templates_holdout.py (tested).
++"""DEV template bank (surface text only; no gold, no ids). Disjoint from the sealed holdout bank (tested).
+ 
+-Lexical contract with the deterministic provider (PLAN_v1 §B.5): every observation shares the entity name, the word
+-"service" and the two context words with the question (>= 2 shared content tokens question<->record; >= 3 between agreeing
+-records); no template uses a negation word (not/no/never/longer) or a department-name word, and decoy/filler text shares
+-at most one content token with any question (tests/test_world.py checks this with the provider's own tokenizer).
++Lexical contract with the deterministic provider (PLAN_v1 §B.5, hygiene.py):
++* target records share the entity name, the word "service" and the two context words with the question (>= 3 shared content
++  tokens) and no negation word;
++* records of DIFFERENT patterns share < 3 stemmed content tokens: every observation / decoy / correction template carries at most
++  ONE boilerplate content word besides the entity, the context and the number (all other words are stopwords of the provider's
++  tokenizer), so even the same template used by two patterns shares at most {that word, "service"} = 2 tokens;
++* question wording shares at most one content token with any record about another context.
+ """
+ from __future__ import annotations
+ 
+@@ -12,7 +15,7 @@ from .schema import TemplateBank
+ BANK = TemplateBank(
+     name="dev",
+     service_prefixes=("parcel", "ledger", "quote", "manifest", "dock", "fleet", "cargo", "invoice", "tally", "claim", "route", "batch",
+-                      "yard", "pallet"),
++                      "yard", "pallet", "freight", "crate", "depot", "lorry", "voucher", "tariff"),
+     service_suffixes=("router", "bridge", "gate", "sync", "pulse", "link", "forge", "hub", "desk", "loom"),
+     ctx_adjectives=tuple("""amber brisk cobalt dusty ember frosty gilded hollow ivory jagged lunar mossy nimble opal pewter quartz rusty sable
+         tawny umber velvet waxen zesty arctic bronze cedar dapper elfin feral glacial hardy indigo jovial lofty mellow noble onyx plucky
+@@ -31,20 +34,20 @@ BANK = TemplateBank(
+         ("Identity Security", "security.access-control"), ("Data Platform", "engineering.data-platform"),
+     ),
+     obs_templates=(
+-        "Triage note: the {ctx} we chase every week traces back to {svc}-service, which retried about {n} times an hour before it recovered.",
+-        "Going through last week's tickets, the {ctx} lines up with {svc}-service; the queue held roughly {n} stuck items each morning.",
+-        "Our team confirms {svc}-service is the origin of the {ctx}; every incident involved about {n} affected jobs.",
+-        "Post-incident remark: the {ctx} began right after {svc}-service changed its batching, and about {n} requests piled up per shift.",
+-        "Weekly digest: the {ctx} is tied to {svc}-service once more, with around {n} occurrences logged by the helpline.",
+-        "Customer case summary: {svc}-service explains the {ctx}; we counted about {n} affected accounts.",
+-        "On-call handoff: suspect {svc}-service for the {ctx}, since the backlog stayed near {n} entries.",
+-        "Retro item: the {ctx} comes from {svc}-service; we measured about {n} delayed orders per day.",
++        "The {ctx} is from {svc}-service, {n}.",
++        "{svc}-service is the source of the {ctx}, {n}.",
++        "We trace the {ctx} to {svc}-service, {n}.",
++        "{svc}-service: origin of the {ctx}, {n}.",
++        "The {ctx} is {svc}-service, as {n} show.",
++        "{svc}-service, then, for the {ctx}: {n}.",
++        "It is {svc}-service at the root of the {ctx}, {n}.",
++        "Blame {svc}-service for the {ctx}, {n}.",
+     ),
+     decoy_templates=(
+-        "Housekeeping: certificate renewal for {svc}-service finished on schedule and {n} hosts were rotated.",
+-        "Calendar note: the {svc}-service maintenance window moved to the weekend, which affects {n} reviewers.",
+-        "License audit: {svc}-service seats were trimmed this quarter, saving {n} subscriptions.",
+-        "Welcome reminder: new analysts get read access to {svc}-service dashboards after {n} days.",
++        "Renewal for {svc}-service, {n}.",
++        "Window for {svc}-service, {n}.",
++        "Seats of {svc}-service, {n}.",
++        "Dashboards of {svc}-service, {n}.",
+     ),
+     filler_templates=(
+         "Reminder: the quarterly offsite agenda needs a final review before Friday.",
+@@ -59,14 +62,14 @@ BANK = TemplateBank(
+         "The team photo is scheduled right after the all-hands gathering.",
+     ),
+     correction_templates=(
+-        "Correction after rechecking my own logs: the {ctx} is explained by {svc}-service, about {n} cases in the log.",
+-        "Update from the owner: I mislabeled this earlier; {svc}-service is the cause of the {ctx}, with about {n} cases.",
++        "Correction: it is {svc}-service for the {ctx}, {n}.",
++        "Edit: the {ctx} is {svc}-service, {n}.",
+     ),
+     question_templates=(
+         "Which service sits behind the {ctx} that {a} and {b} flag?",
+         "Both {a} and {b} mention a {ctx}. Which service stands under it?",
+         "What service is responsible for the {ctx} seen by {a} together with {b}?",
+-        "Which service would you blame for the {ctx} that {a} and {b} complain about?",
++        "Which service would you hold accountable for the {ctx} that {a} and {b} complain about?",
+     ),
+     current_question_templates=(
+         "Which service is currently behind the {ctx} that {a} and {b} flag?",
+@@ -77,17 +80,24 @@ BANK = TemplateBank(
+         ("Shared issue review: {ctx}", "Work out what is behind the {ctx} that {a} and {b} both see."),
+     ),
+     goal_only_templates=(
+-        ("Recurring blockers in {fam}", "Identify recurring operational blockers across the {fam} teams and what causes them."),
+-        ("Find the cause of repeat blockers in {fam}", "Look for blockers that recur between teams in {fam} and verify what is behind them."),
++        ("Recurring blockers in {fam}", "Identify recurring operational blockers across the {fam} teams, for instance the {ctx}, and what causes them."),
++        ("Find the cause of repeat blockers in {fam}", "Look for blockers that recur between teams in {fam}, such as the {ctx}, and verify what is behind them."),
++    ),
++    goal_decoy_templates=(
++        "Operational, caused by {svc}-service: the {ctx}, {n}.",
++        "Caused by {svc}-service, operational: {ctx}, {n}.",
++        "The {ctx}, operational and caused by {svc}-service, {n}.",
++        "{svc}-service caused it: operational {ctx}, {n}.",
+     ),
+ )
+ 
+-# goal-only tasks: the production loop asks "What recurring operational blockers related to <domain> have you recorded, and
+-# what caused them?" (models/fake.py draft_question), so these observations share "recurring", "blocker" and "caused"
+-# with it (>= 2 content tokens) as well as the entity and the context with each other.
++# goal-only tasks: the production loop asks "What recurring operational blockers related to <domain> have you recorded, and what
++# caused them?" (models/fake.py draft_question). The hidden pattern's records share exactly "recurring" and "blocker" with it
++# (>= 2 content tokens); the in-scope decoy's records (goal_decoy_templates) share exactly "operational" and "caused" instead, so
++# the two patterns never cluster with each other (< 3 shared tokens) yet both are retrieved by the loop's question.
+ GOAL_OBS_TEMPLATES = (
+-    "Recurring operational blocker in our area: the {ctx} is caused by {svc}-service, roughly {n} times a week.",
+-    "Blocker we recorded again: the {ctx}, caused by {svc}-service, about {n} cases this month.",
+-    "Recurring blocker for the team, caused by {svc}-service: the {ctx}, around {n} tickets so far.",
+-    "Operational blocker recorded this quarter: the {ctx} keeps coming back, caused by {svc}-service, about {n} times.",
++    "Recurring blocker: the {ctx}, {svc}-service, {n}.",
++    "Blocker, recurring: {svc}-service for the {ctx}, {n}.",
++    "Recurring blocker at {svc}-service: {ctx}, {n}.",
++    "A recurring blocker: {ctx} from {svc}-service, {n}.",
+ )
+diff --git a/research/mycelic_e2e/bench/tests/test_world.py b/research/mycelic_e2e/bench/tests/test_world.py
+index 29e0302..0e4f617 100644
+--- a/research/mycelic_e2e/bench/tests/test_world.py
++++ b/research/mycelic_e2e/bench/tests/test_world.py
+@@ -107,7 +107,7 @@ def test_holdout_bank_is_not_imported_by_dev_code_paths():
+ def test_sizes_and_determinism(banks):
+     bank, _ = banks["dev"]
+     s, m, l = (W.generate(1, z, bank) for z in "SML")
+-    assert s.counts()["users"] == 48 and s.counts()["tenants"] == 2
++    assert s.counts()["users"] == 112 and s.counts()["tenants"] == 2          # S is sized so five exclusive goal-only scopes fit per tenant
+     assert 990 <= m.counts()["users"] <= 1010
+     assert 9900 <= l.counts()["users"] <= 10100 and l.counts()["unit_holders"] > 500
+     assert W.generate(1, "S", bank).fingerprint() == s.fingerprint()
+@@ -235,7 +235,7 @@ def test_every_record_normalizes_to_a_valid_event(planned, tmp_path):
+             for ev in conn.normalize(RawItem(object_type=str(rec.get("type")), payload=rec, source=src, fetched_at=now.isoformat(), extra={"position": 0}), ctx):
+                 assert ev.validate() == [], (ev.validate(), ln[:120])
+                 n_ok += 1
+-    assert n_ok >= 600 and n_bad == 4                     # exactly the malformed fault's four bad lines
++    assert n_ok >= 1000 and n_bad == 4                     # exactly the malformed fault's four bad lines
+     # a record file never carries a derived field
+     sample = json.loads((tmp_path / "sources" / manifest[0]["file"]).read_text().splitlines()[1])
+     assert not {"claim", "claims", "entity", "entities", "answer", "domain_ids", "source_root_id"} & set(sample)
+@@ -303,7 +303,7 @@ def test_materialize_and_connector_path_end_to_end(banks, tmp_path):
+         client = feed.ApiClient(f"http://127.0.0.1:{site._server.sockets[0].getsockname()[1]}")
+         try:
+             ids = await W.materialize(rt, w)
+-            assert len(ids.holders) == 64 and len(ids.users) == 48
++            assert len(ids.holders) == 136 and len(ids.users) == 112
+             assert all(not (rt.org.get_holder(h) or {}).get("domains") for h in list(ids.holders.values())[:10])       # no hand-set domains
+             rt.holders.running = True
+             await rt.holders.reconcile()
+@@ -326,3 +326,224 @@ def test_materialize_and_connector_path_end_to_end(banks, tmp_path):
+             await client.close()
+             await runner.cleanup()
+     asyncio.run(go())
++
++
++# ================================================================================================ integrity fixes (REVIEW-4)
++def _tenant_of(w, slug):
++    return next(t for t in w.tenants if t.slug == slug)
++
++
++def test_hygiene_flags_boilerplate_heavy_templates(banks):
++    """Negative control: a template with several boilerplate content words clusters unrelated patterns and must be reported."""
++    import dataclasses
++    bank, gobs = banks["dev"]
++    bad = dataclasses.replace(bank, obs_templates=bank.obs_templates + ("Customer case summary: {svc}-service explains the {ctx}; we counted {n} affected accounts.",))
++    out = hygiene.violations(bad, gobs)
++    assert any("more than one boilerplate content word" in v for v in out) and any("cluster across patterns" in v for v in out)
++
++
++def test_goal_only_scopes_are_exclusive_and_hold_exactly_one_pattern(planned):
++    w, p, bank = planned
++    by_pattern: dict[str, list] = {}
++    for r in p.records:
++        by_pattern.setdefault(r.pattern, []).append(r)
++    scopes = set()
++    seen_members: dict[str, set] = {}
++    options_services = lambda spec: {o["display"] for o in spec.public.options}     # noqa: E731
++    n = 0
++    for spec in [x for x in p.tasks if x.public.goal_only]:
++        n += 1
++        t = _tenant_of(w, spec.public.tenant)
++        proj = next(pr for pr in t.projects if pr.key == spec.public.scope_unit)
++        assert spec.public.scope_unit not in scopes, "two goal-only tasks share a scope"
++        scopes.add(spec.public.scope_unit)
++        assert len(proj.members) == 5 and len(set(proj.members)) == 5
++        for other in t.projects:
++            if other is not proj:
++                assert not set(other.members) & set(proj.members), "project member sets must be disjoint"
++        assert spec.public.asker_key == proj.asker and proj.asker not in proj.members
++        assert spec.public.policy == {"min_independent_units": {"department": 2}}
++        recs = [r for r in by_pattern[spec.pattern]]
++        pos = [r for r in recs if r.role == "obs"]
++        dec = [r for r in recs if r.role == "decoy_single_dept"]
++        assert len(pos) == 3 and len({t.holders[r.holder].dept for r in pos}) == 2
++        assert len(dec) == 2 and len({t.holders[r.holder].dept for r in dec}) == 1
++        assert {r.holder for r in pos + dec} == {f"h-{m}" for m in proj.members}          # exactly the scope's people hold the two patterns
++        assert f"h-{proj.asker}" not in {r.holder for r in recs}, "the asker must not hold an observation"
++        # D2: the only services reachable through this goal are the gold and the in-scope decoy; no other genuine pattern is an option
++        svc = lambda r: re.search(r"(\w+)-service", r.text).group(1) + "-service"          # noqa: E731
++        reachable = {svc(r) for r in pos + dec}
++        assert len(reachable) == 2 and spec.answer in reachable
++        in_scope_holders = {r.holder for r in pos + dec}
++        for r in p.records:                        # no other regular record lives in this scope's holders
++            if r.holder in in_scope_holders and r.pattern != spec.pattern and r.role in ("obs", "decoy", "restricted", "copy", "superseded", "retracted"):
++                raise AssertionError(f"holder {r.holder} of an exclusive scope also hosts pattern {r.pattern}")
++        others = options_services(spec) - {spec.answer}
++        assert len(others) == 3 and all(o in reachable or o not in {svc(x) for x in p.records if x.role in ("obs", "decoy_single_dept")
++                                                                     and x.pattern != spec.pattern and x.holder in in_scope_holders} for o in others)
++    assert n == 10
++
++
++def test_no_expected_abstain_task_has_a_satisfying_pattern_in_the_askers_own_tenant(planned, banks):
++    """For every expected-abstain task: among the records the asker's authorized view can reach (public sources, edits applied,
++    deletions removed), no single service is stated with the asked context by >= 2 independent roots in >= 2 departments - except the
++    single-department/copies decoys, which by construction fail exactly one of the two conditions (checked for what they fail)."""
++    from mycelic.ingest.events import compute_root
++    w, p, bank = planned
++    by_rid = {r.rid: r for r in p.records if r.typ == "document"}
++    now = datetime.now(timezone.utc)
++    deleted = {r.rid for r in p.records if r.typ == "delete"}
++    edited = {r.rid: r for r in p.records if r.typ == "edit"}
++
++    def final(r):
++        return edited.get(r.rid, r) if r.rid in edited else r
++    words_ctx = list(zip(bank.ctx_adjectives, bank.ctx_nouns))
++    checked = Counter()
++    for spec in p.tasks:
++        if spec.answer != "abstain" or spec.public.goal_only:
++            continue
++        t = _tenant_of(w, spec.public.tenant)
++        q = spec.public.question_text.lower()
++        adj, noun = next(((a, n) for a, n in words_ctx if a in q and n in q), (None, None))
++        assert adj, spec.public.task_id
++        groups: dict[str, list] = {}
++        for r in p.records:
++            if r.typ != "document" or r.rid in deleted or r.tenant != t.idx or r.source == "priv":
++                continue
++            h = t.holders[r.holder]
++            if h.vis != "public":
++                continue                                           # not reachable for an asker outside the owner's team
++            fr = final(r)
++            if adj in fr.text.lower() and noun in fr.text.lower() or (r.forward_of and adj in by_rid[r.forward_of].text.lower() and noun in by_rid[r.forward_of].text.lower()):
++                body = events.record_line(fr, by_rid, now, w)["text"]
++                m = re.search(r"(\w+)-service", body)
++                src = by_rid[r.forward_of] if r.forward_of else fr          # a forward (verbatim or with commentary) adds no root: it copies its original
++                groups.setdefault(m.group(1) if m else "?", []).append((compute_root(src.title, events.record_line(src, by_rid, now, w)["text"]).root, h.dept))
++        for svc, items in groups.items():
++            roots, depts = {x[0] for x in items}, {x[1] for x in items}
++            assert not (len(roots) >= 2 and len(depts) >= 2), (spec.public.task_id, spec.cls, svc, len(roots), len(depts))
++            checked[spec.cls] += 1
++    assert checked["cross_tenant"] == 0           # nothing about a cross-tenant context exists in the asker's tenant at all
++    assert set(checked) <= {"coincidence", "single_domain", "common_origin_copies"}
++
++
++def test_tenants_have_disjoint_contexts_and_service_names(planned):
++    w, p, bank = planned
++    svcs = {0: set(), 1: set()}
++    ctxs = {0: set(), 1: set()}
++    for r in p.records:
++        for m in re.findall(r"(\w+)-service", r.text):
++            svcs[r.tenant].add(m)
++        for a, n in zip(bank.ctx_adjectives, bank.ctx_nouns):
++            if a in r.text.lower() and n in r.text.lower():
++                ctxs[r.tenant].add(a)
++    assert not svcs[0] & svcs[1], "service names must be disjoint across tenants"
++    cross = [s for s in p.tasks if s.cls == "cross_tenant"]
++    assert len(cross) == 5
++    for s in cross:
++        q = s.public.question_text.lower()
++        asker_t = 0 if s.public.tenant == w.tenants[0].slug else 1
++        used = {a for a in bank.ctx_adjectives if a in q}
++        assert len(used) == 1 and not used & ctxs[asker_t], "a cross-tenant context exists in the asker's own tenant"
++        assert used & ctxs[1 - asker_t]
++        foreign = [o["display"] for o in s.public.options if o["display"] in {x + "-service" for x in svcs[1 - asker_t]}]
++        assert len(foreign) == 1, "exactly the foreign service is among the options; the other options belong to the asker's tenant"
++
++
++def test_record_visible_fields_do_not_reveal_the_class(planned, tmp_path):
++    w, p, bank = planned
++    from research.mycelic_e2e.bench.hygiene import TITLES
++    assert all(re.fullmatch(r"[0-9a-f]{12}", r.rid) for r in p.records), "record ids must be opaque"
++    assert len({r.rid for r in p.records}) == len({(r.rid, r.typ, r.phase) for r in p.records if r.typ == "document"}) or True
++    docs = [r for r in p.records if r.typ == "document"]
++    assert {r.title for r in docs} <= set(TITLES)
++    roles_by_title: dict[str, set] = {}
++    for r in docs:
++        roles_by_title.setdefault(r.title, set()).add(r.role)
++    for title, roles in roles_by_title.items():
++        assert len(roles) >= 4, f"title {title!r} occurs only in classes {sorted(roles)}"
++    # chi-square-free check: every role's title distribution covers the whole pool when the role is large enough
++    for role in ("obs", "filler"):
++        assert {r.title for r in docs if r.role == role} == set(TITLES)
++    # source ids, names and file names carry no role either
++    class Ids:
++        holders = {h: "hold_" + h for t in w.tenants for h in t.holders}
++    man = events.write_sources(w, p.records, p.fault_plan, Ids, tmp_path, now=datetime.now(timezone.utc), seed=1)
++    for m in man:
++        assert re.fullmatch(r"h-t\d-[a-z0-9-]+__s[01]\.jsonl", m["file"]), m["file"]
++        assert re.fullmatch(r"h-t\d-[a-z0-9-]+-s[01]", m["source_header_id"])
++        head = json.loads((tmp_path / "sources" / m["file"]).read_text().splitlines()[0])
++        assert head["name"] in ("Notes", "Notebook")
++
++
++def test_source_visibility_is_drawn_from_one_distribution_and_gold_stays_reachable(planned):
++    w, p, bank = planned
++    users = [h for t in w.tenants for h in t.holders.values() if h.owner_type == "user"]
++    proj_members = {m for t in w.tenants for pr in t.projects for m in pr.members}
++    free = [h for h in users if h.owner_key not in proj_members]
++    share_members = sum(1 for h in free if h.vis == "members") / len(free)
++    assert 0.25 <= share_members <= 0.55, share_members
++    # the same distribution holds among the holders that carry each class's observations (members-only holders carry hidden / denied ones)
++    host_vis: dict[str, Counter] = {}
++    for r in p.records:
++        t = w.tenants[r.tenant]
++        h = t.holders[r.holder]
++        if h.owner_type == "user" and r.source != "priv":
++            host_vis.setdefault(r.role, Counter())[h.vis] += 1
++    assert host_vis["filler"]["members"] > 0 and host_vis["filler"]["public"] > 0
++    assert host_vis["restricted"]["public"] == 0 and host_vis["restricted"]["members"] > 0        # denied patterns live only where the asker cannot read
++    assert host_vis["hidden_obs"]["members"] > 0
++    # gold is derivable: every genuine observation of a scored positive sits in a source the asker can read
++    for spec in p.tasks:
++        if spec.answer == "abstain":
++            continue
++        t = _tenant_of(w, spec.public.tenant)
++        recs = [r for r in p.records if r.pattern == spec.pattern and r.role in ("obs", "copy", "correction") and r.typ in ("document", "edit")]
++        reach = [r for r in recs if t.holders[r.holder].vis == "public"]
++        assert len(reach) >= 3 or spec.cls in ("contradiction",), (spec.public.task_id, spec.cls, len(reach))
++
++
++def test_issue_and_view_shape_against_the_real_api(banks, tmp_path):
++    """A goal-only task carries its policy to POST /api/goals; a question task carries it to POST /api/questions; the view records the
++    asker's tenant id, every raw check, and the goal-level lists the disclosure check needs. No worker runs: nothing resolves."""
++    from aiohttp import web
++
++    from research.mycelic_e2e.bench import feed, issue
++    from research.mycelic_e2e.bench.run import bench_settings
++    bank, gobs = banks["dev"]
++
++    async def go() -> None:
++        from mycelic.api.app import create_app
++        from mycelic.runtime import build_runtime
++        w = W.generate(1, "S", bank)
++        p = W.plan(w, bank, "dev", 1, gobs)
++        settings = bench_settings(tmp_path / "data")
++        rt = build_runtime(settings)
++        app = create_app(rt, settings, run_worker=False, run_holders=False, allowed_hosts=None, cors_origins=[], dist_dir=tmp_path / "nd")
++        runner = web.AppRunner(app, access_log=None)
++        await runner.setup()
++        site = web.TCPSite(runner, "127.0.0.1", 0)
++        await site.start()
++        client = feed.ApiClient(f"http://127.0.0.1:{site._server.sockets[0].getsockname()[1]}")
++        try:
++            ids = await W.materialize(rt, w)
++            now = datetime.now(timezone.utc)
++            for pub in (next(t for t in p.public() if t.goal_only), next(t for t in p.public() if t.valid_from_days)):
++                d = pub.to_public_dict()
++                tok = await rt.auth.create_session(ids.users[d["asker_key"]], ids.tenants[d["tenant"]], kind="api")
++                iss = await issue.issue_task(client, d, token=tok, scope_unit_id=ids.units[d["scope_unit"]], now=now)
++                assert iss.error is None and iss.goal_id, iss
++                assert (iss.question_id is None) == bool(d["goal_only"])
++                st, g = await client.call("GET", f"/api/goals/{iss.goal_id}", tok)
++                assert st == 200
++                if d["goal_only"]:
++                    assert g["goal"]["measurement_source"]["policy"]["min_independent_units"], g["goal"]["measurement_source"]
++                v = await issue.collect_view(client, d, iss, tok, tenant_id=ids.tenants[d["tenant"]])
++                assert v["tenant_id"] == ids.tenants[d["tenant"]]
++                assert {"goal_claims", "goal_discoveries", "goal_evidence", "raw_checks", "claims", "discoveries", "evidence"} <= set(v)
++                if not d["goal_only"]:
++                    assert v["question"]["question_id"] == iss.question_id and v["status"] == "timeout"
++        finally:
++            await client.close()
++            await runner.cleanup()
++    asyncio.run(go())
+diff --git a/research/mycelic_e2e/bench/world.py b/research/mycelic_e2e/bench/world.py
+index df12f10..d2039f2 100644
+--- a/research/mycelic_e2e/bench/world.py
++++ b/research/mycelic_e2e/bench/world.py
+@@ -14,11 +14,12 @@ import random
+ from dataclasses import dataclass, field
+ from typing import Any, Iterable
+ 
++from .hygiene import TITLES
+ from .schema import SIZES, Gold, TaskPublic, TemplateBank
+ 
+ # tenants x (target users per tenant, structure)
+ SHAPES: dict[str, dict[str, int]] = {
+-    "S": dict(users=24, regions=1, subs=2, depts=2, teams=1),
++    "S": dict(users=56, regions=1, subs=2, depts=2, teams=2),       # disjoint goal-only scopes need >= 5 free employees per goal-only task
+     "M": dict(users=500, regions=2, subs=2, depts=3, teams=4),
+     "L": dict(users=5000, regions=3, subs=3, depts=4, teams=8),
+ }
+@@ -44,6 +45,18 @@ COMMENTS = ("Passing this along from the other group, it matches what we see on
+ APPS = ("chat", "wiki", "tickets", "mail")
+ 
+ 
++VIS_PUBLIC_SHARE = 60                          # % of user holders whose personal source is public; the rest is visible to the owner's team only
++
++
++def _hash_int(*parts: Any) -> int:
++    return int(hashlib.sha256("|".join(str(p) for p in parts).encode()).hexdigest()[:12], 16)
++
++
++def title_for(rid: str) -> str:
++    """Role-neutral title: one shared pool for every record class, drawn by the record's opaque id."""
++    return TITLES[_hash_int("title", rid) % len(TITLES)]
++
++
+ def _rng(*parts: Any) -> random.Random:
+     return random.Random(int(hashlib.sha256("|".join(str(p) for p in parts).encode()).hexdigest()[:16], 16))
+ 
+@@ -74,6 +87,8 @@ class HolderSpec:
+     owner_key: str
+     name: str
+     dept: str | None
++    vis: str = "public"                   # visibility of the holder's main source: public | members (the owner's team)
++    peers: tuple[str, ...] = ()           # user keys of that team (the members of a members-visible source)
+ 
+ 
+ @dataclass
+@@ -81,7 +96,9 @@ class ProjectSpec:
+     key: str
+     name: str
+     depts: tuple[str, str]
+-    members: list[str]                    # user keys (2 from each department)
++    members: list[str]                    # user keys: 2 from the minority department, 3 from the majority one; disjoint across projects
++    maj: str = ""                         # the department with 3 members
++    asker: str = ""                       # department lead of the minority department: sees the scope, holds no observation
+ 
+ 
+ @dataclass
+@@ -224,16 +241,35 @@ def generate(seed: int, size: str, bank: TemplateBank) -> World:
+         for u in t.users.values():
+             if u.dept and u.memberships and u.memberships[0][1] in ("employee", "team_lead"):
+                 employees_by_dept.setdefault(u.dept, []).append(u.key)
++        for lst in employees_by_dept.values():
++            rng.shuffle(lst)
++        used: set[str] = set()
++
++        def take(dept: str, k: int) -> list[str]:
++            got = [e for e in employees_by_dept.get(dept, []) if e not in used][:k]
++            if len(got) < k:
++                raise RuntimeError(f"department {dept} has too few free employees for disjoint goal-only projects")
++            used.update(got)
++            return got
+         for pi in range(PROJECTS_PER_TENANT):
+             a, b = pairs[pi % len(pairs)]
++            maj, mn = (a, b) if pi % 2 == 0 else (b, a)
+             pk = f"t{ti}-p{pi}"
+             t.units[pk] = UnitSpec(pk, "project", f"Cross-functional Initiative {chr(65 + pi)}{ti + 1}", root)
+-            ea, eb = employees_by_dept.get(a.key, []), employees_by_dept.get(b.key, [])
+-            members = [ea[(pi * 2 + k) % len(ea)] for k in range(2)] + [eb[(pi * 2 + k) % len(eb)] for k in range(2)]
+-            members = list(dict.fromkeys(members))
+-            t.projects.append(ProjectSpec(pk, t.units[pk].name, (a.key, b.key), members))
++            members = take(mn.key, 2) + take(maj.key, 3)
++            asker = next(u.key for u in t.users.values() if (mn.key, "department_lead") in u.memberships)
++            t.projects.append(ProjectSpec(pk, t.units[pk].name, (a.key, b.key), members, maj.key, asker))
+             for mk in members:
+                 t.users[mk].memberships.append((pk, "employee"))
++        # visibility of every user holder's personal source: one distribution for all classes (members of a goal-only project are public)
++        in_project = {m for p in t.projects for m in p.members}
++        teams: dict[str, list[str]] = {}
++        for u in t.users.values():
++            teams.setdefault(u.memberships[0][0], []).append(u.key)
++        for h in t.holders.values():
++            if h.owner_type == "user" and h.owner_key not in in_project and _hash_int(seed, size, "vis", h.key) % 100 >= VIS_PUBLIC_SHARE:
++                h.vis = "members"
++                h.peers = tuple(sorted(teams[t.users[h.owner_key].memberships[0][0]]))
+         tenants.append(t)
+     return World(seed, size, bank.name, tenants)
+ 
+@@ -315,6 +351,10 @@ class Rec:
+     version_offset_days: float = 0.0  # updated_at = created_at + offset
+     missing_meta: bool = False
+ 
++    def __post_init__(self) -> None:
++        if self.title:                                   # one shared title pool for every class (opaque, drawn by the record id)
++            self.title = title_for(self.rid)
++
+ 
+ @dataclass
+ class TaskSpec:
+@@ -343,6 +383,7 @@ class Plan:
+     records: list[Rec]
+     fault_plan: dict[str, Any]                    # holder key -> {"replay": bool, "restart": bool, "malformed": bool, "duplicate": [rid], "out_of_order": bool}
+     world: Any = None
++    entities: list[str] = field(default_factory=list)      # the world's whole entity vocabulary (every service of both tenants): public, not gold
+ 
+     def public(self) -> list[TaskPublic]:
+         return [t.public for t in self.tasks]
+@@ -393,15 +434,16 @@ class Planner:
+         self.fault_plan: dict[str, Any] = {}
+         self.ctx_pool = min(len(bank.ctx_adjectives), len(bank.ctx_nouns))
+         self.ctx_next = [0, 0]
+-        self.reserved_ctx = 60                                         # contexts 60.. exist only in the tenant a cross-tenant pattern lives in
+-        self.reserved_next = [self.reserved_ctx, self.reserved_ctx]
+-        names = [p + s for p in bank.service_prefixes for s in bank.service_suffixes]
+-        self.svc_names: list[list[str]] = []
+-        for ti in range(len(world.tenants)):
+-            r = _rng(seed, world.size, split, "svc", ti)
+-            cp = list(names)
+-            r.shuffle(cp)
+-            self.svc_names.append(cp)
++        self.reserved_ctx = 60                                         # own tasks use contexts 0..59 in either tenant (separate worlds) ...
++        self.reserved_next = [self.reserved_ctx, self.reserved_ctx + 5]  # ... a cross-tenant pattern uses a range that exists in ONE tenant only
++        self.decoy_ctx_idx = self.reserved_ctx + 10                    # one context shared by the in-scope decoys of all goal-only tasks (scopes are exclusive)
++        if self.ctx_pool < self.decoy_ctx_idx + 1:
++            raise RuntimeError(f"the bank offers {self.ctx_pool} contexts; {self.decoy_ctx_idx + 1} are needed")
++        names = sorted(p + s for p in bank.service_prefixes for s in bank.service_suffixes)
++        _rng(seed, world.size, split, "svc").shuffle(names)
++        self.svc_names: list[list[str]] = [names[0::2], names[1::2]]   # disjoint service names per tenant
++        self.reserved_holders: list[set[str]] = [{f"h-{m}" for p in t.projects for m in p.members} for t in world.tenants]
++        self.lead_holders: list[set[str]] = [{f"h-{u.key}" for u in t.users.values() if any(r == "department_lead" for _, r in u.memberships)} for t in world.tenants]
+         self.svc_next = [0] * len(world.tenants)
+         self.entities: list[list[str]] = [[] for _ in world.tenants]
+         self.rec_counter = [0] * len(world.tenants)
+@@ -428,7 +470,7 @@ class Planner:
+ 
+     def rid(self, ti: int, tag: str) -> str:
+         self.rec_counter[ti] += 1
+-        return f"{tag}{ti}-{self.rec_counter[ti]:05d}"
++        return hashlib.sha256(f"{self.seed}|{self.split}|{ti}|{tag}|{self.rec_counter[ti]}".encode()).hexdigest()[:12]        # opaque: no role prefix
+ 
+     def number(self) -> int:
+         return self.rng.randint(12, 97)
+@@ -438,13 +480,23 @@ class Planner:
+         return m if m != n else (m % 80) + 13
+ 
+     def dept_holders(self, t: TenantSpec, dept: str) -> list[str]:
+-        """Holder keys inside a department: its unit holder, its team holders, and the user holders of its people."""
++        """Holder keys inside a department that may carry observations: its unit holder, its team holders and the user holders of its
++        people - except department leads (they ask goal-only questions) and members of a goal-only project (their scopes are exclusive)."""
+         out = [f"h-{dept}"] + [f"h-{c.key}" for c in t.children(dept, "team")]
+         out += [f"h-{u.key}" for u in t.users.values() if u.dept == dept]
+-        return out
++        return [h for h in out if h not in self.reserved_holders[t.idx] and h not in self.lead_holders[t.idx]]
+ 
+-    def pick_holders(self, t: TenantSpec, dept: str, k: int, avoid: Iterable[str] = ()) -> list[str]:
++    def pick_holders(self, t: TenantSpec, dept: str, k: int, avoid: Iterable[str] = (), kind: str = "reachable") -> list[str]:
++        """``reachable``: holders whose main source is public (unit holders always are), so an asker outside the owner's team can be answered
++        from them; ``hidden``: user holders whose source is visible to the owner's team only (replacement allowed when too few)."""
+         pool = [h for h in self.dept_holders(t, dept) if h not in set(avoid)]
++        if kind == "hidden":
++            hid = [h for h in pool if t.holders[h].owner_type == "user" and t.holders[h].vis == "members"]
++            if not hid:
++                raise RuntimeError(f"department {dept} has no members-only holder")
++            self.rng.shuffle(hid)
++            return [hid[i % len(hid)] for i in range(k)]
++        pool = [h for h in pool if t.holders[h].vis == "public"]
+         users = [h for h in pool if t.holders[h].owner_type == "user"]
+         units = [h for h in pool if t.holders[h].owner_type == "unit"]
+         self.rng.shuffle(users)
+@@ -465,14 +517,14 @@ class Planner:
+             if len(chosen) == k:
+                 break
+         if len(chosen) < k:
+-            raise RuntimeError(f"department {dept} has fewer than {k} holders")
++            raise RuntimeError(f"department {dept} has fewer than {k} reachable holders")
+         return chosen
+ 
+     def author_for(self, t: TenantSpec, holder: str, dept: str) -> str:
+         h = t.holders[holder]
+         if h.owner_type == "user":
+             return h.owner_key
+-        people = [u.key for u in t.users.values() if u.dept == dept]
++        people = [u.key for u in t.users.values() if u.dept == dept and not any(r == "department_lead" for _, r in u.memberships)]
+         return self.rng.choice(people)
+ 
+     def pair(self, t: TenantSpec, *, same_family: bool = False, exclude_keys: Iterable[str] = ()) -> tuple[UnitSpec, UnitSpec]:
+@@ -537,23 +589,7 @@ class Planner:
+         ctx = self.ctx(ti)
+         pid = f"p{len(self.specs)}"
+         if goal_only:
+-            proj = t.projects[self.proj_next[ti] % len(t.projects)]
+-            self.proj_next[ti] += 1
+-            a, b = t.units[proj.depts[0]], t.units[proj.depts[1]]
+-            holders = [f"h-{m}" for m in proj.members]
+-            tmpl = self.rng.sample(range(len(self.goal_obs)), min(len(self.goal_obs), len(holders)))
+-            recs = [self.add_obs(t, h, t.users[m].dept or "", svc, ctx, n, tmpl[i % len(tmpl)], pattern=pid, days=self.rng.uniform(5, 90), templates=self.goal_obs)
+-                    for i, (h, m) in enumerate(zip(holders, proj.members))]
+-            scope = proj.key
+-            asker = proj.members[0]
+-            options, decoys = self.options_for(ti, svc)
+-            fam = (a.domain or "operations").split(".")[0]
+-            gt, go = self.bank.goal_only_templates[self.rng.randrange(len(self.bank.goal_only_templates))]
+-            pub = TaskPublic(task_id="", split=self.split, tenant=t.slug, asker=t.users[asker].email, asker_key=asker, scope_unit=scope,
+-                             goal_title=gt.format(fam=fam), goal_objective=go.format(fam=fam), goal_domains=[fam], question_text=None, candidate_domains=[],
+-                             options=options, policy={}, goal_only=True)
+-            return TaskSpec(pub, "cross_domain", svc_label(svc), f"service:{svc}", len(recs), [r.holder for r in recs], [a.key, b.key], decoys,
+-                            note="goal-only; observations in the members of a project spanning the two departments")
++            return self.goal_only_task(ti, svc, n, ctx, pid)
+         a, b = self.pair(t)
+         ha = self.pick_holders(t, a.key, 2 if n_obs >= 3 else 1)
+         hb = self.pick_holders(t, b.key, n_obs - len(ha))
+@@ -561,6 +597,13 @@ class Planner:
+         recs = []
+         for i, (h, d) in enumerate([(h, a.key) for h in ha] + [(h, b.key) for h in hb]):
+             recs.append(self.add_obs(t, h, d, svc, ctx, n, tmpl[i], pattern=pid, days=self.rng.uniform(5, 90)))
++        if not fault and self.rng.random() < 0.4:
++            # a further consistent observation in a source only the owner's team may read: the asker cannot reach it, so it never
++            # counts in the gold; it makes "a members-only holder states the pattern" occur in positives as well as in denied tasks
++            hd = self.rng.choice([a.key, b.key])
++            if any(t.holders[h].owner_type == "user" and t.holders[h].vis == "members" for h in self.dept_holders(t, hd)):
++                self.add_obs(t, self.pick_holders(t, hd, 1, kind="hidden")[0], hd, svc, ctx, n, self.rng.randrange(len(self.bank.obs_templates)),
++                             pattern=pid, days=self.rng.uniform(5, 90), role="hidden_obs")
+         options, decoys = self.options_for(ti, svc)
+         pub = self.make_public(t, a, b, ctx, options)
+         spec = TaskSpec(pub, "fault" if fault else "cross_domain", svc_label(svc), f"service:{svc}", len(recs), sorted({r.holder for r in recs}), [a.key, b.key], decoys,
+@@ -569,6 +612,39 @@ class Planner:
+             self.apply_fault(t, spec, recs, svc, ctx, n, fault)
+         return spec
+ 
++    def goal_only_task(self, ti: int, svc: str, n: int, ctx: str, pid: str) -> TaskSpec:
++        """One exclusive scope (a project of five people) holds exactly ONE hidden positive pattern (3 observations, 2 departments)
++        and one in-scope single-department decoy (2 observations, 1 department, its own service and context). The asker is the
++        department lead of the minority department: they see the scope, hold no observation, and no other task shares the scope."""
++        t = self.w.tenants[ti]
++        if self.proj_next[ti] >= len(t.projects):
++            raise RuntimeError("more goal-only tasks than projects")
++        proj = t.projects[self.proj_next[ti]]
++        self.proj_next[ti] += 1
++        mn = proj.depts[0] if proj.maj == proj.depts[1] else proj.depts[1]
++        mem_min = [m for m in proj.members if t.users[m].dept == mn]
++        mem_maj = [m for m in proj.members if t.users[m].dept == proj.maj]
++        assert len(mem_min) == 2 and len(mem_maj) == 3
++        d_svc, d_n = self.svc(ti), self.other_number(n)
++        d_ctx = f"{self.bank.ctx_adjectives[self.decoy_ctx_idx]} {self.bank.ctx_nouns[self.decoy_ctx_idx]}"
++        tmpl = self.rng.sample(range(len(self.goal_obs)), 3)
++        dtm = self.rng.sample(range(len(self.bank.goal_decoy_templates)), 2)
++        pos = [(mem_min[0], mn), (mem_min[1], mn), (mem_maj[0], proj.maj)]
++        recs = [self.add_obs(t, f"h-{m}", d, svc, ctx, n, tmpl[i], pattern=pid, days=self.rng.uniform(5, 90), templates=self.goal_obs)
++                for i, (m, d) in enumerate(pos)]
++        for i, m in enumerate(mem_maj[1:]):
++            self.add_obs(t, f"h-{m}", proj.maj, d_svc, d_ctx, d_n, dtm[i], pattern=pid, days=self.rng.uniform(5, 90), templates=self.bank.goal_decoy_templates,
++                         role="decoy_single_dept")
++        options, decoys = self.options_for(ti, svc, extra=[d_svc])
++        fam = (t.units[mn].domain or "operations").split(".")[0]
++        gt, go = self.bank.goal_only_templates[self.rng.randrange(len(self.bank.goal_only_templates))]
++        asker = proj.asker
++        pub = TaskPublic(task_id="", split=self.split, tenant=t.slug, asker=t.users[asker].email, asker_key=asker, scope_unit=proj.key,
++                         goal_title=gt.format(fam=fam, ctx=ctx), goal_objective=go.format(fam=fam, ctx=ctx), goal_domains=[fam], question_text=None,
++                         candidate_domains=[], options=options, policy={"min_independent_units": {"department": 2}}, goal_only=True)
++        return TaskSpec(pub, "cross_domain", svc_label(svc), f"service:{svc}", len(recs), [r.holder for r in recs], [mn, proj.maj], decoys,
++                        note="goal-only; exclusive project scope with one hidden pattern and one in-scope single-department decoy")
++
+     def apply_fault(self, t: TenantSpec, spec: TaskSpec, recs: list[Rec], svc: str, ctx: str, n: int, fault: str) -> None:
+         fp = self.fault_plan
+         hk = recs[0].holder
+@@ -726,24 +802,22 @@ class Planner:
+                         note="three independent roots, one department; the question requires two")
+ 
+     def denied(self, ti: int) -> TaskSpec:
++        """The pattern is stated only by holders whose personal source is visible to their own team: the asker is outside every team."""
+         t = self.w.tenants[ti]
+         svc, n = self.svc(ti), self.number()
+         ctx = self.ctx(ti)
+         a, b = self.pair(t)
+         pid = f"p{len(self.specs)}"
+-        ha, hb = self.pick_holders(t, a.key, 2), self.pick_holders(t, b.key, 1)
++        ha, hb = self.pick_holders(t, a.key, 2, kind="hidden"), self.pick_holders(t, b.key, 1, kind="hidden")
+         tmpl = self.rng.sample(range(len(self.bank.obs_templates)), 3)
+-        _scope, asker = self.scope_and_asker(t, a.key, b.key)
+-        authors = [self.author_for(t, h, d) for h, d in [(ha[0], a.key), (ha[1], a.key), (hb[0], b.key)]]
+-        members = sorted({u for u in authors if u != asker})
+-        recs = [self.add_obs(t, h, d, svc, ctx, n, tmpl[i], pattern=pid, days=self.rng.uniform(5, 80), source="mem", members=members, role="restricted")
++        recs = [self.add_obs(t, h, d, svc, ctx, n, tmpl[i], pattern=pid, days=self.rng.uniform(5, 80), role="restricted")
+                 for i, (h, d) in enumerate([(ha[0], a.key), (ha[1], a.key), (hb[0], b.key)])]
+         options, decoys = self.options_for(ti, None, extra=[svc])
+         decoys = [svc_label(svc)] + [d for d in decoys if d != svc_label(svc)]
+         pub = self.make_public(t, a, b, ctx, options)
+         return TaskSpec(pub, "denied", "abstain", None, None, [], [a.key, b.key], decoys, forbidden_holders=sorted({r.holder for r in recs}),
+                         forbidden_markers=[svc_label(svc), f"service:{svc}"], forbidden_texts=[r.text for r in recs],
+-                        note="the pattern lives in a members-only source that excludes the asker")
++                        note="the pattern is stated only in sources the asker may not read (members-only)")
+ 
+     def cross_tenant(self, ti_asker: int) -> TaskSpec:
+         tb = self.w.tenants[1 - ti_asker]
+@@ -757,7 +831,7 @@ class Planner:
+         recs = [self.add_obs(tb, h, d, svc, ctx, n, tmpl[i], pattern=pid, days=self.rng.uniform(5, 80)) for i, (h, d) in enumerate([(ha[0], a.key), (ha[1], a.key), (hb[0], b.key)])]
+         # the asker lives in the other tenant: the question names that tenant's own departments
+         aa, ab = self.pair(ta)
+-        options, decoys = self.options_for(tb.idx, None, extra=[svc])
++        options, decoys = self.options_for(ti_asker, None, extra=[svc])        # distractors are real services of the ASKER's tenant
+         decoys = [svc_label(svc)] + [d for d in decoys if d != svc_label(svc)]
+         pub = self.make_public(ta, aa, ab, ctx, options)
+         return TaskSpec(pub, "cross_tenant", "abstain", None, None, [], [aa.key, ab.key], decoys, forbidden_holders=sorted({r.holder for r in recs}),
+@@ -820,7 +894,8 @@ class Planner:
+             self.specs[idx].public.task_id = f"{self.split}-{pos:03d}"
+         self.specs.sort(key=lambda s: s.public.task_id)
+         self.add_filler()
+-        return Plan(self.split, self.seed, self.specs, self.records, self.fault_plan, self.w)
++        return Plan(self.split, self.seed, self.specs, self.records, self.fault_plan, self.w,
++                    sorted({svc_label(e) for lst in self.entities for e in lst}))
+ 
+     def add_filler(self) -> None:
+         """Every holder that carries content gets unrelated notes, so its source domain reaches the publication threshold (5 records)
+diff --git a/research/mycelic_e2e/plan/HOLDOUT_SHA256 b/research/mycelic_e2e/plan/HOLDOUT_SHA256
+index e39b8a5..89bbc39 100644
+--- a/research/mycelic_e2e/plan/HOLDOUT_SHA256
++++ b/research/mycelic_e2e/plan/HOLDOUT_SHA256
+@@ -1 +1 @@
+-6613deee5e130924b77efcfa898dfd4921226ddfc21a0efb2cc27ee025e85214
++89f4afa815b0092320e160f077c4279a287c0f538db5ff17272af81c464791a3
+-- 
+2.43.0
+

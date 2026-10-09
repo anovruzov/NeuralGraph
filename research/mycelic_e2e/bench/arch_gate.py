@@ -10,8 +10,12 @@ Inputs: ``check(run_dir, coord_db=..., holders_dir=..., expect_hypergraph=...)``
 
 Optional run-directory files (all non-gold, written by the runner; absent files make the dependent assertion ``na``):
 
-``run_manifest.json``    ``provider_label`` (G6), ``faults`` {kind: count} and ``restart_holders`` (G10), ``harness_db_opens`` (G7)
-``fault_plan.json``      ``{"deleted_markers": [strings that must not survive in any holder table], "faults": {...}, "restart": bool}``
+``run_manifest.json``    ``provider_label`` (G6), ``n_tasks`` (G7: a run with tasks must have ``views/``), ``harness_db_opens`` (G7)
+``views/<task>.json``    the asker views the scorer reads; G7 compares each claim / reference / discovery / question in them with ``coord.db``
+``sources_manifest.json`` + ``sources/``  the raw files the harness wrote; G10 derives the injected faults from them (duplicate lines,
+                         malformed lines, delete records and the deleted record's own text, replay / restart flags), never from the
+                         system's own reports
+``fault_plan.json``      optional additions: ``{"restart": [{"holder_id", "pages_before"}], "deleted_markers": [...], "faults": {...}}``
 ``harness_db_opens.json``  ``[{"path", "uri"}]`` every database the harness opened itself (G7 requires ``mode=ro``)
 
 Layout assumptions: the coordinator's ``holders`` table lists every holder; holder ``H`` stores its control shard at
@@ -158,10 +162,98 @@ class HolderFacts:
     queue_open: int = 0                           # ingest_queue rows still queued / leased
     max_incr_checkpoint_version: int = 0          # highest committed page count of an incremental stream
     stage_duplicates: int = 0
+    stage_normalize_errors: int = 0
+    object_ids: set[str] = dataclasses.field(default_factory=set)               # provider object ids with an ingest_records row (any status)
     rejections: int | None = None                 # ingest_rejections rows (sum of count); None when the holder schema predates the table
     inode: tuple[int, int] | None = None
     problems: dict[str, list[str]] = dataclasses.field(default_factory=lambda: defaultdict(list))
     entity_ids: set[str] = dataclasses.field(default_factory=set)                # publishable entity ids (public/members records)
+
+
+def _marker_of(text: str) -> str:
+    """A distinctive, whitespace-free-safe prefix of a record's text (first line, 70 chars) used to look for it in a holder's tables."""
+    first = next((ln.strip() for ln in str(text).splitlines() if ln.strip()), "")
+    return first[:70]
+
+
+def derive_faults(run_dir: Path | None, fault_plan: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    """What the run's own inputs say was injected, per holder id, read from the raw source files the harness wrote before the system saw
+    them (``sources/`` + ``sources_manifest.json``), never from the system's reports: duplicate lines, malformed lines, delete records
+    (with the deleted record's own text as the marker that must not survive), edits, and the restart / replay flags. ``fault_plan.json``
+    may add ``restart: [{"holder_id", "pages_before"}]`` and ``deleted_markers``. Returns ``{holder_id: {...}}``."""
+    out: dict[str, dict[str, Any]] = {}
+    if run_dir is None:
+        return out
+    try:
+        entries = json.loads((run_dir / "sources_manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return out
+    src_dir = run_dir / "sources"
+    for e in entries:
+        hid = e.get("holder_id")
+        if not hid:
+            continue
+        f = out.setdefault(hid, {"dup_lines": 0, "malformed": 0, "deletes": 0, "edits": 0, "markers": [], "n_base": 0, "n_timed": 0, "replay": False, "restart": False,
+                                 "pages_before": None, "object_ids": set(), "files": []})
+        flags = e.get("flags") or {}
+        f["replay"] = f["replay"] or bool(flags.get("replay"))
+        f["restart"] = f["restart"] or bool(flags.get("restart"))
+        f["n_base"] += int(e.get("n_base") or 0)
+        f["files"].append(e.get("file"))
+        texts: dict[str, list[str]] = defaultdict(list)
+        deleted_ids: list[str] = []
+        seen_lines: Counter = Counter()
+        timed_lines: set[str] = set()
+        timed_base: set[str] = set()
+        for name in (e.get("file"), e.get("late_file")):
+            if not name or not (src_dir / name).is_file():
+                continue
+            lines = (src_dir / name).read_text(encoding="utf-8").splitlines()
+            for i, ln in enumerate(lines):
+                if not ln.strip():
+                    continue
+                try:
+                    rec = json.loads(ln)
+                except ValueError:
+                    f["malformed"] += 1
+                    continue
+                if not isinstance(rec, dict):
+                    f["malformed"] += 1
+                    continue
+                if rec.get("type") == "source":
+                    continue
+                if rec.get("id") in (None, ""):
+                    f["malformed"] += 1
+                    continue
+                f["object_ids"].add(str(rec["id"]))
+                seen_lines[ln] += 1
+                if any(rec.get(k) for k in ("created_at", "updated_at", "deleted_at")):
+                    timed_lines.add(ln)                 # a re-delivery (backfill) reads only records that carry a time
+                    if name == e.get("file"):
+                        timed_base.add(ln)              # the replay happens in the base phase, before the late records are appended
+                typ = str(rec.get("type") or "message").lower()
+                if typ in ("delete", "deletion"):
+                    f["deletes"] += 1
+                    deleted_ids.append(str(rec["id"]))
+                elif typ == "edit":
+                    f["edits"] += 1
+                if rec.get("text"):
+                    texts[str(rec["id"])].append(_marker_of(rec["text"]))
+        f["dup_lines"] += sum(n - 1 for n in seen_lines.values() if n > 1)
+        if flags.get("replay"):
+            f["n_timed"] += len(timed_base)             # only the re-synced connector's records come back as duplicates
+        for rid in deleted_ids:
+            f["markers"].extend(m for m in texts.get(rid, []) if m)
+    for item in (fault_plan.get("restart") if isinstance(fault_plan.get("restart"), list) else []):
+        if isinstance(item, Mapping) and item.get("holder_id"):
+            f = out.setdefault(item["holder_id"], {"dup_lines": 0, "malformed": 0, "deletes": 0, "edits": 0, "markers": [], "n_base": 0, "n_timed": 0, "replay": False,
+                                                   "restart": True, "pages_before": None, "object_ids": set(), "files": []})
+            f["restart"] = True
+            if item.get("pages_before") is not None:
+                f["pages_before"] = int(item["pages_before"])
+    for f in out.values():
+        f["markers"] = list(dict.fromkeys(f["markers"]))
+    return out
 
 
 class _Ctx:
@@ -193,6 +285,7 @@ class _Ctx:
         self.coord = ro_connect(self.coord_path)
         self.tables = _tables(self.coord)
         self.has_hypergraph = {"hyperedges", "hyperedge_members"} <= self.tables
+        self.faults = derive_faults(self.run_dir, self.fault_plan)
         self.holders: list[HolderFacts] = []
         for r in self.coord.execute("SELECT holder_id, tenant_id, owner_type, owner_id FROM holders ORDER BY holder_id"):
             hdir = self.holders_dir / r["holder_id"]
@@ -237,6 +330,7 @@ class _Ctx:
                 h.connector_types[r["connector_id"]] = r["connector_type"]
         for r in c.execute("SELECT DISTINCT connector_id FROM ingest_records"):
             h.record_connector_ids.add(r["connector_id"])
+        h.object_ids.update(str(r[0]) for r in c.execute("SELECT DISTINCT source_object_id FROM ingest_records"))
         if "applied_events" in t:
             for r in c.execute("SELECT outcome, COUNT(*) AS n FROM applied_events GROUP BY outcome"):
                 h.applied[r["outcome"]] += r["n"]
@@ -270,6 +364,7 @@ class _Ctx:
         if "ingest_rejections" in t:
             h.rejections = (h.rejections or 0) + int(_scalar(c, "SELECT COALESCE(SUM(count),0) FROM ingest_rejections", default=0) or 0)
         if "ingest_stage_metrics" in t:
+            h.stage_normalize_errors += int(_scalar(c, "SELECT COALESCE(SUM(count),0) FROM ingest_stage_metrics WHERE stage='normalize' AND outcome='error'", default=0) or 0)
             h.stage_duplicates += int(_scalar(c, "SELECT COALESCE(SUM(count),0) FROM ingest_stage_metrics WHERE outcome='duplicate'", default=0) or 0)
         for r in c.execute("""SELECT r.record_id, r.deletion_status FROM ingest_records r WHERE r.deletion_status <> 'live'"""):
             rid = r["record_id"]
@@ -282,7 +377,8 @@ class _Ctx:
                 h.problems["G10.memories_survive"].append(rid)
             if "record_entities" in t and _scalar(c, "SELECT COUNT(*) FROM record_entities WHERE record_id=?", (rid,)):
                 h.problems["G10.entities_survive"].append(rid)
-        if self.deleted_markers:
+        markers = list(dict.fromkeys(self.deleted_markers + self.faults.get(h.holder_id, {}).get("markers", [])))
+        if markers:
             for name in sorted(t):
                 if name.startswith("sqlite_"):
                     continue
@@ -291,7 +387,7 @@ class _Ctx:
                 except sqlite3.Error:
                     continue
                 for col in cols:
-                    for m in self.deleted_markers:
+                    for m in markers:
                         try:
                             n = c.execute(f'SELECT COUNT(*) FROM "{name}" WHERE CAST("{col}" AS TEXT) LIKE ?', (f"%{m}%",)).fetchone()[0]
                         except sqlite3.Error:
@@ -444,18 +540,41 @@ def _g3(x: _Ctx) -> GateResult:
     return r
 
 
+def _domain_history(x: _Ctx) -> dict[str, list[tuple[int, set[str], set[str]]]]:
+    """holder id -> [(audit id, added, removed)] from the ``holder.domains_published`` audit rows, in audit order: the only record of which
+    domains a holder had published when a question was routed."""
+    hist: dict[str, list[tuple[int, set[str], set[str]]]] = defaultdict(list)
+    for a in x.coord.execute("SELECT id, resource_id, detail FROM audit_log WHERE action='holder.domains_published' ORDER BY id"):
+        d = _jl(a["detail"], {})
+        hist[a["resource_id"]].append((int(a["id"]), set(d.get("added") or []), set(d.get("removed") or [])))
+    return hist
+
+
+def _published_at(hist: Mapping[str, Sequence[tuple[int, set[str], set[str]]]], holder_id: str, upto_audit_id: int | None) -> set[str]:
+    cur: set[str] = set()
+    for aid, added, removed in hist.get(holder_id, []):
+        if upto_audit_id is not None and aid >= upto_audit_id:
+            break
+        cur = (cur | added) - removed
+    return cur
+
+
 def _g4(x: _Ctx) -> GateResult:
+    """Routing is audited, authorized as of the moment it happened, within budget, and ranked. The authorization replay runs ``can_route`` for
+    every routed holder with the domains that holder had published at the route's audit row (rebuilt from the ``holder.domains_published``
+    history); no denial is excused as "drift". A holder whose current published domains differ from that history changed outside the audit
+    trail, which fails too."""
     r = GateResult("G4", "routing is audited, authorized, within budget and ranked")
     qs = x.coord.execute("SELECT * FROM questions WHERE status NOT IN ('draft','cancelled')").fetchall()
     audits: dict[str, list[sqlite3.Row]] = defaultdict(list)
-    for a in x.coord.execute("SELECT resource_id, outcome, detail, actor_type FROM audit_log WHERE action='question.route'"):
+    for a in x.coord.execute("SELECT id, resource_id, outcome, detail, actor_type FROM audit_log WHERE action='question.route' ORDER BY id"):
         audits[a["resource_id"]].append(a)
     routes: dict[str, list[str]] = defaultdict(list)
     for rt in x.coord.execute("SELECT question_id, holder_id FROM question_routes"):
         routes[rt["question_id"]].append(rt["holder_id"])
     methods: Counter = Counter()
     routed_questions = 0
-    replay_rows: list[tuple[sqlite3.Row, list[str]]] = []
+    replay_rows: list[tuple[sqlite3.Row, list[tuple[str, int]]]] = []
     for q in qs:
         qid = q["question_id"]
         rows = [a for a in audits.get(qid, []) if a["outcome"] in ("ok", "allow")]
@@ -473,11 +592,16 @@ def _g4(x: _Ctx) -> GateResult:
         cap = int(budget.get("holders") or DEFAULT_ROUTE_BUDGET)
         if len(set(hs)) > cap:
             r.fail(f"{qid}: routed to {len(set(hs))} holders, budget {cap}")
+        audited: dict[str, int] = {}
         for a in rows:
             d = _jl(a["detail"], {})
-            m = d.get("rank_method")
-            methods[m or "missing"] += 1
-        replay_rows.append((q, sorted(set(hs))))
+            methods[d.get("rank_method") or "missing"] += 1
+            for hid in d.get("holders") or []:
+                audited.setdefault(hid, int(a["id"]))
+        unaudited = sorted(set(hs) - set(audited))
+        if rows and unaudited:
+            r.fail(f"{qid}: {len(unaudited)} routed holders are not named in the question.route audit row (e.g. {unaudited[:2]})")
+        replay_rows.append((q, [(hid, audited.get(hid, max([int(a["id"]) for a in rows] or [0]) or 0)) for hid in sorted(set(hs))]))
     # ranker assertion
     if x.expect_ranker:
         if not x.has_hypergraph:
@@ -488,26 +612,35 @@ def _g4(x: _Ctx) -> GateResult:
             r.fail(f"{methods['missing']} route audit rows carry no rank_method", MISSING if not x.has_hypergraph else FAIL)
         if x.strict_rank and (sum(methods.values()) - methods.get("hypergraph", 0)):
             r.fail("strict ranking: some routes were not ranked by the hypergraph")
-    # offline replay of can_route on a copy of the coordinator database
-    replay = _replay_can_route(x, replay_rows)
-    r.data["replay"] = {k: v for k, v in replay.items() if k != "denials"}
+    # domain history must explain the holders' current published domains (a change with no audit row is an unaudited write)
+    hist = _domain_history(x)
+    drift = 0
+    for row in x.coord.execute("SELECT holder_id, published_domains FROM holders"):
+        cur = set(_jl(row["published_domains"], []))
+        want = _published_at(hist, row["holder_id"], None)
+        if cur != want:
+            r.fail(f"holder {row['holder_id']}: published domains {sorted(cur)} differ from the audited history {sorted(want)} (changed outside the audit trail)")
+        if hist.get(row["holder_id"]) and len(hist[row["holder_id"]]) > 1:
+            drift += 1
+    # offline replay of can_route, as of each route, on a copy of the coordinator database
+    replay = _replay_can_route(x, replay_rows, hist)
+    r.data["replay"] = {k: v for k, v in replay.items() if k not in ("denials", "moved")}
     reasons: Counter = Counter()
     for d in replay.get("denials", []):
         reasons[d["reason"]] += 1
-        if d["reason"] == "no matching evidence domain" and not x.strict_domains:
-            r.data["domain_drift"] = r.data.get("domain_drift", 0) + 1        # published domains moved after the route; tolerated, counted
-            continue
-        r.fail(f"{d['question_id']} -> {d['holder_id']}: can_route denies on replay ({d['reason']})")
+        r.fail(f"{d['question_id']} -> {d['holder_id']}: can_route denies as of the route ({d['reason']}; domains then: {d.get('domains_then')})")
     r.data["replay_denial_reasons"] = dict(reasons)
+    r.data["holders_with_changing_domains"] = drift
+    r.data["routes_where_domains_changed_since"] = replay.get("moved", 0)
     if replay.get("error"):
         r.fail(f"can_route replay could not run: {replay['error']}", ERROR)
     r.data.update({"questions": len(qs), "routed_questions": routed_questions, "rank_methods": dict(methods)})
-    r.detail = (f"{routed_questions}/{len(qs)} questions routed; rank_method {dict(methods)}; replay denials {replay.get('denied', 0)}"
-                + (f" ({r.data.get('domain_drift', 0)} domain drift only)" if replay.get("denied") else ""))
+    r.detail = (f"{routed_questions}/{len(qs)} questions routed; rank_method {dict(methods)}; as-of replay denials {replay.get('denied', 0)}"
+                f" (current domains differ from route-time domains on {replay.get('moved', 0)} of {replay.get('checked', 0)} routes)")
     return r
 
 
-def _replay_can_route(x: _Ctx, rows: Sequence[tuple[sqlite3.Row, Sequence[str]]]) -> dict[str, Any]:
+def _replay_can_route(x: _Ctx, rows: Sequence[tuple[sqlite3.Row, Sequence[tuple[str, int]]]], hist: Mapping[str, Sequence[tuple[int, set[str], set[str]]]]) -> dict[str, Any]:
     if not rows:
         return {"checked": 0, "denied": 0}
     tmp = tempfile.mkdtemp(prefix="gate-replay-")
@@ -526,23 +659,27 @@ def _replay_can_route(x: _Ctx, rows: Sequence[tuple[sqlite3.Row, Sequence[str]]]
         try:
             org = org_mod.OrgService(db)
             authz = authz_mod.Authorizer(db, org)
-            checked = denied = 0
+            checked = denied = moved = 0
             denials = []
             for q, hs in rows:
                 qd = {"tenant_id": q["tenant_id"], "scope_unit_id": q["scope_unit_id"], "policy": _jl(q["policy"], {}),
                       "candidate_domains": _jl(q["candidate_domains"], [])}
-                for hid in hs:
+                for hid, audit_id in hs:
                     holder = org.get_holder(hid)
                     checked += 1
                     if holder is None:
                         denied += 1
                         denials.append({"question_id": q["question_id"], "holder_id": hid, "reason": "holder not found"})
                         continue
+                    then = _published_at(hist, hid, audit_id)
+                    if then != set(holder.get("published_domains") or []):
+                        moved += 1
+                    holder = dict(holder, published_domains=sorted(then))          # the holder as it was when the route was written
                     ok, why = authz.can_route(qd, holder)
                     if not ok:
                         denied += 1
-                        denials.append({"question_id": q["question_id"], "holder_id": hid, "reason": why})
-            return {"checked": checked, "denied": denied, "denials": denials}
+                        denials.append({"question_id": q["question_id"], "holder_id": hid, "reason": why, "domains_then": sorted(then)})
+            return {"checked": checked, "denied": denied, "denials": denials, "moved": moved}
         finally:
             db._conn.close()
     except Exception as exc:                                       # noqa: BLE001
@@ -612,6 +749,105 @@ def _g6(x: _Ctx) -> GateResult:
     return r
 
 
+def _view_claim_items(view: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Every claim payload the scorer (or the disclosure check) can read in a view: question claims, discovery claims, goal-level claims."""
+    items: list[Mapping[str, Any]] = []
+    for key in ("claims", "goal_claims"):
+        items += [i for i in (view.get(key) or []) if isinstance(i, Mapping)]
+    for key in ("discoveries", "goal_discoveries"):
+        for d in view.get(key) or []:
+            if isinstance(d, Mapping):
+                items += [i for i in (d.get("claims") or []) if isinstance(i, Mapping)]
+    return items
+
+
+def _cross_check_views(x: _Ctx, r: GateResult) -> int:
+    """Every view the scorer reads must agree with ``coord.db``: each claim's id, status, text and independent roots, each reference's holder
+    and root, each discovery's title / summary / claim ids, and the question's terminal status. A later legitimate revision is explained by a
+    revision row with a higher version; a difference with no such row, a claim the database does not know, or a question claim missing from
+    the view means the view was not read from the system."""
+    if x.run_dir is None:
+        return 0
+    vdir = x.run_dir / "views"
+    if not vdir.is_dir():
+        if x.manifest.get("n_tasks"):
+            r.fail("the run recorded tasks but has no views directory: the scorer's input cannot be cross-checked against coord.db", MISSING)
+        return 0
+    c = x.coord
+    n = 0
+    for vp in sorted(vdir.glob("*.json")):
+        try:
+            view = json.loads(vp.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            r.fail(f"{vp.name}: unreadable view")
+            continue
+        if not isinstance(view, Mapping):
+            continue
+        n += 1
+        tag = view.get("task_id") or vp.stem
+        in_view: set[str] = set()
+        for item in _view_claim_items(view):
+            cl = item.get("claim") if isinstance(item.get("claim"), Mapping) else item
+            cid = str(cl.get("claim_id") or "")
+            if not cid:
+                continue
+            in_view.add(cid)
+            row = c.execute("SELECT status, text, version, support, question_id FROM claims WHERE claim_id=?", (cid,)).fetchone()
+            if row is None:
+                r.fail(f"{tag}: view claim {cid} does not exist in coord.db")
+                continue
+            vsup = item.get("support") if isinstance(item.get("support"), Mapping) else (cl.get("support") if isinstance(cl.get("support"), Mapping) else {})
+            dsup = _jl(row["support"], {})
+            same = (str(cl.get("status")) == row["status"] and str(cl.get("text") or "").strip() == str(row["text"]).strip()
+                    and int(vsup.get("independent_roots") or 0) == int(dsup.get("independent_roots") or 0))
+            vver = cl.get("version")
+            if not same:
+                later = vver is not None and int(row["version"]) > int(vver) and _scalar(
+                    c, "SELECT COUNT(*) FROM revisions WHERE object_type='claim' AND object_id=? AND version>?", (cid, int(vver)))
+                if not later:
+                    r.fail(f"{tag}: view claim {cid} differs from coord.db (view {cl.get('status')!r}/{vsup.get('independent_roots')} roots, "
+                           f"database {row['status']!r}/{dsup.get('independent_roots')} roots) with no later revision to explain it")
+            if cl.get("question_id") not in (None, row["question_id"]):
+                r.fail(f"{tag}: view claim {cid} names question {cl.get('question_id')} but the database says {row['question_id']}")
+            for ref in item.get("evidence") or []:
+                if not isinstance(ref, Mapping) or not ref.get("ref_id"):
+                    continue
+                er = c.execute("SELECT holder_id, source_root_id FROM evidence_refs WHERE ref_id=?", (ref["ref_id"],)).fetchone()
+                if er is None:
+                    r.fail(f"{tag}: view reference {ref['ref_id']} does not exist in coord.db")
+                elif (ref.get("holder_id") not in (None, er["holder_id"])) or (ref.get("source_root_id") not in (None, er["source_root_id"])):
+                    r.fail(f"{tag}: view reference {ref['ref_id']} differs from coord.db (holder / root)")
+        for key in ("discoveries", "goal_discoveries"):
+            for d in view.get(key) or []:
+                disc = d.get("discovery") if isinstance(d, Mapping) and isinstance(d.get("discovery"), Mapping) else d
+                if not isinstance(disc, Mapping) or not disc.get("discovery_id"):
+                    continue
+                row = c.execute("SELECT title, summary, claim_ids FROM discoveries WHERE discovery_id=?", (disc["discovery_id"],)).fetchone()
+                if row is None:
+                    r.fail(f"{tag}: view discovery {disc['discovery_id']} does not exist in coord.db")
+                    continue
+                differs = (str(disc.get("title") or "") != row["title"] or str(disc.get("summary") or "") != row["summary"]
+                           or (disc.get("claim_ids") is not None and list(disc.get("claim_ids")) != _jl(row["claim_ids"], [])))
+                if differs and not _scalar(c, "SELECT COUNT(*) FROM revisions WHERE object_type='discovery' AND object_id=? AND version>1", (disc["discovery_id"],)):
+                    r.fail(f"{tag}: view discovery {disc['discovery_id']} differs from coord.db with no later revision to explain it")
+        q = view.get("question")
+        if isinstance(q, Mapping) and q.get("question_id"):
+            qrow = c.execute("SELECT status, resolved_at FROM questions WHERE question_id=?", (q["question_id"],)).fetchone()
+            if qrow is None:
+                r.fail(f"{tag}: view question {q['question_id']} does not exist in coord.db")
+                continue
+            terminal = ("committed", "retained_uncertain", "expired", "failed", "cancelled")
+            if str(q.get("status")) in terminal and qrow["status"] != q.get("status"):
+                r.fail(f"{tag}: view says question {q['question_id']} is {q.get('status')!r}, coord.db says {qrow['status']!r}")
+            resolved = q.get("resolved_at") or qrow["resolved_at"]
+            if resolved and str(q.get("status")) in terminal:
+                hidden = [row["claim_id"] for row in c.execute("SELECT claim_id FROM claims WHERE question_id=? AND created_at<=?", (q["question_id"], resolved))
+                          if row["claim_id"] not in in_view]
+                if hidden:
+                    r.fail(f"{tag}: coord.db holds {len(hidden)} claims of question {q['question_id']} created before it resolved that the view omits (e.g. {hidden[:2]})")
+    return n
+
+
 def _g7(x: _Ctx) -> GateResult:
     r = GateResult("G7", "claims, discoveries and evidence were produced by the system, not written by the harness")
     for cl in x.coord.execute("SELECT claim_id, created_by_type FROM claims").fetchall():
@@ -670,7 +906,8 @@ def _g7(x: _Ctx) -> GateResult:
             uri = str(o.get("uri") or "")
             if "mode=ro" not in uri:
                 r.fail(f"harness opened {o.get('path')} without mode=ro")
-    r.data = {"claims": _scalar(x.coord, "SELECT COUNT(*) FROM claims"), "refs": len(refs), "harness_opens_declared": len(opens or [])}
+    checked = _cross_check_views(x, r)
+    r.data = {"claims": _scalar(x.coord, "SELECT COUNT(*) FROM claims"), "refs": len(refs), "harness_opens_declared": len(opens or []), "views_cross_checked": checked}
     r.detail = f"{r.data['claims']} claims, {len(refs)} evidence refs traced to holder responses"
     return r
 
@@ -776,29 +1013,9 @@ def _g9(x: _Ctx) -> GateResult:
 
 
 def _g10(x: _Ctx) -> GateResult:
-    r = GateResult("G10", "fault dispositions: duplicates, deletions and restart are visible in the stores")
-    faults = dict(x.manifest.get("faults") or x.fault_plan.get("faults") or {})
-    # faults the runner declares in its own (non-gold) artifacts: per-source flags and the feeder's totals
-    if x.run_dir is not None:
-        try:
-            src = json.loads((x.run_dir / "sources_manifest.json").read_text(encoding="utf-8"))
-            for kind in ("restart", "replay"):
-                n = sum(1 for e in src if (e.get("flags") or {}).get(kind))
-                if n:
-                    faults.setdefault(kind, n)
-        except (OSError, ValueError, TypeError):
-            pass
-        try:
-            feed = json.loads((x.run_dir / "feed_summary.json").read_text(encoding="utf-8"))
-            tot = feed.get("totals") or {}
-            if tot.get("duplicates"):
-                faults.setdefault("duplicate", tot["duplicates"])
-            if tot.get("normalize_errors"):
-                faults.setdefault("malformed", tot["normalize_errors"])
-        except (OSError, ValueError, TypeError):
-            pass
-    dup_applied = sum(h.applied.get("duplicate", 0) for h in x.holders)
-    dup_stage = sum(h.stage_duplicates for h in x.holders)
+    """Fault dispositions, derived from the run's own raw inputs (``derive_faults``), not from what the system reports about itself. For every
+    holder whose source files carry a fault, the evidence of its disposition must be in that holder's store; a fault without evidence fails."""
+    r = GateResult("G10", "fault dispositions: duplicates, malformed lines, deletions, replay and restart are visible in the stores")
     for h in x.holders:
         for key, rows in sorted(h.problems.items()):
             if key.startswith("G10."):
@@ -819,39 +1036,64 @@ def _g10(x: _Ctx) -> GateResult:
                         r.fail(f"{h.holder_id}: {row['n']} live records for one provider object {row['source_object_id']}")
             finally:
                 conn.close()
-    declared = {str(k): v for k, v in faults.items()} if isinstance(faults, Mapping) else {}
-    if declared.get("duplicate") or declared.get("duplicate_delivery") or declared.get("replay"):
-        if dup_applied + dup_stage == 0:
-            r.fail("duplicate delivery was injected but neither applied_events nor ingest_stage_metrics record a duplicate")
-    rej = [h.rejections for h in x.holders if h.rejections is not None]
-    if declared.get("malformed") and rej and sum(rej) == 0:
-        r.fail("malformed lines were injected but ingest_rejections records none")
-    restart_holders: list[str] = []
-    if x.run_dir is not None:
-        with contextlib.suppress(OSError, ValueError, TypeError):
-            restart_holders = [e["holder_id"] for e in json.loads((x.run_dir / "sources_manifest.json").read_text(encoding="utf-8")) if (e.get("flags") or {}).get("restart")]
-    if restart_holders:
-        # the holder process died after its first page and came back: the sync must have resumed from the durable cursor (more than one
-        # committed page on the incremental stream, or a queue row leased again) and left nothing half-processed
-        by_id = {h.holder_id: h for h in x.holders}
-        for hid in restart_holders:
-            h = by_id.get(hid)
-            if h is None or not h.exists:
-                r.fail(f"restart holder {hid} has no store")
-            elif not (h.queue_attempts_gt1 or h.max_incr_checkpoint_version >= 2):
-                r.fail(f"restart mid-ingest was injected into {hid} but its incremental cursor never advanced past one page and no queue row was leased again")
+    by_id = {h.holder_id: h for h in x.holders}
+    totals: Counter = Counter()
+    checked_markers = 0
+    for hid, f in sorted(x.faults.items()):
+        h = by_id.get(hid)
+        if h is None or not h.exists:
+            if f["dup_lines"] or f["malformed"] or f["deletes"] or f["restart"] or f["replay"]:
+                r.fail(f"{hid}: faults were injected into its sources but the holder has no store")
+            continue
+        dup_evidence = h.applied.get("duplicate", 0) + h.stage_duplicates
+        expected_dup = f["dup_lines"] + (f["n_timed"] if f["replay"] else 0)
+        totals["dup_lines"] += f["dup_lines"]
+        totals["malformed"] += f["malformed"]
+        totals["deletes"] += f["deletes"]
+        totals["restart"] += 1 if f["restart"] else 0
+        totals["replay"] += 1 if f["replay"] else 0
+        if expected_dup and dup_evidence < expected_dup:
+            r.fail(f"{hid}: {f['dup_lines']} duplicate lines" + (f" and a replay of {f['n_timed']} timed records" if f["replay"] else "")
+                   + f" were injected; applied_events/dedupe rows show {dup_evidence} duplicate dispositions (need >= {expected_dup})")
+        if f["malformed"]:
+            seen = h.rejections if h.rejections is not None else h.stage_normalize_errors
+            if seen < f["malformed"]:
+                r.fail(f"{hid}: {f['malformed']} malformed lines were injected; the store accounts for {seen} (ingest_rejections / normalize errors)")
+        if f["deletes"]:
+            if not f["markers"]:
+                r.fail(f"{hid}: {f['deletes']} delete records were injected but no deleted string could be derived to check")
+            checked_markers += len(f["markers"])
+            if h.applied.get("delete", 0) < 1:
+                r.fail(f"{hid}: {f['deletes']} delete records were injected but applied_events holds no 'delete' disposition")
+        if f["restart"]:
+            before = f["pages_before"] if f["pages_before"] is not None else 1
+            if not (h.queue_attempts_gt1 or h.max_incr_checkpoint_version > before):
+                r.fail(f"restart mid-ingest was injected into {hid} but its incremental cursor never advanced past {before} page(s) and no queue row was leased again")
             elif h.queue_open:
                 r.fail(f"restart holder {hid} still has {h.queue_open} unprocessed queue rows")
-    elif declared.get("restart") or x.fault_plan.get("restart"):
-        if sum(h.queue_attempts_gt1 for h in x.holders) == 0:
+            missing = sorted(f["object_ids"] - h.object_ids)
+            if missing:
+                r.fail(f"restart holder {hid} never ingested {len(missing)} of its source records after resuming (e.g. {missing[:2]})")
+    # a run-level declaration (fault_plan.json / manifest) with no per-holder derivation behind it must still leave evidence
+    declared = dict(x.manifest.get("faults") or x.fault_plan.get("faults") or {})
+    dup_applied = sum(h.applied.get("duplicate", 0) for h in x.holders)
+    dup_stage = sum(h.stage_duplicates for h in x.holders)
+    if not x.faults:
+        if (declared.get("duplicate") or declared.get("duplicate_delivery") or declared.get("replay")) and dup_applied + dup_stage < int(declared.get("duplicate") or 1):
+            r.fail("duplicate delivery was injected but applied_events / ingest_stage_metrics record too few duplicates")
+        rej0 = [h.rejections for h in x.holders if h.rejections is not None]
+        if declared.get("malformed") and rej0 and sum(rej0) == 0:
+            r.fail("malformed lines were injected but ingest_rejections records none")
+        if (declared.get("restart") or x.fault_plan.get("restart")) and sum(h.queue_attempts_gt1 for h in x.holders) == 0:
             r.fail("restart mid-ingest was injected but no ingest_queue row was leased twice")
-    r.data = {"declared_faults": declared, "duplicates_applied_events": dup_applied, "duplicates_stage_metrics": dup_stage,
-              "queue_rows_leased_more_than_once": sum(h.queue_attempts_gt1 for h in x.holders), "restart_holders": restart_holders,
-              "deleted_markers_checked": len(x.deleted_markers), "ingest_rejections": sum(rej) if rej else None}
-    if not declared and not x.deleted_markers:
-        r.detail = "no faults declared; structural purge/uniqueness checks only"
+    rej = [h.rejections for h in x.holders if h.rejections is not None]
+    r.data = {"derived_faults": dict(totals), "declared_faults": declared, "duplicates_applied_events": dup_applied, "duplicates_stage_metrics": dup_stage,
+              "queue_rows_leased_more_than_once": sum(h.queue_attempts_gt1 for h in x.holders),
+              "deleted_markers_checked": checked_markers + len(x.deleted_markers), "ingest_rejections": sum(rej) if rej else None}
+    if not totals and not declared and not x.deleted_markers:
+        r.detail = "no faults found in the run's sources; structural purge/uniqueness checks only"
     else:
-        r.detail = f"declared faults {declared}; duplicates seen {dup_applied + dup_stage}"
+        r.detail = f"injected {dict(totals)}; duplicate dispositions seen {dup_applied + dup_stage}; {r.data['deleted_markers_checked']} deleted strings checked"
     return r
 
 

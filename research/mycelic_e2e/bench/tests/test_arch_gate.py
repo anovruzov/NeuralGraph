@@ -349,7 +349,7 @@ def test_finalize_scores_gates_and_writes_the_ledger_row(run, tmp_path):
     (rd / "tasks_dev.public.json").write_text(json.dumps({"split": "dev", "tasks": [{"task_id": "t1", "tenant": "a", "question_text": "What delays parcels?", "options": opts}]}))
     GoldSink(gold_path(rd, "dev")).write("t1", {"cls": "cross_domain", "answer": "A", "expected_abstain": False})
     (rd / "views").mkdir()
-    (rd / "views" / "t1.json").write_text(json.dumps({"task_id": "t1", "status": "ok", "latency_s": 2.0, "question": {"question_id": "q1", "status": "committed", "result": {}},
+    (rd / "views" / "t1.json").write_text(json.dumps({"task_id": "t1", "status": "ok", "tenant_id": T, "latency_s": 2.0, "question": {"question_id": "q1", "status": "committed", "result": {}},
                                                        "claims": [{"claim": {"claim_id": "c1", "status": "supported", "text": "LGX-412 delays parcels", "question_id": "q1"},
                                                                    "evidence": [], "support": {"independent_roots": 2}}], "raw_checks": {}}))
     m = json.loads((rd / "run_manifest.json").read_text())
@@ -382,3 +382,182 @@ def test_restart_flag_in_sources_manifest_needs_a_resumed_cursor(run):
     c.commit()
     c.close()
     assert gate(run).results["G10"].status == arch_gate.PASS
+
+
+# ------------------------------------------------------------------------------------------------ G7: views are cross-checked against coord.db
+def write_view(rd, *, text="LGX-412 delays parcels", status="supported", roots=2, version=1, claims=True, holder="hold_a", name="t1", with_disc=False):
+    claim = {"claim": {"claim_id": "c1", "status": status, "text": text, "version": version, "question_id": "q1"},
+             "evidence": [{"ref_id": "ev1", "holder_id": holder, "source_root_id": "root1"}, {"ref_id": "ev2", "holder_id": "hold_b", "source_root_id": "root2"}],
+             "support": {"independent_roots": roots}}
+    view = {"task_id": name, "status": "ok", "tenant_id": T, "question": {"question_id": "q1", "status": "committed", "result": {}, "resolved_at": "2026-12-31T00:00:00+00:00"},
+            "claims": [claim] if claims else [], "discoveries": [], "raw_checks": {}}
+    if with_disc:
+        view["discoveries"] = [{"discovery": {"discovery_id": "disc1", "title": "t", "summary": "s", "claim_ids": ["c1"]}, "claims": [claim], "evidence": []}]
+    (rd / "views").mkdir(exist_ok=True)
+    (rd / "views" / f"{name}.json").write_text(json.dumps(view))
+
+
+def test_views_that_match_coord_db_pass_g7(run):
+    write_view(run / "run", with_disc=True)
+    rep = gate(run)
+    assert rep.results["G7"].status == arch_gate.PASS and rep.results["G7"].data["views_cross_checked"] == 1, rep.results["G7"].problems
+
+
+@pytest.mark.parametrize("kw, needle", [({"text": "TAMPERED by harness: zzzfake-service is the cause."}, "differs from coord.db"),
+                                        ({"status": "contested"}, "differs from coord.db"), ({"roots": 5}, "differs from coord.db"),
+                                        ({"holder": "hold_b"}, "reference ev1 differs")])
+def test_a_view_that_disagrees_with_coord_db_fails_g7(run, kw, needle):
+    write_view(run / "run", **kw)
+    rep = gate(run)
+    assert "G7" in rep.failed_ids and any(needle in p for p in rep.results["G7"].problems), rep.results["G7"].problems
+
+
+def test_mutating_the_database_after_the_views_were_written_fails_g7(run):
+    write_view(run / "run")
+    assert gate(run).results["G7"].status == arch_gate.PASS
+    sql(run, "UPDATE claims SET text='TAMPERED by harness: zzzfake-service is the cause.' WHERE claim_id='c1'")      # rev4 mutation M2
+    assert "G7" in gate(run).failed_ids
+
+
+def test_view_with_an_unknown_claim_or_a_hidden_question_claim_fails_g7(run):
+    write_view(run / "run", claims=False)
+    rep = gate(run)
+    assert "G7" in rep.failed_ids and any("omits" in p for p in rep.results["G7"].problems)         # c1 belongs to q1 and was created before q1 resolved
+    write_view(run / "run")
+    sql(run, "DELETE FROM claims WHERE claim_id='c1'")
+    assert any("does not exist in coord.db" in p for p in gate(run).results["G7"].problems)
+
+
+def test_a_later_revision_explains_a_difference_but_an_unrecorded_change_does_not(run):
+    write_view(run / "run", status="supported", version=1)
+    sql(run, "UPDATE claims SET status='stale', version=2 WHERE claim_id='c1'")
+    assert any("no later revision" in p for p in gate(run).results["G7"].problems)
+    sql(run, "INSERT INTO revisions(revision_id, tenant_id, object_type, object_id, version, actor_type, actor_id, after, at) "
+             "VALUES ('rv5', ?, 'claim', 'c1', 2, 'loop', 'goal:g1', '{\"status\": \"stale\"}', ?)", (T, NOW))
+    assert not any("differs from coord.db" in p for p in gate(run).results["G7"].problems)
+
+
+def test_a_run_with_tasks_but_no_views_cannot_be_cross_checked(run):
+    m = json.loads((run / "run" / "run_manifest.json").read_text())
+    m["n_tasks"] = 3
+    (run / "run" / "run_manifest.json").write_text(json.dumps(m))
+    assert gate(run).results["G7"].status == arch_gate.MISSING
+
+
+# ------------------------------------------------------------------------------------------------ G4: as-of-route replay, no "drift" excuse
+def history(run, rows, route_id=500):
+    """rows: (audit id, holder, added, removed). The question.route audit row moves to ``route_id``."""
+    sql(run, "UPDATE audit_log SET id=? WHERE action='question.route'", (route_id,))
+    for aid, hid, added, removed in rows:
+        sql(run, "INSERT INTO audit_log(id, tenant_id, at, actor_type, actor_id, action, resource_type, resource_id, outcome, detail) "
+                 "VALUES (?, ?, ?, 'holder', ?, 'holder.domains_published', 'holder', ?, 'ok', ?)", (aid, T, NOW, hid, hid, json.dumps({"added": added, "removed": removed})))
+
+
+def test_drift_after_the_route_is_verified_not_assumed(run):
+    sql(run, "UPDATE questions SET candidate_domains='[\"logistics\"]' WHERE question_id='q1'")
+    # hold_a and hold_b published logistics before the route, hold_b withdrew it after: current state differs, history explains it
+    history(run, [(100, "hold_a", ["logistics"], []), (101, "hold_b", ["logistics"], []), (900, "hold_b", [], ["logistics"])])
+    sql(run, "UPDATE holders SET published_domains='[\"logistics\"]' WHERE holder_id='hold_a'")
+    rep = gate(run)
+    assert rep.results["G4"].status == arch_gate.PASS, rep.results["G4"].problems
+    assert rep.results["G4"].data["routes_where_domains_changed_since"] == 1
+
+
+def test_a_route_to_a_holder_without_a_matching_published_domain_at_route_time_fails_g4(run):
+    sql(run, "UPDATE questions SET candidate_domains='[\"logistics\"]' WHERE question_id='q1'")
+    history(run, [(100, "hold_a", ["logistics"], []), (101, "hold_b", ["sales"], [])])          # hold_b only published 'sales' before the route
+    sql(run, "UPDATE holders SET published_domains='[\"logistics\"]' WHERE holder_id='hold_a'")
+    sql(run, "UPDATE holders SET published_domains='[\"sales\"]' WHERE holder_id='hold_b'")
+    rep = gate(run)
+    assert "G4" in rep.failed_ids and any("hold_b" in p and "no matching evidence domain" in p for p in rep.results["G4"].problems)
+
+
+def test_holder_domains_changed_outside_the_audit_trail_fail_g4(run):                           # rev4 mutation M3
+    history(run, [(100, "hold_a", ["logistics"], [])])
+    sql(run, "UPDATE holders SET published_domains='[\"legal.contracts\"]', domains='[\"legal.contracts\"]' WHERE holder_id='hold_a'")
+    rep = gate(run)
+    assert "G4" in rep.failed_ids and any("outside the audit trail" in p for p in rep.results["G4"].problems)
+
+
+def test_a_routed_holder_missing_from_the_route_audit_fails_g4(run):
+    sql(run, "UPDATE audit_log SET detail='{\"holders\":[\"hold_a\"],\"rank_method\":\"hypergraph\"}' WHERE action='question.route'")
+    rep = gate(run)
+    assert "G4" in rep.failed_ids and any("not named in the question.route audit row" in p for p in rep.results["G4"].problems)
+
+
+# ------------------------------------------------------------------------------------------------ G10: faults derived from the raw sources must leave evidence
+def write_sources(run, *, extra_lines=(), file="hold_a__pub.jsonl", late=None, flags=None, holder="hold_a"):
+    sd = run / "run" / "sources"
+    sd.mkdir(exist_ok=True)
+    lines = [json.dumps({"type": "source", "id": "hold_a-pub"}),
+             json.dumps({"type": "document", "id": "x1", "text": "Dock scanners freeze after restarts at night.", "created_at": "2026-09-01T00:00:00+00:00"}),
+             *extra_lines]
+    (sd / file).write_text("\n".join(lines) + "\n")
+    if late:
+        (sd / "hold_a__pub.late.jsonl").write_text("\n".join(late) + "\n")
+    entry = {"file": file, "late_file": "hold_a__pub.late.jsonl" if late else None, "holder_id": holder, "holder_key": holder, "tenant": "a", "flags": flags or {},
+             "n_base": len(lines) - 1, "n_late": len(late or [])}
+    (run / "run" / "sources_manifest.json").write_text(json.dumps([entry]))
+
+
+def holder_sql(run, holder, statement, args=()):
+    c = sqlite3.connect(run / "holders" / holder / "evidence.db")
+    c.execute(statement, args)
+    c.commit()
+    c.close()
+
+
+DUP = json.dumps({"type": "document", "id": "x2", "text": "Month end renewals stall.", "created_at": "2026-09-02T00:00:00+00:00"})
+
+
+def test_injected_duplicate_lines_without_dispositions_fail_g10_and_pass_when_recorded(run):
+    write_sources(run, extra_lines=[DUP, DUP])
+    rep = gate(run)
+    assert "G10" in rep.failed_ids and any("duplicate lines" in p for p in rep.results["G10"].problems), rep.results["G10"].problems
+    holder_sql(run, "hold_a", "INSERT OR REPLACE INTO ingest_stage_metrics(connector_id, stage, outcome, count, total_ms, max_ms, updated_at) VALUES ('c', 'enqueue', 'duplicate', 1, 0, 0, 'now')")
+    assert gate(run).results["G10"].status == arch_gate.PASS, gate(run).results["G10"].problems
+
+
+def test_a_replay_flag_needs_a_whole_file_of_duplicate_dispositions(run):
+    write_sources(run, flags={"replay": True})
+    rep = gate(run)
+    assert "G10" in rep.failed_ids and any("replay of 1 timed records" in p for p in rep.results["G10"].problems)
+
+
+def test_malformed_lines_need_rejection_rows(run):
+    write_sources(run, extra_lines=["this is not json at all", "[1, 2, 3"])
+    rep = gate(run)
+    assert "G10" in rep.failed_ids and any("2 malformed lines" in p for p in rep.results["G10"].problems), rep.results["G10"].problems
+    holder_sql(run, "hold_a", "INSERT INTO ingest_rejections(rejection_id, connector_id, locator, raw_sha256, stage, reason, first_seen_at, last_seen_at, count) "
+                              "VALUES ('rej1', 'c', 'line:3', 'ab', 'normalize', 'normalize_failed', 'n', 'n', 2)")
+    assert gate(run).results["G10"].status == arch_gate.PASS
+
+
+def test_deleted_strings_are_derived_from_the_delete_records_and_must_not_survive(run):
+    # the delete record's target text is a live document of the holder: not purged, no 'delete' disposition
+    write_sources(run, extra_lines=[json.dumps({"type": "document", "id": "gone", "text": "Parcel delays traced to LGX-412 batch a number 0 in the routing service."})],
+                  late=[json.dumps({"type": "delete", "id": "gone", "deleted_at": "2026-09-30T00:00:00+00:00"})])
+    rep = gate(run)
+    probs = " | ".join(rep.results["G10"].problems)
+    assert "G10" in rep.failed_ids and "deleted_marker_survives" in probs and "no 'delete' disposition" in probs
+    assert rep.results["G10"].data["deleted_markers_checked"] >= 1
+
+
+def test_a_delete_with_no_derivable_string_cannot_pass(run):
+    write_sources(run, late=[json.dumps({"type": "delete", "id": "never-seen", "deleted_at": "2026-09-30T00:00:00+00:00"})])
+    assert any("no deleted string could be derived" in p for p in gate(run).results["G10"].problems)
+
+
+def test_restart_needs_a_cursor_past_the_pages_before_the_restart(run):
+    write_sources(run, flags={"restart": True})
+    (run / "run" / "fault_plan.json").write_text(json.dumps({"restart": [{"holder_id": "hold_a", "pages_before": 3}]}))
+    holder_sql(run, "hold_a", "UPDATE connector_checkpoints SET version = 3 WHERE phase='incremental'")
+    assert any("never advanced past 3 page" in p for p in gate(run).results["G10"].problems)       # page_size=3 alone proves nothing
+    holder_sql(run, "hold_a", "UPDATE connector_checkpoints SET version = 4 WHERE phase='incremental'")
+    assert not any("never advanced" in p for p in gate(run).results["G10"].problems)
+
+
+def test_restart_holder_that_never_ingested_all_its_records_fails(run):
+    write_sources(run, flags={"restart": True}, extra_lines=[json.dumps({"type": "document", "id": "lost-after-restart", "text": "t", "created_at": "2026-09-01T00:00:00+00:00"})])
+    holder_sql(run, "hold_a", "UPDATE connector_checkpoints SET version = 4 WHERE phase='incremental'")
+    assert any("never ingested" in p and "lost-after-restart" in p for p in gate(run).results["G10"].problems)

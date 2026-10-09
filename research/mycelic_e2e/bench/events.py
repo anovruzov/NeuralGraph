@@ -27,7 +27,7 @@ def app_for(holder_key: str) -> str:
     return APPS[int(hashlib.sha256(holder_key.encode()).hexdigest()[:4], 16) % len(APPS)]
 
 
-def account_for(holder_key: str, source: str = "pub") -> str:
+def account_for(holder_key: str, source: str = "s0") -> str:
     return f"acct-{holder_key}-{source}"      # one connection per (app, account) in a holder: one account per source file
 
 
@@ -44,8 +44,8 @@ def record_line(rec: Rec, by_rid: dict[str, Rec], now: datetime, world: World) -
     if rec.forwarded and rec.forward_of:
         orig = by_rid[rec.forward_of]
         when = stamp(now, orig.days_ago)
-        out["text"] = forwarded_body(rec.comment, orig.text, "a colleague", when, "Field note")
-        out["forwarded_from"] = {"app": app_for(orig.holder), "account": account_for(orig.holder, "pub"), "object_type": "document", "object_id": orig.rid}
+        out["text"] = forwarded_body(rec.comment, orig.text, "a colleague", when, orig.title)
+        out["forwarded_from"] = {"app": app_for(orig.holder), "account": account_for(orig.holder, "s0"), "object_type": "document", "object_id": orig.rid}
     if not rec.missing_meta:
         out["created_at"] = stamp(now, rec.days_ago)
         out["author"] = rec.author
@@ -54,12 +54,14 @@ def record_line(rec: Rec, by_rid: dict[str, Rec], now: datetime, world: World) -
     return out
 
 
-def source_header(holder_key: str, source: str, domain: str | None, members: list[str]) -> dict[str, Any]:
-    vis = {"pub": "public", "priv": "private"}.get(source, "members")
-    h: dict[str, Any] = {"type": "source", "id": f"{holder_key}-{source}", "name": f"{holder_key} {source}", "source_type": "channel", "visibility": vis}
+def source_header(holder_key: str, source: str, vis: str, domain: str | None, members: list[str]) -> dict[str, Any]:
+    """``s0`` is the holder's main source (visibility = the holder's own, drawn from one distribution for every class), ``s1`` the
+    owner's private notebook. Names and ids carry no role."""
+    h: dict[str, Any] = {"type": "source", "id": f"{holder_key}-{source}", "name": "Notes" if source == "s0" else "Notebook", "source_type": "channel",
+                         "visibility": vis}
     if vis != "public":
         h["member_ids"] = members
-    if domain and source != "priv":
+    if domain and source == "s0":
         h["domains"] = [domain]
     return h
 
@@ -71,15 +73,16 @@ def write_sources(world: World, records: list[Rec], fault_plan: dict[str, Any], 
     by_rid = {r.rid: r for r in records if r.typ == "document"}
     groups: dict[tuple[str, str], list[Rec]] = {}
     for r in records:
-        key = (r.holder, r.source if r.source != "mem" else "mem0")
+        key = (r.holder, "s1" if r.source == "priv" else "s0")
         groups.setdefault(key, []).append(r)
     manifest: list[dict[str, Any]] = []
     for (holder_key, source), recs in sorted(groups.items()):
         t = world.tenants[recs[0].tenant]
         h = t.holders[holder_key]
         domain = t.units[h.dept].domain if h.dept else None
-        members = sorted({m for r in recs for m in r.members}) if source != "pub" else []
-        flags = dict(fault_plan.get(holder_key, {})) if source == "pub" else {}
+        vis = "private" if source == "s1" else h.vis
+        members = [m for r in recs for m in r.members][:1] if source == "s1" else (list(h.peers) if vis == "members" else [])
+        flags = dict(fault_plan.get(holder_key, {})) if source == "s0" else {}
         rng = random.Random(f"{seed}:{holder_key}:{source}")
         base = sorted([r for r in recs if r.phase == "base"], key=lambda r: (-r.days_ago, r.rid))
         late = sorted([r for r in recs if r.phase == "late"], key=lambda r: (-r.days_ago, r.rid))
@@ -87,7 +90,7 @@ def write_sources(world: World, records: list[Rec], fault_plan: dict[str, Any], 
         base_lines = apply_file_faults(base_lines, flags, rng, rid_of_line=[r.rid for r in base])
         late_lines = [json.dumps(record_line(r, by_rid, now, world), sort_keys=True) for r in late]
         name = f"{holder_key}__{source}"
-        header = json.dumps(source_header(holder_key, source, domain, members), sort_keys=True)
+        header = json.dumps(source_header(holder_key, source, vis, domain, members), sort_keys=True)
         (src_dir / f"{name}.jsonl").write_text("\n".join([header, *base_lines]) + "\n", encoding="utf-8")
         late_file = None
         if late_lines:
@@ -99,6 +102,38 @@ def write_sources(world: World, records: list[Rec], fault_plan: dict[str, Any], 
             manager = t.admin
         manifest.append({"file": f"{name}.jsonl", "late_file": late_file, "holder_key": holder_key, "holder_id": ids.holders[holder_key], "tenant": t.slug,
                          "manager": manager, "app": app_for(holder_key), "account": account_for(holder_key, source), "source_header_id": f"{holder_key}-{source}",
-                         "visibility": json.loads(header)["visibility"], "members": members, "domain": domain if source != "priv" else None,
+                         "visibility": vis, "members": members, "domain": domain if source == "s0" else None,
                          "n_base": len(base_lines), "n_late": len(late_lines), "flags": {k: v for k, v in flags.items() if k in ("replay", "restart")}})
     return manifest
+
+
+def fault_evidence(records: list[Rec], fault_plan: dict[str, Any], ids: Ids) -> dict[str, Any]:
+    """What the generator injected, per fault kind, for the architecture gate (G10) to look for in the holders. Non-gold: it names
+    holders, source object ids and the raw texts that were retracted or superseded - never an answer."""
+    out: dict[str, list[dict[str, Any]]] = {k: [] for k in ("restart", "replay", "duplicate", "out_of_order", "malformed", "delete", "edit")}
+    docs: dict[str, list[Rec]] = {}
+    for r in records:
+        if r.typ == "document":
+            docs.setdefault(r.rid, []).append(r)
+    for hk, f in sorted(fault_plan.items()):
+        hid = ids.holders[hk]
+        if f.get("restart"):
+            out["restart"].append({"holder_id": hid, "holder_key": hk, "pages_before": 1, "page_size": 3})
+        if f.get("replay"):
+            out["replay"].append({"holder_id": hid, "holder_key": hk, "mode": "backfill"})
+        if f.get("duplicate"):
+            out["duplicate"].append({"holder_id": hid, "holder_key": hk, "record_ids": list(f["duplicate"]), "copies": 2})
+        if f.get("malformed"):
+            out["malformed"].append({"holder_id": hid, "holder_key": hk, "bad_lines": 4})
+    for r in records:
+        hid = ids.holders[r.holder]
+        if r.typ == "delete":
+            orig = next((d for d in docs.get(r.rid, []) if d.role != "stale_version"), None)
+            out["delete"].append({"holder_id": hid, "holder_key": r.holder, "record_id": r.rid, "marker": orig.text if orig else ""})
+        elif r.typ == "edit":
+            orig = next((d for d in docs.get(r.rid, []) if d.role != "stale_version"), None)
+            out["edit"].append({"holder_id": hid, "holder_key": r.holder, "record_id": r.rid, "stale_marker": orig.text if orig else "", "current_marker": r.text})
+        elif r.role == "stale_version":
+            cur = next((d for d in docs.get(r.rid, []) if d.role != "stale_version"), None)
+            out["out_of_order"].append({"holder_id": hid, "holder_key": r.holder, "record_id": r.rid, "stale_marker": r.text, "current_marker": cur.text if cur else ""})
+    return out

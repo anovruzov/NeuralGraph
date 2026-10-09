@@ -3,8 +3,9 @@
 This is the ONLY module under ``research/mycelic_e2e/bench/`` that opens a gold file (``tasks_<split>`` + the gold
 suffix). The task generator hands every task's gold to :class:`GoldSink` as it creates the task (``events.write_sources``
 takes ``gold_writer=sink.write``); the sink never returns it. The scorer reads it back with :func:`load` after the run.
-Nothing else imports this module: the feeder, the issuer, the runtime, the baseline and the architecture gate never see
-gold. ``tests/test_score.py::test_only_gold_module_touches_gold_files`` greps the package for any other reference.
+Importers: ``run.py`` (writes through the sink right after the world is materialized), ``baseline_central`` (``copy_gold``: a byte
+copy of the file into a baseline run directory, never parsed) and ``score`` (reads after the run). The feeder, the issuer, the runtime
+and the architecture gate never see gold. ``tests/test_score.py::test_only_gold_module_touches_gold_files`` greps the package for any other reference.
 
 Gold record fields (all optional except ``task_id`` and ``cls``; extra keys are kept verbatim):
 

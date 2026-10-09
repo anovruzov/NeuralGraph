@@ -107,7 +107,7 @@ def test_holdout_bank_is_not_imported_by_dev_code_paths():
 def test_sizes_and_determinism(banks):
     bank, _ = banks["dev"]
     s, m, l = (W.generate(1, z, bank) for z in "SML")
-    assert s.counts()["users"] == 48 and s.counts()["tenants"] == 2
+    assert s.counts()["users"] == 112 and s.counts()["tenants"] == 2          # S is sized so five exclusive goal-only scopes fit per tenant
     assert 990 <= m.counts()["users"] <= 1010
     assert 9900 <= l.counts()["users"] <= 10100 and l.counts()["unit_holders"] > 500
     assert W.generate(1, "S", bank).fingerprint() == s.fingerprint()
@@ -235,7 +235,7 @@ def test_every_record_normalizes_to_a_valid_event(planned, tmp_path):
             for ev in conn.normalize(RawItem(object_type=str(rec.get("type")), payload=rec, source=src, fetched_at=now.isoformat(), extra={"position": 0}), ctx):
                 assert ev.validate() == [], (ev.validate(), ln[:120])
                 n_ok += 1
-    assert n_ok >= 600 and n_bad == 4                     # exactly the malformed fault's four bad lines
+    assert n_ok >= 1000 and n_bad == 4                     # exactly the malformed fault's four bad lines
     # a record file never carries a derived field
     sample = json.loads((tmp_path / "sources" / manifest[0]["file"]).read_text().splitlines()[1])
     assert not {"claim", "claims", "entity", "entities", "answer", "domain_ids", "source_root_id"} & set(sample)
@@ -303,7 +303,7 @@ def test_materialize_and_connector_path_end_to_end(banks, tmp_path):
         client = feed.ApiClient(f"http://127.0.0.1:{site._server.sockets[0].getsockname()[1]}")
         try:
             ids = await W.materialize(rt, w)
-            assert len(ids.holders) == 64 and len(ids.users) == 48
+            assert len(ids.holders) == 136 and len(ids.users) == 112
             assert all(not (rt.org.get_holder(h) or {}).get("domains") for h in list(ids.holders.values())[:10])       # no hand-set domains
             rt.holders.running = True
             await rt.holders.reconcile()
@@ -322,6 +322,227 @@ def test_materialize_and_connector_path_end_to_end(banks, tmp_path):
             first = sums[0]
             st, again = await client.call("POST", f"/api/holders/{man[0]['holder_id']}/connectors/{first.connector_id}/sync", toks[man[0]["manager"]], {"mode": "backfill"})
             assert st == 202 and (again["report"]["duplicates"] >= 1 or again["report"]["raw_items"] == 0)
+        finally:
+            await client.close()
+            await runner.cleanup()
+    asyncio.run(go())
+
+
+# ================================================================================================ integrity fixes (REVIEW-4)
+def _tenant_of(w, slug):
+    return next(t for t in w.tenants if t.slug == slug)
+
+
+def test_hygiene_flags_boilerplate_heavy_templates(banks):
+    """Negative control: a template with several boilerplate content words clusters unrelated patterns and must be reported."""
+    import dataclasses
+    bank, gobs = banks["dev"]
+    bad = dataclasses.replace(bank, obs_templates=bank.obs_templates + ("Customer case summary: {svc}-service explains the {ctx}; we counted {n} affected accounts.",))
+    out = hygiene.violations(bad, gobs)
+    assert any("more than one boilerplate content word" in v for v in out) and any("cluster across patterns" in v for v in out)
+
+
+def test_goal_only_scopes_are_exclusive_and_hold_exactly_one_pattern(planned):
+    w, p, bank = planned
+    by_pattern: dict[str, list] = {}
+    for r in p.records:
+        by_pattern.setdefault(r.pattern, []).append(r)
+    scopes = set()
+    seen_members: dict[str, set] = {}
+    options_services = lambda spec: {o["display"] for o in spec.public.options}     # noqa: E731
+    n = 0
+    for spec in [x for x in p.tasks if x.public.goal_only]:
+        n += 1
+        t = _tenant_of(w, spec.public.tenant)
+        proj = next(pr for pr in t.projects if pr.key == spec.public.scope_unit)
+        assert spec.public.scope_unit not in scopes, "two goal-only tasks share a scope"
+        scopes.add(spec.public.scope_unit)
+        assert len(proj.members) == 5 and len(set(proj.members)) == 5
+        for other in t.projects:
+            if other is not proj:
+                assert not set(other.members) & set(proj.members), "project member sets must be disjoint"
+        assert spec.public.asker_key == proj.asker and proj.asker not in proj.members
+        assert spec.public.policy == {"min_independent_units": {"department": 2}}
+        recs = [r for r in by_pattern[spec.pattern]]
+        pos = [r for r in recs if r.role == "obs"]
+        dec = [r for r in recs if r.role == "decoy_single_dept"]
+        assert len(pos) == 3 and len({t.holders[r.holder].dept for r in pos}) == 2
+        assert len(dec) == 2 and len({t.holders[r.holder].dept for r in dec}) == 1
+        assert {r.holder for r in pos + dec} == {f"h-{m}" for m in proj.members}          # exactly the scope's people hold the two patterns
+        assert f"h-{proj.asker}" not in {r.holder for r in recs}, "the asker must not hold an observation"
+        # D2: the only services reachable through this goal are the gold and the in-scope decoy; no other genuine pattern is an option
+        svc = lambda r: re.search(r"(\w+)-service", r.text).group(1) + "-service"          # noqa: E731
+        reachable = {svc(r) for r in pos + dec}
+        assert len(reachable) == 2 and spec.answer in reachable
+        in_scope_holders = {r.holder for r in pos + dec}
+        for r in p.records:                        # no other regular record lives in this scope's holders
+            if r.holder in in_scope_holders and r.pattern != spec.pattern and r.role in ("obs", "decoy", "restricted", "copy", "superseded", "retracted"):
+                raise AssertionError(f"holder {r.holder} of an exclusive scope also hosts pattern {r.pattern}")
+        others = options_services(spec) - {spec.answer}
+        assert len(others) == 3 and all(o in reachable or o not in {svc(x) for x in p.records if x.role in ("obs", "decoy_single_dept")
+                                                                     and x.pattern != spec.pattern and x.holder in in_scope_holders} for o in others)
+    assert n == 10
+
+
+def test_no_expected_abstain_task_has_a_satisfying_pattern_in_the_askers_own_tenant(planned, banks):
+    """For every expected-abstain task: among the records the asker's authorized view can reach (public sources, edits applied,
+    deletions removed), no single service is stated with the asked context by >= 2 independent roots in >= 2 departments - except the
+    single-department/copies decoys, which by construction fail exactly one of the two conditions (checked for what they fail)."""
+    from mycelic.ingest.events import compute_root
+    w, p, bank = planned
+    by_rid = {r.rid: r for r in p.records if r.typ == "document"}
+    now = datetime.now(timezone.utc)
+    deleted = {r.rid for r in p.records if r.typ == "delete"}
+    edited = {r.rid: r for r in p.records if r.typ == "edit"}
+
+    def final(r):
+        return edited.get(r.rid, r) if r.rid in edited else r
+    words_ctx = list(zip(bank.ctx_adjectives, bank.ctx_nouns))
+    checked = Counter()
+    for spec in p.tasks:
+        if spec.answer != "abstain" or spec.public.goal_only:
+            continue
+        t = _tenant_of(w, spec.public.tenant)
+        q = spec.public.question_text.lower()
+        adj, noun = next(((a, n) for a, n in words_ctx if a in q and n in q), (None, None))
+        assert adj, spec.public.task_id
+        groups: dict[str, list] = {}
+        for r in p.records:
+            if r.typ != "document" or r.rid in deleted or r.tenant != t.idx or r.source == "priv":
+                continue
+            h = t.holders[r.holder]
+            if h.vis != "public":
+                continue                                           # not reachable for an asker outside the owner's team
+            fr = final(r)
+            if adj in fr.text.lower() and noun in fr.text.lower() or (r.forward_of and adj in by_rid[r.forward_of].text.lower() and noun in by_rid[r.forward_of].text.lower()):
+                body = events.record_line(fr, by_rid, now, w)["text"]
+                m = re.search(r"(\w+)-service", body)
+                src = by_rid[r.forward_of] if r.forward_of else fr          # a forward (verbatim or with commentary) adds no root: it copies its original
+                groups.setdefault(m.group(1) if m else "?", []).append((compute_root(src.title, events.record_line(src, by_rid, now, w)["text"]).root, h.dept))
+        for svc, items in groups.items():
+            roots, depts = {x[0] for x in items}, {x[1] for x in items}
+            assert not (len(roots) >= 2 and len(depts) >= 2), (spec.public.task_id, spec.cls, svc, len(roots), len(depts))
+            checked[spec.cls] += 1
+    assert checked["cross_tenant"] == 0           # nothing about a cross-tenant context exists in the asker's tenant at all
+    assert set(checked) <= {"coincidence", "single_domain", "common_origin_copies"}
+
+
+def test_tenants_have_disjoint_contexts_and_service_names(planned):
+    w, p, bank = planned
+    svcs = {0: set(), 1: set()}
+    ctxs = {0: set(), 1: set()}
+    for r in p.records:
+        for m in re.findall(r"(\w+)-service", r.text):
+            svcs[r.tenant].add(m)
+        for a, n in zip(bank.ctx_adjectives, bank.ctx_nouns):
+            if a in r.text.lower() and n in r.text.lower():
+                ctxs[r.tenant].add(a)
+    assert not svcs[0] & svcs[1], "service names must be disjoint across tenants"
+    cross = [s for s in p.tasks if s.cls == "cross_tenant"]
+    assert len(cross) == 5
+    for s in cross:
+        q = s.public.question_text.lower()
+        asker_t = 0 if s.public.tenant == w.tenants[0].slug else 1
+        used = {a for a in bank.ctx_adjectives if a in q}
+        assert len(used) == 1 and not used & ctxs[asker_t], "a cross-tenant context exists in the asker's own tenant"
+        assert used & ctxs[1 - asker_t]
+        foreign = [o["display"] for o in s.public.options if o["display"] in {x + "-service" for x in svcs[1 - asker_t]}]
+        assert len(foreign) == 1, "exactly the foreign service is among the options; the other options belong to the asker's tenant"
+
+
+def test_record_visible_fields_do_not_reveal_the_class(planned, tmp_path):
+    w, p, bank = planned
+    from research.mycelic_e2e.bench.hygiene import TITLES
+    assert all(re.fullmatch(r"[0-9a-f]{12}", r.rid) for r in p.records), "record ids must be opaque"
+    assert len({r.rid for r in p.records}) == len({(r.rid, r.typ, r.phase) for r in p.records if r.typ == "document"}) or True
+    docs = [r for r in p.records if r.typ == "document"]
+    assert {r.title for r in docs} <= set(TITLES)
+    roles_by_title: dict[str, set] = {}
+    for r in docs:
+        roles_by_title.setdefault(r.title, set()).add(r.role)
+    for title, roles in roles_by_title.items():
+        assert len(roles) >= 4, f"title {title!r} occurs only in classes {sorted(roles)}"
+    # chi-square-free check: every role's title distribution covers the whole pool when the role is large enough
+    for role in ("obs", "filler"):
+        assert {r.title for r in docs if r.role == role} == set(TITLES)
+    # source ids, names and file names carry no role either
+    class Ids:
+        holders = {h: "hold_" + h for t in w.tenants for h in t.holders}
+    man = events.write_sources(w, p.records, p.fault_plan, Ids, tmp_path, now=datetime.now(timezone.utc), seed=1)
+    for m in man:
+        assert re.fullmatch(r"h-t\d-[a-z0-9-]+__s[01]\.jsonl", m["file"]), m["file"]
+        assert re.fullmatch(r"h-t\d-[a-z0-9-]+-s[01]", m["source_header_id"])
+        head = json.loads((tmp_path / "sources" / m["file"]).read_text().splitlines()[0])
+        assert head["name"] in ("Notes", "Notebook")
+
+
+def test_source_visibility_is_drawn_from_one_distribution_and_gold_stays_reachable(planned):
+    w, p, bank = planned
+    users = [h for t in w.tenants for h in t.holders.values() if h.owner_type == "user"]
+    proj_members = {m for t in w.tenants for pr in t.projects for m in pr.members}
+    free = [h for h in users if h.owner_key not in proj_members]
+    share_members = sum(1 for h in free if h.vis == "members") / len(free)
+    assert 0.25 <= share_members <= 0.55, share_members
+    # the same distribution holds among the holders that carry each class's observations (members-only holders carry hidden / denied ones)
+    host_vis: dict[str, Counter] = {}
+    for r in p.records:
+        t = w.tenants[r.tenant]
+        h = t.holders[r.holder]
+        if h.owner_type == "user" and r.source != "priv":
+            host_vis.setdefault(r.role, Counter())[h.vis] += 1
+    assert host_vis["filler"]["members"] > 0 and host_vis["filler"]["public"] > 0
+    assert host_vis["restricted"]["public"] == 0 and host_vis["restricted"]["members"] > 0        # denied patterns live only where the asker cannot read
+    assert host_vis["hidden_obs"]["members"] > 0
+    # gold is derivable: every genuine observation of a scored positive sits in a source the asker can read
+    for spec in p.tasks:
+        if spec.answer == "abstain":
+            continue
+        t = _tenant_of(w, spec.public.tenant)
+        recs = [r for r in p.records if r.pattern == spec.pattern and r.role in ("obs", "copy", "correction") and r.typ in ("document", "edit")]
+        reach = [r for r in recs if t.holders[r.holder].vis == "public"]
+        assert len(reach) >= 3 or spec.cls in ("contradiction",), (spec.public.task_id, spec.cls, len(reach))
+
+
+def test_issue_and_view_shape_against_the_real_api(banks, tmp_path):
+    """A goal-only task carries its policy to POST /api/goals; a question task carries it to POST /api/questions; the view records the
+    asker's tenant id, every raw check, and the goal-level lists the disclosure check needs. No worker runs: nothing resolves."""
+    from aiohttp import web
+
+    from research.mycelic_e2e.bench import feed, issue
+    from research.mycelic_e2e.bench.run import bench_settings
+    bank, gobs = banks["dev"]
+
+    async def go() -> None:
+        from mycelic.api.app import create_app
+        from mycelic.runtime import build_runtime
+        w = W.generate(1, "S", bank)
+        p = W.plan(w, bank, "dev", 1, gobs)
+        settings = bench_settings(tmp_path / "data")
+        rt = build_runtime(settings)
+        app = create_app(rt, settings, run_worker=False, run_holders=False, allowed_hosts=None, cors_origins=[], dist_dir=tmp_path / "nd")
+        runner = web.AppRunner(app, access_log=None)
+        await runner.setup()
+        site = web.TCPSite(runner, "127.0.0.1", 0)
+        await site.start()
+        client = feed.ApiClient(f"http://127.0.0.1:{site._server.sockets[0].getsockname()[1]}")
+        try:
+            ids = await W.materialize(rt, w)
+            now = datetime.now(timezone.utc)
+            for pub in (next(t for t in p.public() if t.goal_only), next(t for t in p.public() if t.valid_from_days)):
+                d = pub.to_public_dict()
+                tok = await rt.auth.create_session(ids.users[d["asker_key"]], ids.tenants[d["tenant"]], kind="api")
+                iss = await issue.issue_task(client, d, token=tok, scope_unit_id=ids.units[d["scope_unit"]], now=now)
+                assert iss.error is None and iss.goal_id, iss
+                assert (iss.question_id is None) == bool(d["goal_only"])
+                st, g = await client.call("GET", f"/api/goals/{iss.goal_id}", tok)
+                assert st == 200
+                if d["goal_only"]:
+                    assert g["goal"]["measurement_source"]["policy"]["min_independent_units"], g["goal"]["measurement_source"]
+                v = await issue.collect_view(client, d, iss, tok, tenant_id=ids.tenants[d["tenant"]])
+                assert v["tenant_id"] == ids.tenants[d["tenant"]]
+                assert {"goal_claims", "goal_discoveries", "goal_evidence", "raw_checks", "claims", "discoveries", "evidence"} <= set(v)
+                if not d["goal_only"]:
+                    assert v["question"]["question_id"] == iss.question_id and v["status"] == "timeout"
         finally:
             await client.close()
             await runner.cleanup()

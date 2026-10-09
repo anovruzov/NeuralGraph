@@ -1,9 +1,12 @@
-"""DEV template bank (surface text only; no gold, no ids). Disjoint from holdout/templates_holdout.py (tested).
+"""DEV template bank (surface text only; no gold, no ids). Disjoint from the sealed holdout bank (tested).
 
-Lexical contract with the deterministic provider (PLAN_v1 §B.5): every observation shares the entity name, the word
-"service" and the two context words with the question (>= 2 shared content tokens question<->record; >= 3 between agreeing
-records); no template uses a negation word (not/no/never/longer) or a department-name word, and decoy/filler text shares
-at most one content token with any question (tests/test_world.py checks this with the provider's own tokenizer).
+Lexical contract with the deterministic provider (PLAN_v1 §B.5, hygiene.py):
+* target records share the entity name, the word "service" and the two context words with the question (>= 3 shared content
+  tokens) and no negation word;
+* records of DIFFERENT patterns share < 3 stemmed content tokens: every observation / decoy / correction template carries at most
+  ONE boilerplate content word besides the entity, the context and the number (all other words are stopwords of the provider's
+  tokenizer), so even the same template used by two patterns shares at most {that word, "service"} = 2 tokens;
+* question wording shares at most one content token with any record about another context.
 """
 from __future__ import annotations
 
@@ -12,7 +15,7 @@ from .schema import TemplateBank
 BANK = TemplateBank(
     name="dev",
     service_prefixes=("parcel", "ledger", "quote", "manifest", "dock", "fleet", "cargo", "invoice", "tally", "claim", "route", "batch",
-                      "yard", "pallet"),
+                      "yard", "pallet", "freight", "crate", "depot", "lorry", "voucher", "tariff"),
     service_suffixes=("router", "bridge", "gate", "sync", "pulse", "link", "forge", "hub", "desk", "loom"),
     ctx_adjectives=tuple("""amber brisk cobalt dusty ember frosty gilded hollow ivory jagged lunar mossy nimble opal pewter quartz rusty sable
         tawny umber velvet waxen zesty arctic bronze cedar dapper elfin feral glacial hardy indigo jovial lofty mellow noble onyx plucky
@@ -31,20 +34,20 @@ BANK = TemplateBank(
         ("Identity Security", "security.access-control"), ("Data Platform", "engineering.data-platform"),
     ),
     obs_templates=(
-        "Triage note: the {ctx} we chase every week traces back to {svc}-service, which retried about {n} times an hour before it recovered.",
-        "Going through last week's tickets, the {ctx} lines up with {svc}-service; the queue held roughly {n} stuck items each morning.",
-        "Our team confirms {svc}-service is the origin of the {ctx}; every incident involved about {n} affected jobs.",
-        "Post-incident remark: the {ctx} began right after {svc}-service changed its batching, and about {n} requests piled up per shift.",
-        "Weekly digest: the {ctx} is tied to {svc}-service once more, with around {n} occurrences logged by the helpline.",
-        "Customer case summary: {svc}-service explains the {ctx}; we counted about {n} affected accounts.",
-        "On-call handoff: suspect {svc}-service for the {ctx}, since the backlog stayed near {n} entries.",
-        "Retro item: the {ctx} comes from {svc}-service; we measured about {n} delayed orders per day.",
+        "The {ctx} is from {svc}-service, {n}.",
+        "{svc}-service is the source of the {ctx}, {n}.",
+        "We trace the {ctx} to {svc}-service, {n}.",
+        "{svc}-service: origin of the {ctx}, {n}.",
+        "The {ctx} is {svc}-service, as {n} show.",
+        "{svc}-service, then, for the {ctx}: {n}.",
+        "It is {svc}-service at the root of the {ctx}, {n}.",
+        "Blame {svc}-service for the {ctx}, {n}.",
     ),
     decoy_templates=(
-        "Housekeeping: certificate renewal for {svc}-service finished on schedule and {n} hosts were rotated.",
-        "Calendar note: the {svc}-service maintenance window moved to the weekend, which affects {n} reviewers.",
-        "License audit: {svc}-service seats were trimmed this quarter, saving {n} subscriptions.",
-        "Welcome reminder: new analysts get read access to {svc}-service dashboards after {n} days.",
+        "Renewal for {svc}-service, {n}.",
+        "Window for {svc}-service, {n}.",
+        "Seats of {svc}-service, {n}.",
+        "Dashboards of {svc}-service, {n}.",
     ),
     filler_templates=(
         "Reminder: the quarterly offsite agenda needs a final review before Friday.",
@@ -59,14 +62,14 @@ BANK = TemplateBank(
         "The team photo is scheduled right after the all-hands gathering.",
     ),
     correction_templates=(
-        "Correction after rechecking my own logs: the {ctx} is explained by {svc}-service, about {n} cases in the log.",
-        "Update from the owner: I mislabeled this earlier; {svc}-service is the cause of the {ctx}, with about {n} cases.",
+        "Correction: it is {svc}-service for the {ctx}, {n}.",
+        "Edit: the {ctx} is {svc}-service, {n}.",
     ),
     question_templates=(
         "Which service sits behind the {ctx} that {a} and {b} flag?",
         "Both {a} and {b} mention a {ctx}. Which service stands under it?",
         "What service is responsible for the {ctx} seen by {a} together with {b}?",
-        "Which service would you blame for the {ctx} that {a} and {b} complain about?",
+        "Which service would you hold accountable for the {ctx} that {a} and {b} complain about?",
     ),
     current_question_templates=(
         "Which service is currently behind the {ctx} that {a} and {b} flag?",
@@ -77,17 +80,24 @@ BANK = TemplateBank(
         ("Shared issue review: {ctx}", "Work out what is behind the {ctx} that {a} and {b} both see."),
     ),
     goal_only_templates=(
-        ("Recurring blockers in {fam}", "Identify recurring operational blockers across the {fam} teams and what causes them."),
-        ("Find the cause of repeat blockers in {fam}", "Look for blockers that recur between teams in {fam} and verify what is behind them."),
+        ("Recurring blockers in {fam}", "Identify recurring operational blockers across the {fam} teams, for instance the {ctx}, and what causes them."),
+        ("Find the cause of repeat blockers in {fam}", "Look for blockers that recur between teams in {fam}, such as the {ctx}, and verify what is behind them."),
+    ),
+    goal_decoy_templates=(
+        "Operational, caused by {svc}-service: the {ctx}, {n}.",
+        "Caused by {svc}-service, operational: {ctx}, {n}.",
+        "The {ctx}, operational and caused by {svc}-service, {n}.",
+        "{svc}-service caused it: operational {ctx}, {n}.",
     ),
 )
 
-# goal-only tasks: the production loop asks "What recurring operational blockers related to <domain> have you recorded, and
-# what caused them?" (models/fake.py draft_question), so these observations share "recurring", "blocker" and "caused"
-# with it (>= 2 content tokens) as well as the entity and the context with each other.
+# goal-only tasks: the production loop asks "What recurring operational blockers related to <domain> have you recorded, and what
+# caused them?" (models/fake.py draft_question). The hidden pattern's records share exactly "recurring" and "blocker" with it
+# (>= 2 content tokens); the in-scope decoy's records (goal_decoy_templates) share exactly "operational" and "caused" instead, so
+# the two patterns never cluster with each other (< 3 shared tokens) yet both are retrieved by the loop's question.
 GOAL_OBS_TEMPLATES = (
-    "Recurring operational blocker in our area: the {ctx} is caused by {svc}-service, roughly {n} times a week.",
-    "Blocker we recorded again: the {ctx}, caused by {svc}-service, about {n} cases this month.",
-    "Recurring blocker for the team, caused by {svc}-service: the {ctx}, around {n} tickets so far.",
-    "Operational blocker recorded this quarter: the {ctx} keeps coming back, caused by {svc}-service, about {n} times.",
+    "Recurring blocker: the {ctx}, {svc}-service, {n}.",
+    "Blocker, recurring: {svc}-service for the {ctx}, {n}.",
+    "Recurring blocker at {svc}-service: {ctx}, {n}.",
+    "A recurring blocker: {ctx} from {svc}-service, {n}.",
 )

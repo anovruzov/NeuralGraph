@@ -22,10 +22,24 @@ Run directory layout (all JSON)::
 
 Answer extraction (O1, identical for system, baseline and ablations): only the asker-visible TEXT of ``supported`` claims
 (and, for goal-only tasks without claim payloads, the "Supported:" segment of discovery summaries) is matched against the K
-option entities by canonical id, id tail or display name. One matched option -> that option; none -> ``abstain``; several
--> the option whose matching claim reports the most independent roots; a tie -> no answer (wrong). Hypergraph membership
-and any other system internal are never read (self-referential); the ``hypergraph`` argument is accepted for interface
-compatibility and ignored.
+option entities by canonical id, id tail or display name. Hypergraph membership and any other system internal are never read
+(self-referential); the ``hypergraph`` argument is accepted for interface compatibility and ignored.
+
+ORCHESTRATOR RULE (binding, one rule for system, baselines and ablations): a supported claim that names MORE THAN ONE distinct
+entity of the entity vocabulary identifies nothing and contributes no option. The vocabulary is every entity the public task
+file lists (all options of all tasks, plus an optional top-level ``entities`` / ``entity_vocabulary`` list) together with anything
+the service-id pattern matches (``<name>-service`` or ``service:<name>``); an entity counts once however many of its surfaces
+(id, id tail, display name, alias) the text uses. A claim that names exactly one entity maps to that option if the entity is one of
+the task's options (an entity that is not an option maps to nothing). If no unambiguous supported claim maps to an option the
+answer is ``abstain``. Several options reached by different unambiguous claims -> the option whose claim reports the most
+independent roots; a tie -> no answer (wrong).
+
+Disclosure (an unauthorized disclosure is something the asker may not see, never something merely held by a holder that also holds
+public records): a visible reference is foreign when its source root is in the task's forbidden roots, when its tenant is not the
+asker's, or when its holder is a forbidden holder that the asker cannot reach under authorization (``reach_authority.json``: the
+holders of the asker's tenant and the holders ``can_route`` admits for the task's scope, computed from the organization). Forbidden
+markers are matched in every visible text. The check covers the question view and, when present, the goal-level output
+(``goal_claims`` / ``goal_discoveries`` / ``goal_evidence`` of the view). A view without ``tenant_id`` makes ``score_run`` raise.
 """
 from __future__ import annotations
 
@@ -42,7 +56,7 @@ from typing import Any, Iterable, Mapping, Sequence
 from .gold import load_for_run as _load_gold_for_run
 
 ABSTAIN = "abstain"
-RESOLVED_STATUSES = frozenset({"committed", "retained_uncertain"})                 # questions.status values that end a question
+RESOLVED_STATUSES = frozenset({"committed", "retained_uncertain", "investigated"})   # questions.status / outcome values that end a question
 RESOLVED_OUTCOMES = frozenset({"committed", "investigated", "no_findings"})        # questions.result.outcome (only read if status is absent)
 FAILED_STATUSES = frozenset({"failed", "expired", "cancelled"})
 OK_RAW_REFUSALS = frozenset({401, 403, 404})
@@ -102,6 +116,7 @@ def percentile(values: Sequence[float], q: float) -> float | None:
 class Option:
     label: str
     surfaces: tuple[str, ...]
+    key: str = ""                      # canonical entity key: the lower-cased id (``service:cargorouter``), else the label
 
     def pattern(self) -> re.Pattern[str]:
         parts = []
@@ -140,8 +155,52 @@ def parse_options(raw: Any) -> list[Option]:
             if ":" in i:
                 surfaces.append(i.rsplit(":", 1)[1])
         surfaces += names
-        out.append(Option(label=label, surfaces=tuple(dict.fromkeys(surfaces))))
+        out.append(Option(label=label, surfaces=tuple(dict.fromkeys(surfaces)), key=ids[0].strip().lower()))
     return out
+
+
+SERVICE_RE = re.compile(r"(?<![A-Za-z0-9])([A-Za-z][A-Za-z0-9]*)-service(?![A-Za-z0-9])", re.IGNORECASE)
+SERVICE_ID_RE = re.compile(r"(?<![A-Za-z0-9])service:([A-Za-z][A-Za-z0-9]*)(?![A-Za-z0-9])", re.IGNORECASE)
+
+
+class Vocabulary:
+    """The entity vocabulary of the world (public: the options of every task, an optional explicit list) plus the service-id
+    pattern. ``entities_in(text)`` returns the canonical keys of the distinct entities a text names."""
+
+    def __init__(self, entries: Iterable[Option] = ()) -> None:
+        self._by_key: dict[str, re.Pattern[str]] = {}
+        for o in entries:
+            self.add(o)
+
+    def add(self, o: Option) -> None:
+        if o.key and o.key not in self._by_key:
+            self._by_key[o.key] = o.pattern()
+
+    def with_options(self, options: Iterable[Option]) -> "Vocabulary":
+        v = Vocabulary()
+        v._by_key = dict(self._by_key)
+        for o in options:
+            v.add(o)
+        return v
+
+    def __len__(self) -> int:
+        return len(self._by_key)
+
+    def entities_in(self, text: str) -> set[str]:
+        keys = {k for k, pat in self._by_key.items() if pat.search(text)}
+        keys |= {f"service:{m.group(1).lower()}" for m in SERVICE_RE.finditer(text)}
+        keys |= {f"service:{m.group(1).lower()}" for m in SERVICE_ID_RE.finditer(text)}
+        return keys
+
+
+def build_vocabulary(tasks: Iterable[Mapping[str, Any]], extra: Any = None) -> Vocabulary:
+    v = Vocabulary()
+    for t in tasks:
+        for o in parse_options(as_dict(t).get("options")):
+            v.add(o)
+    for o in parse_options(extra or []):
+        v.add(o)
+    return v
 
 
 def resolve_gold_label(answer: Any, options: Sequence[Option]) -> str:
@@ -262,6 +321,7 @@ class Extracted:
     claim_ids: list[str] = dataclasses.field(default_factory=list)         # supported claims that matched
     source: str = "claims"             # claims | discovery_summary | none
     supported_claims: int = 0
+    ambiguous_claims: int = 0          # supported claims that named more than one entity (they contribute no option)
     detail: str = ""
 
     @property
@@ -295,14 +355,16 @@ def _view_problem(view: Mapping[str, Any] | None, task: Mapping[str, Any]) -> tu
     return None
 
 
-def extract_answer(view: Mapping[str, Any] | None, task: Any, *, hypergraph: bool = False) -> Extracted:
-    """O1 extraction from the asker's own view. ``hypergraph`` is ignored on purpose (see module docstring)."""
+def extract_answer(view: Mapping[str, Any] | None, task: Any, *, hypergraph: bool = False, vocabulary: Vocabulary | None = None) -> Extracted:
+    """O1 extraction from the asker's own view, with the orchestrator rule on multi-entity claims (see the module docstring).
+    ``hypergraph`` is ignored on purpose. ``vocabulary`` defaults to the task's own options plus the service-id pattern."""
     t = as_dict(task)
     problem = _view_problem(view, t)
     if problem is not None:
         return Extracted(option=None, reason=problem[0], source="none", detail=problem[1])
     assert view is not None
     options = parse_options(t.get("options"))
+    vocab = (vocabulary or Vocabulary()).with_options(options)
     qid = (view.get("question") or {}).get("question_id") if isinstance(view.get("question"), Mapping) else None
     claims = [c for c in view_claims(view) if not (qid and c.question_id and c.question_id != qid)]
     supported = [c for c in claims if c.status == "supported"]
@@ -310,27 +372,35 @@ def extract_answer(view: Mapping[str, Any] | None, task: Any, *, hypergraph: boo
     source = "claims"
     if not claims and not t.get("question_text"):
         # goal-only task whose view has discovery summaries but no claim payloads
-        texts = [(s, 0, "") for s in discovery_supported_text(view)]
+        texts = [(s_, 0, "") for s_ in discovery_supported_text(view)]
         source = "discovery_summary" if texts else "claims"
+    by_key = {o.key: o for o in options}
     matches: dict[str, int] = {}
     matched_claims: list[str] = []
-    patterns = [(o, o.pattern()) for o in options]
+    ambiguous = 0
     for text, roots, cid in texts:
-        for o, pat in patterns:
-            if pat.search(text):
-                matches[o.label] = max(matches.get(o.label, -1), roots)
-                if cid and cid not in matched_claims:
-                    matched_claims.append(cid)
+        named = vocab.entities_in(text)
+        if len(named) > 1:
+            ambiguous += 1                   # names several entities: identifies nothing, contributes no option
+            continue
+        if not named:
+            continue
+        o = by_key.get(next(iter(named)))
+        if o is not None:
+            matches[o.label] = max(matches.get(o.label, -1), roots)
+            if cid and cid not in matched_claims:
+                matched_claims.append(cid)
+    common = dict(source=source if texts else "none", supported_claims=len(supported), ambiguous_claims=ambiguous)
     if not matches:
-        return Extracted(option=ABSTAIN, reason="ok", matches={}, claim_ids=[], source=source if texts else "none", supported_claims=len(supported))
+        return Extracted(option=ABSTAIN, reason="ok", matches={}, claim_ids=[], **common)
     if len(matches) == 1:
         label = next(iter(matches))
-        return Extracted(option=label, reason="ok", matches=matches, claim_ids=matched_claims, source=source, supported_claims=len(supported))
+        return Extracted(option=label, reason="ok", matches=matches, claim_ids=matched_claims, **common)
     ranked = sorted(matches.items(), key=lambda kv: (-kv[1], kv[0]))
     if ranked[0][1] == ranked[1][1]:
-        return Extracted(option=None, reason="tie", matches=matches, claim_ids=matched_claims, source=source, supported_claims=len(supported),
-                         detail=f"{len(matches)} options matched with equal independent roots ({ranked[0][1]})")
-    return Extracted(option=ranked[0][0], reason="ok", matches=matches, claim_ids=matched_claims, source=source, supported_claims=len(supported))
+        return Extracted(option=None, reason="tie", matches=matches, claim_ids=matched_claims,
+                         detail=f"{len(matches)} options matched by unambiguous claims with equal independent roots ({ranked[0][1]})", **common)
+    return Extracted(option=ranked[0][0], reason="ok", matches=matches, claim_ids=matched_claims, **common)
 
 
 # ---------------------------------------------------------------------------------------------- disclosure
@@ -347,23 +417,43 @@ class DisclosureCheck:
         return len(self.foreign_refs) + len(self.marker_hits) + len(self.raw_open) + (len(self.raw_unchecked) if self.raw_checks_required else 0)
 
 
+def goal_level_view(view: Mapping[str, Any]) -> dict[str, Any]:
+    """The goal's own output (claims / discoveries / evidence the asker can read about the goal, beyond the task's question), when the
+    runner recorded it as ``goal_claims`` / ``goal_discoveries`` / ``goal_evidence``. Never used for extraction, only for disclosure."""
+    return {"claims": view.get("goal_claims") or [], "discoveries": view.get("goal_discoveries") or [], "evidence": view.get("goal_evidence") or []}
+
+
 def check_disclosure(view: Mapping[str, Any] | None, task: Any, gold: Mapping[str, Any] | None, *, raw_checks_required: bool = False,
-                     raw_allowed_extra: Iterable[str] = ()) -> DisclosureCheck:
+                     raw_allowed_extra: Iterable[str] = (), reach: Mapping[str, Iterable[str]] | None = None) -> DisclosureCheck:
+    """What the asker can see that they may not (see the module docstring). ``reach`` = ``{"tenant_holders": [...], "reachable_holders": [...]}``
+    for this task (``reach_authority.json``); without it a forbidden holder alone proves nothing, since a department holder also holds
+    public records, and only forbidden roots, forbidden markers and a ref's own tenant can mark a reference as foreign."""
     out = DisclosureCheck(raw_checks_required=raw_checks_required)
     if not isinstance(view, Mapping):
         return out
     t, g = as_dict(task), as_dict(gold)
     claims = view_claims(view)
     refs = all_visible_refs(view, claims)
+    gv = goal_level_view(view)
+    g_claims = view_claims(gv)
+    for rid, r in all_visible_refs(gv, g_claims).items():
+        refs.setdefault(rid, r)
     f_holders = {str(x) for x in (g.get("forbidden_holder_ids") or [])}
     f_roots = {str(x) for x in (g.get("forbidden_root_ids") or [])}
     f_markers = [str(x) for x in (g.get("forbidden_markers") or []) if str(x).strip()]
     allowed_raw = {str(x) for x in (g.get("raw_allowed_holder_ids") or [])} | {str(x) for x in raw_allowed_extra}
     tenant = view.get("tenant_id")          # the asker's tenant id as the runner saw it (the public task carries only the slug)
-    raw_checks = view.get("raw_checks") if isinstance(view.get("raw_checks"), Mapping) else {}
+    tenant_holders = {str(x) for x in (reach or {}).get("tenant_holders", [])} if reach else None
+    reachable = {str(x) for x in (reach or {}).get("reachable_holders", [])} if reach else None
+    raw_checks = dict(view.get("raw_checks") or {}) if isinstance(view.get("raw_checks"), Mapping) else {}
     for rid, r in sorted(refs.items()):
-        foreign = (str(r.get("holder_id") or "") in f_holders) or (r.get("source_root_id") and str(r["source_root_id"]) in f_roots) \
-            or (tenant and r.get("tenant_id") and str(r["tenant_id"]) != str(tenant))
+        hid = str(r.get("holder_id") or "")
+        foreign = bool(r.get("source_root_id") and str(r["source_root_id"]) in f_roots)
+        foreign = foreign or bool(tenant and r.get("tenant_id") and str(r["tenant_id"]) != str(tenant))
+        if tenant_holders is not None and hid and hid not in tenant_holders:
+            foreign = True                                    # another tenant's holder: unreachable under any authorization
+        if reachable is not None and hid in f_holders and hid not in reachable:
+            foreign = True                                    # a forbidden holder the asker cannot route to
         if foreign:
             out.foreign_refs.append(rid)
         if rid in raw_checks:
@@ -373,12 +463,12 @@ def check_disclosure(view: Mapping[str, Any] | None, task: Any, gold: Mapping[st
                 code = int(status)
             except (TypeError, ValueError):
                 code = 0
-            if code not in OK_RAW_REFUSALS and str(r.get("holder_id") or "") not in allowed_raw:
+            if code not in OK_RAW_REFUSALS and hid not in allowed_raw:
                 out.raw_open.append(rid)
-        elif str(r.get("holder_id") or "") not in allowed_raw:
+        elif hid not in allowed_raw:
             out.raw_unchecked.append(rid)
     if f_markers:
-        blob = "\n".join(visible_texts(view, claims, refs)).lower()
+        blob = "\n".join(visible_texts(view, claims, refs) + visible_texts(gv, g_claims, {})).lower()
         out.marker_hits = [m for m in f_markers if m.lower() in blob]
     return out
 
@@ -402,6 +492,7 @@ class TaskScore:
     independent_roots: int | None = None
     genuine_roots: int | None = None
     decoy_accepted: bool | None = None
+    ambiguous_claims: int = 0
     lineage_holders: list[str] = dataclasses.field(default_factory=list)
     lineage_exact: bool | None = None
     lineage_subset: bool | None = None
@@ -510,13 +601,20 @@ def public_gold_leaks(tasks: Iterable[Mapping[str, Any]]) -> list[str]:
     return sorted(str(t.get("task_id")) for t in tasks if PUBLIC_FORBIDDEN_KEYS & set(as_dict(t)))
 
 
-def load_public(path: Path) -> list[dict[str, Any]]:
+def load_public_full(path: Path) -> tuple[list[dict[str, Any]], list[Any]]:
+    """``(tasks, entity vocabulary)``: the public file's tasks and its optional top-level ``entities`` / ``entity_vocabulary`` list."""
     data = json.loads(path.read_text(encoding="utf-8"))
+    vocab: list[Any] = []
     if isinstance(data, Mapping):
+        vocab = list(data.get("entity_vocabulary") or data.get("entities") or [])
         data = data.get("tasks", data)
         if isinstance(data, Mapping):
             data = [{"task_id": k, **as_dict(v)} for k, v in data.items()]
-    return [as_dict(x) for x in data]
+    return [as_dict(x) for x in data], vocab
+
+
+def load_public(path: Path) -> list[dict[str, Any]]:
+    return load_public_full(path)[0]
 
 
 def _manifest_get(m: Mapping[str, Any], *keys: str) -> Any:
@@ -528,17 +626,27 @@ def _manifest_get(m: Mapping[str, Any], *keys: str) -> Any:
 
 def score_tasks(tasks: Sequence[Mapping[str, Any]], gold: Mapping[str, Mapping[str, Any]], views: Mapping[str, Mapping[str, Any] | None], *,
                 manifest: Mapping[str, Any] | None = None, tasks_sha256: str | None = None, hypergraph: bool = False,
-                raw_authority: Mapping[str, Iterable[str]] | None = None) -> RunScore:
-    """Score every task in ``tasks`` (the frozen set). A task with no entry in ``views`` is wrong (``missing_view``)."""
+                raw_authority: Mapping[str, Iterable[str]] | None = None, reach_authority: Mapping[str, Mapping[str, Iterable[str]]] | None = None,
+                vocabulary: Vocabulary | None = None, require_tenant_id: bool = True) -> RunScore:
+    """Score every task in ``tasks`` (the frozen set). A task with no entry in ``views`` is wrong (``missing_view``). A view that lacks
+    ``tenant_id`` makes the tenant check impossible, so it raises :class:`ScoreError` (pass ``require_tenant_id=False`` only in tests)."""
     manifest = dict(manifest or {})
+    if require_tenant_id:
+        missing = sorted(tid for tid, v in views.items() if isinstance(v, Mapping) and not v.get("tenant_id"))
+        if missing:
+            raise ScoreError(f"{len(missing)} views carry no tenant_id (e.g. {missing[:3]}): the cross-tenant check cannot run; the runner must record the asker's tenant id")
+    vocab = vocabulary or build_vocabulary(tasks)
     raw_required = bool(manifest.get("raw_checks_enabled"))
     scores: list[TaskScore] = []
     for task in tasks:
         tid = str(task["task_id"])
         view = views.get(tid)
-        ext = extract_answer(view, task, hypergraph=hypergraph)
-        scores.append(score_task(ext, gold.get(tid), check_disclosure(view, task, gold.get(tid), raw_checks_required=raw_required,
-                                                                      raw_allowed_extra=(raw_authority or {}).get(tid, ())), task=task, view=view))
+        ext = extract_answer(view, task, hypergraph=hypergraph, vocabulary=vocab)
+        disc = check_disclosure(view, task, gold.get(tid), raw_checks_required=raw_required, raw_allowed_extra=(raw_authority or {}).get(tid, ()),
+                                reach=(reach_authority or {}).get(tid))
+        ts = score_task(ext, gold.get(tid), disc, task=task, view=view)
+        ts.ambiguous_claims = ext.ambiguous_claims
+        scores.append(ts)
     return aggregate(scores, manifest=manifest, tasks_sha256=tasks_sha256)
 
 
@@ -581,6 +689,7 @@ def aggregate(scores: Sequence[TaskScore], *, manifest: Mapping[str, Any], tasks
                                      "raw_unchecked": sum(s.raw_unchecked for s in scores), "raw_checks_required": bool(manifest.get("raw_checks_enabled")),
                                      "tasks_with_disclosure": sum(1 for s in scores if s.disclosures)},
         "abstentions": sum(1 for s in scores if s.extracted == ABSTAIN),
+        "ambiguous_supported_claims": sum(s.ambiguous_claims for s in scores),
         "positive_abstain_rate": (sum(1 for s in pos if s.extracted == ABSTAIN) / len(pos)) if pos else None,
         "latency_s": {"n": len(lat), "p50": percentile(lat, 0.5), "p95": percentile(lat, 0.95), "mean": statistics.fmean(lat) if lat else None},
         "model_calls": usage.get("calls"), "input_tokens": usage.get("input_tokens"), "output_tokens": usage.get("output_tokens"),
@@ -600,18 +709,19 @@ def _file_sha256(p: Path) -> str:
     return h.hexdigest()
 
 
-def _load_authority(d: Path) -> dict[str, list[str]] | None:
-    """``raw_authority.json`` (task id -> holder ids whose raw content the task's asker may legitimately read, i.e. holders they own or lead,
-    computed by ``baseline_central.write_raw_authority`` from the organization with the API's own authorization rule). Not gold: it is
-    derived from the org directory and says nothing about answers."""
-    p = d / "raw_authority.json"
+def _load_authority(d: Path, name: str = "raw_authority.json") -> dict[str, Any] | None:
+    """``raw_authority.json`` (task id -> holder ids whose raw content the task's asker may legitimately read, i.e. holders they own or lead)
+    and ``reach_authority.json`` (task id -> ``{"tenant_holders": [...], "reachable_holders": [...]}``: the holders of the asker's tenant and the
+    ones ``can_route`` admits for the task's scope). Both are computed by ``baseline_central`` from the organization with the API's own
+    authorization rules; they are not gold and say nothing about answers."""
+    p = d / name
     if not p.exists():
         return None
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    return {str(k): [str(x) for x in v] for k, v in data.items()} if isinstance(data, dict) else None
+    return {str(k): v for k, v in data.items()} if isinstance(data, dict) else None
 
 
 def score_run(run_dir: str | Path) -> RunScore:
@@ -630,7 +740,7 @@ def score_run(run_dir: str | Path) -> RunScore:
     public = d / f"tasks_{split}.public.json"
     if not public.exists():
         raise ScoreError(f"missing {public.name}")
-    tasks = load_public(public)
+    tasks, extra_entities = load_public_full(public)
     sha = _file_sha256(public)
     expected_sha = manifest.get("tasks_sha256") or manifest.get("public_sha256")
     if expected_sha and expected_sha != sha:
@@ -654,8 +764,12 @@ def score_run(run_dir: str | Path) -> RunScore:
         except (ValueError, OSError):
             views[tid] = {"status": "error", "error": "unreadable view file"}
     authority = _load_authority(d)
-    rs = score_tasks(tasks, gold, views, manifest=manifest, tasks_sha256=sha, raw_authority=authority)
+    reach = _load_authority(d, "reach_authority.json")
+    rs = score_tasks(tasks, gold, views, manifest=manifest, tasks_sha256=sha, raw_authority=authority, reach_authority=reach,
+                     vocabulary=build_vocabulary(tasks, extra_entities))
     rs.supporting["raw_authority"] = "raw_authority.json" if authority is not None else None
+    rs.supporting["reach_authority"] = "reach_authority.json" if reach is not None else None
+    rs.supporting["goal_level_views"] = sum(1 for v in views.values() if isinstance(v, Mapping) and any(v.get(k) for k in ("goal_claims", "goal_discoveries", "goal_evidence")))
     leaks = public_gold_leaks(tasks)
     rs.supporting["public_gold_leaks"] = leaks
     rs.supporting["isolation_ok"] = not leaks

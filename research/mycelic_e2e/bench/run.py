@@ -139,7 +139,7 @@ async def amain(a: argparse.Namespace) -> int:
         # ---- tasks: public file, gold through the sealed sink, then the gold objects are dropped
         public = [t.to_public_dict() for t in plan.public()]
         pub_path = out / f"tasks_{a.split}.public.json"
-        pub_path.write_text(json.dumps({"split": a.split, "tasks": public}, indent=1, sort_keys=True))
+        pub_path.write_text(json.dumps({"split": a.split, "entities": plan.entities, "tasks": public}, indent=1, sort_keys=True))
         tasks_sha = hashlib.sha256(pub_path.read_bytes()).hexdigest()
         sink = GoldSink(gold_path(out, a.split))
         gold = plan.gold(ids)
@@ -152,12 +152,23 @@ async def amain(a: argparse.Namespace) -> int:
         del plan
 
         # ---- raw sources
-        now = datetime.now(timezone.utc)
+        now = datetime.fromisoformat(a.anchor) if a.anchor else datetime.now(timezone.utc).replace(microsecond=0)
         manifest = events.write_sources(world, records, fault_plan, ids, out, now=now, seed=a.seed)
         (out / "sources_manifest.json").write_text(json.dumps(manifest, indent=1))
         log(f"wrote {len(manifest)} source files, {sum(m['n_base'] + m['n_late'] for m in manifest)} raw lines")
         n_records, n_late = len(records), sum(1 for r in records if r.phase == "late")
+        (out / "fault_plan.json").write_text(json.dumps(events.fault_evidence(records, fault_plan, ids), indent=1))
         del records
+        h = hashlib.sha256()
+        for f in sorted((out / "sources").glob("*.jsonl")):
+            h.update(f.name.encode() + b"\0" + hashlib.sha256(f.read_bytes()).digest())
+        sources_sha = h.hexdigest()
+        if a.generate_only:
+            gen = {"split": a.split, "size": a.size, "seed": a.seed, "tasks_sha256": tasks_sha, "sources_sha256": sources_sha, "world_sha256": world.fingerprint(),
+                   "world_counts": world.counts(), "source_files": len(manifest), "records_planned": n_records, "n_tasks": len(public)}
+            (out / "generate_manifest.json").write_text(json.dumps(gen, indent=1))
+            log(f"generate-only: {gen}")
+            return 0
 
         # ---- sessions for the people who act (the same call a login makes)
         tokens: dict[str, str] = {}
@@ -259,7 +270,7 @@ async def amain(a: argparse.Namespace) -> int:
                 await wait_quiet(rt, min(60.0, a.task_timeout))
             for t in wave:
                 iss = issued[t["task_id"]]
-                v = await issue.collect_view(client, t, iss, tokens[t["asker_key"]], timed_out=False)
+                v = await issue.collect_view(client, t, iss, tokens[t["asker_key"]], tenant_id=ids.tenants[t["tenant"]], timed_out=False)
                 (views_dir / f"{t['task_id']}.json").write_text(json.dumps(v, indent=1, default=str))
                 view_summary[t["task_id"]] = {"status": v["status"], "q": (v.get("question") or {}).get("status"),
                                               "supported": sum(1 for c in v["claims"] if ((c.get("claim") or c).get("status") == "supported"))}
@@ -277,7 +288,7 @@ async def amain(a: argparse.Namespace) -> int:
             statuses[str(v["q"])] = statuses.get(str(v["q"]), 0) + 1
         run_manifest = {
             "run_id": run_id, "split": a.split, "mode": a.mode, "ablation": None, "seed": a.seed, "size": a.size, "provider_label": PROVIDER_LABEL,
-            "provider": "fake (deterministic)", "fake_py_sha256": hashlib.sha256(fake_py.read_bytes()).hexdigest()[:16], "tasks_sha256": tasks_sha,
+            "provider": "fake (deterministic)", "fake_py_sha256": hashlib.sha256(fake_py.read_bytes()).hexdigest()[:16], "tasks_sha256": tasks_sha, "sources_sha256": sources_sha,
             "n_tasks": len(public), "n_gold_written": n_gold, "world_sha256": world.fingerprint(), "world_counts": world.counts(), "transport": "sqlite",
             "in_process_server": True, "lazy_holders": bool(a.lazy_holders), "raw_checks_enabled": True,
             "counts": {"created": len(ids.holders), "with_records": len({m["holder_id"] for m in manifest}), "activated": len(answered), "routed": len(routed),
@@ -322,6 +333,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--n-ticks", type=int, default=2, help="loop drains for goal-only tasks")
     ap.add_argument("--feed-concurrency", type=int, default=6)
     ap.add_argument("--lazy-holders", action="store_true", help="open holders on first use (L)")
+    ap.add_argument("--anchor", default="", help="ISO timestamp the record ages are measured from (default: now); fix it to get byte-identical sources")
+    ap.add_argument("--generate-only", action="store_true", help="materialize, write tasks (public + gold) and sources, hash them, and stop (no feed, no tasks)")
     a = ap.parse_args(argv)
     return asyncio.run(amain(a))
 

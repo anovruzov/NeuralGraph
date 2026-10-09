@@ -31,7 +31,7 @@ question↔record, ≥3 between agreeing records), and the holdout templates sat
 Deterministic from `(seed, size, bank)`. Two tenants. Six-level units (executive, region, subsidiary, department, team,
 plus cross-functional projects). One `user` holder per user, one `unit` holder per department and team, all registered
 through `OrgService` and materialized as embedded holders (each its own SQLite NeuralGraph store). Holder domains are never
-set by the harness: routable domains come only from ingestion. Sizes: **S** ≈48 users (end-to-end checks), **M** 1,000
+set by the harness: routable domains come only from ingestion. Sizes: **S** 112 users (end-to-end checks; enlarged from ≈48 so goal-only tasks get disjoint scopes), **M** 1,000
 users (development), **L** 10,000 users (priority scale; attempted when measurement shows it fits). Policies:
 `min_independent_roots = 2`, `freshness_days = 365`, default export `{disclosure: excerpt, answer_scopes: [unit, org]}`.
 
@@ -114,7 +114,7 @@ index off, dedupe off) are separate rows, each tied to the task classes it must 
 | implementation commit | _at freeze_ |
 | evaluator files sha256 (`score.py`, `gold.py`) | _at freeze_ |
 | dev templates sha256 | _at freeze_ |
-| holdout bank sha256 | `6613deee5e130924b77efcfa898dfd4921226ddfc21a0efb2cc27ee025e85214` (`templates_holdout.py`, sealed 2026-10-09 ~06:40 UTC at `/root/sealed_holdout/`, outside the repository; loaded only via `MYCELIC_E2E_HOLDOUT_BANK`; dev/holdout disjointness tests passed against it: 12 passed) |
+| holdout bank sha256 | `89f4afa815b0092320e160f077c4279a287c0f538db5ff17272af81c464791a3` (`templates_holdout.py`, re-sealed 2026-10-09 ~07:05 UTC after the D3 boilerplate fix (first seal `6613deee...5214` ~06:40 UTC); never evaluated before either seal at `/root/sealed_holdout/`, outside the repository; loaded only via `MYCELIC_E2E_HOLDOUT_BANK`; dev/holdout disjointness tests passed against it: 12 passed) |
 | dev seeds / holdout seeds | _at freeze_ |
 | sizes per split | _at freeze_ |
 | per-task timeout, worker drain budget | _at freeze_ |

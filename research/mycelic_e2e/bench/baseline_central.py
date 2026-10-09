@@ -31,11 +31,11 @@ Declared differences from the system (BENCHMARK_CONTRACT §7), all of them delib
   30 items instead of 3 (same predicate: >= 2 shared content tokens with the question);
 * no verification question, no loop follow-up, no discovery synthesis, no hypergraph, no cross-holder independence beyond what the
   commit gate computes from source roots (copies still de-duplicate by root);
-* ``variant='single'`` (default, the literal PLAN §B.6 / contract §7 text): one response with all retained chunks, evaluated as one finding
-  (its claim text is clipped to the gate's 4000-character limit). ``variant='source'`` (an extension that makes the baseline no weaker at
-  evaluation): the retained chunks are grouped by the origin holder of their source (at most 3 chunks per origin, at most 10 origins = the
-  system's maximum) into pseudo-responses, so ``evaluate_responses`` can cluster and detect disagreements exactly as it does over holder
-  responses. Both are run and reported; cite the stronger one as the baseline;
+* ``variant='source'`` (default, the PRIMARY reported baseline): the retained chunks are grouped by the origin holder of their source (at most 3
+  chunks per origin, at most 10 origins = the system's maximum) into pseudo-responses, so ``evaluate_responses`` can cluster and detect
+  disagreements exactly as it does over holder responses. ``variant='single'`` (secondary; the literal PLAN §B.6 text): one response with
+  all retained chunks, evaluated as one finding (claim text clipped to the gate's 4000-character limit), which never sees a disagreement.
+  Both are run and reported, with ``source`` first;
 * each reference carries its origin holder id (from the source -> holder map of the manifest) because the commit gate counts
   independent departments from the holders behind the roots (``min_independent_units``); nothing else of the system run is used;
 * goal-only tasks (no question text) are answered from ``goal title + objective`` as the query: the baseline has no loop that drafts a
@@ -68,7 +68,8 @@ PER_ORIGIN_CAP = 3
 MAX_ORIGINS = 10
 CLAIM_TEXT_LIMIT = 4000         # the commit gate's schema check
 RAW_REFUSED = 403
-VARIANTS = ("single", "source")
+PRIMARY_VARIANT = "source"          # reported as the baseline; 'single' is the secondary, literal-text variant
+VARIANTS = ("source", "single")
 
 
 class BaselineError(RuntimeError):
@@ -456,8 +457,34 @@ def _authority(ctx: OrgContext, tasks: Sequence[Mapping[str, Any]], ids: Mapping
     return out
 
 
+def _reach_authority(ctx: OrgContext, tasks: Sequence[Mapping[str, Any]], ids: Mapping[str, Mapping[str, str]]) -> dict[str, dict[str, list[str]]]:
+    """task id -> ``{"tenant_holders": all holders of the asker's tenant, "reachable_holders": the holders ``can_route`` admits for the task's
+    scope (visibility unit, no domain filter) with the asker as the routing principal}``. Organization only; no answers."""
+    tenants = ctx.tenant_ids()
+    holders: dict[str, list[dict[str, Any]]] = {}
+    cache: dict[tuple, list[str]] = {}
+    out: dict[str, dict[str, list[str]]] = {}
+    for t in tasks:
+        tid = tenants.get(t["tenant"])
+        uid = ctx.user_by_email(t["asker"]) or ids["users"].get(t.get("asker_key", ""))
+        if tid is None:
+            out[t["task_id"]] = {"tenant_holders": [], "reachable_holders": []}
+            continue
+        if tid not in holders:
+            holders[tid] = [h for h in (ctx.org.get_holder(r["holder_id"]) for r in ctx.db.all("SELECT holder_id FROM holders WHERE tenant_id=?", (tid,))) if h]
+        scope = ids["units"].get(t.get("scope_unit", ""))
+        key = (tid, uid, scope)
+        if key not in cache:
+            p = ctx.authz.principal_for_user(uid) if uid else None
+            q = {"tenant_id": tid, "scope_unit_id": scope, "policy": {"visibility": "unit"}, "candidate_domains": []}
+            cache[key] = sorted(h["holder_id"] for h in holders[tid] if ctx.authz.can_route(q, h, asker=p)[0])
+        out[t["task_id"]] = {"tenant_holders": sorted(h["holder_id"] for h in holders[tid]), "reachable_holders": cache[key]}
+    return out
+
+
 def write_raw_authority(run_dir: str | Path, *, org_db: str | Path | None = None, out_file: str | Path | None = None) -> Path:
-    """Write ``raw_authority.json`` (task id -> holders whose raw content the task's asker is entitled to read) for a run directory.
+    """Write ``raw_authority.json`` (task id -> holders whose raw content the task's asker is entitled to read) and ``reach_authority.json`` (the holders
+    of the asker's tenant and the ones the asker can route to) for a run directory.
 
     The API lets a person read raw evidence of the holders they own and of the unit holders of units they lead
     (``Authorizer.can_view_raw_evidence``); the scorer's "raw access refused where the asker lacks it" must not count those. The set is
@@ -472,16 +499,18 @@ def write_raw_authority(run_dir: str | Path, *, org_db: str | Path | None = None
     try:
         ids = _recover_ids(ctx, manifest, tasks, _load_json(d / "ids.json")) if manifest else {"users": {}, "units": {}}
         out = _authority(ctx, tasks, ids)
+        reach = _reach_authority(ctx, tasks, ids)
     finally:
         ctx.close()
         shutil.rmtree(scratch.parent, ignore_errors=True)
     target = Path(out_file) if out_file else d / "raw_authority.json"
     target.write_text(json.dumps(out, indent=1, sort_keys=True), encoding="utf-8")
+    (target.parent / "reach_authority.json").write_text(json.dumps(reach, indent=1, sort_keys=True), encoding="utf-8")
     return target
 
 
 # ---------------------------------------------------------------------------------------------- entry point
-def run(world_dir: str | Path, tasks_public: Sequence[Any] | None, out_dir: str | Path, *, variant: str = "single", org_db: str | Path | None = None,
+def run(world_dir: str | Path, tasks_public: Sequence[Any] | None, out_dir: str | Path, *, variant: str = PRIMARY_VARIANT, org_db: str | Path | None = None,
         evidence_budget: int = EVIDENCE_BUDGET, split: str | None = None, log: Any = print) -> dict[str, Any]:
     """Run the baseline on the sources of ``world_dir`` and write a scorable run directory to ``out_dir``. ``tasks_public`` defaults to the
     public task file of ``world_dir``. Returns the run manifest."""
@@ -542,7 +571,7 @@ async def _run(world: Path, tasks_public: Sequence[Any] | None, out: Path, varia
                 if view["claims"]:
                     answered_tenants.add(slug)
             except Exception as exc:         # noqa: BLE001 - an error is a wrong answer, never a skipped task
-                view = {"task_id": tid, "status": "error", "error": f"{type(exc).__name__}: {exc}", "latency_s": None, "question": None, "claims": [],
+                view = {"task_id": tid, "status": "error", "error": f"{type(exc).__name__}: {exc}", "tenant_id": tenant_ids.get(slug), "latency_s": None, "question": None, "claims": [],
                         "discoveries": [], "evidence": [], "raw_checks": {}}
             views[tid] = view
             (out / "views" / f"{tid}.json").write_text(json.dumps(view, indent=1, default=str), encoding="utf-8")
@@ -553,6 +582,7 @@ async def _run(world: Path, tasks_public: Sequence[Any] | None, out: Path, varia
             (out / f"tasks_{split}.public.json").write_text(json.dumps({"split": split, "tasks": tasks}, indent=1, sort_keys=True))
         copy_gold(world, out, split)              # a byte copy; this module never opens or parses it
         (out / "raw_authority.json").write_text(json.dumps(_authority(ctx, tasks, ids), indent=1, sort_keys=True), encoding="utf-8")
+        (out / "reach_authority.json").write_text(json.dumps(_reach_authority(ctx, tasks, ids), indent=1, sort_keys=True), encoding="utf-8")
         tasks_sha = hashlib.sha256((out / f"tasks_{split}.public.json").read_bytes()).hexdigest()
         calls = ledger.calls
         by_purpose: dict[str, int] = {}
@@ -600,7 +630,7 @@ def main(argv: Iterable[str] | None = None) -> int:      # pragma: no cover - th
     ap.add_argument("world_dir", help="the system run directory (sources, public tasks, data/coord.db)")
     ap.add_argument("--out", help="the baseline run directory to write")
     ap.add_argument("--authority-only", action="store_true", help="only write <world_dir>/raw_authority.json (for scoring the system run) and exit")
-    ap.add_argument("--variant", choices=VARIANTS, default="single")
+    ap.add_argument("--variant", choices=VARIANTS, default=PRIMARY_VARIANT)
     ap.add_argument("--org-db")
     ns = ap.parse_args(list(argv) if argv is not None else None)
     if ns.authority_only:

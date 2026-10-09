@@ -32,6 +32,8 @@ async def issue_task(client: ApiClient, task: dict[str, Any], *, token: str, sco
     goal = {"title": task["goal_title"], "objective": task["goal_objective"], "scope_unit_id": scope_unit_id,
             "measurement_source": {"domains": list(task.get("goal_domains") or [])},
             "budget": {"questions": 60, "followup_depth": 2, "tokens": 5_000_000, "usd": 100}}
+    if task.get("goal_only") and task.get("policy"):
+        goal["policy"] = dict(task["policy"])            # goal-level question rules (min_independent_units): the loop's questions inherit them
     st, body = await client.call("POST", "/api/goals", token, goal)
     if st != 201:
         out.error = f"goal: HTTP {st} {str(body)[:200]}"
@@ -68,9 +70,9 @@ def _secs(a: str | None, b: str | None) -> float | None:
         return None
 
 
-async def collect_view(client: ApiClient, task: dict[str, Any], issued: Issued, token: str, *, timed_out: bool = False) -> dict[str, Any]:
+async def collect_view(client: ApiClient, task: dict[str, Any], issued: Issued, token: str, *, tenant_id: str, timed_out: bool = False) -> dict[str, Any]:
     """The asker's own view of the outcome (GET results only), in the shape bench/score.py reads."""
-    view: dict[str, Any] = {"task_id": task["task_id"], "status": "ok", "error": issued.error, "latency_s": None, "question": None, "claims": [],
+    view: dict[str, Any] = {"task_id": task["task_id"], "tenant_id": tenant_id, "status": "ok", "error": issued.error, "latency_s": None, "question": None, "claims": [],
                             "discoveries": [], "evidence": [], "raw_checks": {}, "goal": None, "ids": {"goal_id": issued.goal_id, "question_id": issued.question_id}}
     if issued.error:
         view["status"] = "error"
@@ -116,7 +118,28 @@ async def collect_view(client: ApiClient, task: dict[str, Any], issued: Issued, 
                 if isinstance(r, dict) and r.get("ref_id"):
                     seen_refs.setdefault(r["ref_id"], r)
     view["evidence"] = list(seen_refs.values())
-    for rid in list(seen_refs)[:40]:
+    # goal-level output (what the loop's own questions produced under the same goal) is visible to the asker too: the disclosure check covers it
+    view["goal_claims"], view["goal_discoveries"], view["goal_evidence"] = [], [], []
+    if issued.question_id and issued.goal_id and view["goal"] is not None:
+        st, g = await client.call("GET", f"/api/goals/{issued.goal_id}", token)
+        if st == 200:
+            for c in (g.get("claims") or [])[:60]:
+                if c.get("claim_id") in claim_ids:
+                    continue
+                st2, cd = await client.call("GET", f"/api/claims/{c['claim_id']}", token)
+                if st2 == 200:
+                    view["goal_claims"].append(cd)
+                    for r in cd.get("evidence") or []:
+                        if isinstance(r, dict) and r.get("ref_id"):
+                            seen_refs.setdefault(r["ref_id"], r)
+                            view["goal_evidence"].append(r)
+            for d in (g.get("discoveries") or [])[:30]:
+                if d.get("discovery_id") in disc_ids:
+                    continue
+                st2, dd = await client.call("GET", f"/api/discoveries/{d['discovery_id']}", token)
+                if st2 == 200:
+                    view["goal_discoveries"].append(dd)
+    for rid in list(seen_refs):                                  # every visible reference, not a prefix
         st, _ = await client.call("GET", f"/api/evidence/{rid}/raw", token)
         view["raw_checks"][rid] = st
     if view["status"] == "ok" and timed_out:

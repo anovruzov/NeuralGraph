@@ -1,7 +1,7 @@
 From 957f7f863d46fabd40706fea86c44b4200441262 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 05:57:41 +0000
-Subject: [PATCH 04/17] Trace one raw event through the implementation; draft
+Subject: [PATCH 04/19] Trace one raw event through the implementation; draft
  benchmark contract
 
 ENGINEER-A's runtime trace: the event survives ingestion into the holder's NeuralGraph store and

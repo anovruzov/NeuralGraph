@@ -40,11 +40,12 @@ class TemplateBank:
     question_templates: tuple[str, ...]       # cross-department question ({ctx} {a} {b})
     current_question_templates: tuple[str, ...]   # "currently" form for temporal tasks
     goal_templates: tuple[tuple[str, str], ...]   # (title, objective) with {ctx}/{a}/{b}
-    goal_only_templates: tuple[tuple[str, str], ...]  # (title, objective) for goal-only tasks ({fam})
+    goal_only_templates: tuple[tuple[str, str], ...]  # (title, objective) for goal-only tasks ({fam}, {ctx})
+    goal_decoy_templates: tuple[str, ...] = ()       # in-scope single-department decoy of a goal-only task (disjoint vocabulary from GOAL_OBS)
 
     def all_template_strings(self) -> list[str]:
         out = list(self.obs_templates + self.decoy_templates + self.filler_templates + self.correction_templates
-                   + self.question_templates + self.current_question_templates)
+                   + self.question_templates + self.current_question_templates + self.goal_decoy_templates)
         for t, o in self.goal_templates + self.goal_only_templates:
             out += [t, o]
         return out
