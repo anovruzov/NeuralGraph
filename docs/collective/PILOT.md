@@ -135,9 +135,11 @@ when the best channel finds at least 80% of the plants, counting only channels t
 controls. Otherwise it exits 1 and the replay is not pre-registered. It can still run as exploration, labelled as such.
 How the check works, and what it found for the vehicle replays, is in `docs/collective/POWER.md`.
 
-On a synthetic vehicle-like background (run 001 there), the check fails at every rate with the replays' 26-week
+On a synthetic vehicle-like background (run 002 there), the check fails at every rate with the replays' 26-week
 look-back. At their signal size, 0.1 records a week over two years, X, S and model-free R found none of 30 plants. The
-pooled channel found 36 of 60 planted sextuplings, against 8 to 10 of 60 for the state-split channels.
+pooled channel found 36 of 60 planted sextuplings, short of the 80% target, against 8 to 10 of 60 for the state-split
+channels. With a 104-week look-back, PRR found all 30 ramps at 0.5 and at 2.0 a week in 4-year exports. In 2-year
+exports it found 18 and 1 of 30, because the ramp is already there when the export begins.
 
 ## What the demos show, and what they do not
 
