@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import re
 import sys
 import urllib.request
 import zipfile
@@ -25,7 +26,10 @@ from typing import Any, Iterator
 BASE = "https://static.nhtsa.gov/odi/ffdd"
 CMPL_DOC, RCL_DOC = f"{BASE}/cmpl/CMPL.txt", f"{BASE}/rcl/RCL.txt"
 CMPL_FILES = (f"{BASE}/cmpl/COMPLAINTS_RECEIVED_2015-2019.zip", f"{BASE}/cmpl/COMPLAINTS_RECEIVED_2020-2024.zip")
-RCL_FILE = f"{BASE}/rcl/FLAT_RCL.zip"
+RCL_CANDIDATES = (f"{BASE}/rcl/FLAT_RCL.zip", f"{BASE}/rcl/FLAT_RCL_POST_2010.zip",
+                  f"{BASE}/rcl/FLAT_RCL_PRE_2010.zip", f"{BASE}/rcl/RCL_FROM_2020_2024.zip",
+                  f"{BASE}/rcl/FLAT_RCL_2020-2024.zip")
+DATASETS_PAGE = "https://www.nhtsa.gov/nhtsa-datasets-and-apis"
 # CMPL.txt's field order (1-based there); checked against the printed definitions
 CMPL_FIELDS = {"MAKETXT": 3, "MODELTXT": 4, "YEARTXT": 5, "COMPDESC": 11, "STATE": 13, "DATEA": 15, "CDESCR": 19}
 
@@ -83,13 +87,21 @@ def probe() -> dict[str, Any]:
                          "share": {k: v / n if n else None for k, v in sorted(have.items())},
                          "top_makes_added_2019": makes_2019.most_common(10),
                          "top_components": components.most_common(40)}
+    out["recalls"] = {"note": "per file: size, row and field counts only; no recall content read"}
+    for url in RCL_CANDIDATES:
+        try:
+            rcl = fetch(url)
+            rwidths: Counter[int] = Counter(len(f) for f in rows(rcl))
+            out["recalls"][url] = {"bytes": len(rcl), "rows": sum(rwidths.values()),
+                                   "fields_per_row": dict(rwidths.most_common(5))}
+        except Exception as exc:                                  # noqa: BLE001
+            out["recalls"][url] = {"error": f"{exc.__class__.__name__}: {exc}"}
     try:
-        rcl = fetch(RCL_FILE)
-        rwidths: Counter[int] = Counter(len(f) for f in rows(rcl))
-        out["recalls"] = {"rows": sum(rwidths.values()), "fields_per_row": dict(rwidths.most_common(5)),
-                          "note": "row and field counts only; no recall content read"}
+        page = fetch(DATASETS_PAGE).decode("utf-8", "replace")
+        out["dataset_links"] = sorted({m for m in re.findall(r'https?://[^"\'\s<>]+', page)
+                                       if "ffdd" in m or "rcl" in m.lower() or "recall" in m.lower()})[:80]
     except Exception as exc:                                      # noqa: BLE001
-        out["recalls"] = {"error": f"{exc.__class__.__name__}: {exc}"}
+        out["dataset_links"] = f"error: {exc.__class__.__name__}: {exc}"
     return out
 
 
