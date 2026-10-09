@@ -89,7 +89,7 @@ def world(name: str, seed: int) -> tuple[list[Outcome], list[dict[str, Any]]]:
         if name == "lasting":
             alerts += [_alert(i, key)
                        for i in _weeks(streams["late"], range(first + REACT_WEEKS, first + LASTING_WEEKS), REACT_P)]
-        if name != "reactive":
+        if name in ("background", "presignal"):
             alerts += [_alert(i, key) for i in _weeks(streams["background"], range(EVALUATED_WEEKS), BACKGROUND_P)]
         if name == "presignal" and n % 2:
             alerts += [_alert(i, key) for i in _weeks(streams["pre"], range(first - PRE_WEEKS, first), PRE_P)]

@@ -29,11 +29,13 @@ into its look-back, which inflates the expected count whenever complaints follow
 signal. Each channel therefore also reports the same null with every outcome's own post-opening alerts left out of its
 rotated timeline (``expected_found_excluding_own_post``, ``p_value_excluding_own_post``; the p-value counts shifts at
 least as good as the found count, plus one, over the shifts plus one; shift zero keeps every look-back as observed, so
-the observed alignment is counted twice). Leaving out everything on the key after the opening also leaves out the
+the observed alignment is counted twice). Leaving out everything on the key in the ``post`` weeks also leaves out the
 unrelated alerts there, so where an outcome's key also carries alerts unrelated to it, this null falls short of
-chance; in the synthetic worlds of ``tools/market/reactive_world.py``, chance lay between it and the audited null.
-Every channel also lists its alert timeline (``alert_timeline``: available date, week and keys of each alert), and
-``weeks.available_first`` is the date the rotations start from, so a later reader can re-score without re-running
+chance. It keeps reactions that come later than the ``post`` weeks, so where reactions last longer, it overstates
+chance too. In the synthetic worlds of ``tools/market/reactive_world.py``, chance lay between it and the audited null
+where reactions ended inside the ``post`` weeks, and below both where they outlasted them. Every channel also lists
+its alert timeline (``alert_timeline``: available date, week and keys of each alert), and ``weeks.available_first`` is
+the date the rotations start from, so a later reader can re-score without re-running
 (``tools/market/rescore_audit.py``). Then the **review list**: every alerted pattern that matches no outcome, with the
 sites and record ids behind it, for the company's own reviewers. It is what the detectors saw that no one acted on: a
 missed issue, a known one never written up, or noise.
