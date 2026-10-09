@@ -52,6 +52,28 @@ F1 of 1.0, and a reader can be right where the key is wrong.
 - This is one public field. It is not a company's records, and complaints written to a regulator are not internal
   service notes.
 
+## A handicap found after the rule and before the result
+
+On 2026-10-09 around 05:10 UTC, while reader-001 was still running and before any of its results were read, a code
+review found a handicap against the models (`docs/handoff/` diagnosis, finding F1 of the reading-path review).
+- **Post-processing drops correct answers.** `ModelExtractor.postprocess` (mycelic/collective/edge/extract.py) drops a
+  model's whole item, predicate included, when the item names a vehicle in words that do not resolve to the pack's
+  canonical id. The prompt tells the model to copy the vehicle as written ("2021 FORD F-150"), and the vehicle pack's
+  ids (FORD-F150-2021) have no aliases, so a model that follows the prompt loses those predicates. The lexical
+  extractor attaches its predicates to the structured vehicle instead, so the baseline is spared by construction.
+- **On ten constructed narratives,** a perfect prompt-following reader scored predicate F1 0.571, and the same
+  answers with a null vehicle scored 1.0. The lexical baseline scored 0.588.
+- **Smaller traps.** The prompt and schema were reused from the device pack unchanged, which adds three:
+  - `unknown_or_other` is offered but never in the key;
+  - "set negated when the event did not happen" turns failure statements such as "the air bags did not deploy" into
+    negations;
+  - three pairs of old and new NHTSA names for the same component cannot be told apart from text.
+
+**The rule stands as written.** The result is the pre-registered headline. It will be reported beside this handicap
+and beside the drop counts by reason wherever the run's files expose them, because the raw model replies are not
+stored. A model at or below the lexical baseline therefore does not yet show that it read badly. A follow-up that
+fixes the post-processing (a null or structured vehicle accepted, raw replies kept) is a new choice file.
+
 ## Runs
 
 1. **reader-001** ([37874950202](https://github.com/anovruzov/NeuralGraph/actions/runs/37874950202), commit `16901e5`):
