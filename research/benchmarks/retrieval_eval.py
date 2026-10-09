@@ -6,13 +6,22 @@ before paying for a full end-to-end run with reranking + answering + judging.
 Usage:
     ONLY_CAT=single_hop ONLY_CONV=0,1 .venv/bin/python demo/retrieval_eval.py
     VARIANTS=embed,tesseract,tesseract+graph .venv/bin/python demo/retrieval_eval.py
+    EMBEDDER=hash VARIANTS=embed,tesseract python research/benchmarks/retrieval_eval.py
 
-Recall uses the same substring check as the benchmark (gold split on "," / " and ").
+Two scores per question:
+- recall@k: the same substring check as the benchmark (gold answer split on "," / " and ").
+- ev@k (evidence recall): the share of the question's gold evidence dia_ids (qa["evidence"])
+  found among the dia_ids of the first k retrieved messages, averaged over the questions
+  that cite evidence (n_ev).
+
+EMBEDDER=hash uses the deterministic hash embedder (NeuralGraph.chat_memory.llm.fake_embedding)
+instead of the embedding server. Its numbers are structural checks, not retrieval quality.
 """
 import asyncio
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 from collections import defaultdict
@@ -27,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling harness modu
 
 from NeuralGraph.research.retrieval import NeuralEdge, EdgeType, generate_edge_id
 from NeuralGraph import llm_backend
+from NeuralGraph.chat_memory.llm import fake_embedding
 from NeuralGraph.research.retrieval.storage import InMemoryNeuralGraphStorage
 from NeuralGraph.research.retrieval.tesseract import Tesseract
 from NeuralGraph.research.retrieval.dialogue_linker import DialogueLinker
@@ -41,7 +51,36 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 ONLY_CAT = {c.strip() for c in os.environ.get("ONLY_CAT", "").split(",") if c.strip()}
 ONLY_CONV = {int(c) for c in os.environ.get("ONLY_CONV", "").split(",") if c.strip()}
 VARIANTS = [v.strip() for v in os.environ.get("VARIANTS", "embed,tesseract,tesseract+graph").split(",")]
+EMBEDDER = os.environ.get("EMBEDDER", "server")  # "hash" = offline hash embedder, structural numbers only
 TOP_K = 50
+
+_DIA_ID = re.compile(r"D\d+:\d+")
+
+
+def evidence_ids(qa: dict) -> list[str]:
+    """Gold evidence dia_ids of a question, in order, each once.
+
+    An entry can hold several ids ("D8:6; D9:17", "D9:1 D4:4 D4:6"), so entries are split on
+    ";", "," and whitespace. Tokens that are not dia_ids are dropped (the dataset has "D" and
+    "D:11:26").
+    """
+    evidence = qa.get("evidence") or []
+    if isinstance(evidence, str):
+        evidence = [evidence]
+    out: list[str] = []
+    for entry in evidence:
+        for token in re.split(r"[;,\s]+", str(entry)):
+            if _DIA_ID.fullmatch(token) and token not in out:
+                out.append(token)
+    return out
+
+
+def evidence_recall(gold: list[str], retrieved: list[str | None], k: int) -> float:
+    """Share of the gold dia_ids found among the first k retrieved dia_ids."""
+    if not gold:
+        raise ValueError("evidence recall needs at least one gold dia_id")
+    found = set(retrieved[:k])
+    return sum(1 for g in gold if g in found) / len(gold)
 
 
 async def embed_batch(http, texts: list[str]) -> list[list[float]]:
@@ -65,6 +104,8 @@ async def embed_batch(http, texts: list[str]) -> list[list[float]]:
 
 
 async def cached_embeddings(http, key: str, texts: list[str]) -> list[list[float]]:
+    if EMBEDDER == "hash":  # offline: no server, no cache file
+        return [fake_embedding(t) for t in texts]
     # The file name carries a digest of the texts, so a cache built from other texts (e.g. before
     # image captions were added to message text) is never reused just because the count matches.
     digest = hashlib.sha256("\x00".join(texts).encode("utf-8")).hexdigest()[:12]
@@ -135,7 +176,7 @@ async def retrieve(variant, question, qvec, storage, tesseract, linker, nodes, s
     if variant == "embed":
         return cosine_topk(nodes, qvec, TOP_K)
     if variant.startswith("tesseract"):
-        key = (conv_idx, question)
+        key = (tesseract, conv_idx, question)  # the instance too: another store may reuse conv_idx
         if key not in _cache:  # Tesseract retrieval is the slow part; share it across variants
             _cache.clear()
             _cache[key] = await tesseract.retrieve(query_text=question, query_embedding=qvec,
@@ -173,46 +214,86 @@ async def retrieve(variant, question, qvec, storage, tesseract, linker, nodes, s
     raise ValueError(variant)
 
 
+def new_counts() -> dict:
+    return {"r10": 0, "r50": 0, "rall": 0, "n": 0, "e10": 0.0, "e50": 0.0, "n_ev": 0}
+
+
+def score_question(h: dict, qa: dict, res) -> None:
+    """Add one question's retrieved list to its category's counts (substring and evidence recall)."""
+    gold = qa.get("answer", "")
+    mems = [{"text": n.content, "speaker": n.speaker_id} for n, _ in res]
+    r10, _ = check_gold_in_memories_substring(gold, mems, top_k=10)
+    r50, _ = check_gold_in_memories_substring(gold, mems, top_k=50)
+    rall, _ = check_gold_in_memories_substring(gold, mems, top_k=len(mems))
+    h["n"] += 1
+    h["r10"] += int(r10)
+    h["r50"] += int(r50)
+    h["rall"] += int(rall)
+    evidence = evidence_ids(qa)
+    if evidence:
+        got = [(n.metadata or {}).get("dia_id") for n, _ in res]
+        h["n_ev"] += 1
+        h["e10"] += evidence_recall(evidence, got, 10)
+        h["e50"] += evidence_recall(evidence, got, 50)
+
+
+async def evaluate(data: list[dict], variants=None, only_conv=None, only_cat=None, http=None, log=print) -> dict:
+    """Score each variant on the selected conversations: {variant: {category: counts}}."""
+    variants = VARIANTS if variants is None else variants
+    only_conv = ONLY_CONV if only_conv is None else only_conv
+    only_cat = ONLY_CAT if only_cat is None else only_cat
+    hits = {v: defaultdict(new_counts) for v in variants}
+    t0 = time.time()
+    for conv_idx, conv in enumerate(data):
+        if only_conv and conv_idx not in only_conv:
+            continue
+        storage, linker, nodes, speakers = await ingest(http, conv_idx, conv)
+        tesseract = Tesseract(storage)
+        qas = [qa for qa in conv.get("qa", []) if qa.get("category") in CATEGORIES
+               and (not only_cat or CATEGORIES[qa["category"]] in only_cat)]
+        qvecs = await cached_embeddings(http, f"conv{conv_idx}_questions_all",
+                                        [qa["question"] for qa in conv.get("qa", [])])
+        qvec_by_text = {qa["question"]: v for qa, v in zip(conv.get("qa", []), qvecs)}
+        for qa in qas:
+            cat = CATEGORIES[qa["category"]]
+            for v in variants:
+                res = await retrieve(v, qa["question"], qvec_by_text[qa["question"]],
+                                     storage, tesseract, linker, nodes, speakers, conv_idx)
+                score_question(hits[v][cat], qa, res)
+        log(f"conv {conv_idx}: {len(qas)} questions done ({time.time() - t0:.0f}s)")
+    return hits
+
+
+def format_table(hits: dict) -> list[str]:
+    """One row per variant and category, plus ALL; ev@k averages over the n_ev questions with evidence."""
+    def row(v, cat, h):
+        ev = (f"{h['n_ev']:5d} {100 * h['e10'] / h['n_ev']:6.1f}% {100 * h['e50'] / h['n_ev']:6.1f}%"
+              if h["n_ev"] else f"{0:5d} {'-':>7} {'-':>7}")
+        return (f"{v:24} {cat:12} {h['n']:5d} {100 * h['r10'] / h['n']:9.1f}% {100 * h['r50'] / h['n']:9.1f}% "
+                f"{100 * h['rall'] / h['n']:10.1f}% {ev}")
+
+    lines = [f"{'variant':24} {'category':12} {'n':>5} {'recall@10':>10} {'recall@50':>10} {'recall@all':>11} "
+             f"{'n_ev':>5} {'ev@10':>7} {'ev@50':>7}"]
+    for v, cats in hits.items():
+        for cat, h in sorted(cats.items()):
+            lines.append(row(v, cat, h))
+        tot = new_counts()
+        for h in cats.values():
+            for k in tot:
+                tot[k] += h[k]
+        if tot["n"]:
+            lines.append(row(v, "ALL", tot))
+        lines.append("")
+    return lines
+
+
 async def main():
     data = json.load(open(Path(__file__).resolve().parents[2] / "research" / "datasets" / "locomo10.json"))
-    hits = {v: defaultdict(lambda: {"r10": 0, "r50": 0, "rall": 0, "n": 0}) for v in VARIANTS}
-    t0 = time.time()
+    if EMBEDDER == "hash":
+        print("EMBEDDER=hash: hash-embedder numbers are structural checks, not retrieval quality")
     async with aiohttp.ClientSession() as http:
-        for conv_idx, conv in enumerate(data):
-            if ONLY_CONV and conv_idx not in ONLY_CONV:
-                continue
-            storage, linker, nodes, speakers = await ingest(http, conv_idx, conv)
-            tesseract = Tesseract(storage)
-            qas = [qa for qa in conv.get("qa", []) if qa.get("category") in CATEGORIES
-                   and (not ONLY_CAT or CATEGORIES[qa["category"]] in ONLY_CAT)]
-            qvecs = await cached_embeddings(http, f"conv{conv_idx}_questions_all",
-                                            [qa["question"] for qa in conv.get("qa", [])])
-            qvec_by_text = {qa["question"]: v for qa, v in zip(conv.get("qa", []), qvecs)}
-            for qa in qas:
-                cat = CATEGORIES[qa["category"]]
-                gold = qa.get("answer", "")
-                for v in VARIANTS:
-                    res = await retrieve(v, qa["question"], qvec_by_text[qa["question"]],
-                                         storage, tesseract, linker, nodes, speakers, conv_idx)
-                    mems = [{"text": n.content, "speaker": n.speaker_id} for n, _ in res]
-                    r10, _ = check_gold_in_memories_substring(gold, mems, top_k=10)
-                    r50, _ = check_gold_in_memories_substring(gold, mems, top_k=50)
-                    rall, _ = check_gold_in_memories_substring(gold, mems, top_k=len(mems))
-                    h = hits[v][cat]
-                    h["n"] += 1
-                    h["r10"] += int(r10)
-                    h["r50"] += int(r50)
-                    h["rall"] += int(rall)
-            print(f"conv {conv_idx}: {len(qas)} questions done ({time.time() - t0:.0f}s)")
-
-    print(f"\n{'variant':24} {'category':12} {'n':>5} {'recall@10':>10} {'recall@50':>10} {'recall@all':>11}")
-    for v in VARIANTS:
-        for cat, h in sorted(hits[v].items()):
-            print(f"{v:24} {cat:12} {h['n']:5d} {100 * h['r10'] / h['n']:9.1f}% {100 * h['r50'] / h['n']:9.1f}% {100 * h['rall'] / h['n']:10.1f}%")
-        tot = {k: sum(h[k] for h in hits[v].values()) for k in ("r10", "r50", "rall", "n")}
-        if tot["n"]:
-            print(f"{v:24} {'ALL':12} {tot['n']:5d} {100 * tot['r10'] / tot['n']:9.1f}% {100 * tot['r50'] / tot['n']:9.1f}% {100 * tot['rall'] / tot['n']:10.1f}%")
-        print()
+        hits = await evaluate(data, http=http)
+    print("\n" + "\n".join(format_table(hits)))
 
 
 if __name__ == "__main__":
