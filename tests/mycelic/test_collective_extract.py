@@ -627,6 +627,16 @@ class VehicleReadingPathTests(Case):
         self.assertEqual({k: n for k, n in result.drops.items() if n},
                          {"reattached_ungrounded": 1, "reattached_not_canonical": 1})
 
+    def test_an_id_the_scanner_does_not_read_there_is_reattached_as_ungrounded(self) -> None:
+        """'SD-9' trimmed from 'SD-9-B' is grounded and canonicalises, but the scanner reads no SD-9 in the text (no
+        matching occurrence): with a structured product the predicate goes to it, counted as ungrounded."""
+        r = record("The SD-9-B pump cracked.", entities={"product": ["SD-40"]})
+        srv = self.server("valid", reply={"claims": [{"entity_type": "product", "entity_text": "SD-9",
+                                                      "predicate": "crack", "negated": False}]})
+        result = self.server_extractor(srv).extract(r, codes_channel(r, DQ, self.canon), ref="near-primary")
+        self.assertEqual(tuples(result), {("product", "SD-40", "crack", False)})
+        self.assertEqual({k: n for k, n in result.drops.items() if n}, {"reattached_ungrounded": 1})
+
     def test_a_vehicle_named_as_the_pack_writes_it_is_its_own_entity(self) -> None:
         result = self.read([self.item("vehicle", "FORD-F150-2021")],
                            vehicle_record("MY FORD-F150-2021 STALLED.", "HONDA-CRV-2020"), "named-1")

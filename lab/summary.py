@@ -950,7 +950,8 @@ def _openfda_tables(doc: _Doc, src: Sources, rows_: list[tuple[int, dict[str, An
 
 
 def _e1_tables(doc: _Doc, src: Sources, e1: dict[str, Any]) -> None:
-    """E1's label first, then its endpoints and paired tables; the verdict columns only when ``verdicts_shown``."""
+    """E1's label first, then its endpoints, drops (when the comparison carries them) and paired tables; the verdict
+    columns only when ``verdicts_shown``."""
     f = "report.json"
     _heading(doc, "e1", 4)
     if e1.get("label") in E1_LABELS:
