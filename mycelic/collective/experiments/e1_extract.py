@@ -28,7 +28,10 @@ counts per record pooled). The paired comparison, and the non-inferiority verdic
 the micro field F1 of the endpoint minus the reference's over the records both sides have, with a paired percentile
 bootstrap that resamples records and scores both sides on each draw. The per-record mean field F1 difference (a record
 with no gold and no prediction scores 1.0 on both sides, so claim-free records pull it toward 0) and an exact sign
-test are reported beside it as secondary and never decide.
+test are reported beside it as secondary and never decide. Each endpoint block also carries ``drops``, the
+post-processing counts by reason summed over its runs' run.json (``reattached_*`` count predicates kept on the
+primary entity, not losses), and ``zero_claim_share``, the share of its scored record runs whose prediction holds no
+claim.
 
 **Transport failures are not model errors.** A record whose extraction ended in a transport failure (``timeout``,
 ``network``, ``http_4xx``, ``http_5xx``, ``too_large``, ``no_handler``: the server, not the model's output) is not
@@ -49,6 +52,13 @@ pre-registered endpoint without runs (unless ``--allow-incomplete``, which is st
 to an endpoint outside the boundary only with ``--allow-external-raw`` equal to a public or synthetic data label,
 so partner data never leaves; public means records from a public source (site ``public``).
 
+**Raw replies.** For data labelled public or synthetic (:data:`REPLY_LABELS`), ``run`` also writes
+``replies.jsonl`` beside the predictions: one canonical line per record, ``{"record_ref", "items"}``, the items being
+the reply's claims list exactly as the model returned it once it passed schema validation, before post-processing
+(null when no reply passed), and stamps its sha256 as ``replies_sha256`` (null when not written). Replies are never
+written for any other label, so partner data is never stored. ``compare`` checks the file against the stamp when
+run.json has one; a run.json without the key (written before replies were kept) is read as before.
+
 **What it does not claim.** ``measurement`` is false whenever a fake was involved (a fake server's header or model
 listing). Then the non-inferiority and kill verdicts are withheld (null). No real-model result was produced where
 this harness was written; it was rehearsed against local fake servers only.
@@ -56,6 +66,7 @@ this harness was written; it was rehearsed against local fake servers only.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
 import io
 import math
@@ -94,6 +105,8 @@ METRICS = ("field", "claim", "entity", "predicate")
 SOURCES = ("openfda", "jsonl", "records")
 OPENFDA_MAPPING = "mapping_openfda"
 OPENFDA_SITE = PUBLIC_SITE
+REPLY_LABELS = ("public", "synthetic")      # data labels whose raw replies run keeps; never partner
+REPLIES = "replies.jsonl"
 E1_CODE_FILES = ("mycelic/collective/edge/extract.py", "mycelic/collective/packs/canonical.py",
                  "mycelic/collective/packs/loader.py", "mycelic/collective/packs/connector.py",
                  "mycelic/collective/inference/*.py", "mycelic/collective/schemacheck.py",
@@ -897,7 +910,8 @@ def cmd_run(args: argparse.Namespace) -> int:
                 for var in missing_env(config, [endpoint.name]):
                     dry.need(f"env {var}")
                 dry.need(f"network {endpoint.host_label} (endpoint {endpoint.name}, a running server)")
-            for name in ("run.json", "predictions.jsonl", "ledger.jsonl"):
+            for name in ("run.json", "predictions.jsonl", "ledger.jsonl",
+                         *([REPLIES] if prereg["data_label"] in REPLY_LABELS else [])):
                 dry.write(str(out_dir / name))
             return dry.emit()
         out_dir.mkdir(parents=True)
@@ -924,7 +938,7 @@ def _execute(args: argparse.Namespace, out_dir: Path, prereg: Mapping[str, Any],
     write_json_atomic(out_dir / "run.json", {**base, "complete": False, "records_done": 0, "measurement": False,
                                               "models_served": [], "model_mismatch": False, "metrics": None,
                                               "predictions_sha256": None, "ledger_sha256": None,
-                                              "finished_at": None})
+                                              "replies_sha256": None, "finished_at": None})
     try:
         rt = Runtime(config, boundary=prereg["boundary"], ledger_path=out_dir / "ledger.jsonl", run_id=args.run_id,
                      clock=utc_clock, data_label=prereg["data_label"],
@@ -933,14 +947,24 @@ def _execute(args: argparse.Namespace, out_dir: Path, prereg: Mapping[str, Any],
         return fail(str(exc))
     predictions: list[dict[str, Any]] = []
     interrupted = False
+    keep_replies = prereg["data_label"] in REPLY_LABELS
+    replies: list[list[dict[str, Any]]] = []          # the current record's reply, once it passed validation
     try:
         listed = list_models(endpoint)
         base.update({"models_listed": listed["ids"] if listed["ok"] else None, "listed_fake": listed["fake"]})
-        extractor = ModelExtractor(pack, canonicaliser, rt, endpoint=endpoint.name, fallback=False)
-        with open(out_dir / "predictions.jsonl", "w", encoding="utf-8", newline="\n") as fh:
+        extractor = ModelExtractor(pack, canonicaliser, rt, endpoint=endpoint.name, fallback=False,
+                                   reply_sink=(lambda ref, items: replies.append(items)) if keep_replies else None)
+        with open(out_dir / "predictions.jsonl", "w", encoding="utf-8", newline="\n") as fh, \
+                (open(out_dir / REPLIES, "w", encoding="utf-8", newline="\n") if keep_replies
+                 else contextlib.nullcontext()) as rh:
             for i, (record, gold) in enumerate(labels):
                 codes = codes_channel(record, pack, canonicaliser)
+                replies.clear()
                 result = extractor.extract(record, codes, ref=f"e1-{args.repeat}-{i:06d}")
+                if rh is not None:
+                    rh.write(canonical_dumps({"record_ref": record["record_ref"],
+                                              "items": replies[-1] if replies else None}) + "\n")
+                    rh.flush()
                 claims = [{"entity_type": c.entity_type, "entity_id": c.entity_id, "predicate": c.predicate,
                            "negated": c.negated} for c in result.claims]
                 line = {"record_ref": record["record_ref"], "claims": claims, "ok": result.error_kind is None,
@@ -959,7 +983,8 @@ def _execute(args: argparse.Namespace, out_dir: Path, prereg: Mapping[str, Any],
     measurement = measurement_flag([endpoint], rows, bool(base["listed_fake"]))
     doc = _run_doc(base, predictions, rows, types, complete=not interrupted, measurement=measurement)
     doc.update({"predictions_sha256": _file_sha(out_dir / "predictions.jsonl"),
-                "ledger_sha256": _file_sha(out_dir / "ledger.jsonl")})
+                "ledger_sha256": _file_sha(out_dir / "ledger.jsonl"),
+                "replies_sha256": _file_sha(out_dir / REPLIES) if keep_replies else None})
     write_json_atomic(out_dir / "run.json", doc)
     if interrupted:
         print(f"e1 run: interrupted after {len(predictions)} records; run.json says complete=false", file=sys.stderr)
@@ -992,11 +1017,17 @@ def _run_problem(run: Any) -> str | None:
         return "models_served"
     if not isinstance(run.get("model_requested"), (str, type(None))):
         return "model_requested"
+    if not isinstance(run.get("replies_sha256"), (str, type(None))):
+        return "replies_sha256"
+    drops = run["metrics"].get("drops", {}) if isinstance(run.get("metrics"), dict) else {}
+    if not (isinstance(drops, dict) and all(_is_int(v) and v >= 0 for v in drops.values())):
+        return "metrics.drops"
     return None
 
 
 def _prediction_ok(p: Any) -> bool:
     return (isinstance(p, dict) and isinstance(p.get("record_ref"), str) and _is_number(p.get("field_f1"))
+            and isinstance(p.get("claims"), list)
             and isinstance(p.get("scored"), bool) and isinstance(p.get("error_kind"), (str, type(None)))
             and isinstance(p.get("exact"), dict) and isinstance(p.get("counts"), dict)
             and all(isinstance(p["counts"].get(m), list) and len(p["counts"][m]) == 3
@@ -1005,7 +1036,8 @@ def _prediction_ok(p: Any) -> bool:
 
 def _read_run(directory: str | Path) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     """run.json, its predictions and ledger rows. The two files must match the sha256 run.json stamped when the run
-    ended, so an edited prediction or ledger line (or a run that never finished writing) is refused."""
+    ended, so an edited prediction or ledger line (or a run that never finished writing) is refused; so must
+    replies.jsonl when run.json stamps one (a run.json without ``replies_sha256``, or with null, kept no replies)."""
     directory = Path(directory)
     data = _read_bytes(directory / "run.json", "run.json")
     try:
@@ -1019,6 +1051,9 @@ def _read_run(directory: str | Path) -> tuple[dict[str, Any], list[dict[str, Any
         raise UsageError(f"run {directory} never finished writing run.json (it was killed); run it again") from None
     for name, key in (("predictions.jsonl", "predictions_sha256"), ("ledger.jsonl", "ledger_sha256")):
         _pinned(f"{name} sha256 of run {directory}", run.get(key), _file_sha(directory / name), "its run.json")
+    if run.get("replies_sha256") is not None:
+        _pinned(f"{REPLIES} sha256 of run {directory}", run["replies_sha256"], _file_sha(directory / REPLIES),
+                "its run.json")
     predictions = [p for _, p in _jsonl(_read_bytes(directory / "predictions.jsonl", "predictions"),
                                         f"{directory}/predictions.jsonl")] \
         if (directory / "predictions.jsonl").exists() else []
@@ -1073,6 +1108,16 @@ def _endpoint_block(name: str, runs: Sequence[tuple[dict, list, list]], prereg: 
     block["exact_match"] = exact_summary((flags[r] for r in sorted(flags)), types, ci=True)
     block["latency_ms_p50"] = stats.percentile(ledger["latencies"], 50)
     block["latency_ms_p95"] = stats.percentile(ledger["latencies"], 95)
+    # post-processing's counts by reason (reattached_* are predicates kept on the primary entity, not losses) and
+    # the share of scored record runs whose prediction holds no claim
+    drops: dict[str, int] = {}
+    for run, _, _ in runs:
+        metrics = run["metrics"] if isinstance(run.get("metrics"), dict) else {}
+        for k, v in metrics.get("drops", {}).items():
+            drops[k] = drops.get(k, 0) + v
+    block["drops"] = dict(sorted(drops.items()))
+    scored = [p for p in all_predictions if p["scored"]]
+    block["zero_claim_share"] = (sum(1 for p in scored if not p["claims"]) / len(scored)) if scored else None
     per_run = sorted(({"repeat": run["repeat"],
                        "field_f1": micro_f1(p["counts"]["field"] for p in preds if p["scored"])["value"]}
                       for run, preds, _ in runs), key=lambda x: x["repeat"])

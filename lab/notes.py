@@ -207,6 +207,9 @@ E1_ENDPOINT_EXCLUDED = ("A model without a complete set of valid repeats was lef
                         "incomplete and lists it among the endpoints without runs.")
 E1_VERDICTS_WITHHELD = ("Verdicts withheld: non-inferiority and the kill flag are shown only for a model measurement, "
                         "beneath the label above.")
+E1_DROPS_NOTE = ("Reasons that start with reattached count predicates kept on the record's structured entity after "
+                 "the model named an entity that did not resolve: they are not losses. Every other reason counts "
+                 "reply items that post-processing dropped.")
 E1_LABELS = {
     "generator_text": "{e_one} here scores extraction against generator ground truth on template text. It is not the "
                       "STRATEGY {e_one} decision, which needs human-labelled public narratives.",
@@ -386,6 +389,7 @@ HEADINGS = {
     "e1": "Extraction compared across models",
     "e1-endpoints": "Extraction per model, pooled over repeats",
     "e1-paired": "Extraction paired against the reference",
+    "e1-drops": "Extraction drops by reason, pooled over repeats",
     "e2": "Pushdown verification against central reading: conditions",
     "e2-ratio": "Pushdown ratio and verdict",
     "e2-candidates": "Pushdown candidates",
@@ -539,8 +543,11 @@ COLUMNS = {
     "field_f1": "field F one",
     "claim_f1": "claim F one",
     "json_validity": "valid JSON share",
+    "zero_claim_share": "zero-claim share",
     "p50_ms": "median ms",
     "mismatch": "model mismatch",
+    "drop_reason": "drop reason",
+    "drop_count": "reply items",
     "against": "against",
     "decision_metric": "decision metric",
     "diff": "difference",

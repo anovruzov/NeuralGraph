@@ -34,9 +34,15 @@ entity_type and entity_text (``not_canonical``); entity_text not found word-boun
 (``not_canonical``); an id the canonicaliser does not read at any place where entity_text occurs in the sent text,
 such as 'SD-9' taken from 'SD-9-B', which the scanner rejects outright (``ungrounded``); a predicate-only item
 without a primary entity (``no_entity``); a repeat (``duplicate``). The claim's res_conf is that of the text's own
-occurrence (written exactly as entity_text, else the best-written one), not of the model's spelling. An
-out-of-enum type or predicate never reaches post-processing: the schema carries the enums and the runtime validates
-replies locally, so it is ``schema_invalid`` (one repair, then the lexical fallback).
+occurrence (written exactly as entity_text, else the best-written one), not of the model's spelling. An item with a
+predicate whose entity alone fails (only one of entity_type and entity_text, ``not_canonical``; entity_text not
+grounded, ``ungrounded``; entity_text that does not canonicalise, ``not_canonical``; no occurrence of its id,
+``ungrounded``) keeps its predicate when the record has a primary entity, as the lexical extractor does: the
+predicate attaches to the primary with the primary's res_conf, exactly as a predicate-only item, and the event is
+counted ``reattached_not_canonical`` or ``reattached_ungrounded`` (:data:`REATTACH_REASONS`). An item whose
+entity_text folds equal to a person value is never re-attached, and without a primary or a predicate the item is
+dropped as before. An out-of-enum type or predicate never reaches post-processing: the schema carries the enums and
+the runtime validates replies locally, so it is ``schema_invalid`` (one repair, then the lexical fallback).
 
 :func:`pair` turns the channels into claims for detection: S is ``pair(codes, None)``, X is ``pair(codes, text)``.
 Negated claims are never output. Everything here is a pure function of (record, pack, canonicaliser, runtime);
@@ -61,7 +67,11 @@ if TYPE_CHECKING:
     from ..packs.loader import FrozenPack
 
 TASK_NAME = "extract_claims"
-DROP_REASONS = ("empty", "not_canonical", "ungrounded", "person_value", "duplicate", "no_entity")
+# Model post-processing only: a predicate kept on the primary entity although its item's entity failed. These are
+# counters in the drops mapping beside the drop reasons, so every consumer that sums drops carries them; they are
+# not losses (the predicate became a claim)
+REATTACH_REASONS = ("reattached_not_canonical", "reattached_ungrounded")
+DROP_REASONS = ("empty", "not_canonical", "ungrounded", "person_value", "duplicate", "no_entity", *REATTACH_REASONS)
 ENTITY_TEXT_MAX = 64
 TRUNCATE_BACKOFF = 200
 CODES_EXTRACTOR = "codes"
@@ -425,13 +435,19 @@ def model_payload(record: Mapping[str, Any], pack: "FrozenPack") -> tuple[dict[s
 
 
 class ModelExtractor:
+    """``reply_sink``, when given, receives ``(ref, items)`` for each reply that passed schema validation, before
+    post-processing: the reply's claims list as the model returned it. It is never called for a failed call, and
+    nothing here stores it; the caller decides whether the data may be kept."""
+
     def __init__(self, pack: "FrozenPack", canonicaliser: Canonicaliser, runtime: "Runtime", *,
-                 endpoint: str | None = None, fallback: bool = True) -> None:
+                 endpoint: str | None = None, fallback: bool = True,
+                 reply_sink: Callable[[str, list[dict[str, Any]]], None] | None = None) -> None:
         self.pack = pack
         self.canonicaliser = canonicaliser
         self.runtime = runtime
         self.endpoint = endpoint
         self.fallback = fallback
+        self.reply_sink = reply_sink
         self.task = extraction_task(pack)
         self.schema = extraction_schema(pack)
         self.lexical = LexicalExtractor(pack, canonicaliser)
@@ -461,6 +477,8 @@ class ModelExtractor:
                                server_down=down)
             return replace(_Claims().result(self.name, scan.unresolved, truncated=truncated, error_kind=kind,
                                             language_supported=supported), server_down=down)
+        if self.reply_sink is not None:
+            self.reply_sink(ref, reply["claims"])
         return self.postprocess(reply["claims"], record, codes, payload["text"], scan, truncated=truncated,
                                 language_supported=supported)
 
@@ -470,7 +488,12 @@ class ModelExtractor:
         """``scan`` is the canonicaliser's scan of ``sent_text``. An entity is grounded only where the canonicaliser
         reads that id in the sent text: a mention of the item's type and resolved id whose span folds equal to
         entity_text. So a model that trims 'SD-9-B' to 'SD-9' is ungrounded, as the scanner rejects 'SD-9-B'
-        outright. res_conf is that of the occurrence written exactly as entity_text, else the best-written one."""
+        outright. res_conf is that of the occurrence written exactly as entity_text, else the best-written one.
+
+        An item with a predicate whose entity fails as ``not_canonical`` (only one of type and text included) or
+        ``ungrounded`` is re-attached when ``codes.primary`` exists and its entity_text is not a person value: the
+        predicate goes to the primary, as for a predicate-only item, and ``reattached_<reason>`` is counted instead
+        of ``<reason>``. The ``reattached_*`` keys of ``drops`` are not losses."""
         out = _Claims()
         sent = fold_phrase(sent_text)[0]
         persons = person_values(record)
@@ -482,36 +505,44 @@ class ModelExtractor:
             if entity_type is None and text is None and predicate is None:
                 out.drops["empty"] += 1
                 continue
-            if (entity_type is None) != (text is None):
-                out.drops["not_canonical"] += 1
+            entity, reason = self._entity(entity_type, text, sent, persons, occurrences)
+            if reason is None and entity is None:
+                if codes.primary is None:
+                    reason = "no_entity"
+                else:
+                    entity = codes.primary
+            elif (reason in ("not_canonical", "ungrounded") and predicate is not None and codes.primary is not None
+                  and (text is None or folded(text) not in persons)):
+                out.drops["reattached_" + reason] += 1
+                entity, reason = codes.primary, None
+            if reason is not None:
+                out.drops[reason] += 1
                 continue
-            if text is not None:
-                needle = folded(text)
-                if not find_bounded(needle, sent):
-                    out.drops["ungrounded"] += 1
-                    continue
-                if needle in persons:
-                    out.drops["person_value"] += 1
-                    continue
-                m = self.canonicaliser.resolve_exact(entity_type, text)
-                if m is None:
-                    out.drops["not_canonical"] += 1
-                    continue
-                found = occurrences.get((entity_type, m.entity_id, needle))
-                if found is None:
-                    out.drops["ungrounded"] += 1
-                    continue
-                conf = found.get(text.strip(), max(found.values()))
-                entity = EntityRef(entity_type, m.entity_id, conf)
-            elif codes.primary is None:
-                out.drops["no_entity"] += 1
-                continue
-            else:
-                entity = codes.primary
             out.add(entity.entity_type, entity.entity_id, predicate, item["negated"] and predicate is not None,
                     entity.res_conf)
         return out.result(self.name, scan.unresolved, truncated=truncated, error_kind=None,
                           language_supported=language_supported)
+
+    def _entity(self, entity_type: str | None, text: str | None, sent: str, persons: frozenset[str],
+                occurrences: Mapping[tuple[str, str, str], Mapping[str, float]]) -> tuple[EntityRef | None, str | None]:
+        """The item's own entity and None, ``(None, None)`` for an item naming none, or ``(None, reason)`` with the
+        first failing check of the module docstring's order."""
+        if (entity_type is None) != (text is None):
+            return None, "not_canonical"
+        if text is None:
+            return None, None
+        needle = folded(text)
+        if not find_bounded(needle, sent):
+            return None, "ungrounded"
+        if needle in persons:
+            return None, "person_value"
+        m = self.canonicaliser.resolve_exact(entity_type, text)
+        if m is None:
+            return None, "not_canonical"
+        found = occurrences.get((entity_type, m.entity_id, needle))
+        if found is None:
+            return None, "ungrounded"
+        return EntityRef(entity_type, m.entity_id, found.get(text.strip(), max(found.values()))), None
 
 
 # --------------------------------------------------------------------------------------------------- pairing

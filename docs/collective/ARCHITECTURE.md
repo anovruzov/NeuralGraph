@@ -300,10 +300,14 @@ Persons, the reporter, the record ref and structured values are never sent. A re
 sent), `person_value` (its text is a person value or the reporter), `not_canonical` (it does not resolve),
 `ungrounded` again (the canonicaliser does not read that id anywhere the text occurs: a model that trims `SD-9-B` to
 `SD-9` names an id the scanner rejects outright, so it is dropped, exactly as the lexical channel and label-check
-find nothing there), `no_entity` (a predicate with no entity and no primary) or `duplicate`. A kept entity's
-`res_conf` is that of the text's own occurrence, not of the model's spelling. An out-of-enum type or predicate is a
-schema failure (one repair, then the lexical fallback, or an empty result in E1), not a drop. A boundary refusal
-propagates. The fake provider's `lexical_handler` reproduces the lexical extractor's claims byte for byte, which
+find nothing there), `no_entity` (a predicate with no entity and no primary) or `duplicate`. An item with a
+predicate whose entity alone fails as `not_canonical` or `ungrounded` (an entity type without text included) keeps
+the predicate when the record has a primary structured entity: it attaches there with the primary's `res_conf`, as a
+predicate-only item does and as the lexical extractor attaches a predicate whose sentence names no entity, and is
+counted `reattached_not_canonical` or `reattached_ungrounded` in the same drops mapping (counters, not losses). An
+entity text that folds equal to a person value is never re-attached. A kept entity's `res_conf` is that of the text's
+own occurrence, not of the model's spelling. An out-of-enum type or predicate is a schema failure (one repair, then
+the lexical fallback, or an empty result in E1), not a drop. A boundary refusal propagates. The fake provider's `lexical_handler` reproduces the lexical extractor's claims byte for byte, which
 the tests check on every fixture of every built-in pack.
 
 The lexical extractor pairs per distinct entity and distinct (predicate, negated) in a sentence, carrying their
@@ -319,8 +323,8 @@ case for `device_quality` gives about 371,000 claims in about 1.2 s). The handle
 | `prepare` | `runs/e1/<id>/records.jsonl`, `sheet.csv`, `prepare.json` (seeded sample; shortfall recorded) | a missing mapping, an unreadable source |
 | `label-check` | `labels.jsonl` (canonical, sorted) | unlabelled cells, unknown types or predicates, ids that do not canonicalise, a predicate-only item without a primary entity, duplicate or missing rows |
 | `prereg` | `runs/e1/<id>/prereg.json` | fewer than 3 runs or 2 endpoints, a reference not evaluated, the fake provider, raw records to an external endpoint without a matching public or synthetic exemption, a data label the records contradict (`public` needs records from a public source, site `public`), dirty code without `--allow-dirty` |
-| `run` | `run.json` (with the sha256 of `predictions.jsonl` and `ledger.jsonl`), `predictions.jsonl`, `ledger.jsonl` | a malformed prereg, any change to the labels, the vocabulary hash, the scoring code hash or a pinned endpoint setting, a data label the labels contradict |
-| `compare` | `runs/e1/<id>/e1.json` | a tampered prereg, predictions or ledger that differ from their run's stamped sha256, a run that never finished writing `run.json`, duplicate or missing repeats, a pre-registered endpoint without runs or incomplete runs without `--allow-incomplete` (stamped; e1.json lists the endpoints without runs), a changed reference or margin |
+| `run` | `run.json` (with the sha256 of `predictions.jsonl`, `ledger.jsonl` and `replies.jsonl`), `predictions.jsonl`, `ledger.jsonl`, and for public or synthetic data only `replies.jsonl` (each record's raw reply items as validated, before post-processing) | a malformed prereg, any change to the labels, the vocabulary hash, the scoring code hash or a pinned endpoint setting, a data label the labels contradict |
+| `compare` | `runs/e1/<id>/e1.json` (each endpoint block with its `drops` by reason and `zero_claim_share`) | a tampered prereg, predictions, ledger or stamped replies that differ from their run's stamped sha256, a run that never finished writing `run.json`, duplicate or missing repeats, a pre-registered endpoint without runs or incomplete runs without `--allow-incomplete` (stamped; e1.json lists the endpoints without runs), a changed reference or margin |
 
 The scored output is the extractor's text claims (A3). Field-level micro F1 is primary; claim, entity and predicate
 F1, JSON validity and lot and supplier exact match (the share of records matched in every run, with a Wilson
