@@ -1,7 +1,7 @@
 From f434e4c63f2ecb09c5002c5b3faa565278b5db5a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 06:58:55 +0000
-Subject: [PATCH 18/52] Harness review fixes (scorer and gate): authz-defined
+Subject: [PATCH 18/53] Harness review fixes (scorer and gate): authz-defined
  disclosure, ambiguity rule, non-vacuous G4/G7/G10
 
 A supported claim naming more than one entity identifies nothing (orchestrator rule, all modes).

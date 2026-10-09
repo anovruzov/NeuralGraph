@@ -1,7 +1,7 @@
 From 1b74545a5c6acbc7421efc34253b560fa3362a4c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 07:34:43 +0000
-Subject: [PATCH 21/52] Integration: term-index routing, entity-named blind
+Subject: [PATCH 21/53] Integration: term-index routing, entity-named blind
  verification, heartbeat snapshot rule, scale repairs
 
 WP1 (claude-sonnet-5-5), reviewed fixes F1-F11 plus S1 minimum-unit attribution, evidence_freshness

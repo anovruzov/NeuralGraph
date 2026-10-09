@@ -1,7 +1,7 @@
 From b145e2140f26eadf31307596bb9143d8540c5a2d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 09:03:43 +0000
-Subject: [PATCH 40/52] Question detail returns the run state only to full
+Subject: [PATCH 40/53] Question detail returns the run state only to full
  viewers (K1)
 
 QuestionService.detail() returned the whole question_runs row to every viewer

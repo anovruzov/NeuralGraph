@@ -1,7 +1,7 @@
 From 7ce4a9723c4d6f6935c2130a94c0c0f614ce3385 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 05:46:51 +0000
-Subject: [PATCH 03/52] Plan v1 for the end-to-end benchmark, with the
+Subject: [PATCH 03/53] Plan v1 for the end-to-end benchmark, with the
  orchestrator's binding amendments
 
 Planner (claude-fable-5-1): stage map of the implementation, Mycelic-E2E v1 contract draft,

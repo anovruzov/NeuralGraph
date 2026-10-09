@@ -1,7 +1,7 @@
 From 2d00ca2f958dd04a7b29913fb431f0ecb1b5dd99 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 09:13:07 +0000
-Subject: [PATCH 44/52] Question view returns the result only to full viewers
+Subject: [PATCH 44/53] Question view returns the result only to full viewers
  (K1b)
 
 When a question resolves, the engine stores its summary, gate_notes (the

@@ -1,7 +1,7 @@
 From 7e8b9fa1bf5178d20e548fd18a468ad210a33768 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 07:49:02 +0000
-Subject: [PATCH 26/52] Gate G8: judge entity and term indexes against what
+Subject: [PATCH 26/53] Gate G8: judge entity and term indexes against what
  each holder may publish (privacy invariant + coverage)
 
 Expected entity set mirrors the effective-ACL publication rule and threshold; any indexed id outside it

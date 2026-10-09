@@ -1,0 +1,1262 @@
+From 31533ddbf84818c5fb54b3cd8885522f8a00e39e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 10:37:22 +0000
+Subject: [PATCH 53/53] Final deliverables: verified results, audit v2 gate
+ reports, post-holdout record, morning handoff
+
+VERIFIED_RESULTS tables are generated from results_table JSON. The holdout
+row carries its gate verdict (G7 invalid), so its 120/120 is not published as
+full-system accuracy. ARCHITECTURE_AUDIT section 4 lists G1-G10 for every
+scored run, and section 5 lists the gaps found overnight (silent support
+updates, heartbeat cost at 10k, A4/A5 ablation coverage). The contract gains
+a section 11 post-holdout record. Analyses of the A4 and A5 ablations are in
+plan/.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/ARCHITECTURE_AUDIT.md    | 118 +++++++-
+ research/mycelic_e2e/BENCHMARK_CONTRACT.md    |  12 +
+ research/mycelic_e2e/EXPERIMENTS.jsonl        |   1 +
+ research/mycelic_e2e/MORNING_HANDOFF.md       | 244 ++++++++++++---
+ research/mycelic_e2e/ORCHESTRATION.md         |   8 +
+ research/mycelic_e2e/VERIFIED_RESULTS.md      | 284 ++++++++++++++++++
+ research/mycelic_e2e/plan/ANALYSIS_A4.md      |  57 ++++
+ research/mycelic_e2e/plan/ANALYSIS_A5.md      |  40 +++
+ .../tools/verified/gen_gate_section.py        |  41 +++
+ .../tools/verified/gen_verified.py            |  90 ++++++
+ .../tools/verified/verified_abl_notes.md      |  42 +++
+ .../tools/verified/verified_dev_notes.md      |  14 +
+ .../tools/verified/verified_head.md           |  34 +++
+ .../tools/verified/verified_history_notes.md  |  22 ++
+ .../tools/verified/verified_holdout_notes.md  |  31 ++
+ .../tools/verified/verified_tail.md           |  29 ++
+ 16 files changed, 1023 insertions(+), 44 deletions(-)
+ create mode 100644 research/mycelic_e2e/VERIFIED_RESULTS.md
+ create mode 100644 research/mycelic_e2e/plan/ANALYSIS_A4.md
+ create mode 100644 research/mycelic_e2e/plan/ANALYSIS_A5.md
+ create mode 100644 research/mycelic_e2e/tools/verified/gen_gate_section.py
+ create mode 100644 research/mycelic_e2e/tools/verified/gen_verified.py
+ create mode 100644 research/mycelic_e2e/tools/verified/verified_abl_notes.md
+ create mode 100644 research/mycelic_e2e/tools/verified/verified_dev_notes.md
+ create mode 100644 research/mycelic_e2e/tools/verified/verified_head.md
+ create mode 100644 research/mycelic_e2e/tools/verified/verified_history_notes.md
+ create mode 100644 research/mycelic_e2e/tools/verified/verified_holdout_notes.md
+ create mode 100644 research/mycelic_e2e/tools/verified/verified_tail.md
+
+diff --git a/research/mycelic_e2e/ARCHITECTURE_AUDIT.md b/research/mycelic_e2e/ARCHITECTURE_AUDIT.md
+index 82d3320..8f852d1 100644
+--- a/research/mycelic_e2e/ARCHITECTURE_AUDIT.md
++++ b/research/mycelic_e2e/ARCHITECTURE_AUDIT.md
+@@ -4,6 +4,8 @@ Version 1 (2026-10-09 ~06:15 UTC). Evidence sources: runtime trace `audit/TRACE_
+ (ENGINEER-A, reproducible with `python research/mycelic_e2e/audit/trace_one_event.py`), custody audit
+ `custody/OLD_BENCHMARKS.md` (REVIEWER-1), stage map `plan/PLAN_v1.md` §A (PLANNER), and code reads by the orchestrator.
+ This file is updated with the architecture-gate reports of the scored runs (§4).
++Version 2 (2026-10-09 ~10:36 UTC): §4 filled from the scored runs' gate reports, holdout included; §5 extended with the gaps
++found overnight.
+ 
+ ## 1. Verdict on the hypothesis
+ 
+@@ -60,7 +62,85 @@ columns come from the single-event trace. They are replaced by gate counts per s
+ 
+ ## 4. Gate reports of scored runs
+ 
+-_(filled from `bench/arch_gate.py` output per run)_
++The table below is generated from each run's `arch_gate.json` (`bench/arch_gate.py`; copies in `results/runs/<run>/` for dev
++runs). For the holdout run only the gate verdicts and aggregate counts are shown.
++
++What the gates establish for a valid run:
++- **G1.** Every live document came through the connector path into a holder file.
++- **G2.** One store per registered holder, with no shared files.
++- **G3.** Support and source roots are consistent with the hypergraph support edges.
++- **G4.** Every question was routed, through authorized holders only, by the audited rank method. An as-of replay of routing
++  against the domains published at route time finds no denial.
++- **G5.** Every claim has gate and revision rows.
++- **G6.** The provider label is truthful.
++- **G7.** Every scored view traces to coordinator rows, and the harness wrote nothing to coordinator or holder data.
++- **G8.** The hypergraph is present and consistent. The entity and term indexes hold exactly what each holder may publish.
++- **G9.** Lineage resolves.
++- **G10.** Every injected fault (duplicate lines, malformed lines, deletes, restart, replay) has its disposition.
++
++Which gates are load-bearing, by ablation (dev S/1, candidate code):
++- A2 (roots off) fails G3.
++- A6 (dedupe off) fails G10.
++- The corrected A5 (authorization off at `Authorizer._can_route`) fails G4, with 13,554 unauthorized routes in the as-of
++  replay. The first A5 patched a method the routing path does not call, so it changed nothing; it is reported as an
++  ineffective ablation (`plan/ANALYSIS_A5.md`).
++- A4 (index publication off) does **not** fail G8; see §5 and `plan/ANALYSIS_A4.md`.
++- A1 and A3 have no gate they are expected to break: G4's ranker assertion is skipped under A1 by design.
++
++**The holdout run (H-M101) fails G7.** Three hypothesis claims in the asker views had fewer independent roots than the final
++database, with no revision to explain the change. The cause is a product audit-trail gap: `sync_support_sync` updates
++`claims.support` without a version bump or revision row (§5). Under contract §8 that run's score is not published as
++full-system accuracy.
++
++
++| run | G1 | G2 | G3 | G4 | G5 | G6 | G7 | G8 | G9 | G10 | valid |
++|---|---|---|---|---|---|---|---|---|---|---|---|
++| H-M101 | pass | pass | pass | pass | pass | pass | **FAIL** | pass | pass | pass | no: G7 |
++| C7-S1 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | yes |
++| C7abl-A1-S1 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | yes |
++| C7abl-A2-S1 | pass | pass | **FAIL** | pass | pass | pass | pass | pass | pass | pass | no: G3 |
++| C7abl-A3-S1 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | yes |
++| C7abl-A4-S1 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | yes |
++| C7abl-A5-S1 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | yes |
++| C7abl-A5fix-S1 | pass | pass | pass | **FAIL** | pass | pass | pass | pass | pass | pass | no: G4 |
++| C7abl-A6-S1 | pass | pass | pass | pass | pass | pass | pass | pass | pass | **FAIL** | no: G10 |
++| C6-S1 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | yes |
++| C4-S1 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | yes |
++| C3-L3 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | yes |
++| C2a-M2 | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | yes |
++
++Key counts from the same reports:
++
++| run | holders | with records | routed to | activated | questions | routes | records ingested | rejections | hyperedges (support / lineage / conflict / discovery) | rank methods (G4) |
++|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
++| H-M101 | 1120 | 1117 | 555 | 488 | 2030 | 19921 | 6325 | 4 | 4128 / 4128 / 1106 / 1160 | rank_method {'hypergraph': 1826, 'domains': 204} |
++| C7-S1 | 136 | 136 | 116 | 111 | 2604 | 25704 | 1548 | 4 | 6220 / 6220 / 3833 / 1839 | rank_method {'hypergraph': 2598, 'domains': 6} |
++| C7abl-A1-S1 | 136 | 136 | 100 | 79 | 1923 | 18894 | 1548 | 4 | 4101 / 4101 / 776 / 1732 | rank_method {'ablated': 1923} |
++| C7abl-A2-S1 | 136 | 136 | 117 | 111 | 2505 | 24714 | 1548 | 4 | 6202 / 6202 / 3628 / 1817 | rank_method {'hypergraph': 2499, 'domains': 6} |
++| C7abl-A3-S1 | 136 | 136 | 114 | 101 | 500 | 4860 | 1548 | 4 | 1412 / 1412 / 0 / 495 | rank_method {'hypergraph': 495, 'domains': 5} |
++| C7abl-A4-S1 | 136 | 136 | 125 | 111 | 3177 | 31434 | 1548 | 4 | 7540 / 7540 / 3464 / 2696 | rank_method {'domains': 2711, 'hypergraph': 466} |
++| C7abl-A5-S1 | 136 | 136 | 118 | 111 | 2534 | 25004 | 1548 | 4 | 6181 / 6181 / 3731 / 1815 | rank_method {'hypergraph': 2528, 'domains': 6} |
++| C7abl-A5fix-S1 | 136 | 136 | 111 | 110 | 2742 | 27420 | 1548 | 4 | 5007 / 5007 / 2884 / 1892 | rank_method {'hypergraph': 2742} |
++| C7abl-A6-S1 | 136 | 136 | 119 | 111 | 2812 | 27784 | 1548 | 4 | 6742 / 6742 / 4317 / 1945 | rank_method {'hypergraph': 2806, 'domains': 6} |
++| C6-S1 | 136 | 136 | 120 | 111 | 2516 | 24824 | 1548 | 4 | 6220 / 6220 / 3672 / 1807 | rank_method {'hypergraph': 2510, 'domains': 6} |
++| C4-S1 | 136 | 136 | 125 | 111 | 1708 | 16753 | 1548 | 4 | 1683 / 1683 / 1690 / 855 | rank_method {'hypergraph': 1702, 'domains': 6} |
++| C3-L3 | 10648 | 417 | 482 | 319 | 1508 | 14822 | 3043 | 4 | 1615 / 1615 / 205 / 902 | rank_method {'domains': 351, 'hypergraph': 1157} |
++| C2a-M2 | 1120 | 307 | 331 | 250 | 1154 | 11278 | 2253 | 4 | 1161 / 1161 / 452 / 552 | rank_method {'domains': 339, 'hypergraph': 815} |
++
++Gate details (dev runs; truncated to 140 characters per gate):
++
++- **C7-S1**: G1 1536 live documents across 136 holder files; G2 136 distinct holder files, 0 registered holders without a file; G3 1373 supported claims; G4 2604/2604 questions routed; rank_method {'hypergraph': 2598, 'domains': 6}; as-of replay denials 0 (current domains differ from route-time d; G5 6220 claims, 1839 discoveries; G6 label='deterministic-provider', providers={'fake': 36621}; G7 6220 claims, 33047 evidence refs traced to holder responses; G8 entities 0/0 (n/a; 892 holder-entity pairs below entity_min_records, correctly unpublished), 0 outside the expected set; terms 112/112 holde; G9 1839 discoveries; G10 injected {'dup_lines': 2, 'malformed': 4, 'deletes': 12, 'restart': 1, 'replay': 1}; duplicate dispositions seen 1547; 12 deleted strings ch
++- **C7abl-A1-S1**: G1 1536 live documents across 136 holder files; G2 136 distinct holder files, 0 registered holders without a file; G3 712 supported claims; G4 1923/1923 questions routed; rank_method {'ablated': 1923}; as-of replay denials 0 (current domains differ from route-time domains on 0 of 18; G5 4101 claims, 1732 discoveries; G6 label='deterministic-provider', providers={'fake': 23933}; G7 4101 claims, 10498 evidence refs traced to holder responses; G8 entities 0/0 (n/a; 892 holder-entity pairs below entity_min_records, correctly unpublished), 0 outside the expected set; terms 112/112 holde; G9 1732 discoveries; G10 injected {'dup_lines': 2, 'malformed': 4, 'deletes': 12, 'restart': 1, 'replay': 1}; duplicate dispositions seen 78; 12 deleted strings chec
++- **C7abl-A2-S1**: G1 1536 live documents across 136 holder files; G2 136 distinct holder files, 0 registered holders without a file; G3 1515 supported claims; G4 2505/2505 questions routed; rank_method {'hypergraph': 2499, 'domains': 6}; as-of replay denials 0 (current domains differ from route-time d; G5 6202 claims, 1817 discoveries; G6 label='deterministic-provider', providers={'fake': 35453}; G7 6202 claims, 31681 evidence refs traced to holder responses; G8 entities 0/0 (n/a; 892 holder-entity pairs below entity_min_records, correctly unpublished), 0 outside the expected set; terms 112/112 holde; G9 1817 discoveries; G10 injected {'dup_lines': 2, 'malformed': 4, 'deletes': 12, 'restart': 1, 'replay': 1}; duplicate dispositions seen 1547; 12 deleted strings ch
++- **C7abl-A3-S1**: G1 1536 live documents across 136 holder files; G2 136 distinct holder files, 0 registered holders without a file; G3 974 supported claims; G4 500/500 questions routed; rank_method {'hypergraph': 495, 'domains': 5}; as-of replay denials 0 (current domains differ from route-time doma; G5 1412 claims, 495 discoveries; G6 label='deterministic-provider', providers={'fake': 6752}; G7 1412 claims, 2659 evidence refs traced to holder responses; G8 entities 0/0 (n/a; 892 holder-entity pairs below entity_min_records, correctly unpublished), 0 outside the expected set; terms 112/112 holde; G9 495 discoveries; G10 injected {'dup_lines': 2, 'malformed': 4, 'deletes': 12, 'restart': 1, 'replay': 1}; duplicate dispositions seen 61; 12 deleted strings chec
++- **C7abl-A4-S1**: G1 1536 live documents across 136 holder files; G2 136 distinct holder files, 0 registered holders without a file; G3 938 supported claims; G4 3177/3177 questions routed; rank_method {'domains': 2711, 'hypergraph': 466}; as-of replay denials 0 (current domains differ from route-time; G5 7540 claims, 2696 discoveries; G6 label='deterministic-provider', providers={'fake': 43002}; G7 7540 claims, 31253 evidence refs traced to holder responses; G8 entities 0/0 (n/a; 892 holder-entity pairs below entity_min_records, correctly unpublished), 0 outside the expected set; terms 112/112 holde; G9 2696 discoveries; G10 injected {'dup_lines': 2, 'malformed': 4, 'deletes': 12, 'restart': 1, 'replay': 1}; duplicate dispositions seen 1547; 12 deleted strings ch
++- **C7abl-A5-S1**: G1 1536 live documents across 136 holder files; G2 136 distinct holder files, 0 registered holders without a file; G3 1431 supported claims; G4 2534/2534 questions routed; rank_method {'hypergraph': 2528, 'domains': 6}; as-of replay denials 0 (current domains differ from route-time d; G5 6181 claims, 1815 discoveries; G6 label='deterministic-provider', providers={'fake': 35788}; G7 6181 claims, 32052 evidence refs traced to holder responses; G8 entities 0/0 (n/a; 892 holder-entity pairs below entity_min_records, correctly unpublished), 0 outside the expected set; terms 112/112 holde; G9 1815 discoveries; G10 injected {'dup_lines': 2, 'malformed': 4, 'deletes': 12, 'restart': 1, 'replay': 1}; duplicate dispositions seen 1547; 12 deleted strings ch
++- **C7abl-A5fix-S1**: G1 1536 live documents across 136 holder files; G2 136 distinct holder files, 0 registered holders without a file; G3 1283 supported claims; G4 2742/2742 questions routed; rank_method {'hypergraph': 2742}; as-of replay denials 13554 (current domains differ from route-time domains on ; G5 5007 claims, 1892 discoveries; G6 label='deterministic-provider', providers={'fake': 29176}; G7 5007 claims, 29474 evidence refs traced to holder responses; G8 entities 0/0 (n/a; 892 holder-entity pairs below entity_min_records, correctly unpublished), 0 outside the expected set; terms 112/112 holde; G9 1892 discoveries; G10 injected {'dup_lines': 2, 'malformed': 4, 'deletes': 12, 'restart': 1, 'replay': 1}; duplicate dispositions seen 1547; 12 deleted strings ch
++- **C7abl-A6-S1**: G1 1548 live documents across 136 holder files; G2 136 distinct holder files, 0 registered holders without a file; G3 1360 supported claims; G4 2812/2812 questions routed; rank_method {'hypergraph': 2806, 'domains': 6}; as-of replay denials 0 (current domains differ from route-time d; G5 6742 claims, 1945 discoveries; G6 label='deterministic-provider', providers={'fake': 39418}; G7 6742 claims, 36831 evidence refs traced to holder responses; G8 entities 0/0 (n/a; 906 holder-entity pairs below entity_min_records, correctly unpublished), 0 outside the expected set; terms 112/112 holde; G9 1945 discoveries; G10 injected {'dup_lines': 2, 'malformed': 4, 'deletes': 12, 'restart': 1, 'replay': 1}; duplicate dispositions seen 1569; 12 deleted strings ch
++- **C6-S1**: G1 1536 live documents across 136 holder files; G2 136 distinct holder files, 0 registered holders without a file; G3 1500 supported claims; G4 2516/2516 questions routed; rank_method {'hypergraph': 2510, 'domains': 6}; as-of replay denials 0 (current domains differ from route-time d; G5 6220 claims, 1807 discoveries; G6 label='deterministic-provider', providers={'fake': 35576}; G7 6220 claims, 31980 evidence refs traced to holder responses; G8 entities 0/0 (n/a; 892 holder-entity pairs below entity_min_records, correctly unpublished), 0 outside the expected set; terms 112/112 holde; G9 1807 discoveries; G10 injected {'dup_lines': 2, 'malformed': 4, 'deletes': 12, 'restart': 1, 'replay': 1}; duplicate dispositions seen 1547; 12 deleted strings ch
++- **C4-S1**: G1 1536 live documents across 136 holder files; G2 136 distinct holder files, 0 registered holders without a file; G3 142 supported claims; G4 1708/1708 questions routed; rank_method {'hypergraph': 1702, 'domains': 6}; as-of replay denials 0 (current domains differ from route-time d; G5 1683 claims, 855 discoveries; G6 label='deterministic-provider', providers={'fake': 21075}; G7 1683 claims, 18168 evidence refs traced to holder responses; G8 entities 0/0 (n/a; 892 holder-entity pairs below entity_min_records, correctly unpublished), 0 outside the expected set; terms 112/112 holde; G9 855 discoveries; G10 injected {'dup_lines': 2, 'malformed': 4, 'deletes': 12, 'restart': 1, 'replay': 1}; duplicate dispositions seen 1547; 12 deleted strings ch
++- **C3-L3**: G1 3031 live documents across 518 holder files; G2 518 distinct holder files, 10130 registered holders without a file; G3 522 supported claims; G4 1508/1508 questions routed; rank_method {'domains': 351, 'hypergraph': 1157}; as-of replay denials 0 (current domains differ from route-time; G5 1615 claims, 902 discoveries; G6 label='deterministic-provider', providers={'fake': 14290}; G7 1615 claims, 2796 evidence refs traced to holder responses; G8 entities 0/0 (n/a; 402 holder-entity pairs below entity_min_records, correctly unpublished), 0 outside the expected set; terms 374/374 holde; G9 902 discoveries; G10 injected {'dup_lines': 2, 'malformed': 4, 'deletes': 12, 'restart': 1, 'replay': 1}; duplicate dispositions seen 3044; 12 deleted strings ch
++- **C2a-M2**: G1 2241 live documents across 1120 holder files; G2 1120 distinct holder files, 0 registered holders without a file; G3 246 supported claims; G4 1154/1154 questions routed; rank_method {'domains': 339, 'hypergraph': 815}; as-of replay denials 0 (current domains differ from route-time ; G5 1161 claims, 552 discoveries; G6 label='deterministic-provider', providers={'fake': 8924}; G7 1161 claims, 2482 evidence refs traced to holder responses; G8 entities 0/0 (n/a; 402 holder-entity pairs below entity_min_records, correctly unpublished), 0 outside the expected set; terms 265/265 holde; G9 552 discoveries; G10 injected {'dup_lines': 2, 'malformed': 4, 'deletes': 12, 'restart': 1, 'replay': 1}; duplicate dispositions seen 2255; 12 deleted strings ch
+ 
+ ## 5. Remaining gaps (not repaired tonight unless listed in MORNING_HANDOFF.md)
+ 
+@@ -69,3 +149,39 @@ _(filled from `bench/arch_gate.py` output per run)_
+ - Coordinator text retention after deletion (DEFECT d) and the h2 metadata disclosure.
+ - NeuralGraph LLM extraction is off in the production composition, so graph construction relies on the pattern
+   linker.
++- **Silent claim-support updates (found by gate G7 on the holdout run, ledger X072).**
++  - `KnowledgeService.sync_support_sync` (`mycelic/knowledge/service.py:537`), written tonight for the hypergraph support
++    invariant, rewrites `claims.support` (for example independent roots) without bumping `claims.version` or writing a
++    revision row.
++  - A reader therefore cannot tell from the audit trail why a claim's support changed.
++  - Fix: bump the version and write a `claim.support_changed` revision in the same transaction.
++- **Heartbeat cost at 10,000 active people** (found 2026-10-09 ~09:07 UTC, ledger X046). Every heartbeat of every open holder
++  makes the coordinator re-derive that holder's term index and shard mirror, through
++  `org.holder_heartbeat → hypergraph.upsert_term_index_sync / entities.sanitize_term_counts / shard_registry.mirror_shards_sync`.
++  - The work runs on the event loop.
++  - When every person has records, the feed slows from ~8 to ~0.7 sources/s once ~1,300 holders are open.
++  - Next fix: compare a digest of the snapshot and skip unchanged ones, or move the work off the loop.
++- **Quadratic `observe()` query.** Fixed tonight in `4c27744`. A related linear per-deleted-ref `LIKE` scan of a holder's
++  responses remains in `knowledge/service.py:635`; it runs on deletion only.
++- **D19 product caveats** (REVIEWER-2, C5 review):
++  - "Competing" should require same-kind subjects.
++  - Related or aliased subjects should keep the conflict.
++  - The verdict must not depend on unrelated tenant tracker keys.
++  - The competing pair should be persisted as a hypergraph relation.
++- **A5 vs G4.**
++  - The first A5 replaced `Authorizer.can_route`; routing calls `Authorizer._can_route` directly.
++  - Corrected after the holdout: the ablation now replaces `_can_route` and records how often it was reached, and G4 fails as
++    it should.
++  - The `denied` task class tests record-level visibility, not routing reach. A task class whose only evidence holder is
++    outside the asker's scope would make routing leaks matter for accuracy.
++- **A4 vs G8.**
++  - The A4 ablation empties the holder heartbeat's entity and term statistics, but the coordinator's term index is still
++    fully populated (G8: terms 112/112 holders). So G8 cannot detect A4 as written.
++  - A4 still changes routing: in dev run C6abl-A4-S1, 3,258 of 3,799 questions fell back to domain routing, against 6 in the full
++    run.
++  - See `plan/ANALYSIS_A4.md`.
++- **Harness measurement limits.**
++  - The asker view includes at most 60 goal claims and 30 goal discoveries, so the disclosure check cannot see anything
++    beyond those caps.
++  - A failed `run_now` or a failed status poll is counted (`api_errors`), not scored. Only goal-only positive tasks call
++    `run_now`.
+diff --git a/research/mycelic_e2e/BENCHMARK_CONTRACT.md b/research/mycelic_e2e/BENCHMARK_CONTRACT.md
+index f153efd..926c193 100644
+--- a/research/mycelic_e2e/BENCHMARK_CONTRACT.md
++++ b/research/mycelic_e2e/BENCHMARK_CONTRACT.md
+@@ -141,3 +141,15 @@ generated. Each came from a review finding or an analysis of DEV runs. None came
+ | per-task timeout, drain budget | wave 15 tasks; `--task-timeout 180` s per wave; `--question-timeout 60` s; `--heartbeat 2` s; `--n-ticks 2` loop drains for goal-only tasks; `--feed-concurrency 6`; readiness = two identical heartbeat snapshots (§10 C4) |
+ | evaluation order | system run → raw/reach authority → score + gate of the system run → central baselines (`source`, `single`) → their scores. The failures are not inspected for tuning; no candidate change follows the holdout. |
+ | host | cloud container, 4 vCPU, 15 GB RAM, ~40 GB disk allowance (MacBook bridge unreachable, see ORCHESTRATION.md). Dev runs (C7-S1's central baselines, dev ablations on S/1) may run beside the holdout run, at most four benchmark processes in total; the concurrent load is recorded in the ledger. |
++
++## 11. Post-holdout record (appended after the holdout; §1–§10 unchanged)
++
++- **The holdout ran once.** Run H-M101: frozen commit `7f37551`, world M seed 101, 09:41–10:31 UTC. Ledger rows
++  `20261009T094105Z-holdout-system-full-sM-101-6addaf` (system), `…-454802` (baseline source) and `…-97530f` (baseline
++  single). At every start the repository was clean, the snapshot `.rev` equalled HEAD, and the bank hash was `ok`.
++- **System:** scorer 120/120, disclosures 0, API errors 0. Architecture gate **invalid**: G7 failed; G1–G6 and G8–G10 passed.
++  Under §8 the system score is **not published as full-system accuracy**. Cause: VERIFIED_RESULTS §1, ARCHITECTURE_AUDIT §5.
++- **Central baselines:** `source` 114/120 = 0.950, `single` 70/120 = 0.583.
++- **Post-freeze harness change (ablations only, reviewed):** A5 now replaces `Authorizer._can_route` and records how often it
++  was reached. It was committed after the holdout baselines had started and is not used by any holdout run.
++
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 518fa61..630b046 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -72,3 +72,4 @@
+ {"id": "X071", "utc": "2026-10-09T10:31:36Z", "kind": "HOLDOUT-RESULT", "what": "H-M101: frozen commit 7f37551, world M seed 101 (1,000 users, 1,120 holders, 120 tasks), run once; ledger rows 20261009T094105Z-holdout-system-full-sM-101-6addaf, ...-454802 (baseline source), ...-97530f (baseline single); repo clean, snapshot .rev = HEAD, bank hash ok", "result": "SYSTEM: scorer 120/120 = 1.000 [0.969, 1.000], disclosures 0 (raw unchecked 0, raw open 0), api errors 0, independent-support correct 72/78, lineage exact 72/78; ARCHITECTURE GATE INVALID: G7 fails (G1-G6, G8-G10 pass). Per contract \u00a78 the 120/120 is NOT published as full-system accuracy. CENTRAL BASELINE source 114/120 = 0.950 [0.895, 0.977] (cross_domain 35/40, fault 9/10); single 70/120 = 0.583 [0.494, 0.668]. Scale: 1,120 holders created, 1,117 with records, 555 routed to, 488 activated; 2,030 questions, 19,921 routes; feed 398 s, tasks 2,394 s, total 2,824 s; peak RSS 2.4 GB; 30,612 model calls. Failures were not inspected for tuning; no candidate change follows.", "class": "holdout"}
+ {"id": "X072", "utc": "2026-10-09T10:33:00Z", "kind": "holdout-gate-diagnosis", "agent": "orchestrator (claude-opus-5-5)", "what": "cause of the holdout G7 failure (structural fields only: versions, revision counts, root counts; no claim text read)", "result": "G7 flagged 3 view claims (tasks holdout-033, -036, -074), all status 'hypothesis' in the view and in coord.db, version 1 in both, 1 revision (creation) each, whose independent_roots grew after the view was captured (5->12, 5->6, 2->8, updated 10:12-10:20Z). Code: KnowledgeService.sync_support_sync (mycelic/knowledge/service.py:537, written tonight in WP1 for invariant I4) updates claims.support in place without bumping claims.version or writing a revision row, so the audit trail cannot explain the change. G7 worked as designed and found a real audit-trail defect. Hypothesis claims are never extracted (only supported claims count), so no scored answer depended on them; the run is invalid regardless. Not fixed after the holdout (no candidate change follows the holdout); top follow-up: bump version + write a 'claim.support_changed' revision in sync_support_sync.", "class": "finding"}
+ {"id": "X073", "utc": "2026-10-09T10:33:30Z", "kind": "review+dev-result", "agent": "REVIEWER-4 (claude-opus-5-5); WP1 engineer (claude-sonnet-5-5)", "subject": "A5 ablation fix (scratch dec4637, ported after the holdout baselines finished)", "result": "REVIEWER-4 ACCEPT: every routing entry point reaches the replaced Authorizer._can_route; counters verified (11 calls / 6 loosened in an independent check); harness-only. Dev run C7abl-A5fix-S1 (code 7d2e63b + fix): 113/120 = 0.942 [0.884, 0.971], disclosures 0, ablation_calls {can_route_calls 243,748, loosened 155,645}; GATE INVALID: G4 fails with 13,554 as-of replay denials of 27,420 routes (original A5: 0). G4 is load-bearing.", "evidence": "reviews/REVIEW_H1.md 'Review of the A5 ablation fix'; results/runs/C7abl-A5fix-S1", "class": "dev"}
++{"id": "X074", "utc": "2026-10-09T10:37:00Z", "kind": "deliverables", "agent": "orchestrator (claude-opus-5-5)", "what": "final deliverables written: VERIFIED_RESULTS.md (tables generated by tools/verified/gen_verified.py from results_table JSON), ARCHITECTURE_AUDIT.md v2 (\u00a74 gate table from arch_gate.json incl. the holdout, \u00a75 gaps), BENCHMARK_CONTRACT.md \u00a711 post-holdout record, MORNING_HANDOFF.md final, plan/ANALYSIS_A4.md, plan/ANALYSIS_A5.md, ORCHESTRATION.md agent list", "class": "deliverables"}
+diff --git a/research/mycelic_e2e/MORNING_HANDOFF.md b/research/mycelic_e2e/MORNING_HANDOFF.md
+index 968e406..a598770 100644
+--- a/research/mycelic_e2e/MORNING_HANDOFF.md
++++ b/research/mycelic_e2e/MORNING_HANDOFF.md
+@@ -1,69 +1,227 @@
+-# Morning handoff — overnight repair of 2026-10-09
++# Morning handoff: overnight repair of 2026-10-09
+ 
+-_Status: DRAFT, updated during the night; the final version is written in the closing window (§7 lists when)._
++_Final version, written 2026-10-09 10:37 UTC. Every number here is recomputed in `VERIFIED_RESULTS.md` from the run
++directories. The ledger is `EXPERIMENTS.jsonl` (rows X000–X074)._
+ 
+ ## 1. What you asked, and the short answer
+ 
+-You asked for the benchmark to be rebuilt around the real system (ingestion → individual NeuralGraphs → hypergraph
+-routing → discovery loop → commit gate), for confirmed defects to be fixed, and for ≥80% genuine end-to-end accuracy
+-(stretch 90%), with integrity first.
++You asked for:
++- the benchmark rebuilt around the real system (ingestion → individual NeuralGraphs → hypergraph routing → discovery loop →
++  commit gate);
++- confirmed defects fixed;
++- ≥ 80 % genuine end-to-end accuracy (stretch 90 %), with integrity first.
++
++**Headline: there is no valid holdout accuracy number.** The frozen candidate ran once on the one pre-registered holdout world
++(1,000 users, seed 101):
++- The scorer marked 120/120 tasks correct, with 0 disclosures. The centralized baseline scored 114/120 on the same world.
++- The frozen architecture gate rejected the run on **G7**: a claim-support update in tonight's product code leaves no audit
++  record.
++- Under the contract, a rejected run's score is not published as full-system accuracy, and the holdout cannot be repeated for
++  this commit.
++- On dev, the same code scores 120/120 with a valid gate. That is optimistic, because the candidate was developed on that world.
++
++The ≥ 80 % target is therefore met on dev but **not demonstrated on a valid holdout run**.
+ 
+ - **Your suspicion was right.** Every published Mycelic accuracy number came from a numpy simulator that imports no
+   implementation code (`custody/OLD_BENCHMARKS.md`). There was no hypergraph anywhere in the code.
+-- **What exists now:**
+-  - A versioned end-to-end successor, Mycelic-E2E v1 (`BENCHMARK_CONTRACT.md`), that feeds raw source records through
+-    the real connector path into one NeuralGraph store per person and per unit.
+-  - Real coordinator hypergraph tables written inside the existing transactions.
+-  - Routing ranked by hypergraph incidence.
+-  - A cross-department corroboration rule in the commit gate.
+-  - An isolated scorer, a fair centralized baseline, and an architecture gate whose checks were shown to fail when
+-    stages are broken.
+-- _(final numbers go here: dev, holdout, baseline, with the provider label)_
++- **What exists now:** Mycelic-E2E v1 (`BENCHMARK_CONTRACT.md`).
++  - It feeds raw source records through the real connector path into one NeuralGraph store per person and per unit.
++  - It routes questions through a real coordinator hypergraph.
++  - It scores only what the asker can see, with an isolated scorer.
++  - It compares against a fair centralized baseline.
++  - An architecture gate (G1–G10) invalidates a run whose pipeline was bypassed or whose records do not add up.
++- **Honest qualifiers:**
++  - Every number uses the **deterministic provider**: lexical rules, no language model.
++  - Everything ran **single-process in a cloud container**; the MacBook bridge never came up.
++  - The holdout world is **1,000 users, not 10,000**. The 10,000-user hardened world was too slow for the time left; §6 has the
++    measured reason.
+ 
+ ## 2. Where everything is
+ 
+-- **Code:** the overnight commits sit on top of `claude/mycelic-implementation-vr034p@f96f263` in a clone at
+-  `/home/user/ng-impl`, branch `claude/friendly-mayer-y9f1vt`.
+-- **Designated remote branch:** it is `main`-based, so the commits are mirrored there as a patch series in
+-  `research/mycelic_e2e/impl_patches/`, together with this directory. This was necessary because rewriting the branch
+-  onto the implementation (force-push) was refused by the session's safety settings. To publish the implementation-based
+-  history on the designated branch yourself:
+-  `git push --force-with-lease origin <impl-based-branch>:claude/friendly-mayer-y9f1vt`, or apply the patches with
+-  `git am` onto `f96f263` (the README in `impl_patches/` gives the commands).
+-- **Deliverables:** `ARCHITECTURE_AUDIT.md`, `BENCHMARK_CONTRACT.md`, `EXPERIMENTS.jsonl`, `VERIFIED_RESULTS.md`, this
+-  file, `reviews/`, `plan/`, `audit/`, `custody/`, `perf/`, `live/`.
+-
+-## 3. What changed in the product (all reviewed by an independent reviewer; see `reviews/`)
++- **Code:** the overnight commits sit on top of `claude/mycelic-implementation-vr034p@f96f263`.
++  - They are in a clone at `/home/user/ng-impl`, branch `claude/friendly-mayer-y9f1vt`.
++  - The frozen commit is `7f37551`; the candidate code is `7d2e63b`.
++- **Designated remote branch:**
++  - `claude/friendly-mayer-y9f1vt` is `main`-based, so the commits are mirrored there as a patch series in
++    `research/mycelic_e2e/impl_patches/`, together with this directory.
++  - The session's safety settings refused a force-push that would have rewritten the branch onto the implementation.
++  - To get the tested tree: `git checkout -b e2e-overnight f96f263 && git am research/mycelic_e2e/impl_patches/*.patch`
++    (README in `impl_patches/`).
++- **Deliverables:**
++  - `ARCHITECTURE_AUDIT.md`, `BENCHMARK_CONTRACT.md` (frozen, §9), `EXPERIMENTS.jsonl`, `VERIFIED_RESULTS.md`, this file;
++  - reviews in `reviews/`, plans and analyses in `plan/`, the single-event trace in `audit/`, the custody record in `custody/`,
++    scale probes in `perf/`, the live model check in `live/`, per-run score and gate files in `results/runs/`.
++- **Sealed holdout bank:** `/root/sealed_holdout/templates_holdout.py`, outside the repository, sha256 `6a5eabd3…`.
++  - It lives only in this container and is gone when the container is reclaimed. It is deliberately kept out of the
++    repository, so that implementation agents never see it.
++  - It was evaluated for exactly one candidate (`7f37551`).
++
++## 3. What changed in the product
++
++Every change was reviewed by an agent that did not write it (see `reviews/`).
+ 
+ | change | files | review |
+ |---|---|---|
+-| Hypergraph: `hyperedges`, typed `hyperedge_members`, `entity_registry`, written in the commit/conflict/discovery/heartbeat transactions; `traverse`, `incidence`, `rebuild` | `knowledge/hypergraph.py`, migration 0005 | REVIEW_WP1 (accept after fixes F1–F11, S1) |
+-| Ranked routing (entity and term incidence, department diversity, audited) instead of the first 10 holders in registry order | `inquiry/routing.py`, `inquiry/service.py` | REVIEW_WP1 |
+-| Content-free term index: keyed hashes of rare words from public records only | `entities.py`, migration 0007, D18 | REVIEW_WP1 (B1 fix pending at the time of writing) |
++| Hypergraph: `hyperedges`, typed `hyperedge_members` and `entity_registry`, written in the commit, conflict, discovery and heartbeat transactions; `traverse`, `incidence`, `rebuild` | `knowledge/hypergraph.py`, migration 0005 | REVIEW_WP1 (accepted after fixes F1–F11 and S1) |
++| Ranked routing (entity and term incidence, department round-robin, audited) instead of the first 10 holders in registry order | `inquiry/routing.py`, `inquiry/service.py` | REVIEW_WP1 (C3 round-robin accepted in the C5 review) |
++| Content-free term index: keyed hashes of rare words, from public records only, after the effective ACL and deny patterns | `entities.py`, migration 0007, D18 | REVIEW_WP1 (B1, B1-d, HB-1, L1 fixed and re-reviewed) |
+ | Cross-department corroboration (`min_independent_units`) in the commit gate, with minimum-unit attribution | `knowledge/gate.py`, `knowledge/units.py` | REVIEW_WP1 |
+-| Ingestion: traceable rejections, undated records never fresh, explicit forwards never add independent roots | `ingest/*`, `knowledge/support.py`, holder migration 0004 | REVIEW_D (accepted) |
+-| Scale: bounded open holders woken by their inbox, lifecycle lock (remove→ensure dead-consumer race), revision-counter-keyed authorization caches, subject-indexed transport wake-ups | `holder/embedded.py`, `authz.py`, `org.py`, `transport/*`, migration 0006 | REVIEW_E (accepted) |
++| Competing findings: two statements about different single subjects are ranked, not treated as a contradiction. Contradiction follow-ups reach both sides | `discovery/engine.py`, `inquiry/routing.py`, D19 | REVIEW_WP1 C5. Accepted for the benchmark; product caveats in §6 |
++| Disclosure fixes K1/K1b: a holder owner who was only routed a question no longer sees its run state or its result (both carry other responders' text) | `inquiry/service.py` | REVIEW_WP1 (K1, K1b) |
++| Ingestion: traceable rejections, undated records never count as fresh, explicit forwards never add independent roots | `ingest/*`, `knowledge/support.py`, holder migration 0004 | REVIEW_D (accepted) |
++| Scale: bounded open holders woken by their inbox, lifecycle lock, revision-counter-keyed authorization caches, subject-indexed transport wake-ups, stale-heartbeat rule | `holder/embedded.py`, `authz.py`, `org.py`, `transport/*`, migration 0006 | REVIEW_E (accepted) |
++| Discovery `observe()` reads new evidence through the goal's own responses (json_each) instead of a quadratic `LIKE` join: 388 ms → 2.6 ms at 3k × 3k, and a dev run went from >1,700 s (aborted) to 563 s | `discovery/engine.py` | REVIEW_WP1 (observe fix) |
++
++Benchmark harness changes made during the night, each reviewed in `reviews/REVIEW_H1.md`:
++- **H1:** a per-task API error or timeout makes that task wrong instead of aborting the run.
++- **H2:** every evidence reference visible through goal-level discoveries is raw-checked.
++- **A5 fix (after the holdout):** the authorization ablation patches the routing choke point.
++
+ 
+-## 4. What actually ran
++## 4. What ran
+ 
+-_(final table: every scored run, its classification, revision, host, provider; from VERIFIED_RESULTS.md)_
++All runs used the deterministic provider in one process with the SQLite transport, on the cloud container. Full tables are in
++`VERIFIED_RESULTS.md`; every row there is recomputed from the run directory, and the ledger records each start, abort and
++result.
++
++| what | runs | classification |
++|---|---|---|
++| **Holdout (once)** | H-M101: system, central baseline `source`, central baseline `single`; frozen commit `7f37551`; world M seed 101 | holdout, valid if its gate passes (§5) |
++| Dev, candidate code `7d2e63b` | C7-S1 (+ both baselines); ablations C7abl-A1…A6 on S/1 | dev |
++| Dev, same system code before harness fixes H1/H2 (`4c27744`) | C6-S1 (+ both baselines); ablations C6abl-A1, A2, A3, A4, A6 | dev (expected-abstain classes affected by the H2 measurement gap) |
++| Dev, earlier candidates | C4-S1 (`54fec3f`, first hardened world), C3-L3 (`36a9951`, 10,000 users, sparse world), C2a-M2 (`56f9832`, 1,000 users, sparse world), each with both baselines | dev |
++| Not scored | S1 and C1-S1 (harness defects), C4-M2 / C5-M2 / C5-L3 (disk allowance), C5-L3 retry (stopped: scale finding), C5-S1 (unisolated API timeout → fix H1), C5abl-A1/A2 (stopped) | aborted / invalid, in the ledger with reasons |
++| Component check | Qwen3-4B (llama.cpp, CPU) answer step on gold holders, n = 40 | live, component only |
++
++Concurrency: up to four benchmark processes at once. During the holdout system run, the dev ablations of the candidate ran
++next to it (ledger X067).
+ 
+ ## 5. Results
+ 
+-_(final: primary metric with n, CI, per class; centralized baseline; ablations; scale; live component check)_
++All figures are from `VERIFIED_RESULTS.md` (deterministic provider; 120 tasks per world; 95 % Wilson intervals).
++
++| world | system | gate | central baseline `source` | `single` |
++|---|---|---|---|---|
++| **Holdout M/101 (1,000 users), frozen `7f37551`, once** | 120/120 = 1.000 [0.969, 1.000], disclosures 0 | **INVALID (G7)**: not published as full-system accuracy | 114/120 = 0.950 [0.895, 0.977] | 70/120 = 0.583 |
++| Dev S/1 (112 users), candidate code `7d2e63b` | 120/120 = 1.000 [0.969, 1.000], disclosures 0 | valid | 116/120 = 0.967 | 69/120 = 0.575 |
++| Dev S/1, earlier candidate C4 (`54fec3f`) | 103/120 = 0.858 | valid | 116/120 | 69/120 |
++| Dev L/3 (10,000 users, sparse world), `36a9951` | 120/120 | valid | 119/120 | 109/120 |
++
++**Holdout, in plain terms.**
++- The frozen candidate answered every holdout task correctly and disclosed nothing. On the same world, the centralized
++  baseline missed 5 cross-department tasks and 1 fault task.
++- The architecture gate still rejected the run, on G7. Three hypothesis claims had fewer independent roots in the asker's view
++  than in the final database, and no revision row recorded the change.
++- The cause is in tonight's own product code (`sync_support_sync` rewrites claim support without a revision). The gate was
++  frozen with the contract, so the run stays invalid.
++- No answer depended on those claims: hypothesis claims are never extracted.
++- **So the ≥ 80 % target is met on dev with a valid gate, but it is not demonstrated by a valid holdout run.** The holdout
++  cannot be repeated for this commit.
++
++**Ablations** (dev S/1, candidate code; full system 120/120):
++
++| ablation | result | what it shows |
++|---|---|---|
++| A1 ranker off | 63/120, gate valid | ranked hypergraph routing is the main driver: cross-department 16/40, temporal 0/10 |
++| A2 roots off | 117/120, gate fails G3 | copies-only tasks fail (4/7); G3 catches it |
++| A3 verification off | 120/120 | verification is not decisive on this world |
++| A4 index off (partial) | 111/120, gate valid | temporal 2/10; the ablation misses two feeders, so G8 cannot see it |
++| A5 authorization off, first version | 120/120, gate valid | ineffective: it patched a method routing does not call |
++| A5 authorization off, corrected | 113/120, **gate fails G4** (13,554 unauthorized routes) | G4 catches unauthorized routing; disclosures stayed 0 |
++| A6 dedupe off | 120/120, gate fails G10 | G10 catches it |
++
++**10,000-user scenario: users represented vs. graphs created and activated.**
++- **C3-L3 (dev, sparse world, earlier candidate):**
++  - 10,000 users and 648 unit holders represented; 10,648 holder graphs created;
++  - 417 graphs had records, 482 were routed to, 319 were activated (gave at least one answered response);
++  - peak 518 open under the 1,500 bound;
++  - 120/120, gate valid; 781 s; 1.17 GB RSS.
++- **Holdout M/101:**
++  - 1,000 users; 1,120 graphs created, 1,117 with records, 555 routed to, 488 activated;
++  - 2,824 s; 2.4 GB RSS.
++- **The hardened 10,000-user world** (every person has records) did not finish within the night; §6 has the measured cause.
+ 
+ ## 6. Unresolved blockers and honest limits
+ 
+-- **MacBook:** the MacBook bridge environment was unreachable all night (the probe session stayed at "Allocating
+-  sandbox"). Everything ran in the 4-vCPU / 15 GB cloud container.
+-- **Deterministic provider:** every end-to-end number uses the deterministic provider (`mycelic/models/fake.py`,
+-  lexical rules). The record templates are written to satisfy those rules (the contract declares this). The numbers
+-  therefore measure routing, authorization, independence, lineage and fault handling, not language understanding.
+-  A real model (Qwen3-4B, CPU) was only fast enough for a component-level check.
+-- **Single process:** the runs are single-process with the SQLite transport. No NATS or distributed-recovery claim is
+-  made.
++- **MacBook:** the MacBook bridge environment stayed at "pending / disconnected" from 05:23 UTC to the end. Everything ran in
++  the 4-vCPU / 15 GB cloud container.
++- **Deterministic provider:**
++  - Every end-to-end number uses `mycelic/models/fake.py`, which applies lexical rules.
++  - The record templates are written to satisfy those rules (contract §2). The numbers measure routing, authorization,
++    independence, lineage, the commit gate and fault handling, not language understanding.
++  - A real model (Qwen3-4B, CPU) was only fast enough for a component check: 13/17 vs 17/17, never wrong.
++- **10,000 users:**
++  - The complete 10k run (C3-L3: 10,648 holders, 120/120) used the early sparse world, in which ~400 holders had records.
++  - The hardened 10k world (every person has records) never finished. Its feed fell from ~8 to ~0.7 sources/s once ~1,300
++    holders were open.
++  - The profiler shows the coordinator rebuilding each open holder's term index and shard mirror on every heartbeat:
++    `org.holder_heartbeat → upsert_term_index_sync / mirror_shards_sync`.
++  - The fix to make next: skip unchanged snapshots (digest compare) or apply them off the event loop.
++  - Until then, a single process will not carry 10,000 *active* people.
++- **Discovery loop cost:** C5's rules (competing findings, contradiction follow-ups to both sides) roughly doubled the number
++  of follow-up questions. A pre-existing quadratic query made that visible (`observe()`, fixed in `4c27744`; 388 ms → 2.6 ms
++  on 3k × 3k).
++- **Product caveats on D19 (REVIEWER-2):**
++  - The "different subjects → competing" rule should apply only to same-kind subjects, keep the conflict for aliases or
++    renames, and not depend on unrelated tenant state.
++  - The competing relation should be persisted as a hypergraph relation so the asker sees it.
++  - Accepted for the benchmark (canonical names); listed as follow-ups.
++- **The holdout gate failure (G7):**
++  - `KnowledgeService.sync_support_sync` rewrites a claim's support without a version bump or revision row.
++  - Three hypothesis claims changed after the asker's view was taken, and the audit trail cannot explain it (ledger X072).
++  - Not fixed after the holdout: no candidate change follows a holdout. It is next step 0.
++- **Gate and ablation coverage:**
++  - The first A5 ablation patched a method routing does not call; the corrected A5 makes G4 fail as it should
++    (`plan/ANALYSIS_A5.md`).
++  - The A4 ablation (index publication off) did not trip G8. The term index was still populated through another path, so G8
++    cannot detect A4 as written.
++  - A4 still moved routing from hypergraph ranking to the domain fallback. Analysis: `plan/ANALYSIS_A4.md`.
++- **Single process, SQLite transport:** no NATS or distributed-recovery claim is made.
+ - **No EMERGENCE contract** exists in this repository.
++- **Holdout isolation is procedural:**
++  - The bank was written by the harness engineer, sealed outside the repository, and its path given to no implementation or
++    analysis agent.
++  - It sits in the same container, so this is not a separate security domain.
++  - One generation smoke test at non-holdout seeds printed counts only (X043).
++- **Commit trailers:** they carry the session's attribution line. The model that wrote each commit is recorded in
++  `EXPERIMENTS.jsonl` (implementation by `claude-sonnet-5-5` engineers; reviews and orchestration by `claude-opus-5-5`;
++  planning and dev analyses by `claude-fable-5-1`).
+ 
+ ## 7. Reproduce / resume
+ 
+-_(final commands)_
++```
++# 1. tested tree (implementation branch + overnight patches)
++git fetch origin claude/mycelic-implementation-vr034p claude/friendly-mayer-y9f1vt
++git worktree add ../e2e-patches origin/claude/friendly-mayer-y9f1vt      # the patch series lives on the designated branch
++git checkout -b e2e-overnight f96f263
++git am ../e2e-patches/research/mycelic_e2e/impl_patches/*.patch         # ends at the closing-docs commit after the frozen 7f37551
++
++# 2. test suites
++python -m pytest mycelic/tests -q -p no:warnings           # 527 passed, 7 skipped at the candidate
++python -m pytest research/mycelic_e2e/bench/tests -q        # 183 passed, 2 skipped at the candidate
++
++# 3. one dev evaluation (about 10 minutes at S on 4 vCPU)
++python research/mycelic_e2e/bench/run.py --size S --seed 1 --split dev --mode system --out RUN --anchor 2026-10-09T00:00:00+00:00
++python -m research.mycelic_e2e.bench.baseline_central RUN --authority-only
++python -m research.mycelic_e2e.bench.report RUN --finalize
++python -m research.mycelic_e2e.bench.baseline_central RUN --out RUN-baseline-source --variant source
++python -m research.mycelic_e2e.bench.report RUN-baseline-source --finalize
++python -m research.mycelic_e2e.tools.results_table RUN RUN-baseline-source
++
++# 4. ablation: add --ablation A1 (A1..A6) to the run.py line
++```
++
++Next steps, in the order I would take them:
++0. **Record claim-support changes.** Bump `claims.version` and write a revision in
++   `KnowledgeService.sync_support_sync`. Then evaluate the resulting candidate on a newly sealed holdout world, since this one
++   is used up for `7f37551`.
++1. **Fix the heartbeat cost** (§6), then rerun the hardened 10,000-user world on dev, and on a fresh holdout world if the
++   candidate changes.
++2. **Make A4 real** (patch the index sink) and harden G8 (index stability, share of hypergraph-ranked routes).
++3. **D19 product follow-ups:** same-kind subjects, aliases, a persisted competing relation.
++4. **Live model end to end:** needs a GPU host or the MacBook.
++   - On this CPU, Qwen3-4B takes ~22 s per 60-token answer in a single stream (`live/LIVE_PROVIDER.md`).
++   - One S run makes ~36,000 model calls (C7-S1).
++5. **The sealed holdout bank** (`/root/sealed_holdout/templates_holdout.py`) exists only in this container and is gone once the
++   container is reclaimed. It is deliberately not in the repository. A new candidate therefore needs a newly written,
++   newly sealed holdout bank, written by someone who never sees the implementation agents' work.
+diff --git a/research/mycelic_e2e/ORCHESTRATION.md b/research/mycelic_e2e/ORCHESTRATION.md
+index 850a9f1..1ebfefb 100644
+--- a/research/mycelic_e2e/ORCHESTRATION.md
++++ b/research/mycelic_e2e/ORCHESTRATION.md
+@@ -42,6 +42,14 @@ The user asked for the MacBook Air to run the work. A session was created in the
+ 
+ Cycle: planner hypothesis → engineer patch → reviewer reproduction → orchestrator accept/reject → next task.
+ 
++Agents as they reported their model ids during the night (the ledger names each contribution):
++- **Planner:** `claude-fable-5-1` (PLAN_v1, DEV_ANALYSIS_S1, DEV_ANALYSIS_C4).
++- **Engineers and analysts, all `claude-sonnet-5-5`:** ENGINEER-A, -B, -C and -E (trace, ingestion, scale), WP1 (hypergraph,
++  routing, C5, K1, K1b, H1, H2, A5 fix), WP2 (generator), WP3 (evaluator, gate, ledger, holdout guard), ENGINEER-3 (observe
++  query fix), ANALYST and ANALYST-2 (read-only analyses of A4 and A5).
++- **Reviewers, all `claude-opus-5-5`:** REVIEWER-1, -2, -3 and -4.
++- **Orchestrator:** this session, `claude-opus-5-5`.
++
+ ## Benchmark jobs found at the start (custody)
+ 
+ | job | where | state at 05:3x UTC | action |
+diff --git a/research/mycelic_e2e/VERIFIED_RESULTS.md b/research/mycelic_e2e/VERIFIED_RESULTS.md
+new file mode 100644
+index 0000000..848d65c
+--- /dev/null
++++ b/research/mycelic_e2e/VERIFIED_RESULTS.md
+@@ -0,0 +1,284 @@
++# Verified results: Mycelic-E2E v1 (2026-10-09)
++
++**How these numbers were produced.**
++- Every accuracy figure below comes from `python -m research.mycelic_e2e.tools.results_table <run dirs> --json`. The tool re-runs
++  the isolated scorer (`bench/score.py`) on each run's asker views and reads that run's architecture-gate report
++  (`arch_gate.json`, written by `bench/arch_gate.py`).
++- `tools/verified/gen_verified.py` composed the tables in this file from that JSON. The narrative notes between the tables
++  quote further figures from the same runs' manifests and gate reports.
++- The dev runs' `score.json`, `arch_gate.json`, `run_manifest.json` and `report.md` are kept under `results/runs/<run>/`.
++- Holdout tasks, gold and views are **not** committed, so no holdout content enters the repository. Only aggregate numbers and
++  gate verdicts are reported for the holdout.
++
++**Labels that apply to every row.**
++- **Provider:** `deterministic-provider`, i.e. `mycelic/models/fake.py` (sha256 `0dad30d6…`), lexical rules. No language model.
++  The record templates were written to satisfy those rules (BENCHMARK_CONTRACT §2). These numbers therefore measure:
++  - routing, authorization and isolation;
++  - independence and lineage;
++  - fault handling;
++  - the commit gate;
++  
++  not language understanding.
++- **Execution:** single process, SQLite transport (no NATS), one in-process API server.
++- **Host:** cloud container, 4 vCPU, 15 GB RAM. The MacBook bridge environment never came up.
++- **Primary metric (contract §5):** correct / all 120 tasks of the world, with a 95 % Wilson interval. An API error, timeout or
++  missing view counts as wrong.
++  - A positive task is correct only if the single option extracted from the asker's own supported claims is the gold entity.
++  - An expected-abstain task is correct only if nothing is extracted **and** the asker's output has no reference the asker
++    may not reach, **and** raw access to every visible reference is refused where the asker lacks it.
++- **"disclosures"** is the scorer's count of such references: foreign refs, forbidden markers, open raw access, and visible
++  references whose raw access was never checked. The last kind is counted conservatively as a disclosure.
++- **Gate (§8):**
++  - The scored number of a system run is published as full-system accuracy only if G1–G10 pass.
++  - Ablation rows are expected to fail the gate their ablation targets.
++  - Central-baseline runs have no coordinator, so the gate does not apply.
++
++## 1. Holdout: the frozen candidate, run once
++
++| run | code | size/seed | mode | n | correct | accuracy | 95 % Wilson | disclosures | gate |
++|---|---|---|---|---:|---:|---:|---|---:|---|
++| H-M101 | `7f37551` | M/101 | system | 120 | 120 | 1.000 | [0.969, 1.000] | 0 | fails G7 |
++| H-M101-baseline-source | `7f37551` | M/101 | central baseline source | 120 | 114 | 0.950 | [0.895, 0.977] | 0 | n/a (no coordinator) |
++| H-M101-baseline-single | `7f37551` | M/101 | central baseline single | 120 | 70 | 0.583 | [0.494, 0.668] | 0 | n/a (no coordinator) |
++
++Per class (correct/n):
++
++| run | x-dept | fault | contra | temporal | origin+ | copies | coinc | single | denied | x-tenant |
++|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
++| H-M101 | 40/40 | 10/10 | 10/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| H-M101-baseline-source | 35/40 | 9/10 | 10/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| H-M101-baseline-single | 0/40 | 0/10 | 10/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++
++**The holdout system run is not a valid full-system result.** Its architecture gate failed **G7**, so under contract §8 the
++scorer's 120/120 is **not** published as full-system accuracy. The row above shows what the scorer computed, labelled with
++the gate verdict.
++
++**What G7 found.**
++- Three claims in the asker views (tasks holdout-033, -036, -074) were `hypothesis` both in the view and in the final
++  coordinator database, at version 1 in both. Their independent-root counts grew after the view was captured (5→12, 5→6,
++  2→8), with no version bump or revision row to record the change.
++- The writer is `KnowledgeService.sync_support_sync` (`mycelic/knowledge/service.py:537`), added tonight with the hypergraph
++  support invariant. It updates `claims.support` in place.
++- G7 did what it is for: it found an audit-trail defect in the product. Hypothesis claims are never extracted (only
++  `supported` claims count), so no scored answer depended on these three. The verdict does not depend on that.
++- The holdout is not re-run (one shot per candidate), and no candidate change followed it.
++
++**The rest of the evidence for the run.**
++- **Every other gate passed:** G1–G6, G8–G10.
++  - Connector provenance of all 6,325 ingested records.
++  - One store per holder.
++  - Support and roots consistent with the hypergraph.
++  - All 19,921 routes authorized in the as-of replay.
++  - Every claim with gate and revision rows; truthful provider label.
++  - Hypergraph present; lineage resolvable.
++  - Every injected fault disposed.
++- **Disclosures:** 0. Every visible reference was raw-checked.
++- **API errors:** 0.
++- **Support quality:** independent-support counts correct on 72/78 positives; lineage exact on 72/78.
++- **Run shape:** 1,120 holders created, 1,117 with records, 555 routed to, 488 activated; 2,030 questions; 2,824 s; peak RSS
++  2.4 GB.
++- **Comparison on the same holdout world:** the primary centralized baseline (`source`) scores 114/120 = 0.950
++  [0.895, 0.977], missing 5 cross-department tasks and 1 fault task. The `single` variant scores 70/120.
++- **The provider caveat applies throughout:** deterministic provider, single process.
++
++## 2. Dev: the candidate code on the dev world S/1
++
++| run | code | size/seed | mode | n | correct | accuracy | 95 % Wilson | disclosures | gate |
++|---|---|---|---|---:|---:|---:|---|---:|---|
++| C7-S1 | `7d2e63b` | S/1 | system | 120 | 120 | 1.000 | [0.969, 1.000] | 0 | valid |
++| C7-S1-baseline-source | `7d2e63b` | S/1 | central baseline source | 120 | 116 | 0.967 | [0.917, 0.987] | 0 | n/a (no coordinator) |
++| C7-S1-baseline-single | `7d2e63b` | S/1 | central baseline single | 120 | 69 | 0.575 | [0.486, 0.660] | 0 | n/a (no coordinator) |
++
++Per class (correct/n):
++
++| run | x-dept | fault | contra | temporal | origin+ | copies | coinc | single | denied | x-tenant |
++|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
++| C7-S1 | 40/40 | 10/10 | 10/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C7-S1-baseline-source | 37/40 | 10/10 | 10/10 | 9/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C7-S1-baseline-single | 0/40 | 0/10 | 10/10 | 9/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++
++**Reading.**
++- C7-S1 is the frozen candidate's code (`7d2e63b`; the freeze commit `7f37551` adds documents only) on the dev world S/1:
++  112 people, 2 tenants, 136 holders, 1,572 records, with popular rivals and a background corpus.
++- The candidate was developed against this world: the C5 rules came from the C4-S1 failure analysis
++  (`plan/DEV_ANALYSIS_C4.md`). Its dev score is therefore optimistic by construction. The holdout (§1) is the test.
++- On this world the primary centralized baseline (`source` variant: one central store with every record's ACL, the same
++  ingestion, provider, evidence budget, gate and scorer) scores 116/120. The `single`-response variant scores 69/120.
++- **C6-S1 vs C7-S1** (same system code, harness differs by H1/H2):
++  - C6-S1 (`4c27744`) scored 96/120 under the frozen scorer. All 24 misses are expected-abstain tasks. In each, the answer
++    extraction was right (abstain), but the scorer counted references that appear only in goal-level discovery details as
++    "raw unchecked" disclosures (1,039 references; foreign 0, open 0), because the harness never raw-checked them.
++  - Harness fix H2 added those checks (REVIEW_H1.md, H2 section). C7-S1 checks every visible reference and records 0
++    disclosures.
++  - C6-S1 is reported as measured. It cannot be re-scored, because the checks were never made.
++
++## 3. Ablations of the candidate code (dev S/1, paired with C7-S1)
++
++- **A1**: routing ranker off (first N authorized holders)
++- **A2**: root-aware support off (count references, not source roots)
++- **A3**: verification questions off
++- **A4**: holder entity/term index publication off
++- **A5**: authorized routing off (any holder of the tenant)
++- **A6**: ingestion dedupe off
++
++| run | code | size/seed | mode | n | correct | accuracy | 95 % Wilson | disclosures | gate |
++|---|---|---|---|---:|---:|---:|---|---:|---|
++| C7abl-A1-S1 | `7d2e63b` | S/1 | system A1 | 120 | 63 | 0.525 | [0.436, 0.612] | 0 | valid |
++| C7abl-A2-S1 | `7d2e63b` | S/1 | system A2 | 120 | 117 | 0.975 | [0.929, 0.991] | 0 | fails G3 |
++| C7abl-A3-S1 | `7d2e63b` | S/1 | system A3 | 120 | 120 | 1.000 | [0.969, 1.000] | 0 | valid |
++| C7abl-A4-S1 | `7d2e63b` | S/1 | system A4 | 120 | 111 | 0.925 | [0.864, 0.960] | 0 | valid |
++| C7abl-A5-S1 | `7d2e63b` | S/1 | system A5 | 120 | 120 | 1.000 | [0.969, 1.000] | 0 | valid |
++| C7abl-A5fix-S1 | `7d2e63b + A5 fix` | S/1 | system A5 | 120 | 113 | 0.942 | [0.884, 0.971] | 0 | fails G4 |
++| C7abl-A6-S1 | `7d2e63b` | S/1 | system A6 | 120 | 120 | 1.000 | [0.969, 1.000] | 0 | fails G10 |
++
++Per class (correct/n):
++
++| run | x-dept | fault | contra | temporal | origin+ | copies | coinc | single | denied | x-tenant |
++|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
++| C7abl-A1-S1 | 16/40 | 2/10 | 2/10 | 0/10 | 1/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C7abl-A2-S1 | 40/40 | 10/10 | 10/10 | 10/10 | 8/8 | 4/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C7abl-A3-S1 | 40/40 | 10/10 | 10/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C7abl-A4-S1 | 40/40 | 10/10 | 10/10 | 2/10 | 7/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C7abl-A5-S1 | 40/40 | 10/10 | 10/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C7abl-A5fix-S1 | 33/40 | 10/10 | 10/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C7abl-A6-S1 | 40/40 | 10/10 | 10/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++
++**Reading the ablations** (each row is the candidate code with ONE mechanism replaced in-process by `bench/ablations.py`; same
++world, harness and scorer as C7-S1 = 120/120):
++- **A1, routing ranker off: the largest loss.** Questions go to the first N authorized holders in registry order.
++  - The loss falls on cross-department positives (16/40), temporal (0/10), fault (2/10), contradiction (2/10) and
++    common-origin positives (1/8).
++  - The gate stays valid because G4 skips its ranker assertion under A1 by design.
++  - Ranked routing over the hypergraph's entity and term incidence is what makes the cross-department answers reachable.
++- **A2, root-aware support off** (count references, not independent source roots).
++  - Copies-only tasks fail (4/7): forwarded copies now look like independent corroboration.
++  - G3 (support/roots consistency) fails, so the gate catches the ablation.
++- **A3, verification questions off: no loss on this world** (120/120).
++  - Verification is a safety mechanism (blind re-checks of a finding by other holders). The deterministic dev world never
++    makes it decisive.
++  - It does cost load: the full system asked 676 verification questions in C6-S1 (analyst's count, `plan/ANALYSIS_A4.md`).
++- **A4, holder index publication off: partial.**
++  - Temporal tasks fail (2/10) and one common-origin positive is lost (111/120).
++  - The ablation removes only one of three index feeders, so G8 (which reads the final index) cannot detect it; see
++    `plan/ANALYSIS_A4.md`.
++  - At runtime most routes fall back to domain-only ranking.
++- **A5, authorized routing off** (any holder of the tenant). Two rows:
++  - **C7abl-A5-S1 (original A5): did not reach routing.** It replaced `Authorizer.can_route`, but routing calls
++    `Authorizer._can_route` directly. It changed only redundant answer-time re-checks, so the run equals the full system
++    (120/120, G4 valid with 0 replay denials). It is reported as an ineffective ablation, not as evidence; see
++    `plan/ANALYSIS_A5.md`.
++  - **C7abl-A5fix-S1 (corrected A5, reviewed).** It replaces `_can_route` and counts how often the replacement loosened a
++    decision (155,645 of 243,748 calls).
++    - **G4 fails** with 13,554 unauthorized routes in the as-of replay, so the gate is load-bearing for authorization.
++    - Accuracy falls to 113/120 (cross-department 33/40).
++    - Disclosures stay at 0: the holder-side answer policy and the claim audience filters still apply downstream.
++    - The fix landed after the freeze and after the holdout baselines started. It is harness-only (ablations), and the
++      candidate is unchanged.
++- **A6, ingestion dedupe off.**
++  - Accuracy is unaffected on this world (120/120). The injected duplicates are few, and why they do not change answers was not
++    analysed.
++  - G10 (fault dispositions) fails, so the gate catches the ablation, and the run is not a valid full-system result.
++- **Paired C6 ablations.** The same ablations were also run on `4c27744`, before harness fix H2: A1 57, A2 96 (G3 fails),
++  A3 120, A4 77, A6 96 (G10 fails).
++  - Their expected-abstain classes carry the H2 measurement gap, like C6-S1 (96/120).
++  - Against C6-S1, A1 and A4 lose accuracy as they do here, and A2 and A6 equal C6-S1.
++  - A3 scores 120, above C6-S1, and records 0 unchecked references. The likely reason, inferred and not verified: with no
++    verification questions, the goal-level discovery references that the pre-H2 harness never checked are not produced.
++    Treat this as a measurement artefact, not a gain from turning verification off; C7abl-A3 = C7-S1 = 120 agrees.
++
++## 4. Earlier candidates (history; every row a complete, scored run)
++
++| run | code | size/seed | mode | n | correct | accuracy | 95 % Wilson | disclosures | gate |
++|---|---|---|---|---:|---:|---:|---|---:|---|
++| C6-S1 | `4c27744` | S/1 | system | 120 | 96 | 0.800 | [0.720, 0.862] | 1039 | valid |
++| C6-S1-baseline-source | `4c27744` | S/1 | central baseline source | 120 | 116 | 0.967 | [0.917, 0.987] | 0 | n/a (no coordinator) |
++| C6-S1-baseline-single | `4c27744` | S/1 | central baseline single | 120 | 69 | 0.575 | [0.486, 0.660] | 0 | n/a (no coordinator) |
++| C6abl-A1-S1 | `4c27744` | S/1 | system A1 | 120 | 57 | 0.475 | [0.388, 0.564] | 344 | valid |
++| C6abl-A2-S1 | `4c27744` | S/1 | system A2 | 120 | 96 | 0.800 | [0.720, 0.862] | 1094 | fails G3 |
++| C6abl-A3-S1 | `4c27744` | S/1 | system A3 | 120 | 120 | 1.000 | [0.969, 1.000] | 0 | valid |
++| C6abl-A4-S1 | `4c27744` | S/1 | system A4 | 120 | 77 | 0.642 | [0.553, 0.722] | 2712 | valid |
++| C6abl-A6-S1 | `4c27744` | S/1 | system A6 | 120 | 96 | 0.800 | [0.720, 0.862] | 1402 | fails G10 |
++| C2a-M2 | `56f9832` | M/2 | system | 120 | 120 | 1.000 | [0.969, 1.000] | 0 | valid |
++| C2a-M2-baseline-source | `56f9832` | M/2 | central baseline source | 120 | 119 | 0.992 | [0.954, 0.999] | 0 | n/a (no coordinator) |
++| C2a-M2-baseline-single | `56f9832` | M/2 | central baseline single | 120 | 110 | 0.917 | [0.853, 0.954] | 0 | n/a (no coordinator) |
++| C3-L3 | `36a9951` | L/3 | system | 120 | 120 | 1.000 | [0.969, 1.000] | 0 | valid |
++| C3-L3-baseline-source | `36a9951` | L/3 | central baseline source | 120 | 119 | 0.992 | [0.954, 0.999] | 0 | n/a (no coordinator) |
++| C3-L3-baseline-single | `36a9951` | L/3 | central baseline single | 120 | 109 | 0.908 | [0.843, 0.948] | 0 | n/a (no coordinator) |
++| C4-S1 | `54fec3f` | S/1 | system | 120 | 103 | 0.858 | [0.785, 0.910] | 0 | valid |
++| C4-S1-baseline-source | `54fec3f` | S/1 | central baseline source | 120 | 116 | 0.967 | [0.917, 0.987] | 0 | n/a (no coordinator) |
++| C4-S1-baseline-single | `54fec3f` | S/1 | central baseline single | 120 | 69 | 0.575 | [0.486, 0.660] | 0 | n/a (no coordinator) |
++
++Per class (correct/n):
++
++| run | x-dept | fault | contra | temporal | origin+ | copies | coinc | single | denied | x-tenant |
++|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
++| C6-S1 | 40/40 | 10/10 | 10/10 | 10/10 | 8/8 | 2/7 | 3/10 | 2/10 | 7/10 | 4/5 |
++| C6-S1-baseline-source | 37/40 | 10/10 | 10/10 | 9/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C6-S1-baseline-single | 0/40 | 0/10 | 10/10 | 9/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C6abl-A1-S1 | 16/40 | 2/10 | 2/10 | 0/10 | 1/8 | 6/7 | 10/10 | 7/10 | 9/10 | 4/5 |
++| C6abl-A2-S1 | 40/40 | 10/10 | 10/10 | 10/10 | 8/8 | 2/7 | 3/10 | 2/10 | 7/10 | 4/5 |
++| C6abl-A3-S1 | 40/40 | 10/10 | 10/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C6abl-A4-S1 | 40/40 | 10/10 | 10/10 | 2/10 | 8/8 | 0/7 | 1/10 | 0/10 | 5/10 | 1/5 |
++| C6abl-A6-S1 | 40/40 | 10/10 | 10/10 | 10/10 | 8/8 | 2/7 | 3/10 | 2/10 | 7/10 | 4/5 |
++| C2a-M2 | 40/40 | 10/10 | 10/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C2a-M2-baseline-source | 39/40 | 10/10 | 10/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C2a-M2-baseline-single | 30/40 | 10/10 | 10/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C3-L3 | 40/40 | 10/10 | 10/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C3-L3-baseline-source | 40/40 | 10/10 | 9/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C3-L3-baseline-single | 30/40 | 10/10 | 9/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C4-S1 | 28/40 | 5/10 | 10/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C4-S1-baseline-source | 37/40 | 10/10 | 10/10 | 9/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++| C4-S1-baseline-single | 0/40 | 0/10 | 10/10 | 9/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
++
++**Reading the history.**
++- **C2a-M2 and C3-L3 used the first world generator** (`56f9832` / `36a9951`). That generator had no popular rivals and no
++  background corpus. Only ~400 of the 10,648 holders in the L world had any records. Both worlds turned out too easy:
++  - system 120/120 vs. central baseline 119/120 on each;
++  - so contract decisions C9 and C10 (§10) hardened the generator before the freeze.
++- **From C4-S1 on, every dev world is hardened.** On the same S/1 world:
++  - C4 (`54fec3f`) scored 103/120, against 116/120 for the central baseline. Its 17 misses were different-service claims
++    treated as contradictions (DEV_ANALYSIS_C4).
++  - C5's competing-findings rule (D19) fixed them.
++- **C3-L3 is the complete 10,000-user end-to-end run.** It ran on an earlier candidate and the sparse world, and is labelled dev.
++  - 10,648 holders created, 417 with records, 482 routed to, 319 activated;
++  - peak 518 open under the 1,500 bound;
++  - 120/120 correct, gate valid;
++  - 781 s, peak RSS 1.17 GB.
++- **Runs not tabulated as accuracy.** Each is in the ledger with its reason:
++  - S1 (first harness, 78/120): invalidated by harness review REVIEW_HARNESS.
++  - C1-S1: scorer/generator entity-format defect plus a heartbeat replay blackout; both were fixed before C2a.
++  - C4-M2, C5-M2, C5-L3 (first attempt): aborted by the disk allowance (ENOSPC).
++  - C5-L3 (second attempt): stopped by the orchestrator after its feed slowed tenfold (scale finding, ledger X046).
++  - C5-S1: crashed on an unisolated API timeout after 60 of 120 tasks. That crash led to harness fix H1.
++  - C5abl-A1/A2: stopped.
++  - Baselines whose system run aborted: kept as `*.unpaired`.
++
++## 5. Live language-model check (component level only)
++
++- **What ran:**
++  - Qwen3-4B-Instruct (llama.cpp, CPU) behind the product's model router;
++  - n = 40 answer-step calls on the holders that hold the gold evidence;
++  - details in `live/LIVE_ANSWER_CHECK.md`.
++- **Result:** the live model gave the gold answer in 13 of 17 gold-holder cases, against 17/17 for the deterministic provider.
++  It never gave a wrong option.
++- **Not an end-to-end number:** the CPU model was far too slow for a 120-task run.
++
++## 6. Reproduce
++
++```
++# from a checkout of the frozen commit (see impl_patches/README.md), anchored sources
++python research/mycelic_e2e/bench/run.py --size S --seed 1 --split dev --mode system --out RUN --anchor 2026-10-09T00:00:00+00:00
++python -m research.mycelic_e2e.bench.baseline_central RUN --authority-only
++python -m research.mycelic_e2e.bench.report RUN --finalize                       # score + architecture gate
++python -m research.mycelic_e2e.bench.baseline_central RUN --out RUN-baseline-source --variant source
++python -m research.mycelic_e2e.bench.report RUN-baseline-source --finalize
++python research/mycelic_e2e/bench/run.py ... --ablation A1                         # A1..A6
++python -m research.mycelic_e2e.tools.results_table RUN RUN-baseline-source ... --json OUT.json
++```
++
++The holdout was run once:
++- with `--split holdout`;
++- with `MYCELIC_E2E_HOLDOUT_BANK` pointing at the sealed bank (sha256 `6a5eabd3…`);
++- from a snapshot whose `.rev` equals the clean repository HEAD.
++
++The ledger guard (`bench/ledger.py`) refuses a second holdout run of the same commit, ablation, mode and variant.
+diff --git a/research/mycelic_e2e/plan/ANALYSIS_A4.md b/research/mycelic_e2e/plan/ANALYSIS_A4.md
+new file mode 100644
+index 0000000..9224050
+--- /dev/null
++++ b/research/mycelic_e2e/plan/ANALYSIS_A4.md
+@@ -0,0 +1,57 @@
++# Analysis: ablation A4 (index publication off) vs. architecture gate G8
++
++Analyst: ANALYST (`claude-sonnet-5-5`), read-only, dev runs only (C6-S1 vs C6abl-A4-S1, code `4c27744`, S/1, heartbeat 2 s).
++Written 2026-10-09 ~09:50 UTC. The analyst's Write tool refused report files, so the orchestrator transcribed the report
++verbatim. SQL helpers: orchestrator scratch `an_a4/q1.py`–`q5.py`. `7d2e63b` is identical to `4c27744` in every file
++involved; only `run.py` differs (API-error isolation), so the findings carry over to the candidate.
++
++## Summary
++1. **A4 patches only one of the three feeders of `OrgService.holder_heartbeat`.** The raw transport heartbeat
++   (holder/service.py:155-160 → discovery/engine.py:1333) and the shutdown beat (embedded.py:220) bypass `_heartbeat_stats`.
++2. **The term index flickers.** Every ~60 s the transport beat re-adds the terms and the next patched 2 s beat retracts them,
++   so the term index is populated for only ~2-8 s of each minute. The stop-time beat refills it at the end. G8 reads only
++   that final state (112/112).
++3. **At runtime A4 is a partial A1 (ranker off).**
++   - `rank_method` hypergraph routes: 2,510 of 2,516 (99.8 %) in the full run, 541 of 3,799 (14 %) under A4.
++   - The accuracy drop (96 → 77) on positives is entirely temporal: 10/10 → 2/10.
++   - Independent-support correctness: 76/78 → 22/70.
++4. **G8 cannot detect A4 as written.** It judges only the final coord.db, and its entity half is vacuous in this world
++   (0 expected holder-entity pairs under the default `entity_min_records` = 5).
++5. **Fix:** patch the sink instead (`hypergraph.upsert_term_index_sync` / `upsert_entity_index_sync` → no-ops, or wrap
++   `OrgService.holder_heartbeat`). G8's existing term-coverage check then fails with 0/112.
++
++## Details
++- **Sink.**
++  - All index writes go through `OrgService.holder_heartbeat` (org.py:503): entities at org.py:567-583 →
++    `hypergraph.upsert_entity_index_sync` (:417); terms at org.py:584-591 → `upsert_term_index_sync` (:482, which retracts
++    only when `snapshot_complete`).
++  - The only other caller is the withdraw helper (org.py:616).
++- **Feeders.**
++  - (a) The `heartbeat_once` callback goes through embedded.py:298-299 `_heartbeat_stats`. This is the path A4 patches.
++  - (b) The same `heartbeat_once` also publishes the raw stats as a transport heartbeat envelope, once per holder per minute
++    (msg_id `hb:<holder>:<minute>`, service.py:72), applied unfiltered by `LoopEngine` (engine.py:1333-1334). Not patched.
++  - (c) The shutdown beat (embedded.py:220) is not patched.
++  - The dormant-close beat (embedded.py:500) uses the patched function, but it never ran: `max_open_holders` = 0.
++- **Evidence (A4 coord.db).**
++  - term_index: 7,079 rows, 112 holders, 887 terms, identical to C6-S1.
++  - `holder.terms_published` audit rows: 3,024 under A4 vs 134 in C6-S1. Each holder has 27 events: 13 add/retract pairs,
++    one per minute, plus a final add at stop.
++  - The first publish came 54 s after routing started.
++- **Routing audit** (C6-S1 → A4):
++  - routes 24,824 → 37,654; `no_evidence` responses 20 % → 38 %;
++  - questions 2,516 → 3,799 (contradiction 1,340 → 1,942, verification 676 → 1,357, gap 500 → 500);
++  - model calls 35,576 → 51,018.
++  - The domains-only ranking is a fixed first-10-of-24 order, i.e. A1 behaviour for 86 % of routes.
++- **Support quality** (C6-S1 → A4):
++  - lineage exact 72/78 → 22/70;
++  - mean independent roots: temporal 3.0 → 0.4 (3 genuine), fault 4.0 → 2.3, contradiction 3.9 → 2.7,
++    cross_domain 2.98 → 2.35.
++  - Inference, not checked per holder: the domains-only pick misses the holders with rare-term evidence, so fewer
++    independent roots are reached; temporal tasks need all 3.
++- **Optional G8 hardening:**
++  - flag index instability (`holder.terms_published` events per holder);
++  - require a minimum share of hypergraph-ranked routes (healthy 99.8 %, A4 14 %).
++- **Related harness gap.** run.py:239-256 (readiness: "two identical heartbeat snapshots") hashes `ingest.entities` /
++  `ingest.terms` from stored stats. But org.py:541-546 strips those keys and keeps only `entities_reported` /
++  `terms_reported`, so the readiness check never covers index content. Hash the `*_reported` counts or query term_index
++  per holder instead.
+diff --git a/research/mycelic_e2e/plan/ANALYSIS_A5.md b/research/mycelic_e2e/plan/ANALYSIS_A5.md
+new file mode 100644
+index 0000000..c65701c
+--- /dev/null
++++ b/research/mycelic_e2e/plan/ANALYSIS_A5.md
+@@ -0,0 +1,40 @@
++# Analysis: ablation A5 (authorized routing off) vs. architecture gate G4
++
++Analyst: ANALYST-2 (`claude-sonnet-5-5`), read-only, dev runs only (C7-S1 vs C7abl-A5-S1, code `7d2e63b`, S/1). Written
++2026-10-09 ~10:18 UTC and transcribed by the orchestrator. Counts come from each run's coord.db, opened read-only, plus the real,
++unpatched `Authorizer` run on a backup copy.
++
++## Summary
++1. **A5 patched the wrong symbol.** It replaces `Authorizer.can_route`. The routing path calls `Authorizer._can_route`
++   directly:
++   - `inquiry/service.py:395` `candidate_holders`;
++   - `can_route_many` (`authz.py:506-510`), used by `discovery/engine.py:321` `domains_for_goal`.
++
++   The patch was live (`ablation_patches` = `mycelic.authz.Authorizer.can_route`; all 25,004 `response.accept` audit rows read
++   "ok (ablation A5 ...)"). But it only loosened redundant use-time rechecks (`service.py:554`, `599`; `engine.py:1174`; …).
++2. **C7-S1 and A5 route the same way.**
++   - 9.87 holders per question in both runs.
++   - The authorized pool averages ~25.5 of each tenant's 68 holders in both.
++   - The question.route audit rows still list scope and domain rejections at the same rates (A5: 23,082 "owner outside the
++     question's scope", against 24,300 in C7-S1).
++   - Of the 110 task root questions, 101 differ in 1-2 of their 10 holders. That is tie-break noise from per-run random
++     `holder_id`s, not an A5 effect.
++3. **G4's replay is genuine and could have caught a leak.**
++   - `arch_gate.py:701` `_replay_can_route` runs the real `can_route` in the separate gate process (report.py never imports
++     ablations) against a backup of coord.db, with `published_domains` rewound to route time.
++   - ANALYST-2's own replay in a fresh process: 25,004 checked, 0 denied. A check that also passes the asker, for the 1,100
++     user-asked routes: 0 denied.
++   - The org is static in this world (0 revocations), so the final state equals the as-of state.
++4. **Fix: patch `Authorizer._can_route`**, the single choke point, and record how often the replacement is reached on the route
++   path, so an ablation that is never reached is visible.
++   - Rough counterfactual: ranking 300 sampled A5 questions over the whole tenant pool put 62 of 3,000 picks (2.1 %) outside
++     the real `can_route`. With term ids off (no secret key), this is approximate.
++   - That would mean hundreds of G4 replay denials over ~25k routes.
++   - Accuracy may still stay high, because holder-side `_policy_reason` (`evidence/service.py:1406`) and the claim audience
++     filters sit downstream.
++5. **The `denied` task class does not test routing reach.**
++   - Its hidden holders sit inside the asker's scope, and the denial is at record level (`vis == "members"`,
++     `world.py:856-872`).
++   - For example, dev-105 in A5 routed to 2 hidden holders, both legitimately authorized by `can_route`.
++   - To make routing leaks matter for accuracy, the world needs tasks whose only evidence holder is outside the asker's scope
++     closure and whose domain matches the question.
+diff --git a/research/mycelic_e2e/tools/verified/gen_gate_section.py b/research/mycelic_e2e/tools/verified/gen_gate_section.py
+new file mode 100644
+index 0000000..97d6f9a
+--- /dev/null
++++ b/research/mycelic_e2e/tools/verified/gen_gate_section.py
+@@ -0,0 +1,41 @@
++"""ARCHITECTURE_AUDIT §4 from each run's arch_gate.json. Usage: python gen_gate_section.py OUT.md RUN_DIR... (holdout dirs: aggregate counts only)."""
++import json
++import sys
++from pathlib import Path
++
++GATES = [f"G{i}" for i in range(1, 11)]
++KEYS = [("holders_created", "holders"), ("holders_with_records", "with records"), ("holders_routed", "routed to"), ("holders_activated", "activated"),
++        ("questions", "questions"), ("routes", "routes"), ("records_ingested", "records ingested"), ("ingest_rejections", "rejections")]
++
++
++def main() -> None:
++    out, runs = sys.argv[1], [Path(p) for p in sys.argv[2:]]
++    lines = ["| run | " + " | ".join(GATES) + " | valid |", "|---|" + "---|" * (len(GATES) + 1)]
++    counts = ["| run | " + " | ".join(k[1] for k in KEYS) + " | hyperedges (support / lineage / conflict / discovery) | rank methods (G4) |",
++              "|---|" + "---:|" * len(KEYS) + "---|---|"]
++    details = []
++    for d in runs:
++        p = d / "arch_gate.json"
++        if not p.exists():
++            continue
++        g = json.loads(p.read_text())
++        st = {k: (v.get("status") or ("pass" if v.get("ok") else "?")) for k, v in g["gates"].items()}
++        lines.append(f"| {d.name} | " + " | ".join({"pass": "pass", "fail": "**FAIL**"}.get(st.get(k), st.get(k, "-")) for k in GATES)
++                     + f" | {'yes' if g['valid'] else 'no: ' + ', '.join(g['failed'])} |")
++        c = g.get("counts", {})
++        he = c.get("hyperedges_by_kind", {})
++        g4 = str(g["gates"].get("G4", {}).get("detail", ""))
++        rm = g4[g4.find("rank_method"):].split(";")[0] if "rank_method" in g4 else "-"
++        counts.append(f"| {d.name} | " + " | ".join(str(c.get(k[0], "-")) for k in KEYS)
++                      + f" | {he.get('support', 0)} / {he.get('lineage', 0)} / {he.get('conflict', 0)} / {he.get('discovery', 0)} | {rm} |")
++        if not d.name.startswith("H-"):
++            details.append(f"- **{d.name}**: " + "; ".join(f"{k} {str(g['gates'][k].get('detail', ''))[:140]}" for k in GATES if k in g["gates"]))
++    text = "\n".join(lines) + "\n\nKey counts from the same reports:\n\n" + "\n".join(counts) + "\n"
++    if details:
++        text += "\nGate details (dev runs; truncated to 140 characters per gate):\n\n" + "\n".join(details) + "\n"
++    Path(out).write_text(text)
++    print("wrote", out)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/research/mycelic_e2e/tools/verified/gen_verified.py b/research/mycelic_e2e/tools/verified/gen_verified.py
+new file mode 100644
+index 0000000..55f554d
+--- /dev/null
++++ b/research/mycelic_e2e/tools/verified/gen_verified.py
+@@ -0,0 +1,90 @@
++"""Compose research/mycelic_e2e/VERIFIED_RESULTS.md from results_table JSON (no hand-transcribed numbers).
++
++Usage: python gen_verified.py OUT.md rt_holdout.json rt_dev_final.json rt_abl_final.json rt_c6.json rt_prior.json
++Any JSON may be missing (the section then says so)."""
++from __future__ import annotations
++
++import json
++import sys
++from pathlib import Path
++
++ORDER = ["cross_domain", "fault", "contradiction", "temporal", "common_origin_pos", "common_origin_copies", "coincidence",
++         "single_domain", "denied", "cross_tenant"]
++SHORT = {"cross_domain": "x-dept", "fault": "fault", "contradiction": "contra", "temporal": "temporal", "common_origin_pos": "origin+",
++         "common_origin_copies": "copies", "coincidence": "coinc", "single_domain": "single", "denied": "denied", "cross_tenant": "x-tenant"}
++REV = {"C1-S1": "1b74545", "C2a-M2": "56f9832", "C3-L3": "36a9951", "C4-S1": "54fec3f", "C6-S1": "4c27744", "C7-S1": "7d2e63b",
++       "H-M101": "7f37551"}
++ABL = {"A1": "routing ranker off (first N authorized holders)", "A2": "root-aware support off (count references, not source roots)",
++       "A3": "verification questions off", "A4": "holder entity/term index publication off", "A5": "authorized routing off (any holder of the tenant)",
++       "A6": "ingestion dedupe off"}
++
++
++def load(p: str) -> list[dict]:
++    try:
++        return json.loads(Path(p).read_text())
++    except (OSError, ValueError):
++        return []
++
++
++def rev(run: str) -> str:
++    for k, v in REV.items():
++        if run.startswith(k):
++            return v
++    if run.startswith("C7abl-A5fix"):
++        return "7d2e63b + A5 fix"
++    if run.startswith("C7abl"):
++        return "7d2e63b"
++    if run.startswith("C6abl"):
++        return "4c27744"
++    return "?"
++
++
++def gate(r: dict) -> str:
++    if r["mode"] == "baseline":
++        return "n/a (no coordinator)"
++    if r["gate_valid"] is True:
++        return "valid"
++    if r["gate_valid"] is False:
++        return "fails " + ", ".join(r["gate_failed"] or [])
++    return "not run"
++
++
++def table(rows: list[dict], *, per_class: bool = True) -> str:
++    head = "| run | code | size/seed | mode | n | correct | accuracy | 95 % Wilson | disclosures | gate |"
++    sep = "|---|---|---|---|---:|---:|---:|---|---:|---|"
++    out = [head, sep]
++    for r in rows:
++        mode = r["mode"] + (f" {r['ablation']}" if r.get("ablation") else "")
++        if r["mode"] == "baseline":
++            mode = "central baseline " + ("source" if "source" in r["run"] else "single" if "single" in r["run"] else "")
++        out.append(f"| {r['run']} | `{rev(r['run'])}` | {r['size']}/{r['seed']} | {mode} | {r['n']} | {r['correct']} | {r['accuracy']:.3f} | "
++                   f"[{r['ci'][0]:.3f}, {r['ci'][1]:.3f}] | {r['disclosures']} | {gate(r)} |")
++    if per_class and rows:
++        out += ["", "Per class (correct/n):", "", "| run | " + " | ".join(SHORT[c] for c in ORDER) + " |", "|---|" + "---:|" * len(ORDER)]
++        for r in rows:
++            pc = r["per_class"]
++            out.append(f"| {r['run']} | " + " | ".join(f"{pc[c][0]}/{pc[c][1]}" if c in pc else "-" for c in ORDER) + " |")
++    return "\n".join(out)
++
++
++def main() -> None:
++    out, hold, dev, abl, c6, prior = sys.argv[1:7]
++    H, D, A, C6, P = load(hold), load(dev), load(abl), load(c6), load(prior)
++    parts = [open(Path(__file__).with_name("verified_head.md")).read().rstrip(), ""]
++    parts += ["## 1. Holdout: the frozen candidate, run once", ""]
++    parts += [table(H) if H else "_The holdout run had not finished when this file was generated._", ""]
++    parts += [open(Path(__file__).with_name("verified_holdout_notes.md")).read().rstrip() if Path(__file__).with_name("verified_holdout_notes.md").exists() else "", ""]
++    parts += ["## 2. Dev: the candidate code on the dev world S/1", "", table(D) if D else "_missing_", "",
++              open(Path(__file__).with_name("verified_dev_notes.md")).read().rstrip(), ""]
++    parts += ["## 3. Ablations of the candidate code (dev S/1, paired with C7-S1)", "",
++              "\n".join(f"- **{k}**: {v}" for k, v in ABL.items()), "", table(A) if A else "_The ablation runs had not finished._", "",
++              open(Path(__file__).with_name("verified_abl_notes.md")).read().rstrip(), ""]
++    parts += ["## 4. Earlier candidates (history; every row a complete, scored run)", "", table(C6 + P), "",
++              open(Path(__file__).with_name("verified_history_notes.md")).read().rstrip(), ""]
++    parts += [open(Path(__file__).with_name("verified_tail.md")).read().rstrip(), ""]
++    Path(out).write_text("\n".join(parts))
++    print("wrote", out)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/research/mycelic_e2e/tools/verified/verified_abl_notes.md b/research/mycelic_e2e/tools/verified/verified_abl_notes.md
+new file mode 100644
+index 0000000..6e3c4c3
+--- /dev/null
++++ b/research/mycelic_e2e/tools/verified/verified_abl_notes.md
+@@ -0,0 +1,42 @@
++**Reading the ablations** (each row is the candidate code with ONE mechanism replaced in-process by `bench/ablations.py`; same
++world, harness and scorer as C7-S1 = 120/120):
++- **A1, routing ranker off: the largest loss.** Questions go to the first N authorized holders in registry order.
++  - The loss falls on cross-department positives (16/40), temporal (0/10), fault (2/10), contradiction (2/10) and
++    common-origin positives (1/8).
++  - The gate stays valid because G4 skips its ranker assertion under A1 by design.
++  - Ranked routing over the hypergraph's entity and term incidence is what makes the cross-department answers reachable.
++- **A2, root-aware support off** (count references, not independent source roots).
++  - Copies-only tasks fail (4/7): forwarded copies now look like independent corroboration.
++  - G3 (support/roots consistency) fails, so the gate catches the ablation.
++- **A3, verification questions off: no loss on this world** (120/120).
++  - Verification is a safety mechanism (blind re-checks of a finding by other holders). The deterministic dev world never
++    makes it decisive.
++  - It does cost load: the full system asked 676 verification questions in C6-S1 (analyst's count, `plan/ANALYSIS_A4.md`).
++- **A4, holder index publication off: partial.**
++  - Temporal tasks fail (2/10) and one common-origin positive is lost (111/120).
++  - The ablation removes only one of three index feeders, so G8 (which reads the final index) cannot detect it; see
++    `plan/ANALYSIS_A4.md`.
++  - At runtime most routes fall back to domain-only ranking.
++- **A5, authorized routing off** (any holder of the tenant). Two rows:
++  - **C7abl-A5-S1 (original A5): did not reach routing.** It replaced `Authorizer.can_route`, but routing calls
++    `Authorizer._can_route` directly. It changed only redundant answer-time re-checks, so the run equals the full system
++    (120/120, G4 valid with 0 replay denials). It is reported as an ineffective ablation, not as evidence; see
++    `plan/ANALYSIS_A5.md`.
++  - **C7abl-A5fix-S1 (corrected A5, reviewed).** It replaces `_can_route` and counts how often the replacement loosened a
++    decision (155,645 of 243,748 calls).
++    - **G4 fails** with 13,554 unauthorized routes in the as-of replay, so the gate is load-bearing for authorization.
++    - Accuracy falls to 113/120 (cross-department 33/40).
++    - Disclosures stay at 0: the holder-side answer policy and the claim audience filters still apply downstream.
++    - The fix landed after the freeze and after the holdout baselines started. It is harness-only (ablations), and the
++      candidate is unchanged.
++- **A6, ingestion dedupe off.**
++  - Accuracy is unaffected on this world (120/120). The injected duplicates are few, and why they do not change answers was not
++    analysed.
++  - G10 (fault dispositions) fails, so the gate catches the ablation, and the run is not a valid full-system result.
++- **Paired C6 ablations.** The same ablations were also run on `4c27744`, before harness fix H2: A1 57, A2 96 (G3 fails),
++  A3 120, A4 77, A6 96 (G10 fails).
++  - Their expected-abstain classes carry the H2 measurement gap, like C6-S1 (96/120).
++  - Against C6-S1, A1 and A4 lose accuracy as they do here, and A2 and A6 equal C6-S1.
++  - A3 scores 120, above C6-S1, and records 0 unchecked references. The likely reason, inferred and not verified: with no
++    verification questions, the goal-level discovery references that the pre-H2 harness never checked are not produced.
++    Treat this as a measurement artefact, not a gain from turning verification off; C7abl-A3 = C7-S1 = 120 agrees.
+diff --git a/research/mycelic_e2e/tools/verified/verified_dev_notes.md b/research/mycelic_e2e/tools/verified/verified_dev_notes.md
+new file mode 100644
+index 0000000..e166906
+--- /dev/null
++++ b/research/mycelic_e2e/tools/verified/verified_dev_notes.md
+@@ -0,0 +1,14 @@
++**Reading.**
++- C7-S1 is the frozen candidate's code (`7d2e63b`; the freeze commit `7f37551` adds documents only) on the dev world S/1:
++  112 people, 2 tenants, 136 holders, 1,572 records, with popular rivals and a background corpus.
++- The candidate was developed against this world: the C5 rules came from the C4-S1 failure analysis
++  (`plan/DEV_ANALYSIS_C4.md`). Its dev score is therefore optimistic by construction. The holdout (§1) is the test.
++- On this world the primary centralized baseline (`source` variant: one central store with every record's ACL, the same
++  ingestion, provider, evidence budget, gate and scorer) scores 116/120. The `single`-response variant scores 69/120.
++- **C6-S1 vs C7-S1** (same system code, harness differs by H1/H2):
++  - C6-S1 (`4c27744`) scored 96/120 under the frozen scorer. All 24 misses are expected-abstain tasks. In each, the answer
++    extraction was right (abstain), but the scorer counted references that appear only in goal-level discovery details as
++    "raw unchecked" disclosures (1,039 references; foreign 0, open 0), because the harness never raw-checked them.
++  - Harness fix H2 added those checks (REVIEW_H1.md, H2 section). C7-S1 checks every visible reference and records 0
++    disclosures.
++  - C6-S1 is reported as measured. It cannot be re-scored, because the checks were never made.
+diff --git a/research/mycelic_e2e/tools/verified/verified_head.md b/research/mycelic_e2e/tools/verified/verified_head.md
+new file mode 100644
+index 0000000..89a963a
+--- /dev/null
++++ b/research/mycelic_e2e/tools/verified/verified_head.md
+@@ -0,0 +1,34 @@
++# Verified results: Mycelic-E2E v1 (2026-10-09)
++
++**How these numbers were produced.**
++- Every accuracy figure below comes from `python -m research.mycelic_e2e.tools.results_table <run dirs> --json`. The tool re-runs
++  the isolated scorer (`bench/score.py`) on each run's asker views and reads that run's architecture-gate report
++  (`arch_gate.json`, written by `bench/arch_gate.py`).
++- `tools/verified/gen_verified.py` composed the tables in this file from that JSON. The narrative notes between the tables
++  quote further figures from the same runs' manifests and gate reports.
++- The dev runs' `score.json`, `arch_gate.json`, `run_manifest.json` and `report.md` are kept under `results/runs/<run>/`.
++- Holdout tasks, gold and views are **not** committed, so no holdout content enters the repository. Only aggregate numbers and
++  gate verdicts are reported for the holdout.
++
++**Labels that apply to every row.**
++- **Provider:** `deterministic-provider`, i.e. `mycelic/models/fake.py` (sha256 `0dad30d6…`), lexical rules. No language model.
++  The record templates were written to satisfy those rules (BENCHMARK_CONTRACT §2). These numbers therefore measure:
++  - routing, authorization and isolation;
++  - independence and lineage;
++  - fault handling;
++  - the commit gate;
++  
++  not language understanding.
++- **Execution:** single process, SQLite transport (no NATS), one in-process API server.
++- **Host:** cloud container, 4 vCPU, 15 GB RAM. The MacBook bridge environment never came up.
++- **Primary metric (contract §5):** correct / all 120 tasks of the world, with a 95 % Wilson interval. An API error, timeout or
++  missing view counts as wrong.
++  - A positive task is correct only if the single option extracted from the asker's own supported claims is the gold entity.
++  - An expected-abstain task is correct only if nothing is extracted **and** the asker's output has no reference the asker
++    may not reach, **and** raw access to every visible reference is refused where the asker lacks it.
++- **"disclosures"** is the scorer's count of such references: foreign refs, forbidden markers, open raw access, and visible
++  references whose raw access was never checked. The last kind is counted conservatively as a disclosure.
++- **Gate (§8):**
++  - The scored number of a system run is published as full-system accuracy only if G1–G10 pass.
++  - Ablation rows are expected to fail the gate their ablation targets.
++  - Central-baseline runs have no coordinator, so the gate does not apply.
+diff --git a/research/mycelic_e2e/tools/verified/verified_history_notes.md b/research/mycelic_e2e/tools/verified/verified_history_notes.md
+new file mode 100644
+index 0000000..38e485a
+--- /dev/null
++++ b/research/mycelic_e2e/tools/verified/verified_history_notes.md
+@@ -0,0 +1,22 @@
++**Reading the history.**
++- **C2a-M2 and C3-L3 used the first world generator** (`56f9832` / `36a9951`). That generator had no popular rivals and no
++  background corpus. Only ~400 of the 10,648 holders in the L world had any records. Both worlds turned out too easy:
++  - system 120/120 vs. central baseline 119/120 on each;
++  - so contract decisions C9 and C10 (§10) hardened the generator before the freeze.
++- **From C4-S1 on, every dev world is hardened.** On the same S/1 world:
++  - C4 (`54fec3f`) scored 103/120, against 116/120 for the central baseline. Its 17 misses were different-service claims
++    treated as contradictions (DEV_ANALYSIS_C4).
++  - C5's competing-findings rule (D19) fixed them.
++- **C3-L3 is the complete 10,000-user end-to-end run.** It ran on an earlier candidate and the sparse world, and is labelled dev.
++  - 10,648 holders created, 417 with records, 482 routed to, 319 activated;
++  - peak 518 open under the 1,500 bound;
++  - 120/120 correct, gate valid;
++  - 781 s, peak RSS 1.17 GB.
++- **Runs not tabulated as accuracy.** Each is in the ledger with its reason:
++  - S1 (first harness, 78/120): invalidated by harness review REVIEW_HARNESS.
++  - C1-S1: scorer/generator entity-format defect plus a heartbeat replay blackout; both were fixed before C2a.
++  - C4-M2, C5-M2, C5-L3 (first attempt): aborted by the disk allowance (ENOSPC).
++  - C5-L3 (second attempt): stopped by the orchestrator after its feed slowed tenfold (scale finding, ledger X046).
++  - C5-S1: crashed on an unisolated API timeout after 60 of 120 tasks. That crash led to harness fix H1.
++  - C5abl-A1/A2: stopped.
++  - Baselines whose system run aborted: kept as `*.unpaired`.
+diff --git a/research/mycelic_e2e/tools/verified/verified_holdout_notes.md b/research/mycelic_e2e/tools/verified/verified_holdout_notes.md
+new file mode 100644
+index 0000000..eb52fde
+--- /dev/null
++++ b/research/mycelic_e2e/tools/verified/verified_holdout_notes.md
+@@ -0,0 +1,31 @@
++**The holdout system run is not a valid full-system result.** Its architecture gate failed **G7**, so under contract §8 the
++scorer's 120/120 is **not** published as full-system accuracy. The row above shows what the scorer computed, labelled with
++the gate verdict.
++
++**What G7 found.**
++- Three claims in the asker views (tasks holdout-033, -036, -074) were `hypothesis` both in the view and in the final
++  coordinator database, at version 1 in both. Their independent-root counts grew after the view was captured (5→12, 5→6,
++  2→8), with no version bump or revision row to record the change.
++- The writer is `KnowledgeService.sync_support_sync` (`mycelic/knowledge/service.py:537`), added tonight with the hypergraph
++  support invariant. It updates `claims.support` in place.
++- G7 did what it is for: it found an audit-trail defect in the product. Hypothesis claims are never extracted (only
++  `supported` claims count), so no scored answer depended on these three. The verdict does not depend on that.
++- The holdout is not re-run (one shot per candidate), and no candidate change followed it.
++
++**The rest of the evidence for the run.**
++- **Every other gate passed:** G1–G6, G8–G10.
++  - Connector provenance of all 6,325 ingested records.
++  - One store per holder.
++  - Support and roots consistent with the hypergraph.
++  - All 19,921 routes authorized in the as-of replay.
++  - Every claim with gate and revision rows; truthful provider label.
++  - Hypergraph present; lineage resolvable.
++  - Every injected fault disposed.
++- **Disclosures:** 0. Every visible reference was raw-checked.
++- **API errors:** 0.
++- **Support quality:** independent-support counts correct on 72/78 positives; lineage exact on 72/78.
++- **Run shape:** 1,120 holders created, 1,117 with records, 555 routed to, 488 activated; 2,030 questions; 2,824 s; peak RSS
++  2.4 GB.
++- **Comparison on the same holdout world:** the primary centralized baseline (`source`) scores 114/120 = 0.950
++  [0.895, 0.977], missing 5 cross-department tasks and 1 fault task. The `single` variant scores 70/120.
++- **The provider caveat applies throughout:** deterministic provider, single process.
+diff --git a/research/mycelic_e2e/tools/verified/verified_tail.md b/research/mycelic_e2e/tools/verified/verified_tail.md
+new file mode 100644
+index 0000000..21136be
+--- /dev/null
++++ b/research/mycelic_e2e/tools/verified/verified_tail.md
+@@ -0,0 +1,29 @@
++## 5. Live language-model check (component level only)
++
++- **What ran:**
++  - Qwen3-4B-Instruct (llama.cpp, CPU) behind the product's model router;
++  - n = 40 answer-step calls on the holders that hold the gold evidence;
++  - details in `live/LIVE_ANSWER_CHECK.md`.
++- **Result:** the live model gave the gold answer in 13 of 17 gold-holder cases, against 17/17 for the deterministic provider.
++  It never gave a wrong option.
++- **Not an end-to-end number:** the CPU model was far too slow for a 120-task run.
++
++## 6. Reproduce
++
++```
++# from a checkout of the frozen commit (see impl_patches/README.md), anchored sources
++python research/mycelic_e2e/bench/run.py --size S --seed 1 --split dev --mode system --out RUN --anchor 2026-10-09T00:00:00+00:00
++python -m research.mycelic_e2e.bench.baseline_central RUN --authority-only
++python -m research.mycelic_e2e.bench.report RUN --finalize                       # score + architecture gate
++python -m research.mycelic_e2e.bench.baseline_central RUN --out RUN-baseline-source --variant source
++python -m research.mycelic_e2e.bench.report RUN-baseline-source --finalize
++python research/mycelic_e2e/bench/run.py ... --ablation A1                         # A1..A6
++python -m research.mycelic_e2e.tools.results_table RUN RUN-baseline-source ... --json OUT.json
++```
++
++The holdout was run once:
++- with `--split holdout`;
++- with `MYCELIC_E2E_HOLDOUT_BANK` pointing at the sealed bank (sha256 `6a5eabd3…`);
++- from a snapshot whose `.rev` equals the clean repository HEAD.
++
++The ledger guard (`bench/ledger.py`) refuses a second holdout run of the same commit, ablation, mode and variant.
+-- 
+2.43.0
+

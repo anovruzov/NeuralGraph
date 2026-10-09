@@ -1,7 +1,7 @@
 From 6fc3e38ec99c3e3d420e79904542014d07f53ded Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 09:04:19 +0000
-Subject: [PATCH 41/52] Ledger: holdout bank generation smoke at non-holdout
+Subject: [PATCH 41/53] Ledger: holdout bank generation smoke at non-holdout
  seeds (counts only)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

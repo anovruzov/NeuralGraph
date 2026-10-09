@@ -1,7 +1,7 @@
 From c84230c007d608634c5d150b3249581a2fc0a63c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 08:13:24 +0000
-Subject: [PATCH 31/52] Clamp a stored far-future heartbeat time (L1); cache
+Subject: [PATCH 31/53] Clamp a stored far-future heartbeat time (L1); cache
  deny-pattern record scans
 
 Engineer: WP1 (claude-sonnet-5-5); full suite 511 passed, 7 skipped. Includes REVIEWER-2's re-review of

@@ -141,3 +141,15 @@ generated. Each came from a review finding or an analysis of DEV runs. None came
 | per-task timeout, drain budget | wave 15 tasks; `--task-timeout 180` s per wave; `--question-timeout 60` s; `--heartbeat 2` s; `--n-ticks 2` loop drains for goal-only tasks; `--feed-concurrency 6`; readiness = two identical heartbeat snapshots (§10 C4) |
 | evaluation order | system run → raw/reach authority → score + gate of the system run → central baselines (`source`, `single`) → their scores. The failures are not inspected for tuning; no candidate change follows the holdout. |
 | host | cloud container, 4 vCPU, 15 GB RAM, ~40 GB disk allowance (MacBook bridge unreachable, see ORCHESTRATION.md). Dev runs (C7-S1's central baselines, dev ablations on S/1) may run beside the holdout run, at most four benchmark processes in total; the concurrent load is recorded in the ledger. |
+
+## 11. Post-holdout record (appended after the holdout; §1–§10 unchanged)
+
+- **The holdout ran once.** Run H-M101: frozen commit `7f37551`, world M seed 101, 09:41–10:31 UTC. Ledger rows
+  `20261009T094105Z-holdout-system-full-sM-101-6addaf` (system), `…-454802` (baseline source) and `…-97530f` (baseline
+  single). At every start the repository was clean, the snapshot `.rev` equalled HEAD, and the bank hash was `ok`.
+- **System:** scorer 120/120, disclosures 0, API errors 0. Architecture gate **invalid**: G7 failed; G1–G6 and G8–G10 passed.
+  Under §8 the system score is **not published as full-system accuracy**. Cause: VERIFIED_RESULTS §1, ARCHITECTURE_AUDIT §5.
+- **Central baselines:** `source` 114/120 = 0.950, `single` 70/120 = 0.583.
+- **Post-freeze harness change (ablations only, reviewed):** A5 now replaces `Authorizer._can_route` and records how often it
+  was reached. It was committed after the holdout baselines had started and is not used by any holdout run.
+

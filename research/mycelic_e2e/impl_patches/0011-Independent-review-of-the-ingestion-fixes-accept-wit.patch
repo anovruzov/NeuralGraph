@@ -1,7 +1,7 @@
 From b8892eb6f1b1be2f7c84deb521cc47d4c5518381 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 06:28:17 +0000
-Subject: [PATCH 11/52] Independent review of the ingestion fixes: accept with
+Subject: [PATCH 11/53] Independent review of the ingestion fixes: accept with
  fixes (copies must not add roots)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

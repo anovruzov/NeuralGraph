@@ -1,7 +1,7 @@
 From 7d2e63bc765d9adffd3e34c93bdb2c7cb4351fc3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 09:29:22 +0000
-Subject: [PATCH 49/52] Harness: raw-check every evidence ref visible in
+Subject: [PATCH 49/53] Harness: raw-check every evidence ref visible in
  discovery details (H2)
 
 score.all_visible_refs counts the references of claims, view["evidence"] and

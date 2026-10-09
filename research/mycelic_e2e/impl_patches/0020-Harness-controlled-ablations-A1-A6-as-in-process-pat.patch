@@ -1,7 +1,7 @@
 From 147324002ff6b2b7371c4e4d65ccc68d5d2409f1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 07:04:06 +0000
-Subject: [PATCH 20/52] Harness: controlled ablations A1-A6 as in-process
+Subject: [PATCH 20/53] Harness: controlled ablations A1-A6 as in-process
  patches recorded in the run manifest
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

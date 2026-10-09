@@ -1,7 +1,7 @@
 From fe8adfa996c739229bfacadb4b59a63fc9199a23 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 09:20:00 +0000
-Subject: [PATCH 46/52] Harness: a per-task API error or timeout makes that
+Subject: [PATCH 46/53] Harness: a per-task API error or timeout makes that
  task wrong instead of aborting the run (H1)
 
 The dev run C5-S1 died in wave 5: one aiohttp TimeoutError (the API was starved

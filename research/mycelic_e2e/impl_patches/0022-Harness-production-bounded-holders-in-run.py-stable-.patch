@@ -1,7 +1,7 @@
 From 9d902dda771b72f96ac7b42267cb13c36decc87f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 07:45:03 +0000
-Subject: [PATCH 22/52] Harness: production bounded holders in run.py,
+Subject: [PATCH 22/53] Harness: production bounded holders in run.py,
  stable-heartbeat wait, entity vocabulary format fix; reviews of 1b74545
 
 run.py --max-open-holders uses the product's EmbeddedHolders bound (dormant holders woken by their

@@ -1,7 +1,7 @@
 From 46ebc4272abc7940deceae0e0d3047281a0ddf88 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 08:00:53 +0000
-Subject: [PATCH 28/52] Re-reviews of 36a9951: scale fixes accepted; heartbeat
+Subject: [PATCH 28/53] Re-reviews of 36a9951: scale fixes accepted; heartbeat
  clock ordering and deny phrases still blocking
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,7 +1,7 @@
 From 7f375512ebfd32aa47d57de4ab3d627de516666e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 09:40:53 +0000
-Subject: [PATCH 51/52] Freeze Mycelic-E2E v1: candidate C7, one pre-registered
+Subject: [PATCH 51/53] Freeze Mycelic-E2E v1: candidate C7, one pre-registered
  holdout world (M, seed 101)
 
 Contract section 9 records the candidate code (C5 + K1 + K1b + observe query

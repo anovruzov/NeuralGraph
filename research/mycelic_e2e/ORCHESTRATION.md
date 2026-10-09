@@ -42,6 +42,14 @@ The user asked for the MacBook Air to run the work. A session was created in the
 
 Cycle: planner hypothesis → engineer patch → reviewer reproduction → orchestrator accept/reject → next task.
 
+Agents as they reported their model ids during the night (the ledger names each contribution):
+- **Planner:** `claude-fable-5-1` (PLAN_v1, DEV_ANALYSIS_S1, DEV_ANALYSIS_C4).
+- **Engineers and analysts, all `claude-sonnet-5-5`:** ENGINEER-A, -B, -C and -E (trace, ingestion, scale), WP1 (hypergraph,
+  routing, C5, K1, K1b, H1, H2, A5 fix), WP2 (generator), WP3 (evaluator, gate, ledger, holdout guard), ENGINEER-3 (observe
+  query fix), ANALYST and ANALYST-2 (read-only analyses of A4 and A5).
+- **Reviewers, all `claude-opus-5-5`:** REVIEWER-1, -2, -3 and -4.
+- **Orchestrator:** this session, `claude-opus-5-5`.
+
 ## Benchmark jobs found at the start (custody)
 
 | job | where | state at 05:3x UTC | action |

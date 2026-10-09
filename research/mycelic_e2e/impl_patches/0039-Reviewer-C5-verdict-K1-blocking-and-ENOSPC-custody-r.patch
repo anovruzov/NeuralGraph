@@ -1,7 +1,7 @@
 From 83744d68ad98a76adc2e9b552ccde2a6ef0ca118 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 08:59:54 +0000
-Subject: [PATCH 39/52] Reviewer C5 verdict (K1 blocking) and ENOSPC custody
+Subject: [PATCH 39/53] Reviewer C5 verdict (K1 blocking) and ENOSPC custody
  rows
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
