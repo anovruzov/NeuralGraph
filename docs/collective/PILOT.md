@@ -81,12 +81,13 @@ field.
   are far too few, and no found count here beats chance (p 0.42 to 0.73). With a 26-week look-back and a few alerts a
   week, randomly timed alerts also land before most issues. A real audit needs your history: tens of issues and years
   of records.
-- **On real data so far:** two public replays, and neither found recalls earlier than chance.
+- **On real data so far:** public replays in two fields, and none found a recall or investigation earlier than chance.
   - The same pipeline over two years of one device manufacturer's public FDA reports, with eight recalls
     (`docs/lab/RESULTS.md`, run 4).
   - This audit, run unchanged, over two years of six car makes' public NHTSA complaints (63,235, each state a site),
     with 896 recall outcomes. It flagged 14 before the recall, where randomly timed alerts find about 30, and 51 in
-    the 26 weeks after (`docs/collective/replay/vehicles/CHOICE-V001.md` and `CHOICE-V002.md`).
+    the 26 weeks after. With the regulator's defect investigations as the outcomes instead, it flagged 6 of 126,
+    where chance finds 9 (`docs/collective/replay/vehicles/CHOICE-V001.md` to `CHOICE-V003.md`).
 
   Public reports carry far less than your own complaint, warranty and service files, and states are not your sites.
   That is why the pilot runs on yours, and why its answer may well be no.

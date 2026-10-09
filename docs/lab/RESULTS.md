@@ -184,6 +184,12 @@ The pre-set criterion was Fisher's combined p below 0.05/3 per channel. It was n
 every channel. X found 9 where 19.51 were expected, S 8 where 19.03 were, R 10 where 23.63 were, and no make beat
 chance. Across all six makes, X flagged 14 of 896 outcomes before the recall and 51 in the 26 weeks after it.
 
+**Public replay V003** ([37871956063](https://github.com/anovruzov/NeuralGraph/actions/runs/37871956063);
+`docs/collective/replay/vehicles/CHOICE-V003.md`, the fifth real-data test, declared as such before the run): the
+same six makes, with NHTSA's preliminary evaluations and defect petitions as the outcomes instead of recalls (22
+investigations in scope, 126 outcomes). The same criterion was not met: combined p above 0.9999 in every channel. X
+found 6 where 9.07 were expected, and alerted after 17 of the 126 had opened.
+
 ## What has not run
 
 - **A replay with a model reading real narratives**, and replays of other manufacturers. **N1 and E1 on real
