@@ -1,0 +1,329 @@
+From a2e0a91d60723ccae046bc6bbba66408a66017b0 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 06:19:18 +0000
+Subject: [PATCH 10/10] Independent review of the hypergraph commit: accept
+ with fixes F1-F11
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl     |   1 +
+ research/mycelic_e2e/reviews/REVIEW_WP1.md | 297 +++++++++++++++++++++
+ 2 files changed, 298 insertions(+)
+ create mode 100644 research/mycelic_e2e/reviews/REVIEW_WP1.md
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 8cacc6d..5f6eb94 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -9,3 +9,4 @@
+ {"id": "X008", "utc": "2026-10-09T06:10Z", "kind": "trace", "agent": "ENGINEER-A (reported model id claude-sonnet-5-5)", "command": "python research/mycelic_e2e/audit/trace_one_event.py", "artifact": "research/mycelic_e2e/audit/TRACE_FINDINGS.md, trace_output.json", "result": "raw event intact through connector, normalization, queue(new), domain, shard, holder NeuralGraph store, outbox, coordinator document.ingested; FIRST LOSS at holder answer step: loop's templated question shares 0 content tokens with the memory -> fake answer_from_evidence no_evidence -> 0 claims. Probes: duplicate PASS, restart/replay PASS, out-of-order PASS, author edit -> contested not superseded (DEFECT), edit+delete -> coordinator keeps verbatim text in 7 tables (DEFECT), malformed lines counted but no per-line disposition + undated record gets ingest time (DEFECT), forwarded_from with own words -> 3 roots (DEFECT), 3-obs/2-dept routed+supported PASS (only with declared domains), denied access PASS content / metadata leak of refused holder ids (DEFECT h2), cross-tenant PASS", "provider": "deterministic (fake.py)", "host": "cloud container", "class": "partial-path trace (single event, in-process API)"}
+ {"id": "X009", "utc": "2026-10-09T06:05Z", "kind": "perf-probe", "agent": "ENGINEER-B (reported model id claude-sonnet-5-5)", "artifact": "research/mycelic_e2e/perf/PERF_PROBE.md, perf/results/*.json", "result": "in-process stack, fake provider, hash-256 embedder, 5 records/user: N=2000 users open+ingest+one discovery pass 409 s (+92 s shutdown), peak RSS 3.98 GB; ingest 108->36.5 rec/s as N 50->2000; routing question.route 69/1107/3330 ms at N=200/1000/2000; every question capped at 10 holders in registry order; 10k in one process infeasible (RSS ~20 GB est., fds ~30k > 20k limit, ingest 62-101 min est.); coordinator-only at 10k: candidate_holders 8.5-9.3 s, question_audience 21-24 s per route (measured)", "host": "cloud container 4 vCPU/15.7 GB, shared with other agents (+-25%)", "class": "component perf (measured + extrapolated, labelled)"}
+ {"id": "X010", "utc": "2026-10-09T06:20Z", "kind": "live-provider", "agent": "ENGINEER-C (reported model id claude-sonnet-5-5)", "artifact": "research/mycelic_e2e/live/LIVE_PROVIDER.md", "result": "llama.cpp 4227c9b (from llama-cpp-python 0.3.16 sdist) CPU build; Qwen3-4B-Instruct-2507 Q4_K_M sha256 3605803b...e597 and Qwen3-1.7B Q4_K_M sha256 b139949c...1897 from Docker Hub ai/qwen3; 4B serving on 127.0.0.1:8082 (-t 2 -np 4): 2.5-2.9 tok/s single stream aggregate, 3.5-4.4 tok/s at 4 streams; product DefaultModelRouter.from_settings completed answer_from_evidence (52.6 s) and evaluate_responses (155.8 s) with schema-valid outputs (1 sample each, not an accuracy measurement)", "host": "cloud container, co-tenant load 2.7-3.9", "class": "live-provider plumbing"}
++{"id": "X011", "utc": "2026-10-09T06:25Z", "kind": "review", "agent": "REVIEWER-2 (reported model id claude-opus-5-5)", "subject": "commit dafe1af (WP1 hypergraph/routing/O3)", "artifact": "research/mycelic_e2e/reviews/REVIEW_WP1.md", "result": "ACCEPT-WITH-FIXES. Reproduced 411 passed/7 skipped. 10 failing-by-design probes R1-R10: support edge diverges from gate-effective support after revocation (I4), edge not in same tx as loop's claim_evidence writes (I2), rebuild wipes superseded history (I3), purged claim text leaves entity ids, members-only entity publication makes routing an oracle (R8), target_entities visible to routed holder owner (blind verification), O3 tie on ref_id order, fail-open policy merge; entity threshold 1 rejected (default 5); entity-index edge rewrite O(H) blocks L. Fixes F1-F11 assigned back to WP1 engineer.", "orchestrator_decision": "accept reviewer position; runs reported as 'hypergraph' only after F1-F9 land and are re-reviewed", "class": "review"}
+diff --git a/research/mycelic_e2e/reviews/REVIEW_WP1.md b/research/mycelic_e2e/reviews/REVIEW_WP1.md
+new file mode 100644
+index 0000000..9873304
+--- /dev/null
++++ b/research/mycelic_e2e/reviews/REVIEW_WP1.md
+@@ -0,0 +1,297 @@
++# REVIEW_WP1: commit `dafe1af` (hypergraph, ranked routing, min_independent_units)
++
++Reviewer: REVIEWER-2 (model id `claude-opus-5-5`), 2026-10-09. I did not write this code.
++Spec: PLAN_v1 §C, §D WP1, §F (O2, O3).
++
++**Verdict: ACCEPT-WITH-FIXES.** The fixes marked BLOCKING must land before any run is reported as "hypergraph". F10 blocks
++only the L (10k users) scale.
++
++The commit is sound in several places. The suite is green. Authorization still runs first and is unchanged. Holder
++envelopes do not carry `target_entities`. Commit, conflict, discovery and heartbeat edges are written inside the existing
++transactions. Ranking is deterministic.
++
++It also has three groups of defects:
++- **Privacy:** entity ids from members-only sources are published to the coordinator, and the default publication threshold
++  is 1 record (a deviation from the spec). Routed holder owners can read the blind-verification targets. Entity ids taken
++  from purged claim text are kept.
++- **Invariants:** I4 can fail in recompute, there are windows where I2/I4 do not hold, and `hypergraph-rebuild` erases the
++  I3 history.
++- **Cost:** each entity-index heartbeat costs O(H), so a cold start costs O(H²).
++
++Every finding below has a failing probe and the probe's output.
++
++## 0. How this was reproduced
++
++```
++SCR=/tmp/claude-0/-home-user-NeuralGraph/cb55ecbb-9144-58cb-a5af-0b006a90960a/scratchpad
++mkdir -p $SCR/rv && git -C /home/user/ng-impl archive dafe1af | tar -x -C $SCR/rv
++cd $SCR/rv && python -m pytest mycelic/tests -q -p no:warnings -x
++→ 411 passed, 7 skipped in 96.14s
++```
++This matches the engineer's report (411 passed, 7 skipped).
++
++I wrote adversarial probes in the scratch copy only: `$SCR/rv/mycelic/tests/test_review_wp1.py` (R1–R10) and
++`$SCR/rv/mycelic/tests/test_review_perf.py`. Each probe asserts the *correct* behaviour, so a failure is a finding.
++```
++python -m pytest mycelic/tests/test_review_wp1.py -q -p no:warnings -s   → 10 failed (R1..R10), outputs quoted below
++python -m pytest mycelic/tests/test_review_perf.py -q -p no:warnings -s  → 1 passed (measurement only)
++```
++
++## 1. The new tests: what each one actually asserts
++
++| test | asserts | assessment |
++|---|---|---|
++| `test_hypergraph.py::test_i1_ids_are_stable_and_tenant_scoped` | edge_id = sha(tenant,kind,anchor,version); members carry tenant; a discovery edge naming another tenant's claim raises and the edge count is unchanged | meaningful |
++| `::test_commit_claim_writes_edges_in_same_tx` | `_revision_sync` monkeypatched to raise → 0 claims, 0 edges, 0 members; then actor and reason recorded | meaningful (this is the §D crash test) |
++| `::test_i8_replay_is_safe` | replay with the same key writes no row; the writer called twice adds nothing | meaningful but narrow |
++| `::test_i3_i4_versions_supersession_and_legacy_consistency` | v1 superseded → v2…v4 through recompute, `on_evidence_event` and `supersede_changed_support`; retract keeps the members | meaningful. It relies on `verify_consistency`, which compares the edge with `claim_evidence`/`compute_support(stored refs)` and **never with `claims.support`**, so it cannot see R1 |
++| `::test_i5_contradiction` | conflict edge sides; I5 detector on a hand-forced status | line 198 parses as `(A and B) or C`, which weakens the assertion; otherwise fine |
++| `::test_i6_traversal_is_bounded` | hop bound, node bound, retracted not followed | meaningful; does not bound edge members (R9) |
++| `::test_traverse_respects_authz` | other-department employee sees no edge; entity_index edges show only routable holders | meaningful |
++| `::test_rebuild_matches_live` | rebuild fingerprint = live; idempotent; entity_index untouched | compares active and retracted edges only, so the loss of superseded history goes undetected (R10); the from-nothing case compares only `(status, independent_roots)` |
++| `::test_entity_index_from_heartbeats` | disallowed kinds and freemail dropped; versioning; withdrawal; auto_entities off; counts-only audit | meaningful |
++| `::test_holder_publishes_only_public_and_members_entities` | private and restricted records never publish; **members records do** | line 361 parses as `A and B and C or D` (weak). It writes the spec deviation (R8) into the test as expected behaviour |
++| `::test_holder_entities_skip_personal_domains_and_suspicious_records` | personal domain excluded; suspicious excluded **only `if flagged:`** | conditional assertion. I checked it fires in this run (`FLAGGED 1`), but it is fragile |
++| `::test_min_independent_units_needs_two_departments` | 3 roots in one department → hypothesis with reason; 2 departments → supported; a later-observed copy does not add a department; recompute applies the rule | meaningful; does not cover tied `observed_at` (R3) |
++| `::test_min_independent_units_flows_from_goal_and_question` | goal → question inheritance, a stricter question wins, invalid level → ValueError, gate enforces | meaningful |
++| `test_routing_rank.py::test_top_n_spans_departments` | with 3 slots, departments 1 and 4 (the holders of the entity) are both chosen; the order does not depend on input order; `target_entities` routes like text; domain-only mode spreads | meaningful (6 departments and 3 slots, against the spec's 2 departments and 4 slots; acceptable) |
++| `::test_verification_routes_away_from_support` | the supporter ranks below independent holders; `root_sharing_holders` is populated | meaningful |
++| `::test_rank_detail_in_audit_and_authorization_first` | a non-routable holder with weight 50 is not routed; `rank_method` and `scores` are in the audit | meaningful |
++| `::test_verification_question_carries_the_findings_entities` | the blind question text lacks `lgx`; `target_entities` routes to department 2 | meaningful |
++
++None of the tests is purely tautological. The weak spots are the two precedence-weakened assertions, the conditional
++assertion, and a consistency checker that is blind to `claims.support`.
++
++## 2. Invariants: violations in production paths the tests do not cover
++
++**R1 (I4): edge `independent_roots` ≠ `claims.support.independent_roots` after recompute.** This is a BLOCKING fix.
++- Cause: `recompute_status` computes support from the gate's *effective* refs, where a revoked or no-longer-routable holder
++  is demoted to `context`. The edge is synced from the *stored* roles instead: `hypergraph.py:258-265` `sync_support_sync`
++  → `claim_refs_sync`.
++- Probe: commit a claim with 2 roots, revoke one holder (`org.update_holder(status="revoked")`), then call
++  `recompute_status`. Output:
++
++  `R1 claim.status hypothesis claims.support.independent_roots 1 edge.independent_roots 2 verify_consistency []`
++
++- So the edge still says 2 roots, and still lists the revoked holder as `held_by`, while the claim says 1.
++  `verify_consistency` (`hypergraph.py:659-663`) reports nothing. Spec C.2 says "evidence_ref with the **gate's effective
++  role**", and I4 says the edge's `independent_roots` equals `claims.support.independent_roots`.
++
++**R2 (I2/I3/I4): claim_evidence and evidence status change in transactions that do not touch the edge.** This is a BLOCKING fix.
++- Where: `discovery/engine.py:755-759` (verification agrees) and `:1113-1117` (late response) insert `claim_evidence` in
++  their own transaction. The edge is synced later, inside `recompute_status`.
++- Probe (the engine's exact transaction):
++
++  `R2 verify_consistency after the engine's own tx: ['I4: … evidence members differ from claim_evidence', 'I4: … source_root members differ …', 'I4: … independent_roots 1 != 2']`
++
++- Crash consequence: a crash between the two transactions is never repaired. The replay finds the `der_verify_{qid}`
++  marker (`engine.py:745-749`), sets `outcome="replayed"` and skips the recompute, so the edge stays inconsistent
++  indefinitely. The `claims.support` staleness on that path predates this commit, but I4 now makes it a contract violation.
++- Same class: `knowledge/service.py:565-613`. `on_evidence_event` changes `evidence_refs.status` in transaction 1. The
++  edge follows only in later `revise_claim` / `_sync_support_edge` transactions.
++
++**R10 (I3): `hypergraph-rebuild` on a live coordinator deletes the version history.** This is a BLOCKING fix.
++- Where: `hypergraph.py:582-587` deletes every support/lineage/conflict/discovery edge and re-inserts version 1. The CLI
++  (`__main__.py:141-166`) runs this in place on `coord.db`.
++- Probe output:
++
++  `R10 support versions before rebuild: [(1, 'superseded'), (2, 'active')]  after: [(1, 'active')]`
++
++- This breaks I3 ("nothing is deleted"). C.8 intended the rebuild to run "into a scratch DB and diff against the live
++  edges".
++
++**R6 (retention after deletion): a purged claim keeps the entity ids extracted from its text.** This is a BLOCKING fix.
++- Where: `knowledge/service.py:653` `_scrub_claim_text` replaces the text and cleans revisions, discoveries, events and
++  audit, but leaves the support and discovery edge `entity/about` members alone. `rebuild_sync` then *carries them
++  forward* (`hypergraph.py:578-581`).
++- Probe output:
++
++  `R6 claim text now: [removed: source deleted]  entities before: ['org:target-corp.example', 'service:project-falcon']  after purge: [same]`
++
++**R7: a revoked holder stays in the entity index.**
++- Neither `org.py:499` `update_holder(status="revoked")` nor turning `auto_entities` off at the coordinator touches the
++  index. Withdrawal happens only on the holder's next heartbeat, which a revoked or offline holder never sends.
++- Probe output: `R7 holders on symptom:timeout after revoke: {'hold_…': 3.0}`
++- Routing is unaffected, because `can_route` filters revoked holders. Counts, the registry and `tenant_known_keys` still
++  include the holder.
++
++**R9 (I6): `traverse` caps nodes but returns every member of every reached edge.**
++- Where: `hypergraph.py:528-537`.
++- Probe output: `R9 nodes: 3  members returned inside edges: 19  truncated: True` (`max_nodes=3`).
++- An entity edge held by 10k holders is returned in full. For a non-system principal, `_visible_index_members` also runs
++  one `get_holder` plus one `can_route` per member. `traverse` is not exposed by any API route
++  (`grep -rn traverse mycelic/api` → 0 hits), so this is low severity.
++
++**I1:** `_assert_tenant` (`hypergraph.py:70-83`) is correct for the id types it checks. Ids that are not found pass
++silently, and `source_root`/`entity`/`domain` ids are tenant-free by design. I found no cross-tenant path:
++`incidence`, `support_context` and `traverse` all filter on `tenant_id`.
++
++**I8:** the replay returns before any write (`service.py:174-176`), and commit edges share the claim's transaction, so the
++"repair by replay" case cannot arise on the commit path. The idempotency lookup still runs outside the transaction, a race
++that predates this commit.
++
++**Latent:** `supersede_support_sync` with no *active* edge computes `version=1` (`hypergraph.py:249`). If the claim's v1
++edge is `retracted`, `INSERT OR IGNORE` drops the new edge and adds members to the retracted one. Today this is guarded by
++`sync_support_sync`'s retracted check (`:261`); no un-retract path exists yet.
++
++## 3. Authorization and leakage
++
++- **`can_route` is unchanged.** `authz.py` is not in the diff, and `candidate_holders` is untouched. `route` still calls
++  it first (`inquiry/service.py:381`).
++- **`rank_holders` never adds a holder that `candidate_holders` rejected.** The pool is a slice of `candidates`
++  (`routing.py:93`), and every chosen holder comes from that pool (`:104-122`). The probe test
++  `test_rank_detail_in_audit_and_authorization_first` also shows a weight-50 non-routable holder is not routed.
++- **Router audit detail.** `/api/admin/audit` is admin-only (`routes_admin.py:155-158`).
++  - `scores` covers only chosen, authorized holders.
++  - `ranking.entity_holders` = `len(hits)` counts **all** holders in the tenant, including unauthorized ones
++    (`routing.py:124`). Probe output: `R4 entity_holders in audit detail: 3  authorized holders with the entity: 2`. This
++    is the "no inference from counts" rule of I7. Low severity because only admins can read it.
++- **Blind verification (R5).** This is a BLOCKING fix.
++  - The holder envelope correctly omits `target_entities` (`inquiry/service.py:457-461`).
++  - However, `QuestionService.can_view` grants routed holder owners access (`:206-214`), and `view()` returns the raw row
++    (`:119-120`), which now includes `target_entities`.
++  - Probe output: `R5 full_view: False  target_entities seen by routed owner: ['issue:tracker:lgx-412']`.
++  - The same probe shows an older leak on the same screen: the `motivating_lineage` labels carry the claim text
++    (`'Deploys cause customer timeouts, tracked as issue:tracker:lgx-412'`, `view()` lines 137-139). File it separately.
++    WP1 must not add a second channel.
++- **Entity publication from members-only sources (R8).** This is a BLOCKING fix.
++  - Spec C.5 allows `members` records only when the source's audience covers the owning unit ("members-with-audience-of-the-owning-unit").
++    `evidence/service.py:982` publishes every `members` record, with no check on the member list.
++  - Probe setup: a source with `member_ids=["usr_ana","usr_bo"]` mentions checkout-service once. The probe heartbeats that
++    map to user u1b's holder. The dept-1 lead, who is not a member of that source, asks a question with
++    `target_entities=["service:checkout"]` and `budget.holders=1`.
++  - Probe output:
++
++    `R8 published from members-only source: {'service:checkout': 1, 'symptom:timeout': 1}  lead in members: False  probe routes: ['hold_cdaa…']  control routes: ['hold_25c9…']  target holder: hold_cdaa…`
++
++  - The asker's own question view (`routes`) is therefore an oracle for "which holder's members-only channel mentions X".
++    The same works without `target_entities`, by naming `checkout-service` in the question text.
++- **Engineer's deviation: entity threshold 1 instead of the domain threshold 5 (`evidence/service.py:963-971`). REJECT
++  the deviation as a default.**
++  - The spec says to reuse the domain threshold.
++  - At 1, any single message's ids are published, including `org:<email domain>` and `issue:` keys. That gives the index
++    no k-anonymity and makes the R8 oracle exact to one record.
++  - The engineer's rationale ("an entity a department mentions twice routes there") is a benchmark-recall argument, not a
++    product one. §D also forbids production defaults that weaken controls.
++  - Acceptable fix: the default is `min_records_to_publish` (5). The owner may lower it with `entity_min_records`, which is
++    already validated and audited. The benchmark declares any lowered value in BENCHMARK_CONTRACT.md. If O2(a) recall at
++    5 turns out too low, that is a measured contract decision, not a code default.
++
++## 4. O3 `min_independent_units`
++
++- **Gate and recompute agree.** Both call `required_units` + `CommitGate.independent_units` + `units_shortfall` on effective
++  refs (`gate.py:255-284`, `service.py:488-506`). In production the loop always sets `candidate.question_id = q` together
++  with `question=q` (`engine.py:650-662`), so recompute reads the same stored policy.
++- **Edge cases handled correctly:**
++  - A later-observed forwarded copy in another department does not add a unit (engineer's test).
++  - A unit holder resolves to its own unit's department ancestor.
++  - A user resolves to their primary non-project, active, non-archived membership. The Python path
++    (`org.memberships_for_user`, `org.py:302-305`) and the SQL path (`units.py:holder_units_sync`) filter identically.
++  - Holders with no department, and project-only users, count toward no department.
++- **R3: attribution of a root held in two departments depends on `ref_id` string order when `observed_at` ties.** This is a
++  BLOCKING fix for O3.
++  - Where: `gate.py:89`. A tie is normal when two holders sync the same provider object, because `observed_at` is the
++    document time and `ref_id` comes from `new_ref_id()`.
++  - Probe: same evidence, only the dept-2 copy's ref id differs. Output:
++
++    `R3 ref 'z9' -> ('hypothesis', {'department': 1})   ref 'a0' -> ('supported', {'department': 2})`
++
++  - A single-department decoy can therefore pass the cross-department rule by chance.
++- **Fail-open:** `required_units` swallows `ValueError` and returns `{}` (`gate.py:66-74`). An invalid *tenant*
++  `min_independent_units` therefore disables a valid *question* requirement:
++  `required_units({'min_independent_units': {'dept': 2}}, {'policy': {'min_independent_units': {'department': 2}}}) → {}`.
++- **Goal policy is not validated at goal creation** (`routes_goals.py:48-55`). An invalid goal policy makes every question
++  under that goal fail at create time instead of being rejected with a 400 on the goal.
++
++## 5. Routing
++
++- **Deterministic.**
++  - The greedy pick uses strict `>` over `sorted(holder_id)`, and the base sort is `(-score, holder_id)` (`routing.py:93-117`).
++  - The engineer's test checks reversed input.
++  - My perf probe gives 10 distinct department groups for 10 slots out of 1,500 candidates.
++- **Prefers entity-incident holders across departments: yes.** Score: entity hit +3, then +1 for the first holder of each
++  department.
++- **Side effect:** holders with no resolvable unit get the bucket `holder:{id}` (`routing.py:102`). Each of them therefore
++  earns the +1 diversity bonus, so unit-less and project-only holders are systematically preferred over department members
++  when base scores tie. Minor. Recommend a single shared `"unassigned"` bucket.
++- **Verification routes away from supporters:**
++  - Upstream: `exclude_holder_ids` (`engine.py:204,557`).
++  - In the ranker: −2 for supporters and −1 for holders sharing a root.
++  - The penalty can be outweighed when supporters are not excluded upstream. A supporter with 2 entity hits scores
++    6−2−1=3 (+1 diversity), and an independent holder with no hits scores 1+1. That is acceptable under the spec's weights.
++- **Blind verification:**
++  - `target_entities` never reaches holders, either through the envelope or through `_blind_leak` text, which checks text
++    only.
++  - It does reach routed holder owners through the API (R5).
++  - Routing itself reveals only "you hold E", which is inherent to O2(b).
++
++## 6. Performance (measured, `test_review_perf.py`; 1,500 user holders, 10 departments, 2 shared entities + 1 unique each)
++
++```
++PERF H=1500 heartbeat_ms_at_n={10: 2.5, 100: 5.7, 500: 37.3, 1000: 41.6, 1500: 106.1} total_s=66.8 member_rows=10542 entity_edges=4500 one_drop_change_ms=48.8
++PERF candidates=1500 candidate_holders_s=0.12 rank_holders_s=0.029 method=hypergraph
++```
++- **Rank cost per question is fine.**
++  - `incidence` runs one indexed query per 300 entities plus one member query per 400 edges.
++  - `rank_holders` is O(C log C + max_holders·C): 29 ms at C=1,500.
++  - The incidence edge payload carries every holder of each entity, so for a very common entity it is O(H) per question.
++    That is acceptable for now.
++- **`entity_index` rewrite cost is O(H) per (holder, entity) membership change** (`hypergraph.py:383-406`). The change
++  re-reads all members, runs `holder_units_sync` over all H holders, re-inserts H+units+domains rows, and deletes an old
++  version.
++  - Per-heartbeat latency grows linearly: 2.5 → 106 ms from 10 to 1,500 holders for 2 shared entities. The total cold
++    start is O(H²): 66.8 s of single-writer time at 1,500 holders.
++  - Extrapolation (quadratic, not measured): ≈ 50 min at 10,000 holders. A heartbeat that changes k common entities holds
++    the coordinator's write lock for ≈ k × 0.7 s.
++  - `hyperedges` grows by one row per holder-set change, forever: 4,500 edge rows for 3 entities × 1,500 holders. Members
++    of old versions are deleted (an I3 deviation the engineer documented for the index), but edge rows are not.
++- **S/M: acceptable. L: BLOCKING (F10).**
++
++## 7. Required fixes
++
++1. **F1 (R1, BLOCKING).** Make the support edge follow the gate's effective refs.
++   - `knowledge/service.py:497-516`: `recompute_status` passes its effective `refs` and `support` to `revise_claim`.
++     `revise_claim` (`:264`) passes them to `hg.sync_support_sync(..., refs=, support=)`. `sync_support_sync`
++     (`hypergraph.py:258-265`) then uses them instead of `claim_refs_sync`.
++   - `_sync_support_edge` (`:519-523`) gets the same change.
++   - `verify_consistency` (`hypergraph.py:662`) also compares `edge.independent_roots` with `claims.support.independent_roots`.
++   - Add R1 as a test.
++2. **F2 (R2, BLOCKING).** Write the edge in the same transaction as `claim_evidence` and evidence status.
++   - In `discovery/engine.py:755-759` and `:1113-1117`, call `hg.sync_support_sync(c, claim_id=…)` inside the same
++     `db.tx()` after the inserts. Better: route both through one `KnowledgeService.attach_evidence_sync`.
++   - In `knowledge/service.py:565-613`, call `hg.sync_support_sync(c, …)` for each claim the changed refs support, inside
++     that transaction.
++3. **F3 (R10, BLOCKING).** Stop `hypergraph-rebuild` from destroying history.
++   - The default mode writes edges only for anchors that have none: the migration case.
++   - The full regeneration in `rebuild_sync` (`hypergraph.py:582-587`) runs into a scratch copy and diffs, per C.8, or
++     only behind an explicit `--regenerate` flag that keeps superseded rows.
++4. **F4 (R6, BLOCKING).** In `knowledge/service.py:653` `_scrub_claim_text`, delete the claim's `entity` members from all
++   its support-edge versions and recompute the discovery edges' `about` members. In `rebuild_sync` (`hypergraph.py:594`),
++   skip the carry-over for claims whose text is `DELETED_TEXT`.
++5. **F5 (R8, BLOCKING).** In `evidence/service.py:982`, publish `members` records only when the source audience covers
++   the owning unit, as C.5 requires. Otherwise, in v1, publish `public` records only.
++6. **F6 (threshold, BLOCKING).** In `evidence/service.py:963-971`, the default `entity_min_records` becomes
++   `min_records_to_publish` (5). Any lower value used by the benchmark is declared in BENCHMARK_CONTRACT.md.
++7. **F7 (R5, BLOCKING).** In `inquiry/service.py:119` `view()`, drop `target_entities` (and `trigger.claim_id`) when the
++   principal has no `_full_view`. Also open a separate ticket for the existing `motivating_lineage` label leak at
++   `:137-139`.
++8. **F8 (R3, BLOCKING for O3).** In `knowledge/gate.py:84-96`, attribute a root whose refs span several units at the
++   level, with no unique earliest `observed_at`, conservatively. Prefer a unit already counted by other roots; otherwise
++   take the smallest unit id. Never decide by `ref_id`. Add R3 as a test.
++9. **F9.** In `knowledge/gate.py:66-74`, normalize each requirement separately, so an invalid tenant value cannot erase a
++   valid question value; log the invalid tenant policy. Validate the goal `policy` at `routes_goals.py:48-55` with
++   `normalize_requirement` → 400.
++10. **F10 (blocks L only).** Make the `entity_index` update incremental (`hypergraph.py:383-406`).
++    - Insert or delete only the changing holder's member row.
++    - Adjust the unit and domain counts in place.
++    - Version the edge on a time bucket instead of on every holder-set change.
++    - Measure again at 10k holders.
++11. **F11 (minor).**
++    - `routing.py:124`: count `entity_holders` over candidates only.
++    - `routing.py:102`: put unit-less holders in a single shared `unassigned` diversity bucket.
++    - `org.py:499`: withdraw index edges on `status="revoked"` and on `auto_entities: false` (R7).
++    - `hypergraph.py:528-537`: cap members per returned edge to the admitted nodes (R9).
++    - `routing.py` and `inquiry/service.py:386`: on a ranking exception, fall back to first-N with
++      `rank_method: "fallback"`, so that a ranking bug cannot block routing.
++
++Not changed by this review: /home/user/ng-impl (except this file) and /home/user/NeuralGraph. All probes ran in the scratch archive copy.
+-- 
+2.43.0
+

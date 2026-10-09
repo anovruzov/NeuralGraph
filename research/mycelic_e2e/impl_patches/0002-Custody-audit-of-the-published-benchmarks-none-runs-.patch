@@ -1,8 +1,8 @@
 From 4ef2eaf774bf9c96ba762c400f6fa07ceaac6af7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 05:39:51 +0000
-Subject: [PATCH 2/9] Custody audit of the published benchmarks: none runs the
- implementation
+Subject: [PATCH 02/10] Custody audit of the published benchmarks: none runs
+ the implementation
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA

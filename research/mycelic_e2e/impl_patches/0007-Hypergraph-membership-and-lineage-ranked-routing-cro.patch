@@ -1,7 +1,7 @@
 From dafe1af4146f61167d0f46fd0b7fc4842e0f885c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 06:06:29 +0000
-Subject: [PATCH 7/9] Hypergraph membership and lineage, ranked routing,
+Subject: [PATCH 07/10] Hypergraph membership and lineage, ranked routing,
  cross-department support rule (WP1, under review)
 
 Adds the coordinator hypergraph (migration 0005: hyperedges, typed hyperedge_members,
