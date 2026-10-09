@@ -50,3 +50,23 @@ timeline in `audit.json`.
    **Reading.** Leaving each recall's own later alerts out roughly halves what chance is expected to find. The
    found counts sit at or just below the corrected expectation, so the recall replays' "fewer finds than chance"
    came from the baseline, and the replays stand at chance, not below it. Nothing here is above chance.
+2. **Run 6, investigations: run [37920746888](https://github.com/anovruzov/NeuralGraph/actions/runs/37920746888)**
+   (commit `69d6eeb`, job 113787795690). Read from the job log the same way; all six audit shas match. The data
+   match V003: 63,235 complaints, 126 investigations in scope, and the same audited counts.
+
+   | Channel | Found before the investigation | Expected by chance (audited) | Expected, each investigation's own later alerts left out | Fisher p over the six makes, corrected |
+   |---|---|---|---|---|
+   | X | 6 | 9.07 | 5.64 | 0.986 |
+   | S | 5 | 8.68 | 5.36 | 0.995 |
+   | R_mf | 5 | 10.48 | 6.11 | 0.996 |
+
+   FORD holds 71 of the 126 investigations and 3 of the finds in each channel. Per make, the corrected p ranges
+   from 0.455 (JEEP, X) to 1.0.
+
+   **Reading.** The same as for recalls: found counts at the corrected expectation, nothing above chance.
+
+**What the corrected baseline is, and is not.** It leaves out every alert on an outcome's key after the outcome
+opens, reactive or not, so it errs low: read it as a floor for chance. Its p also counts the observed alignment
+among the shifts (shift zero keeps the look-back as observed), on top of the +1, so it cannot go below 2 over the
+evaluated weeks plus one (2/88 here). Both errors favour finding a signal. Found counts at or below the floor
+therefore mean no early warning beyond chance in these replays. A better baseline is plan item 1.1's open work.
