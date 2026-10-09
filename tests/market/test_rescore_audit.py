@@ -198,8 +198,8 @@ class UnionTests(unittest.TestCase):
 class LargerAuditTests(unittest.TestCase):
     """Audits built from the synthetic timelines of ``tools/market/reactive_world.py``, seeds 1 to 5: 40 outcomes, 87
     weeks, 26-week windows, and every channel with alerts on the outcomes' keys before and after their openings. In
-    the demo audits S and R_mf have no alert on an outcome's key, and the small audit above does not notice the date
-    the rotations start from; these audits notice both."""
+    the demo audits S and R_mf have no alert on an outcome's key, and the small audit above scores the same when its
+    rotations start a week late; these audits notice both."""
 
     SEEDS = range(1, 6)
 
