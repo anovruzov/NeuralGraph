@@ -4,8 +4,9 @@ Date: 2026-10-08. Supersedes the scratch sizing that fed STRATEGY section 8 wher
 figure carries its source and a tag: **[COUNT]** a count this repository ran on public data (the command and the run
 are named), **[ANALYST]** a market-research estimate read from the publisher's summary page (these disagree by about
 2x for the same category, so each is quoted as a range), **[CITED]** a figure quoted by a secondary source, and
-**[ESTIMATE]** arithmetic of ours with the inputs shown. Nothing here is a measurement of Mycelic's own effect: no
-customer, partner or real-data result exists yet (N1, X6 and the Phase-1 audit have not run).
+**[ESTIMATE]** arithmetic of ours with the inputs shown. No figure here measures Mycelic's own effect. No customer
+or partner exists yet, and N1, X6 and the Phase-1 audit have not run. Five public real-data replays have run since
+the first version of this document, and none found an outcome earlier than chance (section 5.1).
 
 ## 1. The answer
 
@@ -48,9 +49,9 @@ cycle**; (e) **evidence today** in this repository.
 
 | Rank | Application | (a) Structure | (b) Constraint | (c) Value pool | (d) Buyer, cycle | (e) Evidence today | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1 | Medical device and diagnostics: cross-site complaint and NCR early warning | Strong: lot, part, supplier, failure mode | Plausible (local-language narratives, transfer limits); to be confirmed by X6 | Device recalls cost the industry about $2.5–5B a year [CITED: McKinsey 2013 via DOTmed]; 1,059 device recall events in 2024 [CITED: Sparta Systems] | VP Quality or post-market surveillance; 6–12 months to a licence (STRATEGY 8.3) | `device_quality` pack; synthetic only; openFDA replay built, not yet run on real data | **Beachhead, conditional on N1 and X6** |
+| 1 | Medical device and diagnostics: cross-site complaint and NCR early warning | Strong: lot, part, supplier, failure mode | Plausible (local-language narratives, transfer limits); to be confirmed by X6 | Device recalls cost the industry about $2.5–5B a year [CITED: McKinsey 2013 via DOTmed]; 1,059 device recall events in 2024 [CITED: Sparta Systems] | VP Quality or post-market surveillance; 6–12 months to a licence (STRATEGY 8.3) | `device_quality` pack; two public FDA replays (one manufacturer, 8 recalls): no recall found earlier than chance (section 5.1) | **Beachhead, conditional on N1 and X6** |
 | 2 | Pharma and biologics manufacturing: deviations, out-of-spec results, complaints | Strong: batch, material, supplier, site | Moderate: validated systems; some data must be central for pharmacovigilance | Not sized here | Head of Quality; validation adds months | None beyond the device pack's shape | First expansion |
-| 3 | Automotive and industrial field quality (warranty claims, technician notes, plant NCRs) | Strong: part, plant, supplier, VIN-free failure codes | Inside one OEM, weak (warranty analytics is central); across OEMs and suppliers, strong | Global automakers paid **$51B** in warranty claims in 2023 (average claims rate 1.98% of sales); US car and cycle makers **$13.4B** in 2025 [CITED: Warranty Week] | Warranty or field-quality director; long cycles | None | Largest value pool; best entered through suppliers shared by several OEMs |
+| 3 | Automotive and industrial field quality (warranty claims, technician notes, plant NCRs) | Strong: part, plant, supplier, VIN-free failure codes | Inside one OEM, weak (warranty analytics is central); across OEMs and suppliers, strong | Global automakers paid **$51B** in warranty claims in 2023 (average claims rate 1.98% of sales); US car and cycle makers **$13.4B** in 2025 [CITED: Warranty Week] | Warranty or field-quality director; long cycles | Vehicle pack built by rule from public NHTSA data; three public replays over six makes: no early warning beyond chance (section 5.1) | Largest value pool; best entered through suppliers shared by several OEMs |
 | 4 | Cross-company supplier-quality networks (OEMs sharing suppliers or contract manufacturers) | Strong | Strongest: pooling across companies is impossible by construction | Shares rank 1's and rank 3's pools | Multi-party; needs a convening party | The fabric's multi-tenant design is not built | **The long-run thesis** |
 | 5 | IT incident correlation across subsidiaries or managed-service clients | Strong: config items, services, error signatures | Weak inside one company; moderate for MSPs across clients | AIOps platforms: **$6.7–32.5B** in 2025 by publisher [ANALYST] | IT operations; crowded with incumbents | `it_incidents` pack, data only, 0 code lines (section 5) | Proof of generality, not a wedge |
 | 6 | Insurance cross-line fraud | Medium: free-text notes, claim keys | Weak: carriers already pool | Insurance fraud detection: **$6.8–11.5B** in 2025 by publisher [ANALYST] | SIU heads | `claims_integrity` pack, synthetic | Re-wedge option |
@@ -262,8 +263,36 @@ rules, questions and follow-ups; the code is generic. Three packs exist: `device
 - built by the same author as the generic code, in about 15 minutes from start to a loading pack (AI agent wall
   clock, not engineer-hours).
 
+A fourth field, US vehicle safety complaints, was built from public data by a script rather than by hand
+(`tools/market/vehicle_pack.py`, `docs/collective/replay/vehicles/pack/`): 26 NHTSA component categories and the
+generic one, from complaint volumes alone. The pilot audit then ran on it unchanged.
+
 So the mechanism carries to a new field without code changes, with honest gaps. It does not show that any field has
 the signal: each field needs its own N1-style audit, on real data, before anyone claims it.
+
+### 5.1 What the public replays showed (real data)
+
+Each replay fixed its rule and its pass or fail test before reading any outcome, declared that the agent may have
+seen recall news in training, and is reported whatever it showed.
+
+| Replay | Data | Outcomes in scope | Found before the outcome (X) | Expected by chance | Record |
+|---|---|---|---|---|---|
+| Device 001 | One manufacturer's FDA reports, 2023–2024 | 8 recalls | 0 (ids did not resolve: measured nothing) | — | `docs/lab/RESULTS.md` run 3 |
+| Device 002 | The same, with its real id formats | 8 recalls | 1 | 1.16 (p 0.82) | `docs/lab/RESULTS.md` run 4 |
+| V001 | FORD's NHTSA complaints, each state a site | 298 recall outcomes | 5 | 10.95 (p 0.84) | `docs/collective/replay/vehicles/CHOICE-V001.md` |
+| V002 | Five more makes | 598 recall outcomes | 9 | 19.51 (combined p > 0.9999) | `CHOICE-V002.md` |
+| V003 | Six makes, NHTSA defect investigations as outcomes | 126 investigation outcomes | 6 | 9.07 (combined p > 0.9999) | `CHOICE-V003.md` |
+
+On public complaints in two fields, counting across sites did not flag recalls or investigations earlier than
+randomly timed alerts would. Across the six makes it alerted on 14 recall outcomes before the recall and on 51 in
+the 26 weeks after. For this document that means three things:
+- **The discovery pitch has no real-data support yet.** The YC sentence in section 1 stays a market statement, and
+  none of it is a result.
+- **Public data is spent as a test bed.** It reaches neither a company's own complaint, warranty and service records
+  nor its real sites. No further public replay is planned, so the open question moves entirely to the Phase-1 audit
+  on a partner's data.
+- **The audit is the product to sell first.** It costs a partner one export and runs inside their walls
+  (`docs/collective/PILOT.md`), and a negative answer from it is cheap for both sides.
 
 ## 6. What changes this document
 
@@ -273,7 +302,7 @@ the signal: each field needs its own N1-style audit, on real data, before anyone
 | Is the constraint real? | X6: 20 discovery calls (questions and decision rules: `DISCOVERY.md`) | The constraint share, and so the beachhead size |
 | May the counts leave? | X6 asks it; X5 (synthetic) showed the weekly counts, including presence below k, reveal whether a known complaint is at a site and which failure it carries | If buyers refuse, the presence cells need a mitigation that keeps detection (a code change and a new X5 prereg) before any pilot |
 | What do device makers pay? | X6 asks for current trending and PMS spend and the cost of the last field action | ACV |
-| Does the cross-site view find cases earlier than one site alone? | The Phase-1 signal audit on a partner's data | Whether there is a product |
+| Does the cross-site view find cases earlier than one site alone? | The Phase-1 signal audit on a partner's data. Public data has been tried five times without success (section 5.1) | Whether there is a product |
 
 ## Sources
 
