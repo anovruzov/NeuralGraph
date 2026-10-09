@@ -73,3 +73,29 @@ coverage 0.5, tie salt `lab-replay`, 150 unit minutes and a 200-minute job. The 
    5,000 lines, and the probe's indented output began before them (the full log sits on a host this agent's network
    does not reach). **Nothing of it was read**: no value, count or format. The probe now prints one line and runs last,
    and is run again unchanged in its query.
+2. **Probe, second run** ([37866279709](https://github.com/anovruzov/NeuralGraph/actions/runs/37866279709), commit
+   `41089f0`, job 113613652857): read in full. `inputs-002.json` is its output; its sha256
+   `5c429d682ab42b39ab82a5af9eb95c42d86161c2a98180926be9db9b0011eae3` matches the one the job printed. Reports received
+   2021-2022 from names containing BECTON: JKA 6,446, FOZ 3,877, FMI 7,397, MDB 1,655.
+
+## Applied (by `tools/market/replay_pack.py` from `inputs-002.json`)
+
+- **Lot:** signature one digit run; format **6 to 7 digits**. Of the lot values' 8,613 reports, 4,917 carry a value
+  with no digit (such as `UNK`) and 874 one with other characters; the format covers 2,764 of the 2,822 left.
+- **Product:** `device[].catalog_number` (its values with a digit carry more reports than the model number's);
+  format **6 to 8 digits**, covering all 15,105 reports with a digit of its 16,955.
+- **Problem terms:** 16 terms added to the six the base pack maps (none ambiguous): Leak/Splash (leak); Fracture
+  (crack); Blocked Connection, Complete Blockage and Partial Blockage (occlusion); Excess Flow or Over-Infusion and
+  Insufficient Flow or Under Infusion (inaccurate reading or dose); Material Discolored and eight contamination terms
+  (contamination). The mapped terms carry 7,154 of the 22,113 reports of the probe's top terms (32%); 135 terms stay
+  unmapped, among them the generic ones.
+- **The pack** `lab/packs/device_quality_bd` loads (version 0.1.0): config `12ca457bd546`, vocabulary
+  `0baf809b1631`, detector `c9462f62aa90` (the base pack's, unchanged), fixtures `3e5cd71916f0`. The lot and product
+  formats overlap at 6 and 7 digits; the replay resolves each structured field as its own type, so a value is read
+  as the type of the field it sits in.
+- **Plumbing check, synthetic, not a result:** on a generated event cache in this shape (catalog numbers, seven-digit
+  lots, three listed names), prereg and signals ran with this pack, every record resolved to an entity, and all
+  three channels flagged the burst planted in it. It shows the pack is wired, nothing about real data.
+
+`lab/requests/openfda-002.json` holds replay 001's `openfda` block with only `pack` changed (and its `purpose`), and
+is pushed in its own commit; that push starts the run.

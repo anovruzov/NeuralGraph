@@ -1,0 +1,12 @@
+{
+  "id": "device_quality_bd",
+  "version": "0.1.0",
+  "title": "Device quality complaints, public replay 002 (real lot and product id formats)",
+  "languages": [
+    "en",
+    "de"
+  ],
+  "illustrative": true,
+  "disclaimer": "Built by tools/market/replay_pack.py from the device_quality pack for public replay 002 (docs/collective/replay/CHOICE-002.md). Its lot and product id formats and part of its openFDA problem-term map come from public openFDA reports received before the replay's window. Its ILL- codes and predicates are the base pack's illustrative placeholders, and the lot and product ids of its generator and fixtures are renamed fictional ids that the replay never reads.",
+  "same_author_as_code": true
+}
