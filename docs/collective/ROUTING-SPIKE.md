@@ -4,6 +4,9 @@
 design, the settings and the pass bar below are fixed before any such code is written. Base: commit `95b2a1e`, the
 head of the base branch when this was written.
 
+**Later additions.** Section 10 lists the deviations, written after the code and before the run. Section 11 records
+Run 1. Sections 0 to 9 are unchanged since the pre-registration commit `988646a`.
+
 **This is a spike, not a decision.** It informs decision 1 (where Tesseract runs at a site) and decision 2 (what
 Tesseract routes when nobody asks a question) in `docs/handoff/HANDOFF-2026-10-09.md`. Both stay with the chief
 scientist. A pass or a fail here is one input to each.
@@ -551,6 +554,65 @@ questions.
 5. `world.py` and `run.py`; `run.py prereg`; commit `prereg.json`; then `run.py run` and `run.py score`.
 6. Suites run on every change: `NeuralGraph/tests`, `tests/mycelic` (the guards, pushdown, gate, edge, evaluate and
    the x3 pins in particular), `tests/market`, and `tests/routing_spike`. No test is skipped or loosened.
+
+## 10. Deviations
+
+Written after the code and before the run. Nothing in sections 0 to 9 changed. The criterion, the arms, the world, the
+settings and the pass bars are as frozen. The code is in `research/routing_spike/`; the tests are in
+`tests/routing_spike/`.
+
+**Changes forced by the code.**
+
+1. **The agent name.** Section 1.6 and 3.5 say one agent `hq` per organisation. The fabric service refuses a second
+   agent with an id it already holds, in any organisation. So each organisation's agent is `hq-<label>`, where the
+   label is the arm (`r`, `a`, `r1`, `r0`, `o`, `p`) or the random subset (`u01` to `u20`). The organisation is
+   `rs-<label>`. "Found" (3.5) reads the notes of that agent in that organisation.
+2. **The process-mode test is smaller.** Section 1.7 says a test runs one seed both ways. The test in
+   `tests/routing_spike/test_end_to_end.py` runs seed 1's no-plant world with its first two candidates in process mode
+   and compares every verdict with the in-process run of the same world. A whole seed in both modes takes several
+   minutes, too long for the suite. The full equivalence with the shipped verifier (check 9) still runs on all of seed
+   1's planted-world questions in the run.
+
+**Additions. Each one makes a check stricter; none loosens one.**
+
+3. **More bytes are scanned.** Check 1 scans the questions, the verdicts and the descriptors, as section 5.5 says. It
+   also scans every wire frame HQ sent or received (`hq/wire.jsonl`), HQ's intake log (`hq/intake.jsonl`) and each
+   site's whole ingress and egress logs. The egress logs hold the cells as well.
+4. **Check 2 also needs a clean intake.** Any verdict HQ refused, and any wire error, fails it.
+5. **Check 4 applies the three conditions at once.** At the end of each world, after every answer and scan, the
+   harness rewrites every narrative in the site stores, deletes the site graphs, and recomputes every route order
+   with no plant spec. The orders must be byte-identical to the ones the run used. Arm O is left out, since it reads
+   the plant spec by design.
+6. **Check 8 is wider than the found rows.** As written, check 8 holds by construction, since "found" already requires
+   3.5 items 3 and 4. So it also requires, in every world: one conclusion note per candidate and route; each note's
+   status equal to HQ's gate status for that route; every `supported` note passing items 3 and 4; and the fabric
+   service idle, with every event applied, before it closes.
+7. **One more reported check, not used for the verdict.** Every coordinator trace has `route_selected` before any
+   retrieval event. The trace of every route is saved as a string of event codes in each world's `world.json`.
+8. **Verdict agreement in every world.** The shipped `SiteVerifier` answers the same questions on copies of the site
+   stores taken before any question, in every world, not only seed 1. That gives the agreement in 5.4. The byte
+   equivalence (check 9) is still run on seed 1's planted world only.
+9. **Two extra fields.** The coordinator claim's content also carries `source` (`site`, or `hq` for HQ's own
+   `unknown` record). The verdict event's payload also carries `source` and the wire `reason`.
+
+**Points the design left open, and how the code reads them.**
+
+10. **Look-ahead in the ranking.** The site graph holds all of the site's own records of the 52 weeks (section 1.4:
+    "Tesseract over the whole session"). So records received after a question's `as_of` take part in Tesseract's
+    ranking. They are never read: only records received in the question window are kept, and the window ends at or
+    before the last week closed at `as_of`. This is the same for every arm.
+11. **No edges, no reference time.** The graph holds the MESSAGE nodes only, with no edges, so Tesseract's temporal
+    neighbour boost adds nothing. Tesseract is called without a reference time.
+12. **Site order.** The A pass asks the sites in sorted id order, as the shipped orchestrator does. Routes in the
+    result files are written as indices into the pack generator's site order: 0 `plant-ashvale`, 1
+    `plant-brindlemoor`, 2 `plant-corrowfield`, 3 `werk-dornhagen`, 4 `werk-erlenbruch`, 5 `plant-fennick`.
+13. **The placebo's permutation.** `random.Random(sha256("placebo|<seed>|<question id>"))` shuffles the sorted
+    eligible sites. HQ receives the world seed for this only. The seed is a run setting, not data.
+14. **Worker processes.** `run.py run --jobs 4` runs each world in its own worker process. Worlds share nothing, so
+    the results do not depend on the number of workers. Tesseract time per question is measured inside each worker
+    while four worlds run at once, on a 4-core machine.
+15. **Where the result lives.** `run.py run` writes `runs/routing_spike/<run id>/result.json` (git-ignored), with
+    every route, gate status and verdict sha256. The committed copy is described in section 11.
 
 ## Appendix A. Commands behind the numbers
 
