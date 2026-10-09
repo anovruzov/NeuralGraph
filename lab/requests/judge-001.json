@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "purpose": "Judge test J001 (docs/collective/replay/vehicles/CHOICE-J001.md, committed and amended before any run): a-0p5b, a-1p5b and a-4b answer the site verifier's narrow question about 150 NHTSA complaints, codes hidden, one positive and one negative question per record, the negative drawn with the frequency of the other records' positives; balanced accuracy against the filed codes beside the lexical judge and a record-blind control. Public data; the first run is the result.",
+  "provider": "llama-server",
+  "models": [
+    "a-0p5b",
+    "a-1p5b",
+    "a-4b"
+  ],
+  "job_minutes": 330,
+  "max_parallel": 9,
+  "retention_days": 30,
+  "experiments": {
+    "j1": {
+      "minutes": 150,
+      "labels": {
+        "source": "nhtsa",
+        "pack": "docs/collective/replay/vehicles/pack",
+        "n": 150,
+        "seed": 1
+      },
+      "parts": 6,
+      "seed": 1,
+      "bootstrap_b": 10000,
+      "bootstrap_seed": 1
+    }
+  }
+}
