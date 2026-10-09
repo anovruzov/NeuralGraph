@@ -1,0 +1,397 @@
+From 4ef2eaf774bf9c96ba762c400f6fa07ceaac6af7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 05:39:51 +0000
+Subject: [PATCH 2/2] Custody audit of the published benchmarks: none runs the
+ implementation
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl        |   1 +
+ .../mycelic_e2e/custody/OLD_BENCHMARKS.md     | 365 ++++++++++++++++++
+ 2 files changed, 366 insertions(+)
+ create mode 100644 research/mycelic_e2e/custody/OLD_BENCHMARKS.md
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 93f5e97..a164559 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -5,3 +5,4 @@
+ {"id": "X004", "utc": "2026-10-09T05:23Z", "kind": "compute", "what": "MacBook bridge probe session_01QfrwkNkUbtAYq6LJRiJrdf", "result": "stuck at 'Allocating sandbox', connection_status disconnected; prior bridge session logged computer_unreachable 04:21Z", "class": "blocker"}
+ {"id": "X005", "utc": "2026-10-09T05:35Z", "kind": "custody", "what": "repository/branch identification", "result": "active implementation = claude/mycelic-implementation-vr034p@f96f263; questioned benchmark = research/mycelic on claude/vnext-accuracy-70-percent-gsjg8m@4fc504a; main research/mycelic imports nothing from mycelic/ or NeuralGraph/ (grep of imports)", "class": "audit"}
+ {"id": "X006", "utc": "2026-10-09T05:35Z", "kind": "custody", "what": "hypergraph search", "command": "grep -rni 'hypergraph|hyperedge|incidence' across main and the three active branches", "result": "no hypergraph implementation in any branch", "class": "audit"}
++{"id": "X007", "utc": "2026-10-09T05:55Z", "kind": "custody-audit", "agent": "REVIEWER-1 (reported model id claude-opus-5-5)", "artifact": "research/mycelic_e2e/custody/OLD_BENCHMARKS.md", "result": "simulator E1-E12/v3/v4/v5 = simulation-only (imports no implementation code; oracle-assisted extraction ops.py:239-241); live Qwen harness = partial-path (model replaces extraction only, live/run.py:564-566); ingest_bench = component-only (real connector+pipeline+one EvidenceStore, no coordinator/loop/gate); seed scenario = end-to-end functional synthetic pass/fail (reproduced 13/13 in 11.5s), not an accuracy benchmark; LoCoMo = component-only on a different retriever, gold-category switch at runner.py:858 when USE_SPEAKER_PROFILES=1 (off by default)", "class": "audit"}
+diff --git a/research/mycelic_e2e/custody/OLD_BENCHMARKS.md b/research/mycelic_e2e/custody/OLD_BENCHMARKS.md
+new file mode 100644
+index 0000000..db6cca9
+--- /dev/null
++++ b/research/mycelic_e2e/custody/OLD_BENCHMARKS.md
+@@ -0,0 +1,365 @@
++# Custody audit of the existing benchmarks (REVIEWER-1)
++
++Auditor model: `claude-opus-5-5` (from the session's system prompt). Written 2026-10-09 in the cloud container
++(4 vCPU, 15 GB). Read-only on every other ref: branches were read with `git show` / `git archive` into a scratch
++directory; nothing outside `research/mycelic_e2e/custody/` was modified.
++
++Refs audited:
++
++| short name | ref | commit |
++|---|---|---|
++| IMPL | `claude/mycelic-implementation-vr034p` (clone `/home/user/ng-impl`, local branch `claude/friendly-mayer-y9f1vt`) | `f96f263` |
++| VNEXT | `origin/claude/vnext-accuracy-70-percent-gsjg8m` | `4fc504a` |
++| MAIN | `origin/main` | `29307f2` |
++
++## 0. The question and the short answer
++
++**Hypothesis under test:** the existing benchmarks bypass ingestion, the per-holder NeuralGraph stores, hypergraph
++routing, or other core runtime pieces.
++
++**Verdict: confirmed for every accuracy number that has been published.** No published accuracy number
++(Mycelic v3/v4 found 0.625/0.713, the live 0.650 vs A2 0.875, LoCoMo 72.2%/42.5%) executes a single line of the
++IMPL `mycelic/` package. The only two harnesses that do execute IMPL code (`research/ingest_bench`, the seed
++scenario) are a one-holder storage microbenchmark and a functional pass/fail check with a deterministic fake model.
++Neither produces an accuracy number.
++
++**Separate finding: there is no hypergraph to bypass.** `git grep -il 'hypergraph\|hyperedge\|hyper-graph'` returns
++**0 files** (any type, not only `.py`) on IMPL, VNEXT and MAIN. So "hypergraph routing" is neither benchmarked nor
++implemented on any of the three refs. Routing in IMPL is coordinator question routing to holders. Routing in the
++simulator is a coin flip (see §1).
++
++### Component matrix
++
++Legend: **Y** = the real component executes; **sim** = a numpy stand-in with the same name; **N** = absent.
++
++| benchmark family | real connector / ingestion | per-holder NeuralGraph stores | coordinator authz / routing | inquiry / discovery loop | commit gate | hypergraph | class |
++|---|---|---|---|---|---|---|---|
++| research/mycelic E1–E12, vNext v3/v4/v5 (VNEXT, MAIN) | N | N (users are rows of a numpy record array) | sim (routing = `rng.random() > route_quality`) | sim | N | N | **simulation-only** |
++| research/mycelic/live (VNEXT) | N (the generator's rendered template text goes straight to the LLM) | N | sim (same simulator code) | sim | N | N | **partial-path** (live extraction operator only, inside the simulator) |
++| research/ingest_bench (IMPL) | **Y** (`local_export` connector → pipeline) | **Y**, one holder (`EvidenceStore` over `NeuralGraph.chat_memory`) | N | N | N | N | **component-only** |
++| seed scenario `python -m mycelic scenario` (IMPL) | Y for check m only (GitHub/Slack connectors against offline mocks). Checks a–l call `EvidenceStore.ingest_document` directly. | **Y** (2 separate holder processes and 8 embedded holders) | **Y** (HTTP API, real login) | **Y** (worker, loop) | **Y** (discovery engine → `knowledge.commit_claim`, see §4) | N | **end-to-end functional, synthetic** (13 checks; not an accuracy benchmark) |
++| LoCoMo `research/benchmarks/runner.py` (MAIN) | N (the benchmark builds `NeuralNode`s itself) | N for IMPL. It uses `NeuralGraph.research.retrieval` (`InMemoryNeuralGraphStorage` + Tesseract), a different codebase from the `NeuralGraph.chat_memory` that IMPL's holders use. | N | N | N | N | **component-only** (a different retriever from the one IMPL uses) |
++
++## 1. research/mycelic simulator: E1–E12 and the vNext v3 / v4 / v5 rounds
++
++**Entry commands** (VNEXT `research/mycelic/README.md`, `run_suite.sh`, `final_rerun.sh`):
++
++```sh
++python3 -m research.mycelic.experiments e1 ... e12        # run_suite.sh:7 loops e1b..e10
++sh research/mycelic/final_rerun.sh question_frac=0.65:qf_v3 batched_descent=true:v3_H link_time=hybrid:refit_hyb \
++   local_reextract=false:rx_reextract strict_targeting=false:cal_screen triage_target_chains=none:cal_screen
++python3 -m research.mycelic.quick_paired ... / arm_paired  # the quick_v4_heldout.jsonl evidence behind v4 0.713
++```
++
++**What it executes (import graph).** Every module in `research/mycelic/*.py` imports only siblings (`from .runner`,
++`.systems`, `.ops`, `.corpus`, `.org`, `.evalm`, `.models`) plus numpy, the standard library, matplotlib and markdown.
++Examples:
++* `experiments.py:19-25` imports `models`, `evalm`, `org`, `ops`, `runner` and `systems`;
++* `runner.py:14-20` imports `models`, `corpus`, `evalm`, `ops`, `org` and `systems`;
++* `systems.py:25-30` imports `corpus`, `models`, `org` and `ops`.
++
++A case-insensitive grep over all of `research/mycelic/**/*.py` on VNEXT for
++`neural_?graph|tesseract|hypergraph|hyperedge|holder|coordinator|commit.?gate|connector|ingest` matches only a
++label string, `loss_report.py:24`, "descent reached a facet holder". The simulator therefore imports nothing
++from `mycelic/` (IMPL) or from `NeuralGraph/`. The README says so itself: "The simulator and every generator need only
++numpy" and "Model tiers are a capability axis, not checkpoints. No GPU or local inference was available"
++(VNEXT `research/mycelic/README.md`, "Three things to know").
++
++**What stands in for each runtime piece:**
++* **Ingestion:** none. `corpus.build_corpus` generates a numpy record array, and `ops.extract` (`ops.py:233-241`)
++  reads the true fields: `t = rec["t"]`, `pol = rec["polarity"]`, `sig = rec["event"]`.
++* **Holders:** none. Users are row groups in that array (`systems.user_extract`, `systems.py:186`).
++* **Routing:** a coin. `systems.py:770`: `if self.rng.random() > tier.route_quality and len(scored) > 1:` drops the
++  best child. This is ORACLE_AUDIT row O5.
++* **Synthesis and verification:** coins at tier probabilities (`systems.py:1572`, `if self.rng.random() <
++  tier.causal_check`; ORACLE_AUDIT O3).
++* **Commit gate, authz:** none.
++
++**Gold / oracle exposure.** The relevant document is `docs/mycelic_v5/ORACLE_AUDIT.md` (VNEXT).
++* §1 states that the benchmark "depends on oracle-assisted simulation through its operators". The extraction
++  operator reads the true tuple, copies day and polarity exactly at every tier, and hands every system the
++  **true event id** as its near-duplicate signature for 92% of records (O1, O1a-c, lines 159-162).
++* The rankers are **fitted on simulator gold labels** (O9, line 171).
++* It lists three decision-level shortcuts, S1-S3. S1 is the A/A2 lexical prefilter keyed on the true `pred`; S3 is
++  hierarchy routing on the `hallucinated` flag.
++* The audit's own conclusion: "the sign of H vs A2 under live operators is not established by the simulator."
++
++**Verified by me:**
++1. **S1 is in the code as described.** VNEXT `systems.py:1616-1631` `_lexical_index`:
++   `key = surface_pred(corpus) if _ops.OBSERVABLE["lexical_index"] else corpus.recs["pred"]`. The legacy path keys the
++   index on the hidden true predicate. `ops.py:73` now defaults `OBSERVABLE["lexical_index"]` to True (protocol
++   amendment A1).
++2. **O1 is in the code as described.** `ops.py:239-241` copies the true `t`, `polarity` and `event` into the
++   extraction result.
++3. **The leakage suite runs as claimed.** `python3 -m unittest research.mycelic.test_leakage` on an extracted VNEXT
++   snapshot gave **"Ran 33 tests in 17.164s, OK (expected failures=4)"**. This matches the last `ledger_v5.jsonl`
++   row ("33 tests OK, 4 expected failures"). The audit text itself says 32 tests and 5 expected failures, which
++   was before P1 was fixed.
++
++**Published headline numbers.** All are simulated:
++* v3 (frozen vNext) found **0.625**, and v4 **0.713 [0.678, 0.750]** on 10k seeds 15-29. Source: `ledger_v5.jsonl`
++  row `r1-final`; status PDF table §1.
++* On the same runs, A2 scored 0.745 at 10k and 0.797 at 50k.
++* The head-to-head at 50k (VNEXT `docs/MYCELIC_ENTERPRISE.md` §1): A2 found **78%**, H_mycelic_full **57%**.
++* v5: the ledger holds only audit rows (`v5-audit-S1..gate`). No v5 accuracy number exists.
++
++**Why these numbers are not comparable to an E2E measurement of IMPL:**
++* No IMPL code runs.
++* "Holders", "routing", "verification" and "models" are numpy arrays and coins.
++* Extraction is oracle-assisted: exact days, exact polarity, true event ids.
++* The world is a 50-predicate closed schema with template text.
++* IMPL has no 600-entry register, no `found_anywhere_in_register` metric, and no planted-pattern gold.
++
++The simulator answers a question about an abstract architecture. It is not evidence about the implementation.
++
++**Classification: simulation-only.**
++
++MAIN carries the older (v3, PR #9) copy of the same simulator. `git ls-tree origin/main -- research/mycelic` lists
++no `live/`, no `test_leakage.py` and no `PROTOCOL_V5.md`, and the import structure is the same. Same classification.
++
++## 2. research/mycelic/live (VNEXT): Qwen3-1.7B edge agents
++
++**Entry command:** `python3 -m research.mycelic.live.run --stage {smoke,400,2000,10000} --edge-url ... [--kernel-url ...]`
++(`live/run.py:400-440`; README stage table).
++
++**What it executes:**
++* `live/run.py:56-68` imports the simulator itself: `ops`, `corpus`, `evalm`, `models`, `org`,
++  `runner.build_world/run_arch`, and `systems._lexical_index/chunked_long_context/user_extract`.
++* The world comes from `build_world(scale, seed)` (`run.py:462`).
++* The LLM's claims replace the extraction operator only (`run.py:564-566`):
++  `live_ul = user_extract(..., ex=live_ex)`, injected via `dataclasses.replace(world, _ul_cache=...)`.
++* Every system then runs through the unchanged simulator, `run_arch(name, live_world, alloc, seed)` (`run.py:280`).
++* The paired "sim" row comes from `run_arch(twin, world, ...)` (`run.py:269`).
++
++`live/README.md:47-56` says so explicitly. Still simulated are:
++* kernel synthesis checks;
++* hallucination injection;
++* abstraction coins (O4), routing and question-targeting coins (O5, O6);
++* rankers fitted on simulator gold;
++* the cost meter.
++
++The same README states that a live-vs-sim difference "measures **the extraction operator only**". The notes the
++model reads are the generator's template renderings (`notes.NoteStore` renders `Corpus.text`). They are not
++connector input.
++
++**Runtime pieces invoked:**
++* none of: IMPL ingestion, IMPL holders, coordinator, inquiry, commit gate, hypergraph.
++* "Routing" and "descent" are the simulator's coins.
++
++**Gold exposure.**
++* `live/score.py` is declared the only ground-truth reader (`live/README.md:65`), guarded by `test_leakage`'s
++  static scan and `test_live.py`'s scramble test. I did not run `test_live` (it needs no server, but time was
++  spent on `test_leakage`).
++* The downstream pipeline still has the simulator's oracle-assisted decisions: O3 coins executed on true
++  fields, and O9 gold-fitted rankers.
++* A2_live reads notes through the observable prefilter. That prefilter is exact on this generator's text
++  (ORACLE_AUDIT §2, "Why S1 and S3 measure zero": 100% agreement), so A2's recall rests on a perfect keyword
++  retriever.
++
++**Published numbers** (`artifacts/live/stage_400_s702.md`, `_A2_matched.md`; status PDF §1), all from 1 world,
++400 users, seed 702, 40 patterns:
++
++| system | live | sim |
++|---|---|---|
++| H_mycelic_full | **0.650** | 0.550 |
++| H_mycelic_prev | 0.575 | 0.600 |
++| B4 | 0.450 | 0.575 |
++| A2_live (same model family, 4B reader) | **0.875** | 0.925 |
++
++Also published: the smoke edge exact-tuple precision 0.822 and recall 0.801, and negations read **2 of 43**
++(`live/RESULTS.md` §2).
++
++**Not comparable to IMPL E2E.** Only extraction is real, and everything after extraction is the simulator.
++`RESULTS.md` §3-§4 are still "(filled in when the run completes)". The 350/429-agent seed-705 run named in
++ORCHESTRATION.md is unreachable and unpublished.
++
++**Classification: partial-path.** A real LLM is the extraction operator inside the simulator.
++
++## 3. research/ingest_bench (IMPL): ingestion and sharding microbenchmark
++
++**Entry command:** `python research/ingest_bench/run.py [--scale 0.2|1|4] [--out ...]` (`run.py:19-23`; RESULTS.md
++"How to run"). Note: the default `--out` is `results/latest.json` inside the repo (`run.py:191`).
++
++**What it executes (real IMPL code):**
++* Imports, `run.py:52-56`: `mycelic.evidence.EvidenceStore`, `mycelic.ingest.connectors.register_builtin`,
++  `mycelic.ingest.pipeline.IngestPipeline`, `mycelic.ingest.registry.ConnectorRegistry`,
++  `mycelic.ingest.service.IngestService`.
++* One holder, `EvidenceStore(path, holder_id="hold_bench", ...)` (`run.py:87`).
++* `svc.add_connector("local_export", ...)`, then `discover_sources`, `pipe.sync`, `pipe.process_available`
++  (`run.py:96-103`).
++* Retrieval goes through `store.search(..., audience=OWNER_AUDIENCE)` (`run.py:123-127`).
++* Sharding goes through `store.shards.start_split` (`run.py:215, 233`).
++
++`EvidenceStore` is built on `NeuralGraph.chat_memory`:
++* `mycelic/evidence/service.py:40` imports `MemoryRetriever`, and `:341` constructs it;
++* `mycelic/ingest/shards.py:38-39` imports `MemoryRetriever` and `ChatMemoryStore`.
++
++So the per-holder NeuralGraph store **is** exercised, for one holder.
++
++**Not invoked:** a second holder, the coordinator and authz (the audience is a hard-coded owner dict, `run.py:62`),
++inquiry, discovery, the commit gate, any hypergraph, and any model. The embedder is `hash-256`; there is no LLM.
++
++**Gold exposure:**
++* Each export file's source header carries `"domains": [dom]` (`corpus.py:111`), so domain routing is fed the
++  label by construction. The doc says so (`corpus.py:6-7`).
++* Known-item queries are 4 content words sampled from the target record (`corpus.py:92-97`).
++
++These are design choices for a storage benchmark, not leaks into an accuracy claim.
++
++**Reproduced here** (scale 0.2, 50 queries, output written to scratch, not to the repo): the run completed in
++9.5 s. Sharded recall@10 agreement (channel fusion) was 0.77, and known-item hit@10 (rrf) was 1.0 single-store vs
++0.94 sharded. The run therefore executes, and the sharded-vs-single agreement gap has the same direction as the
++published runs.
++
++**Published numbers** (`RESULTS.md`; scale 1, 2,995 records):
++
++| measure | single store | sharded |
++|---|---|---|
++| ingest throughput | 169.3 rec/s | 177.5 rec/s |
++| query p50 | 5.6 ms | 15.7 ms |
++| recall@10 agreement (rrf) | reference | 0.3845 |
++| recall@10 agreement (channel fusion) | reference | 0.674 |
++| known-item hit@10 | 0.98 | 0.90 (rrf) / 0.985 (channel) |
++
++**Comparability.** These are valid measurements of one IMPL component (one holder's ingest and search) on a
++synthetic corpus with hash embeddings. They say nothing about multi-holder discovery quality.
++
++**Classification: component-only** (real code, synthetic data).
++
++## 4. Seed scenario: `python -m mycelic scenario` (IMPL)
++
++**Entry command:** `python -m mycelic scenario --data-dir <new dir>`; the same scenario runs in pytest via
++`mycelic/tests/test_scenario.py`.
++
++**What it executes:**
++* `scenario.py:35-40` imports `mycelic.runtime.build_runtime/build_worker`, `mycelic.transport`, and
++  `seed.demo.run_seed`.
++* Per its docstring (`scenario.py:1-16`), it starts the API in-process, launches Elin's and Marcus's holders as
++  **separate processes** with their own SQLite files and keys, runs the discovery worker, and drives every check
++  through HTTP with a real login.
++
++**Reproduced here:** 2026-10-09 05:37 UTC, data dir in scratch.
++* Result: **"13/13 checks passed in 11.5s"**, with `api=http`.
++* Holder `hold_demo_a` ran as pid 3879 with its own `evidence.db`.
++* The brief's "12/12" is outdated: `docs/mycelic/VERIFICATION.md:112` now says 13 of 13. Check **m**
++  (GitHub + Slack) was added with the ingestion merge.
++
++**How evidence gets in (ingestion custody):**
++* For checks a–l, the seed writes embedded holders' documents with `store.ingest_document(...,
++  domains=row["domains"])` (`mycelic/seed/demo.py:333`).
++* External holders get signed `ingest` envelopes over the transport (`demo.py:339-346`).
++* `EvidenceStore.ingest_document` uses the caller's domains when given:
++  `doc_domains = [...] if domains else list(classified["domains"])` (`mycelic/evidence/service.py`, about line 481).
++  So **the seed's hand-assigned domains override the classifier**, and the **connector pipeline (`IngestPipeline`)
++  is not on the path for a–l**.
++* Only check **m** goes through real connectors, created via `POST /api/holders/{hid}/connectors`
++  (`scenario.py:1020-1025`) against **offline mocks** (`scenario.py:1000-1004`). The check's own evidence string
++  says "Mocks only: NOT a live verification of GitHub or Slack" (`scenario.py:1101`).
++
++**Model:** the deterministic fake (`mycelic/models/fake.py:1-11`). Its rules are lexical: shared tokens, numbers,
++negation words. The questions, documents and fake rules were written together, so passing the checks shows the
++plumbing works (authz 403/404, process separation, lineage, idempotent replay). It does not show discovery quality.
++
++**Commit gate:** on the path. Every discovery claim is committed through
++`self.knowledge.commit_claim(...)`, which returns `(claim, gate)` (`mycelic/discovery/engine.py:646`, and `:1108`
++for unrelated findings). The gate itself is in `mycelic/knowledge/gate.py`. Check d's supported discoveries can
++therefore only exist after the gate ran, and check m's docstring relies on the gate's independent-source counting
++(`scenario.py:995`). No check targets gate rejections specifically.
++
++**Hypergraph:** none (0 files on any ref).
++
++**Gold exposure:** not applicable as an accuracy benchmark. Pass criteria are structural (counts of roots,
++HTTP codes), fixed against a hand-written fixture.
++
++**Published number:** 13/13 checks (previously 12/12). This is a functional pass count, not a rate over a
++population.
++
++**Classification: end-to-end functional, synthetic.** It is the only harness that runs ingestion → holders →
++coordinator/authz → inquiry/discovery → commit gate together, but with a fake model, hand-set domains (a–l), mocked SaaS (m), and
++binary checks.
++
++## 5. LoCoMo harness: research/benchmarks (MAIN)
++
++**Entry commands** (MAIN `research/README.md:69-90`):
++
++```sh
++RUN_NAME=capstone ONLY_CONV=4,5,6,7,8,9 RETRIEVAL_MODE=local_pairs OPEN_DOMAIN_KEEP_CONTEXT=1 \
++  OPEN_DOMAIN_FORCE_INFER=2 OPEN_DOMAIN_INFER_WORLD=1 python research/benchmarks/runner.py
++python research/benchmarks/rescore.py
++MODE=combined python research/benchmarks/two_agent_eval.py; python research/benchmarks/retrieval_eval.py
++```
++
++**What it executes:**
++* MAIN `research/benchmarks/runner.py:17-31` imports `NeuralGraph.research.retrieval` (`NeuralNode`,
++  `InMemoryNeuralGraphStorage`, `tesseract`, `dialogue_linker`, `answering`, `reranker`, `service`).
++* `runner.py:545` loads `research/datasets/locomo10.json`.
++* Nodes are built in-process with `created_at=datetime.now()` (`runner.py:467, 651`).
++* Retrieval is `active_tesseract.retrieve(...)` (`runner.py:769`).
++
++IMPL's holder store uses a **different** library, `NeuralGraph.chat_memory` (`mycelic/evidence/service.py:38-40`,
++`mycelic/ingest/shards.py:38-39`). So LoCoMo measures the Tesseract research retriever, not anything IMPL runs.
++
++**Runtime pieces invoked:** none of: IMPL ingestion, holders, coordinator, inquiry, commit gate, hypergraph.
++
++**Gold exposure, verified by me:**
++* `runner.py:745-753` uses the gold `category` label to **select** questions. Category 5 (adversarial) is
++  skipped, and there is an `ONLY_CAT` filter.
++* `runner.py:858` gates the speaker-profile answer path on the gold label:
++  `if USE_SPEAKER_PROFILES and category == "single_hop" and not list_question:`. This contradicts the `# FAIR:
++  routing may only look at the question text, never the gold category label` comment 16 lines above (`:842`). It is
++  **off by default** (`runner.py:101`, `USE_SPEAKER_PROFILES ... == "1"`), so the shipped configuration is not
++  affected, but any run with `USE_SPEAKER_PROFILES=1` leaks the label.
++* `check_gold_in_memories_oracle` (`runner.py:179-215`) puts the gold answer into an LLM prompt. It is used for
++  recall@k scoring only (`runner.py:816-827`), not for answering.
++
++**Published numbers** (VNEXT status PDF §1):
++
++| judge | questions | score |
++|---|---|---|
++| Gemma, lenient (same family as the answerer) | 744 | **72.2%** |
++| Qwen, lenient | 584 | 65.6% |
++| Qwen, strict | 584 | **42.5%** |
++| substring match | 584 | 26.7% |
++
++The PDF itself notes that "Half the benchmark is unrun" and that "The same answer files score 13.5% to 64.9%
++depending only on the grader".
++
++**Not comparable to IMPL.** It uses a different store and retriever, a two-speaker conversational QA task, no
++holders, no authz, no discovery, and judge-dependent scoring.
++
++**Classification: component-only** (the Tesseract retriever of `NeuralGraph/research/retrieval`, not IMPL's
++`chat_memory`).
++
++## 6. NeuralGraph → Tesseract audit claims (VNEXT `docs/status/make_status_pdf.py:170-192`), checked against code
++
++I checked four of the nine claims, on MAIN and VNEXT. The cited files are byte-identical at these lines on both refs.
++
++| claim | cited | what the code shows | verdict |
++|---|---|---|---|
++| **F3** The only Tesseract path stamps `created_at = datetime.now()`; the real date lives only in `metadata['datetime']`. | `research/benchmarks/runner.py:651, :467` | `runner.py:467`: `layer=NodeLayer.MESSAGE, embedding=emb, created_at=datetime.now(), metadata={... "datetime": anchor.metadata.get("datetime") ...}`. `runner.py:651`: `created_at=datetime.now(),` with `"datetime": msg["datetime"]` on the next lines. | **Confirmed**, line numbers exact. |
++| **F4** Tesseract resolves "last year" from `created_at.year` first, metadata second. | `tesseract.py:1250-1255` | `NeuralGraph/research/retrieval/tesseract.py:1251`: `msg_year = node.created_at.year`, `:1252`: `elif msg_datetime_str:` (the metadata fallback). Because of F3, `created_at` is always set, so the metadata branch never runs in the benchmark. | **Confirmed.** |
++| **F5** No reference time is passed to `retrieve()`; the recency term is a constant 0.5. | `runner.py:769`; `tesseract.py:1233` | `runner.py:769-773`: `active_tesseract.retrieve(query_text=..., query_embedding=..., session_key=..., limit=TOP_K, auto_expand_temporal=True)`, with no `reference_time` (0 matches in lines 765-776). `tesseract.py:1233`: `recency_charge = 0.5`, overridden only `if reference_time and node.created_at` (`:1234`). | **Confirmed.** |
++| **F2** The research service ingests with correct message dates but imports only a keyword helper from Tesseract. | `research/retrieval/service.py:61, :558` | `NeuralGraph/research/retrieval/service.py:61`: `from .tesseract import extract_topic_keywords_universal`. `:558`: `created_at=message_date,`. | **Confirmed.** |
++
++Not checked: F1, F6-F9.
++
++## 7. What a fair E2E measurement of IMPL would need, that none of the above provides
++
++1. Documents enter through `IngestPipeline` connectors, not `ingest_document(domains=...)` and not generator arrays,
++   so classification and routing are measured.
++2. Several holders, each an `EvidenceStore` (`NeuralGraph.chat_memory`) in its own process.
++3. Questions reach the holders through the coordinator with authz, the inquiry and discovery loop, and the commit
++   gate, using a real model, not `mycelic/models/fake.py`.
++4. Gold is held only by the scorer, with a static scan like VNEXT `test_leakage.py` applied to the harness.
++5. No category or domain labels reach the system (contrast LoCoMo `runner.py:858` and seed `demo.py:333`).
++6. If "hypergraph routing" is a requirement, it has to be implemented first. No ref contains it.
++
++## Appendix: commands run by this audit
++
++```sh
++git -C /home/user/NeuralGraph archive origin/claude/vnext-accuracy-70-percent-gsjg8m research/mycelic docs/mycelic_v5 docs/status | tar -x -C <scratch>/vnext
++git -C /home/user/NeuralGraph archive origin/main research/mycelic research/benchmarks | tar -x -C <scratch>/main
++(cd <scratch>/vnext && python3 -m unittest research.mycelic.test_leakage)       # 33 tests OK, 4 expected failures
++(cd /home/user/ng-impl && python3 -m mycelic scenario --data-dir <scratch>/scen/data)   # 13/13 in 11.5 s
++git -C /home/user/NeuralGraph grep -il 'hypergraph\|hyperedge\|hyper-graph' <ref>   # 0 files on all three refs
++```
+-- 
+2.43.0
+
