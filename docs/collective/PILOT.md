@@ -81,8 +81,8 @@ criteria were committed before the first run. Means over the seeds:
 
 Chance lay between the two nulls. The plain one counts each issue's own reactions. The corrected one also leaves out
 unrelated alerts after the opening. The corrected null separated the earlier signal on average, but its p fell below
-0.05 in only 5 of 20 seeds. The criterion was 18, so that test fails and stays failing. Shift zero always finds the
-found count, so the p is never below 2 in 1 + the number of shifts (0.023 at 87 weeks). Shifts of up to 12 weeks also
+0.05 in only 5 of 20 seeds. The criterion was 18, so that test fails. It stays as written, marked as an expected
+failure. Shift zero always finds the found count, so the p is never below 2/(1 + shifts) (0.023 at 87 weeks). Shifts of up to 12 weeks also
 found as many, because they keep each earlier signal inside its own look-back. So read the corrected column as a floor
 for chance. A found count at or below it is at chance. A found count above it is not evidence on its own.
 
