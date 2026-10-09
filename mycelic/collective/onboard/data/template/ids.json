@@ -1,0 +1,21 @@
+{
+  "code_format": "D-{:03d}",
+  "entity_id_prefix": "V-",
+  "fixture_ref_format": "fx-{:03d}",
+  "id_prefix": "c_",
+  "normalised": {
+    "codes": "codes",
+    "date": "received_date",
+    "entities": "entities",
+    "narrative": "narrative",
+    "record_ref": "record_ref",
+    "reporter": "reporter",
+    "scope": "scope",
+    "site": "site"
+  },
+  "other_code": "D-999",
+  "other_predicate": "other_category",
+  "placeholder_prefix": "unlearned-",
+  "reader_site": "reader-site",
+  "version": "0.1.0"
+}

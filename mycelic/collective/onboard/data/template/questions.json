@@ -1,0 +1,18 @@
+{
+  "pushdown": {
+    "freshness_days": 42,
+    "max_sibling_sites": 2,
+    "min_confirming_sites": 2,
+    "min_independent_reporters": 3,
+    "min_independent_roots": 3
+  },
+  "templates": {
+    "count_predicate_on_entity": {
+      "entity_types": [
+        "export_scope"
+      ],
+      "predicates": null,
+      "text": null
+    }
+  }
+}

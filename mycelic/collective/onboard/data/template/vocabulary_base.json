@@ -1,0 +1,27 @@
+{
+  "entity_types": {
+    "export_scope": {
+      "case": "upper",
+      "egress": true,
+      "exact_match_metric": false,
+      "id_format": null,
+      "ids": [
+        "ALL"
+      ],
+      "label": null,
+      "separator": null,
+      "strip_leading_zeros": false
+    }
+  },
+  "extraction": {
+    "confidence": {
+      "alias": 0.95,
+      "exact": 1.0,
+      "variant": 0.9
+    },
+    "max_claims": 20,
+    "max_input_chars": 6000,
+    "max_output_tokens": 1024
+  },
+  "negation_window": 3
+}

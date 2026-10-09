@@ -30,6 +30,9 @@
 * X5AttacksImportGuardTests: the X5 attacks (``experiments/x5_attacks.py``) are pure: no file, store, network or
   process module, nothing site-side, no harness, leakage scan, run file or world generator, and no model client;
   the pack type only under ``TYPE_CHECKING`` (static check and a fresh interpreter) (B3).
+* OnboardGenericTests: the pack drafter (``mycelic/collective/onboard``, D001) is generic code: no module holds a
+  column name of either D001 source as an identifier or a whole string constant, no data file holds one as a JSON
+  string or key, and no module imports an inference module or a model client (static check) (D001, M1).
 
 ``forbidden_imports``, ``model_name_hits``, ``nondeterminism`` and ``domain_literal_hits`` are importable for
 reviewers' probes.
@@ -135,6 +138,14 @@ STDLIB_ONLY_MODULES = (
     "mycelic.collective.pilot",
     "mycelic.collective.pilot.audit",
     "mycelic.collective.pilot.power",
+    "mycelic.collective.onboard",
+    "mycelic.collective.onboard.__main__",
+    "mycelic.collective.onboard.exports",
+    "mycelic.collective.onboard.roles",
+    "mycelic.collective.onboard.draft",
+    "mycelic.collective.onboard.check",
+    "mycelic.collective.onboard.score",
+    "mycelic.collective.onboard.report",
 )
 CLI_MODULES = (
     ("mycelic.collective.experiments.e3_latency",),
@@ -162,6 +173,11 @@ CLI_MODULES = (
     ("mycelic.collective.pilot.audit", "run"),
     ("mycelic.collective.pilot.audit", "demo"),
     ("mycelic.collective.pilot.power", "run"),
+    ("mycelic.collective.onboard", "draft"),
+    ("mycelic.collective.onboard", "export"),
+    ("mycelic.collective.onboard", "check"),
+    ("mycelic.collective.onboard", "score"),
+    ("mycelic.collective.onboard", "report"),
 )
 NAME_SCAN_ROOTS = ("mycelic/collective", "docs/collective", "demo/collective", "tests/mycelic/test_collective_*.py",
                    "runs/.gitignore")
@@ -216,6 +232,14 @@ DETERMINISTIC_MODULES = (
     "mycelic/collective/runfiles.py",
     "mycelic/collective/experiments/x5_attacks.py",
     "mycelic/collective/experiments/x5_inference.py",
+    "mycelic/collective/onboard/__init__.py",
+    "mycelic/collective/onboard/__main__.py",
+    "mycelic/collective/onboard/exports.py",
+    "mycelic/collective/onboard/roles.py",
+    "mycelic/collective/onboard/draft.py",
+    "mycelic/collective/onboard/check.py",
+    "mycelic/collective/onboard/score.py",
+    "mycelic/collective/onboard/report.py",
     "demo/collective/scenario.py",
     "demo/collective/codes_miss.py",
     "demo/collective/screen.py",
@@ -602,7 +626,7 @@ def _run_without_site_packages(*args: str) -> subprocess.CompletedProcess[str]:
 
 class StdlibOnlyTests(unittest.TestCase):
     def test_every_collective_module_imports_without_site_packages(self) -> None:
-        self.assertEqual(len(STDLIB_ONLY_MODULES), 65)
+        self.assertEqual(len(STDLIB_ONLY_MODULES), 73)
         code = "import importlib\n" + "".join(f"importlib.import_module({m!r})\n" for m in STDLIB_ONLY_MODULES)
         r = _run_without_site_packages("-c", code)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -1692,6 +1716,14 @@ class DomainLiteralTests(unittest.TestCase):
                 for p in files}
         self.assertEqual({k: v for k, v in hits.items() if v}, {})
 
+    def test_the_onboard_files_are_scanned(self) -> None:
+        # D001: the pack drafter is generic collective code, so this class scans it like the rest
+        files = generic_code_files()
+        onboard = sorted((ROOT / "mycelic" / "collective" / "onboard").glob("*.py"))
+        self.assertEqual(len(onboard), 8)
+        for path in onboard:
+            self.assertIn(path, files)
+
     def test_no_openfda_field_name_in_pack_extract_or_e1_code(self) -> None:
         segments = openfda_segments() - set(OPENFDA_SEGMENT_EXEMPT)
         self.assertIn("mdr_report_key", segments)
@@ -1710,9 +1742,113 @@ class DomainLiteralTests(unittest.TestCase):
                 self.assertNotIn(name, string_constants(f'def f():\n    """{name}"""\n'))
 
 
+# --------------------------------------------------------------------------------------------------- onboard (D001)
+
+ONBOARD_DIR = ROOT / "mycelic" / "collective" / "onboard"
+ONBOARD_SETTINGS = ROOT / "docs" / "collective" / "onboard" / "D001-settings.json"
+# what the pack drafter may never import: any inference module, the model extractor and every model client (it reads
+# no model; its readers are the lexical extractor)
+ONBOARD_FORBIDDEN = ("mycelic.collective.inference", "mycelic.collective.edge.extract.ModelExtractor", "openai",
+                     "anthropic", "ollama", "llama_cpp", "vllm", "transformers", "torch")
+
+
+def onboard_column_terms() -> set[str]:
+    """D001's M1 terms: every column name in ``D001-settings.json`` (both arms' columns and every declared role),
+    with and without a trailing ``[]``, less the loader's reserved words (the pipeline's own record fields, such as
+    ``reporter``)."""
+    from mycelic.collective.packs.loader import RESERVED
+    settings = json.loads(ONBOARD_SETTINGS.read_text(encoding="utf-8"))
+    names: set[str] = set()
+    for arm in settings["arms"].values():
+        names.update(arm["columns"])
+        roles = arm["roles"]
+        names.update(v for v in roles.values() if isinstance(v, str))
+        names.update(roles["entities"])
+        names.update(roles["forbidden"])
+    terms = {t for name in names for t in (name, name.removesuffix("[]")) if t}
+    return terms - set(RESERVED)
+
+
+def json_strings(value: Any) -> list[str]:
+    """Every string of a parsed JSON value, object keys included."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [s for k, v in value.items() for s in (k, *json_strings(v))]
+    if isinstance(value, list):
+        return [s for v in value for s in json_strings(v)]
+    return []
+
+
+def onboard_data_hits(text: str, terms: set[str]) -> list[str]:
+    return [s for s in json_strings(json.loads(text)) if s in terms]
+
+
+class OnboardGenericTests(unittest.TestCase):
+    """D001's M1 (no code per field): the onboard package names no column of either source. Its modules hold no
+    column name as an identifier or a whole string constant (``domain_literal_hits``), its data files none as a JSON
+    string or key (case-sensitive), and no module imports an inference module or a model client."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.terms = onboard_column_terms()
+        cls.modules = sorted(ONBOARD_DIR.glob("*.py"))
+        cls.data = sorted((ONBOARD_DIR / "data").rglob("*.json"))
+
+    def test_the_terms_cover_both_sources(self) -> None:
+        for name in ("CLASSIFICATION", "NARRATIVE", "MINE_ID", "ACCIDENT_TYPE", "odino", "summary", "state",
+                     "components", "components[]", "vehicle", "received"):
+            self.assertIn(name, self.terms)
+        self.assertNotIn("reporter", self.terms)          # the pipeline's own record field
+        self.assertGreaterEqual(len(self.terms), 57 + 7)
+        self.assertEqual(len(self.modules), 8)
+        self.assertGreaterEqual(len(self.data), 10)
+
+    def test_no_onboard_module_holds_a_column_name(self) -> None:
+        hits = {p.name: domain_literal_hits(p.read_text(encoding="utf-8"), self.terms) for p in self.modules}
+        self.assertEqual({k: v for k, v in hits.items() if v}, {})
+
+    def test_no_onboard_data_file_holds_a_column_name(self) -> None:
+        hits = {p.relative_to(ONBOARD_DIR).as_posix(): onboard_data_hits(p.read_text(encoding="utf-8"), self.terms)
+                for p in self.data}
+        self.assertEqual({k: v for k, v in hits.items() if v}, {})
+
+    def test_the_check_flags_each_term_injected_into_a_copy(self) -> None:
+        source = (ONBOARD_DIR / "draft.py").read_text(encoding="utf-8")
+        data = (ONBOARD_DIR / "data" / "lang" / "en.json").read_text(encoding="utf-8")
+        self.assertEqual(domain_literal_hits(source, self.terms), [])
+        self.assertEqual(onboard_data_hits(data, self.terms), [])
+        for term in sorted(self.terms):
+            with self.subTest(term=term):
+                self.assertTrue(domain_literal_hits(source + f"\n\nFIELD = {term!r}\n", self.terms))
+                if term.isidentifier():
+                    self.assertTrue(domain_literal_hits(source + f"\n\n{term} = 1\n", self.terms))
+                obj = json.loads(data)
+                obj["site_words"].append(term)
+                self.assertTrue(onboard_data_hits(json.dumps(obj), self.terms))
+                obj = json.loads(data)
+                obj[term] = 1
+                self.assertTrue(onboard_data_hits(json.dumps(obj), self.terms))
+        # case-sensitive: a lower-cased upper-case column name is no hit
+        self.assertEqual(onboard_data_hits(json.dumps(["classification", "narrative"]), self.terms), [])
+
+    def test_no_onboard_module_imports_inference_or_a_model_client(self) -> None:
+        for path in self.modules:
+            module = f"mycelic.collective.onboard.{path.stem}" if path.stem != "__init__" else \
+                "mycelic.collective.onboard.__init__"
+            with self.subTest(module=path.name):
+                self.assertEqual(forbidden_imports(path.read_text(encoding="utf-8"), module, ONBOARD_FORBIDDEN), [])
+        source = (ONBOARD_DIR / "score.py").read_text(encoding="utf-8")
+        for line in ("from ..inference.runtime import Runtime", "import openai",
+                     "from ..edge.extract import ModelExtractor"):
+            with self.subTest(line=line):
+                self.assertTrue(forbidden_imports(source + "\n" + line + "\n", "mycelic.collective.onboard.score",
+                                                  ONBOARD_FORBIDDEN))
+
+
 # --------------------------------------------------------------------------------------------------- loop coverage
 
-LOOP_SCAN_FILES = tuple(f"test_collective_{name}.py" for name in (
+LOOP_SCAN_FILES =tuple(f"test_collective_{name}.py" for name in (
     "packs", "extract", "e1", "edge", "leakage", "pushdown", "detect", "followup", "evaluate", "guards"))
 # not scanned and not generalised: their frozen scope names the two packs it was sealed for
 LOOP_SCAN_EXCLUDED = {"test_collective_x1_sealed.py": "B2/B3 sealed scope names its two packs",

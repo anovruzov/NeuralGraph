@@ -267,3 +267,133 @@ The onboard package is generic code: no domain literal.
 - the pinned hashes are unchanged (`tests/mycelic/test_collective_x3.py` passes untouched);
 - the workflow passes `actionlint` when it is available;
 - `docs/collective/onboard/run-*.json` does not exist.
+
+## As built
+
+Built on branch `wf/d001` from the design commit `539ca60`. The rule decided every value. Where it left a detail open,
+the choice below was made before any record of either source was seen. None of them changes a criterion. No code was
+run on MSHA or NHTSA records: this machine cannot reach them, and every test and the dry run used invented records.
+
+### What is where
+
+| File | What it holds |
+|---|---|
+| `mycelic/collective/onboard/exports.py` | rule 1.1: decoding, format and delimiter, list columns, rejected rows by reason |
+| `mycelic/collective/onboard/roles.py` | the roles file, rule 1.2's evidence and inference, rule 1.3's date formats |
+| `mycelic/collective/onboard/draft.py` | rules 1.3 to 1.6 and the two control lexicons of rule 4; the normalised export |
+| `mycelic/collective/onboard/check.py` | rule 1.7, the loader's check, M1's package and label scans |
+| `mycelic/collective/onboard/score.py` | one arm: rules 2 to 6 |
+| `mycelic/collective/onboard/report.py` | both arms, the criteria, the last guard of rule 8, the printed blocks |
+| `mycelic/collective/onboard/__main__.py` | the CLI: `draft`, `export`, `check`, `score`, `report`, each with `--dry-run` |
+| `mycelic/collective/onboard/data/` | `defaults.json`, `lang/en.json` and the neutral template (eight files) |
+| `docs/collective/onboard/D001-settings.json` | every value of the rule; `params` equal `data/defaults.json` |
+| `tools/onboard/fetch_msha.py`, `fetch_nhtsa.py` | the two-step download scripts |
+| `.github/workflows/onboard-run.yml` | the run |
+| `tests/mycelic/test_collective_onboard.py`, `tests/onboard/test_onboard_fetch.py` | the tests of section 8 |
+
+### Choices the rule left open
+
+- **Lines.** A line ends at `\r\n`, `\r` or `\n` and nothing else, so a Latin-1 `\x85` stays text. An empty line is
+  no row and is counted apart. The split script cuts lines the same way, so a company file holds whole lines.
+- **JSON lines.** The columns are the keys in the order they first appear. A nested object, or a list under a key
+  without `[]`, rejects the row as `nested_value`. Numbers become their text.
+- **Inference evidence.** In a list column every element is a value. Every tie not named by the rule goes to the
+  leftmost column.
+- **A category spelling longer than 200 characters**, or more than 1,000 spellings past the floor, cannot be a value
+  map key. The draft then fails with an error; it never drops a spelling silently.
+- **Whole words.** "A value occurs in a term as whole words" is `find_bounded` on folded text. An index by the
+  value's first alphanumeric run makes it fast; it finds exactly what `find_bounded` finds.
+- **The normalised export** uses the keys `record_ref`, `site`, `received_date`, `codes`, `narrative` and `scope`
+  (plus `entities` and `reporter` when declared). The mapping requires nothing, so a row without a narrative still
+  carries its codes.
+- **The check** reads site, record-id and forbidden values from every row of the export, not only the training rows.
+  It recounts term presence from the folded sentences directly, not through the drafter's candidate terms.
+- **The generator base** takes the IT pack's rates (mixed language set to 0) and surface weights. Its six sites and
+  six reporters are invented names, not the IT pack's reporters, so that no field's words sit in the template.
+- **The controls** are the drafted pack with each lexicon replaced; its generator and fixtures stay. The loader checks
+  each control before it reads.
+- **Reading.** A sampled record whose site falls outside the pipeline's site pattern is read with a fixed site
+  (`reader-site`): the reader reads only the narrative. A row the mapping rejects reads as nothing and is counted.
+- **The gold** is the record's filed values that fold equal to a specific predicate's category.
+- **De-duplication** runs over the test-window records with a narrative and a record id. "Smallest record id" is the
+  smallest string. A repeated record id keeps its first row.
+- **Order of the pooled records:** companies in label order, then each company's draw in the order `sample` returns.
+- **The best control** on a tie of micro F1 is the first of majority prior, permuted labels, label names.
+- **Per-company intervals** use the arm's seed.
+- **Numbers written** to `arm.json` and the report are rounded to four places. Every decision uses full precision;
+  C1's margin compares the exact difference of two fractions.
+- **The last guard** matches record ids, site values and forbidden values as written, case-sensitive, as whole words.
+  It matches narrative 8-grams on folded tokens. Its sentinels come from every row of both arms' exports. If it
+  cannot read an export, it cannot clear the report: the report is withheld as for a hit, and M3 fails.
+- **M4's "has a summary"** is read as "the channel ran": no reason and an alert timeline. This keeps the column name
+  `summary` out of the package (M1).
+- **Definition lines:** the first line naming a column, plus the following lines up to a blank line, a line naming
+  another column, or eight lines. The settings list the declared columns and `ACCIDENT_TYPE`, so that section 2.1's
+  reading of both category columns can be checked.
+- **Exit codes:** `score` exits 1 when a company was not drafted or a pack failed its check; `report` exits 1 unless
+  the verdict is pass. Every workflow step after the run-start marker runs when an earlier one failed. A job stopped
+  by its time limit writes no report: that run fails.
+
+### Conflicts with the rule as written, for the owner
+
+The code follows the rule's words in each case. Each can change a result, so the owner may want an amendment before
+any run.
+
+1. **October in `D-MON` dates.** Rule 1.3 cuts a date at its first space or `T`. An upper-case `OCT` holds a `T`, so
+   `04-OCT-2021` becomes `04-OC` and does not parse. If the MSHA date column were written that way, every October
+   date would fail to parse, the column could miss the 0.95 share, and the drafts would fail. The probe did not show
+   the column's format (`SOURCES.md`).
+2. **A category spelling equal to a forbidden value.** Rule 1.4 puts every category that passes the floor into the
+   value map. Check 1.7.3 then fails the pack if any pack string folds equal to a forbidden, site or record-id value.
+   A missing-value marker shared by the category column and a forbidden column (such as `?`) would fail M3 by
+   construction.
+3. **The last guard and common words.** A forbidden value of four or more characters with a letter that is also a
+   common word (such as `OTHER` in a manufacturer column) withholds the report if a printed category label is that
+   word.
+4. **A bigram longer than 64 characters** would pass rule 1.5 and fail the loader's term limit (M2). It needs two very
+   long words side by side in at least ten records at three sites.
+
+### Tests
+
+- `tests/mycelic/test_collective_onboard.py`: reading, dates, role inference, categories, the lexicon, determinism,
+  loading, the normalised export, the pipeline, the check, scoring, the controls, the sample, the matched space, the
+  arm, the report, the CLI, the settings and the workflow. The workflow's structure test needs PyYAML and skips
+  without it (the run's own job has none); its textual tests do not.
+- `tests/onboard/test_onboard_fetch.py`: the company rule, unchanged company lines, no controller id or value
+  printed, definition lines, the NHTSA split, and both downloads with a fake fetcher.
+- `tests/mycelic/test_collective_guards.py`: the eight onboard modules join the stdlib-only, CLI and determinism lists;
+  a new `OnboardGenericTests` holds M1's static checks.
+
+Counts from `python -m pytest <file> -q` on this branch:
+
+| File | Result |
+|---|---|
+| `tests/mycelic/test_collective_onboard.py` | 74 passed, 19 subtests passed |
+| `tests/onboard/test_onboard_fetch.py` | 8 passed, 2 subtests passed |
+| `tests/mycelic/test_collective_guards.py` | 83 passed, 721 subtests passed |
+| `tests/mycelic/test_collective_x3.py` (the hash pins, untouched) | 32 passed, 141 subtests passed |
+
+`actionlint` 1.7.12 reports nothing on the workflow. It ran without `shellcheck`, which this machine lacks, so the
+`run:` scripts were not linted.
+
+### The dry run
+
+`synth.py` (kept outside the repository) wrote invented records in each source's column layout: an MSHA-style
+pipe file of 275,220 rows over 14 invented controllers, and an NHTSA-style tab file of 350,157 rows over seven makes.
+The split counted 40,000 complaints for each of the six makes the settings name. The steps then ran as the workflow
+runs them, after the downloads, on one machine:
+
+| Step | Seconds |
+|---|---|
+| split, MSHA layout | 6.0 |
+| split, NHTSA layout | 14.8 |
+| score, MSHA arm (5 companies, 1,000 sampled records) | 185.2 |
+| score, NHTSA arm (6 makes, 1,200 sampled records, two hand packs) | 362.1 |
+| export of c1's test window | 1.6 |
+| pilot audit of c1 | 19.7 |
+| report and last guard | 55.6 |
+
+The report step was timed again alone after its last change (`rerun_report.py`, also outside the repository); the
+other rows are from the full run (`run_pipeline.py`). The report's verdict was pass, with every criterion met. The
+largest process used 654 MB. The bootstrap intervals (B = 10,000) take most of the scoring time. The numbers say
+nothing about reading: the invented narratives hold their category's cue words by construction.

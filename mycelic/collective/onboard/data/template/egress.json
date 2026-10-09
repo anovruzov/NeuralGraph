@@ -1,0 +1,29 @@
+{
+  "central_allowed_fields": [
+    "codes",
+    "entities.export_scope",
+    "received_date",
+    "site"
+  ],
+  "close_lag_days": 14,
+  "count_granularity": "week",
+  "egress_entity_types": [
+    "export_scope"
+  ],
+  "k": 3,
+  "min_window_weeks": 6,
+  "never_fields": [
+    "narrative",
+    "reporter"
+  ],
+  "question_budget_per_entity_per_day": 5,
+  "question_entities_per_site_per_day": 50,
+  "require_master_data": true,
+  "suppress_below_days": 31,
+  "verdict_count_buckets": [
+    3,
+    10,
+    50
+  ],
+  "verify_max_records": 500
+}

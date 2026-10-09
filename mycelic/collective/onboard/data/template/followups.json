@@ -1,0 +1,26 @@
+{
+  "roles": {
+    "pattern_reviewer": {
+      "label": "Reviewer of drafted patterns"
+    }
+  },
+  "types": {
+    "evidence_packet": {
+      "ack_days": 2,
+      "args_schema": {
+        "conclusion": {
+          "kind": "conclusion_id"
+        }
+      },
+      "daily_cap": 50,
+      "draft_schema": null,
+      "enabled": true,
+      "escalate_to_role": null,
+      "executor": "packet",
+      "label": "Evidence packet assembled at each site",
+      "owner_role": "pattern_reviewer",
+      "template": null,
+      "tier": "T0"
+    }
+  }
+}
