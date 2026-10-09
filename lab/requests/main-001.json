@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "purpose": "Main run 001 after smoke-001 (docs/lab/RESULTS.md run 2), where on one seed the models' reading found no more planted patterns than the codes: the simulation over seeds 1-5 with a-0p5b, a-1p5b and a-4b, so 20 planted patterns per model decide it (b-2b left out for cost, 264 minutes per seed). E1 measures extraction errors, G0 is the 1000-record canary scan with a-4b, E3 times a-4b, X1 is the model-free baseline.",
+  "provider": "llama-server",
+  "models": [
+    "a-0p5b",
+    "a-1p5b",
+    "a-4b"
+  ],
+  "job_minutes": 330,
+  "max_parallel": 16,
+  "retention_days": 30,
+  "experiments": {
+    "e1": {
+      "minutes": 150,
+      "labels": {
+        "source": "generator",
+        "pack": "device_quality",
+        "n": 150,
+        "seed": 1
+      },
+      "reference": "a-4b",
+      "margin_points": 5,
+      "runs": 3,
+      "seed": 1
+    },
+    "e3": {
+      "models": [
+        "a-4b"
+      ],
+      "minutes": 45,
+      "concurrency": [
+        1,
+        4
+      ],
+      "requests": 8,
+      "warmup": 2,
+      "workloads": [
+        "extraction",
+        "short"
+      ],
+      "seed": 1
+    },
+    "g0": {
+      "models": [
+        "a-4b"
+      ],
+      "minutes": 300,
+      "pack": "device_quality",
+      "records": 1000,
+      "seed": 1
+    },
+    "sim": {
+      "minutes": 300,
+      "plant": "sim_small",
+      "weeks": 34,
+      "top_n": 10,
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    "x1": {
+      "minutes": 10,
+      "pack": "device_quality",
+      "plant": "plant_smoke",
+      "seeds": [
+        1,
+        2,
+        3
+      ],
+      "weeks": 52,
+      "eval_from": 26,
+      "eval_to": 51
+    }
+  }
+}
