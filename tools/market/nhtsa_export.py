@@ -17,7 +17,9 @@ inputs of ``mycelic.collective.pilot.audit run``:
   the predicate of the recall's component category when the campaign names exactly one of the pack's categories for
   that vehicle (else empty: any predicate).
 
-A run file with ``makes`` (replay V002) writes both files per make under ``<out>/<MAKE>/``, from one download.
+A run file with ``makes`` (replay V002) writes both files per make under ``<out>/<MAKE>/``, from one download. One with
+``"outcomes": "investigations"`` (replay V003) takes the outcomes from NHTSA's defect investigations instead of its
+recalls: one per preliminary evaluation or defect petition and vehicle, opened on the investigation's open date.
 It prints the counts of what it kept and dropped; it never prints a complaint or a recall. The pure steps are tested
 offline; the downloads run where static.nhtsa.gov is reachable (the vehicle-replay workflow).
 """
@@ -44,6 +46,12 @@ RECALLS_URL = f"{BASE}/rcl/FLAT_RCL_POST_2010.zip"
 # 0-based field positions (CMPL.txt and RCL.txt, as the probe printed them)
 C_ODINO, C_MAKE, C_MODEL, C_YEAR, C_COMP, C_STATE, C_LDATE, C_DESCR, C_PROD = 1, 3, 4, 5, 11, 13, 16, 19, 45
 R_CAMPNO, R_MAKE, R_MODEL, R_YEAR, R_COMP, R_TYPE, R_RCDATE = 1, 2, 3, 4, 6, 10, 15
+INVESTIGATIONS_URL = f"{BASE}/inv/FLAT_INV.zip"
+# INV.txt's fields (0-based): NHTSA action number, make, model, year, component, manufacturer, opened, closed, ...
+I_ACTION, I_MAKE, I_MODEL, I_YEAR, I_COMP, I_ODATE = 0, 1, 2, 3, 4, 6
+# replay V003: preliminary evaluations and defect petitions open an inquiry into a possible defect; engineering
+# analyses mostly upgrade a preliminary evaluation, and recall and audit queries follow a recall
+INVESTIGATION_KINDS = ("PE", "DP")
 _STATE = re.compile(r"[A-Z]{2}")
 _DATE = re.compile(r"\d{8}")
 _MAKE = re.compile(r"[A-Z0-9][A-Z0-9 -]{0,39}")
@@ -118,21 +126,60 @@ def recalls(rows: Iterable[Sequence[str]], make: str, date_from: str, date_to: s
         if vid is None:
             counts["no_model_year"] += 1
             continue
-        key = (_field(row, R_CAMPNO), vid)
-        entry = by.setdefault(key, {"opened": day, "predicates": set()})
-        entry["opened"] = min(entry["opened"], day)
-        pred = predicate_of.get(category_of(_field(row, R_COMP)))
-        if pred is not None:
-            entry["predicates"].add(pred)
-    out = []
-    for (campno, vid), entry in sorted(by.items()):
-        preds = sorted(entry["predicates"])
-        d = entry["opened"]
-        out.append({"outcome_id": f"{campno}/{vid}", "opened": f"{d[:4]}-{d[4:6]}-{d[6:]}", "entity_type": "vehicle",
-                    "entity_id": vid, "predicate": preds[0] if len(preds) == 1 else ""})
+        _add(by, (_field(row, R_CAMPNO), vid), day, predicate_of.get(category_of(_field(row, R_COMP))))
+    out = _outcome_rows(by)
     counts["outcomes"] = len(out)
     counts["campaigns"] = len({k[0] for k in by})
     return out, dict(sorted(counts.items()))
+
+
+def investigations(rows: Iterable[Sequence[str]], make: str, date_from: str, date_to: str,
+                   predicate_of: Mapping[str, str], kinds: Sequence[str] = INVESTIGATION_KINDS
+                   ) -> tuple[list[dict[str, str]], dict[str, int]]:
+    """The outcome rows of replay V003 (one per investigation and vehicle, opened on ``ODATE``) and the counts of what
+    was kept and dropped, with the make's rows in the window counted by action-number prefix (counts only)."""
+    counts: Counter[str] = Counter()
+    by: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        if _field(row, I_MAKE).upper() != make:
+            continue
+        counts["make_rows"] += 1
+        day = _field(row, I_ODATE)
+        if not _DATE.fullmatch(day) or not date_from <= day <= date_to:
+            counts["outside_window"] += 1
+            continue
+        action = _field(row, I_ACTION).upper()
+        counts[f"kind_{action[:2]}"] += 1
+        if action[:2] not in kinds:
+            counts["other_kind"] += 1
+            continue
+        vid = vehicle_id(make, _field(row, I_MODEL), _field(row, I_YEAR))
+        if vid is None:
+            counts["no_model_year"] += 1
+            continue
+        _add(by, (action, vid), day, predicate_of.get(category_of(_field(row, I_COMP))))
+    out = _outcome_rows(by)
+    counts["outcomes"] = len(out)
+    counts["investigations"] = len({k[0] for k in by})
+    return out, dict(sorted(counts.items()))
+
+
+def _add(by: dict[tuple[str, str], dict[str, Any]], key: tuple[str, str], day: str, pred: str | None) -> None:
+    entry = by.setdefault(key, {"opened": day, "predicates": set()})
+    entry["opened"] = min(entry["opened"], day)
+    if pred is not None:
+        entry["predicates"].add(pred)
+
+
+def _outcome_rows(by: Mapping[tuple[str, str], Mapping[str, Any]]) -> list[dict[str, str]]:
+    """One row per (action, vehicle): its predicate when the action names exactly one pack category for it, else any."""
+    out = []
+    for (action, vid), entry in sorted(by.items()):
+        preds = sorted(entry["predicates"])
+        d = entry["opened"]
+        out.append({"outcome_id": f"{action}/{vid}", "opened": f"{d[:4]}-{d[4:6]}-{d[6:]}", "entity_type": "vehicle",
+                    "entity_id": vid, "predicate": preds[0] if len(preds) == 1 else ""})
+    return out
 
 
 def pack_categories(pack_dir: Path) -> tuple[set[str], dict[str, str]]:
@@ -184,17 +231,24 @@ def main(argv: list[str] | None = None) -> int:
     categories, predicate_of = pack_categories(Path(args.pack))
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from mycelic.collective.pilot.audit import write_csv  # noqa: E402
-    complaint_blob, recall_blob = _fetch(COMPLAINTS_URL), _fetch(RECALLS_URL)
+    source = run.get("outcomes", "recalls")
+    if source not in OUTCOME_SOURCES:
+        raise ValueError(f"run file outcomes must be one of {sorted(OUTCOME_SOURCES)}: {source!r}")
+    url, outcome_rows = OUTCOME_SOURCES[source]
+    complaint_blob, outcome_blob = _fetch(COMPLAINTS_URL), _fetch(url)
     for make in makes:
         out = Path(args.out) / make if "makes" in run else Path(args.out)
         out.mkdir(parents=True, exist_ok=True)
         export, c_counts = complaints(_rows(complaint_blob), make, first, last, categories)
         write_csv(export, out / "export.csv")
-        outcomes, r_counts = recalls(_rows(recall_blob), make, first, last, predicate_of)
+        outcomes, o_counts = outcome_rows(_rows(outcome_blob), make, first, last, predicate_of)
         write_outcomes(outcomes, out / "outcomes.csv")
-        print(json.dumps({"make": make, "window": [first, last], "complaints": c_counts, "recalls": r_counts},
+        print(json.dumps({"make": make, "window": [first, last], "complaints": c_counts, source: o_counts},
                          sort_keys=True))
     return 0
+
+
+OUTCOME_SOURCES = {"recalls": (RECALLS_URL, recalls), "investigations": (INVESTIGATIONS_URL, investigations)}
 
 
 if __name__ == "__main__":

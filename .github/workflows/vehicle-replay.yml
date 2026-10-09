@@ -1,9 +1,10 @@
 name: vehicle-replay
 
-# Public replays V001 and V002 (docs/collective/replay/vehicles/CHOICE-V00*.md): NHTSA complaints and recalls of one
-# make, or of each make a run file lists, through the pilot audit, where static.nhtsa.gov is reachable. Starts when a
-# run file changes and runs the newest one. Each audit prints as one line between VEHICLE-AUDIT markers in the job log
-# (V002 then a VEHICLE-SUMMARY line combining the makes) and uploads as an artifact.
+# Public replays V001 to V003 (docs/collective/replay/vehicles/CHOICE-V00*.md): NHTSA complaints and recalls, or
+# defect investigations, of one make or of each make a run file lists, through the pilot audit, where static.nhtsa.gov
+# is reachable. Starts when a run file changes and runs the newest one. Each audit prints as one line between
+# VEHICLE-AUDIT markers in the job log (with several makes, then a VEHICLE-SUMMARY line combining them) and uploads as
+# an artifact.
 on:
   push:
     branches-ignore: [main]

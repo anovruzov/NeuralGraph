@@ -47,6 +47,14 @@ def recall(campno: str, make: str, model: str, year: str, comp: str, rcdate: str
     return row
 
 
+
+def investigation(action: str, make: str, model: str, year: str, comp: str, odate: str) -> list[str]:
+    row = [""] * 11
+    row[E.I_ACTION], row[E.I_MAKE], row[E.I_MODEL], row[E.I_YEAR], row[E.I_COMP], row[E.I_ODATE] = \
+        action, make, model, year, comp, odate
+    row[10] = "Summary text never exported"
+    return row
+
 class PackRuleTests(unittest.TestCase):
     def test_vehicle_ids(self) -> None:
         self.assertEqual(V.vehicle_id("Ford", "F-150", "2021"), "FORD-F150-2021")
@@ -121,6 +129,26 @@ class ExportTests(unittest.TestCase):
                           ("23V002000/FORD-ESCAPE-2020", "2023-04-01", ""),     # two categories: any predicate
                           ("23V003000/FORD-ESCAPE-2020", "2023-05-01", "")])    # not a pack category
         self.assertEqual((counts["campaigns"], counts["outside_window"], counts["not_vehicle"]), (3, 1, 1))
+
+    def test_investigations_preliminary_evaluations_and_petitions_only(self) -> None:
+        preds = {"ENGINE": "engine", "AIR BAGS": "air_bags"}
+        rows = [investigation("PE23001", "FORD", "F-150", "2021", "ENGINE AND ENGINE COOLING:ENGINE", "20230301"),
+                investigation("PE23001", "FORD", "F-150", "2021", "ENGINE", "20230301"),
+                investigation("DP23002", "FORD", "ESCAPE", "2020", "AIR BAGS", "20230401"),
+                investigation("DP23002", "FORD", "ESCAPE", "2020", "ENGINE", "20230401"),
+                investigation("EA23003", "FORD", "ESCAPE", "2020", "ENGINE", "20230501"),
+                investigation("RQ23004", "FORD", "ESCAPE", "2020", "ENGINE", "20230501"),
+                investigation("PE22009", "FORD", "ESCAPE", "2020", "ENGINE", "20221201"),
+                investigation("PE23005", "FORD", "ESCAPE", "9999", "ENGINE", "20230601"),
+                investigation("PE23006", "JEEP", "WRANGLER", "2020", "ENGINE", "20230601")]
+        out, counts = E.investigations(rows, "FORD", "20230101", "20241231", preds)
+        self.assertEqual([(o["outcome_id"], o["opened"], o["predicate"]) for o in out],
+                         [("DP23002/FORD-ESCAPE-2020", "2023-04-01", ""),          # two categories: any predicate
+                          ("PE23001/FORD-F150-2021", "2023-03-01", "engine")])     # ENGINE AND ... is not in preds
+        self.assertEqual((counts["kind_PE"], counts["kind_DP"], counts["kind_EA"], counts["kind_RQ"]), (3, 2, 1, 1))
+        self.assertEqual((counts["other_kind"], counts["outside_window"], counts["no_model_year"],
+                          counts["investigations"], counts["make_rows"]), (2, 1, 1, 2, 8))
+        self.assertNotIn("Summary", json.dumps(out))
 
     def test_export_feeds_the_pilot_audit(self) -> None:
         from mycelic.collective.pilot import audit as A

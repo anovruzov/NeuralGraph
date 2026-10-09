@@ -1,0 +1,92 @@
+{
+ "kind": "nhtsa_inv_probe",
+ "source": "job 113631108202 of run 37871721689 (commit 769bcca), printed between NHTSA-INV-PROBE markers; transcribed",
+ "note": "investigation files: size, row and field counts only; no investigation read",
+ "files": {
+  "https://static.nhtsa.gov/odi/ffdd/inv/FLAT_INV.zip": {
+   "bytes": 4300608,
+   "fields_per_row": {
+    "11": 154429
+   },
+   "rows": 154429
+  },
+  "https://static.nhtsa.gov/odi/ffdd/inv/INV_FLAT.zip": {
+   "error": "HTTPError: HTTP Error 404: Not Found"
+  }
+ },
+ "doc": {
+  "title": "DEFECT INVESTIGATIONS",
+  "covers": "all NHTSA safety-related defect investigations opened since 1972",
+  "dates": "YYYYMMDD",
+  "last_updated": "September 5, 2023",
+  "fields": [
+   [
+    1,
+    "NHTSA ACTION NUMBER",
+    "CHAR(10)",
+    "NHTSA Identification Number"
+   ],
+   [
+    2,
+    "MAKE",
+    "CHAR(25)",
+    "Vehicle/Equipment Make"
+   ],
+   [
+    3,
+    "MODEL",
+    "CHAR(256)",
+    "Vehicle/Equipment Model"
+   ],
+   [
+    4,
+    "YEAR",
+    "CHAR(4)",
+    "Model Year, 9999 if Unknown or N/A"
+   ],
+   [
+    5,
+    "COMPNAME",
+    "CHAR(256)",
+    "Component Description"
+   ],
+   [
+    6,
+    "MFR_NAME",
+    "CHAR(40)",
+    "Manufacturer's Name"
+   ],
+   [
+    7,
+    "ODATE",
+    "CHAR(8)",
+    "Date Opened (YYYYMMDD)"
+   ],
+   [
+    8,
+    "CDATE",
+    "CHAR(8)",
+    "Date Closed (YYYYMMDD)"
+   ],
+   [
+    9,
+    "CAMPNO",
+    "CHAR(9)",
+    "Recall Campaign Number, if applicable"
+   ],
+   [
+    10,
+    "SUBJECT",
+    "CHAR(200)",
+    "Summary Description"
+   ],
+   [
+    11,
+    "SUMMARY",
+    "CHAR(6000)",
+    "Summary Detail"
+   ]
+  ],
+  "campno_note": "The CAMPNO field, if present, identifies the recall campaign initiated as a result of the investigation."
+ }
+}
