@@ -1,0 +1,462 @@
+# Mycelic-E2E v1 — planner deliverable (PLAN_v1)
+
+Written 2026-10-09 (overnight run, charter in `../ORCHESTRATION.md`). Planner model: `claude-fable-5-1`.
+System under test: `/home/user/ng-impl` at `3bdfda8` (branch `claude/friendly-mayer-y9f1vt`, cloned from
+`claude/mycelic-implementation-vr034p`). Model provider for every run until a local model appears:
+`mycelic/models/fake.py` (sha256 prefix `2ea34d237680f284`), labelled **deterministic-provider** in every result.
+Nothing in this plan was executed; no code was edited. Every `file:function` below was read in this checkout.
+
+Reading order for engineers: §A (what exists and where the harness may enter), §B (the contract you are building
+against), §C (the one missing component), §D (your package), §E (what the first runs test).
+
+---
+
+## A. Stage map — production entry points in THIS code
+
+Legend. **exists** = implemented and tested here; **partial** = exists but does not meet the stage's requirement;
+**missing** = no code. **Bypassable** = there is a shorter path into the same state that the old benchmark (or a careless
+harness) could take; the architecture gate (§B.9) forbids it.
+
+| # | Required stage | Production entry point (file:function) | Status | How the benchmark invokes it | Bypass / suspicion |
+|---|---|---|---|---|---|
+| 1 | Raw source events → connector | `mycelic/ingest/connectors/local_export.py:LocalExportConnector.incremental_sync`, `.initial_backfill`, `.handle_webhook` (JSON/JSONL files, header `{"type":"source",...}`, records `message/document/event/edit/version/delete/redact/conversation`, `forwarded_from`); Slack/GitHub offline: `mycelic/ingest/connectors/slack.py`, `github.py` over `mycelic/ingest/mocks/slack_mock.py`, `github_mock.py` via `mycelic/ingest/http.py:ConnectorHttp` (harness pattern: `mycelic/tests/connector_support.py:slack_env/github_env/full_sync`) | exists | Write JSONL under the holder's import root `<holders_dir>/imports/` (`holder/embedded.py:EmbeddedHolders.ensure` sets `import_root`), then `POST /api/holders/{holder_id}/connectors` `{connector_type:"local_export", config:{source_app, account_id, paths:[relative], principal_map, auto_include}}` and `POST .../connectors/{id}/sync` (`api/routes_integrations.py:add_connector`, `sync_connector` → `holder_call` → signed `connector_control` envelope → `holder/service.py:HolderService._connector_control` → `ingest/runtime.py:IngestRuntime.control("connector.add" / "connector.sync")`). In-process equivalent (no HTTP): `rt.holders.ingest(holder_id).control(...)` with the same payloads. | Bypasses to forbid: `evidence/service.py:EvidenceStore.ingest_document` called directly (the seed does this: `seed/demo.py:_ingest_documents`); transport `ingest` envelopes (`holder/service.py:_dispatch` kind `"ingest"`); the holder's local HTTP `POST /documents` (`holder/process.py:post_document`); `POST /api/holders/{id}/imports` (`routes_integrations.py:upload_import`, DOCX/PDF/CSV upload — it is a connector path too, but v1 uses only `local_export` + Slack/GitHub mocks). |
+| 2 | Adapter / normalization | `local_export.py:LocalExportConnector.normalize` → `ingest/events.py:CanonicalEvent.create` (ids: `record_key`, `event_key`, `version_key`, `order_key`; `compute_root` → `source_root_id`/`root_known`, with `pure_copy`/`explicit` forward rules), `ingest/normalize.py:split_body`, `to_plain`, `mask_secrets`, `detect`; pipeline side `ingest/pipeline.py:IngestPipeline._prepare_page` → `_event_problems` (tenant/holder/connector identity + `source_app`/`source_account_id` namespace) → `_admit_event` (tombstones, inferred deletions, exclusions, quota) → `_redact` (secrets, body cap, sensitivity, ACL `narrow`) | exists | Implicit in stage 1; observable per connector in holder table `ingest_stage_metrics` and `SyncReport` (`raw_items, enqueued, duplicates, excluded, normalize_errors`) returned by `connector.sync`. | Malformed JSONL lines become `{"__invalid__": n}` and count as `normalize_errors` (good: they never stop the import). |
+| 3 | Tenant / domain / authz / shard | Tenant+holder identity: `pipeline.py:_event_problems`; ACL: `ingest/acl.py:narrow`, `decide`, `Audience`, `members_of`; domains: `ingest/domains.py:DomainClassifier.classify` (source default domains, hints, keyword grams, centroids; `classify_domains` model task only when allowed) → `apply_memberships_sync`; shard: `ingest/shards.py:ShardRouter.route_write_sync` (sticky `record_locator`), coordinator mirror `shard_registry.py:mirror_shards_sync`; routable domains published content-free in heartbeats `evidence/service.py:EvidenceStore._ingest_stats_sync` → `org.py:OrgService.holder_heartbeat` → `holders.published_domains` | exists | Implicit; the world generator sets each source's `default_domain_ids` through `sources.update` and record `domains` hints; department holders get org-wide connectors (unit holders), users get personal ones (`ownership`). | Shard splits are administrator-approved and never automatic (D17): v1 runs single-shard per holder; the shard stage is exercised only in a dedicated fault task that triggers one split through `api/routes_shards.py` (optional, not in the primary metric). |
+| 4 | Durable idempotent ingestion | `ingest/queue.py:IngestQueue.commit_page` (fenced checkpoint `expected_version`), `.lease`, `.ack_sync`, `.fail`, `.requeue_expired`, `.park`; `pipeline.py:IngestPipeline.process_available` → `process_item` → `dedupe` (`applied_events`, `record_locator.current_order_key`, tombstones: outcomes `new/update/metadata_only/duplicate/historical/late_after_delete/delete/redaction`); write + idempotency marker in one tx `pipeline.py:_finish_sync` (`IngestStore.mark_applied_sync`, queue ack); crash recovery `evidence/store.py:MycelicMemoryStore.run_in_tx(idempotency_key=...)`, `apply_pending_intents`, `shards.recover()` | exists | Faults are injected at the source files (duplicate lines, re-synced files, out-of-order `updated_at`, `edit`/`delete` records, missing `created_at`, malformed lines) and by killing the process between `sync` and `process_available` (restart mid-ingest: `connector.sync` leases from the durable `ingest_queue`). | None found; the gate checks `applied_events` outcomes rather than trusting reports. |
+| 5 | The correct individual NeuralGraph (holder) | `holder/embedded.py:EmbeddedHolders.ensure` (one `EvidenceStore` per registered holder, own file `<holders_dir>/<holder_id>.db`, own `IngestRuntime`, own route key); registry `org.py:OrgService.register_holder(tenant_id, owner_type user|unit, owner_id, mode="embedded")`; a connector can only produce records for its own holder (`_event_problems`: `identity`) | exists | World generator registers one `user` holder per user and one `unit` holder per org unit (`mode="embedded"`); connectors are attached per holder as in stage 1. | Scale risk: `EmbeddedHolders.reconcile` opens **every** embedded holder at start (10k SQLite files, 10k heartbeat loops at `heartbeat_interval`, 10k `IngestRuntime` tick loops at 5 s). Measure at 1k before 10k; mitigation candidates: lazy open on first envelope, `MYCELIC_INGEST_TICK_SECONDS` high, heartbeat interval high. |
+| 6 | Graph / index updates | `evidence/service.py:EvidenceStore.ingest_document` → `_build_memories` / `_write_chunks_sync` (raw messages + chunk memories with embeddings, FTS5, entity graph via `entities=`), `revise_document`, `delete_document` (purge); cross-app links `ingest/linking.py:link_record`, `write_links_sync` (holder tables `entity_identities`, `record_entities`, `relation_evidence`; NeuralGraph relations with modality) | exists | Implicit in stage 4 (`pipeline.py:_write` calls `ingest_document`/`revise_document` with `classify=False`, `embeddings=`, `entities=self._entities_for(ev) + link.entities()`). | Entity extraction is pattern-based (`linking.py:extract_references`, `extract_mentions`: GitHub issue URLs/keys, tracker keys from `known_keys`, `<name>-service` / "deployment of X", `component 1.2.3` under dependency cues, timeout symptoms, e-mail domains). The world's hidden entities **must** use this vocabulary or they never become graph nodes (see §B.2). |
+| 7 | HYPERGRAPH membership & lineage coordination | **missing.** Closest objects: binary `claim_evidence(claim_id, ref_id, role)`, `derivations(input_claim_ids, input_ref_ids, response_ids)`, `conflicts(claim_a, claim_b)`, `revisions`, `knowledge/service.py:KnowledgeService.lineage_graph` (an on-demand view, not a store), `knowledge/support.py:compute_support` (roots), `holders.published_domains` (domain counts only, no entities), holder-local `record_entities`. No n-ary edge object, no typed membership roles, no coordinator-side entity incidence, no traversal API, nothing the router consults. `grep -ri hyperedge\|hypergraph mycelic docs` → 0 hits. | missing | Built in §C / WP1. Until then the "hypergraph" row of the architecture gate fails and every run is reported as **pre-hypergraph**. | — |
+| 8 | Authorized cross-domain routing | `inquiry/service.py:QuestionService.candidate_holders` → `authz.py:Authorizer.can_route(question, holder, asker)` (tenant, revoked, `answer_scopes`, owner active + membership ∩ scope closure incl. project scopes, `domains_overlap` through the tenant taxonomy, asker can see scope) → `QuestionService.route` (routes + collect job + budget charge in one tx) → `publish_pending_routes` (signed envelope to `Subjects.holder_inbox`, audience computed by `question_audience`) | partial | Implicit: every question created by the loop or by `POST /api/questions` is routed by the worker (`discovery/engine.py:LoopEngine.route_question`). | **Not ranked**: `route` takes `holders[:max_holders]` (default 10) in `list_holders` order — with >10 authorized holders the choice is arbitrary, so cross-department patterns are found by luck. `candidate_holders` and `LoopEngine.domains_for_goal` scan every holder of the tenant per question (O(holders)); `question_audience` builds a `Principal` for every active user per question (cache keyed on `db.revision`/`data_version`, i.e. invalidated by any write). All three are 10k-user hotspots. |
+| 9 | Retrieval & evidence reconstruction | Holder: `holder/service.py:HolderService._dispatch` kind `question` → `evidence/service.py:EvidenceStore.answer_question` (policy reason, `Audience` filter before ranking, `_retrieve` = NeuralGraph hybrid vector+FTS+graph RRF, per-item ACL + disclosure level, model task `answer_from_evidence`, `_commit_answer` records exports with opaque `ref_id`); coordinator: `inquiry/service.py:QuestionService.handle_response` → `knowledge/service.py:KnowledgeService.upsert_refs_sync` (`evidence_refs.source_root_id`, `root_known`, `meta.object_key`); raw reconstruction for an authorized reader `api/routes_knowledge.py:get_raw` → `raw_request` envelope → `EvidenceStore.raw_for_ref(audience)` | exists | Implicit. The scorer reads `GET /api/questions/{id}`, `/claims/{id}`, `/evidence/{ref_id}` as the asker; it tries `/evidence/{ref}/raw` for denied-access tasks and expects 403/404. | `POST /api/questions/{id}/respond` (`human_response` / `manual_response`) answers without retrieval: forbidden to the harness. With the deterministic provider the answer is the verbatim concatenation of ≤3 chunks sharing ≥2 content tokens with the question (`fake.py:answer_from_evidence`), so retrieval, not language, decides. |
+| 10 | Inquiry / continual-discovery loop | `discovery/engine.py:LoopEngine.tick` (observe → `_deterministic_gaps` + `identify_gap` → `_ask_for_gap` → `QuestionService.create`), `route_question`, `collect`, `evaluate` (claims, disagreements, verification, blind verification spawn), `commit` (synthesis → discovery, escalation, follow-ups, outcomes, next tick), `late_response`, `reverify`; worker `discovery/worker.py:DiscoveryWorker.drain(max_jobs, tick_due)` / `.start()`; wake on new evidence `LoopEngine._on_transport` kind `ingest_result` → `wake_goals_for_holder` | exists | Goal: `POST /api/goals` + `POST /api/goals/{id}/actions {action:"activate"}` (`goals/service.py:GoalService.create_goal(activate=True)`); question under the goal: `POST /api/questions` (`QuestionService.create`: dedupe key, cooldown, blind-leak check, budget). The harness drives the worker either as a real process (`python -m mycelic serve` / `worker`) or in-process `rt.worker.drain()` (test pattern `mycelic/tests/test_loop_engine.py:run_until_quiet`). | With the deterministic provider the loop's own questions are templated (`fake.py:draft_question`: "What recurring operational blockers related to {domain} ..."); goal-only tasks therefore need records that lexically meet that template (declared in §B.5). |
+| 11 | Evidence / commit gate | `knowledge/gate.py:CommitGate.check` (authorization, schema, provenance, temporal, support with `min_independent_roots`, freshness, kind cap) and `effective_refs` (revoked/unauthorized holder → context, outside validity → context); `knowledge/service.py:KnowledgeService.commit_claim` (gate → `claims` + `claim_evidence` + `derivations` + `revisions` + `events` in one tx, idempotent `claim:{qid}:{i}`), `open_conflict`, `recompute_status`, `supersede_changed_support`, `on_evidence_event` | exists | Implicit; policy knobs via `org.set_policy(tenant, "min_independent_roots", 2)`, `freshness_days`. | No bypass short of direct SQL; the gate forbids the harness from writing `claims`/`discoveries` (G7). |
+| 12 | Final observable answer / discovery | `KnowledgeService.create_discovery` (idempotent `disc:{qid}`), `discovery_detail`, `lineage_graph`; question result `questions.result` (`outcome: committed | retained_uncertain | investigated | no_findings`, `claim_ids`, `discovery_id`); API `GET /api/discoveries`, `/discoveries/{id}`, `/claims/{id}`, `/questions/{id}`, `/evidence/{ref_id}` (visibility-filtered by `Authorizer`) | exists | The scorer reads only these endpoints as the task's asker principal (see §B.4 answer extraction). | — |
+
+Driving the system without HTTP (fast path for 10k worlds): `mycelic/runtime.py:build_runtime(settings)` → `rt.start(run_worker=True, run_holders=True)` gives `rt.org`, `rt.goals`, `rt.questions`, `rt.knowledge`, `rt.holders` (`EmbeddedHolders`), `rt.worker`. The scenario's `seed/scenario.py:ServiceSession` shows the in-process API-equivalent calls; the harness may use either, but the *same* service functions the HTTP routes call (never the SQL beneath them).
+
+---
+
+## B. Benchmark contract draft — "Mycelic-E2E v1"
+
+### B.1 World generator (`research/mycelic_e2e/bench/world.py`, WP2)
+
+Deterministic from `(seed, size)`. Sizes: `S` (2 tenants, 48 users, 22 units — e2e checks), `M` (2 tenants, 1,000 users),
+`L` (2 tenants, **10,000 users**, ~700 units; the priority after `S` passes). Structure per tenant:
+
+- Units: `executive` root (created by `auth.register_tenant`), 2–3 `region`, 1–3 `subsidiary` per region, 2–6 `department`
+  per subsidiary, 2–8 `team` per department, plus 2–5 cross-functional `project` units with `project_scopes` spanning two
+  departments (`org.create_unit`, `org.set_project_scope`).
+- Users: one primary `employee` membership in a team; 10 % also `team_lead`; one `department_lead` per department; one
+  `regional_lead` per region; 2 % hold a second membership in a project unit (`org.add_membership`).
+- Holders: one `user` holder per user and one `unit` holder per department and team (`org.register_holder(..., mode="embedded")`);
+  holder `domains` left empty — routable domains must come from ingestion (`published_domains`), never from the generator.
+- Policies: `min_independent_roots = 2`, `freshness_days = 365`, `holder_default_export = {disclosure:"excerpt", answer_scopes:["unit","org"]}`.
+
+The world file (`world.json`) is written once and hashed; it contains no gold.
+
+### B.2 Raw events only, through supported connectors
+
+Every piece of content enters as a raw record of a connector. v1 connectors: `local_export` (JSONL, one file per source;
+`source_app` in `{"chat","wiki","tickets","mail"}` so cross-app identity stays distinct) for all sizes, plus the Slack and
+GitHub offline mocks for size `S` (fixtures produced by the same generator, served by `slack_mock.py`/`github_mock.py` as in
+`tests/test_connector_cross_app.py`). Org-wide sources (`"visibility":"members"` with `member_ids` = the department's users)
+attach to the **department holder**; personal sources (`"visibility":"private"`, `member_ids:[owner]`) attach to the user holder.
+`principal_map` maps generator member ids to Mycelic user ids.
+
+Entities use the vocabulary the holder-side extractor already recognizes (stage 6): tracker keys `<KEY>-<n>` (file config
+`known_keys`), services `<name>-service`, components with versions under dependency cues (`"depends on parcelrouter 2.4"`),
+customer organizations by e-mail domain. Each hidden entity has one canonical id (e.g. `issue:tracker:lgx-412`,
+`service:parcelrouter`), which is also what the hypergraph indexes (§C).
+
+Hidden cross-domain patterns (positives): one entity `E`, **≥3 observations from ≥2 departments** (distinct holders,
+distinct source roots), consistent statement (same number / same polarity, so the deterministic evaluator clusters them:
+≥3 shared tokens, no numeric or negation mismatch). Observations are written from a pattern's surface template.
+
+Decoys (each a labelled task class, §B.5):
+- *Entity coincidence*: same entity id in unrelated contexts (different statements, each single-department).
+- *Common-origin copies*: a forwarded copy (`forwarded_from` + forwarded segment, so `compute_root` → `pure_copy` shares the
+  root) in another department: looks like 2 departments, is 1 root.
+- *Contradiction / retraction*: two statements with different numbers; one later `edit` or `delete` record retracts one side.
+- *Temporal supersession*: same entity, values at t1 < t2; the question asks the current value.
+- *Single-domain*: ≥3 observations, one department.
+- *Denied access*: pattern inside a `members`-restricted source whose members exclude the asker.
+- *Cross-tenant probe*: the pattern exists only in tenant B; the asker is in tenant A.
+
+Faults (applied to positives, all classes recorded in the task file): duplicate delivery (line repeated), replay (file
+re-synced after cursor reset), out-of-order (`updated_at` descending in file), edits (`type:"edit"`), deletions
+(`type:"delete"` of a supporting record → the pattern must fall back to its remaining roots or abstain), missing metadata
+(no `created_at`/`author`), malformed lines, **restart mid-ingest** (harness kills the process after `sync` enqueued and
+before `process_available` finished; on restart the queue resumes).
+
+### B.3 Dev / holdout split, sealed holdout
+
+- Two template banks: `templates_dev.py` and `templates_holdout.py` with **disjoint surface templates and disjoint entity
+  names** (checked by a test: zero shared templates, zero shared entity ids, zero shared 4-gram word sequences).
+- The holdout bank and holdout world seed live in `research/mycelic_e2e/bench/holdout/` (a separate module); its sha256 is
+  written to `research/mycelic_e2e/plan/HOLDOUT_SHA256` at freeze time and verified by every run; a holdout run is refused
+  when the hash differs. Holdout is run at most once per candidate (ledger-enforced, §D.3).
+- Freeze: dev tasks frozen with the world (`tasks_dev.json`), holdout tasks generated at run time from the sealed module and
+  never written to disk unencrypted outside the run directory.
+
+### B.4 Tasks — what the system receives, closed answers, metric
+
+A task is `(task_id, class, tenant, asker_user, goal_spec, question_text | null, options[], gold)`. The system receives
+**only** the goal (`POST /api/goals` as the asker, scope = the asker's department or region, `measurement_source.domains`
+listing the departments' domains) and, for question tasks, the question (`POST /api/questions` under that goal). Options
+are a closed set of `K=4` entity labels + `abstain`; the question text names the context (department pair, symptom), never
+the gold label; option labels are passed to the scorer only.
+
+Answer extraction (scorer, deterministic, from the asker's own view):
+1. Wait until the question is resolved (`status ∈ {committed, retained_uncertain, investigated, failed}`) or the task
+   timeout (`T_task`, 180 s at `S`, scaled by the run config) elapses → timeout counts **wrong**.
+2. Take claims of that question with `status = supported`; map each to an option by its hypergraph `entity` members
+   (§C) or, when the hypergraph is ablated, by exact canonical-id match of option entities against the claim text.
+3. Exactly one option matched → that option; none → `abstain`; several → the one with the most independent roots, ties → wrong.
+4. Goal-only tasks (no question): the same over the goal's discoveries' claims after `N_ticks` worker drains.
+
+Scoring rubric: positive classes → correct iff extracted == gold option. Expected-abstain classes → correct iff extracted ==
+`abstain` **and** the asker-visible output contains no `evidence_ref` from a holder the asker may not reach (denied / cross-tenant),
+**and** `GET /api/evidence/{ref}/raw` for every visible ref returns 403/404 where the asker lacks raw access. Any API error,
+exception, or timeout → wrong. **Primary metric: accuracy = correct / ALL tasks in the frozen set** (no exclusions after freeze).
+Target ≥ 0.80 on holdout (stretch 0.90), reported with a 95 % Wilson interval and with the dev number beside it.
+
+Fixed task mix (per split, 120 tasks): 40 cross-domain positive; 10 contradiction/retraction (gold = the surviving value's
+entity); 10 temporal supersession (gold = newest); 15 common-origin (8 positive with copies present but ≥2 genuine roots,
+7 copies-only → abstain); 10 entity coincidence → abstain; 10 single-domain → abstain; 10 denied access → abstain; 5
+cross-tenant → abstain; 10 fault-injected positives (one fault kind each, incl. one restart-mid-ingest). Goal-only tasks: 10
+of the 40 positives are issued as goals without a question.
+
+Supporting metrics (all logged per task, aggregated per class):
+- independent-support correctness: `claims.support.independent_roots` equals the gold number of genuine roots (copies counted once);
+- lineage correctness: `lineage_graph` resolves discovery → claims → refs → holders and the holder set equals gold holders;
+- decoy acceptance rate; unauthorized disclosures (count, must be 0 — a nonzero count fails the run regardless of accuracy);
+- latency per task (issue → resolved), per stage from `ingest_stage_metrics` and `job_attempts`;
+- model calls and tokens from `model_usage` (provider label), per task and per run;
+- memory (RSS peak, number of open holder files), coord.db and holder file sizes;
+- graphs created (holders with ≥1 record) vs activated (holders that answered ≥1 question with evidence) vs routed-to.
+
+### B.5 Declared limits of the deterministic provider
+
+`fake.py` decides lexically: retrieval needs ≥2 shared content tokens between question and chunk; clustering needs ≥3
+shared tokens; numbers/negation decide disagreement; `draft_question` is a template. The generator guarantees the templates
+satisfy these (and the holdout bank is checked by the same predicate), so the measured difficulty is routing, authorization,
+root independence, lineage, and fault tolerance — not language. Every result line carries `provider=fake (deterministic)`.
+If a local model appears, the same tasks run again with `provider=<model>` as a separate ledger row; numbers are never mixed.
+
+### B.6 Centralized baseline (`bench/baseline_central.py`, WP3)
+
+Same raw files, same `local_export` connector, same `FakeProvider` and hash embedder, **one** `EvidenceStore` (one holder file)
+for the whole tenant; records keep their ACL (`permissions`/`member_ids`) so the audience filter in `answer_question` is the
+same code. Per task: build the asker's `Audience` (`QuestionService.question_audience` logic reused read-only), call
+`EvidenceStore.answer_question` once, run `fake.evaluate_responses` on that single response, apply `CommitGate.check` with the
+tenant policy over the refs it cites (roots from the same `compute_root`), and extract the answer by the same rule as §B.4.
+Declared differences: no routing (one store), no verification question, no loop/follow-ups, no hypergraph, no
+cross-holder independence (roots still de-duplicate copies). It answers the question "what does the architecture add on
+identical inputs"; it is not a strawman: it gets the same retrieval and the same gate.
+
+### B.7 Architecture-coverage gate (`bench/arch_gate.py`, WP3) — a run with any failed assertion is **invalid**, not low-scoring
+
+G1 every live record in every holder has an `ingest_records` row with a benchmark connector id and an `applied_events` row (connector path, not `ingest_document`).
+G2 holder files are distinct per holder; a user's private source records exist only in that user's holder file; department sources only in the department holder.
+G3 for every `supported` claim: `support.independent_roots ≥ min_independent_roots`, `claim_evidence` refs resolve to `evidence_refs` with `root_known=1`, and the hypergraph `support` edge lists the same refs/roots/holders (§C invariant I4).
+G4 every question has `question_routes` rows and an `audit_log` row `question.route`; replaying `can_route` offline over the routed holders yields no denial; routed holders ≤ `budget.holders`; `audit_log.detail.rank_method == "hypergraph"` when the ranker is on.
+G5 every claim has a `claim.gate` audit row and a `revisions` row; every discovery is idempotent (`disc:{qid}` once).
+G6 `model_usage` rows all name provider `fake` (or the declared local model); the ledger row carries the label.
+G7 no claim/discovery/evidence_ref was written by a harness principal (`created_by_type ∈ {loop, agent}`; audit actors ∈ {worker, holder, system}); the harness process never opened `coord.db` or a holder file for writing (checked by inode/mtime watch and by `PRAGMA data_version` snapshots taken only through read-only connections).
+G8 hypergraph present and consistent (§C I1–I7); entity-index edges cover ≥ 95 % of gold entities that were ingested into publishable records.
+G9 lineage resolvable for every discovery (`lineage_graph` non-empty, holders reachable).
+G10 faults: duplicates recorded as `applied_events.outcome='duplicate'` with one record each; deleted records leave no text in any holder table (`tests/ingest_support.py:table_contains` style check); restart task shows a resumed lease (`ingest_queue` row leased twice).
+
+### B.8 Ablations (each run as a separate ledger row; a flag that fails to break its named class is itself a finding)
+
+| Ablation (one factor) | Mechanism (harness-only; never a production setting) | Must break |
+|---|---|---|
+| A1 routing ranker off | `rank_holders` replaced by identity (first-N, today's behaviour) | cross-domain positives at `M`/`L` |
+| A2 root-aware support off | `compute_support` patched to count refs, not roots | common-origin decoys accepted |
+| A3 verification off | `LoopEngine._ask_verification` patched to no-op | positives stay `hypothesis` → abstain |
+| A4 entity index off | heartbeat entity publication disabled | cross-domain positives drop partially (domain-only routing) |
+| A5 authz routing off | `Authorizer.can_route` patched to allow within tenant (test monkeypatch only) | denied-access tasks → disclosures > 0 (proves the gate is load-bearing); run is still *invalid* by G4, reported as ablation |
+| A6 dedupe off | `IngestPipeline.dedupe` returns `new` | fault tasks: duplicate records, edits out of order → contradiction/supersession wrong |
+
+### B.9 Evaluator isolation
+
+Gold lives in `tasks_<split>.gold.json`, read **only** by `bench/score.py` (WP3). The feeder/issuer (WP2) receives
+`tasks_<split>.public.json` (ids, asker, goal spec, question text, option labels) and never imports the scorer. A test asserts
+the public file contains no gold field and that no module under `bench/` except `score.py` references `.gold.`.
+
+---
+
+## C. Hypergraph corrective blueprint (smallest real design for this code)
+
+Purpose: give the coordinator one n-ary, typed, versioned structure that (a) records membership and lineage of every committed
+artifact in the same transaction, (b) indexes which holders/domains/entities co-occur so the router can choose holders across
+permitted domains, and (c) computes independent support from source roots as an edge property rather than a recomputed view.
+
+### C.1 Tables — `mycelic/db/migrations/0005_hypergraph.sql` (coordinator; next after `0004_shards.sql`)
+
+```sql
+CREATE TABLE hyperedges (
+    edge_id            TEXT PRIMARY KEY,                 -- sha256(tenant_id, kind, anchor_type, anchor_id, version)[:32]
+    tenant_id          TEXT NOT NULL REFERENCES tenants(tenant_id),
+    kind               TEXT NOT NULL,                    -- support | lineage | conflict | entity_index | discovery
+    anchor_type        TEXT NOT NULL,                    -- claim | conflict | entity | discovery
+    anchor_id          TEXT NOT NULL,
+    version            INTEGER NOT NULL DEFAULT 1,
+    status             TEXT NOT NULL DEFAULT 'active',   -- active | superseded | retracted
+    supersedes_edge_id TEXT REFERENCES hyperedges(edge_id),
+    scope_unit_id      TEXT REFERENCES org_units(unit_id),
+    visibility         TEXT NOT NULL DEFAULT 'unit',     -- copied from the anchor; authz filters edges like claims
+    independent_roots  INTEGER NOT NULL DEFAULT 0,       -- support edges: the gate's number, stored once
+    created_by_type    TEXT NOT NULL, created_by_id TEXT NOT NULL,
+    reason             TEXT NOT NULL DEFAULT '',
+    created_at         TEXT NOT NULL, updated_at TEXT NOT NULL,
+    UNIQUE (tenant_id, kind, anchor_type, anchor_id, version)
+);
+CREATE INDEX idx_hyperedges_anchor ON hyperedges(tenant_id, anchor_type, anchor_id, status);
+
+CREATE TABLE hyperedge_members (
+    edge_id     TEXT NOT NULL REFERENCES hyperedges(edge_id),
+    tenant_id   TEXT NOT NULL,
+    member_type TEXT NOT NULL,   -- claim | evidence_ref | source_root | holder | domain | entity | question | response | discovery | unit
+    member_id   TEXT NOT NULL,
+    role        TEXT NOT NULL,   -- subject | supports | contradicts | context | origin | copy_of | held_by | in_domain | about | asked_in | produced_by | derived_from | side_a | side_b | member_claim | holds
+    weight      REAL NOT NULL DEFAULT 1.0,
+    position    INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (edge_id, member_type, member_id, role)
+);
+CREATE INDEX idx_hm_member ON hyperedge_members(tenant_id, member_type, member_id);   -- incidence lookup: "edges touching X"
+
+CREATE TABLE entity_registry (                       -- tenant-scoped, content-free ids from mycelic/ingest/linking.py
+    tenant_id TEXT NOT NULL, entity_id TEXT NOT NULL, kind TEXT NOT NULL, display TEXT NOT NULL DEFAULT '',
+    holder_count INTEGER NOT NULL DEFAULT 0, first_seen_at TEXT NOT NULL, last_seen_at TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, entity_id)
+);
+```
+
+### C.2 Edge kinds and their members
+
+- `support` (anchor `claim`, one active version per claim): members `evidence_ref` with the **gate's effective role**
+  (`supports|contradicts|context`), `source_root` role `origin` (one per distinct canonical root from `compute_support`,
+  weight = ref count; copies get `evidence_ref` role `copy_of` → their root), `holder` role `held_by`, `domain` role `in_domain`
+  (question `candidate_domains` resolved through the taxonomy), `entity` role `about` (ids extracted from the claim text with
+  `linking.extract_mentions`/`extract_references` using the tenant's `known_keys`, plus entity ids the refs carry in
+  `evidence_refs.meta.entities` once holders disclose them — see C.5). `independent_roots` = `support["independent_roots"]`.
+- `lineage` (anchor `claim`): `question` role `asked_in`, `response` role `produced_by`, `claim` role `derived_from` (inputs),
+  `discovery` role `member_claim` (added by `create_discovery` / `add_claims_to_discovery`), `unit` = scope.
+- `conflict` (anchor `conflict`): `claim` roles `side_a`, `side_b`; `question` role `asked_in`; status follows the conflict.
+- `entity_index` (anchor `entity`, versioned per heartbeat change): `holder` role `holds` (weight = publishable record count),
+  `domain` role `in_domain`, `unit` role `held_by` (the holder's owner unit, or the user's primary unit). Content-free.
+- `discovery` (anchor `discovery`): `claim` role `member_claim`, `question` role `asked_in`, `unit` scope, `entity` role `about` (union of member claims).
+
+### C.3 Invariants (each is a unit test in `mycelic/tests/test_hypergraph.py`)
+
+I1 ids are stable and tenant-scoped: `edge_id` is a function of `(tenant, kind, anchor, version)`; members carry `tenant_id`; no edge references a member of another tenant (checked at write; a violation raises and aborts the transaction).
+I2 provenance: every `support`/`lineage` edge is written in the **same transaction** as its anchor (`commit_claim`), with `created_by_*` = the committing principal and `reason` = the gate's status line.
+I3 versions and supersession: a change to a claim's effective refs (`recompute_status`, `supersede_changed_support`, `on_evidence_event`, `revise_claim`) writes version n+1 and marks version n `superseded` with `supersedes_edge_id`; nothing is deleted; `retract_claim` marks `retracted`.
+I4 consistency with legacy tables: for the active `support` edge of a claim, the `evidence_ref` members and roles equal `claim_evidence`, `independent_roots` equals `claims.support.independent_roots`, and `source_root` members equal `compute_support(refs)["roots"]`.
+I5 contradiction: when a conflict is open on a claim, its active `support` edge has at least one `contradicts` member or the conflict edge references it; a claim is never `supported` while such an edge is active (mirrors the gate).
+I6 bounded traversal: `traverse(start, max_hops=2, max_nodes=200)` is the only read API; it never follows `retracted` edges and stops at `max_nodes`; routing uses hops ≤ 2.
+I7 authz at every hop: `traverse` takes a `Principal`; an edge is visible iff `Authorizer.can_view_scoped(p, {tenant_id, scope_unit_id, visibility}, resource_type="claim")`; `entity_index` edges are visible iff the principal can route a question into the holder's unit (`can_route` with a pseudo question); members of invisible edges are not returned and not counted (no inference from counts).
+I8 replay safety: a replayed `commit_claim` (same idempotency key) returns before any edge write; `write_claim_edges_sync` uses `INSERT OR IGNORE` on `(edge_id)` and on the member PK so a crash between the claim insert and the edge insert is repaired by the next replay (the commit job re-runs `commit_claim` through its checkpoint).
+
+### C.4 Write path (exact locations; all synchronous helpers taking the open `sqlite3.Connection`)
+
+New module `mycelic/knowledge/hypergraph.py`:
+
+```python
+def write_claim_edges_sync(c, *, tenant_id: str, claim_id: str, gate: GateResult, refs: list[dict], derivation: dict,
+                           input_claim_ids: list[str], question: dict | None, principal: Principal, scope_unit_id: str | None,
+                           visibility: str, entities: list[str]) -> tuple[str, str]      # (support_edge_id, lineage_edge_id)
+def supersede_support_sync(c, *, tenant_id: str, claim_id: str, refs: list[dict], support: dict, principal: Principal, reason: str) -> str
+def write_conflict_edge_sync(c, *, tenant_id: str, conflict_id: str, claim_a: str, claim_b: str, question_id: str | None, principal: Principal) -> str
+def close_conflict_edge_sync(c, *, tenant_id: str, conflict_id: str, outcome: str) -> None
+def write_discovery_edge_sync(c, *, tenant_id: str, discovery_id: str, claim_ids: list[str], question_id: str | None, scope_unit_id, visibility, principal) -> str
+def upsert_entity_index_sync(c, *, tenant_id: str, holder_id: str, unit_id: str | None, entities: dict[str, int], domains: list[str], now: str) -> int
+def traverse(db, principal: Principal, *, start: tuple[str, str], max_hops: int = 2, max_nodes: int = 200, kinds: tuple[str, ...] = ()) -> dict
+def incidence(db, tenant_id: str, *, member_type: str, member_ids: list[str], kinds: tuple[str, ...]) -> dict[str, list[dict]]   # member_id -> edges (no authz; router applies can_route)
+def entities_in_text(text: str, *, known_keys: Iterable[str]) -> list[str]   # thin wrapper over ingest/linking.py extractors
+def rebuild_sync(c, tenant_id: str) -> dict[str, int]   # deterministic rebuild of support/lineage/conflict/discovery edges from legacy tables (proof the edges are derived + the migration for existing data)
+```
+
+Call sites (small edits, all inside existing transactions):
+- `knowledge/service.py:KnowledgeService.commit_claim` — after the `derivations` insert, before `_revision_sync`:
+  `write_claim_edges_sync(c, ..., gate=result, refs=result.refs, derivation=d, input_claim_ids=[...], question=question, entities=entities_in_text(candidate["text"], known_keys=self.org.policy(tenant_id, "tracker_keys", [])))`.
+- `KnowledgeService._open_conflict_sync` → `write_conflict_edge_sync`; `resolve_conflict` → `close_conflict_edge_sync`.
+- `KnowledgeService.recompute_status`, `supersede_changed_support`, `on_evidence_event`, `revise_claim`, `retract_claim` → `supersede_support_sync` inside their existing `db.tx()`.
+- `KnowledgeService.create_discovery`, `add_claims_to_discovery` → `write_discovery_edge_sync` (new version on change).
+- `org.py:OrgService.holder_heartbeat` — when `stats["entities"]` is present: `upsert_entity_index_sync` in the same tx that updates `published_domains`.
+- Migration `0005_hypergraph.sql` + a one-off `rebuild_sync` run by `python -m mycelic migrate` (add a `hypergraph-rebuild` subcommand in `__main__.py`) so existing coordinators get edges for existing claims.
+
+### C.5 Entity publication from holders (content-free, policy-gated)
+
+`evidence/service.py:EvidenceStore._ingest_stats_sync` gains `entities: {entity_id: count}` computed from holder table
+`record_entities` joined to `ingest_records` where `deletion_status='live'`, the record's ACL visibility is `public` or
+`members`-with-audience-of-the-owning-unit (never `private`/`restricted`, never personal domains, never records flagged
+`suspicious_instructions`), count ≥ `min_records_to_publish` (reuse the domain threshold), capped at 500 ids per holder by count.
+Entity ids are pattern-derived identifiers, not text; the owner can turn publication off with `export_policy.auto_entities: false`
+(same shape as `auto_domains`). `holder/embedded.py:_heartbeat_stats` passes them through; `org.holder_heartbeat` audits
+`holder.entities_published` with counts only.
+
+### C.6 Routing algorithm (`mycelic/inquiry/routing.py:rank_holders`)
+
+```python
+def rank_holders(db, authz, org, question: dict, candidates: list[dict], *, support_edge: dict | None, max_holders: int) -> tuple[list[dict], dict]
+```
+Input: the **authorized** candidates from `QuestionService.candidate_holders` (authz unchanged and first). Steps:
+1. `E_q = entities_in_text(question.text) ∪ entities of the trigger claim's support edge (verification/contradiction)`; `D_q = question.candidate_domains` expanded through the taxonomy.
+2. `inc = incidence(db, tenant, member_type="entity", member_ids=E_q, kinds=("entity_index",))` → per holder: `entity_hits` (distinct entities of `E_q` it holds), `entity_weight` (sum of counts).
+3. Score per candidate: `3·entity_hits + 1·domain_overlap(D_q) + 1·unit_diversity − 2·already_supports − 1·shares_root_with_support`, where `unit_diversity` rewards the first holder from each department/unit not yet chosen (greedy, so the top-N spans departments), `already_supports` = holder is `held_by` on the claim's active support edge (verification routes away from them, as `_supporting_holders` does today), `shares_root_with_support` = holder appears on an `entity_index` edge whose records are copies (role `copy_of` from previous support edges).
+4. Deterministic order: `(−score, holder_id)`; take `max_holders`; return `(chosen, {"rank_method": "hypergraph", "scores": {...}})` which `QuestionService.route` writes into the `question.route` audit detail.
+Fallback: when `E_q` is empty and no incidence, scores are domain-only and the detail says `rank_method: "domains"`. Cost: one indexed query per entity set plus O(candidates) in memory; the scan in `candidate_holders` stays for v1 and is measured (E3).
+
+### C.7 Independent support via source roots
+
+Unchanged computation (`support.compute_support`), but the result is **stored** as edge members (`source_root` origins with
+weights, `copy_of` links) and `hyperedges.independent_roots`, so lineage views, the scorer and the router read one record.
+`traverse` from a `source_root` answers "which claims rest on this root" across holders — the shared-dependency view D11 asks for.
+
+### C.8 Persistence and replay
+
+Edges live in `coord.db` with everything else (WAL, same backup). Every write is inside the caller's transaction (I2, I8).
+`rebuild_sync` is idempotent and deterministic (edge ids are functions of their inputs) — the test rebuilds into a scratch DB and
+diffs against the live edges. The SQLite outbox / NATS transport carries nothing new except the heartbeat `entities` map.
+
+---
+
+## D. Work packages (3 engineers, ~90 min each, disjoint files)
+
+Common rules: no gold at runtime; no direct writes to `claims`, `discoveries`, `evidence_refs`, `questions`, or any holder
+file from the harness; no new production flag that weakens authz; every new module has a test; `python -m pytest
+mycelic/tests -q -p no:warnings` stays green (do not run the whole suite more than once; run your own files while developing).
+
+### WP1 — Hypergraph + routing integration (engineer 1)
+
+Owns: `mycelic/db/migrations/0005_hypergraph.sql`, `mycelic/knowledge/hypergraph.py` (new), `mycelic/inquiry/routing.py` (new),
+`mycelic/tests/test_hypergraph.py`, `mycelic/tests/test_routing_rank.py`; **small, listed edits only** in
+`mycelic/knowledge/service.py` (call sites C.4), `mycelic/inquiry/service.py:route` (call `rank_holders` after
+`candidate_holders`; write `rank_method` into the audit detail), `mycelic/org.py:holder_heartbeat` (entity index),
+`mycelic/evidence/service.py:_ingest_stats_sync` (+ `_ingest_stats_sharded`) and `mycelic/holder/embedded.py:_heartbeat_stats`
+(entity publication), `mycelic/__main__.py` (`hypergraph-rebuild`).
+Interfaces: exactly the signatures in C.4 and C.6; table names in C.1.
+Acceptance tests: I1–I8 as named tests; `test_routing_rank.py::test_top_n_spans_departments` (12 authorized holders, 2 departments
+hold entity `issue:tracker:lgx-412`, `max_holders=4` → both departments chosen, deterministic order); `::test_verification_routes_away_from_support`;
+`::test_rank_detail_in_audit`; `test_hypergraph.py::test_commit_claim_writes_edges_in_same_tx` (crash injected after the claim insert
+via a failing `_revision_sync` monkeypatch → no claim and no edge); `::test_rebuild_matches_live`; `::test_traverse_respects_authz`
+(employee in another department sees no edge or member of a unit-scoped claim); existing suites unchanged.
+Must NOT: change `Authorizer.can_route` semantics; publish entity ids from private/restricted/personal records; add any
+route to read raw content; touch `research/`.
+
+### WP2 — Benchmark world, raw-event feeding, task issuing (engineer 2)
+
+Owns: `research/mycelic_e2e/bench/__init__.py`, `world.py`, `templates_dev.py`, `holdout/__init__.py`, `holdout/templates_holdout.py`,
+`events.py` (raw JSONL writers incl. `forwarded_from`, edits, deletes, malformed lines; Slack/GitHub mock fixture writers for `S`),
+`faults.py`, `feed.py`, `issue.py`, `run.py`, `research/mycelic_e2e/bench/tests/test_world.py`.
+Interfaces:
+```python
+world.generate(seed: int, size: Literal["S","M","L"], bank: TemplateBank) -> World            # tenants, units, users, memberships, holders (specs only)
+world.materialize(rt: Runtime, world: World) -> dict[str, str]                                 # creates org objects via rt.auth/rt.org; returns name->id map
+events.write_sources(world: World, tasks_public: list[Task], gold_writer: Callable, out_dir: Path) -> list[SourceFile]   # gold_writer is WP3's sealed sink; events.py never keeps gold
+faults.apply(source_files: list[SourceFile], plan: FaultPlan, out_dir: Path) -> list[SourceFile]
+feed.connect_and_sync(client: ApiClient, holder_id: str, files: list[SourceFile], *, restart_hook: Callable | None) -> SyncSummary   # only via /api/holders/{id}/connectors[/sync]
+issue.issue_task(client: ApiClient, task: TaskPublic) -> Issued            # POST /api/goals (+activate), POST /api/questions; returns goal_id/question_id
+run.main(--size --seed --split dev|holdout --mode system|baseline --ablation NAME --out DIR --transport sqlite|nats --inprocess)
+```
+`ApiClient` is the HTTP client (aiohttp) or the in-process `ServiceSession`-style wrapper calling the same route handlers;
+chosen by `--inprocess`. Acceptance tests: a `S` world builds in < 60 s; dev/holdout banks disjoint (templates, entity ids,
+4-grams); every record passes `CanonicalEvent.validate` after `LocalExportConnector.normalize`; every positive pattern has ≥3
+observations in ≥2 departments with distinct roots (checked through `compute_root`, not by assumption); fault files re-ingest
+idempotently (second sync → `duplicates == records`); `feed.py` never imports `mycelic.evidence` or opens a `.db`;
+`issue.py` uses only `/api/goals`, `/api/goals/{id}/actions`, `/api/questions`.
+Must NOT: read `*.gold.json`; call `EvidenceStore`, `HolderService`, `KnowledgeService`, `QuestionService.handle_response` or
+`/respond`; set holder `domains` by hand; pre-create claims or discoveries.
+
+### WP3 — Evaluator (isolated), centralized baseline, architecture gate, run ledger (engineer 3)
+
+Owns: `research/mycelic_e2e/bench/score.py`, `gold.py` (sealed sink + reader, the **only** module that opens `*.gold.json`),
+`baseline_central.py`, `arch_gate.py`, `ledger.py`, `report.py`, `research/mycelic_e2e/bench/tests/test_score.py`,
+`test_arch_gate.py`, `research/mycelic_e2e/plan/HOLDOUT_SHA256` (written by `ledger.freeze_holdout`).
+Interfaces:
+```python
+gold.GoldSink(path).write(task_id, gold: Gold); gold.load(path) -> dict[str, Gold]
+score.extract_answer(view: AskerView, task: TaskPublic, *, hypergraph: bool) -> Extracted       # AskerView = the asker's GET results only
+score.score_task(extracted: Extracted, gold: Gold, disclosures: DisclosureCheck) -> TaskScore
+score.score_run(run_dir: Path) -> RunScore                                                      # accuracy over ALL tasks, Wilson CI, per-class table, supporting metrics
+baseline_central.run(world_dir: Path, tasks_public: list[TaskPublic], out_dir: Path) -> None   # one EvidenceStore, same connector files, same FakeProvider
+arch_gate.check(run_dir: Path, *, coord_db: Path, holders_dir: Path, expect_hypergraph: bool) -> GateReport   # G1–G10, read-only connections
+ledger.start_run(cfg) -> RunId; ledger.finish_run(run_id, score: RunScore, gate: GateReport); ledger.freeze_holdout(module_path) -> sha256
+report.render(run_dir) -> Path   # markdown table: system vs baseline vs ablations, with provider label and gate status
+```
+Ledger row (JSONL at `research/mycelic_e2e/results/ledger.jsonl`): git sha, dirty flag, seed, size, split, mode, ablation,
+provider label + `fake.py` hash, transport, in-process flag, container (`uname`, CPU count, RAM), holdout hash check, start/finish,
+accuracy + CI, gate pass/fail with failed ids, disclosures, model calls/tokens, latency p50/p95, RSS peak, holders created/activated/routed.
+A holdout run refuses to start when `ledger.jsonl` already has a holdout row for the same git sha + ablation.
+Acceptance tests: `extract_answer` on synthetic views covers every class and both the hypergraph and ablated paths; errors/timeouts
+score wrong; expected-abstain with a leaked foreign ref scores wrong and increments disclosures; `arch_gate` fails on a fixture
+coord.db where one claim was inserted by SQL (G7) and on a holder db with a document lacking `ingest_records` (G1); the baseline
+runs the `S` dev set end to end and produces a comparable `RunScore`.
+Must NOT: import `world.py`/`events.py` (the baseline consumes the already written source files); write to `coord.db` or holder
+files (read-only URIs `file:...?mode=ro`); put gold into any public artifact; alter the task set after freeze.
+
+Integration point (orchestrator, after the three land): `run.py --size S --seed 1 --split dev --mode system`, then `--mode
+baseline`, then `--ablation A1..A6`; `report.render`. Only then `--size M`, then `L`.
+
+---
+
+## E. First three experiment hypotheses (one factor each)
+
+E1 **Ranked routing over hypergraph incidence vs first-N.** Factor: `rank_holders` on/off (A1), size `M`, dev split, provider fake.
+Prediction: cross-domain positive accuracy rises from ≲ 0.35 (first-10 of ~1,000 authorized holders is near-random with respect to
+the 2 departments that hold the pattern) to ≥ 0.80; expected-abstain classes unchanged; routed-to holders per question ≤ 10 both
+ways. Falsified if the gain is < 0.2 or decoy acceptance rises (ranking by entity hits should not pull in coincidences, because
+the gate still needs ≥2 roots with a consistent statement).
+
+E2 **Root-aware support against common-origin copies.** Factor: A2 (count refs vs roots), size `S`, dev. Prediction: with roots,
+copies-only decoys abstain (acceptance ≤ 1/7) and positives-with-copies stay correct; without roots, ≥ 5/7 copies-only decoys are
+accepted as supported. Also tests the holder's `compute_root` on `forwarded_from` + forwarded segment: if `pure_copy` roots do
+not match the originals' roots (e.g. because quoting differs), the "with roots" arm will also accept copies — that would be an
+ingestion finding, not a gate finding, and the per-task `independent_roots` metric tells the two apart.
+
+E3 **Scale 100 → 1,000 → 10,000 holders with a fixed 120-task set.** Factor: world size (`S`, `M`, `L`), system mode only,
+ranker on. Prediction: accuracy flat within the CI; per-task latency and coord.db CPU grow superlinearly because
+`candidate_holders` (O(holders) `can_route`) and `question_audience` (O(users) principals, cache invalidated by every write)
+run per question; RSS grows ~linearly with open holders (`EmbeddedHolders.reconcile` opens all). Decision rule: if `L` cannot
+issue 120 tasks within 2 h on this container (4 vCPU, 15 GB), the next work package is a candidate pre-filter from
+`entity_index` incidence + an audience cache keyed on membership revision rather than `data_version` — not a change to the
+benchmark.
+
+---
+
+Appendix — known hazards for the harness authors (from the code, not the docs):
+- `QuestionService.create` rejects questions whose normalized text duplicates a live or cooling-down question in the same
+  `(tenant, goal, scope, kind)`; give each task its own goal or distinct wording.
+- `_ask_for_gap` sets `valid_from/valid_to` ±365 days; records observed earlier are demoted to `context` by the gate — keep
+  generated `created_at` within the last 300 days.
+- `freshness_days` policy default 90 → set 365 in the world, or old-but-true patterns commit as `stale`.
+- `answer_question` returns `no_evidence` unless ≥2 content tokens are shared; `evaluate_responses` needs ≥3 shared tokens
+  between responses to cluster — templates must keep the entity id and two topic words in both question and records.
+- A `unit` holder answers only questions whose scope contains its unit (`can_route`): department-level goals reach department
+  holders and their users; region-level goals reach everything below.
+
+---
+
+## F. Orchestrator acceptance (2026-10-09 ~05:55 UTC) — PLAN_v1 accepted with these binding amendments
+
+O1 **Answer extraction never reads system internals.** `score.extract_answer` maps the asker-visible text of `supported`
+   claims (and discovery summaries for goal-only tasks) to the K options by canonical entity-id / display-name match only.
+   The same rule for system, baseline and every ablation. Hypergraph membership is never used to score (self-referential).
+O2 **Task questions never name the gold entity**, so entity incidence alone cannot route the first question. WP1 must make
+   routing benefit from signals a question legitimately carries: (a) symptom/topic ids the holder-side extractor already
+   recognizes (`ingest/linking.py` symptoms, components, services) published as `entity_index` members, matched against ids
+   extracted from the question text; (b) entity-targeted follow-up/verification questions created by the loop after a first
+   finding names a candidate entity, routed by entity incidence to holders in OTHER departments. E1's prediction must be
+   re-derived from (a)+(b); the A1 ablation still compares against first-N.
+O3 **Cross-department requirement is a product rule, not a scorer trick.** Questions/goals may carry
+   `policy.min_independent_units = {"department": 2}`; the commit gate (WP1, `knowledge/gate.py`) counts distinct departments
+   of the supporting holders' owner units among *independent roots* and refuses `supported` below it (status `hypothesis`
+   with reason). Single-domain decoys are then expected-abstain because the asker asked for ≥2 departments.
+O4 **Baseline evidence budget = the system's.** The central baseline may retrieve and keep up to `max_holders × 3 = 30`
+   evidence items per question (the system's maximum), not k=8; declared in BENCHMARK_CONTRACT.md before any run.
+O5 **Scale is set by measurement.** Development runs at S and M; L (10,000 users) is attempted once the perf probe and an M run
+   show it fits; the holdout size is declared in the frozen contract before the holdout is generated.
+O6 Engineers do not `git commit` (single index; the orchestrator commits after review). Each engineer reports the exact
+   commands and test results; reviewers reproduce them.
