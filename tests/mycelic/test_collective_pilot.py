@@ -206,7 +206,8 @@ class ReactiveWorldTests(unittest.TestCase):
     ``test_reactive_world_*``, ``test_background_world_*`` and ``test_presignal_world_*`` were committed before the
     check first ran (commit "Reactive-world check of the chance nulls: worlds and pass criteria, before the first
     run"), and are not to be moved after it. On the first run the presignal criterion failed (5 of 20 seeds, not 18):
-    it stays as written, marked as an expected failure."""
+    it stays as written, marked as an expected failure. ``test_lasting_world_*`` came later, with its world, and was
+    committed before that world first ran."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -216,8 +217,8 @@ class ReactiveWorldTests(unittest.TestCase):
     def test_reactive_world_corrected_null_matches_found_and_audited_null_overstates(self) -> None:
         # the first two assertions hold by construction: reactions last REACT_WEEKS (12), inside the POST window (26),
         # so the corrected null leaves out every alert on an outcome's key and expects 0, as found is 0. Only the
-        # third can fail
-        w =self.result["worlds"]["reactive"]
+        # third can fail. The lasting world is the reactive check where the corrected null has something to rotate
+        w = self.result["worlds"]["reactive"]
         self.assertEqual(w["mean_found"], 0)            # by construction: no alert on an outcome's key before it opens
         self.assertLessEqual(abs(w["mean_expected_found_excluding_own_post"] - w["mean_found"]), 0.02 * self.n)
         self.assertGreaterEqual(w["mean_expected_found"] - w["mean_found"], 0.10 * self.n)
@@ -241,6 +242,18 @@ class ReactiveWorldTests(unittest.TestCase):
         self.assertGreaterEqual(w["mean_found"] - w["mean_expected_found_excluding_own_post"], 0.15 * self.n)
         self.assertGreaterEqual(w["p_value_excluding_own_post_below_alpha"], 18)
 
+    def test_lasting_world_corrected_null_overstates_when_reactions_outlast_the_post_window(self) -> None:
+        # pre-registered with the lasting world, committed before it first ran (commit "Lasting reactive world and its
+        # pass criterion, before the first run"). Reactions run 40 weeks from the opening, past the 26-week post
+        # window, and there is no pre-signal, so found is 0 by construction and whatever a null expects overstates
+        # chance. The corrected null leaves out only the reactions inside the post window; the later ones still
+        # rotate into the look-back, so it should overstate by at least 2 of 40. The audited null also rotates the
+        # reactions inside the window, so it should overstate by at least 2 more
+        w = self.result["worlds"]["lasting"]
+        self.assertEqual(w["mean_found"], 0)
+        self.assertGreaterEqual(w["mean_expected_found_excluding_own_post"] - w["mean_found"], 0.05 * self.n)
+        self.assertGreaterEqual(w["mean_expected_found"] - w["mean_expected_found_excluding_own_post"], 0.05 * self.n)
+
     def test_why_the_corrected_p_stays_high_written_after_the_first_run(self) -> None:
         # not a pass criterion: what the first run showed, pinned. Shift zero leaves every look-back as observed, so
         # it always finds the found count, and with a pre-signal every shift that finds as many lies within the
@@ -258,12 +271,14 @@ class ReactiveWorldTests(unittest.TestCase):
             outcomes, reactive = RW.world("reactive", seed)
             o2, background = RW.world("background", seed)
             o3, presignal = RW.world("presignal", seed)
+            o4, lasting = RW.world("lasting", seed)
             self.assertEqual(outcomes, o2)
             self.assertEqual(outcomes, o3)
+            self.assertEqual(outcomes, o4)
             self.assertEqual(len(outcomes), RW.OUTCOMES)
             self.assertEqual({o.key for o in outcomes}, {f"vehicle:V{n:02d}" for n in range(RW.OUTCOMES)})
             for a in reactive:
-                self.assertTrue(a in background and a in presignal)
+                self.assertTrue(a in background and a in presignal and a in lasting)
             for a in background:
                 self.assertIn(a, presignal)
             opened = {f"vehicle:{o.entity_id}:engine": o.opened for o in outcomes}
@@ -276,8 +291,13 @@ class ReactiveWorldTests(unittest.TestCase):
                 self.assertEqual(int(a["entity_id"][1:]) % 2, 1)
                 gap = (date.fromisoformat(opened[a["key"]]) - date.fromisoformat(a["available_date"])).days
                 self.assertTrue(0 < gap <= 7 * RW.PRE_WEEKS, gap)
+            gaps = [(date.fromisoformat(a["available_date"]) - date.fromisoformat(opened[a["key"]])).days
+                    for a in lasting if a["key"] in opened]
+            for gap in gaps:                            # the lasting reactions: after the opening, within 40 weeks
+                self.assertTrue(0 <= gap < 7 * RW.LASTING_WEEKS, gap)
+            self.assertTrue(any(gap > 7 * RW.POST for gap in gaps))     # some of them past the post window
             last = RW.AVAILABLE_FIRST + timedelta(weeks=RW.EVALUATED_WEEKS - 1)
-            for a in presignal:                         # every alert inside the evaluated weeks
+            for a in presignal + lasting:               # every alert inside the evaluated weeks
                 self.assertTrue(RW.AVAILABLE_FIRST.isoformat() <= a["available_date"] <= last.isoformat())
         self.assertEqual(self.result["label"], RW.LABEL)
         self.assertIn("synthetic", RW.LABEL)

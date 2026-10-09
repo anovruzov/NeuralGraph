@@ -18,12 +18,14 @@ settings). No detector runs and no real record is read.
   so the found count is what chance gives.
 - ``presignal``: ``background`` plus a real pre-signal on every other outcome: each of the 8 alert weeks before it
   opens, with probability 0.3.
+- ``lasting``: ``reactive`` with the reactions running on to 40 alert weeks from the opening, past the 26-week post
+  window, at the same probability. Still no pre-signal: nothing is found.
 
-Each part of a world draws from its own random stream, so the three worlds of one seed share their openings,
-reactions and background, and differ only in what they add. It prints, per world, the means over the seeds of the
-found count and of each null's expected count, the mean of each null's p, and in how many seeds each p is below 0.05.
-It also prints two facts about the corrected rotation: in how many seeds its shift zero finds exactly the found count,
-and the farthest shift, in weeks either way, that finds at least as many as were found.
+Each part of a world draws from its own random stream, so the worlds of one seed share their openings, reactions and
+background, and differ only in what they add. It prints, per world, the means over the seeds of the found count and
+of each null's expected count, the mean of each null's p, and in how many seeds each p is below 0.05. It also prints
+two facts about the corrected rotation: in how many seeds its shift zero finds exactly the found count, and the
+farthest shift, in weeks either way, that finds at least as many as were found.
 """
 from __future__ import annotations
 
@@ -41,7 +43,7 @@ sys.path.insert(0, str(ROOT))
 from mycelic.collective.pilot.audit import Outcome, _match_keys, own_post_shift_totals, score_channel  # noqa: E402
 
 LABEL = "synthetic: alert timelines generated with a known truth; no detector ran and no real data was read"
-WORLDS = ("reactive", "background", "presignal")
+WORLDS = ("reactive", "background", "presignal", "lasting")
 SEEDS = 20
 ALPHA = 0.05
 OUTCOMES = 40
@@ -49,6 +51,7 @@ NOISE_KEYS = 40
 EVALUATED_WEEKS, LOOKBACK, POST = 87, 26, 26          # the vehicle replays' settings
 AVAILABLE_FIRST = date(2023, 6, 4)
 REACT_WEEKS, REACT_P = 12, 0.15
+LASTING_WEEKS = 40
 BACKGROUND_P = 0.01
 PRE_WEEKS, PRE_P = 8, 0.3
 SCORED = ("found", "expected_found", "p_value", "expected_found_excluding_own_post", "p_value_excluding_own_post",
@@ -73,7 +76,8 @@ def world(name: str, seed: int) -> tuple[list[Outcome], list[dict[str, Any]]]:
     """One world's outcomes and alerts (alert week i is available on ``AVAILABLE_FIRST`` plus i weeks)."""
     if name not in WORLDS:
         raise ValueError(f"world must be one of {', '.join(WORLDS)}")
-    streams = {part: random.Random(f"{seed}:{part}") for part in ("open", "react", "background", "pre", "noise")}
+    streams = {part: random.Random(f"{seed}:{part}")
+               for part in ("open", "react", "late", "background", "pre", "noise")}
     outcomes: list[Outcome] = []
     alerts: list[dict[str, Any]] = []
     for n in range(OUTCOMES):
@@ -82,6 +86,9 @@ def world(name: str, seed: int) -> tuple[list[Outcome], list[dict[str, Any]]]:
         first = -(-(opened - AVAILABLE_FIRST).days // 7)     # the first alert week available on or after opening
         key = f"vehicle:V{n:02d}:engine"
         alerts += [_alert(i, key) for i in _weeks(streams["react"], range(first, first + REACT_WEEKS), REACT_P)]
+        if name == "lasting":
+            alerts += [_alert(i, key)
+                       for i in _weeks(streams["late"], range(first + REACT_WEEKS, first + LASTING_WEEKS), REACT_P)]
         if name != "reactive":
             alerts += [_alert(i, key) for i in _weeks(streams["background"], range(EVALUATED_WEEKS), BACKGROUND_P)]
         if name == "presignal" and n % 2:
@@ -129,7 +136,8 @@ def check(seeds: int = SEEDS) -> dict[str, Any]:
     return {"kind": "reactive_world_check", "label": LABEL, "seeds": seeds, "alpha": ALPHA,
             "settings": {"outcomes": OUTCOMES, "noise_keys": NOISE_KEYS, "evaluated_weeks": EVALUATED_WEEKS,
                          "lookback_weeks": LOOKBACK, "post_weeks": POST, "react_weeks": REACT_WEEKS,
-                         "react_p": REACT_P, "background_p": BACKGROUND_P, "pre_weeks": PRE_WEEKS, "pre_p": PRE_P},
+                         "lasting_weeks": LASTING_WEEKS, "react_p": REACT_P, "background_p": BACKGROUND_P,
+                         "pre_weeks": PRE_WEEKS, "pre_p": PRE_P},
             "worlds": worlds}
 
 
