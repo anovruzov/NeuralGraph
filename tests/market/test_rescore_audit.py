@@ -25,6 +25,7 @@ def _load(name: str):
 
 
 R = _load("rescore_audit")
+RW = _load("reactive_world")
 PACKS = ("device_quality", "claims_integrity")
 
 
@@ -36,27 +37,41 @@ def _alert(available: str, key: str) -> dict[str, Any]:
             "entity_type": t, "entity_id": eid, "predicate": pred, "sites": [], "record_refs": []}
 
 
-def _doc(channel_alerts: dict[str, list[dict[str, Any]] | None]) -> dict[str, Any]:
-    """An audit document shaped as ``audit()`` writes it, scored by the audit's own ``score_channel``."""
+def _audit_doc(outcomes: list[Any], channel_alerts: dict[str, list[dict[str, Any]] | None], settings: dict[str, Any],
+               weeks: dict[str, str]) -> dict[str, Any]:
+    """An audit document shaped as ``audit()`` writes it, scored by the audit's own ``score_channel`` with
+    ``settings`` (its keyword arguments). ``weeks`` gives the first, last and first evaluated week."""
     from mycelic.collective.pilot import audit as A
-    outcomes = [A.Outcome("O1", "2024-06-03", "product", "SD-9", None),
-                A.Outcome("O2", "2024-05-06", "product", "IP-7", "crack"),
-                A.Outcome("O3", "2024-07-01", "lot", "L10001", None)]
     channels: dict[str, Any] = {}
     for name in A.CHANNELS:
         alerts = channel_alerts.get(name)
         if alerts is None:
             channels[name] = {"summary": None, "by_outcome": [], "reason": "not run here"}
             continue
-        s = A.score_channel(outcomes, alerts, lookback=8, post=8, available_first=date(2024, 3, 5),
-                            evaluated_weeks=20)
+        s = A.score_channel(outcomes, alerts, **settings)
         channels[name] = {"summary": s["summary"], "by_outcome": s["by_outcome"],
                           "alert_timeline": s["alert_timeline"], "reason": None}
     return {"kind": A.KIND, "label": "synthetic test audit", "pack": {"id": "device_quality"},
-            "settings": {"lookback_weeks": 8, "post_weeks": 8, "tie_salt": "pilot"},
-            "weeks": {"first": "2023-W52", "last": "2024-W29", "evaluated_from": "2024-W09", "evaluated_weeks": 20,
-                      "available_first": "2024-03-05"},
+            "settings": {"lookback_weeks": settings["lookback"], "post_weeks": settings["post"], "tie_salt": "pilot"},
+            "weeks": {**weeks, "evaluated_weeks": settings["evaluated_weeks"],
+                      "available_first": settings["available_first"].isoformat()},
             "channels": channels}
+
+
+def _doc(channel_alerts: dict[str, list[dict[str, Any]] | None]) -> dict[str, Any]:
+    """The small audit: three outcomes, 20 weeks, 8-week windows."""
+    from mycelic.collective.pilot import audit as A
+    outcomes = [A.Outcome("O1", "2024-06-03", "product", "SD-9", None),
+                A.Outcome("O2", "2024-05-06", "product", "IP-7", "crack"),
+                A.Outcome("O3", "2024-07-01", "lot", "L10001", None)]
+    return _audit_doc(outcomes, channel_alerts,
+                      {"lookback": 8, "post": 8, "available_first": date(2024, 3, 5), "evaluated_weeks": 20},
+                      {"first": "2023-W52", "last": "2024-W29", "evaluated_from": "2024-W09"})
+
+
+def _iso_week(day: date) -> str:
+    year, week, _ = day.isocalendar()
+    return f"{year:04d}-W{week:02d}"
 
 
 X_ALERTS = [_alert("2024-05-07", "product:SD-9:leak"),        # O1 found
@@ -178,6 +193,66 @@ class UnionTests(unittest.TestCase):
         bad["channels"]["X"]["alert_timeline"][0]["available_date"] = "2024-05-08"
         with self.assertRaisesRegex(R.RescoreError, "closing lags"):
             R.rescore(bad)
+
+
+class LargerAuditTests(unittest.TestCase):
+    """Audits built from the synthetic timelines of ``tools/market/reactive_world.py``, seeds 1 to 5: 40 outcomes, 87
+    weeks, 26-week windows, and every channel with alerts on the outcomes' keys before and after their openings. In
+    the demo audits S and R_mf have no alert on an outcome's key, and the small audit above does not notice the date
+    the rotations start from; these audits notice both."""
+
+    SEEDS = range(1, 6)
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.settings = {"lookback": RW.LOOKBACK, "post": RW.POST, "available_first": RW.AVAILABLE_FIRST,
+                        "evaluated_weeks": RW.EVALUATED_WEEKS}
+        weeks = {"first": _iso_week(RW.AVAILABLE_FIRST), "evaluated_from": _iso_week(RW.AVAILABLE_FIRST),
+                 "last": _iso_week(RW.AVAILABLE_FIRST + timedelta(weeks=RW.EVALUATED_WEEKS - 1))}
+        cls.audits = {}
+        for seed in cls.SEEDS:
+            outcomes, x = RW.world("presignal", seed)        # pre-signal, reactions and background
+            _, s = RW.world("lasting", seed)                 # reactions that outlast the post window
+            _, r = RW.world("background", seed + 100)        # the same keys, at times unrelated to these openings
+            alerts = {"X": x, "S": s, "R_mf": r}
+            cls.audits[seed] = (outcomes, alerts, _audit_doc(outcomes, alerts, cls.settings, weeks))
+
+    def test_the_audits_exercise_every_channel(self) -> None:
+        for seed, (outcomes, alerts, doc) in self.audits.items():
+            for name in ("X", "S", "R_mf"):
+                with self.subTest(seed=seed, channel=name):
+                    s = doc["channels"][name]["summary"]
+                    self.assertEqual(s["outcomes"], RW.OUTCOMES)
+                    self.assertGreater(s["expected_found"], 0)
+                    self.assertGreater(s["expected_found_excluding_own_post"], 0)
+                    self.assertTrue(any(r["post_alerts"] for r in doc["channels"][name]["by_outcome"]))
+            self.assertGreater(doc["channels"]["X"]["summary"]["found"], 0)
+            self.assertGreater(doc["channels"]["R_mf"]["summary"]["found"], 0)
+
+    def test_every_channel_and_the_union_reproduce_exactly(self) -> None:
+        from mycelic.collective.pilot import audit as A
+        for seed, (outcomes, alerts, doc) in self.audits.items():
+            with self.subTest(seed=seed):
+                got = R.rescore(doc)
+                for name in ("X", "S", "R_mf"):
+                    self.assertTrue(got["channels"][name]["matches_audit"], name)
+                union = A.score_channel(outcomes, alerts["X"] + alerts["S"] + alerts["R_mf"], **self.settings)
+                self.assertEqual(got["union"]["summary"], union["summary"])
+                self.assertEqual(got["union"]["of"], ["X", "S", "R_mf"])
+
+    def test_the_start_date_from_the_timeline_reproduces_and_a_week_off_does_not(self) -> None:
+        for seed, (_, _, doc) in self.audits.items():
+            with self.subTest(seed=seed):
+                want = R.rescore(doc)
+                old = copy.deepcopy(doc)
+                del old["weeks"]["available_first"]
+                got = R.rescore(old)
+                self.assertEqual((got["available_first"], got["available_first_from"]),
+                                 (RW.AVAILABLE_FIRST.isoformat(), "alert_timeline"))
+                self.assertEqual((got["channels"], got["union"]), (want["channels"], want["union"]))
+                off = copy.deepcopy(doc)
+                off["weeks"]["available_first"] = (RW.AVAILABLE_FIRST + timedelta(days=7)).isoformat()
+                self.assertFalse(all(c["matches_audit"] for c in R.rescore(off)["channels"].values()))
 
 
 if __name__ == "__main__":
