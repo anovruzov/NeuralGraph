@@ -962,6 +962,161 @@ section 7 names: holders whose evidence the cells do not mark, read by a model.
 gate status (sha256 `59edfb50…cc9de1e43`). Both were written by `run.py export`.
 `docs/collective/routing_spike/run-2-process-check.json` is the process-mode check (sha256 `6292eb4f…2fc44edd`).
 
+## 13. Post-Run-2 fix (not yet run)
+
+**Status.** A correctness fix to what a site reads, written after Run 2. It is not a tuning step, and nothing has been
+run under it as the experiment: no Run 3, no new prereg, no statistic. Sections 0 to 12, both runs and their committed
+files are unchanged. Whether to run again, and under which prereg, is the chief scientist's call.
+
+**What was wrong.** Sections 11 and 12 ("Why R found more than A") describe it. Tesseract's ranking ignores the
+question's entity, and Tesseract returns only its stores' top candidates. So a site could leave unread an in-window
+record that the shipped entity-matched retrieval (`edge.verify.retrieve`, the shipped `SiteVerifier`'s own) reads,
+including a record whose stored claim its own cells counted, and then refute or contest a key its own cells assert.
+
+**What changed.** Only `TesseractRetrieval` in `research/routing_spike/site_process.py`, step 5 of 1.4. A site now
+reads the union of two sets, at most L = 50 records in all:
+
+1. the records the shipped retrieval reads for the question at cap L (newest first, as `edge.verify.retrieve` orders
+   and cuts them). They always go in;
+2. Tesseract's returned nodes received in the question window, still ranked over the records received on or before
+   `as_of` (deviation 16), in Tesseract's order, in the places left.
+
+The union is built in the adapter's `local_retrieve`, so the adapter still exports only record handles, inside the
+site. `truncated` keeps deviation 17's rule: true when at least one in-window own record that the shipped retrieval
+matches to the entity was not read. With the union that happens only when more than L records match. Unchanged: L,
+the `as_of` bound, the shipped path (check 9), the verdict spec, what crosses the wire, and everything at HQ.
+
+**The union, not rank-inside.** The union breaks no documented invariant once L caps the whole read. A site still
+reads at most L records (1.4, and the test that pins it): the shipped records go first and Tesseract's fill the rest.
+Reading Tesseract's first L with the shipped records on top would have broken that (up to 2L per question). The
+`as_of` bound holds: an in-window record is received before `as_of`, since the window ends at the last week closed at
+`as_of`, and the union also drops any shipped record received after `as_of`. Check 9 runs the shipped path, which did
+not change. Nothing new leaves the site. The limit: when more than L records match, a site reads the newest L of them,
+as the shipped retrieval does at cap L, and none of Tesseract's; the shipped `SiteVerifier` reads up to
+`verify_max_records` = 500. So "never leaves unread" holds against the shipped retrieval at the site's cap L, and
+against the shipped `SiteVerifier` whenever at most L records match.
+
+**Tests that pin it** (`tests/routing_spike/test_site_process.py`):
+
+- `UnionReadTests.test_a_site_reads_every_record_the_shipped_retrieval_reads`: seed 1's planted world, its first 11
+  candidates, all 6 sites. In every ranked (question, site) pair the site reads every record the shipped retrieval
+  reads at cap L (and all the shipped `SiteVerifier` reads when at most L match), reads at most L records, and
+  confirms whenever it reads the records holding a stored claim of the key; no site refutes a key its own cells
+  assert. On the code before this fix (`6eb5345`) it fails: 41 of the 64 ranked pairs leave such a record unread.
+- `UnionReadTests.test_runs_1_and_2_read_fails_the_property_and_the_union_changes_those_answers`: with Runs 1 and 2's
+  read patched back in, the property fails, and `plant-ashvale` and `werk-erlenbruch` refute product `IP-300`
+  `inaccurate_reading` (the 11th candidate), a key their own cells assert. With the union both confirm.
+- `UnionReadTests.test_the_union_reads_within_as_of_and_marks_truncation_by_its_rule`: no record received after
+  `as_of` is read; `truncated` follows deviation 17's rule; Tesseract's records fill every place the shipped records
+  leave.
+- `SiteProcessTests.test_tesseract_reads_at_most_max_records_and_marks_truncation` now also requires, at caps 2 and
+  50, that the shipped records at the cap are read and that `truncated` is true exactly when more than the cap match.
+- Unchanged, and passing: the two `as_of` tests, the equivalence test, and the process-mode tests in
+  `test_end_to_end.py`.
+
+**What it changes on seed 1, site side only.** Every question of the world at every site, read the old way (Runs 1
+and 2's read patched back in) and the new way. No route, gate, arm or statistic was computed.
+
+| Seed 1 | Planted world | No-plant world |
+|---|---|---|
+| Questions; (question, site) pairs; of them ranked (id in the site's master data) | 60; 360; 350 | 9; 54; 53 |
+| Pairs whose read set changed | 250 | 15 |
+| Pairs leaving unread a record the shipped retrieval reads at cap L: old, new | 250, 0 | 15, 0 |
+| Pairs refuting a key whose stored claim the site holds in the window: old, new | 11, 0 | 0, 0 |
+| Records read: old, new | 8,232, 9,740 | 912, 934 |
+| Verdicts that changed | 16: refute to confirm 11, unknown to confirm 2, unknown to refute 3 | none |
+| Verdict equal to the shipped `SiteVerifier`'s: old, new | 344, 360 of 360 | 54, 54 of 54 |
+| `truncated` true: old, new | 250, 0 | 15, 0 |
+| Pairs with more than L matching records | 0 | 0 |
+
+Section 12 says how reading more in-window records raised confirms on background keys in Run 2. This fix also makes
+sites read more of the entity's records. These site-side counts on one seed say nothing about what a new run would
+give on the no-plant bar.
+
+**Why it cannot be run by accident.** The spike's code hash changed, so `run.py run --prereg
+docs/collective/routing_spike/prereg-run-2.json` refuses this code: `prereg_check` reports "code hash differs" (the
+code hash is now `7d303ff7…45c8aa65`; `prereg-run-2.json` holds `ad2ce425…`). The frozen settings (`SETTINGS` in
+`world.py`) and both prereg files are unchanged. `SETTINGS["site_retrieval"]["keep"]` ("own records received in the
+window") no longer describes the whole read, so a new run would need its own prereg with that setting rewritten, and
+`test_run_2_changes_only_the_rankers_scope`, which pins `SETTINGS` to `prereg-run-2.json`, would change with it. In a
+world file, `shipped_retrieval.outside_tesseract_kept` would now count the shipped records a site did not read, which
+happens only past L.
+
+**Commands.** Python 3, offline, at the commit that adds this section. `SCRATCH` is a scratch directory outside the
+repository, where `site_read_probe.py` (below) lives. The failing-before run copies the new test file onto `6eb5345`:
+
+```
+$ mkdir $SCRATCH/base && git archive 6eb5345 | tar -x -C $SCRATCH/base
+$ cp tests/routing_spike/test_site_process.py $SCRATCH/base/tests/routing_spike/
+$ (cd $SCRATCH/base && python3 -m pytest -q -p no:cacheprovider "tests/routing_spike/test_site_process.py::UnionReadTests::test_a_site_reads_every_record_the_shipped_retrieval_reads" --tb=short)
+E   AssertionError: {'unread_shipped': [('f96ed966529482ccc6118a7a5ac414d9f873ab4[3790 chars]h')]} != {'unread_shipped': [], 'refutes_own_cells': []}
+42 failed, 23 subtests passed in 28.69s
+```
+
+The 42 are the 41 pairs (one subtest each) and the test itself. The table comes from
+`PYTHONPATH=. python3 $SCRATCH/site_read_probe.py 1 planted` and `... 1 noplant`, with this script:
+
+```python
+"""Site side only (no route, gate, arm or statistic): one world's questions at every site, read with the union and
+with Runs 1 and 2's read, each against what the shipped retrieval reads and the shipped SiteVerifier answers."""
+import collections, logging, sys, tempfile
+from pathlib import Path
+from unittest import mock
+from mycelic.collective.edge.site import EdgeSite
+from mycelic.collective.edge.verify import SiteVerifier
+from mycelic.collective.jsonio import canonical_bytes
+from research.routing_spike.site_process import TesseractRetrieval
+from research.routing_spike.world import restore_store
+from tests.routing_spike.helpers import questions, small_world
+from tests.routing_spike.test_site_process import UnionReadTests, run_2_read
+
+logging.disable(logging.CRITICAL)
+seed, planted = int(sys.argv[1]), sys.argv[2] == "planted"
+P = UnionReadTests
+P.tmp = tempfile.TemporaryDirectory()
+P.world = w = small_world(Path(P.tmp.name) / "w", seed=seed, planted=planted, top_n=60)
+P.questions, P.cap = questions(w), w.pack.egress.verify_max_records
+union = P._answer_all("union")
+with mock.patch.object(TesseractRetrieval, "union", run_2_read):
+    run_2 = P._answer_all("run-2")
+shipped, clock = {}, {"ts": ""}
+for sid in w.site_ids:
+    restore_store(sid, w.workdir / "pristine", Path(P.tmp.name) / "shipped" / "edge")
+    site = EdgeSite(w.pack, sid, Path(P.tmp.name) / "shipped" / "edge", runtime=None, clock=lambda: clock["ts"],
+                    master_data=w.master_data[sid], hq_dir=Path(P.tmp.name) / "shipped" / "hq")
+    verifier = SiteVerifier(site, runtime=None, clock=lambda: clock["ts"], demo_seed=w.seed)
+    for q in P.questions:
+        clock["ts"] = f"{q['as_of']}T12:00:00Z"
+        shipped[(q["question_id"], sid)] = verifier.answer(q)["verdict"]
+    site.close()
+w.pipeline.store.close()
+ranked = [k for k, r in union.items() if r["diag"] is not None]
+print(f"seed {seed} {sys.argv[2]}: {len(P.questions)} questions, {len(union)} (question, site) pairs, {len(ranked)} ranked")
+print("pairs whose read set changed:", sum(set(union[k]["diag"]["refs"]) != set(run_2[k]["diag"]["refs"]) for k in ranked))
+for name, a in (("runs 1-2 read", run_2), ("union", union)):
+    v = P._violations(P, a)
+    print(f"{name}: unread shipped-at-L {len(v['unread_shipped'])}, refutes with own key claim {len(v['refutes_own_cells'])},"
+          f" truncated {sum(a[k]['body']['truncated'] for k in a)}, records read {sum(a[k]['diag']['read'] for k in ranked)},"
+          f" more than L matched {sum(len(a[k]['matched']) > a[k]['L'] for k in ranked)},"
+          f" agrees with shipped SiteVerifier {sum(a[k]['body']['verdict'] == shipped[k] for k in a)} of {len(a)}")
+print("verdict changes:", dict(collections.Counter(f"{run_2[k]['body']['verdict']}->{union[k]['body']['verdict']}"
+                                                  for k in union if run_2[k]["body"]["verdict"] != union[k]["body"]["verdict"])))
+P.tmp.cleanup()
+```
+
+```
+seed 1 planted: 60 questions, 360 (question, site) pairs, 350 ranked
+pairs whose read set changed: 250
+runs 1-2 read: unread shipped-at-L 250, refutes with own key claim 11, truncated 250, records read 8232, more than L matched 0, agrees with shipped SiteVerifier 344 of 360
+union: unread shipped-at-L 0, refutes with own key claim 0, truncated 0, records read 9740, more than L matched 0, agrees with shipped SiteVerifier 360 of 360
+verdict changes: {'refute->confirm': 11, 'unknown->refute': 3, 'unknown->confirm': 2}
+seed 1 noplant: 9 questions, 54 (question, site) pairs, 53 ranked
+pairs whose read set changed: 15
+runs 1-2 read: unread shipped-at-L 15, refutes with own key claim 0, truncated 15, records read 912, more than L matched 0, agrees with shipped SiteVerifier 54 of 54
+union: unread shipped-at-L 0, refutes with own key claim 0, truncated 0, records read 934, more than L matched 0, agrees with shipped SiteVerifier 54 of 54
+verdict changes: {}
+```
+
 ## Appendix A. Commands behind the numbers
 
 Run in this worktree on commit `95b2a1e`, Python 3, offline.
