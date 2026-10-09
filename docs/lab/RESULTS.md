@@ -59,10 +59,28 @@ the 20 minutes the request gave it: 8 requests per workload at concurrency 1 alo
 medians (40.3 s short, 85.0 s extraction), before concurrency 4; the main run must give it more minutes or fewer
 requests.
 
+## Run 3: openfda-001 (the public replay, model-free, real data)
+
+[Run 37863725435](https://github.com/anovruzov/NeuralGraph/actions/runs/37863725435), request
+`lab/requests/openfda-001.json` (settings and their rule: `docs/collective/replay/CHOICE-001.md`), commit `b561a34`,
+2026-10-09 00:15–00:21 UTC; report from the `aggregate` job (113607299289). The first attempt (run 37861226513) was
+refused by openFDA before any data: the lab asked for 1000-record pages without an API key (fixed in `4c05eb1`).
+
+| Channel | Recalls in scope | Found | False alarms | Post-recall alerts |
+|---|---|---|---|---|
+| X | 8 | 0 | 0 | 0 |
+| S | 8 | 0 | 0 | 0 |
+| R (model-free) | 8 | 0 | 0 | 0 |
+
+No channel raised any alert. The replay warned `low_resolution`: the `device_quality` pack's id formats resolve few of
+the manufacturer's real ids, so the zero is structural (the pipeline did not see the records as entities), not a
+measurement of detection. Fetched: 28,886 event reports (none truncated) and 22 recall records, 8 of them under the
+listed firm names. The requester (the AI agent) declared it may have seen recall outcomes before choosing.
+
 ## What has not run
 
 - **main-001** (`lab/templates/main.json`): the main simulation over more seeds and the sealed X1 run with each model;
   planned after smoke-001 sizes it.
-- **The openFDA replay, N1 and E1 on real narratives:** the lab can run them on a runner (api.fda.gov is reachable
-  there, as the market count showed), but no such run has been made.
+- **A replay with a vocabulary for the manufacturer's real ids** (run 3 shows the synthetic pack's id formats do not
+  resolve them), and **N1 and E1 on real narratives**, which need a person to label the sheets.
 - **A hosted (non-local) model:** the lab supports one through `MYCELIC_LAB_HOSTED_API_KEY`; no key is configured.

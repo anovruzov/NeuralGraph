@@ -92,3 +92,27 @@ probe printed, and the rule's window recomputes from them).
 2. **Run 2**, after the fix (commit `4c05eb1`). The lab starts when a request file changes in a push and the manual
    trigger is not available to this agent, so only the request's `purpose` sentence changed; every setting in its
    `openfda` block is byte-identical to run 1's.
+
+### Run 2's result
+
+[Lab run 37863725435](https://github.com/anovruzov/NeuralGraph/actions/runs/37863725435), commit `b561a34`,
+2026-10-09 00:15 to 00:21 UTC; report from the `aggregate` job (113607299289), request sha `8746446ef5bf`.
+
+- **Every step ran** (`fetch-events`, `replay-prereg`, `replay-signals`, `fetch-recalls`, `replay-score`: ok). Events
+  fetched in full: FMI 9,039, FOZ 9,204, JKA 9,010, MDB 1,633 reports from all manufacturers, none truncated. Recall
+  records for the four codes: 22, of which 14 belong to other firms and **8 are filed under the listed Becton Dickinson
+  spellings, all in the window and all evaluable**.
+- **No channel raised an alert.** X, S and R (model-free): 0 of 8 recalls found, 0 false alarms, 0 post-recall
+  alerts each.
+- **Why, as the replay itself says:** `low_resolution: the pack's id formats resolve few of this manufacturer's ids;
+  freeze a vocabulary for them before the run`. The `device_quality` pack's id formats were written for its synthetic
+  generator; real Becton Dickinson lot and product identifiers mostly do not match them, so few records resolve to an
+  entity and the detectors have almost nothing to count. **This is a structural zero, not a test of detection**: as
+  configured for synthetic data, the pipeline does not see this manufacturer's real records.
+- The declaration (`yes`) stands. What is now known beyond it: the replay found 8 in-scope recalls and no alert; no
+  recall's date, product code or cause was printed or read.
+
+**What follows.** A real replay needs a vocabulary for the manufacturer's real id formats (lot and catalog number
+patterns), frozen before signals are computed: a pack change and a new choice file (`CHOICE-002`), which must record
+that 8 in-scope recalls and run 2's all-zero channels are already known. For the product, the same step is the first
+week of any pilot: mapping a customer's own identifier formats into the pack.
