@@ -42,13 +42,23 @@ whose non-inferiority and kill-flag columns appear only when the block's ``verdi
 hosted API result) and are otherwise replaced by the withheld sentence; a block that was not compared shows its reason
 instead. When hosted models were among the endpoints, the hosted label follows the E1 label. The paired table names each
 row's ``decision_metric`` (micro field F1, or the per-record mean field F1 of a harness without it) and its difference
-and interval, then the per-record mean difference and the sign test. The class sections come in the order of
-:data:`CLASS_ORDER`: ``model``, then ``hosted-api`` (hosted API results, never measured on this runner), then the rest.
-A G0 table gains a protocol records column, after its note, when a scan was below the protocol size, and a model path
-problems column when a row counts them. After the class sections, a sizing table of every sim unit (whatever its result)
-with what it measured and the minutes it suggests for the next request, then the E2 sizing table, then (with hosted
-keys) the hosted calls and estimated cost table followed by its note; the notes add the sim world-digest groups and the
-sim notes the rows carry, each followed by the units that carry it when some sim rows do not.
+and interval, then the per-record mean difference and the sign test. Last, compared or not, each model's own scores
+(``endpoint_scores``, :func:`_e1_scores_table`): after :data:`~lab.notes.E1_SCORES_ONLY` when no comparison ran, and
+:data:`~lab.notes.E1_SCORES_NOTE`, one row per model with valid repeats: the repeats used of those planned, predicate F1
+and its interval, the lexical extractor's predicate F1 beside it (when the labels carry one: ``labels.public.lexical``),
+field F1, the zero-claim and transport failure shares and the drops and re-attachments by reason. The class sections
+come in the order of :data:`CLASS_ORDER`: ``model``, then ``hosted-api`` (hosted API results, never measured on this
+runner), then the rest. A G0 table gains a protocol records column, after its note, when a scan was below the
+protocol size, and a model path problems column when a row counts them. After the class sections, a sizing table of
+every sim unit (whatever its result) with what it measured and the minutes it suggests for the next request, then the
+E2 sizing table, then (with hosted keys) the hosted calls and estimated cost table followed by its note; the notes add
+the sim world-digest groups and the sim notes the rows carry, each followed by the units that carry it when some sim
+rows do not.
+
+A re-aggregation report (``reaggregation``, ``lab.reaggregate``) says so right under its heading:
+:data:`~lab.notes.REAGGREGATION_LINE` with the run id and the commit, the re-aggregation request, the commits and run
+ids the sealed shards recorded, whether the lab code differs from theirs, and the request's purpose in its own
+paragraph.
 
 The first line says what the numbers are not. For a plumbing plan, shard or report it is ``PLUMBING CHECK: no model
 was run``, or :data:`~lab.notes.PLUMBING_HOSTED_LINE` when it holds hosted units, whose calls go to the configured
@@ -99,14 +109,16 @@ from mycelic.collective.jsonio import StrictJsonError, strict_load
 from . import EXIT_OK, EXIT_USAGE, forbidden_root
 from .notes import (BRANCH_DELETED, BY_CONSTRUCTION_LABEL, BY_CONSTRUCTION_NOTE, COLUMNS, CPU_MODELS_DIFFER,
                     DEFAULT_BRANCH, DELETE_ONLY, DISPATCH_BY_HAND, E1_COMPARE_FAILED, E1_DROPS_NOTE,
-                    E1_ENDPOINT_EXCLUDED, E1_HOSTED_LABEL, E1_LABELS, E1_NO_REFERENCE, E1_VERDICTS_WITHHELD,
-                    E1_WITHOUT_HOSTED, E2_CENTRAL_HOSTED_SKIPPED, E2_LABELS, E2_SIZING_NOTE, G0_BELOW_PROTOCOL,
-                    HEADINGS, HOSTED_COST_NOTE, HOSTED_SECRETS_MISSING, LOCK_CONFLICT_NOTE, LOCK_NEW,
-                    LOCK_NOT_COMPUTED, LOCK_UNCHANGED, MERGE_SEVERAL, NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT,
-                    NOT_A_BRANCH, NOT_PINNED, NOTES, OPENFDA_FALSE_ALARM_SCOPE, OPENFDA_LABEL, OPENFDA_PUBLIC_FLAG,
-                    OPENFDA_SAW_RECALLS, OPENFDA_WARNED, PLAN_FIX_HINT, PLUMBING_CHECK_LINE, PLUMBING_HOSTED_LINE,
-                    PREREG_MISSING, SHEETS_LABEL, SIM_CHANNEL_LABELS, SIM_LIFT_LABELS, SIM_NOTES, SIM_WORLD_DIFFERS,
-                    SIM_WORLD_SAME, SIZING_NOTE, TRUNCATED, UNSEALED, WORLD_DIGEST_DIFFERS, WORLD_DIGEST_SAME, X1_LABEL)
+                    E1_ENDPOINT_EXCLUDED, E1_HOSTED_LABEL, E1_LABELS, E1_NO_REFERENCE, E1_SCORES_NOTE, E1_SCORES_ONLY,
+                    E1_SCORES_REFUSED, E1_SCORES_UNPINNED, E1_VERDICTS_WITHHELD, E1_WITHOUT_HOSTED,
+                    E2_CENTRAL_HOSTED_SKIPPED, E2_LABELS, E2_SIZING_NOTE, G0_BELOW_PROTOCOL, HEADINGS,
+                    HOSTED_COST_NOTE, HOSTED_SECRETS_MISSING, LOCK_CONFLICT_NOTE, LOCK_NEW, LOCK_NOT_COMPUTED,
+                    LOCK_UNCHANGED, MERGE_SEVERAL, NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT, NOT_A_BRANCH, NOT_PINNED,
+                    NOTES, OPENFDA_FALSE_ALARM_SCOPE, OPENFDA_LABEL, OPENFDA_PUBLIC_FLAG, OPENFDA_SAW_RECALLS,
+                    OPENFDA_WARNED, PLAN_FIX_HINT, PLUMBING_CHECK_LINE, PLUMBING_HOSTED_LINE, PREREG_MISSING,
+                    REAGGREGATION_LINE, SHEETS_LABEL, SIM_CHANNEL_LABELS, SIM_LIFT_LABELS, SIM_NOTES,
+                    SIM_WORLD_DIFFERS, SIM_WORLD_SAME, SIZING_NOTE, TRUNCATED, UNSEALED, WORLD_DIGEST_DIFFERS,
+                    WORLD_DIGEST_SAME, X1_LABEL)
 from .units import display_class
 
 MAX_SUMMARY_BYTES = 900_000
@@ -137,6 +149,8 @@ LOCK_SENTENCES = {"unchanged": LOCK_UNCHANGED, "new_entries": LOCK_NEW, "conflic
 CLASS_ORDER = ("model", "hosted-api", "unverified", "plumbing", "no-model")
 PLAN_SKIP_REASONS = (HOSTED_SECRETS_MISSING, E1_WITHOUT_HOSTED, E2_CENTRAL_HOSTED_SKIPPED)
 E1_REASONS = (PREREG_MISSING, E1_NO_REFERENCE, E1_COMPARE_FAILED)
+E1_SCORE_REASONS = (PREREG_MISSING, E1_SCORES_UNPINNED)
+LEXICAL_PREDICATE_F1 = ("e1", "labels", "public", "lexical", "predicate_f1", "value")
 PREREG_FILE = "prereg/prereg.json"
 
 
@@ -570,6 +584,8 @@ def render_report(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[d
                 report.get("contains_measurements") is True or report.get("contains_hosted") is True,
                 isinstance(report.get("hosted"), dict) and bool(report["hosted"]))
     _heading(doc, "report")
+    if isinstance(report.get("reaggregation"), dict):
+        _reaggregation_lines(doc, report["reaggregation"])
     if isinstance(report.get("banner"), str):
         doc.add("\n" + report["banner"])
     request, plan = report.get("request"), report.get("plan")
@@ -961,6 +977,7 @@ def _e1_tables(doc: _Doc, src: Sources, e1: dict[str, Any]) -> None:
     if e1.get("compared") is not True:
         reason = e1.get("reason")
         doc.add("\n" + (reason if reason in E1_REASONS else f"{COLUMNS['reason']}: {code(reason)}"))
+        _e1_scores_table(doc, src, e1, compared=False)
         return
     doc.add(f"\n- {COLUMNS['labels']}: {COLUMNS['label_source']} {code(_get(e1, 'labels', 'source'))}, "
             f"{COLUMNS['pack']} {code(_get(e1, 'labels', 'pack'))}, {COLUMNS['records']} "
@@ -1014,6 +1031,77 @@ def _e1_tables(doc: _Doc, src: Sources, e1: dict[str, Any]) -> None:
     if isinstance(left_out, list) and left_out:
         doc.add("\n" + E1_ENDPOINT_EXCLUDED)
         doc.add(f"\n- {COLUMNS['model']}: " + ", ".join(code(m) for m in left_out))
+    _e1_scores_table(doc, src, e1, compared=True)
+
+
+def _e1_scores_table(doc: _Doc, src: Sources, e1: dict[str, Any], *, compared: bool) -> None:
+    """Each model's own scores (``endpoint_scores``), after :data:`~lab.notes.E1_SCORES_ONLY` when no comparison ran
+    and :data:`~lab.notes.E1_SCORES_NOTE`: repeats used of planned (which ones in a code span), predicate F1 and its
+    interval, the lexical extractor's predicate F1 (only when the labels carry it), field F1, the zero-claim and
+    transport failure shares, and the drops and re-attachments by reason; a why-no-scores column only when a model
+    has a problem. Without scores, their reason when it differs from the block's."""
+    f = "report.json"
+    scores = e1.get("endpoint_scores") if isinstance(e1.get("endpoint_scores"), dict) else {}
+    named = sorted(name for name in scores if isinstance(scores[name], dict))
+    if not named:
+        reason = e1.get("endpoint_scores_reason")
+        if reason in E1_SCORE_REASONS and reason != e1.get("reason"):
+            doc.add("\n" + reason)
+        return
+    _heading(doc, "e1-scores", 4)
+    if not compared:
+        doc.add("\n" + E1_SCORES_ONLY)
+    doc.add("\n" + E1_SCORES_NOTE)
+    lexical = _get(e1, *LEXICAL_PREDICATE_F1[1:]) is not None
+    problems = any(scores[name].get("problem") is not None for name in named)
+
+    def drops_cell(at: tuple[str, ...], drops: Any) -> str:
+        if not isinstance(drops, dict):
+            return "n/a"
+        return ", ".join(f"{code(reason, table=True)} {src.num(f, pointer(*at, 'drops', reason), 'int')}"
+                         for reason in sorted(drops)) or "none"
+
+    def score_rows() -> Any:
+        for name in named:
+            entry, at = scores[name], ("e1", "endpoint_scores", name)
+            used = entry.get("repeats_used")
+            which = ", ".join(str(r) for r in used) if isinstance(used, list) else None
+            problem = entry.get("problem")
+            # cells in reading order: each src.num records its source as it is called
+            row = [code(name, table=True)]
+            row.append(f"{src.num(f, pointer(*at, 'runs'), 'int')} of "
+                       f"{src.num(f, pointer(*at, 'repeats_planned'), 'int')} ({code(which, table=True)})")
+            row += [src.num(f, pointer(*at, "predicate_f1", key), "f3") for key in ("value", "ci_low", "ci_high")]
+            if lexical:
+                row.append(src.num(f, pointer(*LEXICAL_PREDICATE_F1), "f3"))
+            row += [src.num(f, pointer(*at, "field_f1", "value"), "f3"),
+                    src.num(f, pointer(*at, "zero_claim_share"), "f3"),
+                    src.num(f, pointer(*at, "transport_failure_share"), "f3")]
+            row.append(drops_cell(at, entry.get("drops")))
+            if problems:
+                row.append(problem if problem == E1_SCORES_REFUSED else code(problem, table=True))
+            yield row
+
+    doc.table(["model", "repeats_used", "predicate_f1", "ci_low", "ci_high",
+               *(["lexical_predicate_f1"] if lexical else []), "field_f1", "zero_claim_share", "transport_share",
+               "drops", *(["scores_problem"] if problems else [])], score_rows)
+
+
+def _reaggregation_lines(doc: _Doc, stamp: dict[str, Any]) -> None:
+    """A re-aggregation report's stamp: :data:`~lab.notes.REAGGREGATION_LINE` with the run id and the commit, the
+    request, what the sealed shards recorded, and the request's purpose in its own paragraph."""
+    request = stamp.get("request") if isinstance(stamp.get("request"), dict) else {}
+    shards = stamp.get("shards") if isinstance(stamp.get("shards"), dict) else {}
+
+    def spans(values: Any) -> str:
+        return ", ".join(code(v) for v in values) if isinstance(values, list) and values else "n/a"
+
+    doc.add("\n" + REAGGREGATION_LINE.format(run=code(request.get("run_id")), commit=code(stamp.get("commit"))))
+    doc.add(f"\n- {COLUMNS['reaggregation']}: {code(request.get('path'))}, {COLUMNS['sha']} "
+            f"{code(short(request.get('sha256')))}")
+    doc.add(f"- {COLUMNS['shard_commits']}: {spans(shards.get('commits'))}; {COLUMNS['shard_run_ids']}: "
+            f"{spans(shards.get('run_ids'))}; {COLUMNS['lab_code_differs']}: {yes_no(stamp.get('lab_code_differs'))}")
+    doc.add(f"\n{COLUMNS['reaggregation_purpose']} {code(request.get('purpose'))}")
 
 
 def _hosted_cost_section(doc: _Doc, src: Sources, hosted: dict[str, Any]) -> None:

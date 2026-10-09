@@ -165,6 +165,10 @@ Run the first requests in this order, each after the previous one's report:
   partial results, let the run finish: units that do not fit their time are skipped and recorded.
 - Re-run failed jobs: supported. The re-run shards upload artifacts under the new attempt number, and the report
   takes each shard's newest attempt (two artifacts of one attempt for the same shard make it `ambiguous`).
+- Re-aggregate a finished run: commit `lab/reaggregate/<name>.json` holding `{"run_id": <run id>, "purpose":
+  "<why>"}` and push it to a branch other than main. The `lab-reaggregate` workflow downloads that run's artifacts,
+  rebuilds its report with the pushed commit's aggregate and summary, and prints it into its job log; no unit runs
+  again, and the report says which run it re-read and by which commit (REFERENCE.md, Artifacts and caches).
 
 ## Read the results
 

@@ -16,13 +16,15 @@ from typing import Any
 
 import lab.sim as lab_sim
 from lab import aggregate as lab_aggregate
-from lab import provision
-from lab.notes import (AMBIGUOUS_ARTIFACTS, ALTERED, FILES_DIFFER, LOCK_CONFLICT, NO_ARTIFACT, OTHER_PLAN,
-                       PLUMBING_BANNER, STEP_FAILED, UNSEALED)
+from lab import display_path, provision, shown_path
+from lab import reaggregate as lab_reaggregate
+from lab.notes import (AMBIGUOUS_ARTIFACTS, ALTERED, COLUMNS, FILES_DIFFER, HEADINGS, LOCK_CONFLICT, NO_ARTIFACT,
+                       OTHER_PLAN, PLUMBING_BANNER, REAGGREGATION_LINE, STEP_FAILED, UNSEALED)
+from lab.summary import render_report
 from mycelic.collective.inference.ledger import read_ledger
 from mycelic.collective.stats import percentile
 from tests.lab.helpers import (MANIFEST_TEST, ROOT, DryTree, StubWorld, call_main, canonical_json, dry_run,
-                               kill_mentioning, plumbing_min, sim_block, write_json)
+                               kill_mentioning, lab_cli, plumbing_min, sim_block, write_json)
 
 SHARDS = ("s001-fake-a", "s002-fake-b")
 UNITS = ("e3-fake-a", "e3-fake-b", "g0-fake-a", "g0-fake-b", "sim-fake-a-s1")
@@ -447,6 +449,70 @@ class AggregateTests(unittest.TestCase):
         # no clock value in the report; precision_at_40 (precision in the top forty) is the one non-time match
         keys = [k for k in _keys(report) if re.search(r"(^|_)(at|time|date|epoch|ts)(_|$)", k)]
         self.assertEqual(sorted(set(keys)), ["precision_at_40"])
+        self.assertIsNone(report["reaggregation"])
+
+    # ------------------------------------------------------------------------------------------- re-aggregation
+
+    def test_reaggregation_from_downloaded_artifacts(self) -> None:
+        """The re-aggregation workflow's steps on a finished run's artifacts as download-artifact lays them out: the
+        sort keeps the run's newest plan, its provision and shard artifacts and nothing else; the report is the
+        ordinary report plus the stamp, and its summary and job log say which run and which commit."""
+        for shard in SHARDS:
+            self.tree.edit(shard, "provenance.json", lambda p: p["host"]["env"].update(GITHUB_RUN_ID="100"))
+            self.tree.reseal(shard)
+        arts = self.artifacts()
+        shutil.copytree(self.tree.root / "plan", arts / "lab-plan-100-1")
+        shutil.copytree(self.tree.path(SHARDS[0]), arts / "lab-run-101-1-s001-fake-a")       # another run's shard
+        (arts / "lab-report-plumbing-100-1").mkdir()
+        purpose = "Re-read the run with this commit's aggregate."
+        request = write_json(self.work / "r-100.json", {"run_id": 100, "purpose": purpose})
+        laid = self.work / "in"
+        code, stdout, stderr = call_main(lab_reaggregate, ["sort", "--artifacts", str(arts), "--run-id", "100",
+                                                           "--out", str(laid)])
+        self.assertEqual(code, 0, stderr)
+        self.assertEqual(stdout.splitlines()[-1], "lab: reaggregate sort plan lab-plan-100-1 provision 0 shards 2 "
+                                                  "ignored 2")
+        out = self.work / "RE"
+        code, _, stderr = call_main(lab_aggregate, [
+            "--plan", str(laid / "plan" / "plan.json"), "--provision", str(laid / "provision"),
+            "--shards", str(laid / "shards"), "--manifest", str(MANIFEST_TEST), "--out", str(out),
+            "--reaggregation", str(request)])
+        self.assertEqual(code, 0, stderr)
+        report, plain = _json(out / "report.json"), self.aggregate()
+        stamp = report.pop("reaggregation")
+        self.assertIsNone(plain.pop("reaggregation"))
+        for row in report["shards"]:             # the artifact names are the only other difference
+            self.assertEqual(row.pop("artifact"), f"lab-run-100-1-{row['shard']}")
+        for row in plain["shards"]:
+            self.assertIsNone(row.pop("artifact"))
+        self.assertEqual(report, plain)
+        self.assertEqual(stamp["request"], {"path": shown_path(display_path(request)), "run_id": 100,
+                                            "sha256": hashlib.sha256(request.read_bytes()).hexdigest(),
+                                            "purpose": purpose})
+        self.assertRegex(stamp["commit"], r"\A([0-9a-f]{40}|unknown)\Z")
+        recorded = sorted({self.tree.read(s, "provenance.json")["code"]["lab_code_hash"] for s in SHARDS})
+        self.assertEqual(stamp["shards"]["run_ids"], ["100"])
+        self.assertEqual(stamp["shards"]["lab_code_hashes"], recorded)
+        self.assertEqual(stamp["lab_code_differs"], recorded != [stamp["lab_code_hash"]])
+        line = REAGGREGATION_LINE.format(run="`100`", commit=f"`{stamp['commit']}`")
+        lines = render_report(out)[0].splitlines()
+        self.assertLess(lines.index("## " + HEADINGS["report"]), lines.index(line))
+        self.assertIn(f"{COLUMNS['reaggregation_purpose']} `{purpose}`", lines)
+        done = lab_cli("lab.summary", "report", "--dir", str(out), "--log")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("=== MYCELIC-LAB report/report.md BEGIN ", done.stdout)
+        self.assertIn(line, done.stdout.splitlines())
+        self.assertIn(' "reaggregation": {', done.stdout.splitlines())
+
+    def test_a_bad_reaggregation_request_is_a_usage_error(self) -> None:
+        request = write_json(self.work / "bad.json", {"run_id": "100", "purpose": "x"})
+        code, _, stderr = call_main(lab_aggregate, [
+            "--plan", str(self.tree.plan_path), "--provision", str(self.work / "none"), "--shards",
+            str(self.tree.shards), "--manifest", str(MANIFEST_TEST), "--out", str(self.work / "R"),
+            "--reaggregation", str(request)])
+        self.assertEqual(code, 2)
+        self.assertIn("$.run_id", stderr)
+        self.assertFalse((self.work / "R" / "report.json").exists())
 
 
 # --------------------------------------------------------------------------------------------------- provision and lock

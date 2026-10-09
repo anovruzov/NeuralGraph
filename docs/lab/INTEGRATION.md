@@ -129,6 +129,9 @@ Each would remove a copy, a private-name dependency or a parse:
 - a public statement of E2's capabilities (the lab parses `e2_pushdown._parser()` for `--central-context-tokens`);
 - `models_listed` recorded as a boolean (whether the requested model was listed), not the host's whole listing;
 - a runtime hook to omit `temperature` for hosts that refuse it;
+- a public per-model scoring entry point in `e1_extract` (the report's per-model scores, `endpoint_scores`, call
+  its private `_load_pack`, `_read_run` and `_endpoint_block` read-only, as `compare` calls them, so a model is
+  scored without a complete reference);
 - `not_sent` in a public tuple of extraction error kinds;
 - a shared home for the model-name guard: the lab's guard imports
   `tests.mycelic.test_collective_guards.model_name_hits`;

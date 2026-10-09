@@ -2,7 +2,7 @@
 E3, G0, sim, sizing, E2, X1, openFDA and latency rows, the E1 comparison, the provision records and the lock
 candidate.
 
-    python -m lab.aggregate --plan FILE --provision DIR --shards DIR --manifest FILE --out DIR
+    python -m lab.aggregate --plan FILE --provision DIR --shards DIR --manifest FILE --out DIR [--reaggregation FILE]
 
 ``--shards`` holds the downloaded run artifacts in either layout download-artifact produces: ``DIR`` itself is a
 shard root (one artifact matched, extracted flat), or each child directory holding ``status.json`` or
@@ -65,6 +65,23 @@ among the endpoints), never e1.json's clock or paths (``e1_json`` is its path re
 ``display_class`` is ``plumbing`` when any compared unit is, ``model`` when all are, ``hosted-api`` when all are
 ``model`` or ``hosted-api``, else ``unverified``.
 
+Whether or not the comparison runs, once the prereg verifies, ``endpoint_scores`` holds each model's own scores from
+its ``ok`` repeats only (:func:`e1_endpoint_scores`: E1's own reader and scorer, in process and read-only, over the
+repeats' files copied to a scratch directory that is removed; nothing is written under ``DIR``), for every model with
+at least one: ``{model: {"repeats_planned", "repeats_used", "display_class", "measurement", "problem", "runs",
+"field_f1", "claim_f1", "entity_f1", "predicate_f1" (each ``{"value", "ci_low", "ci_high"}``), "json_validity_rate",
+"valid_after_repair_rate", "exact_match", "latency_ms_p50", "latency_ms_p95", "model_mismatch", "drops",
+"zero_claim_share", "record_runs", "transport_failure_share", "failures"}}``. For a complete model its scores equal the
+comparison's ``endpoints`` entry. ``endpoint_scores_reason`` is null when they were computed, else why not
+(:data:`~lab.notes.PREREG_MISSING`, :data:`~lab.notes.E1_SCORES_UNPINNED`).
+
+**Re-aggregation** (``reaggregation``; null unless ``--reaggregation FILE`` names a request, ``lab.reaggregate``):
+the request (path, sha256, run id, purpose), the aggregating checkout's ``commit`` and ``lab_code_hash``, and what
+the sealed shards recorded (``shards``: their GitHub ``run_ids``, checkout ``commits`` and ``lab_code_hashes``),
+with ``lab_code_differs`` (null without a sealed shard). The aggregate never compared its own code with the shards'
+(their plan, preregistration, seals and unit files are what it verifies, and they still are); a re-aggregation is
+stamped instead, so a reader sees which commit read which run.
+
 **Hosted calls** (``hosted``; ``{}`` without hosted units): per key of the plan's ``hosted``, its model id,
 ``max_calls``, ``bound`` and whether the manifest prices it, and from the sealed shards only: ``calls`` (the rows with
 attempt 1 or more of every sealed shard's preflight ledger for the key, plus the hosted ledgers, E1's
@@ -86,7 +103,8 @@ line::
     lab: aggregate units <n> shards <n> class <plumbing|real> measurements <true|false> lock <status>
 
 Exit 0 once the report is written, whatever the units gave (their jobs already failed); 2 for a non-empty ``DIR``,
-an unreadable plan or a path inside ``mycelic/``, ``research/``, ``NeuralGraph/`` or ``.github/``.
+an unreadable plan, a re-aggregation request that does not load or a path inside ``mycelic/``, ``research/``,
+``NeuralGraph/`` or ``.github/``.
 """
 from __future__ import annotations
 
@@ -94,26 +112,29 @@ import argparse
 import os
 import re
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from mycelic.collective.experiments.common import RUN_ID_RE, write_json_atomic
+from mycelic.collective.experiments import e1_extract
+from mycelic.collective.experiments.common import RUN_ID_RE, UsageError, code_commit, code_hash, write_json_atomic
 from mycelic.collective.experiments.e2_pushdown import PROTOCOL_MIN_CANDIDATES, PROTOCOL_MIN_SEEDS
 from mycelic.collective.inference.ledger import read_ledger
 from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
 from mycelic.collective.stats import percentile
 
-from . import EXIT_OK, EXIT_USAGE, ROOT, forbidden_root
+from . import EXIT_OK, EXIT_USAGE, ROOT, LabError, forbidden_root
 from . import hosted as lab_hosted
 from . import provision as lab_provision
 from . import units as lab_units
 from .manifest import ManifestError, load_manifest, lock_path
-from .notes import (ALTERED, AMBIGUOUS_ARTIFACTS, E1_COMPARE_FAILED, E1_NO_REFERENCE, FILES_DIFFER, NO_ARTIFACT,
-                    NOT_RUN, OTHER_PLAN, PLUMBING_BANNER, PLUMBING_HOSTED_BANNER, PREREG_MISSING, STEP_FAILED,
-                    UNIT_RECORD_INVALID, UNSEALED)
+from .notes import (ALTERED, AMBIGUOUS_ARTIFACTS, E1_COMPARE_FAILED, E1_NO_REFERENCE, E1_SCORES_REFUSED,
+                    E1_SCORES_UNPINNED, FILES_DIFFER, NO_ARTIFACT, NOT_RUN, OTHER_PLAN, PLUMBING_BANNER,
+                    PLUMBING_HOSTED_BANNER, PREREG_MISSING, STEP_FAILED, UNIT_RECORD_INVALID, UNSEALED)
 from .plan import SHARD_ID_RE, UNIT_ID_RE
 from .prereg import PreregError, load_prereg
+from .reaggregate import load_request as load_reaggregation
 from .units import ADAPTERS, E2_SITE_LEDGERS, display_class, ledger_rows
 
 ARTIFACT_RE = re.compile(r"lab-run-[0-9]{1,20}-[0-9]{1,6}-" + SHARD_ID_RE.pattern, re.ASCII)
@@ -138,6 +159,7 @@ E1_JSON = "e1/e1/compare/e1.json"
 E1_F1 = ("field_f1", "claim_f1", "entity_f1", "predicate_f1")
 E1_PAIRED_KEYS = ("against", "n", "decision_metric", "diff", "ci_low", "ci_high", "mean_diff", "sign_p",
                   "underpowered", "non_inferior", "kill_flag", "withheld_reason")
+E1_SCORE_EXTRA = ("record_runs", "transport_failure_share", "failures")   # beside _e1_endpoint's keys
 E2_CONDITION_FIELDS = ("ap", "ap_ci_low", "ap_ci_high", "precision_at_k")
 OPENFDA_CHANNEL_FIELDS = ("in_scope", "found", "recall_rate", "median_lead_days", "post_recall_alerts", "false_alarms",
                           "false_alarms_per_week", "alerts", "found_minus_expected")
@@ -533,6 +555,76 @@ def e1_compare_argv(prereg: Path, run_dirs: list[Path], out: Path, allow_incompl
 E1Source = tuple[dict[str, Any], dict[str, Any] | None, Path | None]
 
 
+def _copy_e1_run(unit: dict[str, Any], source: E1Source, dest: Path) -> Path:
+    """The unit's E1 files its record lists, copied byte for byte to ``dest / <run id>`` (as for the comparison)."""
+    _, record, root = source
+    target = dest / unit["run_id"]
+    target.mkdir(parents=True)
+    for name in E1_FILES:
+        rel = f"runs/e1/{unit['run_id']}/{name}"
+        if root is not None and record is not None and rel in record.get("files", {}):
+            (target / name).write_bytes((root / rel).read_bytes())
+    return target
+
+
+def _e1_scores_entry(planned: Any, used: list[int], cls: str, measurement: bool | None, problem: str | None,
+                     block: Any) -> dict[str, Any]:
+    return {"repeats_planned": planned, "repeats_used": used, "display_class": cls, "measurement": measurement,
+            "problem": problem, **_e1_endpoint(block), **{k: _get(block, k) for k in E1_SCORE_EXTRA}}
+
+
+def e1_endpoint_scores(prereg_path: Path, models: list[str], units: list[dict[str, Any]],
+                       sources: dict[str, E1Source], fallback: str) -> tuple[dict[str, Any], str | None]:
+    """Each model's own scores from its ``ok`` repeats only, by E1's own reader and scorer, read-only and called as
+    ``compare`` calls them (``e1_extract.read_prereg``, ``_read_run`` over the record's files copied to a scratch
+    directory, ``_endpoint_block``): ``({model: entry}, None)`` for every model of ``models`` with at least one ok
+    repeat, or ``({}, E1_SCORES_UNPINNED)`` when the prereg does not read or its pack or the scoring code no longer
+    hash as pinned. An entry is :func:`_e1_endpoint` of the model's block plus :data:`E1_SCORE_EXTRA`, the repeats
+    planned (the prereg's ``runs``) and used, their display class, whether every used run says ``measurement`` and
+    ``problem``: :data:`~lab.notes.E1_SCORES_REFUSED`, with no repeat used and every score null, when the reader
+    refuses an ok repeat or the run names another prereg, model or repeat."""
+    try:
+        prereg, prereg_sha = e1_extract.read_prereg(prereg_path)
+        pack = e1_extract._load_pack(prereg["pack"]["ref"])
+        pinned = (pack.vocabulary_hash == prereg["pack"]["vocabulary_hash"]
+                  and e1_extract.e1_code_hash() == prereg["code_hash"])
+    except (UsageError, OSError):
+        pinned = False
+    if not pinned:
+        return {}, E1_SCORES_UNPINNED
+    types = sorted(t for t, et in pack.entity_types.items() if et.exact_match_metric)
+    scores: dict[str, Any] = {}
+    with tempfile.TemporaryDirectory(prefix="lab-e1-scores-") as scratch:
+        for model in sorted(models):
+            mine = sorted((u for u in units if u["model"] == model and sources[u["unit"]][0]["status"] == "ok"),
+                          key=lambda u: u["params"]["repeat"])
+            if not mine:
+                continue
+            cls = _class_of([sources[u["unit"]][0]["display_class"] for u in mine], fallback)
+            runs = []
+            for unit in mine:
+                try:
+                    run = e1_extract._read_run(_copy_e1_run(unit, sources[unit["unit"]], Path(scratch) / model))
+                except (UsageError, OSError, ValueError, KeyError, TypeError):
+                    break
+                if (run[0].get("prereg_sha256"), run[0].get("endpoint"), run[0].get("repeat")) \
+                        != (prereg_sha, model, unit["params"]["repeat"]):
+                    break
+                runs.append(run)
+            block = None
+            if len(runs) == len(mine):
+                try:
+                    block, _, _ = e1_extract._endpoint_block(model, runs, prereg, types)
+                except (ValueError, KeyError, TypeError):
+                    block = None
+            if block is None:
+                scores[model] = _e1_scores_entry(prereg["runs"], [], cls, None, E1_SCORES_REFUSED, None)
+                continue
+            scores[model] = _e1_scores_entry(prereg["runs"], [u["params"]["repeat"] for u in mine], cls,
+                                             all(run["measurement"] is True for run, _, _ in runs), None, block)
+    return scores, None
+
+
 def e1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source], out: Path) -> dict[str, Any] | None:
     """The report's E1 comparison; ``sources`` maps each E1 unit to (its row, its record, its shard root)."""
     units = sorted((u for u in plan["units"] if u["experiment"] == "e1"), key=lambda u: u["unit"])
@@ -547,7 +639,8 @@ def e1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
                    "included": False} for u in units],
         "excluded": [], "allow_incomplete": False, "endpoints_without_runs": [], "measurement": None,
         "verdicts_shown": False, "e1_json": None, "endpoints": {}, "paired": {},
-        "hosted_endpoints": sorted({u["model"] for u in units if u.get("kind") == "hosted"})}
+        "hosted_endpoints": sorted({u["model"] for u in units if u.get("kind") == "hosted"}),
+        "endpoint_scores": {}, "endpoint_scores_reason": PREREG_MISSING}
     shown = [r["display_class"] for r in block["units"] if r["display_class"] != "no-result"]
     block["display_class"] = _class_of(shown, fallback)
     try:
@@ -563,6 +656,9 @@ def e1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
                  labels={**{k: labels[k] for k in ("source", "pack", "n", "seed", "records", "claims", "sha256")},
                          "public": labels.get("public")},
                  **{k: e1_prereg.get(k) for k in ("underpowered_below", "kill_below", "margin", "runs", "reference")})
+    # each model's own scores, whether or not the comparison below runs (CHOICE files read them without it)
+    block["endpoint_scores"], block["endpoint_scores_reason"] = e1_endpoint_scores(
+        prereg.dir / manifest["prereg"], list(manifest["endpoints"]), units, sources, fallback)
     reference, runs = manifest["reference"], e1_prereg.get("runs")
     complete = []
     for model in manifest["endpoints"]:
@@ -581,14 +677,7 @@ def e1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
             continue
         row["included"] = True
         unit = next(u for u in units if u["unit"] == row["unit"])
-        _, record, root = sources[row["unit"]]
-        dest = target / "runs" / unit["run_id"]
-        dest.mkdir(parents=True)
-        for name in E1_FILES:
-            rel = f"runs/e1/{unit['run_id']}/{name}"
-            if root is not None and record is not None and rel in record.get("files", {}):
-                (dest / name).write_bytes((root / rel).read_bytes())
-        run_dirs.append(dest)
+        run_dirs.append(_copy_e1_run(unit, sources[row["unit"]], target / "runs"))
     block["display_class"] = _class_of([r["display_class"] for r in block["units"] if r["included"]], fallback)
     (target / "prereg.json").write_bytes(prereg_bytes)
     allow_incomplete = bool(block["excluded"])
@@ -808,9 +897,27 @@ def lock_status(plan: dict[str, Any], manifest_path: str,
 
 # --------------------------------------------------------------------------------------------------- report
 
+def reaggregation_stamp(request: dict[str, Any], sealed: list[_Root]) -> dict[str, Any]:
+    """What a re-aggregation report says about itself: the request, this checkout's commit and lab code hash (as a
+    shard computes it) and the run ids, commits and lab code hashes the sealed shards' provenance recorded."""
+    provenances = [r.provenance for r in sealed if isinstance(r.provenance, dict)]
+
+    def recorded(*keys: str) -> list[str]:
+        return sorted({v for p in provenances for v in (_get(p, *keys),) if isinstance(v, str)})
+
+    lab_code_hash = code_hash(sorted((ROOT / "lab").rglob("*.py")), ROOT)
+    hashes = recorded("code", "lab_code_hash")
+    return {"request": request, "commit": code_commit(), "lab_code_hash": lab_code_hash,
+            "shards": {"run_ids": recorded("host", "env", "GITHUB_RUN_ID"), "commits": recorded("git", "checkout_sha"),
+                       "lab_code_hashes": hashes},
+            "lab_code_differs": any(h != lab_code_hash for h in hashes) if hashes else None}
+
+
 def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, shards_dir: Path,
-                 manifest_path: str, plan_path: Path, out: Path) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    """The report; ``out`` receives the E1 comparison's files (``plan_path`` locates the preregistration)."""
+                 manifest_path: str, plan_path: Path, out: Path,
+                 reaggregation: dict[str, Any] | None = None) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """The report; ``out`` receives the E1 comparison's files (``plan_path`` locates the preregistration);
+    ``reaggregation`` is a loaded re-aggregation request (``lab.reaggregate.load_request``) or None."""
     plan_sha256 = sha256_hex(plan_bytes)
     roots = find_roots(shards_dir)
     states: dict[str, tuple[str, _Root | None]] = {}
@@ -887,8 +994,9 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
                          and isinstance(row["host"]["cpu_model"], str)})
     request = plan["request"]
     e1 = e1_block(plan, plan_path, e1_sources, out)
-    sealed = [root.path for state, root in (states[s["shard"]] for s in plan["shards"])
-              if state == "sealed" and root is not None]
+    sealed_roots = [root for state, root in (states[s["shard"]] for s in plan["shards"])
+                    if state == "sealed" and root is not None]
+    sealed = [root.path for root in sealed_roots]
     hosted = hosted_totals(plan, sealed, hosted_sources)
     report = {
         "schema_version": 1, "kind": "lab_report", "result_class": plan.get("result_class"),
@@ -908,6 +1016,7 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
                   "sim_world_digest": sim_world_groups(sim)},
         "skipped": plan.get("skipped", []), "ignored_artifacts": ignored,
         "hosted": hosted,
+        "reaggregation": reaggregation_stamp(reaggregation, sealed_roots) if reaggregation is not None else None,
     }
     return report, merged
 
@@ -921,13 +1030,16 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--shards", required=True, help="the downloaded run artifacts (may be absent)")
     p.add_argument("--manifest", required=True)
     p.add_argument("--out", required=True)
+    p.add_argument("--reaggregation", help="the re-aggregation request (lab/reaggregate/<name>.json) this report "
+                                           "re-reads a finished run for; stamped into the report")
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     out = Path(os.path.abspath(args.out))
-    for path in (args.plan, args.provision, args.shards, args.manifest, args.out):
+    for path in (args.plan, args.provision, args.shards, args.manifest, args.out,
+                 *([args.reaggregation] if args.reaggregation else [])):
         name = forbidden_root(path)
         if name is not None:
             print(f"error: no path may lie inside {name}/", file=sys.stderr)
@@ -937,12 +1049,13 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_USAGE
     try:
         plan, plan_bytes = load_plan(args.plan)
-    except AggregateError as err:
+        reaggregation = load_reaggregation(args.reaggregation) if args.reaggregation else None
+    except (AggregateError, LabError) as err:
         print(f"error: {err}", file=sys.stderr)
         return EXIT_USAGE
     out.mkdir(parents=True, exist_ok=True)
     report, merged = build_report(plan, plan_bytes, Path(args.provision), Path(args.shards), args.manifest,
-                                  Path(args.plan), out)
+                                  Path(args.plan), out, reaggregation)
     (out / "plan.json").write_bytes(plan_bytes)
     if merged is not None:
         lab_provision.write_lock(out / "lock-candidate.json", merged)

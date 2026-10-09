@@ -286,7 +286,8 @@ The same for every lab command (`lab/__init__.py`):
 ## Labels
 
 Every fixed sentence the summaries print comes from `lab/notes.py`. Braces stand for values the summary fills in:
-`{e_one}`, `{e_two}`, `{x_one}` and `{n_one}` are E1, E2, X1 and N1.
+`{e_one}`, `{e_two}`, `{x_one}` and `{n_one}` are E1, E2, X1 and N1, and `{run}` and `{commit}` a run id and a
+commit.
 
 The first lines and the plumbing banner:
 
@@ -311,6 +312,10 @@ The experiments' labels:
 - `E1_VERDICTS_WITHHELD`: Verdicts withheld: non-inferiority and the kill flag are shown only for a model measurement, beneath the label above.
 - `E1_HOSTED_LABEL`: Hosted endpoints answered {e_one} over the network: their scores are not deterministic across repeats, and raw synthetic text was sent to the configured host.
 - `E1_DROPS_NOTE`: Reasons that start with reattached count predicates kept on the record's structured entity after the model named an entity that did not resolve: they are not losses. Every other reason counts reply items that post-processing dropped.
+- `E1_SCORES_NOTE`: Each model's own scores, pooled over its valid repeats only and scored by the extraction harness's own code: predicate F one with its percentile-bootstrap interval over records, beside the lexical extractor's predicate F one on the same records when the labels carry it. In the drops column, reasons that start with reattached count predicates kept on the record's structured entity, not losses.
+- `E1_SCORES_ONLY`: No reference comparison was run: these are each model's own scores, with no difference from the reference, no non-inferiority and no kill flag.
+- `E1_SCORES_REFUSED`: the extraction harness's reader refused a valid repeat of this model: a run file differs from its run.json, or the run names another preregistration, model or repeat
+- `E1_SCORES_UNPINNED`: no model's own scores: the preregistration, its pack or the scoring code no longer match what the extraction harness pinned
 
 Sizing and cost:
 
@@ -333,6 +338,11 @@ The lock:
 - `LOCK_NEW`: This run verified files the lock does not pin yet: copy lock-candidate.json from the report artifact to lab/models.lock.json and commit it, so later runs verify against it.
 - `LOCK_CONFLICT_NOTE`: A verified file disagrees with the lock: the upstream file changed or the lock is wrong; check the provision records before re-pinning.
 - `LOCK_NOT_COMPUTED`: No lock candidate was computed: the manifest or lock changed since the plan, or the provision records were ambiguous.
+
+A re-aggregation report (`lab-reaggregate.yml`), right under its heading, where `{run}` and `{commit}` are the
+run id and the re-aggregating commit:
+
+- `REAGGREGATION_LINE`: Re-aggregation of run {run} by commit {commit}: no unit ran again; this report re-reads that run's sealed artifacts with this commit's aggregation code.
 
 A unit's notes, printed once under the report's notes:
 
@@ -596,6 +606,17 @@ synthetic worlds describe synthetic worlds.
 | paired records | records both the model and the reference scored | n/a: not a number |
 | underpowered below | the paired-record count below which the comparison is underpowered | n/a: not a number |
 | kill flag below | the field F1 below which the kill flag is raised | n/a: not a number |
+| repeats used | the model's valid repeats its own scores pool, of the repeats planned, and which (in code) | repeats that ran: a timed-out or failed repeat is left out |
+| predicate F one | micro F1 over the predicate fields (each claim's predicate, negated as not:) of the model's claims against the labels, pooled over the repeats used | accuracy on real narratives |
+| lexical predicate F one | the lexical extractor's predicate micro F1 on the same labelled records, counted as E1 counts a model's claims (`labels.public.lexical` in report.json) | a model result |
+| transport failure share | the share of the model's record runs whose extraction ended in a transport failure (not scored) | a model error |
+| drops and re-attachments | the model's post-processing counts by reason, summed over the repeats used; reattached_ reasons are predicates kept on the record's structured entity | a loss when it starts with reattached |
+| why no scores | why a model with valid repeats has no own scores: the harness's reader refused one of them | a model result |
+| Re-aggregation request | the re-aggregation request's path and short sha | n/a: not a number |
+| Re-aggregation purpose: | the re-aggregation request's purpose, as written | n/a: not a number |
+| Shards' commits | the commits the sealed shards ran at, from their provenance | the re-aggregating commit |
+| shards' run ids | the GitHub run ids the sealed shards recorded | n/a: not a number |
+| lab code differs from the shards' | whether this commit's lab code hash differs from one a sealed shard recorded | that the units would give other numbers |
 | exceeds | whether the projection was above its share of the minutes | n/a: not a number |
 | eligible | whether X1's preregistered conditions for a verdict held | a pass |
 | blind | whether the plant was declared blind | that it was |
@@ -671,6 +692,7 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Extraction per model, pooled over repeats | E1's per-model scores and zero-claim share |
 | Extraction drops by reason, pooled over repeats | E1's post-processing counts per model and reason (`drops` of each endpoint in report.json), after the sentence that reattached reasons are not losses |
 | Extraction paired against the reference | E1's paired comparison with the reference |
+| Each model's own scores | E1's per-model scores from each model's valid repeats only (`endpoint_scores` in report.json), compared or not: predicate F1 and its interval beside the lexical extractor's, field F1, zero-claim and transport failure shares, drops and re-attachments |
 | Pushdown verification against central reading: conditions | E2's labels and conditions |
 | Pushdown ratio and verdict | E2's ratio and, for a hosted central, the bar verdict |
 | Pushdown candidates | E2's candidates by label |
@@ -695,12 +717,22 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | `lab-prov-<run id>-<attempt>-<entry>` | one provision record (`server` or `gguf-<key>`) and its lock candidate |
 | `lab-run-<run id>-<attempt>-<shard>` | one sealed shard root |
 | `lab-report-<class>-<run id>-<attempt>` | `report.json`, `report.md`, `report.sources.json`, `plan.json`, `lock-candidate.json` and E1's comparison files |
+| `lab-reaggregate-<run id>-<re-aggregation run id>-<attempt>` | a re-aggregation's report directory, as `lab-report-` |
 
 The workflow's summary steps pass `--log`, so `lab.summary` also prints into the job log, between
 `=== MYCELIC-LAB <label> BEGIN lines=<n> sha256=<hex> ===` and `=== MYCELIC-LAB <label> END ===` lines inside a
 `::stop-commands::` window, the files labelled `plan/summary.md`; `shard/provenance.json` and `shard/summary.md`; and
 `report/report.json`, `report/report.md` and `report/lock-candidate.json`, then an `INDEX` line; a missing file prints
 `ABSENT`, one that cannot be read or printed line for line `UNREADABLE`, and one over 2,000,000 bytes `TOO-LARGE`.
+
+**Re-aggregation** (`.github/workflows/lab-reaggregate.yml`, `lab.reaggregate`) rebuilds a finished run's report with
+a later commit's `lab.aggregate` and `lab.summary`, from that run's artifacts: no unit runs again. Push
+`lab/reaggregate/<name>.json`, `{"run_id": <the run's id>, "purpose": "<why>"}`, to a branch other than main (the
+newest such file the push changed runs), or dispatch the workflow with its path. It downloads every `lab-` artifact of
+that run (read access to the repository's actions), lays out the newest plan, the provision records and the shard
+artifacts, and runs the aggregate job's own aggregate and summary commands, adding `--reaggregation`. The report and
+its log blocks say `REAGGREGATION_LINE` with the run id and the commit; the aggregate checks the shards as always
+(plan, preregistration, seals, unit files) and records the shards' commits and lab code hashes beside its own.
 
 Artifacts are kept for the request's `retention_days`. Caches (`actions/cache`): `lab-server-<tag>-<sha16>` holds the
 verified server archive and `lab-gguf-<key>-<sha16>` a verified model file; a run restores only caches of its own

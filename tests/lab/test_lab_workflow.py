@@ -24,7 +24,7 @@ from typing import Any, Iterator
 
 import yaml
 
-from lab import discover
+from lab import discover, reaggregate
 from lab.manifest import load_manifest
 from tests.lab.helpers import ROOT, write_json
 from tests.mycelic.test_collective_guards import model_name_hits
@@ -446,6 +446,118 @@ class SelfTestTests(unittest.TestCase):
         shutil.rmtree(lab / "requests")
         done = self.run_in_copy(shlex.split(SELF_TEST))
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
+
+# --------------------------------------------------------------------------------------------------- re-aggregation
+
+REAGG_WORKFLOW = ROOT / ".github" / "workflows" / "lab-reaggregate.yml"
+REAGG_TEXT = REAGG_WORKFLOW.read_text(encoding="utf-8")
+REAGG = yaml.safe_load(REAGG_TEXT)
+REAGG_STEPS = REAGG["jobs"]["reaggregate"]["steps"]
+REAGG_IF = "steps.find.outputs.run_id != ''"
+
+
+class ReaggregateWorkflowTests(unittest.TestCase):
+    """``lab-reaggregate.yml``: the same rules as the lab workflow (pinned actions at the same shas, checkout without
+    credentials, run blocks that are one lab command without expressions, every command parsing), read access to the
+    finished run's artifacts and nothing else, and the aggregate job's own aggregate and summary commands."""
+
+    def step(self, step_id: str) -> dict[str, Any]:
+        return next(s for s in REAGG_STEPS if s.get("id") == step_id)
+
+    def test_triggers_permissions_and_job(self) -> None:
+        on = REAGG.get("on", REAGG.get(True))
+        self.assertEqual(set(on), {"push", "workflow_dispatch"})
+        self.assertEqual(on["push"], {"branches-ignore": ["main"], "paths": ["lab/reaggregate/*.json"]})
+        self.assertEqual(reaggregate.REQUEST_GLOB, ":(glob)" + on["push"]["paths"][0])
+        request = on["workflow_dispatch"]["inputs"]["request"]
+        self.assertEqual((request["required"], request["type"], set(on["workflow_dispatch"]["inputs"])),
+                         (True, "string", {"request"}))
+        self.assertEqual(REAGG["permissions"], {"actions": "read", "contents": "read"})
+        self.assertEqual((REAGG["defaults"], REAGG["env"]), (WF["defaults"], WF["env"]))
+        self.assertEqual(set(REAGG["jobs"]), {"reaggregate"})
+        job = REAGG["jobs"]["reaggregate"]
+        self.assertNotIn("permissions", job)
+        self.assertEqual(job["runs-on"], "ubuntu-24.04")
+        self.assertLessEqual(job["timeout-minutes"], JOBS["aggregate"]["timeout-minutes"])
+        self.assertNotIn("secrets.", REAGG_TEXT)
+        self.assertNotIn("concurrency", set(keys(REAGG)))
+        self.assertEqual(model_name_hits(REAGG_TEXT), [])
+
+    def test_actions_pinned_like_the_lab_workflow(self) -> None:
+        lab_shas = {m.group(2): m.group(4) for m in (USES_LINE_RE.fullmatch(line) for line in TEXT.splitlines()
+                                                     if "uses:" in line)}
+        lines = [line for line in REAGG_TEXT.splitlines() if "uses:" in line]
+        self.assertEqual(len(lines), len([s for s in REAGG_STEPS if "uses" in s]))
+        for line in lines:
+            m = USES_LINE_RE.fullmatch(line)
+            self.assertIsNotNone(m, line)
+            self.assertEqual(m.group(4), lab_shas[m.group(2)], line)
+            self.assertIn(m.group(2), lab_shas)
+        checkout = next(s for s in REAGG_STEPS if uses(s) == "actions/checkout")
+        self.assertEqual(checkout["with"], {"fetch-depth": 0, "persist-credentials": False})
+
+    def test_run_blocks_are_lab_commands_that_parse(self) -> None:
+        commands = [s["run"] for s in REAGG_STEPS if "run" in s]
+        modules = set()
+        for command in commands:
+            with self.subTest(command=command[:60]):
+                self.assertNotIn("${{", command)
+                self.assertNotIn("\n", command)
+                self.assertRegex(command, LAB_COMMAND_RE)
+                args = [re.sub(r"\$([A-Z_]+)", lambda m: "push" if m.group(1) == "GITHUB_EVENT_NAME" else "1", a)
+                        for a in shlex.split(command)]
+                modules.add(f"{args[2]} {args[3]}" if not args[3].startswith("-") else args[2])
+                try:
+                    importlib.import_module(args[2])._parser().parse_args(args[3:])
+                except SystemExit as exc:
+                    self.fail(f"{command} does not parse ({exc})")
+        self.assertEqual(modules, {"lab.reaggregate find", "lab.reaggregate sort", "lab.aggregate",
+                                   "lab.summary report"})
+
+    def test_the_aggregate_jobs_commands(self) -> None:
+        """The aggregate and summary commands are the lab workflow's aggregate job's, reading the sorted artifacts
+        and stamping the request; the summary prints into the job log between the same markers."""
+        lab = {s.get("id", s.get("run", "")[:30]): s["run"] for s in steps("aggregate") if "run" in s}
+        summary = next(run for run in lab.values() if run.startswith("python -m lab.summary report "))
+        self.assertEqual(self.step("aggregate")["run"],
+                         lab["aggregate"].replace('"$RUNNER_TEMP/lab-plan/plan.json"',
+                                                  '"$RUNNER_TEMP/lab-in/plan/plan.json"')
+                         .replace('"$RUNNER_TEMP/lab-prov"', '"$RUNNER_TEMP/lab-in/provision"')
+                         .replace('"$RUNNER_TEMP/lab-runs"', '"$RUNNER_TEMP/lab-in/shards"')
+                         + ' --reaggregation "$LAB_REQUEST"')
+        self.assertEqual(self.step("aggregate")["env"], {"LAB_REQUEST": "${{ steps.find.outputs.request }}"})
+        summaries = [s for s in REAGG_STEPS if s.get("run", "").startswith("python -m lab.summary ")]
+        self.assertEqual([s["run"] for s in summaries], [summary])
+        self.assertTrue(summary.endswith(" --log"))
+        self.assertEqual(summaries[0]["if"], f"${{{{ !cancelled() && {REAGG_IF} }}}}")
+
+    def test_download_sort_and_upload(self) -> None:
+        find = self.step("find")
+        self.assertEqual(REAGG_STEPS.index(find), 2)
+        download = self.step("download")
+        self.assertEqual(uses(download), "actions/download-artifact")
+        self.assertEqual(download["with"], {"pattern": "lab-*", "path": "${{ runner.temp }}/lab-artifacts",
+                                            "run-id": "${{ steps.find.outputs.run_id }}",
+                                            "github-token": "${{ github.token }}"})
+        self.assertEqual(REAGG_TEXT.count("github.token"), 1)
+        sort = self.step("sort")
+        self.assertIn('--artifacts "$RUNNER_TEMP/lab-artifacts" --run-id "$LAB_RUN_ID" --out "$RUNNER_TEMP/lab-in"',
+                      sort["run"])
+        self.assertEqual(sort["env"], {"LAB_RUN_ID": "${{ steps.find.outputs.run_id }}"})
+        order = [s.get("id") for s in REAGG_STEPS]
+        self.assertLess(order.index("find"), order.index("download"))
+        self.assertLess(order.index("download"), order.index("sort"))
+        self.assertLess(order.index("sort"), order.index("aggregate"))
+        for step_id in ("download", "sort", "aggregate"):
+            self.assertEqual(self.step(step_id)["if"], REAGG_IF, step_id)
+        (upload,) = [s for s in REAGG_STEPS if uses(s) == "actions/upload-artifact"]
+        self.assertEqual(upload["if"], f"${{{{ !cancelled() && {REAGG_IF} }}}}")
+        self.assertEqual(upload["with"]["path"], "${{ runner.temp }}/lab-report")
+        self.assertEqual(upload["with"]["if-no-files-found"], "error")
+        for part in ("lab-reaggregate-", "steps.find.outputs.run_id", "github.run_id", "github.run_attempt"):
+            self.assertIn(part, upload["with"]["name"])
+        self.assertEqual(upload["with"]["retention-days"], "${{ steps.sort.outputs.retention_days || 1 }}")
 
 
 if __name__ == "__main__":
