@@ -279,10 +279,8 @@ def _compute_novelty_charge(content: str, novelty: NoveltyContext | None) -> flo
     if not content_tokens:
         return 0.0
 
-    score = 0.0
-    for tok in content_tokens:
-        if tok in novelty.query_tokens:
-            score += novelty.token_idf.get(tok, 0.0)
+    # fsum is exactly rounded, so the result does not depend on set iteration order (hash seed)
+    score = math.fsum(novelty.token_idf.get(tok, 0.0) for tok in content_tokens if tok in novelty.query_tokens)
 
     if score <= 0:
         return 0.0
@@ -295,6 +293,38 @@ def _robust_similarity(similarity: float) -> float:
     """Squash similarity to reduce outlier influence while preserving rank."""
     similarity = max(0.0, min(1.0, similarity))
     return math.tanh(similarity * 1.5)
+
+
+# Cosine at or above which a node's text counts as a near-exact match of the query.
+_NEAR_EXACT_COSINE = 0.95
+
+
+def _speaker_charge(node: "NeuralNode", query_entities: set[str], cosine: float) -> float:
+    """Speaker binding: 1.0 when the node's speaker is named in the query.
+
+    A near-exact text match (cosine >= _NEAR_EXACT_COSINE) gets the same 1.0, so
+    the speaker term can lift a named speaker's messages above other text but
+    never above the message the query quotes. Messages usually name the other
+    person, so a query that was the exact text of a message used to rank the
+    other speaker's messages first.
+    """
+    if cosine >= _NEAR_EXACT_COSINE:
+        return 1.0
+    if node.metadata and query_entities:
+        speaker = (node.metadata.get("producer_id", "") or
+                   node.metadata.get("speaker", "")).lower()
+        if any(e.lower() == speaker for e in query_entities):
+            return 1.0
+    return 0.0
+
+
+def _charge_order(item: tuple["NeuralNode", float]) -> tuple[float, str]:
+    """Sort key: charge descending, ties broken by node id.
+
+    Storage indexes are sets, so node order depends on the hash seed; without
+    the node id, equal charges ranked differently from one process to the next.
+    """
+    return (-item[1], item[0].node_id)
 
 
 # =============================================================================
@@ -605,7 +635,7 @@ class TemporalStore:
                 results.append((node, charge))
 
         # Sort by charge descending
-        results.sort(key=lambda x: x[1], reverse=True)
+        results.sort(key=_charge_order)
 
         return results[:limit]
 
@@ -1202,7 +1232,7 @@ class TemporalStore:
 
         # 4. Semantic similarity (lower weight in temporal store)
         semantic_charge = 0.0
-        if node.embedding:
+        if node.embedding and query_embedding.size:
             node_emb = np.array(node.embedding, dtype=np.float32)
             node_norm = np.linalg.norm(node_emb)
             if node_norm > 1e-10:
@@ -1245,14 +1275,16 @@ class TemporalStore:
         event_year_charge = 0.0
         query_years = {int(y) for y in re.findall(r'\b(20\d{2})\b', query_text)}
 
-        # Get message year for relative time resolution
+        # Get message year for relative time resolution: the message's own date
+        # (metadata "datetime"), else created_at. created_at alone is not enough:
+        # harnesses that stamp it with the ingestion clock made "last year"
+        # resolve against the year the benchmark ran.
         msg_year = 2023  # Default
-        if node.created_at:
+        year_match = re.search(r'\b((?:19|20)\d{2})\b', msg_datetime_str) if msg_datetime_str else None
+        if year_match:
+            msg_year = int(year_match.group(1))
+        elif node.created_at:
             msg_year = node.created_at.year
-        elif msg_datetime_str:
-            year_match = re.search(r'(20\d{2})', msg_datetime_str)
-            if year_match:
-                msg_year = int(year_match.group(1))
 
         # Extract event year from content (resolves "last year" etc.)
         event_year = self._extract_event_year_from_content(content_lower, msg_year)
@@ -1361,7 +1393,7 @@ class EntityStore:
             if charge >= self._config.min_charge:
                 results.append((node, charge))
 
-        results.sort(key=lambda x: x[1], reverse=True)
+        results.sort(key=_charge_order)
         return results[:limit]
 
     def _extract_entities(self, text: str) -> set[str]:
@@ -1460,11 +1492,13 @@ class EntityStore:
 
         # 1. Semantic similarity
         semantic_charge = 0.0
-        if node.embedding:
+        cosine = 0.0
+        if node.embedding and query_embedding.size:
             node_emb = np.array(node.embedding, dtype=np.float32)
             node_norm = np.linalg.norm(node_emb)
             if node_norm > 1e-10:
-                semantic_charge = _robust_similarity(float(np.dot(query_embedding, node_emb / node_norm)))
+                cosine = float(np.dot(query_embedding, node_emb / node_norm))
+                semantic_charge = _robust_similarity(cosine)
 
         # 2. Entity binding (entities mentioned in content)
         entity_charge = 0.0
@@ -1472,13 +1506,8 @@ class EntityStore:
             matches = sum(1 for e in query_entities if e.lower() in content_lower)
             entity_charge = min(1.0, matches / len(query_entities))
 
-        # 3. Speaker binding (speaker IS the queried entity)
-        speaker_charge = 0.0
-        if node.metadata and query_entities:
-            speaker = (node.metadata.get("producer_id", "") or
-                      node.metadata.get("speaker", "")).lower()
-            if any(e.lower() == speaker for e in query_entities):
-                speaker_charge = 1.0
+        # 3. Speaker binding (speaker IS the queried entity, or near-exact text)
+        speaker_charge = _speaker_charge(node, query_entities, cosine)
 
         # 4. Keyword matching
         keyword_charge = 0.0
@@ -1498,13 +1527,10 @@ class EntityStore:
             novelty_charge * self._config.novelty_boost
         )
 
-        # CRITICAL: If speaker matches AND semantic > 0.2, give bonus
-        # This ensures ALL speaker messages have a chance even with low semantic
-        if speaker_charge > 0.5 and semantic_charge > 0.2:
-            total *= 1.5  # Increased from 1.3
-            # Additional boost if keywords also match
-            if keyword_charge > 0.3:
-                total *= 1.2
+        # The speaker term is additive only. It used to also multiply the whole
+        # charge by 1.5 (x1.2 more on a keyword match), which pushed a near-exact
+        # text match out of this store's top 50 whenever the query named the
+        # other speaker.
 
         return total
 
@@ -1569,7 +1595,7 @@ class ReasoningStore:
             if charge >= self._config.min_charge:
                 results.append((node, charge))
 
-        results.sort(key=lambda x: x[1], reverse=True)
+        results.sort(key=_charge_order)
         return results[:limit]
 
     def _extract_entities(self, text: str) -> set[str]:
@@ -1644,23 +1670,20 @@ class ReasoningStore:
         content_lower = node.content.lower()
 
         semantic_charge = 0.0
-        if node.embedding:
+        cosine = 0.0
+        if node.embedding and query_embedding.size:
             node_emb = np.array(node.embedding, dtype=np.float32)
             node_norm = np.linalg.norm(node_emb)
             if node_norm > 1e-10:
-                semantic_charge = _robust_similarity(float(np.dot(query_embedding, node_emb / node_norm)))
+                cosine = float(np.dot(query_embedding, node_emb / node_norm))
+                semantic_charge = _robust_similarity(cosine)
 
         entity_charge = 0.0
         if query_entities:
             matches = sum(1 for e in query_entities if e.lower() in content_lower)
             entity_charge = min(1.0, matches / len(query_entities))
 
-        speaker_charge = 0.0
-        if node.metadata and query_entities:
-            speaker = (node.metadata.get("producer_id", "") or
-                      node.metadata.get("speaker", "")).lower()
-            if any(e.lower() == speaker for e in query_entities):
-                speaker_charge = 1.0
+        speaker_charge = _speaker_charge(node, query_entities, cosine)
 
         keyword_charge = 0.0
         if query_keywords:
@@ -1738,7 +1761,7 @@ class AdversarialStore:
             if charge >= self._config.min_charge:
                 results.append((node, charge))
 
-        results.sort(key=lambda x: x[1], reverse=True)
+        results.sort(key=_charge_order)
         return results[:limit]
 
     def _parse_adversarial(self, query: str) -> tuple[set[str], set[str]]:
@@ -1884,23 +1907,20 @@ class AdversarialStore:
         content_lower = node.content.lower()
 
         semantic_charge = 0.0
-        if node.embedding:
+        cosine = 0.0
+        if node.embedding and query_embedding.size:
             node_emb = np.array(node.embedding, dtype=np.float32)
             node_norm = np.linalg.norm(node_emb)
             if node_norm > 1e-10:
-                semantic_charge = _robust_similarity(float(np.dot(query_embedding, node_emb / node_norm)))
+                cosine = float(np.dot(query_embedding, node_emb / node_norm))
+                semantic_charge = _robust_similarity(cosine)
 
         entity_charge = 0.0
         if query_entities:
             matches = sum(1 for e in query_entities if e.lower() in content_lower)
             entity_charge = min(1.0, matches / len(query_entities))
 
-        speaker_charge = 0.0
-        if node.metadata and query_entities:
-            speaker = (node.metadata.get("producer_id", "") or
-                      node.metadata.get("speaker", "")).lower()
-            if any(e.lower() == speaker for e in query_entities):
-                speaker_charge = 1.0
+        speaker_charge = _speaker_charge(node, query_entities, cosine)
 
         # ADVERSARIAL: Check if node contains negated terms
         negation_charge = 0.0
@@ -1975,15 +1995,25 @@ class Tesseract:
         4. Fuse results with type-based weighting
         5. Return top unified results
 
+        An empty query_embedding (for example when the embedding call failed)
+        does not raise: every store skips its semantic term and ranks on the
+        lexical, entity, speaker, temporal and graph terms alone.
+
+        Ties in charge are broken by node id, so the ranking does not depend
+        on the storage's iteration order or on the Python hash seed.
+
         Args:
             query_text: The search query
-            query_embedding: Vector embedding of the query
+            query_embedding: Vector embedding of the query ([] = no semantic term)
             session_key: Session to search within
             reference_time: Reference time for temporal queries
             limit: Maximum results to return
             auto_expand_temporal: If True, automatically expand temporal queries
                 with date tokens for better BM25 matching (default: True)
         """
+        if len(query_embedding) == 0:
+            logger.warning("Empty query embedding: retrieving without the semantic term")
+
         # Step 1: Detect query type
         query_types = detect_query_type(query_text)
 
@@ -2054,7 +2084,7 @@ class Tesseract:
         fused = await self._apply_temporal_momentum(fused, type_weights=query_types)
 
         # Step 4: Sort and return top
-        fused.sort(key=lambda x: x[1], reverse=True)
+        fused.sort(key=_charge_order)
         return fused[:limit]
 
     def _normalize_charges(
@@ -2100,8 +2130,8 @@ class Tesseract:
 
             neighbors = sorted(
                 neighbors,
-                key=lambda pair: pair[1].base_weight * pair[1].ltp_boost * pair[1].confidence,
-                reverse=True,
+                key=lambda pair: (-(pair[1].base_weight * pair[1].ltp_boost * pair[1].confidence),
+                                  pair[0].node_id),
             )
 
             for neighbor, edge in neighbors[:max_neighbors]:

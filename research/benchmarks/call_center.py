@@ -30,6 +30,7 @@ from NeuralGraph.temporal_utils import (
 )
 from NeuralGraph.research.retrieval.speaker_profiles import UniversalSpeakerProfiler
 from NeuralGraph.research.retrieval.llm_profile_extractor import extract_facts_parallel
+from NeuralGraph.research.retrieval.benchmark_ingest import allow_missing_from_env, check_embeddings
 
 # Configuration
 OLLAMA_BASE_URL = "http://localhost:11434"
@@ -244,8 +245,11 @@ async def run_benchmark():
         all_node_ids = []
         speaker_nodes = {}
 
-        for msg_idx, msg in enumerate(messages):
-            embedding = await get_embedding(http, msg["text"])
+        embeddings = [await get_embedding(http, msg["text"]) for msg in messages]
+        # get_embedding returns [] on any error: stop with the count unless ALLOW_MISSING_EMBEDDINGS=1
+        missing = check_embeddings(embeddings, where=session_key, allow_missing=allow_missing_from_env())
+
+        for msg_idx, (msg, embedding) in enumerate(zip(messages, embeddings)):
             if not embedding:
                 continue
 
@@ -319,7 +323,7 @@ async def run_benchmark():
         all_nodes = [n for n in all_nodes if n is not None]
         aggregators, bindings = await dialogue_linker.process_dialogue_sequence(all_nodes, session_key)
 
-        print(f"Indexed {len(all_node_ids)} memories")
+        print(f"Indexed {len(all_node_ids)} memories ({missing} skipped without an embedding)")
         print(f"Created {edge_count} speaker edges, {temporal_edge_count} temporal edges")
         print(f"Dialogue links: {len(aggregators)} aggregators, {len(bindings)} bindings")
         print()

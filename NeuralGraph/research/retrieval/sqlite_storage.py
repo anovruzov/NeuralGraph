@@ -460,6 +460,40 @@ class SQLiteNeuralGraphStorage(NeuralGraphStorage):
 
         return [_deserialize_edge(json.loads(row["data"])) for row in cursor.fetchall()]
 
+    async def get_neighbors(
+        self,
+        node_id: str,
+        edge_types: list[EdgeType] | None = None,
+        direction: str = "outgoing"
+    ) -> list[tuple[NeuralNode, NeuralEdge]]:
+        """Get neighboring nodes (one join per direction, edges in insertion order)."""
+        cursor = self._conn.cursor()
+        type_clause = ""
+        type_params: tuple[str, ...] = ()
+        if edge_types:
+            type_clause = f" AND e.edge_type IN ({','.join('?' * len(edge_types))})"
+            type_params = tuple(et.value for et in edge_types)
+
+        neighbors: list[tuple[NeuralNode, NeuralEdge]] = []
+        sides = []
+        if direction in ("outgoing", "both"):
+            sides.append(("source_id", "target_id"))
+        if direction in ("incoming", "both"):
+            sides.append(("target_id", "source_id"))
+        for center_col, neighbor_col in sides:
+            cursor.execute(
+                f"SELECT e.data AS edge_data, n.data AS node_data, n.embedding AS embedding "
+                f"FROM edges e INNER JOIN nodes n ON n.node_id = e.{neighbor_col} "
+                f"WHERE e.{center_col} = ?{type_clause} ORDER BY e.rowid",
+                (node_id, *type_params)
+            )
+            for row in cursor.fetchall():
+                data = json.loads(row["node_data"])
+                data["embedding"] = self._blob_to_embedding(row["embedding"])
+                neighbors.append((_deserialize_node(data), _deserialize_edge(json.loads(row["edge_data"]))))
+
+        return neighbors
+
     # =========================================================================
     # VECTOR SEARCH
     # =========================================================================

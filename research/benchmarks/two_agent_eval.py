@@ -26,8 +26,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling harness modules
 
 
-from datetime import datetime
-
 from NeuralGraph.research.retrieval import NeuralNode, NodeLayer
 from NeuralGraph.research.retrieval.storage import InMemoryNeuralGraphStorage
 from NeuralGraph.research.retrieval.tesseract import Tesseract
@@ -299,7 +297,7 @@ async def build_pair_nodes(http, conv_idx: int, messages: list[dict], nodes: lis
         anchor = nodes[int(mem[0].rsplit("_", 1)[1])]
         out.append(NeuralNode(
             node_id=f"pair{window}_{conv_idx}_{k}", session_key=f"conv_{conv_idx}", content=text,
-            layer=NodeLayer.MESSAGE, embedding=emb, created_at=datetime.now(),
+            layer=NodeLayer.MESSAGE, embedding=emb, created_at=anchor.created_at,
             metadata={"speaker": anchor.speaker_id, "datetime": anchor.metadata.get("datetime"),
                       "pair_members": mem}))
     return out
