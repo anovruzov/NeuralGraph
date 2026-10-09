@@ -15,9 +15,11 @@ with one change: retrieval is Tesseract through the adapter instead of ``edge/ve
    query is the question rendered by ``pushdown.questions.render_text`` plus the entity's alias phrases. Tesseract
    ranks the session's nodes received on or before the question's ``as_of`` (``AsOfStorage``; a site at ``as_of``
    holds no later record) with the hash embedder (256 dimensions) and ``limit`` set to the session's node count; the
-   adapter's ``local_retrieve`` keeps the returned nodes received in the question window, in Tesseract's order, the
-   first ``max_records`` (L = 50). The adapter's ``claim_projection`` exports only the record handle, and its claims
-   stay in this process;
+   adapter's ``local_retrieve`` reads the union of two sets, at most ``max_records`` (L = 50) records in all: the
+   records the shipped retrieval (``edge.verify.retrieve``) reads for the question at cap L, which always go in, and
+   the returned nodes received in the question window, in Tesseract's order, filling the places left. Every record
+   read is received on or before ``as_of``. The adapter's ``claim_projection`` exports only the record handle, and
+   its claims stay in this process;
 6. each exported record is read with ``edge.verify.judge_payload`` and ``edge.verify.lexical_judge``;
    ``edge.verify.decide`` applies the verdict rules;
 7. counts become buckets, ``evidence_ref`` is the HMAC of the verdict id with the site's seeded-demo secret, the
@@ -25,7 +27,10 @@ with one change: retrieval is Tesseract through the adapter instead of ``edge/ve
    the shipped retrieval matches to the entity was not read.
 
 Run 1 ranked the whole session (records received after ``as_of`` included) and set ``truncated`` when the window held
-more than L own records; ``ROUTING-SPIKE.md`` section 10, deviations 16 and 17, say why both changed.
+more than L own records; ``ROUTING-SPIKE.md`` section 10, deviations 16 and 17, say why both changed. Runs 1 and 2
+read Tesseract's in-window nodes only, so a site could leave unread an in-window record the shipped retrieval reads,
+one its own cells counted included, and refute a key its cells assert; ``ROUTING-SPIKE.md`` section 13 (not yet run)
+says why the union replaced that read.
 
 With ``retrieval = "shipped"`` step 5 is ``edge.verify.retrieve`` with cap ``max_records`` (the equivalence test sets
 it to ``verify_max_records``), and the bytes must equal ``SiteVerifier.answer``'s.
@@ -168,7 +173,13 @@ class AsOfStorage:
 
 
 class TesseractRetrieval:
-    """Tesseract over the site's graph, through ``NeuralGraphMemoryAdapter``; the adapter's claims stay here."""
+    """Tesseract over the site's graph, through ``NeuralGraphMemoryAdapter``; the adapter's claims stay here.
+
+    What a site reads for a question is the union of Tesseract's in-window records and the records the shipped
+    retrieval reads at the same cap L (:meth:`union`). Tesseract's ranking ignores the question's entity and returns
+    only its stores' top candidates, so on its own it can leave unread a record the shipped retrieval reads, one the
+    site's own cells counted included, and the site then refutes a key its cells assert (``ROUTING-SPIKE.md``
+    section 13)."""
 
     name = "tesseract"
 
@@ -209,6 +220,7 @@ class TesseractRetrieval:
             policy_filter=lambda node, context: PolicyStatus.ALLOWED, clock=process.clock,
             claim_projection=lambda node: {"record_ref": node.node_id})
         self._current: dict[str, Any] | None = None
+        self._by_ref: dict[str, Any] = {}
         self.nodes = self._loop.run_until_complete(self._build())
         self.build_seconds = 0.0
 
@@ -239,6 +251,7 @@ class TesseractRetrieval:
                                           created_at=received, updated_at=received, last_activated=received,
                                           metadata={"iso_week": record.iso_week, "received_date": local_date(day)}))
         await self._storage.save_nodes_batch(nodes)
+        self._by_ref = {node.node_id: node for node in nodes}
         return len(nodes)
 
     async def _local_retrieve(self, request: Any) -> list[tuple[Any, float]]:
@@ -258,12 +271,35 @@ class TesseractRetrieval:
         start, end = current["window"]["start_week"], current["window"]["end_week"]
         kept = [(node, charge) for node, charge in ranked if start <= node.metadata["iso_week"] <= end]
         current["in_window_returned"] = len(kept)
-        return kept[:self._max]
+        # an in-window record is received before as_of (the window ends at the last week closed at as_of); the
+        # bound is applied here as well, so no record the site would not yet hold is ever read
+        as_of = current["as_of"]
+        shipped = [ref for ref in current["shipped"] if self._by_ref[ref].metadata["received_date"] <= as_of]
+        returned = {node.node_id for node, _ in kept}
+        current["shipped_added"] = sum(1 for ref in shipped if ref not in returned)
+        return self.union(kept, shipped)
+
+    def union(self, kept: Sequence[tuple[Any, float]], shipped: Sequence[str]) -> list[tuple[Any, float]]:
+        """What the site reads: every record of ``shipped`` (the records the shipped retrieval reads at cap L, newest
+        first, so at most L), and Tesseract's in-window records ``kept`` that are not among them, in Tesseract's order,
+        in the places left, at most L in all. Tesseract's records come first in Tesseract's order, then the shipped
+        records Tesseract did not return. The order does not change the verdict; the set does."""
+        if len(shipped) > self._max:
+            raise ValueError("the shipped records are capped at L") from None
+        first = set(shipped)
+        room = self._max - len(shipped)
+        others = [node.node_id for node, _ in kept if node.node_id not in first][:room]
+        chosen = first | set(others)
+        out = [(node, charge) for node, charge in kept if node.node_id in chosen]
+        returned = {node.node_id for node, _ in out}
+        out += [(self._by_ref[ref], 0.0) for ref in shipped if ref not in returned]
+        return out
 
     def entity_matched(self, store: RecordStore, question: Mapping[str, Any], own: int) -> list[WindowRecord]:
-        """The in-window own records the shipped retrieval would read for the question, uncapped: the records that
-        hold a stored claim on the entity, resolve to it in a structured field, or name it in the narrative. Read here,
-        site side, only to say whether the site judged a subset of them (``truncated``)."""
+        """The in-window own records the shipped retrieval would read for the question, uncapped and newest first, as
+        ``edge.verify.retrieve`` orders them: the records that hold a stored claim on the entity, resolve to it in a
+        structured field, or name it in the narrative. Read here, site side: the first L of them are always read
+        (:meth:`union`), and all of them say whether the site judged a subset (``truncated``)."""
         params = question["params"]
         records, cut = retrieve(store, self._process.site.canonicaliser, entity_type=params["entity_type"],
                                 entity_id=params["entity_id"], window=question["window"], cap=max(1, own),
@@ -272,11 +308,14 @@ class TesseractRetrieval:
         return records
 
     def retrieve(self, store: RecordStore, question: Mapping[str, Any]) -> tuple[list[WindowRecord], bool]:
-        """Tesseract's kept records, and ``truncated``: true when at least one in-window own record that the shipped
-        retrieval matches to the entity was not read (``ROUTING-SPIKE.md`` section 10, deviation 17)."""
+        """The records read (:meth:`union`), and ``truncated``: true when at least one in-window own record that the
+        shipped retrieval matches to the entity was not read (``ROUTING-SPIKE.md`` section 10, deviation 17). With the
+        union that happens only when more than L records match."""
         window = question["window"]
         own = {r.record_ref: r for r in store.window_records(window["start_week"], window["end_week"])}
-        self._current = {"query_id": question["question_id"], "window": dict(window), "as_of": question["as_of"]}
+        matched = self.entity_matched(store, question, len(own))
+        self._current = {"query_id": question["question_id"], "window": dict(window), "as_of": question["as_of"],
+                         "shipped": [r.record_ref for r in matched[:self._max]]}
         request = self._QueryRequest(
             query_id=question["question_id"], content=query_text(self._process.pack, question),
             requester_id=f"site-local:{self._process.config.site_id}", issued_at=self._process.clock(),
@@ -286,14 +325,14 @@ class TesseractRetrieval:
         refs = [claim.content["record_ref"] for export in exports for claim in export.claims]
         records = [own[ref] for ref in refs]
         current, self._current = self._current, None
-        matched = self.entity_matched(store, question, len(own))
         read = set(refs)
         unread = sum(1 for r in matched if r.record_ref not in read)
         self._process.diag({"question_id": question["question_id"], "seconds": current["seconds"],
                             "nodes": self.nodes, "nodes_as_of": current["nodes_as_of"],
                             "returned": current["returned"], "in_window_returned": current["in_window_returned"],
                             "own_in_window": len(own), "read": len(records), "entity_matched": len(matched),
-                            "entity_matched_unread": unread, "refs": refs})
+                            "entity_matched_unread": unread, "shipped_added": current["shipped_added"],
+                            "refs": refs})
         return records, unread > 0
 
     def close(self) -> None:
