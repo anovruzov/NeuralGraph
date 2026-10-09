@@ -273,7 +273,8 @@ def test_feed_and_issue_isolation():
 def test_domains_are_never_set_by_hand():
     for name in ("feed.py", "issue.py", "run.py", "world.py", "events.py"):
         src = (BENCH / name).read_text()
-        assert "update_holder" not in src and "published_domains" not in src.replace("(rt.org.get_holder(h) or {}).get(\"published_domains\")", "")
+        reads_only = re.sub(r"\.get\(\"published_domains\"\)( or \(\))?", "", src)           # reading what a holder published is fine; writing it is not
+        assert "update_holder" not in src and "published_domains" not in reads_only
         assert not re.search(r"register_holder\([^)]*domains\s*=", src)
 
 
@@ -547,3 +548,14 @@ def test_issue_and_view_shape_against_the_real_api(banks, tmp_path):
             await client.close()
             await runner.cleanup()
     asyncio.run(go())
+
+
+def test_public_entity_vocabulary_has_the_options_form(planned):
+    """One entity, one key: the vocabulary the public file lists uses the options' dict form, and contains every option of every task
+    (a string-form list made the scorer see each entity twice and discard every correct claim as 'naming two entities')."""
+    w, p, bank = planned
+    assert p.entities and all(isinstance(e, dict) and {"label", "id", "display", "aliases"} <= set(e) for e in p.entities)
+    ids = {e["id"] for e in p.entities}
+    assert len(ids) == len(p.entities)
+    for t in p.public():
+        assert all(o["id"] in ids for o in t.options)

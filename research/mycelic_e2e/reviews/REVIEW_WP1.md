@@ -430,3 +430,173 @@ Conditions:
 3. **E1's O2(a) prediction must be re-derived with threshold 5 and public-only ids.** Recall from symptom, service and
    issue ids will be lower than under the original commit's defaults. If it is too low, the remedy is a declared, measured
    contract parameter, not a code default.
+
+---
+
+## Review of commit `1b74545` (integration): WP1 parts, H1 term index, H2, H5
+
+Reviewer: REVIEWER-2 (`claude-opus-5-5`). Copy: `git archive 1b74545 | tar -x -C $SCR/rv3`.
+Scope:
+- S1 / `_attribute`, `evidence_freshness`, the `motivating_lineage` redaction;
+- H1: `0007_term_index`, `entities.py`, publication in `evidence/service.py`, `org.holder_heartbeat`, `rank_holders`;
+- H2;
+- H5.
+
+ENGINEER-E's scale hunks (`authz.py`, transport, `holder/embedded.py` lifecycle, migration 0006) are out of scope and were
+not reviewed.
+
+**Verdict: ACCEPT the WP1 fixes (S1, lineage redaction, `evidence_freshness`), H2 and H5. H1 is BLOCKED by one
+publication defect (B1).** I accept the orchestrator's privacy ruling in principle, but the code does not implement
+"public records only" as disclosure defines it.
+
+### Reproduction
+```
+python -m pytest mycelic/tests -q -p no:warnings                  → 496 passed, 7 skipped in 142.59s (matches the engineers' run)
+python -m pytest mycelic/tests/test_review_wp1.py -q -s           → R1–R10, R3b, R8b pass (R8 cannot find a members-only id: expected); T1 passes; T2 FAILS (B1)
+```
+
+### (a) S1, lineage redaction, evidence_freshness: ACCEPT
+
+- **S1.** `CommitGate._attribute` (`knowledge/gate.py:117-154`):
+  1. Roots with a single candidate unit fix that unit.
+  2. Roots that touch a fixed unit join it.
+  3. The remaining roots get a minimum unit cover: exhaustive search up to 8 roots, greedy beyond.
+
+  The total is minimal, because the remaining roots never touch a fixed unit. My unit-id-order probe gave:
+
+  `R3b shared dept smallest id -> ('hypothesis', {'department': 1})   shared dept largest id -> ('hypothesis', {'department': 1})`
+
+  The original R3 also holds: `('hypothesis', {'department': 1})` for both ref ids.
+  - Non-blocking: the exhaustive search has no bound on how many units it may consider (`gate.py:137-142`). Measured:
+    8 roots with disjoint candidate sets of size 2/3/4 take 0.03 s / 1.02 s / 9.03 s. `KnowledgeService.sync_support_sync`
+    recomputes `independent_units` *inside a write transaction*.
+  - Fix: stop the search at `k = need`, which is enough to decide a shortfall, and fall back to the greedy cover when
+    `C(|universe|, k)` exceeds about 10⁵.
+- **`motivating_lineage`.** For a principal without full view, `view()` now replaces claim, conflict and evidence lineage
+  items with `{"type", "label": "", "redacted": true}` (`inquiry/service.py:128,149`). Probe output: `R5 … lineage labels: ['']`.
+  This closes the older leak I flagged.
+  - Non-blocking: `detail()` still returns the `question_runs` row unfiltered (`inquiry/service.py:206`). After
+    evaluation its state carries `verified.target_claim_id` (`engine.py:824`). That is after the routed owner has answered,
+    so it does not break blindness, but it should be redacted the same way.
+- **`evidence_freshness`.** It now reads `meta`, so undated references count as `unknown` (`knowledge/service.py:965-971`).
+  This is an admin metric and is covered by `test_evidence_freshness_counts_undated_references_as_unknown`.
+
+### (b) H1 term index: ruling and findings
+
+**Authorization comes first: confirmed.**
+- `term_hits` is restricted to the authorized `candidates` (`routing.py:94`, `in_scope = … if hid in allowed`).
+- The pool is still a slice of the candidates.
+- `term_holders` and `entity_holders` are intersected with `allowed` (`:152`).
+- `ranked_out` (`:150-153`) lists only authorized candidates that were not chosen, with numeric score parts.
+
+So term routing cannot route to a holder the asker could not route to.
+
+**The audit detail holds hashed ids only.**
+- `terms` holds the question's term ids, i.e. hashes of the words of a question an admin can already read.
+- No route exposes `term_index`: `grep term_index mycelic/api` finds nothing, and `traverse` does not read it.
+- The `/admin/audit` endpoint is admin-only.
+
+**The keyed hash.**
+- Term ids are HMAC-SHA256 of a stem, truncated to 64 bits, under a per-tenant key (`org.py:73-77`).
+- The runtime always has a secret: it comes from `MYCELIC_SECRET_KEY`, or is generated and persisted to
+  `data_dir/secret_key` (`runtime.py:112-127`). `build_runtime` passes it to `OrgService`. The bench (`run.py:57`) and
+  perf (`perf_bench.py:104`) set fresh secrets.
+- Backups do not include `secret_key` (`observability.backup_bundle`: `coord.db` and holder DBs only).
+
+**Ruling on the key: ACCEPTABLE.** The "stable non-secret fallback" is reachable only through `OrgService(db)` without a
+secret. That happens in tests, in `hypergraph.traverse`'s default authorizer (which never asks for the term key), and in
+`bench/baseline_central.py:139` (which does not route). Required hardening (non-blocking for now): `term_key()` returns
+`None` and logs when `secret_key` is empty, so a misconfigured path publishes nothing instead of dictionary-testable ids.
+
+Two caveats:
+- Every holder receives the tenant-wide key (`routes_org.py:1043`). Any holder owner can therefore hash a dictionary, but
+  the index itself is never served to them.
+- Rotating the server secret silently invalidates all term ids until holders send their next heartbeat.
+
+**Ruling on the orchestrator's privacy ruling (public records only, threshold 1, `auto_terms` off-switch): ACCEPT in
+principle.** Some corrections:
+- A public record is, by the product's own ACL definition, disclosed to "anyone the holder's export policy answers"
+  (`ingest/events.py:57`). That is not "every tenant member" as D18 says. The term signal is only consulted for holders
+  the asker may route to, so the conclusion still holds: the router reveals nothing that holder would not disclose to that
+  asker.
+- Threshold 1 is fine *for records that really are disclosable*. The boilerplate filter (df > max(5, 10 %)) is
+  irrelevant to privacy. It only removes non-discriminative words.
+- T1 confirms the main filter works:
+
+  `T1 published: 6 {'zanzibarquux': True, 'vorpalcorp': False, 'snarkhunter': False, 'quibblefrob': False}`
+
+  Here `vorpalcorp` sits in a public-visibility record of a members-only source, `snarkhunter` in a private source, and
+  `quibblefrob` in a public record with `sensitivity="restricted"`.
+
+**B1 (BLOCKING H1, and it also affects F5 entity publication): publication uses the record's ingest-time visibility, not
+the ACL that disclosure applies at use time.**
+- Where: `_published_terms` (`evidence/service.py:1009-1016`) and `_entity_counts_sync` (`:1052-1060`) filter on
+  `ingest_records.visibility='public'`.
+- Disclosure (`_record_acl_sync`, `:841-865`) does more: it *narrows* by the source's current ACL (`connector_sources.visibility`
+  and `member_ids`: "a channel turned members-only … takes effect at the next use without re-ingesting"). It also honours
+  the owner's per-source opt-out (`connector_sources.exportable`), the per-source `disclosure` and `access_state`.
+- Probe T2: a public source with 5 records. Output:
+
+  `baseline term: True entities: [service:ledgergate, symptom:timeout] | narrowed (source set members-only): term True entities [same] | opted-out (exportable=0): term True entities [same] | record exportable at use time: False`
+
+- A channel that became members-only, or that the owner withdrew from export, keeps routing questions by its words and
+  entities. This is precisely the content oracle for restricted records that the ruling forbids.
+- Fix:
+  - Filter publication on the same effective ACL as disclosure. Join `connector_sources` (in a sharded store, read
+    eligible `source_id`s from s0 and filter shard records by them) and require all of:
+    - the source's *current* visibility is `public`, or no source row exists and `r.visibility = 'public'`;
+    - `exportable` is not 0;
+    - `disclosure` is not `none`;
+    - `access_state = 'ok'`.
+  - Publish nothing when the holder-level `export_policy.disclosure` is `none`.
+  - Drop stems matching the owner's `deny_patterns` (`self._deny`); today they are redacted from answers but still hashed
+    into terms.
+  - Add the `connector_sources` state (e.g. `MAX(updated_at)`) and the deny list to the term-cache signature (`:1000`);
+    today the cache ignores ACL changes for up to 600 s.
+  - Add T2 as a test.
+
+**Non-blocking.**
+- `term_incidence` drops a term held by more holders *tenant-wide* than `max(TERM_COMMON_FLOOR, fraction × candidates)`
+  (`hypergraph.py:502-519`, `routing.py:92`). Holders the asker cannot route to can thereby suppress a term that is rare
+  among the asker's own candidates. This affects recall only; it leaks nothing.
+- `term_stems` stems only the hyphen parts of a token, not the whole token (`entities.py`). This is consistent on both
+  sides, so matching works, but the comment's claim of "light stemming" is inaccurate.
+
+### (c) H2 entity-named blind verification: ACCEPT
+- `LoopEngine._topic_names` (`engine.py:261-274`) admits `service` / `component` / `symptom` / `topic` names only, drops
+  any name containing a digit, and keeps at most 3. Tracker keys, versions and organizations never appear.
+- `_blind_leak` (numbers shared with the claim, a run of 6 or more of its words) still guards the result.
+- Example: for the claim "Timeouts on the ledgergate-service are caused by the retry-storm in component payments v2.3
+  since 2026-10-01 (LGX-412)", the fake model writes "What do your own notes show about ledgergate-service, timeout?
+  Include dates." It contains no number, no key and not the asserted cause. The old fallback, kept when no entity is
+  known, wrote "…about timeouts ledgergate service caused retry?", which leaks more.
+- Notes (non-blocking):
+  - Naming both service and symptom states the finding's subject-predicate pair. Consider naming only the
+    service/component when one exists.
+  - `topic:` ids can enter the claim text literally from holder responses, through `_LITERAL_ENTITY` and up to 80
+    characters. Their display names then reach other holders' question text. Restrict topic names to ids present in
+    `entity_registry` with `holder_count ≥ 1`.
+
+### (d) H5 snapshot rule: ACCEPT, with one non-blocking bound
+- Retraction requires `snapshot_complete`: nothing queued or leased, with dead items excluded (`evidence/service.py`
+  `_snapshot_complete`; `org.py:518`, entity retract, term retract). An owner switching publication off, or a
+  revocation, still withdraws immediately (`org.py` `update_holder` → `withdraw_holder_entities_sync`).
+- **Can an honest holder never retract?** Only while its ingest queue never drains. Queued retries end as `dead`, and
+  expired leases are re-leased, so normal operation retracts at the next idle beat. A permanently busy holder, or an
+  offline but unrevoked one, keeps stale domains, entities and terms indefinitely. That includes ids derived from
+  *deleted* records, which matters for deletion requests.
+  - Recommended (non-blocking): a deletion processed by the holder reports its withdrawn ids explicitly. Those are
+    authoritative regardless of the snapshot. Separately, cap the age of entries an unvouched holder has not re-reported
+    (for example 24 h).
+- **Can an attacker-holder keep stale incidence?** Yes, by never vouching. That adds no capability: a lying holder could
+  always report arbitrary ids, and it can already have any word's term id because it holds the key. The impact is
+  bounded by `can_route` (only holders the asker may route to are ranked) and by the caps (1,000 terms, 500 entities,
+  64 domains). It can attract questions it was already authorized to receive. Accept.
+
+### Blocking list for `1b74545`
+1. **B1:** `evidence/service.py:1009-1016` and `:1052-1060`, plus the cache signature at `:1000`. Make term and entity
+   publication use the disclosure-time effective ACL (current source visibility, `exportable`, `disclosure`,
+   `access_state`, holder `disclosure`) and the owner's `deny_patterns`. Add probe T2
+   (`$SCR/rv3/mycelic/tests/test_review_wp1.py::test_t2_narrowed_or_opted_out_source_still_publishes`) as a test.
+
+Everything else in scope is accepted. The non-blocking items listed above are follow-ups.

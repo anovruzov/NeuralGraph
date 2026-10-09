@@ -1,0 +1,406 @@
+{
+ "n": 1000,
+ "agree": true,
+ "machine": {
+  "platform": "Linux-6.18.44-fc-v80-x86_64-with-glibc2.39",
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "cpus": 4,
+  "mem": "16480952 kB",
+  "python": "3.13.16",
+  "sqlite": "3.45.1"
+ },
+ "workdir": "/tmp/mycelic_perf_n1000_zmgb4grc",
+ "started_utc": "2026-10-09T06:35:42Z",
+ "profile_mode": "none",
+ "rss_start_mb": 42.2,
+ "max_open_holders": 200,
+ "build_runtime_s": 0.256,
+ "embedder": {
+  "runtime_embedder": "HashEmbeddings",
+  "dim": 256,
+  "model": "hash-bow-256",
+  "router_providers": [
+   "fake"
+  ],
+  "tiers": {
+   "light": "fake:mycelic-fake-light",
+   "standard": "fake:mycelic-fake-standard",
+   "heavy": "fake:mycelic-fake-heavy"
+  }
+ },
+ "tenant": {
+  "n_users": 1000,
+  "register_tenant_s": 0.06,
+  "units_s": 0.031,
+  "depts": 10,
+  "teams": 100,
+  "users_memberships_holders_total_s": 0.689,
+  "per_user_total_ms": 0.689,
+  "create_user": {
+   "n": 1000,
+   "mean_ms": 0.168,
+   "p50_ms": 0.0,
+   "p95_ms": 0.0,
+   "max_ms": 10.419,
+   "sum_s": 0.168
+  },
+  "add_membership": {
+   "n": 1000,
+   "mean_ms": 0.273,
+   "p50_ms": 0.0,
+   "p95_ms": 0.0,
+   "max_ms": 10.036,
+   "sum_s": 0.273
+  },
+  "register_holder": {
+   "n": 1000,
+   "mean_ms": 0.246,
+   "p50_ms": 0.0,
+   "p95_ms": 0.0,
+   "max_ms": 10.902,
+   "sum_s": 0.246
+  },
+  "tenant_total_s": 0.78,
+  "coord_db_bytes": 3330048,
+  "tables_rows": {
+   "users": 1001,
+   "memberships": 1002,
+   "holders": 1000,
+   "org_units": 111,
+   "audit_log": 3115,
+   "events": 1113
+  }
+ },
+ "rss_after_tenant_mb": 58.0,
+ "open": {
+  "n_holders": 1000,
+  "open_all_s": 28.83,
+  "open_all_cpu_s": 22.377,
+  "open_each": {
+   "n": 1000,
+   "mean_ms": 28.818,
+   "p50_ms": 28.0,
+   "p95_ms": 38.0,
+   "max_ms": 383.667,
+   "sum_s": 28.818
+  },
+  "first10_mean_ms": 32.504,
+  "last10_mean_ms": 29.275,
+  "rss_before_mb": 58.0,
+  "rss_after_mb": 357.1,
+  "rss_growth_mb_per_open_holder": 0.299,
+  "rss_series": [
+   {
+    "open": 100,
+    "rss_mb": 179.3,
+    "fds": 310
+   },
+   {
+    "open": 200,
+    "rss_mb": 298.1,
+    "fds": 610
+   },
+   {
+    "open": 300,
+    "rss_mb": 312.2,
+    "fds": 610
+   },
+   {
+    "open": 400,
+    "rss_mb": 320.8,
+    "fds": 610
+   },
+   {
+    "open": 500,
+    "rss_mb": 332.7,
+    "fds": 610
+   },
+   {
+    "open": 600,
+    "rss_mb": 344.4,
+    "fds": 610
+   },
+   {
+    "open": 700,
+    "rss_mb": 356.1,
+    "fds": 610
+   },
+   {
+    "open": 800,
+    "rss_mb": 357.0,
+    "fds": 610
+   },
+   {
+    "open": 900,
+    "rss_mb": 357.1,
+    "fds": 610
+   },
+   {
+    "open": 1000,
+    "rss_mb": 357.1,
+    "fds": 610
+   }
+  ],
+  "fds_before": 10,
+  "fds_after": 610,
+  "fds_per_holder": 0.6,
+  "open_stores_in_memory": 200,
+  "disk_per_holder_empty_bytes": 827157,
+  "disk_per_holder_by_file_bytes": {
+   ".db": 580813,
+   ".db-shm": 6554,
+   ".db-wal": 239790
+  },
+  "files_per_holder": [
+   "evidence.db",
+   "evidence.db-shm",
+   "evidence.db-wal"
+  ],
+  "idle_cpu_fraction_of_one_core": 0.015,
+  "reconcile_noop_s": 0.0139,
+  "close_one": {
+   "n": 20,
+   "mean_ms": 1.657,
+   "p50_ms": 0.0,
+   "p95_ms": 9.0,
+   "max_ms": 9.363,
+   "sum_s": 0.033
+  },
+  "reopen_one": {
+   "n": 20,
+   "mean_ms": 14.261,
+   "p50_ms": 15.0,
+   "p95_ms": 20.0,
+   "max_ms": 26.749,
+   "sum_s": 0.285
+  }
+ },
+ "ingest": {
+  "records_per_user": 5,
+  "records_processed": 5000,
+  "wall_s": 62.751,
+  "cpu_s": 51.757,
+  "aggregate_records_per_s": 79.68,
+  "per_holder_total": {
+   "n": 1000,
+   "mean_ms": 39.43,
+   "p50_ms": 36.0,
+   "p95_ms": 53.0,
+   "max_ms": 408.36,
+   "sum_s": 39.43
+  },
+  "connect_discover": {
+   "n": 1000,
+   "mean_ms": 1.963,
+   "p50_ms": 2.0,
+   "p95_ms": 3.0,
+   "max_ms": 13.272,
+   "sum_s": 1.963
+  },
+  "drain_process": {
+   "n": 1000,
+   "mean_ms": 37.466,
+   "p50_ms": 34.0,
+   "p95_ms": 50.0,
+   "max_ms": 406.683,
+   "sum_s": 37.466
+  },
+  "per_holder_records_per_s_mean": 126.81,
+  "rss_before_mb": 357.1,
+  "rss_after_mb": 536.0,
+  "peak_rss_mb": 536.0,
+  "sample_holders": 20,
+  "documents_per_holder_sampled": 5.0,
+  "memories_per_holder_sampled": 5.0,
+  "disk_per_holder_after_bytes": 1125435,
+  "disk_per_holder_after_by_file_bytes": {
+   ".db": 763154,
+   ".db-shm": 6554,
+   ".db-wal": 355727
+  },
+  "disk_sampled_holders_after_checkpoint_db_bytes": 771891,
+  "open_holders_after_ingest": 200,
+  "holder_counters": {
+   "open": 200,
+   "registered": 1000,
+   "max_open": 200,
+   "bounded": true,
+   "opened": 2033,
+   "closed": 1829,
+   "woken_by_message": 0,
+   "woken_by_poll": 0,
+   "peak_open": 201,
+   "over_limit": 0
+  },
+  "transport_messages": 2979,
+  "transport_by_kind": {
+   "heartbeat": 1979,
+   "ingest_result": 1000
+  },
+  "model_usage_rows_during_ingest": 160,
+  "model_usage_by_purpose": {
+   "classify_domains": 160
+  },
+  "profile": null
+ },
+ "discovery": {
+  "core_inbound_catchup_s": 2.591,
+  "core_inbound_catchup_cpu_s": 2.097,
+  "transport_messages_at_start": 2979,
+  "goal_id": "goal_6bcaf9002aea4053afef",
+  "rounds": [
+   {
+    "round": 0,
+    "wall_s": 4.733,
+    "cpu_s": 3.739,
+    "new_questions": 12,
+    "quiet": true
+   },
+   {
+    "round": 1,
+    "wall_s": 1.001,
+    "cpu_s": 0.994,
+    "new_questions": 0,
+    "quiet": true
+   }
+  ],
+  "wall_s": 5.735,
+  "cpu_s": 4.734,
+  "finished": true,
+  "jobs_counts": {
+   "done": 62
+  },
+  "job_errors": [],
+  "jobs_by_kind": {
+   "loop.tick": {
+    "n": 14,
+    "mean_ms": 25.557,
+    "p50_ms": 29.0,
+    "p95_ms": 53.0,
+    "max_ms": 63.875,
+    "sum_s": 0.358
+   },
+   "question.collect": {
+    "n": 12,
+    "mean_ms": 0.441,
+    "p50_ms": 0.0,
+    "p95_ms": 1.0,
+    "max_ms": 0.668,
+    "sum_s": 0.005
+   },
+   "question.commit": {
+    "n": 12,
+    "mean_ms": 8.313,
+    "p50_ms": 6.0,
+    "p95_ms": 20.0,
+    "max_ms": 25.925,
+    "sum_s": 0.1
+   },
+   "question.evaluate": {
+    "n": 12,
+    "mean_ms": 25.537,
+    "p50_ms": 22.0,
+    "p95_ms": 36.0,
+    "max_ms": 47.833,
+    "sum_s": 0.306
+   },
+   "question.route": {
+    "n": 12,
+    "mean_ms": 24.075,
+    "p50_ms": 18.0,
+    "p95_ms": 35.0,
+    "max_ms": 68.894,
+    "sum_s": 0.289
+   }
+  },
+  "ticks": 14,
+  "tick_time": {
+   "n": 14,
+   "mean_ms": 25.557,
+   "p50_ms": 29.0,
+   "p95_ms": 53.0,
+   "max_ms": 63.875,
+   "sum_s": 0.358
+  },
+  "model_calls_total": 178,
+  "model_calls_by_task": {
+   "identify_gap": 10,
+   "draft_question": 12,
+   "answer_from_evidence": 120,
+   "evaluate_responses": 12,
+   "synthesize_discovery": 12,
+   "record_outcome": 12
+  },
+  "model_usage_rows_by_purpose": {
+   "answer_from_evidence": 120,
+   "classify_domains": 160,
+   "draft_question": 12,
+   "evaluate_responses": 12,
+   "identify_gap": 10,
+   "record_outcome": 12,
+   "synthesize_discovery": 12
+  },
+  "questions": 12,
+  "questions_by_status": {
+   "committed": 12
+  },
+  "questions_by_kind_depth": {
+   "gap/d0": 12
+  },
+  "routes_total": 120,
+  "routes_by_status": {
+   "answered": 120
+  },
+  "routes_per_question": {
+   "min": 10,
+   "max": 10,
+   "mean": 10.0
+  },
+  "responses_by_status": {
+   "answered": 120
+  },
+  "claims_by_status": {
+   "supported": 12
+  },
+  "discoveries": 12,
+  "route_call": {
+   "n": 12,
+   "mean_ms": 23.849,
+   "p50_ms": 18.0,
+   "p95_ms": 35.0,
+   "max_ms": 68.7,
+   "sum_s": 0.286
+  },
+  "candidate_holders_call": {
+   "n": 12,
+   "mean_ms": 4.401,
+   "p50_ms": 4.0,
+   "p95_ms": 6.0,
+   "max_ms": 6.066,
+   "sum_s": 0.053
+  },
+  "domains_for_goal_call": {
+   "n": 14,
+   "mean_ms": 15.512,
+   "p50_ms": 19.0,
+   "p95_ms": 42.0,
+   "max_ms": 51.076,
+   "sum_s": 0.217
+  },
+  "profile": null,
+  "micro_list_holders_ms": 28.017,
+  "micro_can_route_all_holders_ms": 25.57,
+  "micro_can_route_per_holder_us": 25.6,
+  "micro_question_audience_uncached_ms": 13.07,
+  "audience_size": 1,
+  "micro_question_audience_cached_ms": 0.278
+ },
+ "peak_rss_mb": 538.6,
+ "rss_end_mb": 538.6,
+ "fds_end": 610,
+ "total_disk_bytes": {
+  "coord_db_files": 22298704,
+  "holders": 1004061168
+ },
+ "shutdown_s": 2.009
+}

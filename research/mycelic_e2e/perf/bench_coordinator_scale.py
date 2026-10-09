@@ -22,12 +22,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import perf_bench as pb  # noqa: E402
 
 
-def timed(fn, reps: int = 1):
+COLD: dict[str, float] = {}
+
+
+def timed(fn, reps: int = 1, name: str = ""):
+    """min over ``reps`` runs; ``COLD[name]`` keeps the first run (caches empty), which is the honest number for cached code."""
     best = []
     for _ in range(reps):
         a = time.perf_counter()
         r = fn()
         best.append(time.perf_counter() - a)
+    if name:
+        COLD[name] = round(1000 * best[0], 2)
     return r, round(1000 * min(best), 2)
 
 
@@ -47,21 +53,22 @@ async def run(n: int) -> dict:
     loop_p = rt.authz.principal_for_loop(tid, goal)
     q = {"question_id": "q_probe", "tenant_id": tid, "scope_unit_id": ctx["root"], "policy": {"visibility": "unit"}, "asker_type": "loop",
          "asker_id": f"goal:{goal['goal_id']}", "goal_id": goal["goal_id"], "candidate_domains": ["engineering"]}
-    hs, out["list_holders_ms"] = timed(lambda: rt.org.list_holders(tid), 2)
+    hs, out["list_holders_ms"] = timed(lambda: rt.org.list_holders(tid), 2, "list_holders")
     out["holders"] = len(hs)
-    _, out["can_route_all_holders_ms"] = timed(lambda: [rt.authz.can_route(q, h) for h in hs], 2)
-    (ok, rej), out["candidate_holders_ms"] = timed(lambda: rt.questions.candidate_holders(q, asker=loop_p), 2)
+    _, out["can_route_all_holders_ms"] = timed(lambda: [rt.authz.can_route(q, h) for h in hs], 2, "can_route_all_holders")
+    (ok, rej), out["candidate_holders_ms"] = timed(lambda: rt.questions.candidate_holders(q, asker=loop_p), 2, "candidate_holders")
     out["routable_holders"], out["rejected_holders"] = len(ok), len(rej)
-    (dom, hh), out["domains_for_goal_ms"] = timed(lambda: rt.engine.domains_for_goal(goal), 2)
+    (dom, hh), out["domains_for_goal_ms"] = timed(lambda: rt.engine.domains_for_goal(goal), 2, "domains_for_goal")
     out["domains_for_goal_holders"], out["domains_found"] = len(hh), len(dom)
 
     def aud():
         rt.questions._audience_cache.clear()
         return rt.questions.question_audience(q)
-    a, out["question_audience_uncached_ms"] = timed(aud, 1)
+    a, out["question_audience_uncached_ms"] = timed(aud, 1, "question_audience")
     out["audience_size"] = len(a["principal_ids"])
     _, out["question_audience_cached_ms"] = timed(lambda: rt.questions.question_audience(q), 1)
     # a second, unrelated write invalidates the cache (db.revision is in its key): the steady state of a busy coordinator
+    out["first_run_ms"] = dict(COLD)        # the first of the repetitions: caches empty (the *_ms fields above are the best of two)
     out["peak_rss_mb"] = pb.peak_rss_mb()
     await rt.stop()
     shutil.rmtree(base, ignore_errors=True)

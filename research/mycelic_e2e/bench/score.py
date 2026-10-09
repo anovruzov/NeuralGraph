@@ -112,6 +112,19 @@ def percentile(values: Sequence[float], q: float) -> float | None:
 
 
 # ---------------------------------------------------------------------------------------------- options
+_SERVICE_NAME_RE = re.compile(r"^(?:service:([A-Za-z][A-Za-z0-9]*)|([A-Za-z][A-Za-z0-9]*)-service)$", re.IGNORECASE)
+
+
+def canon_key(entity: str) -> str:
+    """One canonical key per entity, whatever surface names it: ``service:x`` and ``x-service`` (any case) are both ``service:x``; any other id
+    is its lower-cased self (``issue:tracker:lgx-412``). Options, the public entity list and the service-id pattern hits all go through this."""
+    e = str(entity).strip()
+    m = _SERVICE_NAME_RE.match(e)
+    if m:
+        return f"service:{(m.group(1) or m.group(2)).lower()}"
+    return e.lower()
+
+
 @dataclasses.dataclass(frozen=True)
 class Option:
     label: str
@@ -119,6 +132,9 @@ class Option:
     key: str = ""                      # canonical entity key: the lower-cased id (``service:cargorouter``), else the label
 
     def pattern(self) -> re.Pattern[str]:
+        """Boundary-aware: a surface never matches inside a longer name. A full name (``x-service``, an id with a colon) may not be followed by
+        ``-alnum``; a bare name (id tail, alias) may be followed by ``-service`` only when that ends the token, so ``x`` hits ``x-service`` but
+        not ``x-service-two`` or ``x-foo``."""
         parts = []
         for s in sorted(set(self.surfaces), key=lambda x: (-len(x), x)):
             s = s.strip()
@@ -126,10 +142,12 @@ class Option:
                 continue
             esc = re.escape(s)
             esc = re.sub(r"(\\ |\\-|_)+", r"[\\s_\\-]+", esc)     # separators are interchangeable in display names
-            parts.append(esc)
+            full = s.lower().endswith("-service") or ":" in s
+            tail = r"(?![A-Za-z0-9])(?!-[A-Za-z0-9])" if full else r"(?![A-Za-z0-9])(?!-(?!service(?![A-Za-z0-9\-]))[A-Za-z0-9])"
+            parts.append(f"(?:{esc}){tail}")
         if not parts:
             return re.compile(r"(?!x)x")
-        return re.compile(r"(?<![A-Za-z0-9])(?:" + "|".join(parts) + r")(?![A-Za-z0-9])", re.IGNORECASE)
+        return re.compile(r"(?<![A-Za-z0-9])(?:" + "|".join(parts) + r")", re.IGNORECASE)
 
 
 def parse_options(raw: Any) -> list[Option]:
@@ -155,12 +173,12 @@ def parse_options(raw: Any) -> list[Option]:
             if ":" in i:
                 surfaces.append(i.rsplit(":", 1)[1])
         surfaces += names
-        out.append(Option(label=label, surfaces=tuple(dict.fromkeys(surfaces)), key=ids[0].strip().lower()))
+        out.append(Option(label=label, surfaces=tuple(dict.fromkeys(surfaces)), key=canon_key(ids[0])))
     return out
 
 
-SERVICE_RE = re.compile(r"(?<![A-Za-z0-9])([A-Za-z][A-Za-z0-9]*)-service(?![A-Za-z0-9])", re.IGNORECASE)
-SERVICE_ID_RE = re.compile(r"(?<![A-Za-z0-9])service:([A-Za-z][A-Za-z0-9]*)(?![A-Za-z0-9])", re.IGNORECASE)
+SERVICE_RE = re.compile(r"(?<![A-Za-z0-9])([A-Za-z][A-Za-z0-9]*)-service(?![A-Za-z0-9])(?!-[A-Za-z0-9])", re.IGNORECASE)
+SERVICE_ID_RE = re.compile(r"(?<![A-Za-z0-9])service:([A-Za-z][A-Za-z0-9]*)(?![A-Za-z0-9])(?!-[A-Za-z0-9])", re.IGNORECASE)
 
 
 class Vocabulary:

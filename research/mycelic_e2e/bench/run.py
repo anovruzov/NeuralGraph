@@ -34,7 +34,7 @@ logging.disable(logging.CRITICAL)
 
 from aiohttp import web  # noqa: E402
 
-from research.mycelic_e2e.bench import events, feed, issue, world as W  # noqa: E402
+from research.mycelic_e2e.bench import ablations, events, feed, issue, world as W  # noqa: E402
 from research.mycelic_e2e.bench.feed import ApiClient  # noqa: E402
 from research.mycelic_e2e.bench.gold import GoldSink, gold_path  # noqa: E402
 from research.mycelic_e2e.bench.schema import SIZES, SPLITS  # noqa: E402
@@ -46,7 +46,7 @@ def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def bench_settings(base: Path, *, question_timeout: float = 60.0):
+def bench_settings(base: Path, *, question_timeout: float = 60.0, max_open_holders: int = 0):
     from mycelic.config import Settings
     s = Settings()
     s.data_dir = base
@@ -68,6 +68,11 @@ def bench_settings(base: Path, *, question_timeout: float = 60.0):
     s.worker_poll_seconds = 0.2
     s.log_json = False
     s.service_name = "bench"
+    # production bound on open embedded holders (MYCELIC_MAX_OPEN_HOLDERS): the rest stay dormant and wake on demand. The harness does not
+    # emulate it: it sets the settings the deployment would, with MYCELIC_DORMANT_POLL=0 (no scheduled-poll reopen), before the runtime exists
+    if max_open_holders > 0:
+        s.max_open_holders = int(max_open_holders)
+        s.dormant_poll = False
     return s
 
 
@@ -114,13 +119,21 @@ async def amain(a: argparse.Namespace) -> int:
                                                indent=1))
     log(f"world {a.size} seed {a.seed} split {a.split}: {world.counts()}  tasks={len(plan.tasks)} records={len(plan.records)}")
 
-    settings = bench_settings(out / "data", question_timeout=a.question_timeout)
+    # a harness-only ablation replaces one mechanism in the imported modules BEFORE the runtime is built (never a production setting)
+    if a.lazy_holders and not a.max_open_holders:
+        a.max_open_holders = 200                         # --lazy-holders is an alias for the production bound (no harness-level laziness remains)
+        log("--lazy-holders is an alias for --max-open-holders 200")
+    abl_short, abl_name = ablations.normalize(a.ablation)
+    abl_patch = ablations.apply(abl_short) if abl_short and not a.generate_only else None
+    if abl_patch is not None:
+        log(f"ablation {abl_name}: {len(abl_patch.bound)} binding(s) replaced")
+    settings = bench_settings(out / "data", question_timeout=a.question_timeout, max_open_holders=a.max_open_holders)
     rt = build_runtime(settings)
     hb = a.heartbeat
     if rt.holders is not None:
         rt.holders.heartbeat_interval = hb
     from mycelic.api.app import create_app
-    app = create_app(rt, settings, run_worker=False, run_holders=False, allowed_hosts=None, cors_origins=[], dist_dir=out / "no-dist")
+    app = create_app(rt, settings, run_worker=False, run_holders=True, allowed_hosts=None, cors_origins=[], dist_dir=out / "no-dist")     # holders start the way the API starts them
     runner = web.AppRunner(app, access_log=None)
     await runner.setup()
     site = web.TCPSite(runner, "127.0.0.1", 0)
@@ -183,24 +196,15 @@ async def amain(a: argparse.Namespace) -> int:
             await token_for(k)
         principal_map = {k: v for k, v in ids.users.items()}
 
-        # ---- open the holders (lifecycle only), then feed
+        # ---- holders: started the way the API starts them (EmbeddedHolders.start ran at app startup; reconcile() is its periodic pass, run
+        # once now that the registry is populated). Unbounded: every holder opens. With a bound: they stay dormant and wake on demand.
         t0 = time.perf_counter()
         if rt.holders is not None:
-            rt.holders.running = True
-            if a.lazy_holders:
-                # lazy materialization: a holder is opened when its connector is attached or when a question is first routed to it
-                orig = rt.questions.publish_pending_routes
-
-                async def lazy_publish(q):
-                    for r in rt.questions.routes(q["question_id"]):
-                        if r["status"] == "pending":
-                            await rt.holders.ensure(r["holder_id"])
-                    return await orig(q)
-                rt.questions.publish_pending_routes = lazy_publish
-            else:
-                await rt.holders.reconcile()
+            await rt.holders.reconcile()
         timings["open_holders_s"] = round(time.perf_counter() - t0, 2)
-        log(f"holders open: {len(rt.holders.holder_ids()) if rt.holders else 0} of {len(ids.holders)} ({timings['open_holders_s']}s, rss peak {rss_mb()} MB)")
+        hs = rt.holders.stats() if rt.holders else {}
+        log(f"holders: {hs.get('open')} open of {hs.get('registered')} registered, max_open={hs.get('max_open')} bounded={hs.get('bounded')} "
+            f"({timings['open_holders_s']}s, rss peak {rss_mb()} MB)")
         mgr_id = {m["holder_id"]: ids.users[m["manager"]] for m in manifest}
 
         async def restart_hook(holder_id: str, connector_id: str) -> None:
@@ -232,6 +236,24 @@ async def amain(a: argparse.Namespace) -> int:
                 await asyncio.sleep(0.5)
         timings["domain_publication_s"] = round(time.perf_counter() - t0, 2)
         log(f"routable domains published by {len(want) - len(pending)}/{len(want)} holders ({timings['domain_publication_s']}s)")
+        # two consecutive stable heartbeats: what the holders publish (domains, record counts, entity and term maps, queue, snapshot flag)
+        # is unchanged across two successive intervals, so routing sees the final index
+        t0 = time.perf_counter()
+        stable, prev, deadline = 0, None, time.time() + max(60.0, 20 * hb)
+        while time.time() < deadline:
+            snap = {}
+            for hid in sorted({m["holder_id"] for m in manifest}):
+                row = rt.org.get_holder(hid) or {}
+                ing = (row.get("stats") or {}).get("ingest") or {}
+                snap[hid] = (tuple(row.get("published_domains") or ()), ing.get("records"), json.dumps(ing.get("queue"), sort_keys=True),
+                             hashlib.sha256(json.dumps([ing.get("entities"), ing.get("terms")], sort_keys=True, default=str).encode()).hexdigest()[:12], ing.get("snapshot_complete"))
+            stable = stable + 1 if snap == prev else 0
+            prev = snap
+            if stable >= 2:
+                break
+            await asyncio.sleep(max(1.0, hb))
+        timings["heartbeat_stable_s"] = round(time.perf_counter() - t0, 2)
+        log(f"heartbeats stable: {stable >= 2} after {timings['heartbeat_stable_s']}s")
 
         # ---- worker + tasks
         rt.worker = build_worker(rt)
@@ -287,10 +309,12 @@ async def amain(a: argparse.Namespace) -> int:
         for v in view_summary.values():
             statuses[str(v["q"])] = statuses.get(str(v["q"]), 0) + 1
         run_manifest = {
-            "run_id": run_id, "split": a.split, "mode": a.mode, "ablation": None, "seed": a.seed, "size": a.size, "provider_label": PROVIDER_LABEL,
+            "run_id": run_id, "split": a.split, "mode": a.mode, "ablation": abl_short, "ablation_name": abl_name,
+            "ablation_patches": abl_patch.describe()["patched"] if abl_patch else [], "seed": a.seed, "size": a.size, "provider_label": PROVIDER_LABEL,
             "provider": "fake (deterministic)", "fake_py_sha256": hashlib.sha256(fake_py.read_bytes()).hexdigest()[:16], "tasks_sha256": tasks_sha, "sources_sha256": sources_sha,
             "n_tasks": len(public), "n_gold_written": n_gold, "world_sha256": world.fingerprint(), "world_counts": world.counts(), "transport": "sqlite",
-            "in_process_server": True, "lazy_holders": bool(a.lazy_holders), "raw_checks_enabled": True,
+            "in_process_server": True, "max_open_holders": a.max_open_holders, "holders_stats": rt.holders.stats() if rt.holders else None, "heartbeat_stable": stable >= 2,
+            "raw_checks_enabled": True,
             "counts": {"created": len(ids.holders), "with_records": len({m["holder_id"] for m in manifest}), "activated": len(answered), "routed": len(routed),
                        "opened": len(rt.holders.holder_ids()) if rt.holders else 0},
             "model_usage": {"calls": usage["n"], "input_tokens": usage["i"], "output_tokens": usage["o"], "providers": usage["p"]},
@@ -332,7 +356,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--heartbeat", type=float, default=2.0, help="embedded holder heartbeat seconds (publishes routable domains)")
     ap.add_argument("--n-ticks", type=int, default=2, help="loop drains for goal-only tasks")
     ap.add_argument("--feed-concurrency", type=int, default=6)
-    ap.add_argument("--lazy-holders", action="store_true", help="open holders on first use (L)")
+    ap.add_argument("--max-open-holders", type=int, default=0, help="production bound on open embedded holders (MYCELIC_MAX_OPEN_HOLDERS, dormant poll off); 0 = all open")
+    ap.add_argument("--lazy-holders", action="store_true", help="alias for --max-open-holders 200")
+    ap.add_argument("--ablation", default="", help="harness-only ablation: A1_ranker_off, A2_roots_off, A3_verification_off, A4_index_off, "
+                                                   "A5_authz_routing_off, A6_dedupe_off (or A1..A6); recorded in run_manifest.json")
     ap.add_argument("--anchor", default="", help="ISO timestamp the record ages are measured from (default: now); fix it to get byte-identical sources")
     ap.add_argument("--generate-only", action="store_true", help="materialize, write tasks (public + gold) and sources, hash them, and stop (no feed, no tasks)")
     a = ap.parse_args(argv)

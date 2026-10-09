@@ -1,0 +1,416 @@
+From 147324002ff6b2b7371c4e4d65ccc68d5d2409f1 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 07:04:06 +0000
+Subject: [PATCH 20/23] Harness: controlled ablations A1-A6 as in-process
+ patches recorded in the run manifest
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/bench/ablations.py       | 171 ++++++++++++++++++
+ research/mycelic_e2e/bench/run.py             |  12 +-
+ .../mycelic_e2e/bench/tests/test_ablations.py | 170 +++++++++++++++++
+ 3 files changed, 351 insertions(+), 2 deletions(-)
+ create mode 100644 research/mycelic_e2e/bench/ablations.py
+ create mode 100644 research/mycelic_e2e/bench/tests/test_ablations.py
+
+diff --git a/research/mycelic_e2e/bench/ablations.py b/research/mycelic_e2e/bench/ablations.py
+new file mode 100644
+index 0000000..a203778
+--- /dev/null
++++ b/research/mycelic_e2e/bench/ablations.py
+@@ -0,0 +1,171 @@
++"""Harness-only ablations (PLAN_v1 §B.8; BENCHMARK_CONTRACT §8). Each ablation removes ONE mechanism by replacing a function in the
++imported ``mycelic`` modules, in-process, before the runtime is built. Nothing here is a production setting or flag: a process that
++never calls :func:`apply` runs the unmodified code.
++
++Names follow the ledger (``ledger.EXPECTED_GATE_FAILURES`` keys): the manifest records ``ablation`` = the short id (``A1`` ...) and
++``ablation_name`` = the long name (``A1_ranker_off`` ...); the command line accepts either.
++
++A function imported with ``from .x import f`` is bound by name in every importing module, so replacing ``x.f`` alone would leave the
++copies in place. :func:`_rebind` therefore replaces every ``mycelic.*`` module attribute that IS the original function.
++
++====== ====================== ====================================================== ==========================================
++id     name                   what is replaced                                       expected gate failure (ledger)
++====== ====================== ====================================================== ==========================================
++A1     A1_ranker_off          ``inquiry.routing.rank_holders``: first N authorized   none (the G4 ranker assertion is skipped)
++                              candidates, ``rank_method`` = ``ablated``
++A2     A2_roots_off           ``knowledge.support.compute_support`` / ``root_groups``  none
++                              count references, not source roots
++A3     A3_verification_off    ``LoopEngine._ask_verification`` raises ValueError      none
++                              (every caller already catches it: no verification
++                              question is created; returning None would crash the
++                              callers that index the result)
++A4     A4_index_off           ``holder.embedded._heartbeat_stats``: ingest.entities   G8
++                              and ingest.terms are empty
++A5     A5_authz_routing_off   ``Authorizer.can_route``: any holder of the tenant      G4 (proves the gate is load-bearing)
++A6     A6_dedupe_off          ``IngestPipeline.dedupe`` always returns ``new``        G10
++====== ====================== ====================================================== ==========================================
++"""
++from __future__ import annotations
++
++import sys
++from typing import Any, Callable
++
++NAMES: dict[str, str] = {"A1": "A1_ranker_off", "A2": "A2_roots_off", "A3": "A3_verification_off", "A4": "A4_index_off",
++                         "A5": "A5_authz_routing_off", "A6": "A6_dedupe_off"}
++
++
++def normalize(name: str | None) -> tuple[str | None, str | None]:
++    """``(short id, long name)`` for ``A1`` / ``a1`` / ``A1_ranker_off``; ``(None, None)`` for none."""
++    if name in (None, "", "none", "None", "full"):
++        return None, None
++    key = str(name).strip()
++    short = key.split("_", 1)[0].upper()
++    if short not in NAMES or (("_" in key) and key.lower() != NAMES[short].lower()):
++        raise ValueError(f"unknown ablation {name!r}; choose one of {sorted(NAMES.values())}")
++    return short, NAMES[short]
++
++
++class Patch:
++    """The set of replacements one ablation made; ``restore()`` puts every original back (tests; run.py never calls it)."""
++
++    def __init__(self, short: str) -> None:
++        self.short, self.name = short, NAMES[short]
++        self._undo: list[Callable[[], None]] = []
++        self.bound: list[str] = []
++
++    def rebind(self, original: Any, replacement: Any) -> int:
++        """Replace every ``mycelic.*`` module attribute that is ``original``."""
++        n = 0
++        for mname, mod in list(sys.modules.items()):
++            if mod is None or not (mname == "mycelic" or mname.startswith("mycelic.")):
++                continue
++            for attr, val in list(vars(mod).items()):
++                if val is original:
++                    setattr(mod, attr, replacement)
++                    self._undo.append(lambda m=mod, a=attr, o=original: setattr(m, a, o))
++                    self.bound.append(f"{mname}.{attr}")
++                    n += 1
++        if n == 0:
++            raise RuntimeError(f"ablation {self.name}: the target function is not bound anywhere (code moved?)")
++        return n
++
++    def setattr(self, owner: Any, attr: str, replacement: Any, label: str) -> None:
++        original = getattr(owner, attr)
++        setattr(owner, attr, replacement)
++        self._undo.append(lambda o=owner, a=attr, v=original: setattr(o, a, v))
++        self.bound.append(label)
++
++    def restore(self) -> None:
++        while self._undo:
++            self._undo.pop()()
++        self.bound = []
++
++    def describe(self) -> dict[str, Any]:
++        return {"ablation": self.short, "ablation_name": self.name, "patched": sorted(self.bound)}
++
++
++def apply(name: str) -> Patch:
++    """Install one ablation in this process. Call BEFORE ``build_runtime``."""
++    short, _ = normalize(name)
++    if short is None:
++        raise ValueError("no ablation named")
++    p = Patch(short)
++    {"A1": _a1, "A2": _a2, "A3": _a3, "A4": _a4, "A5": _a5, "A6": _a6}[short](p)
++    return p
++
++
++# ------------------------------------------------------------------------------------------------ A1
++def _a1(p: Patch) -> None:
++    from mycelic.inquiry import routing
++
++    def rank_holders_off(db: Any, authz: Any, org: Any, question: dict[str, Any], candidates: list[dict[str, Any]], *, support_edge: dict[str, Any] | None,
++                         max_holders: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
++        """Identity ordering: the first ``max_holders`` authorized candidates in registry order (what routing did before the ranker)."""
++        return list(candidates)[:max(1, int(max_holders))], {"rank_method": "ablated", "scores": {}}
++    p.rebind(routing.rank_holders, rank_holders_off)
++
++
++# ------------------------------------------------------------------------------------------------ A2
++def _a2(p: Patch) -> None:
++    from mycelic.knowledge import support
++
++    orig_cs, orig_rg = support.compute_support, support.root_groups
++
++    def compute_support_refs(refs: Any, *, roles: Any = ("supports",)) -> dict[str, Any]:
++        """Same summary, but ``independent_roots`` counts the active supporting references (a copy counts as independent)."""
++        res = dict(orig_cs(refs, roles=roles))
++        res["independent_roots"] = sum(int(r.get("ref_count") or 0) for r in res.get("roots") or [])
++        res["copied_refs"] = 0
++        return res
++
++    def root_groups_refs(refs: Any, *, roles: Any = ("supports",)) -> dict[str, list[Any]]:
++        wanted = set(roles)
++        return {str(r["ref_id"]): [r] for r in refs if (r.get("role") or "supports") in wanted and support.is_active(r)
++                and r.get("root_known") and r.get("source_root_id")}
++    p.rebind(orig_cs, compute_support_refs)
++    p.rebind(orig_rg, root_groups_refs)
++
++
++# ------------------------------------------------------------------------------------------------ A3
++def _a3(p: Patch) -> None:
++    from mycelic.discovery.engine import LoopEngine
++
++    async def ask_verification_off(self: Any, *args: Any, **kwargs: Any) -> None:
++        raise ValueError("verification questions are disabled (harness ablation A3_verification_off)")
++    p.setattr(LoopEngine, "_ask_verification", ask_verification_off, "mycelic.discovery.engine.LoopEngine._ask_verification")
++
++
++# ------------------------------------------------------------------------------------------------ A4
++def _a4(p: Patch) -> None:
++    from mycelic.holder import embedded
++
++    orig = embedded._heartbeat_stats
++
++    def heartbeat_stats_no_index(stats: dict[str, Any]) -> dict[str, Any]:
++        out = orig(stats)
++        if isinstance(out.get("ingest"), dict):
++            out["ingest"] = {**out["ingest"], "entities": {}, "terms": {}}
++        return out
++    p.rebind(orig, heartbeat_stats_no_index)
++
++
++# ------------------------------------------------------------------------------------------------ A5
++def _a5(p: Patch) -> None:
++    from mycelic.authz import Authorizer
++
++    def can_route_tenant_only(self: Any, question: Any, holder: Any, *, asker: Any = None) -> tuple[bool, str]:
++        if holder.get("tenant_id") != question.get("tenant_id"):
++            return False, "tenant mismatch"
++        if holder.get("status") == "revoked":
++            return False, "holder revoked"
++        return True, "ok (ablation A5: no scope, domain or answer-scope check)"
++    p.setattr(Authorizer, "can_route", can_route_tenant_only, "mycelic.authz.Authorizer.can_route")
++
++
++# ------------------------------------------------------------------------------------------------ A6
++def _a6(p: Patch) -> None:
++    from mycelic.ingest.pipeline import IngestPipeline
++
++    def dedupe_off(self: Any, ev: Any) -> str:
++        return "new"
++    p.setattr(IngestPipeline, "dedupe", dedupe_off, "mycelic.ingest.pipeline.IngestPipeline.dedupe")
+diff --git a/research/mycelic_e2e/bench/run.py b/research/mycelic_e2e/bench/run.py
+index 70a149f..37b1895 100644
+--- a/research/mycelic_e2e/bench/run.py
++++ b/research/mycelic_e2e/bench/run.py
+@@ -34,7 +34,7 @@ logging.disable(logging.CRITICAL)
+ 
+ from aiohttp import web  # noqa: E402
+ 
+-from research.mycelic_e2e.bench import events, feed, issue, world as W  # noqa: E402
++from research.mycelic_e2e.bench import ablations, events, feed, issue, world as W  # noqa: E402
+ from research.mycelic_e2e.bench.feed import ApiClient  # noqa: E402
+ from research.mycelic_e2e.bench.gold import GoldSink, gold_path  # noqa: E402
+ from research.mycelic_e2e.bench.schema import SIZES, SPLITS  # noqa: E402
+@@ -114,6 +114,11 @@ async def amain(a: argparse.Namespace) -> int:
+                                                indent=1))
+     log(f"world {a.size} seed {a.seed} split {a.split}: {world.counts()}  tasks={len(plan.tasks)} records={len(plan.records)}")
+ 
++    # a harness-only ablation replaces one mechanism in the imported modules BEFORE the runtime is built (never a production setting)
++    abl_short, abl_name = ablations.normalize(a.ablation)
++    abl_patch = ablations.apply(abl_short) if abl_short and not a.generate_only else None
++    if abl_patch is not None:
++        log(f"ablation {abl_name}: {len(abl_patch.bound)} binding(s) replaced")
+     settings = bench_settings(out / "data", question_timeout=a.question_timeout)
+     rt = build_runtime(settings)
+     hb = a.heartbeat
+@@ -287,7 +292,8 @@ async def amain(a: argparse.Namespace) -> int:
+         for v in view_summary.values():
+             statuses[str(v["q"])] = statuses.get(str(v["q"]), 0) + 1
+         run_manifest = {
+-            "run_id": run_id, "split": a.split, "mode": a.mode, "ablation": None, "seed": a.seed, "size": a.size, "provider_label": PROVIDER_LABEL,
++            "run_id": run_id, "split": a.split, "mode": a.mode, "ablation": abl_short, "ablation_name": abl_name,
++            "ablation_patches": abl_patch.describe()["patched"] if abl_patch else [], "seed": a.seed, "size": a.size, "provider_label": PROVIDER_LABEL,
+             "provider": "fake (deterministic)", "fake_py_sha256": hashlib.sha256(fake_py.read_bytes()).hexdigest()[:16], "tasks_sha256": tasks_sha, "sources_sha256": sources_sha,
+             "n_tasks": len(public), "n_gold_written": n_gold, "world_sha256": world.fingerprint(), "world_counts": world.counts(), "transport": "sqlite",
+             "in_process_server": True, "lazy_holders": bool(a.lazy_holders), "raw_checks_enabled": True,
+@@ -333,6 +339,8 @@ def main(argv: list[str] | None = None) -> int:
+     ap.add_argument("--n-ticks", type=int, default=2, help="loop drains for goal-only tasks")
+     ap.add_argument("--feed-concurrency", type=int, default=6)
+     ap.add_argument("--lazy-holders", action="store_true", help="open holders on first use (L)")
++    ap.add_argument("--ablation", default="", help="harness-only ablation: A1_ranker_off, A2_roots_off, A3_verification_off, A4_index_off, "
++                                                   "A5_authz_routing_off, A6_dedupe_off (or A1..A6); recorded in run_manifest.json")
+     ap.add_argument("--anchor", default="", help="ISO timestamp the record ages are measured from (default: now); fix it to get byte-identical sources")
+     ap.add_argument("--generate-only", action="store_true", help="materialize, write tasks (public + gold) and sources, hash them, and stop (no feed, no tasks)")
+     a = ap.parse_args(argv)
+diff --git a/research/mycelic_e2e/bench/tests/test_ablations.py b/research/mycelic_e2e/bench/tests/test_ablations.py
+new file mode 100644
+index 0000000..8831496
+--- /dev/null
++++ b/research/mycelic_e2e/bench/tests/test_ablations.py
+@@ -0,0 +1,170 @@
++"""The harness-only ablations (PLAN_v1 §B.8): each patch is active in a runtime built after ``ablations.apply``, changes exactly the
++behavior it names, is fully reversible, and is never on by default.
++
++    python -m pytest research/mycelic_e2e/bench/tests/test_ablations.py -q
++"""
++from __future__ import annotations
++
++import asyncio
++import json
++from pathlib import Path
++
++import pytest
++
++from research.mycelic_e2e.bench import ablations, ledger
++from research.mycelic_e2e.bench.run import bench_settings
++
++REPO = Path(__file__).resolve().parents[4]
++
++
++@pytest.fixture
++def patched():
++    """Apply one ablation, hand back (patch, runtime builder); always restore."""
++    made: list = []
++
++    def make(name: str):
++        p = ablations.apply(name)
++        made.append(p)
++        return p
++    yield make
++    for p in reversed(made):
++        p.restore()
++
++
++def build(tmp_path: Path):
++    from mycelic.runtime import build_runtime
++    return build_runtime(bench_settings(tmp_path / "data"))
++
++
++def close(rt) -> None:
++    asyncio.run(rt.db.close())
++
++
++def test_names_match_the_ledger_and_the_cli_accepts_both_forms():
++    assert set(ablations.NAMES) == set(ledger.EXPECTED_GATE_FAILURES)
++    assert ablations.normalize("A4") == ("A4", "A4_index_off") and ablations.normalize("a4_index_off") == ("A4", "A4_index_off")
++    assert ablations.normalize("") == (None, None) and ablations.normalize("none") == (None, None)
++    for bad in ("A7", "A1_wrong", "ranker_off"):
++        with pytest.raises(ValueError):
++            ablations.normalize(bad)
++
++
++def test_nothing_is_patched_by_default(tmp_path):
++    from mycelic.authz import Authorizer
++    from mycelic.discovery.engine import LoopEngine
++    from mycelic.holder import embedded
++    from mycelic.ingest.pipeline import IngestPipeline
++    from mycelic.inquiry import routing, service
++    from mycelic.knowledge import gate, support
++    assert service.rank_holders is routing.rank_holders and routing.rank_holders.__module__ == "mycelic.inquiry.routing"
++    assert gate.compute_support is support.compute_support and support.compute_support.__module__ == "mycelic.knowledge.support"
++    assert Authorizer.can_route.__module__ == "mycelic.authz" and IngestPipeline.dedupe.__module__ == "mycelic.ingest.pipeline"
++    assert LoopEngine._ask_verification.__module__ == "mycelic.discovery.engine" and embedded._heartbeat_stats.__module__ == "mycelic.holder.embedded"
++
++
++def test_a1_ranker_off(patched, tmp_path):
++    from mycelic.inquiry import routing, service
++    p = patched("A1_ranker_off")
++    rt = build(tmp_path)
++    try:
++        assert service.rank_holders is routing.rank_holders and routing.rank_holders.__name__ == "rank_holders_off"
++        cands = [{"holder_id": f"h{i}"} for i in range(12)]
++        chosen, detail = service.rank_holders(rt.db, rt.authz, rt.org, {"tenant_id": "t"}, cands, support_edge=None, max_holders=4)
++        assert [c["holder_id"] for c in chosen] == ["h0", "h1", "h2", "h3"] and detail["rank_method"] == "ablated"
++        assert "mycelic.inquiry.service.rank_holders" in p.bound
++    finally:
++        close(rt)
++    p.restore()
++    assert routing.rank_holders.__name__ == "rank_holders" and service.rank_holders is routing.rank_holders
++
++
++def test_a2_roots_off_counts_references_not_roots(patched, tmp_path):
++    from mycelic.knowledge import gate, hypergraph, support
++    from mycelic.knowledge import service as ksvc
++    refs = [{"ref_id": f"r{i}", "holder_id": f"h{i}", "role": "supports", "root_known": 1, "source_root_id": "root_x", "status": "active"} for i in range(3)]
++    assert support.compute_support(refs)["independent_roots"] == 1                      # three copies of one source: one root
++    assert len(support.root_groups(refs)) == 1
++    p = patched("A2")
++    rt = build(tmp_path)
++    try:
++        for mod in (support, gate, ksvc, hypergraph):
++            assert mod.compute_support is support.compute_support and support.compute_support.__name__ == "compute_support_refs", mod.__name__
++        assert gate.root_groups is support.root_groups
++        sup = gate.compute_support(refs)
++        assert sup["independent_roots"] == 3 and sup["copied_refs"] == 0 and sup["apparent_refs"] == 3
++        assert len(gate.root_groups(refs)) == 3
++        inactive = [{**refs[0], "ref_id": "rx", "status": "revised"}]
++        assert gate.compute_support(refs + inactive)["independent_roots"] == 3          # a changed source is still not counted
++    finally:
++        close(rt)
++    p.restore()
++    assert gate.compute_support(refs)["independent_roots"] == 1 and len(gate.root_groups(refs)) == 1
++
++
++def test_a3_verification_off(patched, tmp_path):
++    from mycelic.discovery.engine import LoopEngine
++    p = patched("A3_verification_off")
++    rt = build(tmp_path)
++    try:
++        assert rt.engine._ask_verification.__func__.__name__ == "ask_verification_off"
++        with pytest.raises(ValueError, match="A3_verification_off"):               # callers catch ValueError; None would crash `child["question_id"]`
++            asyncio.run(rt.engine._ask_verification(None, None, {}))
++    finally:
++        close(rt)
++    p.restore()
++    assert LoopEngine._ask_verification.__name__ == "_ask_verification"
++
++
++def test_a4_index_off(patched, tmp_path):
++    from mycelic.holder import embedded
++    stats = {"documents": 3, "ingest": {"records": 9, "domains": {"operations": 6}, "entities": {"service:x": 4}, "terms": {"abc": 2}, "snapshot_complete": True}}
++    assert embedded._heartbeat_stats(stats)["ingest"]["entities"] == {"service:x": 4}
++    p = patched("A4_index_off")
++    rt = build(tmp_path)
++    try:
++        out = embedded._heartbeat_stats(stats)
++        assert out["ingest"]["entities"] == {} and out["ingest"]["terms"] == {}
++        assert out["ingest"]["domains"] == {"operations": 6} and out["ingest"]["records"] == 9 and out["ingest"]["snapshot_complete"] is True   # only the index is gone
++        assert embedded._heartbeat_stats({"documents": 1})["documents"] == 1                 # stats without an ingest block pass through
++    finally:
++        close(rt)
++    p.restore()
++    assert embedded._heartbeat_stats(stats)["ingest"]["terms"] == {"abc": 2}
++
++
++def test_a5_authz_routing_off(patched, tmp_path):
++    from mycelic.authz import Authorizer
++    q = {"tenant_id": "t1", "scope_unit_id": "unit_elsewhere", "policy": {"visibility": "unit"}, "candidate_domains": ["finance"]}
++    h = {"tenant_id": "t1", "holder_id": "h1", "owner_type": "user", "owner_id": "usr_nobody", "domains": ["legal"], "export_policy": {"answer_scopes": ["org"]}}
++    p = patched("A5_authz_routing_off")
++    rt = build(tmp_path)
++    try:
++        assert rt.authz.can_route(q, h)[0] is True                                           # no scope, domain or answer-scope check
++        assert rt.authz.can_route(q, {**h, "tenant_id": "t2"})[0] is False                   # the tenant boundary stays
++        assert rt.authz.can_route(q, {**h, "status": "revoked"})[0] is False
++    finally:
++        close(rt)
++    p.restore()
++    rt = build(tmp_path / "again")
++    try:
++        assert rt.authz.can_route(q, h)[0] is False
++    finally:
++        close(rt)
++
++
++def test_a6_dedupe_off(patched, tmp_path):
++    from mycelic.ingest.pipeline import IngestPipeline
++    p = patched("A6_dedupe_off")
++    rt = build(tmp_path)
++    try:
++        assert IngestPipeline.dedupe(object(), object()) == "new"                           # even a re-delivery, a deletion, a stale version
++    finally:
++        close(rt)
++    p.restore()
++    assert IngestPipeline.dedupe.__name__ == "dedupe"
++
++
++def test_run_py_records_the_ablation_in_the_manifest():
++    src = (REPO / "research/mycelic_e2e/bench/run.py").read_text()
++    assert "ablations.apply(" in src and src.index("ablations.apply(") < src.index("rt = build_runtime(settings)")      # patched before the runtime exists
++    assert '"ablation": abl_short, "ablation_name": abl_name' in src and "--ablation" in src
+-- 
+2.43.0
+

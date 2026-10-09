@@ -1,0 +1,145 @@
+From 56f98327a5864b0d96f615edaf1a2660dc1b00f7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 07:45:57 +0000
+Subject: [PATCH 23/23] Scorer: one canonical key per entity across options,
+ public entity list and pattern hits; boundary-aware matching
+
+Fixes the C1 artifact where one service counted as two entities and every correct claim scored as
+ambiguous. Engineer: WP3 (claude-sonnet-5-5); 99 harness tests pass. Re-scored C1-S1 (still gate-invalid
+on G8 pending the policy-aware G8): system 118/120, baseline-source 117/120, baseline-single 109/120.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/bench/score.py           | 28 ++++++++--
+ .../mycelic_e2e/bench/tests/test_score.py     | 52 +++++++++++++++++++
+ 2 files changed, 75 insertions(+), 5 deletions(-)
+
+diff --git a/research/mycelic_e2e/bench/score.py b/research/mycelic_e2e/bench/score.py
+index 4fb0340..86568f3 100644
+--- a/research/mycelic_e2e/bench/score.py
++++ b/research/mycelic_e2e/bench/score.py
+@@ -112,6 +112,19 @@ def percentile(values: Sequence[float], q: float) -> float | None:
+ 
+ 
+ # ---------------------------------------------------------------------------------------------- options
++_SERVICE_NAME_RE = re.compile(r"^(?:service:([A-Za-z][A-Za-z0-9]*)|([A-Za-z][A-Za-z0-9]*)-service)$", re.IGNORECASE)
++
++
++def canon_key(entity: str) -> str:
++    """One canonical key per entity, whatever surface names it: ``service:x`` and ``x-service`` (any case) are both ``service:x``; any other id
++    is its lower-cased self (``issue:tracker:lgx-412``). Options, the public entity list and the service-id pattern hits all go through this."""
++    e = str(entity).strip()
++    m = _SERVICE_NAME_RE.match(e)
++    if m:
++        return f"service:{(m.group(1) or m.group(2)).lower()}"
++    return e.lower()
++
++
+ @dataclasses.dataclass(frozen=True)
+ class Option:
+     label: str
+@@ -119,6 +132,9 @@ class Option:
+     key: str = ""                      # canonical entity key: the lower-cased id (``service:cargorouter``), else the label
+ 
+     def pattern(self) -> re.Pattern[str]:
++        """Boundary-aware: a surface never matches inside a longer name. A full name (``x-service``, an id with a colon) may not be followed by
++        ``-alnum``; a bare name (id tail, alias) may be followed by ``-service`` only when that ends the token, so ``x`` hits ``x-service`` but
++        not ``x-service-two`` or ``x-foo``."""
+         parts = []
+         for s in sorted(set(self.surfaces), key=lambda x: (-len(x), x)):
+             s = s.strip()
+@@ -126,10 +142,12 @@ class Option:
+                 continue
+             esc = re.escape(s)
+             esc = re.sub(r"(\\ |\\-|_)+", r"[\\s_\\-]+", esc)     # separators are interchangeable in display names
+-            parts.append(esc)
++            full = s.lower().endswith("-service") or ":" in s
++            tail = r"(?![A-Za-z0-9])(?!-[A-Za-z0-9])" if full else r"(?![A-Za-z0-9])(?!-(?!service(?![A-Za-z0-9\-]))[A-Za-z0-9])"
++            parts.append(f"(?:{esc}){tail}")
+         if not parts:
+             return re.compile(r"(?!x)x")
+-        return re.compile(r"(?<![A-Za-z0-9])(?:" + "|".join(parts) + r")(?![A-Za-z0-9])", re.IGNORECASE)
++        return re.compile(r"(?<![A-Za-z0-9])(?:" + "|".join(parts) + r")", re.IGNORECASE)
+ 
+ 
+ def parse_options(raw: Any) -> list[Option]:
+@@ -155,12 +173,12 @@ def parse_options(raw: Any) -> list[Option]:
+             if ":" in i:
+                 surfaces.append(i.rsplit(":", 1)[1])
+         surfaces += names
+-        out.append(Option(label=label, surfaces=tuple(dict.fromkeys(surfaces)), key=ids[0].strip().lower()))
++        out.append(Option(label=label, surfaces=tuple(dict.fromkeys(surfaces)), key=canon_key(ids[0])))
+     return out
+ 
+ 
+-SERVICE_RE = re.compile(r"(?<![A-Za-z0-9])([A-Za-z][A-Za-z0-9]*)-service(?![A-Za-z0-9])", re.IGNORECASE)
+-SERVICE_ID_RE = re.compile(r"(?<![A-Za-z0-9])service:([A-Za-z][A-Za-z0-9]*)(?![A-Za-z0-9])", re.IGNORECASE)
++SERVICE_RE = re.compile(r"(?<![A-Za-z0-9])([A-Za-z][A-Za-z0-9]*)-service(?![A-Za-z0-9])(?!-[A-Za-z0-9])", re.IGNORECASE)
++SERVICE_ID_RE = re.compile(r"(?<![A-Za-z0-9])service:([A-Za-z][A-Za-z0-9]*)(?![A-Za-z0-9])(?!-[A-Za-z0-9])", re.IGNORECASE)
+ 
+ 
+ class Vocabulary:
+diff --git a/research/mycelic_e2e/bench/tests/test_score.py b/research/mycelic_e2e/bench/tests/test_score.py
+index 7784b01..ca83ecb 100644
+--- a/research/mycelic_e2e/bench/tests/test_score.py
++++ b/research/mycelic_e2e/bench/tests/test_score.py
+@@ -448,3 +448,55 @@ def test_score_run_uses_reach_authority_and_public_entity_list(tmp_path):
+     (d / "reach_authority.json").write_text(json.dumps({"t0": {"tenant_holders": ["h_dept"], "reachable_holders": ["h_dept"]}}))
+     rs = score.score_run(d)
+     assert rs.supporting["reach_authority"] == "reach_authority.json" and rs.tasks[0].foreign_refs == ["e2"] and rs.disclosures == 1
++
++
++# ------------------------------------------------------------------------------------------ regression: one entity under several surfaces counts once
++WP2_OPTS = [{"label": f"{n}-service", "id": f"service:{n}", "display": f"{n}-service", "aliases": [n]} for n in ("tallysync", "manifestdesk", "quotedesk", "yardloom")]
++WP2_ENTITIES = ["tallysync-service", "manifestdesk-service", "quotedesk-service", "yardloom-service", "parcelhub-service", "parcelhub-service-two"]
++
++
++def wp2_task(tid="dev-000"):
++    return {"task_id": tid, "tenant": "acme", "options": WP2_OPTS, "question_text": "Which service sits behind the sable spindle?"}
++
++
++def test_regression_exact_text_one_service_maps_to_the_option_with_a_public_entity_list():
++    vocab = score.build_vocabulary([wp2_task()], WP2_ENTITIES)             # plain strings, as WP2's top-level ``entities`` list
++    v = view([claim("c1", "tallysync-service: origin of the sable spindle, 42.", roots=3)])
++    ext = score.extract_answer(v, wp2_task(), vocabulary=vocab)
++    assert ext.option == "tallysync-service" and ext.ambiguous_claims == 0 and ext.matches == {"tallysync-service": 3}
++
++
++def test_regression_every_surface_of_one_entity_is_one_canonical_key():
++    assert {score.canon_key(x) for x in ("tallysync-service", "Service:TallySync", "service:tallysync", "TALLYSYNC-SERVICE")} == {"service:tallysync"}
++    assert score.canon_key("issue:tracker:LGX-412") == "issue:tracker:lgx-412" and score.canon_key("parcelhub-service-two") == "parcelhub-service-two"
++    vocab = score.build_vocabulary([wp2_task()], WP2_ENTITIES)
++    for text in ("tallysync-service", "service:tallysync", "tallysync", "Tallysync (service:tallysync, tallysync-service) is flaky"):
++        assert vocab.entities_in(text) == {"service:tallysync"}, text
++
++
++def test_regression_two_different_services_are_ambiguous():
++    vocab = score.build_vocabulary([wp2_task()], WP2_ENTITIES)
++    ext = score.extract_answer(view([claim("c1", "tallysync-service and manifestdesk-service both stall", roots=9)]), wp2_task(), vocabulary=vocab)
++    assert ext.option == score.ABSTAIN and ext.ambiguous_claims == 1
++    ext = score.extract_answer(view([claim("c1", "tallysync-service blames somethingelse-service", roots=9)]), wp2_task(), vocabulary=vocab)   # a service not in any list
++    assert ext.option == score.ABSTAIN and ext.ambiguous_claims == 1
++
++
++def test_regression_names_that_contain_other_names_do_not_collide():
++    vocab = score.build_vocabulary([wp2_task()], WP2_ENTITIES)
++    assert vocab.entities_in("parcelhub-service is slow") == {"service:parcelhub"}
++    assert vocab.entities_in("parcelhub-service-two is slow") == {"parcelhub-service-two"}            # not also parcelhub
++    assert vocab.entities_in("parcelhub-service and parcelhub-service-two") == {"service:parcelhub", "parcelhub-service-two"}
++    assert vocab.entities_in("tallysyncing, tallysync2 and xtallysync") == set()                       # substrings of other words
++
++
++def test_regression_score_run_with_a_public_entities_list(tmp_path):
++    t = wp2_task("dev-000")
++    v = view([claim("c0", "tallysync-service: origin of the sable spindle, 42.", roots=3)])
++    v["task_id"] = "dev-000"
++    d = _write_run(tmp_path, [t], {"dev-000": gold("tallysync-service") | {"task_id": "dev-000"}}, {"dev-000": v})
++    pub = json.loads((d / "tasks_dev.public.json").read_text())
++    pub["entities"] = WP2_ENTITIES
++    (d / "tasks_dev.public.json").write_text(json.dumps(pub))
++    rs = score.score_run(d)
++    assert rs.correct == 1 and rs.tasks[0].extracted == "tallysync-service" and rs.supporting["ambiguous_supported_claims"] == 0
+-- 
+2.43.0
+

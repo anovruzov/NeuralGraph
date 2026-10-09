@@ -195,12 +195,19 @@ async def phase_open(rt, users: list[dict], base: Path) -> dict[str, Any]:
     await rt.transport.start()
     rss0, fd0, cpu0, t0 = rss_mb(), n_fds(), time.process_time(), time.perf_counter()
     per, series = [], []
-    step = max(1, len(users) // 10)
-    for k, u in enumerate(users):
+    if h.max_open > 0:
+        # bounded mode: holders open when something needs them, so only a cap's worth is opened here (to measure what an open holder costs);
+        # the ingest phase opens (and closes) the rest on demand
+        o["bounded_open_limit"] = h.max_open
+        users_to_open = users[: h.max_open]
+    else:
+        users_to_open = users
+    step = max(1, len(users_to_open) // 10)
+    for k, u in enumerate(users_to_open):
         a = time.perf_counter()
         await h.ensure(u["holder_id"])
         per.append(time.perf_counter() - a)
-        if (k + 1) % step == 0 or k + 1 == len(users):
+        if (k + 1) % step == 0 or k + 1 == len(users_to_open):
             series.append({"open": k + 1, "rss_mb": rss_mb(), "fds": n_fds()})
     h.running = True
     o["open_all_s"] = round(time.perf_counter() - t0, 3)
@@ -209,13 +216,13 @@ async def phase_open(rt, users: list[dict], base: Path) -> dict[str, Any]:
     o["first10_mean_ms"] = round(1000 * statistics.fmean(per[:10]), 3)
     o["last10_mean_ms"] = round(1000 * statistics.fmean(per[-10:]), 3)
     o["rss_before_mb"], o["rss_after_mb"] = rss0, rss_mb()
-    o["rss_growth_mb_per_open_holder"] = round((o["rss_after_mb"] - rss0) / max(1, len(users)), 3)
+    o["rss_growth_mb_per_open_holder"] = round((o["rss_after_mb"] - rss0) / max(1, len(users_to_open)), 3)
     o["rss_series"] = series
     o["fds_before"], o["fds_after"] = fd0, n_fds()
-    o["fds_per_holder"] = round((o["fds_after"] - fd0) / max(1, len(users)), 2)
+    o["fds_per_holder"] = round((o["fds_after"] - fd0) / max(1, len(users_to_open)), 2)
     o["open_stores_in_memory"] = len(h._stores)
-    o["disk_per_holder_empty_bytes"] = round(dir_bytes(Path(rt.settings.holders_dir)) / max(1, len(users)))
-    o["disk_per_holder_by_file_bytes"] = disk_by_suffix(Path(rt.settings.holders_dir), len(users))
+    o["disk_per_holder_empty_bytes"] = round(dir_bytes(Path(rt.settings.holders_dir)) / max(1, len(users_to_open)))
+    o["disk_per_holder_by_file_bytes"] = disk_by_suffix(Path(rt.settings.holders_dir), len(users_to_open))
     o["files_per_holder"] = sorted({f.name for f in Path(rt.settings.holders_dir).rglob("*") if f.is_file()})[:8]
     # idle cost of N open holders: transport consumers poll, heartbeat and ingest loops run
     c0, w0 = time.process_time(), time.perf_counter()
@@ -263,6 +270,7 @@ async def phase_ingest(rt, users: list[dict], base: Path, records_per_user: int,
     with prof:
         for u in users:
             i = u["i"]
+            await h.ensure(u["holder_id"])            # a no-op unless the holder is dormant (--max-open): it is opened on demand
             ing = h.ingest(u["holder_id"])
             lines = [json.dumps({"type": "source", "id": f"u{i}-notes", "name": f"User {i} notes", "source_type": "channel", "visibility": "public",
                                  "domains": u["domains"][:1]})]
@@ -293,6 +301,7 @@ async def phase_ingest(rt, users: list[dict], base: Path, records_per_user: int,
     # what landed
     docs = mems = vec = 0
     for u in users[:: max(1, len(users) // 20)][:20]:
+        await h.ensure(u["holder_id"])
         st = h.get(u["holder_id"])
         c = st.store._conn
         docs += c.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
@@ -304,9 +313,17 @@ async def phase_ingest(rt, users: list[dict], base: Path, records_per_user: int,
     out["disk_per_holder_after_bytes"] = round(dir_bytes(Path(rt.settings.holders_dir), "*.db*") / len(users))
     out["disk_per_holder_after_by_file_bytes"] = disk_by_suffix(Path(rt.settings.holders_dir), len(users))
     for u in users[:: max(1, len(users) // 20)][:20]:                      # WAL folded into the main file for the sampled holders
+        await h.ensure(u["holder_id"])
         h.get(u["holder_id"]).store._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
     out["disk_sampled_holders_after_checkpoint_db_bytes"] = round(statistics.fmean(
         Path(h.store_path(u["holder_id"])).stat().st_size for u in users[:: max(1, len(users) // 20)][:20]))
+    if h.max_open > 0:
+        # bounded mode: the holders still open have not beaten since they were written to (closed ones left a final heartbeat); publish
+        # their domains now, as the 20 s loop would, so discovery starts from the same registry the unbounded run reaches
+        for hid in h.holder_ids():
+            await h.service(hid).heartbeat_once()
+        out["open_holders_after_ingest"] = len(h.holder_ids())
+        out["holder_counters"] = h.stats()
     out["transport_messages"] = rt.db.scalar("SELECT COUNT(*) FROM transport_messages")
     out["transport_by_kind"] = {r[0]: r[1] for r in rt.db.all("SELECT json_extract(payload,'$.kind') k, COUNT(*) FROM transport_messages GROUP BY k")}
     out["model_usage_rows_during_ingest"] = rt.db.scalar("SELECT COUNT(*) FROM model_usage")
@@ -482,6 +499,14 @@ async def run(args) -> dict[str, Any]:
                            "profile_mode": args.profile}
     out["rss_start_mb"] = rss_mb()
     settings = bench_settings(base)
+    settings.max_open_holders = int(getattr(args, "max_open", 0) or 0)
+    settings.holder_min_open_seconds = float(getattr(args, "min_open_seconds", 2.0))
+    out["max_open_holders"] = settings.max_open_holders
+    if getattr(args, "no_dormant_poll", False):
+        settings.dormant_poll = False
+    if getattr(args, "dormant_poll_seconds", -1.0) >= 0:
+        settings.dormant_poll_seconds = float(args.dormant_poll_seconds)
+    out["dormant_poll"] = {"enabled": settings.dormant_poll, "min_seconds": settings.dormant_poll_seconds}
     t0 = time.perf_counter()
     rt = build_runtime(settings)
     out["build_runtime_s"] = round(time.perf_counter() - t0, 3)
@@ -518,6 +543,10 @@ def main() -> None:
     ap.add_argument("--keep", action="store_true")
     ap.add_argument("--disagree", action="store_true", help="users report different figures (contested claims, contradiction follow-ups)")
     ap.add_argument("--max-rounds", type=int, default=12)
+    ap.add_argument("--max-open", type=int, default=0, help="MYCELIC_MAX_OPEN_HOLDERS: holders held open at once (0 = all, the default)")
+    ap.add_argument("--min-open-seconds", type=float, default=2.0, help="with --max-open: a holder is not closed before it was idle this long")
+    ap.add_argument("--dormant-poll-seconds", type=float, default=-1.0, help="with --max-open: minimum seconds between scheduled polls of a closed holder (default: the setting, 3600); 0 with --no-dormant-poll disables")
+    ap.add_argument("--no-dormant-poll", action="store_true", help="with --max-open: closed holders are not reopened for scheduled connector polls")
     ap.add_argument("--out", default="")
     args = ap.parse_args()
     global AGREE

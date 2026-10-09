@@ -383,7 +383,7 @@ class Plan:
     records: list[Rec]
     fault_plan: dict[str, Any]                    # holder key -> {"replay": bool, "restart": bool, "malformed": bool, "duplicate": [rid], "out_of_order": bool}
     world: Any = None
-    entities: list[str] = field(default_factory=list)      # the world's whole entity vocabulary (every service of both tenants): public, not gold
+    entities: list[dict] = field(default_factory=list)     # the world's whole entity vocabulary (every service of both tenants) in the options' dict form: public, not gold
 
     def public(self) -> list[TaskPublic]:
         return [t.public for t in self.tasks]
@@ -895,7 +895,7 @@ class Planner:
         self.specs.sort(key=lambda s: s.public.task_id)
         self.add_filler()
         return Plan(self.split, self.seed, self.specs, self.records, self.fault_plan, self.w,
-                    sorted({svc_label(e) for lst in self.entities for e in lst}))
+                    [_option(e) for e in sorted({e for lst in self.entities for e in lst})])         # same dict form as the options, so one entity has one key
 
     def add_filler(self) -> None:
         """Every holder that carries content gets unrelated notes, so its source domain reaches the publication threshold (5 records)

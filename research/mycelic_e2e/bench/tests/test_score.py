@@ -448,3 +448,55 @@ def test_score_run_uses_reach_authority_and_public_entity_list(tmp_path):
     (d / "reach_authority.json").write_text(json.dumps({"t0": {"tenant_holders": ["h_dept"], "reachable_holders": ["h_dept"]}}))
     rs = score.score_run(d)
     assert rs.supporting["reach_authority"] == "reach_authority.json" and rs.tasks[0].foreign_refs == ["e2"] and rs.disclosures == 1
+
+
+# ------------------------------------------------------------------------------------------ regression: one entity under several surfaces counts once
+WP2_OPTS = [{"label": f"{n}-service", "id": f"service:{n}", "display": f"{n}-service", "aliases": [n]} for n in ("tallysync", "manifestdesk", "quotedesk", "yardloom")]
+WP2_ENTITIES = ["tallysync-service", "manifestdesk-service", "quotedesk-service", "yardloom-service", "parcelhub-service", "parcelhub-service-two"]
+
+
+def wp2_task(tid="dev-000"):
+    return {"task_id": tid, "tenant": "acme", "options": WP2_OPTS, "question_text": "Which service sits behind the sable spindle?"}
+
+
+def test_regression_exact_text_one_service_maps_to_the_option_with_a_public_entity_list():
+    vocab = score.build_vocabulary([wp2_task()], WP2_ENTITIES)             # plain strings, as WP2's top-level ``entities`` list
+    v = view([claim("c1", "tallysync-service: origin of the sable spindle, 42.", roots=3)])
+    ext = score.extract_answer(v, wp2_task(), vocabulary=vocab)
+    assert ext.option == "tallysync-service" and ext.ambiguous_claims == 0 and ext.matches == {"tallysync-service": 3}
+
+
+def test_regression_every_surface_of_one_entity_is_one_canonical_key():
+    assert {score.canon_key(x) for x in ("tallysync-service", "Service:TallySync", "service:tallysync", "TALLYSYNC-SERVICE")} == {"service:tallysync"}
+    assert score.canon_key("issue:tracker:LGX-412") == "issue:tracker:lgx-412" and score.canon_key("parcelhub-service-two") == "parcelhub-service-two"
+    vocab = score.build_vocabulary([wp2_task()], WP2_ENTITIES)
+    for text in ("tallysync-service", "service:tallysync", "tallysync", "Tallysync (service:tallysync, tallysync-service) is flaky"):
+        assert vocab.entities_in(text) == {"service:tallysync"}, text
+
+
+def test_regression_two_different_services_are_ambiguous():
+    vocab = score.build_vocabulary([wp2_task()], WP2_ENTITIES)
+    ext = score.extract_answer(view([claim("c1", "tallysync-service and manifestdesk-service both stall", roots=9)]), wp2_task(), vocabulary=vocab)
+    assert ext.option == score.ABSTAIN and ext.ambiguous_claims == 1
+    ext = score.extract_answer(view([claim("c1", "tallysync-service blames somethingelse-service", roots=9)]), wp2_task(), vocabulary=vocab)   # a service not in any list
+    assert ext.option == score.ABSTAIN and ext.ambiguous_claims == 1
+
+
+def test_regression_names_that_contain_other_names_do_not_collide():
+    vocab = score.build_vocabulary([wp2_task()], WP2_ENTITIES)
+    assert vocab.entities_in("parcelhub-service is slow") == {"service:parcelhub"}
+    assert vocab.entities_in("parcelhub-service-two is slow") == {"parcelhub-service-two"}            # not also parcelhub
+    assert vocab.entities_in("parcelhub-service and parcelhub-service-two") == {"service:parcelhub", "parcelhub-service-two"}
+    assert vocab.entities_in("tallysyncing, tallysync2 and xtallysync") == set()                       # substrings of other words
+
+
+def test_regression_score_run_with_a_public_entities_list(tmp_path):
+    t = wp2_task("dev-000")
+    v = view([claim("c0", "tallysync-service: origin of the sable spindle, 42.", roots=3)])
+    v["task_id"] = "dev-000"
+    d = _write_run(tmp_path, [t], {"dev-000": gold("tallysync-service") | {"task_id": "dev-000"}}, {"dev-000": v})
+    pub = json.loads((d / "tasks_dev.public.json").read_text())
+    pub["entities"] = WP2_ENTITIES
+    (d / "tasks_dev.public.json").write_text(json.dumps(pub))
+    rs = score.score_run(d)
+    assert rs.correct == 1 and rs.tasks[0].extracted == "tallysync-service" and rs.supporting["ambiguous_supported_claims"] == 0

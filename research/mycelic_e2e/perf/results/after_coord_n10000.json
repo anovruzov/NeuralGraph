@@ -1,0 +1,27 @@
+{
+ "n": 10000,
+ "rss_start_mb": 40.7,
+ "tenant_create_s": 9.51,
+ "tenant_per_user_ms": 0.911,
+ "coord_db_bytes": 26636288,
+ "list_holders_ms": 203.52,
+ "holders": 10000,
+ "can_route_all_holders_ms": 234.88,
+ "candidate_holders_ms": 31.06,
+ "routable_holders": 1670,
+ "rejected_holders": 8330,
+ "domains_for_goal_ms": 0.1,
+ "domains_for_goal_holders": 10000,
+ "domains_found": 12,
+ "question_audience_uncached_ms": 467.6,
+ "audience_size": 1,
+ "question_audience_cached_ms": 0.14,
+ "first_run_ms": {
+  "list_holders": 203.52,
+  "can_route_all_holders": 533.77,
+  "candidate_holders": 230.74,
+  "domains_for_goal": 28.27,
+  "question_audience": 467.6
+ },
+ "peak_rss_mb": 136.5
+}

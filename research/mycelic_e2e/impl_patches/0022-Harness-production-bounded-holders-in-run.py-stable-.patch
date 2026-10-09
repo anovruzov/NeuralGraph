@@ -1,0 +1,618 @@
+From 9d902dda771b72f96ac7b42267cb13c36decc87f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 07:45:03 +0000
+Subject: [PATCH 22/23] Harness: production bounded holders in run.py,
+ stable-heartbeat wait, entity vocabulary format fix; reviews of 1b74545
+
+run.py --max-open-holders uses the product's EmbeddedHolders bound (dormant holders woken by their
+inbox) instead of harness-level laziness, and waits for two identical heartbeat snapshots before the
+first wave. The public entity list now uses the options' form (the plain-string form made the scorer
+count every entity twice and zeroed every positive class in C1). Reviews: scale repairs accepted;
+term index blocked on B1 (publication must follow the effective ACL).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl        |   5 +
+ research/mycelic_e2e/bench/run.py             |  59 ++++--
+ .../mycelic_e2e/bench/tests/test_ablations.py |  12 ++
+ .../mycelic_e2e/bench/tests/test_world.py     |  14 +-
+ research/mycelic_e2e/bench/world.py           |   4 +-
+ research/mycelic_e2e/reviews/REVIEW_E.md      | 198 ++++++++++++++++++
+ research/mycelic_e2e/reviews/REVIEW_WP1.md    | 170 +++++++++++++++
+ 7 files changed, 439 insertions(+), 23 deletions(-)
+ create mode 100644 research/mycelic_e2e/reviews/REVIEW_E.md
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 743e282..7c8fed4 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -20,3 +20,8 @@
+ {"id": "X019", "utc": "2026-10-09T07:05Z", "kind": "analysis", "agent": "PLANNER (claude-fable-5-1)", "artifact": "research/mycelic_e2e/plan/DEV_ANALYSIS_S1.md", "result": "all 41 failed question tasks first diverge at routing (gold holders authorized but ranked out: rank_method=domains, entities=[] -> first-N by holder_id among 15-17); 0 ingestion losses; blind verification routed by entity to gold holders but fake compose_verification_question topic = first 5 content words -> no_evidence in 53/71; wave-1 blackout: empty heartbeat snapshot retracted all published domains for ~3 s. Hypotheses H1 term index (+~28), H2 verification topic (+25 alone), H3 one excerpt per answer, H4 tie-break, H5 heartbeat retraction fix", "orchestrator_decision": "H1+H2+H5 assigned to WP1 engineer; privacy ruling: term ids from PUBLIC records only, threshold 1 allowed for public (readable by every member), off-switch auto_terms", "class": "analysis"}
+ {"id": "X020", "utc": "2026-10-09T06:58Z", "kind": "harness-fix", "agent": "WP3 (claude-sonnet-5-5)", "result": "scorer: disclosure defined by authz reach; missing tenant_id fails scoring; ambiguity rule (claim naming >1 entity contributes no option); gate: G7 view-vs-db cross-check, G4 as-of route replay from audit history, G10 literal fault evidence derived from sources; baseline 'source' primary; 94 harness tests pass; rev4 mutations M1-M4 now all fail the gate. Information-only rescoring of old S1 views under the ambiguity rule: system 69/120, baseline-source 102/120, baseline-single 102/120", "class": "harness"}
+ {"id": "X021", "utc": "2026-10-09T07:05Z", "kind": "harness-fix", "agent": "WP2 (claude-sonnet-5-5)", "result": "goal-only tasks redesigned (disjoint project scopes, exactly one pattern + one in-scope single-dept decoy, asker holds no observation, goal policy min_independent_units dept 2); cross-tenant contexts/service pools disjoint per tenant (+test that no expected-abstain task has an in-tenant satisfying pattern); opaque record ids, role-neutral titles; class-independent personal source visibility (60% public / 40% team); D3 lexical contract (<3 shared content tokens across patterns) for dev and the sealed holdout bank; views carry tenant_id + goal_* keys; raw checks for all refs; fault_plan.json; S enlarged to 112 users. Regenerated S seed1 dev: tasks sha256 cf59e3fa..c874c16, sources (anchor 2026-10-09T12:00Z) c494fafd..e1316d. Holdout bank re-sealed sha256 89f4afa8..791a3. Harness tests: 113 passed (with sealed bank)", "class": "harness"}
++{"id": "X022", "utc": "2026-10-09T07:50Z", "kind": "e2e-run", "run": "C1-S1 (S, seed 1, dev, anchor 2026-10-09T00:00Z) + baseline source/single", "revision": "1b74545 (clean; integration suite 496 passed/7 skipped)", "provider": "deterministic", "result": "system 42/120, baseline-source 42/120, baseline-single 42/120 (all positive classes 0); system wall 257 s (was 1,241 s), peak RSS 401 MB, 15,274 fake calls; gate: G8 failed (others pass)", "class": "INVALID \u2014 two defects found: (1) scorer ambiguity rule double-counts one entity (baseline claim 'tallysync-service: origin of the sable spindle, 42.' scored abstain); (2) system routing: gold holders absent from authorized candidates at route time although can_route accepts them offline \u2014 suspected stale routing cache (ENGINEER-E caches) ", "actions": "scorer fix -> WP3; routing regression -> ENGINEER-E"}
++{"id": "X023", "utc": "2026-10-09T07:55Z", "kind": "review", "agent": "REVIEWER-3 (claude-opus-5-5)", "subject": "1b74545 ENGINEER-E scale repairs", "result": "ACCEPT; full suite 496/7; raw-SQL second-connection probe (12 writer kinds) vs uncached reference code passes, detects a dropped trigger; cross-process watcher saw 4,101 messages; expiring grants invalidate; optional F1-F4", "class": "review"}
++{"id": "X024", "utc": "2026-10-09T07:55Z", "kind": "review", "agent": "REVIEWER-2 (claude-opus-5-5)", "subject": "1b74545 WP1 parts (S1 fix, H1 term index, H2, H5)", "result": "S1/lineage/freshness, H2, H5 ACCEPT; H1 BLOCKED by B1: term and entity ids still published from sources later narrowed to members-only or opted out of export (content oracle), deny_patterns hashed into terms, 600 s term cache ignores ACL changes; HMAC key acceptable; D18 premise inaccurate but conclusion holds since terms only rank authorized candidates", "class": "review"}
++{"id": "X025", "utc": "2026-10-09T07:55Z", "kind": "diagnosis", "agent": "orchestrator", "subject": "C1-S1 zero positives", "result": "(1) scoring artifact: public-file entities as plain strings vs option dicts -> each entity counted twice -> every correct claim 'ambiguous' (WP2 generator fix; WP3 scorer canonicalization hardening); (2) routing: at 07:35:37 every holder published a heartbeat REMOVING its domains and rewriting terms, republished 07:35:40; questions routed 07:35:37-39 saw blank domains and no term hits; offline replay on the final DB ranks all 3 gold holders first (terms_matched 3). Not a stale authz cache (REVIEWER-3 probes agree). Root-cause fix assigned to WP1; run.py now waits for two stable heartbeat snapshots", "class": "diagnosis"}
++{"id": "X026", "utc": "2026-10-09T07:55Z", "kind": "e2e-run", "run": "smoke-cap40 (S, seed 1, dev, --max-open-holders 40)", "agent": "WP2", "result": "informal 87/120 = 0.725 [0.639,0.797] after entities-format fix (first score 42/120 from the artifact); 0 disclosures; 242 s wall; 759 holder opens/718 closes, 592 woken by message; only 49/90 gold holders of cross-domain positives reached", "class": "development, INFORMAL (working tree mid-change; not a candidate)"}
+diff --git a/research/mycelic_e2e/bench/run.py b/research/mycelic_e2e/bench/run.py
+index 37b1895..6ad1331 100644
+--- a/research/mycelic_e2e/bench/run.py
++++ b/research/mycelic_e2e/bench/run.py
+@@ -46,7 +46,7 @@ def log(msg: str) -> None:
+     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+ 
+ 
+-def bench_settings(base: Path, *, question_timeout: float = 60.0):
++def bench_settings(base: Path, *, question_timeout: float = 60.0, max_open_holders: int = 0):
+     from mycelic.config import Settings
+     s = Settings()
+     s.data_dir = base
+@@ -68,6 +68,11 @@ def bench_settings(base: Path, *, question_timeout: float = 60.0):
+     s.worker_poll_seconds = 0.2
+     s.log_json = False
+     s.service_name = "bench"
++    # production bound on open embedded holders (MYCELIC_MAX_OPEN_HOLDERS): the rest stay dormant and wake on demand. The harness does not
++    # emulate it: it sets the settings the deployment would, with MYCELIC_DORMANT_POLL=0 (no scheduled-poll reopen), before the runtime exists
++    if max_open_holders > 0:
++        s.max_open_holders = int(max_open_holders)
++        s.dormant_poll = False
+     return s
+ 
+ 
+@@ -115,17 +120,20 @@ async def amain(a: argparse.Namespace) -> int:
+     log(f"world {a.size} seed {a.seed} split {a.split}: {world.counts()}  tasks={len(plan.tasks)} records={len(plan.records)}")
+ 
+     # a harness-only ablation replaces one mechanism in the imported modules BEFORE the runtime is built (never a production setting)
++    if a.lazy_holders and not a.max_open_holders:
++        a.max_open_holders = 200                         # --lazy-holders is an alias for the production bound (no harness-level laziness remains)
++        log("--lazy-holders is an alias for --max-open-holders 200")
+     abl_short, abl_name = ablations.normalize(a.ablation)
+     abl_patch = ablations.apply(abl_short) if abl_short and not a.generate_only else None
+     if abl_patch is not None:
+         log(f"ablation {abl_name}: {len(abl_patch.bound)} binding(s) replaced")
+-    settings = bench_settings(out / "data", question_timeout=a.question_timeout)
++    settings = bench_settings(out / "data", question_timeout=a.question_timeout, max_open_holders=a.max_open_holders)
+     rt = build_runtime(settings)
+     hb = a.heartbeat
+     if rt.holders is not None:
+         rt.holders.heartbeat_interval = hb
+     from mycelic.api.app import create_app
+-    app = create_app(rt, settings, run_worker=False, run_holders=False, allowed_hosts=None, cors_origins=[], dist_dir=out / "no-dist")
++    app = create_app(rt, settings, run_worker=False, run_holders=True, allowed_hosts=None, cors_origins=[], dist_dir=out / "no-dist")     # holders start the way the API starts them
+     runner = web.AppRunner(app, access_log=None)
+     await runner.setup()
+     site = web.TCPSite(runner, "127.0.0.1", 0)
+@@ -188,24 +196,15 @@ async def amain(a: argparse.Namespace) -> int:
+             await token_for(k)
+         principal_map = {k: v for k, v in ids.users.items()}
+ 
+-        # ---- open the holders (lifecycle only), then feed
++        # ---- holders: started the way the API starts them (EmbeddedHolders.start ran at app startup; reconcile() is its periodic pass, run
++        # once now that the registry is populated). Unbounded: every holder opens. With a bound: they stay dormant and wake on demand.
+         t0 = time.perf_counter()
+         if rt.holders is not None:
+-            rt.holders.running = True
+-            if a.lazy_holders:
+-                # lazy materialization: a holder is opened when its connector is attached or when a question is first routed to it
+-                orig = rt.questions.publish_pending_routes
+-
+-                async def lazy_publish(q):
+-                    for r in rt.questions.routes(q["question_id"]):
+-                        if r["status"] == "pending":
+-                            await rt.holders.ensure(r["holder_id"])
+-                    return await orig(q)
+-                rt.questions.publish_pending_routes = lazy_publish
+-            else:
+-                await rt.holders.reconcile()
++            await rt.holders.reconcile()
+         timings["open_holders_s"] = round(time.perf_counter() - t0, 2)
+-        log(f"holders open: {len(rt.holders.holder_ids()) if rt.holders else 0} of {len(ids.holders)} ({timings['open_holders_s']}s, rss peak {rss_mb()} MB)")
++        hs = rt.holders.stats() if rt.holders else {}
++        log(f"holders: {hs.get('open')} open of {hs.get('registered')} registered, max_open={hs.get('max_open')} bounded={hs.get('bounded')} "
++            f"({timings['open_holders_s']}s, rss peak {rss_mb()} MB)")
+         mgr_id = {m["holder_id"]: ids.users[m["manager"]] for m in manifest}
+ 
+         async def restart_hook(holder_id: str, connector_id: str) -> None:
+@@ -237,6 +236,24 @@ async def amain(a: argparse.Namespace) -> int:
+                 await asyncio.sleep(0.5)
+         timings["domain_publication_s"] = round(time.perf_counter() - t0, 2)
+         log(f"routable domains published by {len(want) - len(pending)}/{len(want)} holders ({timings['domain_publication_s']}s)")
++        # two consecutive stable heartbeats: what the holders publish (domains, record counts, entity and term maps, queue, snapshot flag)
++        # is unchanged across two successive intervals, so routing sees the final index
++        t0 = time.perf_counter()
++        stable, prev, deadline = 0, None, time.time() + max(60.0, 20 * hb)
++        while time.time() < deadline:
++            snap = {}
++            for hid in sorted({m["holder_id"] for m in manifest}):
++                row = rt.org.get_holder(hid) or {}
++                ing = (row.get("stats") or {}).get("ingest") or {}
++                snap[hid] = (tuple(row.get("published_domains") or ()), ing.get("records"), json.dumps(ing.get("queue"), sort_keys=True),
++                             hashlib.sha256(json.dumps([ing.get("entities"), ing.get("terms")], sort_keys=True, default=str).encode()).hexdigest()[:12], ing.get("snapshot_complete"))
++            stable = stable + 1 if snap == prev else 0
++            prev = snap
++            if stable >= 2:
++                break
++            await asyncio.sleep(max(1.0, hb))
++        timings["heartbeat_stable_s"] = round(time.perf_counter() - t0, 2)
++        log(f"heartbeats stable: {stable >= 2} after {timings['heartbeat_stable_s']}s")
+ 
+         # ---- worker + tasks
+         rt.worker = build_worker(rt)
+@@ -296,7 +313,8 @@ async def amain(a: argparse.Namespace) -> int:
+             "ablation_patches": abl_patch.describe()["patched"] if abl_patch else [], "seed": a.seed, "size": a.size, "provider_label": PROVIDER_LABEL,
+             "provider": "fake (deterministic)", "fake_py_sha256": hashlib.sha256(fake_py.read_bytes()).hexdigest()[:16], "tasks_sha256": tasks_sha, "sources_sha256": sources_sha,
+             "n_tasks": len(public), "n_gold_written": n_gold, "world_sha256": world.fingerprint(), "world_counts": world.counts(), "transport": "sqlite",
+-            "in_process_server": True, "lazy_holders": bool(a.lazy_holders), "raw_checks_enabled": True,
++            "in_process_server": True, "max_open_holders": a.max_open_holders, "holders_stats": rt.holders.stats() if rt.holders else None, "heartbeat_stable": stable >= 2,
++            "raw_checks_enabled": True,
+             "counts": {"created": len(ids.holders), "with_records": len({m["holder_id"] for m in manifest}), "activated": len(answered), "routed": len(routed),
+                        "opened": len(rt.holders.holder_ids()) if rt.holders else 0},
+             "model_usage": {"calls": usage["n"], "input_tokens": usage["i"], "output_tokens": usage["o"], "providers": usage["p"]},
+@@ -338,7 +356,8 @@ def main(argv: list[str] | None = None) -> int:
+     ap.add_argument("--heartbeat", type=float, default=2.0, help="embedded holder heartbeat seconds (publishes routable domains)")
+     ap.add_argument("--n-ticks", type=int, default=2, help="loop drains for goal-only tasks")
+     ap.add_argument("--feed-concurrency", type=int, default=6)
+-    ap.add_argument("--lazy-holders", action="store_true", help="open holders on first use (L)")
++    ap.add_argument("--max-open-holders", type=int, default=0, help="production bound on open embedded holders (MYCELIC_MAX_OPEN_HOLDERS, dormant poll off); 0 = all open")
++    ap.add_argument("--lazy-holders", action="store_true", help="alias for --max-open-holders 200")
+     ap.add_argument("--ablation", default="", help="harness-only ablation: A1_ranker_off, A2_roots_off, A3_verification_off, A4_index_off, "
+                                                    "A5_authz_routing_off, A6_dedupe_off (or A1..A6); recorded in run_manifest.json")
+     ap.add_argument("--anchor", default="", help="ISO timestamp the record ages are measured from (default: now); fix it to get byte-identical sources")
+diff --git a/research/mycelic_e2e/bench/tests/test_ablations.py b/research/mycelic_e2e/bench/tests/test_ablations.py
+index 8831496..42135e2 100644
+--- a/research/mycelic_e2e/bench/tests/test_ablations.py
++++ b/research/mycelic_e2e/bench/tests/test_ablations.py
+@@ -168,3 +168,15 @@ def test_run_py_records_the_ablation_in_the_manifest():
+     src = (REPO / "research/mycelic_e2e/bench/run.py").read_text()
+     assert "ablations.apply(" in src and src.index("ablations.apply(") < src.index("rt = build_runtime(settings)")      # patched before the runtime exists
+     assert '"ablation": abl_short, "ablation_name": abl_name' in src and "--ablation" in src
++
++
++def test_max_open_holders_uses_the_production_settings(tmp_path):
++    """--max-open-holders sets the deployment's own bound (and turns the dormant poll off); nothing in run.py emulates it."""
++    s = bench_settings(tmp_path / "a", max_open_holders=40)
++    assert s.max_open_holders == 40 and s.dormant_poll is False
++    s0 = bench_settings(tmp_path / "b")
++    assert s0.max_open_holders == 0
++    src = (REPO / "research/mycelic_e2e/bench/run.py").read_text()
++    assert "lazy_publish" not in src and "publish_pending_routes" not in src            # no harness-level laziness remains
++    assert "run_holders=True" in src and "rt.holders.reconcile()" in src and "--max-open-holders" in src
++    assert '"max_open_holders": a.max_open_holders' in src and "heartbeat_stable" in src
+diff --git a/research/mycelic_e2e/bench/tests/test_world.py b/research/mycelic_e2e/bench/tests/test_world.py
+index 0e4f617..b0e6e1c 100644
+--- a/research/mycelic_e2e/bench/tests/test_world.py
++++ b/research/mycelic_e2e/bench/tests/test_world.py
+@@ -273,7 +273,8 @@ def test_feed_and_issue_isolation():
+ def test_domains_are_never_set_by_hand():
+     for name in ("feed.py", "issue.py", "run.py", "world.py", "events.py"):
+         src = (BENCH / name).read_text()
+-        assert "update_holder" not in src and "published_domains" not in src.replace("(rt.org.get_holder(h) or {}).get(\"published_domains\")", "")
++        reads_only = re.sub(r"\.get\(\"published_domains\"\)( or \(\))?", "", src)           # reading what a holder published is fine; writing it is not
++        assert "update_holder" not in src and "published_domains" not in reads_only
+         assert not re.search(r"register_holder\([^)]*domains\s*=", src)
+ 
+ 
+@@ -547,3 +548,14 @@ def test_issue_and_view_shape_against_the_real_api(banks, tmp_path):
+             await client.close()
+             await runner.cleanup()
+     asyncio.run(go())
++
++
++def test_public_entity_vocabulary_has_the_options_form(planned):
++    """One entity, one key: the vocabulary the public file lists uses the options' dict form, and contains every option of every task
++    (a string-form list made the scorer see each entity twice and discard every correct claim as 'naming two entities')."""
++    w, p, bank = planned
++    assert p.entities and all(isinstance(e, dict) and {"label", "id", "display", "aliases"} <= set(e) for e in p.entities)
++    ids = {e["id"] for e in p.entities}
++    assert len(ids) == len(p.entities)
++    for t in p.public():
++        assert all(o["id"] in ids for o in t.options)
+diff --git a/research/mycelic_e2e/bench/world.py b/research/mycelic_e2e/bench/world.py
+index d2039f2..53b5845 100644
+--- a/research/mycelic_e2e/bench/world.py
++++ b/research/mycelic_e2e/bench/world.py
+@@ -383,7 +383,7 @@ class Plan:
+     records: list[Rec]
+     fault_plan: dict[str, Any]                    # holder key -> {"replay": bool, "restart": bool, "malformed": bool, "duplicate": [rid], "out_of_order": bool}
+     world: Any = None
+-    entities: list[str] = field(default_factory=list)      # the world's whole entity vocabulary (every service of both tenants): public, not gold
++    entities: list[dict] = field(default_factory=list)     # the world's whole entity vocabulary (every service of both tenants) in the options' dict form: public, not gold
+ 
+     def public(self) -> list[TaskPublic]:
+         return [t.public for t in self.tasks]
+@@ -895,7 +895,7 @@ class Planner:
+         self.specs.sort(key=lambda s: s.public.task_id)
+         self.add_filler()
+         return Plan(self.split, self.seed, self.specs, self.records, self.fault_plan, self.w,
+-                    sorted({svc_label(e) for lst in self.entities for e in lst}))
++                    [_option(e) for e in sorted({e for lst in self.entities for e in lst})])         # same dict form as the options, so one entity has one key
+ 
+     def add_filler(self) -> None:
+         """Every holder that carries content gets unrelated notes, so its source domain reaches the publication threshold (5 records)
+diff --git a/research/mycelic_e2e/reviews/REVIEW_E.md b/research/mycelic_e2e/reviews/REVIEW_E.md
+new file mode 100644
+index 0000000..27f506f
+--- /dev/null
++++ b/research/mycelic_e2e/reviews/REVIEW_E.md
+@@ -0,0 +1,198 @@
++# REVIEW_E: commit 1b74545, ENGINEER-E scale repairs
++
++Reviewer: REVIEWER-3, model `claude-opus-5-5`. I did not write this code. I reviewed it in a fresh `git archive 1b74545` copy at
++`$SCR/re`, where `SCR=/tmp/claude-0/-home-user-NeuralGraph/cb55ecbb-9144-58cb-a5af-0b006a90960a/scratchpad`. My two probe
++files exist only in that copy: `mycelic/tests/test_zz_review_e_probe.py` and `test_zz_review_e_watch.py`.
++
++Scope:
++- authz caches and migration 0006;
++- `candidate_holders` and `question_audience`;
++- bounded open holders in `holder/embedded.py`;
++- subject-indexed wake-ups in `transport/sqlite_transport.py`.
++
++The WP1, H1, H2 and H5 parts of the integration commit are out of my scope.
++
++## Verdict: ACCEPT. Nothing blocks the merge.
++
++I found no path where a stale cache **authorizes** something that should be denied. Fixes F1-F4 below are small,
++recommended, and not blocking.
++
++## Reproduction
++
++- **Full suite** (`python -m pytest mycelic/tests -q -p no:warnings`): **496 passed, 7 skipped in 141.31s**, matching the
++  commit message.
++- **Probe A: another connection, raw SQL, warm caches.** `test_zz_review_e_probe.py` builds the randomized org from
++  `test_scale_equivalence.build` (seed 5, 24 users) and warms every cache with `check_all`. A second `sqlite3`
++  connection then makes 12 writes with **raw SQL** (no OrgService), and `check_all` compares `question_audience`,
++  `candidate_holders` (ids and reasons), `can_route`, `domains_for_goal` and `_scopes` against the legacy uncached code
++  after each one. The writes:
++  - membership role → `department_lead`, then membership revoked;
++  - holder owner disabled, then re-enabled;
++  - holder `owner_id` changed to another user;
++  - holder `export_policy` changed, then holder revoked;
++  - unit archived;
++  - project scope deleted;
++  - goal grant inserted, then revoked.
++
++  Result: **passed**.
++- **Probe A is sensitive.** With `DROP TRIGGER trg_rev_memberships_u` added first, it fails with
++  `AssertionError: candidate_holders differs`.
++- **Probe B: cross-process watcher.** `test_zz_review_e_watch.py`: transport 2 on a second `CoordDB` of the same file
++  publishes a burst of 4,101 messages, more than the poller's 4,000-row page. A watcher on transport 1 sees every holder
++  subject, including the last one. **Passed.**
++
++## 1. Authz caches (`authz.py`, migration 0006)
++
++**What each cache reads, and which trigger guards it:**
++
++| Cache | Reads | Guarded by |
++|---|---|---|
++| `_scopes` | memberships, org_units, project_scopes | memberships (all columns), units (`path, parent_id, type, tenant_id, archived_at`), pscopes (all) |
++| `_closure_cache`, `_descendants_cache` | org_units, project_scopes | the same unit and pscope triggers |
++| `_owner_cache` | `users.status`, `users.tenant_id`, memberships | users (`status, tenant_id`), memberships |
++| `tenant_index` | active users, memberships joined to non-archived units, active grants | users, memberships, units, grants (all columns), plus time expiry (below) |
++| `tenant_taxonomy` | domain_taxonomy, domain_aliases | taxonomy triggers |
++| `routing_holders` (org.py:440) | holder routing columns | holder triggers on owner, tenant, revoked transition, domains, published_domains, export_policy |
++| `domains_for_goal` (engine.py:295) | the above | `(org, holders)` counters; `candidate_domains=[]`, so no taxonomy dependency |
++
++- **Every column a cached function reads is guarded by a trigger.**
++- The columns that are not guarded are not read by any authorization decision:
++  - users: `name`, `email`, `is_demo`, `settings`. `is_demo` only tags created artifacts; grep finds no authorization use.
++  - org_units: `name`, `depth`, `settings`, `is_demo`.
++  - holders: `status` online/offline, `mode`, `name`, `stats`, `last_heartbeat_at`. `can_route` reads only `revoked`.
++    The status snapshot in `routing_holders` is not used downstream: route() and rank_holders read only ids, owner and
++    domains.
++- **Raw SQL is covered too.** Triggers fire for every writer: raw SQL, another process, upsert (UPDATE triggers) and
++  `INSERT OR REPLACE` (the INSERT trigger fires).
++
++**Time-based grant expiry:**
++- `tenant_index` stores `valid_until = min(expires_at)` over the active grants (authz.py:209) and rebuilds once
++  `now_iso() >= valid_until`. The SQL filter uses the same string comparison (`expires_at > now`), and `expires_at` is
++  written by `plus_seconds` in the same format as `now_iso`.
++- `question_audience` keys on `idx.stamp`, so a rebuild invalidates it.
++- No other cache depends on grants: `_scopes`, `_closure`, `_descendants` and `_owner` read no grants, and
++  `principal_for_user` is uncached.
++- The equivalence test covers a grant that expires while the caches are warm (sleep 1.2 s).
++
++**Policies and roles:**
++- Roles are `memberships.role`, which is guarded.
++- `tenant_policies` and holder `answer_scopes` are read live on each call, or come from the holder row's `export_policy`,
++  which is guarded.
++
++**Audience cache key** (inquiry/service.py, `question_audience`):
++- The key holds (tenant, visibility, scope, asker id and type, goal id), `goal_fp` and the tenant-index stamp.
++- `goal_fp` covers every goal field read by `can_view_scoped` and `_is_mine`: visibility, scope, owner type and id,
++  `created_by`, assignees, tenant. Goal grants live in the index.
++- The question id joins the key only when the question itself has a grant. `create_grant` cannot create question grants
++  anyway (its `res_table` has no `question`).
++
++**Multi-process:**
++- Counters are read from the file on every `_sync_caches`. They are not read inside a `pinned()` block, which is fully
++  synchronous.
++- The coordinator is single-threaded. The only executor use is `extract_text` in routes_org.py:360, so `_hold` cannot leak
++  across threads.
++- `test_another_connection_sees_counter_changes` and probe A both confirm this.
++
++**Residual risks (low):**
++- **F1, `db/coord.py:102`:** `counter()` returns a constant `0` when the counter row is missing. A deleted row would turn
++  every cache into a never-invalidated cache. Its other fallback, `self.revision` when the table is missing, is
++  in-process only. Fix: return `-1 - self.data_version()` (or raise) instead of `0`, so a missing row never stays equal.
++- **Theoretical rollback race:** a cache built from uncommitted rows read on the shared connection inside an open
++  transaction that later rolls back could survive. It survives only if the next commit brings the counter back to the
++  same value before any read. This class already existed with the old `(revision, data_version)` key. Fix if wanted:
++  skip cache population while `conn.in_transaction`.
++
++## 2. `candidate_holders` and `question_audience` semantics and the equivalence test
++
++- **Semantics are unchanged.** `candidate_holders` runs the same predicate (`_can_route`) with per-question memoization
++  (closure, descendants, asker visibility, domain overlap per distinct domain set), in the same order (`ORDER BY name`).
++- `question_audience` tests the same predicates over principals built in bulk. `memberships_by_user` and `active_grants`
++  match `memberships_for_user` and `grants_for`: same non-archived-unit filter, user grants plus grants to the user's
++  membership units.
++- **`test_scale_equivalence.py` is adequate:**
++  - 3 random orgs;
++  - the legacy code kept as a reference;
++  - comparison of ids **and** rejection reasons, audience, `domains_for_goal` and `_scopes`;
++  - re-checked after membership, user, tree, project, grant (incl. expiry), holder and goal-assignee changes;
++  - `update_goal` exists, so that step really runs.
++- **Gaps in the test (non-blocking):**
++  - cross-connection changes are checked only for `visible_unit_ids`;
++  - holder owner changes and raw-SQL writers are not checked.
++
++  Probe A closes all three gaps and passes. Adding it to the suite would be worthwhile (F4).
++- **F3 (robustness), org.py:440-455:** `routing_holders` returns the cached list of dicts itself, and `candidate_holders`
++  hands those dicts to callers. Today no caller mutates them: grep finds no `h[...] =` in routing.py or route(). One
++  mutation would still poison routing for the whole tenant until the next counter move. Fix: return shallow copies, or
++  freeze the rows (`MappingProxyType`).
++
++## 3. `holder/embedded.py`: bounded open holders
++
++**Loss analysis.** Every path below either delivers the message or leaves it waiting in the durable queue, from which it
++is redelivered:
++
++| Path | Outcome |
++|---|---|
++| Message in-process to a dormant holder | `publish` → `_notify` → watcher `_on_message` → `_wake` → activator → `ensure` → the durable consumer reads from its cursor |
++| Message from another process | shared poller within `poll_interval` (probe B) |
++| Watcher missed it | `_scan_pending` at start and every max(30 s, heartbeat) |
++| Message during a close | `_on_message` sees `_closing` and queues a wake; `ensure` waits on the lifecycle lock; `_close_dormant` re-checks `pending()` after closing |
++| Before the process started | `reconcile` → `_scan_pending` (`test_message_published_before_the_process_started_is_not_lost`) |
++
++Messages are durable (transport cursor plus `AUTOINCREMENT` ids, so no id reuse after prune).
++
++**Lifecycle lock (remove/ensure fix):**
++- `ensure` takes the fast path only when the holder is not closing and its lock is free. Otherwise it waits for the lock
++  and re-reads `_services`.
++- `remove` holds the lock.
++- `SqliteTransport.subscribe` no longer hands back a subscription that is closing; it waits for the closing task and
++  starts a fresh one.
++- `test_remove_and_ensure_racing_leave_a_working_consumer` covers it.
++
++**Dormant holders stay routable:**
++- The registry status is untouched while the process runs, and the final heartbeat (`_close_dormant`) carries
++  `dormant: true`.
++- `can_route` reads only `revoked`.
++- On `stop()`, the dormant holders are marked offline in one write, which is correct: nobody can open them any more.
++
++**F2 (low, not demonstrated), embedded.py:491-492:**
++- The evictability check, including `svc.inflight == 0`, runs before `stats = await svc.stats()`.
++- The consumer is still live during that await (`stop()` comes after), so it can start a handler.
++- `svc.stop()` then cancels the in-flight handler through `Subscription.close`. The envelope is not acked and is
++  redelivered after reopen, and the post-close `pending()` check wakes the holder. So this is a **duplicate delivery, not
++  a loss**.
++- Fix: call `await svc.stop()` before `svc.stats()` (stats do not need the consumer). Alternatively, re-check
++  `svc.inflight` after `stats()` and abort the close if it rose.
++- I did not reproduce the window. Whether `store.stats()` actually yields depends on the store's async wrappers.
++
++## 4. `transport/sqlite_transport.py`: subject-indexed wake-ups and the shared poller
++
++- **No lost in-process wake-up while a consumer registers or runs:**
++  - the listener is registered before the first `_deliver_batch`;
++  - `wake.clear()` happens *before* each read (line ~329);
++  - `asyncio.Event` is sticky, so a publish between the read and the wait makes the wait return at once.
++- **Index lookup:** `_notify` checks every literal prefix of the subject (`tokens[:k]` for k = 0..n), so patterns ending
++  in `*` or `>` at any depth are found. Each candidate is still confirmed with `subject_matches`.
++- **Cross-process:**
++  - the poller starts at `MAX(id)` when the first listener registers. Earlier messages are read by the consumers from
++    their own cursors;
++  - ids are `AUTOINCREMENT` and writers are serialized, so `id > _seen` cannot skip a later commit;
++  - pages of 4,000 rows are drained in a loop (probe B);
++  - the consumers' own safety timer, `max(20 × poll_interval, 5 s)`, backs up a missed poller wake.
++- **Note:** watchers have no safety timer of their own. For embedded holders, the periodic `_scan_pending` plays that
++  role.
++
++## NATS
++
++`nats_transport.py` `watch` (a core subscription) and `pending` (`consumer_info`, else `get_last_msg` on a wildcard
++subject) are **not exercised against a live server**; the docstring says so. It is unverified whether `get_last_msg`
++accepts a `>` wildcard on the deployed server version. If it does not, a never-opened holder's waiting messages would be
++noticed only by the core watcher, which does not survive a restart. Note only; not reviewed further.
++
++## Fixes (none blocking)
++
++- **F1:** `db/coord.py:102`: a missing counter row must not return a constant (return a non-repeating value or raise).
++- **F2:** `holder/embedded.py:491-492`: stop the consumers before taking the final stats, or re-check `inflight` after
++  `stats()`, so a handler that started meanwhile is not cancelled.
++- **F3:** `org.py:440-455`: return copies, or frozen rows, from `routing_holders`.
++- **F4 (test):** add probe A (raw-SQL writes from a second connection, with a trigger-drop sensitivity check) to
++  `test_scale_equivalence.py`.
+diff --git a/research/mycelic_e2e/reviews/REVIEW_WP1.md b/research/mycelic_e2e/reviews/REVIEW_WP1.md
+index 47e53c1..155ae3e 100644
+--- a/research/mycelic_e2e/reviews/REVIEW_WP1.md
++++ b/research/mycelic_e2e/reviews/REVIEW_WP1.md
+@@ -430,3 +430,173 @@ Conditions:
+ 3. **E1's O2(a) prediction must be re-derived with threshold 5 and public-only ids.** Recall from symptom, service and
+    issue ids will be lower than under the original commit's defaults. If it is too low, the remedy is a declared, measured
+    contract parameter, not a code default.
++
++---
++
++## Review of commit `1b74545` (integration): WP1 parts, H1 term index, H2, H5
++
++Reviewer: REVIEWER-2 (`claude-opus-5-5`). Copy: `git archive 1b74545 | tar -x -C $SCR/rv3`.
++Scope:
++- S1 / `_attribute`, `evidence_freshness`, the `motivating_lineage` redaction;
++- H1: `0007_term_index`, `entities.py`, publication in `evidence/service.py`, `org.holder_heartbeat`, `rank_holders`;
++- H2;
++- H5.
++
++ENGINEER-E's scale hunks (`authz.py`, transport, `holder/embedded.py` lifecycle, migration 0006) are out of scope and were
++not reviewed.
++
++**Verdict: ACCEPT the WP1 fixes (S1, lineage redaction, `evidence_freshness`), H2 and H5. H1 is BLOCKED by one
++publication defect (B1).** I accept the orchestrator's privacy ruling in principle, but the code does not implement
++"public records only" as disclosure defines it.
++
++### Reproduction
++```
++python -m pytest mycelic/tests -q -p no:warnings                  → 496 passed, 7 skipped in 142.59s (matches the engineers' run)
++python -m pytest mycelic/tests/test_review_wp1.py -q -s           → R1–R10, R3b, R8b pass (R8 cannot find a members-only id: expected); T1 passes; T2 FAILS (B1)
++```
++
++### (a) S1, lineage redaction, evidence_freshness: ACCEPT
++
++- **S1.** `CommitGate._attribute` (`knowledge/gate.py:117-154`):
++  1. Roots with a single candidate unit fix that unit.
++  2. Roots that touch a fixed unit join it.
++  3. The remaining roots get a minimum unit cover: exhaustive search up to 8 roots, greedy beyond.
++
++  The total is minimal, because the remaining roots never touch a fixed unit. My unit-id-order probe gave:
++
++  `R3b shared dept smallest id -> ('hypothesis', {'department': 1})   shared dept largest id -> ('hypothesis', {'department': 1})`
++
++  The original R3 also holds: `('hypothesis', {'department': 1})` for both ref ids.
++  - Non-blocking: the exhaustive search has no bound on how many units it may consider (`gate.py:137-142`). Measured:
++    8 roots with disjoint candidate sets of size 2/3/4 take 0.03 s / 1.02 s / 9.03 s. `KnowledgeService.sync_support_sync`
++    recomputes `independent_units` *inside a write transaction*.
++  - Fix: stop the search at `k = need`, which is enough to decide a shortfall, and fall back to the greedy cover when
++    `C(|universe|, k)` exceeds about 10⁵.
++- **`motivating_lineage`.** For a principal without full view, `view()` now replaces claim, conflict and evidence lineage
++  items with `{"type", "label": "", "redacted": true}` (`inquiry/service.py:128,149`). Probe output: `R5 … lineage labels: ['']`.
++  This closes the older leak I flagged.
++  - Non-blocking: `detail()` still returns the `question_runs` row unfiltered (`inquiry/service.py:206`). After
++    evaluation its state carries `verified.target_claim_id` (`engine.py:824`). That is after the routed owner has answered,
++    so it does not break blindness, but it should be redacted the same way.
++- **`evidence_freshness`.** It now reads `meta`, so undated references count as `unknown` (`knowledge/service.py:965-971`).
++  This is an admin metric and is covered by `test_evidence_freshness_counts_undated_references_as_unknown`.
++
++### (b) H1 term index: ruling and findings
++
++**Authorization comes first: confirmed.**
++- `term_hits` is restricted to the authorized `candidates` (`routing.py:94`, `in_scope = … if hid in allowed`).
++- The pool is still a slice of the candidates.
++- `term_holders` and `entity_holders` are intersected with `allowed` (`:152`).
++- `ranked_out` (`:150-153`) lists only authorized candidates that were not chosen, with numeric score parts.
++
++So term routing cannot route to a holder the asker could not route to.
++
++**The audit detail holds hashed ids only.**
++- `terms` holds the question's term ids, i.e. hashes of the words of a question an admin can already read.
++- No route exposes `term_index`: `grep term_index mycelic/api` finds nothing, and `traverse` does not read it.
++- The `/admin/audit` endpoint is admin-only.
++
++**The keyed hash.**
++- Term ids are HMAC-SHA256 of a stem, truncated to 64 bits, under a per-tenant key (`org.py:73-77`).
++- The runtime always has a secret: it comes from `MYCELIC_SECRET_KEY`, or is generated and persisted to
++  `data_dir/secret_key` (`runtime.py:112-127`). `build_runtime` passes it to `OrgService`. The bench (`run.py:57`) and
++  perf (`perf_bench.py:104`) set fresh secrets.
++- Backups do not include `secret_key` (`observability.backup_bundle`: `coord.db` and holder DBs only).
++
++**Ruling on the key: ACCEPTABLE.** The "stable non-secret fallback" is reachable only through `OrgService(db)` without a
++secret. That happens in tests, in `hypergraph.traverse`'s default authorizer (which never asks for the term key), and in
++`bench/baseline_central.py:139` (which does not route). Required hardening (non-blocking for now): `term_key()` returns
++`None` and logs when `secret_key` is empty, so a misconfigured path publishes nothing instead of dictionary-testable ids.
++
++Two caveats:
++- Every holder receives the tenant-wide key (`routes_org.py:1043`). Any holder owner can therefore hash a dictionary, but
++  the index itself is never served to them.
++- Rotating the server secret silently invalidates all term ids until holders send their next heartbeat.
++
++**Ruling on the orchestrator's privacy ruling (public records only, threshold 1, `auto_terms` off-switch): ACCEPT in
++principle.** Some corrections:
++- A public record is, by the product's own ACL definition, disclosed to "anyone the holder's export policy answers"
++  (`ingest/events.py:57`). That is not "every tenant member" as D18 says. The term signal is only consulted for holders
++  the asker may route to, so the conclusion still holds: the router reveals nothing that holder would not disclose to that
++  asker.
++- Threshold 1 is fine *for records that really are disclosable*. The boilerplate filter (df > max(5, 10 %)) is
++  irrelevant to privacy. It only removes non-discriminative words.
++- T1 confirms the main filter works:
++
++  `T1 published: 6 {'zanzibarquux': True, 'vorpalcorp': False, 'snarkhunter': False, 'quibblefrob': False}`
++
++  Here `vorpalcorp` sits in a public-visibility record of a members-only source, `snarkhunter` in a private source, and
++  `quibblefrob` in a public record with `sensitivity="restricted"`.
++
++**B1 (BLOCKING H1, and it also affects F5 entity publication): publication uses the record's ingest-time visibility, not
++the ACL that disclosure applies at use time.**
++- Where: `_published_terms` (`evidence/service.py:1009-1016`) and `_entity_counts_sync` (`:1052-1060`) filter on
++  `ingest_records.visibility='public'`.
++- Disclosure (`_record_acl_sync`, `:841-865`) does more: it *narrows* by the source's current ACL (`connector_sources.visibility`
++  and `member_ids`: "a channel turned members-only … takes effect at the next use without re-ingesting"). It also honours
++  the owner's per-source opt-out (`connector_sources.exportable`), the per-source `disclosure` and `access_state`.
++- Probe T2: a public source with 5 records. Output:
++
++  `baseline term: True entities: [service:ledgergate, symptom:timeout] | narrowed (source set members-only): term True entities [same] | opted-out (exportable=0): term True entities [same] | record exportable at use time: False`
++
++- A channel that became members-only, or that the owner withdrew from export, keeps routing questions by its words and
++  entities. This is precisely the content oracle for restricted records that the ruling forbids.
++- Fix:
++  - Filter publication on the same effective ACL as disclosure. Join `connector_sources` (in a sharded store, read
++    eligible `source_id`s from s0 and filter shard records by them) and require all of:
++    - the source's *current* visibility is `public`, or no source row exists and `r.visibility = 'public'`;
++    - `exportable` is not 0;
++    - `disclosure` is not `none`;
++    - `access_state = 'ok'`.
++  - Publish nothing when the holder-level `export_policy.disclosure` is `none`.
++  - Drop stems matching the owner's `deny_patterns` (`self._deny`); today they are redacted from answers but still hashed
++    into terms.
++  - Add the `connector_sources` state (e.g. `MAX(updated_at)`) and the deny list to the term-cache signature (`:1000`);
++    today the cache ignores ACL changes for up to 600 s.
++  - Add T2 as a test.
++
++**Non-blocking.**
++- `term_incidence` drops a term held by more holders *tenant-wide* than `max(TERM_COMMON_FLOOR, fraction × candidates)`
++  (`hypergraph.py:502-519`, `routing.py:92`). Holders the asker cannot route to can thereby suppress a term that is rare
++  among the asker's own candidates. This affects recall only; it leaks nothing.
++- `term_stems` stems only the hyphen parts of a token, not the whole token (`entities.py`). This is consistent on both
++  sides, so matching works, but the comment's claim of "light stemming" is inaccurate.
++
++### (c) H2 entity-named blind verification: ACCEPT
++- `LoopEngine._topic_names` (`engine.py:261-274`) admits `service` / `component` / `symptom` / `topic` names only, drops
++  any name containing a digit, and keeps at most 3. Tracker keys, versions and organizations never appear.
++- `_blind_leak` (numbers shared with the claim, a run of 6 or more of its words) still guards the result.
++- Example: for the claim "Timeouts on the ledgergate-service are caused by the retry-storm in component payments v2.3
++  since 2026-10-01 (LGX-412)", the fake model writes "What do your own notes show about ledgergate-service, timeout?
++  Include dates." It contains no number, no key and not the asserted cause. The old fallback, kept when no entity is
++  known, wrote "…about timeouts ledgergate service caused retry?", which leaks more.
++- Notes (non-blocking):
++  - Naming both service and symptom states the finding's subject-predicate pair. Consider naming only the
++    service/component when one exists.
++  - `topic:` ids can enter the claim text literally from holder responses, through `_LITERAL_ENTITY` and up to 80
++    characters. Their display names then reach other holders' question text. Restrict topic names to ids present in
++    `entity_registry` with `holder_count ≥ 1`.
++
++### (d) H5 snapshot rule: ACCEPT, with one non-blocking bound
++- Retraction requires `snapshot_complete`: nothing queued or leased, with dead items excluded (`evidence/service.py`
++  `_snapshot_complete`; `org.py:518`, entity retract, term retract). An owner switching publication off, or a
++  revocation, still withdraws immediately (`org.py` `update_holder` → `withdraw_holder_entities_sync`).
++- **Can an honest holder never retract?** Only while its ingest queue never drains. Queued retries end as `dead`, and
++  expired leases are re-leased, so normal operation retracts at the next idle beat. A permanently busy holder, or an
++  offline but unrevoked one, keeps stale domains, entities and terms indefinitely. That includes ids derived from
++  *deleted* records, which matters for deletion requests.
++  - Recommended (non-blocking): a deletion processed by the holder reports its withdrawn ids explicitly. Those are
++    authoritative regardless of the snapshot. Separately, cap the age of entries an unvouched holder has not re-reported
++    (for example 24 h).
++- **Can an attacker-holder keep stale incidence?** Yes, by never vouching. That adds no capability: a lying holder could
++  always report arbitrary ids, and it can already have any word's term id because it holds the key. The impact is
++  bounded by `can_route` (only holders the asker may route to are ranked) and by the caps (1,000 terms, 500 entities,
++  64 domains). It can attract questions it was already authorized to receive. Accept.
++
++### Blocking list for `1b74545`
++1. **B1:** `evidence/service.py:1009-1016` and `:1052-1060`, plus the cache signature at `:1000`. Make term and entity
++   publication use the disclosure-time effective ACL (current source visibility, `exportable`, `disclosure`,
++   `access_state`, holder `disclosure`) and the owner's `deny_patterns`. Add probe T2
++   (`$SCR/rv3/mycelic/tests/test_review_wp1.py::test_t2_narrowed_or_opted_out_source_still_publishes`) as a test.
++
++Everything else in scope is accepted. The non-blocking items listed above are follow-ups.
+-- 
+2.43.0
+

@@ -1,0 +1,411 @@
+{
+ "n": 2000,
+ "agree": true,
+ "machine": {
+  "platform": "Linux-6.18.44-fc-v80-x86_64-with-glibc2.39",
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "cpus": 4,
+  "mem": "16480952 kB",
+  "python": "3.13.16",
+  "sqlite": "3.45.1"
+ },
+ "workdir": "/tmp/mycelic_perf_n2000_kca5amh5",
+ "started_utc": "2026-10-09T07:30:19Z",
+ "profile_mode": "none",
+ "rss_start_mb": 42.5,
+ "max_open_holders": 300,
+ "dormant_poll": {
+  "enabled": true,
+  "min_seconds": 3600.0
+ },
+ "build_runtime_s": 0.182,
+ "embedder": {
+  "runtime_embedder": "HashEmbeddings",
+  "dim": 256,
+  "model": "hash-bow-256",
+  "router_providers": [
+   "fake"
+  ],
+  "tiers": {
+   "light": "fake:mycelic-fake-light",
+   "standard": "fake:mycelic-fake-standard",
+   "heavy": "fake:mycelic-fake-heavy"
+  }
+ },
+ "tenant": {
+  "n_users": 2000,
+  "register_tenant_s": 0.058,
+  "units_s": 0.06,
+  "depts": 20,
+  "teams": 200,
+  "users_memberships_holders_total_s": 1.646,
+  "per_user_total_ms": 0.823,
+  "create_user": {
+   "n": 2000,
+   "mean_ms": 0.221,
+   "p50_ms": 0.0,
+   "p95_ms": 0.0,
+   "max_ms": 14.032,
+   "sum_s": 0.442
+  },
+  "add_membership": {
+   "n": 2000,
+   "mean_ms": 0.296,
+   "p50_ms": 0.0,
+   "p95_ms": 0.0,
+   "max_ms": 14.714,
+   "sum_s": 0.593
+  },
+  "register_holder": {
+   "n": 2000,
+   "mean_ms": 0.303,
+   "p50_ms": 0.0,
+   "p95_ms": 0.0,
+   "max_ms": 14.119,
+   "sum_s": 0.607
+  },
+  "tenant_total_s": 1.764,
+  "coord_db_bytes": 5926912,
+  "tables_rows": {
+   "users": 2001,
+   "memberships": 2002,
+   "holders": 2000,
+   "org_units": 221,
+   "audit_log": 6225,
+   "events": 2223
+  }
+ },
+ "rss_after_tenant_mb": 59.1,
+ "open": {
+  "n_holders": 2000,
+  "bounded_open_limit": 300,
+  "open_all_s": 7.115,
+  "open_all_cpu_s": 6.491,
+  "open_each": {
+   "n": 300,
+   "mean_ms": 23.686,
+   "p50_ms": 22.0,
+   "p95_ms": 30.0,
+   "max_ms": 150.263,
+   "sum_s": 7.106
+  },
+  "first10_mean_ms": 33.052,
+  "last10_mean_ms": 22.912,
+  "rss_before_mb": 59.1,
+  "rss_after_mb": 420.9,
+  "rss_growth_mb_per_open_holder": 1.206,
+  "rss_series": [
+   {
+    "open": 30,
+    "rss_mb": 97.2,
+    "fds": 100
+   },
+   {
+    "open": 60,
+    "rss_mb": 133.2,
+    "fds": 190
+   },
+   {
+    "open": 90,
+    "rss_mb": 169.1,
+    "fds": 280
+   },
+   {
+    "open": 120,
+    "rss_mb": 205.1,
+    "fds": 370
+   },
+   {
+    "open": 150,
+    "rss_mb": 241.0,
+    "fds": 460
+   },
+   {
+    "open": 180,
+    "rss_mb": 277.1,
+    "fds": 550
+   },
+   {
+    "open": 210,
+    "rss_mb": 313.0,
+    "fds": 640
+   },
+   {
+    "open": 240,
+    "rss_mb": 349.0,
+    "fds": 730
+   },
+   {
+    "open": 270,
+    "rss_mb": 384.9,
+    "fds": 820
+   },
+   {
+    "open": 300,
+    "rss_mb": 420.9,
+    "fds": 910
+   }
+  ],
+  "fds_before": 10,
+  "fds_after": 910,
+  "fds_per_holder": 3.0,
+  "open_stores_in_memory": 300,
+  "disk_per_holder_empty_bytes": 1235816,
+  "disk_per_holder_by_file_bytes": {
+   ".db": 4096,
+   ".db-shm": 32768,
+   ".db-wal": 1198952
+  },
+  "files_per_holder": [
+   "evidence.db",
+   "evidence.db-shm",
+   "evidence.db-wal"
+  ],
+  "idle_cpu_fraction_of_one_core": 0.017,
+  "reconcile_noop_s": 0.023,
+  "close_one": {
+   "n": 20,
+   "mean_ms": 1.311,
+   "p50_ms": 0.0,
+   "p95_ms": 8.0,
+   "max_ms": 9.758,
+   "sum_s": 0.026
+  },
+  "reopen_one": {
+   "n": 20,
+   "mean_ms": 29.429,
+   "p50_ms": 31.0,
+   "p95_ms": 42.0,
+   "max_ms": 45.444,
+   "sum_s": 0.589
+  }
+ },
+ "ingest": {
+  "records_per_user": 5,
+  "records_processed": 10000,
+  "wall_s": 158.155,
+  "cpu_s": 133.406,
+  "aggregate_records_per_s": 63.23,
+  "per_holder_total": {
+   "n": 2000,
+   "mean_ms": 39.268,
+   "p50_ms": 37.0,
+   "p95_ms": 54.0,
+   "max_ms": 82.86,
+   "sum_s": 78.536
+  },
+  "connect_discover": {
+   "n": 2000,
+   "mean_ms": 2.0,
+   "p50_ms": 2.0,
+   "p95_ms": 3.0,
+   "max_ms": 24.467,
+   "sum_s": 4.0
+  },
+  "drain_process": {
+   "n": 2000,
+   "mean_ms": 37.268,
+   "p50_ms": 35.0,
+   "p95_ms": 51.0,
+   "max_ms": 80.296,
+   "sum_s": 74.536
+  },
+  "per_holder_records_per_s_mean": 127.33,
+  "rss_before_mb": 431.6,
+  "rss_after_mb": 794.8,
+  "peak_rss_mb": 795.6,
+  "sample_holders": 20,
+  "documents_per_holder_sampled": 5.0,
+  "memories_per_holder_sampled": 5.0,
+  "disk_per_holder_after_bytes": 1110157,
+  "disk_per_holder_after_by_file_bytes": {
+   ".db": 664244,
+   ".db-shm": 4915,
+   ".db-wal": 440997
+  },
+  "disk_sampled_holders_after_checkpoint_db_bytes": 772506,
+  "open_holders_after_ingest": 300,
+  "holder_counters": {
+   "open": 300,
+   "registered": 2000,
+   "max_open": 300,
+   "bounded": true,
+   "opened": 2335,
+   "closed": 2032,
+   "woken_by_message": 0,
+   "woken_by_poll": 0,
+   "peak_open": 301,
+   "over_limit": 0
+  },
+  "transport_messages": 4794,
+  "transport_by_kind": {
+   "heartbeat": 2794,
+   "ingest_result": 2000
+  },
+  "model_usage_rows_during_ingest": 340,
+  "model_usage_by_purpose": {
+   "classify_domains": 340
+  },
+  "profile": null
+ },
+ "discovery": {
+  "core_inbound_catchup_s": 8.665,
+  "core_inbound_catchup_cpu_s": 6.164,
+  "transport_messages_at_start": 4794,
+  "goal_id": "goal_b7a59762f99e457789f1",
+  "rounds": [
+   {
+    "round": 0,
+    "wall_s": 5.517,
+    "cpu_s": 4.594,
+    "new_questions": 12,
+    "quiet": true
+   },
+   {
+    "round": 1,
+    "wall_s": 1.002,
+    "cpu_s": 0.963,
+    "new_questions": 0,
+    "quiet": true
+   }
+  ],
+  "wall_s": 6.519,
+  "cpu_s": 5.557,
+  "finished": true,
+  "jobs_counts": {
+   "done": 62
+  },
+  "job_errors": [],
+  "jobs_by_kind": {
+   "loop.tick": {
+    "n": 14,
+    "mean_ms": 54.086,
+    "p50_ms": 55.0,
+    "p95_ms": 86.0,
+    "max_ms": 88.299,
+    "sum_s": 0.757
+   },
+   "question.collect": {
+    "n": 12,
+    "mean_ms": 0.559,
+    "p50_ms": 1.0,
+    "p95_ms": 1.0,
+    "max_ms": 0.966,
+    "sum_s": 0.007
+   },
+   "question.commit": {
+    "n": 12,
+    "mean_ms": 7.144,
+    "p50_ms": 7.0,
+    "p95_ms": 9.0,
+    "max_ms": 14.397,
+    "sum_s": 0.086
+   },
+   "question.evaluate": {
+    "n": 12,
+    "mean_ms": 23.443,
+    "p50_ms": 22.0,
+    "p95_ms": 30.0,
+    "max_ms": 38.8,
+    "sum_s": 0.281
+   },
+   "question.route": {
+    "n": 12,
+    "mean_ms": 53.622,
+    "p50_ms": 37.0,
+    "p95_ms": 112.0,
+    "max_ms": 180.134,
+    "sum_s": 0.643
+   }
+  },
+  "ticks": 14,
+  "tick_time": {
+   "n": 14,
+   "mean_ms": 54.086,
+   "p50_ms": 55.0,
+   "p95_ms": 86.0,
+   "max_ms": 88.299,
+   "sum_s": 0.757
+  },
+  "model_calls_total": 178,
+  "model_calls_by_task": {
+   "identify_gap": 10,
+   "draft_question": 12,
+   "answer_from_evidence": 120,
+   "evaluate_responses": 12,
+   "synthesize_discovery": 12,
+   "record_outcome": 12
+  },
+  "model_usage_rows_by_purpose": {
+   "answer_from_evidence": 120,
+   "classify_domains": 340,
+   "draft_question": 12,
+   "evaluate_responses": 12,
+   "identify_gap": 10,
+   "record_outcome": 12,
+   "synthesize_discovery": 12
+  },
+  "questions": 12,
+  "questions_by_status": {
+   "committed": 12
+  },
+  "questions_by_kind_depth": {
+   "gap/d0": 12
+  },
+  "routes_total": 120,
+  "routes_by_status": {
+   "answered": 120
+  },
+  "routes_per_question": {
+   "min": 10,
+   "max": 10,
+   "mean": 10.0
+  },
+  "responses_by_status": {
+   "answered": 120
+  },
+  "claims_by_status": {
+   "supported": 12
+  },
+  "discoveries": 12,
+  "route_call": {
+   "n": 12,
+   "mean_ms": 53.396,
+   "p50_ms": 37.0,
+   "p95_ms": 111.0,
+   "max_ms": 179.714,
+   "sum_s": 0.641
+  },
+  "candidate_holders_call": {
+   "n": 12,
+   "mean_ms": 8.619,
+   "p50_ms": 8.0,
+   "p95_ms": 11.0,
+   "max_ms": 11.223,
+   "sum_s": 0.103
+  },
+  "domains_for_goal_call": {
+   "n": 14,
+   "mean_ms": 40.317,
+   "p50_ms": 45.0,
+   "p95_ms": 62.0,
+   "max_ms": 77.514,
+   "sum_s": 0.564
+  },
+  "profile": null,
+  "micro_list_holders_ms": 78.59,
+  "micro_can_route_all_holders_ms": 48.491,
+  "micro_can_route_per_holder_us": 24.3,
+  "micro_question_audience_uncached_ms": 19.648,
+  "audience_size": 1,
+  "micro_question_audience_cached_ms": 0.163
+ },
+ "peak_rss_mb": 797.9,
+ "rss_end_mb": 797.9,
+ "fds_end": 910,
+ "total_disk_bytes": {
+  "coord_db_files": 46110096,
+  "holders": 2084688704
+ },
+ "shutdown_s": 3.477
+}
