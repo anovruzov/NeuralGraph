@@ -1,6 +1,6 @@
 """Repository guards for the lab.
 
-* no model-family name in lab code, docs, tests, test stubs or the lab workflow (model names belong only in the
+* no model-family name in lab code, docs, tests, test stubs or the lab workflows (model names belong only in the
   manifest, the request and template files, kept results and ``docs/lab/MODELS.md``);
 * no lab Python reads kept results (``lab/results/``);
 * no server program, release tag or asset literal in lab Python (they come from the manifest), no hub host and no
@@ -27,6 +27,7 @@ from tests.mycelic.test_collective_guards import model_name_hits
 LAB = ROOT / "lab"
 DOCS = ROOT / "docs" / "lab"
 WORKFLOW = ROOT / ".github" / "workflows" / "mycelic-lab.yml"
+REAGGREGATE_WORKFLOW = ROOT / ".github" / "workflows" / "lab-reaggregate.yml"
 NAME_SCAN_EXCLUDED = ("lab/models.json", "lab/models.lock.json", "docs/lab/MODELS.md")
 DIRTY_OVERRIDE = "--allow-" + "dirty"
 
@@ -45,7 +46,7 @@ def name_scan_excluded(rel: str) -> bool:
 
 
 def name_scan_files() -> list[Path]:
-    """Every file of ``lab/``, ``tests/lab/`` and ``docs/lab/`` and the lab workflow, less the exclusions."""
+    """Every file of ``lab/``, ``tests/lab/`` and ``docs/lab/`` and the lab workflows, less the exclusions."""
     files = []
     for base in (LAB, ROOT / "tests" / "lab", DOCS):
         for path in sorted(base.rglob("*")):
@@ -53,7 +54,7 @@ def name_scan_files() -> list[Path]:
                 continue
             if not name_scan_excluded(path.relative_to(ROOT).as_posix()):
                 files.append(path)
-    return [*files, WORKFLOW]
+    return [*files, WORKFLOW, REAGGREGATE_WORKFLOW]
 
 
 class LabGuardTests(unittest.TestCase):
@@ -63,13 +64,13 @@ class LabGuardTests(unittest.TestCase):
             self.assertTrue(name_scan_excluded(rel), rel)
         for rel in ("lab/units.py", "lab/requests/sub/x.json", "lab/README.md", "tests/lab/data/manifest-test.json",
                     "docs/lab/README.md", "docs/lab/REFERENCE.md", "docs/lab/INTEGRATION.md", "lab/requests/README.md",
-                    ".github/workflows/mycelic-lab.yml"):
+                    ".github/workflows/mycelic-lab.yml", ".github/workflows/lab-reaggregate.yml"):
             self.assertFalse(name_scan_excluded(rel), rel)
 
     def test_scan_scope(self) -> None:
         files = name_scan_files()
         for rel in ("docs/lab/README.md", "docs/lab/REFERENCE.md", "docs/lab/INTEGRATION.md", "lab/requests/README.md",
-                    ".github/workflows/mycelic-lab.yml"):
+                    ".github/workflows/mycelic-lab.yml", ".github/workflows/lab-reaggregate.yml"):
             self.assertIn(ROOT / rel, files, rel)
         self.assertNotIn(ROOT / "docs" / "lab" / "MODELS.md", files)
         self.assertTrue((ROOT / "docs" / "lab" / "MODELS.md").is_file())

@@ -35,7 +35,8 @@ from lab import shard as lab_shard
 from lab import units
 from lab.goldlabels import GOLD_KEYS, GoldLabelsError, build_labels
 from lab.notes import (COLUMNS, CONTEXT_TOO_SMALL, E1_COMPARE_FAILED, E1_DROPS_NOTE, E1_ENDPOINT_EXCLUDED, E1_LABELS,
-                       E1_NO_REFERENCE, E1_VERDICTS_WITHHELD, E2_LABELS, HARNESS_USAGE, HEADINGS,
+                       E1_NO_REFERENCE, E1_SCORES_NOTE, E1_SCORES_ONLY, E1_SCORES_REFUSED, E1_SCORES_UNPINNED,
+                       E1_VERDICTS_WITHHELD, E2_LABELS, HARNESS_USAGE, HEADINGS,
                        OPENFDA_FALSE_ALARM_SCOPE, OPENFDA_LABEL, OPENFDA_RATE_LIMITED, OPENFDA_SAW_RECALLS,
                        OPENFDA_UNREACHABLE, PREREG_MISSING, SHEETS_LABEL, STEP_SKIPPED, X1_LABEL)
 from lab.plan import serving_class
@@ -339,6 +340,24 @@ class AllExperimentsDryRunTests(unittest.TestCase):
         plan_md = (self.out / "plan" / "summary.md").read_text(encoding="utf-8")
         self.assertIn("### Preregistration, fixed before any model runs", plan_md)
 
+    def test_own_scores_beside_the_comparison(self) -> None:
+        """A complete comparison still gives each model's own scores, and for a complete model they are the
+        comparison's own endpoint block, field for field; the table follows the paired table."""
+        block = _json(self.out / "report" / "report.json")["e1"]
+        self.assertEqual((block["compared"], block["endpoint_scores_reason"]), (True, None))
+        self.assertEqual(sorted(block["endpoint_scores"]), sorted(block["endpoints"]))
+        for name, entry in block["endpoint_scores"].items():
+            with self.subTest(model=name):
+                self.assertEqual((entry["repeats_used"], entry["repeats_planned"], entry["problem"]),
+                                 ([1, 2, 3], 3, None))
+                self.assertEqual({k: entry[k] for k in block["endpoints"][name]}, block["endpoints"][name])
+                self.assertIs(entry["measurement"], False)
+        lines = (self.out / "report" / "report.md").read_text(encoding="utf-8").splitlines()
+        heading = lines.index("#### " + HEADINGS["e1-scores"])
+        self.assertLess(lines.index("#### " + HEADINGS["e1-paired"]), heading)
+        self.assertNotIn(E1_SCORES_ONLY, lines)
+        self.assertEqual(lines[heading + 2], E1_SCORES_NOTE)
+
     def test_routing_pins_equal_the_preregistered_endpoints(self) -> None:
         prereg = _json(self.out / "plan" / "prereg" / "e1" / "prereg" / "prereg.json")
         pinned = {e["name"]: {f: e[f] for f in e1_extract.PINNED_ENDPOINT_FIELDS} for e in prereg["endpoints"]}
@@ -458,6 +477,96 @@ class E1CompareTests(unittest.TestCase):
         self.assertEqual(code, 0, stderr)
         self.assertEqual((report["e1"]["compared"], report["e1"]["reason"]), (False, PREREG_MISSING))
 
+    # ------------------------------------------------------------------------------- each model's own scores
+
+    def own_block(self, model: str, repeats: list[int]) -> dict[str, Any]:
+        """E1's own scorer over the shard tree's run directories of ``model``'s ``repeats``, as the test reads them."""
+        prereg_path = self.tree.root / "plan" / "prereg" / "e1" / "prereg" / "prereg.json"
+        prereg, _ = e1_extract.read_prereg(prereg_path)
+        types = sorted(t for t, et in load_pack(prereg["pack"]["ref"]).entity_types.items() if et.exact_match_metric)
+        runs = []
+        for repeat in repeats:
+            unit = f"e1-{model}-r{repeat}"
+            run_id = _record(self.tree.root, unit)["run_id"]
+            runs.append(e1_extract._read_run(self.tree.path(_shard_of(self.tree.root, unit), f"runs/e1/{run_id}")))
+        block, _, _ = e1_extract._endpoint_block(model, runs, prereg, types)
+        drops: dict[str, int] = {}
+        for run, _, _ in runs:
+            for reason, count in run["metrics"]["drops"].items():
+                drops[reason] = drops.get(reason, 0) + count
+        self.assertEqual(block["drops"], dict(sorted(drops.items())))
+        return block
+
+    def assert_own_scores(self, entry: dict[str, Any], block: dict[str, Any], repeats: list[int]) -> None:
+        self.assertEqual((entry["repeats_used"], entry["repeats_planned"], entry["runs"], entry["problem"]),
+                         (repeats, 3, len(repeats), None))
+        for name in lab_aggregate.E1_F1:
+            self.assertEqual(entry[name], {k: block[name][k] for k in ("value", "ci_low", "ci_high")}, name)
+        for key in ("drops", "zero_claim_share", "json_validity_rate", "model_mismatch", "record_runs",
+                    "transport_failure_share", "failures"):
+            self.assertEqual(entry[key], block[key], key)
+        self.assertIsNotNone(entry["predicate_f1"]["ci_low"])
+
+    def test_own_scores_without_the_reference(self) -> None:
+        """R002's case: the reference lost a repeat, so nothing is compared, yet every model with a valid repeat gets
+        its own scores, from those repeats only, and nothing is written under the report directory for them."""
+        self.remove_unit("e1-fake-b-r2")
+        out = self.work / "R"
+        code, _, stderr, report = self.tree.aggregate(out)
+        self.assertEqual(code, 0, stderr)
+        block = report["e1"]
+        self.assertEqual((block["compared"], block["reason"], block["endpoint_scores_reason"]),
+                         (False, E1_NO_REFERENCE, None))
+        self.assertEqual(sorted(block["endpoint_scores"]), ["fake-a", "fake-b"])
+        self.assert_own_scores(block["endpoint_scores"]["fake-a"], self.own_block("fake-a", [1, 2, 3]), [1, 2, 3])
+        self.assert_own_scores(block["endpoint_scores"]["fake-b"], self.own_block("fake-b", [1, 3]), [1, 3])
+        self.assertEqual({e["display_class"] for e in block["endpoint_scores"].values()}, {"plumbing"})
+        self.assertFalse((out / "e1").exists())
+        md, sources = render_report(out)
+        lines = md.splitlines()
+        heading = lines.index("#### " + HEADINGS["e1-scores"])
+        self.assertLess(lines.index(E1_NO_REFERENCE), heading)
+        self.assertEqual(lines[heading + 2:heading + 5], [E1_SCORES_ONLY, "", E1_SCORES_NOTE])
+        self.assertTrue(any(line.startswith("| `fake-b` | 2 of 3 (`1, 3`) | ") for line in lines), lines)
+        check_sources(self, md, sources, out)
+
+    def test_own_scores_skip_an_excluded_repeat_and_refuse_a_rewritten_one(self) -> None:
+        """A repeat whose files differ from its record is not ok, so its model is scored from the others; a rewritten
+        record keeps its unit ok, but the harness's reader refuses the run, so the comparison cannot run and that
+        model gets no scores, only the problem."""
+        tampered, rewritten = "e1-fake-a-r2", "e1-fake-b-r1"
+        shard = _shard_of(self.tree.root, tampered)
+        rel = f"runs/e1/{self.tree.read(shard, f'units/{tampered}/unit.json')['run_id']}/predictions.jsonl"
+        self.tree.path(shard, rel).write_bytes(self.tree.path(shard, rel).read_bytes() + b"\n")
+        self.tree.reseal(shard)
+        shard = _shard_of(self.tree.root, rewritten)
+        rel = f"runs/e1/{self.tree.read(shard, f'units/{rewritten}/unit.json')['run_id']}/predictions.jsonl"
+        self.tree.replace_unit_file(shard, rewritten, rel, self.tree.path(shard, rel).read_bytes() + b"\n")
+        self.tree.reseal(shard)
+        out = self.work / "R"
+        code, _, stderr, report = self.tree.aggregate(out)
+        self.assertEqual(code, 0, stderr)
+        block = report["e1"]
+        self.assertEqual((block["compared"], block["reason"]), (False, E1_COMPARE_FAILED))
+        scores = block["endpoint_scores"]
+        self.assert_own_scores(scores["fake-a"], self.own_block("fake-a", [1, 3]), [1, 3])
+        refused = scores["fake-b"]
+        self.assertEqual((refused["problem"], refused["repeats_used"], refused["runs"], refused["drops"]),
+                         (E1_SCORES_REFUSED, [], None, None))
+        self.assertEqual(refused["predicate_f1"], {"value": None, "ci_low": None, "ci_high": None})
+        md, sources = render_report(out)
+        self.assertIn(f"| {COLUMNS['scores_problem']} |", md)
+        (row,) = [line for line in md.splitlines() if line.startswith("| `fake-b` | n/a of 3 ")]
+        self.assertTrue(row.endswith(f"| n/a | {E1_SCORES_REFUSED} |"), row)
+        check_sources(self, md, sources, out)
+
+    def test_a_foreign_prereg_gives_no_own_scores(self) -> None:
+        (self.tree.root / "plan" / "prereg" / "e1" / "labels.json").write_bytes(b"{}\n")
+        code, _, stderr, report = self.tree.aggregate(self.work / "R")
+        self.assertEqual(code, 0, stderr)
+        self.assertEqual((report["e1"]["endpoint_scores"], report["e1"]["endpoint_scores_reason"]),
+                         ({}, PREREG_MISSING))
+
 
 class E1LabelOrderTests(unittest.TestCase):
     """A crafted report's E1 block: the label always first, the verdict columns only for a shown measurement."""
@@ -559,6 +668,67 @@ class E1LabelOrderTests(unittest.TestCase):
                          ([("duplicate", 2), ("ungrounded", 1)], 0.5))
         older = lab_aggregate._e1_endpoint({"runs": 3})             # a harness that wrote neither
         self.assertEqual((older["drops"], older["zero_claim_share"]), (None, None))
+
+    @staticmethod
+    def own_scores(**changes: Any) -> dict[str, Any]:
+        entry = {"repeats_planned": 3, "repeats_used": [3], "display_class": "model", "measurement": True,
+                 "problem": None, "runs": 1,
+                 **{f: {"value": 0.5, "ci_low": 0.375, "ci_high": 0.625} for f in lab_aggregate.E1_F1},
+                 "json_validity_rate": 1.0, "valid_after_repair_rate": 1.0, "exact_match": {},
+                 "latency_ms_p50": 900.0, "latency_ms_p95": 1500.0, "model_mismatch": False,
+                 "drops": {"duplicate": 4, "reattached_not_canonical": 12}, "zero_claim_share": 0.25,
+                 "record_runs": 150, "transport_failure_share": 0.0,
+                 "failures": {"model": {"records": 0, "by_kind": {}}, "transport": {"records": 0, "by_kind": {}}}}
+        entry.update(changes)
+        return entry
+
+    def test_own_scores_without_a_comparison_beside_the_lexical_baseline(self) -> None:
+        """R002's table: no comparison ran, so the sentence says these are each model's own scores; predicate F1 and
+        its interval sit beside the lexical extractor's predicate F1 from the labels, and every number is sourced."""
+        labels = {"source": "nhtsa", "pack": "docs/collective/replay/vehicles/pack", "n": 150, "seed": 1,
+                  "records": 150, "claims": 300, "sha256": "b" * 64,
+                  "public": {"lexical": {"predicate_f1": {"value": 0.434, "tp": 10, "fp": 5, "fn": 21}}}}
+        scores = {"m-a": self.own_scores(repeats_used=[1, 2, 3], runs=3, drops={}),
+                  "m-b": self.own_scores()}
+        md, sources, root = self.report(compared=False, reason=E1_NO_REFERENCE, endpoints={}, paired={},
+                                        label="public_nhtsa", labels=labels, endpoint_scores=scores,
+                                        endpoint_scores_reason=None)
+        lines = md.splitlines()
+        heading = lines.index("#### " + HEADINGS["e1-scores"])
+        self.assertLess(lines.index(E1_NO_REFERENCE), heading)
+        self.assertEqual(lines[heading + 2:heading + 5], [E1_SCORES_ONLY, "", E1_SCORES_NOTE])
+        self.assertEqual(lines[heading + 6:heading + 10], [
+            f"| {COLUMNS['model']} | {COLUMNS['repeats_used']} | {COLUMNS['predicate_f1']} | {COLUMNS['ci_low']} | "
+            f"{COLUMNS['ci_high']} | {COLUMNS['lexical_predicate_f1']} | {COLUMNS['field_f1']} | "
+            f"{COLUMNS['zero_claim_share']} | {COLUMNS['transport_share']} | {COLUMNS['drops']} |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+            "| `m-a` | 3 of 3 (`1, 2, 3`) | 0.500 | 0.375 | 0.625 | 0.434 | 0.500 | 0.250 | 0.000 | none |",
+            "| `m-b` | 1 of 3 (`3`) | 0.500 | 0.375 | 0.625 | 0.434 | 0.500 | 0.250 | 0.000 | `duplicate` 4, "
+            "`reattached_not_canonical` 12 |"])
+        self.assertNotIn("Extraction per model", md)
+        self.assertNotIn(f"| {COLUMNS['scores_problem']} |", md)
+        check_sources(self, md, sources, root)
+
+    def test_own_scores_after_a_comparison(self) -> None:
+        md, sources, root = self.report(endpoint_scores={"m-a": self.own_scores(), "m-b": self.own_scores()},
+                                        endpoint_scores_reason=None)
+        lines = md.splitlines()
+        heading = lines.index("#### " + HEADINGS["e1-scores"])
+        self.assertLess(lines.index("#### " + HEADINGS["e1-paired"]), heading)
+        self.assertNotIn(E1_SCORES_ONLY, lines)
+        self.assertEqual(lines[heading + 2], E1_SCORES_NOTE)
+        self.assertNotIn(f"| {COLUMNS['lexical_predicate_f1']} |", md)       # generator labels carry no baseline
+        check_sources(self, md, sources, root)
+
+    def test_why_there_are_no_own_scores(self) -> None:
+        md, _, _ = self.report(compared=False, reason=E1_NO_REFERENCE, endpoints={}, paired={}, endpoint_scores={},
+                               endpoint_scores_reason=E1_SCORES_UNPINNED)
+        lines = md.splitlines()
+        self.assertLess(lines.index(E1_NO_REFERENCE), lines.index(E1_SCORES_UNPINNED))
+        self.assertNotIn(HEADINGS["e1-scores"], md)
+        md, _, _ = self.report(compared=False, reason=PREREG_MISSING, endpoints={}, paired={}, endpoint_scores={},
+                               endpoint_scores_reason=PREREG_MISSING)
+        self.assertEqual(md.splitlines().count(PREREG_MISSING), 1)
 
 
 # --------------------------------------------------------------------------------------------------- E2 serving

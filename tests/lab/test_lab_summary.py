@@ -694,7 +694,9 @@ class DryRunSummaryTests(unittest.TestCase):
                  "FILES_DIFFER", "UNIT_RECORD_INVALID", "STEP_FAILED", "CPU_MODELS_DIFFER", "WORLD_DIGEST_DIFFERS",
                  "WORLD_DIGEST_SAME", "NOT_PINNED", "DISPATCH_BY_HAND", "PLAN_FIX_HINT", "LOCK_UNCHANGED", "LOCK_NEW",
                  "LOCK_CONFLICT_NOTE", "LOCK_NOT_COMPUTED", "G0_MODEL_PATH", "BY_CONSTRUCTION_LABEL",
-                 "BY_CONSTRUCTION_NOTE", "OPENFDA_SAW_RECALLS", "OPENFDA_WARNED", "OPENFDA_FALSE_ALARM_SCOPE")
+                 "BY_CONSTRUCTION_NOTE", "OPENFDA_SAW_RECALLS", "OPENFDA_WARNED", "OPENFDA_FALSE_ALARM_SCOPE",
+                 "E1_SCORES_NOTE", "E1_SCORES_ONLY", "E1_SCORES_REFUSED", "E1_SCORES_UNPINNED", "REAGGREGATION_LINE",
+                 "REAGGREGATE_NO_CHANGE", "REAGGREGATE_BAD_NAME")
         values = [(name, getattr(notes, name)) for name in names]
         values += [(f"HEADINGS.{k}", v) for k, v in notes.HEADINGS.items()]
         values += [(f"COLUMNS.{k}", v) for k, v in notes.COLUMNS.items()]

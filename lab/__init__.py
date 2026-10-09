@@ -20,8 +20,9 @@ generator or fixture labels), ``prereg``, ``download``, ``provision``, ``server`
 fake server's reply function), ``hostinfo``, ``hosted`` (the optional OpenAI-compatible hosted provider: its two
 secrets, routing, preflight and call shares), ``units`` (the harness adapters: E1, E2, E3, G0, sim, X1, openFDA),
 ``openfda`` (the openFDA unit's fetch, replay and sheet steps), ``shard``, ``sim`` (the multi-site simulation harness
-the lab adds to the collective's), ``aggregate``, ``summary`` and ``dryrun``; ``plants/`` holds the lab's plant
-specs. The lab imports only the standard library, ``mycelic`` and itself.
+the lab adds to the collective's), ``aggregate``, ``summary``, ``dryrun`` and ``reaggregate`` (rebuilding a finished
+run's report from its artifacts with a later commit, no unit run again: ``.github/workflows/lab-reaggregate.yml``);
+``plants/`` holds the lab's plant specs. The lab imports only the standard library, ``mycelic`` and itself.
 
 Integration with the collective layer (the lab never edits ``mycelic/``): the shims that keep the lab running on
 both the collective it was built on and its phase-2 work, the hooks wanted upstream and the open risks are in

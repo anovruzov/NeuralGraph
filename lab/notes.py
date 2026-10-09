@@ -210,6 +210,17 @@ E1_VERDICTS_WITHHELD = ("Verdicts withheld: non-inferiority and the kill flag ar
 E1_DROPS_NOTE = ("Reasons that start with reattached count predicates kept on the record's structured entity after "
                  "the model named an entity that did not resolve: they are not losses. Every other reason counts "
                  "reply items that post-processing dropped.")
+E1_SCORES_NOTE = ("Each model's own scores, pooled over its valid repeats only and scored by the extraction harness's "
+                  "own code: predicate F one with its percentile-bootstrap interval over records, beside the lexical "
+                  "extractor's predicate F one on the same records when the labels carry it. In the drops column, "
+                  "reasons that start with reattached count predicates kept on the record's structured entity, not "
+                  "losses.")
+E1_SCORES_ONLY = ("No reference comparison was run: these are each model's own scores, with no difference from the "
+                  "reference, no non-inferiority and no kill flag.")
+E1_SCORES_REFUSED = ("the extraction harness's reader refused a valid repeat of this model: a run file differs from "
+                     "its run.json, or the run names another preregistration, model or repeat")
+E1_SCORES_UNPINNED = ("no model's own scores: the preregistration, its pack or the scoring code no longer match what "
+                      "the extraction harness pinned")
 E1_LABELS = {
     "generator_text": "{e_one} here scores extraction against generator ground truth on template text. It is not the "
                       "STRATEGY {e_one} decision, which needs human-labelled public narratives.",
@@ -358,6 +369,10 @@ LOCK_CONFLICT_NOTE = ("A verified file disagrees with the lock: the upstream fil
                       "the provision records before re-pinning.")
 LOCK_NOT_COMPUTED = ("No lock candidate was computed: the manifest or lock changed since the plan, or the provision "
                      "records were ambiguous.")
+REAGGREGATION_LINE = ("Re-aggregation of run {run} by commit {commit}: no unit ran again; this report re-reads that "
+                      "run's sealed artifacts with this commit's aggregation code.")
+REAGGREGATE_NO_CHANGE = "the workflow ran but the push changed no re-aggregation request"
+REAGGREGATE_BAD_NAME = "a re-aggregation request file name must match the request name pattern"
 
 HEADINGS = {
     "plan": "Lab plan",
@@ -391,6 +406,7 @@ HEADINGS = {
     "e1-endpoints": "Extraction per model, pooled over repeats",
     "e1-paired": "Extraction paired against the reference",
     "e1-drops": "Extraction drops by reason, pooled over repeats",
+    "e1-scores": "Each model's own scores",
     "e2": "Pushdown verification against central reading: conditions",
     "e2-ratio": "Pushdown ratio and verdict",
     "e2-candidates": "Pushdown candidates",
@@ -549,6 +565,17 @@ COLUMNS = {
     "mismatch": "model mismatch",
     "drop_reason": "drop reason",
     "drop_count": "reply items",
+    "repeats_used": "repeats used",
+    "predicate_f1": "predicate F one",
+    "lexical_predicate_f1": "lexical predicate F one",
+    "transport_share": "transport failure share",
+    "drops": "drops and re-attachments",
+    "scores_problem": "why no scores",
+    "reaggregation": "Re-aggregation request",
+    "reaggregation_purpose": "Re-aggregation purpose:",
+    "shard_commits": "Shards' commits",
+    "shard_run_ids": "shards' run ids",
+    "lab_code_differs": "lab code differs from the shards'",
     "against": "against",
     "decision_metric": "decision metric",
     "diff": "difference",
