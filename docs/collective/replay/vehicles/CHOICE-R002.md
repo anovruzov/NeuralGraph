@@ -26,14 +26,16 @@ each complaint was filed under, not checked labels.
    sha256 differs from R001's (`bc6d092d8bca…`), both are reported, and the two runs are not on the same records.
 2. **The one change: post-processing.** When an item has a predicate and its entity cannot be used, the predicate is
    attached to the record's structured vehicle, as the lexical extractor already does, and the event is counted.
-   "Cannot be used" means one of three cases:
-   - the type is set but the text is null;
-   - the text is not found in the narrative;
+   "Cannot be used" means one of these cases:
+   - only one of type and text is given (a type with a null text, or a text with no type);
+   - the text is not found in the narrative, or it is found but the pack's scanner reads no id of that type there;
    - the text does not resolve to a pack id.
 
-   Items without a predicate and person values are dropped as before.
+   Items without a predicate, items whose text is a person value, and items from a record with no structured vehicle
+   are dropped as before.
 3. **Recorded beside the headline:**
-   - each model's drops and re-attachments by reason;
+   - each model's drops and re-attachments by reason. Re-attachments count items, not new claims: an item
+     re-attached to a claim the record already has is counted as re-attached and as a duplicate;
    - the share of records with no claim;
    - the raw replies (`replies.jsonl`, public data only), so that a later choice file can re-score them without
      running the models again.
@@ -44,6 +46,12 @@ each complaint was filed under, not checked labels.
    - E1's field F1, kill flag and non-inferiority verdict are reported as printed, and do not decide anything.
 5. **The first run is the result.** A run that fails before any model reads, for an infrastructure reason, may run
    again unchanged. Any change to a setting is a new choice file.
+
+**Amended before any run, 2026-10-09.** Rule 2 first named three cases. The code merged for this run
+(`ModelExtractor.postprocess`, `mycelic/collective/edge/extract.py`) re-attaches on every entity failure it counts as
+`not_canonical` or `ungrounded`, which adds a text with no type and a text the scanner reads no id in. Rule 2 now says
+what the code does, and rule 3 says how a re-attached duplicate is counted. No model had read a narrative for R002
+when this was changed.
 
 ## How it is read
 

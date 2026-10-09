@@ -297,11 +297,15 @@ The **+8.9 point** gain survives all four graders (+11.3 Qwen lenient, +9.6 Qwen
 
 | Category | n | Accuracy |
 |---|---:|---:|
-| single_hop | 142 | 73.9% |
-| multi_hop | 400 | 72.8% |
+| multi_hop | 142 | 73.9% |
+| single_hop | 400 | 72.8% |
 | temporal | 156 | 73.7% |
 | open_domain | 46 | 56.5% |
 | **overall** | **744** | **72.2%** |
+
+Corrected 2026-10-09: the first two rows were published with their names swapped. Dataset category 1 (142 here)
+holds the multi-hop questions and category 4 (400) the single-hop ones; `docs/BENCHMARKS.md` keeps the original labels
+with a correction note.
 
 Gemma lenient judge, conversations 1–5 of LoCoMo. The December 2025 baseline is deliberately
 not quoted as a comparison: that run used the gold answer as an acceptance gate and the gold
