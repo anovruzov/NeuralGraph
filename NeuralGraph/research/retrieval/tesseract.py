@@ -340,6 +340,27 @@ class QueryType:
     OPEN = "open"              # General/open-ended
 
 
+# Types with a store. OPEN marks questions for external retrieval and has no store.
+STORE_TYPES = (QueryType.TEMPORAL, QueryType.ENTITY, QueryType.MULTI_HOP, QueryType.ADVERSARIAL)
+
+# How many candidates each store passes to fusion when the question routes to a store.
+STORE_DEPTHS = {QueryType.TEMPORAL: 40, QueryType.ENTITY: 50, QueryType.MULTI_HOP: 40, QueryType.ADVERSARIAL: 30}
+
+
+def routed_store_type(type_weights: dict[str, float]) -> str | None:
+    """The store type a question routes to, or None when its route has no store.
+
+    The route is the highest-scoring store type (the first in STORE_TYPES on a tie).
+    It has no store when OPEN scores higher, since OPEN has no store, or when no
+    marker fired at all. A tie between OPEN and a store type goes to the store.
+    """
+    best = max(STORE_TYPES, key=lambda t: type_weights.get(t, 0.0))
+    score = type_weights.get(best, 0.0)
+    if score <= 0.0 or score < type_weights.get(QueryType.OPEN, 0.0):
+        return None
+    return best
+
+
 def detect_query_type(query: str) -> dict[str, float]:
     """Detect query type and return confidence scores for each type.
 
@@ -1991,7 +2012,8 @@ class Tesseract:
 
         1. Detect query type
         2. Auto-expand temporal queries with date tokens (if enabled)
-        3. Query all stores in parallel
+        3. Query all stores in parallel (each store's top candidates; every
+           candidate of every store when the route has no store)
         4. Fuse results with type-based weighting
         5. Return top unified results
 
@@ -2032,6 +2054,16 @@ class Tesseract:
             return []
         novelty_context = _build_novelty_context(query_text, all_nodes)
 
+        # Step 1.6: Route. A question that routes to a store takes each store's top
+        # candidates (STORE_DEPTHS) and the routed store dominates the fusion. A route
+        # with no store (OPEN scores highest, or no marker fires) is fused near-uniformly,
+        # so it falls back to every store: each store passes every node it charges, and
+        # fusion sums all four charges, not only those that made each store's own cut.
+        if routed_store_type(query_types) is None:
+            depth = dict.fromkeys(STORE_TYPES, len(all_nodes))
+        else:
+            depth = STORE_DEPTHS
+
         # Step 2: Query all stores (can be parallelized with asyncio.gather)
         # Note: Use effective_query (with temporal tokens) for temporal store
         temporal_results = await self._temporal_store.retrieve(
@@ -2039,7 +2071,7 @@ class Tesseract:
             query_embedding,
             session_key,
             reference_time,
-            limit=40,
+            limit=depth[QueryType.TEMPORAL],
             all_nodes=all_nodes,
             novelty_context=novelty_context,
         )
@@ -2048,7 +2080,7 @@ class Tesseract:
             query_text,
             query_embedding,
             session_key,
-            limit=50,
+            limit=depth[QueryType.ENTITY],
             all_nodes=all_nodes,
             novelty_context=novelty_context,
         )
@@ -2057,7 +2089,7 @@ class Tesseract:
             query_text,
             query_embedding,
             session_key,
-            limit=40,
+            limit=depth[QueryType.MULTI_HOP],
             all_nodes=all_nodes,
             novelty_context=novelty_context,
         )
@@ -2066,7 +2098,7 @@ class Tesseract:
             query_text,
             query_embedding,
             session_key,
-            limit=30,
+            limit=depth[QueryType.ADVERSARIAL],
             all_nodes=all_nodes,
             novelty_context=novelty_context,
         )

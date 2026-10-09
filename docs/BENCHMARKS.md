@@ -158,6 +158,70 @@ leniency ~30 points. Kappa vs campaign judge: Qwen lenient 0.72, strict
 - Retrieval decides; the reranker only reorders. 15/30 context memories
   is the measured optimum.
 
+### Evidence recall by dia_id and the router fallback (2026-10-09, hash embedder)
+
+**These are hash-embedder numbers: structural, not retrieval quality.** The
+embedding server cannot be reached from the sandbox, so every run below used
+the deterministic hash embedder (`EMBEDDER=hash`). They show which messages
+the code can reach. Real embeddings will move them.
+
+What changed:
+
+- `retrieval_eval.py` now scores evidence recall. For each question, `ev@k`
+  is the share of its gold evidence dia_ids (`qa["evidence"]`, joined entries
+  such as `D8:6; D9:17` split) found among the dia_ids of the first k
+  retrieved messages. It is averaged per category over the questions that
+  cite evidence: 1,536 of the 1,540 category 1–4 questions.
+- Tesseract's router scores five types and OPEN has no store. Of those 1,536
+  questions, 895 score highest on OPEN and 27 fire no marker. Each store passed
+  only its top 40 / 50 / 40 / 30 to fusion, whatever the route. A route with no
+  store now falls back to every store: each store passes every node it charges,
+  and fusion sums all four charges. Routes with a store are unchanged
+  (`tesseract.routed_store_type`, tests in
+  `NeuralGraph/tests/test_tesseract_router.py`).
+
+Evidence recall, all ten conversations, from
+`EMBEDDER=hash VARIANTS=embed,tesseract python3 research/benchmarks/retrieval_eval.py`.
+Before is commit 08dae54 (scorer only), after is 0f78362 (router fallback).
+Embedding rows are the same at both commits.
+
+| category | n_ev | embed ev@10 | embed ev@50 | Tesseract before ev@10 | before ev@50 | after ev@10 | after ev@50 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| multi_hop (cat. 1) | 282 | 6.4% | 19.4% | 25.4% | 44.6% | 26.6% | 51.6% |
+| temporal (cat. 2) | 321 | 23.0% | 47.5% | 68.8% | 82.1% | 69.1% | 83.2% |
+| open_domain (cat. 3) | 92 | 6.5% | 19.2% | 22.6% | 35.7% | 24.4% | 43.9% |
+| single_hop (cat. 4) | 841 | 25.4% | 47.9% | 57.5% | 72.8% | 62.2% | 78.4% |
+| **all** | **1,536** | 20.3% | 40.8% | **51.9%** | **67.4%** | **54.8%** | **72.4%** |
+
+The answer-substring recall in the same runs moved from 33.6% to 35.0% at
+k=10 and from 44.3% to 46.6% at k=50 (1,540 questions). For multi_hop it fell
+from 38.3% to 36.5% at k=10 while ev@10 rose. Substring recall misses most
+temporal questions (5.9% at k=10 against 68.8% ev@10) because their answers
+are dates the messages rarely contain as written.
+
+Gold evidence that is in no store's candidate list, from
+`EMBEDDER=hash python3 research/benchmarks/router_coverage.py` (gold ids pooled
+per route; the script was run against the code of each commit):
+
+| route | questions | gold ids | in no list, before | in no list, after |
+|---|---:|---:|---:|---:|
+| temporal | 404 | 463 | 71 (15.3%) | 71 (15.3%) |
+| entity | 149 | 198 | 50 (25.3%) | 50 (25.3%) |
+| multi_hop | 58 | 170 | 54 (31.8%) | 54 (31.8%) |
+| adversarial | 3 | 6 | 3 | 3 |
+| no store (OPEN or none) | 922 | 1,524 | 504 (33.1%) | 2 (0.1%) |
+| **all** | **1,536** | **2,361** | **682 (28.9%)** | **180 (7.6%)** |
+
+One of the two ids still missing on the no-store route, `D10:19`, is not a
+turn of its conversation. The handoff's 30.7% was measured before merge
+61c893e. The fallback costs no measurable time: on conversation 0 (419
+messages) a no-store question took 240 ms before and 241 ms after, mean over
+82 questions, timed with an uncommitted loop around `Tesseract.retrieve`.
+
+Not changed: `detect_query_type` still sends conversational questions to OPEN,
+because a speaker's name is not a session marker. Routes with a store still
+cut each store's list: 178 of their 837 gold ids (21.3%) are in no list.
+
 ---
 
 ## Track C — The December baseline (superseded, leaky)
@@ -191,4 +255,5 @@ exist to be compared against, not cited.
 | Retrieval flat→shipped | +8.9, survives all four judges | judge-robust, committed per-question artifacts |
 | Retrieval overall | 72.2% vs 66.9% | partial cohort (conv 1–5), cross-judge, lenient |
 | December baseline | 66.7% | leaky, superseded |
+| Tesseract evidence recall by dia_id | ev@50 67.4% → 72.4% with the router fallback | hash embedder: structural only, reproducible offline |
 | Agentic Web N=100/1K/10K | — | proposed only; no experiment exists |
