@@ -1124,3 +1124,32 @@ known leak"; `x5.json` is written for diagnosis); 130 interrupted.
   `at_chance` at the Bonferroni level, and even then only for these synthetic worlds.
 - **Send back `x5.json` only** (it holds counts, labels and intervals; no narrative, name, id, path or 64-hex token;
   the harness checks that before writing). Never send the work directory.
+
+## 19. The pilot: a signal audit on a company's own history
+
+`docs/collective/PILOT.md` is the design partner's guide: what to export, how the pack's `mapping.json` names the
+export's fields, the outcomes file, and how to read the report. The audit runs the pipeline of the replay and the lab
+(sites, k-suppressed cells, X, S and model-free R) on the export, compares the alerts with the issues the company
+acted on, against the circular-shift null, and lists every alerted pattern no issue explains. Nothing is sent
+anywhere; the site stores live in a temporary directory deleted at the end.
+
+Audit an export (CSV with the mapping's paths as headers, or JSON lines) against its outcomes:
+
+```
+python -m mycelic.collective.pilot.audit run --pack <pack> --records <records-file> --outcomes <outcomes-file> --out runs/pilot/<run-id>
+```
+
+Audit a synthetic history of a built-in pack (its generator and smoke plant; the outcomes are the planted patterns,
+opened two weeks after each ends). It writes `export.csv` and `outcomes.csv` beside the report, as templates of the
+inputs' shape:
+
+```
+python -m mycelic.collective.pilot.audit demo --pack <pack> --out runs/pilot/<run-id>
+```
+
+Exit codes: 0 written; 2 a usage error (a pack, file, column, date, id or predicate the audit cannot use, or an export
+spanning too few weeks for the detectors), named on stderr. **Honesty rules:** the demo's label says it is synthetic
+and same-author, and its found counts are never evidence; a found count in any audit means something only as far as it
+beats its own chance column; send back `audit.json` only with the company's consent, since its review list names their
+record ids.
+

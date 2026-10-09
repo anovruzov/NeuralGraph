@@ -132,6 +132,8 @@ STDLIB_ONLY_MODULES = (
     "mycelic.collective.runfiles",
     "mycelic.collective.experiments.x5_attacks",
     "mycelic.collective.experiments.x5_inference",
+    "mycelic.collective.pilot",
+    "mycelic.collective.pilot.audit",
 )
 CLI_MODULES = (
     ("mycelic.collective.experiments.e3_latency",),
@@ -156,6 +158,8 @@ CLI_MODULES = (
     ("mycelic.collective.followup.ledger", "verify"),
     ("mycelic.collective.experiments.x5_inference", "prereg"),
     ("mycelic.collective.experiments.x5_inference", "run"),
+    ("mycelic.collective.pilot.audit", "run"),
+    ("mycelic.collective.pilot.audit", "demo"),
 )
 NAME_SCAN_ROOTS = ("mycelic/collective", "docs/collective", "demo/collective", "tests/mycelic/test_collective_*.py",
                    "runs/.gitignore")
@@ -191,6 +195,7 @@ DETERMINISTIC_MODULES = (
     "mycelic/collective/evaluate/baselines.py",
     "mycelic/collective/evaluate/harness.py",
     "mycelic/collective/experiments/openfda_replay.py",
+    "mycelic/collective/pilot/audit.py",
     "mycelic/collective/pushdown/__init__.py",
     "mycelic/collective/pushdown/questions.py",
     "mycelic/collective/pushdown/orchestrator.py",
@@ -268,6 +273,7 @@ RUNBOOK_PLACEHOLDERS = {
     "entity-type": "supplier",
     "injected-id": "V9999",
     "page-file": "{tmp}/missing/page.html",
+    "outcomes-file": "{tmp}/missing/outcomes.csv",
     "recorded-dir": "{tmp}/missing/recorded",
 }
 EVALUATE_DIR = ROOT / "mycelic" / "collective" / "evaluate"
@@ -592,7 +598,7 @@ def _run_without_site_packages(*args: str) -> subprocess.CompletedProcess[str]:
 
 class StdlibOnlyTests(unittest.TestCase):
     def test_every_collective_module_imports_without_site_packages(self) -> None:
-        self.assertEqual(len(STDLIB_ONLY_MODULES), 62)
+        self.assertEqual(len(STDLIB_ONLY_MODULES), 64)
         code = "import importlib\n" + "".join(f"importlib.import_module({m!r})\n" for m in STDLIB_ONLY_MODULES)
         r = _run_without_site_packages("-c", code)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -1484,6 +1490,12 @@ class RunbookCommandTests(unittest.TestCase):
                       "device_quality,claims_integrity --n 1000 --run-id <run-id> --runs-dir runs", commands)
         self.assertIn("python -m mycelic.collective.experiments.x5_inference run --prereg <prereg-file> --run-id "
                       "<run-id> --runs-dir runs --work-dir runs/x5-work/<run-id>", commands)
+
+    def test_commands_cover_the_pilot_clis(self) -> None:
+        commands = runbook_commands()
+        self.assertIn("python -m mycelic.collective.pilot.audit run --pack <pack> --records <records-file> --outcomes "
+                      "<outcomes-file> --out runs/pilot/<run-id>", commands)
+        self.assertIn("python -m mycelic.collective.pilot.audit demo --pack <pack> --out runs/pilot/<run-id>", commands)
 
     def test_every_command_dry_runs_offline_and_creates_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
