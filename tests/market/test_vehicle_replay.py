@@ -1,4 +1,5 @@
-"""Public replay V001's pack rule and exporter (``tools/market/vehicle_pack.py``, ``nhtsa_export.py``), offline."""
+"""Public replays V001 and V002: pack rule, exporter and summary (``tools/market/vehicle_*.py``, ``nhtsa_export.py``),
+offline."""
 from __future__ import annotations
 
 import csv
@@ -23,6 +24,7 @@ def _load(name: str):
 
 V = _load("vehicle_pack")
 E = _load("nhtsa_export")
+S = _load("vehicle_summary")
 COUNTS = [["ENGINE", 5000], ["AIR BAGS", 4000], ["ENGINE AND ENGINE COOLING", 1500], ["VISIBILITY/WIPER", 1800],
           ["VISIBILITY", 1200], ["UNKNOWN OR OTHER", 9000], ["SERVICE BRAKES, HYDRAULIC", 1100],
           ["SERVICE BRAKES", 3000], ["TRAILER HITCHES", 200]]
@@ -157,6 +159,72 @@ class ExportTests(unittest.TestCase):
             # the planted air bag burst reaches every channel, the codes-only ones included
             for channel in ("X", "S", "R_mf"):
                 self.assertTrue(doc["channels"][channel]["by_outcome"][0]["found"], channel)
+
+
+class RunFileTests(unittest.TestCase):
+    def test_one_make_or_several(self) -> None:
+        self.assertEqual(E.run_makes({"make": "ford"}), ["FORD"])
+        self.assertEqual(E.run_makes({"makes": ["Chevrolet", "JEEP", "MERCEDES-BENZ"]}),
+                         ["CHEVROLET", "JEEP", "MERCEDES-BENZ"])
+        for bad in ({"makes": []}, {"makes": ["JEEP", "jeep"]}, {"makes": ["../FORD"]}, {"make": ""}):
+            with self.assertRaises(ValueError):
+                E.run_makes(bad)
+
+    def test_every_committed_run_file_names_its_makes(self) -> None:
+        for path in sorted((ROOT / "docs" / "collective" / "replay" / "vehicles").glob("run-*.json")):
+            run = json.loads(path.read_text())
+            self.assertTrue(E.run_makes(run), path.name)
+            self.assertEqual((run["lookback_weeks"], run["post_weeks"], run["saw_recall_outcomes"]), (26, 26, "yes"))
+
+    def test_the_committed_pack_is_frozen(self) -> None:
+        # CHOICE-V002 pins V001's pack; a change to it is a new choice file
+        from mycelic.collective.packs.loader import load_pack_dir
+        pack = load_pack_dir(ROOT / "docs" / "collective" / "replay" / "vehicles" / "pack")
+        hashes = (pack.config_hash, pack.vocabulary_hash, pack.detector_hash, pack.fixtures_hash)
+        self.assertEqual(tuple(h[:8] for h in hashes), ("a588e72d", "867df7fc", "325b125a", "9d9d8bd6"))
+
+
+def _audit(found: dict[str, tuple[int, float, float]], in_scope: int = 10) -> dict:
+    channels = {c: {"summary": {"alerts": 4, "found": f, "expected_found": e, "p_value": p, "unexplained_alerts": 1}}
+                for c, (f, e, p) in found.items()}
+    return {"export": {"records": 100, "sites": ["ca", "tx"], "coverage": {"codes": {"share": 1.0}}},
+            "outcomes": {"in_scope": in_scope}, "weeks": {"evaluated_weeks": 87}, "channels": channels}
+
+
+class SummaryTests(unittest.TestCase):
+    def test_fisher(self) -> None:
+        self.assertAlmostEqual(S.fisher([0.5]), 0.5)
+        self.assertAlmostEqual(S.fisher([0.05, 0.05]), 0.0174787, places=6)   # chi-squared, 4 df, at 11.98
+        self.assertEqual(S.fisher([1.0, 1.0, 1.0]), 1.0)
+        with self.assertRaises(ValueError):
+            S.fisher([])
+
+    def test_sums_and_the_rule(self) -> None:
+        strong = {"X": (6, 1.0, 0.0115), "S": (1, 1.0, 0.6), "R_mf": (0, 0.0, None)}
+        weak = {"X": (3, 1.5, 0.05), "S": (0, 1.2, 1.0), "R_mf": (0, 0.0, None)}
+        got = S.summarise({"JEEP": _audit(strong), "DODGE": _audit(weak, in_scope=5)})
+        self.assertEqual(list(got["makes"]), ["DODGE", "JEEP"])
+        self.assertEqual(got["in_scope"], 15)
+        x, s, r = (got["channels"][c] for c in ("X", "S", "R_mf"))
+        self.assertEqual((x["found"], x["expected_found"], x["makes_above_chance"], x["makes_scored"]), (9, 2.5, 2, 2))
+        self.assertTrue(x["beyond_chance"])                       # Fisher p of 0.0115 and 0.05 is about 0.0045
+        self.assertFalse(s["beyond_chance"])
+        self.assertEqual((r["fisher_p"], r["beyond_chance"], r["makes_scored"]), (None, False, 0))
+        self.assertAlmostEqual(got["alpha"], 0.05 / 3)
+
+    def test_cli_reads_one_directory_per_make(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            for make in ("HONDA", "NISSAN"):
+                (Path(tmp) / make).mkdir()
+                (Path(tmp) / make / "audit.json").write_text(json.dumps(_audit(
+                    {"X": (1, 1.0, 0.5), "S": (1, 1.0, 0.5), "R_mf": (1, 1.0, 0.5)})))
+            import contextlib
+            import io
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                self.assertEqual(S.main([tmp]), 0)
+            self.assertEqual(sorted(json.loads(buf.getvalue())["makes"]), ["HONDA", "NISSAN"])
+            self.assertEqual(S.main([str(Path(tmp) / "HONDA")]), 1)   # no make directories under it
 
 
 if __name__ == "__main__":

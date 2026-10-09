@@ -1,8 +1,9 @@
 name: vehicle-replay
 
-# Public replay V001 (docs/collective/replay/vehicles/CHOICE-V001.md): one make's NHTSA complaints and recalls through
-# the pilot audit, where static.nhtsa.gov is reachable. Starts when a run file changes; the audit prints between
-# VEHICLE-AUDIT markers in the job log and uploads as an artifact.
+# Public replays V001 and V002 (docs/collective/replay/vehicles/CHOICE-V00*.md): NHTSA complaints and recalls of one
+# make, or of each make a run file lists, through the pilot audit, where static.nhtsa.gov is reachable. Starts when a
+# run file changes and runs the newest one. Each audit prints as one line between VEHICLE-AUDIT markers in the job log
+# (V002 then a VEHICLE-SUMMARY line combining the makes) and uploads as an artifact.
 on:
   push:
     branches-ignore: [main]
@@ -25,18 +26,31 @@ jobs:
           python-version: "3.11"
       - name: offline tests
         run: python -m unittest tests.market.test_vehicle_replay -v
-      - name: export (complaints and recalls of the run file's make and window)
+      - name: export (complaints and recalls of the run file's makes and window)
         run: |
           RUN=$(ls docs/collective/replay/vehicles/run-*.json | sort | tail -n 1)
           echo "run file: $RUN"
+          echo "RUN=$RUN" >> "$GITHUB_ENV"
           python tools/market/nhtsa_export.py --run "$RUN" --pack docs/collective/replay/vehicles/pack --out vexport
-      - name: pilot audit
-        run: python -m mycelic.collective.pilot.audit run --pack docs/collective/replay/vehicles/pack --records vexport/export.csv --outcomes vexport/outcomes.csv --out vaudit --lookback-weeks 26 --post-weeks 26 --tie-salt pilot
-      - name: print the audit
+      - name: pilot audit (one per make)
+        run: |
+          read -r LOOKBACK POST < <(python -c "import json,sys; r=json.load(open(sys.argv[1])); print(r['lookback_weeks'], r['post_weeks'])" "$RUN")
+          if [ -f vexport/export.csv ]; then DIRS=vexport; else DIRS=$(ls -d vexport/*/); fi
+          for D in $DIRS; do
+            if [ "$D" = vexport ]; then OUT=vaudit; else OUT=vaudit/$(basename "$D"); fi
+            python -m mycelic.collective.pilot.audit run --pack docs/collective/replay/vehicles/pack --records "$D/export.csv" --outcomes "$D/outcomes.csv" --out "$OUT" --lookback-weeks "$LOOKBACK" --post-weeks "$POST" --tie-salt pilot
+          done
+      - name: print the audits
         if: always()
         run: |
-          if [ -f vaudit/audit.md ]; then echo "=== VEHICLE-AUDIT-MD BEGIN ==="; cat vaudit/audit.md; echo "=== VEHICLE-AUDIT-MD END ==="; fi
-          if [ -f vaudit/audit.json ]; then echo "=== VEHICLE-AUDIT BEGIN sha256=$(sha256sum vaudit/audit.json | cut -c1-64) ==="; python -c "import json,sys; print(json.dumps(json.load(open('vaudit/audit.json')), sort_keys=True, separators=(',', ':')))"; echo "=== VEHICLE-AUDIT END ==="; fi
+          for F in $(find vaudit -name audit.json 2>/dev/null | sort); do
+            echo "=== VEHICLE-AUDIT BEGIN file=$F sha256=$(sha256sum "$F" | cut -c1-64) ==="
+            python -c "import json,sys; print(json.dumps(json.load(open(sys.argv[1])), sort_keys=True, separators=(',', ':')))" "$F"
+            echo "=== VEHICLE-AUDIT END ==="
+          done
+          if [ ! -f vaudit/audit.json ] && [ -d vaudit ]; then
+            echo "=== VEHICLE-SUMMARY BEGIN ==="; python tools/market/vehicle_summary.py vaudit; echo "=== VEHICLE-SUMMARY END ==="
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

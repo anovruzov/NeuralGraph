@@ -17,6 +17,7 @@ inputs of ``mycelic.collective.pilot.audit run``:
   the predicate of the recall's component category when the campaign names exactly one of the pack's categories for
   that vehicle (else empty: any predicate).
 
+A run file with ``makes`` (replay V002) writes both files per make under ``<out>/<MAKE>/``, from one download.
 It prints the counts of what it kept and dropped; it never prints a complaint or a recall. The pure steps are tested
 offline; the downloads run where static.nhtsa.gov is reachable (the vehicle-replay workflow).
 """
@@ -45,6 +46,7 @@ C_ODINO, C_MAKE, C_MODEL, C_YEAR, C_COMP, C_STATE, C_LDATE, C_DESCR, C_PROD = 1,
 R_CAMPNO, R_MAKE, R_MODEL, R_YEAR, R_COMP, R_TYPE, R_RCDATE = 1, 2, 3, 4, 6, 10, 15
 _STATE = re.compile(r"[A-Z]{2}")
 _DATE = re.compile(r"\d{8}")
+_MAKE = re.compile(r"[A-Z0-9][A-Z0-9 -]{0,39}")
 
 
 def _field(row: Sequence[str], i: int) -> str:
@@ -163,25 +165,35 @@ def write_outcomes(rows: Sequence[Mapping[str, str]], path: Path) -> None:
         writer.writerows(rows)
 
 
+def run_makes(run: Mapping[str, Any]) -> list[str]:
+    """The run file's makes, upper-cased: ``makes`` (one output directory per make) or the single ``make``."""
+    makes = [m.upper() for m in (run["makes"] if "makes" in run else [run["make"]])]
+    if not makes or len(set(makes)) != len(makes) or not all(_MAKE.fullmatch(m) for m in makes):
+        raise ValueError(f"run file makes must be distinct names of letters, digits, spaces or dashes: {makes!r}")
+    return makes
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("--run", required=True, help="the run file: make, date_from, date_to")
+    p.add_argument("--run", required=True, help="the run file: make (or makes), date_from, date_to")
     p.add_argument("--pack", required=True)
     p.add_argument("--out", required=True)
     args = p.parse_args(argv)
     run = json.loads(Path(args.run).read_text(encoding="utf-8"))
-    make, first, last = run["make"].upper(), run["date_from"], run["date_to"]
+    makes, first, last = run_makes(run), run["date_from"], run["date_to"]
     categories, predicate_of = pack_categories(Path(args.pack))
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from mycelic.collective.pilot.audit import write_csv  # noqa: E402
-    out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
-    export, c_counts = complaints(_rows(_fetch(COMPLAINTS_URL)), make, first, last, categories)
-    write_csv(export, out / "export.csv")
-    outcomes, r_counts = recalls(_rows(_fetch(RECALLS_URL)), make, first, last, predicate_of)
-    write_outcomes(outcomes, out / "outcomes.csv")
-    print(json.dumps({"make": make, "window": [first, last], "complaints": c_counts, "recalls": r_counts},
-                     sort_keys=True))
+    complaint_blob, recall_blob = _fetch(COMPLAINTS_URL), _fetch(RECALLS_URL)
+    for make in makes:
+        out = Path(args.out) / make if "makes" in run else Path(args.out)
+        out.mkdir(parents=True, exist_ok=True)
+        export, c_counts = complaints(_rows(complaint_blob), make, first, last, categories)
+        write_csv(export, out / "export.csv")
+        outcomes, r_counts = recalls(_rows(recall_blob), make, first, last, predicate_of)
+        write_outcomes(outcomes, out / "outcomes.csv")
+        print(json.dumps({"make": make, "window": [first, last], "complaints": c_counts, "recalls": r_counts},
+                         sort_keys=True))
     return 0
 
 
