@@ -1,0 +1,10 @@
+{
+  "purpose": "Public replay V003 (CHOICE-V003.md, committed in ac8c9b5 before this run): the six makes of V001 and V002 with NHTSA preliminary evaluations and defect petitions as outcomes, V002's settings, frozen pack and criterion. The fifth real-data test; declares saw_recall_outcomes yes. The first run is the result.",
+  "makes": ["FORD", "CHEVROLET", "JEEP", "HONDA", "NISSAN", "DODGE"],
+  "outcomes": "investigations",
+  "date_from": "20230101",
+  "date_to": "20241231",
+  "lookback_weeks": 26,
+  "post_weeks": 26,
+  "saw_recall_outcomes": "yes"
+}

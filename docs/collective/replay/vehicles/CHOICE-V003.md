@@ -13,9 +13,9 @@ published field list, size and row count (`nhtsa-inv-probe.json`; run
 
 The rule was written by the AI system that wrote this repository's code. Its training data includes public news of
 NHTSA investigations of these makes. It had also seen the results of the four earlier real-data tests: device
-replays 001 and 002, V001 and V002, all without early warning beyond chance. Those results motivated this choice of an
-earlier outcome. **This is the fifth real-data test**, and it is reported whatever it shows. Every number from it carries
-**`saw_recall_outcomes: yes`**.
+replays 001 and 002, V001 and V002, all without early warning beyond chance. Those results motivated this choice of
+an earlier outcome. **This is the fifth real-data test**, and it is reported whatever it shows. Every number from it
+carries **`saw_recall_outcomes: yes`**.
 
 ## The rule
 
