@@ -1,0 +1,1475 @@
+From 93ae752cdd3d2ad3a9c88260dc42b31164fbd6da Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 06:17:11 +0000
+Subject: [PATCH 9/9] Ingestion: traceable rejections, undated-record flag,
+ explicit forwards keep their origin root (under review)
+
+D1 holder migration 0004 ingest_rejections: every refused input item gets a content-free
+disposition row (locator, raw hash, stage, reason) written with the cursor advance; SyncReport and
+connector health report it (degraded/rejected_items). D2 records without a usable timestamp are
+ingested with time_inferred and take the source's content time, never presenting as fresh.
+D3 an explicit forward/share link gives the record the origin's object identity and root, so the
+original and forwards-with-commentary in other holders count as one independent root.
+Engineer: ENGINEER-D (claude-sonnet-5-5). Full suite on the shared tree: 434 passed, 7 skipped.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ docs/mycelic/INGESTION.md                     |  43 +-
+ .../evidence/migrations/0004_dispositions.sql |  35 ++
+ mycelic/evidence/service.py                   |  22 +-
+ mycelic/ingest/connectors/local_export.py     |  64 +-
+ mycelic/ingest/events.py                      |  72 +++
+ mycelic/ingest/pipeline.py                    | 123 +++-
+ mycelic/ingest/queue.py                       |  10 +-
+ mycelic/ingest/runtime.py                     |   6 +-
+ mycelic/ingest/service.py                     |   9 +
+ mycelic/ingest/store.py                       |  54 +-
+ mycelic/tests/test_ingest_dispositions.py     | 548 ++++++++++++++++++
+ 11 files changed, 944 insertions(+), 42 deletions(-)
+ create mode 100644 mycelic/evidence/migrations/0004_dispositions.sql
+ create mode 100644 mycelic/tests/test_ingest_dispositions.py
+
+diff --git a/docs/mycelic/INGESTION.md b/docs/mycelic/INGESTION.md
+index ec08300..1eb8511 100644
+--- a/docs/mycelic/INGESTION.md
++++ b/docs/mycelic/INGESTION.md
+@@ -101,6 +101,43 @@ reference while building.
+ >   hit@10 within 0.01 of the single store at ~0.64-0.67 agreement. Sharded queries are 2-3x slower at p50 (shards are
+ >   searched in turn). On these numbers the default merge is now `channel` (DECISIONS D17); `rrf` remains selectable.
+ 
++> **Implementation status (ingestion dispositions, 2026-10-09; repairs from the runtime trace, probes e and f).**
++> * **Rejected input has a durable disposition.** Holder migration `0004_dispositions.sql` adds `ingest_rejections`
++>   (`rejection_id, connector_id, source_id, locator, raw_sha256, stage, reason, detail, first_seen_at, last_seen_at, count`),
++>   written in the same transaction that moves the cursor past the item (`IngestQueue.commit_page(extra_sync=...)`). It holds an
++>   unparseable or non-object item (`normalize/normalize_failed`, `locator = line:N` of a JSONL file or `record:N` of a JSON
++>   file), a connector exception (`normalize/<code or class>`), an event that fails the contract or names another holder,
++>   connection or namespace (`validate/invalid:<problems>`), and an admission refusal nobody asked for (`admit/foreign_source`,
++>   `admit/quota`). It never holds text: `raw_sha256` is the hash of the raw line (unparseable lines) or of the item's canonical
++>   JSON, `detail` is the message of a `ConnectorError` only (a foreign exception is recorded by class). The same item read again
++>   raises `count`; a changed item is another row; each connector keeps at most 5000 rows (least recently seen go first).
++>   Not rejections, because they already are dispositions or owner choices: `duplicate`, `historical`, `late_after_delete` (in
++>   `applied_events`), owner exclusion rules, sticky tombstones and no-op inferred deletions (counted in `SyncReport.excluded`).
++>   `SyncReport` gains `rejected`, `rejected_by_reason` and `time_inferred`; `connectors.health` is written after every sync
++>   (`status: degraded`, `reason: rejected_items` when that sync refused input, else `ok`, plus `rejections_on_record`); the holder
++>   stats heartbeat carries `ingest_rejections` (a count); `IngestService.rejections(connector_id)` lists the ledger to the owner.
++>   A second sync that refuses nothing reports `ok` again, but the ledger keeps the rows (`rejections_on_record`).
++> * **Undated records are kept and marked, not presented as fresh (D2).** A content record with no usable `created_at` /
++>   `updated_at` (absent or unparsable) is still ingested, flagged `time_inferred` in `ingest_records.flags` (carried to the export as
++>   `meta.time_inferred = true` and `meta.time_basis`). Its `observed_at` (evidence time) is no longer the ingest time: it is the
++>   source's last-known content time when the connector has one (`local_export`: the header's `content_time` / `updated_at` /
++>   `modified_at` / `exported_at`, else the newest dated record of the same file; `meta.time_basis = "source"`), else the ingest time
++>   with the extra flag `time_ingest_fallback` (`meta.time_basis = "ingest"`). The source time is an upper bound for an undated
++>   record, never evidence that it is that recent; an `order_key` for ordering edits still comes from what the connector saw.
++> * **Explicit forward / share links decide the root, with or without commentary (D3, I4 / §4.5 rule 1).** A `derived_from` link
++>   (`forward | share | crosspost | copy | moved_from | bot_relay`) that names an object (`source_object_id`, or an RFC 822
++>   Message-ID; a missing app, account or type means the record's own) gives the record `origin_key`, the same one-way
++>   `object_key` hash the original has, stored in `ingest_records.origin_key`, and `root_method = explicit`: the root is
++>   the original's own root when that record is held by this holder (resolved when the record is written), otherwise
++>   `origin_root(origin_key)`, a hash of the origin's identity. The export's `meta.object_key` is the `origin_key`, which is what
++>   `knowledge/support.py` merges roots on, so the original (wherever it was ingested), every verbatim forward and every
++>   forward with the forwarder's own words are one independent root. Limits: the merge with the original needs the link to use the
++>   original's identity space (same app label, account and object type; an email forward by Message-ID merges with other forwards
++>   of that email, not with a Gmail record whose id is a Gmail message id); a forward with the marker and a verbatim copy
++>   without it of an original held nowhere still count as two roots; a retelling in own words with no link stays independent
++>   (undetectable by design, probe f4); records ingested before holder migration 0004 have no `origin_key` and keep their content
++>   roots until they are re-ingested.
++
+ ---
+ 
+ ## 0. Key decisions
+@@ -889,7 +926,9 @@ Then, in this order:
+ 
+ 1. **Explicit linkage.** If `derived_from` names an original (Slack shared-message attachment `(channel, ts)`, email
+    forward with an original Message-ID, GitHub `moved_from`) and that original is a known local record, the root is the
+-   original's root (`root_method='explicit'`).
++   original's root (`root_method='explicit'`). If the original is not held locally, the root is a one-way hash of the
++   original's identity (`origin_root`) and the record's `origin_key` (the original's `object_key`) joins it with the original
++   and with every other forward at the coordinator, whatever the forwarder added (2026-10-09; status block above).
+ 2. **Embedded original.** Each forwarded segment becomes a child `message` record (`parent_record_id` = this record,
+    relation `forward_of`) with root `fingerprint(segment)`. If `own_text` has fewer than `MIN_OWN_CHARS = 24` non-space
+    characters, the record is a *pure copy* and takes the forwarded segment's root.
+@@ -2271,7 +2310,7 @@ Sam's holder
+ |---|---|---|---|---|---|
+ | 1 | fetch | connector + `ConnectorHttp` | provider → `RawItem`s | cursor | rate limit / auth / transient (§3.1) |
+ | 2 | admit (source authorization) | `pipeline.admission` | RawItem → kept or dropped | pure | excluded items are counted, never stored |
+-| 3 | normalize | `connector.normalize` + `normalize.py` | RawItem → `CanonicalEvent`s | pure | `PermanentError` → item counted in `normalize_errors` (no payload kept) |
++| 3 | normalize | `connector.normalize` + `normalize.py` | RawItem → `CanonicalEvent`s | pure | `PermanentError` → item counted in `normalize_errors` and recorded content-free in `ingest_rejections` (no payload kept) |
+ | 4 | enqueue + checkpoint | `IngestQueue.commit_page` | events + cursor → queue rows | `event_key` UNIQUE + cursor fencing | transient → refetch page |
+ | 5 | dedupe | `pipeline.dedupe` | queue item → outcome (§4.3) | read-only vs `record_locator` | n/a |
+ | 6 | classify | `DomainClassifier` | event → memberships | deterministic (LLM output stored on the item checkpoint) | LLM error → rules/embeddings only, flagged |
+diff --git a/mycelic/evidence/migrations/0004_dispositions.sql b/mycelic/evidence/migrations/0004_dispositions.sql
+new file mode 100644
+index 0000000..388d793
+--- /dev/null
++++ b/mycelic/evidence/migrations/0004_dispositions.sql
+@@ -0,0 +1,35 @@
++-- Holder schema v4: explicit dispositions for rejected input, and the origin identity of explicit forwards.
++-- (docs/mycelic/INGESTION.md, status block "ingestion dispositions", 2026-10-09)
++--
++-- [C] ingest_rejections: one row per input the pipeline refused WITHOUT a record or a queue item to show for it (an
++-- unparseable or invalid item, an event that fails the contract or claims another identity, an item the admission stage
++-- drops that no owner rule asked for). Before this table the only trace was a counter, so "which line, and why" was stored
++-- nowhere and a second sync (the cursor had moved past the item) reported nothing. Content-free by construction:
++-- ``locator`` is a position or provider object id ("line:12", "record:3", "object:1790674800.000100"), ``raw_sha256`` the
++-- hash of the raw line or of the item's canonical JSON, ``reason`` a code, ``detail`` a content-free message of a
++-- connector's own error. The raw text is never stored. The same item seen again (a rewritten export is read from the start)
++-- raises ``count`` and moves ``last_seen_at``; a changed item has another hash and is another row.
++-- Intentional outcomes are NOT rows here: duplicates, historical versions and late_after_delete are dispositions in
++-- ``applied_events``; owner exclusion rules and sticky deletions are counted in the sync report.
++CREATE TABLE ingest_rejections (
++    rejection_id   TEXT PRIMARY KEY,                   -- rej_<hash of connector, source, locator, raw hash, stage, reason>
++    connector_id   TEXT NOT NULL,
++    source_id      TEXT,
++    locator        TEXT NOT NULL,                      -- line:N | record:N | object:<provider id> | object_sha:<hash> | item:N
++    raw_sha256     TEXT NOT NULL,
++    stage          TEXT NOT NULL,                      -- normalize | validate | admit
++    reason         TEXT NOT NULL,                      -- normalize_failed | invalid:<problems> | foreign_source | quota | <exception class>
++    detail         TEXT NOT NULL DEFAULT '',           -- content-free message of a ConnectorError (never of a foreign exception)
++    first_seen_at  TEXT NOT NULL,
++    last_seen_at   TEXT NOT NULL,
++    count          INTEGER NOT NULL DEFAULT 1
++);
++CREATE INDEX idx_rejections_connector ON ingest_rejections(connector_id, last_seen_at);
++
++-- [D] The provider object an explicit forward / share link names, as the same one-way hash ``object_key`` uses for the
++-- original (INGESTION.md I4, §4.5 rule 1). NULL for records that name no origin. A record with an origin exports this key
++-- as ``meta.object_key`` (what knowledge/support.py merges roots on), so the original, wherever it was ingested, and every
++-- forward of it, with or without the forwarder's own words, count as one source. ``object_key`` keeps the record's own
++-- identity.
++ALTER TABLE ingest_records ADD COLUMN origin_key TEXT;
++CREATE INDEX idx_records_origin ON ingest_records(origin_key) WHERE origin_key IS NOT NULL;
+diff --git a/mycelic/evidence/service.py b/mycelic/evidence/service.py
+index cf87d69..15b861f 100644
+--- a/mycelic/evidence/service.py
++++ b/mycelic/evidence/service.py
+@@ -809,6 +809,7 @@ class EvidenceStore:
+             "last_ingest_at": last_ingest,
+             "holder_version": HOLDER_VERSION,
+             "ingest": self._ingest_stats_sharded() if multi else self._ingest_stats_sync(self.store._conn),
++            "ingest_rejections": self._rejection_count(),     # a count only (the ledger itself never leaves the holder)
+         }
+         if self._is_control() and self.path != ":memory:":
+             try:
+@@ -832,7 +833,7 @@ class EvidenceStore:
+         """The connector record behind a document (``None`` for direct uploads): permissions, source opt-in and state.
+         ``c`` is the connection of the shard that holds the record; sources and connectors are always read from s0."""
+         if c is self.store._conn and self._is_control():
+-            r = c.execute("""SELECT r.record_id, r.object_key, r.kind, r.source_app, r.permissions, r.visibility, r.deletion_status, r.sensitivity, r.flags,
++            r = c.execute("""SELECT r.record_id, r.object_key, r.origin_key, r.kind, r.source_app, r.permissions, r.visibility, r.deletion_status, r.sensitivity, r.flags,
+                                     r.source_id, s.exportable, s.disclosure, s.access_state, s.allow_external_models, s.visibility AS source_visibility,
+                                     s.member_ids AS source_member_ids, s.membership_ref AS source_membership_ref, cn.connector_type
+                              FROM ingest_records r LEFT JOIN connector_sources s ON s.source_id = r.source_id
+@@ -851,7 +852,14 @@ class EvidenceStore:
+                 "visibility": perms.visibility, "deletion_status": r["deletion_status"], "sensitivity": r["sensitivity"],
+                 "flags": set(jl(r["flags"], [])), "exportable": exportable, "disclosure": r["disclosure"],
+                 "access_state": r["access_state"] or "ok", "connector_type": r["connector_type"] or r["source_app"],
+-                "allow_external_models": r["allow_external_models"], "object_key": r["object_key"]}
++                "allow_external_models": r["allow_external_models"], "object_key": r["object_key"], "origin_key": r["origin_key"]}
++
++    def _rejection_count(self) -> int:
++        """Distinct inputs on the holder's ``ingest_rejections`` ledger (refused items; content-free rows in the control shard)."""
++        try:
++            return int(self._control_conn().execute("SELECT COUNT(*) FROM ingest_rejections").fetchone()[0])
++        except sqlite3.Error:
++            return 0
+ 
+     def _control_conn(self) -> sqlite3.Connection:
+         return (self.store.control_store or self.store)._conn
+@@ -859,7 +867,7 @@ class EvidenceStore:
+     def _record_acl_row_split(self, c: sqlite3.Connection, doc_id: str) -> dict[str, Any] | None:
+         """The same row as the s0 join above, for a record that lives in a data shard: the record from its shard, its source
+         and connector from s0 (control tables)."""
+-        r = c.execute("""SELECT record_id, object_key, kind, source_app, permissions, visibility, deletion_status, sensitivity, flags, source_id,
++        r = c.execute("""SELECT record_id, object_key, origin_key, kind, source_app, permissions, visibility, deletion_status, sensitivity, flags, source_id,
+                                 connector_id FROM ingest_records WHERE record_id=?""", (doc_id,)).fetchone()
+         if r is None:
+             return None
+@@ -1151,7 +1159,13 @@ class EvidenceStore:
+         if acl is not None:
+             # the provider object's identity (a one-way hash): two holders' copies of one message, even at different versions,
+             # are one source for independence counting (product decision 2: one canonical identity and root)
+-            ref["meta"] = {"object_key": acl["object_key"]}
++            # a record that names the original it forwards / shares exports the ORIGIN's key (INGESTION.md I4): the original and every
++            # forward of it, with or without the forwarder's own words, merge into one source there
++            ref["meta"] = {"object_key": acl.get("origin_key") or acl["object_key"]}
++            if "time_inferred" in acl["flags"]:
++                # no created_at / updated_at at the source: observed_at is the source's last-known content time ("source") or, with
++                # none known, the time of ingest ("ingest"); the coordinator must not read it as when the content was true
++                ref["meta"].update({"time_inferred": True, "time_basis": "ingest" if "time_ingest_fallback" in acl["flags"] else "source"})
+             if self.export_policy.get("disclose_source_app", True):
+                 ref["meta"].update({"source_app": acl["source_app"], "record_kind": acl["kind"], "connector_type": acl["connector_type"],
+                                     "domain_ids": self._record_domains_sync(i.get("conn") or self.store._conn, doc["doc_id"])})
+diff --git a/mycelic/ingest/connectors/local_export.py b/mycelic/ingest/connectors/local_export.py
+index 77c1457..0f83df0 100644
+--- a/mycelic/ingest/connectors/local_export.py
++++ b/mycelic/ingest/connectors/local_export.py
+@@ -20,7 +20,9 @@ File format. JSON: ``{"source": {...}, "records": [...]}`` or a bare list of rec
+ line may be the source header ``{"type": "source", ...}``. Source header::
+ 
+     {"id": "eng-chat", "name": "#eng", "type": "channel", "visibility": "public|members|private",
+-     "member_ids": ["u1", "u2"], "membership_ref": "eng-chat-members"}
++     "member_ids": ["u1", "u2"], "membership_ref": "eng-chat-members",
++     "content_time": "2026-03-01T00:00:00Z"}      # optional: when the source's content was last true ('as of'; also read from
++                                                  # updated_at / modified_at / exported_at). Undated records take it as their evidence time.
+ 
+ Records (later lines win per object; an edit is the same id with a later ``updated_at``)::
+ 
+@@ -32,7 +34,11 @@ Records (later lines win per object; an edit is the same id with a later ``updat
+      "attachments": [{"id": "a1", "filename": "x.pdf", "content_type": "application/pdf", "size": 10, "sha256": "..."}],
+      "labels": ["deploy"], "state": "open", "container_name": "#eng", "domains": ["infrastructure"],
+      "permissions": {"visibility": "members", "member_ids": ["u1"]}, "sensitivity": "internal", "is_bot": false,
+-     "forwarded_from": {"app": "...", "account": "...", "object_type": "message", "object_id": "..."}}
++     "forwarded_from": {"app": "...", "account": "...", "object_type": "message", "object_id": "...", "message_id": "<rfc822>"}}
++
++A record without ``created_at`` / ``updated_at`` (or with an unparsable one) is ingested and flagged ``time_inferred``: its evidence
++time is the header's content time, else the newest dated record of the same file, else the ingest time (``time_ingest_fallback``).
++A record with a ``forwarded_from`` that names an object has that object as its origin (INGESTION.md I4), whatever the forwarder added.
+ 
+ Content is data: no field of a record changes what this connector does.
+ """
+@@ -81,6 +87,8 @@ class LocalExportConnector(Connector):
+ 
+     def __init__(self) -> None:
+         self._cache: dict[str, tuple[int, int, dict[str, Any], list[Any], list[str], list[str | None]]] = {}
++        # per file, filled with the cache entry: the file line of each record (JSONL; None for JSON) and the source's content time
++        self._meta: dict[str, tuple[list[int] | None, str | None]] = {}
+ 
+     # ------------------------------------------------------------------ configuration and files
+     @staticmethod
+@@ -92,7 +100,8 @@ class LocalExportConnector(Connector):
+ 
+     def _load_sync(self, path: Path, max_bytes: int) -> tuple[dict[str, Any], list[Any], list[str], list[str | None]]:
+         """``(header, records, prefix_digests, record_times)``, cached per (mtime, size). Unparsable lines become
+-        ``{"__invalid__": line_no}`` so they are counted as normalize errors instead of stopping the import."""
++        ``{"__invalid__": line_no, "__sha256__": <hash of the line>}`` so they are rejected (and recorded, content-free, by the
++        pipeline) instead of stopping the import."""
+         st = path.stat()
+         if st.st_size > max_bytes:
+             raise PermanentError("export file exceeds the size limit", code="export_too_large", detail={"bytes": st.st_size})
+@@ -103,19 +112,23 @@ class LocalExportConnector(Connector):
+         text = path.read_text(encoding="utf-8")
+         header: dict[str, Any] = {}
+         records: list[Any] = []
++        lines: list[int] | None = None
+         if path.suffix.lower() in (".jsonl", ".ndjson"):
++            lines = []
+             for n, line in enumerate(text.splitlines(), start=1):
+                 if not line.strip():
+                     continue
+                 try:
+                     obj = json.loads(line)
+                 except ValueError:
+-                    records.append({"__invalid__": n})
++                    records.append({"__invalid__": n, "__sha256__": hashlib.sha256(line.encode("utf-8")).hexdigest()})
++                    lines.append(n)
+                     continue
+                 if not records and not header and isinstance(obj, dict) and obj.get("type") == "source":
+                     header = obj
+                     continue
+-                records.append(obj if isinstance(obj, dict) else {"__invalid__": n})
++                records.append(obj if isinstance(obj, dict) else {"__invalid__": n, "__sha256__": hashlib.sha256(line.encode("utf-8")).hexdigest()})
++                lines.append(n)
+         else:
+             try:
+                 data = json.loads(text)
+@@ -130,8 +143,22 @@ class LocalExportConnector(Connector):
+             prefix.append(hashlib.sha256((prefix[-1] + canonical_json(r)).encode("utf-8")).hexdigest())
+         times = [self._record_time(r) for r in records]
+         self._cache[key] = (st.st_mtime_ns, st.st_size, header, records, prefix, times)
++        self._meta[key] = (lines, self._content_time(header, times))
+         return header, records, prefix, times
+ 
++    @staticmethod
++    def _content_time(header: Mapping[str, Any], times: list[str | None]) -> str | None:
++        """When the source's content was last known to be true: the header's own 'as of' time, else the newest dated record of
++        the file. Undated records get it as their evidence time (never the time of import)."""
++        for k in ("content_time", "updated_at", "modified_at", "exported_at"):
++            t = normalize_ts(header.get(k))
++            if t:
++                return t
++        return max((t for t in times if t), default=None)
++
++    def _extras(self, path: Path) -> tuple[list[int] | None, str | None]:
++        return self._meta.get(str(path), (None, None))
++
+     async def _load(self, ctx: ConnectorContext, path: Path) -> tuple[dict[str, Any], list[Any], list[str], list[str | None]]:
+         try:
+             return await asyncio.to_thread(self._load_sync, path, int(ctx.limits.max_export_bytes))
+@@ -208,13 +235,19 @@ class LocalExportConnector(Connector):
+         return HealthReport(status="ok" if ok else "error", checks={"files_readable": ok}, code=None if ok else "file_unreadable")
+ 
+     # ------------------------------------------------------------------ data
+-    def _items(self, ctx: ConnectorContext, source: SourceDescriptor, records: list[Any], idx: list[int]) -> list[RawItem]:
++    def _items(self, ctx: ConnectorContext, source: SourceDescriptor, records: list[Any], idx: list[int], path: Path | None = None) -> list[RawItem]:
+         fetched = ctx.clock().astimezone(timezone.utc).isoformat(timespec="microseconds")
++        lines, content_time = self._extras(path) if path is not None else (None, None)
+         out = []
+         for i in idx:
+             r = records[i]
++            extra: dict[str, Any] = {"position": i}
++            if lines is not None and i < len(lines):
++                extra["line"] = lines[i]                   # where the record sits in the file (for the rejection ledger)
++            if content_time:
++                extra["content_time"] = content_time
+             out.append(RawItem(object_type=str(r.get("type") or "message") if isinstance(r, dict) else "invalid", payload=r, source=source,
+-                               fetched_at=fetched, extra={"position": i}))
++                               fetched_at=fetched, extra=extra))
+         return out
+ 
+     async def incremental_sync(self, ctx: ConnectorContext, source: SourceDescriptor, cursor: Cursor | None) -> AsyncIterator[Page]:
+@@ -236,7 +269,7 @@ class LocalExportConnector(Connector):
+                 return
+             end = min(len(records), pos + size)
+             hw = max([t for t in times[pos:end] if t] + ([hw] if hw else []), default=hw)
+-            yield Page(stream=stream, items=self._items(ctx, source, records, list(range(pos, end))),
++            yield Page(stream=stream, items=self._items(ctx, source, records, list(range(pos, end)), path),
+                        next_cursor=Cursor(CURSOR_VERSION, {"path": str(path), "position": end, "prefix": prefix[end]}, hw), has_more=end < len(records))
+             pos = end
+ 
+@@ -273,7 +306,7 @@ class LocalExportConnector(Connector):
+             part = idx[offset:offset + size]
+             end = offset + len(part)
+             hw = max([times[i] for i in part if times[i]] + ([hw] if hw else []), default=hw)
+-            yield Page(stream=window.stream, items=self._items(ctx, source, records, part),
++            yield Page(stream=window.stream, items=self._items(ctx, source, records, part, path),
+                        next_cursor=Cursor(CURSOR_VERSION, {"path": str(path), "digest": digest, "offset": end}, hw), has_more=end < len(idx))
+             offset = end
+ 
+@@ -329,7 +362,7 @@ class LocalExportConnector(Connector):
+                 idx.extend(hits)
+             else:
+                 synthetic.append({"type": "delete", "id": oid, "object_type": otype, "deleted_at": notice.occurred_at, "confirmed": "absent"})
+-        items = self._items(ctx, source, records, sorted(set(idx)))
++        items = self._items(ctx, source, records, sorted(set(idx)), path)
+         fetched = ctx.clock().astimezone(timezone.utc).isoformat(timespec="microseconds")
+         items += [RawItem(object_type="delete", payload=p, source=source, fetched_at=fetched) for p in synthetic]
+         yield Page(stream="webhook", items=items, next_cursor=None, has_more=False)
+@@ -337,12 +370,13 @@ class LocalExportConnector(Connector):
+     # ------------------------------------------------------------------ normalize (pure)
+     def normalize(self, raw: RawItem, ctx: ConnectorContext) -> list[CanonicalEvent]:
+         rec = raw.payload
++        where = {"position": raw.extra.get("position"), "line": raw.extra.get("line")}
+         if not isinstance(rec, dict) or "__invalid__" in rec:
+-            raise PermanentError("invalid export record", code="normalize_failed", detail={"position": raw.extra.get("position")})
++            raise PermanentError("invalid export record", code="normalize_failed", detail=where)
+         rtype = str(rec.get("type") or "message").lower()
+         oid = rec.get("id")
+         if oid in (None, ""):
+-            raise PermanentError("export record without id", code="normalize_failed", detail={"position": raw.extra.get("position")})
++            raise PermanentError("export record without id", code="normalize_failed", detail=where)
+         pm = ctx.config.get("principal_map") or {}
+         src = raw.source
+         perms = Permissions(src.visibility if src.visibility in VISIBILITIES else "private", tuple(src.member_ids), src.membership_ref)
+@@ -364,7 +398,7 @@ class LocalExportConnector(Connector):
+                                           hints={"reason": "redaction"}, **common)]
+         kind = _KIND.get(rtype)
+         if kind is None:
+-            raise PermanentError("unknown export record type", code="normalize_failed", detail={"position": raw.extra.get("position")})
++            raise PermanentError("unknown export record type", code="normalize_failed", detail=where)
+         if rtype == "edit" and common["source_object_type"] in ("document", "event"):
+             kind = common["source_object_type"]
+         atts = tuple(AttachmentRef(attachment_id=str(a.get("id") or a.get("sha256") or a.get("filename") or i), filename=str(a.get("filename") or ""),
+@@ -376,10 +410,12 @@ class LocalExportConnector(Connector):
+         if isinstance(fwd, dict):
+             derived.append(DerivedFrom(relation=str(fwd.get("relation") or "forward"), source_app=fwd.get("app"), source_account_id=fwd.get("account"),
+                                        source_object_type=fwd.get("object_type"), source_object_id=str(fwd["object_id"]) if fwd.get("object_id") else None,
+-                                       url=fwd.get("url")))
++                                       url=fwd.get("url"), rfc822_message_id=str(fwd["message_id"]) if fwd.get("message_id") else None))
+         hints = {"labels": [str(x) for x in rec.get("labels") or []], "state": rec.get("state"),
+                  "container_name": rec.get("container_name") or src.name, "is_bot": bool(rec.get("is_bot")),
+                  "domain_hints": [str(x) for x in rec.get("domains") or []]}
++        if raw.extra.get("content_time"):
++            hints["content_time"] = raw.extra["content_time"]       # the source's last-known content time (used only if the record is undated)
+         # the provider version token; exports without one use the object's last-modified time, so a metadata-only change
+         # (labels, ACL) is a new event while re-reading an unchanged line is the same event
+         version = str(rec.get("version") or normalize_ts(rec.get("updated_at")) or "")
+diff --git a/mycelic/ingest/events.py b/mycelic/ingest/events.py
+index 32286ff..43f6b57 100644
+--- a/mycelic/ingest/events.py
++++ b/mycelic/ingest/events.py
+@@ -9,6 +9,9 @@ them. The module also owns the identity and dedupe keys, the hashes, the order k
+ * ``object_key`` — the same object's identity *across* holders (no holder in it): an object reached through an org
+   connector (unit holder) and a personal connector (user holder) keeps one canonical identity and one root, while each
+   holder keeps its own row.
++* ``origin_key`` — the ``object_key`` of the provider object an explicit forward / share link names (INGESTION.md I4). The
++  original, wherever it was ingested, has exactly this ``object_key``, so a record with an origin exports it as its
++  ``meta.object_key`` and the original and all its forwards (with or without the forwarder's own words) count as one source.
+ * ``event_key`` — dedupe of deliveries: same record, kind, version, content and deletion status collapse.
+ * ``order_key = "<UTC µs timestamp>|<tiebreak>"`` — per-object total order (the provider is the only writer).
+ * ``content_hash`` over the canonical body; the root fingerprint is deliberately lossier (``mycelic.util.fingerprint``).
+@@ -119,6 +122,38 @@ def object_key(tenant_id: str, source_app: str, source_account_id: str, source_o
+     return "ok1_" + H("ok1", tenant_id, source_app, source_account_id, source_object_type, source_object_id)[:40]
+ 
+ 
++EXPLICIT_LINK_RELATIONS = ("forward", "share", "crosspost", "copy", "moved_from", "bot_relay")
++FLAG_TIME_INFERRED = "time_inferred"          # no created_at / updated_at: observed_at is not the content's own time
++FLAG_TIME_INGEST = "time_ingest_fallback"     # ... and no source-side content time either: observed_at is the ingest time
++
++
++def _origin_identity(d: "DerivedFrom", *, source_app: str, source_account_id: str, source_object_type: str) -> tuple[str, str, str, str] | None:
++    """``(app, account, object_type, object_id)`` of the original a link names, or ``None`` when it names no object. A link that
++    omits app, account or type is read as 'same as this record' (a forward inside one app names a message of that app)."""
++    oid = (d.source_object_id or "").strip()
++    if oid:
++        return (d.source_app or source_app, d.source_account_id or source_account_id, d.source_object_type or source_object_type, oid)
++    mid = (d.rfc822_message_id or "").strip().strip("<>").strip().lower()
++    if mid:
++        return ("email", "rfc5322", "email", mid)          # Message-IDs are global by design (INGESTION.md §4.3)
++    return None
++
++
++def origin_key_of(derived: Iterable["DerivedFrom"], *, tenant_id: str, source_app: str, source_account_id: str, source_object_type: str) -> str | None:
++    """The ``object_key`` of the original named by the first explicit forward / share link that identifies one, else ``None``."""
++    for d in derived:
++        if d.relation in EXPLICIT_LINK_RELATIONS:
++            ident = _origin_identity(d, source_app=source_app, source_account_id=source_account_id, source_object_type=source_object_type)
++            if ident:
++                return object_key(tenant_id, *ident)
++    return None
++
++
++def origin_root(okey: str) -> str:
++    """The source root of an original that is not held locally: a one-way hash of its identity (same shape as a content root)."""
++    return "root_" + H("root-origin", okey)[:32]
++
++
+ def version_key(rkey: str, source_version: str, chash: str) -> str:
+     return rkey + "@" + H(source_version or chash)[:16]
+ 
+@@ -270,6 +305,20 @@ class CanonicalEvent:
+     def object_key(self) -> str:
+         return object_key(self.tenant_id, self.source_app, self.source_account_id, self.source_object_type, self.source_object_id)
+ 
++    @property
++    def origin_key(self) -> str | None:
++        """``object_key`` of the original an explicit forward / share link names (``None`` when there is none)."""
++        if self.kind not in CONTENT_KINDS:
++            return None
++        return origin_key_of(self.derived_from, tenant_id=self.tenant_id, source_app=self.source_app, source_account_id=self.source_account_id,
++                             source_object_type=self.source_object_type)
++
++    @property
++    def evidence_time(self) -> str:
++        """When the content was last true, for ``documents.observed_at``: its own change time; for an undated record the
++        source's last-known content time (``hints['content_time']``), else the observation time (flagged ``time_ingest_fallback``)."""
++        return self.updated_at or self.created_at or normalize_ts(self.hints.get("content_time")) or self.observed_at
++
+     @property
+     def event_key(self) -> str:
+         return event_key(self.record_key, self.kind, self.source_version, self.content_hash, self.deletion_status, self.order_key)
+@@ -318,12 +367,35 @@ class CanonicalEvent:
+             status = deletion_status or ("deleted_at_source" if kind == "deletion" else "redacted")
+         else:
+             root = compute_root(title, body, content_type, derived_from=derived, hints=hints, resolve_explicit=resolve_explicit)
++            if kind in CONTENT_KINDS and root.method != "explicit":
++                # an explicit forward / share link makes the origin's identity the root, even when the original is not held
++                # locally and whatever the forwarder added (INGESTION.md I4); the pipeline replaces it by the original's own
++                # root when that record is local
++                okey = origin_key_of(derived, tenant_id=tenant_id, source_app=source_app, source_account_id=source_account_id,
++                                     source_object_type=source_object_type)
++                if okey:
++                    root = RootResult(origin_root(okey), True, "explicit", root.own_text, root.forwarded, root.quoted)
+             text = root.own_text
+             status = deletion_status or "live"
+             if root.quoted:
+                 hints.setdefault("quoted_segments", len(root.quoted))
+             if root.forwarded:
+                 hints.setdefault("forwarded_segments", len(root.forwarded))
++        if kind in CONTENT_KINDS and created is None and updated is None:
++            # undated content: the connector's observation time says nothing about when it was true. It is kept (never
++            # dropped), flagged, and given the source's last-known content time as its evidence time when the connector has one
++            flags = set(hints.get("flags") or ()) | {FLAG_TIME_INFERRED}
++            source_time = normalize_ts(hints.get("content_time"))
++            if source_time and source_time > observed:
++                source_time = None        # a source cannot have content from after the moment it was read: not a usable 'as of'
++            if source_time:
++                hints["content_time"] = source_time
++            else:
++                hints.pop("content_time", None)
++                flags.add(FLAG_TIME_INGEST)
++            hints["flags"] = sorted(flags)
++        else:
++            hints.pop("content_time", None)
+         title_c = canonical_body(title).replace("\n", " ").strip()
+         chash = content_hash(title_c, text, "text/plain" if content_type.startswith("text/html") else content_type, atts)
+         okey = make_order_key(updated_at=updated, created_at=created, observed_at=observed, tiebreak=tiebreak or chash[4:20])
+diff --git a/mycelic/ingest/pipeline.py b/mycelic/ingest/pipeline.py
+index 76025fa..c3e92df 100644
+--- a/mycelic/ingest/pipeline.py
++++ b/mycelic/ingest/pipeline.py
+@@ -20,7 +20,8 @@ content). Isolation properties:
+ 
+ * **A connector failure never corrupts the holder's graph.** Connector code only produces raw items and events; nothing is
+   written until a page commits atomically with its cursor, an exception inside a page leaves the previous checkpoint in
+-  force, and a malformed item is counted and skipped (its content is not kept). Each record's effect — document, chunks,
++  force, and a malformed item is skipped: its content is not kept, but where it was, why it was refused and a hash of it are
++  (``ingest_rejections``, written in the transaction that moves the cursor past it). Each record's effect — document, chunks,
+   memories, catalog rows, memberships, locator, idempotency marker, queue ack and outbox envelope — is ONE transaction.
+ * **Replays are no-ops.** ``event_key`` is unique in the queue and recorded in ``applied_events`` with the effect.
+ * **Deletions stick.** A tombstone stops later events (late webhooks, re-imports) from resurrecting a record.
+@@ -30,6 +31,7 @@ from __future__ import annotations
+ 
+ import asyncio
+ import contextlib
++import hashlib
+ import re
+ import time
+ from collections import Counter
+@@ -38,14 +40,14 @@ from datetime import datetime, timezone
+ from typing import Any, AsyncIterator, Callable, Iterable, Mapping, Protocol
+ 
+ from ..evidence.service import HashEmbedder, chunk_text
+-from ..util import j, jl, new_id, now_iso, parse_iso, sha256
++from ..util import canonical_json, j, jl, new_id, now_iso, parse_iso, sha256
+ from .acl import narrow
+ from .contract import (AuthExpired, AuthRevoked, ConnectorContext, ConnectorError, ConnectorLimits, Credentials, CursorInvalid,
+                        InsufficientScope, NoHttp, PermanentError, RateLimited, SourceUnavailable, connector_logger, get_logger)
+ from .crypto import TokenVault, VaultUnavailable
+ from .domains import (DomainClassifier, Membership, RecordFeatures, Taxonomy, active_memberships_sync, apply_memberships_sync,
+                       default_taxonomy, embed_model_name, install_taxonomy_sync, load_taxonomy_sync, publishable)
+-from .events import CONTENT_KINDS, CanonicalEvent
++from .events import CONTENT_KINDS, FLAG_TIME_INFERRED, CanonicalEvent
+ from .http import default_http_factory
+ from .linking import drop_record_sync, link_record, write_links_sync
+ from .normalize import FLAG_SECRET, detect, mask_secrets
+@@ -62,6 +64,43 @@ SENSITIVITY_RANK = {"public": 0, "internal": 1, "confidential": 2, "restricted":
+ _STOP_STREAM_CODES = ("auth_expired", "auth_revoked", "insufficient_scope", "quota_exceeded")
+ 
+ 
++# admission refusals that are NOT an owner's choice and are recorded per item; the others (owner exclusion rules, sticky deletions, no-op
++# inferred deletions) are intentional outcomes, counted in ``SyncReport.excluded`` and the stage metrics
++REJECTED_ADMIT_REASONS = ("foreign_source", "quota")
++_SAFE_LOCATOR = re.compile(r"^[A-Za-z0-9._:@/#=+\-]{1,120}$")
++
++
++def _locator(raw: Any, index: int, ev: CanonicalEvent | None = None) -> str:
++    """Where a refused item sat, without its content: the file line or record position a connector reports, else the provider
++    object id (when it is a plain identifier; any other value is hashed), else its position in the page."""
++    extra = getattr(raw, "extra", None) or {}
++    for key, fmt in (("line", "line:{}"), ("position", "record:{}")):
++        v = extra.get(key)
++        if isinstance(v, int) and not isinstance(v, bool):
++            return fmt.format(v + 1 if key == "position" else v)
++    oid: Any = ev.source_object_id if ev is not None else None
++    payload = getattr(raw, "payload", None)
++    if oid is None and isinstance(payload, dict):
++        oid = next((payload[k] for k in ("id", "ts", "message_id", "node_id", "number", "uuid") if isinstance(payload.get(k), (str, int))
++                    and not isinstance(payload.get(k), bool)), None)
++    if oid is not None:
++        text = str(oid)
++        return f"object:{text}" if _SAFE_LOCATOR.match(text) else f"object_sha:{sha256(text)[:16]}"
++    return f"item:{index + 1}"
++
++
++def _raw_sha256(raw: Any) -> str:
++    """SHA-256 of the refused item: of the raw line when the connector kept its hash (an unparseable line), else of the item's
++    canonical JSON. Lets an owner who still has the source confirm which item it was; the text itself is never stored."""
++    payload = getattr(raw, "payload", None)
++    if isinstance(payload, dict) and isinstance(payload.get("__sha256__"), str):
++        return payload["__sha256__"]
++    try:
++        return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
++    except Exception:
++        return hashlib.sha256(type(payload).__name__.encode("utf-8")).hexdigest()
++
++
+ class Publisher(Protocol):
+     """Where envelopes go: ``HolderService.publish_ingest_output`` (signed, on the tenant subjects) in a holder process."""
+     async def publish_ingest_output(self, kind: str, payload: dict[str, Any], *, msg_id: str) -> bool: ...
+@@ -111,6 +150,9 @@ class SyncReport:
+     duplicates: int = 0
+     excluded: int = 0
+     normalize_errors: int = 0
++    rejected: int = 0              # items refused in this run and written to the ingest_rejections ledger (a superset of normalize_errors)
++    rejected_by_reason: dict[str, int] = field(default_factory=dict)      # "<stage>:<reason>" -> items
++    time_inferred: int = 0         # admitted records with no usable created_at / updated_at (flagged time_inferred)
+     error_code: str | None = None
+     yielded: bool = False          # stopped early by backpressure; resumes from the committed cursor
+     fenced: bool = False           # a stale runner's page was rejected by checkpoint fencing
+@@ -315,6 +357,7 @@ class IngestPipeline:
+         ok = report.error_code is None
+ 
+         def done(c):
++            IngestStore.set_connector_health_sync(c, connector_id, self._health(connector_id, report, c))
+             if ok:
+                 IngestStore.set_connector_status_sync(c, connector_id, "active", "", success=True)
+             elif report.error_code in ("auth_expired", "auth_revoked", "insufficient_scope", "quota_exceeded"):
+@@ -351,12 +394,18 @@ class IngestPipeline:
+                     break
+                 self.meter.record(cid, "fetch", "ok", (time.perf_counter() - t0) * 1000, count=max(1, page.raw_count))
+                 report.raw_items += page.raw_count
+-                events = self._prepare_page(page, connector, ctx, con, src, report)
++                rejections: list[dict[str, Any]] = []
++                events = self._prepare_page(page, connector, ctx, con, src, report, rejections)
+                 new_cursor = connector.checkpoint(page, cursor)
+                 with self.meter.time(cid, "enqueue") as box:
+                     res = await self.queue.commit_page(cid, stream, events, new_cursor, priority_class=cls, expected_version=version, phase=phase,
+-                                                       items_seen=page.raw_count, window=window, has_more=page.has_more)
++                                                       items_seen=page.raw_count, window=window, has_more=page.has_more,
++                                                       extra_sync=(lambda c, rows=rejections: IngestStore.add_rejections_sync(c, cid, rows)) if rejections else None)
+                     box["count"] = max(1, res.enqueued)
++                for rej in rejections:          # counted once the page committed (a fenced page is read again, not counted twice)
++                    report.rejected += 1
++                    key = f"{rej['stage']}:{rej['reason']}"
++                    report.rejected_by_reason[key] = report.rejected_by_reason.get(key, 0) + 1
+                 if res.duplicates:
+                     self.meter.record(cid, "enqueue", "duplicate", count=res.duplicates)
+                 report.enqueued += res.enqueued
+@@ -401,25 +450,43 @@ class IngestPipeline:
+ 
+     # ---- admit / normalize / admit / redact (pure, before the page transaction)
+     def _prepare_page(self, page: Any, connector: Any, ctx: ConnectorContext, con: Mapping[str, Any], src: SourceRow,
+-                      report: SyncReport) -> list[CanonicalEvent]:
++                      report: SyncReport, rejections: list[dict[str, Any]] | None = None) -> list[CanonicalEvent]:
++        """Raw items to admitted events. Everything refused without being an owner's choice (unparseable or invalid items, events
++        claiming another identity, a connector answering for another source, the record quota) is appended to ``rejections``
++        as a content-free row (locator, raw hash, stage, reason); the caller writes them with the page's cursor."""
+         cid = con["connector_id"]
+         exclusions = self.db.exclusions(cid)
++        rej = rejections if rejections is not None else []
++
++        def reject(raw: Any, index: int, stage: str, reason: str, *, detail: str = "", ev: CanonicalEvent | None = None) -> None:
++            rej.append({"source_id": src.source_id, "locator": _locator(raw, index, ev), "raw_sha256": _raw_sha256(raw), "stage": stage,
++                        "reason": reason, "detail": detail})
+         out: list[CanonicalEvent] = []
+-        for raw in page.items:
++        for index, raw in enumerate(page.items):
+             with self.meter.time(cid, "admit") as box:
+                 if getattr(raw, "source", None) is None or raw.source.external_id != src.external_id:
+                     box["outcome"] = "excluded:foreign_source"
+                     report.excluded += 1
++                    reject(raw, index, "admit", "foreign_source")
+                     continue
+             with self.meter.time(cid, "normalize") as box:
+                 try:
+                     events = list(connector.normalize(raw, ctx))
+-                except Exception as exc:   # the item is skipped; its content is not kept anywhere
++                except Exception as exc:   # the item is skipped; its content is not kept anywhere, but its place and reason are
+                     box["outcome"] = "error"
+                     report.normalize_errors += 1
+-                    logger.info("normalize failed for an item of connector %s: %s", cid, getattr(exc, "code", type(exc).__name__))
++                    code = getattr(exc, "code", None) or type(exc).__name__
++                    # a ConnectorError's message is content-free by contract; any other exception's text may quote the input
++                    reject(raw, index, "normalize", str(code), detail=str(exc) if isinstance(exc, ConnectorError) else "")
++                    logger.info("normalize failed for an item of connector %s: %s", cid, code)
+                     continue
+-                valid = [e for e in events if not self._event_problems(e, con)]
++                valid = []
++                for e in events:
++                    problems = self._event_problems(e, con)
++                    if problems:
++                        reject(raw, index, "validate", "invalid:" + ",".join(sorted(set(problems))), ev=e)
++                    else:
++                        valid.append(e)
+                 if len(valid) != len(events):
+                     box["outcome"] = "error"
+                     report.normalize_errors += len(events) - len(valid)
+@@ -430,14 +497,46 @@ class IngestPipeline:
+                     if reason:
+                         box["outcome"] = f"excluded:{reason}"
+                         report.excluded += 1
++                        if reason in REJECTED_ADMIT_REASONS:
++                            reject(raw, index, "admit", reason, ev=ev)
+                         continue
+                 with self.meter.time(cid, "redact") as box:
+                     ev, n = self._redact(ev, src, ctx)
+                     if n:
+                         box["outcome"] = "masked"
++                if FLAG_TIME_INFERRED in (ev.hints.get("flags") or ()):
++                    report.time_inferred += 1
+                 out.append(ev)
+         return out
+ 
++    def _link_origin(self, ev: CanonicalEvent) -> CanonicalEvent:
++        """INGESTION.md §4.5 rule 1: a record that names an original this holder holds takes the original's own root (the
++        original's content root is not derivable from the link alone). An original held elsewhere is joined at the coordinator
++        by ``meta.object_key`` = the origin key; until then the identity-derived root from :func:`events.origin_root` stands."""
++        okey = ev.origin_key
++        if not okey:
++            return ev
++        for c in self.db.record_conns():
++            r = c.execute("SELECT source_root_id FROM ingest_records WHERE object_key=? AND record_key<>? AND deletion_status='live' AND root_known=1 "
++                          "AND source_root_id IS NOT NULL ORDER BY first_ingested_at LIMIT 1", (okey, ev.record_key)).fetchone()
++            if r is not None:
++                return ev.with_(source_root_id=r["source_root_id"], root_known=True, root_method="explicit")
++        return ev
++
++    def _health(self, connector_id: str, report: SyncReport, c: Any) -> dict[str, Any]:
++        """Connector health from the last sync: ``degraded`` with reason ``rejected_items`` when it refused input (the ledger
++        has the details), the failure code when the sync itself failed, else ``ok``. Counts and codes only."""
++        total = int(c.execute("SELECT COUNT(*) FROM ingest_rejections WHERE connector_id=?", (connector_id,)).fetchone()[0])
++        health: dict[str, Any] = {"status": "ok", "checked_at": now_iso(), "rejected_last_sync": report.rejected, "rejections_on_record": total}
++        if report.rejected:
++            health.update(status="degraded", reason="rejected_items", rejected_by_reason=dict(sorted(report.rejected_by_reason.items())))
++        if report.error_code:       # the sync itself failed: that outranks rejected items (the vocabulary of ``HealthReport.status``)
++            health.update(status={"rate_limited": "rate_limited", "auth_expired": "auth_expired", "auth_revoked": "revoked"}.get(report.error_code, "error"),
++                          reason=report.error_code)
++        if report.time_inferred:
++            health["time_inferred_last_sync"] = report.time_inferred
++        return health
++
+     def _event_problems(self, ev: CanonicalEvent, con: Mapping[str, Any]) -> list[str]:
+         problems = ev.validate()
+         # a connector can only produce records for its own holder, connection and identity namespace
+@@ -576,6 +675,8 @@ class IngestPipeline:
+                 with self.meter.time(cid, "write", outcome):
+                     await self._write_noop(item, worker, ev, outcome)
+                 return outcome
++            if outcome in ("new", "update") and ev.kind in CONTENT_KINDS:
++                ev = self._link_origin(ev)         # at write time, so an original queued just before it is already a record
+             src = self.db.get_source(ev.hints.get("source_id")) if ev.hints.get("source_id") else None
+             memberships: list[Membership] | None = None
+             embeddings: list[list[float] | None] | None = None
+@@ -731,7 +832,7 @@ class IngestPipeline:
+                      memberships: list[Membership] | None, embeddings: list[list[float] | None] | None, src: SourceRow | None) -> None:
+         source_id = src.source_id if src else ev.hints.get("source_id")
+         normalizer = self._normalizer_version(ev.connector_id)
+-        changed = ev.updated_at or ev.created_at or ev.observed_at
++        changed = ev.evidence_time
+         flags = list(ev.hints.get("flags") or ())
+         proposed = [m.domain_id for m in memberships or []]
+         meta = {"record_id": ev.record_id, "source_app": ev.source_app, "record_kind": ev.kind}
+diff --git a/mycelic/ingest/queue.py b/mycelic/ingest/queue.py
+index 0315190..aa4ea75 100644
+--- a/mycelic/ingest/queue.py
++++ b/mycelic/ingest/queue.py
+@@ -21,7 +21,7 @@ from __future__ import annotations
+ import random
+ import sqlite3
+ from dataclasses import dataclass
+-from typing import Any, Iterable
++from typing import Any, Callable, Iterable
+ 
+ from ..util import j, jl, now_precise, plus_seconds
+ from .contract import Cursor, get_logger
+@@ -126,8 +126,10 @@ class IngestQueue:
+ 
+     async def commit_page(self, connector_id: str, stream: str, events: list[CanonicalEvent], cursor: Cursor | None, *,
+                           priority_class: str, expected_version: int, phase: str = "incremental", items_seen: int = 0,
+-                          window: tuple[str, str] | None = None, has_more: bool = True) -> CommitResult:
+-        """Events and the stream cursor in ONE transaction, fenced on the checkpoint version."""
++                          window: tuple[str, str] | None = None, has_more: bool = True,
++                          extra_sync: Callable[[sqlite3.Connection], Any] | None = None) -> CommitResult:
++        """Events and the stream cursor in ONE transaction, fenced on the checkpoint version. ``extra_sync`` runs inside that
++        transaction once the fence has held (the page's rejection ledger rows commit with the cursor that moves past them)."""
+         if priority_class not in PRIORITY_CLASSES:
+             raise ValueError(f"unknown priority class {priority_class!r}")
+         now = now_precise()
+@@ -149,6 +151,8 @@ class IngestQueue:
+                              stream, int(expected_version)))
+             if cur.rowcount != 1:
+                 raise StaleCheckpoint(stream)       # rolls the whole page back
++            if extra_sync is not None:
++                extra_sync(c)
+             return CommitResult(enq, dup, int(expected_version) + 1)
+ 
+         return await self.store.run_in_tx(fn)
+diff --git a/mycelic/ingest/runtime.py b/mycelic/ingest/runtime.py
+index bf5a777..fa1734e 100644
+--- a/mycelic/ingest/runtime.py
++++ b/mycelic/ingest/runtime.py
+@@ -84,7 +84,8 @@ def notice_to_payload(n: WebhookNotice) -> dict[str, Any]:
+ 
+ 
+ def _report(r: SyncReport) -> dict[str, Any]:
+-    return {k: getattr(r, k) for k in ("streams", "pages", "raw_items", "enqueued", "duplicates", "excluded", "normalize_errors", "error_code", "yielded")}
++    return {k: getattr(r, k) for k in ("streams", "pages", "raw_items", "enqueued", "duplicates", "excluded", "normalize_errors", "rejected",
++                                       "rejected_by_reason", "time_inferred", "error_code", "yielded")}
+ 
+ 
+ class IngestRuntime:
+@@ -247,7 +248,8 @@ class IngestRuntime:
+             v["counts"] = {"sources_included": sum(1 for s in srcs if s.selection == "included"),
+                            "sources_pending": sum(1 for s in srcs if s.selection == "pending_review"),
+                            "sources_excluded": sum(1 for s in srcs if s.selection == "excluded"),
+-                           "records": len(self.pipeline.db.records_of_connector(con["connector_id"]))}
++                           "records": len(self.pipeline.db.records_of_connector(con["connector_id"])),
++                           "rejections": self.pipeline.db.rejection_count(con["connector_id"])}
+             items.append(v)
+         return {"items": items}
+ 
+diff --git a/mycelic/ingest/service.py b/mycelic/ingest/service.py
+index 4a67dd5..cf3f577 100644
+--- a/mycelic/ingest/service.py
++++ b/mycelic/ingest/service.py
+@@ -312,11 +312,17 @@ class IngestService:
+             await http.close()
+         out: dict[str, Any] = {"connector_id": connector_id, "status": "disconnected", "records_deleted": 0}
+         if data == "delete":
++            await self.p.store.run_in_tx(lambda c: c.execute("DELETE FROM ingest_rejections WHERE connector_id=?", (connector_id,)))
+             res = await self._delete_records(self.db.records_of_connector(connector_id), reason="disconnect")
+             out["records_deleted"] = res["records"]
+             out["affected_ref_ids"] = res["affected_ref_ids"]
+         return out
+ 
++    def rejections(self, connector_id: str, *, limit: int = 200) -> list[dict[str, Any]]:
++        """The ledger of input this connector's syncs refused: where it was, why, a hash of it, how often it was seen. No content."""
++        self._connector(connector_id)
++        return self.db.rejections(connector_id, limit=limit)
++
+     # ------------------------------------------------------------------ webhooks (notify, then fetch)
+     async def handle_notice(self, connector_id: str, notice: WebhookNotice) -> SyncReport:
+         """A thin, content-free notice for one connector: deduplicated on the delivery id, then the connector fetches the
+@@ -361,6 +367,9 @@ class IngestService:
+             # not committed (rate limit, fencing, a fetch error): the claim is released so the provider's redelivery (or the
+             # next notice) is processed instead of being taken for a duplicate; the periodic poll repairs it in any case
+             await self.p.store.run_in_tx(lambda c: c.execute("DELETE FROM ingest_deliveries WHERE delivery_key=?", (key,)))
++        if report.rejected:
++            # a fetch that refused input marks the connector degraded like a pull does (a clean notice does not clear an earlier mark)
++            await self.p.store.run_in_tx(lambda c: IngestStore.set_connector_health_sync(c, connector_id, self.p._health(connector_id, report, c)))
+         status = NOTICE_AUTH_STATUS.get(report.error_code or "")
+         if status:          # the same connection states a pull sync records for these errors
+             await self.p.store.run_in_tx(lambda c: IngestStore.set_connector_status_sync(c, connector_id, status, report.error_code or ""))
+diff --git a/mycelic/ingest/store.py b/mycelic/ingest/store.py
+index 46eee9d..8a27e22 100644
+--- a/mycelic/ingest/store.py
++++ b/mycelic/ingest/store.py
+@@ -8,12 +8,13 @@ from dataclasses import dataclass, field
+ from datetime import timedelta
+ from typing import Any, Iterable, Mapping
+ 
+-from ..util import j, jl, new_id, now_iso, now_precise, parse_iso, iso
++from ..util import j, jl, new_id, now_iso, now_precise, parse_iso, iso, sha256
+ from .contract import SourceDescriptor
+ from .crypto import SealedCredentials
+ from .events import CanonicalEvent, Permissions
+ 
+ TOMBSTONE_RETENTION_DAYS = 400
++MAX_REJECTIONS_PER_CONNECTOR = 5000        # the ledger is bounded: beyond this the least recently seen rows go first
+ 
+ 
+ @dataclass
+@@ -292,13 +293,15 @@ class IngestStore:
+                                                     author_entity_id, participant_entity_ids, created_at_src, updated_at_src, content_changed_at,
+                                                     first_ingested_at, last_ingested_at, current_version, current_order_key, version_count, content_hash,
+                                                     metadata_hash, source_root_id, root_known, root_method, primary_domain_id, visibility, permissions,
+-                                                    sensitivity, flags, retention_policy, deletion_status, normalizer_version, schema_version, change_seq)
+-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'live', ?, ?, ?)""",
++                                                    sensitivity, flags, retention_policy, deletion_status, normalizer_version, schema_version, change_seq,
++                                                    origin_key)
++                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'live', ?, ?, ?, ?)""",
+                       (ev.record_id, ev.record_key, ev.object_key, ev.kind, ev.connector_id, source_id, ev.source_app, ev.source_account_id,
+                        ev.source_object_type, ev.source_object_id, conv, ev.thread_id, ev.parent_message_id, author_entity_id, j(participant_entity_ids),
+                        ev.created_at, ev.updated_at, content_changed_at, now, now, ev.source_version, ev.order_key, ev.content_hash, ev.metadata_hash,
+                        ev.source_root_id, 1 if ev.root_known else 0, ev.root_method, primary_domain_id, ev.permissions.visibility, j(perms),
+-                       ev.sensitivity, j(sorted(set(flags))), ev.retention_policy.policy_id, normalizer_version, ev.schema_version, change_seq))
++                       ev.sensitivity, j(sorted(set(flags))), ev.retention_policy.policy_id, normalizer_version, ev.schema_version, change_seq,
++                       ev.origin_key))
+             return
+         sets = ["connector_id=?", "source_id=COALESCE(?, source_id)", "updated_at_src=?", "last_ingested_at=?", "current_order_key=?", "metadata_hash=?",
+                 "primary_domain_id=COALESCE(?, primary_domain_id)", "visibility=?", "permissions=?", "sensitivity=?", "flags=?", "deletion_status='live'",
+@@ -307,8 +310,8 @@ class IngestStore:
+                            j(perms), ev.sensitivity, j(sorted(set(flags))), normalizer_version, change_seq, j(participant_entity_ids)]
+         if new_version:
+             sets += ["current_version=?", "version_count=version_count+1", "content_hash=?", "source_root_id=?", "root_known=?", "root_method=?",
+-                     "content_changed_at=?"]
+-            args += [ev.source_version, ev.content_hash, ev.source_root_id, 1 if ev.root_known else 0, ev.root_method, content_changed_at]
++                     "content_changed_at=?", "origin_key=?"]
++            args += [ev.source_version, ev.content_hash, ev.source_root_id, 1 if ev.root_known else 0, ev.root_method, content_changed_at, ev.origin_key]
+         c.execute(f"UPDATE ingest_records SET {', '.join(sets)} WHERE record_id=?", (*args, ev.record_id))
+ 
+     @staticmethod
+@@ -372,6 +375,45 @@ class IngestStore:
+             b.setdefault("by_domain", {})[d] = int(b.get("by_domain", {}).get(d, 0)) + 1
+         c.execute("INSERT INTO holder_meta(key, value) VALUES ('ingest_batch_pending', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (j(b),))
+ 
++    # ------------------------------------------------------------------ rejections (the ledger of refused input; content-free)
++    @staticmethod
++    def add_rejections_sync(c: sqlite3.Connection, connector_id: str, rows: Iterable[Mapping[str, Any]]) -> int:
++        """Record refused items inside the caller's transaction (the page that carried them commits with its cursor, so a page
++        read twice is not counted twice). The same item again raises ``count``. Returns the number of rows touched."""
++        now = now_precise()
++        n = 0
++        for r in rows:
++            rid = "rej_" + sha256(connector_id, str(r.get("source_id") or ""), r["locator"], r["raw_sha256"], r["stage"], r["reason"])[:24]
++            c.execute("""INSERT INTO ingest_rejections(rejection_id, connector_id, source_id, locator, raw_sha256, stage, reason, detail, first_seen_at,
++                                                       last_seen_at, count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
++                         ON CONFLICT(rejection_id) DO UPDATE SET count=count+1, last_seen_at=excluded.last_seen_at""",
++                      (rid, connector_id, r.get("source_id"), r["locator"], r["raw_sha256"], r["stage"], r["reason"], str(r.get("detail") or "")[:200], now, now))
++            n += 1
++        if n:
++            c.execute("""DELETE FROM ingest_rejections WHERE connector_id=? AND rejection_id IN
++                         (SELECT rejection_id FROM ingest_rejections WHERE connector_id=? ORDER BY last_seen_at DESC, rejection_id LIMIT -1 OFFSET ?)""",
++                      (connector_id, connector_id, MAX_REJECTIONS_PER_CONNECTOR))
++        return n
++
++    def rejections(self, connector_id: str | None = None, *, limit: int = 200) -> list[dict[str, Any]]:
++        sql, args = "SELECT * FROM ingest_rejections", []
++        if connector_id:
++            sql += " WHERE connector_id=?"
++            args.append(connector_id)
++        sql += " ORDER BY last_seen_at DESC, rejection_id LIMIT ?"
++        args.append(int(limit))
++        return [dict(r) for r in self.conn.execute(sql, args).fetchall()]
++
++    def rejection_count(self, connector_id: str | None = None) -> int:
++        """Distinct refused items on record (the count the heartbeat and the connector health carry)."""
++        if connector_id:
++            return int(self.conn.execute("SELECT COUNT(*) FROM ingest_rejections WHERE connector_id=?", (connector_id,)).fetchone()[0])
++        return int(self.conn.execute("SELECT COUNT(*) FROM ingest_rejections").fetchone()[0])
++
++    @staticmethod
++    def set_connector_health_sync(c: sqlite3.Connection, connector_id: str, health: Mapping[str, Any]) -> None:
++        c.execute("UPDATE connectors SET health=? WHERE connector_id=?", (j(dict(health)), connector_id))
++
+     # ------------------------------------------------------------------ metrics
+     @staticmethod
+     def add_metrics_sync(c: sqlite3.Connection, rows: Iterable[tuple[str, str, str, int, float, float]]) -> None:
+diff --git a/mycelic/tests/test_ingest_dispositions.py b/mycelic/tests/test_ingest_dispositions.py
+new file mode 100644
+index 0000000..f1b4422
+--- /dev/null
++++ b/mycelic/tests/test_ingest_dispositions.py
+@@ -0,0 +1,548 @@
++"""Dispositions of ingested input (overnight repair 2026-10-09, trace probes e and f).
++
++D1  every input the pipeline refuses leaves a content-free row (locator, raw hash, stage, reason) in the holder's
++    ``ingest_rejections`` ledger, in the transaction that moves the cursor past it; sync reports and connector health say so,
++    and the heartbeat carries the count.
++D2  a record with no usable created_at / updated_at is ingested, flagged ``time_inferred``, and does not present as fresh evidence.
++D3  an explicit forward / share link makes the ORIGIN's identity the record's source, with or without the forwarder's own words,
++    so the original and any number of forwards count as one independent root in ``compute_support``.
++"""
++from __future__ import annotations
++
++import hashlib
++import json
++from pathlib import Path
++from typing import Any
++
++import pytest
++
++from mycelic.ingest.connectors import register_builtin
++from mycelic.ingest.connectors.local_export import LocalExportConnector
++from mycelic.ingest.contract import ConnectorManifest
++from mycelic.ingest.events import CanonicalEvent, DerivedFrom, object_key, origin_root
++from mycelic.ingest.queue import StaleCheckpoint
++from mycelic.ingest.registry import ConnectorRegistry
++from mycelic.ingest.service import IngestService
++from mycelic.knowledge.support import compute_support
++from mycelic.util import fingerprint
++
++from .ingest_support import (OWNER, TENANT, append_jsonl, connect_export, make_pipeline, make_store, question, table_contains,
++                             write_jsonl)
++
++HEADER = {"id": "ops", "name": "#ops", "source_type": "channel", "visibility": "public"}
++
++
++def rec(oid: str, text: str, ts: str | None = "2026-03-04T10:00:00Z", **kw: Any) -> dict[str, Any]:
++    r: dict[str, Any] = {"type": "message", "id": oid, "author": "u-ana", "text": text, **kw}
++    if ts:
++        r["created_at"] = ts
++    return r
++
++
++async def one_holder(tmp_path: Path, lines: list[str], *, header: dict[str, Any] | None = HEADER, name: str = "h1", app: str = "teamchat",
++                     account: str = "acme", store_kw: dict[str, Any] | None = None, **pipe_kw: Any):
++    store = make_store(tmp_path, name, **(store_kw or {}))
++    pipe = make_pipeline(store, **pipe_kw)
++    svc = IngestService(pipe)
++    f = tmp_path / f"{name}.jsonl"
++    head = [json.dumps({"type": "source", **header})] if header is not None else []
++    f.write_text("\n".join(head + lines) + "\n", encoding="utf-8")
++    con = await connect_export(svc, [f], source_app=app, account_id=account)
++    return store, pipe, svc, con, f
++
++
++def ledger(store) -> list[dict[str, Any]]:
++    return [dict(r) for r in store.store._conn.execute("SELECT * FROM ingest_rejections ORDER BY locator, stage, reason")]
++
++
++# ============================================================================================ D1: rejections are dispositions
++LINE_BAD_JSON = "{this is not json SECRETSTRING-1"
++LINES = [
++    json.dumps(rec("good1", "The Rotterdam shipment slipped another nine days.")),                      # file line 2
++    LINE_BAD_JSON,                                                                                       # line 3: unparseable
++    json.dumps(["a", "json", "array", "SECRETSTRING-2"]),                                                # line 4: JSON, not an object
++    json.dumps({"type": "message", "author": "u-ana", "text": "SECRETSTRING-3 a message without id"}),  # line 5: no id
++    json.dumps({"type": "telepathy", "id": "t1", "text": "SECRETSTRING-4"}),                             # line 6: unknown type
++    json.dumps(rec("empty1", "")),                                                                       # line 7: no text -> fails validation
++    json.dumps(rec("good2", "A second good line about customs paperwork.")),                             # line 8
++]
++
++
++async def test_every_rejected_item_is_traceable_without_its_content(tmp_path: Path) -> None:
++    store, pipe, svc, con, _f = await one_holder(tmp_path, LINES)
++    rep = await pipe.sync(con["connector_id"])
++    await pipe.process_available()
++    # the counters agree and the report says how many were refused and why
++    assert rep.raw_items == 7 and rep.enqueued == 2 and rep.normalize_errors == 5 and rep.rejected == 5
++    assert rep.rejected_by_reason == {"normalize:normalize_failed": 4, "validate:invalid:empty": 1}
++    rows = ledger(store)
++    by_loc = {r["locator"]: r for r in rows}
++    assert set(by_loc) == {"line:3", "line:4", "line:5", "line:6", "line:7"}                # the file line of each refused item
++    assert by_loc["line:3"]["stage"] == "normalize" and by_loc["line:3"]["reason"] == "normalize_failed"
++    assert by_loc["line:3"]["raw_sha256"] == hashlib.sha256(LINE_BAD_JSON.encode("utf-8")).hexdigest()   # checkable against the file
++    assert by_loc["line:3"]["detail"] == "invalid export record" and by_loc["line:5"]["detail"] == "export record without id"
++    assert by_loc["line:6"]["detail"] == "unknown export record type"
++    assert by_loc["line:7"]["stage"] == "validate" and by_loc["line:7"]["reason"] == "invalid:empty"
++    assert all(r["count"] == 1 and r["first_seen_at"] == r["last_seen_at"] and len(r["raw_sha256"]) == 64 for r in rows)
++    # content-free: nothing of the refused lines is anywhere in the holder file
++    for needle in ("SECRETSTRING", "not json", "telepathy"):
++        assert table_contains(store, needle) == [], needle
++    # the good lines were still ingested; the refusals did not stop the import
++    assert sorted(r[0] for r in store.store._conn.execute("SELECT source_object_id FROM ingest_records")) == ["good1", "good2"]
++    # connector health says what happened in the last sync
++    health = pipe.db.get_connector(con["connector_id"])["health"]
++    assert health["status"] == "degraded" and health["reason"] == "rejected_items" and health["rejected_last_sync"] == 5
++    assert health["rejected_by_reason"]["normalize:normalize_failed"] == 4 and health["rejections_on_record"] == 5
++    assert [r["locator"] for r in svc.rejections(con["connector_id"])] and len(svc.rejections(con["connector_id"])) == 5
++    await store.close()
++
++
++async def test_a_second_sync_no_longer_forgets_what_the_first_refused(tmp_path: Path) -> None:
++    store, pipe, svc, con, f = await one_holder(tmp_path, LINES)
++    await pipe.sync(con["connector_id"])
++    again = await pipe.sync(con["connector_id"])                       # the cursor is past every item: nothing new to refuse
++    assert again.raw_items == 0 and again.rejected == 0
++    assert len(ledger(store)) == 5                                     # ... but the ledger still names the five
++    health = pipe.db.get_connector(con["connector_id"])["health"]
++    assert health["status"] == "ok" and health["rejected_last_sync"] == 0 and health["rejections_on_record"] == 5
++    # the same refused line seen again (a rewritten export is read from the start) raises its count, it is not a new row
++    lines = f.read_text(encoding="utf-8").splitlines()
++    lines[1] = json.dumps(rec("good1", "The Rotterdam shipment slipped another nine days (edited).", updated_at="2026-03-05T00:00:00Z"))
++    f.write_text("\n".join(lines) + "\n", encoding="utf-8")
++    third = await pipe.sync(con["connector_id"])
++    assert third.rejected == 5
++    rows = ledger(store)
++    assert len(rows) == 5 and all(r["count"] == 2 for r in rows)
++    assert all(r["last_seen_at"] >= r["first_seen_at"] for r in rows)
++    # a changed bad line is another item (another hash), the old one stays on record
++    append_jsonl(f, [])
++    f.write_text(f.read_text(encoding="utf-8").replace(LINE_BAD_JSON, LINE_BAD_JSON + " changed"), encoding="utf-8")
++    await pipe.sync(con["connector_id"])
++    assert len(ledger(store)) == 6
++    await store.close()
++
++
++async def test_a_failed_sync_is_not_reported_healthy(tmp_path: Path) -> None:
++    store, pipe, _svc, con, f = await one_holder(tmp_path, [json.dumps(rec("a", "A record that is admitted."))])
++    f.unlink()                                                     # the export vanished: access lost, not a clean sync
++    rep = await pipe.sync(con["connector_id"])
++    assert rep.error_code and rep.rejected == 0
++    health = pipe.db.get_connector(con["connector_id"])["health"]
++    assert health["status"] == "error" and health["reason"] == rep.error_code
++    await store.close()
++
++
++async def test_json_exports_are_located_by_record_position(tmp_path: Path) -> None:
++    store = make_store(tmp_path)
++    pipe = make_pipeline(store)
++    svc = IngestService(pipe)
++    f = tmp_path / "ex.json"
++    f.write_text(json.dumps({"source": HEADER, "records": [rec("a", "A good record about the quarterly forecast."), {"type": "message", "text": "no id"}, "stray"]}))
++    con = await connect_export(svc, [f], source_app="teamchat")
++    rep = await pipe.sync(con["connector_id"])
++    assert rep.rejected == 2
++    assert [r["locator"] for r in ledger(store)] == ["record:2", "record:3"]
++    await store.close()
++
++
++class AlienExport(LocalExportConnector):
++    """A connector that answers for the wrong identity: another holder, another namespace, another source."""
++    manifest = ConnectorManifest(**{**LocalExportConnector.manifest.__dict__, "connector_type": "alien_export"})
++
++    def normalize(self, raw, ctx):
++        evs = super().normalize(raw, ctx)
++        oid = raw.payload.get("id") if isinstance(raw.payload, dict) else None
++        if oid == "other-holder":
++            return [e.with_(holder_id="hold_somebody_else") for e in evs]
++        if oid == "other-app":
++            return [e.with_(source_app="not_my_app") for e in evs]
++        if oid == "parser-bug":
++            raise ValueError("parser bug quoting the line: SECRETSTRING-9")
++        return evs
++
++
++async def test_identity_namespace_and_crash_refusals_are_dispositions(tmp_path: Path) -> None:
++    reg = register_builtin(ConnectorRegistry())
++    reg.register(AlienExport)
++    store = make_store(tmp_path)
++    pipe = make_pipeline(store, registry=reg)
++    svc = IngestService(pipe)
++    f = tmp_path / "alien.jsonl"
++    f.write_text("\n".join([json.dumps({"type": "source", **HEADER}),
++                            json.dumps(rec("fine", "An honest record that is admitted normally.")),
++                            json.dumps(rec("other-holder", "Writes into another holder.")),
++                            json.dumps(rec("other-app", "Claims another application.")),
++                            json.dumps(rec("parser-bug", "Breaks the parser."))]) + "\n")
++    con = await svc.add_connector("alien_export", created_by=OWNER, config={"source_app": "teamchat", "paths": [str(f)], "auto_include": True})
++    await svc.discover_sources(con["connector_id"])
++    rep = await pipe.sync(con["connector_id"])
++    assert rep.enqueued == 1 and rep.rejected == 3
++    assert rep.rejected_by_reason == {"validate:invalid:identity": 1, "validate:invalid:namespace": 1, "normalize:ValueError": 1}
++    rows = {r["locator"]: r for r in ledger(store)}
++    assert rows["line:3"]["stage"] == "validate" and rows["line:3"]["reason"] == "invalid:identity"
++    assert rows["line:4"]["reason"] == "invalid:namespace"
++    # a foreign exception is recorded by class only: its text may quote the input
++    assert rows["line:5"]["reason"] == "ValueError" and rows["line:5"]["detail"] == ""
++    assert table_contains(store, "SECRETSTRING") == [] and table_contains(store, "Breaks the parser") == []
++    await store.close()
++
++
++class WrongSourceExport(LocalExportConnector):
++    manifest = ConnectorManifest(**{**LocalExportConnector.manifest.__dict__, "connector_type": "wrong_source_export"})
++
++    async def incremental_sync(self, ctx, source, cursor):
++        async for page in super().incremental_sync(ctx, source, cursor):
++            from dataclasses import replace
++            from mycelic.ingest.contract import SourceDescriptor
++            other = SourceDescriptor(source_type="channel", external_id="some-other-source", name="x")
++            page.items = [replace(page.items[0], source=other)] + page.items[1:]
++            yield page
++
++
++async def test_quota_and_foreign_source_refusals_are_recorded_but_owner_rules_are_not(tmp_path: Path) -> None:
++    reg = register_builtin(ConnectorRegistry())
++    reg.register(WrongSourceExport)
++    store = make_store(tmp_path)
++    pipe = make_pipeline(store, registry=reg, max_records=1)
++    svc = IngestService(pipe)
++    f = tmp_path / "q.jsonl"
++    f.write_text("\n".join([json.dumps({"type": "source", **HEADER}),
++                            json.dumps(rec("q1", "The first record fits the quota of this holder.", labels=["keep"])),
++                            json.dumps(rec("q2", "Excluded by the owner's rule on its label.", labels=["noise"]))]) + "\n")
++    con = await svc.add_connector("wrong_source_export", created_by=OWNER, config={"source_app": "teamchat", "paths": [str(f)], "auto_include": True})
++    await svc.discover_sources(con["connector_id"])
++    await svc.add_exclusion(actor=OWNER, scope="label", match="noise", connector_id=con["connector_id"])
++    rep = await pipe.sync(con["connector_id"])                    # the connector answers the first item for another source
++    assert rep.rejected == 1 and rep.rejected_by_reason == {"admit:foreign_source": 1}
++    assert [(r["stage"], r["reason"], r["locator"]) for r in ledger(store)] == [("admit", "foreign_source", "line:2")]
++    # q1 never made it (foreign source); a plain connector fills the quota, then the next record is refused for it, visibly
++    store2 = make_store(tmp_path, "h2")
++    pipe2 = make_pipeline(store2, max_records=1)
++    svc2 = IngestService(pipe2)
++    f2 = tmp_path / "q2.jsonl"
++    f2.write_text("\n".join([json.dumps({"type": "source", **HEADER}), json.dumps(rec("q1", "The first record fits the quota of this holder."))]) + "\n")
++    con2 = await connect_export(svc2, [f2], source_app="teamchat")
++    await pipe2.sync(con2["connector_id"])
++    await pipe2.process_available()
++    await svc2.add_exclusion(actor=OWNER, scope="label", match="noise", connector_id=con2["connector_id"])
++    append_jsonl(f2, [rec("q2", "Excluded by the owner's rule on its label.", labels=["noise"]),
++                      rec("q3", "A third record that would exceed the holder quota of one record.")])
++    rep2 = await pipe2.sync(con2["connector_id"])
++    assert rep2.excluded == 2 and rep2.rejected == 1                # the owner's rule is a choice (counted, not a rejection); the quota is not
++    assert [(r["stage"], r["reason"]) for r in ledger(store2)] == [("admit", "quota")]
++    await store.close()
++    await store2.close()
++
++
++async def test_rejections_commit_with_the_cursor_or_not_at_all(tmp_path: Path) -> None:
++    store, pipe, _svc, con, _f = await one_holder(tmp_path, [json.dumps(rec("a", "A record that is admitted."))])
++    from mycelic.ingest.store import IngestStore
++    rows = [{"source_id": None, "locator": "line:9", "raw_sha256": "0" * 64, "stage": "normalize", "reason": "normalize_failed"}]
++    with pytest.raises(StaleCheckpoint):                           # fenced: the checkpoint version moved on
++        await pipe.queue.commit_page(con["connector_id"], "incr:ops", [], None, priority_class="live", expected_version=7,
++                                     extra_sync=lambda c: IngestStore.add_rejections_sync(c, con["connector_id"], rows))
++    assert ledger(store) == []                                     # the whole page, ledger rows included, rolled back
++    await pipe.queue.commit_page(con["connector_id"], "incr:ops", [], None, priority_class="live", expected_version=0,
++                                 extra_sync=lambda c: IngestStore.add_rejections_sync(c, con["connector_id"], rows))
++    assert len(ledger(store)) == 1
++    await store.close()
++
++
++async def test_heartbeat_stats_carry_a_count_only(tmp_path: Path) -> None:
++    store, pipe, _svc, con, _f = await one_holder(tmp_path, LINES)
++    assert (await store.stats())["ingest_rejections"] == 0
++    await pipe.sync(con["connector_id"])
++    stats = await store.stats()
++    assert stats["ingest_rejections"] == 5 and isinstance(stats["ingest_rejections"], int)
++    assert "line:3" not in json.dumps(stats) and "normalize_failed" not in json.dumps(stats)
++    await store.close()
++
++
++async def test_the_ledger_is_bounded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
++    from mycelic.ingest import store as ingest_store
++    monkeypatch.setattr(ingest_store, "MAX_REJECTIONS_PER_CONNECTOR", 3)
++    store, pipe, _svc, con, _f = await one_holder(tmp_path, [f"{{bad line {i}" for i in range(8)])
++    rep = await pipe.sync(con["connector_id"])
++    assert rep.rejected == 8                                       # all eight were refused and reported ...
++    assert len(ledger(store)) == 3                                 # ... the ledger keeps the most recent few
++    await store.close()
++
++
++async def test_disconnect_with_data_delete_drops_the_connectors_ledger(tmp_path: Path) -> None:
++    store, pipe, svc, con, _f = await one_holder(tmp_path, LINES)
++    await pipe.sync(con["connector_id"])
++    assert len(ledger(store)) == 5
++    await svc.disconnect(con["connector_id"], actor=OWNER, data="keep")
++    assert len(ledger(store)) == 5
++    await svc.disconnect(con["connector_id"], actor=OWNER, data="delete")
++    assert ledger(store) == []
++    await store.close()
++
++
++# ============================================================================================ D2: undated records
++async def evidence_of(store, text_q: str) -> list[dict[str, Any]]:
++    resp = await store.answer_question(question(text_q))
++    return resp["evidence_refs"]
++
++
++async def test_undated_records_are_kept_flagged_and_not_fresh(tmp_path: Path) -> None:
++    lines = [json.dumps(rec("old", "The Rotterdam customs backlog was cleared in March.", ts="2026-03-04T10:00:00Z")),
++             json.dumps(rec("undated", "The Rotterdam warehouse roster has no date on it at all.", ts=None)),
++             json.dumps(rec("badts", "The Rotterdam carrier contract note carries a junk timestamp.", ts="yesterday-ish"))]
++    store, pipe, _svc, con, _f = await one_holder(tmp_path, lines)
++    rep = await pipe.sync(con["connector_id"])
++    await pipe.process_available()
++    assert rep.rejected == 0 and rep.enqueued == 3 and rep.time_inferred == 2             # kept, not refused
++    c = store.store._conn
++    q = lambda oid: c.execute("""SELECT r.flags, r.content_changed_at, d.observed_at FROM ingest_records r JOIN documents d ON d.doc_id=r.record_id
++                                 WHERE r.source_object_id=?""", (oid,)).fetchone()      # noqa: E731
++    dated, undated, bad = q("old"), q("undated"), q("badts")
++    assert json.loads(dated["flags"]) == []
++    # the undated ones take the newest dated record of their source as their evidence time: not the (much later) ingest time
++    for r in (undated, bad):
++        assert json.loads(r["flags"]) == ["time_inferred"] and r["observed_at"].startswith("2026-03-04T10:00:00")
++        assert r["content_changed_at"].startswith("2026-03-04T10:00:00")
++    # ... and the coordinator sees it on the evidence reference
++    refs = {r["source_root_id"]: r for r in await evidence_of(store, "What do we know about the Rotterdam customs backlog, warehouse roster and carrier contract?")}
++    texts = {"old": "The Rotterdam customs backlog was cleared in March.", "undated": "The Rotterdam warehouse roster has no date on it at all.",
++             "badts": "The Rotterdam carrier contract note carries a junk timestamp."}
++    assert set(refs) == {fingerprint(t) for t in texts.values()}                      # all three are cited
++    assert "time_inferred" not in refs[fingerprint(texts["old"])]["meta"]             # a dated record carries no such mark
++    for key in ("undated", "badts"):
++        ref = refs[fingerprint(texts[key])]
++        assert ref["meta"]["time_inferred"] is True and ref["meta"]["time_basis"] == "source"
++        assert ref["observed_at"].startswith("2026-03-04T10:00:00") and ref["freshness_at"].startswith("2026-03-04T10:00:00")
++    health = pipe.db.get_connector(con["connector_id"])["health"]
++    assert health["time_inferred_last_sync"] == 2 and health["status"] == "ok"
++    await store.close()
++
++
++async def test_source_header_time_wins_and_ingest_time_is_the_flagged_last_resort(tmp_path: Path) -> None:
++    # 1. the header's own 'as of' time beats the newest dated record
++    store, pipe, _svc, con, _f = await one_holder(
++        tmp_path, [json.dumps(rec("dated", "A dated Rotterdam note from the spring.", ts="2026-05-01T00:00:00Z")),
++                   json.dumps(rec("u1", "An undated Rotterdam note, as of the export.", ts=None))],
++        header={**HEADER, "content_time": "2026-02-01T00:00:00Z"})
++    await pipe.sync(con["connector_id"])
++    await pipe.process_available()
++    r = store.store._conn.execute("SELECT d.observed_at, r.flags FROM ingest_records r JOIN documents d ON d.doc_id=r.record_id WHERE r.source_object_id='u1'").fetchone()
++    assert r["observed_at"].startswith("2026-02-01T00:00:00") and json.loads(r["flags"]) == ["time_inferred"]
++    await store.close()
++    # 2. nothing known about the source's content time: the ingest time stays, but flagged, and the export says so
++    store2, pipe2, _svc2, con2, _f2 = await one_holder(tmp_path, [json.dumps(rec("u2", "An undated Rotterdam note in a file without any dates.", ts=None))],
++                                                       name="h2")
++    await pipe2.sync(con2["connector_id"])
++    await pipe2.process_available()
++    r2 = store2.store._conn.execute("SELECT d.observed_at, r.flags FROM ingest_records r JOIN documents d ON d.doc_id=r.record_id").fetchone()
++    assert sorted(json.loads(r2["flags"])) == ["time_inferred", "time_ingest_fallback"]
++    ver = store2.store._conn.execute("SELECT observed_at FROM ingest_versions").fetchone()["observed_at"]
++    assert ver.startswith(r2["observed_at"][:19])                                      # the connector's observation (ingest) time
++    refs = await evidence_of(store2, "What undated Rotterdam note do we have?")
++    assert refs and refs[0]["meta"]["time_inferred"] is True and refs[0]["meta"]["time_basis"] == "ingest"
++    await store2.close()
++
++
++async def test_a_later_dated_edit_clears_the_mark(tmp_path: Path) -> None:
++    from datetime import datetime, timezone
++    store, pipe, _svc, con, f = await one_holder(tmp_path, [json.dumps(rec("u1", "An undated Rotterdam note that is later dated.", ts=None))],
++                                                 clock=lambda: datetime(2026, 1, 1, tzinfo=timezone.utc))      # ordering follows what the connector saw
++    await pipe.sync(con["connector_id"])
++    await pipe.process_available()
++    c = store.store._conn
++    assert "time_inferred" in c.execute("SELECT flags FROM ingest_records").fetchone()["flags"]
++    append_jsonl(f, [{"type": "edit", "id": "u1", "object_type": "message", "author": "u-ana", "created_at": "2026-04-01T00:00:00Z",
++                      "updated_at": "2026-04-02T00:00:00Z", "text": "An undated Rotterdam note that is later dated (edited, now with a date)."}])
++    await pipe.sync(con["connector_id"])
++    await pipe.process_available()
++    row = c.execute("SELECT r.flags, d.observed_at FROM ingest_records r JOIN documents d ON d.doc_id=r.record_id").fetchone()
++    assert json.loads(row["flags"]) == [] and row["observed_at"].startswith("2026-04-02")
++    await store.close()
++
++
++def test_time_inference_is_decided_by_the_event_not_the_connector() -> None:
++    base = dict(kind="message", tenant_id="t", holder_id="h", connector_id="c", source_app="teamchat", source_account_id="acme",
++                source_object_type="message", source_object_id="m1", observed_at="2026-10-09T01:00:00Z", body="Some text of the record.")
++    undated = CanonicalEvent.create(**base)
++    assert "time_inferred" in undated.hints["flags"] and "time_ingest_fallback" in undated.hints["flags"]
++    assert undated.evidence_time == "2026-10-09T01:00:00.000000+00:00"
++    sourced = CanonicalEvent.create(**base, hints={"content_time": "2026-01-02T03:04:05Z"})
++    assert sourced.hints["flags"] == ["time_inferred"] and sourced.evidence_time == "2026-01-02T03:04:05.000000+00:00"
++    assert sourced.order_key.startswith("2026-10-09T01:00:00")          # ordering still follows what the connector saw, not the guess
++    future = CanonicalEvent.create(**base, hints={"content_time": "2099-01-01T00:00:00Z"})       # a source time after the read is no 'as of'
++    assert sorted(future.hints["flags"]) == ["time_inferred", "time_ingest_fallback"] and "content_time" not in future.hints
++    assert future.evidence_time == future.observed_at
++    dated = CanonicalEvent.create(**base, created_at="2026-02-02T00:00:00Z", hints={"content_time": "2026-01-02T03:04:05Z"})
++    assert not dated.hints.get("flags") and "content_time" not in dated.hints and dated.evidence_time.startswith("2026-02-02")
++    assert not CanonicalEvent.create(**{**base, "kind": "conversation", "body": ""}).hints.get("flags")
++    assert not CanonicalEvent.create(**{**base, "kind": "deletion", "body": ""}).hints.get("flags")
++
++
++# ============================================================================================ D3: common origin with commentary
++ORIGIN = {"app": "slack-export", "account": "T0ACME", "object_type": "message", "object_id": "1790674800.000100"}
++ORIGINAL_TEXT = "Recurring blocker: Acme Freight shipment into Rotterdam slipped another 9 days; customs paperwork caused the delay."
++COMMENTARY = {
++    "ana": "Heads-up from Ocean Freight: recurring blocker, the Acme Freight Rotterdam shipment slipped another 9 days, customs paperwork caused the delay.",
++    "bo": "Port Ops FYI, recurring blocker again: Acme Freight into Rotterdam slipped another 9 days because customs paperwork caused the delay.",
++    "cy": "Key Accounts note: Acme Freight Rotterdam shipment slipped another 9 days, a recurring blocker, customs paperwork caused the delay.",
++}
++RQ = "What recurring blocker slipped the Acme Freight Rotterdam shipment by 9 days, and what did customs paperwork do?"
++
++
++async def holder_with(tmp_path: Path, name: str, record: dict[str, Any], *, app: str = "slack-export", account: str = "T0ACME"):
++    store, pipe, _svc, con, _f = await one_holder(tmp_path, [json.dumps(record)], name=name, app=app, account=account)
++    await pipe.sync(con["connector_id"])
++    await pipe.process_available()
++    return store
++
++
++async def export_refs(store) -> list[dict[str, Any]]:
++    resp = await store.answer_question(question(RQ))
++    assert resp["status"] == "answered", resp
++    return [{**r, "holder_id": store.holder_id, "status": "active", "role": "supports"} for r in resp["evidence_refs"]]
++
++
++async def support_over(stores) -> dict[str, Any]:
++    refs: list[dict[str, Any]] = []
++    for s in stores:
++        refs += await export_refs(s)
++    return compute_support(refs)
++
++
++def original_record() -> dict[str, Any]:
++    return rec(ORIGIN["object_id"], ORIGINAL_TEXT, ts="2026-10-08T09:12:00Z", event_id="Ev0ROTTERDAM9D")
++
++
++def forward_record(who: str, text: str | None = None, *, origin: dict[str, Any] | None = ORIGIN, oid: str | None = None) -> dict[str, Any]:
++    r = rec(oid or f"fwd-{who}", COMMENTARY[who] if text is None else text, ts="2026-10-08T10:00:00Z")
++    if origin is not None:
++        r["forwarded_from"] = dict(origin)
++    return r
++
++
++async def test_original_and_three_forwards_with_commentary_are_one_independent_root(tmp_path: Path) -> None:
++    holders = [await holder_with(tmp_path, "orig", original_record())]
++    for who in ("ana", "bo", "cy"):
++        holders.append(await holder_with(tmp_path, who, forward_record(who)))
++    support = await support_over(holders)
++    assert support["apparent_refs"] == 4 and support["independent_roots"] == 1 and support["copied_refs"] == 3
++    assert support["unknown_independence"] == 0 and sorted(support["holders"]) == sorted(h.holder_id for h in holders)
++    # what each holder exports: the forwards carry the ORIGIN's identity as their object_key, the original its own (the same hash)
++    expect = object_key(TENANT, ORIGIN["app"], ORIGIN["account"], ORIGIN["object_type"], ORIGIN["object_id"])
++    refs = [r for h in holders for r in await export_refs(h)]
++    assert {r["meta"]["object_key"] for r in refs} == {expect}
++    fwd_roots = {r["source_root_id"] for r in refs if r["holder_id"] != holders[0].holder_id}
++    assert fwd_roots == {origin_root(expect)}                              # three different texts, one root
++    for h in holders:
++        await h.close()
++
++
++async def test_forwards_alone_collapse_even_when_the_original_is_nowhere(tmp_path: Path) -> None:
++    holders = [await holder_with(tmp_path, who, forward_record(who)) for who in ("ana", "bo", "cy")]
++    support = await support_over(holders)
++    assert support["independent_roots"] == 1 and support["copied_refs"] == 2
++    # the explicit link names an origin object; the holders keep it only as a one-way key (not the id, not any text of the original)
++    for h in holders:
++        assert table_contains(h, "1790674800.000100") == ["ingest_records.source_object_id"] or table_contains(h, "1790674800.000100") == []
++        row = h.store._conn.execute("SELECT source_root_id, root_method, origin_key, object_key FROM ingest_records").fetchone()
++        assert row["root_method"] == "explicit" and row["origin_key"].startswith("ok1_") and row["origin_key"] != row["object_key"]
++        assert row["source_root_id"] == origin_root(row["origin_key"])
++        await h.close()
++
++
++async def test_without_the_link_retold_records_stay_independent(tmp_path: Path) -> None:
++    """Undetectable by design (probe f4): own words and no marker are separate sources. The link is what makes the difference."""
++    holders = [await holder_with(tmp_path, who, forward_record(who, origin=None)) for who in ("ana", "bo", "cy")]
++    assert (await support_over(holders))["independent_roots"] == 3
++    for h in holders:
++        assert h.store._conn.execute("SELECT origin_key, root_method FROM ingest_records").fetchone()["origin_key"] is None
++        await h.close()
++
++
++async def test_verbatim_forwards_still_collapse(tmp_path: Path) -> None:
++    # f1: the explicit link plus the verbatim body, in three holders (one root through the link, as before through the text)
++    f1 = [await holder_with(tmp_path, f"v1{who}", forward_record(who, ORIGINAL_TEXT)) for who in ("ana", "bo", "cy")]
++    assert (await support_over(f1))["independent_roots"] == 1
++    # f1 with the original present as well
++    assert (await support_over([await holder_with(tmp_path, "v1orig", original_record()), *f1]))["independent_roots"] == 1
++    # f2: a pasted forward block with a short note, no metadata link: the forwarded segment is the root (unchanged)
++    block = lambda who: (f"FYI from {who}, see below\n---------- Forwarded message ---------\nFrom: Ana <ana@acme.example>\nSubject: Rotterdam\n\n{ORIGINAL_TEXT}")  # noqa: E731
++    f2 = [await holder_with(tmp_path, f"v2{who}", forward_record(who, block(who), origin=None)) for who in ("ana", "bo", "cy")]
++    assert (await support_over(f2))["independent_roots"] == 1
++    assert f2[0].store._conn.execute("SELECT root_method, source_root_id FROM ingest_records").fetchone()["root_method"] == "pure_copy"
++    # f3: a verbatim copy, no marker at all (unchanged)
++    f3 = [await holder_with(tmp_path, f"v3{who}", forward_record(who, ORIGINAL_TEXT, origin=None)) for who in ("ana", "bo", "cy")]
++    assert (await support_over(f3))["independent_roots"] == 1
++    for h in (*f1, *f2, *f3):
++        await h.close()
++
++
++async def test_unrelated_records_and_different_origins_are_unaffected(tmp_path: Path) -> None:
++    other_origin = {**ORIGIN, "object_id": "1790674999.000900"}
++    a = await holder_with(tmp_path, "a", forward_record("ana"))                                     # forwards origin 1
++    b = await holder_with(tmp_path, "b", forward_record("bo", origin=other_origin))                 # forwards a different origin
++    c = await holder_with(tmp_path, "c", forward_record("cy", origin=None))                         # own words, no link
++    d = await holder_with(tmp_path, "d", original_record())                                         # origin 1 itself
++    support = await support_over([a, b, c, d])
++    assert support["apparent_refs"] == 4 and support["independent_roots"] == 3                       # {a, d}, {b}, {c}
++    # a link that identifies no object (no id) changes nothing: the record keeps its content root
++    e = await holder_with(tmp_path, "e", forward_record("ana", origin={"app": "slack-export", "account": "T0ACME"}, oid="fwd-noid"))
++    row = e.store._conn.execute("SELECT root_method, source_root_id, origin_key FROM ingest_records").fetchone()
++    assert row["origin_key"] is None and row["root_method"] == "content" and row["source_root_id"] == fingerprint(COMMENTARY["ana"])
++    for h in (a, b, c, d, e):
++        await h.close()
++
++
++async def test_a_link_that_omits_app_and_account_means_the_same_app(tmp_path: Path) -> None:
++    short = {"object_id": ORIGIN["object_id"]}                                                       # a forward inside one app
++    a = await holder_with(tmp_path, "a", forward_record("ana", origin=short))
++    b = await holder_with(tmp_path, "b", forward_record("bo", origin=short))
++    d = await holder_with(tmp_path, "d", original_record())
++    assert (await support_over([a, b, d]))["independent_roots"] == 1
++    # ... which is a different object in another app
++    z = await holder_with(tmp_path, "z", forward_record("cy", origin=short), app="wiki", account="other")
++    assert (await support_over([a, b, d, z]))["independent_roots"] == 2
++    for h in (a, b, d, z):
++        await h.close()
++
++
++@pytest.mark.parametrize("same_sync", [True, False])
++async def test_a_local_original_gives_the_forward_its_exact_root(tmp_path: Path, same_sync: bool) -> None:
++    """INGESTION.md §4.5 rule 1: the original is in this holder, so the forward takes the original's own root (whether the two
++    arrive in one export or in two syncs)."""
++    first = [json.dumps(original_record())] + ([json.dumps(forward_record("ana"))] if same_sync else [])
++    store, pipe, _svc, con, f = await one_holder(tmp_path, first, app="slack-export", account="T0ACME")
++    await pipe.sync(con["connector_id"])
++    await pipe.process_available()
++    if not same_sync:
++        append_jsonl(f, [forward_record("ana")])
++        await pipe.sync(con["connector_id"])
++        await pipe.process_available()
++    rows = {r["source_object_id"]: r for r in store.store._conn.execute("SELECT source_object_id, source_root_id, root_method, origin_key, object_key FROM ingest_records")}
++    orig, fwd = rows[ORIGIN["object_id"]], rows["fwd-ana"]
++    assert orig["source_root_id"] == fingerprint(ORIGINAL_TEXT) and orig["origin_key"] is None
++    assert fwd["source_root_id"] == orig["source_root_id"] and fwd["root_method"] == "explicit" and fwd["origin_key"] == orig["object_key"]
++    support = await support_over([store])
++    assert support["apparent_refs"] == 2 and support["independent_roots"] == 1
++    await store.close()
++
++
++def test_origin_identity_is_a_one_way_key_of_the_originals_own_identity() -> None:
++    base = dict(kind="message", tenant_id="t", holder_id="h", connector_id="c", source_app="teamchat", source_account_id="acme",
++                source_object_type="message", source_object_id="fwd1", observed_at="2026-10-09T01:00:00Z", created_at="2026-10-09T01:00:00Z",
++                body="My own commentary on the forwarded thing, long enough to count as own words.")
++    original = CanonicalEvent.create(**{**base, "holder_id": "other", "source_object_id": "orig", "body": "The original text."})
++    for rel in ("forward", "share", "crosspost", "copy", "moved_from", "bot_relay"):
++        e = CanonicalEvent.create(**base, derived_from=[DerivedFrom(rel, source_object_id="orig")])
++        assert e.origin_key == original.object_key and e.source_root_id == origin_root(original.object_key) and e.root_method == "explicit", rel
++    assert CanonicalEvent.create(**base, derived_from=[DerivedFrom("quote", source_object_id="orig")]).origin_key is None   # a quote is a reply
++    assert CanonicalEvent.create(**base).origin_key is None
++    mail = CanonicalEvent.create(**base, derived_from=[DerivedFrom("forward", rfc822_message_id="<AbC@mail.example>")])
++    mail2 = CanonicalEvent.create(**{**base, "holder_id": "h9", "source_object_id": "x"}, derived_from=[DerivedFrom("forward", rfc822_message_id="abc@mail.example")])
++    assert mail.origin_key == mail2.origin_key and mail.origin_key.startswith("ok1_") and mail.source_root_id == mail2.source_root_id
++    # the origin id is not recoverable from the key or the root
++    assert "orig" not in e.origin_key and "orig" not in (e.source_root_id or "")
++    # deletions and conversations never carry an origin
++    assert CanonicalEvent.create(**{**base, "kind": "deletion", "body": ""}, derived_from=[DerivedFrom("forward", source_object_id="orig")]).origin_key is None
++    # the payload round trip (queue) keeps the link, hence the key
++    from mycelic.ingest.events import decode_payload, encode_payload
++    assert decode_payload(encode_payload(e)).origin_key == e.origin_key
+-- 
+2.43.0
+

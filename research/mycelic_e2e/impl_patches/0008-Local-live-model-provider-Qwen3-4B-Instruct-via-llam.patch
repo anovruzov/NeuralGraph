@@ -1,0 +1,559 @@
+From 9b426a3a813a22af291e04b3d4960e3e2ee9226e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 06:09:08 +0000
+Subject: [PATCH 8/9] Local live model provider: Qwen3-4B-Instruct via
+ llama.cpp behind the product router
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl        |   1 +
+ research/mycelic_e2e/live/LIVE_PROVIDER.md    | 159 ++++++++++++++++++
+ .../live/data/bench_1.7b_300tok_np4_t2.jsonl  |   4 +
+ .../live/data/bench_4b_300tok_np4_t2.jsonl    |   4 +
+ .../data/bench_4b_300tok_np4_t2_rerun.jsonl   |   2 +
+ .../live/data/bench_4b_630tok_np4_t2.jsonl    |   4 +
+ .../data/manifest_ai_qwen3_1.7b-q4_K_M.json   |   1 +
+ ...fest_ai_qwen3_4b-instruct-2507-q4_K_M.json |   1 +
+ .../mycelic_e2e/live/data/verify_run1.txt     |  65 +++++++
+ research/mycelic_e2e/live/live_env.sh         |  10 ++
+ .../mycelic_e2e/live/scripts/bench_tps.py     |  42 +++++
+ research/mycelic_e2e/live/scripts/build.sh    |   8 +
+ .../mycelic_e2e/live/scripts/pull_blob.sh     |  13 ++
+ research/mycelic_e2e/live/scripts/serve.sh    |  35 ++++
+ .../mycelic_e2e/live/verify_live_provider.py  |  73 ++++++++
+ 15 files changed, 422 insertions(+)
+ create mode 100644 research/mycelic_e2e/live/LIVE_PROVIDER.md
+ create mode 100644 research/mycelic_e2e/live/data/bench_1.7b_300tok_np4_t2.jsonl
+ create mode 100644 research/mycelic_e2e/live/data/bench_4b_300tok_np4_t2.jsonl
+ create mode 100644 research/mycelic_e2e/live/data/bench_4b_300tok_np4_t2_rerun.jsonl
+ create mode 100644 research/mycelic_e2e/live/data/bench_4b_630tok_np4_t2.jsonl
+ create mode 100644 research/mycelic_e2e/live/data/manifest_ai_qwen3_1.7b-q4_K_M.json
+ create mode 100644 research/mycelic_e2e/live/data/manifest_ai_qwen3_4b-instruct-2507-q4_K_M.json
+ create mode 100644 research/mycelic_e2e/live/data/verify_run1.txt
+ create mode 100644 research/mycelic_e2e/live/live_env.sh
+ create mode 100644 research/mycelic_e2e/live/scripts/bench_tps.py
+ create mode 100755 research/mycelic_e2e/live/scripts/build.sh
+ create mode 100755 research/mycelic_e2e/live/scripts/pull_blob.sh
+ create mode 100755 research/mycelic_e2e/live/scripts/serve.sh
+ create mode 100644 research/mycelic_e2e/live/verify_live_provider.py
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 6077b41..8cacc6d 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -8,3 +8,4 @@
+ {"id": "X007", "utc": "2026-10-09T05:55Z", "kind": "custody-audit", "agent": "REVIEWER-1 (reported model id claude-opus-5-5)", "artifact": "research/mycelic_e2e/custody/OLD_BENCHMARKS.md", "result": "simulator E1-E12/v3/v4/v5 = simulation-only (imports no implementation code; oracle-assisted extraction ops.py:239-241); live Qwen harness = partial-path (model replaces extraction only, live/run.py:564-566); ingest_bench = component-only (real connector+pipeline+one EvidenceStore, no coordinator/loop/gate); seed scenario = end-to-end functional synthetic pass/fail (reproduced 13/13 in 11.5s), not an accuracy benchmark; LoCoMo = component-only on a different retriever, gold-category switch at runner.py:858 when USE_SPEAKER_PROFILES=1 (off by default)", "class": "audit"}
+ {"id": "X008", "utc": "2026-10-09T06:10Z", "kind": "trace", "agent": "ENGINEER-A (reported model id claude-sonnet-5-5)", "command": "python research/mycelic_e2e/audit/trace_one_event.py", "artifact": "research/mycelic_e2e/audit/TRACE_FINDINGS.md, trace_output.json", "result": "raw event intact through connector, normalization, queue(new), domain, shard, holder NeuralGraph store, outbox, coordinator document.ingested; FIRST LOSS at holder answer step: loop's templated question shares 0 content tokens with the memory -> fake answer_from_evidence no_evidence -> 0 claims. Probes: duplicate PASS, restart/replay PASS, out-of-order PASS, author edit -> contested not superseded (DEFECT), edit+delete -> coordinator keeps verbatim text in 7 tables (DEFECT), malformed lines counted but no per-line disposition + undated record gets ingest time (DEFECT), forwarded_from with own words -> 3 roots (DEFECT), 3-obs/2-dept routed+supported PASS (only with declared domains), denied access PASS content / metadata leak of refused holder ids (DEFECT h2), cross-tenant PASS", "provider": "deterministic (fake.py)", "host": "cloud container", "class": "partial-path trace (single event, in-process API)"}
+ {"id": "X009", "utc": "2026-10-09T06:05Z", "kind": "perf-probe", "agent": "ENGINEER-B (reported model id claude-sonnet-5-5)", "artifact": "research/mycelic_e2e/perf/PERF_PROBE.md, perf/results/*.json", "result": "in-process stack, fake provider, hash-256 embedder, 5 records/user: N=2000 users open+ingest+one discovery pass 409 s (+92 s shutdown), peak RSS 3.98 GB; ingest 108->36.5 rec/s as N 50->2000; routing question.route 69/1107/3330 ms at N=200/1000/2000; every question capped at 10 holders in registry order; 10k in one process infeasible (RSS ~20 GB est., fds ~30k > 20k limit, ingest 62-101 min est.); coordinator-only at 10k: candidate_holders 8.5-9.3 s, question_audience 21-24 s per route (measured)", "host": "cloud container 4 vCPU/15.7 GB, shared with other agents (+-25%)", "class": "component perf (measured + extrapolated, labelled)"}
++{"id": "X010", "utc": "2026-10-09T06:20Z", "kind": "live-provider", "agent": "ENGINEER-C (reported model id claude-sonnet-5-5)", "artifact": "research/mycelic_e2e/live/LIVE_PROVIDER.md", "result": "llama.cpp 4227c9b (from llama-cpp-python 0.3.16 sdist) CPU build; Qwen3-4B-Instruct-2507 Q4_K_M sha256 3605803b...e597 and Qwen3-1.7B Q4_K_M sha256 b139949c...1897 from Docker Hub ai/qwen3; 4B serving on 127.0.0.1:8082 (-t 2 -np 4): 2.5-2.9 tok/s single stream aggregate, 3.5-4.4 tok/s at 4 streams; product DefaultModelRouter.from_settings completed answer_from_evidence (52.6 s) and evaluate_responses (155.8 s) with schema-valid outputs (1 sample each, not an accuracy measurement)", "host": "cloud container, co-tenant load 2.7-3.9", "class": "live-provider plumbing"}
+diff --git a/research/mycelic_e2e/live/LIVE_PROVIDER.md b/research/mycelic_e2e/live/LIVE_PROVIDER.md
+new file mode 100644
+index 0000000..2834452
+--- /dev/null
++++ b/research/mycelic_e2e/live/LIVE_PROVIDER.md
+@@ -0,0 +1,159 @@
++# Live local LLM for the Mycelic implementation (ENGINEER-C)
++
++Written 2026-10-09 by ENGINEER-C (model `claude-sonnet-5-5`). Everything runs in this cloud container
++(4 vCPU Intel Xeon @ 2.10 GHz with AVX512/AMX, 15 GB RAM, no GPU), outside the repository, under `/root/mycelic-live`.
++No weights or binaries are in the repo; this directory holds text only (scripts, manifests, benchmark JSON, this note).
++
++**Status: a real model is serving and the product's `ModelRouter` completed real tasks against it.**
++Server: `http://127.0.0.1:8082/v1`, model Qwen3-4B-Instruct-2507 Q4_K_M, PID 8513, running in the background.
++
++## 1. What was built
++
++| item | value |
++|---|---|
++| source | `pip download --no-deps --no-binary :all: llama-cpp-python==0.3.16` (PyPI sdist, sha256 `34ed0f9bd9431af045bb63d9324ae620ad0536653740e9bb163a2e1fcb973be6`), unpacked to `/root/mycelic-live/src/llama-cpp-python-0.3.16` |
++| vendored llama.cpp | commit `4227c9be4268ac844921b90f31595f81236bd317` (2025-08-14, "CUDA: fix negative KV_max values in FA (#15321)"); `llama-server --version` prints `version: 1 (4227c9b)`, `/props` reports `build_info: b1-4227c9b` (the build number shows as 1) |
++| build | `scripts/build.sh`: cmake Release, `-DGGML_NATIVE=ON` (CPU only, CUDA/Metal off, no curl), targets `llama-server` and `llama-bench`, `nice -n 15`, `-j 3`; log `/root/mycelic-live/logs/build.log` |
++| binary | `/root/mycelic-live/build/bin/llama-server` (sha256 `9b54383838a113b41511a3ff67878c745ffc1a1de7c50f7b8bacff1a36eef84b`; host-specific because of `-march=native`) |
++
++Differences from the previous session's llama.cpp (a newer one): this older build has `-fa` as a plain switch (no `on|off|auto`),
++no `--cache-ram`, no `--no-kv-unified` (the default is already one KV region per slot; `--kv-unified` is opt-in).
++`serve.sh` here is adapted accordingly.
++
++## 2. Model files (Docker Hub registry HTTP API, repository `ai/qwen3`)
++
++Token from `auth.docker.io` (`scope=repository:ai/qwen3:pull`), manifest from `registry-1.docker.io/v2/ai/qwen3/manifests/<tag>`, blob
++from `/v2/ai/qwen3/blobs/<digest>` (script `scripts/pull_blob.sh`). Manifests are saved in `data/`. Notes:
++the manifests are OCI model artifacts with ONE layer of mediaType `application/vnd.cncf.model.weight.v1.raw` (not a mediaType
++containing `gguf`); the layer was chosen by its annotation `org.cncf.model.filepath` = `*.gguf`. The registry answered
++`TOOMANYREQUESTS` (unauthenticated pull rate limit) on some manifest requests; retrying a few seconds later worked.
++The tag for the 4B is lower case: `4b-instruct-2507-q4_K_M` (`4B-Instruct-2507-Q4_K_M` is not a tag).
++
++| model | tag | file | size (bytes) | sha256 observed = manifest digest |
++|---|---|---|---|---|
++| Qwen3-4B-Instruct-2507 Q4_K_M (annotation `ai.model.repo`: `unsloth/Qwen3-4B-Instruct-2507-GGUF`) | `ai/qwen3:4b-instruct-2507-q4_K_M` | `/root/mycelic-live/models/qwen3-4b-instruct-2507-q4_k_m.gguf` | 2497281120 | `3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597` (matches the previous session's `3605803b…e597`) |
++| Qwen3-1.7B Q4_K_M (`unsloth/Qwen3-1.7B-GGUF`) | `ai/qwen3:1.7b-q4_K_M` | `/root/mycelic-live/models/qwen3-1.7b-q4_k_m.gguf` | 1107409472 | `b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897` (matches `b139949c…1897`) |
++
++Both digests were computed with `sha256sum` on the downloaded files and equal the manifest layer digests.
++
++## 3. Server (running)
++
++* Chosen: **Qwen3-4B-Instruct-2507**, `127.0.0.1:8082`, `THREADS=2`, `NP=4` (8192 context cells per slot, 32768 total), PID **8513**
++  (`/root/mycelic-live/logs/server-4b.pid`), log `/root/mycelic-live/logs/server-4b.log`, RSS about 6.3 GB.
++* Exact command (started by `scripts/serve.sh 4b`, `nice -n 5`, `nohup`):
++
++```
++/root/mycelic-live/build/bin/llama-server -m /root/mycelic-live/models/qwen3-4b-instruct-2507-q4_k_m.gguf \
++  --host 127.0.0.1 --port 8082 -t 2 -tb 2 -np 4 -c 32768 -cb -fa -ctk q8_0 -ctv q8_0 -b 2048 -ub 512 \
++  --jinja --no-webui --metrics
++```
++
++* Health: `curl -s http://127.0.0.1:8082/health` returns `{"status":"ok"}`; `GET /props` has `build_info`, `model_path`, `total_slots: 4`.
++* Smoke test with thinking disabled: POST `/v1/chat/completions` with `"chat_template_kwargs":{"enable_thinking":false}` returned
++  `{"capital": "Paris"}`, 7 completion tokens, `finish_reason: stop`. The 4B-Instruct-2507 model has no thinking mode, so the setting is accepted and has no effect.
++* Also tried (as the task asked, because 4 concurrent streams were below 3 tok/s): the 1.7B with `scripts/serve.sh 1.7b` on `127.0.0.1:8081`,
++  same `-t 2 -np 4`, with `--chat-template-kwargs {"enable_thinking":false}` set server-wide (the 1.7B does have a thinking mode and the product cannot
++  send the per-request field, see section 5). It answered the same smoke prompt with no reasoning, then **was stopped** after benchmarking to leave the cores free.
++  Start it again with `/root/mycelic-live/serve.sh 1.7b` (PID file `/root/mycelic-live/logs/server-1.7b.pid`).
++
++**Stop:** `/root/mycelic-live/serve.sh stop 4b` (or `kill $(cat /root/mycelic-live/logs/server-4b.pid)`). `serve.sh stop` with no argument stops both.
++Restart: `/root/mycelic-live/serve.sh 4b` (models stay on disk).
++
++## 4. Measured throughput
++
++Probe: `scripts/bench_tps.py` (distinct ~310-token prompt per request so no prompt-cache reuse, `max_tokens` 60, temperature 0, answer always
++reaches 60 tokens, `finish_reason: length`). Per-request prefill and decode tok/s are llama.cpp's own `timings`; "aggregate" is completion tokens / wall time
++over the whole batch (prefill included). **The machine was not idle**: other benchmark processes (two Python jobs at about 100% CPU each) were
++running throughout, load average 2.7 to 3.9 on 4 vCPUs, so these are contended numbers; raw rows are in `data/`.
++
++Qwen3-4B-Instruct-2507, `-t 2 -np 4` (`data/bench_4b_300tok_np4_t2.jsonl`, `..._rerun.jsonl`):
++
++| concurrent | prompt / answer | wall per batch | per-stream decode tok/s | per-stream prefill tok/s | aggregate completion tok/s |
++|---|---|---|---|---|---|
++| 1 | 317 / 60 | 21.8 s, 21.1 s, 23.9 s | 4.43, 4.23, 3.80 | 37.1, 43.5, 37.5 | 2.75, 2.85, 2.51 |
++| 4 | 309-317 / 60 | 54.5 s, 57.9 s, 69.0 s | mean 2.08, 2.04, 1.48 (individual 0.99 to 2.67; includes the other slots' prefill interleaved) | 12 to 39 | 4.41, 4.15, 3.48 |
++
++Earlier probe with 630-token prompts (my first prompt generator was twice too long; `data/bench_4b_630tok_np4_t2.jsonl`): 1 stream 49.5 s and 34.1 s
++(decode 3.8 and 4.1 tok/s), 4 streams 111 s and 104 s (aggregate 2.2 and 2.3 tok/s).
++
++Qwen3-1.7B, `-t 2 -np 4` (`data/bench_1.7b_300tok_np4_t2.jsonl`):
++
++| concurrent | wall per batch | per-stream decode tok/s | per-stream prefill tok/s | aggregate completion tok/s |
++|---|---|---|---|---|
++| 1 | 11.2 s, 11.4 s | 7.88, 7.71 | 90 | 5.38, 5.28 |
++| 4 | 27.7 s, 30.6 s | mean 3.63, 3.58 (individual 2.25 to 4.37) | 25 to 80 | 8.66, 7.85 |
++
++Reading: one 4B stream clears the 3 tok/s bar (3.8 to 4.4); four concurrent 4B streams do not (mean 1.5 to 2.1 per stream while prefills overlap,
++about 4 tok/s in aggregate), so concurrency 4 buys roughly 1.5x aggregate over one stream, not 4x, on two shared threads.
++Real product calls measured through the router (section 6): `answer_from_evidence` (344 prompt / 61 completion tokens) took 52.6 s
++(server: prefill 33 tok/s, decode 1.44 tok/s at that moment); `evaluate_responses` (526 / 278 tokens) took 155.8 s (prefill 14 tok/s, decode 2.34 tok/s).
++Plan with about 1.5 to 4 tok/s decode and 14 to 43 tok/s prefill per stream on this shared machine; a 1200-token `synthesize_discovery` or `aggregate_level`
++reply can take 5 to 13 minutes, which is why the timeout below is raised.
++
++## 5. How the product's router is pointed at it
++
++Read from `mycelic/config.py`, `mycelic/models/router.py`, `mycelic/models/openai_provider.py`:
++
++| env var | effect | value used |
++|---|---|---|
++| `MYCELIC_MODEL_LIGHT`, `MYCELIC_MODEL_STANDARD`, `MYCELIC_MODEL_HEAVY` | per-tier `"provider:model"` (split at the first colon; provider must be `fake`, `anthropic` or `openai`); `openai:<name>` is the OpenAI-compatible chat provider, `<name>` is sent verbatim as `"model"` in the request (llama-server ignores it) | `openai:qwen3-4b-instruct-2507` for all three |
++| `OPENAI_BASE_URL` (fallback `LLM_BASE_URL`, else `https://api.openai.com/v1`) | base URL for ALL openai-provider tiers; the provider POSTs `{base}/chat/completions`, so it must end in `/v1` | `http://127.0.0.1:8082/v1` |
++| `OPENAI_API_KEY` | sent as `Authorization: Bearer` only when non-empty; llama-server needs none | `local` (any non-empty string) |
++| `MYCELIC_MODEL_MAX_PARALLEL` (default 4) | client-side semaphore per provider instance | 4 (= `-np 4`) |
++| `MYCELIC_MODEL_TIMEOUT_SECONDS` (default 120) | total timeout per HTTP call (the provider retries 2 times on network/5xx/408/409/429) | 900 |
++| `MYCELIC_EMBED_PROVIDER` (default `hash`) | `hash` = deterministic embedder, no endpoint needed; `openai` would call `{base}/embeddings` and needs llama-server `--embedding` | `hash` |
++
++The same lines are in `live_env.sh`; use `set -a; . research/mycelic_e2e/live/live_env.sh; set +a`. `Settings` reads `os.environ` when `mycelic.config` is imported, so export
++the variables before starting the process.
++
++Limits to know:
++
++* **One base URL for all tiers.** `DefaultModelRouter.from_settings` builds exactly one `OpenAICompatProvider` per provider name. There is no per-tier URL, so light, standard and heavy all hit the
++  same server. Using the 1.7B for light and the 4B for the rest would need a small model-name routing proxy in front of ports 8081 and 8082 (not built). Escalation after two invalid replies therefore stays on the same model.
++* **`chat_template_kwargs` cannot be set from env.** `OpenAICompatProvider` has an `extra_body` constructor argument that is merged into every request, but `from_settings` does not pass it and no environment variable fills it.
++  It can only be set by constructing the provider in code (`OpenAICompatProvider(..., extra_body={"chat_template_kwargs": {"enable_thinking": False}})`
++  and `DefaultModelRouter(providers={"openai": that}, ...)`). It does not matter for Qwen3-4B-Instruct-2507 (no thinking mode). For the 1.7B (or any Qwen3 hybrid model) the working route is the
++  server flag `--chat-template-kwargs '{"enable_thinking":false}'`, which `serve.sh 1.7b` sets; the provider additionally strips any `<think>...</think>` left in `content`.
++* JSON: `response_format` is sent only to `*.openai.com`; for this server the JSON-only instruction is appended to the system message. No grammar or schema is sent, so validity relies on the model plus the router's repair retry (not needed in the two verified calls).
++* Sampling: `temperature` 0.0, `max_tokens` from each task spec (1200 by default); no seed.
++
++## 6. Verification (real calls through the product's router)
++
++`verify_live_provider.py` loads `mycelic.config.load_settings()` from the environment, builds `DefaultModelRouter.from_settings(settings)` (the constructor `mycelic.models.base.build_router` uses),
++prints what the router resolved and runs `answer_from_evidence` (2-item evidence list, one relevant, one distractor) and, with `--evaluate`, `evaluate_responses` (two conflicting holder responses).
++
++```
++cd /home/user/ng-impl && set -a && . research/mycelic_e2e/live/live_env.sh && set +a && python3 research/mycelic_e2e/live/verify_live_provider.py --evaluate
++```
++
++Output (saved in full in `data/verify_run1.txt`, wall time 3 m 29 s, `RESULT: OK`):
++
++```
++settings.model_tiers : {"light": "openai:qwen3-4b-instruct-2507", "standard": "openai:qwen3-4b-instruct-2507", "heavy": "openai:qwen3-4b-instruct-2507"}
++settings.openai_base_url: http://127.0.0.1:8082/v1 | api key set: True | max_parallel: 4 | timeout_s: 900.0 | embed: hash
++router.describe()['tiers']: {"light": {"provider": "openai", "model": "qwen3-4b-instruct-2507"}, "standard": {...same...}, "heavy": {...same...}}
++
++[answer_from_evidence] 52.6s ->
++{ "answer": "The Atlas billing migration cut over on 2026-03-14 and was approved by Dana Okafor (finance lead).",
++  "confidence": 1, "used_ref_ids": ["ev-101"], "no_evidence": false }
++
++[evaluate_responses] 155.8s ->
++{ "findings": [ {"text": "Atlas billing cut over on 2026-03-14.", ... "supporting_response_ids": ["r1"], "supporting_ref_ids": ["ev-101"]},
++                {"text": "Atlas billing cut over on 2026-03-21.", ... "supporting_response_ids": ["r2"], "supporting_ref_ids": ["ev-207"]} ],
++  "disagreements": [ {"summary": "Conflicting dates for Atlas billing cut over", ... "a_response_ids": ["r1"], "b_response_ids": ["r2"]} ],
++  "relevance": 1.0, "freshness": {"r1": 0.01, "r2": 0.01} }
++
++usage ledger totals: {"calls": 2, "input_tokens": 870, "output_tokens": 339, "cost_usd": 0.0, "failures": 0, ...}
++  call: {"tier": "light", "purpose": "answer_from_evidence", "input_tokens": 344, "output_tokens": 61, "latency_ms": 52632, "ok": true, "error": null}
++  call: {"tier": "standard", "purpose": "evaluate_responses", "input_tokens": 526, "output_tokens": 278, "latency_ms": 155847, "ok": true, "error": null}
++RESULT: OK
++```
++
++Both replies validated against the task schemas on the first attempt (no repair, no escalation). Quality remarks, not scored: the `answer_from_evidence` answer was correct and ignored the distractor;
++`evaluate_responses` found the date conflict but returned a `freshness` object instead of the declared `freshness_note` string (that key is optional in the schema check, so it passed), and
++`confidence: 1` on the answer is high for a 2-item evidence list. One sample each; do not read this as an accuracy measurement.
++
++## 7. Files
++
++`/root/mycelic-live/` (not in git): `build/bin/llama-server`, `models/*.gguf`, `logs/` (build, server logs, pid files, raw benchmark JSON), `src/`, `dl/` (sdist, manifests).
++In the repo (`research/mycelic_e2e/live/`): this file, `live_env.sh`, `verify_live_provider.py`, `scripts/{build.sh,serve.sh,pull_blob.sh,bench_tps.py}` (copies of the ones in `/root/mycelic-live`), `data/` (manifests, benchmark rows, verification output).
+diff --git a/research/mycelic_e2e/live/data/bench_1.7b_300tok_np4_t2.jsonl b/research/mycelic_e2e/live/data/bench_1.7b_300tok_np4_t2.jsonl
+new file mode 100644
+index 0000000..683aea5
+--- /dev/null
++++ b/research/mycelic_e2e/live/data/bench_1.7b_300tok_np4_t2.jsonl
+@@ -0,0 +1,4 @@
++{"concurrent": 1, "rep": 0, "wall_s": 11.16, "loadavg_before": 2.92, "loadavg_after": 2.92, "per_stream_decode_tok_s_mean": 7.88, "per_stream_prefill_tok_s_mean": 90.07, "end_to_end_completion_tok_s_aggregate": 5.38, "requests": [{"wall_s": 11.16, "prompt_tokens": 317, "completion_tokens": 60, "prefill_tok_s": 90.07, "decode_tok_s": 7.88, "finish": "length"}]}
++{"concurrent": 1, "rep": 1, "wall_s": 11.36, "loadavg_before": 2.92, "loadavg_after": 3.01, "per_stream_decode_tok_s_mean": 7.71, "per_stream_prefill_tok_s_mean": 89.77, "end_to_end_completion_tok_s_aggregate": 5.28, "requests": [{"wall_s": 11.36, "prompt_tokens": 320, "completion_tokens": 60, "prefill_tok_s": 89.77, "decode_tok_s": 7.71, "finish": "length"}]}
++{"concurrent": 4, "rep": 0, "wall_s": 27.7, "loadavg_before": 3.01, "loadavg_after": 3.24, "per_stream_decode_tok_s_mean": 3.63, "per_stream_prefill_tok_s_mean": 44.29, "end_to_end_completion_tok_s_aggregate": 8.66, "requests": [{"wall_s": 27.7, "prompt_tokens": 314, "completion_tokens": 60, "prefill_tok_s": 42.2, "decode_tok_s": 4.37, "finish": "length"}, {"wall_s": 27.52, "prompt_tokens": 315, "completion_tokens": 60, "prefill_tok_s": 46.53, "decode_tok_s": 2.89, "finish": "length"}, {"wall_s": 27.52, "prompt_tokens": 315, "completion_tokens": 60, "prefill_tok_s": 46.07, "decode_tok_s": 2.89, "finish": "length"}, {"wall_s": 27.7, "prompt_tokens": 315, "completion_tokens": 60, "prefill_tok_s": 42.35, "decode_tok_s": 4.37, "finish": "length"}]}
++{"concurrent": 4, "rep": 1, "wall_s": 30.57, "loadavg_before": 3.24, "loadavg_after": 3.75, "per_stream_decode_tok_s_mean": 3.58, "per_stream_prefill_tok_s_mean": 38.83, "end_to_end_completion_tok_s_aggregate": 7.85, "requests": [{"wall_s": 30.57, "prompt_tokens": 309, "completion_tokens": 60, "prefill_tok_s": 24.98, "decode_tok_s": 4.03, "finish": "length"}, {"wall_s": 30.39, "prompt_tokens": 310, "completion_tokens": 60, "prefill_tok_s": 79.89, "decode_tok_s": 2.25, "finish": "length"}, {"wall_s": 30.56, "prompt_tokens": 312, "completion_tokens": 60, "prefill_tok_s": 25.23, "decode_tok_s": 4.03, "finish": "length"}, {"wall_s": 30.56, "prompt_tokens": 312, "completion_tokens": 60, "prefill_tok_s": 25.23, "decode_tok_s": 4.03, "finish": "length"}]}
+diff --git a/research/mycelic_e2e/live/data/bench_4b_300tok_np4_t2.jsonl b/research/mycelic_e2e/live/data/bench_4b_300tok_np4_t2.jsonl
+new file mode 100644
+index 0000000..f66dfff
+--- /dev/null
++++ b/research/mycelic_e2e/live/data/bench_4b_300tok_np4_t2.jsonl
+@@ -0,0 +1,4 @@
++{"concurrent": 1, "rep": 0, "wall_s": 21.82, "loadavg_before": 2.7, "loadavg_after": 2.74, "per_stream_decode_tok_s_mean": 4.43, "per_stream_prefill_tok_s_mean": 37.09, "end_to_end_completion_tok_s_aggregate": 2.75, "requests": [{"wall_s": 21.81, "prompt_tokens": 317, "completion_tokens": 60, "prefill_tok_s": 37.09, "decode_tok_s": 4.43, "finish": "length"}]}
++{"concurrent": 1, "rep": 1, "wall_s": 21.06, "loadavg_before": 2.74, "loadavg_after": 2.89, "per_stream_decode_tok_s_mean": 4.23, "per_stream_prefill_tok_s_mean": 43.5, "end_to_end_completion_tok_s_aggregate": 2.85, "requests": [{"wall_s": 21.06, "prompt_tokens": 310, "completion_tokens": 60, "prefill_tok_s": 43.5, "decode_tok_s": 4.23, "finish": "length"}]}
++{"concurrent": 4, "rep": 0, "wall_s": 54.47, "loadavg_before": 2.89, "loadavg_after": 3.2, "per_stream_decode_tok_s_mean": 2.08, "per_stream_prefill_tok_s_mean": 19.2, "end_to_end_completion_tok_s_aggregate": 4.41, "requests": [{"wall_s": 54.15, "prompt_tokens": 313, "completion_tokens": 60, "prefill_tok_s": 21.7, "decode_tok_s": 1.49, "finish": "length"}, {"wall_s": 54.15, "prompt_tokens": 310, "completion_tokens": 60, "prefill_tok_s": 21.49, "decode_tok_s": 1.49, "finish": "length"}, {"wall_s": 54.47, "prompt_tokens": 311, "completion_tokens": 60, "prefill_tok_s": 16.63, "decode_tok_s": 2.67, "finish": "length"}, {"wall_s": 54.47, "prompt_tokens": 317, "completion_tokens": 60, "prefill_tok_s": 16.97, "decode_tok_s": 2.67, "finish": "length"}]}
++{"concurrent": 4, "rep": 1, "wall_s": 57.89, "loadavg_before": 3.2, "loadavg_after": 2.77, "per_stream_decode_tok_s_mean": 2.04, "per_stream_prefill_tok_s_mean": 19.09, "end_to_end_completion_tok_s_aggregate": 4.15, "requests": [{"wall_s": 57.13, "prompt_tokens": 314, "completion_tokens": 60, "prefill_tok_s": 39.14, "decode_tok_s": 1.21, "finish": "length"}, {"wall_s": 57.89, "prompt_tokens": 312, "completion_tokens": 60, "prefill_tok_s": 12.43, "decode_tok_s": 2.31, "finish": "length"}, {"wall_s": 57.89, "prompt_tokens": 309, "completion_tokens": 60, "prefill_tok_s": 12.3, "decode_tok_s": 2.31, "finish": "length"}, {"wall_s": 57.89, "prompt_tokens": 314, "completion_tokens": 60, "prefill_tok_s": 12.51, "decode_tok_s": 2.31, "finish": "length"}]}
+diff --git a/research/mycelic_e2e/live/data/bench_4b_300tok_np4_t2_rerun.jsonl b/research/mycelic_e2e/live/data/bench_4b_300tok_np4_t2_rerun.jsonl
+new file mode 100644
+index 0000000..32303aa
+--- /dev/null
++++ b/research/mycelic_e2e/live/data/bench_4b_300tok_np4_t2_rerun.jsonl
+@@ -0,0 +1,2 @@
++{"concurrent": 1, "rep": 0, "wall_s": 23.94, "loadavg_before": 2.94, "loadavg_after": 2.74, "per_stream_decode_tok_s_mean": 3.8, "per_stream_prefill_tok_s_mean": 37.45, "end_to_end_completion_tok_s_aggregate": 2.51, "requests": [{"wall_s": 23.93, "prompt_tokens": 314, "completion_tokens": 60, "prefill_tok_s": 37.45, "decode_tok_s": 3.8, "finish": "length"}]}
++{"concurrent": 4, "rep": 0, "wall_s": 69.02, "loadavg_before": 2.74, "loadavg_after": 3.49, "per_stream_decode_tok_s_mean": 1.48, "per_stream_prefill_tok_s_mean": 18.62, "end_to_end_completion_tok_s_aggregate": 3.48, "requests": [{"wall_s": 68.47, "prompt_tokens": 309, "completion_tokens": 60, "prefill_tok_s": 36.83, "decode_tok_s": 0.99, "finish": "length"}, {"wall_s": 69.02, "prompt_tokens": 311, "completion_tokens": 60, "prefill_tok_s": 12.57, "decode_tok_s": 1.65, "finish": "length"}, {"wall_s": 69.02, "prompt_tokens": 315, "completion_tokens": 60, "prefill_tok_s": 12.73, "decode_tok_s": 1.65, "finish": "length"}, {"wall_s": 69.01, "prompt_tokens": 316, "completion_tokens": 60, "prefill_tok_s": 12.36, "decode_tok_s": 1.65, "finish": "length"}]}
+diff --git a/research/mycelic_e2e/live/data/bench_4b_630tok_np4_t2.jsonl b/research/mycelic_e2e/live/data/bench_4b_630tok_np4_t2.jsonl
+new file mode 100644
+index 0000000..b9341de
+--- /dev/null
++++ b/research/mycelic_e2e/live/data/bench_4b_630tok_np4_t2.jsonl
+@@ -0,0 +1,4 @@
++{"concurrent": 1, "rep": 0, "wall_s": 49.48, "loadavg_before": 3.41, "loadavg_after": 4.06, "per_stream_decode_tok_s_mean": 3.81, "per_stream_prefill_tok_s_mean": 18.7, "end_to_end_completion_tok_s_aggregate": 1.21, "requests": [{"wall_s": 49.48, "prompt_tokens": 630, "completion_tokens": 60, "prefill_tok_s": 18.7, "decode_tok_s": 3.81, "finish": "length"}]}
++{"concurrent": 1, "rep": 1, "wall_s": 34.09, "loadavg_before": 4.06, "loadavg_after": 3.52, "per_stream_decode_tok_s_mean": 4.11, "per_stream_prefill_tok_s_mean": 32.36, "end_to_end_completion_tok_s_aggregate": 1.76, "requests": [{"wall_s": 34.09, "prompt_tokens": 630, "completion_tokens": 60, "prefill_tok_s": 32.36, "decode_tok_s": 4.11, "finish": "length"}]}
++{"concurrent": 4, "rep": 0, "wall_s": 111.06, "loadavg_before": 3.52, "loadavg_after": 3.01, "per_stream_decode_tok_s_mean": 1.83, "per_stream_prefill_tok_s_mean": 15.47, "end_to_end_completion_tok_s_aggregate": 2.16, "requests": [{"wall_s": 110.68, "prompt_tokens": 631, "completion_tokens": 60, "prefill_tok_s": 33.47, "decode_tok_s": 0.65, "finish": "length"}, {"wall_s": 111.06, "prompt_tokens": 620, "completion_tokens": 60, "prefill_tok_s": 9.46, "decode_tok_s": 2.23, "finish": "length"}, {"wall_s": 111.06, "prompt_tokens": 633, "completion_tokens": 60, "prefill_tok_s": 9.53, "decode_tok_s": 2.23, "finish": "length"}, {"wall_s": 111.05, "prompt_tokens": 625, "completion_tokens": 60, "prefill_tok_s": 9.41, "decode_tok_s": 2.23, "finish": "length"}]}
++{"concurrent": 4, "rep": 1, "wall_s": 104.01, "loadavg_before": 3.01, "loadavg_after": 3.18, "per_stream_decode_tok_s_mean": 1.95, "per_stream_prefill_tok_s_mean": 15.62, "end_to_end_completion_tok_s_aggregate": 2.31, "requests": [{"wall_s": 103.58, "prompt_tokens": 630, "completion_tokens": 60, "prefill_tok_s": 30.89, "decode_tok_s": 0.72, "finish": "length"}, {"wall_s": 104.01, "prompt_tokens": 625, "completion_tokens": 60, "prefill_tok_s": 10.48, "decode_tok_s": 2.36, "finish": "length"}, {"wall_s": 104.01, "prompt_tokens": 628, "completion_tokens": 60, "prefill_tok_s": 10.53, "decode_tok_s": 2.36, "finish": "length"}, {"wall_s": 104.01, "prompt_tokens": 630, "completion_tokens": 60, "prefill_tok_s": 10.57, "decode_tok_s": 2.36, "finish": "length"}]}
+diff --git a/research/mycelic_e2e/live/data/manifest_ai_qwen3_1.7b-q4_K_M.json b/research/mycelic_e2e/live/data/manifest_ai_qwen3_1.7b-q4_K_M.json
+new file mode 100644
+index 0000000..4a36379
+--- /dev/null
++++ b/research/mycelic_e2e/live/data/manifest_ai_qwen3_1.7b-q4_K_M.json
+@@ -0,0 +1 @@
++{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","artifactType":"application/vnd.cncf.model.manifest.v1+json","config":{"mediaType":"application/vnd.cncf.model.config.v1+json","digest":"sha256:9b7213b45430af13e433a802074c341f9aa71063a7c4583d821297516243af21","size":183},"layers":[{"mediaType":"application/vnd.cncf.model.weight.v1.raw","digest":"sha256:b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897","size":1107409472,"annotations":{"org.cncf.model.filepath":"Qwen3-1.7B-Q4_K_M.gguf"}}],"annotations":{"ai.model.repo":"unsloth/Qwen3-1.7B-GGUF","org.cncf.model.filepath":"Qwen3-1.7B-Q4_K_M.gguf"}}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/live/data/manifest_ai_qwen3_4b-instruct-2507-q4_K_M.json b/research/mycelic_e2e/live/data/manifest_ai_qwen3_4b-instruct-2507-q4_K_M.json
+new file mode 100644
+index 0000000..98598ac
+--- /dev/null
++++ b/research/mycelic_e2e/live/data/manifest_ai_qwen3_4b-instruct-2507-q4_K_M.json
+@@ -0,0 +1 @@
++{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","artifactType":"application/vnd.cncf.model.manifest.v1+json","config":{"mediaType":"application/vnd.cncf.model.config.v1+json","digest":"sha256:1306ec54eb11c892859479047632727decc5a4f128d838bcb129bfc85aff725b","size":183},"layers":[{"mediaType":"application/vnd.cncf.model.weight.v1.raw","digest":"sha256:3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597","size":2497281120,"annotations":{"org.cncf.model.filepath":"Qwen3-4B-Instruct-2507-Q4_K_M.gguf"}}],"annotations":{"ai.model.repo":"unsloth/Qwen3-4B-Instruct-2507-GGUF","org.cncf.model.filepath":"Qwen3-4B-Instruct-2507-Q4_K_M.gguf"}}
+\ No newline at end of file
+diff --git a/research/mycelic_e2e/live/data/verify_run1.txt b/research/mycelic_e2e/live/data/verify_run1.txt
+new file mode 100644
+index 0000000..598d904
+--- /dev/null
++++ b/research/mycelic_e2e/live/data/verify_run1.txt
+@@ -0,0 +1,65 @@
++settings.model_tiers : {"light": "openai:qwen3-4b-instruct-2507", "standard": "openai:qwen3-4b-instruct-2507", "heavy": "openai:qwen3-4b-instruct-2507"}
++settings.openai_base_url: http://127.0.0.1:8082/v1 | api key set: True | max_parallel: 4 | timeout_s: 900.0 | embed: hash
++router.describe()['tiers']: {"light": {"provider": "openai", "model": "qwen3-4b-instruct-2507"}, "standard": {"provider": "openai", "model": "qwen3-4b-instruct-2507"}, "heavy": {"provider": "openai", "model": "qwen3-4b-instruct-2507"}}
++
++[answer_from_evidence] 52.6s ->
++{
++  "answer": "The Atlas billing migration cut over on 2026-03-14 and was approved by Dana Okafor (finance lead).",
++  "confidence": 1,
++  "used_ref_ids": [
++    "ev-101"
++  ],
++  "no_evidence": false
++}
++
++[evaluate_responses] 155.8s ->
++{
++  "findings": [
++    {
++      "text": "Atlas billing cut over on 2026-03-14.",
++      "kind": "finding",
++      "confidence": 0.8,
++      "supporting_response_ids": [
++        "r1"
++      ],
++      "supporting_ref_ids": [
++        "ev-101"
++      ]
++    },
++    {
++      "text": "Atlas billing cut over on 2026-03-21.",
++      "kind": "finding",
++      "confidence": 0.6,
++      "supporting_response_ids": [
++        "r2"
++      ],
++      "supporting_ref_ids": [
++        "ev-207"
++      ]
++    }
++  ],
++  "disagreements": [
++    {
++      "summary": "Conflicting dates for Atlas billing cut over",
++      "a_text": "Atlas billing cut over on 2026-03-14.",
++      "b_text": "Atlas billing cut over on 2026-03-21.",
++      "a_response_ids": [
++        "r1"
++      ],
++      "b_response_ids": [
++        "r2"
++      ]
++    }
++  ],
++  "relevance": 1.0,
++  "freshness": {
++    "r1": 0.01,
++    "r2": 0.01
++  }
++}
++
++usage ledger totals: {"calls": 2, "input_tokens": 870, "output_tokens": 339, "cost_usd": 0.0, "failures": 0, "by_tier": {"light": {"calls": 1, "tokens": 405, "cost_usd": 0.0}, "standard": {"calls": 1, "tokens": 804, "cost_usd": 0.0}}, "by_model": {"qwen3-4b-instruct-2507": {"calls": 2, "tokens": 1209, "cost_usd": 0.0}}, "tokens": 1209}
++  call: {"provider": "openai", "model": "qwen3-4b-instruct-2507", "tier": "light", "purpose": "answer_from_evidence", "input_tokens": 344, "output_tokens": 61, "latency_ms": 52632, "ok": true, "error": null}
++  call: {"provider": "openai", "model": "qwen3-4b-instruct-2507", "tier": "standard", "purpose": "evaluate_responses", "input_tokens": 526, "output_tokens": 278, "latency_ms": 155847, "ok": true, "error": null}
++
++RESULT: OK
+diff --git a/research/mycelic_e2e/live/live_env.sh b/research/mycelic_e2e/live/live_env.sh
+new file mode 100644
+index 0000000..3985731
+--- /dev/null
++++ b/research/mycelic_e2e/live/live_env.sh
+@@ -0,0 +1,10 @@
++# Environment that points the Mycelic model router at the local llama-server (Qwen3-4B-Instruct-2507, Q4_K_M).
++# Usage:  set -a; . research/mycelic_e2e/live/live_env.sh; set +a
++export OPENAI_BASE_URL=http://127.0.0.1:8082/v1          # must end in /v1: the provider POSTs {base}/chat/completions
++export OPENAI_API_KEY=local                              # any non-empty string; llama-server runs without --api-key
++export MYCELIC_MODEL_LIGHT=openai:qwen3-4b-instruct-2507
++export MYCELIC_MODEL_STANDARD=openai:qwen3-4b-instruct-2507
++export MYCELIC_MODEL_HEAVY=openai:qwen3-4b-instruct-2507
++export MYCELIC_MODEL_MAX_PARALLEL=4                      # = llama-server -np 4
++export MYCELIC_MODEL_TIMEOUT_SECONDS=900                 # ~4 tok/s decode on 2 shared threads: the default 120 s is too short for 1200-token tasks
++export MYCELIC_EMBED_PROVIDER=hash                       # deterministic embedder; the server runs without --embedding
+diff --git a/research/mycelic_e2e/live/scripts/bench_tps.py b/research/mycelic_e2e/live/scripts/bench_tps.py
+new file mode 100644
+index 0000000..acae946
+--- /dev/null
++++ b/research/mycelic_e2e/live/scripts/bench_tps.py
+@@ -0,0 +1,42 @@
++#!/usr/bin/env python3
++"""Throughput probe for a llama-server: ~300-token prompt, 60-token answer, N concurrent requests.
++Each request has a distinct prompt (no prefix-cache reuse between slots). Prints server-side timings per request."""
++import json, os, random, sys, threading, time, urllib.request
++
++URL = sys.argv[1]; MODEL = sys.argv[2]; CONC = [int(x) for x in sys.argv[3].split(",")]; REPS = int(sys.argv[4]) if len(sys.argv) > 4 else 2
++NW = int(os.environ.get("NW", "70"))
++WORDS = ("ledger invoice shipment vendor audit renewal contract latency queue deploy rollback incident owner budget "
++         "forecast retention payroll compliance schema migration cluster tenant quota backlog handoff roadmap").split()
++
++def prompt(seed):
++    r = random.Random(seed)
++    body = " ".join(r.choice(WORDS) + str(r.randint(1, 999)) for _ in range(NW))
++    return ("Here are some notes with unique tags:\n" + body +
++            "\n\nWrite a detailed paragraph summarising the themes in these notes. Keep writing until you are stopped.")
++
++def call(seed, out, i):
++    body = {"model": MODEL, "messages": [{"role": "user", "content": prompt(seed)}], "max_tokens": 60, "temperature": 0,
++            "chat_template_kwargs": {"enable_thinking": False}}
++    t0 = time.time()
++    req = urllib.request.Request(URL + "/v1/chat/completions", json.dumps(body).encode(), {"content-type": "application/json"})
++    d = json.load(urllib.request.urlopen(req, timeout=600))
++    out[i] = {"wall_s": round(time.time() - t0, 2), "prompt_tokens": d["usage"]["prompt_tokens"], "completion_tokens": d["usage"]["completion_tokens"],
++              "prefill_tok_s": round(d["timings"]["prompt_per_second"], 2), "decode_tok_s": round(d["timings"]["predicted_per_second"], 2),
++              "finish": d["choices"][0]["finish_reason"]}
++
++res = []
++for n in CONC:
++    for rep in range(REPS):
++        out = [None] * n; ths = []
++        la0 = os.getloadavg()[0]
++        t0 = time.time()
++        for i in range(n):
++            th = threading.Thread(target=call, args=(1000 * n + 10 * rep + i + random.randint(0, 10**6), out, i)); th.start(); ths.append(th)
++        for th in ths: th.join()
++        wall = time.time() - t0
++        agg = sum(o["completion_tokens"] for o in out) / wall
++        row = {"concurrent": n, "rep": rep, "wall_s": round(wall, 2), "loadavg_before": round(la0, 2), "loadavg_after": round(os.getloadavg()[0], 2),
++               "per_stream_decode_tok_s_mean": round(sum(o["decode_tok_s"] for o in out) / n, 2),
++               "per_stream_prefill_tok_s_mean": round(sum(o["prefill_tok_s"] for o in out) / n, 2),
++               "end_to_end_completion_tok_s_aggregate": round(agg, 2), "requests": out}
++        print(json.dumps(row), flush=True); res.append(row)
+diff --git a/research/mycelic_e2e/live/scripts/build.sh b/research/mycelic_e2e/live/scripts/build.sh
+new file mode 100755
+index 0000000..da79470
+--- /dev/null
++++ b/research/mycelic_e2e/live/scripts/build.sh
+@@ -0,0 +1,8 @@
++#!/bin/sh
++# Build llama-server (CPU only) from the llama.cpp vendored in the llama-cpp-python 0.3.16 sdist.
++set -eu
++SRC=/root/mycelic-live/src/llama-cpp-python-0.3.16/vendor/llama.cpp
++BLD=/root/mycelic-live/build
++nice -n 15 cmake -S "$SRC" -B "$BLD" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=ON -DGGML_CUDA=OFF -DGGML_METAL=OFF \
++  -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=ON -DBUILD_SHARED_LIBS=OFF
++nice -n 15 cmake --build "$BLD" --config Release -j 3 --target llama-server llama-bench
+diff --git a/research/mycelic_e2e/live/scripts/pull_blob.sh b/research/mycelic_e2e/live/scripts/pull_blob.sh
+new file mode 100755
+index 0000000..1eb6c8d
+--- /dev/null
++++ b/research/mycelic_e2e/live/scripts/pull_blob.sh
+@@ -0,0 +1,13 @@
++#!/bin/sh
++# usage: pull_blob.sh <manifest.json> <out.gguf>   (Docker Hub registry HTTP API, repository ai/qwen3)
++set -eu
++MAN=$1; OUT=$2
++DIGEST=$(jq -r '.layers[0].digest' "$MAN"); SIZE=$(jq -r '.layers[0].size' "$MAN")
++for attempt in 1 2 3 4 5 6 7 8; do
++  TOKEN=$(curl -sS "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ai/qwen3:pull" | jq -r .token)
++  curl -sS -L -C - -H "Authorization: Bearer $TOKEN" -o "$OUT.part" "https://registry-1.docker.io/v2/ai/qwen3/blobs/$DIGEST" || true
++  if [ "$(stat -c %s "$OUT.part" 2>/dev/null || echo 0)" = "$SIZE" ]; then break; fi
++  sleep 5
++done
++mv "$OUT.part" "$OUT"
++echo "$(sha256sum "$OUT" | cut -d' ' -f1) expected ${DIGEST#sha256:}"
+diff --git a/research/mycelic_e2e/live/scripts/serve.sh b/research/mycelic_e2e/live/scripts/serve.sh
+new file mode 100755
+index 0000000..afc7638
+--- /dev/null
++++ b/research/mycelic_e2e/live/scripts/serve.sh
+@@ -0,0 +1,35 @@
++#!/bin/sh
++# Launch / stop llama-server (CPU, OpenAI-compatible API) under /root/mycelic-live.
++#   serve.sh 4b            # Qwen3-4B-Instruct-2507 Q4_K_M on 127.0.0.1:8082   (THREADS=2 NP=4)
++#   serve.sh 1.7b          # Qwen3-1.7B Q4_K_M on 127.0.0.1:8081               (THREADS=2 NP=4)
++#   serve.sh stop [4b|1.7b]
++# Env overrides: THREADS NP CTX_PER_SLOT PORT
++set -eu
++ROOT=/root/mycelic-live
++ROLE=${1:-4b}
++if [ "$ROLE" = stop ]; then
++  for r in ${2:-4b 1.7b}; do
++    if [ -f "$ROOT/logs/server-$r.pid" ]; then kill "$(cat "$ROOT/logs/server-$r.pid")" 2>/dev/null || true; rm -f "$ROOT/logs/server-$r.pid"; echo "stopped $r"; fi
++  done
++  exit 0
++fi
++case "$ROLE" in
++  4b)   MODEL=$ROOT/models/qwen3-4b-instruct-2507-q4_k_m.gguf; PORT=${PORT:-8082}; EXTRA="" ;;
++  1.7b) MODEL=$ROOT/models/qwen3-1.7b-q4_k_m.gguf;             PORT=${PORT:-8081}
++        # the 1.7B has a thinking mode: disable it server-wide (the product cannot send chat_template_kwargs per request)
++        EXTRA='--chat-template-kwargs {"enable_thinking":false}' ;;
++  *) echo "usage: $0 4b|1.7b|stop" >&2; exit 2 ;;
++esac
++THREADS=${THREADS:-2}; NP=${NP:-4}; CTX=$(( ${CTX_PER_SLOT:-8192} * NP ))
++# shellcheck disable=SC2086
++nohup nice -n 5 "$ROOT/build/bin/llama-server" -m "$MODEL" --host 127.0.0.1 --port "$PORT" \
++  -t "$THREADS" -tb "$THREADS" -np "$NP" -c "$CTX" -cb -fa -ctk q8_0 -ctv q8_0 -b 2048 -ub 512 \
++  --jinja --no-webui --metrics $EXTRA > "$ROOT/logs/server-$ROLE.log" 2>&1 &
++echo $! > "$ROOT/logs/server-$ROLE.pid"
++echo "llama-server $ROLE pid $(cat "$ROOT/logs/server-$ROLE.pid") http://127.0.0.1:$PORT np=$NP ctx=$CTX threads=$THREADS log $ROOT/logs/server-$ROLE.log"
++i=0
++until curl -sf "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; do
++  i=$((i+1)); [ $i -gt 300 ] && { echo "not healthy; see log" >&2; exit 1; }
++  sleep 1
++done
++echo ready
+diff --git a/research/mycelic_e2e/live/verify_live_provider.py b/research/mycelic_e2e/live/verify_live_provider.py
+new file mode 100644
+index 0000000..ee55e3d
+--- /dev/null
++++ b/research/mycelic_e2e/live/verify_live_provider.py
+@@ -0,0 +1,73 @@
++#!/usr/bin/env python3
++"""Build the product's ModelRouter from MYCELIC_* / OPENAI_* environment variables only and run real tasks
++against whatever OpenAI-compatible server those variables point at (here: llama-server on 127.0.0.1:8082).
++
++    set -a; . research/mycelic_e2e/live/live_env.sh; set +a
++    python3 research/mycelic_e2e/live/verify_live_provider.py [--evaluate]
++
++The product reads its environment when `mycelic.config` is first imported, so the variables must be exported
++before this process starts. Nothing is hard-coded here: the printed `router.describe()` shows what the router
++actually resolved.
++"""
++from __future__ import annotations
++
++import asyncio
++import json
++import os
++import sys
++import time
++from pathlib import Path
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[3]))      # repo root: mycelic + NeuralGraph packages
++
++from mycelic.config import load_settings                       # noqa: E402  (reads os.environ at import time)
++from mycelic.models.router import DefaultModelRouter          # noqa: E402
++
++
++async def main() -> int:
++    s = load_settings()
++    router = DefaultModelRouter.from_settings(s)                # same constructor the runtime uses (build_router -> from_settings)
++    print("settings.model_tiers :", json.dumps(s.model_tiers))
++    print("settings.openai_base_url:", s.openai_base_url, "| api key set:", bool(s.openai_api_key),
++          "| max_parallel:", s.model_max_parallel, "| timeout_s:", s.model_timeout_seconds, "| embed:", s.embed_provider)
++    print("router.describe()['tiers']:", json.dumps(router.describe()["tiers"]))
++    ok = True
++    try:
++        t0 = time.perf_counter()
++        out = await router.run_task(
++            "answer_from_evidence",
++            {"question": "When was the Atlas billing migration cut over and who approved it?",
++             "evidence": [
++                 {"ref_id": "ev-101", "excerpt": "Atlas billing migration cut over to the new ledger on 2026-03-14; approved by Dana Okafor (finance lead).",
++                  "observed_at": "2026-03-15T09:00:00Z"},
++                 {"ref_id": "ev-102", "excerpt": "Office plants are watered on Tuesdays and Fridays by the facilities team.",
++                  "observed_at": "2026-02-02T08:00:00Z"}]},
++            tenant_id="live-verify")
++        print(f"\n[answer_from_evidence] {time.perf_counter() - t0:.1f}s ->")
++        print(json.dumps(out, indent=2, ensure_ascii=False))
++        ok = ok and isinstance(out.get("answer"), str) and out.get("no_evidence") is False and "ev-101" in (out.get("used_ref_ids") or [])
++        if "--evaluate" in sys.argv:
++            t0 = time.perf_counter()
++            ev = await router.run_task(
++                "evaluate_responses",
++                {"question": "When did the Atlas billing migration cut over?",
++                 "responses": [
++                     {"response_id": "r1", "holder_id": "h1", "content": "Atlas billing cut over on 2026-03-14.", "confidence": 0.8,
++                      "refs": [{"ref_id": "ev-101", "root_id": "root-1", "root_known": True, "observed_at": "2026-03-15T09:00:00Z"}]},
++                     {"response_id": "r2", "holder_id": "h2", "content": "Atlas billing cut over on 2026-03-21.", "confidence": 0.6,
++                      "refs": [{"ref_id": "ev-207", "root_id": "root-2", "root_known": True, "observed_at": "2026-03-22T09:00:00Z"}]}],
++                 "existing_claims": [], "today": "2026-04-01"},
++                tenant_id="live-verify")
++            print(f"\n[evaluate_responses] {time.perf_counter() - t0:.1f}s ->")
++            print(json.dumps(ev, indent=2, ensure_ascii=False))
++    finally:
++        print("\nusage ledger totals:", json.dumps(router.ledger.totals(), ensure_ascii=False))
++        for c in router.ledger.calls:
++            print("  call:", json.dumps({k: getattr(c, k) for k in ("provider", "model", "tier", "purpose", "input_tokens", "output_tokens", "latency_ms", "ok", "error")}))
++        await router.close()
++    print("\nRESULT:", "OK" if ok else "FAILED")
++    return 0 if ok else 1
++
++
++if __name__ == "__main__":
++    raise SystemExit(asyncio.run(main()))
+-- 
+2.43.0
+

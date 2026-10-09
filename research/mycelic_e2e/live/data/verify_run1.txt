@@ -1,0 +1,65 @@
+settings.model_tiers : {"light": "openai:qwen3-4b-instruct-2507", "standard": "openai:qwen3-4b-instruct-2507", "heavy": "openai:qwen3-4b-instruct-2507"}
+settings.openai_base_url: http://127.0.0.1:8082/v1 | api key set: True | max_parallel: 4 | timeout_s: 900.0 | embed: hash
+router.describe()['tiers']: {"light": {"provider": "openai", "model": "qwen3-4b-instruct-2507"}, "standard": {"provider": "openai", "model": "qwen3-4b-instruct-2507"}, "heavy": {"provider": "openai", "model": "qwen3-4b-instruct-2507"}}
+
+[answer_from_evidence] 52.6s ->
+{
+  "answer": "The Atlas billing migration cut over on 2026-03-14 and was approved by Dana Okafor (finance lead).",
+  "confidence": 1,
+  "used_ref_ids": [
+    "ev-101"
+  ],
+  "no_evidence": false
+}
+
+[evaluate_responses] 155.8s ->
+{
+  "findings": [
+    {
+      "text": "Atlas billing cut over on 2026-03-14.",
+      "kind": "finding",
+      "confidence": 0.8,
+      "supporting_response_ids": [
+        "r1"
+      ],
+      "supporting_ref_ids": [
+        "ev-101"
+      ]
+    },
+    {
+      "text": "Atlas billing cut over on 2026-03-21.",
+      "kind": "finding",
+      "confidence": 0.6,
+      "supporting_response_ids": [
+        "r2"
+      ],
+      "supporting_ref_ids": [
+        "ev-207"
+      ]
+    }
+  ],
+  "disagreements": [
+    {
+      "summary": "Conflicting dates for Atlas billing cut over",
+      "a_text": "Atlas billing cut over on 2026-03-14.",
+      "b_text": "Atlas billing cut over on 2026-03-21.",
+      "a_response_ids": [
+        "r1"
+      ],
+      "b_response_ids": [
+        "r2"
+      ]
+    }
+  ],
+  "relevance": 1.0,
+  "freshness": {
+    "r1": 0.01,
+    "r2": 0.01
+  }
+}
+
+usage ledger totals: {"calls": 2, "input_tokens": 870, "output_tokens": 339, "cost_usd": 0.0, "failures": 0, "by_tier": {"light": {"calls": 1, "tokens": 405, "cost_usd": 0.0}, "standard": {"calls": 1, "tokens": 804, "cost_usd": 0.0}}, "by_model": {"qwen3-4b-instruct-2507": {"calls": 2, "tokens": 1209, "cost_usd": 0.0}}, "tokens": 1209}
+  call: {"provider": "openai", "model": "qwen3-4b-instruct-2507", "tier": "light", "purpose": "answer_from_evidence", "input_tokens": 344, "output_tokens": 61, "latency_ms": 52632, "ok": true, "error": null}
+  call: {"provider": "openai", "model": "qwen3-4b-instruct-2507", "tier": "standard", "purpose": "evaluate_responses", "input_tokens": 526, "output_tokens": 278, "latency_ms": 155847, "ok": true, "error": null}
+
+RESULT: OK
