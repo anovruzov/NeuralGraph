@@ -28,11 +28,17 @@ an issue once it is opened, so that null also rotates each outcome's own reactiv
 into its look-back, which inflates the expected count whenever complaints follow outcomes, with or without an earlier
 signal. Each channel therefore also reports the same null with every outcome's own post-opening alerts left out of its
 rotated timeline (``expected_found_excluding_own_post``, ``p_value_excluding_own_post``; the p-value counts shifts at
-least as good as the found count, plus one, over the shifts plus one, since shift zero no longer is the observed
-alignment). Every channel also lists its alert timeline (``alert_timeline``: available date, week and keys of each
-alert), so a later reader can re-score without re-running. Then the **review
-list**: every alerted pattern that matches no outcome, with the sites and record ids behind it, for the company's own
-reviewers. It is what the detectors saw that no one acted on: a missed issue, a known one never written up, or noise.
+least as good as the found count, plus one, over the shifts plus one; shift zero keeps every look-back as observed, so
+the observed alignment is counted twice). Leaving out everything on the key in the ``post`` weeks also leaves out the
+unrelated alerts there, so where an outcome's key also carries alerts unrelated to it, this null falls short of
+chance. It keeps reactions that come later than the ``post`` weeks, so where reactions last longer, it overstates
+chance too. In the synthetic worlds of ``tools/market/reactive_world.py``, chance lay between it and the audited null
+where reactions ended inside the ``post`` weeks, and below both where they outlasted them. Every channel also lists
+its alert timeline (``alert_timeline``: available date, week and keys of each alert), and ``weeks.available_first`` is
+the date the rotations start from, so a later reader can re-score without re-running
+(``tools/market/rescore_audit.py``). Then the **review list**: every alerted pattern that matches no outcome, with the
+sites and record ids behind it, for the company's own reviewers. It is what the detectors saw that no one acted on: a
+missed issue, a known one never written up, or noise.
 
 ``demo`` builds a synthetic history for a pack with a smoke plant (its generator and ``fixtures/plant_smoke.json``), writes it as the
 mapping's CSV export with one outcome per planted pattern, opened two weeks after the pattern ends, and audits it. It
@@ -354,11 +360,21 @@ def null_excluding_own_post(outcomes: Sequence[Outcome], keyed: Sequence[tuple[M
                             lookback: int, post: int, available_first: date, evaluated_weeks: int,
                             found: int) -> dict[str, Any]:
     """``chance_null``'s rotation, outcome by outcome, with that outcome's own post-opening alerts (on its key,
-    available from its opening to ``post`` weeks after) left out of the timeline rotated against it. Shift zero is
-    then no longer the observed alignment, so the p-value is (1 + shifts at least as good as ``found``) / (1 +
-    shifts)."""
+    available from its opening to ``post`` weeks after) left out of the timeline rotated against it. The p-value is
+    (1 + shifts at least as good as ``found``) / (1 + shifts). Only alerts after an opening are left out, so shift
+    zero leaves every look-back as observed and its count equals ``found``: the observed alignment is counted twice,
+    and the smallest p is 2 / (1 + shifts)."""
     if not outcomes or evaluated_weeks <= 0:
         return {"expected_found": None, "p_value": None}
+    totals = own_post_shift_totals(outcomes, keyed, lookback=lookback, post=post, available_first=available_first,
+                                   evaluated_weeks=evaluated_weeks)
+    return {"expected_found": sum(totals) / evaluated_weeks,
+            "p_value": (1 + sum(1 for x in totals if x >= found)) / (1 + evaluated_weeks)}
+
+
+def own_post_shift_totals(outcomes: Sequence[Outcome], keyed: Sequence[tuple[Mapping[str, Any], Any]], *,
+                          lookback: int, post: int, available_first: date, evaluated_weeks: int) -> list[int]:
+    """The outcomes found at each whole-week shift of ``null_excluding_own_post``'s rotation, shift zero first."""
     period = 7 * evaluated_weeks
     totals = [0] * evaluated_weeks
     for o in outcomes:
@@ -369,8 +385,7 @@ def null_excluding_own_post(outcomes: Sequence[Outcome], keyed: Sequence[tuple[M
         for shift in range(evaluated_weeks):
             if any(start <= available_first + timedelta(days=(d + 7 * shift) % period) < opened for d in offsets):
                 totals[shift] += 1
-    return {"expected_found": sum(totals) / evaluated_weeks,
-            "p_value": (1 + sum(1 for x in totals if x >= found)) / (1 + evaluated_weeks)}
+    return totals
 
 
 def audit(pack: FrozenPack, rows: Sequence[Any], outcomes: Sequence[Outcome], *, date_from: str | None = None,
@@ -453,7 +468,7 @@ def audit(pack: FrozenPack, rows: Sequence[Any], outcomes: Sequence[Outcome], *,
                    "sites": site_ids, "date_from": first, "date_to": last,
                    "coverage": _coverage(records, pack)},
         "weeks": {"first": weeks[0], "last": weeks[-1], "evaluated_from": weeks[evaluated_index],
-                  "evaluated_weeks": evaluated_weeks},
+                  "evaluated_weeks": evaluated_weeks, "available_first": available_first.isoformat()},
         "settings": {"lookback_weeks": lookback, "post_weeks": post, "tie_salt": tie_salt},
         "outcomes": {"given": len(outcomes), "in_scope": len(in_scope),
                      "out_of_scope": [o.outcome_id for o in outcomes if o not in in_scope]},

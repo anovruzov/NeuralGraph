@@ -65,7 +65,33 @@ it expects more finds than chance gives whenever complaints follow issues. Each 
 null with every issue's own alerts after its opening left out (`expected_found_excluding_own_post`, its own `p`). On
 the public vehicle replays, re-scored this way, the recall null fell from 38.6 to 20.3 expected finds, and the found
 count (16) still sat at chance (`docs/handoff/HANDOFF-2026-10-09.md`). Each channel's alert timeline is kept in the
-audit file (`alert_timeline`), so the result can be re-scored without re-running.
+audit file (`alert_timeline`), so the result can be re-scored without re-running:
+`python tools/market/rescore_audit.py audit/audit.json` recomputes each channel, and the union of the three, from that
+file alone.
+
+**The two nulls on synthetic worlds.** `python tools/market/reactive_world.py` scores synthetic alert timelines with a
+known truth through the same scoring: 40 issues, 87 evaluated weeks, 26-week windows, 20 seeds, no detector. Each
+world's pass criteria were committed before that world first ran. The fourth world was added after a review found
+that the first one's criterion held by construction. Its first run caught a bug (it also drew the unrelated alerts,
+against its own description), fixed before the numbers below. Means over the seeds:
+
+| World | Found | Expected, plain null | Expected, own alerts after opening left out | That null's p below 0.05 |
+|---|---|---|---|---|
+| Complaints react for 12 weeks after the opening; no earlier signal | 0 | 9.52 | 0 | 0 of 20 seeds |
+| The same, plus unrelated alerts on the issues' own keys | 8.25 | 15.49 | 6.24 | 0 of 20 |
+| The same, plus a real earlier signal for every other issue | 22.45 | 17.66 | 10.89 | 5 of 20 |
+| Complaints react for 40 weeks, past the 26-week window; no earlier signal | 0 | 17.47 | 5.94 | 0 of 20 |
+
+Where reactions ended inside the window, chance lay between the two nulls. The plain one counts each issue's own
+reactions. The corrected one also leaves out unrelated alerts after the opening. Where reactions lasted 40 weeks, the
+corrected null overstated chance too: it expected 5.94 finds where none could be found (4.53 to 7.70 across the
+seeds), because it keeps the reactions that come after the window. The corrected null separated the earlier signal on
+average, but its p fell below 0.05 in only 5 of 20 seeds. The criterion was 18, so that test fails. It stays as
+written, marked as an expected failure. Shift zero always finds the found count, so the p is never below
+2/(1 + shifts) (0.023 at 87 weeks). Shifts of up to 12 weeks also found as many, because they keep each earlier
+signal inside its own look-back. So the corrected column is not chance itself. It falls short of chance where
+unrelated alerts sit on an issue's key, and overstates it where reactions outlast the window. A found count at or
+below it gives no sign of a signal. A found count above it is not evidence on its own.
 
 ## What the demos show, and what they do not
 
