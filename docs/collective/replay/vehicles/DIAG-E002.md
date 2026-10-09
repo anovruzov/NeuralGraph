@@ -66,7 +66,16 @@ timeline in `audit.json`.
    **Reading.** The same as for recalls: found counts at the corrected expectation, nothing above chance.
 
 **What the corrected baseline is, and is not.** It leaves out every alert on an outcome's key after the outcome
-opens, reactive or not, so it errs low: read it as a floor for chance. Its p also counts the observed alignment
-among the shifts (shift zero keeps the look-back as observed), on top of the +1, so it cannot go below 2 over the
-evaluated weeks plus one (2/88 here). Both errors favour finding a signal. Found counts at or below the floor
-therefore mean no early warning beyond chance in these replays. A better baseline is plan item 1.1's open work.
+opens, reactive or not, and nothing else. Synthetic checks (`tools/market/reactive_world.py`, `docs/collective/PILOT.md`)
+show it can err either way:
+- low, when an outcome's key also carries unrelated alerts after it opens: those are left out too (about 24% short in
+  the background world);
+- high, when reactions last longer than the 26-week post window: the later ones stay in and are rotated into the
+  look-back (5.9 finds expected where none could be found, in the lasting world).
+
+Its p also counts the observed alignment among the shifts (shift zero keeps the look-back as observed), on top of
+the +1, so it cannot go below 2 over the evaluated weeks plus one (2/88 here). On a world with a real pre-signal on
+half the outcomes it reached p < 0.05 in only 5 of 20 seeds. So these runs say two things only. The audited baseline
+overstated chance, because complaints react to recalls and investigations. Against the corrected one, whose bias on
+this data runs in an unknown direction, the found counts are at chance. Neither shows early warning. A better
+baseline is plan item 1.1's open work.
