@@ -302,6 +302,9 @@ class EventStudyTests(unittest.TestCase):
                           got["events_with_matching_complaints_in_3y_before"]), (2, 1, 1))
         self.assertEqual(got["matching_complaints_3y_before"],
                          {"in_lookback": 1, "earlier_in_3y": 1, "before_export_start": 1, "matching_3y_total": 2})
+        self.assertEqual(got["events_dated_from_2023"],
+                         {"events": 2, "events_with_matching_before": 1, "in_lookback": 1, "earlier_in_3y": 1,
+                          "before_export_start": 1, "events_mostly_before_export": 0})
         by_q = {row["quarter"]: row for row in got["by_quarter"]}
         self.assertEqual((by_q[-1]["mean_complaints"], by_q[-1]["mean_matching"]), (0.5, 0.5))
         self.assertEqual(by_q[0]["mean_complaints"], 0.5)                    # the tires complaint, 31 days after

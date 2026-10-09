@@ -26,3 +26,10 @@ Aggregates only; no complaint text is read or printed.
 - If the per-quarter curve rises well before the event, cross-site counting has something to find; the replays then
   need a longer look-back and history, set before any new replay runs.
 - If the curve rises only after the event, the public complaint stream reacts to recalls more than it warns of them.
+
+## Runs
+
+1. **Run [37883069926](https://github.com/anovruzov/NeuralGraph/actions/runs/37883069926)** (commit `1423f76`). Its
+   "before 2023" count pooled events from 2018 to 2022, for which every earlier complaint is before 2023 by definition,
+   so that count says nothing about the replays. The other numbers stand. The script now counts "before 2023" only
+   for events dated 2023 (`events_dated_from_2023`); run 2 repeats it with that fix.

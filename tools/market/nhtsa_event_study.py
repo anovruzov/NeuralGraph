@@ -13,8 +13,8 @@ an event's component when one of its top-level component categories equals one t
 It prints aggregates only (no complaint, recall or investigation content): per event kind, for each relative quarter,
 the events' mean complaints on the vehicle, the mean matching-component complaints, and the matching share; how many
 events have any complaint at all on their vehicle (a naming check between the files); and where each event's
-matching complaints from the 3 years before fall in time (inside the replays' 26-week look-back, earlier, or before
-2023, where the replays' export started).
+matching complaints from the 3 years before fall in time (inside the replays' 26-week look-back or earlier; and, for
+events dated 2023, the replays' own window, how many came before 2023, where the replays' export started).
 """
 from __future__ import annotations
 
@@ -110,6 +110,9 @@ def study(evs: Sequence[Mapping[str, Any]],
     with_any = with_matching_before = 0
     placement = {"in_lookback": 0, "earlier_in_3y": 0, "before_export_start": 0, "matching_3y_total": 0}
     events_with_lookback_mass = events_mostly_before_export = 0
+    # the replays' own window: events dated in or after the export start, where "before 2023" means unseen history
+    replay = {"events": 0, "events_with_matching_before": 0, "in_lookback": 0, "earlier_in_3y": 0,
+              "before_export_start": 0, "events_mostly_before_export": 0}
     for ev in evs:
         complaints = index.get(ev["vehicle"], {})
         if complaints:
@@ -137,6 +140,14 @@ def study(evs: Sequence[Mapping[str, Any]],
             with_matching_before += 1
             events_with_lookback_mass += int(in_lb > early)
             events_mostly_before_export += int(pre_export * 2 > in_lb + early)
+        if ev["date"] >= EXPORT_START:
+            replay["events"] += 1
+            replay["in_lookback"] += in_lb
+            replay["earlier_in_3y"] += early
+            replay["before_export_start"] += pre_export
+            if in_lb + early:
+                replay["events_with_matching_before"] += 1
+                replay["events_mostly_before_export"] += int(pre_export * 2 > in_lb + early)
     n = len(evs)
     curve = [{"quarter": q, "mean_complaints": round(totals[q][0] / n, 3) if n else None,
               "mean_matching": round(totals[q][1] / n, 3) if n else None,
@@ -145,7 +156,7 @@ def study(evs: Sequence[Mapping[str, Any]],
             "events_with_matching_complaints_in_3y_before": with_matching_before,
             "events_whose_3y_matching_mass_is_mostly_in_the_26w_lookback": events_with_lookback_mass,
             "events_whose_3y_matching_mass_is_mostly_before_2023": events_mostly_before_export,
-            "matching_complaints_3y_before": placement, "by_quarter": curve,
+            "matching_complaints_3y_before": placement, "events_dated_from_2023": replay, "by_quarter": curve,
             "by_make": {m: sum(1 for e in evs if e["make"] == m) for m in MAKES}}
 
 
