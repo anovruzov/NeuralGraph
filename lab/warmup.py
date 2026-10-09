@@ -1,7 +1,8 @@
 """Warm a started model server up with the real tasks and schemas before any unit is measured on it.
 
 :func:`warm_tasks` lists what a serving class will ask the server: for G0 and sim units the pack's ``extract_claims``
-and ``judge_record`` tasks (not streamed), for E1 units only ``extract_claims``, for E2 units ``judge_record`` and,
+and ``judge_record`` tasks (not streamed), for E1 units only ``extract_claims``, for J1 units only ``judge_record``
+(whose probe, sent twice, records ``repeat_identical`` for judge test J001), for E2 units ``judge_record`` and,
 when the central comparator is the model itself (``central: self``), its ``judge_candidate_raw`` and
 ``judge_candidate_allowed`` (a hosted central comparator is never warmed or fitted on this server; ``lab.hosted``'s
 preflight sends it the same payloads), for E3 units each workload's task
@@ -181,10 +182,11 @@ def warm_tasks(units: list[Mapping[str, Any]], plan: Mapping[str, Any], prereg: 
             "worst": judge_example(pack, record, worst_text), "stream": False, "units": []}
 
     for unit in units:
-        if unit["experiment"] in ("g0", "sim", "e1", "e2"):
+        if unit["experiment"] in ("g0", "sim", "e1", "e2", "j1"):
             pack_id = unit["params"]["pack"]
             pack_tasks(unit, pack_id)
-            keys = {"e1": [(TASK_NAME, pack_id)], "e2": [(judge_task().name, pack_id)]}.get(
+            keys = {"e1": [(TASK_NAME, pack_id)], "e2": [(judge_task().name, pack_id)],
+                    "j1": [(judge_task().name, pack_id)]}.get(
                 unit["experiment"], [(TASK_NAME, pack_id), (judge_task().name, pack_id)])
             if (unit["experiment"] == "e2" and unit["params"]["central"] == "self" and prereg is not None
                     and prereg.manifest.get("e2") is not None):

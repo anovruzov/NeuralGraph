@@ -11,8 +11,9 @@ are refused at every level::
      "job_minutes": 45..330,                           # the time limit of each shard job
      "max_parallel": 1..16,                            # shard jobs that may run at once
      "retention_days": 1..90,                          # how long the result artifacts are kept
-     "experiments": {                                  # at least one of e1, e2, e3, g0, sim, x1, openfda
-         "e1": {...}, "e2": {...}, "e3": {...}, "g0": {...}, "sim": {...}, "x1": {...}, "openfda": {...}},
+     "experiments": {                                  # at least one of e1, e2, e3, g0, sim, x1, openfda, j1
+         "e1": {...}, "e2": {...}, "e3": {...}, "g0": {...}, "sim": {...}, "x1": {...}, "openfda": {...},
+         "j1": {...}},
      "hosted": {"<hosted model key>": {"max_calls": 1..1000000}, ...}}   # optional, default {}; see below
 
 ``capacity`` below is ``job_minutes - SHARD_OVERHEAD_MINUTES``; a seed is an int in ``0..2147483647``. The blocks:
@@ -62,6 +63,20 @@ are refused at every level::
             "plant": "plant_smoke" | "sim_small",   # lab.sim.PLANTS
             "weeks": min_weeks..52, "top_n": 1..60,
             "seeds": [<seed>, ...]}       # 1..5 distinct; the plant must fit every seed's world
+
+``j1``, judge test J001 (``docs/collective/replay/vehicles/CHOICE-J001.md``): the site verifier's narrow question on
+real public complaints, one unit per model and part (``lab.j1``)::
+
+    {"models": [...],                     # default $.models; gguf or fake models only: a hosted model is refused
+                                          # (NHTSA_HOSTED), as the lab sends no real narrative to a host
+     "minutes": 1..capacity,              # per part unit
+     "labels": {"source": "nhtsa", "pack": "docs/collective/replay/vehicles/pack", "n": 40..2000, "seed": <seed>},
+                                          # e1's labels block, checked as e1 checks it; any other source is refused
+                                          # (J1_LABELS_PROBLEM)
+     "parts": 1..30,                      # the records, in order, cut into this many parts
+     "seed": <seed>,                      # the questions' seed
+     "bootstrap_b": 1000..20000,          # default 10000
+     "bootstrap_seed": <seed>}            # default 1
 
 ``openfda``, the public replay and the labelling sheets (one unit, no model; it reaches api.fda.gov)::
 
@@ -149,7 +164,7 @@ MAX_BYTES = 65536
 SHARD_OVERHEAD_MINUTES = 25
 SEED_MAX = 2147483647
 BAD_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"})
-EXPERIMENTS = ("e1", "e2", "e3", "g0", "sim", "x1", "openfda")
+EXPERIMENTS = ("e1", "e2", "e3", "g0", "sim", "x1", "openfda", "j1")
 SIM_KINDS = ("gguf", "fake")
 MAX_MODELS = 8
 LABEL_SOURCES = ("fixtures", "generator", "nhtsa")
@@ -189,6 +204,9 @@ _SHEET_KEYS = ("n", "seed")
 _E3_KEYS = ("models", "minutes", "concurrency", "requests", "warmup", "workloads", "seed")
 _G0_KEYS = ("models", "minutes", "pack", "records", "seed")
 _SIM_KEYS = ("models", "minutes", "plant", "weeks", "top_n", "seeds")
+_J1_KEYS = ("models", "minutes", "labels", "parts", "seed", "bootstrap_b", "bootstrap_seed")
+_J1_REQUIRED = ("minutes", "labels", "parts", "seed")
+J1_MAX_PARTS = 30
 PACK_PROBLEM = "must be a built-in pack id"
 PLANT_PROBLEM = "must name a plant fixture of the pack"
 OPENFDA_PACK_PROBLEM = "must be a built-in pack or a replay pack lab/packs/<id>, with an openFDA mapping"
@@ -201,6 +219,8 @@ LOCATION_PROBLEM = "must be lab/requests/<name>.json"
 HOSTED_PLACE = ("a hosted model runs only in e1 or as e2.central: the simulation and the canary scan run each site's "
                 "model inside the runner, and E3 measures this runner")
 NHTSA_HOSTED = "nhtsa labels run only on models inside the runner; the lab sends no real narrative to a host"
+J1_LABELS_PROBLEM = "J1 reads nhtsa labels only: real public complaints of the vehicle pack"
+J1_KINDS_PROBLEM = "J1 runs only gguf or fake models"
 HOSTED_CENTRAL_CONTEXT = ("a hosted central comparator needs context_tokens in its manifest entry (the context one "
                           "request gets on the host)")
 MAX_HOSTED_CALLS = 1000000
@@ -482,6 +502,28 @@ def _e1(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[
     out["runs"] = _int(block["runs"], f"{path}.runs", 3, 5)
     out["seed"] = _seed(block["seed"], f"{path}.seed")
     out["bootstrap_b"] = _bootstrap_b(block, path)
+    return out
+
+
+def _j1(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[str, Any]:
+    path = "$.experiments.j1"
+    block = _object(raw, path)
+    check_keys(block, _J1_KEYS, _J1_REQUIRED, path, RequestError)
+    chosen = _block_models(block, path, models)
+    for i, key in enumerate(chosen):
+        kind = manifest.models[key]["kind"]
+        if kind == "hosted":
+            raise RequestError(_model_at(block, path, models, key, i), NHTSA_HOSTED) from None
+        if kind not in SIM_KINDS:
+            raise RequestError(_model_at(block, path, models, key, i), J1_KINDS_PROBLEM) from None
+    out: dict[str, Any] = {"models": chosen, "minutes": _minutes(block["minutes"], f"{path}.minutes", capacity),
+                           "labels": _labels(block["labels"], f"{path}.labels")}
+    if out["labels"]["source"] != "nhtsa":
+        raise RequestError(f"{path}.labels.source", J1_LABELS_PROBLEM) from None
+    out["parts"] = _int(block["parts"], f"{path}.parts", 1, J1_MAX_PARTS)
+    out["seed"] = _seed(block["seed"], f"{path}.seed")
+    out["bootstrap_b"] = _bootstrap_b(block, path)
+    out["bootstrap_seed"] = _optional(block, "bootstrap_seed", 1, lambda v: _seed(v, f"{path}.bootstrap_seed"))
     return out
 
 
@@ -804,7 +846,8 @@ def validate(obj: Any, manifest: Manifest, *, openfda_key: bool = False) -> dict
               "e3": lambda raw: _e3(raw, models, capacity, manifest),
               "g0": lambda raw: _g0(raw, models, capacity, manifest),
               "sim": lambda raw: _sim(raw, models, capacity, manifest), "x1": lambda raw: _x1(raw, capacity),
-              "openfda": lambda raw: _openfda(raw, capacity, openfda_key)}
+              "openfda": lambda raw: _openfda(raw, capacity, openfda_key),
+              "j1": lambda raw: _j1(raw, models, capacity, manifest)}
     out["experiments"] = {name: checks[name](experiments[name]) for name in EXPERIMENTS if name in experiments}
     out["hosted"] = _hosted(top, out["experiments"], manifest)
     return out

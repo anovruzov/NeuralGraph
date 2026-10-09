@@ -19,7 +19,7 @@ capacity of a shard is `job_minutes` less the shard overhead of 25 minutes; ever
 | `job_minutes` | 45 to 330: each shard job's limit | |
 | `max_parallel` | 1 to 16: shard jobs at once | |
 | `retention_days` | 1 to 90: how long artifacts are kept | |
-| `experiments` | at least one of `e1`, `e2`, `e3`, `g0`, `sim`, `x1`, `openfda` | |
+| `experiments` | at least one of `e1`, `e2`, `e3`, `g0`, `sim`, `x1`, `openfda`, `j1` | |
 | `hosted` | per hosted model key, `{"max_calls": 1..1000000}` | `{}` |
 
 A fake model needs provider `fake`, a gguf model the server provider; a hosted model goes with either. Provider
@@ -107,6 +107,24 @@ and `bootstrap_seed`, as for `e2`.
 | `n1_sheet` | `{"n": 1..1000, "seed"}`: the N1 labelling sheet | none |
 | `e1_sheet` | `{"n": 1..2000, "seed"}`: the openFDA E1 labelling sheet | none |
 
+`j1`, judge test J001 (`docs/collective/replay/vehicles/CHOICE-J001.md`): the site verifier's narrow question on
+real public complaints, one unit per model and part (`lab/j1.py`):
+
+| key | values | default |
+| --- | --- | --- |
+| `models` | gguf or fake models of `models`; a hosted model is refused, as the lab sends no real narrative to a host | `models` |
+| `minutes` | per part unit | |
+| `labels` | `e1`'s labels block with `source` `nhtsa` only: `pack` exactly `docs/collective/replay/vehicles/pack`, `n` (40 to 2000) and `seed` | |
+| `parts` | 1 to 30: the records, in order, cut into this many parts | |
+| `seed` | the questions' seed | |
+| `bootstrap_b` | 1000 to 20000 | 10000 |
+| `bootstrap_seed` | a seed | 1 |
+
+The plan job builds the labels, the questions (one positive and one negative per record, by the rule of the choice
+file), the lexical judge's verdicts and scores and the pins (`prereg/j1/`). Each unit judges one part's questions
+with the shipped judge task, schema and payload through the runtime at boundary `site:lab`, data label `public`, and
+the verifier's own verdict rule; the aggregate pools a model's parts.
+
 The fetch makes up to `product_codes` x 2 x ceil(`max_records_per_code` / page) requests, where a page is 100 records
 without the `MYCELIC_LAB_OPENFDA_API_KEY` secret (openFDA refuses larger pages without a key) and 1000 with it; at most
 800 requests without the secret and 1000 with it.
@@ -163,8 +181,8 @@ cached as `lab-server-<tag>-<sha16>` under `server/<tag>`, a model file as `lab-
 
 ## Ids
 
-- A unit id is `<experiment>-<model>` (E2, E3, G0), `e1-<model>-r<k>` (one E1 repeat), `sim-<model>-s<seed>` (one
-  simulation seed), `x1` or `openfda`; at most 55 characters.
+- A unit id is `<experiment>-<model>` (E2, E3, G0), `e1-<model>-r<k>` (one E1 repeat), `j1-<model>-p<k>` (one J1
+  part), `sim-<model>-s<seed>` (one simulation seed), `x1` or `openfda`; at most 55 characters.
 - A run id is the unit id, a hyphen and the first 8 hex digits of sha256(request sha256 `|` unit id); the harness
   writes under it.
 - A shard id is `s<NNN>-<label>`: a three-digit number in creation order and the shard's model key, `none` for
@@ -181,6 +199,23 @@ A shard's artifact holds (`lab/shard.py`):
   `replies.jsonl`, which its harness writes for public or synthetic data only; never a database, a private directory
   or raw scratch);
 - `provenance.json` and `status.json` (below); `summary/`, added by the summary step after the seal.
+
+A J1 unit (`lab.j1 run`) keeps three files under `runs/j1/<run id>/`:
+
+- `verdicts.jsonl`: one line per question judged, `question_id`, `record_ref`, `kind` (`positive` or `negative`),
+  `predicate`, `mentions_entity` and `describes_predicate` (the model's whole reply, kept because the narratives are
+  public; null when no reply passed), `verdict` (`confirm`, `refute` or `unknown`, by the verifier's rule),
+  `error_kind` and `scored` (false only for a transport failure); never a narrative;
+- `ledger.jsonl`: the runtime's ledger, one row per attempt;
+- `run.json` (`kind: lab_j1_run`): `run_id`, `endpoint`, `part`, `parts`, `questions_planned`, `questions_done`,
+  `complete`, `stopped` (null, `budget`, `server_down` or `interrupted`), `measurement` (false when a fake answered),
+  `models_listed`, `listed_fake`, `models_served`, `model_requested`, `pinned` (the labels' and questions' sha256, the
+  pack's hashes, the code hash, the judge task and the endpoint's pins), `prereg_sha256`, `verdicts_sha256`,
+  `ledger_sha256`, `failures` (model and transport, by kind), `latency_ms_p50` and `latency_ms_p95` (the successful
+  calls), `budget_seconds`, `boundary`, `data_label`, `code_commit`, `started_at` and `finished_at`.
+
+A J1 call that the model answered, a reply still invalid after its repair included, counts as answered in the
+participation check: the choice file scores such a reply as `unknown`, so it is the model's answer, not its absence.
 
 ## Provenance and status files
 
@@ -246,7 +281,7 @@ A unit's status (`lab.units.STATUSES`):
 | `ok` | the harness ran to a valid result and the model answered enough |
 | `result_fail` | a valid FAIL verdict: G0's canary scan or the simulation's raw-text scan did not pass (something crossed, or the scan's positive control found nothing) |
 | `invalid` | it ran, but the model answered too few calls, the server died, or G0's model path had problems |
-| `failed` | the harness failed, refused its configuration or wrote no readable result |
+| `failed` | the harness failed, refused its configuration or wrote no readable result, or a J1 run stopped before its last question (`J1_STOPPED`) |
 | `timed_out` | the unit ran out of its minutes |
 | `interrupted` | a signal stopped it |
 | `skipped` | it did not start: the shard's budget, the server, the warm-up, a projection or the hosted gate |
@@ -316,6 +351,17 @@ The experiments' labels:
 - `E1_SCORES_ONLY`: No reference comparison was run: these are each model's own scores, with no difference from the reference, no non-inferiority and no kill flag.
 - `E1_SCORES_REFUSED`: the extraction harness's reader refused a valid repeat of this model: a run file differs from its run.json, or the run names another preregistration, model or repeat
 - `E1_SCORES_UNPINNED`: no model's own scores: the preregistration, its pack or the scoring code no longer match what the extraction harness pinned
+
+Judge test J001's labels, where `{j_one}` is J1: the label, then the lexical and headline notes above the per-model
+table; a model without a headline says why in its row; a unit that stopped says `J1_STOPPED`:
+
+- `J1_LABEL`: {j_one} here asks each model the site verifier's narrow question about real public NHTSA complaint narratives, one record at a time with its codes hidden, and scores each verdict against the components the complaint was filed under: filed codes, not human-checked labels.
+- `J1_LEXICAL_NOTE`: The lexical judge is the verifier's judge when no model runs: it confirms a question only when one of the pack's phrases for the component is in the narrative and not negated. It judged every question in the plan job, before any model ran.
+- `J1_HEADLINE_NOTE`: The headline compares each model's balanced accuracy interval with the lexical judge's balanced accuracy on the same records: better only when the interval's low end is above it, worse only when its high end is below it, otherwise not told apart. Each model is compared once, with no correction for several comparisons; sensitivity, specificity and the unknown share decide nothing.
+- `J1_INCOMPLETE`: not every part of this model finished, so it gets no headline: its finished parts are a partial reading and decide nothing
+- `J1_NOT_MEASURED`: not every part of this model is a model measurement, so it gets no headline
+- `J1_WITHHELD`: transport failures left out more than one in a hundred of this model's records, so its headline is withheld
+- `J1_STOPPED`: the judge run stopped before its last question, at its budget or after the server stayed down; the verdicts it wrote are kept, and the part did not finish
 
 Sizing and cost:
 
@@ -654,6 +700,18 @@ synthetic worlds describe synthetic worlds.
 | label | the collective harness's own label for the row | n/a: not a number |
 | recall outcomes seen before the preregistration | the requester's declaration `saw_recall_outcomes`: whether they saw recall outcomes before fixing the codes, manufacturers and settings | that the settings were frozen blind when it says no |
 | warnings | the harness's own warnings for the row, as written | every problem of the run |
+| parts finished | a J1 model's parts that finished (status ok, every question judged), of the parts planned | parts that ran: a stopped or timed-out part is left out |
+| balanced accuracy | the mean of sensitivity and specificity against the filed codes; every record has one positive and one negative question, so it equals the accuracy; its interval is a percentile bootstrap over records | accuracy against checked labels: the filed codes are not truth |
+| lexical balanced accuracy | the lexical judge's balanced accuracy on the records the model was scored on | a model result |
+| lexical judge, every record | the lexical judge's scores on every record, from the plan job | the model's records |
+| headline | J1's rule 7: `better` when the model's interval is above the lexical judge's balanced accuracy, `worse` when below, `not_told_apart` otherwise; shown only for a complete model measurement | a result corrected for three comparisons, or a pooled verifier verdict |
+| sensitivity | the share of positive questions (a component the complaint was filed under) the judge confirmed | the share of real failures it would find |
+| specificity | the share of negative questions (a component drawn from those it was not filed under) the judge refuted | the false alarm rate on hard negatives: most negatives name a component the narrative never mentions |
+| unknown share | the share of questions answered unknown: unclear answers, a no or unclear on the vehicle, and model failures | a transport failure: those records are left out |
+| records left out | records with a transport failure, left out of the model's scores; more than one in a hundred withholds the headline | model errors |
+| why no headline | why a J1 model has no headline: incomplete, not a model measurement, or withheld | a model result |
+| questions | J1's questions: one positive and one negative per record | n/a: not a number |
+| parts | the parts J1's records are cut into, one unit per model and part | n/a: not a number |
 
 ## Summary sections
 
@@ -687,12 +745,14 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Simulation pushdown verification | the simulation's pushdown candidates, raw text and fallback share |
 | Simulation sizing for the next request | per sim unit, the measured medians and the suggested minutes |
 | Baselines blind to narrative-only patterns by construction | per sim or X1 row, S and R_mf on the plant's narrative_only patterns, with the harness's label |
-| Preregistration, fixed before any model runs | E1's labels, X1's and E2's prereg hashes, E2's rehearsal |
+| Preregistration, fixed before any model runs | E1's labels, X1's and E2's prereg hashes, E2's rehearsal, J1's labels and questions and the lexical judge's scores on every record |
 | Extraction compared across models | E1's label, labels, reference and thresholds |
 | Extraction per model, pooled over repeats | E1's per-model scores and zero-claim share |
 | Extraction drops by reason, pooled over repeats | E1's post-processing counts per model and reason (`drops` of each endpoint in report.json), after the sentence that reattached reasons are not losses |
 | Extraction paired against the reference | E1's paired comparison with the reference |
 | Each model's own scores | E1's per-model scores from each model's valid repeats only (`endpoint_scores` in report.json), compared or not: predicate F1 and its interval beside the lexical extractor's, field F1, zero-claim and transport failure shares, drops and re-attachments |
+| Judge test: the verifier's narrow question, per model, beside the lexical judge | J1's label, labels, questions and the lexical judge on every record, then per model: parts finished, class, balanced accuracy and its interval beside the lexical judge's on the same records, the headline, sensitivity, specificity, the unknown share and the records left out (the report's `j1` block) |
+| Judge test: model minus lexical judge, paired by record | per J1 model, the mean per-record difference of balanced accuracy from the lexical judge's, with its paired percentile-bootstrap interval |
 | Pushdown verification against central reading: conditions | E2's labels and conditions |
 | Pushdown ratio and verdict | E2's ratio and, for a hosted central, the bar verdict |
 | Pushdown candidates | E2's candidates by label |

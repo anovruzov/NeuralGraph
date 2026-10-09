@@ -116,7 +116,7 @@ class PlumbingDryRunTests(unittest.TestCase):
         self.assertEqual([line.split()[2] for line in lines], PLUMBING_UNITS)
         self.assertTrue(lines[0].startswith("lab: unit sim-fake-a-s1 status ok class plumbing exit 0 "), lines[0])
         self.assertTrue(lines[-1].startswith("lab: unit x1 status ok class no-model exit 0 "), lines[-1])
-        self.assertEqual(stdout, ["plan: 12 units in 5 shards (plumbing)", "prereg: e1 yes x1 yes e2 yes", *lines,
+        self.assertEqual(stdout, ["plan: 12 units in 5 shards (plumbing)", "prereg: e1 yes x1 yes e2 yes j1 no", *lines,
                                   "lab: aggregate units 12 shards 5 class plumbing measurements false lock unchanged"])
 
     def test_units_are_ok_plumbing(self) -> None:

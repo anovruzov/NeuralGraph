@@ -1,6 +1,6 @@
 """Merge one run's shard artifacts into one report: which artifact counts for each shard, what each unit gave, the
-E3, G0, sim, sizing, E2, X1, openFDA and latency rows, the E1 comparison, the provision records and the lock
-candidate.
+E3, G0, sim, sizing, E2, X1, openFDA and latency rows, the E1 comparison, the J1 judge test, the provision records and
+the lock candidate.
 
     python -m lab.aggregate --plan FILE --provision DIR --shards DIR --manifest FILE --out DIR [--reaggregation FILE]
 
@@ -75,6 +75,12 @@ at least one: ``{model: {"repeats_planned", "repeats_used", "display_class", "me
 comparison's ``endpoints`` entry. ``endpoint_scores_reason`` is null when they were computed, else why not
 (:data:`~lab.notes.PREREG_MISSING`, :data:`~lab.notes.E1_SCORES_UNPINNED`).
 
+**J1** (``j1``; null without J1 units), judge test J001 (:func:`j1_block`): the labels and questions records, the
+settings, the lexical judge's scores on every record from the preregistration, and per model its parts, whether it is
+complete, its display class, its scores pooled over its finished parts, the lexical judge's on the same records, the
+paired difference, the records left out, and the headline of rule 7 or why there is none. No verdict line, question
+or narrative is copied.
+
 **Re-aggregation** (``reaggregation``; null unless ``--reaggregation FILE`` names a request, ``lab.reaggregate``):
 the request (path, sha256, run id, purpose), the aggregating checkout's ``commit`` and ``lab_code_hash``, and what
 the sealed shards recorded (``shards``: their GitHub ``run_ids``, checkout ``commits`` and ``lab_code_hashes``),
@@ -126,12 +132,14 @@ from mycelic.collective.stats import percentile
 
 from . import EXIT_OK, EXIT_USAGE, ROOT, LabError, forbidden_root
 from . import hosted as lab_hosted
+from . import j1 as lab_j1
 from . import provision as lab_provision
 from . import units as lab_units
 from .manifest import ManifestError, load_manifest, lock_path
 from .notes import (ALTERED, AMBIGUOUS_ARTIFACTS, E1_COMPARE_FAILED, E1_NO_REFERENCE, E1_SCORES_REFUSED,
-                    E1_SCORES_UNPINNED, FILES_DIFFER, NO_ARTIFACT, NOT_RUN, OTHER_PLAN, PLUMBING_BANNER,
-                    PLUMBING_HOSTED_BANNER, PREREG_MISSING, STEP_FAILED, UNIT_RECORD_INVALID, UNSEALED)
+                    E1_SCORES_UNPINNED, FILES_DIFFER, J1_INCOMPLETE, J1_NOT_MEASURED, J1_WITHHELD, NO_ARTIFACT,
+                    NOT_RUN, OTHER_PLAN, PLUMBING_BANNER, PLUMBING_HOSTED_BANNER, PREREG_MISSING, STEP_FAILED,
+                    UNIT_RECORD_INVALID, UNSEALED)
 from .plan import SHARD_ID_RE, UNIT_ID_RE
 from .prereg import PreregError, load_prereg
 from .reaggregate import load_request as load_reaggregation
@@ -160,6 +168,7 @@ E1_F1 = ("field_f1", "claim_f1", "entity_f1", "predicate_f1")
 E1_PAIRED_KEYS = ("against", "n", "decision_metric", "diff", "ci_low", "ci_high", "mean_diff", "sign_p",
                   "underpowered", "non_inferior", "kill_flag", "withheld_reason")
 E1_SCORE_EXTRA = ("record_runs", "transport_failure_share", "failures")   # beside _e1_endpoint's keys
+J1_HEADLINE_REASONS = {"incomplete": J1_INCOMPLETE, "not_measured": J1_NOT_MEASURED, "withheld": J1_WITHHELD}
 E2_CONDITION_FIELDS = ("ap", "ap_ci_low", "ap_ci_high", "precision_at_k")
 OPENFDA_CHANNEL_FIELDS = ("in_scope", "found", "recall_rate", "median_lead_days", "post_recall_alerts", "false_alarms",
                           "false_alarms_per_week", "alerts", "found_minus_expected")
@@ -701,6 +710,142 @@ def e1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
     return block
 
 
+# --------------------------------------------------------------------------------------------------- J1
+
+def _jsonl(data: bytes) -> list[Any]:
+    return [strict_load(line) for line in data.split(b"\n") if line.strip()]
+
+
+def _j1_lines(data: bytes) -> list[dict[str, Any]] | None:
+    """Verdict lines with exactly ``lab_j1.LINE_KEYS``, or None."""
+    failed = False
+    try:
+        lines = _jsonl(data)
+    except StrictJsonError:
+        failed = True
+    if failed or not all(isinstance(line, dict) and sorted(line) == sorted(lab_j1.LINE_KEYS) for line in lines):
+        return None
+    return lines
+
+
+def _j1_part(unit: dict[str, Any], source: E1Source, prereg_sha: str) -> tuple[list[dict[str, Any]] | None, Any]:
+    """(verdict lines, run.json) of one J1 unit's collected files. The lines only when the unit's record lists
+    ``run.json`` and ``verdicts.jsonl`` and run.json is a J1 run of this preregistration, endpoint and part whose
+    ``verdicts_sha256`` is the file's."""
+    _, record, root = source
+    if record is None or root is None:
+        return None, None
+    base = f"runs/j1/{unit['run_id']}/"
+    files = record.get("files") if isinstance(record.get("files"), dict) else {}
+    if base + "run.json" not in files or base + "verdicts.jsonl" not in files:
+        return None, None
+    run = _read(root / (base + "run.json"))
+    try:
+        data = (root / (base + "verdicts.jsonl")).read_bytes()
+    except OSError:
+        return None, run
+    if (not isinstance(run, dict) or run.get("kind") != "lab_j1_run" or run.get("prereg_sha256") != prereg_sha
+            or run.get("endpoint") != unit["model"] or run.get("part") != unit["params"]["part"]
+            or run.get("verdicts_sha256") != sha256_hex(data)):
+        return None, run
+    return _j1_lines(data), run
+
+
+def _j1_model(model: str, units: list[dict[str, Any]], sources: dict[str, E1Source], prereg_sha: str,
+              questions: list[dict[str, Any]], lexical: list[dict[str, Any]], settings: dict[str, Any],
+              fallback: str) -> dict[str, Any]:
+    """One model's J1 entry (see :func:`j1_block`)."""
+    b, seed = settings["bootstrap_b"], settings["bootstrap_seed"]
+    planned = {k: sum(1 for q in questions if q["part"] == k) for k in range(1, settings["parts"] + 1)}
+    parts, pooled, measured = [], [], []
+    for unit in sorted(units, key=lambda u: u["params"]["part"]):
+        row = sources[unit["unit"]][0]
+        lines, run = _j1_part(unit, sources[unit["unit"]], prereg_sha)
+        part = unit["params"]["part"]
+        ok = (row["status"] == "ok" and lines is not None and isinstance(run, dict) and run.get("complete") is True
+              and len(lines) == planned.get(part) and {line["question_id"] for line in lines}
+              == {q["question_id"] for q in questions if q["part"] == part})
+        parts.append({"unit": unit["unit"], "part": part, "status": row["status"],
+                      "display_class": row["display_class"], "ok": ok,
+                      "measurement": run.get("measurement") if isinstance(run, dict) else None})
+        if ok:
+            pooled += lines
+            measured.append(run.get("measurement") is True)
+    parts_ok = [p["part"] for p in parts if p["ok"]]
+    complete = parts_ok == list(range(1, settings["parts"] + 1))
+    cls = _class_of([p["display_class"] for p in parts if p["display_class"] != "no-result"], fallback)
+    entry: dict[str, Any] = {
+        "parts_planned": settings["parts"], "parts_finished": len(parts_ok), "parts_ok": parts_ok, "parts": parts,
+        "complete": complete,
+        "partial": not complete and bool(parts_ok), "display_class": cls,
+        "measurement": all(measured) if measured else None, "scores": None, "lexical": None, "paired": None,
+        "records_dropped": None, "dropped_share": None, "withheld_reason": None, "headline": None,
+        "headline_reason": None}
+    if pooled:
+        scores = lab_j1.score(questions, pooled, bootstrap_b=b, bootstrap_seed=seed)
+        refs = lab_j1.scored_records(questions, pooled)
+        entry.update(scores=scores, records_dropped=scores["records_dropped"], dropped_share=scores["dropped_share"],
+                     lexical=(lab_j1.score(questions, lexical, bootstrap_b=b, bootstrap_seed=seed, records=refs)
+                              if refs else None),
+                     paired=lab_j1.paired(questions, pooled, lexical, bootstrap_b=b, bootstrap_seed=seed))
+    share = entry["dropped_share"]
+    if share is not None and share > settings["withhold_share"]:
+        entry["withheld_reason"] = J1_WITHHELD
+    headline, why = lab_j1.headline_for(
+        complete=complete, display_class=cls, measurement=entry["measurement"], dropped_share=share,
+        model_ba=_get(entry["scores"], "balanced_accuracy"), lexical_ba=_get(entry["lexical"], "balanced_accuracy",
+                                                                              "value"))
+    entry["headline"] = headline
+    entry["headline_reason"] = J1_HEADLINE_REASONS.get(why) if why is not None else None
+    return entry
+
+
+def j1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]) -> dict[str, Any] | None:
+    """The report's ``j1`` block (null without J1 units); ``sources`` maps each J1 unit to (its row, its record, its
+    shard root). It needs the verified preregistration (else its reason is :data:`~lab.notes.PREREG_MISSING`): the
+    questions, the lexical judge's verdict lines and its scores on every record. Per model: each part's unit, status,
+    display class and whether it finished (status ``ok``, a complete run.json of this preregistration whose verdicts
+    hash as stamped and cover the part's questions); ``complete`` (every part finished); the display class (``model``
+    only when every part with a result is); the scores pooled over the finished parts (``lab.j1.score``), the
+    lexical judge's on the same records and the paired difference; the records left out and their share; and the
+    headline (rule 7), only for a complete model of display class ``model`` whose runs say ``measurement: true`` and
+    whose transport failures left out at most the preregistered share, else null with ``headline_reason``
+    (:data:`~lab.notes.J1_INCOMPLETE`, :data:`~lab.notes.J1_NOT_MEASURED` or :data:`~lab.notes.J1_WITHHELD`). An
+    incomplete model's finished parts are a partial reading (``partial``) and decide nothing."""
+    units = sorted((u for u in plan["units"] if u["experiment"] == "j1"), key=lambda u: u["unit"])
+    if not units:
+        return None
+    fallback = "plumbing" if plan.get("result_class") == "plumbing" else "unverified"
+    shown = [sources[u["unit"]][0]["display_class"] for u in units
+             if sources[u["unit"]][0]["display_class"] != "no-result"]
+    block: dict[str, Any] = {"label": "public_nhtsa", "reason": None, "display_class": _class_of(shown, fallback),
+                             "labels": None, "questions": None, "settings": None, "lexical": None, "models": {}}
+    try:
+        prereg = load_prereg(plan_path)
+        manifest = prereg.manifest["j1"]
+        base = prereg.dir / "prereg" / "j1"
+        prereg_sha = sha256_hex((prereg.dir / manifest["prereg"]).read_bytes())
+        questions = lab_j1.read_questions((base / "questions.jsonl").read_bytes())
+        lexical = _j1_lines((base / "lexical.jsonl").read_bytes())
+        settings = {k: manifest[k] for k in ("parts", "seed", "bootstrap_b", "bootstrap_seed")}
+    except (PreregError, OSError, StrictJsonError, lab_j1.J1Error, KeyError, TypeError):
+        block["reason"] = PREREG_MISSING
+        return block
+    if lexical is None:
+        block["reason"] = PREREG_MISSING
+        return block
+    settings["withhold_share"] = lab_j1.WITHHOLD_SHARE
+    labels, asked = manifest["labels"], manifest["questions"]
+    block.update(labels={k: labels.get(k) for k in ("source", "pack", "n", "seed", "records", "claims", "sha256")},
+                 questions={k: asked.get(k) for k in ("records", "questions", "parts", "part_records", "seed",
+                                                      "sha256")},
+                 settings=settings, lexical=manifest["lexical"])
+    for model in sorted({u["model"] for u in units}):
+        block["models"][model] = _j1_model(model, [u for u in units if u["model"] == model], sources, prereg_sha,
+                                           questions, lexical, settings, fallback)
+    return block
+
+
 def _sim_files(row: dict[str, Any], root: Path) -> tuple[Any, Any]:
     """(the collected scorecard, the collected progress.json), each None unless it reads as its kind."""
     run = root / "runs" / "sim" / row["run_id"]
@@ -931,6 +1076,7 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
     units, e3, g0, sim, sim_sizing = [], [], [], [], []
     e2, e2_sizing, x1, openfda = [], [], [], []
     e1_sources: dict[str, E1Source] = {}
+    j1_sources: dict[str, E1Source] = {}
     samples: dict[tuple[Any, ...], list[float]] = {}
     hosted_sources: list[tuple[str, Path]] = []
     models = plan.get("models") if isinstance(plan.get("models"), dict) else {}
@@ -945,6 +1091,8 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
                 hosted_sources.append((hosted_role[1], root.path / rel))
         if unit["experiment"] == "e1":
             e1_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
+        if unit["experiment"] == "j1":
+            j1_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
         if unit["experiment"] == "e2" and record is not None:
             sizing_row = _e2_sizing_row(row, record)
             if sizing_row is not None:
@@ -994,7 +1142,8 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
                          and isinstance(row["host"]["cpu_model"], str)})
     request = plan["request"]
     e1 = e1_block(plan, plan_path, e1_sources, out)
-    sealed_roots = [root for state, root in (states[s["shard"]] for s in plan["shards"])
+    j1 = j1_block(plan, plan_path, j1_sources)
+    sealed_roots =[root for state, root in (states[s["shard"]] for s in plan["shards"])
                     if state == "sealed" and root is not None]
     sealed = [root.path for root in sealed_roots]
     hosted = hosted_totals(plan, sealed, hosted_sources)
@@ -1009,7 +1158,7 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
         "plan": {"sha256": plan_sha256, **{k: plan.get(k) for k in ("git_sha", "provider", "job_minutes",
                                                                      "max_parallel", "retention_days")}},
         "unit_count": len(units), "shard_count": len(shard_rows), "shards": shard_rows, "units": units,
-        "e3": e3, "g0": g0, "sim": sim, "sim_sizing": sim_sizing, "e1": e1,
+        "e3": e3, "g0": g0, "sim": sim, "sim_sizing": sim_sizing, "e1": e1, "j1": j1,
         "e2": e2, "e2_sizing": e2_sizing, "x1": x1, "openfda": openfda, "latency": latency_rows(samples),
         "provision": provision_rows(records, plan_sha256), "lock": lock,
         "notes": {"cpu_models": cpu_models, "world_digest": world_digest_groups(g0),

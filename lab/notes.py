@@ -191,7 +191,8 @@ SIM_WORLD_DIFFERS = ("Simulation units of the same plant, seed and weeks saw dif
                      "are not comparable.")
 
 # the experiment adapters (prereg.py, units.py, openfda.py) and their unit outcomes; experiment ids are the
-# placeholders e_one, e_two, x_one and n_one (in braces), filled with code spans where a summary renders the sentence
+# placeholders e_one, e_two, x_one, n_one and j_one (in braces), filled with code spans where a summary renders the
+# sentence
 PREREG_MISSING = "the preregistration is missing or differs from the plan's"
 E2_ABORTED = ("the pushdown harness stopped with an uncaught error, often a central or site call that failed after "
               "its retries; the files it kept are partial")
@@ -258,6 +259,24 @@ G0_MODEL_PATH = ("the canary scan found no leak, but its model path had problems
                  "the loop")
 G0_BELOW_PROTOCOL = ("Some canary scans used fewer records than the protocol scan, whose size the protocol records "
                      "column gives: they are smaller checks, not the protocol scan.")
+J1_STOPPED = ("the judge run stopped before its last question, at its budget or after the server stayed down; the "
+              "verdicts it wrote are kept, and the part did not finish")
+J1_LABEL = ("{j_one} here asks each model the site verifier's narrow question about real public NHTSA complaint "
+            "narratives, one record at a time with its codes hidden, and scores each verdict against the components "
+            "the complaint was filed under: filed codes, not human-checked labels.")
+J1_HEADLINE_NOTE = ("The headline compares each model's balanced accuracy interval with the lexical judge's balanced "
+                    "accuracy on the same records: better only when the interval's low end is above it, worse only "
+                    "when its high end is below it, otherwise not told apart. Each model is compared once, with no "
+                    "correction for several comparisons; sensitivity, specificity and the unknown share decide "
+                    "nothing.")
+J1_LEXICAL_NOTE = ("The lexical judge is the verifier's judge when no model runs: it confirms a question only when one "
+                   "of the pack's phrases for the component is in the narrative and not negated. It judged every "
+                   "question in the plan job, before any model ran.")
+J1_INCOMPLETE = ("not every part of this model finished, so it gets no headline: its finished parts are a partial "
+                 "reading and decide nothing")
+J1_WITHHELD = ("transport failures left out more than one in a hundred of this model's records, so its headline is "
+               "withheld")
+J1_NOT_MEASURED = "not every part of this model is a model measurement, so it gets no headline"
 E2_SIZING_NOTE = ("Pushdown sizing: the model-free rehearsal's call counts times this runner's warm-up latencies, "
                   "against the share of the unit's budget the projection may use; a projection above it skips the "
                   "unit, and the suggested minutes are a quarter above the projection, rounded up.")
@@ -407,6 +426,8 @@ HEADINGS = {
     "e1-paired": "Extraction paired against the reference",
     "e1-drops": "Extraction drops by reason, pooled over repeats",
     "e1-scores": "Each model's own scores",
+    "j1": "Judge test: the verifier's narrow question, per model, beside the lexical judge",
+    "j1-paired": "Judge test: model minus lexical judge, paired by record",
     "e2": "Pushdown verification against central reading: conditions",
     "e2-ratio": "Pushdown ratio and verdict",
     "e2-candidates": "Pushdown candidates",
@@ -643,4 +664,16 @@ COLUMNS = {
     "label": "label",
     "saw_recalls": "recall outcomes seen before the preregistration",
     "warnings": "warnings",
+    "parts_ok": "parts finished",
+    "balanced_accuracy": "balanced accuracy",
+    "lexical_balanced_accuracy": "lexical balanced accuracy",
+    "lexical_all": "lexical judge, every record",
+    "headline": "headline",
+    "sensitivity": "sensitivity",
+    "specificity": "specificity",
+    "unknown_share": "unknown share",
+    "records_dropped": "records left out",
+    "headline_reason": "why no headline",
+    "questions": "questions",
+    "parts": "parts",
 }

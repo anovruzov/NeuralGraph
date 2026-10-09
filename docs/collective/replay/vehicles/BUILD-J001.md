@@ -203,3 +203,25 @@ keys in `test_lab_docs.py`.
 **Before merging:** run `python -m pytest tests/lab -q` and the pins and guards,
 `python -m pytest tests/mycelic/test_collective_x3.py tests/mycelic/test_collective_guards.py -q`. The E1
 preregistration refuses a dirty tree, so commit before the lab suite.
+
+## As built
+
+The build follows the note above. These details were left open, and the code fixes them. None changes a setting of
+`CHOICE-J001.md`.
+
+- **Question ids** are `<record_ref>:positive` and `<record_ref>:negative`.
+- **Participation.** A lab unit with a model is `invalid` when too few of its calls got a valid reply
+  (`MIN_MODEL_OK_SHARE` in `lab/units.py`). For `j1`, a reply still invalid after its repair counts as answered,
+  because rule 6 scores it `unknown` and counts it. A transport failure does not count as answered.
+- **Budget.** A J1 unit's `--budget-seconds` is its timeout less `SIM_BUDGET_MARGIN_S` (`lab/units.py`), as for
+  the simulation.
+- **Headline.** It needs every part `ok`, the model's display class `model`, and `measurement: true` in every
+  part's `run.json`. A part a fake server answered never gives a headline.
+- **Records not judged.** A record whose questions have no line yet (a part that stopped) is counted as not judged.
+  It is neither scored nor left out.
+- **Routing.** The preregistration's `routing.json` pins every model's endpoint and routes nothing. Each unit's
+  routing holds its own model's endpoint and routes `judge_record` to it.
+- **Labels sha.** The summaries show the labels sha256 at `SHA_SHOWN` characters (`lab/summary.py`), the same length
+  as R001's `bc6d092d8bca` in `CHOICE-R001.md`, so the two can be compared by eye. The full sha256 is in
+  `prereg/j1/labels.json` and in the report.
+- **No run here.** The tests run the whole path with the repo's fake model server. No model has judged a narrative.

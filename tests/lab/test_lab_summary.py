@@ -257,7 +257,7 @@ class DryRunSummaryTests(unittest.TestCase):
 
     def test_plumbing_first_line_and_heading(self) -> None:
         self.assertEqual(self.done.stdout.splitlines()[:2], ["plan: 12 units in 5 shards (plumbing)",
-                                                             "prereg: e1 yes x1 yes e2 yes"])
+                                                             "prereg: e1 yes x1 yes e2 yes j1 no"])
         self.assertEqual(self.done.stdout.splitlines()[-1],
                          "lab: aggregate units 12 shards 5 class plumbing measurements false lock unchanged")
         for _, md_path, _ in self.summaries:

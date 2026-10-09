@@ -161,7 +161,7 @@ CASES: list[tuple[str, Callable[[str], bytes], str, str]] = [
     ("retention-zero", _with(("retention_days", 0)), "$.retention_days", "must be an int in [1, 90]"),
     ("experiments-missing", _with(("experiments", _DELETE), sentinel_at="purpose"), "$.experiments", "required"),
     ("experiments-empty", _with(("experiments", {}), sentinel_at="purpose"), "$.experiments",
-     "needs at least one of e1, e2, e3, g0, sim, x1, openfda"),
+     "needs at least one of e1, e2, e3, g0, sim, x1, openfda, j1"),
     ("experiment-e4", _with(("experiments.e4", {"seed": "<S>"})), "$.experiments.e4", "unknown experiment"),
     ("experiment-n1", _with(("experiments.n1", "<S>")), "$.experiments.n1", "unknown experiment"),
     ("sim-not-object", _with(("experiments.sim", "<S>"), sentinel_at=None), "$.experiments.sim", "must be an object"),

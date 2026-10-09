@@ -147,7 +147,7 @@ class AllExperimentsDryRunTests(unittest.TestCase):
         lines = self.done.stdout.splitlines()
         units_in_order = [u for s in plan["shards"] for u in s["units"]]
         self.assertEqual(lines[0], f"plan: {len(plan['units'])} units in {len(plan['shards'])} shards (plumbing)")
-        self.assertEqual(lines[1], "prereg: e1 yes x1 yes e2 yes")
+        self.assertEqual(lines[1], "prereg: e1 yes x1 yes e2 yes j1 no")
         self.assertEqual([line.split()[2] for line in lines[2:-1]], units_in_order)
         self.assertTrue(all(STATUS_LINE_RE.fullmatch(line) for line in lines[2:-1]), lines)
         self.assertEqual(lines[-1], f"lab: aggregate units {len(plan['units'])} shards {len(plan['shards'])} class "
@@ -1296,7 +1296,7 @@ class PreregTests(unittest.TestCase):
     def test_a_plan_without_prereg_units_writes_nulls(self) -> None:
         plan_path = self.plan_only(_request(e3=plumbing_min()["experiments"]["e3"]))
         code, stdout, stderr = run_prereg(plan_path)
-        self.assertEqual((code, stdout), (0, "prereg: e1 no x1 no e2 no\n"), stderr)
+        self.assertEqual((code, stdout), (0, "prereg: e1 no x1 no e2 no j1 no\n"), stderr)
         manifest = load_prereg(plan_path).manifest
         self.assertEqual((manifest["e1"], manifest["x1"], manifest["e2"], manifest["files"]), (None, None, None, {}))
 
@@ -1369,8 +1369,8 @@ class PlanTests(unittest.TestCase):
         self.assertTrue(all(u["needs_secret"] is False and u["env"] == [] for u in plan["units"]))
 
     def test_placement_by_serving_class(self) -> None:
-        self.assertEqual([serving_class(e) for e in ("e1", "e2", "e3", "g0", "sim", "x1", "openfda")],
-                         ["quality", "e2", "e3", "quality", "quality", "quality", "quality"])
+        self.assertEqual([serving_class(e) for e in ("e1", "e2", "e3", "g0", "sim", "x1", "openfda", "j1")],
+                         ["quality", "e2", "e3", "quality", "quality", "quality", "quality", "quality"])
         plan = _json(_Shared.get().out / "plan" / "plan.json")
         by_id = {u["unit"]: u for u in plan["units"]}
         rank = {"quality": 0, "e2": 1, "e3": 2}

@@ -11,7 +11,7 @@ write a request (a small JSON file naming experiments, models, seeds, sizes and 
 `mycelic-lab` workflow then:
 
 1. plans the run: validates the request, splits it into units (one experiment on one model) and shards (the units one
-   runner job executes), and preregisters what E1, X1 and E2 will be judged against before any model runs;
+   runner job executes), and preregisters what E1, J1, X1 and E2 will be judged against before any model runs;
 2. downloads and verifies the pinned model server and model files once per run, and caches them;
 3. runs each shard on its own runner: starts the model server on the runner's loopback address, warms it up and runs
    the units against it;
@@ -27,7 +27,9 @@ model. The experiments:
 - sim: the six-site simulation, with the model inside each site, HQ detection, pushdown and a scorecard against the
   baselines;
 - X1: the model-free evaluation harness on a plant fixture;
-- openFDA: a model-free replay of public openFDA data and the labelling sheets for a person.
+- openFDA: a model-free replay of public openFDA data and the labelling sheets for a person;
+- J1: judge test J001, the site verifier's narrow question ("does this record report this failure on this vehicle?")
+  asked of each model about real public complaints, one record at a time, beside the verifier's lexical judge.
 
 ## What a run costs
 
@@ -259,6 +261,11 @@ What each experiment's numbers mean and do not mean. Each label below is printed
 - `OPENFDA_WARNED`: The replay warned: a warning can make a channel's zero structural, as when too few sites leave no cross-site candidate, rather than a negative result.
 - and its labelling sheets have no result until a person fills them:
 - `SHEETS_LABEL`: No labels were generated: {n_one} and openFDA {e_one} have no result until a human labels and commits the sheet.
+- J1 asks each model the verifier's narrow question about real complaints and scores the verdicts against the filed
+  codes; `{j_one}` stands for J1. The plan job draws the questions and runs the lexical judge before any model runs. A
+  model gets a headline only when all its parts finished as model measurements; otherwise its finished parts are a
+  partial reading:
+- `J1_LABEL`: {j_one} here asks each model the site verifier's narrow question about real public NHTSA complaint narratives, one record at a time with its codes hidden, and scores each verdict against the components the complaint was filed under: filed codes, not human-checked labels.
 
 Every column and its meaning is in [REFERENCE.md](REFERENCE.md#columns), and every label in
 [REFERENCE.md](REFERENCE.md#labels). The columns `found net of chance`, `chance finds` and `model path problems`
@@ -380,6 +387,7 @@ the message fills in.
 | `model participation below threshold` | The simulation fell back to the lexical extractor too often; read its ledgers. |
 | `the pushdown harness stopped with an uncaught error, often a central or site call that failed after its retries; the files it kept are partial` | Run again; if it persists, read the unit's logs. |
 | `the preregistration is missing or differs from the plan's` | The plan job's preregistration failed; read its log and push again. |
+| `the judge run stopped before its last question, at its budget or after the server stayed down; the verdicts it wrote are kept, and the part did not finish` | That model gets no J1 verdict from this run. Read the unit's `run.json` (`stopped`) and the latency table; judging it again needs a new choice file. |
 | `the canary scan found no leak, but its model path had problems, so it did not test the model in the loop` | Read the listed problems and the unit's ledgers; run again against a healthy server. |
 | `openFDA stayed unreachable from this runner after the connector's retries` | Run again later. |
 | `openFDA kept refusing requests as too many after the connector's retries: add the MYCELIC_LAB_OPENFDA_API_KEY repository secret, lower max_records_per_code or product_codes, or run again later` | Follow the message. |

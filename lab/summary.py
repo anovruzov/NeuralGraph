@@ -46,7 +46,10 @@ and interval, then the per-record mean difference and the sign test. Last, compa
 (``endpoint_scores``, :func:`_e1_scores_table`): after :data:`~lab.notes.E1_SCORES_ONLY` when no comparison ran, and
 :data:`~lab.notes.E1_SCORES_NOTE`, one row per model with valid repeats: the repeats used of those planned, predicate F1
 and its interval, the lexical extractor's predicate F1 beside it (when the labels carry one: ``labels.public.lexical``),
-field F1, the zero-claim and transport failure shares and the drops and re-attachments by reason. The class sections
+field F1, the zero-claim and transport failure shares and the drops and re-attachments by reason. J1 (judge test J001)
+comes once, in the class section of its display class (:func:`_j1_tables`): its label, the labels, questions and the
+lexical judge's balanced accuracy on every record, the lexical and headline notes, one row per model and the paired
+table; a plan's preregistration adds J1's labels, questions and the lexical judge's scores. The class sections
 come in the order of :data:`CLASS_ORDER`: ``model``, then ``hosted-api`` (hosted API results, never measured on this
 runner), then the rest. A G0 table gains a protocol records column, after its note, when a scan was below the
 protocol size, and a model path problems column when a row counts them. After the class sections, a sizing table of
@@ -112,7 +115,8 @@ from .notes import (BRANCH_DELETED, BY_CONSTRUCTION_LABEL, BY_CONSTRUCTION_NOTE,
                     E1_ENDPOINT_EXCLUDED, E1_HOSTED_LABEL, E1_LABELS, E1_NO_REFERENCE, E1_SCORES_NOTE, E1_SCORES_ONLY,
                     E1_SCORES_REFUSED, E1_SCORES_UNPINNED, E1_VERDICTS_WITHHELD, E1_WITHOUT_HOSTED,
                     E2_CENTRAL_HOSTED_SKIPPED, E2_LABELS, E2_SIZING_NOTE, G0_BELOW_PROTOCOL, HEADINGS,
-                    HOSTED_COST_NOTE, HOSTED_SECRETS_MISSING, LOCK_CONFLICT_NOTE, LOCK_NEW, LOCK_NOT_COMPUTED,
+                    HOSTED_COST_NOTE, HOSTED_SECRETS_MISSING, J1_HEADLINE_NOTE, J1_INCOMPLETE, J1_LABEL,
+                    J1_LEXICAL_NOTE, J1_NOT_MEASURED, J1_WITHHELD, LOCK_CONFLICT_NOTE, LOCK_NEW, LOCK_NOT_COMPUTED,
                     LOCK_UNCHANGED, MERGE_SEVERAL, NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT, NOT_A_BRANCH, NOT_PINNED,
                     NOTES, OPENFDA_FALSE_ALARM_SCOPE, OPENFDA_LABEL, OPENFDA_PUBLIC_FLAG, OPENFDA_SAW_RECALLS,
                     OPENFDA_WARNED, PLAN_FIX_HINT, PLUMBING_CHECK_LINE, PLUMBING_HOSTED_LINE, PREREG_MISSING,
@@ -152,11 +156,13 @@ E1_REASONS = (PREREG_MISSING, E1_NO_REFERENCE, E1_COMPARE_FAILED)
 E1_SCORE_REASONS = (PREREG_MISSING, E1_SCORES_UNPINNED)
 LEXICAL_PREDICATE_F1 = ("e1", "labels", "public", "lexical", "predicate_f1", "value")
 PREREG_FILE = "prereg/prereg.json"
+J1_HEADLINE_REASONS = (J1_INCOMPLETE, J1_NOT_MEASURED, J1_WITHHELD)
+J1_METRICS = ("balanced_accuracy", "sensitivity", "specificity", "unknown_share")
 
 
 def ids(sentence: str) -> str:
     """A notes sentence with its experiment-id placeholders filled with code spans."""
-    return sentence.format(e_one=code("E1"), e_two=code("E2"), x_one=code("X1"), n_one=code("N1"))
+    return sentence.format(e_one=code("E1"), e_two=code("E2"), x_one=code("X1"), n_one=code("N1"), j_one=code("J1"))
 _INDEX_RE = re.compile(r"0|[1-9][0-9]*", re.ASCII)
 _BACKTICKS_RE = re.compile(r"`+")
 
@@ -469,6 +475,23 @@ def _prereg_section(doc: _Doc, src: Sources) -> None:
                                                                        ("central_raw_records", "max"))]
         doc.add(f"- {COLUMNS['rehearsal']}: {COLUMNS['candidates']} {counts[0]}, {COLUMNS['seeds']} {counts[1]}, "
                 f"{COLUMNS['judge_calls']} {counts[2]}, {COLUMNS['raw_max']} {counts[3]}")
+    j1 = _get(manifest, "j1")
+    if isinstance(j1, dict):
+        at = ("j1", "lexical")
+        doc.add(f"- {code('J1')} {COLUMNS['labels']}: {COLUMNS['label_source']} {code(_get(j1, 'labels', 'source'))}, "
+                f"{COLUMNS['records']} {src.num(f, '/j1/labels/records', 'int')}, {COLUMNS['sha']} "
+                f"{code(short(_get(j1, 'labels', 'sha256')))}; {COLUMNS['questions']} "
+                f"{src.num(f, '/j1/questions/questions', 'int')}, {COLUMNS['parts']} "
+                f"{src.num(f, '/j1/questions/parts', 'int')}, {COLUMNS['sha']} "
+                f"{code(short(_get(j1, 'questions', 'sha256')))}; {COLUMNS['prereg']} {sha(str(_get(j1, 'prereg')))}")
+        doc.add(f"- {code('J1')} {COLUMNS['lexical_all']}: {COLUMNS['balanced_accuracy']} "
+                f"{src.num(f, pointer(*at, 'balanced_accuracy', 'value'), 'f3')} ({COLUMNS['ci_low']} "
+                f"{src.num(f, pointer(*at, 'balanced_accuracy', 'ci_low'), 'f3')}, {COLUMNS['ci_high']} "
+                f"{src.num(f, pointer(*at, 'balanced_accuracy', 'ci_high'), 'f3')}); {COLUMNS['sensitivity']} "
+                f"{src.num(f, pointer(*at, 'sensitivity', 'value'), 'f3')}; {COLUMNS['specificity']} "
+                f"{src.num(f, pointer(*at, 'specificity', 'value'), 'f3')}; {COLUMNS['unknown_share']} "
+                f"{src.num(f, pointer(*at, 'unknown_share', 'value'), 'f3')}")
+        doc.add("\n" + J1_LEXICAL_NOTE)
 
 
 # --------------------------------------------------------------------------------------------------- shard
@@ -617,9 +640,11 @@ def render_report(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[d
                                                          code(u.get("status_reason"), table=True)]
                                                         for _, u in no_result))
     e1 = report.get("e1") if isinstance(report.get("e1"), dict) else None
+    j1 = report.get("j1") if isinstance(report.get("j1"), dict) else None
     for cls in CLASS_ORDER:
-        if any(u.get("display_class") == cls for _, u in units) or (e1 is not None and e1.get("display_class") == cls):
-            _class_section(doc, src, cls, units, rows, e1)
+        if (any(u.get("display_class") == cls for _, u in units) or (e1 is not None and e1.get("display_class") == cls)
+                or (j1 is not None and j1.get("display_class") == cls)):
+            _class_section(doc, src, cls, units, rows, e1, j1)
     sizing = rows("sim_sizing")
     if sizing:
         _sizing_section(doc, src, sizing)
@@ -659,7 +684,8 @@ def render_report(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[d
 
 
 def _class_section(doc: _Doc, src: Sources, cls: str, units: list[tuple[int, dict[str, Any]]],
-                   rows: Callable[[str], list[tuple[int, dict[str, Any]]]], e1: dict[str, Any] | None = None) -> None:
+                   rows: Callable[[str], list[tuple[int, dict[str, Any]]]], e1: dict[str, Any] | None = None,
+                   j1: dict[str, Any] | None = None) -> None:
     f = "report.json"
     _heading(doc, cls, 3)
     mine = [(i, u) for i, u in units if u.get("display_class") == cls]
@@ -726,6 +752,8 @@ def _class_section(doc: _Doc, src: Sources, cls: str, units: list[tuple[int, dic
         _openfda_tables(doc, src, openfda)
     if e1 is not None and e1.get("display_class") == cls:
         _e1_tables(doc, src, e1)
+    if j1 is not None and j1.get("display_class") == cls:
+        _j1_tables(doc, src, j1)
     latency = [(i, r) for i, r in rows("latency") if r.get("display_class") == cls]
     if latency:
         _heading(doc, "latency", 4)
@@ -1085,6 +1113,64 @@ def _e1_scores_table(doc: _Doc, src: Sources, e1: dict[str, Any], *, compared: b
     doc.table(["model", "repeats_used", "predicate_f1", "ci_low", "ci_high",
                *(["lexical_predicate_f1"] if lexical else []), "field_f1", "zero_claim_share", "transport_share",
                "drops", *(["scores_problem"] if problems else [])], score_rows)
+
+
+def _j1_tables(doc: _Doc, src: Sources, j1: dict[str, Any]) -> None:
+    """J1's label, then (once the preregistration verified) the labels, questions and the lexical judge on every
+    record, the lexical and headline notes, one row per model (class, parts finished of planned, balanced accuracy and
+    its interval, the lexical judge's balanced accuracy on the same records, the headline, sensitivity, specificity,
+    the unknown share, the records left out, and why there is no headline when a model has none) and the paired
+    table (model minus lexical balanced accuracy, record by record, with its interval)."""
+    f = "report.json"
+    _heading(doc, "j1", 4)
+    doc.add("\n" + ids(J1_LABEL))
+    if j1.get("reason") is not None:
+        reason = j1["reason"]
+        doc.add("\n" + (reason if reason == PREREG_MISSING else f"{COLUMNS['reason']}: {code(reason)}"))
+        return
+    doc.add(f"\n- {COLUMNS['labels']}: {COLUMNS['label_source']} {code(_get(j1, 'labels', 'source'))}, "
+            f"{COLUMNS['records']} {src.num(f, '/j1/labels/records', 'int')}, {COLUMNS['sha']} "
+            f"{code(short(_get(j1, 'labels', 'sha256')))}; {COLUMNS['questions']} "
+            f"{src.num(f, '/j1/questions/questions', 'int')}, {COLUMNS['parts']} "
+            f"{src.num(f, '/j1/questions/parts', 'int')}")
+    at = ("j1", "lexical", "balanced_accuracy")
+    doc.add(f"- {COLUMNS['lexical_all']}: {COLUMNS['balanced_accuracy']} {src.num(f, pointer(*at, 'value'), 'f3')} "
+            f"({COLUMNS['ci_low']} {src.num(f, pointer(*at, 'ci_low'), 'f3')}, {COLUMNS['ci_high']} "
+            f"{src.num(f, pointer(*at, 'ci_high'), 'f3')})")
+    doc.add("\n" + J1_LEXICAL_NOTE)
+    doc.add("\n" + J1_HEADLINE_NOTE)
+    models = j1.get("models") if isinstance(j1.get("models"), dict) else {}
+    named = sorted(name for name in models if isinstance(models[name], dict))
+    reasons = any(models[name].get("headline") is None for name in named)
+
+    def model_rows() -> Any:
+        for name in named:
+            entry, at = models[name], ("j1", "models", name)
+            row = [code(name, table=True), code(entry.get("display_class"), table=True),
+                   f"{src.num(f, pointer(*at, 'parts_finished'), 'int')} of "
+                   f"{src.num(f, pointer(*at, 'parts_planned'), 'int')}"]
+            row += [src.num(f, pointer(*at, "scores", "balanced_accuracy", key), "f3")
+                    for key in ("value", "ci_low", "ci_high")]
+            row.append(src.num(f, pointer(*at, "lexical", "balanced_accuracy", "value"), "f3"))
+            row.append(code(entry.get("headline"), table=True))
+            row += [src.num(f, pointer(*at, "scores", metric, "value"), "f3") for metric in J1_METRICS[1:]]
+            row.append(src.num(f, pointer(*at, "records_dropped"), "int"))
+            if reasons:
+                reason = entry.get("headline_reason")
+                row.append(reason if reason in J1_HEADLINE_REASONS else code(reason, table=True))
+            yield row
+
+    doc.table(["model", "class", "parts_ok", "balanced_accuracy", "ci_low", "ci_high", "lexical_balanced_accuracy",
+               "headline", "sensitivity", "specificity", "unknown_share", "records_dropped",
+               *(["headline_reason"] if reasons else [])], model_rows)
+    paired = [name for name in named if isinstance(models[name].get("paired"), dict)]
+    if paired:
+        _heading(doc, "j1-paired", 4)
+        doc.table(["model", "pairs", "diff", "ci_low", "ci_high"], lambda: (
+            [code(name, table=True), *(src.num(f, pointer("j1", "models", name, "paired", key), style)
+                                       for key, style in (("n", "int"), ("mean_diff", "f3"), ("ci_low", "f3"),
+                                                          ("ci_high", "f3")))]
+            for name in paired))
 
 
 def _reaggregation_lines(doc: _Doc, stamp: dict[str, Any]) -> None:

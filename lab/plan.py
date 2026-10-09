@@ -12,7 +12,9 @@ sha256(request sha256 | unit)>``; a sim unit is one model and one seed, ``sim-<m
 plant, its pack, the weeks, ``lab.sim.world_settings`` (evaluation weeks and grace), the sim's tie salt, bootstrap
 settings, ``top_n`` and the seed. An E1 unit is one model and one repeat, ``e1-<model>-r<k>`` (params: the labels'
 pack, the labels, the model as ``endpoint``, the reference, ``repeat``, ``runs``, ``margin_points``, ``seed`` and
-``bootstrap_b``); an E2 unit is one model, ``e2-<model>`` (params: the block's world and harness settings, the plant's
+``bootstrap_b``); a J1 unit is one model and one part, ``j1-<model>-p<k>`` (params: the labels' pack, the labels, the
+model as ``endpoint``, ``part``, ``parts``, ``seed``, ``bootstrap_b`` and ``bootstrap_seed``; serving class
+``quality``); an E2 unit is one model, ``e2-<model>`` (params: the block's world and harness settings, the plant's
 repository path ``plant_path``, the pack's site count ``sites``, the sorted seeds, the first of them as ``seed`` and
 ``central_context_tokens``, :func:`central_context_tokens`); ``x1`` and ``openfda`` are one model-free unit each
 (model None, kind ``none``; X1 takes E2's params without ``top_n``, ``min_candidates``, ``central`` and
@@ -129,7 +131,8 @@ class PlanError(LabError):
 # --------------------------------------------------------------------------------------------------- ids
 
 def unit_id(experiment: str, model: str | None, suffix: str = "") -> str:
-    """``<experiment>-<model>-<suffix>`` without the empty parts; suffix is ``""``, ``r<k>`` or ``s<seed>``."""
+    """``<experiment>-<model>-<suffix>`` without the empty parts; suffix is ``""``, ``r<k>``, ``s<seed>`` or
+    ``p<k>``."""
     uid = "-".join(p for p in (experiment, model or "", suffix) if p)
     if len(uid) > MAX_UNIT_ID or UNIT_ID_RE.fullmatch(uid) is None:
         raise PlanError("$.experiments", "a unit id would be malformed or longer than 55 characters") from None
@@ -216,6 +219,14 @@ def build_units(request: Request, manifest: Manifest, openfda_key: bool = False)
             params = {**block, "requests_estimate": openfda_requests(block["product_codes"],
                                                                       block["max_records_per_code"], openfda_key)}
             units.append(_unit(request, manifest, "openfda", None, "", block["minutes"], params, []))
+        elif experiment == "j1":
+            for model in block["models"]:
+                for k in range(1, block["parts"] + 1):
+                    params = {"pack": block["labels"]["pack"], "labels": block["labels"], "endpoint": model,
+                              "part": k, **{key: block[key] for key in ("parts", "seed", "bootstrap_b",
+                                                                         "bootstrap_seed")}}
+                    units.append(_unit(request, manifest, "j1", model, f"p{k}", block["minutes"], params,
+                                       [block["seed"]]))
         else:
             for model in block["models"]:
                 for seed in (block["seeds"] if experiment == "sim" else [block["seed"]]):
