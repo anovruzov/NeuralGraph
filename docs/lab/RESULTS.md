@@ -2,11 +2,11 @@
 
 Every number below is copied from a lab report printed in a GitHub Actions job log (between
 `=== MYCELIC-LAB … BEGIN/END ===` markers), from a shard's own summary or, for the vehicle replay, from its audit
-printed between `VEHICLE-AUDIT` markers. Each row names its run. **Synthetic data, except runs 3 and 4 and the vehicle
-replay**: their records are public FDA reports and NHTSA complaints; every other record and narrative was generated
-from a seed. **Runner hardware only**: one shared 4-vCPU GitHub-hosted runner per shard, whose CPU model varies
-between shards; compare timings only between rows of the same CPU model, and never read them as site hardware. A unit
-without a result is listed with its reason, not left out.
+printed between `VEHICLE-AUDIT` markers. Each row names its run. **Synthetic data, except runs 3, 4 and 6 and the
+vehicle replay**: their records are public FDA reports and NHTSA complaints; every other record and narrative was
+generated from a seed. **Runner hardware only**: one shared 4-vCPU GitHub-hosted runner per shard, whose CPU model
+varies between shards; compare timings only between rows of the same CPU model, and never read them as site hardware.
+A unit without a result is listed with its reason, not left out.
 
 ## Run 1: check-001 (pins and first timings)
 
@@ -149,22 +149,108 @@ No warning: 91.9% of the manufacturer's reports carried an identifier the pack r
 with readable identifiers, the model-free detectors gave no early warning. One manufacturer, four codes, eight
 recalls; the requester declared it may have seen recall outcomes before choosing.
 
-## Run 5: main-001, in progress
+## Run 5: main-001 (five seeds, three models, and a leakage scan that failed)
 
 [Run 37866392839](https://github.com/anovruzov/NeuralGraph/actions/runs/37866392839), request
-`lab/requests/main-001.json`, commit `3db19a0`, started 2026-10-09 00:45 UTC: the simulation over seeds 1 to 5 with
-a-0p5b, a-1p5b and a-4b (20 planted patterns per model), E1 on generator text, the 1,000-record G0 canary scan with
-a-4b, E3 for a-4b and the model-free X1 baseline; 27 units in 23 shards. Recorded here when its report is in,
-whatever it shows.
+`lab/requests/main-001.json`, commit `3db19a0`, 2026-10-09 00:45 to 05:49 UTC; report from the `aggregate` job
+(113689643048, `report.md` sha256 `f4890fa4d658…`, matching the printed hash). Purpose: the simulation over seeds 1 to
+5 with a-0p5b, a-1p5b and a-4b (20 planted patterns per model), E1 on generator text, the 1,000-record G0 canary scan
+with a-4b, E3 for a-4b and the model-free X1 baseline. 27 units in 23 shards, all sealed; 26 units `ok`, and G0
+`result_fail`. The log tail held all of `report.md` but only the end of `report.json`, so the numbers below come from
+`report.md`.
 
-## Run 6: reader-001, in progress (small models reading real complaints)
+**Canary leakage scan: failed.** G0 ran with a-4b in the loop on `device_quality`, seed 1, 1,000 records:
+
+- 4,257 canaries were planted, and **1 crossed a boundary**;
+- 0 shingle-overlap bytes and 0 model path problems;
+- the positive control was hit 885 times, so the scanner worked.
+
+The smoke run's 200-record scan with a-1p5b had passed (0 of 875). Which artifact carried the canary is in the run's
+`leakage.json` artifact, which this environment cannot download. Until it is traced, "no planted text crossed a
+boundary" no longer holds for the model path.
+
+**Six-site simulation** (plant `sim_small`, 34 weeks, seeds 1 to 5, each seed one synthetic world shared by the three
+models; 4 planted patterns per seed, 3 of them narrative-only, so 20 patterns of which S and model-free R can see 5; the
+no-plant control made no chance find in any channel). Planted patterns found, of 20:
+
+| Model | X, model reads | X, lexical | S, codes only | R, model-free | U, reference | Single site | Rules |
+|---|---|---|---|---|---|---|---|
+| a-0p5b | 5 | 19 | 5 | 5 | 5 | 5 | 0 |
+| a-1p5b | 9 | 19 | 5 | 5 | 8 | 10 | 0 |
+| a-4b | 10 | 19 | 5 | 5 | 11 | 13 | 0 |
+
+- **Does X with the model beat S and model-free R?**
+  - a-1p5b and a-4b found 4 and 5 more of the 20 patterns; a-0p5b found the same number.
+  - S found all 5 patterns it can see, so every extra find is a narrative-only pattern that S and R are blind to by
+    construction. That lift is fixed by the plant, not measured.
+  - No seed's lift interval over S excludes zero. a-4b's lifts were 0, +0.25, +0.50, +0.25 and +0.25, each with its
+    interval starting at 0.
+- **Against the lexical extractor, which is exact on generator text by construction,** every model lost patterns: 5,
+  9 and 10 found against 19.
+- **Each site alone** (single site, exact per-site counts of the same claims) found as many as or more than X with the
+  model: 13 against 10 for a-4b. It did so at about five times the alerts, roughly 75 a seed against 18 or fewer.
+- **Alerts summed over the seeds, with false alarms in brackets:**
+  - X with the model: 33 (28) for a-0p5b, 74 (65) for a-1p5b and 61 (51) for a-4b;
+  - X lexical: 64 (45);
+  - S: 24 (19).
+
+**Pushdown verification** (no raw text crossed in any unit). HQ checks its candidates at the sites; compare the
+average precision of the pushdown verdicts with that of the detector scores. Pushdown ranked the true candidates
+better in 2 of 5 seeds for a-0p5b, and in 3 of 5 for a-1p5b and a-4b. It was worse in 1 seed each, and the same in the
+rest.
+
+**Extraction on generator text** (E1, 150 records, 294 claims, 3 repeats, reference a-4b, margin 0.05):
+
+| Model | Field F1 [95% interval] | Claim F1 | Difference from a-4b [95% interval] | Non-inferior |
+|---|---|---|---|---|
+| a-0p5b | 0.256 [0.211, 0.298] | 0.032 | -0.451 [-0.508, -0.394] | no |
+| a-1p5b | 0.527 [0.479, 0.575] | 0.310 | -0.180 [-0.234, -0.124] | no |
+| a-4b | 0.707 [0.665, 0.748] | 0.521 | reference | n/a |
+
+Every model is below E1's 0.80 kill line. The same post-processing rule that zeroed run 6 also costs the models here:
+42% of generated mentions are aliases or spaced forms whose canonical id is not in the text (handoff finding F8).
+
+**Latency** (E3, a-4b, Intel Xeon Platinum 8573C, 6 measured requests per cell, all answered):
+
+| Workload | Concurrency | End-to-end median s | p95 s | First token median s | Decode tokens/s median | Requests/s |
+|---|---|---|---|---|---|---|
+| extraction | 1 | 40.149 | 42.298 | 25.681 | 4.2 | 0.025 |
+| extraction | 4 | 138.144 | 183.009 | 44.409 | 0.9 | 0.029 |
+| short | 1 | 19.246 | 20.465 | 11.344 | 5.6 | 0.052 |
+| short | 4 | 60.884 | 79.622 | 27.561 | 2.1 | 0.064 |
+
+**X1** (model-free harness, same-author plant fixture, not blind, so not eligible as STRATEGY's X1). X, U and single
+site found 9 of 9; S, model-free R and rules found 0 of 9 (all 9 narrative-only).
+
+**What this says.** On five synthetic worlds built to reward reading, the two larger models found a quarter of the
+narrative-only patterns (4 and 5 of 15) that the lexical extractor found 14 of. Each site alone did at least as well
+as the collective channel. The one leakage scan with a 4B model in the loop failed by one canary. None of it is real
+data, and all of it measures this pipeline, including the post-processing rule that run 6 shows discards model
+answers.
+
+## Run 6: reader-001 (small models reading real complaints): every model scored zero
 
 [Run 37874950202](https://github.com/anovruzov/NeuralGraph/actions/runs/37874950202), request
-`lab/requests/reader-001.json`, commit `16901e5`, started 2026-10-09 02:31 UTC; rule
-`docs/collective/replay/vehicles/CHOICE-R001.md`, committed in `389d278` before the run. E1 on **real public data** for
-the first time: a-0p5b, a-1p5b and a-4b read 150 NHTSA complaint narratives with their component codes hidden, 3
-repeats each, scored against the codes the complaints were filed under (206 claims; labels sha `bc6d092d8bca`), beside
-the lexical extractor on the same records. Recorded here when its report is in, whatever it shows.
+`lab/requests/reader-001.json`, commit `16901e5`, 2026-10-09 02:31 to 05:31 UTC; rule
+`docs/collective/replay/vehicles/CHOICE-R001.md`, committed in `389d278` before the run. Report from the `aggregate` job
+(113685208656): `report.json` sha256 `ee6db53ba685…` and `report.md` `4edb84513c42…`, both read in full and both
+matching. a-0p5b, a-1p5b and a-4b read 150 NHTSA complaint narratives with their component codes hidden, 3 repeats
+each, scored against the codes the complaints were filed under (206 claims; labels sha `bc6d092d8bca`). All 9 units
+were `ok`.
+
+| Reader | Predicate F1 [95% interval] | Field F1 | Valid JSON | Wall s per record (runner CPU) |
+|---|---|---|---|---|
+| Lexical extractor | 0.434 | 0.550 | n/a | n/a |
+| a-0p5b | 0.000 [0.000, 0.000] | 0.000 | 1.000 | 9.9 to 10.5 (AMD EPYC 7763) |
+| a-1p5b | 0.000 [0.000, 0.000] | 0.000 | 1.000 | 20.5 to 21.7 (AMD EPYC 9V45) |
+| a-4b | 0.000 [0.000, 0.000] | 0.000 | 0.996 | 35.2 to 38.9 (AMD EPYC 9V74) |
+
+**By the pre-registered rule, every model reads worse than the lexical baseline.** The zero is almost certainly the
+post-processing handicap that was logged before the result: an item whose entity is typed `vehicle` but not resolved
+to a pack id is dropped whole. A reconstruction through the repo's own code gives exactly 0.000 for the most natural
+reply, against 1.000 for the same predicates with the entity left null. The raw replies were not stored, so the
+cause cannot be confirmed from the run (`CHOICE-R001.md`, "What the zero most likely is"). Whether small models can
+read real complaints is therefore still unmeasured; R002 has to fix the reading path first.
 
 ## Outside the lab: public replay V001 (vehicle complaints, model-free, real data)
 
@@ -201,7 +287,7 @@ found 6 where 9.07 were expected, and alerted after 17 of the 126 had opened.
 
 ## What has not run
 
-- **A replay with a model reading real narratives** (run 6 measures the reading alone, against filed codes), and
-  replays of other device manufacturers. **N1 and E1 on human-labelled narratives** need a person to label the
-  sheets.
+- **A replay with a model reading real narratives**, a usable measure of the reading itself (run 6 scored zero
+  through the post-processing), and replays of other device manufacturers. **N1 and E1 on human-labelled narratives**
+  need a person to label the sheets.
 - **A hosted (non-local) model:** the lab supports one through `MYCELIC_LAB_HOSTED_API_KEY`; no key is configured.

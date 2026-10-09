@@ -78,4 +78,62 @@ fixes the post-processing (a null or structured vehicle accepted, raw replies ke
 
 1. **reader-001** ([37874950202](https://github.com/anovruzov/NeuralGraph/actions/runs/37874950202), commit `16901e5`):
    the plan job downloaded the complaint file and pre-registered the labels: 150 records, 206 claims, sha256 beginning
-   `bc6d092d8bca`. The models have not finished; the result is recorded here when the report is in.
+   `bc6d092d8bca`. All 9 units finished `ok` (3 repeats per model, 6 shards). The report comes from the `aggregate`
+   job (113685208656), and both files were read in full: `report.json` sha256 `ee6db53ba685…` and `report.md`
+   `4edb84513c42…` match the hashes the job printed.
+
+## The result
+
+**Every model scored exactly zero, and by the rule each reads worse than the lexical baseline.**
+
+| Reader | Predicate F1 | 95% interval | Field F1 | Valid JSON | Wall seconds per record (runner CPU) |
+|---|---|---|---|---|---|
+| Lexical extractor (plan job) | 0.434 (tp 69, fp 43, fn 137) | none (fixed) | 0.550 | n/a | n/a |
+| a-0p5b | 0.000 | 0.000 to 0.000 | 0.000 | 1.000 | 9.9 to 10.5 (AMD EPYC 7763) |
+| a-1p5b | 0.000 | 0.000 to 0.000 | 0.000 | 1.000 | 20.5 to 21.7 (AMD EPYC 9V45) |
+| a-4b | 0.000 | 0.000 to 0.000 | 0.000 | 0.996 | 35.2 to 38.9 (AMD EPYC 9V74) |
+
+- **The pre-registered headline:** each model's interval (0 to 0) lies wholly below the lexical F1 of 0.434. So by
+  rule 6, each model **reads worse** than the lexical baseline. That is the result of the first run, and it stands.
+- **The vehicle was never right either:** exact vehicle matches were 0 of 150 for every model.
+- **E1's own block, as it prints it:**
+  - every model is marked non-inferior to a-4b, with a difference of 0.000;
+  - every kill flag is set;
+  - both verdicts compare zeros, so they carry no information here.
+- **Speed:** each unit's wall time divided by 150 records, including server start. The shards ran on three different
+  CPU models, so the rows are not comparable with each other. Ledger medians per call were 10.8 s (a-0p5b), 23.9 s
+  (a-1p5b) and 18.8 s (a-4b). a-4b's 95th percentile was 118.6 s, and 2 of its 450 calls failed.
+
+## What the zero most likely is
+
+An F1 of exactly 0.000 is not a weak reader's score. Three models of different sizes, 450 reads each, almost all
+valid JSON, and not one correct claim: that is the signature of post-processing discarding every item. It is the
+handicap logged above, in a stronger form than the ten-narrative estimate. The raw replies were not stored, so this
+cannot be confirmed from the run. It can be reproduced, though.
+
+- **The prompt and schema:** for this pack, the only entity type is `vehicle`, and the prompt says to copy
+  `entity_text` exactly as written.
+- **The drop rule:** `ModelExtractor.postprocess` (`mycelic/collective/edge/extract.py`) drops an item whole, predicate
+  included, when:
+  - its `entity_type` is set but its `entity_text` is null (counted `not_canonical`); or
+  - the text, such as "2021 FORD F-150", does not resolve to a pack id (also `not_canonical`).
+- **What survives:** an item keeps its predicate only when both entity fields are null, or when the text names a pack
+  id as the narrative writes it ("FORD F150 2021"), which complaints rarely do.
+- **The reproduction** (`python tools/market/r001_postprocess_probe.py`): through the repo's own Runtime, a fake
+  server, `ModelExtractor` (no fallback) and E1's counting, on the ten constructed narratives above:
+  - a reader that always sets the type to `vehicle`, with the vehicle as written or null, scores predicate F1
+    **0.000**, with all 10 items dropped as `not_canonical`;
+  - the same predicates with both entity fields null score 1.000;
+  - the lexical extractor scores 0.588.
+
+So R001 shows that **the reading path as built cannot score a model on this pack**. It does not show that the models
+read badly. Whether they can read real complaints remains unmeasured.
+
+**Next, as a new choice file (R002) before any re-run:**
+
+- attach a predicate to the structured vehicle when the entity fields do not resolve, and count each such case;
+- keep the raw replies for public data;
+- merge the three old/new name pairs;
+- drop the `unknown_or_other` trap and define negation for component predicates.
+
+The handoff plan lists this as task 4.1 (`docs/handoff/HANDOFF-2026-10-09.md`).
