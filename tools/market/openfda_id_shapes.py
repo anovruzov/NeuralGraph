@@ -17,6 +17,7 @@ The network side runs where api.fda.gov is reachable (the market-count workflow)
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import urllib.error
@@ -62,10 +63,11 @@ def main(argv: list[str] | None = None) -> int:
               "date_to": args.date_to, "top": args.top, **found,
               "note": "the most reported values per code and field among reports received in the dates from names "
                       "containing the word, with report counts; events only, no recall data"}
-    text = json.dumps(result, indent=1, sort_keys=True)
-    Path(args.out).write_text(text + "\n", encoding="utf-8")
-    print("=== ID-SHAPES BEGIN ===")
-    print(text)
+    text = json.dumps(result, indent=1, sort_keys=True) + "\n"
+    Path(args.out).write_text(text, encoding="utf-8")
+    # one line, so that a reader of the log's last lines gets it whole; the file is the same JSON, indented
+    print(f"=== ID-SHAPES BEGIN sha256={hashlib.sha256(text.encode('utf-8')).hexdigest()} ===")
+    print(json.dumps(result, sort_keys=True, separators=(",", ":")))
     print("=== ID-SHAPES END ===")
     return 0
 

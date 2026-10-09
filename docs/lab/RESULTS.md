@@ -34,30 +34,81 @@ files (by the model hub's API): a-0p5b `74a4da8c9fdb`, a-1p5b `6a1a2eb6d156`, a-
 | e3-a-0p5b | invalid | "the model answered too few calls: e3_short_answer ok share 0.666667 below 0.95" | Kept as a model result: the 0.5B model answered 2 of 3 short calls. The smoke run's G0 uses a-1p5b instead. |
 | e3-b-2b | skipped | "warm-up: e3_short_answer stopped at the token limit; set server_args --reasoning off or raise max_tokens" | `--reasoning off` added for b-2b in `lab/models.json` (commit `132386d`) |
 
-## Run 2: smoke-001 (smoke run and sizing of the main run), in progress
+## Run 2: smoke-001 (smoke run and sizing of the main run)
 
 [Run 37841045975](https://github.com/anovruzov/NeuralGraph/actions/runs/37841045975), request
-`lab/requests/smoke-001.json`, commit `125fab1`, started 2026-10-08 20:39 UTC. Purpose: every model through E3 at
-concurrency 1 and 4, the six-site simulation on the small plant (`sim`, 34 weeks, seed 1) with each model in the loop,
-and the G0 canary leakage scan with a-1p5b.
+`lab/requests/smoke-001.json`, commit `125fab1`, 2026-10-08 20:39 UTC to 2026-10-09 00:15 UTC; report from the
+`aggregate` job (113605588859, `report.md` sha256 `8b29e9427bfd…`). Purpose: every model through E3 at concurrency 1
+and 4, the six-site simulation on the small plant (`sim`, 34 weeks, seed 1) with each model in the loop, and the G0
+canary leakage scan with a-1p5b.
 
-| Shard | Model | State | Units | Source |
-|---|---|---|---|---|
-| s001-a-0p5b | a-0p5b | finished, job marked failed (one unit skipped) | `sim-a-0p5b-s1` **ok**, 3,135.7 s, run id `sim-a-0p5b-s1-57a30b54`; `e3-a-0p5b` **skipped**: "warm-up: e3_short_answer stopped at the token limit" | shard summary in job 113530993032 |
-| s002-a-1p5b | a-1p5b | finished, job succeeded (AMD EPYC 9V45) | `sim-a-1p5b-s1` **ok**, 7,288.6 s, run id `sim-a-1p5b-s1-134ba3ae`; `g0-a-1p5b` **ok**, 2,169.3 s; `e3-a-1p5b` **ok**, 247.2 s | shard summary in job 113530992802 |
-| s003-a-4b | a-4b | finished, job marked failed (one unit timed out) (AMD EPYC 9V74) | `sim-a-4b-s1` **ok**, 6,749.3 s, run id `sim-a-4b-s1-f0ebc485`; `e3-a-4b` **timed_out** at its 1,200 s unit limit ("unit timed out", no result) | shard summary in job 113530992829 |
-| s004-b-2b | b-2b | running | e3, sim | — |
+| Shard | Model | Runner CPU | Units |
+|---|---|---|---|
+| s001-a-0p5b | a-0p5b | AMD EPYC 9V74 | `sim` **ok**, 3,135.7 s; `e3` **skipped**: "warm-up: e3_short_answer stopped at the token limit" |
+| s002-a-1p5b | a-1p5b | AMD EPYC 9V45 | `sim` **ok**, 7,288.6 s; `g0` **ok**, 2,169.3 s; `e3` **ok**, 247.2 s |
+| s003-a-4b | a-4b | AMD EPYC 9V74 | `sim` **ok**, 6,749.3 s; `e3` **timed_out** at its 1,200 s unit limit |
+| s004-b-2b | b-2b | Intel Xeon Platinum 8573C | `sim` **ok**, 12,655.0 s; `e3` **skipped**: the same warm-up message, although b-2b runs with `--reasoning off` since run 1 |
 
-**What is already established:** three of the four models completed the whole six-site simulation on a runner CPU
-(every site's extraction through the model, the cells, the detectors, pushdown verification and the scorecard):
-a-0p5b in 52 minutes, a-4b in 1 h 52 min and a-1p5b in 2 h 1 min, each on a different CPU model, so the times are not
-comparable with one another. The canary scan with a-1p5b in the loop (G0) completed too. Its scorecard numbers are in
-the shard's artifact and reach the log only in the run's `aggregate` report, which runs after the last shard; they
-are added here when it does, whatever they show. The 0.5B model again failed the short-answer warm-up, this time by
-running to the token limit; that is a property of the model, recorded as such. a-4b's latency unit needs more than
-the 20 minutes the request gave it: 8 requests per workload at concurrency 1 alone take about 1,000 s at run 1's
-medians (40.3 s short, 85.0 s extraction), before concurrency 4; the main run must give it more minutes or fewer
-requests.
+The three shards with a unit that did not finish are marked failed by the workflow; every simulation finished.
+
+**Canary leakage scan** (G0, a-1p5b in the loop, `device_quality`, seed 1, 200 records: a smaller check than the
+1,000-record protocol scan): **passed**. 875 canaries planted, **0** crossed a boundary, 0 shingle-overlap bytes, 0
+model path problems; the positive control was hit 170 times, so the scan sees what it looks for. Text only: timing,
+sizes and other side channels are not covered.
+
+**Latency** (E3, a-1p5b, AMD EPYC 9V45, 6 measured requests per cell, all answered):
+
+| Workload | Concurrency | End-to-end median s | p95 s | First token median s | Decode tokens/s median | Requests/s |
+|---|---|---|---|---|---|---|
+| extraction | 1 | 10.915 | 11.559 | 8.695 | 31.7 | 0.092 |
+| extraction | 4 | 43.046 | 57.308 | 15.722 | 5.3 | 0.099 |
+| short | 1 | 5.024 | 5.207 | 4.049 | 35.3 | 0.203 |
+| short | 4 | 18.005 | 26.718 | 9.718 | 9.7 | 0.216 |
+
+(Run 1 timed the same model on an AMD EPYC 7763 at 29.5 s per extraction: the CPU model matters more than the run.)
+
+**Six-site simulation** (plant `sim_small`, seed 1, 34 weeks, the same synthetic world for every model, digest
+`fd9362003d07`; 4 planted patterns, 3 of them narrative-only; a no-plant control ran and made no chance find in any
+channel). Planted patterns found, of 4:
+
+| Model | X, model reads the narratives | X, lexical extractor | S, codes only | R, model-free | U, reference | Single site | Rules |
+|---|---|---|---|---|---|---|---|
+| a-0p5b | 1 | 4 | 1 | 1 | 1 | 1 | 0 |
+| a-1p5b | 1 | 4 | 1 | 1 | 1 | 2 | 0 |
+| a-4b | 2 | 4 | 1 | 1 | 3 | 2 | 0 |
+| b-2b | 1 | 4 | 1 | 1 | 2 | 3 | 0 |
+
+Alerts (false alarms) for X with the model: 5 (4), 9 (8), 11 (9), 11 (10); the lexical extractor 13 (9); S and
+model-free R 4 (3) each. Lifts bootstrapped over the patterns: X with the model minus S (and minus model-free R) is 0
+for a-0p5b, a-1p5b and b-2b and +0.25 [0, 0.75] for a-4b; X with the model minus X with the lexical extractor is
+-0.75 [-1, -0.25] for a-0p5b, a-1p5b and b-2b and -0.50 [-1, 0] for a-4b. S and model-free R cannot see a
+narrative-only pattern by construction (3 of the 4).
+
+**Pushdown verification** (HQ's candidates checked at the sites, no raw text crossing): candidates, true, supported,
+pushdown average precision against the detector score's: a-0p5b 5, 1, 5, 0.333 against 0.200; a-1p5b 9, 1, 6, 0.750
+against 1.000; a-4b 10, 1, 7, 1.000 against 1.000; b-2b 10, 0, 0, not defined. Raw text bytes crossed: 0 in every unit.
+
+**Model call latency from the ledgers** (sim, median ms per call, extraction and judging): a-0p5b 2,366 and 862;
+a-1p5b 3,910 and 868; a-4b 4,274 and 3,435; b-2b 9,580 and 2,995 (1,031 extractions each, each model on its own CPU).
+
+**Sizing for the next request** (estimated minutes, and suggested minutes a quarter above, for one seed of this
+plant): a-0p5b 52.3 and 66; a-1p5b 121.5 and 152; a-4b 112.5 and 141; b-2b 210.9 and 264.
+
+**What this says, and what it does not.**
+
+- **On this synthetic plant, the small models' reading did not beat the codes.** X with the model found as many
+  planted patterns as S and model-free R (one of four) with three of the models, and one more with a-4b, an interval
+  that includes zero. The lexical extractor, exact on the generator's own text by construction, found all four: the
+  patterns are findable from the narratives, and the models' extraction errors lost them. It is four patterns and one
+  seed, so none of it is an estimate, and it measures extraction fidelity on generated text, not the value of reading
+  real narratives. It is still the plainest result so far, and it is unfavourable: as configured, a model of 4B
+  parameters or fewer on a CPU did not add detection on the plant built to reward it.
+- **The leakage scan with a model in the loop passed** (0 of 875 canaries), for text only.
+- **Every model ran the whole six-site pipeline on a 4-vCPU runner** (52 minutes to 3 h 31 min for 1,031 records per
+  model, on different CPU models), and pushdown verification ranked the one true candidate first for a-4b.
+- E3 is measured for a-1p5b only: a-0p5b and b-2b stop at the short-answer token limit in the warm-up (b-2b even with
+  `--reasoning off`), and a-4b needs more than 20 minutes (8 requests per workload at concurrency 1 alone take about
+  1,000 s at run 1's medians).
 
 ## Run 3: openfda-001 (the public replay, model-free, real data)
 
@@ -79,8 +130,9 @@ listed firm names. The requester (the AI agent) declared it may have seen recall
 
 ## What has not run
 
-- **main-001** (`lab/templates/main.json`): the main simulation over more seeds and the sealed X1 run with each model;
-  planned after smoke-001 sizes it.
+- **main-001** (`lab/templates/main.json`): the simulation over more seeds, so that more than four planted patterns
+  decide whether a model's reading adds anything over the codes (run 2: not on one seed).
 - **A replay with a vocabulary for the manufacturer's real ids** (run 3 shows the synthetic pack's id formats do not
-  resolve them), and **N1 and E1 on real narratives**, which need a person to label the sheets.
+  resolve them): replay 002, `docs/collective/replay/CHOICE-002.md`. **N1 and E1 on real narratives** need a person
+  to label the sheets.
 - **A hosted (non-local) model:** the lab supports one through `MYCELIC_LAB_HOSTED_API_KEY`; no key is configured.

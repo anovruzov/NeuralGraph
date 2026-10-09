@@ -29,7 +29,8 @@ coverage 0.5, tie salt `lab-replay`, 150 unit minutes and a 200-minute job. The 
    among the device reports received **2021-01-01 to 2022-12-31** (the two years before the window) from manufacturer
    names containing "BECTON": the 100 most reported values of `device.lot_number`, `device.model_number`,
    `device.catalog_number` and `product_problems`, with report counts. Events only; nothing from the window, nothing
-   from the recall dataset. Its output is copied byte for byte from the job log into `inputs-002.json` here.
+   from the recall dataset. The job log prints the output as one line of JSON with the sha256 of the indented file
+   the tool writes; `inputs-002.json` here is that JSON written the same way, checked against the sha256.
 2. **Pack** (`tools/market/replay_pack.py`, pure functions with offline tests): `lab/packs/device_quality_bd`, a copy
    of `device_quality` in which:
    - **Lot id format.** Of the lot values (summed over the four codes after trimming and upper-casing), values
@@ -64,3 +65,11 @@ coverage 0.5, tie salt `lab-replay`, 150 unit minutes and a 200-minute job. The 
   alone, not on cause. Eight recalls are few: one found recall more than chance is not evidence of anything.
 - The replay is model-free, public data and artificial partitioning: its own label says it is not a confidentiality
   demonstration. The declaration (`yes`) travels with every number from it.
+
+## Runs
+
+1. **Probe, first run** ([37865960984](https://github.com/anovruzov/NeuralGraph/actions/runs/37865960984), commit
+   `373523a`): the probe and the rule's plan step succeeded, but the agent's log reader returns only a job log's last
+   5,000 lines, and the probe's indented output began before them (the full log sits on a host this agent's network
+   does not reach). **Nothing of it was read**: no value, count or format. The probe now prints one line and runs last,
+   and is run again unchanged in its query.

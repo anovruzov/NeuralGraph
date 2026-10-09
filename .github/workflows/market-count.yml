@@ -26,10 +26,6 @@ jobs:
           python-version: "3.11"
       - name: offline tests
         run: python -m unittest tests.market.test_openfda_establishments tests.market.test_openfda_coverage tests.market.test_openfda_sites tests.market.test_openfda_replay_inputs tests.market.test_replay_pack -v
-      - name: replay 002 id shapes (docs/collective/replay/CHOICE-002.md; events received before the window only)
-        run: python tools/market/openfda_id_shapes.py --out id-shapes.json --word BECTON --codes JKA,FOZ,FMI,MDB --date-from 20210101 --date-to 20221231 --top 100
-      - name: replay 002 pack rule applied to the id shapes (no pack is written here)
-        run: python tools/market/replay_pack.py --shapes id-shapes.json --id device_quality_bd --out unused --plan-only
       - name: count
         run: python tools/market/openfda_establishments.py --out market-count.json
       - name: field coverage of device complaint reports
@@ -38,6 +34,10 @@ jobs:
         run: python tools/market/openfda_sites.py --out site-split.json --year 2024
       - name: replay choice inputs (docs/collective/replay/CHOICE-001.md; event counts and firm names only)
         run: python tools/market/openfda_replay_inputs.py --out replay-inputs.json --word BECTON --codes JKA,FOZ,FMI,FMF,FPA,MDB --first-year 2019 --last-year 2024 --cap 10000
+      - name: replay 002 id shapes (docs/collective/replay/CHOICE-002.md; events received before the window only)
+        run: python tools/market/openfda_id_shapes.py --out id-shapes.json --word BECTON --codes JKA,FOZ,FMI,MDB --date-from 20210101 --date-to 20221231 --top 100
+      - name: replay 002 pack rule applied to the id shapes (no pack is written here)
+        run: python tools/market/replay_pack.py --shapes id-shapes.json --id device_quality_bd --out unused --plan-only
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
