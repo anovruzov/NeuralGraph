@@ -44,6 +44,11 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path and (_REPO_ROOT / "mycelic").is_dir():
     sys.path.append(str(_REPO_ROOT))             # the gate imports pure helpers (support.compute_support) and the authorizer for the G4 replay
 
+try:                                               # the product's own definition of a publishable entity id (kinds + shape)
+    from mycelic.entities import is_publishable_entity as _ENTITY_OK
+except Exception:      # noqa: BLE001 - G8 then reports ERROR instead of guessing
+    _ENTITY_OK = None
+
 PASS, FAIL, MISSING, NA, ERROR = "pass", "fail", "missing", "na", "error"
 VALID_STATUSES = frozenset({PASS, NA})
 LIVE_DOC = ("active", "revised")
@@ -168,6 +173,10 @@ class HolderFacts:
     inode: tuple[int, int] | None = None
     problems: dict[str, list[str]] = dataclasses.field(default_factory=lambda: defaultdict(list))
     entity_ids: set[str] = dataclasses.field(default_factory=set)                # publishable entity ids (public/members records)
+    export_policy: dict = dataclasses.field(default_factory=dict)                # the holder row's export_policy (authoritative: copied at registration)
+    sources: dict = dataclasses.field(default_factory=dict)                      # source_id -> connector_sources row of the control shard
+    pub_entities: Counter = dataclasses.field(default_factory=Counter)           # entity id -> distinct effectively-public records mentioning it
+    pub_records: int = 0                                                         # live records that are effectively public (the term index's source)
 
 
 def _marker_of(text: str) -> str:
@@ -259,7 +268,8 @@ def derive_faults(run_dir: Path | None, fault_plan: Mapping[str, Any]) -> dict[s
 class _Ctx:
     def __init__(self, run_dir: Path | None, coord_db: Path, holders_dir: Path, expect_hypergraph: bool, expect_ranker: bool,
                  allowed_providers: Sequence[str], connector_types: Sequence[str], strict_rank: bool, strict_domains: bool,
-                 required_entities: Iterable[str] | None, entity_coverage_min: float, deleted_markers: Sequence[str] | None) -> None:
+                 required_entities: Iterable[str] | None, entity_coverage_min: float, deleted_markers: Sequence[str] | None,
+                 expect_term_index: bool | None = None) -> None:
         self.run_dir = run_dir
         self.coord_path = Path(coord_db)
         self.holders_dir = Path(holders_dir)
@@ -269,7 +279,8 @@ class _Ctx:
         self.connector_types = tuple(connector_types)
         self.strict_rank = strict_rank
         self.strict_domains = strict_domains
-        self.required_entities = set(required_entities) if required_entities is not None else None
+        self.required_entities = set(required_entities) if required_entities is not None else None      # legacy, ignored: G8 derives the expected set
+        self.expect_term_index = expect_term_index
         self.entity_coverage_min = entity_coverage_min
         self.deleted_markers = list(deleted_markers or [])
         self.manifest: dict[str, Any] = {}
@@ -287,15 +298,52 @@ class _Ctx:
         self.has_hypergraph = {"hyperedges", "hyperedge_members"} <= self.tables
         self.faults = derive_faults(self.run_dir, self.fault_plan)
         self.holders: list[HolderFacts] = []
-        for r in self.coord.execute("SELECT holder_id, tenant_id, owner_type, owner_id FROM holders ORDER BY holder_id"):
+        for r in self.coord.execute("SELECT holder_id, tenant_id, owner_type, owner_id, export_policy FROM holders ORDER BY holder_id"):
             hdir = self.holders_dir / r["holder_id"]
             files = [hdir / "evidence.db"] + sorted(Path(p) for p in glob.glob(str(hdir / "shd_*.db")))
-            self.holders.append(HolderFacts(r["holder_id"], r["owner_type"], r["owner_id"], r["tenant_id"], files))
+            hf = HolderFacts(r["holder_id"], r["owner_type"], r["owner_id"], r["tenant_id"], files)
+            hf.export_policy = _jl(r["export_policy"], {}) or {}
+            self.holders.append(hf)
         self._scan_holders()
 
     def close(self) -> None:
         with contextlib.suppress(Exception):
             self.coord.close()
+
+    # ------------------------------------------------------------------ what a holder may publish (G8)
+    def _scan_publication(self, h: HolderFacts, c: sqlite3.Connection, t: set[str]) -> None:
+        """Mirror of the product's publication filter: a live record counts when it is effectively public (its own visibility AND its source's
+        current visibility are public, ``members`` too only for entities and only when the owner opted in), its source is exportable, its
+        disclosure is not ``none``, access is ok, sensitivity is not restricted / confidential, it carries no injection / secret flag and
+        sits in no personal domain. Entities are counted in distinct such records; the term index needs only ``pub_records``."""
+        if "ingest_records" not in t:
+            return
+        include_members = (h.export_policy or {}).get("entity_include_members") is True
+        recs = c.execute("""SELECT r.record_id, r.source_id, r.visibility, r.sensitivity, r.flags,
+                                   EXISTS (SELECT 1 FROM domain_memberships dm WHERE dm.record_id = r.record_id AND dm.status='active'
+                                           AND dm.domain_id LIKE 'personal.%') AS personal
+                            FROM ingest_records r WHERE r.deletion_status='live'""").fetchall() if "domain_memberships" in t else []
+        ent_ok: set[str] = set()
+        for r in recs:
+            if r["personal"] or r["sensitivity"] in ("restricted", "confidential") or "suspicious_instructions" in (r["flags"] or "") or "contains_secret" in (r["flags"] or ""):
+                continue
+            src = h.sources.get(r["source_id"]) if r["source_id"] else None
+            allowed = ("public", "members") if include_members else ("public",)
+            if r["visibility"] not in allowed:
+                continue
+            if src is not None:
+                exportable = src["exportable"] if src["exportable"] is not None else (src["visibility"] != "private")
+                if src["visibility"] not in allowed or not exportable or src["disclosure"] == "none" or (src["access_state"] or "ok") != "ok":
+                    continue
+            ent_ok.add(r["record_id"])
+            if r["visibility"] == "public" and (src is None or src["visibility"] == "public"):
+                h.pub_records += 1
+        if ent_ok and "record_entities" in t and _ENTITY_OK is not None:
+            seen: set[tuple[str, str]] = set()
+            for e in c.execute("SELECT record_id, entity_id FROM record_entities WHERE role IN ('mention','reference','topic')"):
+                if e["record_id"] in ent_ok and _ENTITY_OK(e["entity_id"]) and (e["record_id"], e["entity_id"]) not in seen:
+                    seen.add((e["record_id"], e["entity_id"]))
+                    h.pub_entities[e["entity_id"]] += 1
 
     # ------------------------------------------------------------------ per-holder scan (G1, G2, G10, counts)
     def _scan_holders(self) -> None:
@@ -305,6 +353,15 @@ class _Ctx:
             h.exists = True
             st = h.files[0].stat()
             h.inode = (st.st_dev, st.st_ino)
+            try:
+                sc = ro_connect(h.files[0])
+                try:
+                    if "connector_sources" in _tables(sc):
+                        h.sources = {r["source_id"]: dict(r) for r in sc.execute("SELECT source_id, visibility, exportable, disclosure, access_state FROM connector_sources")}
+                finally:
+                    sc.close()
+            except sqlite3.Error as exc:
+                h.problems["scan"].append(f"{h.files[0].name}: sources unreadable: {exc}")
             for fp in h.files:
                 if not fp.exists():
                     continue
@@ -394,7 +451,8 @@ class _Ctx:
                             continue
                         if n:
                             h.problems["G10.deleted_marker_survives"].append(f"{fp.name}:{name}.{col}")
-        # G8 entity coverage input
+        self._scan_publication(h, c, t)
+        # G8 entity coverage input (legacy, informational)
         if "record_entities" in t:
             for r in c.execute("""SELECT DISTINCT e.entity_id FROM record_entities e JOIN ingest_records r ON r.record_id = e.record_id
                                   WHERE r.deletion_status='live' AND r.visibility IN ('public','members') AND e.role IN ('mention','reference','topic')"""):
@@ -913,7 +971,7 @@ def _g7(x: _Ctx) -> GateResult:
 
 
 def _g8(x: _Ctx) -> GateResult:
-    r = GateResult("G8", "hypergraph present and consistent; entity index covers the publishable entities")
+    r = GateResult("G8", "hypergraph consistent; entity and term indexes hold exactly what holders may publish (privacy) and cover it")
     if not x.expect_hypergraph:
         r.status, r.detail = NA, "hypergraph not expected in this run"
         return r
@@ -956,18 +1014,81 @@ def _g8(x: _Ctx) -> GateResult:
                        (SELECT 1 FROM conflicts k WHERE k.status IN ('open','investigating') AND (k.claim_a_id = cl.claim_id OR k.claim_b_id = cl.claim_id))""").fetchone()[0]
     if inc:
         r.fail(f"I5: {inc} supported claims have an open conflict")
-    # entity index coverage
-    indexed = {row[0] for row in c.execute("SELECT DISTINCT anchor_id FROM hyperedges WHERE kind='entity_index' AND status='active'")}
-    publishable = x.required_entities if x.required_entities is not None else set().union(*(h.entity_ids for h in x.holders)) if x.holders else set()
-    covered = len(publishable & indexed)
-    coverage = (covered / len(publishable)) if publishable else None
-    if publishable and coverage is not None and coverage < x.entity_coverage_min:
-        r.fail(f"entity index covers {covered}/{len(publishable)} = {coverage:.2f} of the publishable entities (< {x.entity_coverage_min:.2f})")
-    if not publishable:
-        r.data["entity_coverage_note"] = "no publishable entities found in holder record_entities"
-    r.data.update({"entity_index_edges": len(indexed), "publishable_entities": len(publishable), "entity_coverage": coverage,
-                   "coverage_basis": "required_entities" if x.required_entities is not None else "holder record_entities (public/members, live)"})
-    r.detail = f"entity coverage {covered}/{len(publishable)}" if publishable else "no publishable entities"
+    # ---- entity index (privacy invariant + coverage), judged against what each holder is allowed to publish
+    if _ENTITY_OK is None:
+        r.fail("mycelic.entities could not be imported: the expected entity set cannot be computed", ERROR)
+        return r
+    expected: set[tuple[str, str]] = set()
+    below = 0
+    by_id = {h.holder_id: h for h in x.holders}
+    for h in x.holders:
+        pol = h.export_policy or {}
+        if pol.get("auto_entities") is False:
+            continue
+        try:
+            need = max(1, int(pol.get("entity_min_records") or 5))
+        except (TypeError, ValueError):
+            need = 5
+        qualifying = sorted(((e, n) for e, n in h.pub_entities.items() if n >= need), key=lambda kv: (-kv[1], kv[0]))[:500]
+        below += sum(1 for n in h.pub_entities.values() if n < need)
+        expected.update((e, h.holder_id) for e, _ in qualifying)
+    indexed: set[tuple[str, str]] = set()
+    for row in c.execute("""SELECT e.anchor_id, e.tenant_id, m.member_id FROM hyperedges e JOIN hyperedge_members m ON m.edge_id = e.edge_id
+                            WHERE e.kind='entity_index' AND e.status='active' AND m.member_type='holder' AND m.role='holds'"""):
+        h = by_id.get(row["member_id"])
+        if h is None or h.tenant_id != row["tenant_id"]:
+            r.fail(f"entity index: {row['anchor_id']} is attributed to unknown or other-tenant holder {row['member_id']}")
+            continue
+        indexed.add((row["anchor_id"], row["member_id"]))
+    covered = len(expected & indexed)
+    extras = sorted(indexed - expected)
+    ent_cov = (covered / len(expected)) if expected else None
+    if expected and ent_cov < x.entity_coverage_min:
+        r.fail(f"entity index covers {covered}/{len(expected)} = {ent_cov:.2f} of the entities the holders may publish (< {x.entity_coverage_min:.2f})")
+    for e, hid in extras[:MAX_PROBLEMS]:
+        r.fail(f"privacy: entity {e} is indexed for holder {hid}, which may not publish it (not in enough effectively-public records, or auto_entities off)")
+    if len(extras) > MAX_PROBLEMS:
+        r.data["entity_extras_truncated"] = len(extras) - MAX_PROBLEMS
+    # ---- term index (hashed rare words of public records; the HMACs cannot be recomputed here, so the checks are structural)
+    term_note = None
+    term_exp = term_cov_n = term_bad = 0
+    term_cov: float | None = None
+    if "term_index" not in x.tables:
+        term_note = "term_index table absent"
+        if x.expect_term_index:
+            r.fail("term_index table is absent", MISSING)
+    elif x.expect_term_index is False:
+        term_note = "term index not expected in this run"
+    else:
+        rows_by_holder: Counter = Counter()
+        for row in c.execute("SELECT tenant_id, holder_id, COUNT(*) AS n FROM term_index GROUP BY tenant_id, holder_id"):
+            h = by_id.get(row["holder_id"])
+            if h is None or h.tenant_id != row["tenant_id"]:
+                r.fail(f"term index: {row['n']} rows for unknown or other-tenant holder {row['holder_id']}")
+                term_bad += 1
+                continue
+            rows_by_holder[row["holder_id"]] += row["n"]
+        for hid, n in sorted(rows_by_holder.items()):
+            h = by_id[hid]
+            if h.pub_records < 1 or (h.export_policy or {}).get("auto_terms") is False:
+                term_bad += 1
+                if term_bad <= MAX_PROBLEMS:
+                    r.fail(f"privacy: holder {hid} has {n} term rows but "
+                           + ("auto_terms is off" if (h.export_policy or {}).get("auto_terms") is False else "no live effectively-public record to draw them from"))
+        wanted = [h.holder_id for h in x.holders if h.exists and h.pub_records >= 1 and (h.export_policy or {}).get("auto_terms") is not False]
+        term_exp = len(wanted)
+        term_cov_n = sum(1 for hid in wanted if rows_by_holder.get(hid))
+        term_cov = (term_cov_n / term_exp) if term_exp else None
+        if term_exp and term_cov < x.entity_coverage_min:
+            r.fail(f"term index covers {term_cov_n}/{term_exp} = {term_cov:.2f} of the holders with public records (< {x.entity_coverage_min:.2f})")
+    r.data.update({"entity_index_pairs": len(indexed), "entity_expected_pairs": len(expected), "entity_covered": covered, "entity_coverage": ent_cov,
+                   "entity_extras": len(extras), "entity_pairs_below_threshold": below, "coverage_basis": "per-holder expected set from the holder stores under the effective export policy",
+                   "term_index_rows_ok": term_bad == 0, "term_holders_expected": term_exp, "term_holders_covered": term_cov_n, "term_coverage": term_cov,
+                   "term_holders_violating": term_bad, "term_note": term_note})
+    pct = lambda v: "n/a" if v is None else f"{v:.0%}"      # noqa: E731
+    r.detail = (f"entities {covered}/{len(expected)} ({pct(ent_cov)}; {below} holder-entity pairs below entity_min_records, correctly unpublished), "
+                f"{len(extras)} outside the expected set; "
+                + (f"terms {term_cov_n}/{term_exp} holders ({pct(term_cov)}), {term_bad} violating" if term_note is None else f"terms: {term_note}"))
     return r
 
 
@@ -1141,12 +1262,12 @@ def check(run_dir: str | os.PathLike[str] | None, *, coord_db: str | os.PathLike
           expect_hypergraph: bool = True, expect_ranker: bool | None = None, allowed_providers: Sequence[str] = DEFAULT_PROVIDERS,
           connector_types: Sequence[str] = BENCH_CONNECTOR_TYPES, strict_rank: bool = False, strict_domains: bool = False,
           required_entities: Iterable[str] | None = None, entity_coverage_min: float = 0.95,
-          deleted_markers: Sequence[str] | None = None) -> GateReport:
+          deleted_markers: Sequence[str] | None = None, expect_term_index: bool | None = None) -> GateReport:
     """Run G1-G10. ``run_dir`` may be None (then no manifest / fault plan is read and G6 needs ``allowed_providers`` only)."""
     try:
         x = _Ctx(Path(run_dir) if run_dir is not None else None, Path(coord_db), Path(holders_dir), expect_hypergraph,
                  expect_hypergraph if expect_ranker is None else expect_ranker, allowed_providers, connector_types, strict_rank, strict_domains,
-                 required_entities, entity_coverage_min, deleted_markers)
+                 required_entities, entity_coverage_min, deleted_markers, expect_term_index)
     except (sqlite3.Error, OSError) as exc:        # no readable coordinator database: every gate is unverifiable, hence failed
         msg = f"cannot open {coord_db} read-only: {type(exc).__name__}: {exc}"
         return GateReport(results={gid: GateResult(gid, "unverifiable", ERROR, msg) for gid, _ in GATES}, counts={}, expect_hypergraph=expect_hypergraph,
@@ -1187,13 +1308,15 @@ def main(argv: Iterable[str] | None = None) -> int:
     ap.add_argument("--holders-dir")
     ap.add_argument("--no-hypergraph", action="store_true", help="the run is pre-hypergraph or an ablation that removes it")
     ap.add_argument("--no-ranker", action="store_true")
+    ap.add_argument("--no-term-index", action="store_true", help="the term index is not expected (pre-0007 schema or an ablation that removes it)")
     ap.add_argument("--write", action="store_true", help="write arch_gate.json into the run directory")
     ns = ap.parse_args(list(argv) if argv is not None else None)
     run = Path(ns.run_dir)
     d_coord, d_holders = resolve_run_paths(run)
     coord = ns.coord_db or str(d_coord)
     holders = ns.holders_dir or str(d_holders)
-    rep = check(run, coord_db=coord, holders_dir=holders, expect_hypergraph=not ns.no_hypergraph, expect_ranker=False if ns.no_ranker else None)
+    rep = check(run, coord_db=coord, holders_dir=holders, expect_hypergraph=not ns.no_hypergraph, expect_ranker=False if ns.no_ranker else None,
+                    expect_term_index=False if ns.no_term_index else None)
     print(rep.summary())
     print(json.dumps(rep.counts, indent=2, default=str))
     if ns.write:

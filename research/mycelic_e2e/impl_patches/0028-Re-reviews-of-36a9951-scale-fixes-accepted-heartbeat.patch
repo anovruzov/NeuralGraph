@@ -1,0 +1,176 @@
+From 46ebc4272abc7940deceae0e0d3047281a0ddf88 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 08:00:53 +0000
+Subject: [PATCH 28/28] Re-reviews of 36a9951: scale fixes accepted; heartbeat
+ clock ordering and deny phrases still blocking
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl     |  2 +
+ research/mycelic_e2e/reviews/REVIEW_E.md   | 42 ++++++++++
+ research/mycelic_e2e/reviews/REVIEW_WP1.md | 91 ++++++++++++++++++++++
+ 3 files changed, 135 insertions(+)
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 8084e46..fc685f9 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -29,3 +29,5 @@
+ {"id": "X028", "utc": "2026-10-09T07:56:16Z", "kind": "e2e-run", "run": "C2a-M2 (M=1,000 users, seed 2, dev, anchor 2026-10-09T00:00Z) + baselines", "revision": "code snapshot of 56f9832-era HEAD (harness 9d902dd + scorer fix); production = 1b74545", "provider": "deterministic (fake.py)", "host": "cloud container (shared)", "result": "system 120/120 = 1.000 Wilson95 [0.969,1.000]; baseline-source 119/120 = 0.992 [0.954,0.999]; baseline-single 110/120 = 0.917 [0.853,0.954]; 0 disclosures all; gate (G8 policy-aware, re-run) VALID G1-G10; 1,120 holders (265 with content), 1,154 questions routed (hypergraph 815 / domains 339), 11,278 routes, 0 as-of denials; wall 418 s; peak RSS 1.76 GB; 8,924 fake calls", "class": "development (dev split), valid gate; benchmark judged too easy (context phrase unique per pattern) -> popular-rival structure added before freeze"}
+ {"id": "X029", "utc": "2026-10-09T07:56:16Z", "kind": "fix", "agent": "WP1 (claude-sonnet-5-5)", "result": "blackout root cause: transport keeps one heartbeat per holder per minute (hb:<holder>:<minute>), the surviving one was the first EMPTY start-up beat; core consumer replayed it at worker start after fresher direct beats -> vouched-empty snapshot retracted every holder for ~3 s. Fix: org.holder_heartbeat ignores snapshots older than the applied one (stats.at). B1: term/entity publication follows the disclosure-time effective ACL; deny_patterns dropped; term_key None without server secret; bounded unit-cover search. Suite 507 passed / 7 skipped", "class": "fix"}
+ {"id": "X030", "utc": "2026-10-09T07:56:16Z", "kind": "fix", "agent": "ENGINEER-E (claude-sonnet-5-5)", "result": "REVIEW_E F1-F4: counter() never constant when row missing; close stops consumers before final stats; routing_holders returns copies; raw-SQL second-connection probe in test_scale_equivalence (+ trigger-sensitivity test). Independently confirmed C1 blackout not a cache issue (route-time audit matches true state). Suite 501 passed", "class": "fix"}
++{"id": "X031", "utc": "2026-10-09T08:00:53Z", "kind": "review", "agent": "REVIEWER-3 (claude-opus-5-5)", "subject": "36a9951 ENGINEER-E F1-F4", "result": "ACCEPT; full suite 507/7 in archive copy; reverting each of F1/F2/F3 makes exactly one test fail", "class": "review"}
++{"id": "X032", "utc": "2026-10-09T08:00:53Z", "kind": "review", "agent": "REVIEWER-2 (claude-opus-5-5)", "subject": "36a9951 WP1 (B1, heartbeat ordering, term_key, bounded cover)", "result": "B1 ACL fix, term_key, bounded cover ACCEPT; blockers HB-1 (heartbeat ordering trusts holder wall clock: ahead clock suppresses retractions, far-future at freezes index) and B1-d (deny patterns only filter single stems; phrase pattern words still published); pathological cover cases 9.03 s -> 0.044 s", "orchestrator_decision": "HB-1 + B1-d assigned to WP1", "class": "review"}
+diff --git a/research/mycelic_e2e/reviews/REVIEW_E.md b/research/mycelic_e2e/reviews/REVIEW_E.md
+index 27f506f..ec6fd57 100644
+--- a/research/mycelic_e2e/reviews/REVIEW_E.md
++++ b/research/mycelic_e2e/reviews/REVIEW_E.md
+@@ -196,3 +196,45 @@ noticed only by the core watcher, which does not survive a restart. Note only; n
+ - **F3:** `org.py:440-455`: return copies, or frozen rows, from `routing_holders`.
+ - **F4 (test):** add probe A (raw-SQL writes from a second connection, with a trigger-drop sensitivity check) to
+   `test_scale_equivalence.py`.
++
++## Re-review 36a9951 (REVIEWER-3, `claude-opus-5-5`)
++
++I reviewed a fresh `git archive 36a9951` at `$SCR/re2`. **Verdict: ACCEPT.** F1-F4 are fixed, each fix is covered by a test
++that fails when the fix is reverted, and nothing is blocking.
++
++- **Full suite:** `python -m pytest mycelic/tests -q -p no:warnings` gave **507 passed, 7 skipped** (181.76s).
++- **Mutation check:** run in a copy (`$SCR/re2_mut`) against `test_scale_equivalence.py` and `test_embedded_lazy.py`,
++  where the baseline is 21 passed. Reverting each fix makes exactly one new test fail:
++
++| Fix reverted | Failing test |
++|---|---|
++| F1: `return 0` | `test_a_missing_counter_row_never_freezes_a_cache` |
++| F2: stats before stop | `test_closing_stops_the_consumers_before_taking_the_final_stats` |
++| F3: no copy | `test_routing_rows_are_copies_a_caller_cannot_poison` |
++
++**F1, `db/coord.py:94-105`: fixed.**
++- With the counter row or table missing, `counter()` now returns `-1 - (revision * 1_000_003 + data_version())`.
++- That value is never equal to a real counter (it is always ≤ -1). It strictly decreases on every own commit (`revision`)
++  and on every commit by another connection (`data_version`), because both inputs only ever go up.
++- Cross-connection probe (`$SCR/scripts/f1_probe.py`): with the `org` row deleted, three commits by a second `CoordDB` and
++  one own commit gave `[-1000006, -1000007, -1000008, -1000009, -2000012]`, all distinct.
++
++**F2, `holder/embedded.py:491-492`: fixed.**
++- `svc.stop()` now runs before `svc.stats()`.
++- A holder has exactly one subscription (`holder/service.py:108-112`, one wildcard subject).
++- No `await` sits between the idle check under the lifecycle lock (`_evictable(..., holding_lock=True)`) and the
++  `task.cancel()` in `Subscription.close`. So a handler can no longer start between the idle check and the cancellation.
++- Residual, pre-existing, not blocking: if a handler has just returned (`inflight == 0`) but its ack transaction has not
++  yet committed, a close still cancels the ack. The message is then redelivered once. That is at-least-once delivery,
++  never a loss.
++
++**F3, `org.py` `routing_holders(copy=True)`: fixed.** Copies are now the default. The two internal callers use
++`copy=False` and copy whatever they hand on:
++- `inquiry/service.py:377`: `dict(h)` for each routable holder; rejected entries are new dicts;
++- `discovery/engine.py:299/319`: `[dict(h) for h in routable]`.
++
++**F4, `tests/test_scale_equivalence.py`: done.**
++- My raw-SQL probe from a second connection is in the suite (`test_raw_sql_writes_from_another_connection_invalidate_every_cache`).
++- So is its sensitivity counterpart (`test_the_raw_sql_probe_is_sensitive_to_a_missing_trigger`, which drops a trigger
++  and expects a mismatch).
++- Both pass.
+diff --git a/research/mycelic_e2e/reviews/REVIEW_WP1.md b/research/mycelic_e2e/reviews/REVIEW_WP1.md
+index 155ae3e..58cdb8c 100644
+--- a/research/mycelic_e2e/reviews/REVIEW_WP1.md
++++ b/research/mycelic_e2e/reviews/REVIEW_WP1.md
+@@ -600,3 +600,94 @@ the ACL that disclosure applies at use time.**
+    (`$SCR/rv3/mycelic/tests/test_review_wp1.py::test_t2_narrowed_or_opted_out_source_still_publishes`) as a test.
+ 
+ Everything else in scope is accepted. The non-blocking items listed above are follow-ups.
++
++---
++
++## Re-review of commit `36a9951` (B1, heartbeat ordering, term_key, bounded cover)
++
++Reviewer: REVIEWER-2 (`claude-opus-5-5`). Copy: `git archive 36a9951 | tar -x -C $SCR/rv4`.
++Probes: `$SCR/rv4/mycelic/tests/test_review_wp1.py` (all earlier probes, plus T3 and HB).
++
++**Verdict: ACCEPT the B1 ACL fix, the `term_key` change and the bounded unit-cover search. Two small items are BLOCKING:
++HB-1 (holder-clock ordering can freeze retractions, including privacy withdrawals) and B1-d (multi-word deny patterns are
++applied to single stems).** The fix for each is a few lines.
++
++### Reproduction
++```
++python -m pytest mycelic/tests -q -p no:warnings   → 507 passed, 7 skipped in 186.51s (matches the commit message)
++python -m pytest mycelic/tests/test_review_wp1.py -q -s   → all earlier probes pass (R8: expected, see above); T1, T2 pass; T3 and HB fail (below)
++```
++
++### (1) B1: publication follows the disclosure-time effective ACL. ACCEPT, except deny patterns (B1-d)
++- `_blocked_sources` (`evidence/service.py`) excludes sources whose *current* visibility is outside the published set, or
++  that have `exportable = 0`, `disclosure = 'none'`, a lost access state, or are not selected. Both `_published_terms`
++  and `_entity_counts_sync` apply it.
++- The holder-level `disclosure: none` publishes nothing.
++- The blocked set and the deny list are part of the term-cache key.
++- `test_publication_follows_the_effective_acl_not_the_ingest_time_visibility` is my T2.
++- Probe outputs:
++  - `T1 published: 6 {'zanzibarquux': True, 'vorpalcorp': False, 'snarkhunter': False, 'quibblefrob': False}`
++  - `T2 baseline term: True entities: [service:ledgergate, symptom:timeout] | narrowed: term False entities [] | opted-out: term False entities [] | record exportable at use time: False`
++- **B1-d (BLOCKING, one line): deny patterns are tested against single stems.**
++  - Where: `evidence/service.py:1032` (`not any(p.search(st) …)`) and against entity ids in `_entity_counts_sync`. Answers
++    instead redact the *text* (`_redact`).
++  - A phrase pattern therefore never matches a stem.
++  - Probe T3, with deny pattern `project\s+falcon`:
++
++    `T3 redacted answer text: Status of [redacted]: the zanzibarquux migration slipped. | 'falcon' still a published term: True`
++
++  - Fix: compute the stems from the redacted text, the same way answers do. At `:1022`, use
++    `term_stems(redact(r["text"], self._deny))`. For entities, skip records whose text matches a deny pattern. Add T3 as a
++    test.
++
++### (2) Heartbeat ordering by holder-supplied `stats.at` (`org.py:506-512`). BLOCKING (HB-1) as implemented
++- **The fix works for its target.** It addresses the wave-1 blackout correctly: the transport replays the first, empty
++  start-up beat after fresher ones, and that replay is now ignored (`test_a_stale_heartbeat_never_rolls_the_registry_back`).
++  Embedded holders share the coordinator's clock, so for them the comparison is sound.
++- **The comparison trusts a value from another clock.** `at` is the holder process's wall clock
++  (`holder/service.py:171`, `"at": now_iso()`), but it is compared with no bound against the last applied `at`.
++- **Clock running ahead, later corrected.** Every beat until real time passes the bad timestamp is ignored. Retractions
++  are ignored too, including the B1 withdrawals of a source turned members-only and the withdrawals after deletions.
++- **Far-future `at`** (a bad RTC, or a malicious holder) freezes the holder's published domains, entities and terms
++  indefinitely. Holders always send `at`, so nothing resets it. Only revocation or turning publication off clears it,
++  because `update_holder` withdraws in its own transaction regardless.
++- **`at` missing.** The check is skipped and the beat applies. Because `stats` is stored without `at`, the next beat's
++  comparison is reset as well.
++- **Probe HB** (entity `symptom:timeout`, vouched snapshots):
++
++  `HB indexed after ahead-beat: True | after corrected vouched empty beat: True | after beat without at: False | far-future holder still indexed after empty beat: True`
++
++- **Attacker-holder.** Freezing its *own* incidence gives a malicious holder nothing new: it could always report anything,
++  or never vouch. A freeze cannot spread to other holders (the check is per holder row). The real problem is honest
++  holders with bad clocks, whose retractions (including privacy withdrawals) are silently suppressed.
++- **Required fix (minimal).**
++  - Bound the holder clock against the coordinator's. If `at > now + MAX_SKEW` (for example 5 min), treat it as `now` for
++    both the comparison and what is stored.
++  - Store the coordinator's receive time with the applied `at`.
++  - This limits any suppression to `MAX_SKEW` and makes a far-future `at` harmless.
++  - Add HB as a test.
++- **Recommended (proper) fix.** Order by a monotonic sequence assigned by the transport, not by any clock:
++  - the SQLite transport's message row id (coordinator-assigned), or the NATS stream sequence for the holder subject;
++  - or, if the holder must assign it, a `(boot_id, seq)` pair, accepting a new `boot_id` only when its first beat
++    arrives after the last applied beat's receive time.
++
++  Holder timestamps should then serve only as a sanity bound.
++
++### (3) term_key and the bounded unit cover: ACCEPT
++- **`term_key`.** It returns `None` and logs once when there is no server secret (`org.py:76-86`). Checked directly:
++  `no secret -> None | with secret -> 32c1a441... | question terms without key -> []`. Routing then uses no term signal,
++  the bootstrap hands `None` to external holders, and embedded holders publish nothing.
++- **Bounded cover.** The exhaustive search now stops at `need − fixed units` and falls back to the greedy cover beyond
++  `MAX_COMBINATIONS = 50,000` (`knowledge/gate.py:140-151`).
++  - Measured on my pathological cases (8 roots, disjoint candidate sets of size 3/4/5): need=2 takes ≤ 0.001 s and
++    need=None ≤ 0.044 s, against 9.03 s before.
++  - The shared-department chain still attributes to one unit (`chain {'S': 2}`).
++  - The decision stays correct. If no cover of size ≤ `need − fixed` exists, the true count already reaches `need`. The
++    combination cap triggers only for universes of more than about 316 units at k = 2.
++
++### Blocking list for `36a9951`
++1. **HB-1:** `org.py:506-512`. Bound the holder-supplied `stats.at` by the coordinator's clock (clamp or ignore
++   `at > now + MAX_SKEW`), so a clock running ahead cannot freeze retractions. Preferably order by a transport-assigned
++   sequence. Add probe HB as a test.
++2. **B1-d:** `evidence/service.py:1022,1032` and `_entity_counts_sync`. Apply deny patterns to the record text before
++   computing stems and entities, as answers do (`_redact`). Add probe T3 as a test.
+-- 
+2.43.0
+

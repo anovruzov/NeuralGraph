@@ -600,3 +600,94 @@ the ACL that disclosure applies at use time.**
    (`$SCR/rv3/mycelic/tests/test_review_wp1.py::test_t2_narrowed_or_opted_out_source_still_publishes`) as a test.
 
 Everything else in scope is accepted. The non-blocking items listed above are follow-ups.
+
+---
+
+## Re-review of commit `36a9951` (B1, heartbeat ordering, term_key, bounded cover)
+
+Reviewer: REVIEWER-2 (`claude-opus-5-5`). Copy: `git archive 36a9951 | tar -x -C $SCR/rv4`.
+Probes: `$SCR/rv4/mycelic/tests/test_review_wp1.py` (all earlier probes, plus T3 and HB).
+
+**Verdict: ACCEPT the B1 ACL fix, the `term_key` change and the bounded unit-cover search. Two small items are BLOCKING:
+HB-1 (holder-clock ordering can freeze retractions, including privacy withdrawals) and B1-d (multi-word deny patterns are
+applied to single stems).** The fix for each is a few lines.
+
+### Reproduction
+```
+python -m pytest mycelic/tests -q -p no:warnings   → 507 passed, 7 skipped in 186.51s (matches the commit message)
+python -m pytest mycelic/tests/test_review_wp1.py -q -s   → all earlier probes pass (R8: expected, see above); T1, T2 pass; T3 and HB fail (below)
+```
+
+### (1) B1: publication follows the disclosure-time effective ACL. ACCEPT, except deny patterns (B1-d)
+- `_blocked_sources` (`evidence/service.py`) excludes sources whose *current* visibility is outside the published set, or
+  that have `exportable = 0`, `disclosure = 'none'`, a lost access state, or are not selected. Both `_published_terms`
+  and `_entity_counts_sync` apply it.
+- The holder-level `disclosure: none` publishes nothing.
+- The blocked set and the deny list are part of the term-cache key.
+- `test_publication_follows_the_effective_acl_not_the_ingest_time_visibility` is my T2.
+- Probe outputs:
+  - `T1 published: 6 {'zanzibarquux': True, 'vorpalcorp': False, 'snarkhunter': False, 'quibblefrob': False}`
+  - `T2 baseline term: True entities: [service:ledgergate, symptom:timeout] | narrowed: term False entities [] | opted-out: term False entities [] | record exportable at use time: False`
+- **B1-d (BLOCKING, one line): deny patterns are tested against single stems.**
+  - Where: `evidence/service.py:1032` (`not any(p.search(st) …)`) and against entity ids in `_entity_counts_sync`. Answers
+    instead redact the *text* (`_redact`).
+  - A phrase pattern therefore never matches a stem.
+  - Probe T3, with deny pattern `project\s+falcon`:
+
+    `T3 redacted answer text: Status of [redacted]: the zanzibarquux migration slipped. | 'falcon' still a published term: True`
+
+  - Fix: compute the stems from the redacted text, the same way answers do. At `:1022`, use
+    `term_stems(redact(r["text"], self._deny))`. For entities, skip records whose text matches a deny pattern. Add T3 as a
+    test.
+
+### (2) Heartbeat ordering by holder-supplied `stats.at` (`org.py:506-512`). BLOCKING (HB-1) as implemented
+- **The fix works for its target.** It addresses the wave-1 blackout correctly: the transport replays the first, empty
+  start-up beat after fresher ones, and that replay is now ignored (`test_a_stale_heartbeat_never_rolls_the_registry_back`).
+  Embedded holders share the coordinator's clock, so for them the comparison is sound.
+- **The comparison trusts a value from another clock.** `at` is the holder process's wall clock
+  (`holder/service.py:171`, `"at": now_iso()`), but it is compared with no bound against the last applied `at`.
+- **Clock running ahead, later corrected.** Every beat until real time passes the bad timestamp is ignored. Retractions
+  are ignored too, including the B1 withdrawals of a source turned members-only and the withdrawals after deletions.
+- **Far-future `at`** (a bad RTC, or a malicious holder) freezes the holder's published domains, entities and terms
+  indefinitely. Holders always send `at`, so nothing resets it. Only revocation or turning publication off clears it,
+  because `update_holder` withdraws in its own transaction regardless.
+- **`at` missing.** The check is skipped and the beat applies. Because `stats` is stored without `at`, the next beat's
+  comparison is reset as well.
+- **Probe HB** (entity `symptom:timeout`, vouched snapshots):
+
+  `HB indexed after ahead-beat: True | after corrected vouched empty beat: True | after beat without at: False | far-future holder still indexed after empty beat: True`
+
+- **Attacker-holder.** Freezing its *own* incidence gives a malicious holder nothing new: it could always report anything,
+  or never vouch. A freeze cannot spread to other holders (the check is per holder row). The real problem is honest
+  holders with bad clocks, whose retractions (including privacy withdrawals) are silently suppressed.
+- **Required fix (minimal).**
+  - Bound the holder clock against the coordinator's. If `at > now + MAX_SKEW` (for example 5 min), treat it as `now` for
+    both the comparison and what is stored.
+  - Store the coordinator's receive time with the applied `at`.
+  - This limits any suppression to `MAX_SKEW` and makes a far-future `at` harmless.
+  - Add HB as a test.
+- **Recommended (proper) fix.** Order by a monotonic sequence assigned by the transport, not by any clock:
+  - the SQLite transport's message row id (coordinator-assigned), or the NATS stream sequence for the holder subject;
+  - or, if the holder must assign it, a `(boot_id, seq)` pair, accepting a new `boot_id` only when its first beat
+    arrives after the last applied beat's receive time.
+
+  Holder timestamps should then serve only as a sanity bound.
+
+### (3) term_key and the bounded unit cover: ACCEPT
+- **`term_key`.** It returns `None` and logs once when there is no server secret (`org.py:76-86`). Checked directly:
+  `no secret -> None | with secret -> 32c1a441... | question terms without key -> []`. Routing then uses no term signal,
+  the bootstrap hands `None` to external holders, and embedded holders publish nothing.
+- **Bounded cover.** The exhaustive search now stops at `need − fixed units` and falls back to the greedy cover beyond
+  `MAX_COMBINATIONS = 50,000` (`knowledge/gate.py:140-151`).
+  - Measured on my pathological cases (8 roots, disjoint candidate sets of size 3/4/5): need=2 takes ≤ 0.001 s and
+    need=None ≤ 0.044 s, against 9.03 s before.
+  - The shared-department chain still attributes to one unit (`chain {'S': 2}`).
+  - The decision stays correct. If no cover of size ≤ `need − fixed` exists, the true count already reaches `need`. The
+    combination cap triggers only for universes of more than about 316 units at k = 2.
+
+### Blocking list for `36a9951`
+1. **HB-1:** `org.py:506-512`. Bound the holder-supplied `stats.at` by the coordinator's clock (clamp or ignore
+   `at > now + MAX_SKEW`), so a clock running ahead cannot freeze retractions. Preferably order by a transport-assigned
+   sequence. Add probe HB as a test.
+2. **B1-d:** `evidence/service.py:1022,1032` and `_entity_counts_sync`. Apply deny patterns to the record text before
+   computing stems and entities, as answers do (`_redact`). Add probe T3 as a test.

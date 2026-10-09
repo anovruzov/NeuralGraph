@@ -71,6 +71,12 @@ def build_run(root: Path) -> Path:
     asyncio.run(_ingest(holders / "hold_a" / "evidence.db", src, "hold_a", [("ops", PUBLIC_HDR, msgs("a")), ("notes", PRIVATE_HDR, msgs("pa", 1))], "usr_ana"))
     asyncio.run(_ingest(holders / "hold_b" / "evidence.db", src, "hold_b", [("ops", {**PUBLIC_HDR, "id": "ops-chat-b"}, msgs("b"))], "usr_ben"))
     asyncio.run(_ingest(holders / "hold_d" / "evidence.db", src, "hold_d", [("ops", {**PUBLIC_HDR, "id": "ops-chat-d"}, msgs("d"))], None))
+    for hid in ("hold_a", "hold_b"):                               # one public record of each mentions the entity the index will list
+        hc = sqlite3.connect(holders / hid / "evidence.db")
+        rid = hc.execute("SELECT record_id FROM ingest_records WHERE visibility='public' AND deletion_status='live' LIMIT 1").fetchone()[0]
+        hc.execute("INSERT INTO record_entities(record_id, entity_id, role, confidence, method) VALUES (?, ?, 'mention', 1.0, 'pattern')", (rid, ENT))
+        hc.commit()
+        hc.close()
     run = root / "run"
     run.mkdir()
     coord = run / "coord.db"
@@ -92,6 +98,9 @@ def build_run(root: Path) -> Path:
       ('hold_a', '{T}', 'user', 'usr_ana', 'ana', 'k1', 'r1', 'embedded', '{NOW}', '{NOW}'),
       ('hold_b', '{T}', 'user', 'usr_ben', 'ben', 'k2', 'r2', 'embedded', '{NOW}', '{NOW}'),
       ('hold_d', '{T}', 'unit', 'u_d1', 'logistics', 'k3', 'r3', 'embedded', '{NOW}', '{NOW}');
+    UPDATE holders SET export_policy='{{"entity_min_records": 1}}';
+    INSERT INTO term_index(tenant_id, term, holder_id, weight, updated_at) VALUES
+      ('{T}', 'term:aaaa', 'hold_a', 1, '{NOW}'), ('{T}', 'term:bbbb', 'hold_b', 1, '{NOW}'), ('{T}', 'term:cccc', 'hold_d', 1, '{NOW}');
     INSERT INTO tenant_policies(tenant_id, key, value, updated_at) VALUES ('{T}', 'min_independent_roots', '2', '{NOW}');
     INSERT INTO goals(goal_id, tenant_id, owner_type, owner_id, title, objective, created_at, updated_at) VALUES ('g1', '{T}', 'user', 'usr_lead', 'g', 'o', '{NOW}', '{NOW}');
     INSERT INTO questions(question_id, tenant_id, asker_type, asker_id, goal_id, text, scope_unit_id, status, policy, budget, created_at, updated_at)
@@ -151,7 +160,6 @@ def run(base, tmp_path) -> Path:
 
 
 def gate(root: Path, **kw):
-    kw.setdefault("required_entities", [ENT])
     return arch_gate.check(root / "run", coord_db=root / "run" / "coord.db", holders_dir=root / "holders", **kw)
 
 
@@ -561,3 +569,81 @@ def test_restart_holder_that_never_ingested_all_its_records_fails(run):
     write_sources(run, flags={"restart": True}, extra_lines=[json.dumps({"type": "document", "id": "lost-after-restart", "text": "t", "created_at": "2026-09-01T00:00:00+00:00"})])
     holder_sql(run, "hold_a", "UPDATE connector_checkpoints SET version = 4 WHERE phase='incremental'")
     assert any("never ingested" in p and "lost-after-restart" in p for p in gate(run).results["G10"].problems)
+
+
+# ------------------------------------------------------------------------------------------------ G8: indexes hold exactly what holders may publish
+def g8_problems(run, **kw):
+    rep = gate(run, **kw)
+    return rep, rep.results["G8"]
+
+
+def test_g8_expected_set_is_computed_from_the_holder_stores(run):
+    rep, g8 = g8_problems(run)
+    assert g8.status == arch_gate.PASS, g8.problems
+    assert g8.data["entity_expected_pairs"] == 2 and g8.data["entity_covered"] == 2 and g8.data["entity_extras"] == 0
+    assert g8.data["term_holders_expected"] == 3 and g8.data["term_holders_covered"] == 3 and "entities 2/2" in g8.detail and "terms 3/3" in g8.detail
+
+
+@pytest.mark.parametrize("mutation, how", [
+    ("below the threshold", lambda run: sql(run, "UPDATE holders SET export_policy='{\"entity_min_records\": 5}' WHERE holder_id='hold_a'")),
+    ("auto_entities off", lambda run: sql(run, "UPDATE holders SET export_policy='{\"entity_min_records\": 1, \"auto_entities\": false}' WHERE holder_id='hold_a'")),
+    ("source turned members-only (effective ACL)", lambda run: holder_sql(run, "hold_a", "UPDATE connector_sources SET visibility='members'")),
+    ("source no longer exportable", lambda run: holder_sql(run, "hold_a", "UPDATE connector_sources SET exportable=0")),
+    ("disclosure none", lambda run: holder_sql(run, "hold_a", "UPDATE connector_sources SET disclosure='none'")),
+    ("access lost", lambda run: holder_sql(run, "hold_a", "UPDATE connector_sources SET access_state='access_lost'")),
+    ("record made private", lambda run: holder_sql(run, "hold_a", "UPDATE ingest_records SET visibility='private'")),
+    ("restricted sensitivity", lambda run: holder_sql(run, "hold_a", "UPDATE ingest_records SET sensitivity='restricted'")),
+    ("record deleted", lambda run: holder_sql(run, "hold_a", "UPDATE ingest_records SET deletion_status='deleted_at_source'")),
+])
+def test_an_entity_published_from_a_record_the_holder_may_not_publish_fails_g8(run, mutation, how):
+    how(run)
+    rep, g8 = g8_problems(run)
+    assert "G8" in rep.failed_ids and any("privacy: entity" in p and "hold_a" in p for p in g8.problems), (mutation, g8.problems)
+    assert g8.data["entity_extras"] >= 1
+
+
+def test_members_records_publish_entities_only_when_the_owner_opted_in(run):
+    holder_sql(run, "hold_a", "UPDATE ingest_records SET visibility='members'")
+    holder_sql(run, "hold_a", "UPDATE connector_sources SET visibility='members'")
+    assert "G8" in gate(run).failed_ids                                                           # indexed, but members-only without opt-in
+    sql(run, "UPDATE holders SET export_policy='{\"entity_min_records\": 1, \"entity_include_members\": true}' WHERE holder_id='hold_a'")
+    rep, g8 = g8_problems(run)
+    assert not any("privacy: entity" in p for p in g8.problems)                                   # with the opt-in the same id is expected
+
+
+def test_missing_entity_coverage_fails_g8(run):
+    sql(run, "DELETE FROM hyperedge_members WHERE edge_id='e_ent' AND member_id='hold_a'")
+    rep, g8 = g8_problems(run)
+    assert "G8" in rep.failed_ids and g8.data["entity_coverage"] == 0.5 and any("entity index covers 1/2" in p for p in g8.problems)
+
+
+def test_term_rows_from_a_holder_without_public_records_fail_g8(run):
+    holder_sql(run, "hold_d", "UPDATE ingest_records SET visibility='private'")
+    rep, g8 = g8_problems(run)
+    assert "G8" in rep.failed_ids and any("privacy: holder hold_d has 1 term rows" in p for p in g8.problems)
+    sql(run, "UPDATE holders SET export_policy='{\"entity_min_records\": 1, \"auto_terms\": false}' WHERE holder_id='hold_a'")
+    assert any("auto_terms is off" in p for p in g8_problems(run)[1].problems)
+
+
+def test_term_coverage_and_foreign_term_rows_fail_g8(run):
+    sql(run, "DELETE FROM term_index WHERE holder_id IN ('hold_a', 'hold_b')")
+    rep, g8 = g8_problems(run)
+    assert "G8" in rep.failed_ids and g8.data["term_holders_covered"] == 1 and any("term index covers 1/3" in p for p in g8.problems)
+    sql(run, "INSERT INTO term_index(tenant_id, term, holder_id, weight, updated_at) VALUES ('other_tenant', 'term:zzzz', 'hold_a', 1, 'x')")
+    assert any("other-tenant holder hold_a" in p for p in g8_problems(run)[1].problems)
+
+
+def test_a_run_without_a_term_index_table_is_noted_unless_it_is_expected(run):
+    c = sqlite3.connect(run / "run" / "coord.db")
+    c.execute("DROP TABLE term_index")
+    c.commit()
+    c.close()
+    rep, g8 = g8_problems(run)
+    assert g8.status == arch_gate.PASS and g8.data["term_note"] == "term_index table absent"
+    assert g8_problems(run, expect_term_index=True)[1].status == arch_gate.MISSING
+
+
+def test_expected_entity_set_honours_the_top_500_cap_and_the_threshold_default(run):
+    sql(run, "UPDATE holders SET export_policy='{}'")                                             # default entity_min_records = 5: one record is not enough
+    rep, g8 = g8_problems(run)
+    assert g8.data["entity_expected_pairs"] == 0 and g8.data["entity_pairs_below_threshold"] == 2 and g8.data["entity_extras"] == 2

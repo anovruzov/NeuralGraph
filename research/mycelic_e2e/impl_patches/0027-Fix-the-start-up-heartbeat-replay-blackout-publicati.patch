@@ -1,0 +1,763 @@
+From 36a995112380b3e1e7d64c3821ee7bc023413c98 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 07:56:16 +0000
+Subject: [PATCH 27/28] Fix the start-up heartbeat replay blackout; publication
+ follows the effective ACL (B1); review fixes
+
+WP1 (claude-sonnet-5-5): the transport retains one heartbeat per holder per minute, and the core
+consumer replayed the first, empty start-up beat after fresher ones, retracting every holder's
+domains and terms for ~3 s; org.holder_heartbeat now ignores snapshots older than the applied one.
+Term/entity publication now uses the disclosure-time ACL (source visibility, exportable, disclosure,
+access state, selection), drops deny_patterns, and publishes nothing without a server secret; bounded
+minimum-unit cover search. ENGINEER-E (claude-sonnet-5-5): REVIEW_E F1-F4. Full suite 507 passed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ mycelic/db/coord.py                     |   9 +-
+ mycelic/discovery/engine.py             |   4 +-
+ mycelic/evidence/service.py             |  47 +++++--
+ mycelic/holder/embedded.py              |   2 +-
+ mycelic/inquiry/service.py              |   4 +-
+ mycelic/knowledge/gate.py               |  22 ++-
+ mycelic/knowledge/service.py            |   5 +-
+ mycelic/org.py                          |  52 ++++---
+ mycelic/tests/test_embedded_lazy.py     |  25 ++++
+ mycelic/tests/test_hypergraph_review.py |   2 +-
+ mycelic/tests/test_scale_equivalence.py |  86 ++++++++++++
+ mycelic/tests/test_term_routing.py      | 177 ++++++++++++++++++++++++
+ research/mycelic_e2e/EXPERIMENTS.jsonl  |   3 +
+ 13 files changed, 394 insertions(+), 44 deletions(-)
+
+diff --git a/mycelic/db/coord.py b/mycelic/db/coord.py
+index a09aa72..e477903 100644
+--- a/mycelic/db/coord.py
++++ b/mycelic/db/coord.py
+@@ -94,12 +94,15 @@ class CoordDB:
+         """A change counter from migration 0006 (``org``, ``holders``, ``taxonomy``). It moves only when the data a derived
+         cache is built from changes (triggers maintain it, so no writer can forget one), and it is read from the file, so a
+         change committed by another process is seen too. Key caches on it instead of ``revision`` (which moves on any commit).
+-        On a database without the counter table it falls back to ``revision``, which is conservative."""
++        On a database without the counter table, or with the counter row missing, it never returns the same value twice across a
++        commit (here or in another process): a missing counter must make every cache refresh, not freeze it."""
+         try:
+             r = self._conn.execute("SELECT value FROM revisions_counter WHERE name=?", (name,)).fetchone()
+         except sqlite3.Error:
+-            return self.revision
+-        return int(r[0]) if r is not None else 0
++            r = None
++        if r is None:
++            return -1 - (self.revision * 1_000_003 + self.data_version())      # own commits move `revision`, other processes' move `data_version`
++        return int(r[0])
+ 
+     # ------------------------------------------------------------------ reads
+     def one(self, sql: str, args: Iterable[Any] = ()) -> sqlite3.Row | None:
+diff --git a/mycelic/discovery/engine.py b/mycelic/discovery/engine.py
+index 71dffc0..0eba7da 100644
+--- a/mycelic/discovery/engine.py
++++ b/mycelic/discovery/engine.py
+@@ -296,7 +296,7 @@ class LoopEngine:
+         hit = self._goal_domain_cache.get(key)
+         if hit is None or hit[0] != stamp:
+             pseudo = {"tenant_id": tenant_id, "scope_unit_id": scope, "policy": {"visibility": "unit"}, "candidate_domains": []}
+-            holders = self.org.routing_holders(tenant_id)
++            holders = self.org.routing_holders(tenant_id, copy=False)
+             verdicts = self.authz.can_route_many(pseudo, holders)
+             routable = [h for h, (ok, _why) in zip(holders, verdicts) if ok]
+             held: list[str] = []
+@@ -316,7 +316,7 @@ class LoopEngine:
+             if d not in have:
+                 have.add(d)
+                 domains.append(d)
+-        return domains, list(routable)
++        return domains, [dict(h) for h in routable]
+ 
+     # ================================================================== observe
+     def observe(self, goal: Mapping[str, Any], since: str | None) -> dict[str, Any]:
+diff --git a/mycelic/evidence/service.py b/mycelic/evidence/service.py
+index dbb99be..6630c6d 100644
+--- a/mycelic/evidence/service.py
++++ b/mycelic/evidence/service.py
+@@ -995,13 +995,19 @@ class EvidenceStore:
+         of them) is boilerplate and is not published. At most ``MAX_TERMS_PER_HOLDER`` ids, rarest first. Off with
+         ``export_policy.auto_terms: false``; empty without a tenant key. The result is cached until the records change."""
+         from ..entities import MAX_TERMS_PER_HOLDER, TERM_MAX_DF, term_id, term_stems
+-        if not self.term_key or (self.export_policy or {}).get("auto_terms") is False:
++        if not self.term_key or (self.export_policy or {}).get("auto_terms") is False or self._publication_closed():
+             return {}
++        # the ACL disclosure applies at use time, not the record's ingest-time visibility: a source turned members-only, opted out of export,
++        # set to disclosure none or whose access was lost stops contributing at once (its state is part of the cache key)
++        blocked = self._blocked_sources(("public",))
++        source_ok = f" AND (r.source_id IS NULL OR r.source_id NOT IN ({','.join('?' * len(blocked))}))" if blocked else ""
++        deny = tuple(p.pattern for p in self._deny)
+         sig = tuple(tuple(cn.execute("SELECT COALESCE(MAX(change_seq), 0), COUNT(*) FROM ingest_records WHERE deletion_status='live' AND visibility='public'").fetchone()) for cn in conns)
+         now = time.monotonic()
+         cached = self._term_cache
+         cap_key = (self.export_policy or {}).get("term_cap")
+-        if cached is not None and cached[0] == (sig, self.term_key, cap_key) and now - cached[1] < 600:
++        key = (sig, self.term_key, cap_key, tuple(blocked), deny)
++        if cached is not None and cached[0] == key and now - cached[1] < 600:
+             return cached[2]
+         per_record: dict[tuple[int, str], set[str]] = {}
+         for i, cn in enumerate(conns):
+@@ -1011,7 +1017,8 @@ class EvidenceStore:
+                        JOIN ingest_records r ON r.record_id = rm.record_id
+                        WHERE rm.origin='chunk' AND r.deletion_status='live' AND r.visibility='public' AND r.sensitivity NOT IN ('restricted', 'confidential')
+                          AND r.flags NOT LIKE '%suspicious_instructions%' AND r.flags NOT LIKE '%contains_secret%'
+-                         AND NOT EXISTS (SELECT 1 FROM domain_memberships dm WHERE dm.record_id = r.record_id AND dm.status='active' AND dm.domain_id LIKE 'personal.%')"""):
++                         AND NOT EXISTS (SELECT 1 FROM domain_memberships dm WHERE dm.record_id = r.record_id AND dm.status='active' AND dm.domain_id LIKE 'personal.%')"""
++                    + source_ok, blocked):
+                 per_record.setdefault((i, r["rid"]), set()).update(term_stems(r["text"]))
+         df: dict[str, int] = {}
+         for stems in per_record.values():
+@@ -1022,9 +1029,9 @@ class EvidenceStore:
+             cap = max(1, int((self.export_policy or {}).get("term_cap") or MAX_TERMS_PER_HOLDER))
+         except (TypeError, ValueError):
+             cap = MAX_TERMS_PER_HOLDER
+-        keep = sorted(((term_id(self.term_key, st), n) for st, n in df.items() if n <= limit), key=lambda kv: (kv[1], kv[0]))[:cap]
++        keep = sorted(((term_id(self.term_key, st), n) for st, n in df.items() if n <= limit and not any(p.search(st) for p in self._deny)), key=lambda kv: (kv[1], kv[0]))[:cap]
+         result = dict(keep)
+-        self._term_cache = ((sig, self.term_key, cap_key), now, result)
++        self._term_cache = (key, now, result)
+         return result
+ 
+     # ------------------------------------------------------------------ entity publication (content-free ids, hypergraph entity index)
+@@ -1042,14 +1049,32 @@ class EvidenceStore:
+         router "this holder's restricted records mention X". The owner opts in with ``export_policy.entity_include_members``."""
+         return (self.export_policy or {}).get("entity_include_members") is True
+ 
+-    @staticmethod
+-    def _entity_counts_sync(c: sqlite3.Connection, *, include_members: bool = False) -> dict[str, int]:
++    def _blocked_sources(self, visibilities: tuple[str, ...]) -> list[str]:
++        """Source ids whose records must not feed a published index *now*, by the same effective ACL disclosure applies at use time: the
++        source's current visibility is not one of ``visibilities`` (a channel turned members-only), the owner opted the source out of export,
++        its disclosure is ``none``, its access is lost or revoked, or it is not selected for ingestion. Sources always live in s0."""
++        ph = ",".join("?" * len(visibilities))
++        rows = self._control_conn().execute(
++            f"SELECT source_id FROM connector_sources WHERE visibility NOT IN ({ph}) OR exportable = 0 OR disclosure = 'none' "
++            f"OR COALESCE(access_state, 'ok') <> 'ok' OR selection <> 'included' ORDER BY source_id", visibilities).fetchall()
++        return [r[0] for r in rows]
++
++    def _publication_closed(self) -> bool:
++        """The holder's own disclosure is ``none``: it answers nothing, so it publishes no entity or term either."""
++        return (self.export_policy or {}).get("disclosure") == "none"
++
++    def _entity_counts_sync(self, c: sqlite3.Connection, *, include_members: bool = False) -> dict[str, int]:
+         """Entity ids mentioned by this holder's *live* records that are visible as ``public`` (and ``members`` only when the owner
+         opted in): never private records, restricted or confidential sensitivity, records in a personal domain, records flagged for
+         injected instructions or secrets, nor author / participant / container entities. Counts are distinct records."""
+         from ..entities import PUBLISHABLE_ENTITY_KINDS, is_publishable_entity
++        if self._publication_closed():
++            return {}
+         kinds = " OR ".join(f"re.entity_id LIKE '{k}:%'" for k in PUBLISHABLE_ENTITY_KINDS)
+-        visible = "('public', 'members')" if include_members else "('public')"
++        vis = ("public", "members") if include_members else ("public",)
++        visible = "(" + ", ".join(f"'{v}'" for v in vis) + ")"
++        blocked = self._blocked_sources(vis)
++        source_ok = f" AND (r.source_id IS NULL OR r.source_id NOT IN ({','.join('?' * len(blocked))}))" if blocked else ""
+         rows = c.execute(
+             f"""SELECT re.entity_id AS entity_id, COUNT(DISTINCT re.record_id) AS n
+                 FROM record_entities re JOIN ingest_records r ON r.record_id = re.record_id
+@@ -1057,8 +1082,10 @@ class EvidenceStore:
+                   AND re.role IN ('mention', 'reference', 'topic') AND ({kinds})
+                   AND r.flags NOT LIKE '%suspicious_instructions%' AND r.flags NOT LIKE '%contains_secret%'
+                   AND NOT EXISTS (SELECT 1 FROM domain_memberships dm WHERE dm.record_id = r.record_id AND dm.status='active' AND dm.domain_id LIKE 'personal.%')
+-                GROUP BY re.entity_id""").fetchall()
+-        return {r["entity_id"]: int(r["n"]) for r in rows if is_publishable_entity(r["entity_id"])}
++                  {source_ok}
++                GROUP BY re.entity_id""", blocked).fetchall()
++        # the owner's deny patterns keep what they keep out of answers out of the published ids too
++        return {r["entity_id"]: int(r["n"]) for r in rows if is_publishable_entity(r["entity_id"]) and not any(p.search(r["entity_id"]) for p in self._deny)}
+ 
+     @staticmethod
+     def _cap_entities(counts: dict[str, int], min_records: int, cap: int = 500) -> dict[str, int]:
+diff --git a/mycelic/holder/embedded.py b/mycelic/holder/embedded.py
+index d7c1850..5351dfd 100644
+--- a/mycelic/holder/embedded.py
++++ b/mycelic/holder/embedded.py
+@@ -488,8 +488,8 @@ class EmbeddedHolders:
+             self._closing.add(holder_id)
+             next_poll = None
+             try:
++                await svc.stop()                           # consumers first: from here nothing new is handled (the stats below do not need them)
+                 stats = await svc.stats()
+-                await svc.stop()                           # consumers first: from here nothing new is handled
+                 if runtime is not None:
+                     if getattr(self.settings, "dormant_poll", True):
+                         next_poll = self._next_poll_in(runtime)
+diff --git a/mycelic/inquiry/service.py b/mycelic/inquiry/service.py
+index 19eced9..17ea8dc 100644
+--- a/mycelic/inquiry/service.py
++++ b/mycelic/inquiry/service.py
+@@ -374,11 +374,11 @@ class QuestionService:
+         ok, rejected = [], []
+         ctx = self.authz.route_context(q, asker=asker)
+         with self.authz.pinned():
+-            for h in self.org.routing_holders(q["tenant_id"]):
++            for h in self.org.routing_holders(q["tenant_id"], copy=False):
+                 if h["holder_id"] in ex:
+                     rejected.append({"holder_id": h["holder_id"], "reason": "excluded (already supports the claim)"}); continue
+                 allowed, why = self.authz._can_route(q, h, ctx)
+-                (ok if allowed else rejected).append(h if allowed else {"holder_id": h["holder_id"], "reason": why})
++                (ok if allowed else rejected).append(dict(h) if allowed else {"holder_id": h["holder_id"], "reason": why})
+         return ok, rejected
+ 
+     async def route(self, question_id: str, *, principal: Principal | None = None, exclude_holder_ids: Iterable[str] = ()) -> dict[str, Any]:
+diff --git a/mycelic/knowledge/gate.py b/mycelic/knowledge/gate.py
+index 06d654e..37c0e75 100644
+--- a/mycelic/knowledge/gate.py
++++ b/mycelic/knowledge/gate.py
+@@ -17,6 +17,7 @@ from __future__ import annotations
+ 
+ import itertools
+ import logging
++import math
+ from dataclasses import dataclass, field
+ from typing import Any, Iterable, Mapping
+ 
+@@ -27,6 +28,8 @@ from .units import holder_unit_at_level, merge_requirements, normalize_requireme
+ 
+ logger = logging.getLogger(__name__)
+ 
++MAX_COMBINATIONS = 50_000       # exhaustive unit-cover search gives way to the greedy cover beyond this many combinations
++
+ CLAIM_KINDS = ("finding", "hypothesis", "prediction", "relationship", "measurement")
+ VISIBILITIES = ("private", "unit", "org")
+ 
+@@ -85,7 +88,7 @@ class CommitGate:
+     def __init__(self, authz: Authorizer) -> None:
+         self.authz = authz
+ 
+-    def independent_units(self, refs: Iterable[Mapping[str, Any]], level: str) -> dict[str, list[str]]:
++    def independent_units(self, refs: Iterable[Mapping[str, Any]], level: str, need: int | None = None) -> dict[str, list[str]]:
+         """``unit_id -> [source root ids]``: the distinct ``level`` units (department, ...) behind the *independent roots* of a
+         claim. A root is attributed to the unit(s) of its *earliest observed* reference (the original, not its forwarded copy; a
+         reference with no observation time counts as the latest). When that is not unique (the same provider object synced by holders
+@@ -111,10 +114,10 @@ class CommitGate:
+                     units.add(unit)
+             if units:
+                 candidates[root] = units
+-        return self._attribute(candidates)
++        return self._attribute(candidates, need)
+ 
+     @staticmethod
+-    def _attribute(candidates: Mapping[str, set[str]]) -> dict[str, list[str]]:
++    def _attribute(candidates: Mapping[str, set[str]], need: int | None = None) -> dict[str, list[str]]:
+         """Attribute each root to one of its candidate units so that as *few* units as possible are counted (the conservative reading:
+         a root observed in two departments at the same time is evidence of one of them, never of both). Roots with a single candidate
+         fix their unit; roots that touch a fixed unit join it; the rest are covered by the smallest set of units that touches each of
+@@ -135,12 +138,17 @@ class CommitGate:
+         universe = sorted(set().union(*rest.values()))
+         chosen: tuple[str, ...] = ()
+         if len(rest) <= 8:
+-            for k in range(1, len(rest) + 1):
++            # exhaustive search for the smallest cover, but only as far as the caller needs: once ``need`` units are accounted for the
++            # question is decided, and when the combinations to try are many (a write transaction waits for this) the greedy cover decides
++            limit = len(rest) if need is None else min(len(rest), max(1, need - len(out)))
++            for k in range(1, limit + 1):
++                if math.comb(len(universe), k) > MAX_COMBINATIONS:
++                    break
+                 found = next((combo for combo in itertools.combinations(universe, k) if all(set(combo) & u for u in rest.values())), None)
+                 if found is not None:
+                     chosen = found
+                     break
+-        else:
++        if not chosen:
+             left = dict(rest)
+             picked: list[str] = []
+             while left:
+@@ -160,7 +168,7 @@ class CommitGate:
+         counts: dict[str, int] = {}
+         refs = list(refs)
+         for level, need in sorted(required.items()):
+-            have = len(self.independent_units(refs, level))
++            have = len(self.independent_units(refs, level, need))
+             counts[level] = have
+             if have < need:
+                 reasons.append(f"independent roots span {have} {level} unit(s); the question requires {need}")
+@@ -311,7 +319,7 @@ class CommitGate:
+         min_roots = int(policy.get("min_independent_roots", 2))
+         units_required = required_units(policy, question)
+         if units_required:
+-            support["independent_units"] = {lvl: len(self.independent_units(refs, lvl)) for lvl in sorted(units_required)}
++            support["independent_units"] = {lvl: len(self.independent_units(refs, lvl, units_required[lvl])) for lvl in sorted(units_required)}
+         if not (auth_ok and schema_ok and prov_ok and temporal_ok):
+             return GateResult(False, "rejected", reasons, support, fresh, checks, refs)
+         if has_open_conflict or support["contradicting_refs"]:
+diff --git a/mycelic/knowledge/service.py b/mycelic/knowledge/service.py
+index e870c2a..943e9ee 100644
+--- a/mycelic/knowledge/service.py
++++ b/mycelic/knowledge/service.py
+@@ -487,7 +487,7 @@ class KnowledgeService:
+         support["freshness"] = fresh
+         units_required = required_units(pol, self._question_for_claim(claim))
+         if units_required:
+-            support["independent_units"] = {lvl: len(self.gate.independent_units(refs, lvl)) for lvl in sorted(units_required)}
++            support["independent_units"] = {lvl: len(self.gate.independent_units(refs, lvl, units_required[lvl])) for lvl in sorted(units_required)}
+         if (claim.get("support") or {}).get("causal"):
+             support["causal"] = True          # the marker survives recomputation, and so does its cap
+         open_conf = self.conflicts_for_claim(claim_id, status="open") + self.conflicts_for_claim(claim_id, status="investigating")
+@@ -531,7 +531,8 @@ class KnowledgeService:
+             old = dict(claim.get("support") or {})
+             new = {**old, **support}
+             if "independent_units" in old:
+-                new["independent_units"] = {lvl: len(self.gate.independent_units(refs, lvl)) for lvl in old["independent_units"]}
++                need = required_units(self.org.policies(claim["tenant_id"]), self._question_for_claim(claim))
++                new["independent_units"] = {lvl: len(self.gate.independent_units(refs, lvl, need.get(lvl))) for lvl in old["independent_units"]}
+             if new != old:
+                 c.execute("UPDATE claims SET support=?, updated_at=? WHERE claim_id=?", (j(new), now_iso(), claim_id))
+         return hg.sync_support_sync(c, claim_id=claim_id, principal=principal, reason=reason, entities=entities, refs=refs, support=support)
+diff --git a/mycelic/org.py b/mycelic/org.py
+index 1780d77..c12d2ea 100644
+--- a/mycelic/org.py
++++ b/mycelic/org.py
+@@ -6,11 +6,14 @@ the UI cares, an outbox event, inside the same transaction.
+ """
+ from __future__ import annotations
+ 
++import logging
+ import sqlite3
+ from typing import Any, Iterable
+ 
+ from .db.coord import CoordDB, row_to_dict, rows_to_dicts
+-from .util import hmac_sign, j, jl, new_id, now_iso, plus_seconds, token, token_hash
++from .util import hmac_sign, j, jl, new_id, now_iso, parse_iso, plus_seconds, token, token_hash
++
++logger = logging.getLogger(__name__)
+ 
+ UNIT_TYPES = ("executive", "region", "subsidiary", "department", "team", "project")
+ HIERARCHY = ("executive", "region", "subsidiary", "department", "team")   # top -> bottom; any level may be omitted
+@@ -70,11 +73,17 @@ class OrgService:
+             return hmac_sign(self.secret_key, f"mycelic:route:{holder_id}:{salt}")
+         return salt
+ 
+-    def term_key(self, tenant_id: str) -> str:
++    def term_key(self, tenant_id: str) -> str | None:
+         """The per-tenant key under which content terms are hashed into term ids (mycelic/entities.py). Derived from the server secret
+-        when there is one (a copy of the coordination database alone cannot test a dictionary against it); a holder receives it with its
+-        bootstrap. Without a server secret (tests, throwaway dev runs) it is derived from the tenant id alone: stable, not secret."""
+-        return hmac_sign(self.secret_key or "mycelic-dev-term-key", f"mycelic:terms:{tenant_id}")
++        (``MYCELIC_SECRET_KEY``), so a copy of the coordination database alone cannot test a dictionary against it; a holder receives it with
++        its bootstrap. Without a server secret there is no key and no term is published or matched: a misconfigured path degrades to entity
++        and domain routing instead of publishing ids anyone could test a dictionary against."""
++        if not self.secret_key:
++            if not getattr(self, "_warned_term_key", False):
++                self._warned_term_key = True
++                logger.warning("no server secret: term ids are disabled (set MYCELIC_SECRET_KEY); routing falls back to entities and domains")
++            return None
++        return hmac_sign(self.secret_key, f"mycelic:terms:{tenant_id}")
+ 
+     # ------------------------------------------------------------------ tenants
+     async def create_tenant(self, name: str, slug: str, *, is_demo: bool = False, settings: dict | None = None,
+@@ -437,23 +446,26 @@ class OrgService:
+             d.pop("key_hash", None)
+         return out
+ 
+-    def routing_holders(self, tenant_id: str) -> list[dict[str, Any]]:
++    def routing_holders(self, tenant_id: str, *, copy: bool = True) -> list[dict[str, Any]]:
+         """The tenant's holders as routing sees them: ``list_holders`` rows without ``stats``, ``last_heartbeat_at``,
+         ``route_key`` and ``key_hash`` (no JSON blobs to decode for 10,000 holders), cached until the ``holders`` change
+         counter moves (registration, domains, published domains, export policy, owner, revocation). ``status`` and
+         ``updated_at`` are a snapshot of that moment (a heartbeat does not move the counter), except that revoked-ness is
+-        always current. Treat the result as read-only; ``list_holders`` is the live view."""
++        always current. The rows are copies (shallow: do not mutate the nested ``domains`` / ``export_policy`` values), so a caller
++        that edits one cannot poison routing for the tenant; ``list_holders`` is the live view. ``copy=False`` returns the cached rows
++        themselves for callers that only read them and copy what they hand on."""
+         rev = self.db.counter("holders")
+         hit = self._routing_cache.get(tenant_id)
+         if hit is not None and hit[0] == rev:
+-            return hit[1]
+-        rows = self.db.all("SELECT holder_id, tenant_id, owner_type, owner_id, name, status, mode, domains, published_domains, export_policy, "
+-                           "created_at, updated_at FROM holders WHERE tenant_id=? ORDER BY name", (tenant_id,))
+-        out = rows_to_dicts(rows, json_fields=("domains", "published_domains", "export_policy"))
+-        if len(self._routing_cache) > 64:
+-            self._routing_cache.clear()
+-        self._routing_cache[tenant_id] = (rev, out)
+-        return out
++            rows = hit[1]
++        else:
++            raw = self.db.all("SELECT holder_id, tenant_id, owner_type, owner_id, name, status, mode, domains, published_domains, export_policy, "
++                              "created_at, updated_at FROM holders WHERE tenant_id=? ORDER BY name", (tenant_id,))
++            rows = rows_to_dicts(raw, json_fields=("domains", "published_domains", "export_policy"))
++            if len(self._routing_cache) > 64:
++                self._routing_cache.clear()
++            self._routing_cache[tenant_id] = (rev, rows)
++        return rows if not copy else [dict(h) for h in rows]
+ 
+     def memberships_by_user(self, tenant_id: str) -> dict[str, list[dict[str, Any]]]:
+         """``memberships_for_user`` for every active user of the tenant in one query: ``{user_id: [membership rows]}``."""
+@@ -487,9 +499,17 @@ class OrgService:
+ 
+     async def holder_heartbeat(self, holder_id: str, *, stats: dict | None = None, status: str = "online") -> None:
+         async with self.db.tx() as c:
+-            r = c.execute("SELECT tenant_id, status, mode, domains, published_domains, export_policy FROM holders WHERE holder_id=?", (holder_id,)).fetchone()
++            r = c.execute("SELECT tenant_id, status, mode, domains, published_domains, export_policy, json_extract(stats, '$.at') AS stats_at FROM holders WHERE holder_id=?",
++                          (holder_id,)).fetchone()
+             if r is None or r["status"] == "revoked":
+                 return
++            at, seen = parse_iso((stats or {}).get("at")), parse_iso(r["stats_at"])
++            if at is not None and seen is not None and at < seen:
++                # a snapshot older than the one already applied (the transport keeps one beat per holder per minute and delivers it when the
++                # core's consumer starts, long after fresher beats arrived directly): applying it would roll the registry, the entity and term
++                # indexes back to the holder's state at that earlier time, e.g. to an empty store at start-up
++                logger.debug("ignoring a stale heartbeat of %s (%s < %s)", holder_id, stats.get("at"), r["stats_at"])  # type: ignore[union-attr]
++                return
+             shards = (stats or {}).get("shards")
+             if isinstance(shards, dict):
+                 # the holder's shard map mirrored into the registry (counts, bytes, states; INGESTION.md §7.2, §7.9)
+diff --git a/mycelic/tests/test_embedded_lazy.py b/mycelic/tests/test_embedded_lazy.py
+index fe400db..7bec1b7 100644
+--- a/mycelic/tests/test_embedded_lazy.py
++++ b/mycelic/tests/test_embedded_lazy.py
+@@ -312,3 +312,28 @@ async def test_scheduled_connector_poll_reopens_a_dormant_holder(tmp_path: Path,
+     else:
+         raise AssertionError("the scheduled poll did not ingest the new records")
+     await emb.stop()
++
++
++async def test_closing_stops_the_consumers_before_taking_the_final_stats(tmp_path: Path, db, org, transport) -> None:
++    """F2: a handler must not be able to start between the idle check and the consumer being stopped (it would be cancelled midway and
++    redelivered). The service stops first; its stats do not need the consumer."""
++    tid, hs = await make_world(org, 2)
++    emb = make(tmp_path, db, org, transport, max_open=1)
++    await emb.start()
++    a, b = hs[0][1]["holder_id"], hs[1][1]["holder_id"]
++    svc = await emb.ensure(a)
++    order: list[str] = []
++    orig_stop, orig_stats = svc.stop, svc.stats
++
++    async def stop():
++        order.append("stop")
++        return await orig_stop()
++
++    async def stats():
++        order.append("stats")
++        return await orig_stats()
++    svc.stop, svc.stats = stop, stats                     # type: ignore[method-assign]
++    await emb.ensure(b)                                   # a is closed by b's opening
++    await wait_for(lambda: not emb.is_open(a))
++    assert order[:2] == ["stop", "stats"], order
++    await emb.stop()
+diff --git a/mycelic/tests/test_hypergraph_review.py b/mycelic/tests/test_hypergraph_review.py
+index 352d363..db8d5ba 100644
+--- a/mycelic/tests/test_hypergraph_review.py
++++ b/mycelic/tests/test_hypergraph_review.py
+@@ -416,7 +416,7 @@ async def test_lineage_labels_do_not_reveal_the_claim_to_a_holders_owner(db, org
+                                      question=question_row(w), idempotency_key="c1")
+     parent = await qs.create(sysp, {"text": "What recurring blockers do you see in deployments?", "scope_unit_id": w["root"]}, asker_type="loop", asker_id="goal:test", enqueue_route=False)
+     q = await qs.create(sysp, {"text": "Independently: what do your own records show about customer timeouts lately?", "scope_unit_id": w["root"], "kind": "verification",
+-                               "budget": {"holders": 5}, "trigger": {"kind": "verification", "claim_id": claim["claim_id"]}, "parent_question_id": parent["question_id"],
++                               "budget": {"holders": 10}, "trigger": {"kind": "verification", "claim_id": claim["claim_id"]}, "parent_question_id": parent["question_id"],
+                                "motivating_lineage": [{"type": "claim", "id": claim["claim_id"]}, {"type": "evidence_ref", "id": "ev1"}, {"type": "question", "id": parent["question_id"]}]},
+                         asker_type="loop", asker_id="goal:test", enqueue_route=False)
+     await qs.route(q["question_id"])
+diff --git a/mycelic/tests/test_scale_equivalence.py b/mycelic/tests/test_scale_equivalence.py
+index 3dba89b..f9c4d0e 100644
+--- a/mycelic/tests/test_scale_equivalence.py
++++ b/mycelic/tests/test_scale_equivalence.py
+@@ -304,3 +304,89 @@ async def test_another_connection_sees_counter_changes(tmp_path, org, auth):
+     assert team["unit_id"] in authz1.visible_unit_ids(p) and team["unit_id"] in authz1.led_unit_ids(p)
+     await db2.close()
+     await db1.close()
++
++
++# ------------------------------------------------------------------------------------------ review probes (REVIEW_E F1, F3, F4)
++async def _raw_sql_run(db, org, auth, authz, tmp_path, *, seed: int, drop_trigger: str | None = None):
++    """Writes from ANOTHER connection with raw SQL (no OrgService) while every cache is warm; after each one the cached paths are
++    compared with the original code."""
++    import sqlite3
++    w = await build(auth, org, db, authz, seed, n_users=24)
++    qs, goals = w.qs, w.goals_svc
++    engine = make_engine(db, org, authz, qs, goals)
++    check_all(w, authz, qs, engine, org)          # warm every cache
++    other = sqlite3.connect(str(tmp_path / "coord.db"), isolation_level=None)
++    other.execute("PRAGMA busy_timeout=5000")
++    if drop_trigger:
++        other.execute(f"DROP TRIGGER {drop_trigger}")
++
++    def raw(sql, args=()):
++        other.execute("BEGIN IMMEDIATE"); other.execute(sql, args); other.execute("COMMIT")
++        check_all(w, authz, qs, engine, org)
++    try:
++        m = other.execute("SELECT user_id, unit_id, role FROM memberships WHERE status='active' AND role='employee' LIMIT 1").fetchone()
++        raw("UPDATE memberships SET role='department_lead' WHERE user_id=? AND unit_id=? AND role=?", m)
++        raw("UPDATE memberships SET status='revoked' WHERE user_id=? AND unit_id=?", m[:2])
++        h = other.execute("SELECT holder_id, owner_id FROM holders WHERE owner_type='user' AND status<>'revoked' LIMIT 1").fetchone()
++        raw("UPDATE users SET status='disabled' WHERE user_id=?", (h[1],))
++        raw("UPDATE users SET status='active' WHERE user_id=?", (h[1],))
++        u2 = other.execute("SELECT user_id FROM users WHERE user_id<>? AND status='active' LIMIT 1", (h[1],)).fetchone()[0]
++        raw("UPDATE holders SET owner_id=? WHERE holder_id=?", (u2, h[0]))
++        raw("UPDATE holders SET export_policy='{\"answer_scopes\": [\"org\"]}' WHERE holder_id=?", (h[0],))
++        raw("UPDATE holders SET status='revoked' WHERE holder_id=?", (h[0],))
++        raw("UPDATE org_units SET archived_at='2026-01-01T00:00:00+00:00' WHERE unit_id=?", (w.teams[0],))
++        raw("DELETE FROM project_scopes WHERE project_id=?", (w.projects[0],))
++        raw("INSERT INTO grants(grant_id, tenant_id, grantor_id, grantee_type, grantee_id, resource_type, resource_id, level, reason, status, created_at) "
++            "VALUES ('g-raw', ?, 'x', 'user', ?, 'goal', ?, 'read', '', 'active', '2026-01-01T00:00:00+00:00')", (w.t, u2, w.goals[0]["goal_id"]))
++        raw("UPDATE grants SET status='revoked' WHERE grant_id='g-raw'")
++    finally:
++        other.close()
++
++
++async def test_raw_sql_writes_from_another_connection_invalidate_every_cache(db, org, auth, authz, tmp_path):
++    await _raw_sql_run(db, org, auth, authz, tmp_path, seed=5)
++
++
++async def test_the_raw_sql_probe_is_sensitive_to_a_missing_trigger(db, org, auth, authz, tmp_path):
++    """Without the memberships UPDATE trigger the stale cache is caught: the probe above would fail, so it does test the triggers."""
++    with pytest.raises(AssertionError):
++        await _raw_sql_run(db, org, auth, authz, tmp_path, seed=5, drop_trigger="trg_rev_memberships_u")
++
++
++async def test_a_missing_counter_row_never_freezes_a_cache(db, org, auth, authz):
++    """F1: with the row gone ``counter`` must change whenever anything is committed, not return a constant."""
++    w = await build(auth, org, db, authz, 7, n_users=14)
++    async with db.tx() as c:
++        c.execute("DELETE FROM revisions_counter WHERE name='org'")
++    before = db.counter("org")
++    await org.add_membership(w.t, w.users[0], w.teams[0], "employee")
++    assert db.counter("org") != before
++    qs, goals = w.qs, w.goals_svc
++    engine = make_engine(db, org, authz, qs, goals)
++    check_all(w, authz, qs, engine, org)                       # and the cached paths still agree with the original code
++    await org.revoke_membership(w.users[0], w.teams[0], "employee")
++    check_all(w, authz, qs, engine, org)
++
++
++async def test_routing_rows_are_copies_a_caller_cannot_poison(db, org, auth, authz):
++    """F3: editing a row handed out by routing must not change what the next call (or domains_for_goal) sees."""
++    w = await build(auth, org, db, authz, 8, n_users=14)
++    qs, goals = w.qs, w.goals_svc
++    engine = make_engine(db, org, authz, qs, goals)
++    q = qs.get(w.questions[0])
++    ok, _rej = qs.candidate_holders(q)
++    rows = org.routing_holders(w.t)
++    assert ok and rows
++    for h in ok:
++        h["owner_id"] = "usr_poisoned"; h["status"] = "revoked"
++    for h in rows:
++        h["owner_id"] = "usr_poisoned"; h["status"] = "revoked"
++    again, _ = qs.candidate_holders(q)
++    assert [h["holder_id"] for h in again] == [h["holder_id"] for h in ok] and all(h["owner_id"] != "usr_poisoned" for h in again)
++    g = w.goals_svc.get_goal(w.goals[0]["goal_id"])
++    _dom, hs = engine.domains_for_goal(g)
++    for h in hs:
++        h["status"] = "revoked"
++    _dom2, hs2 = engine.domains_for_goal(g)
++    assert all(h["status"] != "revoked" for h in hs2)
++    check_all(w, authz, qs, engine, org)
+diff --git a/mycelic/tests/test_term_routing.py b/mycelic/tests/test_term_routing.py
+index 80e25b7..da630a6 100644
+--- a/mycelic/tests/test_term_routing.py
++++ b/mycelic/tests/test_term_routing.py
+@@ -3,9 +3,12 @@ from __future__ import annotations
+ 
+ import json
+ 
++import pytest
++
+ from mycelic.entities import is_term_id, term_id, term_ids_in_text, term_stems
+ from mycelic.inquiry.routing import rank_holders
+ from mycelic.knowledge import hypergraph as hg
++from mycelic.org import OrgService
+ 
+ from .test_hypergraph import add_ref, cand, holder_with_sources, question_row, rec, services, world
+ from .test_loop_engine import build
+@@ -13,6 +16,12 @@ from .test_loop_engine import build
+ KEY = "tenant-key-1"
+ 
+ 
++@pytest.fixture
++def org(db):
++    """An organization service with a server secret: without one there is no term key and no term is published or matched."""
++    return OrgService(db, secret_key="test-server-secret")
++
++
+ # ---------------------------------------------------------------------------------------------- term ids
+ def test_term_ids_are_keyed_stemmed_and_content_free():
+     a = term_ids_in_text("The lunar ladders stalled the rollout in 2026!", KEY)
+@@ -196,3 +205,171 @@ async def test_verification_question_is_built_from_the_findings_entity_names(db,
+                                       question=question_row(w), idempotency_key="c2")
+     child2 = await s["engine"]._ask_verification(sysp, None, claim2, trigger_kind="verification")
+     assert "412" not in s["questions"].get(child2["question_id"])["text"]
++
++
++# ---------------------------------------------------------------------------------------------- the wave-1 blackout: stale heartbeats (root cause)
++T_OLD, T_NEW = "2026-10-09T07:35:28+00:00", "2026-10-09T07:35:33+00:00"
++
++
++async def test_a_stale_heartbeat_never_rolls_the_registry_back(db, org, auth, authz):
++    """The transport keeps one heartbeat per holder per minute: the first, sent by an EMPTY store at start-up and truthfully vouched as
++    complete. The core consumes that backlog when its worker starts, after fresher beats arrived directly. Applying it would blank the
++    holder's domains, entities and terms; a snapshot older than the one already applied is ignored."""
++    w = await world(auth, org)
++    h = w["holders"]["u1a"]["holder_id"]
++    key = org.term_key(w["t"])
++    lunar = term_id(key, "lunar")
++    rich = {"at": T_NEW, "ingest": {"records": 16, "domains": {"engineering.dependencies": 16}, "entities": {"symptom:timeout": 3}, "terms": {lunar: 2}, "snapshot_complete": True}}
++    await org.holder_heartbeat(h, stats=rich)
++    seen = org.get_holder(h)
++    assert seen["published_domains"] == ["engineering.dependencies"] and db.scalar("SELECT COUNT(*) FROM term_index WHERE holder_id=?", (h,)) == 1
++    empty_old = {"at": T_OLD, "ingest": {"records": 0, "domains": {}, "entities": {}, "terms": {}, "snapshot_complete": True}}
++    await org.holder_heartbeat(h, stats=empty_old, status="online")
++    after = org.get_holder(h)
++    assert after["published_domains"] == ["engineering.dependencies"] and db.scalar("SELECT COUNT(*) FROM term_index WHERE holder_id=?", (h,)) == 1
++    assert hg.incidence(db, w["t"], member_type="entity", member_ids=["symptom:timeout"])["symptom:timeout"][0]["holders"] == {h: 3.0}
++    assert after["stats"]["at"] == T_NEW and after["stats"]["ingest"]["records"] == 16 and after["last_heartbeat_at"] == seen["last_heartbeat_at"]      # not even the stats were replaced
++    # a beat at least as new as the applied one still counts: a vouched empty snapshot retracts
++    await org.holder_heartbeat(h, stats={"at": "2026-10-09T07:36:00+00:00", "ingest": {"records": 0, "domains": {}, "entities": {}, "terms": {}, "snapshot_complete": True}})
++    assert org.get_holder(h)["published_domains"] == [] and db.scalar("SELECT COUNT(*) FROM term_index WHERE holder_id=?", (h,)) == 0
++    # a beat without a timestamp (older callers) is applied as before
++    await org.holder_heartbeat(h, stats={"ingest": {"domains": {"engineering.dependencies": 9}}})
++    assert org.get_holder(h)["published_domains"] == ["engineering.dependencies"]
++
++
++async def test_transport_heartbeat_backlog_replayed_at_worker_start_cannot_blank_holders(db, org, auth, authz):
++    from mycelic.transport import Envelope, Subjects
++    from .test_loop_engine import build
++    s = await build(db, org, auth, authz)
++    w = await world(auth, org)
++    h = w["holders"]["u1a"]["holder_id"]
++    lunar = term_id(org.term_key(w["t"]), "lunar")
++    await org.holder_heartbeat(h, stats={"at": T_NEW, "ingest": {"records": 16, "domains": {"engineering.dependencies": 16}, "terms": {lunar: 2}, "snapshot_complete": True}})
++    stale = {"holder_id": h, "stats": {"at": T_OLD, "ingest": {"records": 0, "domains": {}, "entities": {}, "terms": {}, "snapshot_complete": True}}}
++    env = Envelope.new(Subjects.responses(w["t"]), "heartbeat", w["t"], stale, msg_id=f"hb:{h}:1").sign(org.route_key(h))
++    await s["transport"].publish(env)                                  # the engine consumes it now, as it does when the worker subscribes
++    assert org.get_holder(h)["published_domains"] == ["engineering.dependencies"] and db.scalar("SELECT COUNT(*) FROM term_index WHERE holder_id=?", (h,)) == 1
++
++
++# ---------------------------------------------------------------------------------------------- a dormant holder keeps what it published
++async def test_dormant_holder_stays_routable_by_its_terms_and_answers(tmp_path, db, org, authz):
++    from mycelic.inquiry import QuestionService
++    from mycelic.goals import GoalService
++    from mycelic.jobs import JobQueue
++    from mycelic.knowledge import KnowledgeService
++    from mycelic.transport import Envelope, Subjects
++    from mycelic.transport.sqlite_transport import SqliteTransport
++    from .test_embedded_lazy import make, make_world
++    from .test_holder import collect, wait_for
++    transport = SqliteTransport(db, retention_seconds=3600, poll_interval=0.02)
++    await transport.start()
++    try:
++        tid, hs = await make_world(org, 3)
++        emb = make(tmp_path, db, org, transport, max_open=1)
++        await emb.start()
++        target_u, target_h = hs[0]
++        other, third = hs[1][1]["holder_id"], hs[2][1]["holder_id"]
++        target = target_h["holder_id"]
++        imports = tmp_path / "holders" / target / "imports"
++        imports.mkdir(parents=True)
++        lines = [{"type": "source", "source_id": "notes", "name": "notes", "visibility": "public"}]
++        lines += [{"type": "message", "id": f"m{i}", "text": f"The zephyr quokka incident was caused by licence exhaustion at the gateway ({i}).", "author": "ana",
++                   "created_at": "2026-03-15T10:00:00+00:00"} for i in range(3)]
++        (imports / "notes.jsonl").write_text("\n".join(json.dumps(x) for x in lines) + "\n")
++        key = org.route_key(target)
++        await emb.ensure(other)                                # the target is dormant (cap 1) when the connector request arrives, as in a bounded deployment
++        await emb.ensure(third)
++        await wait_for(lambda: not emb.is_open(target) and len(emb.holder_ids()) <= 1)
++
++        async def call(action, params, n):
++            env = Envelope.new(Subjects.holder_control(tid, target), "connector_control", tid, {"action": action, "actor": target_u["user_id"], "params": params, "holder_id": target}, msg_id=f"cc-{n}")
++            return (await transport.request(env, timeout=10.0, sign_key=key)).payload
++        added = await call("connector.add", {"connector_type": "local_export", "config": {"source_app": "notes", "paths": ["notes.jsonl"]}}, 1)
++        cid = added["connector"]["connector_id"]
++        for sr in (await call("sources.list", {"connector_id": cid}, 2))["items"]:
++            await call("sources.update", {"connector_id": cid, "changes": [{"source_id": sr["source_id"], "selection": "included"}]}, f"3{sr['source_id']}")
++        assert "error" not in await call("connector.sync", {"connector_id": cid, "mode": "incremental"}, 4)
++        await wait_for(lambda: emb.get(target) is not None and emb.get(target).store._conn.execute("SELECT COUNT(*) FROM ingest_queue WHERE status IN ('queued','leased')").fetchone()[0] == 0)
++        await emb.service(target).heartbeat_once()
++        zephyr, quokka = (term_id(org.term_key(tid), x) for x in ("zephyr", "quokka"))
++        before = {r["term"]: r["weight"] for r in db.all("SELECT term, weight FROM term_index WHERE holder_id=?", (target,))}
++        assert zephyr in before and quokka in before
++        # the target goes dormant the way the cap closes an idle holder: consumers stopped, a final heartbeat with its stats, store closed
++        assert await emb._close_dormant(target) and not emb.is_open(target)
++        reg = org.get_holder(target)
++        assert reg["stats"]["dormant"] is True and reg["status"] == "online"
++        assert {r["term"]: r["weight"] for r in db.all("SELECT term, weight FROM term_index WHERE holder_id=?", (target,))} == before      # exactly as last vouched
++        # a question whose rare words only the dormant holder's public records use: it is chosen, woken by the message, and answers
++        jobs = JobQueue(db)
++        ks = KnowledgeService(db, org, authz)
++        qs = QuestionService(db, org, authz, jobs, GoalService(db, org, authz, jobs, heartbeat_seconds=10), ks, transport, question_timeout_seconds=30.0)
++        responses = await collect(transport, Subjects.responses(tid), "response")
++        team = org.list_units(tid)[0]["unit_id"]
++        q = await qs.create(authz.principal_for_system(tid), {"text": "What do we know about the zephyr quokka incident?", "scope_unit_id": team, "budget": {"holders": 1}},
++                            asker_type="loop", asker_id="goal:test", enqueue_route=False)
++        out = await qs.route(q["question_id"])
++        assert out["routed"] == 1 and [r["holder_id"] for r in qs.routes(q["question_id"])] == [target]
++        detail = json.loads(db.one("SELECT detail FROM audit_log WHERE action='question.route' AND resource_id=?", (q["question_id"],))["detail"])
++        assert detail["rank_method"] == "hypergraph" and detail["scores"][target]["term_hits"] >= 2
++        await wait_for(lambda: any(r.payload.get("holder_id") == target for r in responses.items), timeout=10.0)
++        r = next(r.payload for r in responses.items if r.payload.get("holder_id") == target)
++        assert r["status"] == "answered" and "zephyr" in r["content"].lower()
++        await emb.stop()
++    finally:
++        await transport.close()
++
++
++# ---------------------------------------------------------------------------------------------- B1: the ACL disclosure applies at use time
++async def test_publication_follows_the_effective_acl_not_the_ingest_time_visibility(tmp_path):
++    texts = [f"The ledgergate-service shows zanzibar timeouts again ({i})." for i in range(5)]
++    store = await holder_with_sources(tmp_path, [("public", [rec(i + 1, t) for i, t in enumerate(texts)], {})])
++    store.term_key = KEY
++    store.update_policy({"entity_min_records": 1})
++    c = store.store._conn
++    zan = term_id(KEY, "zanzibar")
++
++    def published():
++        out = store._ingest_stats_sync(c)
++        return zan in out["terms"], sorted(e for e in out["entities"] if e.startswith("service:"))
++    assert published() == (True, ["service:ledgergate"])
++    (src,) = [r["source_id"] for r in c.execute("SELECT source_id FROM connector_sources")]
++    states = [("visibility='members'", "the channel turned members-only"), ("exportable=0", "the owner withdrew it from export"), ("disclosure='none'", "its disclosure is none"),
++              ("access_state='lost'", "access to it was lost"), ("selection='excluded'", "it is no longer selected for ingestion")]
++    for change, why in states:
++        undo = {"visibility='members'": "visibility='public'", "exportable=0": "exportable=1", "disclosure='none'": "disclosure=NULL", "access_state='lost'": "access_state='ok'",
++                "selection='excluded'": "selection='included'"}[change]
++        c.execute(f"UPDATE connector_sources SET {change} WHERE source_id=?", (src,))
++        assert published() == (False, []), why                                  # takes effect on the next beat, whatever the term cache holds
++        c.execute(f"UPDATE connector_sources SET {undo} WHERE source_id=?", (src,))
++        assert published() == (True, ["service:ledgergate"]), f"back after: {why}"
++    # the holder's own disclosure none: it answers nothing, it publishes nothing
++    store.update_policy({"entity_min_records": 1, "disclosure": "none"})
++    assert published() == (False, [])
++    # deny patterns keep their words out of the published ids too
++    store.update_policy({"entity_min_records": 1, "disclosure": "excerpt", "deny_patterns": ["zanzibar", "ledgergate"]})
++    out = store._ingest_stats_sync(c)
++    assert zan not in out["terms"] and term_id(KEY, "timeout") in out["terms"] and not any(e.startswith("service:") for e in out["entities"])
++    store.update_policy({"entity_min_records": 1, "disclosure": "excerpt", "deny_patterns": []})
++    assert published() == (True, ["service:ledgergate"])
++
++
++def test_no_server_secret_means_no_term_ids(db):
++    bare = OrgService(db)
++    assert bare.term_key("ten_x") is None and term_ids_in_text("lunar ladder", bare.term_key("ten_x")) == []
++    assert OrgService(db, secret_key="s1").term_key("ten_x") != OrgService(db, secret_key="s2").term_key("ten_x")
++
++
++def test_unit_cover_search_is_bounded_and_stops_at_the_required_count():
++    import time
++    from mycelic.knowledge.gate import CommitGate
++    # 8 roots, each seen in 4 units of its own: the exhaustive minimum would try C(32, k) combinations for k up to 8
++    cands = {f"r{i}": {f"u{i}_{j}" for j in range(4)} for i in range(8)}
++    t0 = time.perf_counter()
++    out = CommitGate._attribute(cands, 2)
++    took = time.perf_counter() - t0
++    assert took < 1.0 and len(out) >= 2 and sorted(r for rs in out.values() for r in rs) == sorted(cands)
++    t0 = time.perf_counter()
++    full = CommitGate._attribute(cands)
++    assert time.perf_counter() - t0 < 2.0 and len(full) == 8 and sorted(r for rs in full.values() for r in rs) == sorted(cands)
++    # a small instance is still solved exactly
++    assert len(CommitGate._attribute({"ra": {"S", "X"}, "rb": {"S", "Y"}}, 2)) == 1
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index c1da49b..8084e46 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -26,3 +26,6 @@
+ {"id": "X025", "utc": "2026-10-09T07:55Z", "kind": "diagnosis", "agent": "orchestrator", "subject": "C1-S1 zero positives", "result": "(1) scoring artifact: public-file entities as plain strings vs option dicts -> each entity counted twice -> every correct claim 'ambiguous' (WP2 generator fix; WP3 scorer canonicalization hardening); (2) routing: at 07:35:37 every holder published a heartbeat REMOVING its domains and rewriting terms, republished 07:35:40; questions routed 07:35:37-39 saw blank domains and no term hits; offline replay on the final DB ranks all 3 gold holders first (terms_matched 3). Not a stale authz cache (REVIEWER-3 probes agree). Root-cause fix assigned to WP1; run.py now waits for two stable heartbeat snapshots", "class": "diagnosis"}
+ {"id": "X026", "utc": "2026-10-09T07:55Z", "kind": "e2e-run", "run": "smoke-cap40 (S, seed 1, dev, --max-open-holders 40)", "agent": "WP2", "result": "informal 87/120 = 0.725 [0.639,0.797] after entities-format fix (first score 42/120 from the artifact); 0 disclosures; 242 s wall; 759 holder opens/718 closes, 592 woken by message; only 49/90 gold holders of cross-domain positives reached", "class": "development, INFORMAL (working tree mid-change; not a candidate)"}
+ {"id": "X027", "utc": "2026-10-09T07:48:11Z", "kind": "ledger-note", "what": "timestamp accuracy", "result": "the utc fields of rows X000-X026 were written by the orchestrator from estimates and can be up to ~10 minutes off (e.g. X023-X026 say 07:55Z; the container clock read ~07:46Z). Commit times in git and run logs are authoritative. From X027 on, utc is read from the container clock."}
++{"id": "X028", "utc": "2026-10-09T07:56:16Z", "kind": "e2e-run", "run": "C2a-M2 (M=1,000 users, seed 2, dev, anchor 2026-10-09T00:00Z) + baselines", "revision": "code snapshot of 56f9832-era HEAD (harness 9d902dd + scorer fix); production = 1b74545", "provider": "deterministic (fake.py)", "host": "cloud container (shared)", "result": "system 120/120 = 1.000 Wilson95 [0.969,1.000]; baseline-source 119/120 = 0.992 [0.954,0.999]; baseline-single 110/120 = 0.917 [0.853,0.954]; 0 disclosures all; gate (G8 policy-aware, re-run) VALID G1-G10; 1,120 holders (265 with content), 1,154 questions routed (hypergraph 815 / domains 339), 11,278 routes, 0 as-of denials; wall 418 s; peak RSS 1.76 GB; 8,924 fake calls", "class": "development (dev split), valid gate; benchmark judged too easy (context phrase unique per pattern) -> popular-rival structure added before freeze"}
++{"id": "X029", "utc": "2026-10-09T07:56:16Z", "kind": "fix", "agent": "WP1 (claude-sonnet-5-5)", "result": "blackout root cause: transport keeps one heartbeat per holder per minute (hb:<holder>:<minute>), the surviving one was the first EMPTY start-up beat; core consumer replayed it at worker start after fresher direct beats -> vouched-empty snapshot retracted every holder for ~3 s. Fix: org.holder_heartbeat ignores snapshots older than the applied one (stats.at). B1: term/entity publication follows the disclosure-time effective ACL; deny_patterns dropped; term_key None without server secret; bounded unit-cover search. Suite 507 passed / 7 skipped", "class": "fix"}
++{"id": "X030", "utc": "2026-10-09T07:56:16Z", "kind": "fix", "agent": "ENGINEER-E (claude-sonnet-5-5)", "result": "REVIEW_E F1-F4: counter() never constant when row missing; close stops consumers before final stats; routing_holders returns copies; raw-SQL second-connection probe in test_scale_equivalence (+ trigger-sensitivity test). Independently confirmed C1 blackout not a cache issue (route-time audit matches true state). Suite 501 passed", "class": "fix"}
+-- 
+2.43.0
+

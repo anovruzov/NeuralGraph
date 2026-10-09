@@ -1,0 +1,42 @@
+From 20ebec7370526708c3722cc4be41ad36f279aba1 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 07:47:05 +0000
+Subject: [PATCH 24/28] Contract: record the pre-freeze decisions C1-C8 and
+ their review sources
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/BENCHMARK_CONTRACT.md | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/research/mycelic_e2e/BENCHMARK_CONTRACT.md b/research/mycelic_e2e/BENCHMARK_CONTRACT.md
+index c6d1839..fe3421e 100644
+--- a/research/mycelic_e2e/BENCHMARK_CONTRACT.md
++++ b/research/mycelic_e2e/BENCHMARK_CONTRACT.md
+@@ -106,6 +106,22 @@ isolation of stores (G2), support/roots consistency incl. hypergraph (G3), audit
+ not published as full-system accuracy. Ablations (routing ranker off, root-aware support off, verification off, entity
+ index off, dedupe off) are separate rows, each tied to the task classes it must break.
+ 
++## 10. Decisions recorded before the freeze (development, 2026-10-09 05:30–08:00 UTC)
++
++These were fixed while the harness was being repaired, before any candidate was frozen and before the holdout was
++generated. Each came from a review finding or an analysis of DEV runs. None came from holdout material.
++
++| # | decision | why |
++|---|---|---|
++| C1 | **Ambiguity rule**: a supported claim that names more than one distinct entity identifies nothing and contributes no option. Entities are canonicalized (`x-service` = `service:x`) and matched only at word boundaries. Same rule for system, baselines and ablations. | REVIEWER-4: claims naming 2–5 services were credited whenever the other services were not options |
++| C2 | **Primary central baseline = `source` variant** (≤3-chunk pseudo-responses grouped by origin holder, ≤30 items). `single` (one response) is reported as secondary. | REVIEWER-4: `single` accretes unrelated chunks into one finding |
++| C3 | **Product export-policy defaults are not overridden by the benchmark.** Entity ids are published only from public records with ≥5 occurrences per holder. Term ids are published from public records only. The benchmark sets neither `entity_include_members` nor `entity_min_records`. | REVIEWER-2's F5/F6 conditions: a lower threshold must be declared, and the benchmark tests the defaults |
++| C4 | **Readiness**: tasks are issued only after two consecutive identical heartbeat snapshots of every holder with content. | The planner's D1 and the C1 diagnosis: questions routed during a heartbeat blackout |
++| C5 | **Size S = 112 users** (2 tenants), so that goal-only tasks get disjoint scopes. | REVIEWER-4 1a |
++| C6 | **Sources are anchored** (`--anchor 2026-10-09T00:00:00+00:00`), so a seed regenerates byte-identical sources. | reproducibility |
++| C7 | **Answer extraction reads only asker-visible views.** `score.py` refuses views without `tenant_id`. Disclosure is judged by authorization reach (`reach_authority.json`, computed from the org with `can_route`, answer-free). | REVIEWER-4 2b/2c |
++| C8 | **The gate is non-vacuous.** G7 cross-checks every scored view against `coord.db`. G4 replays routing as of each route from the audited domain history. G10 derives each injected fault from the sources and requires its evidence. G8 follows the publication policy (§10 C3). | REVIEWER-4 §5 |
++
+ ## 9. Freeze record (filled at freeze)
+ 
+ | item | value |
+-- 
+2.43.0
+

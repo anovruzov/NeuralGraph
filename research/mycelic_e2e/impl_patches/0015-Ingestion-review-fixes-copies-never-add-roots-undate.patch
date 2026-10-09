@@ -1,7 +1,7 @@
 From 82a7a4fa890673c042dbfcd7e767cfc03fe9bff0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 06:36:45 +0000
-Subject: [PATCH 15/23] Ingestion review fixes: copies never add roots, undated
+Subject: [PATCH 15/28] Ingestion review fixes: copies never add roots, undated
  evidence never dates a claim, no input text in rejections
 
 F1 a forward/share link never replaces a record's content root; the origin's object key is exported

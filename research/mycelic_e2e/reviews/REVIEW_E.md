@@ -196,3 +196,45 @@ noticed only by the core watcher, which does not survive a restart. Note only; n
 - **F3:** `org.py:440-455`: return copies, or frozen rows, from `routing_holders`.
 - **F4 (test):** add probe A (raw-SQL writes from a second connection, with a trigger-drop sensitivity check) to
   `test_scale_equivalence.py`.
+
+## Re-review 36a9951 (REVIEWER-3, `claude-opus-5-5`)
+
+I reviewed a fresh `git archive 36a9951` at `$SCR/re2`. **Verdict: ACCEPT.** F1-F4 are fixed, each fix is covered by a test
+that fails when the fix is reverted, and nothing is blocking.
+
+- **Full suite:** `python -m pytest mycelic/tests -q -p no:warnings` gave **507 passed, 7 skipped** (181.76s).
+- **Mutation check:** run in a copy (`$SCR/re2_mut`) against `test_scale_equivalence.py` and `test_embedded_lazy.py`,
+  where the baseline is 21 passed. Reverting each fix makes exactly one new test fail:
+
+| Fix reverted | Failing test |
+|---|---|
+| F1: `return 0` | `test_a_missing_counter_row_never_freezes_a_cache` |
+| F2: stats before stop | `test_closing_stops_the_consumers_before_taking_the_final_stats` |
+| F3: no copy | `test_routing_rows_are_copies_a_caller_cannot_poison` |
+
+**F1, `db/coord.py:94-105`: fixed.**
+- With the counter row or table missing, `counter()` now returns `-1 - (revision * 1_000_003 + data_version())`.
+- That value is never equal to a real counter (it is always ≤ -1). It strictly decreases on every own commit (`revision`)
+  and on every commit by another connection (`data_version`), because both inputs only ever go up.
+- Cross-connection probe (`$SCR/scripts/f1_probe.py`): with the `org` row deleted, three commits by a second `CoordDB` and
+  one own commit gave `[-1000006, -1000007, -1000008, -1000009, -2000012]`, all distinct.
+
+**F2, `holder/embedded.py:491-492`: fixed.**
+- `svc.stop()` now runs before `svc.stats()`.
+- A holder has exactly one subscription (`holder/service.py:108-112`, one wildcard subject).
+- No `await` sits between the idle check under the lifecycle lock (`_evictable(..., holding_lock=True)`) and the
+  `task.cancel()` in `Subscription.close`. So a handler can no longer start between the idle check and the cancellation.
+- Residual, pre-existing, not blocking: if a handler has just returned (`inflight == 0`) but its ack transaction has not
+  yet committed, a close still cancels the ack. The message is then redelivered once. That is at-least-once delivery,
+  never a loss.
+
+**F3, `org.py` `routing_holders(copy=True)`: fixed.** Copies are now the default. The two internal callers use
+`copy=False` and copy whatever they hand on:
+- `inquiry/service.py:377`: `dict(h)` for each routable holder; rejected entries are new dicts;
+- `discovery/engine.py:299/319`: `[dict(h) for h in routable]`.
+
+**F4, `tests/test_scale_equivalence.py`: done.**
+- My raw-SQL probe from a second connection is in the suite (`test_raw_sql_writes_from_another_connection_invalidate_every_cache`).
+- So is its sensitivity counterpart (`test_the_raw_sql_probe_is_sensitive_to_a_missing_trigger`, which drops a trigger
+  and expects a mismatch).
+- Both pass.

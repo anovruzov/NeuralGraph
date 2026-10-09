@@ -1,7 +1,7 @@
 From 93ae752cdd3d2ad3a9c88260dc42b31164fbd6da Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 06:17:11 +0000
-Subject: [PATCH 09/23] Ingestion: traceable rejections, undated-record flag,
+Subject: [PATCH 09/28] Ingestion: traceable rejections, undated-record flag,
  explicit forwards keep their origin root (under review)
 
 D1 holder migration 0004 ingest_rejections: every refused input item gets a content-free
