@@ -1,0 +1,96 @@
+[07:56:35] system run C3-L3 size=L seed=3 rev=36a9951 code=/tmp/claude-0/-home-user-NeuralGraph/cb55ecbb-9144-58cb-a5af-0b006a90960a/scratchpad/code/36a9951
+[07:56:36] world L seed 3 split dev: {'tenants': 2, 'users': 10000, 'units': 684, 'holders': 10648, 'unit_holders': 648, 'projects': 10}  tasks=120 records=3067
+[07:56:43] materialized tenant acme-freight: 5000 users, 342 units, 5324 holders
+[07:56:49] materialized tenant borealis-retail: 5000 users, 342 units, 5324 holders
+[07:56:49] materialized in 12.55s (rss peak 91.8 MB)
+[07:56:50] wrote 529 source files, 3073 raw lines
+[07:56:50] holders: 0 open of 10648 registered, max_open=1500 bounded=True (0.33s, rss peak 97.6 MB)
+[07:56:57]   fed 50/529 sources
+[07:57:03]   fed 100/529 sources
+[07:57:09]   fed 150/529 sources
+[07:57:13]   fed 200/529 sources
+[07:57:21]   fed 250/529 sources
+[07:57:29]   fed 300/529 sources
+[07:57:42]   fed 350/529 sources
+[07:57:51]   fed 400/529 sources
+[07:58:00]   fed 450/529 sources
+[07:58:11]   fed 500/529 sources
+[07:58:16] fed 529 sources in 85.96s: {'raw_items': 3072, 'enqueued': 3059, 'duplicates': 9, 'normalize_errors': 4, 'processed': 3059}; errors=0 []
+[07:58:17] routable domains published by 374/374 holders (1.05s)
+[07:58:21] heartbeats stable: True after 4.08s
+[07:59:51] wave 1/8 done  (89s)
+[08:01:04] wave 2/8 done  (162s)
+[08:02:25] wave 3/8 done  (244s)
+[08:03:40] wave 4/8 done  (319s)
+[08:05:35] wave 5/8 done  (434s)
+[08:06:41] wave 6/8 done  (500s)
+[08:08:12] wave 7/8 done  (590s)
+[08:09:36] wave 8/8 done  (675s)
+[08:09:37] done in 780.71s: views=120 questions={'committed': 95, 'retained_uncertain': 15, 'None': 10} supported_claims=78 tasks_with_supported=78 model_calls=14290 peak_rss=1168.3MB
+[08:09:51] system exit 0
+/tmp/claude-0/-home-user-NeuralGraph/cb55ecbb-9144-58cb-a5af-0b006a90960a/scratchpad/runs/C3-L3/raw_authority.json
+  central store acme-freight: {'tenant': 'acme-freight', 'sources': 270, 'connectors': 270, 'errors': [], 'wall_s': 13.88, 'raw_items': 1540, 'enqueued': 1534, 'duplicates': 2, 'normalize_errors': 4, 'processed': 1534}
+  central store borealis-retail: {'tenant': 'borealis-retail', 'sources': 259, 'connectors': 259, 'errors': [], 'wall_s': 12.9, 'raw_items': 1533, 'enqueued': 1533, 'duplicates': 0, 'normalize_errors': 0, 'processed': 1533}
+{
+  "run_id": "base_0c240bcc58",
+  "variant": "source",
+  "n_tasks": 120,
+  "view_errors": 0,
+  "counts": {
+    "created": 2,
+    "with_records": 2,
+    "activated": 2,
+    "routed": 0
+  },
+  "model_usage": {
+    "calls": 237,
+    "input_tokens": 236860,
+    "output_tokens": 48416,
+    "providers": "fake",
+    "by_purpose": {
+      "classify_domains": 13,
+      "answer_from_evidence": 120,
+      "evaluate_responses": 104
+    }
+  },
+  "timings_s": {
+    "ingest_s": 28.85,
+    "total_s": 327.74
+  }
+}
+[08:15:26] baseline source exit 0
+  central store acme-freight: {'tenant': 'acme-freight', 'sources': 270, 'connectors': 270, 'errors': [], 'wall_s': 9.63, 'raw_items': 1540, 'enqueued': 1534, 'duplicates': 2, 'normalize_errors': 4, 'processed': 1534}
+  central store borealis-retail: {'tenant': 'borealis-retail', 'sources': 259, 'connectors': 259, 'errors': [], 'wall_s': 9.47, 'raw_items': 1533, 'enqueued': 1533, 'duplicates': 0, 'normalize_errors': 0, 'processed': 1533}
+{
+  "run_id": "base_50bf667a03",
+  "variant": "single",
+  "n_tasks": 120,
+  "view_errors": 0,
+  "counts": {
+    "created": 2,
+    "with_records": 2,
+    "activated": 2,
+    "routed": 0
+  },
+  "model_usage": {
+    "calls": 237,
+    "input_tokens": 227412,
+    "output_tokens": 25358,
+    "providers": "fake",
+    "by_purpose": {
+      "classify_domains": 13,
+      "answer_from_evidence": 120,
+      "evaluate_responses": 104
+    }
+  },
+  "timings_s": {
+    "ingest_s": 21.51,
+    "total_s": 326.0
+  }
+}
+[08:20:52] baseline single exit 0
+/tmp/claude-0/-home-user-NeuralGraph/cb55ecbb-9144-58cb-a5af-0b006a90960a/scratchpad/runs/C3-L3/report.md
+[08:21:13] report exit 0
+/tmp/claude-0/-home-user-NeuralGraph/cb55ecbb-9144-58cb-a5af-0b006a90960a/scratchpad/runs/C3-L3-baseline-source/report.md
+/tmp/claude-0/-home-user-NeuralGraph/cb55ecbb-9144-58cb-a5af-0b006a90960a/scratchpad/runs/C3-L3-baseline-single/report.md
+[08:21:18] done

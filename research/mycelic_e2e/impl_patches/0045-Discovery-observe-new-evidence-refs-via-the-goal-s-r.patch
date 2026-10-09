@@ -1,0 +1,204 @@
+From 4c2774416ff8361fbc97231ff558e96c19e92232 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 09:16:04 +0000
+Subject: [PATCH 45/52] Discovery observe: new evidence refs via the goal's
+ responses (json_each) instead of a quadratic LIKE join
+
+observe() joined every evidence_ref against every response with LIKE '%' || ref_id || '%', which scans evidence_refs once per response of the goal on every loop tick. It now drives from the goal's questions and responses and unpacks responses.evidence_ref_ids with json_each, then looks each ref up by primary key (json_valid guard for empty or malformed values).
+Semantics: refs are now DISTINCT (the LIKE join repeated a ref cited by several responses), a ref id that is a substring of another no longer matches by accident, and ORDER BY e.created_at, e.ref_id makes the LIMIT 50 choice stable (the old query had no ORDER BY, so it depended on the query plan).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ mycelic/discovery/engine.py            |   7 +-
+ mycelic/tests/test_observe_new_refs.py | 159 +++++++++++++++++++++++++
+ 2 files changed, 164 insertions(+), 2 deletions(-)
+ create mode 100644 mycelic/tests/test_observe_new_refs.py
+
+diff --git a/mycelic/discovery/engine.py b/mycelic/discovery/engine.py
+index d3cae03..17dbd37 100644
+--- a/mycelic/discovery/engine.py
++++ b/mycelic/discovery/engine.py
+@@ -345,9 +345,12 @@ class LoopEngine:
+         # ``since`` is the start of the previous tick minus a second, compared inclusively: anything committed while that
+         # tick ran (or in the same second) is observed again rather than missed; re-observing is harmless (dedupe, cooldown)
+         since = since or "1970-01-01T00:00:00+00:00"
++        # drive from the goal's own questions and responses and unpack each response's JSON array of ref ids (responses.evidence_ref_ids) so the work
++        # is bounded by this goal's responses; ``json_valid`` keeps an empty or malformed value from raising. ORDER BY makes the LIMIT pick stable
+         new_refs = rows_to_dicts(self.db.all(
+-            "SELECT e.ref_id, e.title, e.holder_id, e.source_root_id FROM evidence_refs e JOIN responses r ON r.evidence_ref_ids LIKE '%' || e.ref_id || '%' "
+-            "JOIN questions q ON q.question_id = r.question_id WHERE q.goal_id=? AND e.created_at >= ? LIMIT 50", (gid, since)))
++            "SELECT DISTINCT e.ref_id, e.title, e.holder_id, e.source_root_id FROM questions q JOIN responses r ON r.question_id = q.question_id "
++            "JOIN json_each(CASE WHEN json_valid(r.evidence_ref_ids) THEN r.evidence_ref_ids ELSE '[]' END) j "
++            "JOIN evidence_refs e ON e.ref_id = j.value WHERE q.goal_id=? AND e.created_at >= ? ORDER BY e.created_at, e.ref_id LIMIT 50", (gid, since)))
+         revised = rows_to_dicts(self.db.all(
+             "SELECT DISTINCT e.ref_id, e.status FROM evidence_refs e JOIN claim_evidence ce ON ce.ref_id=e.ref_id JOIN claims c ON c.claim_id=ce.claim_id "
+             "WHERE c.goal_id=? AND e.status IN ('revised','retracted','unavailable') AND e.updated_at >= ? LIMIT 50", (gid, since)))
+diff --git a/mycelic/tests/test_observe_new_refs.py b/mycelic/tests/test_observe_new_refs.py
+new file mode 100644
+index 0000000..6efb961
+--- /dev/null
++++ b/mycelic/tests/test_observe_new_refs.py
+@@ -0,0 +1,159 @@
++"""``LoopEngine.observe`` finds the evidence references new to a goal through the goal's own responses (json_each over
++``responses.evidence_ref_ids``), not through a LIKE join of every reference against every response.
++
++The old query is kept inline as an oracle: on the same database both must see the same set of references.  The two
++intended differences are checked explicitly: the new query returns each reference once and in a stable order.
++"""
++from __future__ import annotations
++
++import json
++import time
++
++from mycelic.db.coord import rows_to_dicts
++from mycelic.tests import test_loop_engine as T
++from mycelic.util import now_iso, plus_seconds
++
++OLD_SQL = ("SELECT e.ref_id, e.title, e.holder_id, e.source_root_id FROM evidence_refs e JOIN responses r ON r.evidence_ref_ids LIKE '%' || e.ref_id || '%' "
++           "JOIN questions q ON q.question_id = r.question_id WHERE q.goal_id=? AND e.created_at >= ? LIMIT 50")
++
++T0 = "2030-01-01T00:00:00+00:00"
++SINCE = "2030-01-02T00:00:00+00:00"
++
++
++def at(hours: int) -> str:
++    """A fixed timestamp relative to SINCE (negative = before it)."""
++    return f"2030-01-02T{hours:02d}:00:00+00:00" if hours >= 0 else f"2030-01-01T{24 + hours:02d}:00:00+00:00"
++
++
++async def _world(db, org, auth, authz):
++    s = await T.build(db, org, auth, authz)
++    o = await T.seed_org(org, auth, authz, s["transport"])
++    principal = authz.principal_for_user(o["petra"]["user_id"])
++    goals = [await s["goals"].create_goal(principal, {"title": f"g{i}", "objective": "o", "owner_type": "unit", "owner_id": o["region"]["unit_id"]}) for i in range(2)]
++    return s, o, goals
++
++
++def _add_question(db, o, goal_id, qid):
++    db.conn.execute("INSERT INTO questions(question_id, tenant_id, asker_type, asker_id, goal_id, text, kind, status, created_at, updated_at) "
++                    "VALUES (?, ?, 'loop', 'goal:test', ?, 'q?', 'gap', 'committed', ?, ?)", (qid, o["t"], goal_id, now_iso(), now_iso()))
++
++
++def _add_ref(db, o, ref_id, created_at, *, holder="elin"):
++    db.conn.execute("INSERT INTO evidence_refs(ref_id, tenant_id, holder_id, source_root_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
++                    (ref_id, o["t"], o["holders"][holder]["holder_id"], f"root:{ref_id}", f"title {ref_id}", created_at, created_at))
++
++
++def _add_resp(db, o, qid, rid, raw, *, holder="elin"):
++    db.conn.execute("INSERT INTO responses(response_id, tenant_id, question_id, holder_id, status, content, evidence_ref_ids, msg_id, received_at) "
++                    "VALUES (?, ?, ?, ?, 'answered', 'c', ?, ?, ?)", (rid, o["t"], qid, o["holders"][holder]["holder_id"], raw, f"msg:{rid}", now_iso()))
++
++
++def _cols(rows):
++    return {(r["ref_id"], r["title"], r["holder_id"], r["source_root_id"]) for r in rows}
++
++
++async def test_observe_new_refs_matches_the_old_query(db, org, auth, authz):
++    s, o, (ga, gb) = await _world(db, org, auth, authz)
++    A, B = ga["goal_id"], gb["goal_id"]
++    for qid, gid in (("q_a1", A), ("q_a2", A), ("q_b1", B)):
++        _add_question(db, o, gid, qid)
++    # refs of fixed width so that no id is a substring of another (the LIKE join also matches those; see the next test)
++    refs = {"ref_a_old": at(-5), "ref_a_new1": at(1), "ref_a_new2": at(2), "ref_shared": at(3), "ref_b_only": at(4), "ref_b_old": at(-3), "ref_nobody": at(5),
++            "ref_edge_eq": SINCE}                                       # created exactly at ``since``: compared inclusively
++    for ref_id, created in refs.items():
++        _add_ref(db, o, ref_id, created, holder="ana" if ref_id.startswith("ref_b") else "elin")
++    _add_resp(db, o, "q_a1", "r1", json.dumps(["ref_a_old", "ref_a_new1"]))
++    _add_resp(db, o, "q_a1", "r2", json.dumps(["ref_shared", "ref_edge_eq"]))
++    _add_resp(db, o, "q_a2", "r3", json.dumps(["ref_shared", "ref_a_new2"]))             # a ref cited by two responses of the goal
++    _add_resp(db, o, "q_a2", "r4", "[]")                                                  # no evidence
++    _add_resp(db, o, "q_a2", "r5", "")                                                    # empty (not valid JSON)
++    _add_resp(db, o, "q_a2", "r6", "not json {")                                          # malformed: must not raise
++    _add_resp(db, o, "q_b1", "r7", json.dumps(["ref_b_only", "ref_b_old", "ref_shared"]))  # another goal's response (also cites the shared ref)
++    # (responses.evidence_ref_ids is NOT NULL; a NULL would behave like '[]', checked below)
++    assert db.one("SELECT COUNT(*) AS n FROM json_each(CASE WHEN json_valid(NULL) THEN NULL ELSE '[]' END)")["n"] == 0
++
++    for gid, goal in ((A, ga), (B, gb)):
++        for since in (SINCE, T0, None):
++            new = s["engine"].observe(goal, since)["new_evidence"]
++            old = rows_to_dicts(db.all(OLD_SQL, (gid, since or "1970-01-01T00:00:00+00:00")))
++            assert _cols(new) == _cols(old), (gid, since)
++            ids = [r["ref_id"] for r in new]
++            assert len(ids) == len(set(ids))                                                # each reference once
++            assert ids == [r["ref_id"] for r in sorted(new, key=lambda r: (refs[r["ref_id"]], r["ref_id"]))]   # created_at, ref_id order
++    # goal A at ``since``: its own refs after the cutoff, the shared one once, nothing from goal B, nothing uncited, nothing before
++    got = [r["ref_id"] for r in s["engine"].observe(ga, SINCE)["new_evidence"]]
++    assert got == ["ref_edge_eq", "ref_a_new1", "ref_a_new2", "ref_shared"]
++    assert "ref_b_only" not in got and "ref_nobody" not in got and "ref_a_old" not in got
++    old_ids = [r["ref_id"] for r in db.all(OLD_SQL, (A, SINCE))]
++    assert old_ids.count("ref_shared") == 2 and len(old_ids) == 5                           # the LIKE join repeated it per citing response
++    assert [r["ref_id"] for r in s["engine"].observe(gb, SINCE)["new_evidence"]] == ["ref_shared", "ref_b_only"]
++    # a goal with no questions observes nothing
++    assert s["engine"].observe({**ga, "goal_id": "goal_none"}, None)["new_evidence"] == []
++
++
++async def test_observe_new_refs_is_exact_where_like_matched_substrings(db, org, auth, authz):
++    """The LIKE join matched ``ref_1`` inside a response citing only ``ref_10``; the JSON array lookup does not."""
++    s, o, (ga, _gb) = await _world(db, org, auth, authz)
++    _add_question(db, o, ga["goal_id"], "q_sub")
++    _add_ref(db, o, "ref_1", at(1))
++    _add_ref(db, o, "ref_10", at(2))
++    _add_resp(db, o, "q_sub", "r_sub", json.dumps(["ref_10"]))
++    assert {r["ref_id"] for r in db.all(OLD_SQL, (ga["goal_id"], SINCE))} == {"ref_1", "ref_10"}       # the old query's false positive
++    assert [r["ref_id"] for r in s["engine"].observe(ga, SINCE)["new_evidence"]] == ["ref_10"]
++
++
++async def test_observe_new_refs_limit_is_stable(db, org, auth, authz):
++    """With more than 50 new refs the LIMIT keeps the 50 oldest (created_at, ref_id), independent of the query plan."""
++    s, o, (ga, _gb) = await _world(db, org, auth, authz)
++    _add_question(db, o, ga["goal_id"], "q_many")
++    ids = [f"ref_{i:03d}" for i in range(60)]
++    for ref_id in reversed(ids):                                                            # inserted newest first; ref_000 is the oldest
++        _add_ref(db, o, ref_id, f"2030-01-03T00:{int(ref_id[4:]):02d}:00+00:00")
++    _add_resp(db, o, "q_many", "r_many", json.dumps(ids))
++    for _ in range(2):
++        got = [r["ref_id"] for r in s["engine"].observe(ga, SINCE)["new_evidence"]]
++        assert got == ids[:50]
++
++
++async def test_observe_new_refs_micro_benchmark(db, org, auth, authz):
++    """A few thousand refs and responses: the new query is bounded by the goal's responses, the old one by refs x responses."""
++    s, o, goals = await _world(db, org, auth, authz)
++    n_per_goal, holder = 1500, o["holders"]["elin"]["holder_id"]
++    refs, resps = [], []
++    for gi, g in enumerate(goals):
++        qid = f"q_bench_{gi}"
++        _add_question(db, o, g["goal_id"], qid)
++        for i in range(n_per_goal):
++            ref_id = f"ref_g{gi}_{i:05d}"
++            # created_at rises with i; only the last 20 of each goal are at or after SINCE, so the old query cannot stop early at LIMIT 50
++            created = at(-12) if i < n_per_goal - 20 else at(1)
++            refs.append((ref_id, o["t"], holder, f"root:{ref_id}", f"title {ref_id}", created, created))
++            resps.append((f"resp_g{gi}_{i}", o["t"], qid, holder, json.dumps([ref_id]), f"msg:bench:{gi}:{i}", now_iso()))
++    db.conn.execute("BEGIN")
++    db.conn.executemany("INSERT INTO evidence_refs(ref_id, tenant_id, holder_id, source_root_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", refs)
++    db.conn.executemany("INSERT INTO responses(response_id, tenant_id, question_id, holder_id, status, content, evidence_ref_ids, msg_id, received_at) "
++                        "VALUES (?, ?, ?, ?, 'answered', 'c', ?, ?, ?)", resps)
++    db.conn.execute("COMMIT")
++    goal = goals[0]
++
++    def best(fn, reps=3):
++        out = []
++        for _ in range(reps):
++            t = time.perf_counter()
++            fn()
++            out.append(time.perf_counter() - t)
++        return min(out)
++
++    new_rows = s["engine"].observe(goal, SINCE)["new_evidence"]
++    old_rows = rows_to_dicts(db.all(OLD_SQL, (goal["goal_id"], SINCE)))
++    assert _cols(new_rows) == _cols(old_rows) and len(new_rows) == 20
++    t_new = best(lambda: s["engine"].observe(goal, SINCE))
++    t_old = best(lambda: db.all(OLD_SQL, (goal["goal_id"], SINCE)))
++    print(f"\nobserve new_refs, {2 * n_per_goal} refs / {2 * n_per_goal} responses: old LIKE join {t_old * 1000:.1f} ms, new json_each {t_new * 1000:.1f} ms "
++          f"(observe() as a whole, so this includes its other queries), ratio {t_old / max(t_new, 1e-9):.0f}x")
++    t_query = best(lambda: db.all(
++        "SELECT DISTINCT e.ref_id, e.title, e.holder_id, e.source_root_id FROM questions q JOIN responses r ON r.question_id = q.question_id "
++        "JOIN json_each(CASE WHEN json_valid(r.evidence_ref_ids) THEN r.evidence_ref_ids ELSE '[]' END) j "
++        "JOIN evidence_refs e ON e.ref_id = j.value WHERE q.goal_id=? AND e.created_at >= ? ORDER BY e.created_at, e.ref_id LIMIT 50", (goal["goal_id"], SINCE)))
++    print(f"new query alone: {t_query * 1000:.1f} ms vs old {t_old * 1000:.1f} ms")
++    assert t_query < t_old
+-- 
+2.43.0
+

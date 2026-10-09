@@ -1,7 +1,7 @@
 From 02c05d4ee249a23666a204680201a8f820add7de Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 08:49:44 +0000
-Subject: [PATCH 38/43] Holdout guard enforced by run.py and the central
+Subject: [PATCH 38/52] Holdout guard enforced by run.py and the central
  baseline (one shot per candidate, snapshot must match HEAD)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

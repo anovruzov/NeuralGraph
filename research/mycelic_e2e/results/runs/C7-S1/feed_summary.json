@@ -1,0 +1,2378 @@
+{
+ "totals": {
+  "raw_items": 1572,
+  "enqueued": 1549,
+  "duplicates": 19,
+  "normalize_errors": 4,
+  "processed": 1549
+ },
+ "errors": [],
+ "sources": [
+  {
+   "file": "h-t0-d0__s0.jsonl",
+   "holder_key": "h-t0-d0",
+   "connector_id": "con_c57d33de43654015ac0d",
+   "totals": {
+    "raw_items": 29,
+    "enqueued": 29,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 29
+   },
+   "wall_s": 0.578
+  },
+  {
+   "file": "h-t0-d0-tm0__s0.jsonl",
+   "holder_key": "h-t0-d0-tm0",
+   "connector_id": "con_03d3e72b0269415da9aa",
+   "totals": {
+    "raw_items": 19,
+    "enqueued": 19,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 19
+   },
+   "wall_s": 0.577
+  },
+  {
+   "file": "h-t0-d0-tm1__s0.jsonl",
+   "holder_key": "h-t0-d0-tm1",
+   "connector_id": "con_9fae7c47465c4c8e9e1f",
+   "totals": {
+    "raw_items": 13,
+    "enqueued": 13,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 13
+   },
+   "wall_s": 0.576
+  },
+  {
+   "file": "h-t0-d1__s0.jsonl",
+   "holder_key": "h-t0-d1",
+   "connector_id": "con_b018934ee7e7475a8cae",
+   "totals": {
+    "raw_items": 26,
+    "enqueued": 25,
+    "duplicates": 1,
+    "normalize_errors": 0,
+    "processed": 25
+   },
+   "wall_s": 0.576
+  },
+  {
+   "file": "h-t0-d1-tm0__s0.jsonl",
+   "holder_key": "h-t0-d1-tm0",
+   "connector_id": "con_ef87ea8f9206461d8363",
+   "totals": {
+    "raw_items": 15,
+    "enqueued": 15,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 15
+   },
+   "wall_s": 0.575
+  },
+  {
+   "file": "h-t0-d1-tm1__s0.jsonl",
+   "holder_key": "h-t0-d1-tm1",
+   "connector_id": "con_4bbd5ec3dac44be99693",
+   "totals": {
+    "raw_items": 8,
+    "enqueued": 8,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 8
+   },
+   "wall_s": 0.625
+  },
+  {
+   "file": "h-t0-d2__s0.jsonl",
+   "holder_key": "h-t0-d2",
+   "connector_id": "con_0eaff6d37bbb4b25b469",
+   "totals": {
+    "raw_items": 25,
+    "enqueued": 25,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 25
+   },
+   "wall_s": 0.556
+  },
+  {
+   "file": "h-t0-d2-tm0__s0.jsonl",
+   "holder_key": "h-t0-d2-tm0",
+   "connector_id": "con_b2fbf5f3130a442283e7",
+   "totals": {
+    "raw_items": 19,
+    "enqueued": 15,
+    "duplicates": 0,
+    "normalize_errors": 4,
+    "processed": 15
+   },
+   "wall_s": 0.555
+  },
+  {
+   "file": "h-t0-d2-tm1__s0.jsonl",
+   "holder_key": "h-t0-d2-tm1",
+   "connector_id": "con_f106ececb6544532a76e",
+   "totals": {
+    "raw_items": 14,
+    "enqueued": 14,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 14
+   },
+   "wall_s": 0.555
+  },
+  {
+   "file": "h-t0-d3__s0.jsonl",
+   "holder_key": "h-t0-d3",
+   "connector_id": "con_6497450211cd4bebb34b",
+   "totals": {
+    "raw_items": 29,
+    "enqueued": 29,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 29
+   },
+   "wall_s": 0.554
+  },
+  {
+   "file": "h-t0-d3-tm0__s0.jsonl",
+   "holder_key": "h-t0-d3-tm0",
+   "connector_id": "con_a88acc5bbfb54c119c47",
+   "totals": {
+    "raw_items": 16,
+    "enqueued": 16,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 16
+   },
+   "wall_s": 0.557
+  },
+  {
+   "file": "h-t0-d3-tm1__s0.jsonl",
+   "holder_key": "h-t0-d3-tm1",
+   "connector_id": "con_9b2e43b5f99c495a990b",
+   "totals": {
+    "raw_items": 20,
+    "enqueued": 19,
+    "duplicates": 1,
+    "normalize_errors": 0,
+    "processed": 19
+   },
+   "wall_s": 0.604
+  },
+  {
+   "file": "h-t0-u00000__s0.jsonl",
+   "holder_key": "h-t0-u00000",
+   "connector_id": "con_dd7b0a2974b8475c92da",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.172
+  },
+  {
+   "file": "h-t0-u00001__s0.jsonl",
+   "holder_key": "h-t0-u00001",
+   "connector_id": "con_5f1afbba4ceb46f2b8ef",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.172
+  },
+  {
+   "file": "h-t0-u00002__s0.jsonl",
+   "holder_key": "h-t0-u00002",
+   "connector_id": "con_55b6f6b3065c4270964c",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.188
+  },
+  {
+   "file": "h-t0-u00003__s0.jsonl",
+   "holder_key": "h-t0-u00003",
+   "connector_id": "con_63798db8be53411281fe",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.206
+  },
+  {
+   "file": "h-t0-u00004__s0.jsonl",
+   "holder_key": "h-t0-u00004",
+   "connector_id": "con_a88f66b5130c4281b637",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.126
+  },
+  {
+   "file": "h-t0-u00005__s0.jsonl",
+   "holder_key": "h-t0-u00005",
+   "connector_id": "con_466299456db2454484a2",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.136
+  },
+  {
+   "file": "h-t0-u00006__s0.jsonl",
+   "holder_key": "h-t0-u00006",
+   "connector_id": "con_e18c8569360d40ea9cf9",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.186
+  },
+  {
+   "file": "h-t0-u00007__s0.jsonl",
+   "holder_key": "h-t0-u00007",
+   "connector_id": "con_f040ac27878146f192d8",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.188
+  },
+  {
+   "file": "h-t0-u00008__s0.jsonl",
+   "holder_key": "h-t0-u00008",
+   "connector_id": "con_ba65972c03014e08a22b",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.171
+  },
+  {
+   "file": "h-t0-u00008__s1.jsonl",
+   "holder_key": "h-t0-u00008",
+   "connector_id": "con_5fc2b2a5cc1f4cd9ad19",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.233
+  },
+  {
+   "file": "h-t0-u00009__s0.jsonl",
+   "holder_key": "h-t0-u00009",
+   "connector_id": "con_14e746b220b04c6e90d9",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.214
+  },
+  {
+   "file": "h-t0-u00010__s0.jsonl",
+   "holder_key": "h-t0-u00010",
+   "connector_id": "con_9a280476bc4043aa91fd",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.281
+  },
+  {
+   "file": "h-t0-u00010__s1.jsonl",
+   "holder_key": "h-t0-u00010",
+   "connector_id": "con_1937825acc1f4e12ad73",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.331
+  },
+  {
+   "file": "h-t0-u00011__s0.jsonl",
+   "holder_key": "h-t0-u00011",
+   "connector_id": "con_5e56c483f2924cc4b004",
+   "totals": {
+    "raw_items": 13,
+    "enqueued": 13,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 13
+   },
+   "wall_s": 0.27
+  },
+  {
+   "file": "h-t0-u00012__s0.jsonl",
+   "holder_key": "h-t0-u00012",
+   "connector_id": "con_9d248f3212f04e38bbbb",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.275
+  },
+  {
+   "file": "h-t0-u00012__s1.jsonl",
+   "holder_key": "h-t0-u00012",
+   "connector_id": "con_31eb9a669ee249629a04",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.255
+  },
+  {
+   "file": "h-t0-u00013__s0.jsonl",
+   "holder_key": "h-t0-u00013",
+   "connector_id": "con_37ea4dc0bc074dfaa96a",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.26
+  },
+  {
+   "file": "h-t0-u00014__s0.jsonl",
+   "holder_key": "h-t0-u00014",
+   "connector_id": "con_84f9491a3fb245b59aa3",
+   "totals": {
+    "raw_items": 13,
+    "enqueued": 13,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 13
+   },
+   "wall_s": 0.33
+  },
+  {
+   "file": "h-t0-u00015__s0.jsonl",
+   "holder_key": "h-t0-u00015",
+   "connector_id": "con_e58cafa2e75a42b5848d",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.624
+  },
+  {
+   "file": "h-t0-u00016__s0.jsonl",
+   "holder_key": "h-t0-u00016",
+   "connector_id": "con_d6d8178ae9b84a7b9e94",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.701
+  },
+  {
+   "file": "h-t0-u00017__s0.jsonl",
+   "holder_key": "h-t0-u00017",
+   "connector_id": "con_bfba9e15262a48fd8948",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.651
+  },
+  {
+   "file": "h-t0-u00017__s1.jsonl",
+   "holder_key": "h-t0-u00017",
+   "connector_id": "con_f2b23a6cd3dc4a1dbf54",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.715
+  },
+  {
+   "file": "h-t0-u00018__s0.jsonl",
+   "holder_key": "h-t0-u00018",
+   "connector_id": "con_3abcb66de2634d448897",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.588
+  },
+  {
+   "file": "h-t0-u00019__s0.jsonl",
+   "holder_key": "h-t0-u00019",
+   "connector_id": "con_805073d8ef16424786ff",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.627
+  },
+  {
+   "file": "h-t0-u00020__s0.jsonl",
+   "holder_key": "h-t0-u00020",
+   "connector_id": "con_742046fcc3b249668474",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.218
+  },
+  {
+   "file": "h-t0-u00020__s1.jsonl",
+   "holder_key": "h-t0-u00020",
+   "connector_id": "con_d83751a65f08498a9975",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.291
+  },
+  {
+   "file": "h-t0-u00021__s0.jsonl",
+   "holder_key": "h-t0-u00021",
+   "connector_id": "con_158d24e458c34b098046",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.217
+  },
+  {
+   "file": "h-t0-u00021__s1.jsonl",
+   "holder_key": "h-t0-u00021",
+   "connector_id": "con_07e37d1800c2466295fd",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.226
+  },
+  {
+   "file": "h-t0-u00022__s0.jsonl",
+   "holder_key": "h-t0-u00022",
+   "connector_id": "con_805401b417294eb5bcd6",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.221
+  },
+  {
+   "file": "h-t0-u00022__s1.jsonl",
+   "holder_key": "h-t0-u00022",
+   "connector_id": "con_b1408b0e682c4eab890f",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.229
+  },
+  {
+   "file": "h-t0-u00023__s0.jsonl",
+   "holder_key": "h-t0-u00023",
+   "connector_id": "con_26b1403954a848b085da",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.24
+  },
+  {
+   "file": "h-t0-u00024__s0.jsonl",
+   "holder_key": "h-t0-u00024",
+   "connector_id": "con_fad8d8690729493285c4",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.312
+  },
+  {
+   "file": "h-t0-u00025__s0.jsonl",
+   "holder_key": "h-t0-u00025",
+   "connector_id": "con_e88c0caf1a2f4384839a",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.311
+  },
+  {
+   "file": "h-t0-u00026__s0.jsonl",
+   "holder_key": "h-t0-u00026",
+   "connector_id": "con_e9f52a1d180042d3bdff",
+   "totals": {
+    "raw_items": 12,
+    "enqueued": 12,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 12
+   },
+   "wall_s": 0.305
+  },
+  {
+   "file": "h-t0-u00026__s1.jsonl",
+   "holder_key": "h-t0-u00026",
+   "connector_id": "con_7fec056491bb415bb2f0",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.368
+  },
+  {
+   "file": "h-t0-u00027__s0.jsonl",
+   "holder_key": "h-t0-u00027",
+   "connector_id": "con_06228cd0bd714f269a00",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.361
+  },
+  {
+   "file": "h-t0-u00028__s0.jsonl",
+   "holder_key": "h-t0-u00028",
+   "connector_id": "con_56ca3a7130324e97845a",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.335
+  },
+  {
+   "file": "h-t0-u00029__s0.jsonl",
+   "holder_key": "h-t0-u00029",
+   "connector_id": "con_9d69bedb7f9848caae8d",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.276
+  },
+  {
+   "file": "h-t0-u00029__s1.jsonl",
+   "holder_key": "h-t0-u00029",
+   "connector_id": "con_66a05f5326d54cceb1cc",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.304
+  },
+  {
+   "file": "h-t0-u00030__s0.jsonl",
+   "holder_key": "h-t0-u00030",
+   "connector_id": "con_0f3a027a013642cab987",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.223
+  },
+  {
+   "file": "h-t0-u00030__s1.jsonl",
+   "holder_key": "h-t0-u00030",
+   "connector_id": "con_f3ffa942d8f647d3a6b2",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.3
+  },
+  {
+   "file": "h-t0-u00031__s0.jsonl",
+   "holder_key": "h-t0-u00031",
+   "connector_id": "con_3c013c4c13f34b288f44",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.299
+  },
+  {
+   "file": "h-t0-u00031__s1.jsonl",
+   "holder_key": "h-t0-u00031",
+   "connector_id": "con_750a6947d4a84aeda369",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.231
+  },
+  {
+   "file": "h-t0-u00032__s0.jsonl",
+   "holder_key": "h-t0-u00032",
+   "connector_id": "con_87ebefd9fe7743f0b1d0",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.291
+  },
+  {
+   "file": "h-t0-u00032__s1.jsonl",
+   "holder_key": "h-t0-u00032",
+   "connector_id": "con_a7cde220b0d4420bbc05",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.347
+  },
+  {
+   "file": "h-t0-u00033__s0.jsonl",
+   "holder_key": "h-t0-u00033",
+   "connector_id": "con_9b218fc656fb433e8a6e",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.282
+  },
+  {
+   "file": "h-t0-u00034__s0.jsonl",
+   "holder_key": "h-t0-u00034",
+   "connector_id": "con_038d111441ef4e299b61",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.336
+  },
+  {
+   "file": "h-t0-u00035__s0.jsonl",
+   "holder_key": "h-t0-u00035",
+   "connector_id": "con_3587df5d2c5646ebb561",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.34
+  },
+  {
+   "file": "h-t0-u00036__s0.jsonl",
+   "holder_key": "h-t0-u00036",
+   "connector_id": "con_a80f248c4fcf4f2eb135",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.29
+  },
+  {
+   "file": "h-t0-u00037__s0.jsonl",
+   "holder_key": "h-t0-u00037",
+   "connector_id": "con_02314e69e0bd43d9864b",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.221
+  },
+  {
+   "file": "h-t0-u00038__s0.jsonl",
+   "holder_key": "h-t0-u00038",
+   "connector_id": "con_6f181ab0398c49548642",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.424
+  },
+  {
+   "file": "h-t0-u00039__s0.jsonl",
+   "holder_key": "h-t0-u00039",
+   "connector_id": "con_54516f6660e240a4bb81",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.519
+  },
+  {
+   "file": "h-t0-u00039__s1.jsonl",
+   "holder_key": "h-t0-u00039",
+   "connector_id": "con_064176eeef264781b4ec",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.609
+  },
+  {
+   "file": "h-t0-u00040__s0.jsonl",
+   "holder_key": "h-t0-u00040",
+   "connector_id": "con_840f0851378f441790da",
+   "totals": {
+    "raw_items": 13,
+    "enqueued": 13,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 13
+   },
+   "wall_s": 0.588
+  },
+  {
+   "file": "h-t0-u00041__s0.jsonl",
+   "holder_key": "h-t0-u00041",
+   "connector_id": "con_2ea145af20f546bd9bc3",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.508
+  },
+  {
+   "file": "h-t0-u00042__s0.jsonl",
+   "holder_key": "h-t0-u00042",
+   "connector_id": "con_51dedf4011ba4ff28df2",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.511
+  },
+  {
+   "file": "h-t0-u00043__s0.jsonl",
+   "holder_key": "h-t0-u00043",
+   "connector_id": "con_b10942771526490c8c6e",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.384
+  },
+  {
+   "file": "h-t0-u00043__s1.jsonl",
+   "holder_key": "h-t0-u00043",
+   "connector_id": "con_d4a85d8a725e45448cc3",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.322
+  },
+  {
+   "file": "h-t0-u00044__s0.jsonl",
+   "holder_key": "h-t0-u00044",
+   "connector_id": "con_66413d3d969942f2a6c1",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.301
+  },
+  {
+   "file": "h-t0-u00044__s1.jsonl",
+   "holder_key": "h-t0-u00044",
+   "connector_id": "con_abf4b79a1f774d9892be",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.305
+  },
+  {
+   "file": "h-t0-u00045__s0.jsonl",
+   "holder_key": "h-t0-u00045",
+   "connector_id": "con_a828b19fbd304c41b54c",
+   "totals": {
+    "raw_items": 15,
+    "enqueued": 15,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 15
+   },
+   "wall_s": 0.266
+  },
+  {
+   "file": "h-t0-u00045__s1.jsonl",
+   "holder_key": "h-t0-u00045",
+   "connector_id": "con_eb96ff78588c47d3bf03",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.35
+  },
+  {
+   "file": "h-t0-u00046__s0.jsonl",
+   "holder_key": "h-t0-u00046",
+   "connector_id": "con_bc0f5321535f4e3391b4",
+   "totals": {
+    "raw_items": 12,
+    "enqueued": 12,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 12
+   },
+   "wall_s": 0.204
+  },
+  {
+   "file": "h-t0-u00046__s1.jsonl",
+   "holder_key": "h-t0-u00046",
+   "connector_id": "con_4655b26ae10f4581a75f",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.277
+  },
+  {
+   "file": "h-t0-u00047__s0.jsonl",
+   "holder_key": "h-t0-u00047",
+   "connector_id": "con_65e34fc9921447dfaa1f",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.274
+  },
+  {
+   "file": "h-t0-u00047__s1.jsonl",
+   "holder_key": "h-t0-u00047",
+   "connector_id": "con_a1a41662b9f54af8bb0b",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.295
+  },
+  {
+   "file": "h-t0-u00048__s0.jsonl",
+   "holder_key": "h-t0-u00048",
+   "connector_id": "con_fb13d1b97325407f8378",
+   "totals": {
+    "raw_items": 0,
+    "enqueued": 0,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 0
+   },
+   "wall_s": 0.473
+  },
+  {
+   "file": "h-t0-u00049__s0.jsonl",
+   "holder_key": "h-t0-u00049",
+   "connector_id": "con_3a0539e6a6e84f4f9c8b",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.247
+  },
+  {
+   "file": "h-t0-u00049__s1.jsonl",
+   "holder_key": "h-t0-u00049",
+   "connector_id": "con_d3201419a3c44578b2e8",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.316
+  },
+  {
+   "file": "h-t0-u00050__s0.jsonl",
+   "holder_key": "h-t0-u00050",
+   "connector_id": "con_55fba983427e4498b393",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.375
+  },
+  {
+   "file": "h-t0-u00051__s0.jsonl",
+   "holder_key": "h-t0-u00051",
+   "connector_id": "con_70cee52cc14a41468ba9",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.375
+  },
+  {
+   "file": "h-t0-u00052__s0.jsonl",
+   "holder_key": "h-t0-u00052",
+   "connector_id": "con_4aec3a2f642644aaae0c",
+   "totals": {
+    "raw_items": 15,
+    "enqueued": 15,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 15
+   },
+   "wall_s": 0.367
+  },
+  {
+   "file": "h-t0-u00052__s1.jsonl",
+   "holder_key": "h-t0-u00052",
+   "connector_id": "con_f397bf9b03904039b83e",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.32
+  },
+  {
+   "file": "h-t0-u00053__s0.jsonl",
+   "holder_key": "h-t0-u00053",
+   "connector_id": "con_c7a07b5e8b51408b9bff",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.296
+  },
+  {
+   "file": "h-t0-u00054__s0.jsonl",
+   "holder_key": "h-t0-u00054",
+   "connector_id": "con_18e10eb8a290451fba9f",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.443
+  },
+  {
+   "file": "h-t0-u00055__s0.jsonl",
+   "holder_key": "h-t0-u00055",
+   "connector_id": "con_8f03bd698f7e43a79919",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.364
+  },
+  {
+   "file": "h-t1-d0__s0.jsonl",
+   "holder_key": "h-t1-d0",
+   "connector_id": "con_c505cc2ed22a40749bbc",
+   "totals": {
+    "raw_items": 32,
+    "enqueued": 32,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 32
+   },
+   "wall_s": 0.439
+  },
+  {
+   "file": "h-t1-d0-tm0__s0.jsonl",
+   "holder_key": "h-t1-d0-tm0",
+   "connector_id": "con_cae278ebf08c45648f74",
+   "totals": {
+    "raw_items": 17,
+    "enqueued": 17,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 17
+   },
+   "wall_s": 0.441
+  },
+  {
+   "file": "h-t1-d0-tm1__s0.jsonl",
+   "holder_key": "h-t1-d0-tm1",
+   "connector_id": "con_5cceaf81d7ac4349b74e",
+   "totals": {
+    "raw_items": 36,
+    "enqueued": 19,
+    "duplicates": 17,
+    "normalize_errors": 0,
+    "processed": 19
+   },
+   "wall_s": 1.444
+  },
+  {
+   "file": "h-t1-d1__s0.jsonl",
+   "holder_key": "h-t1-d1",
+   "connector_id": "con_80cf679a6a0940559f23",
+   "totals": {
+    "raw_items": 32,
+    "enqueued": 32,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 32
+   },
+   "wall_s": 0.494
+  },
+  {
+   "file": "h-t1-d1-tm0__s0.jsonl",
+   "holder_key": "h-t1-d1-tm0",
+   "connector_id": "con_b87aa283b6024dcba3c2",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 1.011
+  },
+  {
+   "file": "h-t1-d1-tm1__s0.jsonl",
+   "holder_key": "h-t1-d1-tm1",
+   "connector_id": "con_aa0bd5e04d6d4e60991b",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.634
+  },
+  {
+   "file": "h-t1-d2__s0.jsonl",
+   "holder_key": "h-t1-d2",
+   "connector_id": "con_4a062b833d514e9b86ff",
+   "totals": {
+    "raw_items": 33,
+    "enqueued": 33,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 33
+   },
+   "wall_s": 0.666
+  },
+  {
+   "file": "h-t1-d2-tm0__s0.jsonl",
+   "holder_key": "h-t1-d2-tm0",
+   "connector_id": "con_7a02f0a6a4a645399ca9",
+   "totals": {
+    "raw_items": 8,
+    "enqueued": 8,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 8
+   },
+   "wall_s": 0.842
+  },
+  {
+   "file": "h-t1-d2-tm1__s0.jsonl",
+   "holder_key": "h-t1-d2-tm1",
+   "connector_id": "con_4c19ee7b09134d84be00",
+   "totals": {
+    "raw_items": 17,
+    "enqueued": 17,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 17
+   },
+   "wall_s": 0.564
+  },
+  {
+   "file": "h-t1-d3__s0.jsonl",
+   "holder_key": "h-t1-d3",
+   "connector_id": "con_ccbda65b9f4e48dabcf6",
+   "totals": {
+    "raw_items": 22,
+    "enqueued": 22,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 22
+   },
+   "wall_s": 0.651
+  },
+  {
+   "file": "h-t1-d3-tm0__s0.jsonl",
+   "holder_key": "h-t1-d3-tm0",
+   "connector_id": "con_bc519a0c602640e8965a",
+   "totals": {
+    "raw_items": 14,
+    "enqueued": 14,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 14
+   },
+   "wall_s": 0.472
+  },
+  {
+   "file": "h-t1-d3-tm1__s0.jsonl",
+   "holder_key": "h-t1-d3-tm1",
+   "connector_id": "con_8365c1a3eb844a2baecd",
+   "totals": {
+    "raw_items": 14,
+    "enqueued": 14,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 14
+   },
+   "wall_s": 0.47
+  },
+  {
+   "file": "h-t1-u00000__s0.jsonl",
+   "holder_key": "h-t1-u00000",
+   "connector_id": "con_1c64c91fff5e434394d3",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.457
+  },
+  {
+   "file": "h-t1-u00001__s0.jsonl",
+   "holder_key": "h-t1-u00001",
+   "connector_id": "con_4227d58f8cb746458b3c",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.298
+  },
+  {
+   "file": "h-t1-u00002__s0.jsonl",
+   "holder_key": "h-t1-u00002",
+   "connector_id": "con_f4ec09a994a74c86a232",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.142
+  },
+  {
+   "file": "h-t1-u00003__s0.jsonl",
+   "holder_key": "h-t1-u00003",
+   "connector_id": "con_9cea228c3df74fa19d1e",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.162
+  },
+  {
+   "file": "h-t1-u00004__s0.jsonl",
+   "holder_key": "h-t1-u00004",
+   "connector_id": "con_34773a06483144fdaecd",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.157
+  },
+  {
+   "file": "h-t1-u00005__s0.jsonl",
+   "holder_key": "h-t1-u00005",
+   "connector_id": "con_e8dcba2e191d43b9a269",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.184
+  },
+  {
+   "file": "h-t1-u00006__s0.jsonl",
+   "holder_key": "h-t1-u00006",
+   "connector_id": "con_33ff1d9e19754d75afa8",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.152
+  },
+  {
+   "file": "h-t1-u00007__s0.jsonl",
+   "holder_key": "h-t1-u00007",
+   "connector_id": "con_8f4f273ad3814bae8efb",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.149
+  },
+  {
+   "file": "h-t1-u00008__s0.jsonl",
+   "holder_key": "h-t1-u00008",
+   "connector_id": "con_c601061e7ed2491a90db",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.204
+  },
+  {
+   "file": "h-t1-u00008__s1.jsonl",
+   "holder_key": "h-t1-u00008",
+   "connector_id": "con_e0f6ad4c37d64d098e25",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.219
+  },
+  {
+   "file": "h-t1-u00009__s0.jsonl",
+   "holder_key": "h-t1-u00009",
+   "connector_id": "con_353b9cd670de4b8582bb",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.187
+  },
+  {
+   "file": "h-t1-u00009__s1.jsonl",
+   "holder_key": "h-t1-u00009",
+   "connector_id": "con_3ad197f990c94df3ab06",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.191
+  },
+  {
+   "file": "h-t1-u00010__s0.jsonl",
+   "holder_key": "h-t1-u00010",
+   "connector_id": "con_51706ca9a207407e878b",
+   "totals": {
+    "raw_items": 32,
+    "enqueued": 32,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 32
+   },
+   "wall_s": 0.305
+  },
+  {
+   "file": "h-t1-u00010__s1.jsonl",
+   "holder_key": "h-t1-u00010",
+   "connector_id": "con_096fa0d9fbc24effab25",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.243
+  },
+  {
+   "file": "h-t1-u00011__s0.jsonl",
+   "holder_key": "h-t1-u00011",
+   "connector_id": "con_7522883dabe54642bf78",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.244
+  },
+  {
+   "file": "h-t1-u00011__s1.jsonl",
+   "holder_key": "h-t1-u00011",
+   "connector_id": "con_822ce2505258483f81e7",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.363
+  },
+  {
+   "file": "h-t1-u00012__s0.jsonl",
+   "holder_key": "h-t1-u00012",
+   "connector_id": "con_14bcbcf36d98487892c1",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.358
+  },
+  {
+   "file": "h-t1-u00013__s0.jsonl",
+   "holder_key": "h-t1-u00013",
+   "connector_id": "con_eeb8492e87e94f75b4c6",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.359
+  },
+  {
+   "file": "h-t1-u00013__s1.jsonl",
+   "holder_key": "h-t1-u00013",
+   "connector_id": "con_0d7a7258c22e4d2fb381",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.239
+  },
+  {
+   "file": "h-t1-u00014__s0.jsonl",
+   "holder_key": "h-t1-u00014",
+   "connector_id": "con_18ff7c0c62a942c497c2",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.322
+  },
+  {
+   "file": "h-t1-u00015__s0.jsonl",
+   "holder_key": "h-t1-u00015",
+   "connector_id": "con_0a02749b4ef64527b29e",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.259
+  },
+  {
+   "file": "h-t1-u00016__s0.jsonl",
+   "holder_key": "h-t1-u00016",
+   "connector_id": "con_e5ecc04e37594bf0a72c",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.33
+  },
+  {
+   "file": "h-t1-u00017__s0.jsonl",
+   "holder_key": "h-t1-u00017",
+   "connector_id": "con_996529c4a6884fea9d72",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.329
+  },
+  {
+   "file": "h-t1-u00017__s1.jsonl",
+   "holder_key": "h-t1-u00017",
+   "connector_id": "con_2e69a47d135e4d7c9f3c",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.376
+  },
+  {
+   "file": "h-t1-u00018__s0.jsonl",
+   "holder_key": "h-t1-u00018",
+   "connector_id": "con_f89fc85e13d74bf9b7e5",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.444
+  },
+  {
+   "file": "h-t1-u00019__s0.jsonl",
+   "holder_key": "h-t1-u00019",
+   "connector_id": "con_1bfc6f0ffe0b4df38df3",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.421
+  },
+  {
+   "file": "h-t1-u00020__s0.jsonl",
+   "holder_key": "h-t1-u00020",
+   "connector_id": "con_2c4c53a8dace4ec6a405",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.29
+  },
+  {
+   "file": "h-t1-u00021__s0.jsonl",
+   "holder_key": "h-t1-u00021",
+   "connector_id": "con_8bdec9731bf44fa1932d",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.349
+  },
+  {
+   "file": "h-t1-u00021__s1.jsonl",
+   "holder_key": "h-t1-u00021",
+   "connector_id": "con_50a6f5cd22634283b806",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.605
+  },
+  {
+   "file": "h-t1-u00022__s0.jsonl",
+   "holder_key": "h-t1-u00022",
+   "connector_id": "con_5a74281ec3de4dae9ea6",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.578
+  },
+  {
+   "file": "h-t1-u00023__s0.jsonl",
+   "holder_key": "h-t1-u00023",
+   "connector_id": "con_b2b75e22c4ce407cab54",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.554
+  },
+  {
+   "file": "h-t1-u00023__s1.jsonl",
+   "holder_key": "h-t1-u00023",
+   "connector_id": "con_013f1be8fdf04262b94e",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.556
+  },
+  {
+   "file": "h-t1-u00024__s0.jsonl",
+   "holder_key": "h-t1-u00024",
+   "connector_id": "con_be4e7aa933544b1ebb68",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.48
+  },
+  {
+   "file": "h-t1-u00025__s0.jsonl",
+   "holder_key": "h-t1-u00025",
+   "connector_id": "con_7c9320f57d6849acbb91",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.437
+  },
+  {
+   "file": "h-t1-u00025__s1.jsonl",
+   "holder_key": "h-t1-u00025",
+   "connector_id": "con_82ec551a07e54975ade1",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.3
+  },
+  {
+   "file": "h-t1-u00026__s0.jsonl",
+   "holder_key": "h-t1-u00026",
+   "connector_id": "con_c9e8900e809e4140a33b",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.3
+  },
+  {
+   "file": "h-t1-u00027__s0.jsonl",
+   "holder_key": "h-t1-u00027",
+   "connector_id": "con_8fe4da060eab434eb583",
+   "totals": {
+    "raw_items": 15,
+    "enqueued": 15,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 15
+   },
+   "wall_s": 0.344
+  },
+  {
+   "file": "h-t1-u00027__s1.jsonl",
+   "holder_key": "h-t1-u00027",
+   "connector_id": "con_6a344ef08f304b97871a",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.29
+  },
+  {
+   "file": "h-t1-u00028__s0.jsonl",
+   "holder_key": "h-t1-u00028",
+   "connector_id": "con_488042befbe045d98bbc",
+   "totals": {
+    "raw_items": 17,
+    "enqueued": 17,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 17
+   },
+   "wall_s": 0.282
+  },
+  {
+   "file": "h-t1-u00028__s1.jsonl",
+   "holder_key": "h-t1-u00028",
+   "connector_id": "con_8c82de333f0244f6ab89",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.35
+  },
+  {
+   "file": "h-t1-u00029__s0.jsonl",
+   "holder_key": "h-t1-u00029",
+   "connector_id": "con_f9d40507f81e4769a335",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.348
+  },
+  {
+   "file": "h-t1-u00030__s0.jsonl",
+   "holder_key": "h-t1-u00030",
+   "connector_id": "con_7bbf332d99ea41439fc7",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.348
+  },
+  {
+   "file": "h-t1-u00031__s0.jsonl",
+   "holder_key": "h-t1-u00031",
+   "connector_id": "con_15cb6c4a476b49c295b2",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.345
+  },
+  {
+   "file": "h-t1-u00031__s1.jsonl",
+   "holder_key": "h-t1-u00031",
+   "connector_id": "con_980683f4bf014cb2875f",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.426
+  },
+  {
+   "file": "h-t1-u00032__s0.jsonl",
+   "holder_key": "h-t1-u00032",
+   "connector_id": "con_2de385d350e442258bdd",
+   "totals": {
+    "raw_items": 12,
+    "enqueued": 12,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 12
+   },
+   "wall_s": 0.293
+  },
+  {
+   "file": "h-t1-u00032__s1.jsonl",
+   "holder_key": "h-t1-u00032",
+   "connector_id": "con_5a38f347f69945ddaab3",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.289
+  },
+  {
+   "file": "h-t1-u00033__s0.jsonl",
+   "holder_key": "h-t1-u00033",
+   "connector_id": "con_323b30e3916441d2a7de",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.285
+  },
+  {
+   "file": "h-t1-u00034__s0.jsonl",
+   "holder_key": "h-t1-u00034",
+   "connector_id": "con_ecc3be601df446599308",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.285
+  },
+  {
+   "file": "h-t1-u00035__s0.jsonl",
+   "holder_key": "h-t1-u00035",
+   "connector_id": "con_e2dadb41b6a44650b441",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.118
+  },
+  {
+   "file": "h-t1-u00035__s1.jsonl",
+   "holder_key": "h-t1-u00035",
+   "connector_id": "con_be0620b3dd15457b951c",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.206
+  },
+  {
+   "file": "h-t1-u00036__s0.jsonl",
+   "holder_key": "h-t1-u00036",
+   "connector_id": "con_443d1876923c4bc082b1",
+   "totals": {
+    "raw_items": 12,
+    "enqueued": 12,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 12
+   },
+   "wall_s": 0.265
+  },
+  {
+   "file": "h-t1-u00036__s1.jsonl",
+   "holder_key": "h-t1-u00036",
+   "connector_id": "con_d71b02c106de443ab2ad",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.294
+  },
+  {
+   "file": "h-t1-u00037__s0.jsonl",
+   "holder_key": "h-t1-u00037",
+   "connector_id": "con_14667a6cc1334132af0b",
+   "totals": {
+    "raw_items": 3,
+    "enqueued": 3,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 3
+   },
+   "wall_s": 0.261
+  },
+  {
+   "file": "h-t1-u00038__s0.jsonl",
+   "holder_key": "h-t1-u00038",
+   "connector_id": "con_4700d8af8121498f8369",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.289
+  },
+  {
+   "file": "h-t1-u00038__s1.jsonl",
+   "holder_key": "h-t1-u00038",
+   "connector_id": "con_d58539af3f054267a2c7",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.198
+  },
+  {
+   "file": "h-t1-u00039__s0.jsonl",
+   "holder_key": "h-t1-u00039",
+   "connector_id": "con_d8374384b6e7432aa74c",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.202
+  },
+  {
+   "file": "h-t1-u00039__s1.jsonl",
+   "holder_key": "h-t1-u00039",
+   "connector_id": "con_8c7b0d76d4ba4b0085d7",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.355
+  },
+  {
+   "file": "h-t1-u00040__s0.jsonl",
+   "holder_key": "h-t1-u00040",
+   "connector_id": "con_c32f72c4e3484793a428",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.276
+  },
+  {
+   "file": "h-t1-u00040__s1.jsonl",
+   "holder_key": "h-t1-u00040",
+   "connector_id": "con_7184027524ea405c8269",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.359
+  },
+  {
+   "file": "h-t1-u00041__s0.jsonl",
+   "holder_key": "h-t1-u00041",
+   "connector_id": "con_3adfa403e2434ec486a4",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.352
+  },
+  {
+   "file": "h-t1-u00042__s0.jsonl",
+   "holder_key": "h-t1-u00042",
+   "connector_id": "con_274fbb59441d4fb5848d",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.418
+  },
+  {
+   "file": "h-t1-u00043__s0.jsonl",
+   "holder_key": "h-t1-u00043",
+   "connector_id": "con_5e654dd6cb084e72868d",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.556
+  },
+  {
+   "file": "h-t1-u00043__s1.jsonl",
+   "holder_key": "h-t1-u00043",
+   "connector_id": "con_f5054e25af3e4145b4df",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.623
+  },
+  {
+   "file": "h-t1-u00044__s0.jsonl",
+   "holder_key": "h-t1-u00044",
+   "connector_id": "con_f50c080e5e9c4a65a93c",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.547
+  },
+  {
+   "file": "h-t1-u00044__s1.jsonl",
+   "holder_key": "h-t1-u00044",
+   "connector_id": "con_3c9db7bc0dbc43339107",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.618
+  },
+  {
+   "file": "h-t1-u00045__s0.jsonl",
+   "holder_key": "h-t1-u00045",
+   "connector_id": "con_34441b3f013b435f9fa1",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.605
+  },
+  {
+   "file": "h-t1-u00045__s1.jsonl",
+   "holder_key": "h-t1-u00045",
+   "connector_id": "con_d3611bc129474c799beb",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.441
+  },
+  {
+   "file": "h-t1-u00046__s0.jsonl",
+   "holder_key": "h-t1-u00046",
+   "connector_id": "con_b5a5bd51906d417bb64d",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.346
+  },
+  {
+   "file": "h-t1-u00047__s0.jsonl",
+   "holder_key": "h-t1-u00047",
+   "connector_id": "con_54fa953c990c46dea7ec",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.348
+  },
+  {
+   "file": "h-t1-u00047__s1.jsonl",
+   "holder_key": "h-t1-u00047",
+   "connector_id": "con_5c2a8458b754436493e9",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.428
+  },
+  {
+   "file": "h-t1-u00048__s0.jsonl",
+   "holder_key": "h-t1-u00048",
+   "connector_id": "con_097054fc705043b6bb11",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.426
+  },
+  {
+   "file": "h-t1-u00049__s0.jsonl",
+   "holder_key": "h-t1-u00049",
+   "connector_id": "con_a1712e89a6df480d9042",
+   "totals": {
+    "raw_items": 10,
+    "enqueued": 10,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 10
+   },
+   "wall_s": 0.428
+  },
+  {
+   "file": "h-t1-u00050__s0.jsonl",
+   "holder_key": "h-t1-u00050",
+   "connector_id": "con_6c4633e9c53e441987dc",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.472
+  },
+  {
+   "file": "h-t1-u00050__s1.jsonl",
+   "holder_key": "h-t1-u00050",
+   "connector_id": "con_063df59e7bea4aedbd50",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.353
+  },
+  {
+   "file": "h-t1-u00051__s0.jsonl",
+   "holder_key": "h-t1-u00051",
+   "connector_id": "con_18d221d693cb44b9afba",
+   "totals": {
+    "raw_items": 11,
+    "enqueued": 11,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 11
+   },
+   "wall_s": 0.261
+  },
+  {
+   "file": "h-t1-u00051__s1.jsonl",
+   "holder_key": "h-t1-u00051",
+   "connector_id": "con_092cc52b7a9a4c2ba606",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.26
+  },
+  {
+   "file": "h-t1-u00052__s0.jsonl",
+   "holder_key": "h-t1-u00052",
+   "connector_id": "con_22cb6db9a3fc4a57ac0e",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.254
+  },
+  {
+   "file": "h-t1-u00052__s1.jsonl",
+   "holder_key": "h-t1-u00052",
+   "connector_id": "con_454c0f2ffac64d81a673",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.264
+  },
+  {
+   "file": "h-t1-u00053__s0.jsonl",
+   "holder_key": "h-t1-u00053",
+   "connector_id": "con_d21235df6f2e4892aeaf",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.251
+  },
+  {
+   "file": "h-t1-u00054__s0.jsonl",
+   "holder_key": "h-t1-u00054",
+   "connector_id": "con_0766e6f81c4d4dda8c60",
+   "totals": {
+    "raw_items": 9,
+    "enqueued": 9,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 9
+   },
+   "wall_s": 0.22
+  },
+  {
+   "file": "h-t1-u00054__s1.jsonl",
+   "holder_key": "h-t1-u00054",
+   "connector_id": "con_11925c2c2109402fb097",
+   "totals": {
+    "raw_items": 1,
+    "enqueued": 1,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 1
+   },
+   "wall_s": 0.231
+  },
+  {
+   "file": "h-t1-u00055__s0.jsonl",
+   "holder_key": "h-t1-u00055",
+   "connector_id": "con_32d3e392fa5549e8ac18",
+   "totals": {
+    "raw_items": 13,
+    "enqueued": 13,
+    "duplicates": 0,
+    "normalize_errors": 0,
+    "processed": 13
+   },
+   "wall_s": 0.216
+  }
+ ]
+}

@@ -1,0 +1,66 @@
+From 7f375512ebfd32aa47d57de4ab3d627de516666e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 09:40:53 +0000
+Subject: [PATCH 51/52] Freeze Mycelic-E2E v1: candidate C7, one pre-registered
+ holdout world (M, seed 101)
+
+Contract section 9 records the candidate code (C5 + K1 + K1b + observe query
+fix + harness H1/H2, each reviewed by an agent that did not write it), the
+evaluator, dev template, provider and holdout bank hashes, the dev evidence
+(C7-S1 120/120 on dev S/1, optimistic by construction), the run settings and
+the evaluation order. No holdout world has been generated.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/BENCHMARK_CONTRACT.md | 22 +++++++++++++---------
+ research/mycelic_e2e/EXPERIMENTS.jsonl     |  2 ++
+ 2 files changed, 15 insertions(+), 9 deletions(-)
+
+diff --git a/research/mycelic_e2e/BENCHMARK_CONTRACT.md b/research/mycelic_e2e/BENCHMARK_CONTRACT.md
+index c703913..f153efd 100644
+--- a/research/mycelic_e2e/BENCHMARK_CONTRACT.md
++++ b/research/mycelic_e2e/BENCHMARK_CONTRACT.md
+@@ -124,16 +124,20 @@ generated. Each came from a review finding or an analysis of DEV runs. None came
+ | C10 | **Background corpus**: 3 records per user holder and 12 per department holder, from a per-bank pool that never contains a task context. | The 10,000-user world had only ~400 holders with content. |
+ | C8 | **The gate is non-vacuous.** G7 cross-checks every scored view against `coord.db`. G4 replays routing as of each route from the audited domain history. G10 derives each injected fault from the sources and requires its evidence. G8 follows the publication policy (§10 C3). | REVIEWER-4 §5 |
+ 
+-## 9. Freeze record (filled at freeze)
++## 9. Freeze record (filled at freeze, 2026-10-09 09:40 UTC, before any holdout world was generated)
+ 
+ | item | value |
+ |---|---|
+ | contract version | v1 |
+-| implementation commit | _at freeze_ |
+-| evaluator files sha256 (`score.py`, `gold.py`) | _at freeze_ |
+-| dev templates sha256 | _at freeze_ |
+-| holdout bank sha256 | `6a5eabd3b7ee31b6a4de977ad93b4872ee4a5d98f781d66c8f8871f644a7b318` (`templates_holdout.py`, re-sealed 2026-10-09 ~08:10 UTC after background templates were added; earlier seals `6613deee...5214` ~06:40 and `89f4afa8...791a3` ~07:05 UTC; never evaluated under any seal at `/root/sealed_holdout/`, outside the repository; loaded only via `MYCELIC_E2E_HOLDOUT_BANK`; dev/holdout disjointness tests passed against it: 12 passed) |
+-| dev seeds / holdout seeds | _at freeze_ |
+-| sizes per split | _at freeze_ |
+-| per-task timeout, worker drain budget | _at freeze_ |
+-| host | cloud container, 4 vCPU, 15 GB (MacBook bridge unreachable, see ORCHESTRATION.md) |
++| candidate code | C7 = C5 (`92d3d7c`: D19 competing findings, contradiction follow-ups to both sides, department round-robin) + K1 `b145e21` (question detail returns the run state only to full viewers) + K1b `2d00ca2` (question view returns the result only to full viewers) + `4c27744` (discovery `observe()` reads new evidence refs through the goal's responses instead of a quadratic LIKE join) + harness H1 `fe8adfa` (a per-task API error or timeout makes that task wrong instead of aborting the run, as §5 already says) + harness H2 `7d2e63b` (every evidence ref visible in a collected discovery detail is raw-checked; before H2 the scorer counted those refs as raw-unchecked disclosures). Each was reviewed by an agent that did not write it (REVIEW_WP1, review of H1). The frozen commit is the commit that adds this table. The holdout ledger rows carry its full sha (`git_sha`) and the snapshot `.rev` the code ran from. |
++| evaluator files sha256 | `score.py` `b5f189431485d3198f3118840b2709b183dca58ef7a4009a1108fb81e4803bbd`; `gold.py` `05fe38967fd34893dc4efb8f0c863f4271792deb46c8b43c684be53da2e302fb` |
++| dev templates sha256 | `templates_dev.py` `1db4d42889832aa9d5422e785cccfabfc9203836d02edb6271dea9b5cc650036` |
++| deterministic provider sha256 | `mycelic/models/fake.py` `0dad30d6c3c04bc0bfa8ca22361302acca0f4747687a5cd4a1d37f29731fc9b7` |
++| holdout bank sha256 | `6a5eabd3b7ee31b6a4de977ad93b4872ee4a5d98f781d66c8f8871f644a7b318` (`templates_holdout.py`, re-sealed 2026-10-09 ~08:10 UTC after background templates were added; earlier seals `6613deee...5214` ~06:40 and `89f4afa8...791a3` ~07:05 UTC; never evaluated under any seal; kept at `/root/sealed_holdout/`, outside the repository; loaded only via `MYCELIC_E2E_HOLDOUT_BANK`; dev/holdout disjointness tests passed against it: 12 passed). Generation smoke before the freeze (ledger X043): the bank generates complete 120-task worlds at the non-holdout seeds S/9001 and L/9002; only counts were printed, nothing was written. |
++| dev evidence at freeze | C7-S1 (dev S/1, the candidate code 7d2e63b): **120/120 = 1.000** (Wilson 95 % [0.969, 1.000]), gate G1–G10 valid, disclosures 0 (every visible reference raw-checked: unchecked 0, open 0), API errors 0, 563 s. The same code before H2 (C6-S1, 4c27744): 96/120, all 24 failures expected-abstain tasks counted wrong only for raw-unchecked references (the H2 gap; foreign refs 0, raw open 0). The candidate was developed against dev S/1 (C4-S1 failure analysis), so its dev S/1 score is optimistic by construction; the holdout world below is the test of generalization. |
++| dev seeds | S/1, M/2, L/3 (`--anchor 2026-10-09T00:00:00+00:00`) |
++| **holdout world (pre-registered here)** | **one world: size M (1,000 users, 2 tenants, 144 units, 1,120 holders), seed 101**, the same anchor, all holders open (as in the dev M runs). 120 tasks in the §5 mix. Primary metric = correct / 120 on this world (Wilson 95 %). Run once each, under the ledger guard (key: commit, ablation, mode, variant), with the ledger at `research/mycelic_e2e/results/ledger.jsonl` of the real repository: the system, the central baseline `source` (primary comparison) and `single` (secondary). |
++| why this one world | The guard key has no seed, so a second holdout world of the same candidate would be refused; one world had to be chosen. The 10,000-user world (L) was the preferred choice, but the candidate's measured dev cost rules it out within the session's deadline (13:00 UTC). The measurements: on S/1, C5 waves took 88–600+ s, against 48–317 s for C4. The hardened L dev feed (C5-L3) ran at about 3.5 sources/s (1,250 sources in its first 6 minutes) for 10,491 sources, i.e. about 50 minutes before the first task. The earlier sparse L run needed about 2× the M wave time. The choice used dev timing only; no holdout world had been generated. The 10,000-user scenario is reported from the dev L runs (C3-L3 on an earlier candidate; C5-L3 on this candidate's code, if it completes), labelled dev. |
++| per-task timeout, drain budget | wave 15 tasks; `--task-timeout 180` s per wave; `--question-timeout 60` s; `--heartbeat 2` s; `--n-ticks 2` loop drains for goal-only tasks; `--feed-concurrency 6`; readiness = two identical heartbeat snapshots (§10 C4) |
++| evaluation order | system run → raw/reach authority → score + gate of the system run → central baselines (`source`, `single`) → their scores. The failures are not inspected for tuning; no candidate change follows the holdout. |
++| host | cloud container, 4 vCPU, 15 GB RAM, ~40 GB disk allowance (MacBook bridge unreachable, see ORCHESTRATION.md). Dev runs (C7-S1's central baselines, dev ablations on S/1) may run beside the holdout run, at most four benchmark processes in total; the concurrent load is recorded in the ledger. |
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 3792894..9ccdc3e 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -62,3 +62,5 @@
+ {"id": "X061", "utc": "2026-10-09T09:29:44Z", "kind": "run-start", "what": "dev C7-S1 (full system + both central baselines, S/1, anchored) on snapshot 7d2e63b = the candidate code (C6 + H1 + H2), REVIEWER-4 reviewing H2 in parallel", "why": "dev number and end-to-end validation of the exact candidate code before the freeze", "class": "dev"}
+ {"id": "X062", "utc": "2026-10-09T09:33:00Z", "kind": "review", "agent": "REVIEWER-4 (claude-opus-5-5)", "subject": "harness fix H2 7d2e63b", "result": "ACCEPT: every scorer ref source mapped to a raw check; goal-discovery evidence was the only unchecked source; in C6-S1 all 1,039 unchecked refs (56 views) are goal_discoveries[*].evidence and none would remain after H2; the 24 failing expected-abstain tasks are leak-only with foreign 0 / markers 0 / raw_open 0; an open (200) goal-discovery ref still counts as raw_open (disclosure); 183 passed / 2 skipped. Non-blocking: C6 runs cannot be re-scored (checks never made); up to ~70 more raw calls per view; goal-level caps (60 claims / 30 discoveries) pre-date H2.", "evidence": "reviews/REVIEW_H1.md 'Review of harness fix H2 7d2e63b'", "class": "review"}
+ {"id": "X063", "utc": "2026-10-09T09:33:47Z", "kind": "custody", "what": "disk", "result": "free space had fallen to 9 GB (pytest basetemps of the engineers' and reviewers' suites ~4.5 GB, finished baseline central stores); deleted those and the holder stores of aborted/stopped runs -> 16 GB free", "class": "custody"}
++{"id": "X064", "utc": "2026-10-09T09:40:24Z", "kind": "dev-result", "run": "C7-S1", "code": "7d2e63b (candidate: C5 + K1 + K1b + observe fix + H1 + H2)", "result": "120/120 = 1.000 [0.969, 1.000]; gate G1-G10 valid; disclosures 0 (raw unchecked 0, raw open 0, foreign 0, markers 0); api_errors 0; 563 s; peak RSS 539 MB; every class 100%. Developed against dev S/1, so optimistic by construction.", "class": "dev"}
++{"id": "X065", "utc": "2026-10-09T09:41:00Z", "kind": "freeze", "agent": "orchestrator (claude-opus-5-5)", "what": "BENCHMARK_CONTRACT \u00a79 freeze record written", "result": "candidate C7 = 7d2e63b code; evaluator/dev-template/provider hashes unchanged since the earlier record (score.py b5f18943, gold.py 05fe3896, templates_dev.py 1db4d428, fake.py 0dad30d6); holdout bank 6a5eabd3; ONE holdout world M seed 101 (L ruled out by measured time cost, X046/X047); run order system -> authority -> gate -> baselines source, single; ledger = repo results/ledger.jsonl; no holdout world generated before this commit", "class": "freeze"}
+-- 
+2.43.0
+

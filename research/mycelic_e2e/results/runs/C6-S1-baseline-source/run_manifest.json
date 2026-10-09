@@ -1,0 +1,77 @@
+{
+ "run_id": "base_becd17e72d",
+ "ledger_run_id": null,
+ "split": "dev",
+ "mode": "baseline",
+ "ablation": null,
+ "variant": "source",
+ "seed": 1,
+ "size": "S",
+ "provider_label": "deterministic-provider",
+ "provider": "fake (deterministic)",
+ "tasks_sha256": "ec0a2829af9b2236658ed42e34646bc77d18bd6e847f91a35685b040d23ab77f",
+ "n_tasks": 120,
+ "raw_checks_enabled": true,
+ "evidence_budget_items": 30,
+ "per_origin_cap": 3,
+ "counts": {
+  "created": 2,
+  "with_records": 2,
+  "activated": 2,
+  "routed": 0
+ },
+ "model_usage": {
+  "calls": 228,
+  "input_tokens": 246803,
+  "output_tokens": 93640,
+  "providers": "fake",
+  "by_purpose": {
+   "classify_domains": 4,
+   "answer_from_evidence": 120,
+   "evaluate_responses": 104
+  }
+ },
+ "ingest": [
+  {
+   "tenant": "acme-freight",
+   "sources": 88,
+   "connectors": 88,
+   "errors": [],
+   "wall_s": 4.67,
+   "raw_items": 783,
+   "enqueued": 777,
+   "duplicates": 2,
+   "normalize_errors": 4,
+   "processed": 777
+  },
+  {
+   "tenant": "borealis-retail",
+   "sources": 94,
+   "connectors": 94,
+   "errors": [],
+   "wall_s": 5.43,
+   "raw_items": 795,
+   "enqueued": 795,
+   "duplicates": 0,
+   "normalize_errors": 0,
+   "processed": 795
+  }
+ ],
+ "view_errors": 0,
+ "timings_s": {
+  "ingest_s": 11.34,
+  "total_s": 15.36
+ },
+ "world_dir": "/tmp/claude-0/-home-user-NeuralGraph/cb55ecbb-9144-58cb-a5af-0b006a90960a/scratchpad/runs/C6-S1",
+ "differences": [
+  "no routing: one central store per tenant",
+  "no per-person stores / per-holder export policy",
+  "one retrieval per task, up to 30 chunks (O4)",
+  "no verification question, no loop follow-up, no discovery synthesis, no hypergraph",
+  "source variant: chunks grouped by origin holder into <=3-chunk pseudo-responses",
+  "goal-only tasks queried with goal title + objective",
+  "replay/restart faults not simulated"
+ ],
+ "started_utc": "2026-10-09T00:00:00+00:00",
+ "finished_utc": "2026-10-09T09:27:38.426423+00:00"
+}

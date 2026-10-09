@@ -1,7 +1,7 @@
 From 20ebec7370526708c3722cc4be41ad36f279aba1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 07:47:05 +0000
-Subject: [PATCH 24/43] Contract: record the pre-freeze decisions C1-C8 and
+Subject: [PATCH 24/52] Contract: record the pre-freeze decisions C1-C8 and
  their review sources
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

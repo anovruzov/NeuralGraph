@@ -1,0 +1,226 @@
+{
+  "valid": false,
+  "failed": [
+    "G4"
+  ],
+  "expect_hypergraph": true,
+  "expect_ranker": true,
+  "gates": {
+    "G1": {
+      "gate": "G1",
+      "title": "every live record came through the connector path (ingest_records + applied_events + benchmark connector)",
+      "status": "pass",
+      "detail": "1536 live documents across 136 holder files",
+      "problems": [],
+      "data": {
+        "live_documents": 1536,
+        "holders_checked": 136
+      }
+    },
+    "G2": {
+      "gate": "G2",
+      "title": "holder stores are distinct and records live in the right holder",
+      "status": "pass",
+      "detail": "136 distinct holder files, 0 registered holders without a file",
+      "problems": [],
+      "data": {
+        "holders": 136,
+        "holders_without_file": 0,
+        "connectors": 182
+      }
+    },
+    "G3": {
+      "gate": "G3",
+      "title": "every supported claim has independent roots >= policy, resolvable root-known refs, and a matching hypergraph support edge",
+      "status": "pass",
+      "detail": "1283 supported claims",
+      "problems": [],
+      "data": {
+        "supported_claims": 1283,
+        "hypergraph_checked": true
+      }
+    },
+    "G4": {
+      "gate": "G4",
+      "title": "routing is audited, authorized, within budget and ranked",
+      "status": "fail",
+      "detail": "2742/2742 questions routed; rank_method {'hypergraph': 2742}; as-of replay denials 13554 (current domains differ from route-time domains on 0 of 27420 routes)",
+      "problems": [
+        "q_c499dc77fbf3473f8214 -> hold_7908acafbaa74eaeb506: can_route denies as of the route (no matching evidence domain; domains then: ['customer-support.escalations'])",
+        "q_c499dc77fbf3473f8214 -> hold_8af4bde88c8a486d9ae2: can_route denies as of the route (no matching evidence domain; domains then: ['infrastructure.ci-cd'])",
+        "q_c499dc77fbf3473f8214 -> hold_bc74db94c9654109babf: can_route denies as of the route (no matching evidence domain; domains then: ['infrastructure.reliability'])",
+        "q_91a26b7bcd564fc5873e -> hold_01be5716a83b419d8b2d: can_route denies as of the route (no matching evidence domain; domains then: ['customer-support.escalations'])",
+        "q_91a26b7bcd564fc5873e -> hold_1f548fa31e334de8b55a: can_route denies as of the route (no matching evidence domain; domains then: ['customer-support.tickets'])",
+        "q_91a26b7bcd564fc5873e -> hold_4e9f361e3ed649918f06: can_route denies as of the route (no matching evidence domain; domains then: ['customer-support.tickets'])",
+        "q_91a26b7bcd564fc5873e -> hold_62adee293f5a42489a1d: can_route denies as of the route (no matching evidence domain; domains then: ['infrastructure.reliability'])",
+        "q_9e32bffcbef0438fb0a2 -> hold_01be5716a83b419d8b2d: can_route denies as of the route (no matching evidence domain; domains then: ['customer-support.escalations'])",
+        "q_9e32bffcbef0438fb0a2 -> hold_1ab95696758b4fd9919c: can_route denies as of the route (no matching evidence domain; domains then: ['infrastructure.ci-cd'])",
+        "q_9e32bffcbef0438fb0a2 -> hold_1f548fa31e334de8b55a: can_route denies as of the route (no matching evidence domain; domains then: ['customer-support.tickets'])",
+        "q_9e32bffcbef0438fb0a2 -> hold_4e9f361e3ed649918f06: can_route denies as of the route (no matching evidence domain; domains then: ['customer-support.tickets'])",
+        "q_9e32bffcbef0438fb0a2 -> hold_58d5d1ee7185452dbe50: can_route denies as of the route (no matching evidence domain; domains then: ['customer-support.tickets'])",
+        "q_9e32bffcbef0438fb0a2 -> hold_8af4bde88c8a486d9ae2: can_route denies as of the route (no matching evidence domain; domains then: ['infrastructure.ci-cd'])",
+        "q_1340d9e599134d6fa2ca -> hold_a240676c416e49b19b96: can_route denies as of the route (no matching evidence domain; domains then: ['finance.forecasting'])",
+        "q_1340d9e599134d6fa2ca -> hold_b13e36cdb7b141f897e4: can_route denies as of the route (no matching evidence domain; domains then: ['finance.forecasting'])",
+        "q_6a7c9d4685e2462f8241 -> hold_2079c73453f3414e82a9: can_route denies as of the route (no matching evidence domain; domains then: ['operations.supply-chain'])",
+        "q_6a7c9d4685e2462f8241 -> hold_47e898818b444e53b424: can_route denies as of the route (no matching evidence domain; domains then: ['operations.supply-chain'])",
+        "q_6a7c9d4685e2462f8241 -> hold_4fbdb040c8334e5f9f56: can_route denies as of the route (no matching evidence domain; domains then: ['operations.logistics'])",
+        "q_6a7c9d4685e2462f8241 -> hold_5e76591a10724e4696f4: can_route denies as of the route (no matching evidence domain; domains then: ['operations.supply-chain'])",
+        "q_6a7c9d4685e2462f8241 -> hold_a240676c416e49b19b96: can_route denies as of the route (no matching evidence domain; domains then: ['finance.forecasting'])"
+      ],
+      "data": {
+        "replay": {
+          "checked": 27420,
+          "denied": 13554
+        },
+        "problems_truncated": 13534,
+        "replay_denial_reasons": {
+          "no matching evidence domain": 5320,
+          "holder owner is outside the question's scope": 5408,
+          "unit holder is outside the question's scope": 2826
+        },
+        "holders_with_changing_domains": 0,
+        "routes_where_domains_changed_since": 0,
+        "questions": 2742,
+        "routed_questions": 2742,
+        "rank_methods": {
+          "hypergraph": 2742
+        }
+      }
+    },
+    "G5": {
+      "gate": "G5",
+      "title": "every claim has a claim.gate audit row and a revision; every discovery is idempotent",
+      "status": "pass",
+      "detail": "5007 claims, 1892 discoveries",
+      "problems": [],
+      "data": {
+        "claims": 5007,
+        "discoveries": 1892
+      }
+    },
+    "G6": {
+      "gate": "G6",
+      "title": "all model usage names the declared provider and the run carries its label",
+      "status": "pass",
+      "detail": "label='deterministic-provider', providers={'fake': 29176}",
+      "problems": [],
+      "data": {
+        "providers": {
+          "fake": 29176
+        },
+        "calls": 29176,
+        "input_tokens": 18303191,
+        "output_tokens": 4318589,
+        "label": "deterministic-provider"
+      }
+    },
+    "G7": {
+      "gate": "G7",
+      "title": "claims, discoveries and evidence were produced by the system, not written by the harness",
+      "status": "pass",
+      "detail": "5007 claims, 29474 evidence refs traced to holder responses",
+      "problems": [],
+      "data": {
+        "claims": 5007,
+        "refs": 29474,
+        "harness_opens_declared": 0,
+        "views_cross_checked": 120
+      }
+    },
+    "G8": {
+      "gate": "G8",
+      "title": "hypergraph consistent; entity and term indexes hold exactly what holders may publish (privacy) and cover it",
+      "status": "pass",
+      "detail": "entities 0/0 (n/a; 892 holder-entity pairs below entity_min_records, correctly unpublished), 0 outside the expected set; terms 112/112 holders (100%), 0 violating",
+      "problems": [],
+      "data": {
+        "entity_index_pairs": 0,
+        "entity_expected_pairs": 0,
+        "entity_covered": 0,
+        "entity_coverage": null,
+        "entity_extras": 0,
+        "entity_pairs_below_threshold": 892,
+        "coverage_basis": "per-holder expected set from the holder stores under the effective export policy",
+        "term_index_rows_ok": true,
+        "term_holders_expected": 112,
+        "term_holders_covered": 112,
+        "term_coverage": 1.0,
+        "term_holders_violating": 0,
+        "term_note": null
+      }
+    },
+    "G9": {
+      "gate": "G9",
+      "title": "lineage resolves for every discovery: discovery -> claims -> refs -> holders (and question/response)",
+      "status": "pass",
+      "detail": "1892 discoveries",
+      "problems": [],
+      "data": {
+        "discoveries": 1892
+      }
+    },
+    "G10": {
+      "gate": "G10",
+      "title": "fault dispositions: duplicates, malformed lines, deletions, replay and restart are visible in the stores",
+      "status": "pass",
+      "detail": "injected {'dup_lines': 2, 'malformed': 4, 'deletes': 12, 'restart': 1, 'replay': 1}; duplicate dispositions seen 1547; 12 deleted strings checked",
+      "problems": [],
+      "data": {
+        "derived_faults": {
+          "dup_lines": 2,
+          "malformed": 4,
+          "deletes": 12,
+          "restart": 1,
+          "replay": 1
+        },
+        "declared_faults": {},
+        "duplicates_applied_events": 0,
+        "duplicates_stage_metrics": 1547,
+        "queue_rows_leased_more_than_once": 0,
+        "deleted_markers_checked": 12,
+        "ingest_rejections": 4
+      }
+    }
+  },
+  "counts": {
+    "holders_created": 136,
+    "holders_with_files": 136,
+    "holders_with_records": 136,
+    "holders_activated": 110,
+    "holders_routed": 111,
+    "routes": 27420,
+    "questions": 2742,
+    "responses_answered": 17536,
+    "records_ingested": 1548,
+    "ingest_rejections": 4,
+    "records_live": 1536,
+    "applied_events_outcomes": {
+      "delete": 12,
+      "new": 1548,
+      "update": 12
+    },
+    "claims_by_status": {
+      "contested": 2721,
+      "hypothesis": 1003,
+      "supported": 1283
+    },
+    "discoveries": 1892,
+    "hyperedges_by_kind": {
+      "conflict": 2884,
+      "discovery": 1892,
+      "lineage": 5007,
+      "support": 5007
+    },
+    "hyperedges_by_kind_status": {
+      "conflict/active": 2884,
+      "discovery/active": 1892,
+      "lineage/active": 5007,
+      "support/active": 5007,
+      "support/superseded": 149
+    },
+    "model_calls": 29176,
+    "coord_db_bytes": 399777792,
+    "holder_files_bytes": 174161920
+  },
+  "notes": []
+}

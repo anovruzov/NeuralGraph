@@ -263,6 +263,7 @@ async def amain(a: argparse.Namespace) -> int:
         t_issue0 = time.perf_counter()
         issued: dict[str, issue.Issued] = {}
         view_summary: dict[str, dict] = {}
+        api_errors = issue.ApiErrors(log)         # H1: a per-task API error or timeout makes that task wrong; it never aborts the run
         ticks_extra = max(0, a.n_ticks - 1)
         for w0 in range(0, len(public), a.wave):
             wave = public[w0:w0 + a.wave]
@@ -270,7 +271,7 @@ async def amain(a: argparse.Namespace) -> int:
 
             async def one(t):
                 async with sem:
-                    return await issue.issue_task(client, t, token=tokens[t["asker_key"]], scope_unit_id=ids.units[t["scope_unit"]], now=now)
+                    return await issue.safe_issue_task(client, t, errors=api_errors, token=tokens[t["asker_key"]], scope_unit_id=ids.units[t["scope_unit"]], now=now)
             res = await asyncio.gather(*[one(t) for t in wave])
             for r in res:
                 issued[r.task_id] = r
@@ -279,7 +280,7 @@ async def amain(a: argparse.Namespace) -> int:
             await wait_quiet(rt, a.task_timeout)
             # question tasks that are still unresolved get the rest of their time budget
             while time.time() < deadline:
-                states = [await issue.question_status(client, issued[t["task_id"]].question_id, tokens[t["asker_key"]])
+                states = [await issue.safe_question_status(client, issued[t["task_id"]].question_id, tokens[t["asker_key"]], errors=api_errors, task_id=t["task_id"])
                           for t in wave if t.get("question_text") and issued[t["task_id"]].question_id]
                 if all(s in issue.RESOLVED for s in states):
                     break
@@ -287,12 +288,12 @@ async def amain(a: argparse.Namespace) -> int:
             for _ in range(ticks_extra):                                   # goal-only tasks: N_ticks worker drains
                 for t in wave:
                     if t.get("goal_only") and issued[t["task_id"]].goal_id:
-                        await issue.run_loop_now(client, issued[t["task_id"]].goal_id, tokens[t["asker_key"]])
+                        await issue.safe_run_loop_now(client, issued[t["task_id"]].goal_id, tokens[t["asker_key"]], errors=api_errors, task_id=t["task_id"])
                 rt.worker.wake()
                 await wait_quiet(rt, min(60.0, a.task_timeout))
             for t in wave:
                 iss = issued[t["task_id"]]
-                v = await issue.collect_view(client, t, iss, tokens[t["asker_key"]], tenant_id=ids.tenants[t["tenant"]], timed_out=False)
+                v = await issue.safe_collect_view(client, t, iss, tokens[t["asker_key"]], tenant_id=ids.tenants[t["tenant"]], errors=api_errors, timed_out=False)
                 (views_dir / f"{t['task_id']}.json").write_text(json.dumps(v, indent=1, default=str))
                 view_summary[t["task_id"]] = {"status": v["status"], "q": (v.get("question") or {}).get("status"),
                                               "supported": sum(1 for c in v["claims"] if ((c.get("claim") or c).get("status") == "supported"))}
@@ -310,7 +311,7 @@ async def amain(a: argparse.Namespace) -> int:
             statuses[str(v["q"])] = statuses.get(str(v["q"]), 0) + 1
         run_manifest = {
             "run_id": run_id, "ledger_run_id": getattr(a, "ledger_run_id", None), "split": a.split, "mode": a.mode, "ablation": abl_short, "ablation_name": abl_name,
-            "ablation_patches": abl_patch.describe()["patched"] if abl_patch else [], "seed": a.seed, "size": a.size, "provider_label": PROVIDER_LABEL,
+            "ablation_patches": abl_patch.describe()["patched"] if abl_patch else [], "ablation_calls": dict(abl_patch.counters) if abl_patch else {}, "seed": a.seed, "size": a.size, "provider_label": PROVIDER_LABEL,
             "provider": "fake (deterministic)", "fake_py_sha256": hashlib.sha256(fake_py.read_bytes()).hexdigest()[:16], "tasks_sha256": tasks_sha, "sources_sha256": sources_sha,
             "n_tasks": len(public), "n_gold_written": n_gold, "world_sha256": world.fingerprint(), "world_counts": world.counts(), "transport": "sqlite",
             "in_process_server": True, "max_open_holders": a.max_open_holders, "holders_stats": rt.holders.stats() if rt.holders else None, "heartbeat_stable": stable >= 2,
@@ -320,6 +321,7 @@ async def amain(a: argparse.Namespace) -> int:
             "model_usage": {"calls": usage["n"], "input_tokens": usage["i"], "output_tokens": usage["o"], "providers": usage["p"]},
             "records": {"planned": n_records, "late_phase": n_late, "source_files": len(manifest), **tot},
             "question_statuses": statuses, "timings_s": {**timings, "total_s": round(time.perf_counter() - t_start, 2)},
+            "api_errors": dict(api_errors.counts), "api_error_tasks": api_errors.tasks,
             "peak_rss_mb": rss_mb(), "heartbeat_s": hb, "wave": a.wave, "task_timeout_s": a.task_timeout, "n_ticks": a.n_ticks,
             "events_range": [cnt("SELECT MIN(id) FROM events"), cnt("SELECT MAX(id) FROM events")],
             "container": {"platform": platform.platform(), "cpus": os.cpu_count(), "python": platform.python_version()},
@@ -330,6 +332,8 @@ async def amain(a: argparse.Namespace) -> int:
         }
         (out / "run_manifest.json").write_text(json.dumps(run_manifest, indent=1, default=str))
         sup = sum(v["supported"] for v in view_summary.values())
+        if any(api_errors.counts.values()):
+            log(f"API errors during the tasks (each affects only its task): {api_errors.counts} in {len(api_errors.tasks)} task(s)")
         log(f"done in {run_manifest['timings_s']['total_s']}s: views={len(view_summary)} questions={statuses} supported_claims={sup} "
             f"tasks_with_supported={sum(1 for v in view_summary.values() if v['supported'])} model_calls={usage['n']} peak_rss={rss_mb()}MB")
         return 0

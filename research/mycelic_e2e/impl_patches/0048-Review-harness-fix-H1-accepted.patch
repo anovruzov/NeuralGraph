@@ -1,0 +1,99 @@
+From 0852d337d2ac2aba3c42602c3bbfb486c6bff50a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 09:24:48 +0000
+Subject: [PATCH 48/52] Review: harness fix H1 accepted
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl    |  5 +-
+ research/mycelic_e2e/reviews/REVIEW_H1.md | 64 +++++++++++++++++++++++
+ 2 files changed, 67 insertions(+), 2 deletions(-)
+ create mode 100644 research/mycelic_e2e/reviews/REVIEW_H1.md
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 863aea7..32d564a 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -53,5 +53,6 @@
+ {"id": "X052", "utc": "2026-10-09T09:16:56Z", "kind": "run-start", "what": "dev C6-S1 (full system + both central baselines) and ablations C6abl A1,A4,A5 / A2,A3,A6 on S/1, code snapshot 4c27744 = C5 + K1 (b145e21) + K1b (2d00ca2) + observe query fix (4c27744)", "why": "the final candidate is 4c27744 + harness fix H1 (per-task API error isolation; no effect on a run without API errors) + the freeze record; the K1b and observe reviews are in progress, so these runs are also the validation of the code before the freeze", "class": "dev"}
+ {"id": "X053", "utc": "2026-10-09T09:16:56Z", "kind": "engineering", "agent": "ENGINEER-3 (claude-sonnet-5-5)", "result": "observe() new_refs rewrite committed (6d3aecd, trailer normalized -> 4c27744): q->r->json_each->evidence_refs by PK, DISTINCT, ORDER BY created_at, ref_id, LIMIT 50; oracle test vs the old SQL; 527 passed / 7 skipped; 388 ms -> 2.6 ms at 3k x 3k; also reported (not changed): knowledge/service.py:635 per-deleted-ref LIKE scan of a holder's responses (linear, deletion only)", "class": "engineering"}
+ {"id": "X054", "utc": "2026-10-09T09:20:16Z", "kind": "engineering", "agent": "WP1 engineer (claude-sonnet-5-5)", "result": "K1b committed (46a0cb8 -> trailer normalized 2d00ca2): QuestionService.view() reduces result to outcome/timed_out_routes for principals without full view; H1 committed (8114d06 -> trailer normalized fe8adfa): per-task API calls wrapped (safe_issue_task/safe_question_status/safe_run_loop_now/safe_collect_view), error views carry the asker tenant_id and score wrong for every class, api_errors counted in the manifest; bench tests 181 passed / 2 skipped, mycelic tests 527 passed / 7 skipped", "class": "engineering"}
+-{"id": "X055", "utc": "2026-10-09T09:21:00Z", "kind": "review", "agent": "REVIEWER-2 (claude-opus-5-5)", "subject": "K1b 2d00ca2 and observe query fix 4c27744", "result": "ACCEPT both. K1b: P7 0 of 12 (was 2 of 12), P6 clean, P8 SSE question.* events admit 0 of 42 non-viewers; all API callers pass the principal. Observe: fuzz 300 random goals 0 mismatches vs the defined semantics, new result a subset of the old one (old extras were substring/LIKE-wildcard/case false positives), new_evidence used only as a count (engine.py:608) so the LIMIT choice does not matter; 527 passed / 7 skipped.", "evidence": "reviews/REVIEW_WP1.md 'Review of K1b fix 2d00ca2', 'Review of observe() query fix 4c27744'", "class": "review"}
+-{"id": "X056", "utc": "2026-10-09T09:21:00Z", "kind": "review-dispatch", "agent": "REVIEWER-4 (opus, new instance)", "subject": "harness fix H1 fe8adfa", "class": "review"}
++{"id": "X055", "utc": "2026-10-09T09:20:40Z", "kind": "review", "agent": "REVIEWER-2 (claude-opus-5-5)", "subject": "K1b 2d00ca2 and observe query fix 4c27744", "result": "ACCEPT both. K1b: P7 0 of 12 (was 2 of 12), P6 clean, P8 SSE question.* events admit 0 of 42 non-viewers; all API callers pass the principal. Observe: fuzz 300 random goals 0 mismatches vs the defined semantics, new result a subset of the old one (old extras were substring/LIKE-wildcard/case false positives), new_evidence used only as a count (engine.py:608) so the LIMIT choice does not matter; 527 passed / 7 skipped.", "evidence": "reviews/REVIEW_WP1.md 'Review of K1b fix 2d00ca2', 'Review of observe() query fix 4c27744'", "class": "review"}
++{"id": "X056", "utc": "2026-10-09T09:20:40Z", "kind": "review-dispatch", "agent": "REVIEWER-4 (opus, new instance)", "subject": "harness fix H1 fe8adfa", "class": "review"}
++{"id": "X057", "utc": "2026-10-09T09:27:00Z", "kind": "review", "agent": "REVIEWER-4 (claude-opus-5-5)", "subject": "harness fix H1 fe8adfa", "result": "ACCEPT: all four per-task calls wrapped (run.py:274,283,291,296), CancelledError/KeyboardInterrupt pass through, error view scores wrong for all 10 classes (status 'error' is what keeps an empty view from scoring abstain-correct), identical 14 calls/order/results with no errors (stub API), 181 passed / 2 skipped, own 37 checks 0 failures. Non-blocking: N1 failed run_now/status polls are only counted (cannot raise a score), N2 a starved API can overrun the wave deadline (time, not score), N3 goal_id null on a half-issued task, N4 two early greps over bench/ did not exclude bench/holdout/ (it holds only __init__.py; the bank is sealed outside the repo; nothing printed).", "evidence": "reviews/REVIEW_H1.md", "class": "review"}
+diff --git a/research/mycelic_e2e/reviews/REVIEW_H1.md b/research/mycelic_e2e/reviews/REVIEW_H1.md
+new file mode 100644
+index 0000000..7862e6f
+--- /dev/null
++++ b/research/mycelic_e2e/reviews/REVIEW_H1.md
+@@ -0,0 +1,64 @@
++# Review of the harness fix H1
++
++## Review of harness fix H1 fe8adfa996c739229bfacadb4b59a63fc9199a23
++
++**Reviewer:** REVIEWER-4, model `claude-opus-5-5` (independent; did not write the patch; patch author claude-sonnet-5-5)
++**Verdict: ACCEPT.** No concrete defect found. Four non-blocking notes follow.
++
++Scope: commit `fe8adfa` ("Harness: a per-task API error or timeout makes that task wrong instead of aborting the run (H1)"), parent `4c27744`. It changes bench/issue.py (+81/-4), bench/run.py (+12/-6) and adds bench/tests/test_api_isolation.py (+237). HEAD moved to `aec440f` during the review. That commit changes only `EXPERIMENTS.jsonl` and `reviews/REVIEW_WP1.md` (`git diff --stat fe8adfa aec440f`), so the reviewed bench code is identical at HEAD. Nothing under /root/sealed_holdout was opened. /home/user/ng-impl was not modified: its pre-existing ` M research/mycelic_e2e/EXPERIMENTS.jsonl` is not mine. All work was done in the copy at `$SCR/rv10`.
++
++### Commands and outputs
++```
++$ git -C /home/user/ng-impl log --oneline -1          -> fe8adfa Harness: a per-task API error ... (H1)
++$ git -C /home/user/ng-impl archive fe8adfa | tar -x -C $SCR/rv10
++$ git diff --stat 4c27744 fe8adfa                     -> issue.py 81 +++-, run.py 12 +-, tests/test_api_isolation.py 237 +
++$ cd $SCR/rv10 && python -m pytest research/mycelic_e2e/bench/tests -q -p no:cacheprovider --basetemp $SCR/rv10_bt
++  181 passed, 2 skipped, 11 warnings in 14.14s        (matches the engineer's report)
++$ python -I $SCR/rv10_checks/check_h1.py $SCR/rv10    -> 37 checks, FAILURES: 0   (full output: $SCR/rv10_checks/out.txt)
++$ python -c 'issubclass(...)'  (py 3.13.16, aiohttp 3.14.4):
++  TimeoutError, aiohttp.ServerTimeoutError, aiohttp.ClientError -> Exception (caught)
++  asyncio.CancelledError, KeyboardInterrupt                      -> BaseException only (not caught)
++```
++My script `$SCR/rv10_checks/check_h1.py` imports bench from the copy and checks the following:
++- A. No-error equivalence. A rich stub API (claims, discoveries, goal-level output, raw checks) drives `issue_task`/`question_status`/`run_loop_now`/`collect_view` and their `safe_*` wrappers. Result: an identical 14-call sequence, identical `Issued`/status/loop/view results, and every `api_errors` count at zero.
++- B. A failure late inside `collect_view`, on `/raw`, `/api/discoveries/`, the second `GET /api/goals/g1` or `/api/claims/c2`, after earlier reads succeeded. Each gives a full error view: status=error, tenant_id kept, claims/discoveries/evidence/raw_checks empty, question None. No partial view is ever scored.
++- C. `CancelledError` and `KeyboardInterrupt` propagate from all four wrappers. The engineer's test covers only the status wrapper.
++- D. `"error"` is in neither `issue.RESOLVED` nor `score.RESOLVED_STATUSES`.
++- E. For all 10 real classes (world.py names, including `common_origin_copies`), both the issue-error view and the read-error view score `correct=False` with `reason=error`. For the 5 abstain classes I assert `expected_abstain=True`. A sanity check shows that the same empty view with `status=ok` WOULD score abstain-correct for `denied`. The `status="error"` field is therefore what keeps these views wrong, and the patch always sets it.
++
++### 1. Correctness
++- **Every per-task call in the wave loop is wrapped.** The wave loop calls `safe_issue_task` (run.py:274), `safe_question_status` (run.py:283), `safe_run_loop_now` (run.py:291) and `safe_collect_view` (run.py:296). No bare `issue.*` call remains (the source grep in test_api_isolation.py:187-193 agrees).
++- **The `asyncio.gather` (run.py:275) can no longer raise for an API failure.** `one(t)` can only raise from `tokens[...]`/`ids.units[...]` lookups, which are deterministic configuration errors, or from BaseException.
++- **No other `issue.*` callers exist.** No other bench module calls these functions: `grep -rn "collect_view|issue_task|run_loop_now|question_status" --include=*.py bench`, excluding tests, issue.py and run.py, finds none.
++- **Every wrapper catches `Exception` only** (issue.py:184, 193, 202, 220). CancelledError and KeyboardInterrupt propagate (check C).
++- **Run-level steps are not wrapped and still abort.** materialize, feed (run.py:219), heartbeat waits, `build_worker`/`worker.start()` (run.py:259-260), `wait_quiet` and `rt.worker.wake()` are untouched. The diff touches only the four call lines, the `api_errors` construction (run.py:266), the manifest keys (run.py:324) and a log line (run.py:335-336).
++
++### 2. Integrity
++- **Error views score wrong for every class.** `_view_problem` (score.py:357-358) returns `("error", ...)` for any status outside ok/done/resolved before any class logic runs. `extract_answer` (score.py:380-382) then returns `option=None`, and `score_task` (score.py:540-541) returns `correct=False`. The abstain branch (score.py:542) is never reached. Verified for all classes, abstain included (check E).
++- **The error view carries the asker's tenant_id and no content.** `error_view` (issue.py:209-214) builds on `_empty_view` (issue.py:73-75). That is the same dict `collect_view` built before the patch: I compared the old inline literal with the new helper and the keys and values are identical. tenant_id comes from `ids.tenants[t["tenant"]]` (run.py:296), as before. `score_tasks`' tenant_id requirement (score.py:652-655) is satisfied, and the engineer's `test_run_with_one_error_view...` (test file :221-237) runs `score_run` end to end.
++- **A failed status poll cannot end the wait early or resolve anything.** `safe_question_status` returns `"error"` (issue.py:196), which is not in `RESOLVED` (issue.py:16). `all(s in RESOLVED ...)` (run.py:285) therefore stays false and polling continues to the deadline. Poll results are used only to decide whether to break. Resolution comes only from the final `collect_view` GET.
++- **No change in behavior without errors.** Same calls, same arguments, same order, same deadlines (`deadline`, `wait_quiet`, `sleep(1.0)` unchanged). The only additions are two manifest keys (`api_errors`, `api_error_tasks`) and one conditional log line. Verified by diff and by check A.
++- **G7 cross-check.** For an error view, `arch_gate._cross_check_views` (arch_gate.py:820-905) finds no claims, discoveries or question to check (question None), so G7 does not fail falsely.
++
++### 3. Tests
++The engineer's 181 passed / 2 skipped reproduces. test_api_isolation.py has no vacuous assertions; each test asserts concrete status, error prefix, counts and log lines. It has these gaps, all covered by my script:
++- CancelledError is tested only for the status wrapper (:174-184).
++- No test compares calls and results when no error occurs.
++- The driver check is a source grep (:187-193) rather than an execution of the wave loop.
++- The class parametrization (:197-218) does not assert `ts.expected_abstain`. Its labels `common_origin`/`copies` are not world.py class names (`common_origin_pos`/`common_origin_copies`). Scoring keys off gold, so this is harmless.
++
++### 4. Ablations, baseline and report
++- `ablations.py` patches only `mycelic.*` bindings (ablations.py:99-167) and never `bench.issue`. It runs through the same `run.amain`, so it inherits the fix.
++- `baseline_central.py` does not import `bench.issue`. It already writes its own error views with tenant_id (baseline_central.py:595).
++- `report.py`, `ledger.py:315` and `tools/results_table.py` read the manifest with `.get`. The new keys are additive and break nothing.
++
++### Non-blocking notes
++- **N1. Loop and status failures are counted, not made wrong.** The commit title and the header comment at issue.py:155-157 say "makes THAT task wrong". For the `loop` and `status` kinds, the task is still scored on its later view. This cannot inflate a score:
++  - A status failure can only lengthen the wait (see §2).
++  - `run_loop_now` is called only for goal-only tasks (run.py:290). These are always the positive class `cross_domain` (world.py:695-697), so a missed extra tick cannot produce an abstain-correct result.
++  - Before the patch, an HTTP non-2xx from `run_now` was already ignored (the return value was discarded at 4c27744 run.py:290).
++
++  Suggestion: report `api_error_tasks` next to the accuracy figure. Alternatively, a later change could make loop-error tasks error views, if the contract is to be read literally.
++- **N2. Liveness.** The poll loop checks `deadline` only once per iteration (run.py:282). Each poll is sequential and can block up to 300 s (feed.py:25, `ClientTimeout(total=300)`). With `--wave 15` (run.py:357), a starved API can overrun `T_task=180 s` by up to 15×300 s per iteration. Before the patch, such a run aborted instead, and slow-but-successful polls behaved the same. This affects time only, not scores.
++- **N3. goal_id is lost on a partial issue failure.** If the goal POST succeeds and the question POST raises, `safe_issue_task` (issue.py:183-189) returns a fresh `Issued` without `goal_id`/`activation_error`. The goal stays active server-side, but `correlation.tasks` (run.py:328-329) shows `goal_id: null`. This affects observability only; the task is an error view. `issued_at` is also the time of the failure, not of the issue.
++- **N4. Disclosure about holdout material.** Two early recursive greps over `research/mycelic_e2e/bench` (`goal_only`; manifest and view consumers) did not exclude `bench/holdout/`. Neither printed any line from it, nothing there was listed or opened, and all later greps used `--exclude-dir=holdout`.
+-- 
+2.43.0
+

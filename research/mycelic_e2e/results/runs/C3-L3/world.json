@@ -1,0 +1,28 @@
+{
+ "seed": 3,
+ "size": "L",
+ "bank": "dev",
+ "counts": {
+  "tenants": 2,
+  "users": 10000,
+  "units": 684,
+  "holders": 10648,
+  "unit_holders": 648,
+  "projects": 10
+ },
+ "sha256": "0895f2be697e0030904d7fee43b71f5ee3a6257b5893e9e1ffe490863b4e45aa",
+ "tenants": [
+  {
+   "slug": "acme-freight",
+   "users": 5000,
+   "units": 342,
+   "holders": 5324
+  },
+  {
+   "slug": "borealis-retail",
+   "users": 5000,
+   "units": 342,
+   "holders": 5324
+  }
+ ]
+}

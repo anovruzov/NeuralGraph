@@ -1,7 +1,7 @@
 From 805ceaa911d6e3eab5fbe477f2cfcba2cea2f475 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 06:35:03 +0000
-Subject: [PATCH 13/43] Contract: record the sealed holdout bank hash and its
+Subject: [PATCH 13/52] Contract: record the sealed holdout bank hash and its
  isolation limits
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,0 +1,14 @@
+split=dev mode=system ablation=A4 provider=deterministic-provider n=120
+accuracy = 111/120 = 0.925  95% Wilson [0.864, 0.960]  errors=0
+disclosures = 0 (foreign refs 0, forbidden markers 0, raw open 0, raw unchecked 0)
+class                      n  ok    acc   CI
+coincidence               10  10  1.000   [0.72, 1.00]
+common_origin_copies       7   7  1.000   [0.65, 1.00]
+common_origin_pos          8   7  0.875   [0.53, 0.98]
+contradiction             10  10  1.000   [0.72, 1.00]
+cross_domain              40  40  1.000   [0.91, 1.00]
+cross_tenant               5   5  1.000   [0.57, 1.00]
+denied                    10  10  1.000   [0.72, 1.00]
+fault                     10  10  1.000   [0.72, 1.00]
+single_domain             10  10  1.000   [0.72, 1.00]
+temporal                  10   2  0.200   [0.06, 0.51]

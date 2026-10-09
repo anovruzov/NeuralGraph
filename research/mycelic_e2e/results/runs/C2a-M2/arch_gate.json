@@ -1,0 +1,199 @@
+{
+  "valid": true,
+  "failed": [],
+  "expect_hypergraph": true,
+  "expect_ranker": true,
+  "gates": {
+    "G1": {
+      "gate": "G1",
+      "title": "every live record came through the connector path (ingest_records + applied_events + benchmark connector)",
+      "status": "pass",
+      "detail": "2241 live documents across 1120 holder files",
+      "problems": [],
+      "data": {
+        "live_documents": 2241,
+        "holders_checked": 1120
+      }
+    },
+    "G2": {
+      "gate": "G2",
+      "title": "holder stores are distinct and records live in the right holder",
+      "status": "pass",
+      "detail": "1120 distinct holder files, 0 registered holders without a file",
+      "problems": [],
+      "data": {
+        "holders": 1120,
+        "holders_without_file": 0,
+        "connectors": 411
+      }
+    },
+    "G3": {
+      "gate": "G3",
+      "title": "every supported claim has independent roots >= policy, resolvable root-known refs, and a matching hypergraph support edge",
+      "status": "pass",
+      "detail": "246 supported claims",
+      "problems": [],
+      "data": {
+        "supported_claims": 246,
+        "hypergraph_checked": true
+      }
+    },
+    "G4": {
+      "gate": "G4",
+      "title": "routing is audited, authorized, within budget and ranked",
+      "status": "pass",
+      "detail": "1154/1154 questions routed; rank_method {'domains': 339, 'hypergraph': 815}; as-of replay denials 0 (current domains differ from route-time domains on 0 of 11278 routes)",
+      "problems": [],
+      "data": {
+        "replay": {
+          "checked": 11278,
+          "denied": 0
+        },
+        "replay_denial_reasons": {},
+        "holders_with_changing_domains": 307,
+        "routes_where_domains_changed_since": 0,
+        "questions": 1154,
+        "routed_questions": 1154,
+        "rank_methods": {
+          "domains": 339,
+          "hypergraph": 815
+        }
+      }
+    },
+    "G5": {
+      "gate": "G5",
+      "title": "every claim has a claim.gate audit row and a revision; every discovery is idempotent",
+      "status": "pass",
+      "detail": "1161 claims, 552 discoveries",
+      "problems": [],
+      "data": {
+        "claims": 1161,
+        "discoveries": 552
+      }
+    },
+    "G6": {
+      "gate": "G6",
+      "title": "all model usage names the declared provider and the run carries its label",
+      "status": "pass",
+      "detail": "label='deterministic-provider', providers={'fake': 8924}",
+      "problems": [],
+      "data": {
+        "providers": {
+          "fake": 8924
+        },
+        "calls": 8924,
+        "input_tokens": 4094636,
+        "output_tokens": 606925,
+        "label": "deterministic-provider"
+      }
+    },
+    "G7": {
+      "gate": "G7",
+      "title": "claims, discoveries and evidence were produced by the system, not written by the harness",
+      "status": "pass",
+      "detail": "1161 claims, 2482 evidence refs traced to holder responses",
+      "problems": [],
+      "data": {
+        "claims": 1161,
+        "refs": 2482,
+        "harness_opens_declared": 0,
+        "views_cross_checked": 120
+      }
+    },
+    "G8": {
+      "gate": "G8",
+      "title": "hypergraph consistent; entity and term indexes hold exactly what holders may publish (privacy) and cover it",
+      "status": "pass",
+      "detail": "entities 0/0 (n/a; 402 holder-entity pairs below entity_min_records, correctly unpublished), 0 outside the expected set; terms 265/265 holders (100%), 0 violating",
+      "problems": [],
+      "data": {
+        "entity_index_pairs": 0,
+        "entity_expected_pairs": 0,
+        "entity_covered": 0,
+        "entity_coverage": null,
+        "entity_extras": 0,
+        "entity_pairs_below_threshold": 402,
+        "coverage_basis": "per-holder expected set from the holder stores under the effective export policy",
+        "term_index_rows_ok": true,
+        "term_holders_expected": 265,
+        "term_holders_covered": 265,
+        "term_coverage": 1.0,
+        "term_holders_violating": 0,
+        "term_note": null
+      }
+    },
+    "G9": {
+      "gate": "G9",
+      "title": "lineage resolves for every discovery: discovery -> claims -> refs -> holders (and question/response)",
+      "status": "pass",
+      "detail": "552 discoveries",
+      "problems": [],
+      "data": {
+        "discoveries": 552
+      }
+    },
+    "G10": {
+      "gate": "G10",
+      "title": "fault dispositions: duplicates, malformed lines, deletions, replay and restart are visible in the stores",
+      "status": "pass",
+      "detail": "injected {'dup_lines': 2, 'malformed': 4, 'deletes': 12, 'restart': 1, 'replay': 1}; duplicate dispositions seen 2255; 12 deleted strings checked",
+      "problems": [],
+      "data": {
+        "derived_faults": {
+          "dup_lines": 2,
+          "malformed": 4,
+          "deletes": 12,
+          "restart": 1,
+          "replay": 1
+        },
+        "declared_faults": {},
+        "duplicates_applied_events": 0,
+        "duplicates_stage_metrics": 2255,
+        "queue_rows_leased_more_than_once": 0,
+        "deleted_markers_checked": 12,
+        "ingest_rejections": 4
+      }
+    }
+  },
+  "counts": {
+    "holders_created": 1120,
+    "holders_with_files": 1120,
+    "holders_with_records": 307,
+    "holders_activated": 250,
+    "holders_routed": 331,
+    "routes": 11278,
+    "questions": 1154,
+    "responses_answered": 2405,
+    "records_ingested": 2253,
+    "ingest_rejections": 4,
+    "records_live": 2241,
+    "applied_events_outcomes": {
+      "delete": 12,
+      "new": 2253,
+      "update": 12
+    },
+    "claims_by_status": {
+      "contested": 695,
+      "hypothesis": 220,
+      "supported": 246
+    },
+    "discoveries": 552,
+    "hyperedges_by_kind": {
+      "conflict": 452,
+      "discovery": 552,
+      "lineage": 1161,
+      "support": 1161
+    },
+    "hyperedges_by_kind_status": {
+      "conflict/active": 452,
+      "discovery/active": 552,
+      "lineage/active": 1161,
+      "support/active": 1161,
+      "support/superseded": 24
+    },
+    "model_calls": 8924,
+    "coord_db_bytes": 205697024,
+    "holder_files_bytes": 839561216
+  },
+  "notes": []
+}

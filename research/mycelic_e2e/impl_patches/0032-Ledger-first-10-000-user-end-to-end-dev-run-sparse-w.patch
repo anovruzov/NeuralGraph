@@ -1,7 +1,7 @@
 From 14714462ff85d054e3c1b1201bf54344b8c6f310 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 08:21:44 +0000
-Subject: [PATCH 32/43] Ledger: first 10,000-user end-to-end dev run (sparse
+Subject: [PATCH 32/52] Ledger: first 10,000-user end-to-end dev run (sparse
  world) valid at 120/120
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

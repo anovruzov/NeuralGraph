@@ -21,7 +21,13 @@ A3     A3_verification_off    ``LoopEngine._ask_verification`` raises ValueError
                               callers that index the result)
 A4     A4_index_off           ``holder.embedded._heartbeat_stats``: ingest.entities   G8
                               and ingest.terms are empty
-A5     A5_authz_routing_off   ``Authorizer.can_route``: any holder of the tenant      G4 (proves the gate is load-bearing)
+A5     A5_authz_routing_off   ``Authorizer._can_route``, the one function every      G4 (proves the gate is load-bearing)
+                              routing decision goes through (``can_route``,
+                              ``can_route_many``, ``candidate_holders``,
+                              ``domains_for_goal`` all call it): any non-revoked
+                              holder of the tenant; counters ``can_route_calls``
+                              and ``loosened`` (calls the real rule would have
+                              refused) go to the manifest as ``ablation_calls``
 A6     A6_dedupe_off          ``IngestPipeline.dedupe`` always returns ``new``        G10
 ====== ====================== ====================================================== ==========================================
 """
@@ -52,6 +58,7 @@ class Patch:
         self.short, self.name = short, NAMES[short]
         self._undo: list[Callable[[], None]] = []
         self.bound: list[str] = []
+        self.counters: dict[str, int] = {}              # evidence that an ablation was live: how often its replacement ran (run_manifest.json ``ablation_calls``)
 
     def rebind(self, original: Any, replacement: Any) -> int:
         """Replace every ``mycelic.*`` module attribute that is ``original``."""
@@ -81,7 +88,7 @@ class Patch:
         self.bound = []
 
     def describe(self) -> dict[str, Any]:
-        return {"ablation": self.short, "ablation_name": self.name, "patched": sorted(self.bound)}
+        return {"ablation": self.short, "ablation_name": self.name, "patched": sorted(self.bound), "calls": dict(self.counters)}
 
 
 def apply(name: str) -> Patch:
@@ -151,15 +158,24 @@ def _a4(p: Patch) -> None:
 
 # ------------------------------------------------------------------------------------------------ A5
 def _a5(p: Patch) -> None:
+    """Replace ``Authorizer._can_route``, the single choke point (same signature, same ``(allowed, reason)`` result). ``can_route`` and
+    ``can_route_many`` call it, and so do ``QuestionService.candidate_holders`` and ``LoopEngine.domains_for_goal`` (which go straight to
+    it with a shared context), so patching ``can_route`` alone left the routing filter running unablated (dev run C7abl-A5-S1: 120/120)."""
     from mycelic.authz import Authorizer
 
-    def can_route_tenant_only(self: Any, question: Any, holder: Any, *, asker: Any = None) -> tuple[bool, str]:
+    original = Authorizer._can_route
+    p.counters.update(can_route_calls=0, loosened=0)
+
+    def can_route_tenant_only(self: Any, question: Any, holder: Any, ctx: Any) -> tuple[bool, str]:
+        p.counters["can_route_calls"] += 1
         if holder.get("tenant_id") != question.get("tenant_id"):
             return False, "tenant mismatch"
         if holder.get("status") == "revoked":
             return False, "holder revoked"
-        return True, "ok (ablation A5: no scope, domain or answer-scope check)"
-    p.setattr(Authorizer, "can_route", can_route_tenant_only, "mycelic.authz.Authorizer.can_route")
+        if not original(self, question, holder, ctx)[0]:
+            p.counters["loosened"] += 1                  # the real rule would have refused this holder: the ablation changed the outcome
+        return True, "ok (ablation A5: no scope, domain, answer-scope or asker check)"
+    p.setattr(Authorizer, "_can_route", can_route_tenant_only, "mycelic.authz.Authorizer._can_route")
 
 
 # ------------------------------------------------------------------------------------------------ A6

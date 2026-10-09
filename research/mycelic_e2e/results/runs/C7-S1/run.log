@@ -1,0 +1,90 @@
+[09:29:41] system run C7-S1 size=S seed=1 rev=7d2e63b code=/tmp/claude-0/-home-user-NeuralGraph/cb55ecbb-9144-58cb-a5af-0b006a90960a/scratchpad/code/7d2e63b
+[09:29:41] world S seed 1 split dev: {'tenants': 2, 'users': 112, 'units': 42, 'holders': 136, 'unit_holders': 24, 'projects': 10}  tasks=120 records=1572
+[09:29:42] materialized tenant acme-freight: 56 users, 21 units, 68 holders
+[09:29:42] materialized tenant borealis-retail: 56 users, 21 units, 68 holders
+[09:29:42] materialized in 0.21s (rss peak 81.6 MB)
+[09:29:42] wrote 182 source files, 1578 raw lines
+[09:29:45] holders: 136 open of 136 registered, max_open=0 bounded=False (3.52s, rss peak 228.3 MB)
+[09:29:49]   fed 50/182 sources
+[09:29:53]   fed 100/182 sources
+[09:29:56]   fed 150/182 sources
+[09:29:58] fed 182 sources in 12.46s: {'raw_items': 1572, 'enqueued': 1549, 'duplicates': 19, 'normalize_errors': 4, 'processed': 1549}; errors=0 []
+[09:29:59] routable domains published by 102/102 holders (1.01s)
+[09:30:03] heartbeats stable: True after 4.02s
+[09:30:55] wave 1/8 done  (52s)
+[09:31:37] wave 2/8 done  (94s)
+[09:32:43] wave 3/8 done  (160s)
+[09:33:38] wave 4/8 done  (215s)
+[09:34:49] wave 5/8 done  (286s)
+[09:36:03] wave 6/8 done  (361s)
+[09:37:27] wave 7/8 done  (444s)
+[09:39:04] wave 8/8 done  (541s)
+[09:39:04] done in 562.93s: views=120 questions={'committed': 95, 'retained_uncertain': 15, 'None': 10} supported_claims=78 tasks_with_supported=78 model_calls=36621 peak_rss=539.2MB
+[09:39:06] system exit 0
+/tmp/claude-0/-home-user-NeuralGraph/cb55ecbb-9144-58cb-a5af-0b006a90960a/scratchpad/runs/C7-S1/raw_authority.json
+/tmp/claude-0/-home-user-NeuralGraph/cb55ecbb-9144-58cb-a5af-0b006a90960a/scratchpad/runs/C7-S1/report.md
+[09:40:18] report exit 0
+[09:40:18] holder stores trimmed after gate
+  central store acme-freight: {'tenant': 'acme-freight', 'sources': 88, 'connectors': 88, 'errors': [], 'wall_s': 4.98, 'raw_items': 783, 'enqueued': 777, 'duplicates': 2, 'normalize_errors': 4, 'processed': 777}
+  central store borealis-retail: {'tenant': 'borealis-retail', 'sources': 94, 'connectors': 94, 'errors': [], 'wall_s': 5.2, 'raw_items': 795, 'enqueued': 795, 'duplicates': 0, 'normalize_errors': 0, 'processed': 795}
+{
+  "run_id": "base_be3dd5fcc1",
+  "variant": "source",
+  "n_tasks": 120,
+  "view_errors": 0,
+  "counts": {
+    "created": 2,
+    "with_records": 2,
+    "activated": 2,
+    "routed": 0
+  },
+  "model_usage": {
+    "calls": 228,
+    "input_tokens": 246803,
+    "output_tokens": 93640,
+    "providers": "fake",
+    "by_purpose": {
+      "classify_domains": 4,
+      "answer_from_evidence": 120,
+      "evaluate_responses": 104
+    }
+  },
+  "timings_s": {
+    "ingest_s": 11.79,
+    "total_s": 16.48
+  }
+}
+[09:40:35] baseline source exit 0
+  central store acme-freight: {'tenant': 'acme-freight', 'sources': 88, 'connectors': 88, 'errors': [], 'wall_s': 4.4, 'raw_items': 783, 'enqueued': 777, 'duplicates': 2, 'normalize_errors': 4, 'processed': 777}
+  central store borealis-retail: {'tenant': 'borealis-retail', 'sources': 94, 'connectors': 94, 'errors': [], 'wall_s': 4.6, 'raw_items': 795, 'enqueued': 795, 'duplicates': 0, 'normalize_errors': 0, 'processed': 795}
+{
+  "run_id": "base_1c3d69e20e",
+  "variant": "single",
+  "n_tasks": 120,
+  "view_errors": 0,
+  "counts": {
+    "created": 2,
+    "with_records": 2,
+    "activated": 2,
+    "routed": 0
+  },
+  "model_usage": {
+    "calls": 228,
+    "input_tokens": 232692,
+    "output_tokens": 32511,
+    "providers": "fake",
+    "by_purpose": {
+      "classify_domains": 4,
+      "answer_from_evidence": 120,
+      "evaluate_responses": 104
+    }
+  },
+  "timings_s": {
+    "ingest_s": 10.43,
+    "total_s": 14.09
+  }
+}
+[09:40:49] baseline single exit 0
+/tmp/claude-0/-home-user-NeuralGraph/cb55ecbb-9144-58cb-a5af-0b006a90960a/scratchpad/runs/C7-S1-baseline-source/report.md
+/tmp/claude-0/-home-user-NeuralGraph/cb55ecbb-9144-58cb-a5af-0b006a90960a/scratchpad/runs/C7-S1-baseline-single/report.md
+[09:41:14] done

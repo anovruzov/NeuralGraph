@@ -1,0 +1,29 @@
+[10:00:18] ablation run C7abl-A5-S1 size=S seed=1 ablation=A5 rev=7d2e63b
+[10:00:18] world S seed 1 split dev: {'tenants': 2, 'users': 112, 'units': 42, 'holders': 136, 'unit_holders': 24, 'projects': 10}  tasks=120 records=1572
+[10:00:18] ablation A5_authz_routing_off: 1 binding(s) replaced
+[10:00:18] materialized tenant acme-freight: 56 users, 21 units, 68 holders
+[10:00:19] materialized tenant borealis-retail: 56 users, 21 units, 68 holders
+[10:00:19] materialized in 0.27s (rss peak 75.9 MB)
+[10:00:19] wrote 182 source files, 1578 raw lines
+[10:00:22] holders: 136 open of 136 registered, max_open=0 bounded=False (2.95s, rss peak 227.0 MB)
+[10:00:25]   fed 50/182 sources
+[10:00:29]   fed 100/182 sources
+[10:00:31]   fed 150/182 sources
+[10:00:33] fed 182 sources in 11.63s: {'raw_items': 1533, 'enqueued': 1510, 'duplicates': 19, 'normalize_errors': 4, 'processed': 1510}; errors=0 []
+[10:00:35] routable domains published by 102/102 holders (1.51s)
+[10:00:39] heartbeats stable: True after 4.02s
+[10:01:27] wave 1/8 done  (48s)
+[10:02:05] wave 2/8 done  (87s)
+[10:03:07] wave 3/8 done  (148s)
+[10:03:58] wave 4/8 done  (199s)
+[10:04:57] wave 5/8 done  (258s)
+[10:06:01] wave 6/8 done  (322s)
+[10:07:17] wave 7/8 done  (398s)
+[10:08:45] wave 8/8 done  (486s)
+[10:08:45] done in 506.38s: views=120 questions={'committed': 95, 'retained_uncertain': 15, 'None': 10} supported_claims=78 tasks_with_supported=78 model_calls=35788 peak_rss=534.9MB
+[10:08:46] system exit 0
+/tmp/claude-0/-home-user-NeuralGraph/cb55ecbb-9144-58cb-a5af-0b006a90960a/scratchpad/runs/C7abl-A5-S1/raw_authority.json
+/tmp/claude-0/-home-user-NeuralGraph/cb55ecbb-9144-58cb-a5af-0b006a90960a/scratchpad/runs/C7abl-A5-S1/report.md
+[10:10:05] report exit 0
+[10:10:07] holder stores trimmed after gate
+[10:10:07] done

@@ -1,0 +1,109 @@
+From fe5c25d96df6faa4ee03005f59e7a23868413406 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 09:33:58 +0000
+Subject: [PATCH 50/52] Review: harness fix H2 accepted; ledger rows for C6-S1,
+ H2 and disk custody
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl    |  8 ++-
+ research/mycelic_e2e/reviews/REVIEW_H1.md | 69 +++++++++++++++++++++++
+ 2 files changed, 76 insertions(+), 1 deletion(-)
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 32d564a..3792894 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -55,4 +55,10 @@
+ {"id": "X054", "utc": "2026-10-09T09:20:16Z", "kind": "engineering", "agent": "WP1 engineer (claude-sonnet-5-5)", "result": "K1b committed (46a0cb8 -> trailer normalized 2d00ca2): QuestionService.view() reduces result to outcome/timed_out_routes for principals without full view; H1 committed (8114d06 -> trailer normalized fe8adfa): per-task API calls wrapped (safe_issue_task/safe_question_status/safe_run_loop_now/safe_collect_view), error views carry the asker tenant_id and score wrong for every class, api_errors counted in the manifest; bench tests 181 passed / 2 skipped, mycelic tests 527 passed / 7 skipped", "class": "engineering"}
+ {"id": "X055", "utc": "2026-10-09T09:20:40Z", "kind": "review", "agent": "REVIEWER-2 (claude-opus-5-5)", "subject": "K1b 2d00ca2 and observe query fix 4c27744", "result": "ACCEPT both. K1b: P7 0 of 12 (was 2 of 12), P6 clean, P8 SSE question.* events admit 0 of 42 non-viewers; all API callers pass the principal. Observe: fuzz 300 random goals 0 mismatches vs the defined semantics, new result a subset of the old one (old extras were substring/LIKE-wildcard/case false positives), new_evidence used only as a count (engine.py:608) so the LIMIT choice does not matter; 527 passed / 7 skipped.", "evidence": "reviews/REVIEW_WP1.md 'Review of K1b fix 2d00ca2', 'Review of observe() query fix 4c27744'", "class": "review"}
+ {"id": "X056", "utc": "2026-10-09T09:20:40Z", "kind": "review-dispatch", "agent": "REVIEWER-4 (opus, new instance)", "subject": "harness fix H1 fe8adfa", "class": "review"}
+-{"id": "X057", "utc": "2026-10-09T09:27:00Z", "kind": "review", "agent": "REVIEWER-4 (claude-opus-5-5)", "subject": "harness fix H1 fe8adfa", "result": "ACCEPT: all four per-task calls wrapped (run.py:274,283,291,296), CancelledError/KeyboardInterrupt pass through, error view scores wrong for all 10 classes (status 'error' is what keeps an empty view from scoring abstain-correct), identical 14 calls/order/results with no errors (stub API), 181 passed / 2 skipped, own 37 checks 0 failures. Non-blocking: N1 failed run_now/status polls are only counted (cannot raise a score), N2 a starved API can overrun the wave deadline (time, not score), N3 goal_id null on a half-issued task, N4 two early greps over bench/ did not exclude bench/holdout/ (it holds only __init__.py; the bank is sealed outside the repo; nothing printed).", "evidence": "reviews/REVIEW_H1.md", "class": "review"}
++{"id": "X057", "utc": "2026-10-09T09:24:30Z", "kind": "review", "agent": "REVIEWER-4 (claude-opus-5-5)", "subject": "harness fix H1 fe8adfa", "result": "ACCEPT: all four per-task calls wrapped (run.py:274,283,291,296), CancelledError/KeyboardInterrupt pass through, error view scores wrong for all 10 classes (status 'error' is what keeps an empty view from scoring abstain-correct), identical 14 calls/order/results with no errors (stub API), 181 passed / 2 skipped, own 37 checks 0 failures. Non-blocking: N1 failed run_now/status polls are only counted (cannot raise a score), N2 a starved API can overrun the wave deadline (time, not score), N3 goal_id null on a half-issued task, N4 two early greps over bench/ did not exclude bench/holdout/ (it holds only __init__.py; the bank is sealed outside the repo; nothing printed).", "evidence": "reviews/REVIEW_H1.md", "class": "review"}
++{"id": "X058", "utc": "2026-10-09T09:26:00Z", "kind": "finding", "agent": "orchestrator (claude-opus-5-5)", "what": "dev ablation C6abl-A1-S1 (ranker off): 57/120 = 0.475 [0.388, 0.564], gate valid; scorer reports disclosures 344 = raw_unchecked 344 (foreign refs 0, markers 0, raw open 0) in 17 tasks", "result": "traced: the unchecked refs appear only in goal_discoveries[*].evidence, which the scorer counts as visible (score.py all_visible_refs) but issue.py collect_view never raw-checks (it adds only claim evidence to seen_refs). Measurement gap in the harness, not an observed disclosure; counted conservatively by the scorer. Harness fix H2 (raw-check discovery evidence refs) dispatched to the WP1 engineer, to be reviewed before the freeze.", "class": "finding"}
++{"id": "X059", "utc": "2026-10-09T09:28:20Z", "kind": "dev-result", "run": "C6-S1", "code": "4c27744 (C5 + K1 + K1b + observe fix; no H1/H2)", "result": "96/120 = 0.800 [0.720, 0.862], gate valid (G1-G10), 560 s (C5-S1 aborted at >1,700 s), api errors n/a (pre-H1). Per class: cross_domain 40/40, fault 10/10, contradiction 10/10, temporal 10/10, common_origin_pos 8/8; coincidence 3/10, single_domain 2/10, common_origin_copies 2/7, denied 7/10, cross_tenant 4/5. Decomposition: answer extraction is correct on 120/120; the 24 expected-abstain tasks are wrong only because the disclosure check counts 1,039 raw-unchecked refs (foreign refs 0, markers 0, raw open 0) - the H2 measurement gap (discovery evidence refs never raw-checked by collect_view). Reported as measured; not re-scored.", "class": "dev"}
++{"id": "X060", "utc": "2026-10-09T09:29:44Z", "kind": "engineering", "agent": "WP1 engineer (claude-sonnet-5-5)", "result": "H2 committed (5e3eb3e -> trailer normalized 7d2e63b): collect_view adds goal-discovery evidence refs to the raw-checked set (+3 lines); test_raw_check_coverage.py (2 tests, fail without the change); bench 183 passed / 2 skipped, mycelic 527 passed / 7 skipped", "class": "engineering"}
++{"id": "X061", "utc": "2026-10-09T09:29:44Z", "kind": "run-start", "what": "dev C7-S1 (full system + both central baselines, S/1, anchored) on snapshot 7d2e63b = the candidate code (C6 + H1 + H2), REVIEWER-4 reviewing H2 in parallel", "why": "dev number and end-to-end validation of the exact candidate code before the freeze", "class": "dev"}
++{"id": "X062", "utc": "2026-10-09T09:33:00Z", "kind": "review", "agent": "REVIEWER-4 (claude-opus-5-5)", "subject": "harness fix H2 7d2e63b", "result": "ACCEPT: every scorer ref source mapped to a raw check; goal-discovery evidence was the only unchecked source; in C6-S1 all 1,039 unchecked refs (56 views) are goal_discoveries[*].evidence and none would remain after H2; the 24 failing expected-abstain tasks are leak-only with foreign 0 / markers 0 / raw_open 0; an open (200) goal-discovery ref still counts as raw_open (disclosure); 183 passed / 2 skipped. Non-blocking: C6 runs cannot be re-scored (checks never made); up to ~70 more raw calls per view; goal-level caps (60 claims / 30 discoveries) pre-date H2.", "evidence": "reviews/REVIEW_H1.md 'Review of harness fix H2 7d2e63b'", "class": "review"}
++{"id": "X063", "utc": "2026-10-09T09:33:47Z", "kind": "custody", "what": "disk", "result": "free space had fallen to 9 GB (pytest basetemps of the engineers' and reviewers' suites ~4.5 GB, finished baseline central stores); deleted those and the holder stores of aborted/stopped runs -> 16 GB free", "class": "custody"}
+diff --git a/research/mycelic_e2e/reviews/REVIEW_H1.md b/research/mycelic_e2e/reviews/REVIEW_H1.md
+index 7862e6f..91e39d8 100644
+--- a/research/mycelic_e2e/reviews/REVIEW_H1.md
++++ b/research/mycelic_e2e/reviews/REVIEW_H1.md
+@@ -62,3 +62,72 @@ The engineer's 181 passed / 2 skipped reproduces. test_api_isolation.py has no v
+ - **N2. Liveness.** The poll loop checks `deadline` only once per iteration (run.py:282). Each poll is sequential and can block up to 300 s (feed.py:25, `ClientTimeout(total=300)`). With `--wave 15` (run.py:357), a starved API can overrun `T_task=180 s` by up to 15×300 s per iteration. Before the patch, such a run aborted instead, and slow-but-successful polls behaved the same. This affects time only, not scores.
+ - **N3. goal_id is lost on a partial issue failure.** If the goal POST succeeds and the question POST raises, `safe_issue_task` (issue.py:183-189) returns a fresh `Issued` without `goal_id`/`activation_error`. The goal stays active server-side, but `correlation.tasks` (run.py:328-329) shows `goal_id: null`. This affects observability only; the task is an error view. `issued_at` is also the time of the failure, not of the issue.
+ - **N4. Disclosure about holdout material.** Two early recursive greps over `research/mycelic_e2e/bench` (`goal_only`; manifest and view consumers) did not exclude `bench/holdout/`. Neither printed any line from it, nothing there was listed or opened, and all later greps used `--exclude-dir=holdout`.
++
++---
++
++
++## Review of harness fix H2 7d2e63b
++
++**Reviewer:** REVIEWER-4, model `claude-opus-5-5` (independent; did not write the patch; engineer claude-sonnet-5-5)
++**Verdict: ACCEPT.** No concrete defect found.
++
++Scope: commit `7d2e63bc765d9adffd3e34c93bdb2c7cb4351fc3`, parent `0852d33`. The bench code at 0852d33 is identical to fe8adfa (`git diff --quiet fe8adfa 0852d33 -- research/mycelic_e2e/bench` → identical). The commit makes 3 lines of change in bench/issue.py:146-148 and adds tests/test_raw_check_coverage.py (+82). score.py is unchanged (`git diff --stat 0852d33 7d2e63b -- .../score.py` is empty). Nothing under /root/sealed_holdout or bench/holdout was opened, and ng-impl was not modified. The commit's Co-Authored-By trailer names Opus 5.5; the coordinator says it normalized the trailer. The engineer was claude-sonnet-5-5, so the ledger should record that.
++
++### Commands and outputs
++```
++$ git -C /home/user/ng-impl archive 7d2e63b | tar -x -C $SCR/rv11
++$ cd $SCR/rv11 && python -m pytest research/mycelic_e2e/bench/tests -q -p no:cacheprovider --basetemp $SCR/rv11_bt
++  183 passed, 2 skipped, 11 warnings in 16.18s          (matches the engineer's report)
++$ python -I $SCR/rv10_checks/check_h2_c6.py $SCR/rv11 $SCR/runs/C6-S1      (all 120 views, scorer's own check_disclosure)
++  views with unchecked refs: 56  total unchecked: 1039          (= score.json "disclosures": 1039)
++  unchecked refs by source set: {('goal_discoveries',): 1039}
++  unchecked refs NOT in goal_discoveries[*].evidence (would remain after H2): 0
++  goal-discovery embedded claims carrying their own evidence: 0
++  sample dev-001 coincidence    60 unchecked: q_claims 0, view_evidence 0, q_discoveries 0, goal_claims 0, goal_evidence 0, goal_discoveries 60
++  sample dev-002 single_domain  16 unchecked: ... goal_discoveries 16
++  sample dev-024 denied          4 unchecked: ... goal_discoveries 4
++  claims columns containing 'evid': []
++$ python -I $SCR/rv10_checks/check_h2_open.py $SCR/rv10   (pre-H2 code)  vs  $SCR/rv11   (H2)
++  pre-H2  raw=200 required=False: raw_checks={}            raw_unchecked=['r_x'] count=0 -> correct=True  reason=ok    <- an open raw was invisible
++  pre-H2  raw=403 required=True : raw_checks={}            raw_unchecked=['r_x'] count=1 -> correct=False reason=leak  <- a refused raw counted as a leak (the C6-S1 symptom)
++  H2      raw=200 required=False: raw_checks={'r_x': 200}  raw_open=['r_x']      count=1 -> correct=False reason=leak
++  H2      raw=200 required=True : raw_checks={'r_x': 200}  raw_open=['r_x']      count=1 -> correct=False reason=leak
++  H2      raw=403 required=*    : raw_checks={'r_x': 403}  raw_open=[]           count=0 -> correct=True  reason=ok
++  H2      raw GETs: ['/api/evidence/r_x/raw'] | view.evidence: [] | goal_evidence: []  (question-level lists unchanged)
++```
++
++### 1. Coverage: every ref the scorer counts is now raw-checked
++The scorer's visible refs are `all_visible_refs` (score.py:299-314) over the question view, merged with the goal-level view `goal_level_view` (score.py:438-441, 453-457). The table maps each source to where collect_view raw-checks it:
++
++| Scorer source | collect_view raw-checks it at |
++|---|---|
++| question claims: `item.evidence`, else `claim.evidence`, else the parent discovery's evidence (`view_claims`, score.py:256-281) | claim detail top-level `evidence`, issue.py:110-116. `claim_detail` returns refs only at the top level (mycelic/knowledge/service.py:332-333). The nested `claim` is `claim_summary` (a claims row), and the claims table has no evidence column (PRAGMA above). |
++| `view["evidence"]` | It is `list(seen_refs.values())` (issue.py:124), so every entry is checked. |
++| question discoveries `[*].evidence`, and their embedded `claims` (shared refs) | issue.py:117-123. The embedded claims are `claim_summary` rows with no own evidence, so the scorer uses the discovery's refs (service.py:895). |
++| goal claims `[:60]` and `goal_evidence` | issue.py:130-139 (`goal_evidence` is a subset of these). |
++| **goal discoveries `[:30]` `[*].evidence`, and their embedded claims** | **issue.py:146-148, new in H2.** This was the only gap. |
++| `lineage` in discovery details | The scorer does not read it. Its evidence nodes come from `refs_for_claim` over the same discovery claims (service.py:926-927), the same set as that discovery's `evidence`. |
++
++H2 appends the new refs to `seen_refs` after `view["evidence"]` was copied (issue.py:124) and after the goal-claim loop. So `view["evidence"]`, `view["goal_evidence"]`, the claim call order and the order of the existing raw GETs are unchanged; the new raw GETs come last. This is confirmed by the engineer's test (test_raw_check_coverage.py:74-82) and by my check.
++
++### 2. Integrity
++- **Real disclosures stay visible.** In check_disclosure (score.py:476-484), a checked ref whose code is not in `OK_RAW_REFUSALS = {401, 403, 404}` (score.py:62) and whose holder is not raw-allowed counts as `raw_open`. A 200, a 5xx or a non-integer code are all counted as disclosures.
++- **H2 makes measurement stricter, not more lenient.** Before H2, a goal-discovery ref with open raw was hidden when `raw_checks_enabled` was false: count 0, abstain scored correct. With raw checks required, a correctly refused ref was counted as a leak. After H2, an open raw is always `raw_open`, so the abstain task is wrong, and a 403 is not a disclosure. See check_h2_open above.
++- **Errors still make the task wrong.** An exception raised by any of the extra raw GETs goes through H1's `safe_collect_view` and yields an error view, which is scored wrong.
++- **No scoring change.** score.py is unchanged, `raw_required` still comes from `manifest["raw_checks_enabled"]` (score.py:657), and there are no other code changes.
++
++### 3. Tests
++183 passed, 2 skipped. test_raw_check_coverage.py is not vacuous. It asserts:
++- every raw-check key, and the goal-discovery ref's 403;
++- that a control view without that entry reports `raw_unchecked == ["ev_goal_disc"]` (:60-71);
++- unchanged lists and call order (:74-82).
++
++It does not cover an open (200) raw on a goal-discovery ref. My `check_h2_open.py` covers that case and shows it counts as `raw_open`.
++
++### 4. C6-S1 evidence
++All 24 failing expected-abstain tasks in `$SCR/runs/C6-S1/score.json` have reason `leak`, with foreign 0, markers 0, raw_open 0 and only `raw_unchecked`: single_domain 8, coincidence 7, common_origin_copies 5, denied 3, cross_tenant 1. Across all 120 views, each of the 1039 unchecked refs is listed only in `goal_discoveries[*].evidence`, and none would remain after H2. Samples: dev-001 (coincidence, 60), dev-002 (single_domain, 16), dev-024 (denied, 4).
++
++### Non-blocking notes
++- **N1.** C6-S1 and C6abl-A1-S1 cannot be re-scored into the H2 result: their views never made those raw requests. Whether the 24 tasks become correct, or show a real `raw_open`, needs a new run.
++- **N2.** The raw-check count per view grows by up to 70 in C6-S1 (dev-109). That is more wall time, and more chances for an API failure that H1 turns into an error view.
++- **N3 (pre-existing, outside H2).** The goal-level caps `[:60]` claims and `[:30]` discoveries (issue.py:130, 140) mean output beyond them never reaches the view, so the disclosure check cannot see it at all.
+-- 
+2.43.0
+

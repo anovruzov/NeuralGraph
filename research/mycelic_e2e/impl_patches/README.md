@@ -9,4 +9,4 @@ implementation was refused by the session's safety settings. To reproduce the te
     git checkout -b e2e-overnight f96f2632e52e4b050fed080ba5c9f9beca0a6894
     git am research/mycelic_e2e/impl_patches/*.patch      # run from a checkout that has this directory
 
-Tested head after applying: 4f54d886bce7d7165474aa2f7801e706ae391081
+Tested head after applying: a78af461b6bf803c60927d90f33f42b5f121fe9d

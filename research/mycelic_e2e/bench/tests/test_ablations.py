@@ -58,7 +58,8 @@ def test_nothing_is_patched_by_default(tmp_path):
     from mycelic.knowledge import gate, support
     assert service.rank_holders is routing.rank_holders and routing.rank_holders.__module__ == "mycelic.inquiry.routing"
     assert gate.compute_support is support.compute_support and support.compute_support.__module__ == "mycelic.knowledge.support"
-    assert Authorizer.can_route.__module__ == "mycelic.authz" and IngestPipeline.dedupe.__module__ == "mycelic.ingest.pipeline"
+    assert Authorizer.can_route.__module__ == "mycelic.authz" and Authorizer._can_route.__module__ == "mycelic.authz"
+    assert IngestPipeline.dedupe.__module__ == "mycelic.ingest.pipeline"
     assert LoopEngine._ask_verification.__module__ == "mycelic.discovery.engine" and embedded._heartbeat_stats.__module__ == "mycelic.holder.embedded"
 
 
@@ -150,6 +151,66 @@ def test_a5_authz_routing_off(patched, tmp_path):
         assert rt.authz.can_route(q, h)[0] is False
     finally:
         close(rt)
+
+
+async def _two_department_world(rt):
+    """Tenant with departments A and B. ``ha`` (A) and ``hb`` (B) hold the default policy; ``hc`` (A) answers private questions only."""
+    reg = await rt.auth.register_tenant(org_name="Acme", slug="a5", admin_email="admin@a5.test", admin_name="Admin", password="password123")
+    t, root = reg["tenant"]["tenant_id"], reg["root_unit"]["unit_id"]
+    depts, holders = {}, {}
+    for key, dept in (("ha", "A"), ("hb", "B"), ("hc", "A")):
+        if dept not in depts:
+            depts[dept] = (await rt.org.create_unit(t, "department", f"Dept{dept}", parent_id=root))["unit_id"]
+        u = await rt.org.create_user(t, f"{key}@a5.test", key)
+        await rt.org.add_membership(t, u["user_id"], depts[dept], "employee")
+        holders[key], _ = await rt.org.register_holder(t, owner_type="user", owner_id=u["user_id"], name=f"{key} notes")
+    await rt.org.update_holder(holders["hc"]["holder_id"], export_policy={"answer_scopes": ["private"]})
+    return t, depts, {k: h["holder_id"] for k, h in holders.items()}
+
+
+def test_a5_replaces_the_one_choke_point_so_the_routing_filter_is_ablated(patched, tmp_path):
+    """Dev run C7abl-A5-S1 (120/120) showed the first A5 was a no-op: it replaced ``Authorizer.can_route``, but ``candidate_holders`` and
+    ``domains_for_goal`` call ``_can_route`` directly. A5 now replaces ``_can_route`` itself; the routing path must admit what the real rule refuses."""
+    from mycelic.authz import Authorizer
+    real = Authorizer._can_route
+    p = patched("A5_authz_routing_off")
+    assert Authorizer._can_route is not real and p.counters == {"can_route_calls": 0, "loosened": 0}
+    assert p.describe()["patched"] == ["mycelic.authz.Authorizer._can_route"]
+    rt = build(tmp_path)
+    try:
+        t, depts, hid = asyncio.run(_two_department_world(rt))
+        q = {"tenant_id": t, "scope_unit_id": depts["A"], "policy": {"visibility": "unit"}, "candidate_domains": []}
+        ok, rejected = rt.questions.candidate_holders(q)                                  # the routing path, as route() runs it
+        admitted = {h["holder_id"] for h in ok}
+        assert {hid["ha"], hid["hb"], hid["hc"]} <= admitted and not rejected            # hb is outside the scope, hc answers no unit-scoped question
+        assert p.counters["can_route_calls"] >= 3 and p.counters["loosened"] >= 2        # the replacement ran on the routing path and changed outcomes
+        before = dict(p.counters)
+        verdicts = rt.authz.can_route_many(q, [{**h, "tenant_id": t} for h in rt.org.routing_holders(t)])      # the goal-domain scan
+        assert all(v[0] and v[1].startswith("ok (ablation A5") for v in verdicts) and p.counters["can_route_calls"] > before["can_route_calls"]
+        assert rt.authz.can_route(q, rt.org.get_holder(hid["hb"]))[1].startswith("ok (ablation A5")       # the wrappers go through it as well
+        assert rt.authz.can_route(q, {**rt.org.get_holder(hid["hb"]), "tenant_id": "other"})[0] is False   # the tenant boundary is not the mechanism under test
+        assert rt.authz.can_route(q, {**rt.org.get_holder(hid["hb"]), "status": "revoked"})[0] is False
+        # restore puts the real rule back, in the same runtime: the same question now rejects both holders, and the counters stop
+        p.restore()
+        assert Authorizer._can_route is real
+        frozen = dict(p.counters)
+        ok2, rejected2 = rt.questions.candidate_holders(q)
+        assert {h["holder_id"] for h in ok2} == {hid["ha"]} and {r["holder_id"] for r in rejected2} == {hid["hb"], hid["hc"]}
+        reasons = {r["holder_id"]: r["reason"] for r in rejected2}
+        assert "outside the question's scope" in reasons[hid["hb"]] and "does not answer" in reasons[hid["hc"]]
+        assert p.counters == frozen
+    finally:
+        close(rt)
+
+
+def test_ablation_counters_reach_the_manifest():
+    src = (REPO / "research/mycelic_e2e/bench/run.py").read_text()
+    assert '"ablation_calls": dict(abl_patch.counters) if abl_patch else {}' in src
+    p = ablations.apply("A5")
+    try:
+        assert p.describe()["calls"] == {"can_route_calls": 0, "loosened": 0}
+    finally:
+        p.restore()
 
 
 def test_a6_dedupe_off(patched, tmp_path):

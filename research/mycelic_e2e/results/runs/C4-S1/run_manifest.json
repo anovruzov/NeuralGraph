@@ -1,0 +1,1128 @@
+{
+ "run_id": "run_9cf7a316a832",
+ "split": "dev",
+ "mode": "system",
+ "ablation": null,
+ "ablation_name": null,
+ "ablation_patches": [],
+ "seed": 1,
+ "size": "S",
+ "provider_label": "deterministic-provider",
+ "provider": "fake (deterministic)",
+ "fake_py_sha256": "0dad30d6c3c04bc0",
+ "tasks_sha256": "ec0a2829af9b2236658ed42e34646bc77d18bd6e847f91a35685b040d23ab77f",
+ "sources_sha256": "6b8064360ec8ee6921f209c1c837556ac80c60703f87c21cc132f702a5b2f0d0",
+ "n_tasks": 120,
+ "n_gold_written": 120,
+ "world_sha256": "21692c16690076481496f6275073d777546cec43c31af9cfb77c6450a4228a9a",
+ "world_counts": {
+  "tenants": 2,
+  "users": 112,
+  "units": 42,
+  "holders": 136,
+  "unit_holders": 24,
+  "projects": 10
+ },
+ "transport": "sqlite",
+ "in_process_server": true,
+ "max_open_holders": 0,
+ "holders_stats": {
+  "open": 136,
+  "registered": 136,
+  "max_open": 0,
+  "bounded": false,
+  "opened": 137,
+  "closed": 0,
+  "woken_by_message": 0,
+  "woken_by_poll": 0,
+  "peak_open": 136,
+  "over_limit": 0
+ },
+ "heartbeat_stable": true,
+ "raw_checks_enabled": true,
+ "counts": {
+  "created": 136,
+  "with_records": 136,
+  "activated": 111,
+  "routed": 125,
+  "opened": 136
+ },
+ "model_usage": {
+  "calls": 21075,
+  "input_tokens": 11615590,
+  "output_tokens": 2408564,
+  "providers": "fake"
+ },
+ "records": {
+  "planned": 1572,
+  "late_phase": 23,
+  "source_files": 182,
+  "raw_items": 1552,
+  "enqueued": 1529,
+  "duplicates": 19,
+  "normalize_errors": 4,
+  "processed": 1529
+ },
+ "question_statuses": {
+  "committed": 95,
+  "retained_uncertain": 15,
+  "None": 10
+ },
+ "timings_s": {
+  "materialize_s": 0.46,
+  "open_holders_s": 7.47,
+  "feed_s": 21.77,
+  "domain_publication_s": 0.51,
+  "heartbeat_stable_s": 4.04,
+  "tasks_s": 957.63,
+  "total_s": 993.0
+ },
+ "peak_rss_mb": 467.7,
+ "heartbeat_s": 2.0,
+ "wave": 15,
+ "task_timeout_s": 180.0,
+ "n_ticks": 2,
+ "events_range": [
+  1,
+  32952
+ ],
+ "container": {
+  "platform": "Linux-6.18.44-fc-v80-x86_64-with-glibc2.39",
+  "cpus": 4,
+  "python": "3.13.16"
+ },
+ "correlation": {
+  "tenants": {
+   "acme-freight": "ten_8ef10a0e4e344287ade6",
+   "borealis-retail": "ten_69355f678ac84c488167"
+  },
+  "tasks": {
+   "dev-000": {
+    "goal_id": "goal_aabc4c5949ab4b14b11a",
+    "question_id": "q_d9a956e684f34a57856b",
+    "issued_at": 1791533201.476272,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-001": {
+    "goal_id": "goal_49196d6b10b84494aec2",
+    "question_id": "q_d5ef6ff8706a4532b4f6",
+    "issued_at": 1791533201.4767036,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-002": {
+    "goal_id": "goal_3db7090e0be74aaca98e",
+    "question_id": "q_3e4696362b7e4e3c9920",
+    "issued_at": 1791533201.4769106,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-003": {
+    "goal_id": "goal_77e96aa245864a72b002",
+    "question_id": "q_103cb0abb9ad4a33b89b",
+    "issued_at": 1791533201.4770567,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-004": {
+    "goal_id": "goal_092cd4326bf84493844e",
+    "question_id": "q_0994fe915d0040269e5b",
+    "issued_at": 1791533201.4771729,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-005": {
+    "goal_id": "goal_40d14be3e9054a19aae7",
+    "question_id": "q_35afe405016042fcb1c5",
+    "issued_at": 1791533201.477303,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-006": {
+    "goal_id": "goal_f0f6235e6366441f80d0",
+    "question_id": "q_82b68ce080534eb48cf6",
+    "issued_at": 1791533201.4774566,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-007": {
+    "goal_id": "goal_83abf3e99bba44428cc2",
+    "question_id": "q_03d2e0f7a6504b3a90f0",
+    "issued_at": 1791533201.477706,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-008": {
+    "goal_id": "goal_cb0a775681d940788a44",
+    "question_id": "q_584abd006e674eb2becd",
+    "issued_at": 1791533208.8511865,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-009": {
+    "goal_id": "goal_4e358e1856984088896f",
+    "question_id": "q_e64fc3b560014f92b88b",
+    "issued_at": 1791533208.851558,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-010": {
+    "goal_id": "goal_8fd7d111461f499f8d97",
+    "question_id": "q_53c4493a7683409ba8e9",
+    "issued_at": 1791533208.8516984,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-011": {
+    "goal_id": "goal_465851c9619d45ccbea8",
+    "question_id": "q_d2dd4f1e0b9c4903ac7c",
+    "issued_at": 1791533208.8518023,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-012": {
+    "goal_id": "goal_cd6f57da7a6646c08722",
+    "question_id": "q_c9964632fc714222a01b",
+    "issued_at": 1791533208.8518991,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-013": {
+    "goal_id": "goal_a8c520731f72470fa053",
+    "question_id": "q_b278b02890044a8fa79a",
+    "issued_at": 1791533208.8519864,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-014": {
+    "goal_id": "goal_be90d7a350004717a481",
+    "question_id": "q_8fb5581d014f4a07b275",
+    "issued_at": 1791533217.6574175,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-015": {
+    "goal_id": "goal_27dd0183e14948e38df1",
+    "question_id": "q_8433ae6029214adab31f",
+    "issued_at": 1791533249.766972,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-016": {
+    "goal_id": "goal_bdc8ff57ef2e4d4f9059",
+    "question_id": "q_0737fd4125fd470a9e4d",
+    "issued_at": 1791533249.767275,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-017": {
+    "goal_id": "goal_41b2ec753ccf4439bbd6",
+    "question_id": "q_fcb7c3cd47724eb6b32f",
+    "issued_at": 1791533249.7675219,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-018": {
+    "goal_id": "goal_a092a7e6b0e24bf1879f",
+    "question_id": "q_76f0b8b1e6944b99a8dc",
+    "issued_at": 1791533249.7679994,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-019": {
+    "goal_id": "goal_c1ec846f99fc4a74add7",
+    "question_id": "q_62d3c11ccd0b449e983b",
+    "issued_at": 1791533249.768202,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-020": {
+    "goal_id": "goal_e69d3505eddf48b1b17d",
+    "question_id": "q_6a122c2d7111485eb523",
+    "issued_at": 1791533249.7685652,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-021": {
+    "goal_id": "goal_e8605bde9529439ea761",
+    "question_id": "q_a87e1bf42fcc46129350",
+    "issued_at": 1791533249.7687576,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-022": {
+    "goal_id": "goal_83efd45215044619b6a8",
+    "question_id": "q_fcf776683414409db411",
+    "issued_at": 1791533249.7689695,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-023": {
+    "goal_id": "goal_a0e410711d294c39b534",
+    "question_id": null,
+    "issued_at": 1791533258.827665,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-024": {
+    "goal_id": "goal_9b915821b5374587a12d",
+    "question_id": "q_488b45bb92a446ff9c69",
+    "issued_at": 1791533258.8280802,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-025": {
+    "goal_id": "goal_6dcd6e16a67c4e98bb4c",
+    "question_id": "q_a2ddfcc44dfc45e88afe",
+    "issued_at": 1791533258.828268,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-026": {
+    "goal_id": "goal_dec518be379044d4b500",
+    "question_id": "q_cc5b9dd44e204344b3b0",
+    "issued_at": 1791533258.8284583,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-027": {
+    "goal_id": "goal_9bb945a6f47c45258464",
+    "question_id": "q_64356923b5e842188242",
+    "issued_at": 1791533258.8286135,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-028": {
+    "goal_id": "goal_70f5baab3c1a49989a47",
+    "question_id": "q_236ff58853fa4d9fb5fe",
+    "issued_at": 1791533258.8287377,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-029": {
+    "goal_id": "goal_cb2265de9cd0403ea5ed",
+    "question_id": "q_bd17c140380e449dafec",
+    "issued_at": 1791533258.8288553,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-030": {
+    "goal_id": "goal_94110cd142a34fa09d28",
+    "question_id": "q_c5872acc7a4447eba6d5",
+    "issued_at": 1791533296.550502,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-031": {
+    "goal_id": "goal_ad08a6e1cfc64ca3a98e",
+    "question_id": "q_d6bb1ea37a1e4761bdfd",
+    "issued_at": 1791533296.551457,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-032": {
+    "goal_id": "goal_7ed4716b794f44dba4c8",
+    "question_id": "q_cf1f90c0781d47428249",
+    "issued_at": 1791533296.5521302,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-033": {
+    "goal_id": "goal_464a4ada7ba54370ac88",
+    "question_id": "q_c2308786394741c6920f",
+    "issued_at": 1791533296.5526242,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-034": {
+    "goal_id": "goal_6435c362b79d45db92be",
+    "question_id": "q_9935444df9d146439fbb",
+    "issued_at": 1791533296.5531404,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-035": {
+    "goal_id": "goal_f0b981b395494af6a422",
+    "question_id": "q_a6796c7227c64c89893c",
+    "issued_at": 1791533296.5535765,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-036": {
+    "goal_id": "goal_c027050f7906488a96b4",
+    "question_id": "q_5657634fd0fe4cddb450",
+    "issued_at": 1791533296.553924,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-037": {
+    "goal_id": "goal_1fbfdfb0079444a1b66d",
+    "question_id": null,
+    "issued_at": 1791533296.554257,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-038": {
+    "goal_id": "goal_f9465ce17fd947fd9b32",
+    "question_id": "q_236d2a2f5d654b1abd85",
+    "issued_at": 1791533303.7306268,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-039": {
+    "goal_id": "goal_edb9597a55cc4afd83bd",
+    "question_id": "q_164910859684402c9f7f",
+    "issued_at": 1791533303.730944,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-040": {
+    "goal_id": "goal_6251347a796c41a0b765",
+    "question_id": "q_9cc9fd14aaea4654a8bf",
+    "issued_at": 1791533315.4175045,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-041": {
+    "goal_id": "goal_bc9787b0bad64af69544",
+    "question_id": "q_0a60c3b6a6c146158686",
+    "issued_at": 1791533315.4180408,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-042": {
+    "goal_id": "goal_c9f7fa547240407c936e",
+    "question_id": "q_b33729a63cd44616a303",
+    "issued_at": 1791533315.4182498,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-043": {
+    "goal_id": "goal_a430334f54df4945b875",
+    "question_id": "q_da40a3f442b247c7ba65",
+    "issued_at": 1791533315.4184506,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-044": {
+    "goal_id": "goal_01b7a7b61d8b40cb945c",
+    "question_id": "q_9f5c2ed70ed14b29972f",
+    "issued_at": 1791533315.4186077,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-045": {
+    "goal_id": "goal_46aa163d9be94c6fa3dc",
+    "question_id": "q_05f8bbc43d4e43df83ac",
+    "issued_at": 1791533363.9422455,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-046": {
+    "goal_id": "goal_d0c5afbd2a58441bb167",
+    "question_id": "q_1c884a0a0e4640f6b02b",
+    "issued_at": 1791533363.9424808,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-047": {
+    "goal_id": "goal_86d70dcc36cd4f39aaad",
+    "question_id": "q_ff2e838560c94666b67d",
+    "issued_at": 1791533363.9427044,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-048": {
+    "goal_id": "goal_1dd54b6382e047daa594",
+    "question_id": "q_4455d214bd464ab49401",
+    "issued_at": 1791533363.9428253,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-049": {
+    "goal_id": "goal_664734e9cef246149585",
+    "question_id": "q_a9c1adacabb04ea0b50c",
+    "issued_at": 1791533363.942931,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-050": {
+    "goal_id": "goal_b4650558eb5f43678e6f",
+    "question_id": "q_94c30ad086404673861a",
+    "issued_at": 1791533363.943046,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-051": {
+    "goal_id": "goal_5c6a0eaded2044649d3e",
+    "question_id": "q_3fb6998b08ef4bc0bda8",
+    "issued_at": 1791533363.9431467,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-052": {
+    "goal_id": "goal_73b36ed6a4334f098b63",
+    "question_id": null,
+    "issued_at": 1791533363.94324,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-053": {
+    "goal_id": "goal_be137dfa55ed4a6ebddf",
+    "question_id": "q_f72b3ebf9c884a3fa7cd",
+    "issued_at": 1791533368.2528157,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-054": {
+    "goal_id": "goal_315ff97440884fd49f2f",
+    "question_id": "q_a43dd995553b4ce78af0",
+    "issued_at": 1791533368.2531915,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-055": {
+    "goal_id": "goal_6ae8f39b9d8a468eb139",
+    "question_id": "q_018f80dc17c745ceadce",
+    "issued_at": 1791533374.9574466,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-056": {
+    "goal_id": "goal_e2fb414ca52f4b28ac68",
+    "question_id": "q_07d58718eafe4a309c87",
+    "issued_at": 1791533374.9577591,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-057": {
+    "goal_id": "goal_e144a4e4875b475ca3b4",
+    "question_id": "q_aa59228024414b16afde",
+    "issued_at": 1791533374.957882,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-058": {
+    "goal_id": "goal_2eaa7077a4744e76bcd3",
+    "question_id": "q_679b165a446849b380ca",
+    "issued_at": 1791533374.9579806,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-059": {
+    "goal_id": "goal_f856930973bb46d6ad73",
+    "question_id": "q_960e1dd45fa3499ca02f",
+    "issued_at": 1791533374.9580865,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-060": {
+    "goal_id": "goal_ad8249c95c8a4f81af49",
+    "question_id": "q_dfdb97c8166b4cd4a089",
+    "issued_at": 1791533447.0260549,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-061": {
+    "goal_id": "goal_b0e1051f29f04e7aa2de",
+    "question_id": "q_a5ebc4ca6ded425ca39a",
+    "issued_at": 1791533447.0263362,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-062": {
+    "goal_id": "goal_712172b216c9446e8eb5",
+    "question_id": "q_4bfb01e5fab546fcb2f9",
+    "issued_at": 1791533447.0266588,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-063": {
+    "goal_id": "goal_70044457968542489263",
+    "question_id": null,
+    "issued_at": 1791533447.0268133,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-064": {
+    "goal_id": "goal_b122ed676fca4a52801c",
+    "question_id": "q_83bf2a0d7d284c5da38f",
+    "issued_at": 1791533447.0269506,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-065": {
+    "goal_id": "goal_5fd6128b398e4a098668",
+    "question_id": "q_343bb8942288400682f6",
+    "issued_at": 1791533447.0270705,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-066": {
+    "goal_id": "goal_82d8f55645904c1d9d27",
+    "question_id": "q_b2b6c97e836246d09936",
+    "issued_at": 1791533447.0271833,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-067": {
+    "goal_id": "goal_32661f87ed08426fb34f",
+    "question_id": "q_d1b2e91681eb494e8f33",
+    "issued_at": 1791533447.0272894,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-068": {
+    "goal_id": "goal_e404c48873c840c289c5",
+    "question_id": "q_08a3df45bd254639a482",
+    "issued_at": 1791533453.1180568,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-069": {
+    "goal_id": "goal_d3125bee167545edab2e",
+    "question_id": "q_b58fb5d51077457e93fb",
+    "issued_at": 1791533453.1184087,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-070": {
+    "goal_id": "goal_4e0f6de735b1482fbbfb",
+    "question_id": "q_f6608dfbc86e4509aff6",
+    "issued_at": 1791533463.757549,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-071": {
+    "goal_id": "goal_68614875f9bf4fd6bae5",
+    "question_id": "q_686afb465e004a4983c2",
+    "issued_at": 1791533463.7579472,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-072": {
+    "goal_id": "goal_124991d4bdc846a08348",
+    "question_id": "q_dce903d18c554669887e",
+    "issued_at": 1791533463.758111,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-073": {
+    "goal_id": "goal_7625a7c46d9e441296e1",
+    "question_id": "q_d9815fbd436840b2afb3",
+    "issued_at": 1791533463.7582278,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-074": {
+    "goal_id": "goal_2fdef3fe03324fa49b18",
+    "question_id": "q_a79440869aa840019017",
+    "issued_at": 1791533463.7583368,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-075": {
+    "goal_id": "goal_80c125fe757f4f37b9ff",
+    "question_id": "q_d2a830825d3f498ca257",
+    "issued_at": 1791533602.8952272,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-076": {
+    "goal_id": "goal_ccbb5911cadb4059bbd0",
+    "question_id": "q_8bfc602607be48dfa0cd",
+    "issued_at": 1791533602.9009392,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-077": {
+    "goal_id": "goal_fcf44ee713424c9f9e16",
+    "question_id": "q_43b477d61f084ff1a5ba",
+    "issued_at": 1791533602.9013164,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-078": {
+    "goal_id": "goal_38ced2820d3a421f964a",
+    "question_id": "q_33be14f3c9e947a9bba1",
+    "issued_at": 1791533602.9015756,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-079": {
+    "goal_id": "goal_2dd911257d764a46a9e9",
+    "question_id": null,
+    "issued_at": 1791533602.901708,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-080": {
+    "goal_id": "goal_2ab8c4b641274647a4fd",
+    "question_id": "q_42f9a45c90a04c4a8f3d",
+    "issued_at": 1791533602.901828,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-081": {
+    "goal_id": "goal_90c714bb0840459eb4b2",
+    "question_id": "q_5f48450027ec44458f36",
+    "issued_at": 1791533602.9019372,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-082": {
+    "goal_id": "goal_c6260829a2ea44c6b118",
+    "question_id": "q_547d23fc0f184aebbf47",
+    "issued_at": 1791533602.9020524,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-083": {
+    "goal_id": "goal_87ddadfa0bfa4736b90f",
+    "question_id": null,
+    "issued_at": 1791533610.1772287,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-084": {
+    "goal_id": "goal_9c877150922e466287ce",
+    "question_id": "q_29c05d6be62740ebacc6",
+    "issued_at": 1791533610.177634,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-085": {
+    "goal_id": "goal_68b9fb95938748aab784",
+    "question_id": "q_ae6b9225c70040d1baea",
+    "issued_at": 1791533624.083633,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-086": {
+    "goal_id": "goal_9bbcedadbec3435097bd",
+    "question_id": "q_033eddcef39a40eda4c1",
+    "issued_at": 1791533624.0839934,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-087": {
+    "goal_id": "goal_b15e1e9015d54f70ada4",
+    "question_id": "q_72146b71893943eaa269",
+    "issued_at": 1791533624.0842004,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-088": {
+    "goal_id": "goal_9efb51390741404fab05",
+    "question_id": "q_2fa70f29c63a40789329",
+    "issued_at": 1791533624.084405,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-089": {
+    "goal_id": "goal_95edd285f0c342b6805f",
+    "question_id": "q_0e2d1cdf02d54902aa50",
+    "issued_at": 1791533624.0845947,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-090": {
+    "goal_id": "goal_3ca65a0cee704ea08027",
+    "question_id": "q_af8b5db3ff164408865d",
+    "issued_at": 1791533711.9271836,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-091": {
+    "goal_id": "goal_0fe567bebc0e41d2a7ed",
+    "question_id": null,
+    "issued_at": 1791533711.9274716,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-092": {
+    "goal_id": "goal_4dccbc39c3c249469eda",
+    "question_id": "q_0e6323a7236e4586a0ea",
+    "issued_at": 1791533711.927738,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-093": {
+    "goal_id": "goal_556ccfe5c9b54d80bc17",
+    "question_id": "q_3b709dd0b08f462b9cfa",
+    "issued_at": 1791533711.9278717,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-094": {
+    "goal_id": "goal_03ae0e84d02c4608ac98",
+    "question_id": "q_bce73c55e48a4579951e",
+    "issued_at": 1791533711.9279914,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-095": {
+    "goal_id": "goal_63b3c93a61cd45bb9dfa",
+    "question_id": "q_c724468d29bc40f1a3bb",
+    "issued_at": 1791533711.928098,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-096": {
+    "goal_id": "goal_fdd9615287d74a539091",
+    "question_id": "q_4d164e5f51c345338881",
+    "issued_at": 1791533711.9281988,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-097": {
+    "goal_id": "goal_69e938fb018d45c08697",
+    "question_id": "q_61b60c30c928492d9fef",
+    "issued_at": 1791533711.928297,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-098": {
+    "goal_id": "goal_a6cb2bc3a5544e3ca023",
+    "question_id": "q_2d59d10be9c14e3da571",
+    "issued_at": 1791533719.540222,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-099": {
+    "goal_id": "goal_2b107e11965b47fbb09a",
+    "question_id": "q_a165c6fba0394dd5b9f2",
+    "issued_at": 1791533719.5405908,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-100": {
+    "goal_id": "goal_e32073a528a24e58a217",
+    "question_id": "q_524fdb813dd04c85989f",
+    "issued_at": 1791533733.8820095,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-101": {
+    "goal_id": "goal_abf6182df1ba4d4c910f",
+    "question_id": "q_a2cef5f67fce4bd38ed3",
+    "issued_at": 1791533733.8823128,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-102": {
+    "goal_id": "goal_1be48a65d43b42dc889a",
+    "question_id": null,
+    "issued_at": 1791533733.8824818,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-103": {
+    "goal_id": "goal_064336530cc44a3eb8b2",
+    "question_id": "q_c45c7e6476d2443bb210",
+    "issued_at": 1791533733.8825922,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-104": {
+    "goal_id": "goal_e3aaaed287674ea49b56",
+    "question_id": null,
+    "issued_at": 1791533733.882685,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-105": {
+    "goal_id": "goal_e1e2286ff6274e55b17b",
+    "question_id": "q_ff1fa4b3a2d24e3c822e",
+    "issued_at": 1791533841.4977226,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-106": {
+    "goal_id": "goal_3d77163422b440a9bb33",
+    "question_id": "q_a47dbd685bf6404ca83e",
+    "issued_at": 1791533841.4979563,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-107": {
+    "goal_id": "goal_2fee2245c7c64fc78306",
+    "question_id": "q_262cb48321d144ecba63",
+    "issued_at": 1791533841.4982123,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-108": {
+    "goal_id": "goal_36ac87815da541c5a837",
+    "question_id": "q_ba951faad9c1462f9d6a",
+    "issued_at": 1791533841.4984415,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-109": {
+    "goal_id": "goal_1625461f05b34c429047",
+    "question_id": "q_37817ca72ead4c9ea864",
+    "issued_at": 1791533841.4986207,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-110": {
+    "goal_id": "goal_5273cb56697a4dfd8096",
+    "question_id": "q_b27adf8cf6c94782ab94",
+    "issued_at": 1791533841.4987915,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-111": {
+    "goal_id": "goal_7af01fcf4ccd45599533",
+    "question_id": "q_7c574c82165d4297b6a4",
+    "issued_at": 1791533841.4989445,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-112": {
+    "goal_id": "goal_783d97f429234b7e968c",
+    "question_id": "q_41f28cfb76fd4f9581d5",
+    "issued_at": 1791533841.4990537,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-113": {
+    "goal_id": "goal_6af9a00683994268ba55",
+    "question_id": "q_d3ac1a4a4ec8465fa248",
+    "issued_at": 1791533850.6991384,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-114": {
+    "goal_id": "goal_814c5d585b3f4d9a81f6",
+    "question_id": null,
+    "issued_at": 1791533876.9185019,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-115": {
+    "goal_id": "goal_9516774a71a54c7e9ba7",
+    "question_id": "q_3eaca7ed32c24ac1a7e8",
+    "issued_at": 1791533876.9191978,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-116": {
+    "goal_id": "goal_2ea34704e3a3408a96c1",
+    "question_id": "q_2490f90adea74c928a70",
+    "issued_at": 1791533876.919433,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-117": {
+    "goal_id": "goal_771b5457aea945cb8d07",
+    "question_id": "q_65fe0ae236da4ccd8dc8",
+    "issued_at": 1791533876.9195888,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-118": {
+    "goal_id": "goal_4f4ece42d2364718928e",
+    "question_id": "q_40419bfc3db142858500",
+    "issued_at": 1791533876.91971,
+    "error": null,
+    "activation_error": null
+   },
+   "dev-119": {
+    "goal_id": "goal_d8e5407a66814ee0b0e4",
+    "question_id": "q_531f949a6c234b7492ea",
+    "issued_at": 1791533876.9198248,
+    "error": null,
+    "activation_error": null
+   }
+  },
+  "connectors": {
+   "h-t0-d0/h-t0-d0__s0.jsonl": "con_d3fe38c3ed274ce3852f",
+   "h-t0-d0-tm0/h-t0-d0-tm0__s0.jsonl": "con_3d7515e553604f28bda7",
+   "h-t0-d0-tm1/h-t0-d0-tm1__s0.jsonl": "con_a7d5ccd291fc4fa5b061",
+   "h-t0-d1/h-t0-d1__s0.jsonl": "con_6358b1bef151433c8a05",
+   "h-t0-d1-tm0/h-t0-d1-tm0__s0.jsonl": "con_8f1e3c46be334d9f901e",
+   "h-t0-d1-tm1/h-t0-d1-tm1__s0.jsonl": "con_567b19e3a0374eedb5bc",
+   "h-t0-d2/h-t0-d2__s0.jsonl": "con_d9120c9d020d4137a147",
+   "h-t0-d2-tm0/h-t0-d2-tm0__s0.jsonl": "con_0d3b968b184a44d6b4f3",
+   "h-t0-d2-tm1/h-t0-d2-tm1__s0.jsonl": "con_5bcd253808134f31937a",
+   "h-t0-d3/h-t0-d3__s0.jsonl": "con_dd5185f04d25476985f7",
+   "h-t0-d3-tm0/h-t0-d3-tm0__s0.jsonl": "con_851e8c3289524a60add8",
+   "h-t0-d3-tm1/h-t0-d3-tm1__s0.jsonl": "con_23c4876012554ab3b24d",
+   "h-t0-u00000/h-t0-u00000__s0.jsonl": "con_a376a2db1af04918b51e",
+   "h-t0-u00001/h-t0-u00001__s0.jsonl": "con_2bb3505426bc4ba6b4b7",
+   "h-t0-u00002/h-t0-u00002__s0.jsonl": "con_cc490b6e79394ba48272",
+   "h-t0-u00003/h-t0-u00003__s0.jsonl": "con_54d97885960842a58884",
+   "h-t0-u00004/h-t0-u00004__s0.jsonl": "con_01b121020986451683bf",
+   "h-t0-u00005/h-t0-u00005__s0.jsonl": "con_f5fe878c29024c7f93a1",
+   "h-t0-u00006/h-t0-u00006__s0.jsonl": "con_edaaf2796e29409eaec2",
+   "h-t0-u00007/h-t0-u00007__s0.jsonl": "con_39aee97bdb4c4604ba42",
+   "h-t0-u00008/h-t0-u00008__s0.jsonl": "con_9b05ba8fa84b4f6f924b",
+   "h-t0-u00008/h-t0-u00008__s1.jsonl": "con_877d5f06dcb140b3b4d7",
+   "h-t0-u00009/h-t0-u00009__s0.jsonl": "con_2eaa2b7504524cd282f2",
+   "h-t0-u00010/h-t0-u00010__s0.jsonl": "con_d9550035ab8f481cb982",
+   "h-t0-u00010/h-t0-u00010__s1.jsonl": "con_3c9e3d1f23eb474485dd",
+   "h-t0-u00011/h-t0-u00011__s0.jsonl": "con_c3b8830b64564708ad3e",
+   "h-t0-u00012/h-t0-u00012__s0.jsonl": "con_babc1b3150dd4c148297",
+   "h-t0-u00012/h-t0-u00012__s1.jsonl": "con_ae98bfd9412a45a5972e",
+   "h-t0-u00013/h-t0-u00013__s0.jsonl": "con_7f51cf1b69f94a158fa8",
+   "h-t0-u00014/h-t0-u00014__s0.jsonl": "con_c53d127ed303447d8f67",
+   "h-t0-u00015/h-t0-u00015__s0.jsonl": "con_e94970fb2d5b41a4b428",
+   "h-t0-u00016/h-t0-u00016__s0.jsonl": "con_aa87a94b825047139155",
+   "h-t0-u00017/h-t0-u00017__s0.jsonl": "con_884547086fc446ffab42",
+   "h-t0-u00017/h-t0-u00017__s1.jsonl": "con_929b8fa598574fa3861b",
+   "h-t0-u00018/h-t0-u00018__s0.jsonl": "con_7a4a51943fa0465db2cf",
+   "h-t0-u00019/h-t0-u00019__s0.jsonl": "con_afdf723d538045f08966",
+   "h-t0-u00020/h-t0-u00020__s0.jsonl": "con_38a7cb7e1ebb46d99b5f",
+   "h-t0-u00020/h-t0-u00020__s1.jsonl": "con_91e835016c154cd3aafa",
+   "h-t0-u00021/h-t0-u00021__s0.jsonl": "con_3f6fca669b92450aadef",
+   "h-t0-u00021/h-t0-u00021__s1.jsonl": "con_d5386e705f0c438dbe3d",
+   "h-t0-u00022/h-t0-u00022__s0.jsonl": "con_ed6ced6e4417436c815f",
+   "h-t0-u00022/h-t0-u00022__s1.jsonl": "con_bcb2d1fabbe74c6a8490",
+   "h-t0-u00023/h-t0-u00023__s0.jsonl": "con_1ec70825751d4f6cb26c",
+   "h-t0-u00024/h-t0-u00024__s0.jsonl": "con_7aba36b91a0344d8bd8f",
+   "h-t0-u00025/h-t0-u00025__s0.jsonl": "con_dc1b8d24375f47d5bab8",
+   "h-t0-u00026/h-t0-u00026__s0.jsonl": "con_c7d8538ce13242c28dd9",
+   "h-t0-u00026/h-t0-u00026__s1.jsonl": "con_a1b5e17a32e14b1c9416",
+   "h-t0-u00027/h-t0-u00027__s0.jsonl": "con_15eb1f035cc242b19be4",
+   "h-t0-u00028/h-t0-u00028__s0.jsonl": "con_745aee1146fd4f1494cf",
+   "h-t0-u00029/h-t0-u00029__s0.jsonl": "con_24b6dee048844a8a8cb2",
+   "h-t0-u00029/h-t0-u00029__s1.jsonl": "con_8fe5dedf9a8144b89ced",
+   "h-t0-u00030/h-t0-u00030__s0.jsonl": "con_31b544c0dc184fd3b3eb",
+   "h-t0-u00030/h-t0-u00030__s1.jsonl": "con_b2cf99e450de4347ac65",
+   "h-t0-u00031/h-t0-u00031__s0.jsonl": "con_06d85a4bed984419ad9e",
+   "h-t0-u00031/h-t0-u00031__s1.jsonl": "con_70e973d6a4dd49e2b380",
+   "h-t0-u00032/h-t0-u00032__s0.jsonl": "con_c5ff479a785846b793af",
+   "h-t0-u00032/h-t0-u00032__s1.jsonl": "con_a9bc92b4ee4443388dca",
+   "h-t0-u00033/h-t0-u00033__s0.jsonl": "con_2eaaf6e0843f4bcca343",
+   "h-t0-u00034/h-t0-u00034__s0.jsonl": "con_9d164abde40444b09ee8",
+   "h-t0-u00035/h-t0-u00035__s0.jsonl": "con_e1ce95cb85444ce39d55",
+   "h-t0-u00036/h-t0-u00036__s0.jsonl": "con_54bb4364476a480aa3dd",
+   "h-t0-u00037/h-t0-u00037__s0.jsonl": "con_6fae8679cdf24aa995c2",
+   "h-t0-u00038/h-t0-u00038__s0.jsonl": "con_eff5855c08e345bca937",
+   "h-t0-u00039/h-t0-u00039__s0.jsonl": "con_cc6c1e0ddaef4db5b292",
+   "h-t0-u00039/h-t0-u00039__s1.jsonl": "con_4cae6a53b47c4421bb97",
+   "h-t0-u00040/h-t0-u00040__s0.jsonl": "con_a5ad0e3318b2426b82b1",
+   "h-t0-u00041/h-t0-u00041__s0.jsonl": "con_cb1837cf6d2745f1b2e3",
+   "h-t0-u00042/h-t0-u00042__s0.jsonl": "con_8a3dde01cd074c9ea6d7",
+   "h-t0-u00043/h-t0-u00043__s0.jsonl": "con_84b0a201b7e246b38a69",
+   "h-t0-u00043/h-t0-u00043__s1.jsonl": "con_7cb2fdbb13d845c18b82",
+   "h-t0-u00044/h-t0-u00044__s0.jsonl": "con_100f61910a85492a8bb7",
+   "h-t0-u00044/h-t0-u00044__s1.jsonl": "con_d2512863bfd046fe8a99",
+   "h-t0-u00045/h-t0-u00045__s0.jsonl": "con_9dbe9744031c463fbf22",
+   "h-t0-u00045/h-t0-u00045__s1.jsonl": "con_f57594e55b764682b5b7",
+   "h-t0-u00046/h-t0-u00046__s0.jsonl": "con_9cec1d33dc1747959f8d",
+   "h-t0-u00046/h-t0-u00046__s1.jsonl": "con_856662748e46417a92e3",
+   "h-t0-u00047/h-t0-u00047__s0.jsonl": "con_574bdde6b9a64772859b",
+   "h-t0-u00047/h-t0-u00047__s1.jsonl": "con_0aa17d47bfde4c46b897",
+   "h-t0-u00048/h-t0-u00048__s0.jsonl": "con_ac1ce749349a4c00ab24",
+   "h-t0-u00049/h-t0-u00049__s0.jsonl": "con_8ef47483ec1b4ec29746",
+   "h-t0-u00049/h-t0-u00049__s1.jsonl": "con_659f15dcfeb14f8daeef",
+   "h-t0-u00050/h-t0-u00050__s0.jsonl": "con_927bc43bb15d43e390aa",
+   "h-t0-u00051/h-t0-u00051__s0.jsonl": "con_4950dfa152e947b7b1b3",
+   "h-t0-u00052/h-t0-u00052__s0.jsonl": "con_2ec1e3a60abc4b45aafc",
+   "h-t0-u00052/h-t0-u00052__s1.jsonl": "con_e01cc96a2e944075a02b",
+   "h-t0-u00053/h-t0-u00053__s0.jsonl": "con_0f94cbee15974cb198aa",
+   "h-t0-u00054/h-t0-u00054__s0.jsonl": "con_9afdf1fbc25344828a70",
+   "h-t0-u00055/h-t0-u00055__s0.jsonl": "con_5d026b261d564ebf8a38",
+   "h-t1-d0/h-t1-d0__s0.jsonl": "con_d909b8569cd8450ebb44",
+   "h-t1-d0-tm0/h-t1-d0-tm0__s0.jsonl": "con_0f886a3dcbe84ee490e3",
+   "h-t1-d0-tm1/h-t1-d0-tm1__s0.jsonl": "con_6d2f856a2f6c4e478241",
+   "h-t1-d1/h-t1-d1__s0.jsonl": "con_9bbb4c030c724d648913",
+   "h-t1-d1-tm0/h-t1-d1-tm0__s0.jsonl": "con_254cc0f1c4414d1cadcc",
+   "h-t1-d1-tm1/h-t1-d1-tm1__s0.jsonl": "con_7e959c35072e416d9b9e",
+   "h-t1-d2/h-t1-d2__s0.jsonl": "con_a8a4e64bfe144c12a406",
+   "h-t1-d2-tm0/h-t1-d2-tm0__s0.jsonl": "con_fcaf438c22bf45b29376",
+   "h-t1-d2-tm1/h-t1-d2-tm1__s0.jsonl": "con_bfb109c3f260466999d3",
+   "h-t1-d3/h-t1-d3__s0.jsonl": "con_05e69b9061764c9c9579",
+   "h-t1-d3-tm0/h-t1-d3-tm0__s0.jsonl": "con_dbb25e7dbcac4a91b384",
+   "h-t1-d3-tm1/h-t1-d3-tm1__s0.jsonl": "con_4cbb495ffef646c29a2e",
+   "h-t1-u00000/h-t1-u00000__s0.jsonl": "con_7e491df8b42041ecb8f2",
+   "h-t1-u00001/h-t1-u00001__s0.jsonl": "con_4f9243112fb74e9f8920",
+   "h-t1-u00002/h-t1-u00002__s0.jsonl": "con_c75015a73cae4593aa3a",
+   "h-t1-u00003/h-t1-u00003__s0.jsonl": "con_d46d1f84af874a8a9280",
+   "h-t1-u00004/h-t1-u00004__s0.jsonl": "con_8cbb06dcd99145f0b55a",
+   "h-t1-u00005/h-t1-u00005__s0.jsonl": "con_2453b4cb803d46c2a64c",
+   "h-t1-u00006/h-t1-u00006__s0.jsonl": "con_dc1e6b723f124db9aee6",
+   "h-t1-u00007/h-t1-u00007__s0.jsonl": "con_1ed3b330439a4136b345",
+   "h-t1-u00008/h-t1-u00008__s0.jsonl": "con_a89334c320464d499db6",
+   "h-t1-u00008/h-t1-u00008__s1.jsonl": "con_72ec986672514f8e9636",
+   "h-t1-u00009/h-t1-u00009__s0.jsonl": "con_14c4b2fb0bed42059ca0",
+   "h-t1-u00009/h-t1-u00009__s1.jsonl": "con_26e5e469c2bb4fdc9c56",
+   "h-t1-u00010/h-t1-u00010__s0.jsonl": "con_60c01724020349b4a1eb",
+   "h-t1-u00010/h-t1-u00010__s1.jsonl": "con_8bb428e124da4d57809d",
+   "h-t1-u00011/h-t1-u00011__s0.jsonl": "con_2473183374214b9bb0d5",
+   "h-t1-u00011/h-t1-u00011__s1.jsonl": "con_9df569ad7593469597da",
+   "h-t1-u00012/h-t1-u00012__s0.jsonl": "con_063779d21065464c998e",
+   "h-t1-u00013/h-t1-u00013__s0.jsonl": "con_b7d348f3a44b4563b3b8",
+   "h-t1-u00013/h-t1-u00013__s1.jsonl": "con_93a40e8c1db048eb8a64",
+   "h-t1-u00014/h-t1-u00014__s0.jsonl": "con_afbe52c144df416b865c",
+   "h-t1-u00015/h-t1-u00015__s0.jsonl": "con_314013326a284910a0e8",
+   "h-t1-u00016/h-t1-u00016__s0.jsonl": "con_38d2fbb7ca7e405085ee",
+   "h-t1-u00017/h-t1-u00017__s0.jsonl": "con_5f9972108d094f13941b",
+   "h-t1-u00017/h-t1-u00017__s1.jsonl": "con_6aec924ad268479f9423",
+   "h-t1-u00018/h-t1-u00018__s0.jsonl": "con_8f2ab5dc8e234858950d",
+   "h-t1-u00019/h-t1-u00019__s0.jsonl": "con_bd6fb9f305454c5cae95",
+   "h-t1-u00020/h-t1-u00020__s0.jsonl": "con_5a05f41d01e44abba30b",
+   "h-t1-u00021/h-t1-u00021__s0.jsonl": "con_144f436fc6a843a4b819",
+   "h-t1-u00021/h-t1-u00021__s1.jsonl": "con_a6360f53a9f94cf1abec",
+   "h-t1-u00022/h-t1-u00022__s0.jsonl": "con_6679f496a37d4abe93e5",
+   "h-t1-u00023/h-t1-u00023__s0.jsonl": "con_3d0f627384784efbbd9d",
+   "h-t1-u00023/h-t1-u00023__s1.jsonl": "con_d0e504969a384665b0fd",
+   "h-t1-u00024/h-t1-u00024__s0.jsonl": "con_111b4ef4ce234b9ea8de",
+   "h-t1-u00025/h-t1-u00025__s0.jsonl": "con_78b4329a4fd0493b8d70",
+   "h-t1-u00025/h-t1-u00025__s1.jsonl": "con_36b2942236324fc093f5",
+   "h-t1-u00026/h-t1-u00026__s0.jsonl": "con_7a5c477f31b140f8b79e",
+   "h-t1-u00027/h-t1-u00027__s0.jsonl": "con_1ff85e90408c4b19854f",
+   "h-t1-u00027/h-t1-u00027__s1.jsonl": "con_e6f7e1a84a674b11956a",
+   "h-t1-u00028/h-t1-u00028__s0.jsonl": "con_28d239f142e8400eb215",
+   "h-t1-u00028/h-t1-u00028__s1.jsonl": "con_acc8ef730d754b00bad3",
+   "h-t1-u00029/h-t1-u00029__s0.jsonl": "con_13a024954d5b435e9f32",
+   "h-t1-u00030/h-t1-u00030__s0.jsonl": "con_58b322efc5594f389eca",
+   "h-t1-u00031/h-t1-u00031__s0.jsonl": "con_deb30bef05b140fd8d5a",
+   "h-t1-u00031/h-t1-u00031__s1.jsonl": "con_a7ff3c1adac94194b333",
+   "h-t1-u00032/h-t1-u00032__s0.jsonl": "con_fad4d09f2e5941f7b5cc",
+   "h-t1-u00032/h-t1-u00032__s1.jsonl": "con_d19bcf7a919e42f78fee",
+   "h-t1-u00033/h-t1-u00033__s0.jsonl": "con_4414226b08b64827822f",
+   "h-t1-u00034/h-t1-u00034__s0.jsonl": "con_bc5c9cc47850491186f6",
+   "h-t1-u00035/h-t1-u00035__s0.jsonl": "con_615e6e8f30914edfac5b",
+   "h-t1-u00035/h-t1-u00035__s1.jsonl": "con_051eede2829344b4b5bc",
+   "h-t1-u00036/h-t1-u00036__s0.jsonl": "con_0dd89033fbed42d6ae82",
+   "h-t1-u00036/h-t1-u00036__s1.jsonl": "con_aab05bfb21cb4758b334",
+   "h-t1-u00037/h-t1-u00037__s0.jsonl": "con_f02b0c59e56b48d69392",
+   "h-t1-u00038/h-t1-u00038__s0.jsonl": "con_32d970e202a04283b2de",
+   "h-t1-u00038/h-t1-u00038__s1.jsonl": "con_e4a08866d0c149aeb36e",
+   "h-t1-u00039/h-t1-u00039__s0.jsonl": "con_dcb7d4176f0545a19f6f",
+   "h-t1-u00039/h-t1-u00039__s1.jsonl": "con_97b7a68677674a6ca520",
+   "h-t1-u00040/h-t1-u00040__s0.jsonl": "con_2286683dbd9f4da094ba",
+   "h-t1-u00040/h-t1-u00040__s1.jsonl": "con_81602070738046d8aec2",
+   "h-t1-u00041/h-t1-u00041__s0.jsonl": "con_2ba22a1500354bdf8aa1",
+   "h-t1-u00042/h-t1-u00042__s0.jsonl": "con_e8c73f741ca74c6889ea",
+   "h-t1-u00043/h-t1-u00043__s0.jsonl": "con_3c1ff045672343938fdf",
+   "h-t1-u00043/h-t1-u00043__s1.jsonl": "con_b043a6bd3d394f91af8f",
+   "h-t1-u00044/h-t1-u00044__s0.jsonl": "con_57905c65f750400680b5",
+   "h-t1-u00044/h-t1-u00044__s1.jsonl": "con_291ea1556de245fd961b",
+   "h-t1-u00045/h-t1-u00045__s0.jsonl": "con_7869a8fba05a4b3b9f3c",
+   "h-t1-u00045/h-t1-u00045__s1.jsonl": "con_1645610d59fd4be982ce",
+   "h-t1-u00046/h-t1-u00046__s0.jsonl": "con_9116266cb5ef436d9a7d",
+   "h-t1-u00047/h-t1-u00047__s0.jsonl": "con_c5e472c06f624e749955",
+   "h-t1-u00047/h-t1-u00047__s1.jsonl": "con_4cb877edf05a47e498e3",
+   "h-t1-u00048/h-t1-u00048__s0.jsonl": "con_e5b8ef0f6bf24607a364",
+   "h-t1-u00049/h-t1-u00049__s0.jsonl": "con_9269eaede0924cf482bb",
+   "h-t1-u00050/h-t1-u00050__s0.jsonl": "con_abe6c4ef41494eb69f88",
+   "h-t1-u00050/h-t1-u00050__s1.jsonl": "con_460f26d253604b2a9f55",
+   "h-t1-u00051/h-t1-u00051__s0.jsonl": "con_a7ba01fc01a4414aa39d",
+   "h-t1-u00051/h-t1-u00051__s1.jsonl": "con_486e02dd342a4a66ae9e",
+   "h-t1-u00052/h-t1-u00052__s0.jsonl": "con_15fb7d17f18d4b4bb089",
+   "h-t1-u00052/h-t1-u00052__s1.jsonl": "con_19ae8d48eaa54b1c9688",
+   "h-t1-u00053/h-t1-u00053__s0.jsonl": "con_a800899484be4fc6a5f6",
+   "h-t1-u00054/h-t1-u00054__s0.jsonl": "con_7527ed78e0764af2b9ee",
+   "h-t1-u00054/h-t1-u00054__s1.jsonl": "con_e4cbae6c8dd24819a45c",
+   "h-t1-u00055/h-t1-u00055__s0.jsonl": "con_c1d584cdf2e54f50a7db"
+  }
+ },
+ "started_utc": "2026-10-09T00:00:00+00:00",
+ "finished_utc": "2026-10-09T08:22:38.994658+00:00"
+}

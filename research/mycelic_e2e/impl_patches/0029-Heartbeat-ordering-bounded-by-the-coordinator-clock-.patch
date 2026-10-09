@@ -1,7 +1,7 @@
 From fca60ea9e4dd56a418c72dde1dbe0be79b9244e7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 08:05:16 +0000
-Subject: [PATCH 29/43] Heartbeat ordering bounded by the coordinator clock
+Subject: [PATCH 29/52] Heartbeat ordering bounded by the coordinator clock
  (HB-1); deny patterns filter phrases before term hashing (B1-d)
 
 A holder's stats.at later than coordinator time + 300 s counts as now (stored with received_at and the

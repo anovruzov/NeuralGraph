@@ -70,10 +70,14 @@ def _secs(a: str | None, b: str | None) -> float | None:
         return None
 
 
+def _empty_view(task: dict[str, Any], issued: Issued, tenant_id: str) -> dict[str, Any]:
+    return {"task_id": task["task_id"], "tenant_id": tenant_id, "status": "ok", "error": issued.error, "latency_s": None, "question": None, "claims": [],
+            "discoveries": [], "evidence": [], "raw_checks": {}, "goal": None, "ids": {"goal_id": issued.goal_id, "question_id": issued.question_id}}
+
+
 async def collect_view(client: ApiClient, task: dict[str, Any], issued: Issued, token: str, *, tenant_id: str, timed_out: bool = False) -> dict[str, Any]:
     """The asker's own view of the outcome (GET results only), in the shape bench/score.py reads."""
-    view: dict[str, Any] = {"task_id": task["task_id"], "tenant_id": tenant_id, "status": "ok", "error": issued.error, "latency_s": None, "question": None, "claims": [],
-                            "discoveries": [], "evidence": [], "raw_checks": {}, "goal": None, "ids": {"goal_id": issued.goal_id, "question_id": issued.question_id}}
+    view = _empty_view(task, issued, tenant_id)
     if issued.error:
         view["status"] = "error"
         return view
@@ -139,9 +143,85 @@ async def collect_view(client: ApiClient, task: dict[str, Any], issued: Issued, 
                 st2, dd = await client.call("GET", f"/api/discoveries/{d['discovery_id']}", token)
                 if st2 == 200:
                     view["goal_discoveries"].append(dd)
+                    for r in dd.get("evidence") or []:        # the scorer counts these references as visible too: they get their raw check as well (H2)
+                        if isinstance(r, dict) and r.get("ref_id"):
+                            seen_refs.setdefault(r["ref_id"], r)
     for rid in list(seen_refs):                                  # every visible reference, not a prefix
         st, _ = await client.call("GET", f"/api/evidence/{rid}/raw", token)
         view["raw_checks"][rid] = st
     if view["status"] == "ok" and timed_out:
         view["status"] = "timeout"
     return view
+
+
+# ---------------------------------------------------------------------------------------------- per-task isolation (H1)
+# BENCHMARK_CONTRACT section 5: an API error, an exception, a missing view or a timeout makes THAT task wrong; it never aborts the run
+# (a starved API answering one request late must not cost the other tasks, or a one-shot holdout run, their results). The run driver
+# calls these wrappers for every per-task API interaction of its wave loop; anything outside them (materialize, feed, worker start) still aborts.
+KINDS = ("issue", "status", "loop", "view")
+
+
+def describe_error(exc: BaseException) -> str:
+    return f"{type(exc).__name__}: {str(exc)[:200]}"
+
+
+class ApiErrors:
+    """Tally of per-task API failures: ``counts`` per kind (``issue`` / ``status`` / ``loop`` / ``view``) and ``tasks`` (task id -> kind -> n).
+    Each (kind, task) is logged on its first failure only, so a polling loop cannot flood the log; every failure is counted."""
+
+    def __init__(self, log: Any = None) -> None:
+        self.counts: dict[str, int] = {k: 0 for k in KINDS}
+        self.tasks: dict[str, dict[str, int]] = {}
+        self._log = log
+
+    def record(self, kind: str, task_id: str, exc: BaseException) -> None:
+        self.counts[kind] += 1
+        per = self.tasks.setdefault(task_id, {})
+        per[kind] = per.get(kind, 0) + 1
+        if per[kind] == 1 and self._log is not None:
+            self._log(f"API error ({kind}) for task {task_id}: {describe_error(exc)}; the task is affected, the run goes on")
+
+
+async def safe_issue_task(client: ApiClient, task: dict[str, Any], *, errors: ApiErrors, **kw: Any) -> Issued:
+    """``issue_task``; an exception marks this task as an error (``Issued.error``), so its view is an error view."""
+    try:
+        return await issue_task(client, task, **kw)
+    except Exception as exc:  # noqa: BLE001 - per-task isolation (TimeoutError, aiohttp.ClientError, anything)
+        errors.record("issue", task["task_id"], exc)
+        return Issued(task["task_id"], issued_at=time.time(), error=f"issue: {describe_error(exc)}")
+
+
+async def safe_question_status(client: ApiClient, qid: str, token: str, *, errors: ApiErrors, task_id: str) -> str:
+    """``question_status``; a failed poll counts as unresolved (it is not in ``RESOLVED``), so the caller keeps polling until its deadline."""
+    try:
+        return await question_status(client, qid, token)
+    except Exception as exc:  # noqa: BLE001
+        errors.record("status", task_id, exc)
+        return "error"
+
+
+async def safe_run_loop_now(client: ApiClient, goal_id: str, token: str, *, errors: ApiErrors, task_id: str) -> int | None:
+    """``run_loop_now``; a failure is logged and counted and the run continues (``None`` instead of the HTTP status)."""
+    try:
+        return await run_loop_now(client, goal_id, token)
+    except Exception as exc:  # noqa: BLE001
+        errors.record("loop", task_id, exc)
+        return None
+
+
+def error_view(task: dict[str, Any], issued: Issued, *, tenant_id: str, exc: BaseException) -> dict[str, Any]:
+    """The view of a task whose reads failed: the shape ``collect_view`` returns for its own error views, with the exception as the error.
+    ``tenant_id`` is the asker's (the scorer requires it for the cross-tenant check)."""
+    view = _empty_view(task, issued, tenant_id)
+    view.update(status="error", error=describe_error(exc))
+    return view
+
+
+async def safe_collect_view(client: ApiClient, task: dict[str, Any], issued: Issued, token: str, *, tenant_id: str, errors: ApiErrors,
+                            timed_out: bool = False) -> dict[str, Any]:
+    """``collect_view``; any exception while reading the outcome yields an error view for this task only."""
+    try:
+        return await collect_view(client, task, issued, token, tenant_id=tenant_id, timed_out=timed_out)
+    except Exception as exc:  # noqa: BLE001
+        errors.record("view", task["task_id"], exc)
+        return error_view(task, issued, tenant_id=tenant_id, exc=exc)

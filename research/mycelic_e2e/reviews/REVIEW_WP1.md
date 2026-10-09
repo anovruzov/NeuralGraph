@@ -962,3 +962,159 @@ hold "Numbers differ … 19":
 - **`question` view, apart from `result`.** `target_entities` is emptied; the trigger's `claim_id` / `ref_id` are dropped;
   claim, conflict and evidence lineage items are `{"type", "label": "", "redacted": true}`. `routes` lists the routed
   holders and their statuses, not content, as before.
+
+---
+
+## Review of K1b fix 2d00ca2
+
+Reviewer: REVIEWER-2, model id `claude-opus-5-5`. Copy: `git archive 2d00ca2 | tar -x -C $SCR/rv8`.
+Probes: `$SCR/rv8/mycelic/tests/test_review_c5.py` (P4, P6 and P7 as before, plus P8, new: the SSE event audience). I did
+not open `/root/sealed_holdout` and wrote nothing in the repository.
+
+**Verdict: ACCEPT.** I found no remaining path through which a viewer without full view receives `questions.result` or
+`question_runs.state` content.
+
+### Commands and results
+```
+python -m pytest mycelic/tests -q -p no:warnings -p no:cacheprovider --basetemp $SCR/rv8_bt     → 523 passed, 7 skipped in 157.69s
+python -m pytest mycelic/tests/test_review_c5.py -q -p no:warnings -p no:cacheprovider -s -k "p4 or p6 or p7 or p8"   → 4 passed
+```
+```
+P4 full_view: False | responses visible: 1 | run.state mentions the other side's value 19: False | competing note: []
+P6 full_view: False | gold value/name present per detail part: {'question': False, 'claims': False, 'discoveries': False, 'followups': False, 'lineage': False, 'run': False}
+P6 needs_input listing exposes result.summary: False | run state: {… 'step': 'verification_spawned', 'attempts': 3, … 'state': {}}
+P7 routed-only owner views of resolved questions: 12
+P7 any NOT-viewable claim text in a routed-only owner's question.result: False | cases: 0 of 12        (was 2 of 12 at b145e21)
+P8 non-full-viewer principals admitted to question events carrying result.summary: 0 of 42
+```
+
+### The change
+In `QuestionService.view()` (`inquiry/service.py`), a viewer without `_full_view` gets `result` reduced to
+`RESULT_PUBLIC_KEYS = ("outcome", "timed_out_routes")`, scalars only. The `run` redaction from b145e21 stays. Outcome
+values are labels (`committed`, `investigated`, `no_findings`, `cancelled`, `no_authorized_holders`, …). The free-text
+fields (`note`, `reason`, `rejected`, `summary`, `gate_notes`, `verified`, `deferred_followups`) are dropped.
+
+### Every channel checked
+- **`view()`.** Redacts `result` for viewers without full view; `target_entities`, trigger and lineage are redacted as
+  before.
+- **`detail()`.** `question` comes from `view(q, principal)`; `run` is redacted (b145e21). `claims` and `discoveries` are
+  filtered by `can_view_scoped`, and `lineage` is authorized per node. P6 and P7 are clean.
+- **`list()` and `needs_input`.** Both build `self.view(q, principal=principal)` (`inquiry/service.py:199`). P6 checks
+  `needs_input`.
+- **API routes that serialize questions:**
+  - `routes_questions` (create at `:70` returns `view(q, principal=p)`; list; detail at `:75`);
+  - `routes_goals:119` (`questions.list(p, …)`);
+  - `routes_org:265` (`questions.list(p, …)`);
+  - `routes_workspaces:79,88,122` (`questions.list(p, …)`);
+  - `routes_knowledge:184` (`view(q, principal=p)`).
+
+  All pass the principal. `routes_knowledge:189` and `routes_org:543` call `questions.get()` internally, for an
+  authorization or route re-check, and serialize nothing. No API route returns `question_runs`: outside tests and the
+  engine, only `inquiry/service.py` (detail) and the internal `seed/scenario.py` read it.
+- **SSE events.** `set_status` emits `question.*` events whose payload carries the full `result`, with audience
+  `{unit_ids: [scope], user_ids: [asker]}`. The hub admits a user if they are in `user_ids`, or if `unit_ids` intersects
+  `visible_unit_ids ∪ led_unit_ids` (`api/sse.py:165-191`).
+  - P8 ran the demo loop to quiet and evaluated `EventHub.authorized` for every active user who is neither a full viewer
+    nor the asker, against every question event whose payload has `result.summary`. Result: 0 of 42 admitted.
+  - This channel is consistent with full view in the demo topology. It is a separate filter, not the same predicate. A
+    future change to `visible_unit_ids` or to the event audience would have to keep them aligned.
+  - Suggestion (non-blocking): emit only `{"status", "outcome"}` in the event payload; clients refetch through `detail()`.
+- **`principal=None` defaults to `full = True`.** Every caller of `view()` passes a principal: `routes_questions:70`,
+  `routes_knowledge:184`, `inquiry/service.py:199,220,663`, and the internal `seed/scenario.py:420`
+  (`grep -rn "\.view(" mycelic`, excluding tests and the unrelated `reshard.view()`). No externally reachable path calls
+  it with `None`.
+
+### Unchanged for full viewers, askers and internal callers
+- `test_k1b_full_viewers_and_internal_callers_still_get_the_whole_result` covers full viewers, `principal=None` and the
+  asker. `can_view_scoped` treats `asker_id == p.id` as a viewer (`authz.py:342`), so an asker always gets the whole
+  result.
+- `bench/issue.py:collect_view` reads `question.result` as the asker, and `bench/score.py:328,367` reads
+  `result.outcome`. Both are unaffected, and `git diff 4f54d88 2d00ca2 -- research/` is empty.
+- Note: the shared working tree currently has uncommitted edits by others to `bench/issue.py`, `bench/run.py` and
+  `EXPERIMENTS.jsonl`. They are not part of 2d00ca2, and I did not review them.
+
+### Tests added
+- `test_k1b_resolved_result_is_content_free_for_a_routed_only_owner`: a routed-only owner gets only the public keys.
+- `test_k1b_full_viewers_and_internal_callers_still_get_the_whole_result`: full viewer, `principal=None` and asker each
+  get the whole result.
+
+Both are meaningful and pass in the full run.
+
+---
+
+## Review of observe() query fix 4c27744
+
+Reviewer: REVIEWER-2, model id `claude-opus-5-5`. Copy: `git archive 4c27744 | tar -x -C $SCR/rv9`. Fuzz script:
+`$SCR/fuzz_observe.py`. I wrote nothing in the repository and did not open `/root/sealed_holdout`.
+
+**Verdict: ACCEPT.** The new query returns exactly the evidence refs that some response of the goal cites, with
+`created_at >= since`. That is the old result minus the old query's false positives and duplicates. The LIMIT order does
+not starve anything, because the loop uses only the *count* of `new_evidence`. The oracle test is not vacuous.
+
+### Commands and results
+```
+python -m pytest mycelic/tests -q -p no:warnings -p no:cacheprovider --basetemp $SCR/rv9_bt        → 527 passed, 7 skipped in 160.86s
+python -m pytest mycelic/tests/test_observe_new_refs.py -q -p no:warnings -p no:cacheprovider -s   → 4 passed ("new query alone: 1.3 ms vs old 265.0 ms")
+python3 -I $SCR/fuzz_observe.py
+  → FUZZ cases: 300 non-empty new: 296 | new == exact-citation set and new ⊆ old and no duplicates — mismatches: 0
+    | old-only false positives by cause: {'substring': 187, 'underscore': 203, 'case': 245}
+```
+Query plan on the real schema (`EXPLAIN QUERY PLAN`, migrated `CoordDB`):
+```
+SEARCH q USING INDEX idx_questions_goal (goal_id=?)
+SEARCH r USING INDEX idx_responses_question (question_id=?)
+SCAN j VIRTUAL TABLE INDEX 1:
+SEARCH e USING INDEX sqlite_autoindex_evidence_refs_1 (ref_id=?)
+USE TEMP B-TREE FOR DISTINCT / FOR ORDER BY
+```
+The cost is bounded by the goal's responses × the array length; there is no per-response scan of `evidence_refs`.
+
+### Set equivalence
+- **The fuzz.** 300 random goals: ids with substrings of one another, `_` and mixed case, duplicate citations, 5 %
+  empty or malformed `evidence_ref_ids`, random `since`.
+  - In every case the new set equals {ids cited in a valid JSON array of a goal response} ∩ {`created_at >= since`}.
+  - The new set is a subset of the old set, with no duplicate rows.
+- **What the old query matched in addition** (`old − new`), beyond the declared substring case:
+  - a `_` in a ref id, which LIKE treats as a single-character wildcard;
+  - case-insensitive matches, since LIKE is case-insensitive for ASCII;
+  - ids found inside malformed, non-array values.
+
+  All of these were false positives, so their removal is a correction. The commit message lists only "substring"; the
+  `_` wildcard and case-insensitivity are two more classes it removes.
+- **The json_each guard.** `CASE WHEN json_valid(...) THEN ... ELSE '[]'` keeps empty or malformed values from raising.
+  The writer stores arrays (`NOT NULL DEFAULT '[]'`).
+
+### LIMIT and `since` (starvation)
+- **Old order.** It depended on the plan: q (goal index) → r (question index) → SCAN `evidence_refs` per response. So the
+  old "first 50" were the refs cited by the *earliest questions and responses in index order*, in `evidence_refs` rowid
+  order inside each response. That is neither globally oldest nor newest.
+- **New order.** Globally oldest by `created_at`, then `ref_id`; deterministic (`test_observe_new_refs_limit_is_stable`).
+- **`since`.** `tick()` passes `loop.stats.observed_from`, which is `utcnow() − 1 s` taken at the start of the previous
+  tick (`engine.py:390,414-415`). It advances every tick whatever `observe()` returned. So with more than 50 new refs in
+  one window, both versions drop the rest permanently. That is unchanged behaviour, not a regression.
+- **Consumers.** `new_evidence` is read nowhere except as `len(new_evidence)` in the gap question's `trigger.observed`
+  metadata (`engine.py:608`; `grep -rn new_evidence` finds only the return at `:375`). It is not part of `model_obs`, of
+  `needs_model` or of `_deterministic_gaps`. So which 50 are listed has no effect on loop decisions.
+- **One observable change.** The count is now deduplicated: the old count double-counted a ref cited by several
+  responses. It is still capped at 50.
+
+### The oracle test is not vacuous (`mycelic/tests/test_observe_new_refs.py`)
+- `test_observe_new_refs_matches_the_old_query`:
+  - compares against the verbatim old SQL for three `since` values;
+  - asserts the exact expected list `["ref_edge_eq", "ref_a_new1", "ref_a_new2", "ref_shared"]` (including the
+    inclusive edge);
+  - asserts that the old query returned `ref_shared` twice and 5 rows in total;
+  - asserts goal isolation (`ref_b_only` and `ref_nobody` absent) and the json_each guard on NULL.
+- `test_observe_new_refs_is_exact_where_like_matched_substrings`: old `{ref_1, ref_10}`, new `[ref_10]`.
+- `test_observe_new_refs_limit_is_stable`: more than 50 new refs gives the 50 oldest.
+- `test_observe_new_refs_micro_benchmark`: equal rows (`len == 20`) on 3k × 3k data, plus a timing assertion
+  `t_query < t_old`.
+  - Non-blocking: a timing assertion in the unit suite can flake under load. The margin is about 200×, so the risk is
+    low; consider marking it or moving it to the perf scripts.
+
+### Non-blocking notes
+- `SELECT DISTINCT` with `ORDER BY` on `e.created_at`, which is not in the select list, is accepted by SQLite. Because
+  `ref_id` is the primary key, DISTINCT on the selected columns equals DISTINCT on `ref_id`, so the ordering is
+  well-defined.
+- If `new_evidence` is ever acted on per ref, the cut-off of more than 50 refs per window must be revisited: page with
+  `since = last created_at` instead of the tick time. That limitation predates this change.

@@ -1,0 +1,144 @@
+From 2d00ca2f958dd04a7b29913fb431f0ecb1b5dd99 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 09:13:07 +0000
+Subject: [PATCH 44/52] Question view returns the result only to full viewers
+ (K1b)
+
+When a question resolves, the engine stores its summary, gate_notes (the
+competing pair and the verification_competing texts), the verification outcome
+and target claim, the deferred follow-up texts and the claim and conflict ids in
+questions.result. QuestionService.view() returned it unredacted, so it reached a
+holder owner who was only routed the question through detail(), list() and
+needs_input.
+
+view() now replaces the result for a principal without full view with its
+content-free subset (outcome, timed_out_routes); the key stays present. Askers,
+full viewers, system principals and internal callers without a principal are
+unchanged.
+
+Regression tests (REVIEWER-2 probe P7): the stored result holds the content, a
+routed-only owner sees only the outcome through detail() and needs_input lists,
+and a full viewer, the asker and internal callers still get the whole result.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ mycelic/inquiry/service.py               | 15 +++++--
+ mycelic/tests/test_question_detail_k1.py | 55 +++++++++++++++++++++++-
+ 2 files changed, 66 insertions(+), 4 deletions(-)
+
+diff --git a/mycelic/inquiry/service.py b/mycelic/inquiry/service.py
+index 9258b3d..c189b1d 100644
+--- a/mycelic/inquiry/service.py
++++ b/mycelic/inquiry/service.py
+@@ -27,6 +27,8 @@ from ..util import j, jl, new_id, now_iso, plus_seconds, sha256
+ 
+ logger = logging.getLogger(__name__)
+ 
++# the parts of ``questions.result`` a viewer without full view of the question may see: the outcome label and the count of routes that timed out
++RESULT_PUBLIC_KEYS = ("outcome", "timed_out_routes")
+ Q_JSON = ("trigger", "uncertainty", "motivating_lineage", "candidate_domains", "policy", "budget", "budget_spent", "priority_breakdown", "result", "target_entities")
+ # goal-level question rules (goal.measurement_source.policy) that every question under the goal inherits
+ GOAL_POLICY_KEYS = ("min_independent_units",)
+@@ -120,14 +122,21 @@ class QuestionService:
+         d = dict(q)
+         trig = d.get("trigger") or {}
+         redact = False
+-        if principal is not None and (d.get("target_entities") or trig.get("claim_id")
+-                                      or any(i.get("type") in ("claim", "conflict", "evidence_ref") for i in (d.get("motivating_lineage") or []))) \
+-                and not self._full_view(principal, q):
++        blind = bool(d.get("target_entities") or trig.get("claim_id")
++                     or any(i.get("type") in ("claim", "conflict", "evidence_ref") for i in (d.get("motivating_lineage") or [])))
++        full = self._full_view(principal, q) if principal is not None and (blind or d.get("result")) else True
++        if blind and not full:
+             # a holder's owner who was merely asked sees the question, not what a blind verification targets (the finding's entity
+             # ids, claim id and the lineage labels that quote the claim would un-blind it)
+             redact = True
+             d["target_entities"] = []
+             d["trigger"] = {k: v for k, v in trig.items() if k != "claim_id" and not (k == "ref_id" and trig.get("ref_type") == "claim")}
++        if d.get("result") and not full:
++            # K1b: the resolved result quotes what every holder answered (synthesis summary, gate notes with the competing pair, verification
++            # outcome and target claim, deferred follow-up texts, claim and conflict ids). A holder's owner who was merely asked gets the
++            # outcome and counters only; the key stays so callers keep working.
++            res = d["result"] if isinstance(d["result"], Mapping) else {}
++            d["result"] = {k: res[k] for k in RESULT_PUBLIC_KEYS if isinstance(res.get(k), (str, int, float, bool))}
+         asker_name = ""
+         if d["asker_type"] == "user":
+             u = self.org.get_user(d["asker_id"]); asker_name = u["name"] if u else ""
+diff --git a/mycelic/tests/test_question_detail_k1.py b/mycelic/tests/test_question_detail_k1.py
+index 96ce586..35c908a 100644
+--- a/mycelic/tests/test_question_detail_k1.py
++++ b/mycelic/tests/test_question_detail_k1.py
+@@ -1,4 +1,5 @@
+-"""K1 (REVIEWER-2, C5): ``QuestionService.detail`` returns the question run's checkpoint state only to full viewers.
++"""K1 / K1b (REVIEWER-2, C5): ``QuestionService.detail`` returns the question run's checkpoint state, and ``view`` the resolved ``result``,
++only to full viewers.
+ 
+ Since C1 the run state carries text derived from every holder's response (``gate_notes`` with the ``competing`` pair and its summary
+ "Numbers differ: 19 vs 50", ``verification_competing`` finding text, ``verified``, the investigation notes). A holder owner who was merely
+@@ -8,6 +9,7 @@ from __future__ import annotations
+ 
+ import json
+ import re
++import types
+ 
+ from .test_c4_followup import GOLD, RIVAL, evaluate_question, seed_two_services, state_of
+ from .test_hypergraph import add_ref, cand, question_row, world
+@@ -79,3 +81,54 @@ async def test_k1_verification_competing_text_is_not_visible_to_a_routed_owner(d
+     owner = authz.principal_for_user(w["users"]["u3a"]["user_id"])
+     run = qs.detail(owner, qid)["run"]
+     assert run["state"] == {} and "verification_competing" not in json.dumps(run) and "parcelrouter" not in json.dumps(run) and target["claim_id"] not in json.dumps(run)
++
++
++# ------------------------------------------------------------------------------------------------ K1b: the resolved question.result
++async def _resolved_question(db, org, auth, authz):
++    """The two-service question of the C1 shape, evaluated and committed: ``questions.result`` is what the engine wrote when it resolved."""
++    s, w, qid, owner = await _routed_only_owner(db, org, auth, authz)
++    await s["engine"].commit(types.SimpleNamespace(ref_id=qid, payload={}))
++    return s, w, qid, owner
++
++
++async def test_k1b_resolved_result_is_content_free_for_a_routed_only_owner(db, org, auth, authz):
++    s, w, qid, owner = await _resolved_question(db, org, auth, authz)
++    qs = s["questions"]
++    stored = qs.get(qid)
++    assert stored["status"] in ("committed", "retained_uncertain") and stored["resolved_at"]
++    # the stored result really holds the content, so the checks below are not vacuous
++    blob = json.dumps(stored["result"])
++    claim_ids = [c["claim_id"] for c in db.all("SELECT claim_id FROM claims WHERE question_id=?", (qid,))]
++    assert {"gate_notes", "summary", "claim_ids", "verified"} <= set(stored["result"]) and "competing" in blob and "Numbers differ" in blob
++    assert "ledgergate" in blob and all(cid in blob for cid in claim_ids) and len(claim_ids) == 2
++    assert not qs._full_view(owner, stored)
++    for how, view in (("detail", qs.detail(owner, qid)["question"]),):
++        res = view["result"]
++        assert "result" in view and set(res) <= {"outcome", "timed_out_routes"} and res.get("outcome") == "committed", (how, res)
++        seen = json.dumps(res)
++        assert not [leak for leak in LEAKS if leak in seen] and not [cid for cid in claim_ids if cid in seen] and not re.search(r"\b(19|50)\b", seen), seen
++    # needs_input / list: a route still waiting for the owner's answer lists the (resolved) question with the same redacted result
++    other = authz.principal_for_user(w["users"]["u3b"]["user_id"])
++    db.conn.execute("INSERT OR IGNORE INTO question_routes(route_id, tenant_id, question_id, holder_id, status, msg_id, attempts, sent_at, deadline_at) "
++                    "VALUES ('rt_k1b', ?, ?, ?, 'pending', 'm_k1b', 1, 'n', 'n')", (w["t"], qid, w["holders"]["u3b"]["holder_id"]))
++    listed = [x for x in qs.list(other, needs_input=True) if x["question_id"] == qid]
++    assert len(listed) == 1 and listed[0]["needs_my_input"] and set(listed[0]["result"]) <= {"outcome", "timed_out_routes"}
++    assert not [leak for leak in LEAKS if leak in json.dumps(listed[0]["result"])]
++    for x in qs.list(owner):                                                    # whatever else the owner can list is redacted the same way
++        assert set(x.get("result") or {}) <= {"outcome", "timed_out_routes"}
++
++
++async def test_k1b_full_viewers_and_internal_callers_still_get_the_whole_result(db, org, auth, authz):
++    s, w, qid, owner = await _resolved_question(db, org, auth, authz)
++    qs = s["questions"]
++    stored = qs.get(qid)
++    admin = authz.principal_for_user(db.one("SELECT user_id FROM users WHERE tenant_id=? AND email='admin@acme.test'", (w["t"],))["user_id"])
++    assert qs._full_view(admin, stored)
++    assert qs.detail(admin, qid)["question"]["result"] == stored["result"]               # unchanged for a full viewer
++    assert [x for x in qs.list(admin) if x["question_id"] == qid][0]["result"] == stored["result"]
++    assert qs.view(stored)["result"] == stored["result"]                                  # no principal (internal callers): unchanged
++    assert qs.view(stored, principal=authz.principal_for_system(w["t"]))["result"] == stored["result"]
++    # the asker (the benchmark's collect_view is one) is a full viewer even when nothing else would make them one
++    assert qs.view({**stored, "asker_type": "user", "asker_id": owner.id}, principal=owner)["result"] == stored["result"]
++    # a question that was never resolved has no result and keeps the key as before
++    assert qs.view({**stored, "result": {}}, principal=owner)["result"] == {}
+-- 
+2.43.0
+
