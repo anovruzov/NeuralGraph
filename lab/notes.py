@@ -212,6 +212,9 @@ E1_LABELS = {
                       "STRATEGY {e_one} decision, which needs human-labelled public narratives.",
     "fixtures": "{e_one} here scores extraction against the pack's author-written fixture records. It is not the "
                 "STRATEGY {e_one} decision, which needs human-labelled public narratives.",
+    "public_nhtsa": "{e_one} here scores extraction on real public NHTSA complaint narratives, each complaint's codes "
+                    "hidden, against the components it was filed under: filed codes, not human-checked labels. The "
+                    "lexical extractor's scores on the same records are in report.json at e1.labels.public.lexical.",
 }
 E2_LABELS = {
     "synthetic": "{e_two} here runs on planted synthetic worlds; the pack, the detectors and the plant were written by "
@@ -300,6 +303,13 @@ NOTES = {
     "model_measurement": "Model measurement: a verified model file answered through a verified server on one shared "
                          "GitHub-hosted runner; quality numbers describe this model on synthetic data, and timings "
                          "describe this runner, not site hardware.",
+    "public_narratives": "Public data: real NHTSA vehicle complaint narratives, read with each complaint's codes "
+                         "hidden and scored against them. The codes are the components the complaint was filed "
+                         "under, not checked labels, and the models may have seen public complaints in training.",
+    "model_measurement_public": "Model measurement: a verified model file answered through a verified server on one "
+                                "shared GitHub-hosted runner; quality numbers describe this model on public complaint "
+                                "narratives against their filed codes, and timings describe this runner, not site "
+                                "hardware.",
     "public_data": "Public data: openFDA records under an artificial partitioning; no model ran, and nothing here is "
                    "confidential or a confidentiality demonstration.",
     "hosted_api": "Hosted API: a model on the configured OpenAI-compatible host answered over the network. It is not "

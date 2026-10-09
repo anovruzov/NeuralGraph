@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import io
 import json
 import math
 import os
@@ -21,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from typing import Any, Mapping
 from unittest import mock
@@ -873,6 +875,70 @@ class GoldLabelsTests(unittest.TestCase):
             self.assertEqual(data, (loader.BUILTIN_ROOT / pack / "fixtures" / "records.jsonl").read_bytes())
             self.assertEqual((record["source"], record["n"], record["seed"], record["available"],
                               record["world_digest"]), ("fixtures", None, None, None, None))
+
+    def test_nhtsa_labels_hide_the_codes_and_score_them(self) -> None:
+        from lab import goldlabels
+        export = goldlabels.nhtsa_export()
+
+        def row(odino: str, make: str, comp: str, text: str, year: str = "2021") -> str:
+            r = [""] * 51
+            r[export.C_ODINO], r[export.C_MAKE], r[export.C_MODEL], r[export.C_YEAR] = odino, make, "MODEL X", year
+            r[export.C_COMP], r[export.C_STATE], r[export.C_LDATE] = comp, "TX", "20230510"
+            r[export.C_DESCR], r[export.C_PROD] = text, "V"
+            r[50] = "Operator Name Never Exported"
+            return "\t".join(r)
+        texts = {"AIR BAGS": "The airbag light came on.", "ENGINE": "The engine stalled on the highway.",
+                 "UNKNOWN OR OTHER": "Something odd happened."}
+        lines, n = [], 0
+        for make in ("FORD", "JEEP", "TOYOTA"):
+            for comp in list(texts) * 20:
+                n += 1
+                lines.append(row(str(1000 + n), make, comp, texts[comp]))
+        lines.append(row("9999", "FORD", "ENGINE", "", "2021"))             # no narrative: not eligible
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("CMPL.txt", "\n".join(lines) + "\n")
+        data, record = build_labels("nhtsa", goldlabels.NHTSA_PACK, 40, 1, fetch=buf.getvalue)
+        again, _ = build_labels("nhtsa", goldlabels.NHTSA_PACK, 40, 1, fetch=buf.getvalue)
+        self.assertEqual(data, again)
+        parsed = [json.loads(line) for line in data.decode("utf-8").splitlines()]
+        self.assertEqual(len(parsed), 40)
+        for line in parsed:
+            self.assertEqual((line["record"]["codes"], line["record"]["site"], line["record"]["synthetic"]),
+                             ([], "public", False))
+            self.assertIn(line["gold"][0]["predicate"], ("air_bags", "engine"))      # never the generic code
+        self.assertNotIn("Operator", data.decode("utf-8"))
+        public = record["public"]
+        self.assertEqual((public["complaints"]["FORD"], public["complaints"]["TOYOTA"]
+                          if "TOYOTA" in public["complaints"] else None), (61, None))
+        self.assertEqual((public["eligible"], record["available"], record["records"]), (80, 80, 40))
+        lexical = public["lexical"]["predicate_f1"]
+        # the lexicon is the category names: it reads "engine" but not "airbag" (its phrase is "air bags")
+        self.assertEqual((lexical["fp"], lexical["tp"] + lexical["fn"]), (0, 40))
+        self.assertTrue(0 < lexical["tp"] < 40)
+        pack = loader.load_pack(ROOT / goldlabels.NHTSA_PACK)
+        tmp = Path(tempfile.mkdtemp(prefix="lab-nhtsa-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        (tmp / "labels.jsonl").write_bytes(data)
+        labels, sha = e1_extract.read_labels(tmp / "labels.jsonl", pack, Canonicaliser(pack))
+        e1_extract.check_data_label(labels, "public")
+        self.assertEqual(sha, record["sha256"])
+        with self.assertRaises(GoldLabelsError):
+            build_labels("nhtsa", "device_quality", 40, 1, fetch=buf.getvalue)
+        with self.assertRaises(GoldLabelsError):
+            build_labels("nhtsa", goldlabels.NHTSA_PACK, 81, 1, fetch=buf.getvalue)
+
+    def test_public_narrative_notes(self) -> None:
+        self.assertEqual(units.unit_notes("e1", "model", None, True),
+                         ["model_measurement_public", "public_narratives", "runner_hardware"])
+        self.assertEqual(units.unit_notes("e1", "plumbing", None, True),
+                         ["plumbing", "public_narratives", "runner_hardware"])
+        unit = {"experiment": "e1", "params": {"labels": {"source": "nhtsa"}}}
+        self.assertTrue(units.public_text(unit))
+        self.assertFalse(units.public_text({"experiment": "e1", "params": {"labels": {"source": "generator"}}}))
+        self.assertFalse(units.public_text({"experiment": "g0", "params": {}}))
+        self.assertEqual(lab_aggregate.E1_LABEL_OF["nhtsa"], "public_nhtsa")
+        self.assertIn("public_nhtsa", E1_LABELS)
 
     def test_more_than_the_world_holds(self) -> None:
         _, small = build_labels("generator", "claims_integrity", 40, 1)

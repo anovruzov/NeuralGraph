@@ -32,7 +32,7 @@ and its summaries then say so (`PLUMBING_HOSTED_LINE`, `PLUMBING_HOSTED_BANNER`)
 | --- | --- | --- |
 | `models` | gguf, fake or hosted models of `models`; at least 2 | `models` |
 | `minutes` | per repeat unit | |
-| `labels` | `source` (`generator` or `fixtures`), `pack` (a built-in pack), and for generator labels only `n` (40 to 2000) and `seed` | |
+| `labels` | `source` (`generator`, `fixtures` or `nhtsa`), `pack` (a built-in pack; for `nhtsa` exactly `docs/collective/replay/vehicles/pack`), and for generator and nhtsa labels only `n` (40 to 2000) and `seed`. `nhtsa` labels are real public NHTSA complaints with their codes hidden, gold from the codes, built in the plan job (`lab.goldlabels`), and run only on models inside the runner | |
 | `reference` | one of the E1 models | |
 | `margin_points` | 1 to 20 | |
 | `runs` | 3 to 5 repeats | |
@@ -341,6 +341,8 @@ A unit's notes, printed once under the report's notes:
 - `NOTES.text_only_scan`: The canary scan covers text only: it reads the bytes that crossed a boundary, not timing, sizes or other side channels.
 - `NOTES.model_measurement`: Model measurement: a verified model file answered through a verified server on one shared GitHub-hosted runner; quality numbers describe this model on synthetic data, and timings describe this runner, not site hardware.
 - `NOTES.public_data`: Public data: openFDA records under an artificial partitioning; no model ran, and nothing here is confidential or a confidentiality demonstration.
+- `NOTES.public_narratives`: Public data: real NHTSA vehicle complaint narratives, read with each complaint's codes hidden and scored against them. The codes are the components the complaint was filed under, not checked labels, and the models may have seen public complaints in training.
+- `NOTES.model_measurement_public`: Model measurement: a verified model file answered through a verified server on one shared GitHub-hosted runner; quality numbers describe this model on public complaint narratives against their filed codes, and timings describe this runner, not site hardware.
 - `NOTES.hosted_api`: Hosted API: a model on the configured OpenAI-compatible host answered over the network. It is not deterministic: temperature and seed are requests, not guarantees on shared batched servers. Its latencies include the network and the host's queue and say nothing about this runner.
 - `NOTES.hosted_raw`: Raw synthetic text was sent to the configured host under allow_external_raw synthetic; the lab sends no partner data anywhere, and hosted models never run in the canary scan or the simulation.
 - `NOTES.central_hosted`: The central comparator was a hosted API model: its scores are not deterministic, so the ratio and the bar verdict compare the model under test with a moving reference.
@@ -390,6 +392,7 @@ E1's labels, by label source:
 
 - `E1_LABELS.generator_text`: {e_one} here scores extraction against generator ground truth on template text. It is not the STRATEGY {e_one} decision, which needs human-labelled public narratives.
 - `E1_LABELS.fixtures`: {e_one} here scores extraction against the pack's author-written fixture records. It is not the STRATEGY {e_one} decision, which needs human-labelled public narratives.
+- `E1_LABELS.public_nhtsa`: {e_one} here scores extraction on real public NHTSA complaint narratives, each complaint's codes hidden, against the components it was filed under: filed codes, not human-checked labels. The lexical extractor's scores on the same records are in report.json at e1.labels.public.lexical.
 
 E2's labels:
 
@@ -584,7 +587,7 @@ synthetic worlds describe synthetic worlds.
 | share the projection may use | the share of the unit's minutes the projection may fill | n/a: not a number |
 | seeds | seeds of the run | n/a: not a number |
 | why no alerts | why an openFDA channel raised no alerts | n/a: not a number |
-| source | where E1's labels came from: generator or fixtures | human labels |
+| source | where E1's labels came from: generator, fixtures or nhtsa (real public complaints scored against their filed codes) | human labels |
 | paired records | records both the model and the reference scored | n/a: not a number |
 | underpowered below | the paired-record count below which the comparison is underpowered | n/a: not a number |
 | kill flag below | the field F1 below which the kill flag is raised | n/a: not a number |

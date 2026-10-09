@@ -118,6 +118,7 @@ ARTIFACT_RE = re.compile(r"lab-run-[0-9]{1,20}-[0-9]{1,6}-" + SHARD_ID_RE.patter
 STATE_REASONS = {"other_plan": OTHER_PLAN, "altered": ALTERED, "ambiguous": AMBIGUOUS_ARTIFACTS,
                  "unsealed": UNSEALED, "no_artifact": NO_ARTIFACT}
 UNSEALED_DIR = "summary"
+E1_LABEL_OF = {"generator": "generator_text", "fixtures": "fixtures", "nhtsa": "public_nhtsa"}   # notes.E1_LABELS
 UNIT_FIELDS = ("status", "status_reason", "measurement_class", "class_reason", "kind", "provider", "exit_code",
                "wall_s", "seeds", "notes")
 E3_FIELDS = ("workload", "task", "concurrency", "measured", "ok", "ttft_s", "e2e_s", "decode_tok_s", "throughput")
@@ -551,8 +552,9 @@ def e1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
         block["reason"] = PREREG_MISSING
         return block
     labels = manifest["labels"]
-    block.update(label="generator_text" if labels["source"] == "generator" else "fixtures",
-                 labels={k: labels[k] for k in ("source", "pack", "n", "seed", "records", "claims", "sha256")},
+    block.update(label=E1_LABEL_OF.get(labels["source"], "fixtures"),
+                 labels={**{k: labels[k] for k in ("source", "pack", "n", "seed", "records", "claims", "sha256")},
+                         "public": labels.get("public")},
                  **{k: e1_prereg.get(k) for k in ("underpowered_below", "kill_below", "margin", "runs", "reference")})
     reference, runs = manifest["reference"], e1_prereg.get("runs")
     complete = []

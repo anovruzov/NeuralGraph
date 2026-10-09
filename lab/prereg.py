@@ -7,7 +7,8 @@
 * E1: :func:`lab.goldlabels.build_labels` writes ``D/prereg/e1/labels.jsonl`` and its record ``labels.json``; the
   routing file ``routing.json`` pins every E1 endpoint, in sorted model-key order (:func:`e1_routing_doc` at
   :data:`PLACEHOLDER_BASE_URL`: the pins never include the address, so a shard's routing to its own server matches
-  them); then ``e1_extract prereg`` (data label ``synthetic``, boundary :data:`E1_BOUNDARY`; the synthetic raw-text
+  them); then ``e1_extract prereg`` (data label ``synthetic``, or ``public`` for ``nhtsa`` labels; boundary
+  :data:`E1_BOUNDARY`; the synthetic raw-text
   exemption only when an endpoint lies outside every boundary, which a hosted endpoint does: ``lab.hosted.endpoint``,
   boundary ``external``) writes ``D/prereg/e1/prereg/prereg.json``;
 * X1: the evaluation harness's prereg (run id ``x1``, ``D/prereg/x1/x1/prereg.json``) and ``check-plant``;
@@ -190,13 +191,14 @@ def _e1(steps: _Steps, plan: Mapping[str, Any], units: list[dict[str, Any]], roo
     routing = e1_routing_doc(plan["models"], endpoints, PLACEHOLDER_BASE_URL)
     write_json_atomic(e1 / "routing.json", routing)
     external = any(e["boundary"] == "external" for e in routing["endpoints"].values())
+    data_label = "public" if labels["source"] == "nhtsa" else "synthetic"
     flags: list[tuple[str, Any]] = [("pack", params["pack"]), ("labels", e1 / "labels.jsonl"),
                                     ("routing", e1 / "routing.json"), *(("endpoint", key) for key in endpoints),
                                     ("reference", params["reference"]), ("margin", params["margin_points"]),
                                     ("runs", params["runs"]), ("seed", params["seed"]),
-                                    ("bootstrap-b", params["bootstrap_b"]), ("data-label", "synthetic"),
+                                    ("bootstrap-b", params["bootstrap_b"]), ("data-label", data_label),
                                     ("boundary", E1_BOUNDARY),
-                                    *([("allow-external-raw", "synthetic")] if external else []),
+                                    *([("allow-external-raw", data_label)] if external else []),
                                     ("run-id", "prereg"), ("runs-dir", root / "prereg")]
     if steps.run("e1-prereg", "$.experiments.e1", E1_MODULE, "prereg", flags) != 0:
         raise _StepFailed("$.experiments.e1", E1_REFUSED)

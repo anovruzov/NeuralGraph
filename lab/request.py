@@ -21,8 +21,10 @@ are refused at every level::
 
     {"models": [...],                     # default $.models; gguf, fake or hosted models; at least 2
      "minutes": 1..capacity,              # per repeat unit
-     "labels": {"source": "generator" | "fixtures", "pack": "<built-in pack id>",
-                "n": 40..2000, "seed": <seed>},   # n and seed for generator labels only, and then required
+     "labels": {"source": "generator" | "fixtures" | "nhtsa", "pack": "<built-in pack id>",
+                "n": 40..2000, "seed": <seed>},   # n and seed for generator and nhtsa labels only, and then required
+                                          # nhtsa: real public complaints (lab.goldlabels), pack exactly
+                                          # docs/collective/replay/vehicles/pack, in-runner models only
      "reference": "<one of the E1 models>", "margin_points": 1..20, "runs": 3..5, "seed": <seed>,
      "bootstrap_b": 1000..20000}          # default 10000
 
@@ -135,7 +137,7 @@ from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
 from mycelic.collective.packs import loader
 
 from . import ROOT, LabError, check_keys, display_path, safe_path
-from .goldlabels import build_labels
+from .goldlabels import NHTSA_PACK, build_labels
 from .hosted import PREFLIGHT_MAX_CALLS, preflight_tasks, unit_bound
 from .manifest import Manifest
 from .notes import PLACEHOLDER
@@ -150,7 +152,7 @@ BAD_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"})
 EXPERIMENTS = ("e1", "e2", "e3", "g0", "sim", "x1", "openfda")
 SIM_KINDS = ("gguf", "fake")
 MAX_MODELS = 8
-LABEL_SOURCES = ("fixtures", "generator")
+LABEL_SOURCES = ("fixtures", "generator", "nhtsa")
 PLANT_RE = re.compile(r"plant_[a-z0-9_]{1,40}", re.ASCII)
 TIE_SALT_RE = re.compile(r"[A-Za-z0-9._-]{1,64}", re.ASCII)
 CODE_RE = re.compile(r"[A-Z]{3}", re.ASCII)
@@ -198,6 +200,7 @@ DATE_PROBLEM = "must be a calendar date YYYYMMDD"
 LOCATION_PROBLEM = "must be lab/requests/<name>.json"
 HOSTED_PLACE = ("a hosted model runs only in e1 or as e2.central: the simulation and the canary scan run each site's "
                 "model inside the runner, and E3 measures this runner")
+NHTSA_HOSTED = "nhtsa labels run only on models inside the runner; the lab sends no real narrative to a host"
 HOSTED_CENTRAL_CONTEXT = ("a hosted central comparator needs context_tokens in its manifest entry (the context one "
                           "request gets on the host)")
 MAX_HOSTED_CALLS = 1000000
@@ -439,8 +442,14 @@ def _labels(raw: Any, path: str) -> dict[str, Any]:
     source = _string(block["source"], f"{path}.source", 16)
     if source not in LABEL_SOURCES:
         raise RequestError(f"{path}.source", f"must be one of {', '.join(LABEL_SOURCES)}") from None
-    out: dict[str, Any] = {"source": source, "pack": _pack(block["pack"], f"{path}.pack"), "n": None, "seed": None}
-    if source == "generator":
+    if source == "nhtsa":
+        if block["pack"] != NHTSA_PACK:
+            raise RequestError(f"{path}.pack", f"nhtsa labels read the vehicle pack {NHTSA_PACK}") from None
+        pack = NHTSA_PACK
+    else:
+        pack = _pack(block["pack"], f"{path}.pack")
+    out: dict[str, Any] = {"source": source, "pack": pack, "n": None, "seed": None}
+    if source in ("generator", "nhtsa"):
         for key in _LABELS_KEYS[2:]:
             if key not in block:
                 raise RequestError(f"{path}.{key}", "required") from None
@@ -449,7 +458,7 @@ def _labels(raw: Any, path: str) -> dict[str, Any]:
     else:
         for key in _LABELS_KEYS[2:]:
             if key in block:
-                raise RequestError(f"{path}.{key}", "only for generator labels") from None
+                raise RequestError(f"{path}.{key}", "only for generator and nhtsa labels") from None
     return out
 
 
@@ -463,6 +472,8 @@ def _e1(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[
         raise RequestError(f"{path}.models" if "models" in block else path, "E1 needs at least 2 models") from None
     out: dict[str, Any] = {"models": chosen, "minutes": _minutes(block["minutes"], f"{path}.minutes", capacity),
                            "labels": _labels(block["labels"], f"{path}.labels")}
+    if out["labels"]["source"] == "nhtsa" and any(manifest.models[m]["kind"] == "hosted" for m in chosen):
+        raise RequestError(f"{path}.models" if "models" in block else path, NHTSA_HOSTED) from None
     reference = _string(block["reference"], f"{path}.reference", 24)
     if reference not in chosen:
         raise RequestError(f"{path}.reference", "must be one of the E1 models") from None
@@ -558,8 +569,8 @@ def _x1(raw: Any, capacity: int) -> dict[str, Any]:
 
 
 def e1_records(labels: dict[str, Any]) -> int:
-    """The records one E1 repeat reads: ``n`` for generator labels, else the pack's fixture records."""
-    if labels["source"] == "generator":
+    """The records one E1 repeat reads: ``n`` for generator and nhtsa labels, else the pack's fixture records."""
+    if labels["source"] in ("generator", "nhtsa"):
         return labels["n"]
     return build_labels("fixtures", labels["pack"])[1]["records"]
 

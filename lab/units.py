@@ -677,16 +677,20 @@ def display_class(record: Mapping[str, Any], provenance: Mapping[str, Any] | Non
     return "unverified"
 
 
-def unit_notes(experiment: str, measurement: str, hosted_role: str | None = None) -> list[str]:
-    """The note keys (``notes.NOTES``) of a unit. A hosted E1 endpoint (``hosted_role`` ``endpoint``) drops
+def unit_notes(experiment: str, measurement: str, hosted_role: str | None = None,
+               public_text: bool = False) -> list[str]:
+    """The note keys (``notes.NOTES``) of a unit. ``public_text`` (an E1 unit with ``nhtsa`` labels) swaps
+    ``synthetic`` and ``model_measurement`` for ``public_narratives`` and ``model_measurement_public``. A hosted E1
+    endpoint (``hosted_role`` ``endpoint``) drops
     ``runner_hardware`` and adds ``hosted_api`` (unless plumbing) and ``hosted_raw``; a hosted central comparator
     (``central``) adds ``central_hosted`` and ``hosted_raw``. A plumbing unit with a hosted role gets
     ``plumbing_hosted`` in place of ``plumbing``: its hosted calls went to the configured host, not to a fake."""
     plumbing = "plumbing" if hosted_role is None else "plumbing_hosted"
-    notes = [plumbing] if measurement == "plumbing" else ["model_measurement"] if measurement == "model" else []
+    model = "model_measurement_public" if public_text else "model_measurement"
+    notes = [plumbing] if measurement == "plumbing" else [model] if measurement == "model" else []
     if experiment == "openfda":
         return [*notes, "public_data"]
-    notes.append("synthetic")
+    notes.append("public_narratives" if public_text else "synthetic")
     if experiment in ("e1", "e2", "e3", "sim") and hosted_role != "endpoint":
         notes.append("runner_hardware")
     if experiment in ("e2", "g0", "sim"):
@@ -696,6 +700,11 @@ def unit_notes(experiment: str, measurement: str, hosted_role: str | None = None
     elif hosted_role == "central":
         notes += ["central_hosted", "hosted_raw"]
     return notes
+
+
+def public_text(unit: Mapping[str, Any]) -> bool:
+    """Whether the unit reads real public narratives: an E1 unit with ``nhtsa`` labels."""
+    return unit["experiment"] == "e1" and unit["params"].get("labels", {}).get("source") == "nhtsa"
 
 
 def hosted_role(unit: Mapping[str, Any]) -> str | None:
@@ -718,7 +727,8 @@ def unit_record(unit: Mapping[str, Any], shard: str, provider: str, provider_ove
         "argv": [], "seeds": list(unit["seeds"]), "timeout_s": None, "started_at": None, "finished_at": None,
         "wall_s": 0.0, "exit_code": None, "signal": None, "status": "skipped", "status_reason": None,
         "measurement_class": measurement, "class_reason": reason,
-        "notes": unit_notes(unit["experiment"], measurement, hosted_role(unit)), "routing_sha256": None,
+        "notes": unit_notes(unit["experiment"], measurement, hosted_role(unit), public_text(unit)),
+        "routing_sha256": None,
         "files": {}, "fake_rows": None, "ledger_rows": None, "participation": None, "harness_measurement": None,
         "logs": None, "serving": None, "server_exit": None, "server_after": None, "class_checks": None,
         "class_flags": [], "routing_files": None, "steps": None, "projection": None, "hosted": None,
@@ -1076,7 +1086,7 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
         exit_code=proc.exit_code if proc is not None else None,
         signal=proc.signal_name if proc is not None else None, status=status, status_reason=reason,
         measurement_class=measurement, class_reason=class_reason,
-        notes=unit_notes(experiment, measurement, hosted.role if hosted is not None else None),
+        notes=unit_notes(experiment, measurement, hosted.role if hosted is not None else None, public_text(unit)),
         routing_sha256=routing_sha256, routing_files=routing_files, projection=projection, files=files,
         fake_rows=sum(1 for r in rows if r["fake_marker"]) if rows is not None else None,
         ledger_rows=len(rows) if rows is not None else None, participation=record_participation,

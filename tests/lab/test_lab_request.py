@@ -252,11 +252,11 @@ CASES: list[tuple[str, Callable[[str], bytes], str, str]] = [
     ("e1-bootstrap-low", _block("e1", E1, bootstrap_b=999), "$.experiments.e1.bootstrap_b",
      "must be an int in [1000, 20000]"),
     ("e1-labels-source", _block("e1", E1, labels=_e1_labels(source="human")), "$.experiments.e1.labels.source",
-     "must be one of fixtures, generator"),
+     "must be one of fixtures, generator, nhtsa"),
     ("e1-fixtures-with-n", _block("e1", E1, labels={"source": "fixtures", "pack": "device_quality", "n": 40}),
-     "$.experiments.e1.labels.n", "only for generator labels"),
+     "$.experiments.e1.labels.n", "only for generator and nhtsa labels"),
     ("e1-fixtures-with-seed", _block("e1", E1, labels={"source": "fixtures", "pack": "device_quality", "seed": 1}),
-     "$.experiments.e1.labels.seed", "only for generator labels"),
+     "$.experiments.e1.labels.seed", "only for generator and nhtsa labels"),
     ("e1-generator-without-n", _block("e1", E1, labels={"source": "generator", "pack": "device_quality", "seed": 1}),
      "$.experiments.e1.labels.n", "required"),
     ("e1-labels-n-low", _block("e1", E1, labels=_e1_labels(n=39)), "$.experiments.e1.labels.n",
@@ -450,6 +450,20 @@ class ExperimentBlockTests(unittest.TestCase):
         self.assertEqual((got["openfda"]["recalling_firms"], got["openfda"]["min_partition_coverage"],
                           got["openfda"]["n1_sheet"], got["openfda"]["manufacturers"]),
                          (["ACME Devices, Inc."], 1, {"n": 30, "seed": 2}, ["A&B Co.", "ACME Devices"]))
+
+    def test_nhtsa_labels_read_the_vehicle_pack(self) -> None:
+        nhtsa = {"source": "nhtsa", "pack": "docs/collective/replay/vehicles/pack", "n": 120, "seed": 3}
+        got = self.blocks(e1={**E1, "labels": nhtsa})
+        self.assertEqual(got["e1"]["labels"], nhtsa)
+        for bad, where, problem in (
+                ({**nhtsa, "pack": "device_quality"}, "pack",
+                 "nhtsa labels read the vehicle pack docs/collective/replay/vehicles/pack"),
+                ({k: v for k, v in nhtsa.items() if k != "n"}, "n", "required"),
+                ({**nhtsa, "n": 39}, "n", "must be an int in [40, 2000]")):
+            with self.subTest(where=where), self.assertRaises(RequestError) as caught:
+                self.blocks(e1={**E1, "labels": bad})
+            self.assertEqual((caught.exception.path, caught.exception.problem),
+                             (f"$.experiments.e1.labels.{where}", problem))
 
     def test_fixtures_labels_have_no_n_or_seed(self) -> None:
         got = self.blocks(e1={**E1, "labels": {"source": "fixtures", "pack": "claims_integrity"}})
