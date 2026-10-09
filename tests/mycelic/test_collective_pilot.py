@@ -202,8 +202,10 @@ RW = _tool("reactive_world")
 
 
 class ReactiveWorldTests(unittest.TestCase):
-    """The two nulls over 20 seeds of synthetic worlds (``tools/market/reactive_world.py``). The pass criteria in the
-    three ``test_*_world_*`` tests were written before the check first ran, and are not to be moved after it."""
+    """The two nulls over 20 seeds of synthetic worlds (``tools/market/reactive_world.py``). The pass criteria in
+    ``test_reactive_world_*``, ``test_background_world_*`` and ``test_presignal_world_*`` were committed (367ebeb)
+    before the check first ran, and are not to be moved after it. On the first run the presignal criterion failed (5
+    of 20 seeds, not 18): it stays as written."""
 
     @classmethod
     def setUpClass(cls) -> None:
