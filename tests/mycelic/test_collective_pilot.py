@@ -346,6 +346,20 @@ class EndToEndTests(unittest.TestCase):
                     self.assertTrue(all(t["available_date"] >= w["available_first"] for t in timeline))
                     self.assertEqual(len(timeline), doc["channels"][name]["summary"]["alerts"])
 
+    def test_the_x_numbers_are_those_written_before_the_shift_totals_were_split_out(self) -> None:
+        # each demo's X summary (31 evaluated weeks) as the audit wrote it before own_post_shift_totals was split out
+        # of null_excluding_own_post and weeks.available_first was added: the same demo command, run on the tree
+        # before that change, gave these exactly. S and R_mf have no alert on an outcome's key: they find and expect 0
+        pinned = {"device_quality": (2, 64 / 31, 24 / 31, 42 / 31, 19 / 32),
+                  "claims_integrity": (2, 42 / 31, 14 / 31, 42 / 31, 15 / 32),
+                  "it_incidents": (2, 40 / 31, 15 / 31, 40 / 31, 16 / 32)}
+        for pack_id, doc in self.docs.items():
+            with self.subTest(pack=pack_id):
+                s = doc["channels"]["X"]["summary"]
+                self.assertEqual(doc["weeks"]["evaluated_weeks"], 31)
+                self.assertEqual((s["found"], s["expected_found"], s["p_value"], s["expected_found_excluding_own_post"],
+                                  s["p_value_excluding_own_post"]), pinned[pack_id])
+
     def test_codes_only_channels_cannot_see_narrative_only_plants(self) -> None:
         for pack_id, doc in self.docs.items():
             with self.subTest(pack=pack_id):
