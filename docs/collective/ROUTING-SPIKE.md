@@ -4,8 +4,9 @@
 design, the settings and the pass bar below are fixed before any such code is written. Base: commit `95b2a1e`, the
 head of the base branch when this was written.
 
-**Later additions.** Section 10 lists the deviations, written after the code and before the run. Section 11 records
-Run 1. Sections 0 to 9 are unchanged since the pre-registration commit `988646a`.
+**Later additions.** Section 10 lists the deviations: 1 to 15 written after the code and before Run 1, 16 to 20 after a
+review of Run 1 and before Run 2. Section 11 records Run 1, section 12 Run 2. Sections 0 to 9 are unchanged since the
+pre-registration commit `988646a`.
 
 **This is a spike, not a decision.** It informs decision 1 (where Tesseract runs at a site) and decision 2 (what
 Tesseract routes when nobody asks a question) in `docs/handoff/HANDOFF-2026-10-09.md`. Both stay with the chief
@@ -613,6 +614,45 @@ settings and the pass bars are as frozen. The code is in `research/routing_spike
     while four worlds run at once, on a 4-core machine.
 15. **Where the result lives.** `run.py run` writes `runs/routing_spike/<run id>/result.json` (git-ignored), with
     every route, gate status and verdict sha256. The committed copy is described in section 11.
+
+**After Run 1, before Run 2.** A review of Run 1 found seven minor defects and no blocking one. Run 1 stays valid and
+stays on this page (section 11). The fixes below change the site side and the scorer, so they need a new run. They
+were written, and the code committed (`a1ac46b`), before Run 2 started. The criterion (section 5), the arms, the world
+and every setting but one are unchanged. The one changed setting is the ranker's scope (16). Run 2 checks against its
+own prereg file, `docs/collective/routing_spike/prereg-run-2.json`. A test requires the ranker's scope to be the only
+settings difference between that file and `prereg.json`.
+
+16. **The ranking stops at `as_of`.** In Run 1 a site's graph held all 52 weeks of its records, and Tesseract ranked the
+    whole session (deviation 10). Records received after a question's `as_of` were never read. But Tesseract returns
+    only its stores' top candidates, so those later records took places that in-window records would otherwise get.
+    What a site read, and sometimes what it answered, depended on data that did not exist yet at `as_of`. Every arm
+    got the same answers, so R − U was not biased. The site-side figures of Run 1 do carry this look-ahead. Now
+    Tesseract sees only the session's nodes received on or before the question's `as_of` (`AsOfStorage` in
+    `site_process.py`). An in-window record is always received before `as_of`, since the window ends at the last week
+    closed at `as_of`, so no in-window record is lost. The frozen setting "Tesseract over the whole session" (section
+    8) becomes "Tesseract over the session's records received on or before the question's `as_of`". A test injects
+    200 copies of the query text received a day after `as_of`: the site reads the same records and sends the same bytes
+    as without them, and it does not when the bound is switched off.
+17. **What `truncated` means.** In Run 1 a Tesseract site set `truncated` when the window held more than L = 50 own
+    records (section 1.4, step 7). The L cut never removed a record in Run 1, while Tesseract's own top-candidate cut
+    left many in-window records unread. So the flag, and the gate's note "judged a truncated subset", gave HQ a wrong
+    account of each site's read. Now a site sets `truncated` when at least one in-window own record that the shipped
+    retrieval matches to the entity was not read. The site computes that match itself, with the shipped
+    `edge.verify.retrieve`, uncapped. The flag changes only a note; the gate's status never reads it. The shipped path
+    (check 9) is unchanged.
+18. **Process mode on a whole planted world.** Deviation 2 cut the process-mode test to two candidates of a no-plant
+    world. `run.py process-check` re-runs one world of a finished run with every site as a child process and requires
+    every (question, site) verdict, every route and gate status, every coordinator trace and the candidate list to be
+    byte-identical to the run's own world file. After Run 2 it runs on seed 1's planted world, all 60 candidates. This
+    is reported, and it is not one of the ten integrity checks.
+19. **The lineage check reads the logged bodies.** Section 3.5 item 4 asked only that a verdict event's sha256 appear
+    in HQ's receive log and the site's egress log. The event's own `verdict` and buckets were the ones HQ wrote. Now the
+    scorer also requires the event's `verdict`, `support_bucket`, `roots_bucket`, `reporters_bucket` and `newest_week`
+    to equal the logged body that sha256 names, in both logs. A test publishes a confirm event that cites a refute's
+    sha256 and requires the scorer to refuse it. This makes check 8 and "found" stricter.
+20. **Two commands.** `run.py run --prereg <file>` names the prereg file a run must match (Run 1: `prereg.json`).
+    `run.py export` writes the committed copies of a run file, with the same code as Appendix B's script. On Run 1's
+    result file it reproduces `run-1.json` and `run-1-routes.json` byte for byte (Appendix C).
 
 ## 11. Run 1
 
