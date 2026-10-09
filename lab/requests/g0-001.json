@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "purpose": "G0 re-run: main-001's 1000-record canary scan with a-4b failed on one canary that the scanner found inside a site name the run itself created (docs/lab/RESULTS.md run 5); the planter now passes the run's organisation strings as reserved (commit 61aaedd, with a regression test). Same pack, records, seed and model as main-001, nothing else run. The first run is the result: a canary crossing a boundary fails it.",
+  "provider": "llama-server",
+  "models": ["a-4b"],
+  "job_minutes": 330,
+  "max_parallel": 16,
+  "retention_days": 30,
+  "experiments": {
+    "g0": {"models": ["a-4b"], "minutes": 300, "pack": "device_quality", "records": 1000, "seed": 1}
+  }
+}
