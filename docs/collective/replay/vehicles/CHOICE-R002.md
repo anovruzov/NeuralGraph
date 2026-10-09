@@ -70,4 +70,21 @@ when this was changed.
 
 ## Runs
 
-None yet.
+1. **Run [37910989965](https://github.com/anovruzov/NeuralGraph/actions/runs/37910989965)** (request
+   `reader-002`, commit `7a94535`, 9 units in 6 shards). Read from the aggregate job's log (job 113866712365):
+   `report.md` sha256 `081347404246…` and `report.json` sha256 `41ebc90eb48e…`, both matching the log.
+   - The labels are R001's: sha256 `bc6d092d8bca…`, 150 records, 206 claims, so both runs read the same records.
+     The lexical extractor scores predicate F1 0.434 on them, as in R001.
+   - a-0p5b and a-1p5b finished all three repeats. a-4b finished repeat 3; repeats 1 and 2 timed out at the unit's
+     150-minute limit (shard s005 ran 5 hours 2 minutes). The a-4b calls took a median 25.8 s and a 95th percentile
+     of 177 s on that runner.
+   - E1's comparison needs every repeat of its reference model (a-4b), so the aggregate scored no model. The
+     headline of rule 4 does not need that comparison: it is each model's own predicate F1 against the lexical F1.
+     The scores exist in the run's artifacts, which cannot be read from this environment.
+
+   **What happens next, fixed before it runs:** the run's artifacts are re-aggregated in CI with code that scores
+   each model from its completed repeats (a-4b from repeat 3 alone, which is reported as such). No model reads
+   again and no setting changes. The re-aggregation is recorded here as run 1's reading, not as a new run.
+
+   **Model call latency** (median per extraction call, from the ledgers; shared runners, not site hardware):
+   a-0p5b 10.9 s and 12.5 s on two CPU types, a-1p5b 34.7 s and 52.1 s, a-4b 25.8 s.
