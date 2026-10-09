@@ -17,7 +17,7 @@ Date of this record: 2026-10-09. Branch `claude/mycelic-implementation-vr034p`.
 
 | Suite | Command | Result |
 |---|---|---|
-| Mycelic | `.venv/bin/python -m pytest mycelic/tests -q` | **393 passed, 7 skipped**. Three skips are the NATS JetStream tests, which need a server (next row); four are the opt-in live connector tests (GitHub, Slack, Gmail, Drive), which need real credentials (section 4). |
+| Mycelic | `.venv/bin/python -m pytest mycelic/tests -q` | **394 passed, 7 skipped**. Three skips are the NATS JetStream tests, which need a server (next row); four are the opt-in live connector tests (GitHub, Slack, Gmail, Drive), which need real credentials (section 4). |
 | Mycelic, NATS transport | `MYCELIC_TEST_NATS_URL=nats://127.0.0.1:4333 .venv/bin/python -m pytest mycelic/tests/test_transport.py -k nats` against a local `nats-server` 2.11.4 started with `-js` | **4 passed**: publish, subscribe and request round trip; a durable consumer survives a reconnect; sealed connector control reaches an external holder and leaves no copy in the stream (re-run 2026-10-09) |
 | NeuralGraph library | `.venv/bin/python -m pytest NeuralGraph/tests -q` | **222 passed, 1 skipped, 119 subtests passed** |
 | Frontend types | `cd frontend && npx tsc --noEmit` (strict) | passes |

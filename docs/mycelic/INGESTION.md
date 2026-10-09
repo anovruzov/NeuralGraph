@@ -3095,6 +3095,29 @@ queue → pipeline → holder store → transport → coordinator → loop.
 \*The brief's summary named 15 items for "tests 1–16". Item 16 is this design's inferred completion: the brief's
 "never silently ingest everything an OAuth grant reaches". Replace it if the product owner's list differs.
 
+**As built (2026-10-09).** The plan's file and test names above were written before the code; these are the tests that
+implement each row. All pass offline (`pytest mycelic/tests`: 394 passed, 7 skipped; `pytest NeuralGraph/tests`: 222
+passed, 1 skipped). None of them contacts a real provider.
+
+| # | Status | Tests (`mycelic/tests/`) |
+|---|---|---|
+| 1 | pass | `test_ingest_pipeline.py::test_two_apps_feed_the_same_holder`; `test_connector_cross_app.py::test_github_and_slack_feed_one_holder`, `::test_github_slack_gmail_and_drive_feed_one_holder_and_share_entities` |
+| 2 | pass | `test_ingest_events.py::test_record_identity_is_stable_across_connections_and_distinct_per_holder`; `test_ingest_pipeline.py::test_source_identity_is_preserved_and_survives_reconnect` |
+| 3 | pass | `test_ingest_domains.py::test_multi_domain_membership_without_raw_duplication` |
+| 4 | pass | `test_ingest_linking.py::test_records_from_two_apps_share_entities_and_retrieval_connects_them`; the four-app test in `test_connector_cross_app.py` (one issue and one dependency version reached from all four apps) |
+| 5 | pass | `test_ingest_pipeline.py::test_replaying_events_does_not_duplicate_memory`, `::test_an_event_queued_again_after_it_was_applied_is_a_noop`, `::test_a_crash_between_lease_and_ack_is_redone_exactly_once`; webhook and push redelivery in `test_integrations_api.py::test_webhook_is_verified_deduplicated_and_forwarded_without_content` and `test_connector_gmail.py::test_push_notices_fetch_history_dedupe_and_confirm_deletions` |
+| 6 | pass | `test_ingest_pipeline.py::test_an_update_changes_the_indexed_representation`; `test_connector_github.py::test_webhook_edits_reindex_and_deletions_purge`; `test_connector_slack.py::test_events_edit_reindex_and_delete_purge_after_confirmation` |
+| 7 | pass | `test_ingest_pipeline.py::test_a_delete_withdraws_content_and_emits_an_evidence_event`; `test_evidence_events.py::test_deleted_source_purges_coordinator_content`; `test_review_phase_a.py::test_4_a_deletion_that_overtakes_the_response_wins` |
+| 8 | pass | `test_ingest_shards_api.py::test_shard_endpoints_are_admin_only_and_tenant_isolated`; `test_ingest_shards.py::test_a_shard_file_resolves_only_through_its_own_holder` |
+| 9 | pass | `test_ingest_linking.py::test_edges_from_restricted_sources_are_not_traversable_and_deletion_withdraws_evidence`; `test_ingest_shards.py::test_traversal_merges_edges_across_shards_and_follows_only_public_evidence` |
+| 10 | pass, with a measured gap | `test_ingest_shards.py::test_cross_domain_retrieval_spans_shards_and_a_domain_filter_reads_only_its_shards`, `::test_sharded_rrf_search_agrees_with_single_store_search`, `::test_a_failing_or_slow_shard_marks_the_result_partial_and_the_bound_marks_it_truncated`. Sharded results match single-store top 10 at only 0.64–0.67 (target 0.95; DECISIONS D17) |
+| 11 | pass | `test_ingest_pipeline.py::test_the_same_text_through_two_apps_shares_one_source_root`; `test_review_phase_a.py::test_5_two_versions_of_one_message_are_one_root`; the four-app test (a forwarded GitHub notification shares the notification's root); `test_knowledge_goals.py` (copies are not independent support at the coordinator) |
+| 12 | pass (GitHub and Slack) | scenario check m (`test_scenario.py::test_verification_scenario_passes_every_check`): the discovery's claim cites both apps with 3 independent roots. Gmail and Drive feed the same graph (four-app test) but no scenario discovery cites them yet |
+| 13 | pass | `test_ingest_pipeline.py::test_a_crash_mid_pipeline_resumes_from_the_checkpoint_without_duplicates`; `test_connector_github.py::test_crash_mid_backfill_resumes_without_duplicates_or_loss` and its Gmail and Drive counterparts; `test_ingest_shards.py::test_a_crash_at_any_state_resumes_to_the_same_result` |
+| 14 | pass | `test_ingest_contract.py::test_a_new_app_plugs_in_through_the_registry_alone`, `::test_import_boundaries` |
+| 15 | pass | the full suites above; `test_ingest_migrations.py::test_a_v1_holder_upgrades_on_open_and_keeps_answering` |
+| 16 | pass | `test_ingest_acl.py::test_nothing_is_ingested_silently`, `::test_excluding_a_source_later_can_delete_its_records`; `test_connector_gmail.py::test_discovery_offers_labels_with_safe_defaults`; `test_connector_slack.py::test_discovery_acls_and_dm_opt_in` |
+
 Supporting tests:
 
 * `test_ingest_security.py`:

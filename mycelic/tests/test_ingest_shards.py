@@ -684,3 +684,22 @@ async def test_record_views_follow_records_into_their_shard(tmp_path):
     fixed = await runtime.control("record.domains", {"record_id": rid, "add": ["engineering.backend"], "reason": "the payments service"}, actor=OWNER)
     assert "engineering.backend" in {d["domain_id"] for d in fixed["domains"]}
     await store.close()
+
+
+async def test_cross_domain_retrieval_spans_shards_and_a_domain_filter_reads_only_its_shards(tmp_path):
+    """Acceptance test 10: with records split by domain, an unfiltered query merges hits from several shards; a domain
+    filter reads only the shards that can hold that domain: its own shard and s0 (records route by their primary domain,
+    so a record mainly about something else keeps a secondary membership there), never another domain's shard."""
+    h = await build(tmp_path, n=8)
+    store = h["store"]
+    t_eng = (await store.shards.start_split(["engineering"], requested_by=OWNER))["to_shard"]
+    t_legal = (await store.shards.start_split(["legal"], requested_by=OWNER))["to_shard"]
+    both = await store.search("timeout regression payments renewal deal pricing risk", k=10, audience=OWNER_AUDIENCE)
+    assert {x["shard_id"] for x in both} >= {t_eng, DEFAULT_SHARD} and not both.partial
+    eng = await ShardedRetriever(store.shards).search("timeout regression payments renewal deal pricing", k=10, domain_ids=["engineering"])
+    assert sorted(eng.shards) == sorted([DEFAULT_SHARD, t_eng]) and eng and t_legal not in {r.shard_id for r in eng}
+    legal = await ShardedRetriever(store.shards).search("NDA confidentiality clause", k=5, domain_ids=["legal"])
+    assert sorted(legal.shards) == sorted([DEFAULT_SHARD, t_legal]) and t_eng not in {r.shard_id for r in legal}
+    unfiltered = await ShardedRetriever(store.shards).search("NDA confidentiality clause", k=5)
+    assert sorted(unfiltered.shards) == sorted([DEFAULT_SHARD, t_eng, t_legal])
+    await store.close()
