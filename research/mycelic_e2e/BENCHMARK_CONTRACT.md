@@ -85,7 +85,10 @@ only in `bench/holdout/`; its sha256 is written to `plan/HOLDOUT_SHA256` at free
 run **once** per frozen candidate (ledger guard); its failures are not inspected for tuning. Gold lives only in
 `tasks_<split>.gold.json`, opened only by `bench/gold.py` (scorer side); the runtime, the feeder and the issuer never read
 it (tested by grep). Limitation: the isolation is by module boundary and tests, inside one process tree and one container;
-it is not a separate security domain.
+it is not a separate security domain. Concretely: the holdout template bank was written by the WP2 engineer together
+with the dev bank (someone has to write it), then moved out of the repository tree at ~06:40 UTC; no implementation or
+analysis agent was given its path, and analysis agents were instructed never to open it. A process in the same container
+could still find it. The holdout world seeds are chosen by the orchestrator at freeze time and recorded here.
 
 ## 7. Centralized baseline
 
@@ -111,7 +114,7 @@ index off, dedupe off) are separate rows, each tied to the task classes it must 
 | implementation commit | _at freeze_ |
 | evaluator files sha256 (`score.py`, `gold.py`) | _at freeze_ |
 | dev templates sha256 | _at freeze_ |
-| holdout bank sha256 (`plan/HOLDOUT_SHA256`) | _at freeze_ |
+| holdout bank sha256 | `6613deee5e130924b77efcfa898dfd4921226ddfc21a0efb2cc27ee025e85214` (`templates_holdout.py`, sealed 2026-10-09 ~06:40 UTC at `/root/sealed_holdout/`, outside the repository; loaded only via `MYCELIC_E2E_HOLDOUT_BANK`; dev/holdout disjointness tests passed against it: 12 passed) |
 | dev seeds / holdout seeds | _at freeze_ |
 | sizes per split | _at freeze_ |
 | per-task timeout, worker drain budget | _at freeze_ |

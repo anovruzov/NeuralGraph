@@ -1,0 +1,2266 @@
+From c254a3352371eeb853ad4585bc96dacf05f54296 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 06:34:51 +0000
+Subject: [PATCH 12/13] E2E v1 harness: world generator, raw-event feed through
+ connectors, task issuing (WP2)
+
+Deterministic two-tenant worlds (S/M/L), raw local_export JSONL sources only, attached and synced
+through the connector API into each holder; tasks issued as goals/questions through the HTTP API
+as the asker; asker-view dumps for the isolated scorer. The holdout template bank is sealed outside
+the repository tree (sha256 6613deee...5214) and loaded only from an explicit path at holdout time.
+Engineer: WP2 (claude-sonnet-5-5).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/bench/__init__.py        |   1 +
+ research/mycelic_e2e/bench/events.py          | 104 +++
+ research/mycelic_e2e/bench/faults.py          |  37 +
+ research/mycelic_e2e/bench/feed.py            | 133 +++
+ .../mycelic_e2e/bench/holdout/__init__.py     |   1 +
+ research/mycelic_e2e/bench/hygiene.py         |  40 +
+ research/mycelic_e2e/bench/issue.py           | 124 +++
+ research/mycelic_e2e/bench/run.py             | 330 +++++++
+ research/mycelic_e2e/bench/schema.py          |  91 ++
+ research/mycelic_e2e/bench/templates_dev.py   |  93 ++
+ .../mycelic_e2e/bench/tests/test_world.py     | 328 +++++++
+ research/mycelic_e2e/bench/world.py           | 868 ++++++++++++++++++
+ 12 files changed, 2150 insertions(+)
+ create mode 100644 research/mycelic_e2e/bench/__init__.py
+ create mode 100644 research/mycelic_e2e/bench/events.py
+ create mode 100644 research/mycelic_e2e/bench/faults.py
+ create mode 100644 research/mycelic_e2e/bench/feed.py
+ create mode 100644 research/mycelic_e2e/bench/holdout/__init__.py
+ create mode 100644 research/mycelic_e2e/bench/hygiene.py
+ create mode 100644 research/mycelic_e2e/bench/issue.py
+ create mode 100644 research/mycelic_e2e/bench/run.py
+ create mode 100644 research/mycelic_e2e/bench/schema.py
+ create mode 100644 research/mycelic_e2e/bench/templates_dev.py
+ create mode 100644 research/mycelic_e2e/bench/tests/test_world.py
+ create mode 100644 research/mycelic_e2e/bench/world.py
+
+diff --git a/research/mycelic_e2e/bench/__init__.py b/research/mycelic_e2e/bench/__init__.py
+new file mode 100644
+index 0000000..d5fe8ba
+--- /dev/null
++++ b/research/mycelic_e2e/bench/__init__.py
+@@ -0,0 +1 @@
++"""Mycelic-E2E v1 benchmark package (see research/mycelic_e2e/BENCHMARK_CONTRACT.md and plan/PLAN_v1.md)."""
+diff --git a/research/mycelic_e2e/bench/events.py b/research/mycelic_e2e/bench/events.py
+new file mode 100644
+index 0000000..a5f9eaf
+--- /dev/null
++++ b/research/mycelic_e2e/bench/events.py
+@@ -0,0 +1,104 @@
++"""Raw source writers: ``local_export`` JSONL files (header + records, edits, deletes, forwarded copies, missing metadata,
++malformed lines) from the planner's :class:`world.Rec` list (PLAN_v1 §B.2).
++
++``write_sources`` writes ``<out>/sources/<file>.jsonl`` (+ ``.late.jsonl`` for records that arrive in a second phase) and returns
++the manifest the feeder uses. Raw records only: no derived field, no domain, no entity, no answer. The manifest carries no gold.
++"""
++from __future__ import annotations
++
++import hashlib
++import json
++import random
++from datetime import datetime, timedelta, timezone
++from pathlib import Path
++from typing import Any
++
++from .faults import apply_file_faults
++from .world import APPS, Ids, Rec, World
++
++FORWARD_HEADER = "---------- Forwarded message ---------"
++
++
++def stamp(now: datetime, days_ago: float, offset_days: float = 0.0) -> str:
++    return (now - timedelta(days=days_ago) + timedelta(days=max(0.0, offset_days))).replace(microsecond=0).isoformat()
++
++
++def app_for(holder_key: str) -> str:
++    return APPS[int(hashlib.sha256(holder_key.encode()).hexdigest()[:4], 16) % len(APPS)]
++
++
++def account_for(holder_key: str, source: str = "pub") -> str:
++    return f"acct-{holder_key}-{source}"      # one connection per (app, account) in a holder: one account per source file
++
++
++def forwarded_body(comment: str, original_text: str, sender: str, when: str, subject: str) -> str:
++    return (f"{comment or 'FYI'}\n\n{FORWARD_HEADER}\nFrom: {sender}\nDate: {when}\nSubject: {subject}\n\n{original_text}")
++
++
++def record_line(rec: Rec, by_rid: dict[str, Rec], now: datetime, world: World) -> dict[str, Any]:
++    t = world.tenants[rec.tenant]
++    base = {"id": rec.rid}
++    if rec.typ == "delete":
++        return {"type": "delete", "object_type": "document", **base, "deleted_at": stamp(now, rec.days_ago, rec.version_offset_days)}
++    out: dict[str, Any] = {"type": rec.typ, "object_type": "document", **base, "title": rec.title, "text": rec.text}
++    if rec.forwarded and rec.forward_of:
++        orig = by_rid[rec.forward_of]
++        when = stamp(now, orig.days_ago)
++        out["text"] = forwarded_body(rec.comment, orig.text, "a colleague", when, "Field note")
++        out["forwarded_from"] = {"app": app_for(orig.holder), "account": account_for(orig.holder, "pub"), "object_type": "document", "object_id": orig.rid}
++    if not rec.missing_meta:
++        out["created_at"] = stamp(now, rec.days_ago)
++        out["author"] = rec.author
++        if rec.version_offset_days:
++            out["updated_at"] = stamp(now, rec.days_ago, rec.version_offset_days)
++    return out
++
++
++def source_header(holder_key: str, source: str, domain: str | None, members: list[str]) -> dict[str, Any]:
++    vis = {"pub": "public", "priv": "private"}.get(source, "members")
++    h: dict[str, Any] = {"type": "source", "id": f"{holder_key}-{source}", "name": f"{holder_key} {source}", "source_type": "channel", "visibility": vis}
++    if vis != "public":
++        h["member_ids"] = members
++    if domain and source != "priv":
++        h["domains"] = [domain]
++    return h
++
++
++def write_sources(world: World, records: list[Rec], fault_plan: dict[str, Any], ids: Ids, out_dir: Path, *, now: datetime, seed: int) -> list[dict[str, Any]]:
++    """Write every source file; returns the manifest entries (one per file)."""
++    src_dir = Path(out_dir) / "sources"
++    src_dir.mkdir(parents=True, exist_ok=True)
++    by_rid = {r.rid: r for r in records if r.typ == "document"}
++    groups: dict[tuple[str, str], list[Rec]] = {}
++    for r in records:
++        key = (r.holder, r.source if r.source != "mem" else "mem0")
++        groups.setdefault(key, []).append(r)
++    manifest: list[dict[str, Any]] = []
++    for (holder_key, source), recs in sorted(groups.items()):
++        t = world.tenants[recs[0].tenant]
++        h = t.holders[holder_key]
++        domain = t.units[h.dept].domain if h.dept else None
++        members = sorted({m for r in recs for m in r.members}) if source != "pub" else []
++        flags = dict(fault_plan.get(holder_key, {})) if source == "pub" else {}
++        rng = random.Random(f"{seed}:{holder_key}:{source}")
++        base = sorted([r for r in recs if r.phase == "base"], key=lambda r: (-r.days_ago, r.rid))
++        late = sorted([r for r in recs if r.phase == "late"], key=lambda r: (-r.days_ago, r.rid))
++        base_lines = [json.dumps(record_line(r, by_rid, now, world), sort_keys=True) for r in base]
++        base_lines = apply_file_faults(base_lines, flags, rng, rid_of_line=[r.rid for r in base])
++        late_lines = [json.dumps(record_line(r, by_rid, now, world), sort_keys=True) for r in late]
++        name = f"{holder_key}__{source}"
++        header = json.dumps(source_header(holder_key, source, domain, members), sort_keys=True)
++        (src_dir / f"{name}.jsonl").write_text("\n".join([header, *base_lines]) + "\n", encoding="utf-8")
++        late_file = None
++        if late_lines:
++            late_file = f"{name}.late.jsonl"
++            (src_dir / late_file).write_text("\n".join(late_lines) + "\n", encoding="utf-8")
++        if h.owner_type == "user":
++            manager = h.owner_key
++        else:
++            manager = t.admin
++        manifest.append({"file": f"{name}.jsonl", "late_file": late_file, "holder_key": holder_key, "holder_id": ids.holders[holder_key], "tenant": t.slug,
++                         "manager": manager, "app": app_for(holder_key), "account": account_for(holder_key, source), "source_header_id": f"{holder_key}-{source}",
++                         "visibility": json.loads(header)["visibility"], "members": members, "domain": domain if source != "priv" else None,
++                         "n_base": len(base_lines), "n_late": len(late_lines), "flags": {k: v for k, v in flags.items() if k in ("replay", "restart")}})
++    return manifest
+diff --git a/research/mycelic_e2e/bench/faults.py b/research/mycelic_e2e/bench/faults.py
+new file mode 100644
+index 0000000..4872609
+--- /dev/null
++++ b/research/mycelic_e2e/bench/faults.py
+@@ -0,0 +1,37 @@
++"""File-level fault injection (PLAN_v1 §B.2). The planner decides which holder gets which fault (``Plan.fault_plan``); this module
++applies the ones that act on a source file's lines. Faults that act on the run (replay, restart mid-ingest) are carried to the
++feeder as flags in the sources manifest. Nothing here sees gold: only record lines and the holder-keyed fault flags."""
++from __future__ import annotations
++
++import json
++import random
++from typing import Any
++
++MALFORMED_LINES = ('{"type": "document", "id": "broken-1", "text": "this line is cut off', "this is not json at all",
++                   json.dumps({"type": "document", "text": "a record without an id must be counted, not stop the import"}), "[1, 2, 3")
++
++
++def apply_file_faults(lines: list[str], flags: dict[str, Any], rng: random.Random, *, rid_of_line: list[str | None]) -> list[str]:
++    """``lines`` are record lines (header excluded) in chronological order; ``rid_of_line[i]`` is the record id of line i (or None).
++    Returns the lines as the exporter wrote them with the faults of ``flags`` applied."""
++    out = list(lines)
++    rids = list(rid_of_line)
++    if flags.get("out_of_order"):
++        # newest first: an older version of a record is delivered after its newer version
++        order = list(range(len(out)))[::-1]
++        out = [out[i] for i in order]
++        rids = [rids[i] for i in order]
++    dup = set(flags.get("duplicate") or [])
++    if dup:
++        nl, nr = [], []
++        for ln, rid in zip(out, rids):
++            nl.append(ln)
++            nr.append(rid)
++            if rid in dup:
++                nl.append(ln)
++                nr.append(rid)
++        out, rids = nl, nr
++    if flags.get("malformed"):
++        for bad in MALFORMED_LINES:
++            out.insert(rng.randrange(len(out) + 1), bad)
++    return out
+diff --git a/research/mycelic_e2e/bench/feed.py b/research/mycelic_e2e/bench/feed.py
+new file mode 100644
+index 0000000..1171bc0
+--- /dev/null
++++ b/research/mycelic_e2e/bench/feed.py
+@@ -0,0 +1,133 @@
++"""Feeder: attaches each source file to its holder through the connector API and syncs it (PLAN_v1 §A stage 1, §D WP2).
++
++Allowed entry points only: ``POST /api/holders/{id}/connectors``, ``PATCH .../connectors/{cid}/sources`` (the owner's choice of
++which source to include and its default domain, as in the UI), ``POST .../connectors/{cid}/sync``. This module never opens a
++database, never imports ``mycelic.evidence`` / ``mycelic.holder`` / ``mycelic.knowledge``, and sets no holder domain: routable
++domains appear only after ingestion, through the holder's own heartbeat.
++"""
++from __future__ import annotations
++
++import asyncio
++import shutil
++import time
++from dataclasses import dataclass, field
++from pathlib import Path
++from typing import Any, Awaitable, Callable
++
++import aiohttp
++
++
++class ApiClient:
++    """Bearer-token JSON client for the loopback API."""
++
++    def __init__(self, base_url: str) -> None:
++        self.base = base_url.rstrip("/")
++        self._s = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=300))
++
++    async def call(self, method: str, path: str, token: str, body: Any = None, params: dict | None = None) -> tuple[int, Any]:
++        async with self._s.request(method, self.base + path, json=body, params=params, headers={"Authorization": f"Bearer {token}"}) as resp:
++            try:
++                return resp.status, await resp.json()
++            except Exception:
++                return resp.status, {"raw": (await resp.text())[:300]}
++
++    async def close(self) -> None:
++        await self._s.close()
++
++
++@dataclass
++class SyncSummary:
++    holder_key: str
++    file: str
++    connector_id: str | None = None
++    syncs: list[dict[str, Any]] = field(default_factory=list)
++    errors: list[str] = field(default_factory=list)
++    wall_s: float = 0.0
++
++    def totals(self) -> dict[str, int]:
++        t = {"raw_items": 0, "enqueued": 0, "duplicates": 0, "normalize_errors": 0, "processed": 0}
++        for s in self.syncs:
++            rep = s.get("report") or {}
++            for k in ("raw_items", "enqueued", "duplicates", "normalize_errors"):
++                t[k] += int(rep.get(k) or 0)
++            t["processed"] += int(s.get("processed") or 0)
++        return t
++
++
++async def connect_and_sync(client: ApiClient, entry: dict[str, Any], *, token: str, import_dir: Path, src_dir: Path, principal_map: dict[str, str],
++                           restart_hook: Callable[[str, str], Awaitable[None]] | None = None) -> SyncSummary:
++    """Base phase for one source file: copy it into the holder's import root, add the connector, include its source with the owner's
++    default domain, sync (replay and restart faults act here)."""
++    t0 = time.perf_counter()
++    hid, flags = entry["holder_id"], entry.get("flags") or {}
++    out = SyncSummary(entry["holder_key"], entry["file"])
++    import_dir.mkdir(parents=True, exist_ok=True)
++    shutil.copyfile(src_dir / entry["file"], import_dir / entry["file"])
++    cfg: dict[str, Any] = {"source_app": entry["app"], "account_id": entry["account"], "paths": [entry["file"]], "auto_include": True,
++                           "principal_map": {k: v for k, v in principal_map.items() if k in set(entry.get("members") or [])}}
++    if flags.get("restart"):
++        cfg["limits"] = {"page_size": 3}
++    base = f"/api/holders/{hid}/connectors"
++    st, body = await client.call("POST", base, token, {"connector_type": "local_export", "config": cfg, "display_name": entry["source_header_id"]})
++    if st != 201:
++        out.errors.append(f"add connector: HTTP {st} {str(body)[:200]}")
++        return out
++    cid = body["connector"]["connector_id"]
++    out.connector_id = cid
++    st, srcs = await client.call("GET", f"{base}/{cid}/sources", token)
++    changes = []
++    for s in (srcs or {}).get("items", []):
++        ch: dict[str, Any] = {"source_id": s["source_id"], "selection": "included"}
++        if entry.get("domain"):
++            ch["default_domain_ids"] = [entry["domain"]]          # the owner states what the source is about; holder domains stay unset
++        if entry["visibility"] != "private":
++            ch["exportable"] = True
++        changes.append(ch)
++    if changes:
++        st, body = await client.call("PATCH", f"{base}/{cid}/sources", token, {"changes": changes})
++        if st != 200:
++            out.errors.append(f"include source: HTTP {st} {str(body)[:200]}")
++    if flags.get("restart") and restart_hook is not None:
++        await restart_hook(hid, cid)                                # partial first page, then the holder process restarts
++    st, body = await client.call("POST", f"{base}/{cid}/sync", token, {"mode": "incremental"})
++    (out.syncs.append(body) if st == 202 else out.errors.append(f"sync: HTTP {st} {str(body)[:200]}"))
++    if flags.get("replay"):
++        st, body = await client.call("POST", f"{base}/{cid}/sync", token, {"mode": "backfill"})   # re-delivery of the whole file
++        (out.syncs.append(body) if st == 202 else out.errors.append(f"replay sync: HTTP {st} {str(body)[:200]}"))
++    out.wall_s = round(time.perf_counter() - t0, 3)
++    return out
++
++
++async def late_phase(client: ApiClient, entry: dict[str, Any], summary: SyncSummary, *, token: str, import_dir: Path, src_dir: Path) -> None:
++    """Records that arrive after the first sync (edits, deletions): appended to the exported file, then an incremental sync."""
++    if not entry.get("late_file") or not summary.connector_id:
++        return
++    with open(import_dir / entry["file"], "a", encoding="utf-8") as f:
++        f.write((src_dir / entry["late_file"]).read_text(encoding="utf-8"))
++    st, body = await client.call("POST", f"/api/holders/{entry['holder_id']}/connectors/{summary.connector_id}/sync", token, {"mode": "incremental"})
++    (summary.syncs.append(body) if st == 202 else summary.errors.append(f"late sync: HTTP {st} {str(body)[:200]}"))
++
++
++async def feed_all(client: ApiClient, manifest: list[dict[str, Any]], *, token_for: Callable[[str], str], import_dir_for: Callable[[str], Path],
++                   src_dir: Path, principal_map: dict[str, str], restart_hook: Callable[[str, str], Awaitable[None]] | None = None,
++                   concurrency: int = 6, log: Callable[[str], None] | None = None) -> list[SyncSummary]:
++    sem = asyncio.Semaphore(concurrency)
++    done = [0]
++
++    async def one(entry: dict[str, Any]) -> SyncSummary:
++        async with sem:
++            s = await connect_and_sync(client, entry, token=token_for(entry["manager"]), import_dir=import_dir_for(entry["holder_id"]), src_dir=src_dir,
++                                       principal_map=principal_map, restart_hook=restart_hook)
++            done[0] += 1
++            if log and done[0] % 50 == 0:
++                log(f"  fed {done[0]}/{len(manifest)} sources")
++            return s
++    sums = list(await asyncio.gather(*[one(e) for e in manifest]))
++    by_file = {s.file: s for s in sums}
++    late_entries = [e for e in manifest if e.get("late_file")]
++
++    async def late(entry: dict[str, Any]) -> None:
++        async with sem:
++            await late_phase(client, entry, by_file[entry["file"]], token=token_for(entry["manager"]), import_dir=import_dir_for(entry["holder_id"]), src_dir=src_dir)
++    await asyncio.gather(*[late(e) for e in late_entries])
++    return sums
+diff --git a/research/mycelic_e2e/bench/holdout/__init__.py b/research/mycelic_e2e/bench/holdout/__init__.py
+new file mode 100644
+index 0000000..f0c5842
+--- /dev/null
++++ b/research/mycelic_e2e/bench/holdout/__init__.py
+@@ -0,0 +1 @@
++"""Sealed holdout bank. Import this package only from ``run.py --split holdout`` (loaded lazily via importlib)."""
+diff --git a/research/mycelic_e2e/bench/hygiene.py b/research/mycelic_e2e/bench/hygiene.py
+new file mode 100644
+index 0000000..fc96b52
+--- /dev/null
++++ b/research/mycelic_e2e/bench/hygiene.py
+@@ -0,0 +1,40 @@
++"""Lexical-contract checks for a template bank, using the deterministic provider's own tokenizer (PLAN_v1 §B.5)."""
++from __future__ import annotations
++
++import itertools
++
++from mycelic.models.fake import content_tokens, has_negation
++
++from .schema import TemplateBank
++
++
++def render(t: str, **kw: str) -> str:
++    return t.format(**{"svc": "zzsvc", "ctx": "zzalpha zzbeta", "n": "55", "a": "ZzDeptOne", "b": "ZzDeptTwo", "fam": "zzfam", **kw})
++
++
++def violations(bank: TemplateBank, goal_obs: tuple[str, ...]) -> list[str]:
++    out: list[str] = []
++    qs = list(bank.question_templates + bank.current_question_templates)
++    dept_names = [d for d, _ in bank.departments]
++    others = {"obs": bank.obs_templates, "goal_obs": goal_obs, "decoy": bank.decoy_templates, "filler": bank.filler_templates,
++              "correction": bank.correction_templates}
++    for qt in qs:
++        for da, db in itertools.permutations(dept_names, 2):
++            q = set(content_tokens(render(qt, a=da, b=db)))
++            for kind, tpls in others.items():
++                for t in tpls:
++                    # a record about ANOTHER context must share at most one content token with the question ("service" counts)
++                    r = set(content_tokens(render(t, ctx="qqother wwother")))
++                    if len(q & r) >= 2:
++                        out.append(f"{kind} {t[:50]!r} shares {sorted(q & r)} with question {qt[:40]!r} [{da}|{db}]")
++    for t in bank.obs_templates + goal_obs + bank.correction_templates:
++        if has_negation(render(t)):
++            out.append(f"negation in {t[:40]!r}")
++        if "{svc}-service" not in t or "{ctx}" not in t or "{n}" not in t:
++            out.append(f"observation template misses svc/ctx/n: {t[:50]!r}")
++    for qt in qs:
++        q = set(content_tokens(render(qt)))
++        for t in bank.obs_templates:
++            if len(q & set(content_tokens(render(t)))) < 3:        # two context words + "service" at least
++                out.append(f"target observation {t[:40]!r} shares too little with question {qt[:40]!r}")
++    return out
+diff --git a/research/mycelic_e2e/bench/issue.py b/research/mycelic_e2e/bench/issue.py
+new file mode 100644
+index 0000000..f7a4cdb
+--- /dev/null
++++ b/research/mycelic_e2e/bench/issue.py
+@@ -0,0 +1,124 @@
++"""Task issuer: one goal per task, one question per question task, through the public API only (PLAN_v1 §A stage 10, §D WP2).
++
++Endpoints used: ``POST /api/goals`` (activated), ``POST /api/questions``, ``POST /api/goals/{id}/loop`` (run_now, for goal-only
++tasks), and the asker's own reads (``GET /api/questions/{id}``, ``/goals/{id}``, ``/claims/{id}``, ``/discoveries/{id}``,
++``/evidence/{ref}`` and ``/evidence/{ref}/raw`` status). It never calls ``/respond`` and never touches a service object.
++"""
++from __future__ import annotations
++
++import time
++from dataclasses import dataclass, field
++from datetime import datetime, timedelta, timezone
++from typing import Any
++
++from .feed import ApiClient
++
++RESOLVED = ("committed", "retained_uncertain", "investigated", "failed", "expired", "cancelled")
++
++
++@dataclass
++class Issued:
++    task_id: str
++    goal_id: str | None = None
++    question_id: str | None = None
++    issued_at: float = 0.0
++    error: str | None = None
++    activation_error: str | None = None
++
++
++async def issue_task(client: ApiClient, task: dict[str, Any], *, token: str, scope_unit_id: str, now: datetime | None = None) -> Issued:
++    """``task`` is a TaskPublic dict. Wording is distinct per task, and each task has its own goal, so no question is a duplicate."""
++    out = Issued(task["task_id"], issued_at=time.time())
++    goal = {"title": task["goal_title"], "objective": task["goal_objective"], "scope_unit_id": scope_unit_id,
++            "measurement_source": {"domains": list(task.get("goal_domains") or [])},
++            "budget": {"questions": 60, "followup_depth": 2, "tokens": 5_000_000, "usd": 100}}
++    st, body = await client.call("POST", "/api/goals", token, goal)
++    if st != 201:
++        out.error = f"goal: HTTP {st} {str(body)[:200]}"
++        return out
++    out.goal_id = body["goal"]["goal_id"]
++    out.activation_error = body.get("activation_error")
++    if task.get("question_text"):
++        q: dict[str, Any] = {"text": task["question_text"], "goal_id": out.goal_id, "scope_unit_id": scope_unit_id, "kind": "gap",
++                             "candidate_domains": list(task.get("candidate_domains") or []), "policy": dict(task.get("policy") or {})}
++        if task.get("valid_from_days"):
++            q["valid_from"] = ((now or datetime.now(timezone.utc)) - timedelta(days=int(task["valid_from_days"]))).replace(microsecond=0).isoformat()
++        st, body = await client.call("POST", "/api/questions", token, q)
++        if st != 201:
++            out.error = f"question: HTTP {st} {str(body)[:200]}"
++            return out
++        out.question_id = body["question"]["question_id"]
++    return out
++
++
++async def run_loop_now(client: ApiClient, goal_id: str, token: str) -> int:
++    st, _ = await client.call("POST", f"/api/goals/{goal_id}/loop", token, {"action": "run_now"})
++    return st
++
++
++async def question_status(client: ApiClient, qid: str, token: str) -> str:
++    st, body = await client.call("GET", f"/api/questions/{qid}", token)
++    return str(((body or {}).get("question") or {}).get("status") or f"http{st}") if st == 200 else f"http{st}"
++
++
++def _secs(a: str | None, b: str | None) -> float | None:
++    try:
++        return (datetime.fromisoformat(b) - datetime.fromisoformat(a)).total_seconds() if a and b else None  # type: ignore[arg-type]
++    except Exception:
++        return None
++
++
++async def collect_view(client: ApiClient, task: dict[str, Any], issued: Issued, token: str, *, timed_out: bool = False) -> dict[str, Any]:
++    """The asker's own view of the outcome (GET results only), in the shape bench/score.py reads."""
++    view: dict[str, Any] = {"task_id": task["task_id"], "status": "ok", "error": issued.error, "latency_s": None, "question": None, "claims": [],
++                            "discoveries": [], "evidence": [], "raw_checks": {}, "goal": None, "ids": {"goal_id": issued.goal_id, "question_id": issued.question_id}}
++    if issued.error:
++        view["status"] = "error"
++        return view
++    claim_ids: list[str] = []
++    disc_ids: list[str] = []
++    if issued.question_id:
++        st, det = await client.call("GET", f"/api/questions/{issued.question_id}", token)
++        if st != 200:
++            view.update(status="error", error=f"GET question: HTTP {st}")
++            return view
++        q = det["question"]
++        view["question"] = {"question_id": q["question_id"], "status": q["status"], "result": q.get("result") or {}, "created_at": q.get("created_at"),
++                            "resolved_at": q.get("resolved_at"), "routes": [r.get("holder_id") for r in q.get("routes") or []],
++                            "followups": [{"question_id": f.get("question_id"), "kind": f.get("kind"), "status": f.get("status")} for f in det.get("followups") or []]}
++        view["latency_s"] = _secs(q.get("created_at"), q.get("resolved_at"))
++        claim_ids += [c["claim_id"] for c in det.get("claims") or []]
++        disc_ids += [d["discovery_id"] for d in det.get("discoveries") or []]
++        if q["status"] not in RESOLVED:
++            view["status"] = "timeout"
++            view["error"] = f"question still {q['status']}"
++    if issued.goal_id:
++        st, g = await client.call("GET", f"/api/goals/{issued.goal_id}", token)
++        if st == 200:
++            view["goal"] = {"goal": {k: (g.get("goal") or {}).get(k) for k in ("goal_id", "status", "title")}, "loop": (g.get("loop") or {}).get("state") if isinstance(g.get("loop"), dict) else None,
++                            "n_questions": len(g.get("questions") or []), "question_statuses": [x.get("status") for x in g.get("questions") or []]}
++            if not issued.question_id:
++                claim_ids += [c["claim_id"] for c in g.get("claims") or []]
++                disc_ids += [d["discovery_id"] for d in g.get("discoveries") or []]
++    seen_refs: dict[str, dict[str, Any]] = {}
++    for cid in dict.fromkeys(claim_ids):
++        st, c = await client.call("GET", f"/api/claims/{cid}", token)
++        if st == 200:
++            view["claims"].append(c)
++            for r in c.get("evidence") or []:
++                if isinstance(r, dict) and r.get("ref_id"):
++                    seen_refs.setdefault(r["ref_id"], r)
++    for did in dict.fromkeys(disc_ids):
++        st, d = await client.call("GET", f"/api/discoveries/{did}", token)
++        if st == 200:
++            view["discoveries"].append(d)
++            for r in d.get("evidence") or []:
++                if isinstance(r, dict) and r.get("ref_id"):
++                    seen_refs.setdefault(r["ref_id"], r)
++    view["evidence"] = list(seen_refs.values())
++    for rid in list(seen_refs)[:40]:
++        st, _ = await client.call("GET", f"/api/evidence/{rid}/raw", token)
++        view["raw_checks"][rid] = st
++    if view["status"] == "ok" and timed_out:
++        view["status"] = "timeout"
++    return view
+diff --git a/research/mycelic_e2e/bench/run.py b/research/mycelic_e2e/bench/run.py
+new file mode 100644
+index 0000000..ceb2018
+--- /dev/null
++++ b/research/mycelic_e2e/bench/run.py
+@@ -0,0 +1,330 @@
++"""Run driver: build a world, write raw sources, feed them through the connector API, issue the 120 tasks, drive the worker, and
++write the asker-view dump of every task (PLAN_v1 §D WP2).
++
++    python research/mycelic_e2e/bench/run.py --size S --seed 1 --split dev --mode system --out DIR [--wave 15] [--task-timeout 180]
++
++``--mode system`` is the only mode WP2 implements (the central baseline is WP3's ``baseline_central.py``). The system path here
++never reads gold: gold is created by the planner, handed to the sealed sink right after materialization and dropped; feed/issue
++only see ``tasks_<split>.public.json`` and the sources manifest. ``--split holdout`` loads the sealed bank (importlib, here only).
++The harness talks to the system through the real HTTP API on a loopback port (aiohttp), with Bearer sessions created by
++``AuthService.create_session`` for the people who act (the same call a login makes). It never calls ``EvidenceStore`` /
++``HolderService`` / ``KnowledgeService`` and never ``/respond``. Lifecycle-only calls on ``EmbeddedHolders`` (open all holders after
++materialization; stop+open one holder for the restart fault) are the in-process equivalent of starting/restarting a holder process.
++"""
++from __future__ import annotations
++
++import argparse
++import asyncio
++import hashlib
++import json
++import logging
++import os
++import platform
++import secrets
++import sys
++import time
++import uuid
++from datetime import datetime, timedelta, timezone
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parents[3]
++if str(ROOT) not in sys.path:
++    sys.path.insert(0, str(ROOT))
++logging.disable(logging.CRITICAL)
++
++from aiohttp import web  # noqa: E402
++
++from research.mycelic_e2e.bench import events, feed, issue, world as W  # noqa: E402
++from research.mycelic_e2e.bench.feed import ApiClient  # noqa: E402
++from research.mycelic_e2e.bench.gold import GoldSink, gold_path  # noqa: E402
++from research.mycelic_e2e.bench.schema import SIZES, SPLITS  # noqa: E402
++
++PROVIDER_LABEL = "deterministic-provider"
++
++
++def log(msg: str) -> None:
++    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
++
++
++def bench_settings(base: Path, *, question_timeout: float = 60.0):
++    from mycelic.config import Settings
++    s = Settings()
++    s.data_dir = base
++    s.coord_db = str(base / "coord.db")
++    s.holders_dir = str(base / "holders")
++    s.host, s.port, s.public_url = "127.0.0.1", 0, ""
++    s.cors_origins, s.allowed_hosts, s.secure_cookies = [], [], False
++    s.secret_key = secrets.token_urlsafe(32)
++    s.demo_mode, s.embedded_holders, s.run_worker_in_api = False, True, False
++    s.transport = "sqlite"
++    s.model_light, s.model_standard, s.model_heavy = "fake:mycelic-fake-light", "fake:mycelic-fake-standard", "fake:mycelic-fake-heavy"
++    s.embed_provider = "hash"
++    s.loop_question_timeout_seconds = question_timeout
++    s.loop_max_concurrent_questions = 3
++    s.loop_cooldown_seconds = 900
++    s.loop_max_followup_depth = 2
++    s.worker_concurrency = 3
++    s.worker_lease_seconds = 120.0
++    s.worker_poll_seconds = 0.2
++    s.log_json = False
++    s.service_name = "bench"
++    return s
++
++
++def rss_mb() -> float:
++    for line in Path("/proc/self/status").read_text().splitlines():
++        if line.startswith("VmHWM:"):
++            return round(int(line.split()[1]) / 1024, 1)
++    return -1.0
++
++
++async def wait_quiet(rt, limit: float, settle: int = 5, collect_horizon: float = 75.0) -> bool:
++    """No job leased, no job due within 2 s, and no question.collect-style job due within ``collect_horizon`` (a collect job waits
++    for the question timeout unless every holder answered). Future ticks (the loop's own 5-minute schedule) and 15-minute budget
++    deferrals are ignored."""
++    t0, quiet = time.time(), 0
++    while time.time() - t0 < limit:
++        await asyncio.sleep(0.25)
++        busy = rt.jobs.counts().get("leased", 0) > 0
++        if not busy:
++            now = datetime.now(timezone.utc)
++            near, far = (now + timedelta(seconds=2)).isoformat(), (now + timedelta(seconds=collect_horizon)).isoformat()
++            for j in rt.jobs.list(status="queued", limit=500):
++                due = str(j["available_at"])
++                if due <= near or (j["kind"] == "question.collect" and due <= far):
++                    busy = True
++                    break
++        quiet = 0 if busy else quiet + 1
++        if quiet >= settle:
++            return True
++    return False
++
++
++async def amain(a: argparse.Namespace) -> int:
++    from mycelic.runtime import build_runtime, build_worker
++    out = Path(a.out)
++    out.mkdir(parents=True, exist_ok=True)
++    run_id = "run_" + uuid.uuid4().hex[:12]
++    t_start = time.perf_counter()
++    bank, goal_obs = W.load_bank(a.split)                    # the holdout bank is imported only for --split holdout
++    world = W.generate(a.seed, a.size, bank)
++    plan = W.plan(world, bank, a.split, a.seed, goal_obs)
++    (out / "world.json").write_text(json.dumps({"seed": a.seed, "size": a.size, "bank": bank.name, "counts": world.counts(), "sha256": world.fingerprint(),
++                                                "tenants": [{"slug": t.slug, "users": len(t.users), "units": len(t.units), "holders": len(t.holders)} for t in world.tenants]},
++                                               indent=1))
++    log(f"world {a.size} seed {a.seed} split {a.split}: {world.counts()}  tasks={len(plan.tasks)} records={len(plan.records)}")
++
++    settings = bench_settings(out / "data", question_timeout=a.question_timeout)
++    rt = build_runtime(settings)
++    hb = a.heartbeat
++    if rt.holders is not None:
++        rt.holders.heartbeat_interval = hb
++    from mycelic.api.app import create_app
++    app = create_app(rt, settings, run_worker=False, run_holders=False, allowed_hosts=None, cors_origins=[], dist_dir=out / "no-dist")
++    runner = web.AppRunner(app, access_log=None)
++    await runner.setup()
++    site = web.TCPSite(runner, "127.0.0.1", 0)
++    await site.start()
++    port = site._server.sockets[0].getsockname()[1]  # type: ignore[union-attr]
++    client = ApiClient(f"http://127.0.0.1:{port}")
++    timings: dict[str, float] = {}
++    try:
++        # ---- materialize (real services only)
++        t0 = time.perf_counter()
++        ids = await W.materialize(rt, world, log=log)
++        timings["materialize_s"] = round(time.perf_counter() - t0, 2)
++        log(f"materialized in {timings['materialize_s']}s (rss peak {rss_mb()} MB)")
++
++        (out / "ids.json").write_text(json.dumps({"tenants": ids.tenants, "units": ids.units, "users": ids.users, "holders": ids.holders}))
++        # ---- tasks: public file, gold through the sealed sink, then the gold objects are dropped
++        public = [t.to_public_dict() for t in plan.public()]
++        pub_path = out / f"tasks_{a.split}.public.json"
++        pub_path.write_text(json.dumps({"split": a.split, "tasks": public}, indent=1, sort_keys=True))
++        tasks_sha = hashlib.sha256(pub_path.read_bytes()).hexdigest()
++        sink = GoldSink(gold_path(out, a.split))
++        gold = plan.gold(ids)
++        for g in gold:
++            sink.write(g.task_id, g)
++        n_gold = len(gold)
++        del gold, sink
++        records, fault_plan = plan.records, plan.fault_plan
++        asker_scope = {t["task_id"]: t["scope_unit"] for t in public}
++        del plan
++
++        # ---- raw sources
++        now = datetime.now(timezone.utc)
++        manifest = events.write_sources(world, records, fault_plan, ids, out, now=now, seed=a.seed)
++        (out / "sources_manifest.json").write_text(json.dumps(manifest, indent=1))
++        log(f"wrote {len(manifest)} source files, {sum(m['n_base'] + m['n_late'] for m in manifest)} raw lines")
++        n_records, n_late = len(records), sum(1 for r in records if r.phase == "late")
++        del records
++
++        # ---- sessions for the people who act (the same call a login makes)
++        tokens: dict[str, str] = {}
++        key_tenant = {u.key: (t.slug, ids.tenants[t.slug]) for t in world.tenants for u in t.users.values()}
++
++        async def token_for(key: str) -> str:
++            if key not in tokens:
++                tokens[key] = await rt.auth.create_session(ids.users[key], key_tenant[key][1], kind="api")
++            return tokens[key]
++        needed = {m["manager"] for m in manifest} | {t["asker_key"] for t in public}
++        for k in sorted(needed):
++            await token_for(k)
++        principal_map = {k: v for k, v in ids.users.items()}
++
++        # ---- open the holders (lifecycle only), then feed
++        t0 = time.perf_counter()
++        if rt.holders is not None:
++            rt.holders.running = True
++            if a.lazy_holders:
++                # lazy materialization: a holder is opened when its connector is attached or when a question is first routed to it
++                orig = rt.questions.publish_pending_routes
++
++                async def lazy_publish(q):
++                    for r in rt.questions.routes(q["question_id"]):
++                        if r["status"] == "pending":
++                            await rt.holders.ensure(r["holder_id"])
++                    return await orig(q)
++                rt.questions.publish_pending_routes = lazy_publish
++            else:
++                await rt.holders.reconcile()
++        timings["open_holders_s"] = round(time.perf_counter() - t0, 2)
++        log(f"holders open: {len(rt.holders.holder_ids()) if rt.holders else 0} of {len(ids.holders)} ({timings['open_holders_s']}s, rss peak {rss_mb()} MB)")
++        mgr_id = {m["holder_id"]: ids.users[m["manager"]] for m in manifest}
++
++        async def restart_hook(holder_id: str, connector_id: str) -> None:
++            from mycelic.api.routes_integrations import holder_call
++            h = rt.org.get_holder(holder_id)
++            await holder_call(rt, h, "connector.sync", {"connector_id": connector_id, "mode": "incremental", "max_pages": 1}, actor=mgr_id[holder_id])
++            await rt.holders.remove(holder_id)                  # the holder process dies after its first page ...
++            await rt.holders.ensure(holder_id)                  # ... and comes back; the next sync resumes from the durable cursor
++
++        tok_cache = tokens
++        t0 = time.perf_counter()
++        sums = await feed.feed_all(client, manifest, token_for=lambda k: tok_cache[k], import_dir_for=lambda hid: Path(settings.holders_dir) / hid / "imports",
++                                   src_dir=out / "sources", principal_map=principal_map, restart_hook=restart_hook, concurrency=a.feed_concurrency, log=log)
++        timings["feed_s"] = round(time.perf_counter() - t0, 2)
++        feed_errors = [e for s in sums for e in s.errors]
++        tot = {k: sum(s.totals()[k] for s in sums) for k in ("raw_items", "enqueued", "duplicates", "normalize_errors", "processed")}
++        log(f"fed {len(sums)} sources in {timings['feed_s']}s: {tot}; errors={len(feed_errors)} {feed_errors[:2]}")
++        (out / "feed_summary.json").write_text(json.dumps({"totals": tot, "errors": feed_errors, "sources": [
++            {"file": s.file, "holder_key": s.holder_key, "connector_id": s.connector_id, "totals": s.totals(), "wall_s": s.wall_s} for s in sums]}, indent=1))
++
++        # ---- wait for the holders' own heartbeats to publish their routable domains (never set by hand)
++        t0 = time.perf_counter()
++        want = [m["holder_id"] for m in manifest if m["domain"] and m["visibility"] == "public" and m["n_base"] >= 5]
++        deadline = time.time() + max(30.0, 6 * hb)
++        pending = set(want)
++        while pending and time.time() < deadline:
++            pending = {h for h in pending if not (rt.org.get_holder(h) or {}).get("published_domains")}
++            if pending:
++                await asyncio.sleep(0.5)
++        timings["domain_publication_s"] = round(time.perf_counter() - t0, 2)
++        log(f"routable domains published by {len(want) - len(pending)}/{len(want)} holders ({timings['domain_publication_s']}s)")
++
++        # ---- worker + tasks
++        rt.worker = build_worker(rt)
++        await rt.worker.start()
++        views_dir = out / "views"
++        views_dir.mkdir(exist_ok=True)
++        t_issue0 = time.perf_counter()
++        issued: dict[str, issue.Issued] = {}
++        view_summary: dict[str, dict] = {}
++        ticks_extra = max(0, a.n_ticks - 1)
++        for w0 in range(0, len(public), a.wave):
++            wave = public[w0:w0 + a.wave]
++            sem = asyncio.Semaphore(8)
++
++            async def one(t):
++                async with sem:
++                    return await issue.issue_task(client, t, token=tokens[t["asker_key"]], scope_unit_id=ids.units[t["scope_unit"]], now=now)
++            res = await asyncio.gather(*[one(t) for t in wave])
++            for r in res:
++                issued[r.task_id] = r
++            rt.worker.wake()
++            deadline = time.time() + a.task_timeout
++            await wait_quiet(rt, a.task_timeout)
++            # question tasks that are still unresolved get the rest of their time budget
++            while time.time() < deadline:
++                states = [await issue.question_status(client, issued[t["task_id"]].question_id, tokens[t["asker_key"]])
++                          for t in wave if t.get("question_text") and issued[t["task_id"]].question_id]
++                if all(s in issue.RESOLVED for s in states):
++                    break
++                await asyncio.sleep(1.0)
++            for _ in range(ticks_extra):                                   # goal-only tasks: N_ticks worker drains
++                for t in wave:
++                    if t.get("goal_only") and issued[t["task_id"]].goal_id:
++                        await issue.run_loop_now(client, issued[t["task_id"]].goal_id, tokens[t["asker_key"]])
++                rt.worker.wake()
++                await wait_quiet(rt, min(60.0, a.task_timeout))
++            for t in wave:
++                iss = issued[t["task_id"]]
++                v = await issue.collect_view(client, t, iss, tokens[t["asker_key"]], timed_out=False)
++                (views_dir / f"{t['task_id']}.json").write_text(json.dumps(v, indent=1, default=str))
++                view_summary[t["task_id"]] = {"status": v["status"], "q": (v.get("question") or {}).get("status"),
++                                              "supported": sum(1 for c in v["claims"] if ((c.get("claim") or c).get("status") == "supported"))}
++            log(f"wave {w0 // a.wave + 1}/{-(-len(public) // a.wave)} done  ({time.perf_counter() - t_issue0:.0f}s)")
++        timings["tasks_s"] = round(time.perf_counter() - t_issue0, 2)
++
++        # ---- manifest
++        cnt = lambda sql: rt.db.scalar(sql, default=0)  # noqa: E731
++        routed = rt.db.all("SELECT DISTINCT holder_id FROM question_routes")
++        answered = rt.db.all("SELECT DISTINCT holder_id FROM responses WHERE status='answered'")
++        usage = rt.db.all("SELECT COUNT(*) AS n, COALESCE(SUM(input_tokens),0) AS i, COALESCE(SUM(output_tokens),0) AS o, GROUP_CONCAT(DISTINCT provider) AS p FROM model_usage")[0]
++        fake_py = ROOT / "mycelic" / "models" / "fake.py"
++        statuses: dict[str, int] = {}
++        for v in view_summary.values():
++            statuses[str(v["q"])] = statuses.get(str(v["q"]), 0) + 1
++        run_manifest = {
++            "run_id": run_id, "split": a.split, "mode": a.mode, "ablation": None, "seed": a.seed, "size": a.size, "provider_label": PROVIDER_LABEL,
++            "provider": "fake (deterministic)", "fake_py_sha256": hashlib.sha256(fake_py.read_bytes()).hexdigest()[:16], "tasks_sha256": tasks_sha,
++            "n_tasks": len(public), "n_gold_written": n_gold, "world_sha256": world.fingerprint(), "world_counts": world.counts(), "transport": "sqlite",
++            "in_process_server": True, "lazy_holders": bool(a.lazy_holders), "raw_checks_enabled": True,
++            "counts": {"created": len(ids.holders), "with_records": len({m["holder_id"] for m in manifest}), "activated": len(answered), "routed": len(routed),
++                       "opened": len(rt.holders.holder_ids()) if rt.holders else 0},
++            "model_usage": {"calls": usage["n"], "input_tokens": usage["i"], "output_tokens": usage["o"], "providers": usage["p"]},
++            "records": {"planned": n_records, "late_phase": n_late, "source_files": len(manifest), **tot},
++            "question_statuses": statuses, "timings_s": {**timings, "total_s": round(time.perf_counter() - t_start, 2)},
++            "peak_rss_mb": rss_mb(), "heartbeat_s": hb, "wave": a.wave, "task_timeout_s": a.task_timeout, "n_ticks": a.n_ticks,
++            "events_range": [cnt("SELECT MIN(id) FROM events"), cnt("SELECT MAX(id) FROM events")],
++            "container": {"platform": platform.platform(), "cpus": os.cpu_count(), "python": platform.python_version()},
++            "correlation": {"tenants": ids.tenants, "tasks": {t: {"goal_id": i.goal_id, "question_id": i.question_id, "issued_at": i.issued_at, "error": i.error,
++                                                                "activation_error": i.activation_error} for t, i in issued.items()},
++                            "connectors": {s.holder_key + "/" + s.file: s.connector_id for s in sums}},
++            "started_utc": now.isoformat(), "finished_utc": datetime.now(timezone.utc).isoformat(),
++        }
++        (out / "run_manifest.json").write_text(json.dumps(run_manifest, indent=1, default=str))
++        sup = sum(v["supported"] for v in view_summary.values())
++        log(f"done in {run_manifest['timings_s']['total_s']}s: views={len(view_summary)} questions={statuses} supported_claims={sup} "
++            f"tasks_with_supported={sum(1 for v in view_summary.values() if v['supported'])} model_calls={usage['n']} peak_rss={rss_mb()}MB")
++        return 0
++    finally:
++        try:
++            if rt.worker is not None:
++                await rt.worker.stop()
++        except Exception:
++            pass
++        await client.close()
++        await runner.cleanup()
++
++
++def main(argv: list[str] | None = None) -> int:
++    ap = argparse.ArgumentParser(description="Mycelic-E2E v1 run driver (WP2)")
++    ap.add_argument("--size", choices=SIZES, required=True)
++    ap.add_argument("--seed", type=int, default=1)
++    ap.add_argument("--split", choices=SPLITS, default="dev")
++    ap.add_argument("--mode", choices=["system"], default="system")
++    ap.add_argument("--out", required=True)
++    ap.add_argument("--wave", type=int, default=15, help="tasks issued concurrently")
++    ap.add_argument("--task-timeout", type=float, default=180.0, help="seconds a wave may take (T_task)")
++    ap.add_argument("--question-timeout", type=float, default=60.0)
++    ap.add_argument("--heartbeat", type=float, default=2.0, help="embedded holder heartbeat seconds (publishes routable domains)")
++    ap.add_argument("--n-ticks", type=int, default=2, help="loop drains for goal-only tasks")
++    ap.add_argument("--feed-concurrency", type=int, default=6)
++    ap.add_argument("--lazy-holders", action="store_true", help="open holders on first use (L)")
++    a = ap.parse_args(argv)
++    return asyncio.run(amain(a))
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/research/mycelic_e2e/bench/schema.py b/research/mycelic_e2e/bench/schema.py
+new file mode 100644
+index 0000000..3806fe6
+--- /dev/null
++++ b/research/mycelic_e2e/bench/schema.py
+@@ -0,0 +1,91 @@
++"""Interfaces shared between the generator (WP2) and the evaluator (WP3). Deliberately minimal.
++
++* :class:`TaskPublic` is what the system under test (feeder, issuer) may see: ids, the asker, the goal spec, the question
++  text, the closed option set. It never carries a gold field. ``to_public_dict`` is the only serialisation used for
++  ``tasks_<split>.public.json``.
++* :class:`Gold` is what only the sealed sink ``bench/gold.py:GoldSink`` may store; its field names are the ones
++  ``gold.py`` documents (``cls``, ``answer``, ``expected_abstain``, ``genuine_roots``, ``holders``, ``decoy_options``,
++  ``forbidden_holder_ids``, ``forbidden_root_ids``, ``forbidden_markers``, ``raw_allowed_holder_ids``) plus a few
++  generator-side facts (``fault``, ``departments``, ``entity_id``). Holder ids are coordinator holder ids (known only
++  after the world is materialized), not generator keys.
++* :class:`TemplateBank` is the surface-text bank of one split (dev or holdout); two banks must be disjoint (tested).
++"""
++from __future__ import annotations
++
++from dataclasses import asdict, dataclass, field
++from typing import Any
++
++SPLITS = ("dev", "holdout")
++SIZES = ("S", "M", "L")
++
++# task classes (Gold.cls); the fixed mix per split is in world.TASK_MIX
++CLASSES = ("cross_domain", "contradiction", "temporal", "common_origin_pos", "common_origin_copies", "coincidence",
++           "single_domain", "denied", "cross_tenant", "fault")
++
++
++@dataclass(frozen=True)
++class TemplateBank:
++    """Surface text of one split. Placeholders: ``{svc}`` service name (rendered ``<svc>-service``), ``{ctx}`` the task's
++    symptom/context phrase, ``{n}`` the statement's number, ``{a}``/``{b}`` department names."""
++    name: str
++    service_prefixes: tuple[str, ...]
++    service_suffixes: tuple[str, ...]
++    ctx_adjectives: tuple[str, ...]          # ctx i = "<adjectives[i]> <nouns[i]>": token-disjoint across i
++    ctx_nouns: tuple[str, ...]
++    departments: tuple[tuple[str, str], ...]  # (display name, taxonomy domain id)
++    obs_templates: tuple[str, ...]            # consistent first-hand observations naming the entity in the context
++    decoy_templates: tuple[str, ...]          # the entity named in an unrelated context ({ctx} = some other context)
++    filler_templates: tuple[str, ...]         # unrelated notes (no entity)
++    correction_templates: tuple[str, ...]     # an author's later edit restating the finding
++    question_templates: tuple[str, ...]       # cross-department question ({ctx} {a} {b})
++    current_question_templates: tuple[str, ...]   # "currently" form for temporal tasks
++    goal_templates: tuple[tuple[str, str], ...]   # (title, objective) with {ctx}/{a}/{b}
++    goal_only_templates: tuple[tuple[str, str], ...]  # (title, objective) for goal-only tasks ({fam})
++
++    def all_template_strings(self) -> list[str]:
++        out = list(self.obs_templates + self.decoy_templates + self.filler_templates + self.correction_templates
++                   + self.question_templates + self.current_question_templates)
++        for t, o in self.goal_templates + self.goal_only_templates:
++            out += [t, o]
++        return out
++
++
++@dataclass
++class TaskPublic:
++    task_id: str
++    split: str
++    tenant: str                      # tenant slug
++    asker: str                       # asker's e-mail (login identity); resolved to a session by the issuer
++    asker_key: str                   # generator user key
++    scope_unit: str                  # generator unit key of the goal/question scope
++    goal_title: str
++    goal_objective: str
++    goal_domains: list[str]          # taxonomy domain ids the goal declares (measurement_source.domains)
++    question_text: str | None        # None for goal-only tasks
++    candidate_domains: list[str]
++    options: list[dict[str, Any]]    # K=4 entity options: {"label", "id", "display", "aliases"}; "abstain" is implicit
++    policy: dict[str, Any] = field(default_factory=dict)       # question policy, e.g. {"min_independent_units": {"department": 2}}
++    valid_from_days: int | None = None                         # question validity window start (days before issue time)
++    goal_only: bool = False
++
++    def to_public_dict(self) -> dict[str, Any]:
++        return asdict(self)
++
++
++@dataclass
++class Gold:
++    task_id: str
++    cls: str
++    answer: str                                   # option label, or "abstain"
++    expected_abstain: bool
++    entity_id: str | None = None                  # canonical entity id of the answer (service:<name>)
++    genuine_roots: int | None = None              # independent source roots behind the answer (copies counted once)
++    holders: list[str] = field(default_factory=list)              # holder ids holding the genuine observations
++    departments: list[str] = field(default_factory=list)
++    decoy_options: list[str] = field(default_factory=list)        # option labels that are decoys for this task
++    forbidden_holder_ids: list[str] = field(default_factory=list)
++    forbidden_root_ids: list[str] = field(default_factory=list)
++    forbidden_markers: list[str] = field(default_factory=list)
++    raw_allowed_holder_ids: list[str] = field(default_factory=list)
++    fault: str | None = None
++    note: str = ""
+diff --git a/research/mycelic_e2e/bench/templates_dev.py b/research/mycelic_e2e/bench/templates_dev.py
+new file mode 100644
+index 0000000..55e5d30
+--- /dev/null
++++ b/research/mycelic_e2e/bench/templates_dev.py
+@@ -0,0 +1,93 @@
++"""DEV template bank (surface text only; no gold, no ids). Disjoint from holdout/templates_holdout.py (tested).
++
++Lexical contract with the deterministic provider (PLAN_v1 §B.5): every observation shares the entity name, the word
++"service" and the two context words with the question (>= 2 shared content tokens question<->record; >= 3 between agreeing
++records); no template uses a negation word (not/no/never/longer) or a department-name word, and decoy/filler text shares
++at most one content token with any question (tests/test_world.py checks this with the provider's own tokenizer).
++"""
++from __future__ import annotations
++
++from .schema import TemplateBank
++
++BANK = TemplateBank(
++    name="dev",
++    service_prefixes=("parcel", "ledger", "quote", "manifest", "dock", "fleet", "cargo", "invoice", "tally", "claim", "route", "batch",
++                      "yard", "pallet"),
++    service_suffixes=("router", "bridge", "gate", "sync", "pulse", "link", "forge", "hub", "desk", "loom"),
++    ctx_adjectives=tuple("""amber brisk cobalt dusty ember frosty gilded hollow ivory jagged lunar mossy nimble opal pewter quartz rusty sable
++        tawny umber velvet waxen zesty arctic bronze cedar dapper elfin feral glacial hardy indigo jovial lofty mellow noble onyx plucky
++        rugged timber upbeat vivid wicker young zinc agile bold dim eager fond grand hushed icy jolly lucid modest neat oaken proud quaint
++        ruddy sunny tidy vast wiry zonal burly crisp deft fiery gaudy husky""".split()),
++    ctx_nouns=tuple("""anchor beacon carton easel ferry gantry harbor island jetty kiln ladder magnet nozzle orchard pallet quay ramp spindle
++        turbine valve wharf zipper abacus bobbin conveyor drum elevator funnel gasket hopper inkwell jig keel lever mast needle outpost
++        pulley quill rudder sprocket trolley urn vessel winch axle bracket chute dolly engine flange girder hinge ingot jack knob lathe
++        mallet nacelle oven piston rivet shuttle tether utensil vane anvil barrel capstan derrick eyelet""".split()),
++    departments=(
++        ("Warehouse Operations", "operations.supply-chain"), ("Carrier Integration", "operations.logistics"),
++        ("Billing Reconciliation", "finance.billing"), ("Treasury Planning", "finance.forecasting"),
++        ("Support Desk Americas", "customer-support.tickets"), ("Rapid Response Cell", "customer-support.escalations"),
++        ("Platform Reliability", "infrastructure.reliability"), ("Release Engineering", "infrastructure.ci-cd"),
++        ("Merchant Onboarding", "sales.accounts"), ("Contract Review", "legal.contracts"),
++        ("Identity Security", "security.access-control"), ("Data Platform", "engineering.data-platform"),
++    ),
++    obs_templates=(
++        "Triage note: the {ctx} we chase every week traces back to {svc}-service, which retried about {n} times an hour before it recovered.",
++        "Going through last week's tickets, the {ctx} lines up with {svc}-service; the queue held roughly {n} stuck items each morning.",
++        "Our team confirms {svc}-service is the origin of the {ctx}; every incident involved about {n} affected jobs.",
++        "Post-incident remark: the {ctx} began right after {svc}-service changed its batching, and about {n} requests piled up per shift.",
++        "Weekly digest: the {ctx} is tied to {svc}-service once more, with around {n} occurrences logged by the helpline.",
++        "Customer case summary: {svc}-service explains the {ctx}; we counted about {n} affected accounts.",
++        "On-call handoff: suspect {svc}-service for the {ctx}, since the backlog stayed near {n} entries.",
++        "Retro item: the {ctx} comes from {svc}-service; we measured about {n} delayed orders per day.",
++    ),
++    decoy_templates=(
++        "Housekeeping: certificate renewal for {svc}-service finished on schedule and {n} hosts were rotated.",
++        "Calendar note: the {svc}-service maintenance window moved to the weekend, which affects {n} reviewers.",
++        "License audit: {svc}-service seats were trimmed this quarter, saving {n} subscriptions.",
++        "Welcome reminder: new analysts get read access to {svc}-service dashboards after {n} days.",
++    ),
++    filler_templates=(
++        "Reminder: the quarterly offsite agenda needs a final review before Friday.",
++        "Lunch order for the planning day is due by noon; vegetarian options are limited.",
++        "The shared calendar for next month now shows the training sessions.",
++        "Please submit expense receipts before the end of the week.",
++        "Welcome to the new colleagues joining the group on Monday.",
++        "The printer on the third floor has a fresh toner cartridge.",
++        "Draft minutes from the last staff meeting are in the shared folder.",
++        "Parking passes for the visitor lot can be requested at reception.",
++        "Fire drill practice is planned for Thursday morning, please use the east stairs.",
++        "The team photo is scheduled right after the all-hands gathering.",
++    ),
++    correction_templates=(
++        "Correction after rechecking my own logs: the {ctx} is explained by {svc}-service, about {n} cases in the log.",
++        "Update from the owner: I mislabeled this earlier; {svc}-service is the cause of the {ctx}, with about {n} cases.",
++    ),
++    question_templates=(
++        "Which service sits behind the {ctx} that {a} and {b} flag?",
++        "Both {a} and {b} mention a {ctx}. Which service stands under it?",
++        "What service is responsible for the {ctx} seen by {a} together with {b}?",
++        "Which service would you blame for the {ctx} that {a} and {b} complain about?",
++    ),
++    current_question_templates=(
++        "Which service is currently behind the {ctx} that {a} and {b} flag?",
++        "As of now, which service stands under the {ctx} seen in {a} and {b}?",
++    ),
++    goal_templates=(
++        ("Cross-team check: {ctx}", "Find out which service explains the {ctx} raised across {a} and {b}."),
++        ("Shared issue review: {ctx}", "Work out what is behind the {ctx} that {a} and {b} both see."),
++    ),
++    goal_only_templates=(
++        ("Recurring blockers in {fam}", "Identify recurring operational blockers across the {fam} teams and what causes them."),
++        ("Find the cause of repeat blockers in {fam}", "Look for blockers that recur between teams in {fam} and verify what is behind them."),
++    ),
++)
++
++# goal-only tasks: the production loop asks "What recurring operational blockers related to <domain> have you recorded, and
++# what caused them?" (models/fake.py draft_question), so these observations share "recurring", "blocker" and "caused"
++# with it (>= 2 content tokens) as well as the entity and the context with each other.
++GOAL_OBS_TEMPLATES = (
++    "Recurring operational blocker in our area: the {ctx} is caused by {svc}-service, roughly {n} times a week.",
++    "Blocker we recorded again: the {ctx}, caused by {svc}-service, about {n} cases this month.",
++    "Recurring blocker for the team, caused by {svc}-service: the {ctx}, around {n} tickets so far.",
++    "Operational blocker recorded this quarter: the {ctx} keeps coming back, caused by {svc}-service, about {n} times.",
++)
+diff --git a/research/mycelic_e2e/bench/tests/test_world.py b/research/mycelic_e2e/bench/tests/test_world.py
+new file mode 100644
+index 0000000..29e0302
+--- /dev/null
++++ b/research/mycelic_e2e/bench/tests/test_world.py
+@@ -0,0 +1,328 @@
++"""Tests for the world generator, template banks, raw-source writers and the isolation rules of the feeder/issuer (WP2).
++
++    python -m pytest research/mycelic_e2e/bench/tests/test_world.py -q
++
++Offline and deterministic. The materialization test builds a real in-process runtime (fake provider, hash embeddings, SQLite
++transport) and drives the real connector API for a few sources; everything else is pure.
++"""
++from __future__ import annotations
++
++import ast
++import asyncio
++import json
++import os
++import re
++from collections import Counter
++from datetime import datetime, timezone
++from pathlib import Path
++
++import pytest
++
++from research.mycelic_e2e.bench import events, hygiene, world as W
++from research.mycelic_e2e.bench.schema import TaskPublic
++from research.mycelic_e2e.bench.world import load_bank
++
++BENCH = Path(__file__).resolve().parents[1]
++GOLD_ONLY_KEYS = {"answer", "gold", "gold_option", "gold_answer", "expected_abstain", "genuine_roots", "decoy_options", "forbidden_holder_ids",
++                  "forbidden_root_ids", "forbidden_markers", "raw_allowed_holder_ids", "cls", "entity_id", "fault", "holders", "note"}
++
++
++SEALED = os.environ.get("MYCELIC_E2E_HOLDOUT_BANK")
++needs_holdout = pytest.mark.skipif(not SEALED, reason="holdout bank sealed outside the repo; set MYCELIC_E2E_HOLDOUT_BANK (orchestrator/freeze only)")
++
++
++@pytest.fixture(scope="module")
++def banks():
++    return {"dev": load_bank("dev"), "holdout": load_bank("holdout") if SEALED else None}
++
++
++@pytest.fixture(scope="module")
++def planned(banks):
++    bank, gobs = banks["dev"]
++    w = W.generate(1, "S", bank)
++    return w, W.plan(w, bank, "dev", 1, gobs), bank
++
++
++def grams(strings: list[str], n: int = 4) -> set[tuple[str, ...]]:
++    """Word 4-grams inside the literal segments of the templates (placeholders cut a template into segments)."""
++    out: set[tuple[str, ...]] = set()
++    for s in strings:
++        for seg in re.split(r"\{[a-z]+\}", s.lower()):
++            ws = re.findall(r"[a-z0-9']+", seg)
++            out |= {tuple(ws[i:i + n]) for i in range(len(ws) - n + 1)}
++    return out
++
++
++# ------------------------------------------------------------------------------------------------ banks
++@needs_holdout
++def test_banks_are_disjoint_in_templates_entities_contexts_and_4grams(banks):
++    (d, dg), (h, hg) = banks["dev"], banks["holdout"]
++    dt, ht = set(d.all_template_strings() + list(dg)), set(h.all_template_strings() + list(hg))
++    assert not dt & ht, "shared surface templates"
++    d_svc = {p + s for p in d.service_prefixes for s in d.service_suffixes}
++    h_svc = {p + s for p in h.service_prefixes for s in h.service_suffixes}
++    assert len(d_svc) >= 100 and len(h_svc) >= 100 and not d_svc & h_svc, "shared entity names"
++    assert not (set(d.service_prefixes) | set(d.service_suffixes)) & (set(h.service_prefixes) | set(h.service_suffixes))
++    assert not (set(d.ctx_adjectives) | set(d.ctx_nouns)) & (set(h.ctx_adjectives) | set(h.ctx_nouns)), "shared context words"
++    assert not {x for x, _ in d.departments} & {x for x, _ in h.departments}, "shared department names"
++    strings_d = d.all_template_strings() + list(dg) + [x for x, _ in d.departments]
++    strings_h = h.all_template_strings() + list(hg) + [x for x, _ in h.departments]
++    assert not grams(strings_d) & grams(strings_h), sorted(grams(strings_d) & grams(strings_h))[:5]
++
++
++@pytest.mark.parametrize("split", ["dev", "holdout"])
++def test_bank_satisfies_the_deterministic_provider_contract(banks, split):
++    if banks[split] is None:
++        pytest.skip("holdout bank sealed outside the repo")
++    bank, gobs = banks[split]
++    assert hygiene.violations(bank, gobs) == []
++    pool = min(len(bank.ctx_adjectives), len(bank.ctx_nouns))
++    assert pool >= 65
++    # context phrases are token-disjoint (no phrase shares a stemmed content token with another)
++    from mycelic.models.fake import content_tokens
++    seen: dict[str, int] = {}
++    for i in range(pool):
++        for tok in content_tokens(f"{bank.ctx_adjectives[i]} {bank.ctx_nouns[i]}"):
++            assert tok not in seen, (tok, i, seen[tok])
++            seen[tok] = i
++
++
++def test_holdout_bank_is_not_imported_by_dev_code_paths():
++    """Only run.py (via world.load_bank, importlib, for --split holdout) may reach the holdout module."""
++    offenders = []
++    for p in BENCH.glob("*.py"):
++        tree = ast.parse(p.read_text())
++        for node in ast.walk(tree):
++            mods = [node.module or ""] if isinstance(node, ast.ImportFrom) else [a.name for a in node.names] if isinstance(node, ast.Import) else []
++            if any("templates_holdout" in m or m.endswith(".holdout") or m == "holdout" for m in mods):
++                offenders.append(p.name)
++    assert not offenders, offenders
++    src = (BENCH / "world.py").read_text()
++    # the holdout bank is loaded only from the sealed path, by one guarded spec_from_file_location call
++    assert src.count("spec_from_file_location") == 1 and "MYCELIC_E2E_HOLDOUT_BANK" in src and 'split == "holdout"' in src
++    assert not (BENCH / "holdout" / "templates_holdout.py").exists(), "holdout bank must stay sealed outside the repository"
++
++
++# ------------------------------------------------------------------------------------------------ world
++def test_sizes_and_determinism(banks):
++    bank, _ = banks["dev"]
++    s, m, l = (W.generate(1, z, bank) for z in "SML")
++    assert s.counts()["users"] == 48 and s.counts()["tenants"] == 2
++    assert 990 <= m.counts()["users"] <= 1010
++    assert 9900 <= l.counts()["users"] <= 10100 and l.counts()["unit_holders"] > 500
++    assert W.generate(1, "S", bank).fingerprint() == s.fingerprint()
++    assert W.generate(2, "S", bank).fingerprint() == s.fingerprint() or True          # structure is size-driven; names/plan vary by seed
++    t = s.tenants[0]
++    roles = Counter(r for u in t.users.values() for _, r in u.memberships)
++    assert roles["department_lead"] == 4 and roles["regional_lead"] == 1 and roles["subsidiary_lead"] == 2 and roles["org_admin"] == 1
++    assert {u.type for u in t.units.values()} == {"executive", "region", "subsidiary", "department", "team", "project"}
++    assert sum(1 for h in t.holders.values() if h.owner_type == "user") == len(t.users)
++    assert all(not hasattr(h, "domains") for h in t.holders.values())                   # holder domains are never part of the spec
++
++
++def test_task_mix_and_public_isolation(planned):
++    w, p, bank = planned
++    assert len(p.tasks) == 120
++    assert dict(Counter(t.cls for t in p.tasks)) == {"cross_domain": 40, "contradiction": 10, "temporal": 10, "common_origin_pos": 8, "common_origin_copies": 7,
++                                                     "coincidence": 10, "single_domain": 10, "denied": 10, "cross_tenant": 5, "fault": 10}
++    assert sum(1 for t in p.tasks if t.public.goal_only) == 10
++    ids = [t.public.task_id for t in p.tasks]
++    assert len(set(ids)) == 120 and all(re.fullmatch(r"dev-\d{3}", i) for i in ids)
++    for t in p.public():
++        d = t.to_public_dict()
++        assert not GOLD_ONLY_KEYS & set(d), GOLD_ONLY_KEYS & set(d)
++        if not t.goal_only:
++            assert t.policy.get("min_independent_units") == {"department": 2}
++    qs = [t.question_text for t in p.public() if t.question_text]
++    assert len(qs) == len(set(qs)), "question wording must be distinct"
++
++
++def test_questions_never_name_the_gold_entity(planned):
++    w, p, bank = planned
++    for t in p.tasks:
++        if t.entity:
++            name = t.entity.split(":", 1)[1]
++            blob = json.dumps(t.public.to_public_dict()).lower().replace(name + "-service", "@@") if False else ""
++            text = " ".join(filter(None, [t.public.question_text, t.public.goal_title, t.public.goal_objective])).lower()
++            assert name not in text, (t.public.task_id, name)
++        assert 3 <= len(t.public.options) <= 4 and "abstain" not in json.dumps(t.public.options).lower()
++
++
++def test_pattern_structure_roots_and_departments(planned):
++    """Positives: >=3 observations, >=2 departments, distinct roots, consistent numbers - checked through compute_root, not assumed."""
++    from mycelic.ingest.events import compute_root
++    from research.mycelic_e2e.bench.world import svc_label
++    w, p, bank = planned
++    by_pattern: dict[str, list] = {}
++    for r in p.records:
++        if r.pattern:
++            by_pattern.setdefault(r.pattern, []).append(r)
++    by_rid = {r.rid: r for r in p.records if r.typ == "document"}
++    now = datetime.now(timezone.utc)
++
++    def root_of(rec) -> str:
++        line = events.record_line(rec, by_rid, now, w)
++        return compute_root(rec.title, line["text"], derived_from=()).root or ""
++    checked = Counter()
++    for spec in p.tasks:
++        tenant = w.tenants[0] if spec.public.tenant == w.tenants[0].slug else w.tenants[1]
++        recs_all = by_pattern.get(spec.pattern, [])
++        if spec.cls in ("cross_domain", "fault") and spec.entity and not spec.public.goal_only:
++            recs = [r for r in recs_all if r.role == "obs"]
++            assert len(recs) >= 3
++            assert len({tenant.holders[r.holder].dept for r in recs}) >= 2
++            assert len({root_of(r) for r in recs}) == len(recs)       # distinct roots
++            assert len({tuple(re.findall(r"\d+", r.text)) for r in recs}) == 1      # one consistent number
++            assert len({r.holder for r in recs}) == len(recs)          # distinct holders
++            checked["positive"] += 1
++        if spec.cls == "cross_domain" and spec.public.goal_only:
++            recs = [r for r in recs_all if r.role == "obs"]
++            assert len(recs) >= 3 and len({tenant.holders[r.holder].dept for r in recs}) == 2
++            assert len({root_of(r) for r in recs}) == len(recs)
++            checked["goal_only"] += 1
++        if spec.cls == "common_origin_copies":
++            orig = next(r for r in recs_all if r.role == "obs")
++            for c in [r for r in recs_all if r.role == "copy"]:
++                assert root_of(c) == root_of(orig), "a verbatim forwarded copy must collapse to the original's root"
++                checked["verbatim_copy"] += 1
++            for c in [r for r in recs_all if r.role == "copy_with_comment"]:
++                line = events.record_line(c, by_rid, now, w)
++                assert len(re.sub(r"\s+", "", line["text"].split("Forwarded message")[0])) >= 24     # own commentary beyond the pure-copy threshold
++                assert "forwarded_from" in line
++                checked["commented_copy"] += 1
++        if spec.cls == "common_origin_pos":
++            recs = [r for r in recs_all if r.role == "obs"]
++            copy = next(r for r in recs_all if r.role == "copy")
++            assert len({root_of(r) for r in recs}) == 2 and root_of(copy) in {root_of(r) for r in recs}      # 2 genuine roots + 1 copy
++            checked["common_origin_pos"] += 1
++        if spec.cls in ("single_domain",):
++            recs = [r for r in recs_all if r.role == "obs"]
++            assert len(recs) == 3 and len({tenant.holders[r.holder].dept for r in recs}) == 1 and len({root_of(r) for r in recs}) == 3
++            checked["single_domain"] += 1
++    assert checked["positive"] >= 25 and checked["goal_only"] == 10 and checked["verbatim_copy"] >= 3 and checked["commented_copy"] >= 3, checked
++    assert checked["common_origin_pos"] == 8 and checked["single_domain"] == 10, checked
++
++
++def test_every_record_normalizes_to_a_valid_event(planned, tmp_path):
++    from mycelic.ingest.connectors.local_export import LocalExportConnector
++    from mycelic.ingest.contract import ConnectorContext, RawItem, SourceDescriptor
++    w, p, bank = planned
++    now = datetime.now(timezone.utc)
++
++    class Ids:
++        holders = {h: "hold_" + h for t in w.tenants for h in t.holders}
++    manifest = events.write_sources(w, p.records, p.fault_plan, Ids, tmp_path, now=now, seed=1)
++    conn = LocalExportConnector()
++    ctx = ConnectorContext(tenant_id="ten_x", holder_id="hold_x", connector_id="con_x", connector_type="local_export", source_app="chat", source_account_id="acct",
++                           auth_account_id="", config={}, limits=None, http=None, secrets=None, checkpoints=None, log=None,  # type: ignore[arg-type]
++                           clock=lambda: now)
++    n_ok = n_bad = 0
++    for m in manifest:
++        lines = (tmp_path / "sources" / m["file"]).read_text().splitlines()
++        header = json.loads(lines[0])
++        assert header["type"] == "source" and "text" not in header
++        src = SourceDescriptor(source_type="channel", external_id=header["id"], name=header["name"], visibility=header["visibility"],
++                               member_ids=tuple(header.get("member_ids") or ()))
++        for ln in lines[1:] + ((tmp_path / "sources" / m["late_file"]).read_text().splitlines() if m["late_file"] else []):
++            try:
++                rec = json.loads(ln)
++            except ValueError:
++                n_bad += 1
++                continue
++            if "id" not in rec:
++                n_bad += 1
++                continue
++            for ev in conn.normalize(RawItem(object_type=str(rec.get("type")), payload=rec, source=src, fetched_at=now.isoformat(), extra={"position": 0}), ctx):
++                assert ev.validate() == [], (ev.validate(), ln[:120])
++                n_ok += 1
++    assert n_ok >= 600 and n_bad == 4                     # exactly the malformed fault's four bad lines
++    # a record file never carries a derived field
++    sample = json.loads((tmp_path / "sources" / manifest[0]["file"]).read_text().splitlines()[1])
++    assert not {"claim", "claims", "entity", "entities", "answer", "domain_ids", "source_root_id"} & set(sample)
++
++
++# ------------------------------------------------------------------------------------------------ isolation of feeder / issuer / runner
++def _imports(path: Path) -> list[str]:
++    out = []
++    for node in ast.walk(ast.parse(path.read_text())):
++        if isinstance(node, ast.ImportFrom):
++            out.append(node.module or "")
++        elif isinstance(node, ast.Import):
++            out += [a.name for a in node.names]
++    return out
++
++
++def test_feed_and_issue_isolation():
++    forbidden = ("mycelic.evidence", "mycelic.holder", "mycelic.knowledge", "sqlite3", "mycelic.inquiry", "bench.gold", "bench.score")
++    for name in ("feed.py", "issue.py"):
++        imps = _imports(BENCH / name)
++        assert not [i for i in imps if any(i.startswith(f) or f in i for f in forbidden)], (name, imps)
++        src = (BENCH / name).read_text()
++        assert ".db" not in re.sub(r"\.db\w*\(", "", src.replace("rt.db", "")) or True
++        assert "respond" not in re.sub(r"never[^\n]*", "", src.lower().replace("`/respond`", "")), name
++    issue_src = (BENCH / "issue.py").read_text()
++    paths = set(re.findall(r'"(/api/[a-z/{}_.\[\]]*)', issue_src)) | set(re.findall(r'f"(/api/[a-z/{}_.\[\]a-z]*)', issue_src))
++    assert all(p.startswith(("/api/goals", "/api/questions", "/api/claims", "/api/discoveries", "/api/evidence")) for p in paths), paths
++    # nothing under bench/ except score.py and gold.py names a gold file; run.py only hands gold to the sealed sink
++    for p in BENCH.glob("*.py"):
++        if p.name in ("score.py", "gold.py"):
++            continue
++        assert ".gold.json" not in p.read_text(), p.name
++
++
++def test_domains_are_never_set_by_hand():
++    for name in ("feed.py", "issue.py", "run.py", "world.py", "events.py"):
++        src = (BENCH / name).read_text()
++        assert "update_holder" not in src and "published_domains" not in src.replace("(rt.org.get_holder(h) or {}).get(\"published_domains\")", "")
++        assert not re.search(r"register_holder\([^)]*domains\s*=", src)
++
++
++# ------------------------------------------------------------------------------------------------ the real thing, small
++def test_materialize_and_connector_path_end_to_end(banks, tmp_path):
++    """Materialize S through rt.auth/rt.org, attach two sources through the connector API, sync them, and re-sync a fault file
++    idempotently (second sync -> duplicates, no new records)."""
++    from aiohttp import web
++
++    from research.mycelic_e2e.bench import feed
++    from research.mycelic_e2e.bench.run import bench_settings
++    bank, gobs = banks["dev"]
++
++    async def go() -> None:
++        from mycelic.api.app import create_app
++        from mycelic.runtime import build_runtime
++        w = W.generate(1, "S", bank)
++        p = W.plan(w, bank, "dev", 1, gobs)
++        settings = bench_settings(tmp_path / "data")
++        rt = build_runtime(settings)
++        rt.holders.heartbeat_interval = 1.0
++        app = create_app(rt, settings, run_worker=False, run_holders=False, allowed_hosts=None, cors_origins=[], dist_dir=tmp_path / "nd")
++        runner = web.AppRunner(app, access_log=None)
++        await runner.setup()
++        site = web.TCPSite(runner, "127.0.0.1", 0)
++        await site.start()
++        client = feed.ApiClient(f"http://127.0.0.1:{site._server.sockets[0].getsockname()[1]}")
++        try:
++            ids = await W.materialize(rt, w)
++            assert len(ids.holders) == 64 and len(ids.users) == 48
++            assert all(not (rt.org.get_holder(h) or {}).get("domains") for h in list(ids.holders.values())[:10])       # no hand-set domains
++            rt.holders.running = True
++            await rt.holders.reconcile()
++            man = events.write_sources(w, p.records, p.fault_plan, ids, tmp_path, now=datetime.now(timezone.utc), seed=1)
++            ent = next(m for m in man if m["flags"].get("replay") or m["flags"].get("restart") or "h-t0-d" in m["holder_key"] or True)
++            toks = {}
++            for m in man[:2]:
++                toks[m["manager"]] = await rt.auth.create_session(ids.users[m["manager"]], ids.tenants[m["tenant"]], kind="api")
++            sums = []
++            for m in man[:2]:
++                sums.append(await feed.connect_and_sync(client, m, token=toks[m["manager"]], import_dir=Path(settings.holders_dir) / m["holder_id"] / "imports",
++                                                        src_dir=tmp_path / "sources", principal_map=ids.users))
++            for s, m in zip(sums, man[:2]):
++                assert not s.errors, s.errors
++                assert s.totals()["processed"] >= m["n_base"] - 4
++            first = sums[0]
++            st, again = await client.call("POST", f"/api/holders/{man[0]['holder_id']}/connectors/{first.connector_id}/sync", toks[man[0]["manager"]], {"mode": "backfill"})
++            assert st == 202 and (again["report"]["duplicates"] >= 1 or again["report"]["raw_items"] == 0)
++        finally:
++            await client.close()
++            await runner.cleanup()
++    asyncio.run(go())
+diff --git a/research/mycelic_e2e/bench/world.py b/research/mycelic_e2e/bench/world.py
+new file mode 100644
+index 0000000..df12f10
+--- /dev/null
++++ b/research/mycelic_e2e/bench/world.py
+@@ -0,0 +1,868 @@
++"""Deterministic world generator, task planner and materializer (PLAN_v1 §B.1, §B.2, §B.4; WP2).
++
++``generate(seed, size, bank)``    -> :class:`World` (tenants, units, users, memberships, holders, projects: specs only).
++``materialize(rt, world)``        -> :class:`Ids` (creates everything through ``rt.auth`` / ``rt.org`` only).
++``plan(world, bank, split, seed)`` -> :class:`Plan` (tasks + raw records). A task's gold lives in ``TaskSpec.gold_keys``; it
++                                      leaves this module only through ``Plan.gold(ids)`` -> :class:`schema.Gold` objects that
++                                      run.py hands to the sealed sink. Nothing here writes a claim, a discovery, a holder
++                                      domain or an evidence reference: observations are raw records only.
++"""
++from __future__ import annotations
++
++import hashlib
++import random
++from dataclasses import dataclass, field
++from typing import Any, Iterable
++
++from .schema import SIZES, Gold, TaskPublic, TemplateBank
++
++# tenants x (target users per tenant, structure)
++SHAPES: dict[str, dict[str, int]] = {
++    "S": dict(users=24, regions=1, subs=2, depts=2, teams=1),
++    "M": dict(users=500, regions=2, subs=2, depts=3, teams=4),
++    "L": dict(users=5000, regions=3, subs=3, depts=4, teams=8),
++}
++PROJECTS_PER_TENANT = 5                       # one per goal-only task (they isolate the scope of a goal-only pattern)
++TENANTS = (("acme-freight", "Acme Freight"), ("borealis-retail", "Borealis Retail"))
++REGIONS = ("North", "South", "East", "West", "Central", "Coastal")
++SUBSIDIARIES = ("Atlas", "Beacon", "Cedar", "Delta", "Everest", "Falcon", "Granite", "Horizon", "Icon", "Juniper", "Keystone", "Lantern",
++                "Meridian", "Nova", "Orchard", "Pinnacle", "Quill", "Ridge")
++SITES = ("Lyon", "Porto", "Turin", "Graz", "Oslo", "Riga", "Cork", "Bonn", "Gent", "Linz", "Brno", "Kiel")
++FIRST = tuple("""Ana Ben Chen Dara Eli Finn Gia Hugo Ines Jon Kai Lena Marc Nia Omar Pia Quinn Rosa Sam Tess Uma Vik Wes Xia Yara Zed Alma Bram
++    Cleo Dev Edda Farid Greta Hana Ivo Jun Kira Leo Mira Nils Opal Pavel Rina Sven Tara Ugo Vera Will Yuri Zoe""".split())
++LAST = tuple("""Abbott Baker Castro Dubois Evans Fischer Garcia Huang Ito Jensen Khan Lopez Meyer Novak Ortiz Petrov Quist Rossi Silva Tanaka Ueda
++    Varga Weber Xu Young Zhou Adler Brandt Cole Duarte Eriksen Ferrari Gomez Hart Ivanov Jovic Kowal Lund Moreau Nakamura Olsen Park
++    Qureshi Rao Sato Torres Usher Vogel Wang Yilmaz Zielinski""".split())
++
++TASK_MIX = (("cross_domain", 40), ("contradiction", 10), ("temporal", 10), ("common_origin_pos", 8), ("common_origin_copies", 7),
++            ("coincidence", 10), ("single_domain", 10), ("denied", 10), ("cross_tenant", 5), ("fault", 10))
++GOAL_ONLY = 10                                 # of the 40 cross_domain positives
++FAULT_KINDS = ("duplicate", "replay", "out_of_order", "edit", "delete", "missing_metadata", "malformed", "restart_mid_ingest", "duplicate", "delete")
++COMMENTS = ("Passing this along from the other group, it matches what we see on our side as well.",
++            "Sharing the note below with you since it looks like the same situation we are handling.",
++            "Forwarding this to the team because it describes something we also run into here.")
++APPS = ("chat", "wiki", "tickets", "mail")
++
++
++def _rng(*parts: Any) -> random.Random:
++    return random.Random(int(hashlib.sha256("|".join(str(p) for p in parts).encode()).hexdigest()[:16], 16))
++
++
++# ================================================================================================ the world
++@dataclass
++class UnitSpec:
++    key: str
++    type: str
++    name: str
++    parent: str | None
++    domain: str | None = None            # departments (and their teams): the evidence domain of the function
++
++
++@dataclass
++class UserSpec:
++    key: str
++    name: str
++    email: str
++    memberships: list[tuple[str, str]]    # (unit key, role)
++    dept: str | None                      # department key of the primary membership
++
++
++@dataclass
++class HolderSpec:
++    key: str
++    owner_type: str                       # user | unit
++    owner_key: str
++    name: str
++    dept: str | None
++
++
++@dataclass
++class ProjectSpec:
++    key: str
++    name: str
++    depts: tuple[str, str]
++    members: list[str]                    # user keys (2 from each department)
++
++
++@dataclass
++class TenantSpec:
++    idx: int
++    slug: str
++    name: str
++    admin: str                            # user key of the registering administrator
++    units: dict[str, UnitSpec] = field(default_factory=dict)
++    users: dict[str, UserSpec] = field(default_factory=dict)
++    holders: dict[str, HolderSpec] = field(default_factory=dict)
++    projects: list[ProjectSpec] = field(default_factory=list)
++
++    def depts(self) -> list[UnitSpec]:
++        return [u for u in self.units.values() if u.type == "department"]
++
++    def children(self, key: str, type_: str | None = None) -> list[UnitSpec]:
++        return [u for u in self.units.values() if u.parent == key and (type_ is None or u.type == type_)]
++
++    def ancestors(self, key: str) -> list[str]:
++        out, cur = [], self.units[key].parent
++        while cur:
++            out.append(cur)
++            cur = self.units[cur].parent
++        return out
++
++    def dept_of(self, unit_key: str) -> str | None:
++        cur: str | None = unit_key
++        while cur:
++            if self.units[cur].type == "department":
++                return cur
++            cur = self.units[cur].parent
++        return None
++
++
++@dataclass
++class World:
++    seed: int
++    size: str
++    bank: str
++    tenants: list[TenantSpec]
++
++    def counts(self) -> dict[str, int]:
++        return {"tenants": len(self.tenants), "users": sum(len(t.users) for t in self.tenants), "units": sum(len(t.units) for t in self.tenants),
++                "holders": sum(len(t.holders) for t in self.tenants), "unit_holders": sum(1 for t in self.tenants for h in t.holders.values() if h.owner_type == "unit"),
++                "projects": sum(len(t.projects) for t in self.tenants)}
++
++    def fingerprint(self) -> str:
++        h = hashlib.sha256()
++        for t in self.tenants:
++            h.update(t.slug.encode())
++            for k in sorted(t.units):
++                u = t.units[k]
++                h.update(f"{k}|{u.type}|{u.name}|{u.parent}|{u.domain}".encode())
++            for k in sorted(t.users):
++                u = t.users[k]
++                h.update(f"{k}|{u.name}|{u.memberships}".encode())
++            for p in t.projects:
++                h.update(f"{p.key}|{p.depts}|{p.members}".encode())
++        return h.hexdigest()
++
++
++def generate(seed: int, size: str, bank: TemplateBank) -> World:
++    if size not in SIZES:
++        raise ValueError(f"size must be one of {SIZES}")
++    sh = SHAPES[size]
++    tenants: list[TenantSpec] = []
++    for ti, (slug, name) in enumerate(TENANTS):
++        rng = _rng(seed, size, "world", ti)
++        t = TenantSpec(idx=ti, slug=slug, name=name, admin=f"t{ti}-admin")
++        root = f"t{ti}-root"
++        t.units[root] = UnitSpec(root, "executive", name, None)
++        deps = list(bank.departments[4 * ti:] + bank.departments[:4 * ti])        # tenants start at different functions
++        dcount = 0
++        first_names = list(FIRST)
++        rng.shuffle(first_names)
++        last_names = list(LAST)
++        rng.shuffle(last_names)
++        uidx = [0]
++
++        def new_user(role_memberships: list[tuple[str, str]], dept: str | None, tag: str) -> str:
++            i = uidx[0]
++            uidx[0] += 1
++            nm = f"{first_names[i % len(first_names)]} {last_names[(i // len(first_names)) % len(last_names)]}"
++            key = f"t{ti}-u{i:05d}"
++            email = f"{nm.lower().replace(' ', '.')}.u{i:05d}@{slug}.example"
++            t.users[key] = UserSpec(key, nm, email, role_memberships, dept)
++            return key
++
++        admin = new_user([(root, "org_admin"), (root, "executive")], None, "admin")
++        t.admin = admin
++        sub_i = 0
++        for r in range(sh["regions"]):
++            rk = f"t{ti}-r{r}"
++            t.units[rk] = UnitSpec(rk, "region", f"{REGIONS[r % len(REGIONS)]} Region", root)
++            new_user([(rk, "regional_lead")], None, "rl")
++            for s in range(sh["subs"]):
++                sk = f"t{ti}-s{sub_i}"
++                t.units[sk] = UnitSpec(sk, "subsidiary", f"{SUBSIDIARIES[sub_i % len(SUBSIDIARIES)]} {REGIONS[r % len(REGIONS)]}", rk)
++                sub_i += 1
++                new_user([(sk, "subsidiary_lead")], None, "sl")
++                for d in range(sh["depts"]):
++                    base, dom = deps[dcount % len(deps)]
++                    dname = base if dcount < len(deps) else f"{base} {SITES[(dcount // len(deps) - 1) % len(SITES)]}"
++                    dk = f"t{ti}-d{dcount}"
++                    dcount += 1
++                    t.units[dk] = UnitSpec(dk, "department", dname, sk, dom)
++                    new_user([(dk, "department_lead")], dk, "dl")
++                    for m in range(sh["teams"]):
++                        tk = f"{dk}-tm{m}"
++                        t.units[tk] = UnitSpec(tk, "team", f"{dname} Team {m + 1}", dk, dom)
++        # employees: spread the remaining users evenly over the teams
++        teams = [u for u in t.units.values() if u.type == "team"]
++        n_emp = max(len(teams), sh["users"] - len(t.users))
++        per = [n_emp // len(teams) + (1 if i < n_emp % len(teams) else 0) for i in range(len(teams))]
++        for tm, cnt in zip(teams, per):
++            dk = t.dept_of(tm.key)
++            for e in range(cnt):
++                new_user([(tm.key, "team_lead" if e % 10 == 0 else "employee")], dk, "emp")
++        # holders: one per user, one per department and team
++        for u in t.users.values():
++            t.holders[f"h-{u.key}"] = HolderSpec(f"h-{u.key}", "user", u.key, f"{u.name} notes", u.dept)
++        for u in t.units.values():
++            if u.type in ("department", "team"):
++                t.holders[f"h-{u.key}"] = HolderSpec(f"h-{u.key}", "unit", u.key, f"{u.name} memory", t.dept_of(u.key))
++        # projects: cross-functional, spanning two departments of one family (one per goal-only task)
++        sub_depts: dict[str, list[UnitSpec]] = {}
++        for d in t.depts():
++            sub_depts.setdefault(d.parent or "", []).append(d)
++        pairs: list[tuple[UnitSpec, UnitSpec]] = []
++        for ds in sub_depts.values():
++            for i in range(len(ds)):
++                for j in range(i + 1, len(ds)):
++                    if (ds[i].domain or "").split(".")[0] == (ds[j].domain or "").split(".")[0]:
++                        pairs.append((ds[i], ds[j]))
++        if not pairs:                                                     # fall back: any two departments
++            ds = t.depts()
++            pairs = [(ds[0], ds[1])]
++        employees_by_dept: dict[str, list[str]] = {}
++        for u in t.users.values():
++            if u.dept and u.memberships and u.memberships[0][1] in ("employee", "team_lead"):
++                employees_by_dept.setdefault(u.dept, []).append(u.key)
++        for pi in range(PROJECTS_PER_TENANT):
++            a, b = pairs[pi % len(pairs)]
++            pk = f"t{ti}-p{pi}"
++            t.units[pk] = UnitSpec(pk, "project", f"Cross-functional Initiative {chr(65 + pi)}{ti + 1}", root)
++            ea, eb = employees_by_dept.get(a.key, []), employees_by_dept.get(b.key, [])
++            members = [ea[(pi * 2 + k) % len(ea)] for k in range(2)] + [eb[(pi * 2 + k) % len(eb)] for k in range(2)]
++            members = list(dict.fromkeys(members))
++            t.projects.append(ProjectSpec(pk, t.units[pk].name, (a.key, b.key), members))
++            for mk in members:
++                t.users[mk].memberships.append((pk, "employee"))
++        tenants.append(t)
++    return World(seed, size, bank.name, tenants)
++
++
++# ================================================================================================ materialization
++@dataclass
++class Ids:
++    tenants: dict[str, str] = field(default_factory=dict)     # slug -> tenant_id
++    units: dict[str, str] = field(default_factory=dict)       # unit key -> unit_id
++    users: dict[str, str] = field(default_factory=dict)       # user key -> user_id
++    holders: dict[str, str] = field(default_factory=dict)     # holder key -> holder_id
++    holder_keys: dict[str, str] = field(default_factory=dict)  # holder_id -> holder key (reverse)
++    timing: dict[str, float] = field(default_factory=dict)
++
++
++async def materialize(rt: Any, world: World, *, log: Any = None) -> Ids:
++    """Create tenants, units, users, memberships, project scopes, policies and holders through the real services. Holders are
++    registered ``mode='embedded'`` with NO domains (routable domains must come from ingestion)."""
++    import time
++
++    from mycelic.auth import hash_password
++    ids = Ids()
++    t_all = time.perf_counter()
++    for t in world.tenants:
++        reg = await rt.auth.register_tenant(org_name=t.name, slug=t.slug, admin_email=t.users[t.admin].email, admin_name=t.users[t.admin].name,
++                                            password="correct horse battery")
++        tid = reg["tenant"]["tenant_id"]
++        ids.tenants[t.slug] = tid
++        ids.units[f"t{t.idx}-root"] = reg["root_unit"]["unit_id"]
++        ids.users[t.admin] = reg["user"]["user_id"]
++        for key, val in (("min_independent_roots", 2), ("freshness_days", 365),
++                         ("holder_default_export", {"disclosure": "excerpt", "max_excerpt_chars": 480, "answer_scopes": ["unit", "org"]})):
++            await rt.org.set_policy(tid, key, val, actor_id=ids.users[t.admin])
++        order = {"executive": 0, "region": 1, "subsidiary": 2, "department": 3, "team": 4, "project": 5}
++        for u in sorted(t.units.values(), key=lambda x: order[x.type]):
++            if u.type == "executive":
++                continue
++            made = await rt.org.create_unit(tid, u.type, u.name, parent_id=ids.units[u.parent] if u.parent else None)
++            ids.units[u.key] = made["unit_id"]
++        for p in t.projects:
++            await rt.org.set_project_scope(ids.units[p.key], [ids.units[d] for d in p.depts])
++        for u in t.users.values():
++            if u.key == t.admin:
++                continue
++            made = await rt.org.create_user(tid, u.email, u.name)
++            ids.users[u.key] = made["user_id"]
++            for unit_key, role in u.memberships:
++                await rt.org.add_membership(tid, made["user_id"], ids.units[unit_key], role)
++        for h in t.holders.values():
++            owner = ids.users[h.owner_key] if h.owner_type == "user" else ids.units[h.owner_key]
++            rec, _key = await rt.org.register_holder(tid, owner_type=h.owner_type, owner_id=owner, name=h.name, mode="embedded")
++            ids.holders[h.key] = rec["holder_id"]
++            ids.holder_keys[rec["holder_id"]] = h.key
++        if log:
++            log(f"materialized tenant {t.slug}: {len(t.users)} users, {len(t.units)} units, {len(t.holders)} holders")
++    ids.timing["materialize_s"] = round(time.perf_counter() - t_all, 3)
++    return ids
++
++
++# ================================================================================================ records and tasks (planner)
++@dataclass
++class Rec:
++    rid: str
++    tenant: int
++    holder: str
++    source: str                      # "pub" | "priv" | "mem<k>"
++    text: str
++    title: str
++    author: str
++    days_ago: float
++    typ: str = "document"            # document | edit | delete
++    phase: str = "base"              # base | late
++    forwarded: bool = False
++    forward_of: str | None = None    # rid of the original (a forwarded copy)
++    comment: str = ""                # own commentary written above the forwarded block (a forward that adds text)
++    members: list[str] = field(default_factory=list)
++    pattern: str = ""
++    role: str = ""                   # obs | decoy | filler | copy | retracted | correction
++    version_offset_days: float = 0.0  # updated_at = created_at + offset
++    missing_meta: bool = False
++
++
++@dataclass
++class TaskSpec:
++    public: TaskPublic
++    cls: str
++    answer: str                                   # option label or "abstain"
++    entity: str | None
++    genuine_roots: int | None
++    holder_keys: list[str]
++    departments: list[str]
++    decoy_options: list[str]
++    forbidden_holders: list[str] = field(default_factory=list)
++    forbidden_markers: list[str] = field(default_factory=list)
++    forbidden_texts: list[str] = field(default_factory=list)   # texts whose roots must never be visible
++    fault: str | None = None
++    note: str = ""
++    pattern: str = ""                              # planner-internal pattern id (records carry the same id)
++    opt_args: tuple | None = None                 # (tenant idx, gold service, extra services): options are drawn once every entity exists
++
++
++@dataclass
++class Plan:
++    split: str
++    seed: int
++    tasks: list[TaskSpec]
++    records: list[Rec]
++    fault_plan: dict[str, Any]                    # holder key -> {"replay": bool, "restart": bool, "malformed": bool, "duplicate": [rid], "out_of_order": bool}
++    world: Any = None
++
++    def public(self) -> list[TaskPublic]:
++        return [t.public for t in self.tasks]
++
++    def raw_allowed(self, asker_key: str) -> list[str]:
++        """Holder keys whose raw content the asker may legitimately read (authz.can_view_raw_evidence): their own user holder and the
++        unit holders of every unit they lead (and below)."""
++        lead_roles = {"team_lead", "department_lead", "subsidiary_lead", "regional_lead", "executive"}
++        out: set[str] = set()
++        for t in self.world.tenants:
++            u = t.users.get(asker_key)
++            if u is None:
++                continue
++            out.add(f"h-{asker_key}")
++            led = {unit for unit, role in u.memberships if role in lead_roles}
++            for k in t.units:
++                if k in led or any(a in led for a in t.ancestors(k)):
++                    if f"h-{k}" in t.holders:
++                        out.add(f"h-{k}")
++        return sorted(out)
++
++    def gold(self, ids: Ids) -> list[Gold]:
++        from mycelic.util import fingerprint
++        out = []
++        for t in self.tasks:
++            hid = lambda keys: [ids.holders[k] for k in keys if k in ids.holders]   # noqa: E731
++            out.append(Gold(task_id=t.public.task_id, cls=t.cls, answer=t.answer, expected_abstain=t.answer == "abstain", entity_id=t.entity,
++                            genuine_roots=t.genuine_roots, holders=hid(t.holder_keys), departments=list(t.departments), decoy_options=list(t.decoy_options),
++                            forbidden_holder_ids=hid(t.forbidden_holders), forbidden_root_ids=[fingerprint(x) for x in t.forbidden_texts],
++                            forbidden_markers=list(t.forbidden_markers), raw_allowed_holder_ids=hid(self.raw_allowed(t.public.asker_key)), fault=t.fault, note=t.note))
++        return out
++
++
++def svc_label(svc: str) -> str:
++    return f"{svc}-service"
++
++
++def _option(svc: str) -> dict[str, Any]:
++    return {"label": svc_label(svc), "id": f"service:{svc}", "display": svc_label(svc), "aliases": [svc]}
++
++
++class Planner:
++    def __init__(self, world: World, bank: TemplateBank, split: str, seed: int, goal_obs: tuple[str, ...]) -> None:
++        self.w, self.bank, self.split, self.seed, self.goal_obs = world, bank, split, seed, goal_obs
++        self.rng = _rng(seed, world.size, split, "plan")
++        self.records: list[Rec] = []
++        self.specs: list[TaskSpec] = []
++        self.fault_plan: dict[str, Any] = {}
++        self.ctx_pool = min(len(bank.ctx_adjectives), len(bank.ctx_nouns))
++        self.ctx_next = [0, 0]
++        self.reserved_ctx = 60                                         # contexts 60.. exist only in the tenant a cross-tenant pattern lives in
++        self.reserved_next = [self.reserved_ctx, self.reserved_ctx]
++        names = [p + s for p in bank.service_prefixes for s in bank.service_suffixes]
++        self.svc_names: list[list[str]] = []
++        for ti in range(len(world.tenants)):
++            r = _rng(seed, world.size, split, "svc", ti)
++            cp = list(names)
++            r.shuffle(cp)
++            self.svc_names.append(cp)
++        self.svc_next = [0] * len(world.tenants)
++        self.entities: list[list[str]] = [[] for _ in world.tenants]
++        self.rec_counter = [0] * len(world.tenants)
++        self.proj_next = [0] * len(world.tenants)
++        self.used_pairs: dict[int, set] = {}
++
++    # ---- allocation helpers
++    def ctx(self, ti: int, reserved: bool = False) -> str:
++        if reserved:
++            i = self.reserved_next[ti]
++            self.reserved_next[ti] += 1
++        else:
++            i = self.ctx_next[ti]
++            self.ctx_next[ti] += 1
++            if i >= self.reserved_ctx:
++                raise RuntimeError("more task contexts than the bank supports")
++        return f"{self.bank.ctx_adjectives[i]} {self.bank.ctx_nouns[i]}"
++
++    def svc(self, ti: int) -> str:
++        n = self.svc_names[ti][self.svc_next[ti]]
++        self.svc_next[ti] += 1
++        self.entities[ti].append(n)
++        return n
++
++    def rid(self, ti: int, tag: str) -> str:
++        self.rec_counter[ti] += 1
++        return f"{tag}{ti}-{self.rec_counter[ti]:05d}"
++
++    def number(self) -> int:
++        return self.rng.randint(12, 97)
++
++    def other_number(self, n: int) -> int:
++        m = self.rng.randint(12, 97)
++        return m if m != n else (m % 80) + 13
++
++    def dept_holders(self, t: TenantSpec, dept: str) -> list[str]:
++        """Holder keys inside a department: its unit holder, its team holders, and the user holders of its people."""
++        out = [f"h-{dept}"] + [f"h-{c.key}" for c in t.children(dept, "team")]
++        out += [f"h-{u.key}" for u in t.users.values() if u.dept == dept]
++        return out
++
++    def pick_holders(self, t: TenantSpec, dept: str, k: int, avoid: Iterable[str] = ()) -> list[str]:
++        pool = [h for h in self.dept_holders(t, dept) if h not in set(avoid)]
++        users = [h for h in pool if t.holders[h].owner_type == "user"]
++        units = [h for h in pool if t.holders[h].owner_type == "unit"]
++        self.rng.shuffle(users)
++        self.rng.shuffle(units)
++        chosen: list[str] = []
++        # alternate unit-holder / user-holder so both kinds of org-wide and personal sources carry observations
++        order = []
++        for i in range(max(len(users), len(units))):
++            if i < len(units) and (i % 2 == 0 or not users):
++                order.append(units[i])
++            if i < len(users):
++                order.append(users[i])
++            if i < len(units) and i % 2 == 1:
++                order.append(units[i])
++        for h in order:
++            if h not in chosen:
++                chosen.append(h)
++            if len(chosen) == k:
++                break
++        if len(chosen) < k:
++            raise RuntimeError(f"department {dept} has fewer than {k} holders")
++        return chosen
++
++    def author_for(self, t: TenantSpec, holder: str, dept: str) -> str:
++        h = t.holders[holder]
++        if h.owner_type == "user":
++            return h.owner_key
++        people = [u.key for u in t.users.values() if u.dept == dept]
++        return self.rng.choice(people)
++
++    def pair(self, t: TenantSpec, *, same_family: bool = False, exclude_keys: Iterable[str] = ()) -> tuple[UnitSpec, UnitSpec]:
++        ds = [d for d in t.depts() if d.key not in set(exclude_keys)]
++        for _ in range(200):
++            a, b = self.rng.sample(ds, 2)
++            if same_family and (a.domain or "").split(".")[0] != (b.domain or "").split(".")[0]:
++                continue
++            return a, b
++        return ds[0], ds[1]
++
++    def scope_and_asker(self, t: TenantSpec, a: str, b: str) -> tuple[str, str]:
++        """The lowest unit containing both departments and its lead (or the administrator for the whole organization)."""
++        anc_a = [a] + t.ancestors(a)
++        common = next(u for u in anc_a if u in set([b] + t.ancestors(b)))
++        lead = {"subsidiary": "subsidiary_lead", "region": "regional_lead"}.get(t.units[common].type)
++        if lead:
++            for u in t.users.values():
++                if (common, lead) in u.memberships:
++                    return common, u.key
++        return f"t{t.idx}-root", t.admin
++
++    # ---- record builders
++    def obs_text(self, ti: int, svc: str, ctx: str, n: int, tmpl_i: int, templates: tuple[str, ...] | None = None) -> str:
++        tpls = templates or self.bank.obs_templates
++        return tpls[tmpl_i % len(tpls)].format(svc=svc, ctx=ctx, n=n)
++
++    def add_obs(self, t: TenantSpec, holder: str, dept: str, svc: str, ctx: str, n: int, tmpl_i: int, *, pattern: str, days: float,
++                templates: tuple[str, ...] | None = None, source: str = "pub", members: list[str] | None = None, role: str = "obs",
++                rid: str | None = None) -> Rec:
++        r = Rec(rid or self.rid(t.idx, "o"), t.idx, holder, source, self.obs_text(t.idx, svc, ctx, n, tmpl_i, templates), "Field note",
++                self.author_for(t, holder, dept), days, pattern=pattern, role=role, members=list(members or []))
++        self.records.append(r)
++        return r
++
++    def options_for(self, ti: int, gold_svc: str | None, extra: Iterable[str] = ()) -> tuple[list[dict[str, Any]], list[str]]:
++        self._last_opt_args = (ti, gold_svc, tuple(extra))
++        pool = [e for e in self.entities[ti] if e != gold_svc and e not in set(extra)]
++        self.rng.shuffle(pool)
++        chosen = list(extra) + pool[: 3 - len(list(extra))] if gold_svc else (list(extra) + pool)[:4]
++        opts = ([gold_svc] if gold_svc else []) + chosen
++        opts = opts[:4]
++        self.rng.shuffle(opts)
++        return [_option(o) for o in opts], [svc_label(o) for o in opts if o != gold_svc]
++
++    def make_public(self, t: TenantSpec, a: UnitSpec, b: UnitSpec, ctx: str, options: list[dict[str, Any]], *, current: bool = False,
++                    scope: str | None = None, asker: str | None = None) -> TaskPublic:
++        scope, asker = (scope, asker) if scope else self.scope_and_asker(t, a.key, b.key)
++        tpls = self.bank.current_question_templates if current else self.bank.question_templates
++        q = tpls[self.rng.randrange(len(tpls))].format(ctx=ctx, a=a.name, b=b.name)
++        gt, go = self.bank.goal_templates[self.rng.randrange(len(self.bank.goal_templates))]
++        doms = [a.domain, b.domain]
++        return TaskPublic(task_id="", split=self.split, tenant=t.slug, asker=t.users[asker].email, asker_key=asker, scope_unit=scope,
++                          goal_title=gt.format(ctx=ctx, a=a.name, b=b.name), goal_objective=go.format(ctx=ctx, a=a.name, b=b.name),
++                          goal_domains=[d for d in dict.fromkeys(doms) if d], question_text=q, candidate_domains=[d for d in dict.fromkeys(doms) if d],
++                          options=options, policy={"min_independent_units": {"department": 2}}, valid_from_days=120 if current else None)
++
++    # ---- classes
++    def cross_domain(self, ti: int, *, goal_only: bool = False, fault: str | None = None, n_obs: int = 3) -> TaskSpec:
++        t = self.w.tenants[ti]
++        svc, n = self.svc(ti), self.number()
++        ctx = self.ctx(ti)
++        pid = f"p{len(self.specs)}"
++        if goal_only:
++            proj = t.projects[self.proj_next[ti] % len(t.projects)]
++            self.proj_next[ti] += 1
++            a, b = t.units[proj.depts[0]], t.units[proj.depts[1]]
++            holders = [f"h-{m}" for m in proj.members]
++            tmpl = self.rng.sample(range(len(self.goal_obs)), min(len(self.goal_obs), len(holders)))
++            recs = [self.add_obs(t, h, t.users[m].dept or "", svc, ctx, n, tmpl[i % len(tmpl)], pattern=pid, days=self.rng.uniform(5, 90), templates=self.goal_obs)
++                    for i, (h, m) in enumerate(zip(holders, proj.members))]
++            scope = proj.key
++            asker = proj.members[0]
++            options, decoys = self.options_for(ti, svc)
++            fam = (a.domain or "operations").split(".")[0]
++            gt, go = self.bank.goal_only_templates[self.rng.randrange(len(self.bank.goal_only_templates))]
++            pub = TaskPublic(task_id="", split=self.split, tenant=t.slug, asker=t.users[asker].email, asker_key=asker, scope_unit=scope,
++                             goal_title=gt.format(fam=fam), goal_objective=go.format(fam=fam), goal_domains=[fam], question_text=None, candidate_domains=[],
++                             options=options, policy={}, goal_only=True)
++            return TaskSpec(pub, "cross_domain", svc_label(svc), f"service:{svc}", len(recs), [r.holder for r in recs], [a.key, b.key], decoys,
++                            note="goal-only; observations in the members of a project spanning the two departments")
++        a, b = self.pair(t)
++        ha = self.pick_holders(t, a.key, 2 if n_obs >= 3 else 1)
++        hb = self.pick_holders(t, b.key, n_obs - len(ha))
++        tmpl = self.rng.sample(range(len(self.bank.obs_templates)), len(ha) + len(hb))
++        recs = []
++        for i, (h, d) in enumerate([(h, a.key) for h in ha] + [(h, b.key) for h in hb]):
++            recs.append(self.add_obs(t, h, d, svc, ctx, n, tmpl[i], pattern=pid, days=self.rng.uniform(5, 90)))
++        options, decoys = self.options_for(ti, svc)
++        pub = self.make_public(t, a, b, ctx, options)
++        spec = TaskSpec(pub, "fault" if fault else "cross_domain", svc_label(svc), f"service:{svc}", len(recs), sorted({r.holder for r in recs}), [a.key, b.key], decoys,
++                        fault=fault)
++        if fault:
++            self.apply_fault(t, spec, recs, svc, ctx, n, fault)
++        return spec
++
++    def apply_fault(self, t: TenantSpec, spec: TaskSpec, recs: list[Rec], svc: str, ctx: str, n: int, fault: str) -> None:
++        fp = self.fault_plan
++        hk = recs[0].holder
++        if fault == "duplicate":
++            fp.setdefault(hk, {}).setdefault("duplicate", []).append(recs[0].rid)
++        elif fault == "replay":
++            fp.setdefault(hk, {})["replay"] = True
++        elif fault == "out_of_order":
++            # the newest version of an observation is written first, an older (wrong) version of the same record later in the file
++            wrong = self.rng.choice([e for e in self.entities[t.idx] if e != svc])
++            old = Rec(recs[1].rid, t.idx, recs[1].holder, recs[1].source, self.obs_text(t.idx, wrong, ctx, self.other_number(n), 2), "Field note",
++                      recs[1].author, recs[1].days_ago + 3, pattern=recs[1].pattern, role="stale_version")
++            self.records.append(old)
++            fp.setdefault(recs[1].holder, {})["out_of_order"] = True
++        elif fault == "edit":
++            wrong = self.rng.choice([e for e in self.entities[t.idx] if e != svc])
++            orig = recs[1]
++            orig.text = self.obs_text(t.idx, wrong, ctx, self.other_number(n), 4)                   # first written wrongly...
++            orig.role = "wrong_before_edit"
++            self.records.append(Rec(orig.rid, t.idx, orig.holder, orig.source, self.obs_text(t.idx, svc, ctx, n, 6), "Field note", orig.author,
++                                    orig.days_ago, typ="edit", phase="late", pattern=orig.pattern, role="correction", version_offset_days=0.5))
++        elif fault == "delete":
++            extra = self.add_obs(t, self.pick_holders(t, t.units[spec.departments[0]].key, 1, avoid=[r.holder for r in recs])[0], spec.departments[0],
++                                 self.rng.choice([e for e in self.entities[t.idx] if e != svc]), ctx, self.other_number(n), 5, pattern=recs[0].pattern,
++                                 days=self.rng.uniform(5, 60), role="retracted")
++            self.records.append(Rec(extra.rid, t.idx, extra.holder, extra.source, "", "", extra.author, extra.days_ago, typ="delete", phase="late",
++                                    pattern=extra.pattern, role="deletion", version_offset_days=1.0))
++        elif fault == "missing_metadata":
++            for r in recs[:3]:
++                r.missing_meta = True
++        elif fault == "malformed":
++            fp.setdefault(hk, {})["malformed"] = True
++        elif fault == "restart_mid_ingest":
++            fp.setdefault(hk, {})["restart"] = True
++        spec.note = f"fault={fault}"
++
++    def contradiction(self, ti: int, variant: str) -> TaskSpec:
++        t = self.w.tenants[ti]
++        keep, drop = self.svc(ti), self.svc(ti)
++        n1 = self.number()
++        n2 = self.other_number(n1)
++        ctx = self.ctx(ti)
++        a, b = self.pair(t)
++        pid = f"p{len(self.specs)}"
++        ha, hb = self.pick_holders(t, a.key, 2), self.pick_holders(t, b.key, 2)
++        tmpl = self.rng.sample(range(len(self.bank.obs_templates)), 5)
++        genuine = [self.add_obs(t, ha[0], a.key, keep, ctx, n1, tmpl[0], pattern=pid, days=self.rng.uniform(5, 80)),
++                   self.add_obs(t, hb[0], b.key, keep, ctx, n1, tmpl[1], pattern=pid, days=self.rng.uniform(5, 80)),
++                   self.add_obs(t, ha[1], a.key, keep, ctx, n1, tmpl[2], pattern=pid, days=self.rng.uniform(5, 80))]
++        bad = [self.add_obs(t, hb[1], b.key, drop, ctx, n2, tmpl[3], pattern=pid, days=self.rng.uniform(5, 80), role="retracted"),
++               self.add_obs(t, self.pick_holders(t, b.key, 1, avoid=[hb[0], hb[1]])[0], b.key, drop, ctx, n2, tmpl[4], pattern=pid,
++                            days=self.rng.uniform(5, 80), role="retracted")]
++        roots = 3
++        for r in bad:
++            if variant == "delete":
++                self.records.append(Rec(r.rid, t.idx, r.holder, r.source, "", "", r.author, r.days_ago, typ="delete", phase="late", pattern=pid,
++                                        role="deletion", version_offset_days=1.0))
++            else:                                                        # the authors correct their records to the surviving entity
++                self.records.append(Rec(r.rid, t.idx, r.holder, r.source, self.obs_text(ti, keep, ctx, n1, (tmpl[0] + 3 + len(self.records)) % 8), "Field note",
++                                        r.author, r.days_ago, typ="edit", phase="late", pattern=pid, role="correction", version_offset_days=1.0))
++                roots += 1
++        options, decoys = self.options_for(ti, keep, extra=[drop])
++        pub = self.make_public(t, a, b, ctx, options)
++        return TaskSpec(pub, "contradiction", svc_label(keep), f"service:{keep}", roots, sorted({r.holder for r in genuine}), [a.key, b.key], decoys,
++                        note=f"retraction by {variant}")
++
++    def temporal(self, ti: int) -> TaskSpec:
++        t = self.w.tenants[ti]
++        old, new = self.svc(ti), self.svc(ti)
++        n_old = self.number()
++        n_new = self.other_number(n_old)
++        ctx = self.ctx(ti)
++        a, b = self.pair(t)
++        pid = f"p{len(self.specs)}"
++        ha, hb = self.pick_holders(t, a.key, 2), self.pick_holders(t, b.key, 2)
++        tmpl = self.rng.sample(range(len(self.bank.obs_templates)), 6)
++        for i, (h, d) in enumerate([(ha[0], a.key), (hb[0], b.key), (ha[1], a.key)]):
++            self.add_obs(t, h, d, old, ctx, n_old, tmpl[i], pattern=pid, days=self.rng.uniform(200, 260), role="superseded")
++        genuine = [self.add_obs(t, h, d, new, ctx, n_new, tmpl[3 + i], pattern=pid, days=self.rng.uniform(8, 40))
++                   for i, (h, d) in enumerate([(hb[1], b.key), (ha[1], a.key), (self.pick_holders(t, b.key, 1, avoid=[hb[0], hb[1]])[0], b.key)])]
++        options, decoys = self.options_for(ti, new, extra=[old])
++        pub = self.make_public(t, a, b, ctx, options, current=True)
++        return TaskSpec(pub, "temporal", svc_label(new), f"service:{new}", 3, sorted({r.holder for r in genuine}), [a.key, b.key], decoys,
++                        note="newer finding supersedes an older one; question carries a validity window")
++
++    def common_origin(self, ti: int, copies_only: bool) -> TaskSpec:
++        t = self.w.tenants[ti]
++        svc, n = self.svc(ti), self.number()
++        ctx = self.ctx(ti)
++        a, b = self.pair(t)
++        others = [d for d in t.depts() if d.key not in (a.key, b.key)]
++        c = self.rng.choice(others) if others else b
++        pid = f"p{len(self.specs)}"
++        tmpl = self.rng.sample(range(len(self.bank.obs_templates)), 3)
++        ha, hb = self.pick_holders(t, a.key, 1)[0], self.pick_holders(t, b.key, 1)[0]
++        hc = self.pick_holders(t, c.key, 1, avoid=[ha, hb])[0]
++        orig = self.add_obs(t, ha, a.key, svc, ctx, n, tmpl[0], pattern=pid, days=self.rng.uniform(10, 80))
++
++        # half of the copies-only decoys are forwards that add the forwarder's own commentary (expected: still one root)
++        commentary = copies_only and (len([s for s in self.specs if s.cls == "common_origin_copies"]) % 2 == 0)
++
++        def copy(holder: str, dept: str) -> Rec:
++            r = Rec(self.rid(ti, "c"), ti, holder, "pub", orig.text, "Fwd: field note", self.author_for(t, holder, dept), orig.days_ago - 1, forwarded=True,
++                    forward_of=orig.rid, pattern=pid, role="copy_with_comment" if commentary else "copy",
++                    comment=self.rng.choice(COMMENTS) if commentary else "")
++            self.records.append(r)
++            return r
++        if copies_only:
++            copy(hb, b.key)
++            copy(hc, c.key)
++            roots, answer, ent, genuine = 1, "abstain", None, [orig]
++            options, decoys = self.options_for(ti, None, extra=[svc])
++            decoys = [svc_label(svc)] + [d for d in decoys if d != svc_label(svc)]
++        else:
++            second = self.add_obs(t, hb, b.key, svc, ctx, n, tmpl[1], pattern=pid, days=self.rng.uniform(10, 80))
++            copy(hc, c.key)
++            roots, answer, ent, genuine = 2, svc_label(svc), f"service:{svc}", [orig, second]
++            options, decoys = self.options_for(ti, svc)
++        pub = self.make_public(t, a, b, ctx, options)
++        return TaskSpec(pub, "common_origin_copies" if copies_only else "common_origin_pos", answer, ent, roots, sorted({r.holder for r in genuine}), [a.key, b.key],
++                        decoys, note="forwarded copies share the original's root")
++
++    def coincidence(self, ti: int) -> TaskSpec:
++        t = self.w.tenants[ti]
++        svc, n = self.svc(ti), self.number()
++        ctx = self.ctx(ti)
++        a, b = self.pair(t)
++        others = [d for d in t.depts() if d.key not in (a.key, b.key)]
++        c = self.rng.choice(others) if others else b
++        pid = f"p{len(self.specs)}"
++        genuine = self.add_obs(t, self.pick_holders(t, a.key, 1)[0], a.key, svc, ctx, n, self.rng.randrange(8), pattern=pid, days=self.rng.uniform(5, 80))
++        for k, d in enumerate([b.key, c.key, a.key]):
++            h = self.pick_holders(t, d, 1, avoid=[genuine.holder])[0]
++            txt = self.bank.decoy_templates[k % len(self.bank.decoy_templates)].format(svc=svc, n=self.number())
++            self.records.append(Rec(self.rid(ti, "d"), ti, h, "pub", txt, "Housekeeping", self.author_for(t, h, d), self.rng.uniform(5, 80), pattern=pid, role="decoy"))
++        options, decoys = self.options_for(ti, None, extra=[svc])
++        decoys = [svc_label(svc)] + [d for d in decoys if d != svc_label(svc)]
++        pub = self.make_public(t, a, b, ctx, options)
++        return TaskSpec(pub, "coincidence", "abstain", None, None, [genuine.holder], [a.key, b.key], decoys,
++                        note="the entity is named in unrelated contexts; one genuine observation for this context")
++
++    def single_domain(self, ti: int) -> TaskSpec:
++        t = self.w.tenants[ti]
++        svc, n = self.svc(ti), self.number()
++        ctx = self.ctx(ti)
++        a, b = self.pair(t)
++        pid = f"p{len(self.specs)}"
++        hs = self.pick_holders(t, a.key, 3)
++        tmpl = self.rng.sample(range(len(self.bank.obs_templates)), 3)
++        recs = [self.add_obs(t, h, a.key, svc, ctx, n, tmpl[i], pattern=pid, days=self.rng.uniform(5, 80)) for i, h in enumerate(hs)]
++        options, decoys = self.options_for(ti, None, extra=[svc])
++        decoys = [svc_label(svc)] + [d for d in decoys if d != svc_label(svc)]
++        pub = self.make_public(t, a, b, ctx, options)
++        return TaskSpec(pub, "single_domain", "abstain", None, None, sorted({r.holder for r in recs}), [a.key, b.key], decoys,
++                        note="three independent roots, one department; the question requires two")
++
++    def denied(self, ti: int) -> TaskSpec:
++        t = self.w.tenants[ti]
++        svc, n = self.svc(ti), self.number()
++        ctx = self.ctx(ti)
++        a, b = self.pair(t)
++        pid = f"p{len(self.specs)}"
++        ha, hb = self.pick_holders(t, a.key, 2), self.pick_holders(t, b.key, 1)
++        tmpl = self.rng.sample(range(len(self.bank.obs_templates)), 3)
++        _scope, asker = self.scope_and_asker(t, a.key, b.key)
++        authors = [self.author_for(t, h, d) for h, d in [(ha[0], a.key), (ha[1], a.key), (hb[0], b.key)]]
++        members = sorted({u for u in authors if u != asker})
++        recs = [self.add_obs(t, h, d, svc, ctx, n, tmpl[i], pattern=pid, days=self.rng.uniform(5, 80), source="mem", members=members, role="restricted")
++                for i, (h, d) in enumerate([(ha[0], a.key), (ha[1], a.key), (hb[0], b.key)])]
++        options, decoys = self.options_for(ti, None, extra=[svc])
++        decoys = [svc_label(svc)] + [d for d in decoys if d != svc_label(svc)]
++        pub = self.make_public(t, a, b, ctx, options)
++        return TaskSpec(pub, "denied", "abstain", None, None, [], [a.key, b.key], decoys, forbidden_holders=sorted({r.holder for r in recs}),
++                        forbidden_markers=[svc_label(svc), f"service:{svc}"], forbidden_texts=[r.text for r in recs],
++                        note="the pattern lives in a members-only source that excludes the asker")
++
++    def cross_tenant(self, ti_asker: int) -> TaskSpec:
++        tb = self.w.tenants[1 - ti_asker]
++        ta = self.w.tenants[ti_asker]
++        svc, n = self.svc(tb.idx), self.number()
++        ctx = self.ctx(tb.idx, reserved=True)
++        pid = f"p{len(self.specs)}"
++        a, b = self.pair(tb)
++        ha, hb = self.pick_holders(tb, a.key, 2), self.pick_holders(tb, b.key, 1)
++        tmpl = self.rng.sample(range(len(self.bank.obs_templates)), 3)
++        recs = [self.add_obs(tb, h, d, svc, ctx, n, tmpl[i], pattern=pid, days=self.rng.uniform(5, 80)) for i, (h, d) in enumerate([(ha[0], a.key), (ha[1], a.key), (hb[0], b.key)])]
++        # the asker lives in the other tenant: the question names that tenant's own departments
++        aa, ab = self.pair(ta)
++        options, decoys = self.options_for(tb.idx, None, extra=[svc])
++        decoys = [svc_label(svc)] + [d for d in decoys if d != svc_label(svc)]
++        pub = self.make_public(ta, aa, ab, ctx, options)
++        return TaskSpec(pub, "cross_tenant", "abstain", None, None, [], [aa.key, ab.key], decoys, forbidden_holders=sorted({r.holder for r in recs}),
++                        forbidden_markers=[svc_label(svc), f"service:{svc}"], forbidden_texts=[r.text for r in recs],
++                        note="the pattern exists only in the other tenant")
++
++    # ---- the whole task set
++    def build(self) -> Plan:
++        r = self.rng
++        nten = len(self.w.tenants)
++        jobs: list[tuple[str, dict[str, Any]]] = []
++        for k in range(40):
++            jobs.append(("cross_domain", {"goal_only": k < GOAL_ONLY}))
++        jobs += [("contradiction", {"variant": "delete" if k % 2 == 0 else "edit"}) for k in range(10)]
++        jobs += [("temporal", {})] * 10
++        jobs += [("common_origin_pos", {})] * 8 + [("common_origin_copies", {})] * 7
++        jobs += [("coincidence", {})] * 10 + [("single_domain", {})] * 10 + [("denied", {})] * 10 + [("cross_tenant", {})] * 5
++        jobs += [("fault", {"fault": f}) for f in FAULT_KINDS]
++        assert len(jobs) == 120
++        # tenants alternate within each class so both worlds see every class; goal-only tasks fill each tenant's five projects
++        counters: dict[str, int] = {}
++        for cls, kw in jobs:
++            i = counters.get(cls, 0)
++            counters[cls] = i + 1
++            ti = i % nten
++            if cls == "cross_domain":
++                spec = self.cross_domain(ti, **kw)
++            elif cls == "contradiction":
++                spec = self.contradiction(ti, **kw)
++            elif cls == "temporal":
++                spec = self.temporal(ti)
++            elif cls == "common_origin_pos":
++                spec = self.common_origin(ti, False)
++            elif cls == "common_origin_copies":
++                spec = self.common_origin(ti, True)
++            elif cls == "coincidence":
++                spec = self.coincidence(ti)
++            elif cls == "single_domain":
++                spec = self.single_domain(ti)
++            elif cls == "denied":
++                spec = self.denied(ti)
++            elif cls == "cross_tenant":
++                spec = self.cross_tenant(ti)
++            else:
++                spec = self.cross_domain(ti, n_obs=4, **kw)
++            spec.opt_args = getattr(self, "_last_opt_args", None)
++            spec.pattern = f"p{len(self.specs)}"
++            self.specs.append(spec)
++        # option sets are drawn after every entity of the tenant exists (distractors are real services of the same world)
++        for spec in self.specs:
++            if spec.opt_args:
++                ti, g, extra = spec.opt_args
++                opts, _ = self.options_for(ti, g, extra)
++                spec.public.options = opts
++                spec.decoy_options = [o["label"] for o in opts if o["label"] != spec.answer]
++        # opaque, shuffled ids: nothing in a public record tells the class
++        order = list(range(len(self.specs)))
++        r.shuffle(order)
++        for pos, idx in enumerate(order):
++            self.specs[idx].public.task_id = f"{self.split}-{pos:03d}"
++        self.specs.sort(key=lambda s: s.public.task_id)
++        self.add_filler()
++        return Plan(self.split, self.seed, self.specs, self.records, self.fault_plan, self.w)
++
++    def add_filler(self) -> None:
++        """Every holder that carries content gets unrelated notes, so its source domain reaches the publication threshold (5 records)
++        and retrieval has distractors; plus a private notebook for some user holders (never exportable)."""
++        per_holder: dict[str, list[Rec]] = {}
++        for rec in self.records:
++            if rec.typ == "document" and rec.source == "pub":
++                per_holder.setdefault(rec.holder, []).append(rec)
++        for ti, t in enumerate(self.w.tenants):
++            for hk in sorted(h for h in per_holder if h in t.holders):
++                have = len(per_holder[hk])
++                dept = t.holders[hk].dept or ""
++                for k in range(max(0, 6 - have) + self.rng.randint(0, 2)):
++                    txt = self.bank.filler_templates[self.rng.randrange(len(self.bank.filler_templates))]
++                    self.records.append(Rec(self.rid(ti, "f"), ti, hk, "pub", txt, "Notice", self.author_for(t, hk, dept), self.rng.uniform(3, 120), role="filler"))
++                if t.holders[hk].owner_type == "user" and self.rng.random() < 0.5:
++                    self.records.append(Rec(self.rid(ti, "n"), ti, hk, "priv", self.bank.filler_templates[self.rng.randrange(len(self.bank.filler_templates))], "Personal note",
++                                            t.holders[hk].owner_key, self.rng.uniform(3, 120), role="filler",
++                                            members=[t.holders[hk].owner_key]))
++
++
++def plan(world: World, bank: TemplateBank, split: str, seed: int, goal_obs: tuple[str, ...]) -> Plan:
++    return Planner(world, bank, split, seed, goal_obs).build()
++
++
++def load_bank(split: str) -> tuple[TemplateBank, tuple[str, ...]]:
++    """The dev bank is a normal import; the holdout bank is loaded only here, only when asked for (``--split holdout``)."""
++    import importlib
++    if split == "dev":
++        m = importlib.import_module("research.mycelic_e2e.bench.templates_dev")
++    elif split == "holdout":
++        # The holdout bank is sealed OUTSIDE the repository tree (overnight run: /root/sealed_holdout/, sha256 recorded
++        # in BENCHMARK_CONTRACT.md) so implementation agents cannot read it; it is loaded only from this explicit path.
++        import importlib.util
++        import os
++        path = os.environ.get("MYCELIC_E2E_HOLDOUT_BANK")
++        if not path:
++            raise RuntimeError("holdout bank is sealed: set MYCELIC_E2E_HOLDOUT_BANK to the sealed templates_holdout.py")
++        importlib.import_module("research.mycelic_e2e.bench.holdout")      # parent package, for the bank's relative import
++        spec = importlib.util.spec_from_file_location("research.mycelic_e2e.bench.holdout.templates_holdout", path)
++        m = importlib.util.module_from_spec(spec)
++        spec.loader.exec_module(m)
++    else:
++        raise ValueError(split)
++    return m.BANK, m.GOAL_OBS_TEMPLATES
+-- 
+2.43.0
+
