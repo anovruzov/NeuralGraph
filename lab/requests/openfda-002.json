@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "purpose": "Public replay 002 (docs/collective/replay/CHOICE-002.md): replay 001's settings with one change, the pack lab/packs/device_quality_bd, whose lot and product id formats and extra problem terms come by a stated rule from Becton Dickinson reports received in 2021-2022, before the window. Model-free. The AI agent chose and declares saw_recall_outcomes yes; replay 001's all-zero result was known. The first run is the result.",
+  "provider": "llama-server",
+  "models": [
+    "a-0p5b"
+  ],
+  "job_minutes": 200,
+  "max_parallel": 1,
+  "retention_days": 30,
+  "experiments": {
+    "openfda": {
+      "minutes": 150,
+      "pack": "lab/packs/device_quality_bd",
+      "product_codes": [
+        "JKA",
+        "FOZ",
+        "FMI",
+        "MDB"
+      ],
+      "date_from": "20230101",
+      "date_to": "20241231",
+      "max_records_per_code": 10000,
+      "manufacturers": [
+        "BECTON DICKINSON",
+        "BECTON, DICKINSON AND COMPANY (BD)",
+        "BECTON DICKINSON INFUSION THERAPY SYSTEMS INC.",
+        "BECTON, DICKINSON & CO. (BROKEN BOW)",
+        "BECTON, DICKINSON & CO., (BD)",
+        "BECTON DICKINSON MEDICAL SYSTEMS",
+        "BECTON DICKINSON & CO. (SPARKS)",
+        "BECTON, DICKINSON & CO. (SPARKS)",
+        "BECTON DICKINSON IND. CIRURGICAS LTDA",
+        "BECTON DICKNSON AND CO. - DUN LAOGHAIRE CO, IRELAND"
+      ],
+      "manufacturer_field": "device[].manufacturer_d_name",
+      "partition_field": "device[].manufacturer_d_name",
+      "recalling_firms": [
+        "Becton Dickinson & Company",
+        "Becton Dickinson & Co.",
+        "Becton Dickinson Medical Systems",
+        "Becton, Dickinson and Company, BD Biosciences",
+        "Becton Dickinson and Company",
+        "Becton Dickinson Infusion Therapy",
+        "Becton Dickinson Infusion Therapy Systems, Inc.",
+        "Becton, Dickinson and Company, BD Bio Sciences",
+        "Becton Dickinson Infusion Therapy Systems Inc.",
+        "Becton, Dickinson and Company"
+      ],
+      "saw_recall_outcomes": "yes"
+    }
+  }
+}
