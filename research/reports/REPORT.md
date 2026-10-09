@@ -1,5 +1,21 @@
 # NeuralGraph overnight campaign: final report
 
+> **Correction, 2026-10-09: LoCoMo category names were swapped.** Until
+> 2026-10-09 `research/benchmarks/runner.py` (and the harnesses that import its
+> `CATEGORIES`: `retrieval_eval.py`, `two_agent_eval.py`) mapped dataset category 1
+> to `single_hop` and category 4 to `multi_hop`. The dataset says the reverse:
+> category 1 questions cite 3.14 evidence turns on average (n=282) and category 4
+> questions 1.07 (n=841). The harness now maps 1 to `multi_hop` and 4 to
+> `single_hop`. Every per-category number in this report produced before that date
+> carries the swapped names: a row labelled `single_hop` is category 1 (multi-hop
+> questions) and a row labelled `multi_hop` is category 4 (single-hop questions).
+> The numbers are left as they were reported; totals are unaffected. Result files
+> written before that date also carry a fixed judge string in
+> `metadata["judge"]` that does not record which judge ran; runner.py now writes the
+> configured judge model id (or `unknown`). Evidence counts from:
+> `python -c "import json,re;from collections import defaultdict as D;e=D(list);[e[q['category']].append(len([p for x in q.get('evidence',[]) for p in re.split(r'[;,\s]+',x) if p])) for c in json.load(open('research/datasets/locomo10.json')) for q in c['qa']];print({k:(len(v),round(sum(v)/len(v),2)) for k,v in sorted(e.items())})"`
+> which prints `{1: (282, 3.14), 2: (321, 1.17), 3: (96, 2.17), 4: (841, 1.07), 5: (446, 1.03)}`.
+
 Date: 2026-09-05, 06:15 to 15:50 CDT. 13 experiments, 12 subagents, one LM Studio server (gemma-4-e4b, nomic-embed v1.5, qwen3.6-35b-a3b as independent judge). Every number below is leakage-free: the gold-answer gate and gold-category routing found in the audit were removed before any run.
 
 ## 1. Headline numbers
