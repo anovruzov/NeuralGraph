@@ -17,8 +17,10 @@ needs succeeded (else ``skipped``, :data:`~lab.notes.STEP_SKIPPED`):
 sheets only: a human labels them, and N1's scoring step and E1's label check run outside the lab, so no label and no
 N1 or openFDA E1 result is ever generated here.
 
-The fetch steps get ``--api-key-env=MYCELIC_LAB_OPENFDA_API_KEY`` and that one variable in their environment only when
-it is set and non-empty (the workflow passes the repository secret to the openFDA shard's run step); no other step
+The fetch steps ask for pages of :data:`~lab.request.OPENFDA_PAGE` records (``--limit``: 100 without the key, which is
+all openFDA serves without one, 1000 with it). They get ``--api-key-env=MYCELIC_LAB_OPENFDA_API_KEY`` and that one
+variable in their environment only when it is set and non-empty (the workflow passes the repository secret to the
+openFDA shard's run step); no other step
 ever sees it, and the connector puts it on the wire only. ``base_url_override`` (``lab.shard run --openfda-base-url``,
 tests only) points both fetches at a stub.
 
@@ -46,6 +48,7 @@ from . import ROOT
 from . import units as lab_units
 from .notes import (HARNESS_INTERRUPTED, HARNESS_USAGE, KILLED_BY_SIGNAL, OPENFDA_FETCH_REFUSED, OPENFDA_RATE_LIMITED,
                     OPENFDA_UNREACHABLE, RESULT_MISSING, SHARD_INTERRUPTED, STEP_SKIPPED, TIMED_OUT, UNEXPECTED_EXIT)
+from .request import OPENFDA_PAGE
 
 KEY_VAR = "MYCELIC_LAB_OPENFDA_API_KEY"
 CONNECTOR = "mycelic.collective.connectors.openfda"
@@ -76,7 +79,9 @@ def step_argvs(params: Mapping[str, Any], r: Path, *, key: bool,
     dates = [flag("date-from", params["date_from"]), flag("date-to", params["date_to"])]
 
     def fetch(dataset: str, out: Path) -> list[str]:
-        extra = [flag("api-key-env", KEY_VAR)] if key else []
+        # the page size the key state allows (lab.request.OPENFDA_PAGE): without a key openFDA refuses 1000
+        extra = [flag("limit", OPENFDA_PAGE[key])]
+        extra += [flag("api-key-env", KEY_VAR)] if key else []
         extra += [flag("base-url", base_url)] if base_url is not None else []
         return [sys.executable, "-m", CONNECTOR, "fetch", flag("dataset", dataset), flag("product-codes", codes),
                 *dates, flag("out", out), flag("max-records", params["max_records_per_code"]), *extra]

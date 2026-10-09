@@ -188,7 +188,7 @@ def _unit(request: Request, manifest: Manifest, experiment: str, model: str | No
             "params": params, "seeds": seeds, "needs_secret": False, "env": [], "shard": None}
 
 
-def build_units(request: Request, manifest: Manifest) -> list[dict[str, Any]]:
+def build_units(request: Request, manifest: Manifest, openfda_key: bool = False) -> list[dict[str, Any]]:
     units = []
     for experiment in EXPERIMENTS:
         block = request.data["experiments"].get(experiment)
@@ -214,7 +214,7 @@ def build_units(request: Request, manifest: Manifest) -> list[dict[str, Any]]:
             units.append(_unit(request, manifest, "x1", None, "", block["minutes"], params, list(params["seeds"])))
         elif experiment == "openfda":
             params = {**block, "requests_estimate": openfda_requests(block["product_codes"],
-                                                                      block["max_records_per_code"])}
+                                                                      block["max_records_per_code"], openfda_key)}
             units.append(_unit(request, manifest, "openfda", None, "", block["minutes"], params, []))
         else:
             for model in block["models"]:
@@ -347,10 +347,11 @@ def hosted_shares(request: Request, manifest: Manifest, units: list[dict[str, An
             for key in sorted(shares)}
 
 
-def build_plan(request: Request, manifest: Manifest, git_sha: str, *, has_hosted: bool = False) -> dict[str, Any]:
+def build_plan(request: Request, manifest: Manifest, git_sha: str, *, has_hosted: bool = False,
+               openfda_key: bool = False) -> dict[str, Any]:
     data = request.data
     capacity = data["job_minutes"] - SHARD_OVERHEAD_MINUTES
-    units = build_units(request, manifest)
+    units = build_units(request, manifest, openfda_key)
     skipped: list[dict[str, Any]] = []
     if not has_hosted:
         units, skipped = filter_hosted(units, request, manifest)
@@ -488,9 +489,10 @@ def main(argv: list[str] | None = None) -> int:
                 return EXIT_OK
             path, strict = found.request, True
         request_path = shown_path(display_path(path))
-        request = load_request(path, manifest, strict_location=strict,
-                               openfda_key=os.environ.get("LAB_HAS_OPENFDA_KEY") == "true")
-        plan = build_plan(request, manifest, git_sha(), has_hosted=os.environ.get(HAS_VAR) == "true")
+        openfda_key = os.environ.get("LAB_HAS_OPENFDA_KEY") == "true"
+        request = load_request(path, manifest, strict_location=strict, openfda_key=openfda_key)
+        plan = build_plan(request, manifest, git_sha(), has_hosted=os.environ.get(HAS_VAR) == "true",
+                          openfda_key=openfda_key)
     except LabError as err:
         return _report(out, err, request_path)
     out.mkdir(parents=True, exist_ok=True)

@@ -77,3 +77,15 @@ probe printed, and the rule's window recomputes from them).
 - **Run sizing** (not an analysis setting): the unit gets 150 minutes and the job 200.
 
 `lab/requests/openfda-001.json` holds exactly these settings and is pushed in its own commit; that push starts the run.
+
+## Runs
+
+1. **Lab run [37861226513](https://github.com/anovruzov/NeuralGraph/actions/runs/37861226513)**, 2026-10-08 23:46
+   UTC, commit `add9302`: **failed before any data**. The first step (`fetch-events`) exited 2 in 0.4 s ("the openFDA
+   fetch was refused"). The cause, found by `tools/market/openfda_connector_check.py` in run
+   [37861797336](https://github.com/anovruzov/NeuralGraph/actions/runs/37861797336): openFDA answers a page of 1000
+   records without an API key with HTTP 403 `API_KEY_MISSING` ("No api_key was supplied"), while pages of 5 and 100
+   are served (HTTP 200, 9,010 JKA reports in the window, as the probe counted). The lab asked for pages of 1000.
+   No event page and no recall record was fetched, so nothing of the outcome was seen. The lab now asks for pages of
+   100 without a key (a code fix, not a setting); the run is repeated with this request unchanged, as the rule above
+   allows for a failure before scoring.

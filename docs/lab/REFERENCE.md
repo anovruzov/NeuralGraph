@@ -107,8 +107,9 @@ and `bootstrap_seed`, as for `e2`.
 | `n1_sheet` | `{"n": 1..1000, "seed"}`: the N1 labelling sheet | none |
 | `e1_sheet` | `{"n": 1..2000, "seed"}`: the openFDA E1 labelling sheet | none |
 
-The fetch makes up to `product_codes` x 2 x ceil(`max_records_per_code` / 1000) requests, at most 100 without the
-`MYCELIC_LAB_OPENFDA_API_KEY` secret and 1000 with it.
+The fetch makes up to `product_codes` x 2 x ceil(`max_records_per_code` / page) requests, where a page is 100 records
+without the `MYCELIC_LAB_OPENFDA_API_KEY` secret (openFDA refuses larger pages without a key) and 1000 with it; at most
+800 requests without the secret and 1000 with it.
 
 Hosted models run only as E1 models or as `e2.central`. `hosted` is required exactly when one is used and names
 exactly those keys, each with `max_calls` at least the request's bound, the most calls it can make on the host:

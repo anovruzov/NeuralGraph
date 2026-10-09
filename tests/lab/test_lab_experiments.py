@@ -38,7 +38,7 @@ from lab.notes import (COLUMNS, CONTEXT_TOO_SMALL, E1_COMPARE_FAILED, E1_ENDPOIN
                        OPENFDA_UNREACHABLE, PREREG_MISSING, SHEETS_LABEL, STEP_SKIPPED, X1_LABEL)
 from lab.plan import serving_class
 from lab.prereg import PreregError, e1_endpoint, load_prereg
-from lab.request import OPENFDA_CAP, openfda_budget_problem, openfda_requests
+from lab.request import OPENFDA_CAP, OPENFDA_PAGE, openfda_budget_problem, openfda_requests
 from lab.responder import Responder
 from lab.summary import ids, render_report
 from lab.warmup import e2_worst_payloads
@@ -806,7 +806,7 @@ class BudgetTests(unittest.TestCase):
             self.assertEqual(code, 2)
             first = stderr.splitlines()[0]
             self.assertTrue(first.startswith("error: $.experiments.openfda.max_records_per_code: the fetch would make "
-                                             "about 250 openFDA requests"), first)
+                                             "about 2500 openFDA requests"), first)
             self.assertIn("without an API key", first)
             self.assertIn("MYCELIC_LAB_OPENFDA_API_KEY", first)
 
@@ -817,14 +817,26 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual(plan["units"][0]["params"]["requests_estimate"], 250)
 
     def test_request_count_and_caps(self) -> None:
-        self.assertEqual(openfda_requests(["AAA"], 1000), 2)
-        self.assertEqual(openfda_requests(["AAA"], 1001), 4)
-        self.assertEqual(openfda_requests(["AAA", "BBB", "CCC"], 1), 6)
-        self.assertEqual(OPENFDA_CAP, {False: 100, True: 1000})
+        # pages of 1000 with the key, 100 without it (openFDA answers 1000 without a key with 403 API_KEY_MISSING)
+        self.assertEqual(OPENFDA_PAGE, {False: 100, True: 1000})
+        self.assertEqual(openfda_requests(["AAA"], 1000, True), 2)
+        self.assertEqual(openfda_requests(["AAA"], 1001, True), 4)
+        self.assertEqual(openfda_requests(["AAA", "BBB", "CCC"], 1, True), 6)
+        self.assertEqual(openfda_requests(["AAA"], 1000), 20)
+        self.assertEqual(openfda_requests(["AAA"], 1001, False), 22)
+        self.assertEqual(OPENFDA_CAP, {False: 800, True: 1000})
         self.assertIsNone(openfda_budget_problem(1000, True))
         self.assertIn("more than the 1000 allowed with an API key", openfda_budget_problem(1001, True))
-        self.assertIsNone(openfda_budget_problem(100, False))
-        self.assertIn("more than the 100 allowed without an API key", openfda_budget_problem(101, False))
+        self.assertIsNone(openfda_budget_problem(800, False))
+        self.assertIn("more than the 800 allowed without an API key", openfda_budget_problem(801, False))
+
+    def test_the_fetch_asks_for_the_page_the_key_allows(self) -> None:
+        params = {**OPENFDA_BLOCK, "recalling_firms": ["ACME Devices"], "lookback_weeks": 26, "post_weeks": 26,
+                  "min_partition_coverage": 0.5, "tie_salt": "lab-replay"}
+        for key, page in ((False, "100"), (True, "1000")):
+            steps = dict(lab_openfda.step_argvs(params, Path("/r"), key=key, base_url=None))
+            for step in ("fetch-events", "fetch-recalls"):
+                self.assertIn(f"--limit={page}", steps[step], (step, key))
 
 
 class GoldLabelsTests(unittest.TestCase):
@@ -1053,7 +1065,8 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(x1["params"]["tie_salt"], "lab-x1")
         openfda = by_id["openfda"]
         self.assertEqual((openfda["model"], openfda["kind"], openfda["seeds"], openfda["env"]), (None, "none", [], []))
-        self.assertEqual(openfda["params"]["requests_estimate"], 12)
+        # without the key the plan counts pages of 100 (openFDA refuses 1000 without one): 3 codes x 2 x 20
+        self.assertEqual(openfda["params"]["requests_estimate"], 120)
         self.assertEqual(openfda["params"]["recalling_firms"], ["ACME Devices"])
         self.assertTrue(all(u["needs_secret"] is False and u["env"] == [] for u in plan["units"]))
 

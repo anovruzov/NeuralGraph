@@ -77,9 +77,11 @@ are refused at every level::
      "n1_sheet": {"n": 1..1000, "seed": <seed>},       # optional: the N1 labelling sheet
      "e1_sheet": {"n": 1..2000, "seed": <seed>}}       # optional: the openFDA E1 labelling sheet
 
-The fetch budget is checked last: ``product_codes x 2 x ceil(max_records_per_code / 1000)`` requests
-(:func:`openfda_requests`) may be at most :data:`OPENFDA_CAP` (100 without the ``MYCELIC_LAB_OPENFDA_API_KEY``
-secret, 1000 with it; the plan job is told which by ``LAB_HAS_OPENFDA_KEY``).
+The fetch budget is checked last: ``product_codes x 2 x ceil(max_records_per_code / page)`` requests
+(:func:`openfda_requests`), where a page is :data:`OPENFDA_PAGE` records (100 without the
+``MYCELIC_LAB_OPENFDA_API_KEY`` secret, 1000 with it: openFDA answers a larger page without a key with HTTP 403
+``API_KEY_MISSING``, lab run 37861226513), may be at most :data:`OPENFDA_CAP` (800 without the key, below openFDA's
+1,000 requests a day for a client without one; 1000 with it). The plan job is told which by ``LAB_HAS_OPENFDA_KEY``.
 
 A fake model needs provider ``fake`` and a gguf model needs the server provider; a hosted model goes with either.
 ``provider: "fake"`` makes the whole run a plumbing check: nothing it writes measures a model (its hosted units still
@@ -159,8 +161,8 @@ MAX_AUTHOR = 80
 MAX_NAME = 120
 MAX_FIELD_PATH = 200
 MAX_RECORDS_PER_CODE = 25000
-OPENFDA_PAGE = 1000
-OPENFDA_CAP = {False: 100, True: 1000}
+OPENFDA_PAGE = {False: 100, True: 1000}
+OPENFDA_CAP = {False: 800, True: 1000}
 DEFAULT_BOOTSTRAP_B = 10000
 DEFAULT_AUTHOR = "mycelic engineering"
 DEFAULT_TIE_SALTS = {"e2": "lab-e2", "x1": "lab-x1", "openfda": "lab-replay"}
@@ -612,9 +614,10 @@ def _hosted(top: dict[str, Any], experiments: dict[str, Any], manifest: Manifest
     return out
 
 
-def openfda_requests(codes: list[str], max_records: int) -> int:
-    """The openFDA requests a fetch of both datasets may make: per code and dataset, one per page of 1000 records."""
-    return len(codes) * 2 * math.ceil(max_records / OPENFDA_PAGE)
+def openfda_requests(codes: list[str], max_records: int, key: bool = False) -> int:
+    """The openFDA requests a fetch of both datasets may make: per code and dataset, one per page
+    (:data:`OPENFDA_PAGE` records for the key state)."""
+    return len(codes) * 2 * math.ceil(max_records / OPENFDA_PAGE[key])
 
 
 def _compact_date(value: Any, path: str) -> date:
@@ -710,7 +713,8 @@ def _openfda(raw: Any, capacity: int, openfda_key: bool) -> dict[str, Any]:
     out["saw_recall_outcomes"] = saw
     out["n1_sheet"] = _optional(block, "n1_sheet", None, lambda v: _sheet(v, f"{path}.n1_sheet", 1000))
     out["e1_sheet"] = _optional(block, "e1_sheet", None, lambda v: _sheet(v, f"{path}.e1_sheet", 2000))
-    problem = openfda_budget_problem(openfda_requests(out["product_codes"], out["max_records_per_code"]), openfda_key)
+    problem = openfda_budget_problem(openfda_requests(out["product_codes"], out["max_records_per_code"], openfda_key),
+                                     openfda_key)
     if problem is not None:
         raise RequestError(f"{path}.max_records_per_code", problem) from None
     return out

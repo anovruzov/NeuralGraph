@@ -48,8 +48,9 @@ model. The experiments:
   (`data/reusables/actions/about-artifact-log-retention.md`), so the summaries disappear too. Keep what matters
   (see Keep results).
 - Hosted providers: a hosted model (Optional secrets) bills every call on the host's account; GitHub does not.
-- openFDA: free; it limits how many requests a client makes. The lab caps a run's openFDA fetch at 100 requests
-  without the openFDA key and 1000 with it.
+- openFDA: free; it limits how many requests a client makes, and without a key it serves pages of at most 100
+  records (a page of 1000 is refused with HTTP 403 `API_KEY_MISSING`). The lab asks for pages of 100 without the
+  openFDA key and 1000 with it, and caps a run's fetch at 800 requests without the key and 1000 with it.
 
 ## Everything is public
 

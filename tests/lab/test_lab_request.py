@@ -342,8 +342,8 @@ CASES: list[tuple[str, Callable[[str], bytes], str, str]] = [
      "$.experiments.openfda.max_records_per_code", "must be an int in [1, 25000]"),
     ("openfda-budget-without-key", _block("openfda", OPENFDA, product_codes=["AAA", "BBB", "CCC", "DDD", "EEE"],
                                           max_records_per_code=25000),
-     "$.experiments.openfda.max_records_per_code", "the fetch would make about 250 openFDA requests, more than the "
-                                                   "100 allowed without an API key"),
+     "$.experiments.openfda.max_records_per_code", "the fetch would make about 2500 openFDA requests, more than "
+                                                   "the 800 allowed without an API key"),
     ("json-bom", lambda s: b"\xef\xbb\xbf" + _VALID_TEXT.replace("Plumbing", s).encode(), "$", "invalid JSON (bom)"),
     ("json-not-utf8", lambda s: _VALID_TEXT.replace("Plumbing", s).encode().replace(b"check", b"\xff\xfe"), "$",
      "invalid JSON (encoding)"),
@@ -462,12 +462,13 @@ class ExperimentBlockTests(unittest.TestCase):
         with self.assertRaises(RequestError) as caught:
             self.blocks(openfda=big)
         self.assertEqual(caught.exception.path, "$.experiments.openfda.max_records_per_code")
-        self.assertIn("about 250 openFDA requests", caught.exception.problem)
-        self.assertEqual(self.blocks(openfda={**OPENFDA, "max_records_per_code": 16000})["openfda"]
-                         ["max_records_per_code"], 16000)
+        # without the key a page is 100 records: 5 codes x 2 x 250 pages
+        self.assertIn("about 2500 openFDA requests", caught.exception.problem)
+        self.assertEqual(self.blocks(openfda={**OPENFDA, "max_records_per_code": 13300})["openfda"]
+                         ["max_records_per_code"], 13300)
         with self.assertRaises(RequestError) as caught:
-            self.blocks(openfda={**OPENFDA, "max_records_per_code": 17000})
-        self.assertIn("about 102 openFDA requests, more than the 100 allowed without an API key",
+            self.blocks(openfda={**OPENFDA, "max_records_per_code": 13400})
+        self.assertIn("about 804 openFDA requests, more than the 800 allowed without an API key",
                       caught.exception.problem)
 
     def test_model_kinds_for_e1_and_e2(self) -> None:
