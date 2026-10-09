@@ -32,4 +32,21 @@ timeline in `audit.json`.
 
 ## Runs
 
-None yet.
+1. **Run 5, recalls: run [37911451566](https://github.com/anovruzov/NeuralGraph/actions/runs/37911451566)** (commit
+   `98e4597`, job 113757323158). Read from the job log; each make's `audit.json` sha256 in the log matches the
+   printed audit re-serialised by `write_json_atomic`, for all six makes. The data match V001 and V002: 63,235
+   complaints, 896 recalls in scope, and the same audited found and expected counts.
+
+   | Channel | Found before the recall | Expected by chance (audited) | Expected, each recall's own later alerts left out | Fisher p over the six makes, corrected |
+   |---|---|---|---|---|
+   | X | 14 | 30.46 | 16.37 | 0.988 |
+   | S | 13 | 29.95 | 16.21 | 0.989 |
+   | R_mf | 15 | 35.98 | 18.74 | 0.980 |
+
+   Per make, the corrected p ranges from 0.34 (JEEP, R_mf) to 1.0. CHEVROLET, DODGE and NISSAN find no recall in
+   any channel and have a corrected expectation of 0. Sums and the combined p are computed from the six audits with
+   `tools/market/vehicle_summary.py`'s `fisher`.
+
+   **Reading.** Leaving each recall's own later alerts out roughly halves what chance is expected to find. The
+   found counts sit at or just below the corrected expectation, so the recall replays' "fewer finds than chance"
+   came from the baseline, and the replays stand at chance, not below it. Nothing here is above chance.
