@@ -38,9 +38,18 @@ How the lab will run it (a new experiment kind, `j1`) is in `BUILD-J001.md`.
    - The entity is the record's structured vehicle, as its pack id.
    - **Positive:** one predicate the record was filed under. When there are several,
      `random.Random("j1:1:<record_ref>:positive").choice` picks one from their sorted list.
-   - **Negative:** one predicate the record was not filed under. `random.Random("j1:1:<record_ref>:negative").choice`
-     picks it from a sorted list: the pack's predicates, less the filed ones, less `unknown_or_other`, and less the
-     other name of any filed component (the three pairs under "Traps").
+   - **Negative** (amended before any run, see below): one predicate the record was not filed under, drawn with the
+     frequency of filed predicates among the other records of the draw (leave one record out).
+     - Each other record counts once, for the filed predicate its own positive question asks. So the negatives
+       follow the positives.
+     - The candidates are the pack's predicates, less this record's filed ones, less the other name of any of them
+       (the three pairs under "Traps"), and less `unknown_or_other`.
+     - The rule is fixed and seeded. `total` is the candidates' summed count. The candidates take positions in
+       their sorted order, each as many as its count, and `random.Random("j1:1:<record_ref>:negative").randrange(total)`
+       picks one position.
+     - If no candidate has a count, the plan job refuses the draw.
+   - A predicate is then asked as a negative about as often as it is asked as a positive, and the predicate alone
+     tells a judge almost nothing about the answer.
    - So 150 positives and 150 negatives: 300 questions per model. The question file's sha256 is preregistered.
 3. **The judging path: the product's, unchanged.**
    - The payload is `judge_payload`: the question (the vehicle id, its aliases, the predicate and its label) and the
@@ -67,6 +76,12 @@ How the lab will run it (a new experiment kind, `j1`) is in `BUILD-J001.md`.
    - With the codes hidden, it says `mentions_entity` yes whenever the structured vehicle resolves to a pack id.
    - It says `describes_predicate` yes only when one of the pack's phrases for the predicate is in the narrative
      and not negated. The phrases are the category name or its parts, such as "fuel" or "wiper".
+   - **The record-blind control** (added before any run, see below) never reads the record and decides nothing.
+     - For a question about one record, it confirms when that question's predicate was asked more often as a
+       positive than as a negative among the other records' questions. Otherwise it refutes, a tie included.
+     - It is scored like the lexical judge, in the plan job, on every record and on each model's records, and it is
+       shown beside the lexical judge.
+     - It shows how far a judge can get from the predicate alone on these records.
 6. **Scoring, against the filed codes** (not checked labels):
    - a verdict is correct when it is `confirm` on a positive or `refute` on a negative; `unknown` is never correct;
    - **sensitivity** is the share of positives confirmed, **specificity** the share of negatives refuted, and
@@ -94,7 +109,10 @@ How the lab will run it (a new experiment kind, `j1`) is in `BUILD-J001.md`.
      (`stats.paired_bootstrap`);
    - failures by kind;
    - each model's seconds per judge call (median and 95th percentile from the ledgers), per runner CPU. That is a
-     runner number, not site hardware.
+     runner number, not site hardware;
+   - the record-blind control's balanced accuracy, sensitivity and specificity, with their intervals, on the same
+     records as each model;
+   - per predicate, how often each judge confirmed it, for positives and for negatives.
 9. **Units and limits:**
    - the 150 records, in record order, are cut into 6 parts of 25, so 50 questions a part;
    - one unit per model and part, 18 units, each with 150 minutes;
@@ -106,6 +124,49 @@ How the lab will run it (a new experiment kind, `j1`) is in `BUILD-J001.md`.
 10. **The first run is the result.** A run that fails before any model judges, for an infrastructure reason, may
     run again unchanged. A model left incomplete gets no verdict from this run; judging it again is a new choice
     file. Any change to a setting is a new choice file.
+
+## Amended before any run, 2026-10-09
+
+No model had judged a narrative, and no question file had been drawn on the real records, when this was changed. So
+it is an amendment, as R002's rule 2 was amended before its run (`CHOICE-R002.md`). Every other rule is unchanged.
+
+**What changed.**
+- Rule 2's negative. It was drawn uniformly from the pack's predicates, less the filed ones, their twins and
+  `unknown_or_other`. It is now drawn with the frequency of filed predicates among the other records of the draw,
+  with the same exclusions.
+- Rule 5 gains the record-blind control. Rule 8 reports it, and each judge's confirms per predicate. Neither decides
+  anything.
+- "How it is read" no longer says that a judge that answers without regard to the record scores 0.5. That holds only
+  when the predicate carries no information.
+
+**Why.** An adversarial review of the build found that the first draw let the predicate a judge is asked give away
+part of the answer.
+- Positives follow the components the complaints were filed under, and a few components hold most of the filings.
+- Negatives were spread evenly over all the other predicates, many of them rare.
+- So a judge that never reads the narrative, and confirms only the most-filed components, scores well above 0.5. The
+  lexical judge reads only the record and gets none of this.
+- A model that leans on which components are common could then be "not told apart" from the lexical judge, or
+  "better", without judging. The headline could not tell that from real judging.
+
+**The figures.** They come from `python3 tools/market/j001_prior_probe.py`, the review's computation kept in the
+repository. It scores a judge that confirms a question only when its predicate is among the K most-filed components.
+Its counts are the component rows of the whole NHTSA complaint file (`nhtsa-probe.json`: all makes, all years),
+mapped to the pack's predicates. They stand in for J001's 150 records and are not those records. Each record is
+taken to have one filed predicate.
+
+| Negative draw | K | Sensitivity | Specificity | Balanced accuracy |
+|---|---|---|---|---|
+| first rule: uniform | 1 | 0.141 | 0.966 | 0.553 |
+| first rule: uniform | 5 | 0.576 | 0.821 | 0.698 |
+| first rule: uniform | 8 | 0.742 | 0.707 | 0.725 |
+| amended rule: frequency | 1 | 0.141 | 0.870 | 0.506 |
+| amended rule: frequency | 4 | 0.494 | 0.530 | 0.512 |
+| amended rule: frequency | 8 | 0.742 | 0.275 | 0.509 |
+
+The largest balanced accuracy over K is 0.725 (K 8) under the first rule and 0.512 (K 4) under the amended rule. The
+amended draw cannot reach exactly 0.5: a record's own filed predicate is never its negative, so common predicates are
+asked a little less often as negatives than as positives. The record-blind control measures what is left on the real
+records.
 
 ## Why the units are this size
 
@@ -144,8 +205,14 @@ How the lab will run it (a new experiment kind, `j1`) is in `BUILD-J001.md`.
 - **Sensitivity and specificity say where a judge stands.** The lexical judge confirms a question only when that
   component's phrase appears, not negated, in the narrative. A model can gain where a complaint describes a
   component without naming its category. A model that confirms freely gains sensitivity and loses specificity.
-- **0.5 is no judging at all.** A judge that gives every question the same verdict, or answers without regard to
-  the record, has a balanced accuracy of 0.5.
+- **0.5 is no judging at all, but only when the predicate carries no information** (amended before any run, see
+  above).
+  - A judge that confirms every question, or refutes every one, has a balanced accuracy of 0.5. One that answers
+    `unknown` to every question has 0.
+  - A judge that answers by the predicate alone, without reading the record, has 0.5 only when each predicate is
+    asked as a negative as often as it is asked as a positive. The amended draw of rule 2 makes that nearly so, not
+    exactly: a record's own filed predicate is never its negative.
+  - The record-blind control (rule 5) shows how far the predicate alone gets on these records. It decides nothing.
 - **150 records give intervals several points wide.** Small differences between the models cannot be read.
 - **This is one public field.** It is not a company's records, and complaints written to a regulator are not
   internal service notes.
