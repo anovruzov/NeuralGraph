@@ -214,9 +214,12 @@ class RunFileTests(unittest.TestCase):
         self.assertEqual(tuple(h[:8] for h in hashes), ("a588e72d", "867df7fc", "325b125a", "9d9d8bd6"))
 
 
-def _audit(found: dict[str, tuple[int, float, float]], in_scope: int = 10) -> dict:
+def _audit(found: dict[str, tuple[int, float, float]], in_scope: int = 10,
+           own_post: dict[str, tuple[float | None, float | None]] | None = None) -> dict:
     channels = {c: {"summary": {"alerts": 4, "found": f, "expected_found": e, "p_value": p, "unexplained_alerts": 1}}
                 for c, (f, e, p) in found.items()}
+    for c, (e, p) in (own_post or {}).items():           # the null without own post-opening alerts, when kept
+        channels[c]["summary"].update({"expected_found_excluding_own_post": e, "p_value_excluding_own_post": p})
     return {"export": {"records": 100, "sites": ["ca", "tx"], "coverage": {"codes": {"share": 1.0}}},
             "outcomes": {"in_scope": in_scope}, "weeks": {"evaluated_weeks": 87}, "channels": channels}
 
@@ -255,6 +258,60 @@ class SummaryTests(unittest.TestCase):
                 self.assertEqual(S.main([tmp]), 0)
             self.assertEqual(sorted(json.loads(buf.getvalue())["makes"]), ["HONDA", "NISSAN"])
             self.assertEqual(S.main([str(Path(tmp) / "HONDA")]), 1)   # no make directories under it
+
+    # the keys V002's summary had before the null without own post-opening alerts was added beside them
+    V002_MAKE_KEYS = ("records", "sites", "codes_share", "in_scope", "evaluated_weeks")
+    V002_MAKE_CHANNEL_KEYS = ("alerts", "found", "expected_found", "p_value", "unexplained_alerts")
+    V002_CHANNEL_KEYS = ("found", "expected_found", "alerts", "makes_scored", "makes_above_chance", "fisher_p",
+                         "beyond_chance")
+    STRONG = {"X": (6, 1.0, 0.0115), "S": (1, 1.0, 0.6), "R_mf": (0, 0.0, None)}
+    WEAK = {"X": (3, 1.5, 0.05), "S": (0, 1.2, 1.0), "R_mf": (0, 0.0, None)}
+
+    def test_the_null_without_own_post_alerts_is_reported_beside_the_rule(self) -> None:
+        plain = S.summarise({"JEEP": _audit(self.STRONG), "DODGE": _audit(self.WEAK, in_scope=5)})
+        got = S.summarise({
+            "JEEP": _audit(self.STRONG, own_post={"X": (0.5, 0.02), "S": (0.25, 0.7), "R_mf": (None, None)}),
+            "DODGE": _audit(self.WEAK, in_scope=5, own_post={"X": (0.75, 0.04), "S": (1.0, 1.0),
+                                                             "R_mf": (None, None)})})
+        # every key and value V002's rule and table read is unchanged
+        self.assertEqual({k: got[k] for k in ("kind", "alpha", "in_scope")},
+                         {k: plain[k] for k in ("kind", "alpha", "in_scope")})
+        for make in ("JEEP", "DODGE"):
+            for k in self.V002_MAKE_KEYS:
+                self.assertEqual(got["makes"][make][k], plain["makes"][make][k])
+            for c in S.CHANNELS:
+                for k in self.V002_MAKE_CHANNEL_KEYS:
+                    self.assertEqual(got["makes"][make]["channels"][c][k], plain["makes"][make]["channels"][c][k])
+        for c in S.CHANNELS:
+            for k in self.V002_CHANNEL_KEYS:
+                self.assertEqual(got["channels"][c][k], plain["channels"][c][k], (c, k))
+        # and beside them, per make and channel and per channel
+        self.assertEqual(got["makes"]["JEEP"]["channels"]["X"]["expected_found_excluding_own_post"], 0.5)
+        self.assertEqual(got["makes"]["DODGE"]["channels"]["X"]["p_value_excluding_own_post"], 0.04)
+        x, s, r = (got["channels"][c] for c in S.CHANNELS)
+        self.assertEqual((x["expected_found_excluding_own_post"], x["makes_scored_excluding_own_post"]), (1.25, 2))
+        self.assertAlmostEqual(x["fisher_p_excluding_own_post"], S.fisher([0.02, 0.04]))
+        self.assertAlmostEqual(x["fisher_p_excluding_own_post"], 0.006505, places=6)   # chi-squared, 4 df, at 14.26
+        self.assertEqual(s["expected_found_excluding_own_post"], 1.25)
+        self.assertAlmostEqual(s["fisher_p_excluding_own_post"], S.fisher([0.7, 1.0]))
+        # no outcome in scope: no p, as for the audited null; its expected count sums as 0
+        self.assertEqual((r["expected_found_excluding_own_post"], r["makes_scored_excluding_own_post"],
+                          r["fisher_p_excluding_own_post"]), (0.0, 0, None))
+        self.assertNotIn("beyond_chance_excluding_own_post", x)   # no verdict: CHOICE-V002's rule is the audited p
+
+    def test_audits_written_before_the_null_was_kept_give_none(self) -> None:
+        old = S.summarise({"JEEP": _audit(self.STRONG), "DODGE": _audit(self.WEAK, in_scope=5)})
+        for c in S.CHANNELS:
+            self.assertEqual(old["makes"]["JEEP"]["channels"][c]["expected_found_excluding_own_post"], None)
+            self.assertEqual(old["makes"]["JEEP"]["channels"][c]["p_value_excluding_own_post"], None)
+            self.assertEqual((old["channels"][c]["expected_found_excluding_own_post"],
+                              old["channels"][c]["makes_scored_excluding_own_post"],
+                              old["channels"][c]["fisher_p_excluding_own_post"]), (None, 0, None))
+        mixed = S.summarise({"JEEP": _audit(self.STRONG, own_post={c: (0.5, 0.02) for c in S.CHANNELS}),
+                             "DODGE": _audit(self.WEAK, in_scope=5)})
+        self.assertEqual((mixed["channels"]["X"]["expected_found_excluding_own_post"],
+                          mixed["channels"]["X"]["fisher_p_excluding_own_post"]), (None, None))
+        self.assertEqual(mixed["makes"]["JEEP"]["channels"]["X"]["p_value_excluding_own_post"], 0.02)
 
 
 class InvestigationProbeTests(unittest.TestCase):
