@@ -2,7 +2,8 @@
 
 Twenty calls replace three guesses in the market sizing (`MARKET.md` section 3.1): the **constraint share** (30–60%
 assumed), the **ACV** ($100–300k assumed) and the **cost of a late signal**. This kit fixes the questions and the
-decision rules before the first call, so the answers cannot be read to fit. No call has been made yet.
+decision rules before the first call, so the answers cannot be read to fit. No call has been made yet. The first
+email, the pilot offer and the letter of intent are in `OUTREACH.md`.
 
 ## 1. Who to call
 
