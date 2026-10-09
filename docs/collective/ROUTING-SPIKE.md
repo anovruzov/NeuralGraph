@@ -8,6 +8,11 @@ head of the base branch when this was written.
 review of Run 1 and before Run 2. Section 11 records Run 1, section 12 Run 2. Sections 0 to 9 are unchanged since the
 pre-registration commit `988646a`.
 
+**Results.** Run 1 passed. Run 2, the same experiment after the review's fixes (chiefly: a site no longer ranks records
+received after the question's `as_of`), failed on the no-plant bar: the upper end of R − U's false-conclusion rate was
+0.0554, above the pre-registered 0.05. Its primary interval stayed far above 0. By section 5.3 a no-plant fail means
+plan item 3.2's done-criterion is not met. Both runs are recorded; section 12 reads them together.
+
 **This is a spike, not a decision.** It informs decision 1 (where Tesseract runs at a site) and decision 2 (what
 Tesseract routes when nobody asks a question) in `docs/handoff/HANDOFF-2026-10-09.md`. Both stay with the chief
 scientist. A pass or a fail here is one input to each.
@@ -601,7 +606,8 @@ settings and the pass bars are as frozen. The code is in `research/routing_spike
 10. **Look-ahead in the ranking.** The site graph holds all of the site's own records of the 52 weeks (section 1.4:
     "Tesseract over the whole session"). So records received after a question's `as_of` take part in Tesseract's
     ranking. They are never read: only records received in the question window are kept, and the window ends at or
-    before the last week closed at `as_of`. This is the same for every arm.
+    before the last week closed at `as_of`. This is the same for every arm. *(review)* They did change what was read,
+    and some verdicts: see deviation 16.
 11. **No edges, no reference time.** The graph holds the MESSAGE nodes only, with no edges, so Tesseract's temporal
     neighbour boost adds nothing. Tesseract is called without a reference time.
 12. **Site order.** The A pass asks the sites in sorted id order, as the shipped orchestrator does. Routes in the
@@ -656,16 +662,23 @@ settings difference between that file and `prereg.json`.
 
 ## 11. Run 1
 
-**The first run is the result.** Synthetic, `measurement: false`, one illustrative pack, a same-author plant spec. It
-is a spike result that informs decisions 1 and 2. It decides neither. Every figure below comes from the run file
-through the commands in Appendix B.
+**The first run under the pre-registration.** Synthetic, `measurement: false`, one illustrative pack, a same-author
+plant spec. It is a spike result that informs decisions 1 and 2. It decides neither. Every figure below comes from the
+run file through the commands in Appendix B.
+
+**Amended after review.** A review of Run 1 found seven minor defects (section 10, deviations 16 to 20). None makes Run
+1 invalid, and its numbers below are unchanged. Each amendment is marked *(review)*: the timings, the site-side
+look-ahead, the `truncated` flag, the contested cases, what the pass shows, decision 1, and the reproducibility checks.
+Run 2 (section 12) repeats the run with the fixes.
 
 **The run.** `python -m research.routing_spike.run run --run-id run-1 --jobs 4`, on commit `e285c6c` (the prereg
 commit), in-process mode, 4 worker processes on a 4-core machine. The prereg check passed: `prereg.json` sha256
 `824e9ee0…2c98e303`, code hash `5a10c6a3…7db5c3e`, no uncommitted change under the spike's code paths. All 40 worlds
 (20 seeds, planted and no-plant) ran in 1,392.8 s; the whole command took 1,409.8 s. A planted world took 233.7 to
-255.7 s, a no-plant world 14.9 to 33.1 s. The run file `runs/routing_spike/run-1/result.json` has sha256
-`de13dcc7…dbf38b783e`.
+255.7 s, a no-plant world 14.9 to 33.1 s. *(review)* These times are one run's wall-clock measurements on a loaded
+4-core machine; they will not reproduce exactly. The run file `runs/routing_spike/run-1/result.json` has sha256
+`de13dcc7…dbf38b783e`. It embeds the timings, so a re-run gives another sha256. The reproducibility anchor is the
+timing-free `run-1-routes.json`, sha256 `9f184072…edf5b6289`: every candidate, answer sha256, route and gate status.
 
 **Verdict: pass.** Every integrity check held, the primary lower end is above 0, and the no-plant upper end is at most
 0.05.
@@ -737,48 +750,217 @@ The extra reported check also held: in every route of every world, `route_select
 - Sites answered 8,412 (question, site) pairs. Tesseract ranked for 8,126 of them; in the other 286 the id was outside
   the site's master data, so nothing was read (step 4 of 1.4). The median ranking time was 0.462 s per question
   (0.483 s in planted worlds, 0.201 s in no-plant worlds), the 95th percentile 0.681 s, with four worlds running at
-  once. A site graph held 498 to 699 nodes in planted worlds (median 601.5) and 152 to 253 in no-plant worlds.
+  once (wall-clock, one run). A site graph held 498 to 699 nodes in planted worlds (median 601.5) and 152 to 253 in
+  no-plant worlds.
 - Tesseract returned a median of 78 nodes per ranking, of which a median of 15 were in the question window, while the
   window held a median of 132 of the site's own records. The L = 50 cut never removed a record. In 6,793 rankings the
-  window held more than 50 own records, so those verdicts carry `truncated: true`.
+  window held more than 50 own records, so those verdicts carry `truncated: true`. *(review)* That flag gave HQ a wrong
+  account. It was true where the L cut removed nothing, and false where Tesseract's own cut left most in-window records
+  unread. Deviation 17 fixes its meaning.
 - On the same questions the shipped retrieval found 81,785 in-window records; 37,725 of them (46%) were not among the
   records Tesseract kept. The Tesseract site's verdict matched the shipped verifier's in 7,716 of 8,412 (question, site)
   pairs (91.7%).
+- *(review)* Every site-side figure above carries a look-ahead (deviation 16). Each site's graph held all 52 weeks of
+  its records, and Tesseract returns only its stores' top candidates. So records received after a question's `as_of`
+  crowded in-window records out of Tesseract's top set, and changed some verdicts. Over all rankings, 1,425,012 of the
+  4,400,858 node slots Tesseract ranked (32%) were records received after the question's `as_of`. Without them (Run
+  2), sites read 183,947 records instead of 130,707, kept 62% of the shipped retrieval's records instead of 54%, and
+  agreed with the shipped verifier in 95.4% of pairs instead of 91.7%. 312 of the 8,412 (question, site) verdicts
+  differ between the two runs: 166 refute became confirm, 37 unknown became confirm, 109 unknown became refute
+  (Appendix C). Every arm got the same answers, so R − U was not biased by this; the level of every arm was.
 - Bytes: a question at most 497 B, a verdict at most 623 B, a descriptor at most 337 B. HQ's exported bytes per
   coordinator query averaged 3,634.8 B (at most 7,043 B) over 36,452 queries.
 
 **Why R found more than A.** On true candidates, R concluded `supported` where A concluded `contested` 37 times, and A
 concluded `supported` where R concluded `hypothesis` 8 times. In all 37, every site that refuted was outside R's three
 sites. The gate marks a conclusion `contested` when a contributing site refutes. Asking every site also asks the
-contributing sites whose Tesseract read missed the confirming records.
+contributing sites whose Tesseract read missed the confirming records. *(review)* This is a defect of the Tesseract
+path, not only a retrieval loss. A contributing site holds a cell of the key in the window, so its extractor stored a
+claim that the lexical judge would confirm on that record. Tesseract's ranking ignores the entity, so the site often
+never reads that record, and then refutes on other records that name the entity. The site's verdict contradicts what
+its own cells already told HQ. On true candidates A concluded `contested` 240 times in Run 1, so this happened at a
+contributing site for 240 of the 991 (Appendix C).
 
 **What this shows.**
 
 - The path runs end to end: per-site NeuralGraph, Tesseract through `NeuralGraphMemoryAdapter`, a two-kind byte
   interface, `TesseractCoordinator` with rank fusion and holder selection, the shipped gate, and conclusions in the
-  fabric with reconstructable lineage that the scorer cross-checks against both sides' logs. The done-criterion of
-  plan item 3.2 is met on this synthetic world.
+  fabric with reconstructable lineage that the scorer cross-checks against both sides' logs. *(review)* In Run 1 the
+  done-criterion of plan item 3.2 is met only trivially, on a synthetic world where holders always leave cells (R1
+  matches R; R0 gains +1.45 over U). Run 2, without the site look-ahead, fails the no-plant bar, so it is not met there
+  (section 12).
 - As section 6 predicted, the pass is close to guaranteed here. R1, the key's own cells alone, does as well as R
   (+19.90 over U against +19.45). R0, which removes the key's own window cells, gains only +1.45 [0.61, 2.33] over U.
   So nearly all of R's gain is the key's own cells marking the holders. That is weak evidence for decision 2. It does
-  not show that a router can find holders the cells do not mark.
+  not show that a router can find holders the cells do not mark. *(review)* R's three sites held every planted site of
+  the pattern for 916 of the 991 true candidates (660 two-site and 256 three-site patterns); for 66 they held 2 of 3,
+  for 9 only one (Appendix C). The real test of decision 2 is still the one section 7 names: holders whose evidence
+  the cells do not mark.
 - The placebo matches U (P − U +0.55, interval across 0), so the router's code path does not favour sites by itself.
 - Routing costs false conclusions. On no-plant worlds R concluded `supported` on 8 of 202 candidates, U on 2.35. The
   bar held by 0.0015. On planted worlds R's false conclusions are mostly high-base-rate decoys, which every arm that
-  asks the key's holders also confirms (A 48, O 48).
+  asks the key's holders also confirms (A 48, O 48). *(review)* With the look-ahead removed, this bar fails (Run 2,
+  section 12).
 - Site retrieval is the shared loss, not the router. Even asking every site found 529 of the 991 patterns with a true
   candidate, and the oracle 570. Tesseract kept 54% of the records the shipped retrieval reads. The L = 50 cut played
   no part: Tesseract returns only its stores' top candidates, about 78 of the site's nodes, before the window filter.
 
 **For decision 1.** The narrow interface was enough: HQ reached each site only through `describe` and `question`
-bytes. Process mode gave byte-identical verdicts in the test (deviation 2). The adapter needed a `claim_projection`,
-since its default claim content is a node's text. Ranking cost about half a second per question at about 600 nodes on
-this machine. `hq` and `wire` load no numpy and no retrieval package; the site process loads both. It does not choose
-between options (a) and (b).
+bytes. *(review)* Run 1 ran in process: HQ and the sites shared one interpreter, and only code discipline kept them
+apart. Process mode was checked on 2 candidates of one no-plant world only (deviation 2). Run 2 checks a whole planted
+world in process mode (section 12). The adapter needed a `claim_projection`, since its default claim content is a
+node's text. Ranking cost about half a second per question at about 600 nodes on this machine. `hq` and `wire` load no
+numpy and no retrieval package; the site process loads both. *(review)* The Tesseract path has a defect that matters
+for decision 1: a site can refute a key that its own cells assert (see "Why R found more than A"). The obvious remedy,
+for a later spike and outside this criterion, is to rank with Tesseract inside the entity-matched set that the shipped
+retrieval returns, or to read the union of the two. It does not choose between options (a) and (b).
 
 **Committed copies.** `docs/collective/routing_spike/run-1.json` is the run file without its routes section (sha256
 `f38c1b88…dc5d62c5a`). `docs/collective/routing_spike/run-1-routes.json` holds, per world, every route, gate status and
 verdict sha256 in a compact form (sha256 `9f184072…edf5b6289`). Appendix B gives the script that wrote both.
+*(review)* `run.py export` reproduces both files byte for byte from Run 1's run file. Re-running seed 1's two worlds
+with Run 1's code (`e285c6c`) reproduced their entries of `run-1-routes.json` byte for byte. Re-scoring Run 1's run
+files with Run 2's stricter scorer (deviation 19) gave the same statistics and the same per-seed counts (Appendix C).
+
+## 12. Run 2
+
+**Why a second run.** The review of Run 1 found the defects that section 10, deviations 16 to 20, fix. Two of them
+change what sites answer: the ranking now stops at the question's `as_of`, and `truncated` has a new meaning. So the
+experiment ran again. Same criterion (section 5), same arms, same world, same seeds, same candidates, and every setting
+but the ranker's scope. Run 1 stays valid and recorded. Synthetic, `measurement: false`, one illustrative pack, a
+same-author plant spec. Every figure below comes from the commands in Appendix C.
+
+**The run.** `python -m research.routing_spike.run run --run-id run-2 --jobs 4 --prereg
+docs/collective/routing_spike/prereg-run-2.json`, on commit `062c5e7` (code `a1ac46b`), in-process mode, 4 worker
+processes on a 4-core machine. The prereg check passed: `prereg-run-2.json` sha256 `b2c8d463…0ea4e29e`, code hash
+`ad2ce425…8b26fdb77`, no uncommitted change under the spike's code paths. The 40 worlds ran in 1,067.8 s; the whole
+command took 1,085.7 s. A planted world took 178.3 to 195.4 s, a no-plant world 12.6 to 24.5 s. These are one run's
+wall-clock times on a 4-core machine; they will not reproduce exactly. The run file has sha256 `25573f38…157365106`,
+timings included. The reproducibility anchor is `run-2-routes.json`, sha256 `59edfb50…cc9de1e43`. The candidate lists
+are the same as Run 1's in all 40 worlds.
+
+**Verdict: fail.** Every integrity check held and the primary lower end is above 0. The no-plant upper end is 0.0554,
+above the bar of 0.05.
+
+| | Statistic | 95% interval | Bar | Met |
+|---|---|---|---|---|
+| Primary: found net, R − U, mean over 20 seeds | +22.195 patterns | [21.2825, 23.1475] | lower end > 0 | yes |
+| No-plant: false-conclusion rate, R − U, mean over 20 seeds | +0.0349 | [0.0166, 0.0554] | upper end ≤ 0.05 | no, by 0.0054 |
+
+Both are `stats.paired_bootstrap` with B = 10,000 and the pre-registered seeds. Per seed, D(s) ran from 18.35 to
+26.95. No find was a chance find in any arm. Section 5.3 fixed in advance how to read this: a no-plant fail "says
+routing bought its finds by confirming background", and either fail means plan item 3.2's done-criterion is not met.
+
+**The arms** (as in Run 1's table; U is the mean over its 20 subsets):
+
+| Arm | Found net, total | Per seed | No-plant supported | Pooled rate | Planted false |
+|---|---|---|---|---|---|
+| R, routed | 638 | 28 to 38 | 10 | 0.0495 | 90 |
+| U, random (mean of 20 subsets) | 194.1 | 7.9 to 11.5 | 2.95 | 0.0146 | 55 |
+| A, every site | 611 | 27 to 35 | 11 | 0.0545 | 90 |
+| O, oracle (reads the plant spec) | 649 | 28 to 38 | 10 | 0.0495 | 90 |
+| R1, key cells only | 648 | 28 to 37 | 11 | 0.0545 | 94 |
+| R0, cell-blind | 225 | 7 to 14 | 4 | 0.0198 | 48 |
+| P, placebo | 202 | 7 to 17 | 4 | 0.0198 | 53 |
+
+Of R's 90 planted-world false conclusions, 59 are on `high_base_rate_everywhere` decoys, 21 on
+`cross_site_unmarked_copies`, 4 on `single_reporter` and 6 on background candidates.
+
+**Secondary comparisons** (paired bootstrap over seeds, B = 10,000, seed `routing-spike:<a>-<b>`; no bar):
+
+| Comparison | Mean | 95% interval |
+|---|---|---|
+| R1 − U | +22.695 | [21.8475, 23.5925] |
+| R0 − U | +1.545 | [0.7575, 2.35] |
+| P − U | +0.395 | [−0.5126, 1.3375] |
+| R − U, patterns at 2 sites | +16.26 | [15.3175, 17.1301] |
+| R − U, patterns at 3 sites | +5.935 | [5.3174, 6.5826] |
+| R − A | +1.35 | [0.7, 2.05] |
+| R − O | −0.55 | [−0.95, −0.2] |
+
+**Integrity checks** (all held): leakage 0 bytes of narrative overlap and 0 canary hits in 285,469,092 scanned bytes;
+113,562 question frames and 240 describe frames, nothing else, no intake refusal, each site's descriptor byte-identical
+in all 40 worlds; imports as in Run 1; router blindness in all 40 worlds; one shared candidate list per world; every
+route of size 3 (A: 6); every (question, site) verdict byte-identical across the labels that asked it (shared-answer
+mode in every world, no `budget` unknown); fabric, now with the stricter lineage check of deviation 19; equivalence 360
+of 360 on seed 1's planted world; code and settings matching `prereg-run-2.json`. In every route of every world
+`route_selected` came before any retrieval event.
+
+**Process mode** (deviation 18). `run.py process-check` re-ran seed 1's planted world, all 60 candidates and 26 route
+labels, with every site as a child process. All 360 (question, site) verdicts, every route and gate status, every
+coordinator trace and the candidate list were byte-identical to Run 2's in-process world, and every world check held.
+It took 190.3 s (wall-clock).
+
+**Site side, without the look-ahead.**
+
+- Sites answered 8,412 (question, site) pairs; Tesseract ranked for 8,126 of them, and 286 ids were outside the site's
+  master data. Per ranking, the site's graph held a median of 586 nodes, of which a median of 369 were received on or
+  before the question's `as_of`. Over all rankings, 1,425,012 of 4,400,858 node slots (32%) were records received
+  after `as_of`. Run 1 ranked those; Run 2 does not.
+- Tesseract returned a median of 76 nodes, a median of 22 of them in the window (Run 1: 15), while the window held a
+  median of 132 own records. Sites read 183,947 records in all (Run 1: 130,707). The L = 50 cut removed records in 23
+  rankings (Run 1: none).
+- The shipped retrieval found 81,785 in-window records about the questions' entities; 31,153 of them (38%) were not
+  read (Run 1: 37,725, 46%). The Tesseract site's verdict matched the shipped verifier's in 8,022 of 8,412 pairs
+  (95.4%; Run 1: 91.7%).
+- Between the runs, 312 of the 8,412 (question, site) verdicts changed: 276 of 7,200 in planted worlds and 36 of 1,212
+  in no-plant worlds. 166 refute became confirm, 37 unknown became confirm, 109 unknown became refute. Only the
+  `as_of` bound changes a verdict; the `truncated` flag changes a field, never the verdict.
+- `truncated` (deviation 17): in 5,372 of the 8,126 rankings at least one in-window record about the entity was not
+  read, so those verdicts say so. In 193 rankings the window held no record about the entity at all.
+- The median ranking time was 0.308 s per question (0.334 s planted, 0.125 s no-plant), the 95th percentile 0.535 s,
+  with four worlds running at once (wall-clock, one run).
+- Bytes: a question at most 497 B, a verdict at most 624 B, a descriptor at most 337 B; HQ exported 3,636.6 B per
+  coordinator query on average (at most 7,043 B) over 36,452 queries.
+
+**Why the no-plant bar failed.** On the 202 no-plant candidates R concluded `supported` 10 times (Run 1: 8), U 2.95
+times (Run 1: 2.35). The change sits in two seeds: R's no-plant rate rose from 0.0769 to 0.1538 in seed 4 and from 0
+to 0.0769 in seed 5. Without the look-ahead, sites read more in-window records, so they confirm more, on background
+keys as on planted ones: in no-plant worlds 26 site verdicts became confirm (20 from refute, 6 from unknown) and 10
+became refute. R asks the sites whose cells show the key, so it gains more of those confirms than random choice does. Every arm that asks the cell holders gains them: A concluded `supported` on 11 no-plant candidates, R1 on
+11. This is the trap of section 6 showing in the cost column: the cells mark the sites that will confirm, whether or
+not anything was planted.
+
+**Why R found more than A.** On true candidates R concluded `supported` where A concluded `contested` 34 times (Run 1:
+37), and A concluded `supported` where R concluded `hypothesis` 7 times (Run 1: 8). In all 34, every refuting site was
+outside R's route. A concluded `contested` on 169 of the 991 true candidates (Run 1: 240). So the defect of the
+Tesseract path (a contributing site refutes a key its own cells assert) shrank without the look-ahead, and remains.
+
+**What Run 2 shows.**
+
+- The path runs end to end, now also with every site as a child process on a whole planted world.
+- Routing still finds far more planted patterns than random choice: +22.195 [21.2825, 23.1475]. As in Run 1 this is
+  close to guaranteed by construction. R1 alone gains +22.695; R0 gains +1.545 [0.7575, 2.35]. The routes never read an
+  answer, so they are the same as Run 1's: R's three sites held every planted site for 916 of the 991 true candidates.
+- Routing on cells costs false conclusions, and on this run more than the pre-registered bar allows. Removing the
+  look-ahead raised every arm's finds (R 558 to 638, U 168.95 to 194.1, A 529 to 611, O 570 to 649) and its false
+  conclusions with them (R in planted worlds 61 to 90, in no-plant worlds 8 to 10).
+- The placebo matches U (P − U +0.395, interval across 0).
+
+**Reading the two runs together.** Run 1 passed with the no-plant bar held by 0.0015. Run 2 fails it by 0.0054. Both
+upper ends sit close to the bar. The difference between the runs is the review's fixes, chiefly that a site no longer
+ranks records it would not yet hold. Run 1 is not withdrawn: its integrity checks held and its R − U was not biased.
+But its sites read less than a real site would, and that hid part of the cost that the no-plant bar measures. So the
+verdict of the current code is Run 2's: fail, on the no-plant bar. This page does not mark plan item 3.2 done. That
+call, and what to make of a bar met in one run and missed in the next, stay with the chief scientist.
+
+**For decision 1.** The narrow interface was enough, now shown in process mode on a whole planted world: HQ reached
+each site only through `describe` and `question` bytes, and got byte-identical answers. Three site-side lessons came
+out of the review. A site must rank only what it holds at the question's `as_of`; a live site does this by nature, a
+replayed or backfilled one must enforce it. A site must compute `truncated` against what the question is about, not
+against a fixed cap. And the Tesseract path still lets a site refute a key its own cells assert (169 contested true
+candidates under A). The remedy for a later spike stays the one in section 11: rank inside the shipped entity-matched
+set, or read the union. Ranking cost about 0.3 s per question at about 370 visible nodes on this machine. It does not
+choose between options (a) and (b).
+
+**For decision 2.** Unchanged from Run 1, and weaker. Routing on the key's own cells finds holders when holders leave
+cells, and it also concentrates questions on sites that will confirm background. The real test is still the one
+section 7 names: holders whose evidence the cells do not mark, read by a model.
+
+**Committed copies.** `docs/collective/routing_spike/run-2.json` is the run file without its routes section (sha256
+`fdeb9b05…db20cb7b`). `docs/collective/routing_spike/run-2-routes.json` holds every candidate, answer sha256, route and
+gate status (sha256 `59edfb50…cc9de1e43`). Both were written by `run.py export`.
+`docs/collective/routing_spike/run-2-process-check.json` is the process-mode check (sha256 `6292eb4f…2fc44edd`).
 
 ## Appendix A. Commands behind the numbers
 
@@ -1171,4 +1353,329 @@ site-side local reasons of every stored verdict {None: 7646, 'unclear': 477, 'no
 site diagnostics: rankings 8126 | nodes Tesseract returned, median 78.0 | of them in the window, median 15.0 | own records in the window, median 132.0 | rankings where L = 50 cut anything 0 | rankings with more than 50 own records in the window (truncated) 6793
 leakage {'overlap_bytes': 0, 'scanned_bytes': 285301456} | equivalence {'pairs': 360, 'differing': 0} | descriptors constant per site True | answer modes ['shared']
 worlds 40 | wire requests by kind {'describe': 240, 'question': 113562} | intake refusals 0 | canary hits 0 | route_selected first in every route of every world True
+```
+
+## Appendix C. Commands behind the review fixes and Run 2
+
+Run in this worktree after Run 2, on commit `062c5e7` with Run 2's run files in place, Python 3, offline. `RUN1` is Run
+1's run directory, `runs/routing_spike/run-1` in the worktree that ran it (run files are git-ignored). `SCRATCH` is a
+scratch directory outside the repository. The helper scripts live there and are printed here in full. `run1_facts.py`
+is Appendix B's script, unchanged.
+
+**Run 2.**
+
+```
+$ PYTHONPATH=. python3 -m research.routing_spike.run run --run-id run-2 --jobs 4 --prereg docs/collective/routing_spike/prereg-run-2.json
+...
+routing spike: verdict=fail primary mean R-U=22.1950 [21.2825, 23.1475] noplant R-U=0.0349 [0.0166, 0.0554] -> runs/routing_spike/run-2/result.json sha256=25573f38237916e88971afb3b4312994c10dc47971b0d41e0b9c622157365106 (synthetic)
+```
+
+**The committed copies, and the exporter on Run 1's run file.**
+
+```
+$ PYTHONPATH=. python3 -m research.routing_spike.run export runs/routing_spike/run-2/result.json docs/collective/routing_spike/run-2.json docs/collective/routing_spike/run-2-routes.json
+export: docs/collective/routing_spike/run-2.json sha256=fdeb9b05f8f8631d46ff037366bfec806c895753b3c388a316f15e0cdb20cb7b
+export: docs/collective/routing_spike/run-2-routes.json sha256=59edfb5052142964da4d9e4ec87f796d77ae635dd87f18d3a3d7be5cc9de1e43
+$ PYTHONPATH=. python3 -m research.routing_spike.run export $RUN1/result.json $SCRATCH/exp1/run-1.json $SCRATCH/exp1/run-1-routes.json
+export: $SCRATCH/exp1/run-1.json sha256=f38c1b884919fcd21cd8a31cd6362cb6470cee76ca27b4b42725daddc5d62c5a
+export: $SCRATCH/exp1/run-1-routes.json sha256=9f184072fa30228d29d423b689ba9a9fbd2e1ad25aaf63792f2ddb4edf5b6289
+$ cp runs/routing_spike/run-2/process-check.json docs/collective/routing_spike/run-2-process-check.json
+$ sha256sum runs/routing_spike/run-2/result.json docs/collective/routing_spike/*.json
+25573f38237916e88971afb3b4312994c10dc47971b0d41e0b9c622157365106  runs/routing_spike/run-2/result.json
+b2c8d46322364169b650b0d69aef515ca1872c6b1d16898183200e2a0ea4e29e  docs/collective/routing_spike/prereg-run-2.json
+824e9ee0383ef43651a0b4c6103078a6e75bbd6f2001bb6f1e1769552c98e303  docs/collective/routing_spike/prereg.json
+9f184072fa30228d29d423b689ba9a9fbd2e1ad25aaf63792f2ddb4edf5b6289  docs/collective/routing_spike/run-1-routes.json
+f38c1b884919fcd21cd8a31cd6362cb6470cee76ca27b4b42725daddc5d62c5a  docs/collective/routing_spike/run-1.json
+6292eb4fe7fdf85f56dc8f707b8632e9621d8e83a7564e362e27280f2fc44edd  docs/collective/routing_spike/run-2-process-check.json
+59edfb5052142964da4d9e4ec87f796d77ae635dd87f18d3a3d7be5cc9de1e43  docs/collective/routing_spike/run-2-routes.json
+fdeb9b05f8f8631d46ff037366bfec806c895753b3c388a316f15e0cdb20cb7b  docs/collective/routing_spike/run-2.json
+```
+
+**Process mode** (deviation 18):
+
+```
+$ PYTHONPATH=. python3 -m research.routing_spike.run process-check --run-dir runs/routing_spike/run-2 --seed 1 --world planted
+process check: ok=True world=seed-01-planted pairs=360 differing=0 same={"answers": true, "candidates": true, "routes": true, "traces": true, "world_checks": true} seconds=190.3 -> runs/routing_spike/run-2/process-check.json sha256=6292eb4fe7fdf85f56dc8f707b8632e9621d8e83a7564e362e27280f2fc44edd
+```
+
+**Every figure of section 12 that the run file holds.** `python3 run1_facts.py runs/routing_spike/run-2/result.json`.
+The label "(truncated)" at the end of its "site diagnostics" line counts Run 1's flag (more than 50 own records in
+the window); Run 2's flag is counted by `site_facts.py` below. Output:
+
+```
+verdict fail | failed checks []
+checks {'10_code_and_settings': True, '1_leakage': True, '2_crossing_types': True, '3_imports': True, '4_router_blindness': True, '5_shared_candidates': True, '6_equal_budget': True, '7_answer_identity': True, '8_fabric': True, '9_equivalence': True}
+primary mean 22.195 ci 21.2825 23.1475 pass True B 10000 seed routing-spike:primary
+noplant mean 0.0349 ci 0.0166 0.0554 pass False B 10000 seed routing-spike:noplant
+D(s) = F_R - F_U [21.5, 21.9, 20.4, 22.4, 26.85, 22.9, 21.5, 23.2, 23.5, 20.45, 23.5, 18.35, 22.85, 20.55, 26.95, 23.55, 19.9, 21.1, 19.75, 22.8]
+R: found_net per seed min 28.0 median 31.0 max 38.0 | total 638 chance 0 | no-plant supported 10 of 202 pooled 0.0495 | planted-world false supported 90
+U: found_net per seed min 7.9 median 9.625 max 11.5 | total 194.1 chance 0 | no-plant supported 2.95 of 202 pooled 0.0146 | planted-world false supported 55
+A: found_net per seed min 27.0 median 30.0 max 35.0 | total 611 chance 0 | no-plant supported 11 of 202 pooled 0.0545 | planted-world false supported 90
+O: found_net per seed min 28.0 median 32.0 max 38.0 | total 649 chance 0 | no-plant supported 10 of 202 pooled 0.0495 | planted-world false supported 90
+R1: found_net per seed min 28.0 median 32.0 max 37.0 | total 648 chance 0 | no-plant supported 11 of 202 pooled 0.0545 | planted-world false supported 94
+R0: found_net per seed min 7.0 median 12.0 max 14.0 | total 225 chance 0 | no-plant supported 4 of 202 pooled 0.0198 | planted-world false supported 48
+P: found_net per seed min 7.0 median 10.0 max 17.0 | total 202 chance 0 | no-plant supported 4 of 202 pooled 0.0198 | planted-world false supported 53
+secondary R1 - U all mean 22.695 ci 21.8475 23.5925 seed routing-spike:R1-U
+secondary R0 - U all mean 1.545 ci 0.7575 2.35 seed routing-spike:R0-U
+secondary P - U all mean 0.395 ci -0.5126 1.3375 seed routing-spike:P-U
+secondary R - U 2 mean 16.26 ci 15.3175 17.1301 seed routing-spike:R-U:2-site
+secondary R - U 3 mean 5.935 ci 5.3174 6.5826 seed routing-spike:R-U:3-site
+secondary R - A all mean 1.35 ci 0.7 2.05 seed routing-spike:R-A
+secondary R - O all mean -0.55 ci -0.95 -0.2 seed routing-spike:R-O
+no-plant rate per seed R [0.0, 0.0, 0.0, 0.1538, 0.0769, 0.1, 0.0, 0.0, 0.0, 0.0, 0.1667, 0.0, 0.0833, 0.0833, 0.0, 0.0909, 0.0, 0.0909, 0.125, 0.0]
+no-plant rate per seed U [0.0, 0.0, 0.0, 0.0423, 0.0154, 0.02, 0.0, 0.0, 0.0, 0.0, 0.0333, 0.0, 0.0417, 0.0583, 0.0, 0.0182, 0.0, 0.0182, 0.025, 0.0]
+planted-world false supported by class {"A": {"background": 6.0, "decoy:cross_site_unmarked_copies": 20.0, "decoy:high_base_rate_everywhere": 60.0, "decoy:single_reporter": 4.0}, "O": {"background": 6.0, "decoy:cross_site_unmarked_copies": 21.0, "decoy:high_base_rate_everywhere": 59.0, "decoy:single_reporter": 4.0}, "P": {"background": 2.0, "decoy:cross_site_unmarked_copies": 10.0, "decoy:high_base_rate_everywhere": 40.0, "decoy:single_reporter": 1.0}, "R": {"background": 6.0, "decoy:cross_site_unmarked_copies": 21.0, "decoy:high_base_rate_everywhere": 59.0, "decoy:single_reporter": 4.0}, "R0": {"background": 3.0, "decoy:cross_site_unmarked_copies": 10.0, "decoy:high_base_rate_everywhere": 34.0, "decoy:single_reporter": 1.0}, "R1": {"background": 6.0, "decoy:cross_site_unmarked_copies": 22.0, "decoy:high_base_rate_everywhere": 62.0, "decoy:single_reporter": 4.0}, "U": {"background": 1.950000000000001, "decoy:cross_site_unmarked_copies": 9.800000000000013, "decoy:high_base_rate_everywhere": 42.39999999999993, "decoy:single_reporter": 0.8500000000000002}}
+planted candidates [60] detected min/max 85 95 | records min/max 3657 3707
+no-plant candidates total 202 per seed min/max 5 13 | records min/max 1257 1307
+answer modes ['shared'] budget unknowns 0
+world seconds planted min/median/max 178.3 189.9 195.4 | no-plant 12.6 21.6 24.5
+run {"command": "python -m research.routing_spike.run run --run-id run-2 --jobs 4 --prereg docs/collective/routing_spike/prereg-run-2.json", "mode": "in_process", "jobs": 4, "worlds_s": 1067.8322857889943, "total_s": 1085.747655225001}
+site side {"agreement_pairs": 8412, "agreement_same": 8022, "shipped_found": 81785, "shipped_outside_tesseract_kept": 31153, "tesseract_queries": 8126, "tesseract_seconds_median": 0.3082030279983883, "tesseract_seconds_median_noplant": 0.12478229699991061, "tesseract_seconds_median_planted": 0.333978931994352, "tesseract_seconds_p95": 0.534665361745283}
+nodes per site {'noplant': (152, 193.0, 253), 'planted': (498, 601.5, 699)}
+bytes {"descriptor": {"max": 337, "n": 240, "total": 80360}, "hq_exported_per_query": {"max": 7043, "n": 36452, "total": 132561592}, "question": {"max": 497, "n": 8412, "total": 3835092}, "verdict": {"max": 624, "n": 8412, "total": 5142290}} | exported per query mean 3636.6
+patterns with a true candidate per planted world [50, 51, 50, 46, 50, 51, 50, 49, 49, 46, 53, 45, 50, 49, 51, 50, 50, 48, 51, 52] total 991
+R against A on true candidates {'R supported, A contested': 34, 'A supported, R hypothesis': 7} {"every refuting site outside R's route": 34}
+shipped records kept by Tesseract 0.6191 | verdict agreement 0.9536
+site-side local reasons of every stored verdict {None: 7792, 'unclear': 334, 'not_master_data': 286}
+site diagnostics: rankings 8126 | nodes Tesseract returned, median 76.0 | of them in the window, median 22.0 | own records in the window, median 132.0 | rankings where L = 50 cut anything 23 | rankings with more than 50 own records in the window (truncated) 6793
+leakage {'overlap_bytes': 0, 'scanned_bytes': 285469092} | equivalence {'pairs': 360, 'differing': 0} | descriptors constant per site True | answer modes ['shared']
+worlds 40 | wire requests by kind {'describe': 240, 'question': 113562} | intake refusals 0 | canary hits 0 | route_selected first in every route of every world True
+```
+
+The same script on Run 1's run file (`python3 run1_facts.py $RUN1/result.json > run1_facts.out`) still prints
+Appendix B's output byte for byte. The check:
+
+```python
+import re
+t = open("docs/collective/ROUTING-SPIKE.md").read()
+b = t.split("## Appendix B.")[1]
+outs = re.findall(r"Output:\n\n```\n(.*?)```", b, re.S)
+mine = open("run1_facts.out").read()
+print("identical to Appendix B output:", outs[0] == mine)
+```
+
+```
+identical to Appendix B output: True
+```
+
+**Site diagnostics of both runs** (`site_facts.py`; it reads the sites' local Tesseract diagnostics and verdict logs,
+harness side). The script, run with `python3 site_facts.py $RUN1/result.json` and then
+`python3 site_facts.py runs/routing_spike/run-2/result.json`:
+
+```python
+import collections, glob, json, pathlib, sqlite3, statistics as st, sys
+root = pathlib.Path(sys.argv[1]).parent
+diag = [json.loads(line) for p in sorted(glob.glob(str(root / "worlds" / "*" / "edge" / "site-*.tesseract.jsonl")))
+        for line in open(p) if line.strip()]
+med = lambda key: st.median(r[key] for r in diag)
+nodes, visible = sum(r["nodes"] for r in diag), sum(r.get("nodes_as_of", r["nodes"]) for r in diag)
+print("rankings", len(diag), "| graph nodes, median", med("nodes"),
+      "| nodes visible to the ranking (received on or before as_of), median",
+      st.median(r.get("nodes_as_of", r["nodes"]) for r in diag),
+      "| node slots received after as_of, total", nodes - visible, "of", nodes)
+print("returned, median", med("returned"), "| in the window, median", med("in_window_returned"),
+      "| own records in the window, median", med("own_in_window"), "| read, median", med("read"),
+      "| read, total", sum(r["read"] for r in diag))
+print("rankings where L = 50 cut anything", sum(r["in_window_returned"] > 50 for r in diag),
+      "| rankings with more than 50 own records in the window (Run 1's flag)",
+      sum(r["own_in_window"] > 50 for r in diag))
+if "entity_matched" in diag[0]:
+    print("entity-matched in-window records, total", sum(r["entity_matched"] for r in diag), "| of them not read",
+          sum(r["entity_matched_unread"] for r in diag), "| rankings with an unread entity-matched record (truncated)",
+          sum(r["entity_matched_unread"] > 0 for r in diag), "| rankings with no entity-matched record",
+          sum(r["entity_matched"] == 0 for r in diag))
+flags = collections.Counter()
+for path in sorted(glob.glob(str(root / "worlds" / "*" / "edge" / "site-*.sqlite3"))):
+    if ".graph." in path:
+        continue
+    con = sqlite3.connect(path)
+    flags.update((reason, bool(t)) for reason, t in con.execute("SELECT local_reason, truncated FROM verdict_log"))
+    con.close()
+print("stored verdicts by (local reason, truncated)", {f"{k[0]}, {k[1]}": v for k, v in sorted(flags.items(), key=str)})
+```
+
+Output, Run 1 then Run 2 (Run 1's diagnostics have no `nodes_as_of` or entity-match fields, so its first line counts
+every node as visible and it prints no entity-match line):
+
+```
+rankings 8126 | graph nodes, median 586.0 | nodes visible to the ranking (received on or before as_of), median 586.0 | node slots received after as_of, total 0 of 4400858
+returned, median 78.0 | in the window, median 15.0 | own records in the window, median 132.0 | read, median 15.0 | read, total 130707
+rankings where L = 50 cut anything 0 | rankings with more than 50 own records in the window (Run 1's flag) 6793
+stored verdicts by (local reason, truncated) {'no_records, False': 3, 'not_master_data, False': 286, 'unclear, False': 69, 'unclear, True': 408, 'None, False': 1261, 'None, True': 6385}
+rankings 8126 | graph nodes, median 586.0 | nodes visible to the ranking (received on or before as_of), median 369.0 | node slots received after as_of, total 1425012 of 4400858
+returned, median 76.0 | in the window, median 22.0 | own records in the window, median 132.0 | read, median 22.0 | read, total 183947
+rankings where L = 50 cut anything 23 | rankings with more than 50 own records in the window (Run 1's flag) 6793
+entity-matched in-window records, total 81785 | of them not read 31153 | rankings with an unread entity-matched record (truncated) 5372 | rankings with no entity-matched record 193
+stored verdicts by (local reason, truncated) {'not_master_data, False': 286, 'unclear, False': 193, 'unclear, True': 141, 'None, False': 2561, 'None, True': 5231}
+```
+
+**Run 1 against Run 2, and the planted sites in R's route** (`compare_runs.py`, on the two committed routes files and
+the plant spec). The script, run with `python3 compare_runs.py
+mycelic/collective/packs/data/device_quality/fixtures/plant_e2_smoke.json docs/collective/routing_spike/run-1-routes.json
+docs/collective/routing_spike/run-2-routes.json`:
+
+```python
+import collections, json, sys
+spec, files = sys.argv[1], sys.argv[2:]
+sites_of = {p["id"]: set(p["sites"]) for p in json.load(open(spec))["patterns"]}
+runs = [json.load(open(f)) for f in files]
+for f, r in zip(files, runs):
+    cover, a_true, r_true = collections.Counter(), collections.Counter(), collections.Counter()
+    r_supported_cover = collections.Counter()
+    for name, w in sorted(r["worlds"].items()):
+        if not name.endswith("planted"):
+            continue
+        for i, c in enumerate(w["candidates"]):
+            if c[4] != "true":
+                continue
+            planted = {w["site_ids"].index(s) for s in sites_of[c[5]]}
+            route, status = w["routes"]["R"][i].split(":")
+            got = len(planted & {int(x) for x in route})
+            cover[f"{got} of {len(planted)}"] += 1
+            a_true[w["routes"]["A"][i].split(":")[1]] += 1
+            r_true[status] += 1
+            if status == "supported":
+                r_supported_cover[f"{got} of {len(planted)}"] += 1
+    print(f, "| true candidates, R's route covers k of n planted sites:", dict(sorted(cover.items())),
+          "| total", sum(cover.values()))
+    print("  R status on true candidates", dict(sorted(r_true.items())), "| A status on true candidates",
+          dict(sorted(a_true.items())))
+    print("  R supported true candidates by coverage", dict(sorted(r_supported_cover.items())))
+if len(runs) == 2:
+    changed, pairs, moves = collections.Counter(), collections.Counter(), collections.Counter()
+    status_moves = collections.Counter()
+    for name in sorted(runs[0]["worlds"]):
+        w1, w2 = runs[0]["worlds"][name], runs[1]["worlds"][name]
+        kind = name.rsplit("-", 1)[1]
+        assert [c[1] for c in w1["candidates"]] == [c[1] for c in w2["candidates"]]
+        for a1, a2 in zip(w1["answers"], w2["answers"]):
+            v1, v2 = {x[0]: x[1] for x in a1}, {x[0]: x[1] for x in a2}
+            assert set(v1) == set(v2)
+            for s in v1:
+                pairs[kind] += 1
+                if v1[s] != v2[s]:
+                    changed[kind] += 1
+                    moves[f"{kind}: {v1[s]} -> {v2[s]}"] += 1
+        for label in ("R", "U01", "A"):
+            for x1, x2 in zip(w1["routes"][label], w2["routes"][label]):
+                s1, s2 = x1.split(":")[1], x2.split(":")[1]
+                if s1 != s2:
+                    status_moves[f"{label} {kind} {s1} -> {s2}"] += 1
+    same_routes = all(runs[0]["worlds"][n]["candidates"] == runs[1]["worlds"][n]["candidates"] and
+                      {k: [x.split(":")[0] for x in v] for k, v in runs[0]["worlds"][n]["routes"].items()} ==
+                      {k: [x.split(":")[0] for x in v] for k, v in runs[1]["worlds"][n]["routes"].items()}
+                      for n in runs[0]["worlds"])
+    print("same candidates and the same sites in every route of every label, run 1 and run 2:", same_routes)
+    print("(question, site) verdicts changed, run 1 -> run 2:", {k: f"{changed[k]} of {pairs[k]}" for k in pairs},
+          "| moves", dict(sorted(moves.items())))
+    print("gate status changes, run 1 -> run 2 (R, U01, A):", dict(sorted(status_moves.items())))
+```
+
+Output:
+
+```
+docs/collective/routing_spike/run-1-routes.json | true candidates, R's route covers k of n planted sites: {'1 of 2': 7, '1 of 3': 2, '2 of 2': 660, '2 of 3': 66, '3 of 3': 256} | total 991
+  R status on true candidates {'contested': 184, 'hypothesis': 245, 'stale': 4, 'supported': 558} | A status on true candidates {'contested': 240, 'hypothesis': 218, 'stale': 4, 'supported': 529}
+  R supported true candidates by coverage {'1 of 3': 1, '2 of 2': 357, '2 of 3': 31, '3 of 3': 169}
+docs/collective/routing_spike/run-2-routes.json | true candidates, R's route covers k of n planted sites: {'1 of 2': 7, '1 of 3': 2, '2 of 2': 660, '2 of 3': 66, '3 of 3': 256} | total 991
+  R status on true candidates {'contested': 125, 'hypothesis': 224, 'stale': 4, 'supported': 638} | A status on true candidates {'contested': 169, 'hypothesis': 207, 'stale': 4, 'supported': 611}
+  R supported true candidates by coverage {'1 of 3': 1, '2 of 2': 419, '2 of 3': 34, '3 of 3': 184}
+same candidates and the same sites in every route of every label, run 1 and run 2: True
+(question, site) verdicts changed, run 1 -> run 2: {'noplant': '36 of 1212', 'planted': '276 of 7200'} | moves {'noplant: refute -> confirm': 20, 'noplant: unknown -> confirm': 6, 'noplant: unknown -> refute': 10, 'planted: refute -> confirm': 146, 'planted: unknown -> confirm': 31, 'planted: unknown -> refute': 99}
+gate status changes, run 1 -> run 2 (R, U01, A): {'A noplant contested -> hypothesis': 16, 'A noplant hypothesis -> stale': 2, 'A noplant hypothesis -> supported': 3, 'A planted contested -> hypothesis': 48, 'A planted contested -> stale': 1, 'A planted contested -> supported': 50, 'A planted hypothesis -> stale': 1, 'A planted hypothesis -> supported': 63, 'A planted stale -> supported': 1, 'A planted supported -> contested': 2, 'R noplant contested -> hypothesis': 11, 'R noplant hypothesis -> stale': 2, 'R noplant hypothesis -> supported': 2, 'R planted contested -> hypothesis': 41, 'R planted contested -> stale': 1, 'R planted contested -> supported': 36, 'R planted hypothesis -> stale': 1, 'R planted hypothesis -> supported': 73, 'R planted stale -> supported': 1, 'R planted supported -> contested': 1, 'U01 noplant contested -> hypothesis': 9, 'U01 noplant hypothesis -> stale': 2, 'U01 planted contested -> hypothesis': 50, 'U01 planted contested -> stale': 2, 'U01 planted contested -> supported': 12, 'U01 planted hypothesis -> contested': 3, 'U01 planted hypothesis -> stale': 1, 'U01 planted hypothesis -> supported': 39}
+```
+
+**Run 1 reproduced on seed 1.** Run 1's code, re-run on seed 1's two worlds, compared with the committed
+`run-1-routes.json`:
+
+```
+$ git archive --format=tar -o $SCRATCH/r1code.tar e285c6c
+$ mkdir $SCRATCH/r1code && tar -xf $SCRATCH/r1code.tar -C $SCRATCH/r1code
+$ cd $SCRATCH/r1code && PYTHONPATH=. python3 -c "
+from research.routing_spike.run import run_world_job
+for planted in (False, True):
+    print(run_world_job(1, planted, '$SCRATCH/r1repro', 'in_process'), flush=True)
+"
+$ python3 repro_compare.py $SCRATCH/r1repro/worlds/seed-01-noplant/world.json docs/collective/routing_spike/run-1-routes.json
+$ python3 repro_compare.py $SCRATCH/r1repro/worlds/seed-01-planted/world.json docs/collective/routing_spike/run-1-routes.json
+```
+
+`repro_compare.py`:
+
+```python
+import json, sys
+world_json, routes_file = sys.argv[1], sys.argv[2]
+w = json.load(open(world_json))
+ref = json.load(open(routes_file))["worlds"][w["name"]]
+idx = {s: i for i, s in enumerate(w["site_ids"])}
+order = [c["question_id"] for c in w["candidates"]]
+mine = {
+    "site_ids": w["site_ids"],
+    "candidates": [[c["key"], c["question_id"], c["as_of"], c["week"], c["label"], c["pattern"], c["decoy_class"]]
+                   for c in w["candidates"]],
+    "answers": [[[idx[s], a["verdict"], a["reason"], a["source"], a["sha256"]] for s, a in sorted(w["answers"][q].items())]
+                for q in order],
+    "routes": {label: [w["routes"][label][q]["route"] + ":" + w["routes"][label][q]["status"] for q in order]
+               for label in sorted(w["routes"])},
+}
+dumps = lambda o: json.dumps(o, sort_keys=True, separators=(",", ":"))
+print(w["name"], "candidates", len(order), "| answers", sum(len(a) for a in mine["answers"]),
+      "| routes", sum(len(v) for v in mine["routes"].values()),
+      "| identical to the committed routes file's entry:", dumps(mine) == dumps(ref),
+      "| every world check ok:", all(c["ok"] for c in w["checks"].values()))
+```
+
+Output:
+
+```
+seed-01-noplant candidates 9 | answers 54 | routes 234 | identical to the committed routes file's entry: True | every world check ok: True
+seed-01-planted candidates 60 | answers 360 | routes 1560 | identical to the committed routes file's entry: True | every world check ok: True
+```
+
+**Run 1 re-scored with the stricter lineage check** (deviation 19). The files the scorer reads were copied out of Run
+1's run directory first, so the original stays untouched:
+
+```
+$ python3 copy_scoring_inputs.py $RUN1 $SCRATCH/run1copy
+copied 40 worlds
+$ PYTHONPATH=. python3 -m research.routing_spike.run score --run-dir $SCRATCH/run1copy
+routing spike: verdict=pass primary mean R-U=19.4525 [18.5675, 20.4275] noplant R-U=0.0296 [0.0130, 0.0485] -> $SCRATCH/run1copy/rescore.json sha256=e0f3f358dedf2bd48ae1d2447f27d9f822725dd5da8d3a500b1a3efdb3d96a2f (synthetic)
+```
+
+`copy_scoring_inputs.py`:
+
+```python
+"""Copy what score_run reads (run.json, each world's world.json, fabric/, hq/receive.jsonl, site egress logs)."""
+import shutil, sys
+from pathlib import Path
+src, dst = Path(sys.argv[1]), Path(sys.argv[2])
+dst.mkdir(parents=True, exist_ok=False)
+shutil.copy2(src / "run.json", dst / "run.json")
+for w in sorted((src / "worlds").iterdir()):
+    out = dst / "worlds" / w.name
+    (out / "hq").mkdir(parents=True)
+    (out / "edge").mkdir()
+    shutil.copy2(w / "world.json", out / "world.json")
+    shutil.copytree(w / "fabric", out / "fabric")
+    shutil.copy2(w / "hq" / "receive.jsonl", out / "hq" / "receive.jsonl")
+    for p in (w / "edge").glob("site-*.egress.jsonl"):
+        shutil.copy2(p, out / "edge" / p.name)
+print("copied", len(list((dst / "worlds").iterdir())), "worlds")
+```
+
+The comparison with Run 1's committed copy:
+
+```python
+import json
+a = json.load(open("docs/collective/routing_spike/run-1.json"))
+b = json.load(open("$SCRATCH/run1copy/rescore.json"))
+print("statistics identical:", json.dumps(a["statistics"], sort_keys=True) == json.dumps(b["statistics"], sort_keys=True))
+print("per-seed, per-label counts identical:", json.dumps(a["per_seed_label"], sort_keys=True) == json.dumps(b["per_seed_label"], sort_keys=True))
+print("check 8:", b["checks"]["8_fabric"])
+```
+
+```
+statistics identical: True
+per-seed, per-label counts identical: True
+check 8: {'note_count_mismatches': 0, 'ok': True, 'status_or_lineage_mismatches': 0}
 ```
