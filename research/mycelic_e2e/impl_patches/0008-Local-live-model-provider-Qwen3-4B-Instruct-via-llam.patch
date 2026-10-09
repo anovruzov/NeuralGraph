@@ -1,7 +1,7 @@
 From 9b426a3a813a22af291e04b3d4960e3e2ee9226e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 06:09:08 +0000
-Subject: [PATCH 08/13] Local live model provider: Qwen3-4B-Instruct via
+Subject: [PATCH 08/15] Local live model provider: Qwen3-4B-Instruct via
  llama.cpp behind the product router
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

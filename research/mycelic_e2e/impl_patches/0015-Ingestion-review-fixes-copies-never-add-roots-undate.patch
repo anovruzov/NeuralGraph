@@ -1,0 +1,679 @@
+From 82a7a4fa890673c042dbfcd7e767cfc03fe9bff0 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 06:36:45 +0000
+Subject: [PATCH 15/15] Ingestion review fixes: copies never add roots, undated
+ evidence never dates a claim, no input text in rejections
+
+F1 a forward/share link never replaces a record's content root; the origin's object key is exported
+so compute_support merges forwards with their original (reviewer probes S1-S5 now 1 root / unknown).
+F2 coordinator freshness ignores the observed time of undated refs (meta.time_inferred); local_export
+no longer dates content by exported_at or neighbouring records. F3 only ConnectorError codes reach
+the rejection ledger; reasons capped. F4 pipeline-level atomicity tests. Engineer: ENGINEER-D
+(claude-sonnet-5-5); full suite on the shared tree 479 passed, 7 skipped.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ docs/mycelic/INGESTION.md                 |  49 ++--
+ mycelic/ingest/connectors/local_export.py |  21 +-
+ mycelic/ingest/events.py                  |  18 +-
+ mycelic/ingest/pipeline.py                |  13 +-
+ mycelic/ingest/store.py                   |   5 +-
+ mycelic/knowledge/support.py              |  35 ++-
+ mycelic/tests/test_ingest_dispositions.py | 277 ++++++++++++++++++++--
+ 7 files changed, 344 insertions(+), 74 deletions(-)
+
+diff --git a/docs/mycelic/INGESTION.md b/docs/mycelic/INGESTION.md
+index 1eb8511..ac46ebf 100644
+--- a/docs/mycelic/INGESTION.md
++++ b/docs/mycelic/INGESTION.md
+@@ -117,26 +117,32 @@ reference while building.
+ >   (`status: degraded`, `reason: rejected_items` when that sync refused input, else `ok`, plus `rejections_on_record`); the holder
+ >   stats heartbeat carries `ingest_rejections` (a count); `IngestService.rejections(connector_id)` lists the ledger to the owner.
+ >   A second sync that refuses nothing reports `ok` again, but the ledger keeps the rows (`rejections_on_record`).
+-> * **Undated records are kept and marked, not presented as fresh (D2).** A content record with no usable `created_at` /
+->   `updated_at` (absent or unparsable) is still ingested, flagged `time_inferred` in `ingest_records.flags` (carried to the export as
+->   `meta.time_inferred = true` and `meta.time_basis`). Its `observed_at` (evidence time) is no longer the ingest time: it is the
+->   source's last-known content time when the connector has one (`local_export`: the header's `content_time` / `updated_at` /
+->   `modified_at` / `exported_at`, else the newest dated record of the same file; `meta.time_basis = "source"`), else the ingest time
+->   with the extra flag `time_ingest_fallback` (`meta.time_basis = "ingest"`). The source time is an upper bound for an undated
+->   record, never evidence that it is that recent; an `order_key` for ordering edits still comes from what the connector saw.
+-> * **Explicit forward / share links decide the root, with or without commentary (D3, I4 / §4.5 rule 1).** A `derived_from` link
++> * **Undated records are kept and marked, and never date a claim (D2).** A content record with no usable `created_at` /
++>   `updated_at` (absent or unparsable) is still ingested, flagged `time_inferred` in `ingest_records.flags`, and exported with
++>   `meta.time_inferred = true` and `meta.time_basis`. On the holder its `observed_at` is no longer simply the ingest time: it is the
++>   source's own statement of when its content was true when the connector has one (`local_export`: the header's `content_time`,
++>   `updated_at` or `modified_at`, never later than the moment the file was read; `meta.time_basis = "source"`), else the ingest time
++>   with the extra flag `time_ingest_fallback` (`meta.time_basis = "ingest"`). The time of an export and the dates of neighbouring
++>   records are not content times and are not used. At the coordinator (`knowledge/support.py`, `evidence_time` / `freshness`) the
++>   `observed_at` and `freshness_at` of a reference with `meta.time_inferred` are ignored whatever the basis: a claim's freshness is
++>   the newest DATED support, undated references are only counted (`undated_refs`), and when every supporting reference is undated the
++>   freshness is `unknown` (no `freshness_at`, not recent); only an explicit `meta.reconfirmed_at` dates such a reference. The `order_key`
++>   used to order edits still comes from what the connector saw.
++> * **Explicit forward / share links merge copies; they never split them (D3, I4 / §4.5 rule 1).** A `derived_from` link
+ >   (`forward | share | crosspost | copy | moved_from | bot_relay`) that names an object (`source_object_id`, or an RFC 822
+ >   Message-ID; a missing app, account or type means the record's own) gives the record `origin_key`, the same one-way
+->   `object_key` hash the original has, stored in `ingest_records.origin_key`, and `root_method = explicit`: the root is
+->   the original's own root when that record is held by this holder (resolved when the record is written), otherwise
+->   `origin_root(origin_key)`, a hash of the origin's identity. The export's `meta.object_key` is the `origin_key`, which is what
+->   `knowledge/support.py` merges roots on, so the original (wherever it was ingested), every verbatim forward and every
+->   forward with the forwarder's own words are one independent root. Limits: the merge with the original needs the link to use the
+->   original's identity space (same app label, account and object type; an email forward by Message-ID merges with other forwards
+->   of that email, not with a Gmail record whose id is a Gmail message id); a forward with the marker and a verbatim copy
+->   without it of an original held nowhere still count as two roots; a retelling in own words with no link stays independent
+->   (undetectable by design, probe f4); records ingested before holder migration 0004 have no `origin_key` and keep their content
+->   roots until they are re-ingested.
++>   `object_key` hash the original has, stored in `ingest_records.origin_key`. The record keeps its CONTENT root (so copies of one
++>   text still collapse by content whatever links they carry or lack, and an unresolvable bot relay stays `root_known = false`);
++>   only when the original is held by this holder does the record take that original's root (`root_method = explicit`, resolved when
++>   the record is written). The export's `meta.object_key` is the `origin_key`, which is what `knowledge/support.py` merges roots on, so
++>   the original (wherever it was ingested), verbatim forwards and forwards with the forwarder's own words (probe f1b) are one
++>   independent root. Known limits, all in the under-counting direction I4 accepts: the merge with the original needs the link to use
++>   the original's identity space (same app label, account and object type; an email forward by Message-ID merges with other
++>   forwards of that email, not with a Gmail record whose id is a Gmail message id); a forged link merges the forger's record with the
++>   record it names (a member who links A and repeats B's text folds A and B into one source; faking one's own `source_app` and
++>   `account_id` could already do that); a retelling in own words with no link stays independent (undetectable, probe f4);
++>   consumers that group by `source_root_id` alone, without the object key (copy counts in `ref_view`, new-root checks), do not see the
++>   merge; records ingested before holder migration 0004 have no `origin_key` and are not merged until re-ingested.
+ 
+ ---
+ 
+@@ -926,9 +932,10 @@ Then, in this order:
+ 
+ 1. **Explicit linkage.** If `derived_from` names an original (Slack shared-message attachment `(channel, ts)`, email
+    forward with an original Message-ID, GitHub `moved_from`) and that original is a known local record, the root is the
+-   original's root (`root_method='explicit'`). If the original is not held locally, the root is a one-way hash of the
+-   original's identity (`origin_root`) and the record's `origin_key` (the original's `object_key`) joins it with the original
+-   and with every other forward at the coordinator, whatever the forwarder added (2026-10-09; status block above).
++   original's root (`root_method='explicit'`). If the original is not held locally, the record keeps its content root (rules
++   2-5 below, and rule 6 for an unresolvable bot relay) and its `origin_key` (the original's `object_key`, exported as
++   `meta.object_key`) joins it with the original and with every other forward at the coordinator, whatever the forwarder
++   added (2026-10-09; status block above). A link never replaces a root: it can only merge more copies, not split copies of one text.
+ 2. **Embedded original.** Each forwarded segment becomes a child `message` record (`parent_record_id` = this record,
+    relation `forward_of`) with root `fingerprint(segment)`. If `own_text` has fewer than `MIN_OWN_CHARS = 24` non-space
+    characters, the record is a *pure copy* and takes the forwarded segment's root.
+diff --git a/mycelic/ingest/connectors/local_export.py b/mycelic/ingest/connectors/local_export.py
+index 0f83df0..f7ab4d4 100644
+--- a/mycelic/ingest/connectors/local_export.py
++++ b/mycelic/ingest/connectors/local_export.py
+@@ -22,7 +22,7 @@ line may be the source header ``{"type": "source", ...}``. Source header::
+     {"id": "eng-chat", "name": "#eng", "type": "channel", "visibility": "public|members|private",
+      "member_ids": ["u1", "u2"], "membership_ref": "eng-chat-members",
+      "content_time": "2026-03-01T00:00:00Z"}      # optional: when the source's content was last true ('as of'; also read from
+-                                                  # updated_at / modified_at / exported_at). Undated records take it as their evidence time.
++                                                  # updated_at / modified_at). Undated records take it as their evidence time.
+ 
+ Records (later lines win per object; an edit is the same id with a later ``updated_at``)::
+ 
+@@ -37,7 +37,8 @@ Records (later lines win per object; an edit is the same id with a later ``updat
+      "forwarded_from": {"app": "...", "account": "...", "object_type": "message", "object_id": "...", "message_id": "<rfc822>"}}
+ 
+ A record without ``created_at`` / ``updated_at`` (or with an unparsable one) is ingested and flagged ``time_inferred``: its evidence
+-time is the header's content time, else the newest dated record of the same file, else the ingest time (``time_ingest_fallback``).
++time is the header's content time (never later than the moment it was read), else the ingest time (``time_ingest_fallback``). The
++export time and the dates of neighbouring records are not content times and are not used.
+ A record with a ``forwarded_from`` that names an object has that object as its origin (INGESTION.md I4), whatever the forwarder added.
+ 
+ Content is data: no field of a record changes what this connector does.
+@@ -137,24 +138,26 @@ class LocalExportConnector(Connector):
+             if isinstance(data, dict):
+                 header = data.get("source") if isinstance(data.get("source"), dict) else {}
+                 data = data.get("records") or []
+-            records = [r if isinstance(r, dict) else {"__invalid__": i} for i, r in enumerate(data or [], start=1)]
++            records = [r if isinstance(r, dict) else {"__invalid__": i, "__sha256__": hashlib.sha256(canonical_json(r).encode("utf-8")).hexdigest()}
++                       for i, r in enumerate(data or [], start=1)]
+         prefix = [""]
+         for r in records:
+             prefix.append(hashlib.sha256((prefix[-1] + canonical_json(r)).encode("utf-8")).hexdigest())
+         times = [self._record_time(r) for r in records]
+         self._cache[key] = (st.st_mtime_ns, st.st_size, header, records, prefix, times)
+-        self._meta[key] = (lines, self._content_time(header, times))
++        self._meta[key] = (lines, self._content_time(header))
+         return header, records, prefix, times
+ 
+     @staticmethod
+-    def _content_time(header: Mapping[str, Any], times: list[str | None]) -> str | None:
+-        """When the source's content was last known to be true: the header's own 'as of' time, else the newest dated record of
+-        the file. Undated records get it as their evidence time (never the time of import)."""
+-        for k in ("content_time", "updated_at", "modified_at", "exported_at"):
++    def _content_time(header: Mapping[str, Any]) -> str | None:
++        """When the source's content was last true, as the owner states it in the header (``content_time``, ``updated_at`` or
++        ``modified_at``). The time of the export and the dates of other records are no content time of an undated record and are
++        not used. Undated records take this as their evidence time, never later than the moment they were read."""
++        for k in ("content_time", "updated_at", "modified_at"):
+             t = normalize_ts(header.get(k))
+             if t:
+                 return t
+-        return max((t for t in times if t), default=None)
++        return None
+ 
+     def _extras(self, path: Path) -> tuple[list[int] | None, str | None]:
+         return self._meta.get(str(path), (None, None))
+diff --git a/mycelic/ingest/events.py b/mycelic/ingest/events.py
+index 43f6b57..f61d48f 100644
+--- a/mycelic/ingest/events.py
++++ b/mycelic/ingest/events.py
+@@ -11,7 +11,10 @@ them. The module also owns the identity and dedupe keys, the hashes, the order k
+   holder keeps its own row.
+ * ``origin_key`` — the ``object_key`` of the provider object an explicit forward / share link names (INGESTION.md I4). The
+   original, wherever it was ingested, has exactly this ``object_key``, so a record with an origin exports it as its
+-  ``meta.object_key`` and the original and all its forwards (with or without the forwarder's own words) count as one source.
++  ``meta.object_key`` and the coordinator merges the original and all its forwards (with or without the forwarder's own
++  words) into one source. The record's own ``source_root_id`` stays its CONTENT root: a link never replaces it (copies of
++  one text collapse by content whatever links they carry; a link can only merge more, never split), except that a record
++  naming an original this holder holds takes that original's root (§4.5 rule 1, resolved by the pipeline at write time).
+ * ``event_key`` — dedupe of deliveries: same record, kind, version, content and deletion status collapse.
+ * ``order_key = "<UTC µs timestamp>|<tiebreak>"`` — per-object total order (the provider is the only writer).
+ * ``content_hash`` over the canonical body; the root fingerprint is deliberately lossier (``mycelic.util.fingerprint``).
+@@ -149,11 +152,6 @@ def origin_key_of(derived: Iterable["DerivedFrom"], *, tenant_id: str, source_ap
+     return None
+ 
+ 
+-def origin_root(okey: str) -> str:
+-    """The source root of an original that is not held locally: a one-way hash of its identity (same shape as a content root)."""
+-    return "root_" + H("root-origin", okey)[:32]
+-
+-
+ def version_key(rkey: str, source_version: str, chash: str) -> str:
+     return rkey + "@" + H(source_version or chash)[:16]
+ 
+@@ -367,14 +365,6 @@ class CanonicalEvent:
+             status = deletion_status or ("deleted_at_source" if kind == "deletion" else "redacted")
+         else:
+             root = compute_root(title, body, content_type, derived_from=derived, hints=hints, resolve_explicit=resolve_explicit)
+-            if kind in CONTENT_KINDS and root.method != "explicit":
+-                # an explicit forward / share link makes the origin's identity the root, even when the original is not held
+-                # locally and whatever the forwarder added (INGESTION.md I4); the pipeline replaces it by the original's own
+-                # root when that record is local
+-                okey = origin_key_of(derived, tenant_id=tenant_id, source_app=source_app, source_account_id=source_account_id,
+-                                     source_object_type=source_object_type)
+-                if okey:
+-                    root = RootResult(origin_root(okey), True, "explicit", root.own_text, root.forwarded, root.quoted)
+             text = root.own_text
+             status = deletion_status or "live"
+             if root.quoted:
+diff --git a/mycelic/ingest/pipeline.py b/mycelic/ingest/pipeline.py
+index c3e92df..3692724 100644
+--- a/mycelic/ingest/pipeline.py
++++ b/mycelic/ingest/pipeline.py
+@@ -460,7 +460,7 @@ class IngestPipeline:
+ 
+         def reject(raw: Any, index: int, stage: str, reason: str, *, detail: str = "", ev: CanonicalEvent | None = None) -> None:
+             rej.append({"source_id": src.source_id, "locator": _locator(raw, index, ev), "raw_sha256": _raw_sha256(raw), "stage": stage,
+-                        "reason": reason, "detail": detail})
++                        "reason": reason[:80], "detail": detail})
+         out: list[CanonicalEvent] = []
+         for index, raw in enumerate(page.items):
+             with self.meter.time(cid, "admit") as box:
+@@ -475,8 +475,9 @@ class IngestPipeline:
+                 except Exception as exc:   # the item is skipped; its content is not kept anywhere, but its place and reason are
+                     box["outcome"] = "error"
+                     report.normalize_errors += 1
+-                    code = getattr(exc, "code", None) or type(exc).__name__
+-                    # a ConnectorError's message is content-free by contract; any other exception's text may quote the input
++                    # a ConnectorError's code and message are content-free by contract; for any other exception only the class
++                    # name is safe (its text, and any attribute such as ``code``, may be built from the input)
++                    code = (exc.code if isinstance(exc, ConnectorError) else None) or type(exc).__name__
+                     reject(raw, index, "normalize", str(code), detail=str(exc) if isinstance(exc, ConnectorError) else "")
+                     logger.info("normalize failed for an item of connector %s: %s", cid, code)
+                     continue
+@@ -510,9 +511,9 @@ class IngestPipeline:
+         return out
+ 
+     def _link_origin(self, ev: CanonicalEvent) -> CanonicalEvent:
+-        """INGESTION.md §4.5 rule 1: a record that names an original this holder holds takes the original's own root (the
+-        original's content root is not derivable from the link alone). An original held elsewhere is joined at the coordinator
+-        by ``meta.object_key`` = the origin key; until then the identity-derived root from :func:`events.origin_root` stands."""
++        """INGESTION.md §4.5 rule 1: a record that names an original this holder holds takes the original's own root. An original
++        held elsewhere is joined at the coordinator by ``meta.object_key`` = the origin key; the record keeps its content root
++        (a link never replaces a root, so it can only merge more copies, never split copies of one text)."""
+         okey = ev.origin_key
+         if not okey:
+             return ev
+diff --git a/mycelic/ingest/store.py b/mycelic/ingest/store.py
+index 8a27e22..ae3aeef 100644
+--- a/mycelic/ingest/store.py
++++ b/mycelic/ingest/store.py
+@@ -383,11 +383,12 @@ class IngestStore:
+         now = now_precise()
+         n = 0
+         for r in rows:
+-            rid = "rej_" + sha256(connector_id, str(r.get("source_id") or ""), r["locator"], r["raw_sha256"], r["stage"], r["reason"])[:24]
++            rid = "rej_" + sha256(connector_id, str(r.get("source_id") or ""), r["locator"], r["raw_sha256"], r["stage"], str(r["reason"])[:80])[:24]
+             c.execute("""INSERT INTO ingest_rejections(rejection_id, connector_id, source_id, locator, raw_sha256, stage, reason, detail, first_seen_at,
+                                                        last_seen_at, count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                          ON CONFLICT(rejection_id) DO UPDATE SET count=count+1, last_seen_at=excluded.last_seen_at""",
+-                      (rid, connector_id, r.get("source_id"), r["locator"], r["raw_sha256"], r["stage"], r["reason"], str(r.get("detail") or "")[:200], now, now))
++                      (rid, connector_id, r.get("source_id"), r["locator"], r["raw_sha256"], r["stage"], str(r["reason"])[:80],
++                       str(r.get("detail") or "")[:200], now, now))
+             n += 1
+         if n:
+             c.execute("""DELETE FROM ingest_rejections WHERE connector_id=? AND rejection_id IN
+diff --git a/mycelic/knowledge/support.py b/mycelic/knowledge/support.py
+index aea82c9..95dc70c 100644
+--- a/mycelic/knowledge/support.py
++++ b/mycelic/knowledge/support.py
+@@ -104,12 +104,32 @@ def compute_support(refs: Iterable[Mapping[str, Any]], *, roles: Iterable[str] =
+     }
+ 
+ 
++def _ref_meta(ref: Mapping[str, Any]) -> Mapping[str, Any]:
++    meta = ref.get("meta")
++    if isinstance(meta, str):
++        try:
++            meta = json.loads(meta)
++        except ValueError:
++            meta = None
++    return meta if isinstance(meta, Mapping) else {}
++
++
++def is_undated(ref: Mapping[str, Any]) -> bool:
++    """The holder's record carried no date of its own (``meta.time_inferred``): its ``observed_at`` is the time the connector
++    read it, or a guess from its neighbours, not when the content was true."""
++    return bool(_ref_meta(ref).get("time_inferred"))
++
++
+ def evidence_time(ref: Mapping[str, Any]) -> Any:
+     """When the content was last known to be true: the time it was observed (written, recorded, measured), or a later
+     explicit re-confirmation by its holder (``meta.reconfirmed_at``). Never the ingestion or disclosure time: a roster
+     written 200 days ago and uploaded today is 200 days old. ``freshness_at`` is only a fallback for references that carry
+-    no observation time."""
+-    meta = ref.get("meta") if isinstance(ref.get("meta"), Mapping) else {}
++    no observation time. A reference whose record was undated at the source (``meta.time_inferred``) has no evidence time of
++    its own: its ``observed_at`` / ``freshness_at`` are ignored, so an undated record can never make a claim look fresh; only
++    an explicit re-confirmation counts."""
++    meta = _ref_meta(ref)
++    if meta.get("time_inferred"):
++        return parse_iso(meta.get("reconfirmed_at"))
+     stamps = [parse_iso(ref.get("observed_at")), parse_iso(meta.get("reconfirmed_at"))]
+     stamps = [s for s in stamps if s is not None]
+     if stamps:
+@@ -118,12 +138,17 @@ def evidence_time(ref: Mapping[str, Any]) -> Any:
+ 
+ 
+ def freshness(refs: Iterable[Mapping[str, Any]], *, freshness_days: float, now: Any | None = None) -> dict[str, Any]:
+-    """Newest evidence time across the references (:func:`evidence_time`) and whether the policy considers it stale."""
++    """Newest evidence time across the references (:func:`evidence_time`) and whether the policy considers it stale. The newest
++    DATED support decides: undated references (``meta.time_inferred``) are counted in ``undated_refs`` but never date a claim;
++    when every reference is undated the freshness is ``unknown`` (no ``freshness_at``), not recent."""
+     now = now or utcnow()
++    refs = list(refs)
+     stamps = [evidence_time(r) for r in refs]
+     stamps = [s for s in stamps if s is not None]
++    undated = sum(1 for r in refs if is_undated(r))
++    extra = {"undated_refs": undated} if undated else {}
+     if not stamps:
+-        return {"freshness_at": None, "age_days": None, "stale": False, "unknown": True}
++        return {"freshness_at": None, "age_days": None, "stale": False, "unknown": True, **extra}
+     newest = max(stamps)
+     age = (now - newest).total_seconds() / 86400.0
+-    return {"freshness_at": newest.isoformat(timespec="seconds"), "age_days": round(age, 1), "stale": age > freshness_days, "unknown": False}
++    return {"freshness_at": newest.isoformat(timespec="seconds"), "age_days": round(age, 1), "stale": age > freshness_days, "unknown": False, **extra}
+diff --git a/mycelic/tests/test_ingest_dispositions.py b/mycelic/tests/test_ingest_dispositions.py
+index f1b4422..fc2caf1 100644
+--- a/mycelic/tests/test_ingest_dispositions.py
++++ b/mycelic/tests/test_ingest_dispositions.py
+@@ -19,12 +19,12 @@ import pytest
+ from mycelic.ingest.connectors import register_builtin
+ from mycelic.ingest.connectors.local_export import LocalExportConnector
+ from mycelic.ingest.contract import ConnectorManifest
+-from mycelic.ingest.events import CanonicalEvent, DerivedFrom, object_key, origin_root
++from mycelic.ingest.events import CanonicalEvent, DerivedFrom, object_key
+ from mycelic.ingest.queue import StaleCheckpoint
+ from mycelic.ingest.registry import ConnectorRegistry
+ from mycelic.ingest.service import IngestService
+-from mycelic.knowledge.support import compute_support
+-from mycelic.util import fingerprint
++from mycelic.knowledge.support import compute_support, evidence_time, freshness
++from mycelic.util import fingerprint, parse_iso
+ 
+ from .ingest_support import (OWNER, TENANT, append_jsonl, connect_export, make_pipeline, make_store, question, table_contains,
+                              write_jsonl)
+@@ -248,6 +248,92 @@ async def test_rejections_commit_with_the_cursor_or_not_at_all(tmp_path: Path) -
+     await store.close()
+ 
+ 
++async def test_a_fenced_page_leaves_no_ledger_rows_and_no_count(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
++    """REVIEW_D F4, through the pipeline: the page's commit is fenced (another runner moved the checkpoint)."""
++    store, pipe, _svc, con, _f = await one_holder(tmp_path, LINES)
++    real = pipe.queue.commit_page
++
++    async def fenced(*a, **kw):
++        return await real(*a, **{**kw, "expected_version": 99})
++    monkeypatch.setattr(pipe.queue, "commit_page", fenced)
++    rep = await pipe.sync(con["connector_id"])
++    assert rep.fenced and rep.rejected == 0 and rep.rejected_by_reason == {} and rep.enqueued == 0
++    assert ledger(store) == [] and store.store._conn.execute("SELECT COUNT(*) FROM ingest_queue").fetchone()[0] == 0
++    monkeypatch.undo()
++    rep = await pipe.sync(con["connector_id"])                       # the page is read again, and its refusals recorded once
++    assert rep.rejected == 5 and all(r["count"] == 1 for r in ledger(store))
++    await store.close()
++
++
++async def test_the_ledger_commits_in_the_pages_transaction_not_after_it(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
++    """REVIEW_D F4: if the ledger write fails, the page (events and cursor) rolls back with it. A ledger written in a transaction
++    of its own after the page would leave a cursor that has moved past items no row describes."""
++    from mycelic.ingest.store import IngestStore
++    store, pipe, _svc, con, _f = await one_holder(tmp_path, LINES)
++
++    def boom(c, connector_id, rows):
++        raise RuntimeError("disk full while writing the ledger")
++    monkeypatch.setattr(IngestStore, "add_rejections_sync", staticmethod(boom))
++    rep = await pipe.sync(con["connector_id"])
++    assert rep.error_code == "connector_crash" and rep.rejected == 0
++    c = store.store._conn
++    assert c.execute("SELECT COUNT(*) FROM ingest_queue").fetchone()[0] == 0                  # the admitted lines were not enqueued either
++    cursor = c.execute("SELECT cursor FROM connector_checkpoints WHERE stream='incr:ops'").fetchone()
++    assert cursor is None or json.loads(cursor["cursor"] or "{}").get("position", 0) == 0     # ... and the cursor did not move
++    monkeypatch.undo()
++    rep = await pipe.sync(con["connector_id"])
++    assert rep.raw_items == 7 and rep.rejected == 5 and rep.enqueued == 2 and len(ledger(store)) == 5
++    await store.close()
++
++
++class CodeBearingError(Exception):
++    """A foreign exception that carries an attribute named ``code`` built from the input it choked on."""
++    def __init__(self, text: str) -> None:
++        super().__init__(text)
++        self.code = "SECRETSTRING-in-code " + text * 20
++
++
++class LeakyExport(LocalExportConnector):
++    manifest = ConnectorManifest(**{**LocalExportConnector.manifest.__dict__, "connector_type": "leaky_export"})
++
++    def normalize(self, raw, ctx):
++        if isinstance(raw.payload, dict) and raw.payload.get("id") == "leak":
++            raise CodeBearingError(str(raw.payload.get("text")))
++        return super().normalize(raw, ctx)
++
++
++async def test_a_foreign_exceptions_code_attribute_is_never_stored(tmp_path: Path) -> None:
++    """REVIEW_D F3: only a ConnectorError's code is content-free by contract; for anything else the class name is recorded."""
++    reg = register_builtin(ConnectorRegistry())
++    reg.register(LeakyExport)
++    store = make_store(tmp_path)
++    pipe = make_pipeline(store, registry=reg)
++    svc = IngestService(pipe)
++    f = tmp_path / "leak.jsonl"
++    f.write_text("\n".join([json.dumps({"type": "source", **HEADER}), json.dumps(rec("leak", "the quarterly password is hunter2"))]) + "\n")
++    con = await svc.add_connector("leaky_export", created_by=OWNER, config={"source_app": "teamchat", "paths": [str(f)], "auto_include": True})
++    await svc.discover_sources(con["connector_id"])
++    rep = await pipe.sync(con["connector_id"])
++    assert rep.rejected_by_reason == {"normalize:CodeBearingError": 1}
++    [row] = ledger(store)
++    assert row["reason"] == "CodeBearingError" and row["detail"] == ""
++    assert table_contains(store, "hunter2") == [] and table_contains(store, "SECRETSTRING") == []
++    assert "hunter2" not in json.dumps(pipe.db.get_connector(con["connector_id"])["health"])
++    await store.close()
++
++
++async def test_the_reason_of_a_row_is_length_capped(tmp_path: Path) -> None:
++    from mycelic.ingest.store import IngestStore
++    store = make_store(tmp_path)
++    store.store._conn.execute("BEGIN")
++    IngestStore.add_rejections_sync(store.store._conn, "con_x", [{"source_id": None, "locator": "line:1", "raw_sha256": "0" * 64, "stage": "normalize",
++                                                                   "reason": "R" * 5000, "detail": "d" * 5000}])
++    store.store._conn.execute("COMMIT")
++    [row] = ledger(store)
++    assert len(row["reason"]) == 80 and len(row["detail"]) == 200
++    await store.close()
++
++
+ async def test_heartbeat_stats_carry_a_count_only(tmp_path: Path) -> None:
+     store, pipe, _svc, con, _f = await one_holder(tmp_path, LINES)
+     assert (await store.stats())["ingest_rejections"] == 0
+@@ -297,11 +383,11 @@ async def test_undated_records_are_kept_flagged_and_not_fresh(tmp_path: Path) ->
+     q = lambda oid: c.execute("""SELECT r.flags, r.content_changed_at, d.observed_at FROM ingest_records r JOIN documents d ON d.doc_id=r.record_id
+                                  WHERE r.source_object_id=?""", (oid,)).fetchone()      # noqa: E731
+     dated, undated, bad = q("old"), q("undated"), q("badts")
+-    assert json.loads(dated["flags"]) == []
+-    # the undated ones take the newest dated record of their source as their evidence time: not the (much later) ingest time
++    assert json.loads(dated["flags"]) == [] and dated["observed_at"].startswith("2026-03-04T10:00:00")
++    # nothing states when the undated ones were true: a neighbour's date is not theirs, so they keep the ingest time, flagged
+     for r in (undated, bad):
+-        assert json.loads(r["flags"]) == ["time_inferred"] and r["observed_at"].startswith("2026-03-04T10:00:00")
+-        assert r["content_changed_at"].startswith("2026-03-04T10:00:00")
++        assert sorted(json.loads(r["flags"])) == ["time_inferred", "time_ingest_fallback"]
++        assert not r["observed_at"].startswith("2026-03-04")
+     # ... and the coordinator sees it on the evidence reference
+     refs = {r["source_root_id"]: r for r in await evidence_of(store, "What do we know about the Rotterdam customs backlog, warehouse roster and carrier contract?")}
+     texts = {"old": "The Rotterdam customs backlog was cleared in March.", "undated": "The Rotterdam warehouse roster has no date on it at all.",
+@@ -310,15 +396,14 @@ async def test_undated_records_are_kept_flagged_and_not_fresh(tmp_path: Path) ->
+     assert "time_inferred" not in refs[fingerprint(texts["old"])]["meta"]             # a dated record carries no such mark
+     for key in ("undated", "badts"):
+         ref = refs[fingerprint(texts[key])]
+-        assert ref["meta"]["time_inferred"] is True and ref["meta"]["time_basis"] == "source"
+-        assert ref["observed_at"].startswith("2026-03-04T10:00:00") and ref["freshness_at"].startswith("2026-03-04T10:00:00")
++        assert ref["meta"]["time_inferred"] is True and ref["meta"]["time_basis"] == "ingest"
+     health = pipe.db.get_connector(con["connector_id"])["health"]
+     assert health["time_inferred_last_sync"] == 2 and health["status"] == "ok"
+     await store.close()
+ 
+ 
+ async def test_source_header_time_wins_and_ingest_time_is_the_flagged_last_resort(tmp_path: Path) -> None:
+-    # 1. the header's own 'as of' time beats the newest dated record
++    # 1. the header's own 'as of' time is the evidence time (a dated record elsewhere in the file is not)
+     store, pipe, _svc, con, _f = await one_holder(
+         tmp_path, [json.dumps(rec("dated", "A dated Rotterdam note from the spring.", ts="2026-05-01T00:00:00Z")),
+                    json.dumps(rec("u1", "An undated Rotterdam note, as of the export.", ts=None))],
+@@ -328,6 +413,14 @@ async def test_source_header_time_wins_and_ingest_time_is_the_flagged_last_resor
+     r = store.store._conn.execute("SELECT d.observed_at, r.flags FROM ingest_records r JOIN documents d ON d.doc_id=r.record_id WHERE r.source_object_id='u1'").fetchone()
+     assert r["observed_at"].startswith("2026-02-01T00:00:00") and json.loads(r["flags"]) == ["time_inferred"]
+     await store.close()
++    # 1b. the time of the export is not when the content was true: it is not used (the ingest time stays, flagged)
++    storex, pipex, _svcx, conx, _fx = await one_holder(tmp_path, [json.dumps(rec("ux", "An undated Rotterdam note in an export that states its export time.", ts=None))],
++                                                       header={**HEADER, "exported_at": "2026-10-09T00:00:00Z"}, name="hx")
++    await pipex.sync(conx["connector_id"])
++    await pipex.process_available()
++    rx = storex.store._conn.execute("SELECT r.flags FROM ingest_records r").fetchone()
++    assert sorted(json.loads(rx["flags"])) == ["time_inferred", "time_ingest_fallback"]
++    await storex.close()
+     # 2. nothing known about the source's content time: the ingest time stays, but flagged, and the export says so
+     store2, pipe2, _svc2, con2, _f2 = await one_holder(tmp_path, [json.dumps(rec("u2", "An undated Rotterdam note in a file without any dates.", ts=None))],
+                                                        name="h2")
+@@ -342,6 +435,63 @@ async def test_source_header_time_wins_and_ingest_time_is_the_flagged_last_resor
+     await store2.close()
+ 
+ 
++def supports(refs: list[dict[str, Any]]) -> list[dict[str, Any]]:
++    return [{**r, "holder_id": "h", "status": "active", "role": "supports"} for r in refs]
++
++
++async def test_undated_evidence_never_makes_a_claim_fresh_at_the_coordinator(tmp_path: Path) -> None:
++    """F2 of the review: ``time_inferred`` is honoured where freshness is decided (knowledge/support.py), not just stored."""
++    # 1. a file with no dates at all: the only support is undated -> freshness is unknown, never 'age 0, not stale'
++    store, pipe, _svc, con, _f = await one_holder(tmp_path, [json.dumps(rec("u1", "An undated Rotterdam roster note from long ago.", ts=None))])
++    await pipe.sync(con["connector_id"])
++    await pipe.process_available()
++    refs = supports(await evidence_of(store, "What undated Rotterdam roster note do we have?"))
++    assert refs and all(r["meta"]["time_inferred"] for r in refs) and all(evidence_time(r) is None for r in refs)
++    f = freshness(refs, freshness_days=30)
++    assert f["unknown"] is True and f["freshness_at"] is None and f["age_days"] is None and f["undated_refs"] == len(refs)
++    await store.close()
++    # 2. an undated 'fresh' record beside an old dated one does not rescue the claim: the newest DATED support decides
++    store2, pipe2, _svc2, con2, _f2 = await one_holder(
++        tmp_path, [json.dumps(rec("old", "The Rotterdam berth allocation was set in 2019.", ts="2019-01-01T00:00:00Z")),
++                   json.dumps(rec("u2", "The Rotterdam berth allocation note, undated, read just now.", ts=None))], name="h2")
++    await pipe2.sync(con2["connector_id"])
++    await pipe2.process_available()
++    refs2 = supports(await evidence_of(store2, "What is the Rotterdam berth allocation?"))
++    assert len(refs2) == 2 and sum(1 for r in refs2 if r["meta"].get("time_inferred")) == 1
++    f2 = freshness(refs2, freshness_days=30)
++    assert f2["freshness_at"].startswith("2019-01-01") and f2["stale"] is True and f2["undated_refs"] == 1
++    # 3. a dated record beside an undated one dates the claim
++    store3, pipe3, _svc3, con3, _f3 = await one_holder(
++        tmp_path, [json.dumps(rec("u3", "The Rotterdam gate hours note without a date.", ts=None)),
++                   json.dumps(rec("new", "The Rotterdam gate hours were confirmed this week.", ts="2026-10-08T10:00:00Z"))], name="h3")
++    await pipe3.sync(con3["connector_id"])
++    await pipe3.process_available()
++    refs3 = supports(await evidence_of(store3, "What are the Rotterdam gate hours?"))
++    f3 = freshness(refs3, freshness_days=30, now=parse_iso("2026-10-09T10:00:00Z"))
++    assert f3["freshness_at"].startswith("2026-10-08T10:00:00") and f3["stale"] is False and f3["undated_refs"] == 1
++    for st in (store2, store3):
++        await st.close()
++
++
++def test_freshness_ignores_the_observed_time_of_undated_refs_but_honours_a_reconfirmation() -> None:
++    now = parse_iso("2026-10-09T00:00:00Z")
++    undated = {"ref_id": "a", "observed_at": "2026-10-09T00:00:00Z", "freshness_at": "2026-10-09T00:00:00Z", "meta": {"time_inferred": True}}
++    dated = {"ref_id": "b", "observed_at": "2026-01-01T00:00:00Z", "freshness_at": "2026-01-01T00:00:00Z", "meta": {}}
++    assert evidence_time(undated) is None and evidence_time(dated) is not None
++    assert freshness([undated], freshness_days=30, now=now)["unknown"] is True
++    f = freshness([undated, dated], freshness_days=30, now=now)
++    assert f["freshness_at"].startswith("2026-01-01") and f["stale"] is True and f["undated_refs"] == 1
++    # the same through the stored form (meta as JSON text) ...
++    assert evidence_time({**undated, "meta": json.dumps({"time_inferred": True})}) is None
++    # ... and an explicit re-confirmation by the holder does date an undated ref
++    again = {**undated, "meta": {"time_inferred": True, "reconfirmed_at": "2026-10-01T00:00:00Z"}}
++    assert evidence_time(again).isoformat().startswith("2026-10-01")
++    g = freshness([again], freshness_days=30, now=now)
++    assert g["unknown"] is False and g["stale"] is False and g["undated_refs"] == 1
++    # refs without the mark behave exactly as before
++    assert "undated_refs" not in freshness([dated], freshness_days=30, now=now)
++
++
+ async def test_a_later_dated_edit_clears_the_mark(tmp_path: Path) -> None:
+     from datetime import datetime, timezone
+     store, pipe, _svc, con, f = await one_holder(tmp_path, [json.dumps(rec("u1", "An undated Rotterdam note that is later dated.", ts=None))],
+@@ -426,12 +576,13 @@ async def test_original_and_three_forwards_with_commentary_are_one_independent_r
+     support = await support_over(holders)
+     assert support["apparent_refs"] == 4 and support["independent_roots"] == 1 and support["copied_refs"] == 3
+     assert support["unknown_independence"] == 0 and sorted(support["holders"]) == sorted(h.holder_id for h in holders)
+-    # what each holder exports: the forwards carry the ORIGIN's identity as their object_key, the original its own (the same hash)
++    # what each holder exports: the forwards carry the ORIGIN's identity as their object_key, the original its own (the same hash);
++    # their roots stay their own content roots (three different texts, three roots) and the coordinator merges them on the key
+     expect = object_key(TENANT, ORIGIN["app"], ORIGIN["account"], ORIGIN["object_type"], ORIGIN["object_id"])
+     refs = [r for h in holders for r in await export_refs(h)]
+     assert {r["meta"]["object_key"] for r in refs} == {expect}
+     fwd_roots = {r["source_root_id"] for r in refs if r["holder_id"] != holders[0].holder_id}
+-    assert fwd_roots == {origin_root(expect)}                              # three different texts, one root
++    assert fwd_roots == {fingerprint(COMMENTARY[w]) for w in ("ana", "bo", "cy")}
+     for h in holders:
+         await h.close()
+ 
+@@ -444,8 +595,8 @@ async def test_forwards_alone_collapse_even_when_the_original_is_nowhere(tmp_pat
+     for h in holders:
+         assert table_contains(h, "1790674800.000100") == ["ingest_records.source_object_id"] or table_contains(h, "1790674800.000100") == []
+         row = h.store._conn.execute("SELECT source_root_id, root_method, origin_key, object_key FROM ingest_records").fetchone()
+-        assert row["root_method"] == "explicit" and row["origin_key"].startswith("ok1_") and row["origin_key"] != row["object_key"]
+-        assert row["source_root_id"] == origin_root(row["origin_key"])
++        assert row["origin_key"].startswith("ok1_") and row["origin_key"] != row["object_key"]
++        assert row["root_method"] == "content" and row["source_root_id"].startswith("root_")           # a link never replaces the root
+         await h.close()
+ 
+ 
+@@ -533,16 +684,108 @@ def test_origin_identity_is_a_one_way_key_of_the_originals_own_identity() -> Non
+     original = CanonicalEvent.create(**{**base, "holder_id": "other", "source_object_id": "orig", "body": "The original text."})
+     for rel in ("forward", "share", "crosspost", "copy", "moved_from", "bot_relay"):
+         e = CanonicalEvent.create(**base, derived_from=[DerivedFrom(rel, source_object_id="orig")])
+-        assert e.origin_key == original.object_key and e.source_root_id == origin_root(original.object_key) and e.root_method == "explicit", rel
++        assert e.origin_key == original.object_key and e.source_root_id == fingerprint(base["body"]) and e.root_method == "content", rel
+     assert CanonicalEvent.create(**base, derived_from=[DerivedFrom("quote", source_object_id="orig")]).origin_key is None   # a quote is a reply
+     assert CanonicalEvent.create(**base).origin_key is None
+     mail = CanonicalEvent.create(**base, derived_from=[DerivedFrom("forward", rfc822_message_id="<AbC@mail.example>")])
+     mail2 = CanonicalEvent.create(**{**base, "holder_id": "h9", "source_object_id": "x"}, derived_from=[DerivedFrom("forward", rfc822_message_id="abc@mail.example")])
+     assert mail.origin_key == mail2.origin_key and mail.origin_key.startswith("ok1_") and mail.source_root_id == mail2.source_root_id
+-    # the origin id is not recoverable from the key or the root
+-    assert "orig" not in e.origin_key and "orig" not in (e.source_root_id or "")
++    # the origin id is not recoverable from the key
++    assert "orig" not in e.origin_key
+     # deletions and conversations never carry an origin
+     assert CanonicalEvent.create(**{**base, "kind": "deletion", "body": ""}, derived_from=[DerivedFrom("forward", source_object_id="orig")]).origin_key is None
+     # the payload round trip (queue) keeps the link, hence the key
+     from mycelic.ingest.events import decode_payload, encode_payload
+     assert decode_payload(encode_payload(e)).origin_key == e.origin_key
++
++
++# ============================================================================================ D3 review fixes: a link never adds support
++# REVIEW_D F1 / probes S1-S6: copies must never add independent support, whatever links they carry. The link only MERGES more.
++PASTED = lambda who: f"FYI from {who}\n---------- Forwarded message ---------\nFrom: Ana <ana@acme.example>\nSubject: Rotterdam\n\n{ORIGINAL_TEXT}"  # noqa: E731
++
++
++async def holder_many(tmp_path: Path, name: str, records: list[dict[str, Any]], *, app: str = "slack-export", account: str = "T0ACME"):
++    store, pipe, _svc, con, _f = await one_holder(tmp_path, [json.dumps(r) for r in records], name=name, app=app, account=account)
++    await pipe.sync(con["connector_id"])
++    await pipe.process_available()
++    return store
++
++
++async def test_s1_a_verbatim_copy_with_a_link_and_one_without_are_one_root(tmp_path: Path) -> None:
++    plain = await holder_with(tmp_path, "plain", rec("b1", ORIGINAL_TEXT, ts="2026-10-08T10:00:00Z"))
++    linked = await holder_with(tmp_path, "linked", forward_record("ana", ORIGINAL_TEXT))                  # original held nowhere
++    assert (await support_over([plain, linked]))["independent_roots"] == 1
++    # the same for a pasted forward block, with and without the link
++    p1 = await holder_with(tmp_path, "p1", rec("b2", PASTED("bo"), ts="2026-10-08T10:00:00Z"))
++    p2 = await holder_with(tmp_path, "p2", forward_record("cy", PASTED("cy")))
++    assert (await support_over([p1, p2]))["independent_roots"] == 1
++    for h in (plain, linked, p1, p2):
++        await h.close()
++
++
++async def test_s2_s3_a_link_in_another_identity_space_does_not_split_copies(tmp_path: Path) -> None:
++    # S2: the original is held under another app label than the link names, the forward is verbatim
++    orig = await holder_with(tmp_path, "orig", rec(ORIGIN["object_id"], ORIGINAL_TEXT, ts="2026-10-08T09:12:00Z"), app="slack")
++    fwd = await holder_with(tmp_path, "fwd", forward_record("ana", ORIGINAL_TEXT))
++    assert (await support_over([orig, fwd]))["independent_roots"] == 1
++    # S3: the original is a mail record; the pasted forward block carries its Message-ID
++    mail = await holder_with(tmp_path, "mail", rec("gm-123", ORIGINAL_TEXT, ts="2026-10-08T09:12:00Z"), app="mail-export", account="ana@acme.example")
++    pasted = await holder_with(tmp_path, "pasted", forward_record("cy", PASTED("cy"), origin={"message_id": "<abc@mail.acme.example>"}),
++                               app="mail-export", account="cy@acme.example")
++    assert (await support_over([mail, pasted]))["independent_roots"] == 1
++    for h in (orig, fwd, mail, pasted):
++        await h.close()
++
++
++async def test_s4_a_link_cannot_turn_one_text_into_many_independent_roots(tmp_path: Path) -> None:
++    fake = lambda k: {**ORIGIN, "object_id": f"999.{k}"}                                                 # noqa: E731
++    holders = [await holder_with(tmp_path, f"i{k}", forward_record("ana", ORIGINAL_TEXT, origin=fake(k), oid=f"i{k}")) for k in range(3)]
++    s = await support_over(holders)
++    assert s["apparent_refs"] == 3 and s["independent_roots"] == 1 and s["copied_refs"] == 2             # same text: one source
++    one = await holder_many(tmp_path, "one", [forward_record("ana", ORIGINAL_TEXT, origin=fake(10 + k), oid=f"j{k}") for k in range(3)])
++    s1 = await support_over([one])
++    assert s1["apparent_refs"] == 3 and s1["independent_roots"] == 1
++    for h in (*holders, one):
++        await h.close()
++
++
++async def test_s5_an_unresolvable_bot_relay_stays_of_unknown_independence(tmp_path: Path) -> None:
++    relay = rec("bot1", ORIGINAL_TEXT, ts="2026-10-08T10:00:00Z", is_bot=True, forwarded_from={**ORIGIN, "relation": "bot_relay"})
++    h = await holder_with(tmp_path, "bot", relay)                                                         # the relayed object is held nowhere
++    row = h.store._conn.execute("SELECT root_known, source_root_id, root_method, origin_key FROM ingest_records").fetchone()
++    assert row["root_known"] == 0 and row["source_root_id"] is None and row["root_method"] == "unknown" and row["origin_key"]
++    s = await support_over([h])
++    assert s["independent_roots"] == 0 and s["unknown_independence"] == 1                                 # never counted (D11, §4.5 rule 6)
++    # ... but a relay of an object this holder DOES hold takes that object's root (rule 6: "a relay that can be resolved")
++    store, pipe, _svc, con, f = await one_holder(tmp_path, [json.dumps(original_record()), json.dumps(relay)], name="bot2",
++                                                 app="slack-export", account="T0ACME")
++    await pipe.sync(con["connector_id"])
++    await pipe.process_available()
++    rows = {r["source_object_id"]: r for r in store.store._conn.execute("SELECT source_object_id, source_root_id, root_known, root_method FROM ingest_records")}
++    assert rows["bot1"]["root_known"] == 1 and rows["bot1"]["source_root_id"] == rows[ORIGIN["object_id"]]["source_root_id"] and rows["bot1"]["root_method"] == "explicit"
++    assert (await support_over([store]))["independent_roots"] == 1
++    await h.close()
++    await store.close()
++
++
++async def test_s6_a_forged_link_can_only_merge_never_inflate(tmp_path: Path) -> None:
++    """The known price of the content-root design (REVIEW_D): a record that links an origin AND repeats someone else's text merges the
++    two (under-count, the direction I4 declares safe). It cannot add a root; suppression through a forged own identity (S7) predates this."""
++    other = "Independent check by Port Ops: the Rotterdam berth schedule shows Acme Freight vessels idle for nine days this month."
++    a = await holder_with(tmp_path, "a", original_record())
++    b = await holder_with(tmp_path, "b", rec("b9", other, ts="2026-10-08T10:00:00Z"), app="teamchat", account="acme")
++    m = await holder_with(tmp_path, "m", forward_record("ana", other, oid="m9"))
++    q = "Rotterdam shipment slipped 9 days customs paperwork berth schedule idle vessels"
++
++    async def n_roots(stores) -> tuple[int, int]:
++        refs = []
++        for st in stores:
++            resp = await st.answer_question(question(q))
++            refs += [{**r, "holder_id": st.holder_id, "status": "active", "role": "supports"} for r in resp["evidence_refs"]]
++        sup = compute_support(refs)
++        return sup["apparent_refs"], sup["independent_roots"]
++    assert await n_roots([a, b]) == (2, 2)
++    apparent, roots = await n_roots([a, b, m])
++    assert apparent == 3 and roots <= 2                                                                   # never more than the genuine two
++    for h in (a, b, m):
++        await h.close()
+-- 
+2.43.0
+
