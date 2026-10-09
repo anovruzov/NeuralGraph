@@ -3,12 +3,15 @@
 with nothing planted, at a given number of sites.
 
     python tools/market/vehicle_null_rate.py --pack docs/collective/replay/vehicles/pack-v2 --sites 60
-        [--weeks 106] [--seeds 1 2 3] [--detectors FILE] [--set burst.min_sites=3 ...] [--grid FILE] [--out FILE]
+        [--weeks 106] [--seeds 1 2 3] [--vehicles N] [--detectors FILE] [--set burst.min_sites=3 ...] [--grid FILE]
+        [--out FILE]
 
 **The world** is the pack generator's (``packs.generator.generate``) with the first ``--sites`` sites and no plant:
 synthetic records only. It runs through the pilot audit's pipeline (``evaluate.baselines``): each site ingests and
 extracts lexically and emits k-suppressed weekly cells, and HQ runs X and S over them; model-free R runs over the
 record-level fields as the audit runs it. 106 weeks is the replays' span (2023-01-01 to 2024-12-31 in ISO weeks).
+``--vehicles N`` makes a sparser world: the generator draws from N fictional vehicles (:func:`fictional_vehicles`)
+instead of its own, with the same record volume, so each series has fewer records.
 
 **The rate.** The evaluated weeks are the audit's: from week ``window_weeks + min_history_weeks - 1`` on. Each series
 (entity, predicate) with a cell in a channel's run is tested once per evaluated week. The null candidate rate is the
@@ -39,6 +42,7 @@ from typing import Any, Mapping, Sequence
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from vehicle_pack import ENTITY  # noqa: E402
 from vehicle_pack_v2 import set_dotted as with_settings  # noqa: E402
 from mycelic.collective.evaluate.baselines import exact_result, r_mf_cells, run_pipeline, world_weeks  # noqa: E402
 from mycelic.collective.jsonio import canonical_bytes, sha256_hex  # noqa: E402
@@ -50,6 +54,10 @@ CHANNELS = ("X", "S", "R_mf")
 TIE_SALT = "pilot"
 REPLAY_WEEKS = 106
 LIMIT = 0.05                                    # the handoff's bar for the null candidate rate at 60 sites
+# make-model pairs of the sparser world; the generator's own six vehicles are among the first 60 ids
+SPARSE_MODELS = ("ACME-ROADSTER", "ACME-HAULER", "BOLT-COMPACT", "BOLT-WAGON", "ZEPHYR-VAN", "ZEPHYR-COUPE")
+SPARSE_FIRST_YEAR = 2015
+MAX_VEHICLES = 600
 
 
 def parse_set(items: Sequence[str]) -> dict[str, Any]:
@@ -60,6 +68,26 @@ def parse_set(items: Sequence[str]) -> dict[str, Any]:
             raise ValueError(f"--set takes path=value: {item!r}")
         out[path] = json.loads(raw)
     return out
+
+
+def fictional_vehicles(n: int) -> list[str]:
+    """``n`` fictional vehicle ids: the make-model pairs of :data:`SPARSE_MODELS` over model years from
+    :data:`SPARSE_FIRST_YEAR` on, year by year."""
+    if not 1 <= n <= MAX_VEHICLES:
+        raise ValueError(f"--vehicles takes 1 to {MAX_VEHICLES}: {n}")
+    years = range(SPARSE_FIRST_YEAR, SPARSE_FIRST_YEAR + -(-n // len(SPARSE_MODELS)))
+    return [f"{m}-{y}" for y in years for m in SPARSE_MODELS][:n]
+
+
+def with_vehicles(pack_dir: Path, vehicles: Sequence[str], workdir: Path) -> Path:
+    """A copy of the pack whose generator draws from ``vehicles`` (every site's master data is "all" of them)."""
+    d = workdir / "world-pack"
+    shutil.copytree(pack_dir, d)
+    path = d / "generator.json"
+    gen = json.loads(path.read_text(encoding="utf-8"))
+    gen["universe"] = {**gen["universe"], ENTITY: list(vehicles)}
+    path.write_text(json.dumps(gen, indent=2) + "\n", encoding="utf-8")
+    return d
 
 
 def variant(pack_dir: Path, detectors: Mapping[str, Any], workdir: Path) -> FrozenPack:
@@ -167,24 +195,30 @@ def first_passing(doc: Mapping[str, Any], ladder: Sequence[str], limit: float = 
 
 
 def run(pack_dir: Path, settings: Mapping[str, Mapping[str, Any]], *, sites: int, weeks: int,
-        seeds: Sequence[int]) -> dict[str, Any]:
-    """Each named detector setting's rates on the same seeds' worlds."""
+        seeds: Sequence[int], vehicles: Sequence[str] | None = None) -> dict[str, Any]:
+    """Each named detector setting's rates on the same seeds' worlds; with ``vehicles``, worlds drawn from those
+    vehicles instead of the generator's own."""
     base = load_pack_dir(pack_dir)
     per: dict[str, list[dict[str, Any]]] = {name: [] for name in settings}
     worlds = []
     with tempfile.TemporaryDirectory(prefix="mycelic-null-") as tmp:
-        packs = {name: variant(pack_dir, d, Path(tmp)) for name, d in settings.items()}
+        world_dir = with_vehicles(pack_dir, vehicles, Path(tmp)) if vehicles else pack_dir
+        world_pack = load_pack_dir(world_dir)
+        packs = {name: variant(world_dir, d, Path(tmp)) for name, d in settings.items()}
         for seed in seeds:
-            inputs = world_inputs(base, seed, sites, weeks, Path(tmp) / f"world-{seed}")
+            inputs = world_inputs(world_pack, seed, sites, weeks, Path(tmp) / f"world-{seed}")
             worlds.append({"seed": seed, "records": inputs["records"], "sites": inputs["sites"]})
             for name in settings:
                 per[name].append({"seed": seed, **measure(inputs, packs[name])})
         hashes = {name: packs[name].detector_hash for name in settings}
-    return {"kind": "null_candidate_rate", "label": "synthetic null world: generated records, nothing planted",
-            "pack": {"id": base.id, "version": base.version, **base.hashes()}, "sites": sites, "weeks": weeks,
-            "seeds": list(seeds), "worlds": worlds,
-            "settings": {name: {"detectors": dict(settings[name]), "detector_hash": hashes[name],
-                                "per_seed": per[name], "pooled": pooled(per[name])} for name in settings}}
+    doc = {"kind": "null_candidate_rate", "label": "synthetic null world: generated records, nothing planted",
+           "pack": {"id": base.id, "version": base.version, **base.hashes()}, "sites": sites, "weeks": weeks,
+           "seeds": list(seeds), "worlds": worlds,
+           "settings": {name: {"detectors": dict(settings[name]), "detector_hash": hashes[name],
+                               "per_seed": per[name], "pooled": pooled(per[name])} for name in settings}}
+    if vehicles:
+        doc["vehicles"] = list(vehicles)
+    return doc
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -193,6 +227,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--sites", type=int, required=True)
     p.add_argument("--weeks", type=int, default=REPLAY_WEEKS)
     p.add_argument("--seeds", type=int, nargs="+", default=[1, 2, 3])
+    p.add_argument("--vehicles", type=int, help="draw the world from this many fictional vehicles instead of the "
+                                                "generator's own (a sparser world)")
     p.add_argument("--detectors", help="a detectors.json to use instead of the pack's")
     p.add_argument("--set", nargs="*", default=[], help="dotted detector setting=JSON value, applied last")
     p.add_argument("--grid", help="a JSON file {name: {dotted setting: value}}: each name is a setting measured on "
@@ -209,10 +245,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         grid = json.loads(Path(args.grid).read_text(encoding="utf-8")) if args.grid else {"run": {}}
         settings = {name: with_settings(detectors, changes) for name, changes in grid.items()}
+        vehicles = fictional_vehicles(args.vehicles) if args.vehicles is not None else None
     except ValueError as err:
         print(f"error: {err}", file=sys.stderr)
         return 2
-    doc = run(pack_dir, settings, sites=args.sites, weeks=args.weeks, seeds=args.seeds)
+    doc = run(pack_dir, settings, sites=args.sites, weeks=args.weeks, seeds=args.seeds, vehicles=vehicles)
     text = json.dumps(doc, indent=1, sort_keys=True)
     if args.out:
         Path(args.out).write_text(text + "\n", encoding="utf-8")

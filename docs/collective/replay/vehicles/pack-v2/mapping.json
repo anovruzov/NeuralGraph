@@ -57,6 +57,7 @@
   "origin_ref": null,
   "origin_site": null,
   "required": [
-    "narrative"
+    "narrative",
+    "reporter"
   ]
 }

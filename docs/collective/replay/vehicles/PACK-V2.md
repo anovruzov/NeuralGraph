@@ -52,9 +52,15 @@ Limits of the check:
   field lists. So the check runs over the 40 complaint categories, each treated as a possible outcome name. Recall and
   investigation components are top-level categories of the same kind.
 - **Which names are old comes from the handoff and R001**, not from the probe: the probe has no dates per name.
-- **VISIBILITY** is probably a fourth old name (for VISIBILITY/WIPER). `pack/` already folded it into unknown or
-  other, so an outcome under it matches any failure on its vehicle, and it passes. v2 leaves it there; the handoff
-  names three pairs.
+- **The check can fail only on the three listed names.** It takes every other name as the complaints' scheme, so
+  every other name passes by construction. So "0 failing" shows that the merge is applied. It does not show that the
+  list of old names is complete.
+- **Other probable old names pass through unknown or other.** 14 of the 40 names resolve to unknown or other, whose
+  outcome matches any failure on its vehicle, so they pass. Five of them look like old names whose new name is a
+  pack category: VISIBILITY (5,680 complaints, for VISIBILITY/WIPER), FUEL SYSTEM, DIESEL (962), SERVICE BRAKES, AIR
+  (570), HYBRID PROPULSION SYSTEM (356) and FUEL SYSTEM, OTHER (135). The counts are the probe's. `pack/` already
+  folded them there (VISIBILITY lost its phrases to VISIBILITY/WIPER; the others are under the 1,000 complaints a
+  category needs, `CHOICE-V001.md`). v2 leaves them there; the handoff names three pairs. The test pins the 14 names.
 
 ## 2. A missing reporter is not one reporter
 
@@ -66,10 +72,24 @@ v2's mapping reads a `reporter` column. `tools/market/nhtsa_export.py` writes it
 one (`pack_reporter`), and it fills it with the complaint's own `ODINO`. NHTSA publishes no complainant id, so each
 complaint counts as its own reporter. Model-free R already counts it that way. The pinned code is unchanged.
 
+v2's mapping also lists `reporter` as required. A row without it is refused (`missing_reporter`) instead of falling
+back to the shared unknown reporter. So an export written without the column maps to no record, and the audit stops.
+Such exports come from the exporter at `7a94535`, or from any caller of `complaints()` that passes no reporter
+(`lab.goldlabels` does, for `pack/`).
+
+**One complaint, one reporter, is an assumption, not a measurement.** One person who files several complaints counts
+as several reporters. Under v2 a cell's reporter count equals its record count, so on NHTSA data:
+- the few-reporters flag (G4's `few_reporters`, a published record count with a suppressed reporter count) can no
+  longer fire;
+- pushdown's `min_independent_reporters` (3, equal to k) is met by any confirming site, since a site confirms only
+  with at least k records.
+
 The tests show both sides:
 - **`pack/` exports exactly as before.** A fixed set of 80 synthetic complaints (53 kept) exports to the same bytes as
   with the exporter at `7a94535`, before this change (sha256 `46a2c74f5d40…`), with no reporter column.
 - **v2's export** is the same rows with one more column, `reporter`, equal to `odino`.
+- **An export without the column** maps to 53 records under `pack/` and to none under v2 (53 refused,
+  `missing_reporter`), and the audit stops.
 - **Three complaints in one cell** at one site count 3 records and a suppressed reporter count (`<k`) under `pack/`,
   and 3 records and 3 reporters under v2.
 
@@ -111,15 +131,22 @@ them and were read only after L2 was set in the builder.
 
 | Seeds | Setting | X | S | R_mf | Busiest quarter, highest channel | Series ever a candidate, X |
 |---|---|---|---|---|---|---|
-| 1-3 (calibration) | `pack/` | **26.15%** | 3.61% | **7.01%** | R_mf 14.51% | 432 of 432 |
+| 1-3 (calibration) | `pack/` | **26.15%** | 3.61% | **7.01%** | X **26.10%** | 432 of 432 |
 | 1-3 | L1 | 1.23% | 0.56% | 1.56% | R_mf **6.12%** | 177 of 432 |
 | 1-3 | **L2 (v2)** | 0.09% | 0.09% | 0.57% | R_mf 2.29% | 23 of 432 |
 | 1-3 | L3 | 0.00% | 0.01% | 0.15% | R_mf 0.59% | 1 of 432 |
-| 4-6 (held out) | `pack/` | **26.26%** | 3.67% | **6.72%** | R_mf 14.61% | 432 of 432 |
+| 4-6 (held out) | `pack/` | **26.26%** | 3.67% | **6.72%** | X **26.44%** | 432 of 432 |
 | 4-6 | **L2 (v2)** | 0.11% | 0.13% | 0.51% | R_mf 2.05% | 29 of 432 |
 
-Rates in bold miss the bar. L2 passes on every seed by itself, in every channel. For reference, at 6 sites the same
-world gives X 0.38%, S 0.06% and R_mf 0.17% with `pack/`'s settings, which pass, and none with L2.
+Rates in bold miss the bar. The busiest-quarter column gives the highest of the three channels. L2 passes on every
+seed by itself, in every channel.
+
+**L2 misses 5% on another reading.** The bar is on the per-test rate. Read as the share of series that are ever a
+candidate in the 87 weeks, L2's X is 23 of 432 (5.3%) on seeds 1 to 3 and 29 of 432 (6.7%) on seeds 4 to 6. Its S
+and R_mf are at most 18 of 432 (4.2%). Both the measure and the ladder were chosen after seeds 1 to 3 were read.
+
+For reference, at 6 sites the same world gives X 0.38%, S 0.06% and R_mf 0.17% with `pack/`'s settings, which pass,
+and none with L2.
 
 Commands (each writes the JSON file named):
 
@@ -128,8 +155,13 @@ python tools/market/vehicle_null_rate.py --pack docs/collective/replay/vehicles/
     --detectors docs/collective/replay/vehicles/pack/detectors.json \
     --grid docs/collective/replay/vehicles/null-rate/grid.json \
     --sites 60 --seeds 1 2 3 --out docs/collective/replay/vehicles/null-rate/sites60-seeds1-3.json
-# the same with --seeds 4 5 6 (sites60-seeds4-6.json), and with --sites 6 --seeds 1 2 3 (sites6-seeds1-3.json)
+# the same with --seeds 4 5 6 (sites60-seeds4-6.json), with --sites 6 --seeds 1 2 3 (sites6-seeds1-3.json),
+# and with --vehicles 60 (sites60-vehicles60-seeds1-3.json, the sparser world below)
 ```
+
+Each run records the hashes of the pack it ran on, and the tests check all four against the committed `pack-v2/`.
+The three runs first committed had been made on an earlier state of `pack-v2/`, before L2 was written into it. Their
+rerun on the committed pack gave the same worlds and rates; only the pack's hashes changed.
 
 **The smoke plant still shows.** The pilot audit's demo
 (`python -m mycelic.collective.pilot.audit demo --pack docs/collective/replay/vehicles/pack-v2 --out DIR`) plants the
@@ -150,10 +182,14 @@ is found 1 day before it opens instead of 29.
 - **The handoff's own figures are not reproduced.** It gives a null candidate rate of 43% at 60 sites and 1.8% at 6
   from a simulation not in the repository. Its world and its exact measure are unknown, so the numbers here are not
   comparable to those.
-- **One synthetic world.** The generator draws each record's vehicle and predicate evenly, so all 144 series have
-  about the same volume. An exploratory run on a sparser variant, with 60 fictional vehicles instead of 6, gave far
-  fewer noise candidates with `pack/`'s settings. So this denser world is the harder test, and the one used. Real
-  exports mix a few busy series with many sparse ones.
+- **One synthetic world, and the verdict on `pack/` depends on it.** The generator draws each record's vehicle and
+  predicate evenly, so all 144 series have about the same volume. A sparser world (`--vehicles 60`: 60 fictional
+  vehicles instead of 6, 31,626 to 32,010 records a world, 1,440 series a seed) has far fewer noise candidates.
+  There `pack/`'s settings give X 0.27%, S 0.15% and R_mf 0.24% (seeds 1 to 3 pooled; busiest quarter at most
+  0.95%) and pass. Seed 1 alone gives X 0.23%, S 0.12% and R_mf 0.20%. L2 gives no candidate in any channel. On the
+  series-ever reading `pack/`'s X is 241 of 4,320 (5.6%). So whether `pack/`'s thresholds pass at all depends on the
+  synthetic world chosen. The denser world is the harder test, and the one used. Real exports mix a few busy series
+  with many sparse ones.
 - **No power on real-sized signals.** Stricter settings also miss weak real rises. Whether v2 detects the slow
   pre-event ramps DIAG-E001 describes is the power check's question (handoff task 1.2), and must be answered before a
   replay uses this pack.
@@ -162,8 +198,8 @@ is found 1 day before it opens instead of 29.
 ## Files
 
 - `pack-v2/`: the pack. The loader refuses any file it does not know, so this note lives beside it.
-- `null-rate/grid.json`: the ladder. `null-rate/sites60-seeds1-3.json`, `sites60-seeds4-6.json` and
-  `sites6-seeds1-3.json`: the runs above, with every seed's counts.
+- `null-rate/grid.json`: the ladder. `null-rate/sites60-seeds1-3.json`, `sites60-seeds4-6.json`,
+  `sites6-seeds1-3.json` and `sites60-vehicles60-seeds1-3.json`: the runs above, with every seed's counts.
 - `tools/market/vehicle_pack_v2.py`, `tools/market/vehicle_null_rate.py`, and the reporter column in
   `tools/market/nhtsa_export.py`.
 - `tests/market/test_vehicle_pack_v2.py`.

@@ -2,12 +2,12 @@
  "kind": "null_candidate_rate",
  "label": "synthetic null world: generated records, nothing planted",
  "pack": {
-  "config_hash": "07d64f8540d3a59846449b87126a2cb6ed38bb35eefaf04726e90c40c18c8e11",
-  "detector_hash": "325b125afa2d8ae473384ed5802b6dd284a93ad3e83c853a065e8c5fb4582779",
+  "config_hash": "30e7df2c41b8be6b5359bd8748ba19b6ac514161928aa53ea4429ca177bd3659",
+  "detector_hash": "6aa5128ab3e08056fb7b84e23a4c20ff27872551b4eedd66cd12677277002d86",
   "fixtures_hash": "d631dc98be1ab10e9b3a6f62e60a8109a7bab556a8640b40af4ed23227af25aa",
   "id": "vehicle_complaints",
   "version": "0.2.0",
-  "vocabulary_hash": "83b078e98c671eb56e73acfeef8ef5a124a51396f2bbd8ae68a6a92d4e34d456"
+  "vocabulary_hash": "771149ad852a712039486bb2bfaf8ca13b26d23e6202cbd8487defd99a85893c"
  },
  "seeds": [
   4,

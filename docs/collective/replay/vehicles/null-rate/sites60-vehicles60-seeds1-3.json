@@ -63,162 +63,162 @@
     {
      "R_mf": {
       "busiest_quarter": {
-       "candidate_steps": 1,
-       "rate": 0.00031928480204342275,
-       "series": 36,
-       "series_ever": 1,
-       "series_ever_share": 0.027777777777777776,
-       "tests": 3132
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
       },
-      "candidate_steps": 1,
+      "candidate_steps": 0,
       "evaluated_weeks": 87,
-      "rate": 7.982120051085569e-05,
-      "series": 144,
-      "series_ever": 1,
-      "series_ever_share": 0.006944444444444444,
-      "tests": 12528
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
      },
      "S": {
       "busiest_quarter": {
-       "candidate_steps": 1,
-       "rate": 0.00031928480204342275,
-       "series": 36,
-       "series_ever": 1,
-       "series_ever_share": 0.027777777777777776,
-       "tests": 3132
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
       },
-      "candidate_steps": 1,
+      "candidate_steps": 0,
       "evaluated_weeks": 87,
-      "rate": 7.982120051085569e-05,
-      "series": 144,
-      "series_ever": 1,
-      "series_ever_share": 0.006944444444444444,
-      "tests": 12528
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
      },
      "X": {
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "seed": 1
     },
     {
      "R_mf": {
       "busiest_quarter": {
-       "candidate_steps": 7,
-       "rate": 0.002234993614303959,
-       "series": 36,
-       "series_ever": 3,
-       "series_ever_share": 0.08333333333333333,
-       "tests": 3132
+       "candidate_steps": 2,
+       "rate": 6.385696040868455e-05,
+       "series": 360,
+       "series_ever": 1,
+       "series_ever_share": 0.002777777777777778,
+       "tests": 31320
       },
-      "candidate_steps": 7,
+      "candidate_steps": 2,
       "evaluated_weeks": 87,
-      "rate": 0.0005587484035759898,
-      "series": 144,
-      "series_ever": 3,
-      "series_ever_share": 0.020833333333333332,
-      "tests": 12528
+      "rate": 1.596424010217114e-05,
+      "series": 1440,
+      "series_ever": 1,
+      "series_ever_share": 0.0006944444444444445,
+      "tests": 125280
      },
      "S": {
       "busiest_quarter": {
-       "candidate_steps": 3,
-       "rate": 0.0009578544061302681,
-       "series": 36,
-       "series_ever": 2,
-       "series_ever_share": 0.05555555555555555,
-       "tests": 3132
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
       },
-      "candidate_steps": 3,
+      "candidate_steps": 0,
       "evaluated_weeks": 87,
-      "rate": 0.00023946360153256704,
-      "series": 144,
-      "series_ever": 2,
-      "series_ever_share": 0.013888888888888888,
-      "tests": 12528
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
      },
      "X": {
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "seed": 2
     },
     {
      "R_mf": {
       "busiest_quarter": {
-       "candidate_steps": 7,
-       "rate": 0.002234993614303959,
-       "series": 36,
-       "series_ever": 3,
-       "series_ever_share": 0.08333333333333333,
-       "tests": 3132
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
       },
-      "candidate_steps": 7,
+      "candidate_steps": 0,
       "evaluated_weeks": 87,
-      "rate": 0.0005587484035759898,
-      "series": 144,
-      "series_ever": 3,
-      "series_ever_share": 0.020833333333333332,
-      "tests": 12528
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
      },
      "S": {
       "busiest_quarter": {
-       "candidate_steps": 4,
-       "rate": 0.001277139208173691,
-       "series": 36,
-       "series_ever": 2,
-       "series_ever_share": 0.05555555555555555,
-       "tests": 3132
+       "candidate_steps": 0,
+       "rate": 0.0,
+       "series": 360,
+       "series_ever": 0,
+       "series_ever_share": 0.0,
+       "tests": 31320
       },
-      "candidate_steps": 4,
+      "candidate_steps": 0,
       "evaluated_weeks": 87,
-      "rate": 0.00031928480204342275,
-      "series": 144,
-      "series_ever": 2,
-      "series_ever_share": 0.013888888888888888,
-      "tests": 12528
+      "rate": 0.0,
+      "series": 1440,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 125280
      },
      "X": {
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "seed": 3
     }
@@ -226,60 +226,60 @@
    "pooled": {
     "R_mf": {
      "all": {
-      "candidate_steps": 15,
-      "rate": 0.00039910600255427844,
-      "series": 432,
-      "series_ever": 7,
-      "series_ever_share": 0.016203703703703703,
-      "tests": 37584
+      "candidate_steps": 2,
+      "rate": 5.321413367390379e-06,
+      "series": 4320,
+      "series_ever": 1,
+      "series_ever_share": 0.0002314814814814815,
+      "tests": 375840
      },
      "busiest_quarter": {
-      "candidate_steps": 15,
-      "rate": 0.0015964240102171138,
-      "series": 108,
-      "series_ever": 7,
-      "series_ever_share": 0.06481481481481481,
-      "tests": 9396
+      "candidate_steps": 2,
+      "rate": 2.1285653469561517e-05,
+      "series": 1080,
+      "series_ever": 1,
+      "series_ever_share": 0.000925925925925926,
+      "tests": 93960
      }
     },
     "S": {
      "all": {
-      "candidate_steps": 8,
-      "rate": 0.00021285653469561516,
-      "series": 432,
-      "series_ever": 5,
-      "series_ever_share": 0.011574074074074073,
-      "tests": 37584
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 4320,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 375840
      },
      "busiest_quarter": {
-      "candidate_steps": 8,
-      "rate": 0.0008514261387824606,
-      "series": 108,
-      "series_ever": 5,
-      "series_ever_share": 0.046296296296296294,
-      "tests": 9396
+      "candidate_steps": 0,
+      "rate": 0.0,
+      "series": 1080,
+      "series_ever": 0,
+      "series_ever_share": 0.0,
+      "tests": 93960
      }
     },
     "X": {
      "all": {
       "candidate_steps": 0,
       "rate": 0.0,
-      "series": 432,
+      "series": 4320,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 37584
+      "tests": 375840
      },
      "busiest_quarter": {
       "candidate_steps": 0,
       "rate": 0.0,
-      "series": 108,
+      "series": 1080,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 9396
+      "tests": 93960
      }
     },
-    "max_rate": 0.00039910600255427844,
-    "max_series_ever_share": 0.016203703703703703
+    "max_rate": 5.321413367390379e-06,
+    "max_series_ever_share": 0.0002314814814814815
    }
   },
   "L2": {
@@ -332,52 +332,52 @@
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "S": {
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "X": {
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "seed": 1
     },
@@ -386,52 +386,52 @@
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "S": {
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "X": {
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "seed": 2
     },
@@ -440,52 +440,52 @@
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "S": {
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "X": {
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "seed": 3
     }
@@ -495,54 +495,54 @@
      "all": {
       "candidate_steps": 0,
       "rate": 0.0,
-      "series": 432,
+      "series": 4320,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 37584
+      "tests": 375840
      },
      "busiest_quarter": {
       "candidate_steps": 0,
       "rate": 0.0,
-      "series": 108,
+      "series": 1080,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 9396
+      "tests": 93960
      }
     },
     "S": {
      "all": {
       "candidate_steps": 0,
       "rate": 0.0,
-      "series": 432,
+      "series": 4320,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 37584
+      "tests": 375840
      },
      "busiest_quarter": {
       "candidate_steps": 0,
       "rate": 0.0,
-      "series": 108,
+      "series": 1080,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 9396
+      "tests": 93960
      }
     },
     "X": {
      "all": {
       "candidate_steps": 0,
       "rate": 0.0,
-      "series": 432,
+      "series": 4320,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 37584
+      "tests": 375840
      },
      "busiest_quarter": {
       "candidate_steps": 0,
       "rate": 0.0,
-      "series": 108,
+      "series": 1080,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 9396
+      "tests": 93960
      }
     },
     "max_rate": 0.0,
@@ -599,52 +599,52 @@
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "S": {
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "X": {
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "seed": 1
     },
@@ -653,52 +653,52 @@
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "S": {
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "X": {
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "seed": 2
     },
@@ -707,52 +707,52 @@
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "S": {
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "X": {
       "busiest_quarter": {
        "candidate_steps": 0,
        "rate": 0.0,
-       "series": 36,
+       "series": 360,
        "series_ever": 0,
        "series_ever_share": 0.0,
-       "tests": 3132
+       "tests": 31320
       },
       "candidate_steps": 0,
       "evaluated_weeks": 87,
       "rate": 0.0,
-      "series": 144,
+      "series": 1440,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 12528
+      "tests": 125280
      },
      "seed": 3
     }
@@ -762,54 +762,54 @@
      "all": {
       "candidate_steps": 0,
       "rate": 0.0,
-      "series": 432,
+      "series": 4320,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 37584
+      "tests": 375840
      },
      "busiest_quarter": {
       "candidate_steps": 0,
       "rate": 0.0,
-      "series": 108,
+      "series": 1080,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 9396
+      "tests": 93960
      }
     },
     "S": {
      "all": {
       "candidate_steps": 0,
       "rate": 0.0,
-      "series": 432,
+      "series": 4320,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 37584
+      "tests": 375840
      },
      "busiest_quarter": {
       "candidate_steps": 0,
       "rate": 0.0,
-      "series": 108,
+      "series": 1080,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 9396
+      "tests": 93960
      }
     },
     "X": {
      "all": {
       "candidate_steps": 0,
       "rate": 0.0,
-      "series": 432,
+      "series": 4320,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 37584
+      "tests": 375840
      },
      "busiest_quarter": {
       "candidate_steps": 0,
       "rate": 0.0,
-      "series": 108,
+      "series": 1080,
       "series_ever": 0,
       "series_ever_share": 0.0,
-      "tests": 9396
+      "tests": 93960
      }
     },
     "max_rate": 0.0,
@@ -864,162 +864,162 @@
     {
      "R_mf": {
       "busiest_quarter": {
-       "candidate_steps": 10,
-       "rate": 0.0031928480204342275,
-       "series": 36,
-       "series_ever": 7,
-       "series_ever_share": 0.19444444444444445,
-       "tests": 3132
+       "candidate_steps": 256,
+       "rate": 0.008173690932311623,
+       "series": 360,
+       "series_ever": 54,
+       "series_ever_share": 0.15,
+       "tests": 31320
       },
-      "candidate_steps": 10,
+      "candidate_steps": 256,
       "evaluated_weeks": 87,
-      "rate": 0.0007982120051085569,
-      "series": 144,
-      "series_ever": 7,
-      "series_ever_share": 0.04861111111111111,
-      "tests": 12528
+      "rate": 0.0020434227330779057,
+      "series": 1440,
+      "series_ever": 54,
+      "series_ever_share": 0.0375,
+      "tests": 125280
      },
      "S": {
       "busiest_quarter": {
-       "candidate_steps": 2,
-       "rate": 0.0006385696040868455,
-       "series": 36,
-       "series_ever": 2,
-       "series_ever_share": 0.05555555555555555,
-       "tests": 3132
+       "candidate_steps": 151,
+       "rate": 0.004821200510855684,
+       "series": 360,
+       "series_ever": 42,
+       "series_ever_share": 0.11666666666666667,
+       "tests": 31320
       },
-      "candidate_steps": 4,
+      "candidate_steps": 151,
       "evaluated_weeks": 87,
-      "rate": 0.00031928480204342275,
-      "series": 144,
-      "series_ever": 3,
-      "series_ever_share": 0.020833333333333332,
-      "tests": 12528
+      "rate": 0.001205300127713921,
+      "series": 1440,
+      "series_ever": 42,
+      "series_ever_share": 0.029166666666666667,
+      "tests": 125280
      },
      "X": {
       "busiest_quarter": {
-       "candidate_steps": 10,
-       "rate": 0.0031928480204342275,
-       "series": 36,
-       "series_ever": 6,
-       "series_ever_share": 0.16666666666666666,
-       "tests": 3132
+       "candidate_steps": 256,
+       "rate": 0.008173690932311623,
+       "series": 360,
+       "series_ever": 66,
+       "series_ever_share": 0.18333333333333332,
+       "tests": 31320
       },
-      "candidate_steps": 51,
+      "candidate_steps": 294,
       "evaluated_weeks": 87,
-      "rate": 0.0040708812260536395,
-      "series": 144,
-      "series_ever": 21,
-      "series_ever_share": 0.14583333333333334,
-      "tests": 12528
+      "rate": 0.002346743295019157,
+      "series": 1440,
+      "series_ever": 84,
+      "series_ever_share": 0.058333333333333334,
+      "tests": 125280
      },
      "seed": 1
     },
     {
      "R_mf": {
       "busiest_quarter": {
-       "candidate_steps": 20,
-       "rate": 0.006385696040868455,
-       "series": 36,
-       "series_ever": 7,
-       "series_ever_share": 0.19444444444444445,
-       "tests": 3132
+       "candidate_steps": 301,
+       "rate": 0.009610472541507025,
+       "series": 360,
+       "series_ever": 50,
+       "series_ever_share": 0.1388888888888889,
+       "tests": 31320
       },
-      "candidate_steps": 32,
+      "candidate_steps": 301,
       "evaluated_weeks": 87,
-      "rate": 0.002554278416347382,
-      "series": 144,
-      "series_ever": 12,
-      "series_ever_share": 0.08333333333333333,
-      "tests": 12528
+      "rate": 0.0024026181353767563,
+      "series": 1440,
+      "series_ever": 50,
+      "series_ever_share": 0.034722222222222224,
+      "tests": 125280
      },
      "S": {
       "busiest_quarter": {
-       "candidate_steps": 8,
-       "rate": 0.002554278416347382,
-       "series": 36,
-       "series_ever": 4,
-       "series_ever_share": 0.1111111111111111,
-       "tests": 3132
+       "candidate_steps": 187,
+       "rate": 0.005970625798212005,
+       "series": 360,
+       "series_ever": 42,
+       "series_ever_share": 0.11666666666666667,
+       "tests": 31320
       },
-      "candidate_steps": 10,
+      "candidate_steps": 187,
       "evaluated_weeks": 87,
-      "rate": 0.0007982120051085569,
-      "series": 144,
-      "series_ever": 6,
-      "series_ever_share": 0.041666666666666664,
-      "tests": 12528
+      "rate": 0.0014926564495530014,
+      "series": 1440,
+      "series_ever": 42,
+      "series_ever_share": 0.029166666666666667,
+      "tests": 125280
      },
      "X": {
       "busiest_quarter": {
-       "candidate_steps": 16,
-       "rate": 0.005108556832694764,
-       "series": 36,
-       "series_ever": 7,
-       "series_ever_share": 0.19444444444444445,
-       "tests": 3132
+       "candidate_steps": 317,
+       "rate": 0.0101213282247765,
+       "series": 360,
+       "series_ever": 67,
+       "series_ever_share": 0.18611111111111112,
+       "tests": 31320
       },
-      "candidate_steps": 61,
+      "candidate_steps": 352,
       "evaluated_weeks": 87,
-      "rate": 0.004869093231162197,
-      "series": 144,
-      "series_ever": 25,
-      "series_ever_share": 0.1736111111111111,
-      "tests": 12528
+      "rate": 0.00280970625798212,
+      "series": 1440,
+      "series_ever": 82,
+      "series_ever_share": 0.05694444444444444,
+      "tests": 125280
      },
      "seed": 2
     },
     {
      "R_mf": {
       "busiest_quarter": {
-       "candidate_steps": 15,
-       "rate": 0.004789272030651341,
-       "series": 36,
-       "series_ever": 6,
-       "series_ever_share": 0.16666666666666666,
-       "tests": 3132
+       "candidate_steps": 335,
+       "rate": 0.010696040868454661,
+       "series": 360,
+       "series_ever": 51,
+       "series_ever_share": 0.14166666666666666,
+       "tests": 31320
       },
-      "candidate_steps": 23,
+      "candidate_steps": 335,
       "evaluated_weeks": 87,
-      "rate": 0.0018358876117496807,
-      "series": 144,
-      "series_ever": 9,
-      "series_ever_share": 0.0625,
-      "tests": 12528
+      "rate": 0.0026740102171136653,
+      "series": 1440,
+      "series_ever": 51,
+      "series_ever_share": 0.035416666666666666,
+      "tests": 125280
      },
      "S": {
       "busiest_quarter": {
-       "candidate_steps": 4,
-       "rate": 0.001277139208173691,
-       "series": 36,
-       "series_ever": 2,
-       "series_ever_share": 0.05555555555555555,
-       "tests": 3132
+       "candidate_steps": 207,
+       "rate": 0.0066091954022988505,
+       "series": 360,
+       "series_ever": 44,
+       "series_ever_share": 0.12222222222222222,
+       "tests": 31320
       },
-      "candidate_steps": 9,
+      "candidate_steps": 207,
       "evaluated_weeks": 87,
-      "rate": 0.0007183908045977011,
-      "series": 144,
-      "series_ever": 4,
-      "series_ever_share": 0.027777777777777776,
-      "tests": 12528
+      "rate": 0.0016522988505747126,
+      "series": 1440,
+      "series_ever": 44,
+      "series_ever_share": 0.030555555555555555,
+      "tests": 125280
      },
      "X": {
       "busiest_quarter": {
-       "candidate_steps": 13,
-       "rate": 0.004150702426564496,
-       "series": 36,
-       "series_ever": 6,
-       "series_ever_share": 0.16666666666666666,
-       "tests": 3132
+       "candidate_steps": 323,
+       "rate": 0.010312899106002554,
+       "series": 360,
+       "series_ever": 61,
+       "series_ever_share": 0.16944444444444445,
+       "tests": 31320
       },
-      "candidate_steps": 32,
+      "candidate_steps": 359,
       "evaluated_weeks": 87,
-      "rate": 0.002554278416347382,
-      "series": 144,
-      "series_ever": 14,
-      "series_ever_share": 0.09722222222222222,
-      "tests": 12528
+      "rate": 0.002865581098339719,
+      "series": 1440,
+      "series_ever": 75,
+      "series_ever_share": 0.052083333333333336,
+      "tests": 125280
      },
      "seed": 3
     }
@@ -1027,80 +1027,142 @@
    "pooled": {
     "R_mf": {
      "all": {
-      "candidate_steps": 65,
-      "rate": 0.0017294593444018732,
-      "series": 432,
-      "series_ever": 28,
-      "series_ever_share": 0.06481481481481481,
-      "tests": 37584
+      "candidate_steps": 892,
+      "rate": 0.002373350361856109,
+      "series": 4320,
+      "series_ever": 155,
+      "series_ever_share": 0.03587962962962963,
+      "tests": 375840
      },
      "busiest_quarter": {
-      "candidate_steps": 45,
-      "rate": 0.004789272030651341,
-      "series": 108,
-      "series_ever": 20,
-      "series_ever_share": 0.18518518518518517,
-      "tests": 9396
+      "candidate_steps": 892,
+      "rate": 0.009493401447424436,
+      "series": 1080,
+      "series_ever": 155,
+      "series_ever_share": 0.14351851851851852,
+      "tests": 93960
      }
     },
     "S": {
      "all": {
-      "candidate_steps": 23,
-      "rate": 0.0006119625372498935,
-      "series": 432,
-      "series_ever": 13,
-      "series_ever_share": 0.03009259259259259,
-      "tests": 37584
+      "candidate_steps": 545,
+      "rate": 0.0014500851426138782,
+      "series": 4320,
+      "series_ever": 128,
+      "series_ever_share": 0.02962962962962963,
+      "tests": 375840
      },
      "busiest_quarter": {
-      "candidate_steps": 14,
-      "rate": 0.001489995742869306,
-      "series": 108,
-      "series_ever": 8,
-      "series_ever_share": 0.07407407407407407,
-      "tests": 9396
+      "candidate_steps": 545,
+      "rate": 0.005800340570455513,
+      "series": 1080,
+      "series_ever": 128,
+      "series_ever_share": 0.11851851851851852,
+      "tests": 93960
      }
     },
     "X": {
      "all": {
-      "candidate_steps": 144,
-      "rate": 0.0038314176245210726,
-      "series": 432,
-      "series_ever": 60,
-      "series_ever_share": 0.1388888888888889,
-      "tests": 37584
+      "candidate_steps": 1005,
+      "rate": 0.0026740102171136653,
+      "series": 4320,
+      "series_ever": 241,
+      "series_ever_share": 0.05578703703703704,
+      "tests": 375840
      },
      "busiest_quarter": {
-      "candidate_steps": 39,
-      "rate": 0.004150702426564496,
-      "series": 108,
-      "series_ever": 19,
-      "series_ever_share": 0.17592592592592593,
-      "tests": 9396
+      "candidate_steps": 896,
+      "rate": 0.00953597275436356,
+      "series": 1080,
+      "series_ever": 194,
+      "series_ever_share": 0.17962962962962964,
+      "tests": 93960
      }
     },
-    "max_rate": 0.0038314176245210726,
-    "max_series_ever_share": 0.1388888888888889
+    "max_rate": 0.0026740102171136653,
+    "max_series_ever_share": 0.05578703703703704
    }
   }
  },
- "sites": 6,
+ "sites": 60,
+ "vehicles": [
+  "ACME-ROADSTER-2015",
+  "ACME-HAULER-2015",
+  "BOLT-COMPACT-2015",
+  "BOLT-WAGON-2015",
+  "ZEPHYR-VAN-2015",
+  "ZEPHYR-COUPE-2015",
+  "ACME-ROADSTER-2016",
+  "ACME-HAULER-2016",
+  "BOLT-COMPACT-2016",
+  "BOLT-WAGON-2016",
+  "ZEPHYR-VAN-2016",
+  "ZEPHYR-COUPE-2016",
+  "ACME-ROADSTER-2017",
+  "ACME-HAULER-2017",
+  "BOLT-COMPACT-2017",
+  "BOLT-WAGON-2017",
+  "ZEPHYR-VAN-2017",
+  "ZEPHYR-COUPE-2017",
+  "ACME-ROADSTER-2018",
+  "ACME-HAULER-2018",
+  "BOLT-COMPACT-2018",
+  "BOLT-WAGON-2018",
+  "ZEPHYR-VAN-2018",
+  "ZEPHYR-COUPE-2018",
+  "ACME-ROADSTER-2019",
+  "ACME-HAULER-2019",
+  "BOLT-COMPACT-2019",
+  "BOLT-WAGON-2019",
+  "ZEPHYR-VAN-2019",
+  "ZEPHYR-COUPE-2019",
+  "ACME-ROADSTER-2020",
+  "ACME-HAULER-2020",
+  "BOLT-COMPACT-2020",
+  "BOLT-WAGON-2020",
+  "ZEPHYR-VAN-2020",
+  "ZEPHYR-COUPE-2020",
+  "ACME-ROADSTER-2021",
+  "ACME-HAULER-2021",
+  "BOLT-COMPACT-2021",
+  "BOLT-WAGON-2021",
+  "ZEPHYR-VAN-2021",
+  "ZEPHYR-COUPE-2021",
+  "ACME-ROADSTER-2022",
+  "ACME-HAULER-2022",
+  "BOLT-COMPACT-2022",
+  "BOLT-WAGON-2022",
+  "ZEPHYR-VAN-2022",
+  "ZEPHYR-COUPE-2022",
+  "ACME-ROADSTER-2023",
+  "ACME-HAULER-2023",
+  "BOLT-COMPACT-2023",
+  "BOLT-WAGON-2023",
+  "ZEPHYR-VAN-2023",
+  "ZEPHYR-COUPE-2023",
+  "ACME-ROADSTER-2024",
+  "ACME-HAULER-2024",
+  "BOLT-COMPACT-2024",
+  "BOLT-WAGON-2024",
+  "ZEPHYR-VAN-2024",
+  "ZEPHYR-COUPE-2024"
+ ],
  "weeks": 106,
  "worlds": [
   {
-   "records": 3190,
+   "records": 31873,
    "seed": 1,
-   "sites": 6
+   "sites": 60
   },
   {
-   "records": 3165,
+   "records": 31626,
    "seed": 2,
-   "sites": 6
+   "sites": 60
   },
   {
-   "records": 3140,
+   "records": 32010,
    "seed": 3,
-   "sites": 6
+   "sites": 60
   }
  ]
 }

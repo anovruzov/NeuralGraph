@@ -18,6 +18,7 @@ VEHICLES = ROOT / "docs" / "collective" / "replay" / "vehicles"
 PACK, PACK_V2, PROBE = VEHICLES / "pack", VEHICLES / "pack-v2", VEHICLES / "nhtsa-probe.json"
 NULL_RATE = VEHICLES / "null-rate"
 LADDER = ("pack", "L1", "L2", "L3")
+RUNS = ("sites60-seeds1-3", "sites60-seeds4-6", "sites6-seeds1-3", "sites60-vehicles60-seeds1-3")
 
 
 def _load(name: str):
@@ -31,6 +32,10 @@ V2 = _load("vehicle_pack_v2")
 E = _load("nhtsa_export")
 N = _load("vehicle_null_rate")
 OLD = ("ENGINE AND ENGINE COOLING", "FUEL SYSTEM, GASOLINE", "SERVICE BRAKES, HYDRAULIC")
+GENERIC_NAMES = ("UNKNOWN OR OTHER", "VISIBILITY", "FUEL SYSTEM, DIESEL", "TRACTION CONTROL SYSTEM",
+                 "SERVICE BRAKES, AIR", "PARKING BRAKE", "EQUIPMENT ADAPTIVE/MOBILITY", "HYBRID PROPULSION SYSTEM",
+                 "Chest Clip, Buckle, Harness", "TRAILER HITCHES", "Other/I am not sure", "INTERIOR LIGHTING",
+                 "Carry Handle, Shell, Base", "FUEL SYSTEM, OTHER")
 # sha256 of pack/'s export.csv of _rows(), written by the exporter at 7a94535, before pack v2 existed
 PACK_EXPORT_SHA256 = "46a2c74f5d40560d8e025c2d71525ac410329262eaefacc1b0003759831329b5"
 
@@ -120,6 +125,7 @@ class BuildTests(unittest.TestCase):
             self.assertEqual((PACK / name).read_bytes(), (PACK_V2 / name).read_bytes(), name)
         mapping, mapping_v1 = _json(PACK_V2 / "mapping.json"), _json(PACK / "mapping.json")
         self.assertEqual((mapping_v1["reporter"], mapping["reporter"]), (None, "reporter"))
+        self.assertEqual((mapping_v1["required"], mapping["required"]), (["narrative"], ["narrative", "reporter"]))
         vm, vm1 = mapping["codes"][0]["value_map"], mapping_v1["codes"][0]["value_map"]
         self.assertEqual(sorted(vm), sorted(vm1))               # the same names: the export writes the same column
         self.assertEqual({k: v for k, v in vm.items() if k not in OLD}, {k: v for k, v in vm1.items() if k not in OLD})
@@ -168,6 +174,16 @@ class NameCheckTests(unittest.TestCase):
         self.assertEqual(rows["ENGINE AND ENGINE COOLING"]["outcome_predicate"], "engine")
         self.assertIsNone(rows["VISIBILITY"]["outcome_predicate"])      # outside the pack: matches any failure
 
+    def test_the_check_can_fail_only_on_the_listed_old_names(self) -> None:
+        # with no old names listed, pack/ passes too: the check shows the merge is applied, not that the list is whole
+        counts = _json(PROBE)["complaints"]["top_components"]
+        self.assertEqual(V2.name_check(counts, _json(PACK / "mapping.json"), _json(PACK / "codes.json"),
+                                       old_names=())["failing"], [])
+        # the probe's names that pass only because unknown or other matches any failure (PACK-V2.md lists them)
+        after = V2.name_check(counts, _json(PACK_V2 / "mapping.json"), _json(PACK_V2 / "codes.json"))
+        generic = sorted(r["name"] for r in after["rows"] if r["outcome_predicate"] is None)
+        self.assertEqual(generic, sorted(GENERIC_NAMES))
+
     def test_cli_exit_codes(self) -> None:
         import contextlib
         import io
@@ -209,6 +225,24 @@ class ReporterTests(unittest.TestCase):
         self.assertEqual(len(v1), 53)
         self.assertEqual([{k: v for k, v in r.items() if k != "reporter"} for r in v2], v1)
         self.assertTrue(all(r["reporter"] == r["odino"] for r in v2))
+
+    def test_an_export_without_the_reporter_column_is_refused_by_v2(self) -> None:
+        # the exporter at 7a94535 and any caller that passes no reporter write no column: pack-v2 refuses every row
+        # (missing_reporter) instead of reading them as one shared unknown reporter, and the audit stops
+        from mycelic.collective.packs.connector import map_rows
+        from mycelic.collective.packs.loader import load_pack_dir
+        from mycelic.collective.pilot import audit as A
+        cats, _ = E.pack_categories(PACK_V2)
+        export, _ = E.complaints(_rows(), "FORD", "20230101", "20241231", cats)
+        with tempfile.TemporaryDirectory() as tmp:
+            A.write_csv(export, Path(tmp) / "export.csv")
+            rows = A.read_csv_rows(Path(tmp) / "export.csv")
+        self.assertNotIn("reporter", rows[0])
+        v1, v2 = (map_rows(rows, load_pack_dir(p)) for p in (PACK, PACK_V2))
+        self.assertEqual((len(v1.records), len(v2.records)), (53, 0))
+        self.assertEqual(dict(v2.rejected), {"missing_reporter": 53})
+        with self.assertRaises(A.AuditError):
+            A.audit(load_pack_dir(PACK_V2), rows, [])
 
     def test_a_reporter_column_must_be_new_and_plain(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -284,6 +318,27 @@ class NullRateTests(unittest.TestCase):
             self.assertGreaterEqual(a[ch]["candidate_steps"], b[ch]["candidate_steps"])
         self.assertEqual(doc["worlds"][0]["sites"], 6)
         self.assertNotEqual(doc["settings"]["loose"]["detector_hash"], doc["settings"]["pack"]["detector_hash"])
+        self.assertNotIn("vehicles", doc)
+
+    def test_a_sparser_world_draws_from_more_vehicles(self) -> None:
+        from mycelic.collective.packs.canonical import Canonicaliser
+        from mycelic.collective.packs.loader import load_pack_dir
+        ids = N.fictional_vehicles(60)
+        self.assertEqual(len(set(ids)), 60)
+        self.assertLessEqual(set(_json(PACK_V2 / "generator.json")["universe"]["vehicle"]), set(ids))
+        canon = Canonicaliser(load_pack_dir(PACK_V2))
+        self.assertTrue(all(canon.is_canonical("vehicle", v) for v in ids))
+        for bad in (0, N.MAX_VEHICLES + 1):
+            with self.assertRaises(ValueError):
+                N.fictional_vehicles(bad)
+        d = _json(PACK_V2 / "detectors.json")
+        dense = N.run(PACK_V2, {"v2": d}, sites=6, weeks=40, seeds=[1])
+        sparse = N.run(PACK_V2, {"v2": d}, sites=6, weeks=40, seeds=[1], vehicles=N.fictional_vehicles(24))
+        self.assertEqual(sparse["vehicles"], N.fictional_vehicles(24))
+        self.assertEqual(sparse["pack"], dense["pack"])                    # the pack given, not the world's copy
+        for ch in N.CHANNELS:
+            self.assertGreater(sparse["settings"]["v2"]["per_seed"][0][ch]["series"],
+                               dense["settings"]["v2"]["per_seed"][0][ch]["series"])
 
 
 class ThresholdTests(unittest.TestCase):
@@ -294,13 +349,14 @@ class ThresholdTests(unittest.TestCase):
         self.assertEqual(N.with_settings(_json(PACK / "detectors.json"), V2.DETECTOR_CHANGES), detectors)
         self.assertEqual(_json(NULL_RATE / "grid.json")["L2"], V2.DETECTOR_CHANGES)
         from mycelic.collective.packs.loader import load_pack_dir
-        detector_hash = load_pack_dir(PACK_V2).detector_hash
-        for name in ("sites60-seeds1-3", "sites60-seeds4-6", "sites6-seeds1-3"):
+        pack = load_pack_dir(PACK_V2)
+        for name in RUNS:
             doc = _json(NULL_RATE / f"{name}.json")
             self.assertEqual(doc["settings"]["L2"]["detectors"], detectors, name)
-            self.assertEqual(doc["settings"]["L2"]["detector_hash"], detector_hash, name)
+            self.assertEqual(doc["settings"]["L2"]["detector_hash"], pack.detector_hash, name)
             self.assertEqual(doc["settings"]["pack"]["detectors"], _json(PACK / "detectors.json"), name)
-            self.assertEqual(doc["pack"]["fixtures_hash"], load_pack_dir(PACK_V2).fixtures_hash, name)   # same world
+            # run on the committed pack-v2: all four hashes, not only the world's
+            self.assertEqual(doc["pack"], {"id": pack.id, "version": pack.version, **pack.hashes()}, name)
 
     def test_the_ladder_picks_l2_on_the_calibration_seeds_and_it_holds_on_the_others(self) -> None:
         calibration, held_out = _json(NULL_RATE / "sites60-seeds1-3.json"), _json(NULL_RATE / "sites60-seeds4-6.json")
@@ -317,6 +373,14 @@ class ThresholdTests(unittest.TestCase):
         # at 6 sites, the settings made for 6 plants already pass
         self.assertEqual(N.first_passing(_json(NULL_RATE / "sites6-seeds1-3.json"), LADDER), "pack")
 
+    def test_in_the_sparser_world_packs_settings_already_pass(self) -> None:
+        # whether pack/'s thresholds pass depends on the synthetic world (PACK-V2.md, "What this does not show")
+        doc = _json(NULL_RATE / "sites60-vehicles60-seeds1-3.json")
+        self.assertEqual((doc["sites"], doc["seeds"], doc["vehicles"]), (60, [1, 2, 3], N.fictional_vehicles(60)))
+        self.assertEqual(N.first_passing(doc, LADDER), "pack")
+        self.assertEqual(doc["settings"]["pack"]["pooled"]["X"]["all"]["series"], 3 * 60 * 24)
+        self.assertEqual(sum(doc["settings"]["L2"]["pooled"][ch]["all"]["candidate_steps"] for ch in N.CHANNELS), 0)
+
     def test_the_pilot_demo_still_finds_both_smoke_patterns(self) -> None:
         # p1 is written in the narratives only, so only X can see it; p2 is in the codes too
         from mycelic.collective.pilot import audit as A
@@ -332,7 +396,7 @@ class ThresholdTests(unittest.TestCase):
         self.assertTrue(found["S"]["ISSUE-p2"] and found["R_mf"]["ISSUE-p2"])
 
 
-PINNED = ("bcbb1896", "83b078e9", "6aa5128a", "d631dc98")
+PINNED = ("30e7df2c", "771149ad", "6aa5128a", "d631dc98")
 
 
 if __name__ == "__main__":

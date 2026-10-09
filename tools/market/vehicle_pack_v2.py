@@ -19,8 +19,9 @@
   unknown reporter as one shared reporter (``edge/site.py`` ``build_cells``), so every burst got the few-reporters
   penalty (handoff mistake 9). v2's mapping reads a ``reporter`` column, which the exporter fills with each
   complaint's own ``ODINO`` when the pack names it (``nhtsa_export.pack_reporter``): NHTSA publishes no complainant id,
-  so each complaint counts as its own reporter, as model-free R already counts it. ``pack/`` names none, so its
-  export is unchanged.
+  so each complaint counts as its own reporter, as model-free R already counts it. The column is required, so a row
+  without it is refused instead of falling back to the shared unknown reporter. ``pack/`` names none, so its export
+  is unchanged.
 * **Detector thresholds for 60 sites.** ``pack/``'s ``detectors.json`` is the device pack's, set for 6 plants
   (handoff mistake 4). :data:`DETECTOR_CHANGES` is the first rung of a ladder whose null candidate rate passes
   ``vehicle_null_rate.py``'s bar on the generator's synthetic null world at 60 sites (``PACK-V2.md`` beside the pack
@@ -112,7 +113,9 @@ def name_check(counts: Sequence[Sequence[Any]], mapping: Mapping[str, Any], code
                old_names: Sequence[str] = tuple(MERGED)) -> dict[str, Any]:
     """Every component name in ``counts`` (the probe's ``[name, complaints]`` list), resolved as an outcome would be.
     A name passes when its outcome matches any failure, or when a name of the complaints' scheme (every name but
-    ``old_names``) resolves to the same predicate."""
+    ``old_names``) resolves to the same predicate. Every name outside ``old_names`` passes by construction, so the
+    check can fail only on ``old_names``: it shows that the merge is applied, not that the list of old names is
+    complete."""
     value_map = mapping["codes"][0]["value_map"]
     rows = [{"name": str(n), "complaints": int(c), **resolve(str(n), value_map, codes)} for n, c in counts]
     current = {r["predicate"] for r in rows if r["category"] not in old_names}
@@ -191,6 +194,8 @@ def build(pack_dir: Path, probe: Mapping[str, Any], out: Path,
     mapping, codes, vocabulary = merge_names(_read(pack_dir / "mapping.json"), _read(pack_dir / "codes.json"),
                                              _read(pack_dir / "vocabulary.json"))
     mapping["reporter"] = REPORTER_PATH
+    # an export without the column is refused row by row (missing_reporter), not read as one shared reporter
+    mapping["required"] = sorted({*mapping["required"], REPORTER_PATH})
     check = name_check(counts, mapping, codes)
     if check["failing"]:
         raise BuildError(f"names without a complaint predicate: {check['failing']}")
