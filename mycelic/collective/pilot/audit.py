@@ -27,7 +27,7 @@ alert series of the same shape at random times, and the share of shifts that do 
 list**: every alerted pattern that matches no outcome, with the sites and record ids behind it, for the company's own
 reviewers. It is what the detectors saw that no one acted on: a missed issue, a known one never written up, or noise.
 
-``demo`` builds a synthetic history for a built-in pack (its generator and its smoke plant), writes it as the
+``demo`` builds a synthetic history for a pack with a smoke plant (its generator and ``fixtures/plant_smoke.json``), writes it as the
 mapping's CSV export with one outcome per planted pattern, opened two weeks after the pattern ends, and audits it. It
 shows the audit running end to end in that pack's field; the plant and the detectors share an author, so its numbers
 are not evidence that the audit finds real problems.
@@ -52,7 +52,7 @@ from ..experiments.common import DryRun, UsageError, fail, write_json_atomic
 from ..experiments.openfda_replay import chance_null, replay_weeks
 from ..packs.canonical import Canonicaliser
 from ..packs.connector import ConnectorError, field_values, map_rows
-from ..packs.loader import BUILTIN_ROOT, FrozenPack, PackError, is_builtin_ref, load_pack
+from ..packs.loader import FrozenPack, PackError, is_builtin_ref, load_pack
 
 CLI = "pilot.audit"
 KIND = "pilot_audit"
@@ -481,11 +481,11 @@ def render(doc: Mapping[str, Any]) -> str:
 # --------------------------------------------------------------------------------------------------- the demo
 
 def demo_inputs(pack: FrozenPack, out: Path, *, seed: int, weeks: int) -> tuple[Path, Path]:
-    """A synthetic export (CSV) and one outcome per planted pattern, for a built-in pack with a smoke plant."""
+    """A synthetic export (CSV) and one outcome per planted pattern, for a pack with a smoke plant."""
     from ..evaluate.plant import load_plant, plant
     from ..packs.generator import generate
 
-    plant_path = BUILTIN_ROOT / pack.id / "fixtures" / "plant_smoke.json"
+    plant_path = Path(pack.directory) / "fixtures" / "plant_smoke.json"
     if not plant_path.is_file():
         raise AuditError(f"pack {pack.id} has no fixtures/plant_smoke.json to plant from")
     spec = load_plant(plant_path, pack)

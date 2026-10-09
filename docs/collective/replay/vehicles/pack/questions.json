@@ -1,0 +1,18 @@
+{
+  "templates": {
+    "count_predicate_on_entity": {
+      "text": "In the last {window}, how many of your complaints describe {predicate_label} for {entity_type_label} {entity_id}?",
+      "entity_types": [
+        "vehicle"
+      ],
+      "predicates": null
+    }
+  },
+  "pushdown": {
+    "min_confirming_sites": 2,
+    "min_independent_roots": 3,
+    "min_independent_reporters": 3,
+    "freshness_days": 42,
+    "max_sibling_sites": 2
+  }
+}

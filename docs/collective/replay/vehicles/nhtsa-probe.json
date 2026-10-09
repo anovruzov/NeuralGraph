@@ -1,0 +1,272 @@
+{
+ "complaints": {
+  "fields_per_row": {
+   "51": 908693
+  },
+  "rows": 908693,
+  "rows_by_year_added": {
+   "1997": 5,
+   "2010": 1,
+   "2015": 105650,
+   "2016": 95850,
+   "2017": 91606,
+   "2018": 90871,
+   "2019": 105826,
+   "2020": 83356,
+   "2021": 69128,
+   "2022": 76628,
+   "2023": 91757,
+   "2024": 98015
+  },
+  "share": {
+   "component": 0.9999922966282342,
+   "narrative": 0.9999955980732766,
+   "state": 1.0
+  },
+  "top_components": [
+   [
+    "ENGINE",
+    115074
+   ],
+   [
+    "ELECTRICAL SYSTEM",
+    112111
+   ],
+   [
+    "AIR BAGS",
+    93558
+   ],
+   [
+    "POWER TRAIN",
+    82213
+   ],
+   [
+    "UNKNOWN OR OTHER",
+    81519
+   ],
+   [
+    "STEERING",
+    66721
+   ],
+   [
+    "SERVICE BRAKES",
+    53102
+   ],
+   [
+    "FUEL/PROPULSION SYSTEM",
+    42540
+   ],
+   [
+    "STRUCTURE",
+    40380
+   ],
+   [
+    "SUSPENSION",
+    27276
+   ],
+   [
+    "VEHICLE SPEED CONTROL",
+    26812
+   ],
+   [
+    "EXTERIOR LIGHTING",
+    25533
+   ],
+   [
+    "VISIBILITY/WIPER",
+    18228
+   ],
+   [
+    "FORWARD COLLISION AVOIDANCE",
+    18147
+   ],
+   [
+    "ELECTRONIC STABILITY CONTROL (ESC)",
+    15515
+   ],
+   [
+    "WHEELS",
+    11511
+   ],
+   [
+    "SEAT BELTS",
+    10789
+   ],
+   [
+    "TIRES",
+    10526
+   ],
+   [
+    "SEATS",
+    9282
+   ],
+   [
+    "ENGINE AND ENGINE COOLING",
+    8669
+   ],
+   [
+    "VISIBILITY",
+    5680
+   ],
+   [
+    "FUEL SYSTEM, GASOLINE",
+    5635
+   ],
+   [
+    "SERVICE BRAKES, HYDRAULIC",
+    5315
+   ],
+   [
+    "LANE DEPARTURE",
+    4462
+   ],
+   [
+    "LATCHES/LOCKS/LINKAGES",
+    4011
+   ],
+   [
+    "BACK OVER PREVENTION",
+    3810
+   ],
+   [
+    "EQUIPMENT",
+    3617
+   ],
+   [
+    "CHILD SEAT",
+    1235
+   ],
+   [
+    "FUEL SYSTEM, DIESEL",
+    962
+   ],
+   [
+    "TRACTION CONTROL SYSTEM",
+    719
+   ],
+   [
+    "SERVICE BRAKES, AIR",
+    570
+   ],
+   [
+    "PARKING BRAKE",
+    483
+   ],
+   [
+    "EQUIPMENT ADAPTIVE/MOBILITY",
+    430
+   ],
+   [
+    "HYBRID PROPULSION SYSTEM",
+    356
+   ],
+   [
+    "Chest Clip, Buckle, Harness",
+    339
+   ],
+   [
+    "TRAILER HITCHES",
+    272
+   ],
+   [
+    "Other/I am not sure",
+    240
+   ],
+   [
+    "INTERIOR LIGHTING",
+    229
+   ],
+   [
+    "Carry Handle, Shell, Base",
+    189
+   ],
+   [
+    "FUEL SYSTEM, OTHER",
+    135
+   ]
+  ],
+  "top_makes_added_2019": [
+   [
+    "FORD",
+    18637
+   ],
+   [
+    "CHEVROLET",
+    11983
+   ],
+   [
+    "JEEP",
+    8737
+   ],
+   [
+    "HONDA",
+    6177
+   ],
+   [
+    "NISSAN",
+    6170
+   ],
+   [
+    "DODGE",
+    6051
+   ],
+   [
+    "TOYOTA",
+    5935
+   ],
+   [
+    "HYUNDAI",
+    4890
+   ],
+   [
+    "KIA",
+    4550
+   ],
+   [
+    "CHRYSLER",
+    3768
+   ]
+  ]
+ },
+ "dataset_links": "error: HTTPError: HTTP Error 403: Forbidden",
+ "docs": {
+  "CMPL.txt": "CONSUMER COMPLAINTS\r\n\r\nThe COMPLAINTS file contains all safety-related defect complaints received \r\nby NHTSA since January 1, 1995.\r\n\r\nFile characteristics:\r\n\r\n-  All the records are TAB delimited\r\n-  All dates are in YYYYMMDD format\r\n\r\n-  Maximum record length: 2824\r\n\r\nChange log:\r\n1. Fields 21 - 46 were added on Sept. 14, 2007\r\n2. Changed flat file extension from .lst to .txt on Sept. 14, 2007\r\n3. Field 47 was added on Oct. 15, 2007\r\n4. Field 34 was changed from CHAR(20) to CHAR(30) on Aug. 08, 2008\r\n5. Field 18 was changed from NUMBER(6) to NUMBER(7) on Jun. 18, 2010\r\n6. Complaint Type 'MIVQ' was added to Field 21 list on Mar. 21, 2013\r\n7. Complaint Type 'MAVQ' was added to Field 21 list on Jan. 17, 2014\r\n8. Field 48 was added on Apr. 24, 2014\r\n9. Field 49 was added on Sept. 29, 2015\r\n10. Flat file content changes May 17 - June 17, 2021\r\n11. Information message updated on June 28, 2021\r\n12. Fields 50-51 were added on April 30, 2026\r\n\r\n=======\r\nMay 17 - June 17, 2021 - Flat file content changes.\r\n* Previously blank Y/N fields (such as crash or fire) will now show as N.\r\n* Previously blank values for numeric fields will now show as zero.\r\n* Manufacturer name, make, model and component name of the product(s) in a complaint may have changed over time and the new flat file will now reflect them.\r\n* If a complaint had multiple dealer contacts, only a single dealer's contact information will now show.\r\n* Additional minor differences due to data cleanup in a relatively small number of records in the flat file.\r\n=======\r\nJune 28, 2021 - Flat file content changes.\r\nThe NHTSA system that generates the complaints file underwent an update during the weekend of May 16-17, 2021. The update has caused discrepancies between the contents of the complaints file between the version posted on Friday, May 15, 2021 (before the system update) and the versions posted daily since Monday, May 17, 2021 (after the system update) and continuing to date. Lookup of complaints on the NHTSA public website are unaffected.\r\nWe are working to resolve the issue. In the meantime, we will continue to publish data daily as it will contain newly received complaints by NHTSA. The complaint data is included in the single FLAT_CMPL.zip and the COMPLAINTS_RECEIVED_YYYY-YYYY.zip files, which contain the same data broken down into 5-year chunks by received date. Note that the format of the complaint files has not and will not change. Once resolved, you may still see minor data differences between the latest version and that from prior to the system update.\r\nWe will continue to update this message as needed until the issue is resolved.\r\n=======\r\nApril 30, 2026 - Flat file content changes.\r\nAdded Field #50: State of Incident and Field #51: Vehicle Operator\r\n\r\n=======\r\nLast updated: April 30, 2026\r\n\r\nFIELDS:\r\n=======\r\n\r\nField#  Name              Type/Size     Description\r\n------  ---------         ---------     --------------------------------------\r\n1       CMPLID            CHAR(9)       NHTSA'S INTERNAL UNIQUE SEQUENCE NUMBER.\r\n                                        IS AN UPDATEABLE FIELD,THUS DATA FOR A\r\n                                        GIVEN RECORD POTENTIALLY COULD CHANGE FROM\r\n                                        ONE DATA OUTPUT FILE TO THE NEXT.\r\n2       ODINO             CHAR(9)       NHTSA'S INTERNAL REFERENCE NUMBER.\r\n                                        THIS NUMBER MAY BE REPEATED FOR\r\n                                        MULTIPLE COMPONENTS.\r\n                                        ALSO, IF LDATE IS PRIOR TO DEC 15, 2002,\r\n                                        THIS NUMBER MAY BE REPEATED FOR MULTIPLE\r\n                                        PRODUCTS OWNED BY THE SAME COMPLAINANT.\r\n3       MFR_NAME          CHAR(40)      MANUFACTURER'S NAME\r\n4       MAKETXT           CHAR(25)      VEHICLE/EQUIPMENT MAKE\r\n5       MODELTXT          CHAR(256)     VEHICLE/EQUIPMENT MODEL\r\n6       YEARTXT           CHAR(4)       MODEL YEAR, 9999 IF UNKNOWN or N/A\r\n7       CRASH             CHAR(1)       WAS VEHICLE INVOLVED IN A CRASH, 'Y' OR 'N'\r\n8       FAILDATE          CHAR(8)       DATE OF INCIDENT (YYYYMMDD)\r\n9       FIRE              CHAR(1)       WAS VEHICLE INVOLVED IN A FIRE 'Y' OR 'N'\r\n10      INJURED           NUMBER(2)     NUMBER OF PERSONS INJURED\r\n11      DEATHS            NUMBER(2)     NUMBER OF FATALITIES\r\n12      COMPDESC          CHAR(128)     SPECIFIC COMPONENT'S DESCRIPTION\r\n13      CITY              CHAR(30)      CONSUMER'S CITY\r\n14      STATE             CHAR(2)       CONSUMER'S STATE CODE\r\n15      VIN               CHAR(11)      VEHICLE'S VIN#\r\n16      DATEA             CHAR(8)       DATE ADDED TO FILE (YYYYMMDD)\r\n17      LDATE             CHAR(8)       DATE COMPLAINT RECEIVED BY NHTSA (YYYYMMDD)\r\n18      MILES             NUMBER(7)     VEHICLE MILEAGE AT FAILURE\r\n19      OCCURENCES        NUMBER(4)     NUMBER OF OCCURRENCES\r\n20      CDESCR            CHAR(2048)    DESCRIPTION OF THE COMPLAINT\r\n21      CMPL_TYPE         CHAR(4)       SOURCE OF COMPLAINT CODE:\r\n                                          CAG  =CONSUMER ACTION GROUP\r\n                                          CON  =FORWARDED FROM A CONGRESSIONAL OFFICE\r\n                                          DP   =DEFECT PETITION,RESULT OF A DEFECT PETITION\r\n                                          EVOQ =HOTLINE VOQ\r\n                                          EWR  =EARLY WARNING REPORTING\r\n                                          INS  =INSURANCE COMPANY\r\n                                          IVOQ =NHTSA WEB SITE\r\n                                          LETR =CONSUMER LETTER\r\n                                          MAVQ =NHTSA MOBILE APP\r\n                                          MIVQ =NHTSA MOBILE APP\r\n                                          MVOQ =OPTICAL MARKED VOQ\r\n                                          RC   =RECALL COMPLAINT,RESULT OF A RECALL INVESTIGATION\r\n                                          RP   =RECALL PETITION,RESULT OF A RECALL PETITION\r\n                                          SVOQ =PORTABLE SAFETY COMPLAINT FORM (PDF)\r\n                                          VOQ  =NHTSA VEHICLE OWNERS QUESTIONNAIRE\r\n22      POLICE_RPT_YN     CHAR(1)       WAS INCIDENT REPORTED TO POLICE 'Y' OR 'N'\r\n23      PURCH_DT          CHAR(8)       DATE PURCHASED (YYYYMMDD)\r\n24      ORIG_OWNER_YN     CHAR(1)       WAS ORIGINAL OWNER 'Y' OR 'N'\r\n25      ANTI_BRAKES_YN    CHAR(1)       ANTI-LOCK BRAKES 'Y' OR 'N'\r\n26      CRUISE_CONT_YN    CHAR(1)       CRUISE CONTROL 'Y' OR 'N'\r\n27      NUM_CYLS          NUMBER(2)     NUMBER OF CYLINDERS\r\n28      DRIVE_TRAIN       CHAR(4)       DRIVE TRAIN TYPE [AWD,4WD,FWD,RWD]\r\n29      FUEL_SYS          CHAR(4)       FUEL SYSTEM CODE:\r\n                                           FI =FUEL INJECTION\r\n                                           TB =TURBO\r\n30      FUEL_TYPE         CHAR(4)       FUEL TYPE CODE:\r\n                                           BF =BIFUEL\r\n                                           CN =CNG/LPG\r\n                                           DS =DIESEL\r\n                                           GS =GAS\r\n                                           HE =HYBRID ELECTRIC\r\n31      TRANS_TYPE        CHAR(4)       VEHICLE TRANSMISSION TYPE [AUTO, MAN]\r\n32      VEH_SPEED         NUMBER(3)     VEHICLE SPEED\r\n33      DOT               CHAR(20)      DEPARTMENT OF TRANSPORTATION TIRE IDENTIFIER\r\n34      TIRE_SIZE         CHAR(30)      TIRE SIZE\r\n35      LOC_OF_TIRE       CHAR(4)       LOCATION OF TIRE CODE:\r\n                                           FSW =DRIVER SIDE FRONT\r\n                                           DSR =DRIVER SIDE REAR\r\n                                           FTR =PASSENGER SIDE FRONT\r\n                                           PSR =PASSENGER SIDE REAR\r\n                                           SPR =SPARE\r\n36      TIRE_FAIL_TYPE    CHAR(4)       TYPE OF TIRE FAILURE CODE:\r\n                                           BST =BLISTER\r\n                                           BLW =BLOWOUT\r\n                                           TTL =CRACK\r\n                                           OFR =OUT OF ROUND\r\n                                           TSW =PUNCTURE\r\n                                           TTR =ROAD HAZARD\r\n                                           TSP =TREAD SEPARATION\r\n37      ORIG_EQUIP_YN     CHAR(1)       WAS PART ORIGINAL EQUIPMENT 'Y' OR 'N'\r\n38      MANUF_DT          CHAR(8)       DATE OF MANUFACTURE (YYYYMMDD)\r\n39      SEAT_TYPE         CHAR(4)       TYPE OF CHILD SEAT CODE:\r\n                                           B  =BOOSTER\r\n                                           C  =CONVERTIBLE\r\n                                           I  =INFANT\r\n                                           IN =INTEGRATED\r\n                                           TD =TODDLER\r\n40     RESTRAINT_TYPE     CHAR(4)       INSTALLATION SYSTEM CODE;\r\n                                           A =VEHICLE SAFETY BELT\r\n                                           B =LATCH SYSTEM\r\n41     DEALER_NAME        CHAR(40)      DEALER'S NAME\r\n42     DEALER_TEL         CHAR(20)      DEALER'S TELEPHONE NUMBER\r\n43     DEALER_CITY        CHAR(30)      DEALER'S CITY\r\n44     DEALER_STATE       CHAR(2)       DEALER'S STATE CODE\r\n45     DEALER_ZIP         CHAR(10)      DEALER'S ZIPCODE\r\n46     PROD_TYPE          CHAR(4)       PRODUCT TYPE CODE:\r\n                                           V =VEHICLE\r\n                                           T =TIRES\r\n                                           E =EQUIPMENT\r\n                                           C =CHILD RESTRAINT\r\n47     REPAIRED_YN        CHAR(1)       WAS DEFECTIVE TIRE REPAIRED 'Y' OR 'N'\r\n48     MEDICAL_ATTN       CHAR(1)       WAS MEDICAL ATTENTION REQUIRED 'Y' OR 'N'\r\n49     VEHICLES_TOWED_YN  CHAR(1)       WAS VEHICLE TOWED 'Y' OR 'N'\r\n50     STATE_OF_INCIDENT  CHAR(2)       INCIDENT STATE CODE\r\n51     VEHICLE_OPERATOR   CHAR(40)      VEHICLE OPERATOR'S NAME\r\n\r\n",
+  "RCL.txt": "RECALLS\n\nThe RECALL file contains all NHTSA safety-related defect and compliance \ncampaigns since 1967.\n\nFile characteristics:\n\n-  All the records are TAB delimited\n-  All dates are in YYYYMMDD format\n\n-  Maximum Record length: 17,108\n\nChange log:\n1.Field# 23 added as of Sept. 14, 2007\n2.Changed flat file extension from .lst to .txt as of Sept. 14, 2007\n3.Field# 24 added as of March 14, 2008\n4.Field#s 25,26,27 added as of March 23, 2020\n5.Fields #19 has been reduced to char(3). - May 2025\n\tFields #20 and #22 have been increased to 6000 characters. \n\tFields #28 and #29 were added. All Descriptions have been updated.\n\nLast Updated May 2025\n\n\nFIELDS:\n=======\n\nField#   Name                Type/Size   Description                      \n------   ---------           ---------   --------------------------------------\n1        RECORD_ID           NUMBER(9)   Running Sequence Number, Which Uniquely Identifies The Record\n2        CAMPNO              CHAR(12)    NHTSA Recall Number\n3        MAKETXT             CHAR(25)    Vehicle/Equipment Make\n4        MODELTXT            CHAR(256)   Vehicle/Equipment Model\n5        YEARTXT             CHAR(4)     Vehicle/Equipment Model Year, 9999 If Unknown Or N/A\n6        MFGCAMPNO           CHAR(20)    Manufacturer Campaign Number\n7        COMPNAME            CHAR(256)   Component Description\n8        MFGNAME             CHAR(40)    Manufacturer that filed Part 573 Defect/Noncompliance Report\n9        BGMAN               CHAR(8)     Begin Date of Manufacturing\n10       ENDMAN              CHAR(8)     End Date of Manufacturing\n11       RCLTYPECD           CHAR(4)     Vehicle, Equipment, Child Restraint, Or Tire Part 573 Defect/Noncompliance Report\n12       POTAFF              NUMBER(9)   Potential Number of Units Affected              \n13       ODATE               CHAR(8)     Date Manufacturer Notified Owners\n14       INFLUENCED_BY       CHAR(36)    Recall Initiated By (MFR/OVSC/ODI)\n15       MFGTXT              CHAR(40)    Manufacturers of Recalled Vehicles/Equipment/Child Restraint/Tires\n16       RCDATE              CHAR(8)     Part 573 Defect/Noncompliance Report Received Date\n17       DATEA               CHAR(8)     Record Creation Date\n18       RPNO                CHAR(3)     Regulation Part Number\n19       FMVSS               CHAR(3)     Federal Motor Vehicle Safety Standard Number\n20       DESC_DEFECT         CHAR(6000)  Defect Summary\n21       CONEQUENCE_DEFECT   CHAR(2000)  Consequence Summary\t\n22       CORRECTIVE_ACTION   CHAR(6000)  Corrective Summary\n23       NOTES               CHAR(2000)  Recall Notes\n24       RCL_CMPT_ID         CHAR(27)    Number That Uniquely Identifies A Recalled Component\n25       MFR_COMP_NAME       CHAR(50)    Manufacturer-Supplied Component Name\n26       MFR_COMP_DESC       CHAR(200)   Manufacturer-Supplied Component Description\n27       MFR_COMP_PTNO       CHAR(100)   Manufacturer-Supplied Component Part Number\n28\t\t DO_NOT_DRIVE\t\t CHAR(3)\t Consumer Advisory: Do Not Drive\n29\t\t PARK_OUTSIDE\t     CHAR(3)\t Consumer Advisory: Park Outside\n"
+ },
+ "kind": "nhtsa_probe",
+ "recalls": {
+  "https://static.nhtsa.gov/odi/ffdd/rcl/FLAT_RCL.zip": {
+   "error": "HTTPError: HTTP Error 404: Not Found"
+  },
+  "https://static.nhtsa.gov/odi/ffdd/rcl/FLAT_RCL_2020-2024.zip": {
+   "error": "HTTPError: HTTP Error 404: Not Found"
+  },
+  "https://static.nhtsa.gov/odi/ffdd/rcl/FLAT_RCL_POST_2010.zip": {
+   "bytes": 14900207,
+   "fields_per_row": {
+    "29": 245796
+   },
+   "rows": 245796
+  },
+  "https://static.nhtsa.gov/odi/ffdd/rcl/FLAT_RCL_PRE_2010.zip": {
+   "bytes": 7439148,
+   "fields_per_row": {
+    "1": 5,
+    "29": 81710
+   },
+   "rows": 81715
+  },
+  "https://static.nhtsa.gov/odi/ffdd/rcl/RCL_FROM_2020_2024.zip": {
+   "bytes": 4019004,
+   "fields_per_row": {
+    "1": 385971
+   },
+   "rows": 385971
+  },
+  "note": "per file: size, row and field counts only; no recall content read"
+ },
+ "sizes": {
+  "COMPLAINTS_RECEIVED_2015-2019.zip": 81302724,
+  "COMPLAINTS_RECEIVED_2020-2024.zip": 75874027
+ }
+}

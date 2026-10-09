@@ -1,0 +1,436 @@
+{
+  "start": "2024-01-01",
+  "sites": [
+    {
+      "id": "state-a",
+      "label": "State A (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-b",
+      "label": "State B (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-c",
+      "label": "State C (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-d",
+      "label": "State D (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-e",
+      "label": "State E (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "state-f",
+      "label": "State F (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 5
+    }
+  ],
+  "forwarding_rate": 0.08,
+  "negated_sentence_rate": 0.3,
+  "second_predicate_rate": 0.25,
+  "entity_sentence_rate": 0.3,
+  "zero_claim_rate": 0.05,
+  "mixed_language_rate": 0,
+  "predicate_weights": {
+    "engine": 1,
+    "electrical_system": 1,
+    "air_bags": 1,
+    "power_train": 1,
+    "steering": 1,
+    "service_brakes": 1,
+    "fuel_propulsion_system": 1,
+    "structure": 1,
+    "suspension": 1,
+    "vehicle_speed_control": 1,
+    "exterior_lighting": 1,
+    "visibility_wiper": 1,
+    "forward_collision_avoidance": 1,
+    "electronic_stability_control_esc": 1,
+    "wheels": 1,
+    "seat_belts": 1,
+    "tires": 1,
+    "seats": 1,
+    "engine_and_engine_cooling": 1,
+    "fuel_system_gasoline": 1,
+    "service_brakes_hydraulic": 1,
+    "lane_departure": 1,
+    "latches_locks_linkages": 1,
+    "back_over_prevention": 1,
+    "equipment": 1,
+    "child_seat": 1,
+    "unknown_or_other": 1
+  },
+  "codes": {
+    "specific_rate": 0.5,
+    "generic_rate": 0.2,
+    "generic_code": "NHT-999"
+  },
+  "fill_rates": {
+    "vehicle": 1.0
+  },
+  "universe": {
+    "vehicle": [
+      "ACME-ROADSTER-2021",
+      "ACME-ROADSTER-2022",
+      "ACME-HAULER-2020",
+      "BOLT-COMPACT-2023",
+      "BOLT-COMPACT-2024",
+      "ZEPHYR-VAN-2022"
+    ]
+  },
+  "links": {},
+  "surface": {
+    "exact": 6,
+    "lower": 1,
+    "underscore": 1,
+    "en_dash": 1,
+    "fullwidth": 0.5,
+    "space": 0.5,
+    "alias": 0
+  },
+  "narratives": {
+    "en": {
+      "engine": {
+        "affirmed": [
+          "The owner reported a problem with the engine of the {vehicle}.",
+          "The engine of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the engine was found on the {vehicle}."
+        ]
+      },
+      "electrical_system": {
+        "affirmed": [
+          "The owner reported a problem with the electrical system of the {vehicle}.",
+          "The electrical system of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the electrical system was found on the {vehicle}."
+        ]
+      },
+      "air_bags": {
+        "affirmed": [
+          "The owner reported a problem with the air bags of the {vehicle}.",
+          "The air bags of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the air bags was found on the {vehicle}."
+        ]
+      },
+      "power_train": {
+        "affirmed": [
+          "The owner reported a problem with the power train of the {vehicle}.",
+          "The power train of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the power train was found on the {vehicle}."
+        ]
+      },
+      "steering": {
+        "affirmed": [
+          "The owner reported a problem with the steering of the {vehicle}.",
+          "The steering of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the steering was found on the {vehicle}."
+        ]
+      },
+      "service_brakes": {
+        "affirmed": [
+          "The owner reported a problem with the service brakes of the {vehicle}.",
+          "The service brakes of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the service brakes was found on the {vehicle}."
+        ]
+      },
+      "fuel_propulsion_system": {
+        "affirmed": [
+          "The owner reported a problem with the fuel of the {vehicle}.",
+          "The fuel of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the fuel was found on the {vehicle}."
+        ]
+      },
+      "structure": {
+        "affirmed": [
+          "The owner reported a problem with the structure of the {vehicle}.",
+          "The structure of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the structure was found on the {vehicle}."
+        ]
+      },
+      "suspension": {
+        "affirmed": [
+          "The owner reported a problem with the suspension of the {vehicle}.",
+          "The suspension of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the suspension was found on the {vehicle}."
+        ]
+      },
+      "vehicle_speed_control": {
+        "affirmed": [
+          "The owner reported a problem with the vehicle speed control of the {vehicle}.",
+          "The vehicle speed control of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the vehicle speed control was found on the {vehicle}."
+        ]
+      },
+      "exterior_lighting": {
+        "affirmed": [
+          "The owner reported a problem with the exterior lighting of the {vehicle}.",
+          "The exterior lighting of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the exterior lighting was found on the {vehicle}."
+        ]
+      },
+      "visibility_wiper": {
+        "affirmed": [
+          "The owner reported a problem with the visibility of the {vehicle}.",
+          "The visibility of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the visibility was found on the {vehicle}."
+        ]
+      },
+      "forward_collision_avoidance": {
+        "affirmed": [
+          "The owner reported a problem with the forward collision avoidance of the {vehicle}.",
+          "The forward collision avoidance of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the forward collision avoidance was found on the {vehicle}."
+        ]
+      },
+      "electronic_stability_control_esc": {
+        "affirmed": [
+          "The owner reported a problem with the electronic stability control of the {vehicle}.",
+          "The electronic stability control of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the electronic stability control was found on the {vehicle}."
+        ]
+      },
+      "wheels": {
+        "affirmed": [
+          "The owner reported a problem with the wheels of the {vehicle}.",
+          "The wheels of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the wheels was found on the {vehicle}."
+        ]
+      },
+      "seat_belts": {
+        "affirmed": [
+          "The owner reported a problem with the seat belts of the {vehicle}.",
+          "The seat belts of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the seat belts was found on the {vehicle}."
+        ]
+      },
+      "tires": {
+        "affirmed": [
+          "The owner reported a problem with the tires of the {vehicle}.",
+          "The tires of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the tires was found on the {vehicle}."
+        ]
+      },
+      "seats": {
+        "affirmed": [
+          "The owner reported a problem with the seats of the {vehicle}.",
+          "The seats of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the seats was found on the {vehicle}."
+        ]
+      },
+      "engine_and_engine_cooling": {
+        "affirmed": [
+          "The owner reported a problem with the engine cooling of the {vehicle}.",
+          "The engine cooling of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the engine cooling was found on the {vehicle}."
+        ]
+      },
+      "fuel_system_gasoline": {
+        "affirmed": [
+          "The owner reported a problem with the fuel system of the {vehicle}.",
+          "The fuel system of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the fuel system was found on the {vehicle}."
+        ]
+      },
+      "service_brakes_hydraulic": {
+        "affirmed": [
+          "The owner reported a problem with the hydraulic of the {vehicle}.",
+          "The hydraulic of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the hydraulic was found on the {vehicle}."
+        ]
+      },
+      "lane_departure": {
+        "affirmed": [
+          "The owner reported a problem with the lane departure of the {vehicle}.",
+          "The lane departure of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the lane departure was found on the {vehicle}."
+        ]
+      },
+      "latches_locks_linkages": {
+        "affirmed": [
+          "The owner reported a problem with the latches of the {vehicle}.",
+          "The latches of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the latches was found on the {vehicle}."
+        ]
+      },
+      "back_over_prevention": {
+        "affirmed": [
+          "The owner reported a problem with the back over prevention of the {vehicle}.",
+          "The back over prevention of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the back over prevention was found on the {vehicle}."
+        ]
+      },
+      "equipment": {
+        "affirmed": [
+          "The owner reported a problem with the equipment of the {vehicle}.",
+          "The equipment of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the equipment was found on the {vehicle}."
+        ]
+      },
+      "child_seat": {
+        "affirmed": [
+          "The owner reported a problem with the child seat of the {vehicle}.",
+          "The child seat of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the child seat was found on the {vehicle}."
+        ]
+      },
+      "unknown_or_other": {
+        "affirmed": [
+          "The owner reported a problem with the unknown or other of the {vehicle}.",
+          "The unknown or other of the {vehicle} failed while driving."
+        ],
+        "negated": [
+          "No problem with the unknown or other was found on the {vehicle}."
+        ]
+      }
+    }
+  },
+  "entity_sentences": {
+    "en": [
+      "The complaint concerns the {vehicle}."
+    ]
+  },
+  "filler": {
+    "en": [
+      "The customer returned the unit for evaluation.",
+      "A replacement unit was shipped to the customer.",
+      "The complaint was logged by the service desk.",
+      "Further information was requested from the user facility.",
+      "The investigation is ongoing.",
+      "The unit was received in its original packaging.",
+      "A field engineer visited the site.",
+      "The event was entered in the complaint register.",
+      "The user manual was checked for guidance.",
+      "A second unit from the same ward was reviewed.",
+      "The case was assigned to a quality engineer.",
+      "The user facility confirmed the order number."
+    ]
+  },
+  "persons": {},
+  "reporter": {
+    "kind": "pattern",
+    "segments": [
+      {
+        "literal": "RPT"
+      },
+      {
+        "sep": "required"
+      },
+      {
+        "digit": [
+          4,
+          4
+        ]
+      }
+    ],
+    "separator": "-",
+    "case": "upper"
+  },
+  "master_data": {
+    "state-a": {
+      "vehicle": "all"
+    },
+    "state-b": {
+      "vehicle": "all"
+    },
+    "state-c": {
+      "vehicle": "all"
+    },
+    "state-d": {
+      "vehicle": "all"
+    },
+    "state-e": {
+      "vehicle": "all"
+    },
+    "state-f": {
+      "vehicle": "all"
+    }
+  }
+}

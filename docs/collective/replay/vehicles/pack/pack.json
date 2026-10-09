@@ -1,0 +1,11 @@
+{
+  "id": "vehicle_complaints",
+  "version": "0.1.0",
+  "title": "Vehicle safety complaints (NHTSA component categories)",
+  "languages": [
+    "en"
+  ],
+  "illustrative": true,
+  "disclaimer": "Built by tools/market/vehicle_pack.py for public replay V001 from NHTSA's public complaint categories. The categories are NHTSA's; the generator, its vehicles and sites and the fixtures are fictional and exist only so that the pack loads.",
+  "same_author_as_code": true
+}

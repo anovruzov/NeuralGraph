@@ -1,0 +1,44 @@
+{
+  "kind": "plant_spec",
+  "schema_version": 1,
+  "pack": "vehicle_complaints",
+  "prereg_sha256": null,
+  "planted_by": "tools/market/vehicle_pack.py (same author as the detector code)",
+  "planter_saw_detector_code": true,
+  "notes": "construction smoke for the pilot demo, never a result",
+  "patterns": [
+    {
+      "id": "p1",
+      "entity_type": "vehicle",
+      "entity_id": "ACME-ROADSTER-2021",
+      "predicate": "engine",
+      "sites": [
+        "state-a",
+        "state-b",
+        "state-c"
+      ],
+      "start_week": 30,
+      "weeks": 8,
+      "rate_per_week": 2,
+      "visibility": "narrative_only",
+      "language": "en"
+    },
+    {
+      "id": "p2",
+      "entity_type": "vehicle",
+      "entity_id": "BOLT-COMPACT-2023",
+      "predicate": "electrical_system",
+      "sites": [
+        "state-c",
+        "state-d",
+        "state-e"
+      ],
+      "start_week": 34,
+      "weeks": 8,
+      "rate_per_week": 2,
+      "visibility": "both",
+      "language": "en"
+    }
+  ],
+  "decoys": []
+}

@@ -1,0 +1,46 @@
+name: vehicle-replay
+
+# Public replay V001 (docs/collective/replay/vehicles/CHOICE-V001.md): one make's NHTSA complaints and recalls through
+# the pilot audit, where static.nhtsa.gov is reachable. Starts when a run file changes; the audit prints between
+# VEHICLE-AUDIT markers in the job log and uploads as an artifact.
+on:
+  push:
+    branches-ignore: [main]
+    paths: ["docs/collective/replay/vehicles/run-*.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: offline tests
+        run: python -m unittest tests.market.test_vehicle_replay -v
+      - name: export (complaints and recalls of the run file's make and window)
+        run: |
+          RUN=$(ls docs/collective/replay/vehicles/run-*.json | sort | tail -n 1)
+          echo "run file: $RUN"
+          python tools/market/nhtsa_export.py --run "$RUN" --pack docs/collective/replay/vehicles/pack --out vexport
+      - name: pilot audit
+        run: python -m mycelic.collective.pilot.audit run --pack docs/collective/replay/vehicles/pack --records vexport/export.csv --outcomes vexport/outcomes.csv --out vaudit --lookback-weeks 26 --post-weeks 26 --tie-salt pilot
+      - name: print the audit
+        if: always()
+        run: |
+          if [ -f vaudit/audit.md ]; then echo "=== VEHICLE-AUDIT-MD BEGIN ==="; cat vaudit/audit.md; echo "=== VEHICLE-AUDIT-MD END ==="; fi
+          if [ -f vaudit/audit.json ]; then echo "=== VEHICLE-AUDIT BEGIN sha256=$(sha256sum vaudit/audit.json | cut -c1-64) ==="; python -c "import json,sys; print(json.dumps(json.load(open('vaudit/audit.json')), sort_keys=True, separators=(',', ':')))"; echo "=== VEHICLE-AUDIT END ==="; fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: vehicle-replay
+          path: vaudit/
+          if-no-files-found: warn
+          retention-days: 30
