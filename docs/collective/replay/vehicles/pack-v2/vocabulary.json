@@ -1,0 +1,283 @@
+{
+  "entity_types": {
+    "vehicle": {
+      "label": "Vehicle (make, model, model year)",
+      "id_format": [
+        {
+          "alnum": [
+            1,
+            12
+          ]
+        },
+        {
+          "sep": "required"
+        },
+        {
+          "alnum": [
+            1,
+            20
+          ]
+        },
+        {
+          "sep": "required"
+        },
+        {
+          "digit": [
+            4,
+            4
+          ]
+        }
+      ],
+      "separator": "-",
+      "case": "upper",
+      "strip_leading_zeros": false,
+      "exact_match_metric": true,
+      "egress": true,
+      "ids": null
+    }
+  },
+  "predicates": {
+    "engine": {
+      "label": "Engine",
+      "lexicon": {
+        "en": [
+          "engine",
+          "engine cooling"
+        ]
+      }
+    },
+    "electrical_system": {
+      "label": "Electrical System",
+      "lexicon": {
+        "en": [
+          "electrical system"
+        ]
+      }
+    },
+    "air_bags": {
+      "label": "Air Bags",
+      "lexicon": {
+        "en": [
+          "air bags"
+        ]
+      }
+    },
+    "power_train": {
+      "label": "Power Train",
+      "lexicon": {
+        "en": [
+          "power train"
+        ]
+      }
+    },
+    "steering": {
+      "label": "Steering",
+      "lexicon": {
+        "en": [
+          "steering"
+        ]
+      }
+    },
+    "service_brakes": {
+      "label": "Service Brakes",
+      "lexicon": {
+        "en": [
+          "service brakes",
+          "hydraulic"
+        ]
+      }
+    },
+    "fuel_propulsion_system": {
+      "label": "Fuel/Propulsion System",
+      "lexicon": {
+        "en": [
+          "fuel",
+          "propulsion system",
+          "fuel system",
+          "gasoline"
+        ]
+      }
+    },
+    "structure": {
+      "label": "Structure",
+      "lexicon": {
+        "en": [
+          "structure"
+        ]
+      }
+    },
+    "suspension": {
+      "label": "Suspension",
+      "lexicon": {
+        "en": [
+          "suspension"
+        ]
+      }
+    },
+    "vehicle_speed_control": {
+      "label": "Vehicle Speed Control",
+      "lexicon": {
+        "en": [
+          "vehicle speed control"
+        ]
+      }
+    },
+    "exterior_lighting": {
+      "label": "Exterior Lighting",
+      "lexicon": {
+        "en": [
+          "exterior lighting"
+        ]
+      }
+    },
+    "visibility_wiper": {
+      "label": "Visibility/Wiper",
+      "lexicon": {
+        "en": [
+          "visibility",
+          "wiper"
+        ]
+      }
+    },
+    "forward_collision_avoidance": {
+      "label": "Forward Collision Avoidance",
+      "lexicon": {
+        "en": [
+          "forward collision avoidance"
+        ]
+      }
+    },
+    "electronic_stability_control_esc": {
+      "label": "Electronic Stability Control (Esc)",
+      "lexicon": {
+        "en": [
+          "electronic stability control",
+          "esc"
+        ]
+      }
+    },
+    "wheels": {
+      "label": "Wheels",
+      "lexicon": {
+        "en": [
+          "wheels"
+        ]
+      }
+    },
+    "seat_belts": {
+      "label": "Seat Belts",
+      "lexicon": {
+        "en": [
+          "seat belts"
+        ]
+      }
+    },
+    "tires": {
+      "label": "Tires",
+      "lexicon": {
+        "en": [
+          "tires"
+        ]
+      }
+    },
+    "seats": {
+      "label": "Seats",
+      "lexicon": {
+        "en": [
+          "seats"
+        ]
+      }
+    },
+    "lane_departure": {
+      "label": "Lane Departure",
+      "lexicon": {
+        "en": [
+          "lane departure"
+        ]
+      }
+    },
+    "latches_locks_linkages": {
+      "label": "Latches/Locks/Linkages",
+      "lexicon": {
+        "en": [
+          "latches",
+          "locks",
+          "linkages"
+        ]
+      }
+    },
+    "back_over_prevention": {
+      "label": "Back Over Prevention",
+      "lexicon": {
+        "en": [
+          "back over prevention"
+        ]
+      }
+    },
+    "equipment": {
+      "label": "Equipment",
+      "lexicon": {
+        "en": [
+          "equipment"
+        ]
+      }
+    },
+    "child_seat": {
+      "label": "Child Seat",
+      "lexicon": {
+        "en": [
+          "child seat"
+        ]
+      }
+    },
+    "unknown_or_other": {
+      "label": "Unknown or other component",
+      "lexicon": {
+        "en": [
+          "unknown or other"
+        ]
+      }
+    }
+  },
+  "negation": {
+    "en": {
+      "pre": [
+        "no",
+        "not",
+        "never",
+        "without",
+        "did not",
+        "does not",
+        "no evidence of",
+        "denied"
+      ],
+      "post": [
+        "not observed",
+        "not found",
+        "not seen",
+        "not confirmed",
+        "ruled out",
+        "was ruled out"
+      ],
+      "terminators": [
+        "but",
+        "however",
+        "although",
+        "though",
+        "yet",
+        ","
+      ]
+    }
+  },
+  "negation_window": 3,
+  "extraction": {
+    "max_input_chars": 6000,
+    "max_output_tokens": 1024,
+    "max_claims": 20,
+    "confidence": {
+      "exact": 1.0,
+      "alias": 0.95,
+      "variant": 0.9
+    }
+  }
+}

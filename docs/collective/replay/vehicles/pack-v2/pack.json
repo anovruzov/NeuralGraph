@@ -1,0 +1,11 @@
+{
+  "id": "vehicle_complaints",
+  "version": "0.2.0",
+  "title": "Vehicle safety complaints (NHTSA component categories)",
+  "languages": [
+    "en"
+  ],
+  "illustrative": true,
+  "disclaimer": "Built by tools/market/vehicle_pack_v2.py from the pack of public replay V001 (pack/), for plan item 1.5 of the 2026-10-09 handoff: old and new NHTSA component names merged, each complaint its own reporter, and detector thresholds for 60 sites. The categories are NHTSA's; the generator, its vehicles and sites and the fixtures are fictional.",
+  "same_author_as_code": true
+}
