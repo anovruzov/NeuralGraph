@@ -19,8 +19,19 @@ A3     A3_verification_off    ``LoopEngine._ask_verification`` raises ValueError
                               (every caller already catches it: no verification
                               question is created; returning None would crash the
                               callers that index the result)
-A4     A4_index_off           ``holder.embedded._heartbeat_stats``: ingest.entities   G8
-                              and ingest.terms are empty
+A4     A4_index_off           ``knowledge.hypergraph.upsert_entity_index_sync`` and  G8 (the G4 ranker assertion is skipped)
+                              ``upsert_term_index_sync``, the two sinks every index
+                              write goes through (``OrgService.holder_heartbeat`` and
+                              the revoke / opt-out withdrawal): both do nothing and
+                              return 0, so the entity and term indexes stay empty
+                              whichever feeder delivers the beat (the embedded
+                              callback, the raw transport beat, the shutdown beat);
+                              counters ``entity_index_calls``, ``term_index_calls``
+                              and ``entities_suppressed``, ``terms_suppressed`` (ids
+                              the real function would have been asked to publish)
+                              go to the manifest as ``ablation_calls``; every
+                              route is then domain-ranked, so ``report.finalize``
+                              does not expect a hypergraph ranker (as under A1)
 A5     A5_authz_routing_off   ``Authorizer._can_route``, the one function every      G4 (proves the gate is load-bearing)
                               routing decision goes through (``can_route``,
                               ``can_route_many``, ``candidate_holders``,
@@ -144,16 +155,32 @@ def _a3(p: Patch) -> None:
 
 # ------------------------------------------------------------------------------------------------ A4
 def _a4(p: Patch) -> None:
-    from mycelic.holder import embedded
+    """Replace the two index sinks, not a feeder. ``OrgService.holder_heartbeat`` has three feeders (the embedded callback through
+    ``holder.embedded._heartbeat_stats``, the raw transport beat applied by ``LoopEngine._on_transport``, and the shutdown beat), and the first
+    A4 patched only the first: the transport beat re-added the terms every minute and the stop-time beat refilled them, so G8 read a full term
+    index (dev run C6abl-A4-S1: 112/112). Every write to ``term_index`` and to the ``entity_index`` hyperedges goes through
+    ``hypergraph.upsert_term_index_sync`` / ``upsert_entity_index_sync`` (``org.py`` reaches them as ``hg.<name>``, a module attribute looked up
+    at call time; ``withdraw_holder_entities_sync`` calls the entity one by its module global), so replacing them keeps both indexes empty
+    for the whole run. Both return 0 ("rows changed"), the value the callers test before writing an audit row, so no ``holder.entities_published``
+    or ``holder.terms_published`` row appears either. The holder's own reported stats (``entities_reported`` / ``terms_reported``) are left
+    alone: the holder still reports what it has, the coordinator indexes none of it."""
+    from mycelic.entities import sanitize_term_counts
+    from mycelic.knowledge import hypergraph as hg
 
-    orig = embedded._heartbeat_stats
+    p.counters.update(entity_index_calls=0, term_index_calls=0, entities_suppressed=0, terms_suppressed=0)
 
-    def heartbeat_stats_no_index(stats: dict[str, Any]) -> dict[str, Any]:
-        out = orig(stats)
-        if isinstance(out.get("ingest"), dict):
-            out["ingest"] = {**out["ingest"], "entities": {}, "terms": {}}
-        return out
-    p.rebind(orig, heartbeat_stats_no_index)
+    def upsert_entity_index_off(c: Any, *, tenant_id: str, holder_id: str, unit_id: str | None, entities: dict[str, int], domains: list[str], now: str,
+                                retract: bool = True, withdraw_kinds: tuple[str, ...] = ()) -> int:
+        p.counters["entity_index_calls"] += 1
+        p.counters["entities_suppressed"] += len(hg.sanitize_entity_counts(entities))
+        return 0
+
+    def upsert_term_index_off(c: Any, *, tenant_id: str, holder_id: str, terms: dict[str, int], now: str, retract: bool = True) -> int:
+        p.counters["term_index_calls"] += 1
+        p.counters["terms_suppressed"] += len(sanitize_term_counts(terms))
+        return 0
+    p.rebind(hg.upsert_entity_index_sync, upsert_entity_index_off)
+    p.rebind(hg.upsert_term_index_sync, upsert_term_index_off)
 
 
 # ------------------------------------------------------------------------------------------------ A5

@@ -1,7 +1,7 @@
 From 5cd9f6be795cafa38e9bfe6a73e15fae8c497c85 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 08:24:15 +0000
-Subject: [PATCH 33/53] Hardened dev results (system 0.858 vs central baseline
+Subject: [PATCH 33/58] Hardened dev results (system 0.858 vs central baseline
  0.967 at S) and the live answer-step check
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

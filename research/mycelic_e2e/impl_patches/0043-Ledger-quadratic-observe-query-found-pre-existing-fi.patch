@@ -1,7 +1,7 @@
 From 4f54d886bce7d7165474aa2f7801e706ae391081 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 09:11:55 +0000
-Subject: [PATCH 43/53] Ledger: quadratic observe query found (pre-existing),
+Subject: [PATCH 43/58] Ledger: quadratic observe query found (pre-existing),
  fix dispatched for review
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

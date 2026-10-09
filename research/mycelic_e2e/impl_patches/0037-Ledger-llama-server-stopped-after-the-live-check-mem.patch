@@ -1,7 +1,7 @@
 From c77b354c946fe8e5da3f6e3f1a4ce60df7391f4a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 08:44:07 +0000
-Subject: [PATCH 37/53] Ledger: llama-server stopped after the live check
+Subject: [PATCH 37/58] Ledger: llama-server stopped after the live check
  (memory for scale runs)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,7 +1,7 @@
 From bea9788b6f916dc612937296c648335fd73a298a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 08:32:45 +0000
-Subject: [PATCH 34/53] Dev analysis of the hardened run: different-service
+Subject: [PATCH 34/58] Dev analysis of the hardened run: different-service
  claims treated as contradictions
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

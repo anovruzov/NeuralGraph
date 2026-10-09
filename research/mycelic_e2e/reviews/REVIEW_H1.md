@@ -212,3 +212,172 @@ $ python -I $SCR/rv10_checks/gate_a5.py $SCR/code/a5fix $SCR/runs/C7abl-A5fix-S1
 - **N2.** A5 also drops the asker check, which G4's replay does not evaluate (it runs `can_route` without `asker`). G4's denial count is therefore a lower bound on what the ablation changed.
 - **N3.** The extra real-rule call roughly doubles routing-authorization work under A5 only. It has no effect on a run without an ablation.
 - **N4.** The run process was still shutting down when I copied coord.db. I copied it through the sqlite backup API, after the "done" log line, when routing was complete.
+
+---
+
+## Review of the A4 ablation fix 3c18b1a
+
+**Reviewer:** REVIEWER-4, model `claude-opus-5-5` (independent; did not write the patch; engineer ENGINEER-3, claude-sonnet-5-5, whose trailer is accurate)
+**Verdict: BLOCK. The A4 mechanism is correct, but the committed change makes the A4 run report as INVALID (unexpected G4 failure). One-line harness fix below.**
+
+Scope: commit `3c18b1a` on `31533dd`, copied with `git archive 3c18b1a | tar -x -C $SCR/rv13`. It changes bench/ablations.py (+37/-12) and bench/tests/test_ablations.py (+139/-17); there are no system, scorer or gate changes. I did not modify ng-impl, and I did not open /root/sealed_holdout or `$SCR/runs/H-*`.
+
+### Commands and outputs
+```
+$ cd $SCR/rv13 && PYTHONDONTWRITEBYTECODE=1 python -m pytest research/mycelic_e2e/bench/tests -q -p no:cacheprovider --basetemp $SCR/rv13_bt
+  187 passed, 2 skipped, 11 warnings in 13.27s            (matches the engineer's report)
+$ grep -rnE "(INSERT|UPDATE|DELETE|REPLACE)...(term_index|entity_registry|hyperedges|hyperedge_members)" --include=*.py mycelic   (no tests)
+  every writer is in mycelic/knowledge/hypergraph.py
+$ grep -c INSERT mycelic/db/migrations/0005_hypergraph.sql mycelic/db/migrations/0007_term_index.sql  -> 0, 0   (no SQL backfill)
+$ python -I $SCR/rv10_checks/check_a4.py $SCR/rv13
+  (imports EVERY mycelic module, applies A4, then scans every mycelic module's attributes and the gc referrers of the real sinks)
+  patched: ['mycelic.knowledge.hypergraph.upsert_entity_index_sync', 'mycelic.knowledge.hypergraph.upsert_term_index_sync']
+  module attributes still bound to a real sink: []
+  entity / term referrers: my own lookup dict + the patch's undo-lambda defaults only (no closure, partial or default arg elsewhere)
+  other hypergraph functions using _registry_count / _new_index_version / _bump_count: none (only the replaced entity sink)
+  restored: True
+```
+
+### 1. No other writer can fill the indexes under A4
+Mapping each index table to its writers:
+- **`term_index`**
+  - Inserts happen only in `upsert_term_index_sync` (hypergraph.py:491-497), which A4 replaces.
+  - `withdraw_holder_entities_sync` only *deletes* rows (hypergraph.py:531).
+- **entity-index hyperedges and members (`kind='entity_index'`)**
+  - Created only in `upsert_entity_index_sync`, through `_insert_edge(kind="entity_index")` (:443), `_new_index_version` (:374-392, called at :447 and :465) and `_bump_count` (:452-471), all inside the replaced sink.
+  - Every other `'entity_index'` hit is a read: org.py:574, routing.py:81, hypergraph.py:536 and :646.
+- **`entity_registry`**
+  - Written only by `_registry_count` (:411-413), whose only callers are :456 and :477 inside `upsert_entity_index_sync`.
+  - **It needs no separate path:** grepping other modules for `_registry_count|_new_index_version|_bump_count|_insert_edge(` finds nothing.
+- **Claim `about` entity members** on support/discovery edges (`scrub_claim_entities_sync` :280-298, the claim-edge writers) are claim-text tagging. They are not the entity index, and G8's index checks do not read them.
+
+How the callers reach the replacement:
+- `rebind` replaces every `mycelic.*` module attribute that is the original. org.py calls `hg.upsert_*` (org.py:578, 588), which resolves at call time, and `withdraw_holder_entities_sync` calls the entity sink through its module global (:529). Both resolve to the replacement.
+- This covers all three heartbeat feeders, which converge on `OrgService.holder_heartbeat`, and the revoke / opt-out withdrawal (org.py:615-616).
+- My scan shows no surviving reference to the real sinks anywhere in the loaded code.
+
+### 2. Returning 0 is what the callers expect
+- org.py:581 `if changed:` and org.py:590 `if n_terms:` gate only the `holder.entities_published` / `holder.terms_published` audit rows. With 0, those audits are simply absent, consistent with an empty index.
+- `withdraw_holder_entities_sync` adds the result (`n += ...`, :529). 0 is a valid integer.
+- **No "published" flag depends on these returns.** `published_domains` is written separately (org.py:563-565) and is untouched, so domain routing is not ablated. That is correct: A4 targets only the entity and term indexes.
+- The holder's own reported stats (`entities_reported` / `terms_reported`) stay intact, as the engineer's test asserts.
+
+### 3. Harness-only
+- **The patch is installed only under `--ablation A4`.** `ablations.apply` runs only when an ablation is named (run.py:127) and dispatches A4 to `_a4` (ablations.py:109). `test_nothing_is_patched_by_default` pins both sinks to their real `__module__`/`__name__`.
+- **The old `_heartbeat_stats` patch is gone**, so the embedded feeder is unpatched. The test asserts the holder still reports its terms and entities.
+- **The manifest gets the counters** under `ablation_calls` (run.py:314, unchanged since A5).
+- **No system, scorer or gate code changes.** report.py runs the gate without `expect_term_index`, so the term-coverage check applies (arch_gate.py:1056-1083). `EXPECTED_GATE_FAILURES["A4"] = ["G8"]` (ledger.py:43).
+
+### 4. Tests are not vacuous
+- **Control:** without the ablation, each of the three feeders fills the index (`term_rows == 3*len(TERMS)`, entity edges and members, `published_audits > 0`).
+- **Ablated:** the same beats leave all four quantities at 0. The counters equal exact expected values (12 calls each; suppressed = 12×len). The withdrawal path increments the entity counter.
+- **Restore:** after `restore()`, the next beat fills the index again and the counters freeze.
+- **G8:** G8 passes on the control database (3/3 term holders, 2 entities) and fails on the A4 database. The test asserts the exact problem strings "term index covers 0/3" and "entity index covers 0/2".
+
+### 5. Dev run C8abl-A4fix-S1 (log `rev=3c18b1a`, "2 binding(s) replaced"; run finished 10:53:51; `report --finalize` wrote arch_gate.json)
+```
+run_manifest.json ablation_calls = {'entity_index_calls': 20333, 'term_index_calls': 20333, 'entities_suppressed': 0, 'terms_suppressed': 1038293}
+                  api_errors all 0; n_tasks 120
+final coord.db (sqlite backup copy): term_index 0 rows; hyperedges kind='entity_index' 0; entity_registry 0; terms/entities_published audits 0
+arch_gate.json (written by report.py): valid=False failed=['G4', 'G8']
+  G8: "term index covers 0/112 = 0.00 of the holders with public records (< 0.95)"         <- intended
+  G4: "ranker expected but no route audit row has rank_method 'hypergraph'"                  <- NOT expected for A4
+my read-only gate run (fresh process, ablations not loaded) reproduces it exactly:
+  G4 fail: 3317/3317 questions routed; rank_method {'domains': 3317}; as-of replay denials 0 (0 of 32834 routes)
+  G8 fail: entities 0/0 (n/a; 892 holder-entity pairs below entity_min_records), terms 0/112 holders (0%), 0 violating
+  G1 G2 G3 G5 G6 G7 G9 G10 pass
+report.md:32  | ablation A4 (C8abl-A4fix-S1) | ... | INVALID: G4,G8 | 120 | 111 | 92.5% | ...
+report.md:34  | ablation A5 (C7abl-A5fix-S1) | ... | ablation: G4   | ...     (for comparison)
+```
+- **`ablation_calls` > 0.** Both sinks ran 20,333 times on the live path, and 1,038,293 term ids were suppressed.
+- **G8 now fails as intended.** The earlier A4 runs C6abl-A4-S1 and C7abl-A4-S1 are both "valid" at report.md:30-31.
+- **`entities_suppressed` is 0** because at size S no holder reaches `entity_min_records` (G8: 0 expected entity pairs). This run exercises only the term half of A4. The entity half is covered by the engineer's unit test, not by this world.
+
+### BLOCK reason: a concrete defect in the change as committed
+**Defect.** With 3c18b1a, the A4 ablation run is classified **INVALID** instead of an expected ablation outcome.
+- Now that the index really is empty, `rank_holders` never uses graph incidence. It sets `rank_method="domains"` when no entity or term incidence contributes (mycelic/inquiry/routing.py:76, 165).
+- G4's ranker assertion then fails (arch_gate.py:664-668), because report.py:60 still passes `expect_ranker = hg and rs.ablation != "A1"`, which is True for A4.
+- `EXPECTED_GATE_FAILURES["A4"] == ["G8"]` (ledger.py:43), so report.py:82-84 labels the run `INVALID: G4,G8`.
+
+This is a direct consequence of the fix. The old A4 left the term index full, so the ranker ran and G4 passed. The commit changed A4's behaviour without updating the harness expectations that classify it.
+
+**Reproducer.** `$SCR/runs/C8abl-A4fix-S1`: `arch_gate.json` `failed=['G4','G8']`, and report.md:32 shows `INVALID: G4,G8`. Independently: `python -I $SCR/rv10_checks/gate_a4.py $SCR/rv13 $SCR/runs/C8abl-A4fix-S1 $SCR/rv13_gate/coord.db`.
+
+**Minimal fix (one line, harness-only).** In report.py:60, do not expect the ranker under A4, as is already done for A1, since the hypergraph ranker cannot run without an index: `expect_ranker=... (hg and rs.ablation not in ("A1", "A4"))`. A manual gate run should use `--no-ranker` for A4.
+
+Do NOT add G4 to `EXPECTED_GATE_FAILURES["A4"]` instead. That would also hide a real routing-authorization failure in an A4 run; this run's replay found 0 denials, and G4's authorization replay should stay strict.
+
+After the fix, re-run `report --finalize` on this run dir; no new run is needed. The label should read `ablation: G8`.
+
+**Everything else in the commit is correct and needs no change:**
+- the sink replacement;
+- the counters;
+- the removal of the `_heartbeat_stats` patch;
+- the tests.
+
+---
+
+## Re-review: report fix 658a093 and the A4 rerun
+
+**Reviewer:** REVIEWER-4, model `claude-opus-5-5` (independent; did not write the patch; engineer ENGINEER-3, claude-sonnet-5-5)
+**Verdict: ACCEPT. No concrete defect found; the rerun meets all three conditions (G8 fails, G4 passes, report label "ablation: G8").**
+
+Scope: commit `658a093` (parent 9577cc5). It changes bench/report.py (+7/-1), the bench/ablations.py docstring (+4/-2), and bench/tests/test_arch_gate.py (+41/-3). There is no system or scorer code in this commit.
+
+**Note on the rerun:** its parent chain since 3c18b1a also contains `195e9ad`, a system change in mycelic/knowledge/service.py (claim-support revisions, reviewed separately). The C9 rerun therefore differs from C8abl-A4fix-S1 by that change as well, not only by the report fix.
+
+I did not modify ng-impl, and I did not open /root/sealed_holdout or `$SCR/runs/H-*`.
+
+**Custody:** my BLOCK review of 3c18b1a suggested re-running `report --finalize` on the C8 run dir. That advice assumed the holder stores were still present, as they were when I gated it. Once the stores were trimmed, the re-finalize degraded that run's gate, which is correctly retired as `C8abl-A4fix-S1.regated-without-stores`. The clean rerun is the right course.
+
+### Commands and outputs
+```
+$ git -C /home/user/ng-impl show 658a093            (diff read in full)
+$ git archive 658a093 | tar -x -C $SCR/rv15 && cd $SCR/rv15 && PYTHONDONTWRITEBYTECODE=1 python -m pytest research/mycelic_e2e/bench/tests -q -p no:cacheprovider --basetemp $SCR/rv15_bt
+  193 passed, 2 skipped, 11 warnings in 13.96s        (matches the engineer's report)
+$ mutation: same tree with RANKER_NOT_EXPECTED = ("A1",)   (i.e. the fix reverted)
+  FAILED test_arch_gate.py::test_finalize_expects_no_hypergraph_ranker_only_where_the_ablation_removes_it[A4-domains-False]
+  1 failed, 5 passed            -> the new test is load-bearing for exactly the A4 case
+$ diff -rq (mycelic, bench) $SCR/rv15 $SCR/code/658a093  -> identical: the C9 run (pid 8942, cwd $SCR/code/658a093, log rev=658a093) runs this commit
+$ grep expect_ranker / != "A1" across research/mycelic_e2e (excluding tests and arch_gate.py itself)
+  report.py:66 is the only place that derives expect_ranker from the ablation
+```
+
+### Diff review
+- **The ranker check is now skipped under A1 and A4 only.** report.py:37 adds `RANKER_NOT_EXPECTED = ("A1", "A4")`, and report.py:66 changes `rs.ablation != "A1"` to `rs.ablation not in RANKER_NOT_EXPECTED`.
+  - An explicit `expect_ranker` argument still wins.
+  - `expect_hypergraph=False` still disables the ranker check.
+  - Only G4's ranker assertion (arch_gate.py:664-668) is affected. G4's authorization replay and its audit and budget checks still run under A4.
+- **G4 is deliberately NOT added to `EXPECTED_GATE_FAILURES["A4"]`, which still equals `["G8"]`.** A real routing-authorization failure under A4 therefore still reads INVALID, as I asked.
+- **The tests cover the right cases.**
+  - The parametrized finalize test covers none/A1/A2/A4/A5. The "none + domains" case is the control proving the assertion still fires for the full system.
+  - It asserts that the replay ran with 0 denials in every case, and checks `expect_ranker` in both the in-memory report and the written arch_gate.json.
+  - `test_a4_does_not_excuse_a_g4_failure_in_the_ledger` pins `["G8"]` → `ablation_expected` and `["G4","G8"]` → `invalid`.
+- The ablations.py change is a docstring only.
+
+### The A4 rerun C9abl-A4-S1 (code `$SCR/code/658a093` = 658a093; log `rev=658a093`, "2 binding(s) replaced")
+```
+run_manifest.json (11:12:44): ablation_calls = {'entity_index_calls': 18243, 'term_index_calls': 18243, 'entities_suppressed': 0, 'terms_suppressed': 926517}
+                              api_errors all 0; n_tasks 120
+arch_gate.json (11:13:51, written BEFORE "[11:14:17] holder stores trimmed after gate"):
+  valid=False  failed=['G8']  expect_ranker=False  expect_hypergraph=True
+  G1 pass: 1536 live documents across 136 holder files      G2 pass: 136 distinct holder files    (stores were present at gate time)
+  G4 pass: 2883/2883 questions routed; rank_method {'domains': 2883}; as-of replay denials 0; replay {'checked': 28494, 'denied': 0}
+  G8 fail: entities 0/0 (n/a; 892 holder-entity pairs below entity_min_records), terms 0/112 holders (0%) -> "term index covers 0/112 = 0.00 ... (< 0.95)"
+  G3 G5 G6 G7 G9 G10 pass
+report.md:35  | ablation A4 (C9abl-A4-S1) | deterministic-provider | ablation: G8 | 120 | 110 | 91.7% | [85.3%, 95.4%] | 0 | ...
+score.txt: accuracy = 110/120 = 0.917, errors=0, disclosures = 0
+ledger.gate_status(arch_gate.json, "A4") -> {'gate_status': 'ablation_expected', 'gate_failed': ['G8'], 'gate_unexpected_failed': [], ...}
+```
+All three conditions hold:
+- **G8 fails:** the term index is empty, 0/112.
+- **G4 passes:** the ranker assertion is skipped, and the authorization replay still checked all 28,494 routes with 0 denials.
+- **The report labels the run "ablation: G8".**
+
+`ablation_calls` > 0 confirms the sinks were live: 18,243 calls each, 926,517 term ids suppressed.
+
+### Non-blocking notes
+- **N1. Gate custody.** The holder stores are trimmed after the gate, so arch_gate.json at 11:13:51 is the authoritative gate for C9. Any later `report --finalize` on this directory would degrade it, as happened to C8. Suggestion: make `finalize` refuse to overwrite an existing arch_gate.json when the holder stores are missing.
+- **N2. `tools/results_table.py --regate`.** It calls `G.check(run)` with default expectations (results_table.py:23-26), so a re-gate of an A1 or A4 run there would show the G4 ranker failure. The same was already true for A1. Use the stored arch_gate.json, or pass the ranker expectation, if that tool is used for the tables.
+- **N3. The entity half of A4 is untested at size S.** `entities_suppressed` is 0 because at size S no holder reaches `entity_min_records`, so this run exercises only the term half of A4. The entity half is covered by the engineer's unit test.
+- **N4. C9 is not a pure A4-fix comparison.** C9 includes the system change 195e9ad, so C9 vs C8 (110 vs 111 correct) does not compare the A4 fix alone.

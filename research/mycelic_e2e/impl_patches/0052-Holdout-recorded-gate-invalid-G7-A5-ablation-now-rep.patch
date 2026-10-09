@@ -1,7 +1,7 @@
 From a78af461b6bf803c60927d90f33f42b5f121fe9d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 10:34:09 +0000
-Subject: [PATCH 52/53] Holdout recorded (gate invalid: G7); A5 ablation now
+Subject: [PATCH 52/58] Holdout recorded (gate invalid: G7); A5 ablation now
  replaces the routing choke point
 
 The single holdout run of the frozen candidate (7f37551, world M seed 101)

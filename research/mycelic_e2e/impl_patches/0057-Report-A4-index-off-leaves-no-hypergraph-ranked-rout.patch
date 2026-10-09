@@ -1,0 +1,140 @@
+From 658a093490b0227f76d93951f7594784bf725314 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 10:59:40 +0000
+Subject: [PATCH 57/58] Report: A4 (index off) leaves no hypergraph-ranked
+ routes, so G4's ranker assertion is skipped as under A1
+
+With A4 emptying the entity and term indexes every route is domain-ranked (C8abl-A4fix-S1: 3,317 of 3,317), so report.finalize's default expect_ranker made G4 fail and the run read INVALID G4,G8. finalize now skips the ranker assertion for A1 and A4 (RANKER_NOT_EXPECTED); G4's authorization replay still runs. G4 is deliberately not added to A4's EXPECTED_GATE_FAILURES, which would hide a real routing-authorization failure.
+Tests: finalize on a domain-ranked run expects no ranker under A1 and A4 and still does for no ablation, A2 and A5; ledger keeps G4 under A4 invalid.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/bench/ablations.py       |  6 ++-
+ research/mycelic_e2e/bench/report.py          |  8 +++-
+ .../mycelic_e2e/bench/tests/test_arch_gate.py | 44 +++++++++++++++++--
+ 3 files changed, 52 insertions(+), 6 deletions(-)
+
+diff --git a/research/mycelic_e2e/bench/ablations.py b/research/mycelic_e2e/bench/ablations.py
+index d67cc5e..fd4dd92 100644
+--- a/research/mycelic_e2e/bench/ablations.py
++++ b/research/mycelic_e2e/bench/ablations.py
+@@ -19,7 +19,7 @@ A3     A3_verification_off    ``LoopEngine._ask_verification`` raises ValueError
+                               (every caller already catches it: no verification
+                               question is created; returning None would crash the
+                               callers that index the result)
+-A4     A4_index_off           ``knowledge.hypergraph.upsert_entity_index_sync`` and  G8
++A4     A4_index_off           ``knowledge.hypergraph.upsert_entity_index_sync`` and  G8 (the G4 ranker assertion is skipped)
+                               ``upsert_term_index_sync``, the two sinks every index
+                               write goes through (``OrgService.holder_heartbeat`` and
+                               the revoke / opt-out withdrawal): both do nothing and
+@@ -29,7 +29,9 @@ A4     A4_index_off           ``knowledge.hypergraph.upsert_entity_index_sync``
+                               counters ``entity_index_calls``, ``term_index_calls``
+                               and ``entities_suppressed``, ``terms_suppressed`` (ids
+                               the real function would have been asked to publish)
+-                              go to the manifest as ``ablation_calls``
++                              go to the manifest as ``ablation_calls``; every
++                              route is then domain-ranked, so ``report.finalize``
++                              does not expect a hypergraph ranker (as under A1)
+ A5     A5_authz_routing_off   ``Authorizer._can_route``, the one function every      G4 (proves the gate is load-bearing)
+                               routing decision goes through (``can_route``,
+                               ``can_route_many``, ``candidate_holders``,
+diff --git a/research/mycelic_e2e/bench/report.py b/research/mycelic_e2e/bench/report.py
+index 36619aa..8b03d2e 100644
+--- a/research/mycelic_e2e/bench/report.py
++++ b/research/mycelic_e2e/bench/report.py
+@@ -31,6 +31,12 @@ def arch_gate_paths(d: Path) -> tuple[Path, Path]:
+     return arch_gate.resolve_run_paths(d)
+ 
+ 
++# Ablations under which no route is hypergraph-ranked, so G4's "ranker expected" assertion does not apply: A1 replaces the ranker itself
++# (rank_method ``ablated``); A4 empties the entity and term indexes, so every route falls back to domain ranking (rank_method ``domains``;
++# dev run C8abl-A4fix-S1: 3,317 of 3,317). Not G4 in A4's EXPECTED_GATE_FAILURES: that would also hide a real routing-authorization failure.
++RANKER_NOT_EXPECTED = ("A1", "A4")
++
++
+ def finalize(run_dir: str | Path, *, coord_db: str | Path | None = None, holders_dir: str | Path | None = None, expect_hypergraph: bool | None = None,
+              expect_ranker: bool | None = None, run_id: str | None = None, ledger: str | Path | None = None, extra: dict[str, Any] | None = None,
+              run_gate: bool = True) -> dict[str, Any]:
+@@ -57,7 +63,7 @@ def finalize(run_dir: str | Path, *, coord_db: str | Path | None = None, holders
+         holders = Path(holders_dir) if holders_dir else d_holders
+         hg = expect_hypergraph if expect_hypergraph is not None else bool(manifest.get("hypergraph", True))
+         gate = arch_gate.check(d, coord_db=coord, holders_dir=holders, expect_hypergraph=hg,
+-                               expect_ranker=expect_ranker if expect_ranker is not None else (hg and rs.ablation != "A1"))
++                               expect_ranker=expect_ranker if expect_ranker is not None else (hg and rs.ablation not in RANKER_NOT_EXPECTED))
+         (d / "arch_gate.json").write_text(json.dumps(gate.to_dict(), indent=2, default=str), encoding="utf-8")
+     row = None
+     run_id = run_id or (rs.manifest or {}).get("ledger_run_id")          # run.py / baseline_central record the id their holdout guard issued
+diff --git a/research/mycelic_e2e/bench/tests/test_arch_gate.py b/research/mycelic_e2e/bench/tests/test_arch_gate.py
+index a2d9208..c4bbb8c 100644
+--- a/research/mycelic_e2e/bench/tests/test_arch_gate.py
++++ b/research/mycelic_e2e/bench/tests/test_arch_gate.py
+@@ -349,8 +349,8 @@ def test_evidence_ref_not_in_any_holder_response_fails_g7(run):
+ 
+ 
+ # ------------------------------------------------------------------------------------------------ finalize: score + gate + ledger row
+-def test_finalize_scores_gates_and_writes_the_ledger_row(run, tmp_path):
+-    from bench import ledger, report
++def _scoreable(run, **manifest_extra):
++    """Give the synthetic run what ``score_run`` needs (a task, its gold, a view, the manifest counters); returns the run dir."""
+     from bench.gold import GoldSink, gold_path
+     rd = run / "run"
+     opts = [{"label": "A", "id": ENT, "display": "LGX-412", "aliases": []}, {"label": "B", "id": "service:other", "display": "other-service", "aliases": []}]
+@@ -361,8 +361,15 @@ def test_finalize_scores_gates_and_writes_the_ledger_row(run, tmp_path):
+                                                        "claims": [{"claim": {"claim_id": "c1", "status": "supported", "text": "LGX-412 delays parcels", "question_id": "q1"},
+                                                                    "evidence": [], "support": {"independent_roots": 2}}], "raw_checks": {}}))
+     m = json.loads((rd / "run_manifest.json").read_text())
+-    m.update(seed=1, size="S", split="dev", counts={"created": 3, "activated": 2, "routed": 2, "with_records": 3}, model_usage={"calls": 1, "input_tokens": 100, "output_tokens": 20})
++    m.update(seed=1, size="S", split="dev", counts={"created": 3, "activated": 2, "routed": 2, "with_records": 3}, model_usage={"calls": 1, "input_tokens": 100, "output_tokens": 20},
++             **manifest_extra)
+     (rd / "run_manifest.json").write_text(json.dumps(m))
++    return rd
++
++
++def test_finalize_scores_gates_and_writes_the_ledger_row(run, tmp_path):
++    from bench import ledger, report
++    rd = _scoreable(run)
+     led = tmp_path / "ledger.jsonl"
+     rid = ledger.start_run({"split": "dev", "mode": "system", "seed": 1, "size": "S", "ledger_path": str(led), "run_dir": str(rd)})
+     out = report.finalize(rd, coord_db=rd / "coord.db", holders_dir=run / "holders", run_id=rid, ledger=led, expect_hypergraph=True)
+@@ -375,6 +382,37 @@ def test_finalize_scores_gates_and_writes_the_ledger_row(run, tmp_path):
+     assert "deterministic-provider" in text and "100.0%" in text
+ 
+ 
++@pytest.mark.parametrize("ablation, rank_method, ranker_expected", [
++    (None, "domains", True),                    # a full system whose routes are all domain-ranked has lost its ranker: G4 must say so
++    ("A1", "ablated", False),                   # the ranker is the thing removed
++    ("A4", "domains", False),                   # index off: no entity or term incidence, so every route is domain-ranked (run C8abl-A4fix-S1)
++    ("A5", "domains", True),                    # a different mechanism removed: the ranker is still expected
++    ("A2", "domains", True),
++])
++def test_finalize_expects_no_hypergraph_ranker_only_where_the_ablation_removes_it(run, ablation, rank_method, ranker_expected):
++    from bench import report
++    sql(run, "UPDATE audit_log SET detail=? WHERE action='question.route'", (json.dumps({"holders": ["hold_a", "hold_b"], "rank_method": rank_method}),))
++    rd = _scoreable(run, ablation=ablation)
++    out = report.finalize(rd, coord_db=rd / "coord.db", holders_dir=run / "holders", expect_hypergraph=True)          # expect_ranker left to the default
++    gate = out["gate"]
++    g4 = gate.results["G4"]
++    assert out["score"].ablation == ablation and gate.expect_ranker is ranker_expected
++    assert json.loads((rd / "arch_gate.json").read_text())["expect_ranker"] is ranker_expected
++    assert g4.data["replay"]["denied"] == 0                                                             # the authorization replay runs in every case
++    if ranker_expected:
++        assert "G4" in gate.failed_ids and any("ranker expected but no route audit row has rank_method 'hypergraph'" in p for p in g4.problems)
++    else:
++        assert g4.status == arch_gate.PASS and "G4" not in gate.failed_ids
++
++
++def test_a4_does_not_excuse_a_g4_failure_in_the_ledger():
++    """The ranker assertion is skipped under A4, but G4 is not an expected A4 failure: a routing-authorization failure there stays INVALID."""
++    from bench import ledger
++    assert ledger.EXPECTED_GATE_FAILURES["A4"] == ["G8"]
++    assert ledger.gate_status({"failed": ["G8"]}, "A4")["gate_status"] == "ablation_expected"
++    assert ledger.gate_status({"failed": ["G4", "G8"]}, "A4")["gate_status"] == "invalid"
++
++
+ def test_unreadable_coordinator_database_invalidates_every_gate(tmp_path):
+     rep = arch_gate.check(None, coord_db=tmp_path / "missing.db", holders_dir=tmp_path)
+     assert not rep.valid and rep.failed_ids == [f"G{i}" for i in range(1, 11)]
+-- 
+2.43.0
+

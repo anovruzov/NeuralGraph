@@ -1,7 +1,7 @@
 # Morning handoff: overnight repair of 2026-10-09
 
-_Final version, written 2026-10-09 10:37 UTC. Every number here is recomputed in `VERIFIED_RESULTS.md` from the run
-directories. The ledger is `EXPERIMENTS.jsonl` (rows X000–X074)._
+_Final version, written 2026-10-09 11:22 UTC. Every number here is recomputed in `VERIFIED_RESULTS.md` from the run
+directories. The ledger is `EXPERIMENTS.jsonl` (rows X000–X083)._
 
 ## 1. What you asked, and the short answer
 
@@ -71,11 +71,14 @@ Every change was reviewed by an agent that did not write it (see `reviews/`).
 | Ingestion: traceable rejections, undated records never count as fresh, explicit forwards never add independent roots | `ingest/*`, `knowledge/support.py`, holder migration 0004 | REVIEW_D (accepted) |
 | Scale: bounded open holders woken by their inbox, lifecycle lock, revision-counter-keyed authorization caches, subject-indexed transport wake-ups, stale-heartbeat rule | `holder/embedded.py`, `authz.py`, `org.py`, `transport/*`, migration 0006 | REVIEW_E (accepted) |
 | Discovery `observe()` reads new evidence through the goal's own responses (json_each) instead of a quadratic `LIKE` join: 388 ms → 2.6 ms at 3k × 3k, and a dev run went from >1,700 s (aborted) to 563 s | `discovery/engine.py` | REVIEW_WP1 (observe fix) |
+| **After the holdout:** claim-support changes bump the claim version and write a revision. This is the audit gap behind the holdout's G7 failure. Not part of the evaluated candidate. | `knowledge/service.py` | REVIEW_WP1 (support-revision fix) |
 
 Benchmark harness changes made during the night, each reviewed in `reviews/REVIEW_H1.md`:
 - **H1:** a per-task API error or timeout makes that task wrong instead of aborting the run.
 - **H2:** every evidence reference visible through goal-level discoveries is raw-checked.
 - **A5 fix (after the holdout):** the authorization ablation patches the routing choke point.
+- **A4 fix (after the holdout):** the index ablation patches the index sinks, and the report stops expecting the ranker under
+  A4.
 
 
 ## 4. What ran
@@ -126,6 +129,7 @@ All figures are from `VERIFIED_RESULTS.md` (deterministic provider; 120 tasks pe
 | A2 roots off | 117/120, gate fails G3 | copies-only tasks fail (4/7); G3 catches it |
 | A3 verification off | 120/120 | verification is not decisive on this world |
 | A4 index off (partial) | 111/120, gate valid | temporal 2/10; the ablation misses two feeders, so G8 cannot see it |
+| A4 index off, corrected after the holdout (`658a093`; pair C8-S1 = 120/120) | 110/120, **gate fails G8** | once the index is really gone, G8 catches it; temporal 1/10 |
 | A5 authorization off, first version | 120/120, gate valid | ineffective: it patched a method routing does not call |
 | A5 authorization off, corrected | 113/120, **gate fails G4** (13,554 unauthorized routes) | G4 catches unauthorized routing; disclosures stayed 0 |
 | A6 dedupe off | 120/120, gate fails G10 | G10 catches it |
@@ -169,13 +173,17 @@ All figures are from `VERIFIED_RESULTS.md` (deterministic provider; 120 tasks pe
 - **The holdout gate failure (G7):**
   - `KnowledgeService.sync_support_sync` rewrites a claim's support without a version bump or revision row.
   - Three hypothesis claims changed after the asker's view was taken, and the audit trail cannot explain it (ledger X072).
-  - Not fixed after the holdout: no candidate change follows a holdout. It is next step 0.
+  - Fixed **after** the holdout in `195e9ad`, reviewed. On dev C8-S1: 120/120, gate valid with G7 passing, 568 s.
+  - That is a new candidate. It has **not** been evaluated on a holdout: the holdout is used up for `7f37551`, and re-running it
+    after reading its failure would be selection on the holdout.
 - **Gate and ablation coverage:**
   - The first A5 ablation patched a method routing does not call; the corrected A5 makes G4 fail as it should
     (`plan/ANALYSIS_A5.md`).
-  - The A4 ablation (index publication off) did not trip G8. The term index was still populated through another path, so G8
+  - The original A4 ablation (index publication off) did not trip G8. The term index was still populated through another path, so G8
     cannot detect A4 as written.
   - A4 still moved routing from hypergraph ranking to the domain fallback. Analysis: `plan/ANALYSIS_A4.md`.
+  - A4 was corrected after the holdout (`3c18b1a`, `658a093`). In its dev run, G8 fails (terms 0/112), G4 passes, and the
+    score is 110/120 (temporal 1/10).
 - **Single process, SQLite transport:** no NATS or distributed-recovery claim is made.
 - **No EMERGENCE contract** exists in this repository.
 - **Holdout isolation is procedural:**
@@ -183,7 +191,8 @@ All figures are from `VERIFIED_RESULTS.md` (deterministic provider; 120 tasks pe
     analysis agent.
   - It sits in the same container, so this is not a separate security domain.
   - One generation smoke test at non-holdout seeds printed counts only (X043).
-- **Commit trailers:** they carry the session's attribution line. The model that wrote each commit is recorded in
+- **Commit trailers:** most commits carry the session's attribution line. The three post-holdout engineer commits
+  (`3c18b1a`, `195e9ad`, `658a093`) carry the engineer's own line. The model that wrote each commit is recorded in
   `EXPERIMENTS.jsonl` (implementation by `claude-sonnet-5-5` engineers; reviews and orchestration by `claude-opus-5-5`;
   planning and dev analyses by `claude-fable-5-1`).
 
@@ -212,9 +221,8 @@ python -m research.mycelic_e2e.tools.results_table RUN RUN-baseline-source
 ```
 
 Next steps, in the order I would take them:
-0. **Record claim-support changes.** Bump `claims.version` and write a revision in
-   `KnowledgeService.sync_support_sync`. Then evaluate the resulting candidate on a newly sealed holdout world, since this one
-   is used up for `7f37551`.
+0. **Evaluate the post-holdout candidate on a fresh holdout.** The candidate is `195e9ad` plus the harness commits after it; it
+   adds the support-revision fix. It needs a newly written, newly sealed holdout bank (§2).
 1. **Fix the heartbeat cost** (§6), then rerun the hardened 10,000-user world on dev, and on a fresh holdout world if the
    candidate changes.
 2. **Make A4 real** (patch the index sink) and harden G8 (index stability, share of hypergraph-ranked routes).

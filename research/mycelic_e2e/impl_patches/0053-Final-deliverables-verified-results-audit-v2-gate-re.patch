@@ -1,7 +1,7 @@
 From 31533ddbf84818c5fb54b3cd8885522f8a00e39e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 10:37:22 +0000
-Subject: [PATCH 53/53] Final deliverables: verified results, audit v2 gate
+Subject: [PATCH 53/58] Final deliverables: verified results, audit v2 gate
  reports, post-holdout record, morning handoff
 
 VERIFIED_RESULTS tables are generated from results_table JSON. The holdout

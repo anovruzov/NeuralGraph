@@ -253,7 +253,49 @@ Per class (correct/n):
   - C5abl-A1/A2: stopped.
   - Baselines whose system run aborted: kept as `*.unpaired`.
 
-## 5. Live language-model check (component level only)
+## 5. After the holdout: follow-up fixes, measured on dev only (no holdout evaluation)
+
+| run | code | size/seed | mode | n | correct | accuracy | 95 % Wilson | disclosures | gate |
+|---|---|---|---|---:|---:|---:|---|---:|---|
+| C8-S1 | `195e9ad` | S/1 | system | 120 | 120 | 1.000 | [0.969, 1.000] | 0 | valid |
+| C8-S1-baseline-source | `195e9ad` | S/1 | central baseline source | 120 | 116 | 0.967 | [0.917, 0.987] | 0 | n/a (no coordinator) |
+| C8-S1-baseline-single | `195e9ad` | S/1 | central baseline single | 120 | 69 | 0.575 | [0.486, 0.660] | 0 | n/a (no coordinator) |
+| C9abl-A4-S1 | `658a093` | S/1 | system A4 | 120 | 110 | 0.917 | [0.853, 0.954] | 0 | fails G8 |
+
+Per class (correct/n):
+
+| run | x-dept | fault | contra | temporal | origin+ | copies | coinc | single | denied | x-tenant |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| C8-S1 | 40/40 | 10/10 | 10/10 | 10/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
+| C8-S1-baseline-source | 37/40 | 10/10 | 10/10 | 9/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
+| C8-S1-baseline-single | 0/40 | 0/10 | 10/10 | 9/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
+| C9abl-A4-S1 | 40/40 | 10/10 | 9/10 | 1/10 | 8/8 | 7/7 | 10/10 | 10/10 | 10/10 | 5/5 |
+
+These runs came **after** the holdout. They are dev measurements of fixes for defects that the holdout gate and the ablation
+analyses found. The holdout was not re-run: one shot per frozen candidate, and re-running after reading its gate failure would be
+selection on the holdout. A future candidate containing these fixes needs a newly written, newly sealed holdout bank.
+
+- **C8-S1: support-revision fix `195e9ad`.**
+  - The change: `sync_support_sync` now bumps the claim's version and writes a `support_sync` revision whenever a claim's support
+    changes. This is the defect behind the holdout's G7 failure.
+  - The result on dev S/1: 120/120, gate valid (G7 included), 0 disclosures, 568 s (C7-S1: 563 s).
+  - Review: accepted by REVIEWER-2 (`reviews/REVIEW_WP1.md`). The tests fail with the fix disabled, and an independent gate run on
+    C8-S1 is valid.
+- **C9abl-A4-S1: A4 corrected (`3c18b1a`, `658a093`).**
+  - The change: the ablation replaces the index sinks, so no heartbeat path can refill the term or entity index
+    (18,243 sink calls; 926,517 term ids suppressed). The report no longer expects the hypergraph ranker under A4, as under A1.
+  - The result:
+    - **G8 now fails** (terms 0/112 holders). G4 passes: 0 replay denials, and all 2,883 questions are domain-ranked.
+    - Accuracy 110/120: temporal 1/10, contradiction 9/10.
+  - An intermediate run of `3c18b1a` without the report fix was labelled invalid on G4 and G8. Its directory was later
+    re-gated without its holder stores, so it is set aside (ledger X079, X081).
+  - Its full-system pair is C8-S1 (same system code `195e9ad`, 120/120).
+  - Review: accepted by REVIEWER-4 (`reviews/REVIEW_H1.md`). `arch_gate.json` was written while the holder stores existed; the
+    report labels the run "ablation: G8". The tests fail when the fix is reverted.
+  - At size S no holder publishes entities, so this run exercises the term half of A4 only. The entity half is covered by the
+    unit test.
+
+## 6. Live language-model check (component level only)
 
 - **What ran:**
   - Qwen3-4B-Instruct (llama.cpp, CPU) behind the product's model router;
@@ -263,7 +305,7 @@ Per class (correct/n):
   It never gave a wrong option.
 - **Not an end-to-end number:** the CPU model was far too slow for a 120-task run.
 
-## 6. Reproduce
+## 7. Reproduce
 
 ```
 # from a checkout of the frozen commit (see impl_patches/README.md), anchored sources

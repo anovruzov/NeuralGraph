@@ -1118,3 +1118,107 @@ The cost is bounded by the goal's responses × the array length; there is no per
   well-defined.
 - If `new_evidence` is ever acted on per ref, the cut-off of more than 50 refs per window must be revisited: page with
   `since = last created_at` instead of the tick time. That limitation predates this change.
+
+---
+
+## Review of the support-revision fix 195e9ad
+
+Reviewer: REVIEWER-2, model id `claude-opus-5-5`. Copy: `git -C /home/user/ng-impl archive 195e9ad | tar -x -C $SCR/rv14`.
+I did not modify ng-impl and did not open `/root/sealed_holdout` or `$SCR/runs/H-*`.
+
+**Verdict: ACCEPT.** Every change to `claims.support` now either bumps the version and writes its own revision and event,
+or is part of the revision `revise_claim` writes in the same transaction. There is no double bump. The event is
+audience-filtered exactly like `revise_claim`'s. The tests fail when the fix is disabled. One non-blocking hardening item
+remains (N1).
+
+### Commands and results
+```
+cd $SCR/rv14 && python -m pytest mycelic/tests -q -p no:warnings -p no:cacheprovider --basetemp $SCR/rv14_bt     → 531 passed, 7 skipped in 148.54s
+python -m pytest mycelic/tests/test_claim_support_revision.py mycelic/tests/test_knowledge_goals.py -q ...        → 7 passed
+# mutation: the fix disabled (default bump_version=False) in a copy, $SCR/rv14m
+python -m pytest mycelic/tests/test_claim_support_revision.py mycelic/tests/test_knowledge_goals.py -q ...        → 3 failed, 4 passed
+  FAILED test_claim_support_revision.py::test_support_change_bumps_the_version_and_writes_a_revision
+  FAILED test_claim_support_revision.py::test_g7_style_comparison_a_later_revision_explains_the_difference
+  FAILED test_knowledge_goals.py::test_commit_gate_statuses_and_conflicts
+```
+
+### 1. Every path that changes claims.support or claims.status
+`grep -rn "UPDATE claims SET" mycelic` (tests excluded) finds:
+- **`service.py:258`, `revise_claim`.** Bumps the version and writes its revision.
+  - Its support refresh calls `sync_support_sync(..., bump_version=False)` (`:264`). That writes the support in place,
+    inside revise_claim's transaction, so the change is covered by revise_claim's own revision. One bump.
+- **`service.py:359`, `_open_conflict_sync`.** Sets status `contested` and `version+1`, then writes
+  `_revision_sync(..., int(row["version"]) + 1, ...)`, with `row` read inside the same transaction.
+- **`service.py:544/547`, `sync_support_sync`.** `:544` is reached only with `bump_version=False`, i.e. only from
+  `revise_claim`. `:547` bumps the version, writes a `support_sync: …` revision whose `before`/`after` hold the
+  independent roots and units, and emits the event. All other callers keep the default `True`:
+  - the engine's verification transaction and its late-response transaction;
+  - `on_evidence_event` (transaction 1, one call per DISTINCT claim);
+  - `supersede_changed_support`;
+  - `_sync_support_edge`.
+- **`service.py:225` (`superseded_by`) and `:701` (`_scrub_claim_text`).** Neither touches support or status. `:701` is
+  the deliberate deletion scrub, which also scrubs the revisions.
+
+No other writer of `claims.status` or `claims.support` exists. `recompute_status`, `_propagate_status` and
+`retract_claim` all go through `revise_claim`.
+
+### 2. Double bumps and lost updates
+- **Within a transaction.** The new version is read inside the transaction (`SELECT version`, then
+  `UPDATE … version=version+1`, then the revision at `version+1`), so the label and the column agree. `revise_claim`
+  passes `bump_version=False`. `test_revise_claim_does_not_bump_twice_when_it_refreshes_the_support` checks this (one
+  bump and one event, with no `support_only`). `on_evidence_event` iterates over DISTINCT claim ids.
+- **Across transactions.** A support change followed by a status change gives two revisions, which is intended:
+  `test_knowledge_goals` now expects `[1, 2, 3]`, i.e. support_sync and then the stale revision. A no-op writes
+  nothing: `test_nothing_is_written_when_the_support_does_not_change` checks version, `updated_at`, revision count and
+  event count.
+- **N1 (non-blocking; predates this commit, but the commit adds more version bumpers).** `revise_claim` labels its
+  revision `int(before["version"]) + 1`, where `before` is read *before* its transaction.
+  - In one process this cannot interleave. Transaction bodies never await, so the asyncio lock is never held across a
+    suspension and is acquired on the fast path.
+  - With several coordinator worker processes on one `coord.db`, a support_sync bump committed by another process
+    between that read and `BEGIN IMMEDIATE` would give two revision rows the same version label. `revisions` has no
+    unique constraint, so this would be silent. `claims.version` itself stays correct, because it is incremented
+    atomically.
+  - Fix: read the version inside the transaction, as this commit does in `sync_support_sync`.
+
+### 3. The support-only `claim.revised` event
+- **Audience.** `{unit_ids: [scope], visibility: claim.visibility, user_ids: [owner]}`, the same shape and values as
+  `revise_claim`'s event. The SSE hub filters it the same way: scope units, owner, or `visibility: org`.
+- **Payload.** `{status, reason: "support_sync: <caller reason>", goal_id, support_only: true}`, with no claim text and
+  no evidence. The caller reasons are ids and labels ("independent verification via question <qid>", "late response
+  <rid> added support", "evidence <event>", "changed support superseded: …", recompute reasons). These are the same
+  class of string `revise_claim` already emits.
+- **Revision row.** `before`/`after` contain only the root and unit counts.
+
+Nothing reaches non-viewers that `revise_claim`'s event did not already send them.
+
+### 4. Performance
+- **The added cost.** One `SELECT version`, one `revisions` INSERT and one `events` INSERT per *actual* support change,
+  all inside a write transaction that already exists. No-op syncs write nothing.
+- **Dev run C8-S1** (`rev=195e9ad`, S, seed 1): finished.
+  - Log: `done in 567.55s: views=120 questions={'committed': 95, 'retained_uncertain': 15, 'None': 10} supported_claims=78 … model_calls=36981 peak_rss=541.8MB`.
+  - C7-S1 for comparison: `done in 562.93s`, model_calls 36621, peak 539.2 MB.
+  - So +4.6 s (+0.8 %), with 1 % more model calls (36,981 against 36,621). The extra revision and event writes have no measurable cost.
+  - `score.json`: accuracy 1.0 (120/120). C7-S1 was also 1.0.
+  - Architecture gate: I ran it read-only, `python -m research.mycelic_e2e.bench.arch_gate $SCR/runs/C8-S1` from the
+    195e9ad copy, without `--write`. It reported `architecture gate: VALID`, with G1–G10 all pass.
+    **G7: `pass` — claims, discoveries and evidence were produced by the system, not written by the harness — 6422
+    claims, 33874 evidence refs traced to holder responses.**
+  - The run's own `arch_gate.json` (written at 10:55:48 by the harness, not by me) also says
+    `valid: True, failed: []`.
+  - Counts: 6422 claims (1488 supported, 1268 hypothesis, 3666 contested); 2623 questions.
+
+### 5. The tests are not vacuous
+- `test_support_change_bumps_the_version_and_writes_a_revision` asserts:
+  - version 1 → 2 and revisions `[1]` → `[1, 2]`;
+  - the reason text, including `independent_roots 1 -> 2`;
+  - actor and tenant;
+  - exact `before`/`after` JSON;
+  - exactly one `claim.revised` event with `support_only`;
+  - an unchanged status;
+  - `verify_consistency == []` and edge roots equal to the claim's roots;
+  - after a further change, version 3, revisions `[1, 2, 3]` and two events.
+- `test_g7_style_comparison_a_later_revision_explains_the_difference` contains a negative control: an in-place support
+  change without a revision must make the G7-style check fail.
+- The mutation above, with the fix disabled, fails 3 of the 7 tests: the two support-revision tests and the updated
+  `test_knowledge_goals` expectation.

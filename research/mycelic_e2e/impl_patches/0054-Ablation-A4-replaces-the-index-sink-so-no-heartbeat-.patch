@@ -1,0 +1,274 @@
+From 3c18b1a21194b959782561f8614d7470f9709027 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 10:41:42 +0000
+Subject: [PATCH 54/58] Ablation A4 replaces the index sink so no heartbeat
+ path can repopulate the index
+
+A4 patched only holder.embedded._heartbeat_stats, one of three feeders of OrgService.holder_heartbeat; the raw transport beat and the shutdown beat bypass it, so the term index flickered back every minute and was full at stop, and G8 (which reads the final coord.db) saw 112/112. A4 now replaces hypergraph.upsert_entity_index_sync and upsert_term_index_sync, the sinks every index write goes through (including the revoke / opt-out withdrawal): both return 0 and write nothing, whichever feeder delivers the beat.
+Live-call counters (entity_index_calls, term_index_calls, entities_suppressed, terms_suppressed) go to run_manifest ablation_calls like A5's. Tests cover the embedded, transport and shutdown beats and the withdrawal helper, restore, and G8 failing on the resulting coord.db.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/bench/ablations.py       |  49 ++++--
+ .../mycelic_e2e/bench/tests/test_ablations.py | 156 ++++++++++++++++--
+ 2 files changed, 176 insertions(+), 29 deletions(-)
+
+diff --git a/research/mycelic_e2e/bench/ablations.py b/research/mycelic_e2e/bench/ablations.py
+index c41ba0c..d67cc5e 100644
+--- a/research/mycelic_e2e/bench/ablations.py
++++ b/research/mycelic_e2e/bench/ablations.py
+@@ -19,8 +19,17 @@ A3     A3_verification_off    ``LoopEngine._ask_verification`` raises ValueError
+                               (every caller already catches it: no verification
+                               question is created; returning None would crash the
+                               callers that index the result)
+-A4     A4_index_off           ``holder.embedded._heartbeat_stats``: ingest.entities   G8
+-                              and ingest.terms are empty
++A4     A4_index_off           ``knowledge.hypergraph.upsert_entity_index_sync`` and  G8
++                              ``upsert_term_index_sync``, the two sinks every index
++                              write goes through (``OrgService.holder_heartbeat`` and
++                              the revoke / opt-out withdrawal): both do nothing and
++                              return 0, so the entity and term indexes stay empty
++                              whichever feeder delivers the beat (the embedded
++                              callback, the raw transport beat, the shutdown beat);
++                              counters ``entity_index_calls``, ``term_index_calls``
++                              and ``entities_suppressed``, ``terms_suppressed`` (ids
++                              the real function would have been asked to publish)
++                              go to the manifest as ``ablation_calls``
+ A5     A5_authz_routing_off   ``Authorizer._can_route``, the one function every      G4 (proves the gate is load-bearing)
+                               routing decision goes through (``can_route``,
+                               ``can_route_many``, ``candidate_holders``,
+@@ -144,16 +153,32 @@ def _a3(p: Patch) -> None:
+ 
+ # ------------------------------------------------------------------------------------------------ A4
+ def _a4(p: Patch) -> None:
+-    from mycelic.holder import embedded
+-
+-    orig = embedded._heartbeat_stats
+-
+-    def heartbeat_stats_no_index(stats: dict[str, Any]) -> dict[str, Any]:
+-        out = orig(stats)
+-        if isinstance(out.get("ingest"), dict):
+-            out["ingest"] = {**out["ingest"], "entities": {}, "terms": {}}
+-        return out
+-    p.rebind(orig, heartbeat_stats_no_index)
++    """Replace the two index sinks, not a feeder. ``OrgService.holder_heartbeat`` has three feeders (the embedded callback through
++    ``holder.embedded._heartbeat_stats``, the raw transport beat applied by ``LoopEngine._on_transport``, and the shutdown beat), and the first
++    A4 patched only the first: the transport beat re-added the terms every minute and the stop-time beat refilled them, so G8 read a full term
++    index (dev run C6abl-A4-S1: 112/112). Every write to ``term_index`` and to the ``entity_index`` hyperedges goes through
++    ``hypergraph.upsert_term_index_sync`` / ``upsert_entity_index_sync`` (``org.py`` reaches them as ``hg.<name>``, a module attribute looked up
++    at call time; ``withdraw_holder_entities_sync`` calls the entity one by its module global), so replacing them keeps both indexes empty
++    for the whole run. Both return 0 ("rows changed"), the value the callers test before writing an audit row, so no ``holder.entities_published``
++    or ``holder.terms_published`` row appears either. The holder's own reported stats (``entities_reported`` / ``terms_reported``) are left
++    alone: the holder still reports what it has, the coordinator indexes none of it."""
++    from mycelic.entities import sanitize_term_counts
++    from mycelic.knowledge import hypergraph as hg
++
++    p.counters.update(entity_index_calls=0, term_index_calls=0, entities_suppressed=0, terms_suppressed=0)
++
++    def upsert_entity_index_off(c: Any, *, tenant_id: str, holder_id: str, unit_id: str | None, entities: dict[str, int], domains: list[str], now: str,
++                                retract: bool = True, withdraw_kinds: tuple[str, ...] = ()) -> int:
++        p.counters["entity_index_calls"] += 1
++        p.counters["entities_suppressed"] += len(hg.sanitize_entity_counts(entities))
++        return 0
++
++    def upsert_term_index_off(c: Any, *, tenant_id: str, holder_id: str, terms: dict[str, int], now: str, retract: bool = True) -> int:
++        p.counters["term_index_calls"] += 1
++        p.counters["terms_suppressed"] += len(sanitize_term_counts(terms))
++        return 0
++    p.rebind(hg.upsert_entity_index_sync, upsert_entity_index_off)
++    p.rebind(hg.upsert_term_index_sync, upsert_term_index_off)
+ 
+ 
+ # ------------------------------------------------------------------------------------------------ A5
+diff --git a/research/mycelic_e2e/bench/tests/test_ablations.py b/research/mycelic_e2e/bench/tests/test_ablations.py
+index a731b22..30cb078 100644
+--- a/research/mycelic_e2e/bench/tests/test_ablations.py
++++ b/research/mycelic_e2e/bench/tests/test_ablations.py
+@@ -61,6 +61,9 @@ def test_nothing_is_patched_by_default(tmp_path):
+     assert Authorizer.can_route.__module__ == "mycelic.authz" and Authorizer._can_route.__module__ == "mycelic.authz"
+     assert IngestPipeline.dedupe.__module__ == "mycelic.ingest.pipeline"
+     assert LoopEngine._ask_verification.__module__ == "mycelic.discovery.engine" and embedded._heartbeat_stats.__module__ == "mycelic.holder.embedded"
++    from mycelic.knowledge import hypergraph
++    assert hypergraph.upsert_term_index_sync.__name__ == "upsert_term_index_sync" and hypergraph.upsert_entity_index_sync.__name__ == "upsert_entity_index_sync"
++    assert hypergraph.upsert_term_index_sync.__module__ == hypergraph.upsert_entity_index_sync.__module__ == "mycelic.knowledge.hypergraph"
+ 
+ 
+ def test_a1_ranker_off(patched, tmp_path):
+@@ -116,23 +119,6 @@ def test_a3_verification_off(patched, tmp_path):
+     assert LoopEngine._ask_verification.__name__ == "_ask_verification"
+ 
+ 
+-def test_a4_index_off(patched, tmp_path):
+-    from mycelic.holder import embedded
+-    stats = {"documents": 3, "ingest": {"records": 9, "domains": {"operations": 6}, "entities": {"service:x": 4}, "terms": {"abc": 2}, "snapshot_complete": True}}
+-    assert embedded._heartbeat_stats(stats)["ingest"]["entities"] == {"service:x": 4}
+-    p = patched("A4_index_off")
+-    rt = build(tmp_path)
+-    try:
+-        out = embedded._heartbeat_stats(stats)
+-        assert out["ingest"]["entities"] == {} and out["ingest"]["terms"] == {}
+-        assert out["ingest"]["domains"] == {"operations": 6} and out["ingest"]["records"] == 9 and out["ingest"]["snapshot_complete"] is True   # only the index is gone
+-        assert embedded._heartbeat_stats({"documents": 1})["documents"] == 1                 # stats without an ingest block pass through
+-    finally:
+-        close(rt)
+-    p.restore()
+-    assert embedded._heartbeat_stats(stats)["ingest"]["terms"] == {"abc": 2}
+-
+-
+ def test_a5_authz_routing_off(patched, tmp_path):
+     from mycelic.authz import Authorizer
+     q = {"tenant_id": "t1", "scope_unit_id": "unit_elsewhere", "policy": {"visibility": "unit"}, "candidate_domains": ["finance"]}
+@@ -203,6 +189,137 @@ def test_a5_replaces_the_one_choke_point_so_the_routing_filter_is_ablated(patche
+         close(rt)
+ 
+ 
++TERMS = {"term:0123456789abcdef": 1, "term:fedcba9876543210": 2}                       # ids shaped like the holder's keyed hashes
++ENTS = {"service:parcelrouter": 6, "symptom:timeout": 5}
++STATS = {"documents": 3, "ingest": {"records": 9, "entities": ENTS, "terms": TERMS, "snapshot_complete": True}}
++
++
++def _index_state(db) -> dict[str, int]:
++    one = lambda sql: db.one(sql)["n"]                                                    # noqa: E731
++    return {"term_rows": one("SELECT COUNT(*) AS n FROM term_index"),
++            "entity_edges": one("SELECT COUNT(*) AS n FROM hyperedges WHERE kind='entity_index'"),
++            "entity_members": one("SELECT COUNT(*) AS n FROM hyperedge_members m JOIN hyperedges e ON e.edge_id=m.edge_id WHERE e.kind='entity_index' AND m.role='holds'"),
++            "published_audits": one("SELECT COUNT(*) AS n FROM audit_log WHERE action IN ('holder.terms_published', 'holder.entities_published')")}
++
++
++async def _every_feeder(rt, t, hid):
++    """One beat per way a heartbeat reaches ``OrgService.holder_heartbeat``: (a) the embedded callback, which filters through
++    ``_heartbeat_stats``, (b) the raw transport beat the coordinator's intake applies unfiltered, (c) the shutdown beat (status offline)."""
++    from mycelic.holder import embedded
++    from mycelic.transport import Envelope, Subjects
++    await rt.org.holder_heartbeat(hid["ha"], stats=embedded._heartbeat_stats(STATS))
++    env = Envelope.new(Subjects.responses(t), "heartbeat", t, {"holder_id": hid["hb"], "stats": STATS}, msg_id="hb:test:1").sign(rt.org.route_key(hid["hb"]))
++    await rt.engine.on_transport(env)
++    await rt.org.holder_heartbeat(hid["hc"], stats=STATS, status="offline")
++
++
++def test_a4_control_every_feeder_fills_the_index_without_the_ablation(tmp_path):
++    rt = build(tmp_path)
++    try:
++        async def main():
++            t, _depts, hid = await _two_department_world(rt)
++            await _every_feeder(rt, t, hid)
++        asyncio.run(main())
++        st = _index_state(rt.db)
++        assert st["term_rows"] == 3 * len(TERMS) and st["entity_edges"] == len(ENTS) and st["entity_members"] == 3 * len(ENTS) and st["published_audits"] > 0
++    finally:
++        close(rt)
++
++
++def test_a4_replaces_the_index_sink_so_no_heartbeat_path_can_fill_it(patched, tmp_path):
++    """The first A4 replaced ``embedded._heartbeat_stats`` only. The raw transport beat and the shutdown beat do not go through it, so the
++    term index flickered back every minute and was full again at stop (dev run C6abl-A4-S1: G8 saw 112/112). Now the two sinks are replaced."""
++    from mycelic.holder import embedded
++    from mycelic.knowledge import hypergraph as hg
++    real_entity, real_term = hg.upsert_entity_index_sync, hg.upsert_term_index_sync
++    p = patched("A4_index_off")
++    assert hg.upsert_entity_index_sync is not real_entity and hg.upsert_term_index_sync is not real_term
++    assert p.describe()["patched"] == ["mycelic.knowledge.hypergraph.upsert_entity_index_sync", "mycelic.knowledge.hypergraph.upsert_term_index_sync"]
++    assert p.counters == {"entity_index_calls": 0, "term_index_calls": 0, "entities_suppressed": 0, "terms_suppressed": 0}
++    assert embedded._heartbeat_stats(STATS)["ingest"]["terms"] == TERMS and embedded._heartbeat_stats(STATS)["ingest"]["entities"] == ENTS    # the holder still reports
++    rt = build(tmp_path)
++    try:
++        async def main():
++            t, _depts, hid = await _two_department_world(rt)
++            await _every_feeder(rt, t, hid)
++            for _ in range(3):                                                         # beats keep coming for the whole run
++                await _every_feeder(rt, t, hid)
++            return t, hid
++        t, hid = asyncio.run(main())
++        assert _index_state(rt.db) == {"term_rows": 0, "entity_edges": 0, "entity_members": 0, "published_audits": 0}
++        assert p.counters == {"entity_index_calls": 12, "term_index_calls": 12, "entities_suppressed": 12 * len(ENTS), "terms_suppressed": 12 * len(TERMS)}
++        stored = rt.org.get_holder(hid["hb"])["stats"]["ingest"]
++        assert stored["terms_reported"] == len(TERMS) and stored["entities_reported"] == len(ENTS) and "terms" not in stored       # registry bookkeeping is untouched
++        # the withdrawal helper (a revoked holder) reaches the entity sink too; it has nothing to withdraw and the term index stays empty
++        before = p.counters["entity_index_calls"]
++        asyncio.run(rt.org.update_holder(hid["hc"], status="revoked"))
++        assert p.counters["entity_index_calls"] == before + 1 and p.counters["entities_suppressed"] == 12 * len(ENTS)
++        assert _index_state(rt.db)["term_rows"] == 0 and _index_state(rt.db)["entity_edges"] == 0
++        # restore puts the real sinks back in the same runtime: the next beat fills the index and the counters stop
++        p.restore()
++        assert hg.upsert_entity_index_sync is real_entity and hg.upsert_term_index_sync is real_term
++        frozen = dict(p.counters)
++        asyncio.run(rt.org.holder_heartbeat(hid["ha"], stats=STATS))
++        st = _index_state(rt.db)
++        assert st["term_rows"] == len(TERMS) and st["entity_edges"] == len(ENTS) and p.counters == frozen
++    finally:
++        close(rt)
++
++
++def _load_arch_gate_tests():
++    """The arch-gate test module (its synthetic run with real holder stores), loaded by path so it works under any import mode."""
++    import importlib.util
++    path = Path(__file__).with_name("test_arch_gate.py")
++    spec = importlib.util.spec_from_file_location("a4_arch_gate_tests", path)
++    mod = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(mod)
++    return mod
++
++
++@pytest.fixture(scope="module")
++def gate_world(tmp_path_factory):
++    mod = _load_arch_gate_tests()
++    return mod, mod.build_run(tmp_path_factory.mktemp("a4_gate"))
++
++
++def _gate_after_beats(mod, base, tmp_path, name):
++    """A copy of the synthetic run whose coordinator has no index rows yet, then one beat per holder with the terms and the entity the
++    holder stores really hold, then the architecture gate over that final coord.db."""
++    import shutil
++    from mycelic.db import CoordDB
++    from mycelic.org import OrgService
++    root = tmp_path / name
++    shutil.copytree(base, root)
++    for stmt in ("DELETE FROM term_index", "DELETE FROM hyperedge_members WHERE edge_id='e_ent'", "DELETE FROM hyperedges WHERE edge_id='e_ent'"):
++        mod.sql(root, stmt)
++    db = CoordDB(root / "run" / "coord.db")
++
++    async def beats():
++        org = OrgService(db)
++        for i, hid in enumerate(("hold_a", "hold_b", "hold_d")):
++            terms = {f"term:{i:016x}": 1}
++            await org.holder_heartbeat(hid, stats={"ingest": {"entities": {mod.ENT: 2} if hid != "hold_d" else {}, "terms": terms, "snapshot_complete": True}})
++    try:
++        asyncio.run(beats())
++    finally:
++        asyncio.run(db.close())
++    return mod.gate(root)
++
++
++def test_g8_fails_on_the_coord_db_an_a4_run_leaves_and_passes_without_it(patched, gate_world, tmp_path):
++    mod, base = gate_world
++    control = _gate_after_beats(mod, base, tmp_path, "control")
++    g8 = control.results["G8"]
++    assert g8.status == "pass", g8.problems
++    assert g8.data["term_holders_expected"] == 3 and g8.data["term_holders_covered"] == 3 and g8.data["entity_covered"] == 2
++    p = patched("A4")
++    ablated = _gate_after_beats(mod, base, tmp_path, "ablated")
++    g8 = ablated.results["G8"]
++    assert "G8" in ablated.failed_ids and g8.data["term_holders_expected"] == 3 and g8.data["term_holders_covered"] == 0
++    assert any("term index covers 0/3" in x for x in g8.problems) and any("entity index covers 0/2" in x for x in g8.problems)
++    assert p.counters["term_index_calls"] == 3 and p.counters["terms_suppressed"] == 3 and p.counters["entities_suppressed"] == 2
++
++
+ def test_ablation_counters_reach_the_manifest():
+     src = (REPO / "research/mycelic_e2e/bench/run.py").read_text()
+     assert '"ablation_calls": dict(abl_patch.counters) if abl_patch else {}' in src
+@@ -211,6 +328,11 @@ def test_ablation_counters_reach_the_manifest():
+         assert p.describe()["calls"] == {"can_route_calls": 0, "loosened": 0}
+     finally:
+         p.restore()
++    p = ablations.apply("A4")
++    try:
++        assert p.describe()["calls"] == {"entity_index_calls": 0, "term_index_calls": 0, "entities_suppressed": 0, "terms_suppressed": 0}
++    finally:
++        p.restore()
+ 
+ 
+ def test_a6_dedupe_off(patched, tmp_path):
+-- 
+2.43.0
+

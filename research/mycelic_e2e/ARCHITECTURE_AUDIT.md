@@ -154,7 +154,9 @@ Gate details (dev runs; truncated to 140 characters per gate):
     invariant, rewrites `claims.support` (for example independent roots) without bumping `claims.version` or writing a
     revision row.
   - A reader therefore cannot tell from the audit trail why a claim's support changed.
-  - Fix: bump the version and write a `claim.support_changed` revision in the same transaction.
+  - **Fixed after the holdout in `195e9ad`** (reviewed by REVIEWER-2). The change now bumps the version and writes a
+    `support_sync` revision in the same transaction. On dev C8-S1 the gate is valid, G7 included, at 120/120. It has not been
+    evaluated on any holdout.
 - **Heartbeat cost at 10,000 active people** (found 2026-10-09 ~09:07 UTC, ledger X046). Every heartbeat of every open holder
   makes the coordinator re-derive that holder's term index and shard mirror, through
   `org.holder_heartbeat → hypergraph.upsert_term_index_sync / entities.sanitize_term_counts / shard_registry.mirror_shards_sync`.
@@ -180,6 +182,8 @@ Gate details (dev runs; truncated to 140 characters per gate):
   - A4 still changes routing: in dev run C6abl-A4-S1, 3,258 of 3,799 questions fell back to domain routing, against 6 in the full
     run.
   - See `plan/ANALYSIS_A4.md`.
+  - **Fixed after the holdout in `3c18b1a` and `658a093`.** A4 now replaces the index sinks, and the report no longer
+    expects the hypergraph ranker under A4. In dev run C9abl-A4-S1: G8 fails (terms 0/112), G4 passes, 110/120 (temporal 1/10).
 - **Harness measurement limits.**
   - The asker view includes at most 60 goal claims and 30 goal discoveries, so the disclosure check cannot see anything
     beyond those caps.

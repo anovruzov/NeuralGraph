@@ -1,7 +1,7 @@
 From e99596a43957bc3001be2681f26b7e0a7b8a54b3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 07:01:13 +0000
-Subject: [PATCH 19/53] Harness review fixes (generator): one-pattern goal
+Subject: [PATCH 19/58] Harness review fixes (generator): one-pattern goal
  scopes, disjoint tenants, role-neutral records, lexical contract
 
 Goal-only tasks get disjoint scopes with exactly one hidden pattern and one in-scope decoy; tenants

@@ -1,0 +1,238 @@
+From 195e9ad16e6133f04f0a6af3685d92fbbc044ca8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 10:44:49 +0000
+Subject: [PATCH 55/58] Claim support changes bump the version and write a
+ revision (audit trail; found by gate G7 on the holdout)
+
+KnowledgeService.sync_support_sync (the I4 path that keeps claims.support equal
+to the support edge) updated claims.support in place when the effective
+references changed: claims.version stayed the same and no revision row existed.
+On the holdout three hypotheses' independent_roots grew after the asker had read
+them (5->12, 5->6, 2->8) and the audit trail could not explain it; G7 accepts a
+view/database difference only when the version went up and a later revision row
+exists.
+
+In the new != old branch, in the same transaction: claims.version is bumped, a
+revisions row is written the way revise_claim writes one (object_type 'claim',
+the new version, reason "support_sync: <reason> (independent_roots a -> b)",
+before/after independent_roots and independent_units), and claim.revised is
+emitted (payload support_only: true) like revise_claim does. The status logic is
+unchanged; nothing is written when the support is unchanged.
+
+revise_claim passes bump_version=False because it bumps the version and writes
+its own revision around the sync. Callers checked: engine verification and late
+response (in-tx, followed by recompute_status/revise_claim which re-read the
+version), supersede_changed_support, on_evidence_event (in-tx; a later stale
+revise_claim re-reads), _sync_support_edge. Nothing else reads claims.version
+for concurrency (the conflict path reads it inside its own transaction).
+
+An existing test expected two revisions for a claim whose reference was revised;
+it now sees the support_sync revision before the stale one.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ mycelic/knowledge/service.py                 |  25 +++-
+ mycelic/tests/test_claim_support_revision.py | 122 +++++++++++++++++++
+ mycelic/tests/test_knowledge_goals.py        |   3 +-
+ 3 files changed, 145 insertions(+), 5 deletions(-)
+ create mode 100644 mycelic/tests/test_claim_support_revision.py
+
+diff --git a/mycelic/knowledge/service.py b/mycelic/knowledge/service.py
+index 943e9ee..ed74f6a 100644
+--- a/mycelic/knowledge/service.py
++++ b/mycelic/knowledge/service.py
+@@ -261,7 +261,7 @@ class KnowledgeService:
+             else:
+                 # the references the claim rests on (or what the claim is about) may have changed: support version n+1 when they did (I3)
+                 ents = hg.entities_in_text(text, known_keys=hg.tenant_known_keys(c, before["tenant_id"])) if text is not None else None
+-                self.sync_support_sync(c, claim_id, principal, reason or "revised", entities=ents, refresh_claim=support is None)
++                self.sync_support_sync(c, claim_id, principal, reason or "revised", entities=ents, refresh_claim=support is None, bump_version=False)      # revise_claim bumps and records below
+             after = {"text": text, "status": status, "confidence": confidence, "reason": reason}
+             self._revision_sync(c, before["tenant_id"], "claim", claim_id, int(before["version"]) + 1, principal, reason,
+                                 {"text": before["text"], "status": before["status"], "confidence": before["confidence"]}, {k: v for k, v in after.items() if v is not None})
+@@ -517,11 +517,17 @@ class KnowledgeService:
+                                        event_kind="claim.stale" if status == "stale" else "claim.revised")
+ 
+     def sync_support_sync(self, c: sqlite3.Connection, claim_id: str, principal: Principal, reason: str, *, entities: list[str] | None = None,
+-                          refresh_claim: bool = True) -> str | None:
++                          refresh_claim: bool = True, bump_version: bool = True) -> str | None:
+         """Inside the caller's transaction: bring the claim's hypergraph support edge in line with the references the gate would count
+         *now* (effective roles: a revoked holder or a no-longer-routable one is context), and, when ``refresh_claim``, bring
+         ``claims.support`` in line with them too, so the edge's ``independent_roots`` always equals the claim's (I4). Call it in the same
+-        transaction that changes ``claim_evidence`` or an evidence reference's status, so no committed state has them apart (I2)."""
++        transaction that changes ``claim_evidence`` or an evidence reference's status, so no committed state has them apart (I2).
++
++        A change to ``claims.support`` is a revision of the claim like any other: in the same transaction the claim's ``version`` goes up,
++        a ``revisions`` row (``support_sync: <reason>``, the old and new independent roots and units) explains it, and ``claim.revised`` is
++        emitted, so a reader who saw version n can tell why the claim differs at n+1 (found by gate G7 on the holdout: the support of three
++        hypotheses grew in place, with the version unchanged and no revision). ``bump_version=False`` is for a caller that bumps the version and
++        writes its own revision in the same transaction (``revise_claim``). Nothing changes when the support does not."""
+         claim = self.get_claim(claim_id)
+         if claim is None or claim["status"] == "retracted":
+             return None
+@@ -534,7 +540,18 @@ class KnowledgeService:
+                 need = required_units(self.org.policies(claim["tenant_id"]), self._question_for_claim(claim))
+                 new["independent_units"] = {lvl: len(self.gate.independent_units(refs, lvl, need.get(lvl))) for lvl in old["independent_units"]}
+             if new != old:
+-                c.execute("UPDATE claims SET support=?, updated_at=? WHERE claim_id=?", (j(new), now_iso(), claim_id))
++                if not bump_version:
++                    c.execute("UPDATE claims SET support=?, updated_at=? WHERE claim_id=?", (j(new), now_iso(), claim_id))
++                else:
++                    version = int(c.execute("SELECT version FROM claims WHERE claim_id=?", (claim_id,)).fetchone()["version"])
++                    c.execute("UPDATE claims SET support=?, version=version+1, updated_at=? WHERE claim_id=?", (j(new), now_iso(), claim_id))
++                    shown = lambda sup: {"independent_roots": sup.get("independent_roots"), "independent_units": sup.get("independent_units")}  # noqa: E731
++                    self._revision_sync(c, claim["tenant_id"], "claim", claim_id, version + 1, principal,
++                                        f"support_sync: {reason} (independent_roots {old.get('independent_roots')} -> {new.get('independent_roots')})", shown(old), shown(new))
++                    self.db.emit_sync(c, claim["tenant_id"], "claim.revised", ref_type="claim", ref_id=claim_id,
++                                      payload={"status": claim["status"], "reason": f"support_sync: {reason}", "goal_id": claim.get("goal_id"), "support_only": True},
++                                      audience={"unit_ids": [claim["scope_unit_id"]] if claim.get("scope_unit_id") else [], "visibility": claim["visibility"],
++                                                "user_ids": [claim["owner_user_id"]] if claim.get("owner_user_id") else []})
+         return hg.sync_support_sync(c, claim_id=claim_id, principal=principal, reason=reason, entities=entities, refs=refs, support=support)
+ 
+     async def _sync_support_edge(self, principal: Principal, claim_id: str, reason: str) -> None:
+diff --git a/mycelic/tests/test_claim_support_revision.py b/mycelic/tests/test_claim_support_revision.py
+new file mode 100644
+index 0000000..b634e81
+--- /dev/null
++++ b/mycelic/tests/test_claim_support_revision.py
+@@ -0,0 +1,122 @@
++"""F-G7: a change to ``claims.support`` is a revision of the claim (version + revisions row + event), never an in-place edit.
++
++Gate G7 of the holdout run compares what the asker read with coord.db. Three hypotheses had grown their ``independent_roots`` (5->12, 5->6, 2->8)
++after the read while ``claims.version`` stayed 1 and no revision explained it: ``KnowledgeService.sync_support_sync`` (the I4 path) updated
++``claims.support`` in place. G7 accepts a difference only when the version went up AND a later ``revisions`` row exists.
++"""
++from __future__ import annotations
++
++import json
++
++from .test_hypergraph import add_ref, cand, services, world
++from .test_hypergraph_review import stored_question
++
++from mycelic.knowledge import hypergraph as hg
++
++
++def g7_explains(db, seen: dict) -> bool:
++    """The rule of bench/arch_gate.py (G7), for one claim as the asker read it: identical to the database, or the version increased and a
++    later revision row exists."""
++    row = db.one("SELECT status, text, version, support FROM claims WHERE claim_id=?", (seen["claim_id"],))
++    dsup, vsup = json.loads(row["support"] or "{}"), seen.get("support") or {}
++    same = seen["status"] == row["status"] and seen["text"].strip() == row["text"].strip() and int(vsup.get("independent_roots") or 0) == int(dsup.get("independent_roots") or 0)
++    if same:
++        return True
++    return int(row["version"]) > int(seen["version"]) and db.scalar("SELECT COUNT(*) FROM revisions WHERE object_type='claim' AND object_id=? AND version>?",
++                                                                    (seen["claim_id"], int(seen["version"])), 0) > 0
++
++
++async def one_root_claim(db, org, auth, authz):
++    w = await world(auth, org, n_depts=3)
++    ks, _g, _q = services(db, org, authz)
++    sysp = authz.principal_for_system(w["t"])
++    await add_ref(ks, w, "u1a", "ev1", "r1")
++    await add_ref(ks, w, "u2a", "ev2", "r2")
++    await add_ref(ks, w, "u3a", "ev3", "r3")
++    qid = await stored_question(db, w, min_independent_units={"department": 2})
++    from .test_hypergraph import question_row
++    claim, res = await ks.commit_claim(sysp, cand(w), evidence=[{"ref_id": "ev1"}], question=question_row(w, min_independent_units={"department": 2}), idempotency_key="k1")
++    db.conn.execute("UPDATE claims SET question_id=? WHERE claim_id=?", (qid, claim["claim_id"]))
++    return w, ks, sysp, ks.get_claim(claim["claim_id"])
++
++
++async def add_support(db, ks, sysp, claim_id: str, ref_id: str, reason: str) -> None:
++    async with db.tx() as c:                                    # what the loop does on a verification answer: the link and the sync in one transaction
++        c.execute("INSERT INTO claim_evidence(claim_id, ref_id, role, weight) VALUES (?, ?, 'supports', 1.0)", (claim_id, ref_id))
++        ks.sync_support_sync(c, claim_id, sysp, reason)
++
++
++def revisions(db, cid):
++    return db.all("SELECT * FROM revisions WHERE object_type='claim' AND object_id=? ORDER BY version", (cid,))
++
++
++def revised_events(db, cid):
++    return [json.loads(r["payload"]) for r in db.all("SELECT payload FROM events WHERE kind='claim.revised' AND ref_id=? ORDER BY id", (cid,))]
++
++
++async def test_support_change_bumps_the_version_and_writes_a_revision(db, org, auth, authz):
++    w, ks, sysp, claim = await one_root_claim(db, org, auth, authz)
++    cid = claim["claim_id"]
++    assert claim["version"] == 1 and claim["support"]["independent_roots"] == 1 and claim["support"]["independent_units"] == {"department": 1}
++    seen = dict(claim)                                              # what the asker read
++    assert [r["version"] for r in revisions(db, cid)] == [1] and revised_events(db, cid) == []
++    await add_support(db, ks, sysp, cid, "ev2", "independent verification via question q9")
++    after = ks.get_claim(cid)
++    assert after["version"] == 2 and after["support"]["independent_roots"] == 2 and after["support"]["independent_units"] == {"department": 2}
++    assert after["status"] == claim["status"]                      # the status logic is not touched by the sync (recompute_status decides it)
++    revs = revisions(db, cid)
++    assert [r["version"] for r in revs] == [1, 2]
++    rev = revs[-1]
++    assert rev["reason"].startswith("support_sync: independent verification via question q9") and "independent_roots 1 -> 2" in rev["reason"]
++    assert (rev["actor_type"], rev["actor_id"]) == (sysp.kind, sysp.id) and rev["tenant_id"] == w["t"]
++    assert json.loads(rev["before"]) == {"independent_roots": 1, "independent_units": {"department": 1}}
++    assert json.loads(rev["after"]) == {"independent_roots": 2, "independent_units": {"department": 2}}
++    ev = revised_events(db, cid)
++    assert len(ev) == 1 and ev[0]["support_only"] is True and ev[0]["reason"].startswith("support_sync:") and ev[0]["status"] == claim["status"]
++    # the edge follows in the same transaction (I4), and the version bump disturbed nothing else
++    assert hg.verify_consistency(db.conn, w["t"]) == []
++    sup = db.one("SELECT independent_roots FROM hyperedges WHERE kind='support' AND anchor_id=? AND status='active'", (cid,))
++    assert sup["independent_roots"] == after["support"]["independent_roots"]
++    # a second, further change is a second revision
++    await add_support(db, ks, sysp, cid, "ev3", "late response added support")
++    assert ks.get_claim(cid)["version"] == 3 and [r["version"] for r in revisions(db, cid)] == [1, 2, 3] and len(revised_events(db, cid)) == 2
++
++
++async def test_g7_style_comparison_a_later_revision_explains_the_difference(db, org, auth, authz):
++    w, ks, sysp, claim = await one_root_claim(db, org, auth, authz)
++    seen = dict(claim)
++    assert g7_explains(db, seen)                                    # nothing changed yet
++    await add_support(db, ks, sysp, claim["claim_id"], "ev2", "independent verification")
++    row = db.one("SELECT support, version FROM claims WHERE claim_id=?", (claim["claim_id"],))
++    assert json.loads(row["support"])["independent_roots"] != seen["support"]["independent_roots"]       # the view and the database differ ...
++    assert g7_explains(db, seen)                                    # ... and G7 accepts it: version went up and a later revision exists
++    # the defect G7 caught: the same change made in place, without the version and the revision, is NOT explained
++    db.conn.execute("UPDATE claims SET version=?, support=? WHERE claim_id=?", (seen["version"], json.dumps({**seen["support"], "independent_roots": 12}), seen["claim_id"]))
++    db.conn.execute("DELETE FROM revisions WHERE object_type='claim' AND object_id=? AND version>?", (seen["claim_id"], seen["version"]))
++    assert not g7_explains(db, seen)
++
++
++async def test_nothing_is_written_when_the_support_does_not_change(db, org, auth, authz):
++    w, ks, sysp, claim = await one_root_claim(db, org, auth, authz)
++    cid = claim["claim_id"]
++    n_rev, n_ev = len(revisions(db, cid)), db.scalar("SELECT COUNT(*) FROM events WHERE kind='claim.revised'", (), 0)
++    async with db.tx() as c:
++        ks.sync_support_sync(c, cid, sysp, "nothing changed")
++        ks.sync_support_sync(c, cid, sysp, "still nothing changed")
++    await ks.recompute_status(sysp, cid, reason="no new evidence")
++    same = ks.get_claim(cid)
++    assert same["version"] == 1 and same["support"] == claim["support"] and same["updated_at"] == claim["updated_at"]
++    assert len(revisions(db, cid)) == n_rev and db.scalar("SELECT COUNT(*) FROM events WHERE kind='claim.revised'", (), 0) == n_ev
++    assert g7_explains(db, claim)
++
++
++async def test_revise_claim_does_not_bump_twice_when_it_refreshes_the_support(db, org, auth, authz):
++    w, ks, sysp, claim = await one_root_claim(db, org, auth, authz)
++    cid = claim["claim_id"]
++    db.conn.execute("INSERT INTO claim_evidence(claim_id, ref_id, role, weight) VALUES (?, 'ev2', 'supports', 1.0)", (cid,))       # the link exists, claims.support is behind
++    out = await ks.revise_claim(sysp, cid, reason="re-checked")                                                                       # support=None: revise_claim refreshes it
++    assert out["support"]["independent_roots"] == 2 and out["version"] == 2                                                          # one bump, by revise_claim
++    revs = revisions(db, cid)
++    assert [r["version"] for r in revs] == [1, 2] and revs[-1]["reason"] == "re-checked"
++    assert len(revised_events(db, cid)) == 1 and revised_events(db, cid)[0].get("support_only") is None
++    assert g7_explains(db, claim)
+diff --git a/mycelic/tests/test_knowledge_goals.py b/mycelic/tests/test_knowledge_goals.py
+index fef68c4..433b0f6 100644
+--- a/mycelic/tests/test_knowledge_goals.py
++++ b/mycelic/tests/test_knowledge_goals.py
+@@ -97,7 +97,8 @@ async def test_commit_gate_statuses_and_conflicts(db, org, auth, authz):
+     out = await ks.on_evidence_event(authz.principal_for_system(t), t, o["hb"]["holder_id"], "revised", ["ev_b1"], new_source_root_id="root_deploy_b2")
+     assert claim2["claim_id"] in out["affected_claim_ids"] and ks.get_claim(claim2["claim_id"])["status"] == "stale"
+     revs = ks.revisions_for("claim", claim2["claim_id"])
+-    assert [r["version"] for r in revs] == [1, 2]
++    # the revised reference first changes what the claim rests on (a support_sync revision, F-G7), then the claim goes stale (its own revision)
++    assert [r["version"] for r in revs] == [1, 2, 3] and revs[1]["reason"].startswith("support_sync: evidence revised") and revs[2]["reason"].startswith("evidence revised")
+     # discovery + review + escalation to the department's parent (root)
+     disc = await ks.create_discovery(p_lead, t, title="Approvals slow releases", summary="Supported: ...", kind="finding", claim_ids=[claim2["claim_id"]],
+                                      scope_unit_id=o["dept"]["unit_id"], idempotency_key="d1")
+-- 
+2.43.0
+

@@ -349,8 +349,8 @@ def test_evidence_ref_not_in_any_holder_response_fails_g7(run):
 
 
 # ------------------------------------------------------------------------------------------------ finalize: score + gate + ledger row
-def test_finalize_scores_gates_and_writes_the_ledger_row(run, tmp_path):
-    from bench import ledger, report
+def _scoreable(run, **manifest_extra):
+    """Give the synthetic run what ``score_run`` needs (a task, its gold, a view, the manifest counters); returns the run dir."""
     from bench.gold import GoldSink, gold_path
     rd = run / "run"
     opts = [{"label": "A", "id": ENT, "display": "LGX-412", "aliases": []}, {"label": "B", "id": "service:other", "display": "other-service", "aliases": []}]
@@ -361,8 +361,15 @@ def test_finalize_scores_gates_and_writes_the_ledger_row(run, tmp_path):
                                                        "claims": [{"claim": {"claim_id": "c1", "status": "supported", "text": "LGX-412 delays parcels", "question_id": "q1"},
                                                                    "evidence": [], "support": {"independent_roots": 2}}], "raw_checks": {}}))
     m = json.loads((rd / "run_manifest.json").read_text())
-    m.update(seed=1, size="S", split="dev", counts={"created": 3, "activated": 2, "routed": 2, "with_records": 3}, model_usage={"calls": 1, "input_tokens": 100, "output_tokens": 20})
+    m.update(seed=1, size="S", split="dev", counts={"created": 3, "activated": 2, "routed": 2, "with_records": 3}, model_usage={"calls": 1, "input_tokens": 100, "output_tokens": 20},
+             **manifest_extra)
     (rd / "run_manifest.json").write_text(json.dumps(m))
+    return rd
+
+
+def test_finalize_scores_gates_and_writes_the_ledger_row(run, tmp_path):
+    from bench import ledger, report
+    rd = _scoreable(run)
     led = tmp_path / "ledger.jsonl"
     rid = ledger.start_run({"split": "dev", "mode": "system", "seed": 1, "size": "S", "ledger_path": str(led), "run_dir": str(rd)})
     out = report.finalize(rd, coord_db=rd / "coord.db", holders_dir=run / "holders", run_id=rid, ledger=led, expect_hypergraph=True)
@@ -373,6 +380,37 @@ def test_finalize_scores_gates_and_writes_the_ledger_row(run, tmp_path):
     assert row["model_calls"] == 1 and row["provider_label"] == "deterministic-provider" and row["claims_by_status"] == {"supported": 1}
     text = report.render(rd).read_text()
     assert "deterministic-provider" in text and "100.0%" in text
+
+
+@pytest.mark.parametrize("ablation, rank_method, ranker_expected", [
+    (None, "domains", True),                    # a full system whose routes are all domain-ranked has lost its ranker: G4 must say so
+    ("A1", "ablated", False),                   # the ranker is the thing removed
+    ("A4", "domains", False),                   # index off: no entity or term incidence, so every route is domain-ranked (run C8abl-A4fix-S1)
+    ("A5", "domains", True),                    # a different mechanism removed: the ranker is still expected
+    ("A2", "domains", True),
+])
+def test_finalize_expects_no_hypergraph_ranker_only_where_the_ablation_removes_it(run, ablation, rank_method, ranker_expected):
+    from bench import report
+    sql(run, "UPDATE audit_log SET detail=? WHERE action='question.route'", (json.dumps({"holders": ["hold_a", "hold_b"], "rank_method": rank_method}),))
+    rd = _scoreable(run, ablation=ablation)
+    out = report.finalize(rd, coord_db=rd / "coord.db", holders_dir=run / "holders", expect_hypergraph=True)          # expect_ranker left to the default
+    gate = out["gate"]
+    g4 = gate.results["G4"]
+    assert out["score"].ablation == ablation and gate.expect_ranker is ranker_expected
+    assert json.loads((rd / "arch_gate.json").read_text())["expect_ranker"] is ranker_expected
+    assert g4.data["replay"]["denied"] == 0                                                             # the authorization replay runs in every case
+    if ranker_expected:
+        assert "G4" in gate.failed_ids and any("ranker expected but no route audit row has rank_method 'hypergraph'" in p for p in g4.problems)
+    else:
+        assert g4.status == arch_gate.PASS and "G4" not in gate.failed_ids
+
+
+def test_a4_does_not_excuse_a_g4_failure_in_the_ledger():
+    """The ranker assertion is skipped under A4, but G4 is not an expected A4 failure: a routing-authorization failure there stays INVALID."""
+    from bench import ledger
+    assert ledger.EXPECTED_GATE_FAILURES["A4"] == ["G8"]
+    assert ledger.gate_status({"failed": ["G8"]}, "A4")["gate_status"] == "ablation_expected"
+    assert ledger.gate_status({"failed": ["G4", "G8"]}, "A4")["gate_status"] == "invalid"
 
 
 def test_unreadable_coordinator_database_invalidates_every_gate(tmp_path):

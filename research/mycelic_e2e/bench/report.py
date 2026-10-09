@@ -31,6 +31,12 @@ def arch_gate_paths(d: Path) -> tuple[Path, Path]:
     return arch_gate.resolve_run_paths(d)
 
 
+# Ablations under which no route is hypergraph-ranked, so G4's "ranker expected" assertion does not apply: A1 replaces the ranker itself
+# (rank_method ``ablated``); A4 empties the entity and term indexes, so every route falls back to domain ranking (rank_method ``domains``;
+# dev run C8abl-A4fix-S1: 3,317 of 3,317). Not G4 in A4's EXPECTED_GATE_FAILURES: that would also hide a real routing-authorization failure.
+RANKER_NOT_EXPECTED = ("A1", "A4")
+
+
 def finalize(run_dir: str | Path, *, coord_db: str | Path | None = None, holders_dir: str | Path | None = None, expect_hypergraph: bool | None = None,
              expect_ranker: bool | None = None, run_id: str | None = None, ledger: str | Path | None = None, extra: dict[str, Any] | None = None,
              run_gate: bool = True) -> dict[str, Any]:
@@ -57,7 +63,7 @@ def finalize(run_dir: str | Path, *, coord_db: str | Path | None = None, holders
         holders = Path(holders_dir) if holders_dir else d_holders
         hg = expect_hypergraph if expect_hypergraph is not None else bool(manifest.get("hypergraph", True))
         gate = arch_gate.check(d, coord_db=coord, holders_dir=holders, expect_hypergraph=hg,
-                               expect_ranker=expect_ranker if expect_ranker is not None else (hg and rs.ablation != "A1"))
+                               expect_ranker=expect_ranker if expect_ranker is not None else (hg and rs.ablation not in RANKER_NOT_EXPECTED))
         (d / "arch_gate.json").write_text(json.dumps(gate.to_dict(), indent=2, default=str), encoding="utf-8")
     row = None
     run_id = run_id or (rs.manifest or {}).get("ledger_run_id")          # run.py / baseline_central record the id their holdout guard issued
