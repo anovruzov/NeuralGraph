@@ -1,10 +1,12 @@
 # Cloud lab results
 
 Every number below is copied from a lab report printed in a GitHub Actions job log (between
-`=== MYCELIC-LAB … BEGIN/END ===` markers) or from a shard's own summary. Each row names its run. **Synthetic data
-only**: every record and narrative was generated from a seed. **Runner hardware only**: one shared 4-vCPU
-GitHub-hosted runner per shard, whose CPU model varies between shards; compare timings only between rows of the same
-CPU model, and never read them as site hardware. A unit without a result is listed with its reason, not left out.
+`=== MYCELIC-LAB … BEGIN/END ===` markers), from a shard's own summary or, for the vehicle replay, from its audit
+printed between `VEHICLE-AUDIT` markers. Each row names its run. **Synthetic data, except runs 3 and 4 and the vehicle
+replay**: their records are public FDA reports and NHTSA complaints; every other record and narrative was generated
+from a seed. **Runner hardware only**: one shared 4-vCPU GitHub-hosted runner per shard, whose CPU model varies
+between shards; compare timings only between rows of the same CPU model, and never read them as site hardware. A unit
+without a result is listed with its reason, not left out.
 
 ## Run 1: check-001 (pins and first timings)
 
@@ -154,6 +156,26 @@ recalls; the requester declared it may have seen recall outcomes before choosing
 a-0p5b, a-1p5b and a-4b (20 planted patterns per model), E1 on generator text, the 1,000-record G0 canary scan with
 a-4b, E3 for a-4b and the model-free X1 baseline; 27 units in 23 shards. Recorded here when its report is in,
 whatever it shows.
+
+## Outside the lab: public replay V001 (vehicle complaints, model-free, real data)
+
+Not a lab run: the `vehicle-replay` workflow runs the pilot audit (`docs/collective/PILOT.md`) on two years of FORD's
+public NHTSA complaints (27,397, each state a site) with the make's recalls in the window as outcomes (298 in scope,
+91 campaigns). Rule, declaration (`saw_recall_outcomes: yes`) and both runs:
+`docs/collective/replay/vehicles/CHOICE-V001.md`.
+Run 001 ([37869797640](https://github.com/anovruzov/NeuralGraph/actions/runs/37869797640)) exported no codes because
+of an exporter bug: S and R had no alerts and text-only X found 0 (5.75 expected by chance). Run 002
+([37870255727](https://github.com/anovruzov/NeuralGraph/actions/runs/37870255727)), the same settings with the bug
+fixed and run 001's result seen:
+
+| Channel | Alerts | Found before the recall, of 298 | Expected by chance | p |
+|---|---|---|---|---|
+| X | 262 | 5 | 10.95 | 0.84 |
+| S | 221 | 5 | 10.92 | 0.84 |
+| R (model-free) | 270 | 5 | 12.34 | 0.89 |
+
+**No early warning beyond chance**, as in run 4: the same five outcomes in every channel, fewer than randomly timed
+alerts find.
 
 ## What has not run
 

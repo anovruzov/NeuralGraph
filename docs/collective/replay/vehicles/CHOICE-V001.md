@@ -76,6 +76,31 @@ The make is chosen by complaint volume before the window, not by recalls.
    - **Result, as it ran:** X raised 128 alerts and found **0 of 298** outcomes before their recall, against 5.75 by
      chance (p 1.0); 112 of its alerts matched no outcome. S and R_mf raised no alerts. The review list has 67
      patterns.
-2. **Run 002** (`run-002.json`): the same rule, make, window and settings, with the exporter fixed (commit below). It is
-   not a fresh test: the AI agent saw run 001's result, and run 001's text-only X found nothing. The fix changes
-   only what reaches the audit (the codes column); no setting, threshold or pack file changes. Both runs stand.
+2. **Run 002** (`run-002.json`; [37870255727](https://github.com/anovruzov/NeuralGraph/actions/runs/37870255727),
+   commit `e56feba`, job 113626463564; audit sha256
+   `1cf00bb969afbea58d717dfe12815b569748f254bf021f4dac42f69ea7481acb`, matching the one the job printed): the same
+   rule, make, window and settings, with the exporter fixed. It is not a fresh test: the AI agent saw run 001's
+   result, in which text-only X found nothing. The fix changes only what reaches the audit (the codes column); no
+   setting, threshold or pack file changed. Both runs stand.
+   - **Export:** the same 27,397 complaints and 60 sites; codes, narrative and vehicle on every record.
+   - **Outcomes:** the same 298 in scope, from 91 campaigns; 87 evaluated weeks.
+   - **Result:**
+
+     | Channel | Alerts | Found before the recall, of 298 | Median days earlier | Expected by chance | p | Alerts matching no outcome |
+     |---|---|---|---|---|---|---|
+     | X | 262 | 5 | 47 | 10.95 | 0.84 | 227 |
+     | S | 221 | 5 | 47 | 10.92 | 0.84 | 188 |
+     | R_mf | 270 | 5 | 47 | 12.34 | 0.89 | 233 |
+
+     The three channels find the same five outcomes, of five campaigns, 12 to 152 days before the report. **Each finds
+     fewer than chance would**: the same alerts moved to random weeks find 11 to 12. Of the review list's 158
+     patterns, 115 come from all three channels and 20 from X alone.
+
+## What the two runs say
+
+On two years of one make's public complaints, with every state as a site and the make's own recalls as the outcomes,
+cross-site counting of complaint codes and narratives **gave no early warning beyond chance**. The narratives added
+little over the codes: X and S find the same outcomes. The device replay with readable identifiers (002,
+`docs/lab/RESULTS.md` run 4) gave the same answer on eight recalls; this one gives it on 298 outcomes. What it does
+not test: a company's own complaint, warranty and service records, its real sites, a model reading the narratives,
+and outcomes dated when the company first investigated rather than when it reported a recall.
