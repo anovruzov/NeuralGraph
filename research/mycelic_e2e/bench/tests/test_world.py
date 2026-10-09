@@ -24,7 +24,8 @@ from research.mycelic_e2e.bench.world import load_bank
 
 BENCH = Path(__file__).resolve().parents[1]
 GOLD_ONLY_KEYS = {"answer", "gold", "gold_option", "gold_answer", "expected_abstain", "genuine_roots", "decoy_options", "forbidden_holder_ids",
-                  "forbidden_root_ids", "forbidden_markers", "raw_allowed_holder_ids", "cls", "entity_id", "fault", "holders", "note"}
+                  "forbidden_root_ids", "forbidden_markers", "raw_allowed_holder_ids", "cls", "entity_id", "fault", "holders", "note",
+                  "rival_size", "rival_department", "rival_entity_id"}
 
 
 SEALED = os.environ.get("MYCELIC_E2E_HOLDOUT_BANK")
@@ -559,3 +560,119 @@ def test_public_entity_vocabulary_has_the_options_form(planned):
     assert len(ids) == len(p.entities)
     for t in p.public():
         assert all(o["id"] in ids for o in t.options)
+
+
+# ================================================================================================ popular rival and background corpus
+@pytest.fixture(scope="module")
+def planned_m(banks):
+    bank, gobs = banks["dev"]
+    w = W.generate(2, "M", bank)
+    return w, W.plan(w, bank, "dev", 2, gobs), bank
+
+
+def _ctx_of(bank, text):
+    low = text.lower()
+    return next(((a, n) for a, n in zip(bank.ctx_adjectives, bank.ctx_nouns) if a in low and n in low), None)
+
+
+def _nonslot_tokens(text, svc_name, ctx):
+    from mycelic.models.fake import content_tokens
+    drop = {svc_name, "service"} | set(content_tokens(" ".join(ctx)))
+    return {t for t in content_tokens(text) if t not in drop and not t[0].isdigit()}
+
+
+@pytest.mark.parametrize("fixture", ["planned", "planned_m"])
+def test_popular_rival(request, fixture):
+    from mycelic.ingest.events import compute_root
+    from mycelic.models.fake import content_tokens, shared_tokens
+    w, p, bank = request.getfixturevalue(fixture)
+    by_pattern: dict[str, list] = {}
+    for r in p.records:
+        if r.pattern:
+            by_pattern.setdefault(r.pattern, []).append(r)
+    by_rid = {r.rid: r for r in p.records if r.typ == "document"}
+    now = datetime.now(timezone.utc)
+    rival_tasks = [t for t in p.tasks if t.rival_size]
+    # which tasks have one: every ordinary cross_domain positive and every fault positive, nothing else (goal-only scopes have their own decoy)
+    expected = [t for t in p.tasks if (t.cls == "fault") or (t.cls == "cross_domain" and not t.public.goal_only)]
+    assert {t.public.task_id for t in rival_tasks} == {t.public.task_id for t in expected} and len(expected) == 40
+    assert all(not t.public.goal_only for t in rival_tasks)
+    assert dict(Counter(t.cls for t in p.tasks)) == {"cross_domain": 40, "contradiction": 10, "temporal": 10, "common_origin_pos": 8, "common_origin_copies": 7,
+                                                     "coincidence": 10, "single_domain": 10, "denied": 10, "cross_tenant": 5, "fault": 10} and len(p.tasks) == 120   # (d)
+    same_dept = 0
+    for spec in rival_tasks:
+        t = _tenant_of(w, spec.public.tenant)
+        recs = by_pattern[spec.pattern]
+        gold = [r for r in recs if r.role == "obs"]
+        riv = [r for r in recs if r.role == "rival"]
+        assert len(riv) == spec.rival_size >= 2 and spec.rival_size <= 12
+        if fixture == "planned_m":
+            assert spec.rival_size in (2, 4, 8, 12)
+        rsvc = spec.rival_entity.split(":", 1)[1]
+        assert spec.rival_entity != spec.entity and rsvc + "-service" in {o["display"] for o in spec.public.options}, "the rival is one of the three non-gold options"
+        ctx = _ctx_of(bank, spec.public.question_text)
+        assert ctx and all(_ctx_of(bank, r.text) == ctx for r in riv + gold), "the rival states the SAME context"
+        assert {re.search(r"(\w+)-service", r.text).group(1) for r in riv} == {rsvc}
+        depts = {t.holders[r.holder].dept for r in riv}
+        assert len(depts) == 1, "the rival is stated inside ONE department: it can never satisfy min_independent_units department=2"
+        same_dept += (depts <= set(spec.departments))
+        assert len({r.holder for r in riv}) == len(riv) and not {r.holder for r in riv} & {r.holder for r in gold}, "distinct holders"
+        assert all(t.holders[r.holder].vis == "public" for r in riv), "reachable like the gold observations"
+        assert len({compute_root(r.title, events.record_line(r, by_rid, now, w)["text"]).root for r in riv}) == len(riv), "own root each"
+        nums = {tuple(re.findall(r"\d+", r.text)) for r in riv}
+        assert len(nums) == 1 and nums != {tuple(re.findall(r"\d+", gold[0].text))}, "consistent, and a number of its own"
+        # (b) lexical contract: like gold against the question, and nothing in common with the gold records beyond the slots
+        for r in riv:
+            assert shared_tokens(spec.public.question_text, r.text) >= 3
+            for g in gold:
+                assert len(_nonslot_tokens(r.text, rsvc, ctx) & _nonslot_tokens(g.text, spec.entity.split(":", 1)[1], ctx)) < 3
+        for g in gold:
+            assert shared_tokens(spec.public.question_text, g.text) >= 3
+        assert spec.genuine_roots == len([r for r in gold]) or spec.cls == "fault" or spec.genuine_roots >= 3
+    frac = same_dept / len(rival_tasks)
+    assert 0.2 <= frac <= 0.8, f"the rival's department coincides with a gold department in {frac:.0%} of the tasks (want about half)"
+    if fixture == "planned_m":
+        assert 0.3 <= sum(1 for t in rival_tasks if t.rival_size >= 8) / len(rival_tasks) <= 0.7      # about half exceed the 10-holder routing budget with the gold holders
+    # (c) no other class touches a rival: its contexts hold no rival record
+    rival_ctx = {(r.tenant, _ctx_of(bank, r.text)) for r in p.records if r.role == "rival"}        # contexts repeat across tenants (separate worlds), never within one
+    for spec in p.tasks:
+        if spec not in rival_tasks and spec.public.question_text and spec.cls != "cross_tenant":
+            assert (0 if spec.public.tenant == w.tenants[0].slug else 1, _ctx_of(bank, spec.public.question_text)) not in rival_ctx, spec.cls
+
+
+def test_rival_size_is_in_gold_only(planned):
+    w, p, bank = planned
+
+    class Ids:
+        holders = {h: "hold_" + h for t in w.tenants for h in t.holders}
+        users = {}
+    golds = {g.task_id: g for g in p.gold(Ids)}
+    for t in p.tasks:
+        assert golds[t.public.task_id].rival_size == t.rival_size
+        assert "rival" not in json.dumps(t.public.to_public_dict()).lower()
+
+
+def test_background_corpus(planned, banks):
+    import dataclasses
+    w, p, bank = planned
+    _, gobs = banks["dev"]
+    bg = [r for r in p.records if r.role == "background"]
+    per = Counter(r.holder for r in bg)
+    for t in w.tenants:
+        for hk, h in t.holders.items():
+            if h.owner_type == "user":
+                assert per[hk] == W.BACKGROUND_USER
+            elif t.units[h.owner_key].type == "department":
+                assert per[hk] == W.BACKGROUND_DEPT
+            else:
+                assert per[hk] == 0
+    ctx_words = set(bank.ctx_adjectives) | set(bank.ctx_nouns)
+    assert all(not ctx_words & set(re.findall(r"[a-z]+", r.text.lower())) for r in bg), "a background record names a task context"
+    services = {t_idx: {re.search(r"(\w+)-service", r.text).group(1) for r in p.records if r.tenant == t_idx and r.role in ("obs", "decoy", "rival", "superseded", "retracted")}
+                for t_idx in (0, 1)}
+    assert all(re.search(r"(\w+)-service", r.text) for r in bg)
+    # the corpus changes nothing else: same public tasks, same non-background records
+    none = dataclasses.replace(bank, background_templates=())
+    p0 = W.plan(w, none, "dev", 1, gobs)
+    assert [t.to_public_dict() for t in p0.public()] == [t.to_public_dict() for t in p.public()]
+    assert {(r.rid, r.text) for r in p0.records} == {(r.rid, r.text) for r in p.records if r.role != "background"}

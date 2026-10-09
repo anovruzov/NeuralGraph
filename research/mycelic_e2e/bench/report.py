@@ -60,6 +60,7 @@ def finalize(run_dir: str | Path, *, coord_db: str | Path | None = None, holders
                                expect_ranker=expect_ranker if expect_ranker is not None else (hg and rs.ablation != "A1"))
         (d / "arch_gate.json").write_text(json.dumps(gate.to_dict(), indent=2, default=str), encoding="utf-8")
     row = None
+    run_id = run_id or (rs.manifest or {}).get("ledger_run_id")          # run.py / baseline_central record the id their holdout guard issued
     if run_id:
         row = ledger_mod.finish_run(run_id, rs, gate, extra=extra, ledger=ledger)
     return {"score": rs, "gate": gate, "ledger_row": row}

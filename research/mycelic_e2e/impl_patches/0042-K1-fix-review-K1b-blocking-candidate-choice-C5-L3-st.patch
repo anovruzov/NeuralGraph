@@ -1,0 +1,119 @@
+From 8720c86df43e046af56767423c1ab2306ae66834 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 09:09:40 +0000
+Subject: [PATCH 42/43] K1 fix review (K1b blocking), candidate choice, C5-L3
+ stop with scale finding, ablations started
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl     |  5 ++
+ research/mycelic_e2e/reviews/REVIEW_WP1.md | 82 ++++++++++++++++++++++
+ 2 files changed, 87 insertions(+)
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index e18a519..d2375dd 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -42,3 +42,8 @@
+ {"id": "X041", "utc": "2026-10-09T08:40:00Z", "kind": "review", "agent": "REVIEWER-2 (claude-opus-5-5)", "subject": "C5 92d3d7c (C1 competing findings, C2 contradiction follow-ups to both sides, C3 department round-robin)", "result": "ACCEPT C2, C3; C1 accepted for the benchmark (canonical service names), product rule needs same-kind subjects, related/alias subjects keeping the conflict, tenant-independent verdict (probes P1-P3b); BLOCKING K1: QuestionService.detail() returns run state carrying competing/verification_competing text to routed-only holder owners (probe P4)", "evidence": "reviews/REVIEW_WP1.md 'Review of C5 92d3d7c'; probes $SCR/rv6/mycelic/tests/test_review_c5.py", "class": "review"}
+ {"id": "X042", "utc": "2026-10-09T09:00:00Z", "kind": "custody", "what": "disk allowance exhausted at ~08:46Z with four concurrent runs", "result": "system runs C4-M2 (54fec3f), C5-M2 and C5-L3 (92d3d7c) aborted with ENOSPC (no scores; outputs renamed *.enospc, holder stores deleted); their completed central baselines kept as *-baseline-*.unpaired (no paired system result, not reported); C5-S1 unaffected; free space restored to 21 GB by deleting regenerable holder/central stores of failed or already-gated runs; C5-L3 relaunched 08:59Z alone; from now on at most two runs concurrently", "class": "aborted-infra"}
+ {"id": "X043", "utc": "2026-10-09T09:02:30Z", "kind": "harness-check", "agent": "orchestrator (claude-opus-5-5)", "what": "holdout bank generation smoke before the freeze", "result": "W.generate + W.plan with the sealed bank (sha 6a5eabd3...) at NON-holdout seeds S/9001 and L/9002, in memory, nothing written; printed only counts and class names: both 120 tasks in the contract mix (40/10/10/8+7/10/10/10/5/10); L: 10,648 holders, 35,724 records. Purpose: a crash in the never-exercised holdout generation path would otherwise consume the single holdout shot. No task text, entity, gold or holdout seed was viewed.", "class": "integrity"}
++{"id": "X044", "utc": "2026-10-09T09:08:30Z", "kind": "review", "agent": "REVIEWER-2 (claude-opus-5-5)", "subject": "K1 fix b145e21 (engineer claude-sonnet-5-5; trailer normalized by the orchestrator to the session attribution format)", "result": "BLOCK: run state now redacted for routed-only owners (P4 false, P6 clean, full viewers unchanged, suite 521 passed / 7 skipped), but question.result (engine.py:1034-1038: gate_notes, verified, deferred_followups, synthesis summary) is returned unredacted by QuestionService.view() to routed-only owners (P7: 2 of 12 resolved-question views carry text of a claim the owner may not view; all 12 carry gate_notes). Sent back as K1b.", "evidence": "reviews/REVIEW_WP1.md 'Review of K1 fix b145e21'", "class": "review"}
++{"id": "X045", "utc": "2026-10-09T09:06:00Z", "kind": "dev-analysis", "agent": "orchestrator (claude-opus-5-5)", "what": "candidate choice C5 vs C4 on DEV S/1 (same anchored world), first 60 tasks (waves 1-4 of C5-S1, still running)", "result": "C4-S1 52/60, C5-S1 60/60 on the same task ids; C5 fixes 6 cross_domain and 2 fault tasks; no task right under C4 and wrong under C5. Cost: C5 asks more follow-ups (after 75 tasks: 1,808 questions incl. 1,026 contradiction and 443 verification vs C4-S1's 1,708 / 1,184 / 77 for all 120), waves 88-600+ s vs 48-317 s. Candidate = C5 + K1 fixes.", "class": "dev"}
++{"id": "X046", "utc": "2026-10-09T09:09:30Z", "kind": "custody", "what": "C5-L3 (dev L/3, 92d3d7c, cap 1500) stopped by the orchestrator during the feed (1,350 of 10,491 sources)", "result": "not scored (incomplete). Scale finding: the feed rate fell from ~8 to ~0.7 sources/s as open holders approached ~1,300 (every holder of the hardened L world has records, unlike the sparse C3-L3 world: 417 holders with records); py-spy shows the single main thread in holder_heartbeat -> upsert_term_index_sync / sanitize_term_counts (hypergraph.py:486-487, entities.py:108) and mirror_shards_sync (shard_registry.py:119), i.e. the coordinator re-derives each open holder's term index and shard mirror on every heartbeat (~22 transport messages/s). Follow-up for the product: skip unchanged term/shard snapshots (digest compare) or apply them off the event loop. Holder stores deleted; logs and coord.db kept as runs/C5-L3.stopped*.", "class": "aborted-time"}
++{"id": "X047", "utc": "2026-10-09T09:10:00Z", "kind": "decision", "agent": "orchestrator (claude-opus-5-5)", "what": "holdout world", "result": "one holdout world, size M seed 101 (pre-registered in BENCHMARK_CONTRACT \u00a79 at freeze). Why: the ledger guard key (commit, ablation, mode, variant) allows one holdout world per candidate; the L world was preferred but X046's measured feed rate and C5's wave cost put an L run past the 13:00 UTC deadline. Based on dev timing only; no holdout world generated.", "class": "decision"}
++{"id": "X048", "utc": "2026-10-09T09:10:30Z", "kind": "run-start", "what": "dev ablations A1-A6 on S/1 with the C5 code snapshot 92d3d7c, two chains (A1,A4,A5 and A2,A3,A6), holder stores trimmed after each gate", "why": "the frozen candidate differs from 92d3d7c only by the K1/K1b view redactions for non-full viewers, which the benchmark's asker views (full viewers) do not read; starting now saves ~30 min", "class": "dev"}
+diff --git a/research/mycelic_e2e/reviews/REVIEW_WP1.md b/research/mycelic_e2e/reviews/REVIEW_WP1.md
+index 13409c7..ac066ee 100644
+--- a/research/mycelic_e2e/reviews/REVIEW_WP1.md
++++ b/research/mycelic_e2e/reviews/REVIEW_WP1.md
+@@ -880,3 +880,85 @@ runs in the same directory. The rerun above uses no cache and its own basetemp.
+ - Same-kind subjects only, and related or alias subjects keep the conflict (`engine.py:263-279`).
+ - A tenant-independent verdict for tracker keys.
+ - A persisted, asker-visible `competing` relation.
++
++---
++
++## Review of K1 fix b145e21
++
++Reviewer: REVIEWER-2, model id `claude-opus-5-5`. Copy: `git archive b145e21 | tar -x -C $SCR/rv7`.
++Probes: `$SCR/rv7/mycelic/tests/test_review_c5.py` (P4 from the C5 review, plus new probes P6 and P7). Nothing under
++`/root/sealed_holdout` was opened, and the repository was not modified.
++
++**Verdict: BLOCK.** The fix itself is correct: `detail()["run"]` is redacted for viewers without full view. But the same
++checkpoint content still reaches a routed-only holder owner through `detail()["question"]["result"]`, and P7 reproduces it
++end to end. The fix is small and local (below).
++
++### Commands and results
++```
++python -m pytest mycelic/tests -q -p no:warnings -p no:cacheprovider --basetemp $SCR/rv7_bt    → 521 passed, 7 skipped in 138.42s
++python -m pytest mycelic/tests/test_review_c5.py -q -p no:warnings -p no:cacheprovider -s -k "p4 or p6 or p7"
++```
++`mycelic/tests/test_question_detail_k1.py` has three tests. They are meaningful; the stored state is asserted to really
++hold "Numbers differ … 19":
++- a routed-only owner gets `run` with exactly `{question_id, tenant_id, step, attempts, updated_at, state: {}}`;
++- a full viewer gets the unredacted state and all 5 responses;
++- the `verification_competing` text and `target_claim_id` are absent for a routed-only owner of a verification question.
++
++### What the fix closes (confirmed)
++- **P4, the C5 probe.** Before the fix it showed the other side's value in `run.state`. Now:
++
++  `P4 full_view: False | responses visible: 1 | run.state mentions the other side's value 19: False | competing note: []`
++
++- **P6, the whole `detail()` for a routed-only owner on the rival side, question stopped at step `verification_spawned`.**
++  Output: `gold value/name present per detail part: {'question': False, 'claims': False, 'discoveries': False, 'followups': False, 'lineage': False, 'run': False}`.
++  The run is `{'question_id': …, 'tenant_id': …, 'step': 'verification_spawned', 'attempts': 3, 'updated_at': …, 'state': {}}`.
++- **No other route returns `question_runs` state.** `grep -rn "question_runs\|_checkpoint(" mycelic` outside tests and the
++  engine finds only `inquiry/service.py:205` and the internal `seed/scenario.py`.
++- **Full viewers are unchanged.** See `test_k1_full_viewer_still_gets_the_run_state`.
++- **The benchmark asker view is unchanged.** `research/mycelic_e2e/bench/issue.py:collect_view` (lines 73-100) reads
++  `question` (status, `result`, routes), `followups` (id, kind, status), `claims` and `discoveries` from
++  `GET /api/questions/{id}`. It never reads `run`, and b145e21 changes no file under `research/`.
++
++### Remaining disclosure path (BLOCKING): `question.result`
++- **Where.** When the question resolves, the engine writes its result from the same checkpoint
++  (`discovery/engine.py:1034-1038`): `gate_notes` (including the C1 `competing` summaries and `verification_competing`
++  texts), `verified` (including `target_claim_id`), `deferred_followups` (model-written follow-up texts, e.g. "Which
++  record is current: {a_text} or {b_text}?"), `investigated`, and the synthesis `summary` ("Supported: <claim texts>
++  Hypotheses: <claim texts> Disagreement: …").
++- **Who sees it.** `QuestionService.view()` returns `dict(q)` with `result` unredacted (`inquiry/service.py:119-131`; the
++  K1 branch redacts `target_entities`, `trigger` and lineage only). `detail()` returns `view(q, principal)` to every
++  principal that `can_view` admits, including routed-only owners, and `list(needs_input=True)` does the same.
++- **Reproducer P7** (`test_p7_whole_loop_result_visible_to_routed_owner`):
++  1. Run the demo loop to quiet (the same scenario as `test_r2_whole_loop_leaves_a_consistent_graph`).
++  2. For each resolved question and each routed user-holder owner without `_full_view`, call `detail()`.
++  3. Look for the text of claims the owner may **not** view (`can_view_scoped` is false), excluding anything that also
++     appears in that owner's own response.
++
++  Output:
++  ```
++  P7 routed-only owner views of resolved questions: 12
++  P7 kind: gap | result keys: ['claim_ids', 'conflict_ids', 'deferred_followups', 'discovery_id', 'followup_ids', 'gate_notes', 'investigated', 'outcome', 'summary', 'synthesis_method', 'verification_deferred', 'verification_questions'] | gate_notes: True | … | claim text quoted in result: ['Recurring blocker: deploy approvals for hotfixes take two da'] | run.state redacted: True
++  P7 any NOT-viewable claim text in a routed-only owner's question.result: True | cases: 2 of 12
++  ```
++  In 2 of the 12 views, the owner reads the text of a claim they are not allowed to view, which is not in their own
++  answer, through `question.result.summary`. Every one of the 12 also carries `gate_notes`. This is the K1 content class
++  through a second field, and it predates C1 for the synthesis summary.
++- **Fix (small).** In `view()`, when `principal is not None and not self._full_view(principal, q)`, replace `d["result"]`
++  with a content-free subset, e.g. `{"outcome": res.get("outcome")}`. That covers `detail()`, `list()` and
++  `needs_input`. Askers and full viewers are unchanged, so `collect_view`'s `result` is unaffected for the asker, provided
++  the asker is a full viewer. Add P7, or a unit version of it, as a test.
++
++### Checked and clean
++- **`followups`** (child questions' `question_id, text, kind, status, depth, created_at`).
++  - Verification and contradiction follow-ups go through the blind builders (`_create_followup` → `_ask_verification` /
++    `_ask_contradiction`). Their text is composed from topic names, and `create()` rejects it if it states a number or
++    repeats 6 or more words of the target (`_blind_leak`).
++  - Other kinds (gap, relationship, hypothesis, prediction) are asked as the model wrote them. They are questions meant
++    for holders, so they are not secret from holders, but a real LLM may quote a finding. Non-blocking. The fake provider
++    only writes contradiction and verification follow-ups, and those are blind.
++  - P6 found no gold value or name in `followups`.
++- **`claims` and `discoveries`.** Filtered by `can_view_scoped` (`inquiry/service.py:200-203`); empty for the probe owner.
++- **`lineage`.** `lineage_graph(principal, …)` is authorized per node; P6 found no leak.
++- **`question` view, apart from `result`.** `target_entities` is emptied; the trigger's `claim_id` / `ref_id` are dropped;
++  claim, conflict and evidence lineage items are `{"type", "label": "", "redacted": true}`. `routes` lists the routed
++  holders and their statuses, not content, as before.
+-- 
+2.43.0
+

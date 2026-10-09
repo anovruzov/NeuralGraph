@@ -1,0 +1,503 @@
+From 92d3d7cab10e6a933d0a2da46657b2e41708e4ac Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 08:43:06 +0000
+Subject: [PATCH 36/43] Different-subject disagreements are competing evidence;
+ contradiction follow-ups reach both sides; department round-robin routing
+
+C1: a disagreement whose sides each name exactly one subject entity (service/component/issue/repo)
+and different ones opens no conflict; both are committed and the gate's independence and
+min_independent_units rules rank them (recorded as 'competing'); same-subject disagreements still open
+conflicts. C2: contradiction follow-ups no longer route away from the holders behind both sides (as
+documented). C3: the department diversity bonus decays per group; exact ties prefer unit holders.
+Decision D19. From the dev analysis of the hardened run (all 17 failures were different-service claims
+treated as a contradiction). Engineer: WP1 (claude-sonnet-5-5); full suite 518 passed, 7 skipped.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ docs/mycelic/DECISIONS.md          |  15 ++
+ mycelic/discovery/engine.py        |  45 +++++-
+ mycelic/inquiry/routing.py         |  43 ++++--
+ mycelic/tests/test_c4_followup.py  | 239 +++++++++++++++++++++++++++++
+ mycelic/tests/test_term_routing.py |   2 +-
+ 5 files changed, 325 insertions(+), 19 deletions(-)
+ create mode 100644 mycelic/tests/test_c4_followup.py
+
+diff --git a/docs/mycelic/DECISIONS.md b/docs/mycelic/DECISIONS.md
+index ef6df4b..454edde 100644
+--- a/docs/mycelic/DECISIONS.md
++++ b/docs/mycelic/DECISIONS.md
+@@ -256,3 +256,18 @@ A claim committed from evidence revised after the holder answered is born `stale
+ - Blind verification names the finding's entities, not its first words: the loop passes the entity display names to
+   `compose_verification_question` (numbers and tracker keys are never part of a topic), and the structured ids travel as `target_entities`,
+   which the router reads and a holder's owner never sees.
++
++## D19. Competing findings are not contradictions; contradiction follow-ups reach both sides; routing is a department round-robin
++
++- **C1.** In `discovery/engine.py` two statements that each name exactly one *subject* entity (service, component, issue or repo; a symptom,
++  topic, version or organization next to it is context) and name DIFFERENT subjects are competing findings: no conflict is opened, neither side
++  is demoted by the other, and the gate's independence rules (roots, `min_independent_units`) decide each side's status. The pair is recorded as
++  `competing` in the question's gate notes. The same guard applies to a verification finding against its target and to a late response against
++  existing claims. The same subject (a real value clash), no subject, or several subjects keep today's behaviour; retractions and
++  `contradicting_refs` still force `contested`. Decision: the subject kinds are a class constant (`LoopEngine.SUBJECT_KINDS`), easy to widen.
++- **C2 (routing).** A `contradiction` question exists to hear the holders behind both sides, so `rank_holders` applies neither the
++  `already_supports` nor the `shares_root` penalty to it (the audit says `support_penalty: off (contradiction)`); a verification question keeps
++  routing away from its supporters. Not implemented, by decision: letting the better-corroborated side stay `supported` while a conflict is open.
++- **C3.** The department diversity bonus decays, `W_DIVERSITY / (1 + n_chosen_in_group)`, so every department gets its k-th slot only after the
++  others got their (k-1)-th; exact ties prefer unit-owned holders, then `holder_id`. The audit carries `group_counts`, and each chosen holder's
++  `n_in_group_before` and `diversity_bonus` (`unit_diversity` stays 1 for the first pick of a group).
+diff --git a/mycelic/discovery/engine.py b/mycelic/discovery/engine.py
+index 0eba7da..d3cae03 100644
+--- a/mycelic/discovery/engine.py
++++ b/mycelic/discovery/engine.py
+@@ -257,6 +257,27 @@ class LoopEngine:
+                 ents.append(e)
+         return ents[:50]
+ 
++    # the kinds of entity a finding is ABOUT (what it makes a statement on); a symptom, topic, version or organization named next to it is context
++    SUBJECT_KINDS = ("service", "component", "issue", "repo")
++
++    def _competing_entities(self, tenant_id: str, a_text: str, b_text: str, cache: dict[str, list[str]] | None = None) -> tuple[str, str] | None:
++        """C1: ``(entity_a, entity_b)`` when two statements are about DIFFERENT single subjects (two services, two components ...), else ``None``.
++
++        Statements about different things that merely share words and differ in a number ("ledgergate-service ... 19" next to
++        "parcelrouter-service ... 50") are competing evidence for a question, not a contradiction of each other: the gate ranks them by
++        independence. Anything else keeps today's behaviour: the same subject, no subject, or several subjects on either side."""
++        from ..entities import entity_kind
++        cache = cache if cache is not None else {}
++
++        def subjects(text: str) -> list[str]:
++            key = (text or "").strip()
++            if key not in cache:
++                cache[key] = [e for e in self._claim_entities([], tenant_id, key) if entity_kind(e) in self.SUBJECT_KINDS]
++            return cache[key]
++
++        sa, sb = subjects(a_text), subjects(b_text)
++        return (sa[0], sb[0]) if len(sa) == 1 and len(sb) == 1 and sa[0] != sb[0] else None
++
+     @staticmethod
+     def _topic_names(entity_ids: list[str]) -> list[str]:
+         """Display names (``ledgergate-service``) of the entities a blind verification question may name as its topic: services, components,
+@@ -742,12 +763,16 @@ class LoopEngine:
+                 finding_claims.append((set(resp_ids), text.strip(), cl["claim_id"]))
+                 return cl["claim_id"]
+ 
++            subject_cache: dict[str, list[str]] = {}
+             for d in ev.get("disagreements") or []:
+                 if not isinstance(d, dict) or not (d.get("a_text") or "").strip() or not (d.get("b_text") or "").strip():
+                     continue
+                 summary = d.get("summary") or "responses disagree"
+                 ra, rb = list(d.get("a_response_ids") or []), list(d.get("b_response_ids") or [])
+                 ea, eb = existing_side(ra, d["a_text"]), existing_side(rb, d["b_text"])
++                # C1: two statements about different single subjects are competing findings, not a contradiction: no conflict is opened
++                # and neither side is demoted by the other; the gate's independence rules decide each side's status
++                competing = self._competing_entities(tid, d["a_text"], d["b_text"], subject_cache)
+                 if ea is not None and ea == eb:
+                     # both sides sit inside one finding (the model clustered responses that contradict each other): the side
+                     # that is not the finding's own statement becomes its own claim, so the finding is contested by it
+@@ -761,14 +786,18 @@ class LoopEngine:
+                     else:
+                         a_is_finding = len(ra) >= len(rb)       # nothing tells them apart: the larger side stands for the finding
+                     if a_is_finding:
+-                        ca, cb = ea, await side_claim(rb, d["b_text"], [ea], summary, own=True)
++                        ca, cb = ea, await side_claim(rb, d["b_text"], [] if competing else [ea], summary, own=True)
+                     else:
+-                        ca, cb = await side_claim(ra, d["a_text"], [ea], summary, own=True), ea
++                        ca, cb = await side_claim(ra, d["a_text"], [] if competing else [ea], summary, own=True), ea
+                 else:
+                     ca = await side_claim(ra, d["a_text"], [], summary)
+                     if ca is None:
+                         continue
+-                    cb = eb if eb is not None else await side_claim(rb, d["b_text"], [ca], summary)
++                    cb = eb if eb is not None else await side_claim(rb, d["b_text"], [] if competing else [ca], summary)
++                if competing:
++                    claim_ids.extend(x for x in (ca, cb) if x)
++                    gate_notes.append({"competing": {"a": competing[0], "b": competing[1], "claims": [x for x in (ca, cb) if x], "summary": summary[:160]}})
++                    continue
+                 if ca is None or cb is None or cb == ca:
+                     continue
+                 kc = await self.knowledge.open_conflict(principal, tid, ca, cb, summary, question_id=qid)
+@@ -794,7 +823,14 @@ class LoopEngine:
+             if target and target["status"] != "retracted":
+                 findings = [f for f in (ev.get("findings") or []) if isinstance(f, dict) and f.get("text")]
+                 agree = [f for f in findings if _agrees(target["text"], f["text"]) is True]
++                subject_cache = {}
+                 disagree = [f for f in findings if _agrees(target["text"], f["text"]) is False]
++                # C1: a finding about a different single subject than the target competes with it; it does not contradict it
++                competing_f = [f for f in disagree if self._competing_entities(tid, target["text"], f["text"], subject_cache)]
++                if competing_f:
++                    disagree = [f for f in disagree if f not in competing_f]
++                    gate_notes.append({"verification_competing": [f["text"][:120] for f in competing_f][:5]})
++                    state["gate_notes"] = gate_notes
+                 if agree:
+                     async with self.db.tx() as c:
+                         for f in agree:
+@@ -1149,12 +1185,13 @@ class LoopEngine:
+                 "question_id": qid, "created_by_type": "loop", "created_by_id": principal.id, "valid_from": q.get("valid_from"), "valid_to": q.get("valid_to"),
+                 "is_demo": bool(q.get("is_demo"))}
+         attached, new_claims = [], []
++        subject_cache: dict[str, list[str]] = {}
+         for i, f in enumerate(ev.get("findings") or []):
+             if not isinstance(f, dict) or not f.get("text"):
+                 continue
+             ref_ids = list(dict.fromkeys(f.get("supporting_ref_ids") or [x["ref_id"] for x in refs]))
+             agree = next((c for c in existing if _agrees(c["text"], f["text"]) is True), None)
+-            disagree = next((c for c in existing if _agrees(c["text"], f["text"]) is False), None)
++            disagree = next((c for c in existing if _agrees(c["text"], f["text"]) is False and not self._competing_entities(tid, c["text"], f["text"], subject_cache)), None)
+             if agree is not None:
+                 async with self.db.tx() as c:
+                     for ref in ref_ids:
+diff --git a/mycelic/inquiry/routing.py b/mycelic/inquiry/routing.py
+index c78971f..a9155f7 100644
+--- a/mycelic/inquiry/routing.py
++++ b/mycelic/inquiry/routing.py
+@@ -9,12 +9,17 @@ independent evidence instead of to the first N by name:
+ * ``entity_hits``: distinct entity ids of the question (extracted from its text, listed in ``target_entities``, and taken from
+   the support edge of the claim a verification / follow-up is about) that the holder publishes in the entity index.
+ * ``domain_overlap``: the question's candidate domains against the holder's routable domains (taxonomy aware).
+-* ``unit_diversity``: greedy bonus for the first holder of each department (or other unit) not yet chosen, so the top N spans
+-  departments rather than piling into one.
++* ``unit_diversity``: greedy round-robin bonus ``W_DIVERSITY / (1 + n)`` where ``n`` is how many holders of the candidate's
++  department (or other unit) are already chosen: every department gets its k-th slot only after every other department with a
++  candidate of equal base score got its (k-1)-th, so the top N spans departments instead of one department's look-alikes
++  taking the budget (C3).
+ * ``already_supports``: the holder already stands behind the claim being checked (verification routes away from supporters).
++  A *contradiction* question is the opposite case: it must reach the holders behind both sides, so neither this penalty nor
++  ``shares_root_with_support`` applies to it (C2).
+ * ``shares_root_with_support``: the holder disclosed a reference under a source root the claim rests on (not independent).
+ 
+-Deterministic: ties break on ``holder_id``. The detail returned goes into the ``question.route`` audit row.
++Deterministic: exact ties go to unit-owned holders (department memory), then ``holder_id``. The detail returned goes into the
++``question.route`` audit row, with the per-group counts of the chosen holders.
+ """
+ from __future__ import annotations
+ 
+@@ -100,8 +105,11 @@ def rank_holders(db: Any, authz: Any, org: Any, question: dict[str, Any], candid
+     term_raw = {hid: sum(term_idf[t] for t in ts) for hid, ts in term_hits.items()}
+     term_max = max(term_raw.values(), default=0.0)
+     wanted = set(question.get("candidate_domains") or [])
+-    supporters = set(support.get("holders") or [])
+-    sharers = set(support.get("root_sharing_holders") or [])
++    # C2: a contradiction follow-up exists to hear the holders behind BOTH sides, so supporters are neither penalized nor excluded
++    # (a verification question keeps routing away from them); the audit records which mode applied
++    contradiction = question.get("kind") == "contradiction"
++    supporters = set() if contradiction else set(support.get("holders") or [])
++    sharers = set() if contradiction else set(support.get("root_sharing_holders") or [])
+     # a verification question that excludes its supporters already removed them upstream; the penalty covers the rest
+     base: dict[str, dict[str, Any]] = {}
+     for h in candidates:
+@@ -114,7 +122,11 @@ def rank_holders(db: Any, authz: Any, org: Any, question: dict[str, Any], candid
+         parts["base"] = (W_ENTITY * parts["entity_hits"] + parts["term_score"] + W_DOMAIN * overlap - W_SUPPORTS * parts["already_supports"]
+                          - W_SHARES_ROOT * parts["shares_root"])
+         base[hid] = parts
+-    pool = sorted(candidates, key=lambda h: (-base[h["holder_id"]]["base"], h["holder_id"]))[:MAX_RANKED]
++    def tie_key(h: Mapping[str, Any]) -> tuple[int, str]:
++        """Exact ties: unit-owned holders (department memory, which sees the whole department) before user holders, then holder_id."""
++        return (0 if h.get("owner_type") == "unit" else 1, h["holder_id"])
++
++    pool = sorted(candidates, key=lambda h: (-base[h["holder_id"]]["base"], *tie_key(h)))[:MAX_RANKED]
+     units = holder_units_sync(getattr(db, "conn", db), [h["holder_id"] for h in pool])
+     dept_cache: dict[str | None, str | None] = {}
+ 
+@@ -126,29 +138,32 @@ def rank_holders(db: Any, authz: Any, org: Any, question: dict[str, Any], candid
+         return dept_cache[u] or u or "unassigned"            # one shared bucket: holders with no unit do not each earn the diversity bonus
+ 
+     chosen: list[dict[str, Any]] = []
+-    seen_groups: set[str] = set()
++    group_counts: dict[str, int] = {}                        # holders already chosen per department bucket
+     remaining = {h["holder_id"]: h for h in pool}
+-    order = sorted(remaining)
++    order = [h["holder_id"] for h in sorted(pool, key=tie_key)]          # strict ">" below keeps the first of an exact tie: unit holders, then holder_id
+     scores: dict[str, dict[str, Any]] = {}
+     while remaining and len(chosen) < max_holders:
+         best_id, best_adj = None, None
+         for hid in order:
+             if hid not in remaining:
+                 continue
+-            adj = base[hid]["base"] + (W_DIVERSITY if group(hid) not in seen_groups else 0.0)
++            adj = round(base[hid]["base"] + W_DIVERSITY / (1 + group_counts.get(group(hid), 0)), 9)         # rounded so equal sums are exact ties
+             if best_adj is None or adj > best_adj:
+                 best_id, best_adj = hid, adj
+         assert best_id is not None and best_adj is not None
+         h = remaining.pop(best_id)
+         g = group(best_id)
+-        scores[best_id] = {**base[best_id], "unit_diversity": 0 if g in seen_groups else 1, "score": round(best_adj, 3), "group": g}
+-        seen_groups.add(g)
++        n_before = group_counts.get(g, 0)
++        scores[best_id] = {**base[best_id], "unit_diversity": 1 if n_before == 0 else 0, "diversity_bonus": round(W_DIVERSITY / (1 + n_before), 3),
++                           "n_in_group_before": n_before, "score": round(best_adj, 3), "group": g}
++        group_counts[g] = n_before + 1
+         chosen.append(h)
+     used_graph = any(v["entity_hits"] or v["term_hits"] for v in base.values())
+     # the candidates that were ranked out are listed too, with the same score parts, so the audit explains who lost to whom and why
+-    # (the base score ranks them; ties break on holder_id; the diversity bonus applies to the greedy pick only)
++    # (the base score ranks them; exact ties go to unit-owned holders, then holder_id; the diversity bonus applies to the greedy pick only)
+     out_ids = [h["holder_id"] for h in pool if h["holder_id"] in remaining][:2 * max_holders]
+     detail = {"rank_method": "hypergraph" if used_graph else "domains", "entities": ents[:30], "terms": q_terms[:30], "terms_matched": len(term_idf), "candidates": len(candidates),
+-              "entity_holders": len(set(hits) & allowed), "term_holders": len(set(term_hits) & allowed), "tie_break": "holder_id",
+-              "scores": scores, "ranked_out": {hid: base[hid] for hid in out_ids}, "chosen": [h["holder_id"] for h in chosen]}
++              "entity_holders": len(set(hits) & allowed), "term_holders": len(set(term_hits) & allowed), "tie_break": "unit_holder_then_holder_id",
++              "kind": question.get("kind"), "support_penalty": "off (contradiction)" if contradiction else "on", "diversity": f"{W_DIVERSITY:g}/(1+n_chosen_in_group)",
++              "group_counts": dict(sorted(group_counts.items())), "scores": scores, "ranked_out": {hid: base[hid] for hid in out_ids}, "chosen": [h["holder_id"] for h in chosen]}
+     return chosen, detail
+diff --git a/mycelic/tests/test_c4_followup.py b/mycelic/tests/test_c4_followup.py
+new file mode 100644
+index 0000000..b40aea7
+--- /dev/null
++++ b/mycelic/tests/test_c4_followup.py
+@@ -0,0 +1,239 @@
++"""C4 follow-up: three separate changes, each pinned down by its own tests.
++
++C1  a disagreement between statements about DIFFERENT single subjects is competing evidence, not a contradiction
++    (engine: no conflict is opened, both sides are committed as ordinary findings and ranked by the gate);
++C2  a contradiction follow-up question reaches the holders behind BOTH sides (no ``already_supports`` penalty for ``kind='contradiction'``);
++C3  department round-robin: the diversity bonus decays ``W_DIVERSITY / (1 + n_chosen_in_group)``, exact ties prefer unit holders, then holder_id,
++    and the audit detail carries the per-group counts.
++"""
++from __future__ import annotations
++
++import json
++import types
++
++from mycelic.inquiry.routing import rank_holders, trigger_claim_ids
++from mycelic.knowledge import hypergraph as hg
++from mycelic.util import now_iso
++
++from .test_hypergraph import add_ref, cand, question_row, services, world
++from .test_loop_engine import build
++from .test_routing_rank import make_question, publish
++
++UNITS = {"min_independent_units": {"department": 2}}
++
++
++# ------------------------------------------------------------------------------------------------ helpers (C1)
++async def evaluate_question(s, db, w, responses, *, text="What is the retry window of the ivory jetty service?", kind="gap", policy=None, **extra):
++    """Create a question, store the given answered responses (``(holder_key, content, [ref_id])``) and run the engine's real evaluate step
++    (the deterministic fake evaluator, then the claim commit), exactly as the worker would."""
++    sysp = s["questions"].authz.principal_for_system(w["t"])
++    q = await s["questions"].create(sysp, {"text": text, "scope_unit_id": w["root"], "kind": kind, "policy": {**UNITS, **(policy or {})}, **extra},
++                                    asker_type="loop", asker_id="goal:test", enqueue_route=False)
++    qid = q["question_id"]
++    for i, (key, content, ref_ids) in enumerate(responses):
++        db.conn.execute("INSERT INTO responses(response_id, tenant_id, question_id, holder_id, status, content, evidence_ref_ids, confidence, msg_id, received_at) "
++                        "VALUES (?, ?, ?, ?, 'answered', ?, ?, 0.8, ?, ?)",
++                        (f"resp_{qid}_{i}", w["t"], qid, w["holders"][key]["holder_id"], content, json.dumps(ref_ids), f"msg:{qid}:{i}", now_iso()))
++    db.conn.execute("UPDATE questions SET status='evaluating' WHERE question_id=?", (qid,))
++    out = await s["engine"].evaluate(types.SimpleNamespace(ref_id=qid, payload={}))
++    return qid, out
++
++
++def claims_of(db, qid):
++    return {r["text"]: r for r in db.all("SELECT claim_id, text, status, support FROM claims WHERE question_id=?", (qid,))}
++
++
++def state_of(s, qid):
++    return s["engine"]._checkpoint(qid)["state"]
++
++
++GOLD = "ledgergate-service ivory jetty retry window is 19 seconds"
++RIVAL = "parcelrouter-service ivory jetty retry window is 50 seconds"
++
++
++async def seed_two_services(s, db, ks, w):
++    """The C4 shape: the gold service is corroborated by 3 roots in 2 departments, the rival service by 2 roots in 1 department."""
++    for key, ref, root, text in (("u1a", "g1", "rg1", GOLD), ("u1b", "g2", "rg2", GOLD), ("u2a", "g3", "rg3", GOLD), ("u3a", "x1", "rx1", RIVAL), ("u3b", "x2", "rx2", RIVAL)):
++        await add_ref(ks, w, key, ref, root, text)
++    return [("u1a", GOLD, ["g1"]), ("u1b", GOLD, ["g2"]), ("u2a", GOLD, ["g3"]), ("u3a", RIVAL, ["x1"]), ("u3b", RIVAL, ["x2"])]
++
++
++# ------------------------------------------------------------------------------------------------ C1
++async def test_c1_different_services_are_competing_findings_not_a_conflict(db, org, auth, authz):
++    s = await build(db, org, auth, authz)
++    w = await world(auth, org, n_depts=3)
++    responses = await seed_two_services(s, db, s["knowledge"], w)
++    qid, _out = await evaluate_question(s, db, w, responses)
++    claims = claims_of(db, qid)
++    # the evaluator still reports the pair as a disagreement ("Numbers differ: 19 vs 50"), but no conflict is opened ...
++    assert set(claims) == {GOLD, RIVAL}
++    assert db.scalar("SELECT COUNT(*) FROM conflicts") == 0
++    assert db.scalar("SELECT COUNT(*) FROM hyperedges WHERE kind='conflict'") == 0
++    # ... so the gate's independence rules decide each side on its own: 3 roots in 2 departments is supported, 2 roots in 1 department is not
++    assert claims[GOLD]["status"] == "supported" and json.loads(claims[GOLD]["support"])["independent_units"] == {"department": 2}
++    assert claims[RIVAL]["status"] == "hypothesis"
++    # the audit still explains the pair: it is recorded as competing in the question's gate notes
++    notes = [n["competing"] for n in state_of(s, qid)["gate_notes"] if "competing" in n]
++    assert notes and all({n["a"], n["b"]} == {"service:ledgergate", "service:parcelrouter"} for n in notes)
++    assert hg.verify_consistency(db.conn, w["t"]) == []
++
++
++async def test_c1_same_service_with_different_numbers_still_opens_a_conflict(db, org, auth, authz):
++    s = await build(db, org, auth, authz)
++    w = await world(auth, org, n_depts=3)
++    ks = s["knowledge"]
++    old = "ledgergate-service ivory jetty retry window is 45 seconds"
++    for key, ref, root, text in (("u1a", "g1", "rg1", GOLD), ("u1b", "g2", "rg2", GOLD), ("u2a", "g3", "rg3", GOLD), ("u3a", "x1", "rx1", old), ("u3b", "x2", "rx2", old)):
++        await add_ref(ks, w, key, ref, root, text)
++    qid, _out = await evaluate_question(s, db, w, [("u1a", GOLD, ["g1"]), ("u1b", GOLD, ["g2"]), ("u2a", GOLD, ["g3"]), ("u3a", old, ["x1"]), ("u3b", old, ["x2"])])
++    claims = claims_of(db, qid)
++    assert set(claims) == {GOLD, old}
++    assert db.scalar("SELECT COUNT(*) FROM conflicts") >= 1                                    # unchanged: the same subject with two values is a contradiction
++    assert {c["status"] for c in claims.values()} == {"contested"}                              # and it demotes both sides, as before
++    assert not [n for n in state_of(s, qid)["gate_notes"] if "competing" in n]
++
++
++async def test_c1_guard_only_applies_to_two_different_single_subjects(db, org, auth, authz):
++    s = await build(db, org, auth, authz)
++    w = await world(auth, org, n_depts=2)
++    eng, t = s["engine"], w["t"]
++    comp = lambda a, b: eng._competing_entities(t, a, b)                                       # noqa: E731
++    assert comp("ledgergate-service retry window is 19 seconds", "parcelrouter-service retry window is 50 seconds") == ("service:ledgergate", "service:parcelrouter")
++    # a symptom named next to the subject is context, not a second subject
++    assert comp("ledgergate-service timeout is 19 seconds", "parcelrouter-service timeout is 50 seconds") == ("service:ledgergate", "service:parcelrouter")
++    # same subject: a real contradiction
++    assert comp("ledgergate-service retry window is 19 seconds", "ledgergate-service retry window is 50 seconds") is None
++    # no subject on one side, or none on either: unchanged behaviour
++    assert comp("ledgergate-service retry window is 19 seconds", "the retry window is 50 seconds") is None
++    assert comp("the retry window is 19 seconds", "the retry window is 50 seconds") is None
++    # several subjects on one side: ambiguous, keep the conflict
++    assert comp("ledgergate-service and parcelrouter-service retry window is 19 seconds", "invoicesync-service retry window is 50 seconds") is None
++
++
++async def test_c1_verification_finding_about_another_service_is_not_a_contradiction(db, org, auth, authz):
++    s = await build(db, org, auth, authz)
++    w = await world(auth, org, n_depts=3)
++    ks = s["knowledge"]
++    sysp = s["questions"].authz.principal_for_system(w["t"])
++    await add_ref(ks, w, "u1a", "g1", "rg1", GOLD)
++    await add_ref(ks, w, "u2a", "g3", "rg3", GOLD)
++    target, res = await ks.commit_claim(sysp, cand(w, GOLD), evidence=[{"ref_id": "g1"}, {"ref_id": "g3"}], question=question_row(w, **UNITS), idempotency_key="target")
++    assert res.status == "supported"
++    await add_ref(ks, w, "u3a", "x1", "rx1", RIVAL)
++    trig = {"kind": "verification", "claim_id": target["claim_id"]}
++    topic = "Independently of any other team: what do your own records show about the ivory jetty retry window?"
++    qid, _ = await evaluate_question(s, db, w, [("u3a", RIVAL, ["x1"])], text=topic, kind="verification", trigger=trig)
++    st = state_of(s, qid)
++    assert st["verified"]["outcome"] != "contradicted" and db.scalar("SELECT COUNT(*) FROM conflicts") == 0
++    assert ks.get_claim(target["claim_id"])["status"] == "supported"                        # the other service's record did not demote it
++    assert any("verification_competing" in n for n in st["gate_notes"])
++    # the same statement about the SAME service is a contradiction of the target, as before
++    await add_ref(ks, w, "u3b", "x2", "rx2", "ledgergate-service ivory jetty retry window is 50 seconds")
++    contra = "ledgergate-service ivory jetty retry window is 50 seconds"
++    topic2 = "Independently of any other team: what do your own records say about the retry window of the ivory jetty in your area?"
++    qid2, _ = await evaluate_question(s, db, w, [("u3b", contra, ["x2"])], text=topic2, kind="verification", trigger=trig)
++    assert state_of(s, qid2)["verified"]["outcome"] == "contradicted" and db.scalar("SELECT COUNT(*) FROM conflicts") == 1
++
++
++# ------------------------------------------------------------------------------------------------ C2
++async def test_c2_contradiction_followup_reaches_holders_behind_both_sides(db, org, auth, authz):
++    w = await world(auth, org, n_depts=4)
++    ks, _g, qs = services(db, org, authz)
++    sysp = authz.principal_for_system(w["t"])
++    ent = "service:ledgergate"
++    keys = ["u1a", "u2a", "u3a", "u4a"]
++    for k in keys:
++        await publish(org, w, k, {ent: 2})                                               # all four hold the entity equally
++    # exact ties break on holder_id, so the two smallest ids are chosen exactly when nothing penalizes them
++    side_a, side_b, other1, other2 = sorted(keys, key=lambda k: w["holders"][k]["holder_id"])
++    ta, tb = "ledgergate-service retry window is 19 seconds", "ledgergate-service retry window is 50 seconds"
++    await add_ref(ks, w, side_a, "ea", "ra", ta)
++    await add_ref(ks, w, side_b, "eb", "rb", tb)
++    ca, _ = await ks.commit_claim(sysp, cand(w, ta), evidence=[{"ref_id": "ea"}], question=question_row(w), idempotency_key="a")
++    cb, _ = await ks.commit_claim(sysp, cand(w, tb), evidence=[{"ref_id": "eb"}], question=question_row(w), idempotency_key="b")
++    k = await ks.open_conflict(sysp, w["t"], ca["claim_id"], cb["claim_id"], "Numbers differ: 19 vs 50")
++    hid = {key: w["holders"][key]["holder_id"] for key in keys}
++    text = "What do your own records show about the ledgergate-service retry window?"
++    q = await make_question(qs, w, text, holders=2, kind="contradiction", trigger={"kind": "contradiction", "conflict_id": k["conflict_id"]})
++    q = qs.get(q["question_id"])
++    ctx = hg.support_context(db, w["t"], trigger_claim_ids(q, db))
++    assert set(ctx["holders"]) == {hid[side_a], hid[side_b]}                              # the support edges of both sides
++    authorized, _ = qs.candidate_holders(q)
++    chosen, detail = rank_holders(db, authz, org, q, authorized, support_edge=ctx, max_holders=2)
++    assert {h["holder_id"] for h in chosen} == {hid[side_a], hid[side_b]}                 # both sides' holders are asked
++    assert all(v["already_supports"] == 0 and v["shares_root"] == 0 for v in detail["scores"].values()) and detail["support_penalty"] == "off (contradiction)"
++    # a verification question about the same claims keeps routing AWAY from the holders behind them
++    ver, vdetail = rank_holders(db, authz, org, {**q, "kind": "verification"}, authorized, support_edge=ctx, max_holders=2)
++    assert {h["holder_id"] for h in ver} == {hid[other1], hid[other2]} and vdetail["support_penalty"] == "on"
++    ver3, v3 = rank_holders(db, authz, org, {**q, "kind": "verification"}, authorized, support_edge=ctx, max_holders=4)
++    assert all(v3["scores"][hid[x]]["already_supports"] == 1 for x in (side_a, side_b)) and {h["holder_id"] for h in ver3} == set(hid.values())
++    # the audit row of the real route carries the mode
++    out = await qs.route(q["question_id"])
++    assert out["routed"] == 2 and {r["holder_id"] for r in qs.routes(q["question_id"])} == {hid[side_a], hid[side_b]}
++    row = json.loads(db.one("SELECT detail FROM audit_log WHERE action='question.route' AND resource_id=?", (q["question_id"],))["detail"])
++    assert row["ranking"]["support_penalty"] == "off (contradiction)" and row["ranking"]["kind"] == "contradiction"
++
++
++# ------------------------------------------------------------------------------------------------ C3
++async def add_user_holders(org, w, dept: int, n: int, prefix: str) -> list[str]:
++    keys = []
++    for i in range(n):
++        name = f"{prefix}{i}"
++        u = await org.create_user(w["t"], f"{name}@acme.test", name)
++        await org.add_membership(w["t"], u["user_id"], w["teams"][dept]["unit_id"], "employee")
++        h, _ = await org.register_holder(w["t"], owner_type="user", owner_id=u["user_id"], name=f"{name} notes")
++        w["holders"][name] = h
++        keys.append(name)
++    return keys
++
++
++async def test_c3_round_robin_keeps_both_gold_departments_among_many_equal_rivals(db, org, auth, authz):
++    w = await world(auth, org, n_depts=3)
++    ks, _g, qs = services(db, org, authz)
++    ent = "service:ledgergate"
++    gold = ["u1a", "u1b", "u2a"]                                                         # 3 gold holders in 2 departments
++    rivals = ["u3a", "u3b"] + await add_user_holders(org, w, 3, 10, "rv")                # 12 equal-score look-alikes in a third department
++    for k in gold + rivals:
++        await publish(org, w, k, {ent: 2})
++    q = await make_question(qs, w, "Which services are affected by the retry window change?", holders=10, target_entities=[ent])
++    q = qs.get(q["question_id"])
++    authorized, rejected = qs.candidate_holders(q)
++    assert not rejected and len(authorized) >= 15 + 1
++    chosen, detail = rank_holders(db, authz, org, q, authorized, support_edge=None, max_holders=10)
++    picked = {h["holder_id"] for h in chosen}
++    gold_ids = {w["holders"][k]["holder_id"] for k in gold}
++    assert len(chosen) == 10 and detail["rank_method"] == "hypergraph"
++    assert len(picked & gold_ids) >= 2 and picked >= gold_ids                             # in fact every gold holder is reached: a department's 2nd slot beats the rival's 4th
++    dept1, dept2 = (detail["scores"][w["holders"][k]["holder_id"]]["group"] for k in ("u1a", "u2a"))
++    assert dept1 != dept2 and {dept1, dept2} == {detail["scores"][i]["group"] for i in gold_ids}        # both gold departments are represented
++    # the decayed bonus is in the audit: per-group counts and the bonus each pick earned
++    counts = detail["group_counts"]
++    assert sum(counts.values()) == 10 and counts[dept1] == 2 and counts[dept2] == 1 and max(counts.values()) == 7
++    firsts = [v for v in detail["scores"].values() if v["n_in_group_before"] == 0]
++    assert len(firsts) == 3 and all(v["diversity_bonus"] == 1.0 and v["unit_diversity"] == 1 for v in firsts)
++    assert {v["diversity_bonus"] for v in detail["scores"].values() if v["n_in_group_before"] == 1} == {0.5}
++    # order is deterministic whatever the input order
++    again, _ = rank_holders(db, authz, org, q, list(reversed(authorized)), support_edge=None, max_holders=10)
++    assert [h["holder_id"] for h in again] == [h["holder_id"] for h in chosen]
++    # the same through the real route: the audit row has the counts and the tie rule
++    out = await qs.route(q["question_id"])
++    assert out["routed"] == 10
++    row = json.loads(db.one("SELECT detail FROM audit_log WHERE action='question.route' AND resource_id=?", (q["question_id"],))["detail"])
++    assert row["ranking"]["group_counts"] == counts and row["ranking"]["tie_break"] == "unit_holder_then_holder_id"
++
++
++async def test_c3_exact_ties_prefer_unit_holders(db, org, auth, authz):
++    w = await world(auth, org, n_depts=1)                                                # u1a, u1b and the team's unit holder: one department
++    ks, _g, qs = services(db, org, authz)
++    q = await make_question(qs, w, "How is the quarter going overall?", holders=1)
++    q = qs.get(q["question_id"])
++    authorized, _ = qs.candidate_holders(q)
++    ids = {w["holders"]["u1a"]["holder_id"], w["holders"]["u1b"]["holder_id"], w["unit_holder"]["holder_id"]}
++    cands = [h for h in authorized if h["holder_id"] in ids]
++    assert len(cands) == 3
++    for rev in (False, True):                                                            # whatever the ids and the input order, the unit holder wins an exact tie
++        chosen, detail = rank_holders(db, authz, org, q, list(reversed(cands)) if rev else cands, support_edge=None, max_holders=1)
++        assert [h["holder_id"] for h in chosen] == [w["unit_holder"]["holder_id"]] and detail["tie_break"] == "unit_holder_then_holder_id"
++    two, _ = rank_holders(db, authz, org, q, cands, support_edge=None, max_holders=2)
++    assert two[0]["holder_id"] == w["unit_holder"]["holder_id"]
++    assert [h["holder_id"] for h in two[1:]] == sorted(ids - {w["unit_holder"]["holder_id"]})[:1]       # then holder_id
+diff --git a/mycelic/tests/test_term_routing.py b/mycelic/tests/test_term_routing.py
+index 0fd5062..e9bf6c4 100644
+--- a/mycelic/tests/test_term_routing.py
++++ b/mycelic/tests/test_term_routing.py
+@@ -181,7 +181,7 @@ async def test_route_audit_lists_ranked_out_candidates_and_never_a_word(db, org,
+     d = json.loads(row["detail"])
+     assert d["rank_method"] == "hypergraph" and set(d["scores"]) == routed
+     ranked_out = d["ranking"]["ranked_out"]
+-    assert ranked_out and not (set(ranked_out) & routed) and hx not in ranked_out and d["ranking"]["tie_break"] == "holder_id"
++    assert ranked_out and not (set(ranked_out) & routed) and hx not in ranked_out and d["ranking"]["tie_break"] == "unit_holder_then_holder_id"
+     assert all({"base", "term_hits", "term_score", "entity_hits", "domain_overlap"} <= set(v) for v in ranked_out.values())
+     assert d["ranking"]["term_holders"] == 1 and "lunar" not in row["detail"] and "ladder" not in row["detail"]           # hashed ids only
+ 
+-- 
+2.43.0
+

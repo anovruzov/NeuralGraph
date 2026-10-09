@@ -34,7 +34,7 @@ logging.disable(logging.CRITICAL)
 
 from aiohttp import web  # noqa: E402
 
-from research.mycelic_e2e.bench import ablations, events, feed, issue, world as W  # noqa: E402
+from research.mycelic_e2e.bench import ablations, events, feed, issue, ledger, world as W  # noqa: E402
 from research.mycelic_e2e.bench.feed import ApiClient  # noqa: E402
 from research.mycelic_e2e.bench.gold import GoldSink, gold_path  # noqa: E402
 from research.mycelic_e2e.bench.schema import SIZES, SPLITS  # noqa: E402
@@ -309,7 +309,7 @@ async def amain(a: argparse.Namespace) -> int:
         for v in view_summary.values():
             statuses[str(v["q"])] = statuses.get(str(v["q"]), 0) + 1
         run_manifest = {
-            "run_id": run_id, "split": a.split, "mode": a.mode, "ablation": abl_short, "ablation_name": abl_name,
+            "run_id": run_id, "ledger_run_id": getattr(a, "ledger_run_id", None), "split": a.split, "mode": a.mode, "ablation": abl_short, "ablation_name": abl_name,
             "ablation_patches": abl_patch.describe()["patched"] if abl_patch else [], "seed": a.seed, "size": a.size, "provider_label": PROVIDER_LABEL,
             "provider": "fake (deterministic)", "fake_py_sha256": hashlib.sha256(fake_py.read_bytes()).hexdigest()[:16], "tasks_sha256": tasks_sha, "sources_sha256": sources_sha,
             "n_tasks": len(public), "n_gold_written": n_gold, "world_sha256": world.fingerprint(), "world_counts": world.counts(), "transport": "sqlite",
@@ -362,8 +362,30 @@ def main(argv: list[str] | None = None) -> int:
                                                    "A5_authz_routing_off, A6_dedupe_off (or A1..A6); recorded in run_manifest.json")
     ap.add_argument("--anchor", default="", help="ISO timestamp the record ages are measured from (default: now); fix it to get byte-identical sources")
     ap.add_argument("--generate-only", action="store_true", help="materialize, write tasks (public + gold) and sources, hash them, and stop (no feed, no tasks)")
+    ap.add_argument("--ledger", action="store_true", help="also write ledger rows for a dev run (a holdout run always does, and is refused by the holdout guard)")
     a = ap.parse_args(argv)
-    return asyncio.run(amain(a))
+    # the holdout guard runs BEFORE anything is generated or written: frozen bank hash, clean repository, snapshot rev == HEAD, one run per candidate
+    a.ledger_run_id = None
+    if a.split == "holdout" or a.ledger:
+        cfg = {"split": a.split, "mode": a.mode, "ablation": ablations.normalize(a.ablation)[0], "seed": a.seed, "size": a.size, "provider_label": PROVIDER_LABEL,
+               "transport": "sqlite", "inprocess": True, "run_dir": str(Path(a.out).resolve()), "generate_only": a.generate_only}
+        try:
+            a.ledger_run_id = ledger.start_run(cfg)
+        except ledger.HoldoutRefused as exc:
+            print(f"HOLDOUT REFUSED: {exc}", file=sys.stderr)
+            return 3
+    try:
+        rc = asyncio.run(amain(a))
+    except BaseException as exc:
+        if a.ledger_run_id:
+            ledger.abort_run(a.ledger_run_id, f"{type(exc).__name__}: {exc}")
+        raise
+    if a.ledger_run_id:
+        if rc == 0:
+            ledger.mark_completed(a.ledger_run_id, {"out": str(a.out)})
+        else:
+            ledger.abort_run(a.ledger_run_id, f"run.py returned {rc}")
+    return rc
 
 
 if __name__ == "__main__":

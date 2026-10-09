@@ -1,0 +1,24 @@
+From 4f54d886bce7d7165474aa2f7801e706ae391081 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 09:11:55 +0000
+Subject: [PATCH 43/43] Ledger: quadratic observe query found (pre-existing),
+ fix dispatched for review
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index d2375dd..0e3118f 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -47,3 +47,4 @@
+ {"id": "X046", "utc": "2026-10-09T09:09:30Z", "kind": "custody", "what": "C5-L3 (dev L/3, 92d3d7c, cap 1500) stopped by the orchestrator during the feed (1,350 of 10,491 sources)", "result": "not scored (incomplete). Scale finding: the feed rate fell from ~8 to ~0.7 sources/s as open holders approached ~1,300 (every holder of the hardened L world has records, unlike the sparse C3-L3 world: 417 holders with records); py-spy shows the single main thread in holder_heartbeat -> upsert_term_index_sync / sanitize_term_counts (hypergraph.py:486-487, entities.py:108) and mirror_shards_sync (shard_registry.py:119), i.e. the coordinator re-derives each open holder's term index and shard mirror on every heartbeat (~22 transport messages/s). Follow-up for the product: skip unchanged term/shard snapshots (digest compare) or apply them off the event loop. Holder stores deleted; logs and coord.db kept as runs/C5-L3.stopped*.", "class": "aborted-time"}
+ {"id": "X047", "utc": "2026-10-09T09:10:00Z", "kind": "decision", "agent": "orchestrator (claude-opus-5-5)", "what": "holdout world", "result": "one holdout world, size M seed 101 (pre-registered in BENCHMARK_CONTRACT \u00a79 at freeze). Why: the ledger guard key (commit, ablation, mode, variant) allows one holdout world per candidate; the L world was preferred but X046's measured feed rate and C5's wave cost put an L run past the 13:00 UTC deadline. Based on dev timing only; no holdout world generated.", "class": "decision"}
+ {"id": "X048", "utc": "2026-10-09T09:10:30Z", "kind": "run-start", "what": "dev ablations A1-A6 on S/1 with the C5 code snapshot 92d3d7c, two chains (A1,A4,A5 and A2,A3,A6), holder stores trimmed after each gate", "why": "the frozen candidate differs from 92d3d7c only by the K1/K1b view redactions for non-full viewers, which the benchmark's asker views (full viewers) do not read; starting now saves ~30 min", "class": "dev"}
++{"id": "X049", "utc": "2026-10-09T09:11:00Z", "kind": "finding", "agent": "orchestrator (claude-opus-5-5)", "what": "C5-S1 wave 5 >14 min (C4-S1: 156 s); py-spy 4/4 samples of the worker main thread in DiscoveryEngine.observe new_refs query (engine.py:348-350)", "result": "pre-existing quadratic query (since bda39d8, in f96f263): evidence_refs JOIN responses ON r.evidence_ref_ids LIKE '%'||e.ref_id||'%' per loop tick per goal; C5's extra follow-ups amplify it. ENGINEER-3 (sonnet) dispatched for a json_each rewrite bounded by the goal's responses, with an oracle test against the old SQL; to be reviewed before it can enter the frozen candidate; fallback is the candidate without it.", "class": "finding"}
+-- 
+2.43.0
+

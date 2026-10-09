@@ -1,0 +1,216 @@
+From fca60ea9e4dd56a418c72dde1dbe0be79b9244e7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 08:05:16 +0000
+Subject: [PATCH 29/43] Heartbeat ordering bounded by the coordinator clock
+ (HB-1); deny patterns filter phrases before term hashing (B1-d)
+
+A holder's stats.at later than coordinator time + 300 s counts as now (stored with received_at and the
+raw value); the stale start-up replay is still ignored. Terms are computed from text with the owner's
+deny patterns removed; records matching a deny pattern contribute no entity ids. Engineer: WP1
+(claude-sonnet-5-5); full suite 509 passed, 7 skipped.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ mycelic/evidence/service.py        | 27 ++++++++++--
+ mycelic/org.py                     | 21 +++++++++-
+ mycelic/tests/test_term_routing.py | 66 ++++++++++++++++++++++++++++++
+ 3 files changed, 109 insertions(+), 5 deletions(-)
+
+diff --git a/mycelic/evidence/service.py b/mycelic/evidence/service.py
+index 6630c6d..5256f37 100644
+--- a/mycelic/evidence/service.py
++++ b/mycelic/evidence/service.py
+@@ -27,6 +27,7 @@ from __future__ import annotations
+ 
+ import contextlib
+ import inspect
++import json
+ import logging
+ import re
+ import secrets
+@@ -1019,7 +1020,7 @@ class EvidenceStore:
+                          AND r.flags NOT LIKE '%suspicious_instructions%' AND r.flags NOT LIKE '%contains_secret%'
+                          AND NOT EXISTS (SELECT 1 FROM domain_memberships dm WHERE dm.record_id = r.record_id AND dm.status='active' AND dm.domain_id LIKE 'personal.%')"""
+                     + source_ok, blocked):
+-                per_record.setdefault((i, r["rid"]), set()).update(term_stems(r["text"]))
++                per_record.setdefault((i, r["rid"]), set()).update(term_stems(self._strip_denied(r["text"])))
+         df: dict[str, int] = {}
+         for stems in per_record.values():
+             for st in stems:
+@@ -1059,6 +1060,24 @@ class EvidenceStore:
+             f"OR COALESCE(access_state, 'ok') <> 'ok' OR selection <> 'included' ORDER BY source_id", visibilities).fetchall()
+         return [r[0] for r in rows]
+ 
++    def _strip_denied(self, text: str) -> str:
++        """The text with the owner's deny patterns removed, the way answers redact it: a phrase pattern (``project\\s+falcon``) is matched
++        against the text, never against single words, so none of its words leaks into a published term."""
++        for p in self._deny:
++            text = p.sub(" ", text or "")
++        return text
++
++    def _denied_records(self, c: sqlite3.Connection) -> list[str]:
++        """Records whose text matches a deny pattern: they contribute no entity id (an answer from them would be redacted)."""
++        if not self._deny:
++            return []
++        out: set[str] = set()
++        for r in c.execute("SELECT rm.record_id AS rid, m.text AS text FROM record_memories rm JOIN memories m ON m.memory_id = rm.memory_id AND m.status='active' "
++                           "WHERE rm.origin='chunk'"):
++            if any(p.search(r["text"] or "") for p in self._deny):
++                out.add(r["rid"])
++        return sorted(out)
++
+     def _publication_closed(self) -> bool:
+         """The holder's own disclosure is ``none``: it answers nothing, so it publishes no entity or term either."""
+         return (self.export_policy or {}).get("disclosure") == "none"
+@@ -1075,6 +1094,8 @@ class EvidenceStore:
+         visible = "(" + ", ".join(f"'{v}'" for v in vis) + ")"
+         blocked = self._blocked_sources(vis)
+         source_ok = f" AND (r.source_id IS NULL OR r.source_id NOT IN ({','.join('?' * len(blocked))}))" if blocked else ""
++        denied = self._denied_records(c)
++        record_ok = " AND re.record_id NOT IN (SELECT value FROM json_each(?))" if denied else ""
+         rows = c.execute(
+             f"""SELECT re.entity_id AS entity_id, COUNT(DISTINCT re.record_id) AS n
+                 FROM record_entities re JOIN ingest_records r ON r.record_id = re.record_id
+@@ -1082,8 +1103,8 @@ class EvidenceStore:
+                   AND re.role IN ('mention', 'reference', 'topic') AND ({kinds})
+                   AND r.flags NOT LIKE '%suspicious_instructions%' AND r.flags NOT LIKE '%contains_secret%'
+                   AND NOT EXISTS (SELECT 1 FROM domain_memberships dm WHERE dm.record_id = r.record_id AND dm.status='active' AND dm.domain_id LIKE 'personal.%')
+-                  {source_ok}
+-                GROUP BY re.entity_id""", blocked).fetchall()
++                  {source_ok}{record_ok}
++                GROUP BY re.entity_id""", [*blocked, *([json.dumps(denied)] if denied else [])]).fetchall()
+         # the owner's deny patterns keep what they keep out of answers out of the published ids too
+         return {r["entity_id"]: int(r["n"]) for r in rows if is_publishable_entity(r["entity_id"]) and not any(p.search(r["entity_id"]) for p in self._deny)}
+ 
+diff --git a/mycelic/org.py b/mycelic/org.py
+index c12d2ea..4287568 100644
+--- a/mycelic/org.py
++++ b/mycelic/org.py
+@@ -8,13 +8,16 @@ from __future__ import annotations
+ 
+ import logging
+ import sqlite3
++from datetime import timedelta
+ from typing import Any, Iterable
+ 
+ from .db.coord import CoordDB, row_to_dict, rows_to_dicts
+-from .util import hmac_sign, j, jl, new_id, now_iso, parse_iso, plus_seconds, token, token_hash
++from .util import hmac_sign, iso, j, jl, new_id, now_iso, parse_iso, plus_seconds, token, token_hash, utcnow
+ 
+ logger = logging.getLogger(__name__)
+ 
++HEARTBEAT_MAX_SKEW_SECONDS = 300          # how far ahead of the coordinator's clock a holder's heartbeat time is believed
++
+ UNIT_TYPES = ("executive", "region", "subsidiary", "department", "team", "project")
+ HIERARCHY = ("executive", "region", "subsidiary", "department", "team")   # top -> bottom; any level may be omitted
+ ROLES = ("employee", "team_lead", "department_lead", "subsidiary_lead", "regional_lead", "executive", "org_admin")
+@@ -503,7 +506,13 @@ class OrgService:
+                           (holder_id,)).fetchone()
+             if r is None or r["status"] == "revoked":
+                 return
++            now_dt = utcnow()
+             at, seen = parse_iso((stats or {}).get("at")), parse_iso(r["stats_at"])
++            clamped = at is not None and at > now_dt + timedelta(seconds=HEARTBEAT_MAX_SKEW_SECONDS)
++            if clamped:
++                # a holder's clock is not ours: a time further ahead than the allowed skew counts as now, so a clock that runs ahead (or a far-future
++                # value) can suppress later beats, retractions and privacy withdrawals included, for at most the skew
++                at = now_dt
+             if at is not None and seen is not None and at < seen:
+                 # a snapshot older than the one already applied (the transport keeps one beat per holder per minute and delivers it when the
+                 # core's consumer starts, long after fresher beats arrived directly): applying it would roll the registry, the entity and term
+@@ -518,8 +527,16 @@ class OrgService:
+                                    known_domains=self._taxonomy_ids_sync(c, r["tenant_id"]))
+             # the entity map (up to 500 ids) goes to the entity index below, not into the stored stats blob
+             kept = stats
++            if stats is not None:
++                # the time the registry orders this holder's beats by: its own, bounded by ours; our receive time is kept beside it; a beat
++                # that carries no time leaves the ordering where it was
++                kept = {**stats, "received_at": iso(now_dt)}
++                if clamped:
++                    kept.update({"at": iso(now_dt), "at_reported": stats.get("at"), "at_clamped": True})
++                elif at is None and r["stats_at"]:
++                    kept["at"] = r["stats_at"]
+             if isinstance((stats or {}).get("ingest"), dict) and ("entities" in stats["ingest"] or "terms" in stats["ingest"]):
+-                kept = {**stats, "ingest": {k: v for k, v in stats["ingest"].items() if k not in ("entities", "terms")}}
++                kept = {**kept, "ingest": {k: v for k, v in stats["ingest"].items() if k not in ("entities", "terms")}}
+                 if "entities" in stats["ingest"]:
+                     kept["ingest"]["entities_reported"] = len(stats["ingest"].get("entities") or {})
+                 if "terms" in stats["ingest"]:
+diff --git a/mycelic/tests/test_term_routing.py b/mycelic/tests/test_term_routing.py
+index da630a6..d88683d 100644
+--- a/mycelic/tests/test_term_routing.py
++++ b/mycelic/tests/test_term_routing.py
+@@ -373,3 +373,69 @@ def test_unit_cover_search_is_bounded_and_stops_at_the_required_count():
+     assert time.perf_counter() - t0 < 2.0 and len(full) == 8 and sorted(r for rs in full.values() for r in rs) == sorted(cands)
+     # a small instance is still solved exactly
+     assert len(CommitGate._attribute({"ra": {"S", "X"}, "rb": {"S", "Y"}}, 2)) == 1
++
++
++# ---------------------------------------------------------------------------------------------- HB-1: heartbeat ordering is bounded by our clock
++async def test_a_holder_clock_ahead_or_far_future_cannot_freeze_retractions(db, org, auth, authz):
++    from mycelic.util import plus_seconds
++    w = await world(auth, org)
++    h, h2 = w["holders"]["u1a"]["holder_id"], w["holders"]["u2a"]["holder_id"]
++
++    def indexed(holder):
++        inc = hg.incidence(db, w["t"], member_type="entity", member_ids=["symptom:timeout"])["symptom:timeout"]
++        return bool(inc and holder in inc[0]["holders"])
++
++    async def beat(holder, at, ents):
++        st = {"ingest": {"entities": ents, "snapshot_complete": True}}
++        if at is not None:
++            st["at"] = at
++        await org.holder_heartbeat(holder, stats=st)
++    # a clock one hour ahead: believed as 'now', not as a time later beats must exceed
++    await beat(h, plus_seconds(3600), {"symptom:timeout": 5})
++    assert indexed(h)
++    stored = org.get_holder(h)["stats"]
++    assert stored["at_clamped"] is True and stored["at"] <= plus_seconds(5) and stored["at_reported"] and stored["received_at"]          # ours stored beside what it said
++    await beat(h, plus_seconds(0), {})                                                      # the clock is corrected; a vouched retraction applies
++    assert not indexed(h)
++    # a far-future value (bad RTC, or a holder that means to freeze its index) is harmless
++    await beat(h2, "9999-12-31T00:00:00+00:00", {"symptom:timeout": 5})
++    assert indexed(h2)
++    await beat(h2, plus_seconds(0), {})
++    assert not indexed(h2)
++    # a modest skew (inside the allowed bound) is believed: the stale-replay protection stays exact for it
++    await beat(h, plus_seconds(120), {"symptom:timeout": 5})
++    assert org.get_holder(h)["stats"].get("at_clamped") is None and indexed(h)
++    await beat(h, plus_seconds(0), {})                                                      # older than the applied one: ignored, as for any stale beat
++    assert indexed(h)
++    # a beat that carries no time neither resets nor loses the ordering
++    before = org.get_holder(h)["stats"]["at"]
++    await beat(h, None, {"symptom:timeout": 5})
++    assert org.get_holder(h)["stats"]["at"] == before
++    await beat(h, plus_seconds(-3600), {})                                                  # and an old beat after it is still stale
++    assert indexed(h)
++    # the C1 start-up replay is still ignored: the empty, older beat that arrives later changes nothing
++    h3 = w["holders"]["u1b"]["holder_id"]
++    await beat(h3, "2026-10-09T07:35:33+00:00", {"symptom:timeout": 5})
++    await beat(h3, "2026-10-09T07:35:28+00:00", {})
++    assert indexed(h3)
++
++
++# ---------------------------------------------------------------------------------------------- B1-d: deny patterns apply to text, not to single words
++async def test_phrase_deny_patterns_keep_every_word_of_the_phrase_out_of_the_published_ids(tmp_path):
++    store = await holder_with_sources(tmp_path, [("public", [
++        rec(1, "Status of Project Falcon: the zanzibarquux migration slipped for the parcelrouter-service."),
++        rec(2, "The ledgergate-service shows timeouts for customers."),
++    ], {})])
++    store.term_key = KEY
++    store.update_policy({"entity_min_records": 1, "deny_patterns": [r"project\s+falcon"]})
++    c = store.store._conn
++    out = store._ingest_stats_sync(c)
++    falcon, project = term_id(KEY, "falcon"), term_id(KEY, "project")
++    assert falcon not in out["terms"] and project not in out["terms"]                    # the phrase was removed from the text before it was hashed
++    assert term_id(KEY, "zanzibarquux") in out["terms"] and term_id(KEY, term_stems("slipped")[0]) in out["terms"]    # the rest of the record is not hidden by it
++    # an answer from the record would be redacted; so the record contributes no entity id either, while other records still do
++    ents = out["entities"]
++    assert "service:parcelrouter" not in ents and "service:ledgergate" in ents
++    store.update_policy({"entity_min_records": 1, "deny_patterns": []})
++    out = store._ingest_stats_sync(c)
++    assert falcon in out["terms"] and "service:parcelrouter" in out["entities"]
+-- 
+2.43.0
+

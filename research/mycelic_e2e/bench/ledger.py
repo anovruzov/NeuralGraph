@@ -49,19 +49,42 @@ class HoldoutRefused(RuntimeError):
 
 
 # ---------------------------------------------------------------------------------------------- environment facts
+REPO_ENV = "MYCELIC_E2E_REPO"
+GIT_EXCLUDES = (":(exclude)research/mycelic_e2e/results", ":(exclude)research/mycelic_e2e/EXPERIMENTS.jsonl")      # run outputs, not code
+
+
+def repo_path() -> Path:
+    """The git repository the code under test belongs to: ``MYCELIC_E2E_REPO`` when set (runs execute from a code snapshot with no
+    ``.git``), else the code directory itself."""
+    env = os.environ.get(REPO_ENV)
+    return Path(env) if env else REPO_ROOT
+
+
+def snapshot_rev() -> str | None:
+    """The short sha recorded in ``<code dir>/.rev`` by the snapshot (``git archive`` of the frozen commit), or None when running from a checkout."""
+    try:
+        v = (REPO_ROOT / ".rev").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return v or None
+
+
 def _git(*args: str) -> str:
     try:
-        return subprocess.run(["git", "-C", str(REPO_ROOT), *args], capture_output=True, text=True, timeout=60, check=True).stdout
+        return subprocess.run(["git", "-C", str(repo_path()), *args], capture_output=True, text=True, timeout=60, check=True).stdout
     except (subprocess.SubprocessError, OSError):
         return ""
 
 
 def git_info() -> dict[str, Any]:
+    """Commit, branch and cleanliness of the REAL repository (see :func:`repo_path`), plus the snapshot rev the code was run from. The dirty
+    flag ignores run outputs (``results/``, ``EXPERIMENTS.jsonl``)."""
     sha = _git("rev-parse", "HEAD").strip()
-    status = _git("status", "--porcelain", "--", ".", ":(exclude)research/mycelic_e2e/results").splitlines()
+    status = _git("status", "--porcelain", "--", ".", *GIT_EXCLUDES).splitlines()
     files = [ln[3:] for ln in status if ln.strip()]
-    return {"git_sha": sha or None, "git_branch": _git("rev-parse", "--abbrev-ref", "HEAD").strip() or None,
-            "dirty": bool(files), "dirty_count": len(files), "dirty_files": files[:20]}
+    return {"git_sha": sha or None, "repo_sha": sha or None, "git_branch": _git("rev-parse", "--abbrev-ref", "HEAD").strip() or None,
+            "dirty": bool(files), "dirty_count": len(files), "dirty_files": files[:20],
+            "repo_path": str(repo_path()), "snapshot_rev": snapshot_rev()}
 
 
 def host_info() -> dict[str, Any]:
@@ -192,9 +215,11 @@ def _norm_ablation(a: Any) -> str | None:
     return None if a in (None, "", "none", "None") else str(a)
 
 
-def holdout_rows(sha: str | None, ablation: Any, mode: str, path: str | os.PathLike[str] | None = None) -> list[dict[str, Any]]:
+def holdout_rows(sha: str | None, ablation: Any, mode: str, path: str | os.PathLike[str] | None = None, variant: Any = None) -> list[dict[str, Any]]:
+    """Holdout rows for the same candidate: git sha, ablation, mode and (for the baseline) variant."""
+    norm = lambda v: None if v in (None, "", "none") else str(v)      # noqa: E731
     return [r for r in runs(path) if r.get("split") == "holdout" and r.get("git_sha") == sha and _norm_ablation(r.get("ablation")) == _norm_ablation(ablation)
-            and r.get("mode") == mode]
+            and r.get("mode") == mode and norm(r.get("variant")) == norm(variant)]
 
 
 # ---------------------------------------------------------------------------------------------- run lifecycle
@@ -211,12 +236,19 @@ def start_run(cfg: Mapping[str, Any]) -> str:
     if split == "holdout":
         if check["status"] != "ok":
             raise HoldoutRefused(f"holdout hash check: {check['status']} (expected {str(check.get('expected'))[:16]}, actual {str(check.get('actual'))[:16]})")
+        if not git["git_sha"]:
+            raise HoldoutRefused(f"cannot determine the git commit of {git.get('repo_path')} (set {REPO_ENV} to the real repository when running from a snapshot)")
+        rev = git.get("snapshot_rev")
+        if os.environ.get(REPO_ENV) and not rev:
+            raise HoldoutRefused(f"{REPO_ENV} is set but the code directory has no .rev file: the run cannot prove it executes the frozen commit")
+        if rev and not (len(rev) >= 7 and str(git["git_sha"]).startswith(rev)):
+            raise HoldoutRefused(f"code snapshot .rev {rev} does not match the repository HEAD {str(git['git_sha'])[:12]}: the code under test is not the frozen commit")
         if git["dirty"] and not cfg.get("allow_dirty_holdout"):
-            raise HoldoutRefused(f"holdout needs a clean working tree ({git['dirty_count']} changed files); commit first")
-        prior = holdout_rows(git["git_sha"], ablation, mode, path)
+            raise HoldoutRefused(f"holdout needs a clean repository ({git['dirty_count']} changed files, e.g. {git['dirty_files'][:3]}); commit first")
+        prior = holdout_rows(git["git_sha"], ablation, mode, path, cfg.get("variant"))
         if prior:
-            raise HoldoutRefused(f"holdout already run for git {str(git['git_sha'])[:10]} ablation={ablation} mode={mode} (run {prior[0].get('run_id')}); "
-                                 "a holdout is run once per candidate")
+            raise HoldoutRefused(f"holdout already run for git {str(git['git_sha'])[:10]} ablation={ablation} mode={mode} variant={cfg.get('variant')} "
+                                 f"(run {prior[0].get('run_id')}); a holdout is run once per candidate")
     run_id = f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{split}-{mode}-{ablation or 'full'}-s{cfg.get('size', '?')}-{cfg.get('seed', '?')}-{uuid.uuid4().hex[:6]}"
     row = {
         "run_id": run_id, "status": "started", "started_at": now_iso(), "finished_at": None,
@@ -292,6 +324,18 @@ def finish_run(run_id: str, score: Any, gate: Any = None, *, extra: Mapping[str,
     })
     if extra:
         row["extra"] = dict(extra)
+    _append(path, row)
+    return row
+
+
+def mark_completed(run_id: str, extra: Mapping[str, Any] | None = None, *, ledger: str | os.PathLike[str] | None = None) -> dict[str, Any]:
+    """The run itself finished (all views written); scoring and the gate come later through ``report.finalize`` / ``finish_run``, which add
+    the accuracy fields. Appends a ``completed`` row so a crash between the two is visible."""
+    path = Path(ledger) if ledger else ledger_path()
+    start = next((r for r in reversed(read_rows(path)) if r.get("run_id") == run_id), None)
+    if start is None:
+        raise KeyError(f"no started row for run {run_id} in {path}")
+    row = dict(start, status="completed", finished_at=now_iso(), **({"extra": dict(extra)} if extra else {}))
     _append(path, row)
     return row
 

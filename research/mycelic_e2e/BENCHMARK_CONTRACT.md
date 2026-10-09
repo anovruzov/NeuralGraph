@@ -120,6 +120,8 @@ generated. Each came from a review finding or an analysis of DEV runs. None came
 | C5 | **Size S = 112 users** (2 tenants), so that goal-only tasks get disjoint scopes. | REVIEWER-4 1a |
 | C6 | **Sources are anchored** (`--anchor 2026-10-09T00:00:00+00:00`), so a seed regenerates byte-identical sources. | reproducibility |
 | C7 | **Answer extraction reads only asker-visible views.** `score.py` refuses views without `tenant_id`. Disclosure is judged by authorization reach (`reach_authority.json`, computed from the org with `can_route`, answer-free). | REVIEWER-4 2b/2c |
+| C9 | **Popular rival** (structure, identical in dev and holdout): every ordinary cross-department positive and every fault positive has a rival with the same context phrase attributed to a different service (one of the options). R people in ONE department state it, R ∈ {2,4,8,12}, with distinct holders and roots, public sources only. Expected answer unchanged. | The first M dev run scored 120/120 for the system and 119/120 for the baseline. Each context phrase was unique to its pattern, so routing was uncontended. |
+| C10 | **Background corpus**: 3 records per user holder and 12 per department holder, from a per-bank pool that never contains a task context. | The 10,000-user world had only ~400 holders with content. |
 | C8 | **The gate is non-vacuous.** G7 cross-checks every scored view against `coord.db`. G4 replays routing as of each route from the audited domain history. G10 derives each injected fault from the sources and requires its evidence. G8 follows the publication policy (§10 C3). | REVIEWER-4 §5 |
 
 ## 9. Freeze record (filled at freeze)
@@ -130,7 +132,7 @@ generated. Each came from a review finding or an analysis of DEV runs. None came
 | implementation commit | _at freeze_ |
 | evaluator files sha256 (`score.py`, `gold.py`) | _at freeze_ |
 | dev templates sha256 | _at freeze_ |
-| holdout bank sha256 | `89f4afa815b0092320e160f077c4279a287c0f538db5ff17272af81c464791a3` (`templates_holdout.py`, re-sealed 2026-10-09 ~07:05 UTC after the D3 boilerplate fix (first seal `6613deee...5214` ~06:40 UTC); never evaluated before either seal at `/root/sealed_holdout/`, outside the repository; loaded only via `MYCELIC_E2E_HOLDOUT_BANK`; dev/holdout disjointness tests passed against it: 12 passed) |
+| holdout bank sha256 | `6a5eabd3b7ee31b6a4de977ad93b4872ee4a5d98f781d66c8f8871f644a7b318` (`templates_holdout.py`, re-sealed 2026-10-09 ~08:10 UTC after background templates were added; earlier seals `6613deee...5214` ~06:40 and `89f4afa8...791a3` ~07:05 UTC; never evaluated under any seal at `/root/sealed_holdout/`, outside the repository; loaded only via `MYCELIC_E2E_HOLDOUT_BANK`; dev/holdout disjointness tests passed against it: 12 passed) |
 | dev seeds / holdout seeds | _at freeze_ |
 | sizes per split | _at freeze_ |
 | per-task timeout, worker drain budget | _at freeze_ |

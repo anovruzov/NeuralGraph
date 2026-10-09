@@ -1,0 +1,208 @@
+From bea9788b6f916dc612937296c648335fd73a298a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 08:32:45 +0000
+Subject: [PATCH 34/43] Dev analysis of the hardened run: different-service
+ claims treated as contradictions
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl       |   1 +
+ research/mycelic_e2e/plan/DEV_ANALYSIS_C4.md | 176 +++++++++++++++++++
+ 2 files changed, 177 insertions(+)
+ create mode 100644 research/mycelic_e2e/plan/DEV_ANALYSIS_C4.md
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 0bac85c..36cd3f2 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -35,3 +35,4 @@
+ {"id": "X034", "utc": "2026-10-09T08:21:44Z", "kind": "e2e-run", "run": "C3-L3 (L=10,000 users, seed 3, dev, anchor 2026-10-09T00:00Z, --max-open-holders 1500) + baselines", "revision": "36a9951 (code snapshot), generator pre-rival/pre-background (sparse content)", "provider": "deterministic (fake.py)", "host": "cloud container (shared with other runs + llama-server)", "result": "system 120/120 = 1.000 Wilson95 [0.969,1.000]; baseline-source 119/120 = 0.992 [0.954,0.999]; baseline-single 109/120 = 0.908 [0.843,0.948]; 0 disclosures; gate VALID G1-G10; holders created 10,648, with records 417, routed 482, activated (answered with evidence) 319; 1,508 questions, 14,822 routes; records ingested 3,043; wall 781 s system; peak RSS 1.17 GB; 14,290 fake calls", "class": "development (dev split), valid gate; SPARSE world (pre-hardening generator) \u2014 superseded for difficulty by C4 (rivals + background)"}
+ {"id": "X035", "utc": "2026-10-09T08:24:15Z", "kind": "e2e-run", "run": "C4-S1 (S, seed 1, dev, rivals + background) + baselines", "revision": "54fec3f (code snapshot)", "provider": "deterministic (fake.py)", "result": "system 103/120 = 0.858 Wilson95 [0.785,0.910] (cross_domain 28/40, fault 5/10, all other classes perfect); baseline-source 116/120 = 0.967 [0.917,0.987]; baseline-single 69/120 = 0.575 (rival accretion -> ambiguous claims, cross_domain 0/40); 0 disclosures; gate VALID", "class": "development (dev split), valid"}
+ {"id": "X036", "utc": "2026-10-09T08:24:15Z", "kind": "live-component-check", "agent": "ENGINEER-C (claude-sonnet-5-5)", "artifact": "research/mycelic_e2e/live/LIVE_ANSWER_CHECK.md", "provider": "live Qwen3-4B-Instruct-2507 Q4_K_M (llama.cpp CPU) vs deterministic", "result": "n=40 (question, holder) pairs from dev run C1-S1 through the real EvidenceStore.answer_question: agreement both-answer 13, only-fake 7, only-live 0, neither 20; gold-holder pairs: fake 17/17, live 13/17 (Wilson ~0.53-0.90); live never cited a non-gold or decoy excerpt; misses are answer-step refusals (model reads named departments literally), gold excerpt was retrieved in 17/17; median 142 s/pair at 4 concurrent; 28,889 prompt + 1,570 completion tokens", "class": "component-only live check (dev split, n=40)"}
++{"id": "X037", "utc": "2026-10-09T08:32:45Z", "kind": "analysis", "agent": "PLANNER (claude-fable-5-1)", "artifact": "research/mycelic_e2e/plan/DEV_ANALYSIS_C4.md", "result": "all 17 C4-S1 failures: routing/clustering/gate correct (gold supported, rival hypothesis by dept rule) but the deterministic evaluator flags gold-vs-rival (different services, shared context tokens, different numbers) as a disagreement -> engine opens a conflict -> both claims contested; contradiction follow-up routed away from both sides' supporters -> never resolves. Fails iff rival dept is one of the question's two depts (17/17 vs 23/23 passing). Baseline avoids it by not propagating conflicts to the cluster finding.", "orchestrator_decision": "approve C1 (different-entity disagreements are competing evidence, not contradictions), C2-routing defect fix (contradiction follow-ups reach both sides' holders), C3 department round-robin; reject 'hypothesis cannot demote supported' policy (not reviewed). Baseline asymmetry (no conflict propagation to cluster findings) disclosed as a declared difference.", "class": "analysis"}
+diff --git a/research/mycelic_e2e/plan/DEV_ANALYSIS_C4.md b/research/mycelic_e2e/plan/DEV_ANALYSIS_C4.md
+new file mode 100644
+index 0000000..3ac342f
+--- /dev/null
++++ b/research/mycelic_e2e/plan/DEV_ANALYSIS_C4.md
+@@ -0,0 +1,176 @@
++# DEV run C4-S1 — failure analysis (cycle 2, contract §10 C9 "popular rival")
++
++Run dirs (read-only, `mode=ro`): `scratchpad/runs/C4-S1` (system, run `run_9cf7a316a832`, code `54fec3f`, 103/120 = 0.858) and
++`scratchpad/runs/C4-S1-baseline-source` (116/120). Per class, system: cross_domain 28/40, fault 5/10, every other class
++perfect (coincidence 10, copies 7, common_origin_pos 8, contradiction 10, temporal 10, single_domain 10, denied 10, cross_tenant 5).
++Baseline fails dev-018, dev-039, dev-102, dev-104 (none of them a system failure). All 17 system failures are **abstains** on
++positives (`extracted=abstain`, `reason=wrong_option`); no leak, no tie, no error.
++
++Everything below was read from `coord.db` (`question.route` audit, `claims`, `conflicts`, `responses`, `questions`), the
++holder `evidence.db`s, the asker views and the dev gold. Scripts: `scratchpad/analyze_c4.py` (per-task dump, adapted from
++`analyze_s1.py`) and `scratchpad/summ_c4.py` (one block per task; the tables below are its output).
++
++## 0. Headline
++
++The S1 problems are gone: routing by term index reaches the gold holders (16/17 failed tasks had **every** gold holder
++routed, dev-017 had 2/3 in two departments), the evaluator keeps the gold and the rival statements in **separate** clusters
++(one claim per service — never merged), and the gate does exactly what the contract wants: the gold claim is `supported`
++(3–4 independent roots, 2 departments) and the rival claim is `hypothesis` ("independent roots span 1 department unit(s);
++the question requires 2").
++
++All 17 failures diverge at the same, new place, **(e) conflict handling**: `evaluate_responses` reports the gold statement and
++the rival statement as a *disagreement* ("Numbers differ: 19 vs 50" — they share ≥3 content tokens: the context phrase
++`ivory jetty` plus the boilerplate token `service`), the engine turns that pair into a conflict between the two committed
++claims, and `_open_conflict_sync` sets **both** claims to `contested` regardless of their gate status. The contradiction
++follow-up is then routed *away* from the holders behind both sides (`already_supports` penalty), reaches 0 gold holders in
++16/17 cases, finds "0 support A, 0 support B, records still disagree: True" and leaves the conflict `investigating`. The
++asker view ends with two `contested` claims; extraction reads only `supported` claims → abstain.
++
++The split is exact: a positive **passes iff the rival department is not one of the question's two departments** (23/23
++passing question tasks: rival not routable → 0 rival answers → 0 conflicts; 17/17 failing: rival in a question department
++→ R rival answers → 1 conflict). R (2–7 in this seed) does not matter: R=2 fails as surely as R=7.
++
++The baseline passes the same 17 tasks because its commit path is asymmetric by accident: findings are gated with
++`has_open_conflict=False` (gold finding → `supported`, rival finding → `hypothesis` by the department rule) and the
++disagreement *sides* are committed as separate 1-root `contested` claims next to them (dev-025: 2 findings + 30 contested side
++claims). The supported gold finding survives and extraction picks it.
++
++Run-wide, **1241 of the 1690 conflicts** opened in this run are between two claims that each name exactly one service and
++name *different* services — 73% of all conflict investigations (and their loop budget) were spent on "A says X is the cause,
++B says Y is the cause", which is competing evidence, not a contradiction of a record.
++
++## 1. Per-task table (17 failures)
++
++`gold` = gold holders routed on the first question / total; `gold claim` and `rival claim` = (status, independent roots,
++departments spanned); `child` = the contradiction follow-up: holders routed, gold holders among them, holders that answered
++with the gold record, outcome. Every parent question: `rank_method=hypergraph`, candidates 33–39, 10 chosen,
++`entity_holders=0` (entity index empty for these records: C3 default ≥5 occurrences per holder), term hits 2–3 for gold.
++
++| task | cls / fault | R | gold | gold claim | rival claim | conflict | child (contradiction) | view |
++|---|---|---|---|---|---|---|---|---|
++| dev-010 | cross_domain | 2 | 3/3 | contested, 3 roots, 2 depts | contested, 2 roots, 1 dept | 19 vs 50 | 10 routed, gold 0/3, gold answers 0 → open | contested, contested |
++| dev-017 | cross_domain | 7 | 2/3 (Treasury Planning Team 2 memory lost a holder_id tie to equal-score user holders) | contested, 2, 2 | contested, 3, 1 | 30 vs 96 | gold 1/3, gold answers 2, rival answers 3 → still disagree → open | contested ×2 |
++| dev-025 | cross_domain | 5 | 3/3 | contested, 3, 2 | contested, 5, 1 | 48 vs 70 | gold 0/3 → open | contested ×2 |
++| dev-035 | fault duplicate | 5 | 4/4 | contested, 4, 2 | contested, 5, 1 | 58 vs 29 | gold 0/4 (3 gold answers from background copies) → open | contested ×2 |
++| dev-038 | cross_domain | 2 | 3/3 | contested, 3, 2 | contested, 2, 1 | 34 vs 83 | gold 0/3 → open | contested ×2 |
++| dev-042 | cross_domain | 2 | 3/3 | contested, 3, 2 | contested, 2, 1 | 23 vs 86 | gold 0/3 → open | contested ×2 |
++| dev-048 | cross_domain | 5 | 3/3 | contested, 3, 2 | contested, 5, 1 | 23 vs 41 | gold 0/3 → open | contested ×2 |
++| dev-056 | fault out_of_order | 2 | 4/4 | contested, 4, 2 | contested, 2, 1 | 81 vs 60 | gold 0/4 → open | contested ×2 |
++| dev-062 | cross_domain | 2 | 3/3 | contested, 3, 2 | contested, 2, 1 | 77 vs 53 | gold 0/3 → open | contested ×2 |
++| dev-064 | fault delete | 6 | 4/4 | contested, 4, 2 | contested, 6, 1 | 19 vs 46 | gold 0/4 → open | contested ×2 |
++| dev-074 | cross_domain | 2 | 3/3 | contested, 3, 2 | contested, 2, 1 | 33 vs 14 | gold 0/3 → open | contested ×2 |
++| dev-084 | cross_domain | 2 | 3/3 | contested, 3, 2 | contested, 2, 1 | 17 vs 23 | gold 0/3 → open | contested ×2 |
++| dev-096 | cross_domain | 2 | 3/3 | contested, 3, 2 | contested, 2, 1 | 40 vs 88 | gold 0/3 → open | contested ×2 |
++| dev-098 | cross_domain | 4 | 3/3 | contested, 3, 2 | contested, 4, 1 | 86 vs 32 | gold 0/3 → open | contested ×2 |
++| dev-107 | fault delete | 5 | 4/4 | contested, 4, 2 | contested, 5, 1 | 32 vs 64 | gold 0/4 → open | contested ×2 |
++| dev-111 | cross_domain | 3 | 3/3 | contested, 3, 2 | contested, 3, 1 | 13 vs 42 | gold 0/3 → open | contested ×2 |
++| dev-117 | fault duplicate | 2 | 4/4 | contested, 4, 2 | contested, 2, 1 | 20 vs 76 | gold 0/4 → open | contested ×2 |
++
++The `gate_notes` of every parent show the intended verdict before the conflict overwrote it, e.g. dev-010:
++`finding 0: ['3 independent source roots (policy needs 2)'] → supported`, `finding 1: ['2 independent source roots',
++'independent roots span 1 department unit(s); the question requires 2'] → hypothesis`. The fault injections themselves were
++handled correctly (duplicates de-duplicated, deleted/out-of-order records in their expected states; gold still has 4 roots).
++
++## 2. Counts per first-divergence stage
++
++| stage | count | detail |
++|---|---|---|
++| (a) gold holders not routed | 0 | 16/17 routed all gold holders; dev-017 routed 2/3 in 2 departments (enough for the gate). Rival holders (same context phrase → same `term_hits`) are routed next to them; the diversity bonus guarantees one slot per department, ties beyond that go by `holder_id` |
++| (b) routed but no_evidence | 0 | every routed gold holder answered with the gold record |
++| (c) gold and rival merged into one cluster | 0 | one finding per service; `agreeing` never unions across the disagreement |
++| (d) gate (department rule / roots) | 0 | gold `supported` (2 depts), rival `hypothesis` (1 dept) in all 17 — the contract's intended verdict |
++| **(e) different-service claims treated as a contradiction → both `contested`; investigation routed away from the holders behind them → stays open** | **17** | `fake.evaluate_responses` (shared tokens ≥3 incl. `service`, numbers differ) → `engine.commit` lines ~745–780 `side_claim`/`open_conflict` → `knowledge/service.py:_open_conflict_sync` sets both to `contested` → `_ask_contradiction` child: `rank_holders` `already_supports=1` (−2) for every holder behind either claim → gold routed 0/3 in 16/17 → `_decisive` never reached ("records still disagree: True" because the child's own responses pair up the same way) |
++| (f) extraction | 0 | extraction is correct: no `supported` claim → abstain (C1 ambiguity never triggered; each claim names one service) |
++| (g) wave timing | 0 | every child reached `committed/investigated` before the view was taken; nothing was still pending |
++
++For calibration: the 23 passing question-tasks of the same classes have 0 rival answers and 0 conflicts (rival department
++outside the question's two departments → not routable); the 10 goal-only cross_domain tasks pass as before. No abstain-class
++task (coincidence, copies, single_domain, denied, cross_tenant) has a conflict on its question, and no contradiction/temporal
++task opened one (the retracted/superseded side is never active), so the conflict path is exercised **only** by the 17 failures.
++
++## 3. Why the baseline succeeds on the same tasks
++
++`research/mycelic_e2e/bench/baseline_central.py:_answer_task` runs the same `evaluate_responses` over the same records (dev-025:
++2 findings, 15 disagreements) but commits findings with `has_open_conflict=False` and only the disagreement *sides* with
++`has_open_conflict=True`. Its view therefore holds the gold finding as `supported` (3 roots, 2 departments), the rival finding
++as `hypothesis` (department rule) and 2×15 single-root `contested` side claims. Extraction sees one unambiguous supported claim
++→ correct. It is not a better judgement, it is the absence of the system's "a disagreement demotes both claims" step; the
++system's own gate ranks the two findings exactly the same way before the conflict overwrites it.
++
++## 4. Highest-leverage production changes (ranked)
++
++### C1 — A disagreement between claims about *different* entities is competing evidence, not a contradiction (largest gain)
++
++* **Mechanism today**: `mycelic/discovery/engine.py:commit` (block after `existing_side`/`side_claim`, ~745–780) opens a
++  conflict for every `disagreements[]` pair the evaluator returns; `mycelic/models/fake.py:evaluate_responses` (and
++  `engine._agrees`) call two statements a disagreement when they share ≥3 content tokens and their numbers differ — with
++  `service` counted as a content token, any two "<x>-service … <context phrase>, <n>" records qualify.
++  `knowledge/service.py:_open_conflict_sync` then sets both claims `contested` whatever the gate decided.
++* **One-factor change (engine, model-independent)**: before `open_conflict`, compute the entity sets of the two sides with the
++  existing `engine._claim_entities(..., text)` (hypergraph support context + `hg.entities_in_text`). If **both sides name
++  exactly one entity and the entities differ**, do not open a conflict: commit both sides as ordinary findings (they already
++  are, via `existing_side`) and let the gate's independence rules rank them (`supported` vs `hypothesis`). Record the pair as
++  `competing` in the gate notes / derivation so the audit still explains it. Keep today's behaviour when either side names
++  zero or several entities (a true record contradiction about one thing, or an ambiguous statement). Apply the same guard
++  to the verification path (`engine.py` ~818, `_agrees` on verification findings).
++* **Expected movement**: +17 at S1 (103 → 120/120): in all 17 the gate already says gold=supported, rival=hypothesis.
++  Run-wide, 1241/1690 (73%) conflict investigations disappear, which also returns loop budget to real gaps. Scales: the
++  holdout structure is identical (C9 "identical in dev and holdout"); R does not enter.
++* **Must not break**: contradiction class (same entity, different numbers → conflict must still open; today no contradiction
++  task opens one because the retracted side is inactive, so add a unit test: two claims naming the same service with
++  different numbers → `conflict.open`; different services → no conflict, both committed). Goal-only tasks: 6 passing
++  cross_domain goal-only tasks currently carry `contested` claims — with C1 some become `supported`; re-check that the
++  "most independent roots" rule still picks the gold option (D2 decoy ambiguity). Denied/cross-tenant/copies: untouched (the
++  change is after the gate). Keep `status=contested` for `contradicting_refs` (retractions) as is.
++
++### C2 — Prefer the cross-unit corroborated claim when a conflict *is* opened (gate-rank asymmetry; complement or fallback to C1)
++
++* **Mechanism today**: `_open_conflict_sync` demotes both sides symmetrically; the investigation (`engine.py` ~660–690) can
++  only resolve when `not still and sa and not sb` and `_decisive` finds a *new* root — with the child routed away from both
++  sides (`routing.py:rank_holders`, `W_SUPPORTS=2` applied to the supporters of both conflict claims via `question_entities`
++  → `support.holders`), `sa`/`sb` are 0 and the conflict is never decided.
++* **One-factor change** (`knowledge/service.py:_open_conflict_sync` + `recompute_status`): a side that failed the question's
++  independence policy (gate `hypothesis`: 1 department, or < min roots) cannot demote a side that passed it. The passing
++  side keeps `supported` with the conflict attached (`support.open_conflicts`), the failing side becomes `contested`; both
++  sides demote only when both passed the policy. Pair with the contradiction follow-up actually reaching the holders behind
++  each side as its docstring promises (`_ask_contradiction`: pass `exclude_supporters=False` semantics into routing — zero the
++  `already_supports` penalty for `kind == "contradiction"`), so a real same-entity conflict can still be decided by `_decisive`.
++* **Expected movement**: +17 at S1 on its own (same 17 tasks); with C1 in place it changes nothing at S1 but is the general
++  rule for a real deployment where a single team's loud claim meets a quietly corroborated one.
++* **Must not break**: a genuine same-entity contradiction where the *retraction* lives in one department and the stale value
++  is corroborated across two: the stale side would stay `supported` until the investigation runs. Acceptable only together with
++  the routing part (the investigation then reaches the retracting holder) and `contradicting_refs` still forcing `contested`.
++  Audit: G7 cross-checks claim statuses against `coord.db` — update its expectation for the asymmetric status.
++
++### C3 — Department-diverse routing within budget: round-robin across departments instead of one diversity slot (robustness at R=12 / M / L)
++
++* **Mechanism today**: `routing.py:rank_holders` gives `W_DIVERSITY=1` once per department (first holder), then fills the
++  remaining slots by `base` with a `holder_id` tie-break. In the rival department every rival holder has the same `term_hits`
++  as the gold holders (same context phrase), so beyond the first slot per department the order is arbitrary (dev-017: the
++  gold unit holder lost to user holders with equal scores). At R=12 (holdout range {2,4,8,12}) one department's rivals can
++  take 8 of the 10 slots; the second gold holder of the other department is then a coin flip.
++* **One-factor change**: make the diversity bonus decay with the number already chosen from the group
++  (`W_DIVERSITY / (1 + n_chosen_in_group)`), i.e. each department gets its k-th slot only after every other candidate
++  department got its (k−1)-th; keep `base` ordering inside a department and prefer unit (department memory) holders on exact
++  ties (`owner_type == "unit"` before `holder_id`). Write `n_chosen_in_group` into the audit `scores`.
++* **Expected movement**: 0 at S1 (dev-017 still passed the gate with 2/3); it removes the only routing exposure the rival
++  structure has left, and it is what a deployment with hundreds of holders per department needs anyway.
++* **Must not break**: single_domain (one department → still one department after re-ordering), denied/cross-tenant (the
++  authorized set is unchanged; only its order changes), G4 replay (deterministic; add the tie rule to the audit detail).
++
++### Not recommended
++
++* Changing `fake.py` (`shared_tokens`, dropping `service`): it changes the provider sha and does not help the real provider;
++  the LLM's `disagreements[]` need the same entity guard in the engine.
++* Raising `budget.holders`: the failure is not routing.
++
++## 5. Verification after the change
++
++1. Re-run C4-S1 system; expect cross_domain 40/40, fault 10/10, all other classes unchanged; `conflict.open` count must drop
++   from 1690 to the same-entity pairs only (check with the run-wide query in `summ_c4.py`'s companion: conflicts whose two
++   claims name different single services should be 0).
++2. Every former failure: gold claim `supported` with `independent_units.department=2`, rival claim `hypothesis` with the
++   "span 1 department unit(s)" reason, no `contested` in the view.
++3. Unit tests: (i) same service, different numbers → conflict opened, both contested; (ii) different services, same context
++   → no conflict, both committed, gate ranks them; (iii) contradiction follow-up routes to the holders behind both sides.
++4. Goal-only tasks (10) and the 6 passing cross_domain tasks that currently carry `contested` claims must still pass.
+-- 
+2.43.0
+

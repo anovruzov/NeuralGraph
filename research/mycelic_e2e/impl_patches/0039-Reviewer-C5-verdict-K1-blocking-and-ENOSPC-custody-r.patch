@@ -1,0 +1,158 @@
+From 83744d68ad98a76adc2e9b552ccde2a6ef0ca118 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 08:59:54 +0000
+Subject: [PATCH 39/43] Reviewer C5 verdict (K1 blocking) and ENOSPC custody
+ rows
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl     |   2 +
+ research/mycelic_e2e/reviews/REVIEW_WP1.md | 124 +++++++++++++++++++++
+ 2 files changed, 126 insertions(+)
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 813e165..107ab4b 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -39,3 +39,5 @@
+ {"id": "X038", "utc": "2026-10-09T08:44:07Z", "kind": "custody", "what": "llama-server (Qwen3-4B, PID 8513, :8082) stopped gracefully with /root/mycelic-live/serve.sh stop 4b", "why": "live component check finished; its ~6.3 GB RSS was needed for concurrent M/L dev runs; restart: /root/mycelic-live/serve.sh 4b", "class": "custody"}
+ {"id": "X039", "utc": "2026-10-09T08:49:44Z", "kind": "harness", "agent": "WP3 (claude-sonnet-5-5)", "result": "holdout guard wired into run.py and baseline_central (start_run before anything is written; refuse when not frozen / bank hash changed / repo dirty / snapshot .rev != repo HEAD / candidate already run; completed and aborted rows use up the shot; key = git sha, ablation, mode, variant); 131 harness tests pass", "class": "harness"}
+ {"id": "X040", "utc": "2026-10-09T08:49:44Z", "kind": "custody", "what": "disk allowance", "result": "free space fell to ~0 then 5.2 GB; deleted regenerable WP2 --generate-only L output (7.1 GB), orchestrator debug copy, DB copies inside superseded reviewer/live scratch dirs, and holder stores of superseded dev runs (S1, C1-S1, smoke-cap40, C2a-M2, C3-L3); kept every run's views, gold, manifests, score/gate reports and coord.db; free 15 GB", "class": "custody"}
++{"id": "X041", "utc": "2026-10-09T08:40:00Z", "kind": "review", "agent": "REVIEWER-2 (claude-opus-5-5)", "subject": "C5 92d3d7c (C1 competing findings, C2 contradiction follow-ups to both sides, C3 department round-robin)", "result": "ACCEPT C2, C3; C1 accepted for the benchmark (canonical service names), product rule needs same-kind subjects, related/alias subjects keeping the conflict, tenant-independent verdict (probes P1-P3b); BLOCKING K1: QuestionService.detail() returns run state carrying competing/verification_competing text to routed-only holder owners (probe P4)", "evidence": "reviews/REVIEW_WP1.md 'Review of C5 92d3d7c'; probes $SCR/rv6/mycelic/tests/test_review_c5.py", "class": "review"}
++{"id": "X042", "utc": "2026-10-09T09:00:00Z", "kind": "custody", "what": "disk allowance exhausted at ~08:46Z with four concurrent runs", "result": "system runs C4-M2 (54fec3f), C5-M2 and C5-L3 (92d3d7c) aborted with ENOSPC (no scores; outputs renamed *.enospc, holder stores deleted); their completed central baselines kept as *-baseline-*.unpaired (no paired system result, not reported); C5-S1 unaffected; free space restored to 21 GB by deleting regenerable holder/central stores of failed or already-gated runs; C5-L3 relaunched 08:59Z alone; from now on at most two runs concurrently", "class": "aborted-infra"}
+diff --git a/research/mycelic_e2e/reviews/REVIEW_WP1.md b/research/mycelic_e2e/reviews/REVIEW_WP1.md
+index f4c26b2..13409c7 100644
+--- a/research/mycelic_e2e/reviews/REVIEW_WP1.md
++++ b/research/mycelic_e2e/reviews/REVIEW_WP1.md
+@@ -756,3 +756,127 @@ python -m pytest mycelic/tests/test_review_wp1.py -q -s   → every earlier prob
+   - transport-sequence heartbeat ordering;
+   - the `_denied_records` cache;
+   - the non-blocking items listed in the earlier sections.
++
++---
++
++## Review of C5 `92d3d7c` (D19: competing findings, contradiction follow-ups to both sides, department round-robin)
++
++Reviewer: REVIEWER-2 (`claude-opus-5-5`). Copy: `git archive 92d3d7c | tar -x -C $SCR/rv6`.
++Probes: `$SCR/rv6/mycelic/tests/test_review_c5.py` (P1–P5). Motivation read: `plan/DEV_ANALYSIS_C4.md`.
++
++**Verdict: ACCEPT C2 and C3. C1 is accepted for the benchmark's canonical-name world, with two required changes before it
++counts as a product rule. BLOCKING: K1, a disclosure regression through the question's run state.** Its fix is one line.
++
++### Reproduction
++```
++python -m pytest mycelic/tests -q -p no:warnings -p no:cacheprovider       → 518 passed, 7 skipped in 129.99s (matches the commit message)
++python -m pytest mycelic/tests/test_c4_followup.py -q -p no:warnings        → 7 passed
++python -m pytest mycelic/tests/test_review_c5.py -q -s                      → probe outputs below
++```
++A first full-suite run in the same tree crashed during session teardown (pytest cache write). It overlapped with my probe
++runs in the same directory. The rerun above uses no cache and its own basetemp.
++
++### C1: "different single subjects → competing, not a contradiction" (`discovery/engine.py:261-279, 775-800, 826-833`, late-response path)
++- **Correct for the analysed failure.** Two statements, each naming exactly one subject entity, with different subjects:
++  no conflict is opened, both are committed, and the gate ranks them. The same subject still opens a conflict
++  (`test_c1_same_service_with_different_numbers_still_opens_a_conflict`). Zero subjects or several subjects on either side
++  keep the old behaviour.
++- **Can BOTH become supported? Yes.** P1: the rival is also corroborated in 2 departments. Output:
++
++  `P1 … {'ledgergate-service …': 'supported', 'parcelrouter-service …': 'supported'} conflicts: 0`
++
++  For the product, this is acceptable when they really are different subjects: two services can each have their own
++  value, and several causes can contribute. But the competing relation is recorded only in the question's run-state
++  `gate_notes` (`engine.py:799`), which the asker view does not present as a relation.
++  - Required (product, non-blocking for the benchmark): persist `competing` as a hypergraph relation between the two
++    claims, or as a question-result field, so the asker sees two *competing* supported explanations. Otherwise they look
++    like two unrelated facts.
++  - For the benchmark, O1 extraction must keep its ambiguity rule: two supported claims naming different options abstain
++    or count as ambiguous. That rule is in the scorer, which I did not re-review here.
++- **Genuine contradictions that now slip through:**
++  - **P2, alias or renamed service.** `ledgergate-service … 19` against `ledger-gateway-service … 50` (the same real
++    service, renamed). Output:
++
++    `P2 … {'ledgergate-service …': 'supported', 'ledger-gateway-service …': 'supported'} conflicts: 0`
++
++    The extractor has no alias table, so any rename or alias turns a value clash into "competing". A holder (or colluding
++    holders) can get a contradicted value accepted by phrasing it about an alias, as long as it reaches the gate's roots
++    and departments.
++  - **P3/P3b, issue against service.** `LGX-412 … 50` against `ledgergate-service … 19`.
++    - While no holder has published an `LGX` issue (P3), "LGX-412" is not extracted: no subject on that side, so a
++      conflict opens (`contested`, 1 conflict).
++    - Once any holder of the tenant has published an `issue:tracker:lgx-*` id (P3b), the pair counts as competing:
++
++      `P3b tracker issue (key known) vs service -> {… 'supported', … 'supported'} conflicts: 0`
++
++    - Two problems follow:
++      - Cross-kind pairs (issue / component / repo against service) are treated as different subjects, although a
++        ticket or a component is very often *about* that service.
++      - The verdict for the same pair depends on unrelated tenant state (`tenant_known_keys` from `entity_registry`).
++  - **A service against a component of it.** Not reached in practice: my phrasing tests show components are rarely
++    extracted (`'the ledgergate db component v2.1 …' -> []`), so that side has no subject and the conflict opens. It
++    *would* slip through as soon as the extractor recognizes the component.
++  - **A retraction phrased about a different service** ("not ledgergate, it was parcelrouter") names two services, so it is
++    not competing and the conflict opens. Correct.
++- **Is the subject-kind choice sound?** Service, component, issue and repo as subjects, with symptom, topic, version and
++  org as context, is reasonable for "what is the statement about". Required before C1 is a product rule (not blocking for
++  benchmark runs, whose worlds use canonical service names only):
++  1. **Same kind only.** Competing requires `entity_kind(a) == entity_kind(b)`. Cross-kind pairs keep the conflict
++     (`engine.py:279`).
++  2. **Related subjects keep the conflict.** That covers subjects that co-occur in the same holders' records (entity
++     index, the same `entity_index` holders) or whose display names overlap (one contains the other, or token Jaccard
++     ≥ 0.5). This catches renames and aliases cheaply until an alias table exists.
++  3. **Same answer in every tenant.** The verdict should not depend on whether a tracker key happens to be known in the
++     tenant: pass the tenant `tracker_keys` policy as well, or treat an unrecognized key-like token as "unknown subject",
++     which keeps the conflict.
++
++### K1 (BLOCKING): the run state now carries other responders' content, and routed holder owners can read it
++- **Where.** `QuestionService.detail()` returns the full `question_runs` row to everyone `can_view` admits, including a
++  holder owner who was merely routed the question (`inquiry/service.py:206`). Such an owner otherwise sees only their own
++  responses (`resp = [... if full or r["holder_id"] in mine]`).
++- **What is new.** C1 writes response-derived text into that state:
++  - `{"competing": {…, "summary": summary[:160]}}` (`engine.py:799`). The summary quotes both sides' values, e.g.
++    "Numbers differ: 19 vs 50".
++  - `{"verification_competing": [finding text[:120], …]}` (`engine.py:832`), i.e. other holders' finding statements on a
++    *blind verification* question.
++- **Probe P4.** The owner is on the rival side and routed only, and the gold side's value is 19. Output:
++
++  `P4 full_view: False | responses visible: 1 | run.state mentions the other side's value 19: True | competing note: [{'competing': {… 'summary': 'Numbers differ: 19 vs 50'}}]`
++
++- Before this commit the run state held only ids, statuses and reasons. I flagged it as non-blocking in the 1b74545 review
++  because of `verified.target_claim_id`.
++- **Fix (one line):** in `detail()`, return `run` only when `full` is true (or strip `state.gate_notes`, `state.verified`
++  and the investigation notes otherwise). Add P4 as a test.
++
++### C2: contradiction follow-ups reach both sides (`routing.py:110-113`). ACCEPT
++- For `kind == 'contradiction'` the `already_supports` and `shares_root` penalties are off, and the audit says so.
++  Verification questions keep routing away from supporters.
++- **No regression in what the routed holders see.**
++  - The contradiction question is still `blind_verification=True` (`engine.py` `_ask_contradiction`: `_child_policy(…,
++    blind_verification=True)`).
++  - Its text is composed from the anchor's topic entity names (H2 rules: no numbers, no tracker keys).
++  - `target_entities` and lineage are redacted for routed-only viewers. Only the trigger's `conflict_id` remains, an id.
++  - The holder envelope carries no claim text.
++- The holders behind side A therefore do not receive side B's claim through the question. They were routable before too,
++  only penalized. The one disclosure channel is K1, which affects contradiction questions as much as any other.
++
++### C3: department round-robin. ACCEPT
++- **The rule.** The bonus is `W_DIVERSITY / (1 + n_chosen_in_group)`, rounded to 1e-9 so equal sums tie exactly. Exact
++  ties go to unit-owned holders, then `holder_id`. The order list is built from the pool sorted by that key
++  (`routing.py:125-150`).
++- **Authorization still comes first.** The pool is still a slice of the authorized candidates.
++- **Probe P5.** Output:
++
++  `P5 deterministic over 20 shuffles: True | chosen subset of candidates: True | with 5 candidates only those 5: True`
++
++- Preferring unit holders on exact ties is a routing preference, not an authorization change: unit holders are
++  candidates only if `can_route` admits them.
++
++### Blocking list for `92d3d7c`
++1. **K1:** `inquiry/service.py:206`. Do not return the run state (or at least its `gate_notes`, `verified` and
++   investigation notes) to principals without `_full_view`. Add P4 as a test.
++
++### Required before C1 is a product rule (not blocking benchmark runs)
++- Same-kind subjects only, and related or alias subjects keep the conflict (`engine.py:263-279`).
++- A tenant-independent verdict for tracker keys.
++- A persisted, asker-visible `competing` relation.
+-- 
+2.43.0
+

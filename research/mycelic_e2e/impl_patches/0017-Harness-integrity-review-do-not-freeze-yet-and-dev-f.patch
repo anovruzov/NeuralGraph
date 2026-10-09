@@ -1,7 +1,7 @@
 From 7ce10d3640a5acbbda9d2f358e0257348e75916f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 06:49:35 +0000
-Subject: [PATCH 17/28] Harness integrity review (do not freeze yet) and dev
+Subject: [PATCH 17/43] Harness integrity review (do not freeze yet) and dev
  failure analysis of S1
 
 REVIEWER-4: goal-only and cross-tenant tasks mis-specified, role-revealing ids/titles, three

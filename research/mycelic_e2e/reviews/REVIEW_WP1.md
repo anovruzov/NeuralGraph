@@ -691,3 +691,274 @@ python -m pytest mycelic/tests/test_review_wp1.py -q -s   → all earlier probes
    sequence. Add probe HB as a test.
 2. **B1-d:** `evidence/service.py:1022,1032` and `_entity_counts_sync`. Apply deny patterns to the record text before
    computing stems and entities, as answers do (`_redact`). Add probe T3 as a test.
+
+---
+
+## Re-review of `fca60ea` (HB-1 heartbeat clock bound, B1-d deny phrases)
+
+Reviewer: REVIEWER-2 (`claude-opus-5-5`). Copy: `git archive fca60ea | tar -x -C $SCR/rv5`.
+Probes: `$SCR/rv5/mycelic/tests/test_review_wp1.py` (all earlier probes, plus HB2 and T4).
+
+**Verdict: ACCEPT. HB-1 and B1-d are fixed.** One required follow-up is a one-line change (L1) and must land before this
+code runs against an *existing* `coord.db`. It does not block benchmark runs on fresh databases.
+
+### Reproduction
+```
+python -m pytest mycelic/tests -q -p no:warnings          → 509 passed, 7 skipped in 174.15s (matches the commit message)
+python -m pytest mycelic/tests/test_review_wp1.py -q -s   → every earlier probe passes (R8: expected, as before); HB, T3 and the new T4 now pass
+```
+
+### HB-1: fixed (`org.py:19,509-534`)
+- **The fix.** A holder `at` more than `HEARTBEAT_MAX_SKEW_SECONDS = 300` ahead of the coordinator counts as now. The
+  stored value is clamped too, with `at_reported`, `at_clamped` and `received_at` kept beside it. A beat with no time
+  keeps the previous ordering value.
+- **The stale start-up replay is still ignored.** Covered by `test_a_stale_heartbeat_never_rolls_the_registry_back` and
+  `test_a_holder_clock_ahead_or_far_future_cannot_freeze_retractions`.
+- **HB probe output:**
+
+  `HB indexed after ahead-beat: True | after corrected vouched empty beat: False | after beat without at: False | far-future holder still indexed after empty beat: False`
+
+  A holder clock that runs ahead can now suppress its own later beats for at most 300 s. A far-future value no longer
+  freezes anything.
+- **L1 (required before upgrading an existing coordinator; one line).** The *stored* value `seen` is not clamped
+  (`org.py:510`). A far-future `at` written by an earlier version (every version before `36a9951` stored `stats.at`
+  unbounded) still freezes that holder after the upgrade.
+  - Probe HB2 (stored `at` = 9999-12-31): `HB2 legacy far-future stored at still freezes: True`.
+  - Fix: `if seen and seen > now_dt + timedelta(seconds=HEARTBEAT_MAX_SKEW_SECONDS): seen = now_dt`, and add HB2 as a test.
+- **Residual (non-blocking, inherent to ordering by clock).** A holder clock that jumps *backwards* suppresses that
+  holder's own beats until its clock passes the last applied time. Probe HB2 output: `backward clock jump (1 h)
+  suppresses the vouched retraction: True`.
+  - A clock-based check cannot tell this apart from the stale replay it exists to drop. The impact is limited to that
+    holder's own entries, and it corrects itself when the clock does.
+  - Owner opt-out and revocation still withdraw immediately (`update_holder`).
+  - The durable fix remains ordering by a transport-assigned sequence (SQLite message row id or NATS stream sequence), as
+    recommended in the 36a9951 re-review.
+
+### B1-d: fixed (`evidence/service.py:1063-1080` and the two call sites)
+- **The fix.** Terms are stemmed from the text after the owner's deny patterns are removed (`_strip_denied`, the same
+  `pattern.sub` an answer's redaction applies). Records whose text matches a deny pattern contribute no entity ids
+  (`_denied_records`, then `record_id NOT IN json_each(?)`).
+- **Probe outputs:**
+  - `T3 redacted answer text: Status of [redacted]: … | 'falcon' still a published term: False`
+  - New probe T4 (5 records saying "Project Falcon: the ledgergate-service …", deny `project\s+falcon`):
+
+    `T4 entities before deny: ['service:dispatch', 'service:ledgergate', 'symptom:timeout'] | after deny: ['service:dispatch', 'symptom:timeout']`
+
+  - Covered by `test_phrase_deny_patterns_keep_every_word_of_the_phrase_out_of_the_published_ids`.
+- **Non-blocking cost.** When deny patterns exist, `_denied_records` scans and regex-tests every active chunk of the
+  holder on *every* stats call (every heartbeat, about 20 s), and nothing caches it. Terms are cached, entities are not.
+  Cache the denied record ids under the same signature as terms (`change_seq`, count, deny tuple).
+
+### Status
+- No blocking items remain in my WP1 scope.
+- Open follow-ups:
+  - L1, the one-line `seen` clamp, before any upgrade of an existing coordinator;
+  - transport-sequence heartbeat ordering;
+  - the `_denied_records` cache;
+  - the non-blocking items listed in the earlier sections.
+
+---
+
+## Review of C5 `92d3d7c` (D19: competing findings, contradiction follow-ups to both sides, department round-robin)
+
+Reviewer: REVIEWER-2 (`claude-opus-5-5`). Copy: `git archive 92d3d7c | tar -x -C $SCR/rv6`.
+Probes: `$SCR/rv6/mycelic/tests/test_review_c5.py` (P1–P5). Motivation read: `plan/DEV_ANALYSIS_C4.md`.
+
+**Verdict: ACCEPT C2 and C3. C1 is accepted for the benchmark's canonical-name world, with two required changes before it
+counts as a product rule. BLOCKING: K1, a disclosure regression through the question's run state.** Its fix is one line.
+
+### Reproduction
+```
+python -m pytest mycelic/tests -q -p no:warnings -p no:cacheprovider       → 518 passed, 7 skipped in 129.99s (matches the commit message)
+python -m pytest mycelic/tests/test_c4_followup.py -q -p no:warnings        → 7 passed
+python -m pytest mycelic/tests/test_review_c5.py -q -s                      → probe outputs below
+```
+A first full-suite run in the same tree crashed during session teardown (pytest cache write). It overlapped with my probe
+runs in the same directory. The rerun above uses no cache and its own basetemp.
+
+### C1: "different single subjects → competing, not a contradiction" (`discovery/engine.py:261-279, 775-800, 826-833`, late-response path)
+- **Correct for the analysed failure.** Two statements, each naming exactly one subject entity, with different subjects:
+  no conflict is opened, both are committed, and the gate ranks them. The same subject still opens a conflict
+  (`test_c1_same_service_with_different_numbers_still_opens_a_conflict`). Zero subjects or several subjects on either side
+  keep the old behaviour.
+- **Can BOTH become supported? Yes.** P1: the rival is also corroborated in 2 departments. Output:
+
+  `P1 … {'ledgergate-service …': 'supported', 'parcelrouter-service …': 'supported'} conflicts: 0`
+
+  For the product, this is acceptable when they really are different subjects: two services can each have their own
+  value, and several causes can contribute. But the competing relation is recorded only in the question's run-state
+  `gate_notes` (`engine.py:799`), which the asker view does not present as a relation.
+  - Required (product, non-blocking for the benchmark): persist `competing` as a hypergraph relation between the two
+    claims, or as a question-result field, so the asker sees two *competing* supported explanations. Otherwise they look
+    like two unrelated facts.
+  - For the benchmark, O1 extraction must keep its ambiguity rule: two supported claims naming different options abstain
+    or count as ambiguous. That rule is in the scorer, which I did not re-review here.
+- **Genuine contradictions that now slip through:**
+  - **P2, alias or renamed service.** `ledgergate-service … 19` against `ledger-gateway-service … 50` (the same real
+    service, renamed). Output:
+
+    `P2 … {'ledgergate-service …': 'supported', 'ledger-gateway-service …': 'supported'} conflicts: 0`
+
+    The extractor has no alias table, so any rename or alias turns a value clash into "competing". A holder (or colluding
+    holders) can get a contradicted value accepted by phrasing it about an alias, as long as it reaches the gate's roots
+    and departments.
+  - **P3/P3b, issue against service.** `LGX-412 … 50` against `ledgergate-service … 19`.
+    - While no holder has published an `LGX` issue (P3), "LGX-412" is not extracted: no subject on that side, so a
+      conflict opens (`contested`, 1 conflict).
+    - Once any holder of the tenant has published an `issue:tracker:lgx-*` id (P3b), the pair counts as competing:
+
+      `P3b tracker issue (key known) vs service -> {… 'supported', … 'supported'} conflicts: 0`
+
+    - Two problems follow:
+      - Cross-kind pairs (issue / component / repo against service) are treated as different subjects, although a
+        ticket or a component is very often *about* that service.
+      - The verdict for the same pair depends on unrelated tenant state (`tenant_known_keys` from `entity_registry`).
+  - **A service against a component of it.** Not reached in practice: my phrasing tests show components are rarely
+    extracted (`'the ledgergate db component v2.1 …' -> []`), so that side has no subject and the conflict opens. It
+    *would* slip through as soon as the extractor recognizes the component.
+  - **A retraction phrased about a different service** ("not ledgergate, it was parcelrouter") names two services, so it is
+    not competing and the conflict opens. Correct.
+- **Is the subject-kind choice sound?** Service, component, issue and repo as subjects, with symptom, topic, version and
+  org as context, is reasonable for "what is the statement about". Required before C1 is a product rule (not blocking for
+  benchmark runs, whose worlds use canonical service names only):
+  1. **Same kind only.** Competing requires `entity_kind(a) == entity_kind(b)`. Cross-kind pairs keep the conflict
+     (`engine.py:279`).
+  2. **Related subjects keep the conflict.** That covers subjects that co-occur in the same holders' records (entity
+     index, the same `entity_index` holders) or whose display names overlap (one contains the other, or token Jaccard
+     ≥ 0.5). This catches renames and aliases cheaply until an alias table exists.
+  3. **Same answer in every tenant.** The verdict should not depend on whether a tracker key happens to be known in the
+     tenant: pass the tenant `tracker_keys` policy as well, or treat an unrecognized key-like token as "unknown subject",
+     which keeps the conflict.
+
+### K1 (BLOCKING): the run state now carries other responders' content, and routed holder owners can read it
+- **Where.** `QuestionService.detail()` returns the full `question_runs` row to everyone `can_view` admits, including a
+  holder owner who was merely routed the question (`inquiry/service.py:206`). Such an owner otherwise sees only their own
+  responses (`resp = [... if full or r["holder_id"] in mine]`).
+- **What is new.** C1 writes response-derived text into that state:
+  - `{"competing": {…, "summary": summary[:160]}}` (`engine.py:799`). The summary quotes both sides' values, e.g.
+    "Numbers differ: 19 vs 50".
+  - `{"verification_competing": [finding text[:120], …]}` (`engine.py:832`), i.e. other holders' finding statements on a
+    *blind verification* question.
+- **Probe P4.** The owner is on the rival side and routed only, and the gold side's value is 19. Output:
+
+  `P4 full_view: False | responses visible: 1 | run.state mentions the other side's value 19: True | competing note: [{'competing': {… 'summary': 'Numbers differ: 19 vs 50'}}]`
+
+- Before this commit the run state held only ids, statuses and reasons. I flagged it as non-blocking in the 1b74545 review
+  because of `verified.target_claim_id`.
+- **Fix (one line):** in `detail()`, return `run` only when `full` is true (or strip `state.gate_notes`, `state.verified`
+  and the investigation notes otherwise). Add P4 as a test.
+
+### C2: contradiction follow-ups reach both sides (`routing.py:110-113`). ACCEPT
+- For `kind == 'contradiction'` the `already_supports` and `shares_root` penalties are off, and the audit says so.
+  Verification questions keep routing away from supporters.
+- **No regression in what the routed holders see.**
+  - The contradiction question is still `blind_verification=True` (`engine.py` `_ask_contradiction`: `_child_policy(…,
+    blind_verification=True)`).
+  - Its text is composed from the anchor's topic entity names (H2 rules: no numbers, no tracker keys).
+  - `target_entities` and lineage are redacted for routed-only viewers. Only the trigger's `conflict_id` remains, an id.
+  - The holder envelope carries no claim text.
+- The holders behind side A therefore do not receive side B's claim through the question. They were routable before too,
+  only penalized. The one disclosure channel is K1, which affects contradiction questions as much as any other.
+
+### C3: department round-robin. ACCEPT
+- **The rule.** The bonus is `W_DIVERSITY / (1 + n_chosen_in_group)`, rounded to 1e-9 so equal sums tie exactly. Exact
+  ties go to unit-owned holders, then `holder_id`. The order list is built from the pool sorted by that key
+  (`routing.py:125-150`).
+- **Authorization still comes first.** The pool is still a slice of the authorized candidates.
+- **Probe P5.** Output:
+
+  `P5 deterministic over 20 shuffles: True | chosen subset of candidates: True | with 5 candidates only those 5: True`
+
+- Preferring unit holders on exact ties is a routing preference, not an authorization change: unit holders are
+  candidates only if `can_route` admits them.
+
+### Blocking list for `92d3d7c`
+1. **K1:** `inquiry/service.py:206`. Do not return the run state (or at least its `gate_notes`, `verified` and
+   investigation notes) to principals without `_full_view`. Add P4 as a test.
+
+### Required before C1 is a product rule (not blocking benchmark runs)
+- Same-kind subjects only, and related or alias subjects keep the conflict (`engine.py:263-279`).
+- A tenant-independent verdict for tracker keys.
+- A persisted, asker-visible `competing` relation.
+
+---
+
+## Review of K1 fix b145e21
+
+Reviewer: REVIEWER-2, model id `claude-opus-5-5`. Copy: `git archive b145e21 | tar -x -C $SCR/rv7`.
+Probes: `$SCR/rv7/mycelic/tests/test_review_c5.py` (P4 from the C5 review, plus new probes P6 and P7). Nothing under
+`/root/sealed_holdout` was opened, and the repository was not modified.
+
+**Verdict: BLOCK.** The fix itself is correct: `detail()["run"]` is redacted for viewers without full view. But the same
+checkpoint content still reaches a routed-only holder owner through `detail()["question"]["result"]`, and P7 reproduces it
+end to end. The fix is small and local (below).
+
+### Commands and results
+```
+python -m pytest mycelic/tests -q -p no:warnings -p no:cacheprovider --basetemp $SCR/rv7_bt    → 521 passed, 7 skipped in 138.42s
+python -m pytest mycelic/tests/test_review_c5.py -q -p no:warnings -p no:cacheprovider -s -k "p4 or p6 or p7"
+```
+`mycelic/tests/test_question_detail_k1.py` has three tests. They are meaningful; the stored state is asserted to really
+hold "Numbers differ … 19":
+- a routed-only owner gets `run` with exactly `{question_id, tenant_id, step, attempts, updated_at, state: {}}`;
+- a full viewer gets the unredacted state and all 5 responses;
+- the `verification_competing` text and `target_claim_id` are absent for a routed-only owner of a verification question.
+
+### What the fix closes (confirmed)
+- **P4, the C5 probe.** Before the fix it showed the other side's value in `run.state`. Now:
+
+  `P4 full_view: False | responses visible: 1 | run.state mentions the other side's value 19: False | competing note: []`
+
+- **P6, the whole `detail()` for a routed-only owner on the rival side, question stopped at step `verification_spawned`.**
+  Output: `gold value/name present per detail part: {'question': False, 'claims': False, 'discoveries': False, 'followups': False, 'lineage': False, 'run': False}`.
+  The run is `{'question_id': …, 'tenant_id': …, 'step': 'verification_spawned', 'attempts': 3, 'updated_at': …, 'state': {}}`.
+- **No other route returns `question_runs` state.** `grep -rn "question_runs\|_checkpoint(" mycelic` outside tests and the
+  engine finds only `inquiry/service.py:205` and the internal `seed/scenario.py`.
+- **Full viewers are unchanged.** See `test_k1_full_viewer_still_gets_the_run_state`.
+- **The benchmark asker view is unchanged.** `research/mycelic_e2e/bench/issue.py:collect_view` (lines 73-100) reads
+  `question` (status, `result`, routes), `followups` (id, kind, status), `claims` and `discoveries` from
+  `GET /api/questions/{id}`. It never reads `run`, and b145e21 changes no file under `research/`.
+
+### Remaining disclosure path (BLOCKING): `question.result`
+- **Where.** When the question resolves, the engine writes its result from the same checkpoint
+  (`discovery/engine.py:1034-1038`): `gate_notes` (including the C1 `competing` summaries and `verification_competing`
+  texts), `verified` (including `target_claim_id`), `deferred_followups` (model-written follow-up texts, e.g. "Which
+  record is current: {a_text} or {b_text}?"), `investigated`, and the synthesis `summary` ("Supported: <claim texts>
+  Hypotheses: <claim texts> Disagreement: …").
+- **Who sees it.** `QuestionService.view()` returns `dict(q)` with `result` unredacted (`inquiry/service.py:119-131`; the
+  K1 branch redacts `target_entities`, `trigger` and lineage only). `detail()` returns `view(q, principal)` to every
+  principal that `can_view` admits, including routed-only owners, and `list(needs_input=True)` does the same.
+- **Reproducer P7** (`test_p7_whole_loop_result_visible_to_routed_owner`):
+  1. Run the demo loop to quiet (the same scenario as `test_r2_whole_loop_leaves_a_consistent_graph`).
+  2. For each resolved question and each routed user-holder owner without `_full_view`, call `detail()`.
+  3. Look for the text of claims the owner may **not** view (`can_view_scoped` is false), excluding anything that also
+     appears in that owner's own response.
+
+  Output:
+  ```
+  P7 routed-only owner views of resolved questions: 12
+  P7 kind: gap | result keys: ['claim_ids', 'conflict_ids', 'deferred_followups', 'discovery_id', 'followup_ids', 'gate_notes', 'investigated', 'outcome', 'summary', 'synthesis_method', 'verification_deferred', 'verification_questions'] | gate_notes: True | … | claim text quoted in result: ['Recurring blocker: deploy approvals for hotfixes take two da'] | run.state redacted: True
+  P7 any NOT-viewable claim text in a routed-only owner's question.result: True | cases: 2 of 12
+  ```
+  In 2 of the 12 views, the owner reads the text of a claim they are not allowed to view, which is not in their own
+  answer, through `question.result.summary`. Every one of the 12 also carries `gate_notes`. This is the K1 content class
+  through a second field, and it predates C1 for the synthesis summary.
+- **Fix (small).** In `view()`, when `principal is not None and not self._full_view(principal, q)`, replace `d["result"]`
+  with a content-free subset, e.g. `{"outcome": res.get("outcome")}`. That covers `detail()`, `list()` and
+  `needs_input`. Askers and full viewers are unchanged, so `collect_view`'s `result` is unaffected for the asker, provided
+  the asker is a full viewer. Add P7, or a unit version of it, as a test.
+
+### Checked and clean
+- **`followups`** (child questions' `question_id, text, kind, status, depth, created_at`).
+  - Verification and contradiction follow-ups go through the blind builders (`_create_followup` → `_ask_verification` /
+    `_ask_contradiction`). Their text is composed from topic names, and `create()` rejects it if it states a number or
+    repeats 6 or more words of the target (`_blind_leak`).
+  - Other kinds (gap, relationship, hypothesis, prediction) are asked as the model wrote them. They are questions meant
+    for holders, so they are not secret from holders, but a real LLM may quote a finding. Non-blocking. The fake provider
+    only writes contradiction and verification follow-ups, and those are blind.
+  - P6 found no gold value or name in `followups`.
+- **`claims` and `discoveries`.** Filtered by `can_view_scoped` (`inquiry/service.py:200-203`); empty for the probe owner.
+- **`lineage`.** `lineage_graph(principal, …)` is authorized per node; P6 found no leak.
+- **`question` view, apart from `result`.** `target_entities` is emptied; the trigger's `claim_id` / `ref_id` are dropped;
+  claim, conflict and evidence lineage items are `{"type", "label": "", "redacted": true}`. `routes` lists the routed
+  holders and their statuses, not content, as before.

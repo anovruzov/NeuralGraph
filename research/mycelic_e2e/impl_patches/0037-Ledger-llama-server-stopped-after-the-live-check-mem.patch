@@ -1,0 +1,24 @@
+From c77b354c946fe8e5da3f6e3f1a4ce60df7391f4a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 08:44:07 +0000
+Subject: [PATCH 37/43] Ledger: llama-server stopped after the live check
+ (memory for scale runs)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 36cd3f2..7181ced 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -36,3 +36,4 @@
+ {"id": "X035", "utc": "2026-10-09T08:24:15Z", "kind": "e2e-run", "run": "C4-S1 (S, seed 1, dev, rivals + background) + baselines", "revision": "54fec3f (code snapshot)", "provider": "deterministic (fake.py)", "result": "system 103/120 = 0.858 Wilson95 [0.785,0.910] (cross_domain 28/40, fault 5/10, all other classes perfect); baseline-source 116/120 = 0.967 [0.917,0.987]; baseline-single 69/120 = 0.575 (rival accretion -> ambiguous claims, cross_domain 0/40); 0 disclosures; gate VALID", "class": "development (dev split), valid"}
+ {"id": "X036", "utc": "2026-10-09T08:24:15Z", "kind": "live-component-check", "agent": "ENGINEER-C (claude-sonnet-5-5)", "artifact": "research/mycelic_e2e/live/LIVE_ANSWER_CHECK.md", "provider": "live Qwen3-4B-Instruct-2507 Q4_K_M (llama.cpp CPU) vs deterministic", "result": "n=40 (question, holder) pairs from dev run C1-S1 through the real EvidenceStore.answer_question: agreement both-answer 13, only-fake 7, only-live 0, neither 20; gold-holder pairs: fake 17/17, live 13/17 (Wilson ~0.53-0.90); live never cited a non-gold or decoy excerpt; misses are answer-step refusals (model reads named departments literally), gold excerpt was retrieved in 17/17; median 142 s/pair at 4 concurrent; 28,889 prompt + 1,570 completion tokens", "class": "component-only live check (dev split, n=40)"}
+ {"id": "X037", "utc": "2026-10-09T08:32:45Z", "kind": "analysis", "agent": "PLANNER (claude-fable-5-1)", "artifact": "research/mycelic_e2e/plan/DEV_ANALYSIS_C4.md", "result": "all 17 C4-S1 failures: routing/clustering/gate correct (gold supported, rival hypothesis by dept rule) but the deterministic evaluator flags gold-vs-rival (different services, shared context tokens, different numbers) as a disagreement -> engine opens a conflict -> both claims contested; contradiction follow-up routed away from both sides' supporters -> never resolves. Fails iff rival dept is one of the question's two depts (17/17 vs 23/23 passing). Baseline avoids it by not propagating conflicts to the cluster finding.", "orchestrator_decision": "approve C1 (different-entity disagreements are competing evidence, not contradictions), C2-routing defect fix (contradiction follow-ups reach both sides' holders), C3 department round-robin; reject 'hypothesis cannot demote supported' policy (not reviewed). Baseline asymmetry (no conflict propagation to cluster findings) disclosed as a declared difference.", "class": "analysis"}
++{"id": "X038", "utc": "2026-10-09T08:44:07Z", "kind": "custody", "what": "llama-server (Qwen3-4B, PID 8513, :8082) stopped gracefully with /root/mycelic-live/serve.sh stop 4b", "why": "live component check finished; its ~6.3 GB RSS was needed for concurrent M/L dev runs; restart: /root/mycelic-live/serve.sh 4b", "class": "custody"}
+-- 
+2.43.0
+

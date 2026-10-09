@@ -41,7 +41,7 @@ def violations(bank: TemplateBank, goal_obs: tuple[str, ...]) -> list[str]:
     dept_names = [d for d, _ in bank.departments]
     regular = {"obs": bank.obs_templates, "decoy": bank.decoy_templates, "correction": bank.correction_templates}
     goal = {"goal_obs": goal_obs, "goal_decoy": bank.goal_decoy_templates}
-    others = {**regular, **goal, "filler": bank.filler_templates, "title": TITLES}
+    others = {**regular, **goal, "filler": bank.filler_templates, "title": TITLES, "background": bank.background_templates}
     # (2) questions vs every record text about another context
     for qt in qs:
         for da, db in itertools.permutations(dept_names, 2):
@@ -73,6 +73,17 @@ def violations(bank: TemplateBank, goal_obs: tuple[str, ...]) -> list[str]:
             out.append(f"negation in {t[:40]!r}")
         if "{svc}-service" not in t or "{n}" not in t or ("{ctx}" not in t and t not in bank.decoy_templates):
             out.append(f"template misses svc/ctx/n: {t[:50]!r}")
+    # background corpus: routine notes about a service, never a task context; against every observation template (and the goal-only
+    # ones) they share < 3 content tokens, "service" included, so they never cluster with a task's records
+    for bt in bank.background_templates:
+        if "{ctx}" in bt or "{svc}-service" not in bt or "{n}" not in bt:
+            out.append(f"background template must name a service and a number and no context: {bt[:50]!r}")
+        for kind, tpls in {**regular, **goal}.items():
+            for t in tpls:
+                a2 = set(content_tokens(bt.format(svc="aaone", n="11")))
+                b2 = set(content_tokens(t.format(svc="aatwo", ctx="bbtwo cctwo", n="22")))
+                if len(a2 & b2) >= 3:
+                    out.append(f"background {bt[:40]!r} clusters with {kind} {t[:40]!r}: {sorted(a2 & b2)}")
     # (4) the loop's generic question
     for _, dom in bank.departments:
         lq = set(content_tokens(LOOP_QUESTION.format(domain=dom)))

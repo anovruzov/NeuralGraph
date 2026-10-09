@@ -1,0 +1,203 @@
+From c84230c007d608634c5d150b3249581a2fc0a63c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 08:13:24 +0000
+Subject: [PATCH 31/43] Clamp a stored far-future heartbeat time (L1); cache
+ deny-pattern record scans
+
+Engineer: WP1 (claude-sonnet-5-5); full suite 511 passed, 7 skipped. Includes REVIEWER-2's re-review of
+fca60ea (accepted; L1 required before running against existing databases, now done).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ mycelic/evidence/service.py                | 13 ++++-
+ mycelic/org.py                             |  7 ++-
+ mycelic/tests/test_term_routing.py         | 46 +++++++++++++++
+ research/mycelic_e2e/reviews/REVIEW_WP1.md | 65 ++++++++++++++++++++++
+ 4 files changed, 128 insertions(+), 3 deletions(-)
+
+diff --git a/mycelic/evidence/service.py b/mycelic/evidence/service.py
+index 5256f37..7d00661 100644
+--- a/mycelic/evidence/service.py
++++ b/mycelic/evidence/service.py
+@@ -355,6 +355,7 @@ class EvidenceStore:
+         self.export_policy: dict[str, Any] = {}
+         self.term_key: str | None = None            # per-tenant key for term ids (OrgService.term_key); None = this holder publishes no terms
+         self._term_cache: tuple[Any, float, dict[str, int]] | None = None
++        self._denied_cache: dict[int, tuple[Any, list[str]]] = {}    # per connection: deny patterns + record revision -> records whose text matches
+         self.domains: list[str] = []
+         self._deny: list[re.Pattern[str]] = []
+         self._policy_problems: list[str] = []
+@@ -1071,12 +1072,22 @@ class EvidenceStore:
+         """Records whose text matches a deny pattern: they contribute no entity id (an answer from them would be redacted)."""
+         if not self._deny:
+             return []
++        # cached per connection on the deny patterns and the records' revision, so a heartbeat every few seconds does not regex-scan every chunk
++        rev = tuple(c.execute("SELECT COALESCE(MAX(change_seq), 0), COUNT(*) FROM ingest_records").fetchone())
++        key = (tuple(p.pattern for p in self._deny), rev)
++        hit = self._denied_cache.get(id(c))
++        if hit is not None and hit[0] == key:
++            return hit[1]
+         out: set[str] = set()
+         for r in c.execute("SELECT rm.record_id AS rid, m.text AS text FROM record_memories rm JOIN memories m ON m.memory_id = rm.memory_id AND m.status='active' "
+                            "WHERE rm.origin='chunk'"):
+             if any(p.search(r["text"] or "") for p in self._deny):
+                 out.add(r["rid"])
+-        return sorted(out)
++        result = sorted(out)
++        if len(self._denied_cache) > 64:
++            self._denied_cache.clear()
++        self._denied_cache[id(c)] = (key, result)
++        return result
+ 
+     def _publication_closed(self) -> bool:
+         """The holder's own disclosure is ``none``: it answers nothing, so it publishes no entity or term either."""
+diff --git a/mycelic/org.py b/mycelic/org.py
+index 4287568..4386da5 100644
+--- a/mycelic/org.py
++++ b/mycelic/org.py
+@@ -506,9 +506,12 @@ class OrgService:
+                           (holder_id,)).fetchone()
+             if r is None or r["status"] == "revoked":
+                 return
+-            now_dt = utcnow()
++            now_dt = utcnow().replace(microsecond=0)         # beats are stamped to the second: compare like with like
+             at, seen = parse_iso((stats or {}).get("at")), parse_iso(r["stats_at"])
+-            clamped = at is not None and at > now_dt + timedelta(seconds=HEARTBEAT_MAX_SKEW_SECONDS)
++            horizon = now_dt + timedelta(seconds=HEARTBEAT_MAX_SKEW_SECONDS)
++            if seen is not None and seen > horizon:
++                seen = now_dt              # an ordering time stored before the bound existed (a far-future value) is clamped the same way
++            clamped = at is not None and at > horizon
+             if clamped:
+                 # a holder's clock is not ours: a time further ahead than the allowed skew counts as now, so a clock that runs ahead (or a far-future
+                 # value) can suppress later beats, retractions and privacy withdrawals included, for at most the skew
+diff --git a/mycelic/tests/test_term_routing.py b/mycelic/tests/test_term_routing.py
+index d88683d..0fd5062 100644
+--- a/mycelic/tests/test_term_routing.py
++++ b/mycelic/tests/test_term_routing.py
+@@ -439,3 +439,49 @@ async def test_phrase_deny_patterns_keep_every_word_of_the_phrase_out_of_the_pub
+     store.update_policy({"entity_min_records": 1, "deny_patterns": []})
+     out = store._ingest_stats_sync(c)
+     assert falcon in out["terms"] and "service:parcelrouter" in out["entities"]
++
++
++async def test_an_ordering_time_stored_before_the_bound_existed_does_not_freeze_a_holder(db, org, auth, authz):
++    """REVIEWER-2's HB2: a far-future ``stats.at`` stored by an older coordinator is clamped on read, so the next vouched beat applies."""
++    from mycelic.util import plus_seconds
++    w = await world(auth, org)
++    h = w["holders"]["u1a"]["holder_id"]
++
++    def indexed():
++        inc = hg.incidence(db, w["t"], member_type="entity", member_ids=["symptom:timeout"])["symptom:timeout"]
++        return bool(inc and h in inc[0]["holders"])
++    await org.holder_heartbeat(h, stats={"at": plus_seconds(0), "ingest": {"entities": {"symptom:timeout": 5}, "snapshot_complete": True}})
++    assert indexed()
++    db.conn.execute("UPDATE holders SET stats=json_set(stats, '$.at', '9999-12-31T00:00:00+00:00') WHERE holder_id=?", (h,))        # as an upgrade finds it
++    await org.holder_heartbeat(h, stats={"at": plus_seconds(0), "ingest": {"entities": {}, "snapshot_complete": True}})
++    assert not indexed()
++    assert org.get_holder(h)["stats"]["at"] < "9999"
++
++
++async def test_denied_records_are_cached_until_the_records_or_patterns_change(tmp_path, monkeypatch):
++    store = await holder_with_sources(tmp_path, [("public", [rec(i, f"Project Falcon: the ledgergate-service shows timeouts ({i}).") for i in range(1, 4)]
++                                                  + [rec(10 + i, f"The dispatch-service shows timeouts ({i}).") for i in range(3)], {})])
++    store.update_policy({"entity_min_records": 1, "deny_patterns": [r"project\s+falcon"]})
++    c = store.store._conn
++    first = store._denied_records(c)
++    assert len(first) == 3
++    scans = []
++    real = c.execute
++
++    class Spy:
++        """Counts the chunk scans the connection is asked for."""
++        def __init__(self, inner): self.inner = inner
++        def __getattr__(self, name): return getattr(self.inner, name)
++        def execute(self, sql, *a):
++            if "FROM record_memories rm JOIN memories m" in sql and "status='active'" in sql and "SELECT rm.record_id AS rid" in sql:
++                scans.append(sql)
++            return self.inner.execute(sql, *a)
++    spy = Spy(c)
++    assert store._denied_records(spy) is not None            # a different connection object: its own cache entry, scanned once ...
++    n = len(scans)
++    assert store._denied_records(spy) == first and len(scans) == n        # ... and not again while nothing changed
++    store.update_policy({"entity_min_records": 1, "deny_patterns": [r"project\s+falcon", r"dispatch"]})
++    assert len(store._denied_records(spy)) == 6 and len(scans) == n + 1       # a new pattern list is a new key
++    c.execute("UPDATE ingest_records SET change_seq = change_seq + 1 WHERE change_seq = (SELECT MAX(change_seq) FROM ingest_records)")
++    store._denied_records(spy)
++    assert len(scans) == n + 2                                                # a record changed: rescanned
+diff --git a/research/mycelic_e2e/reviews/REVIEW_WP1.md b/research/mycelic_e2e/reviews/REVIEW_WP1.md
+index 58cdb8c..f4c26b2 100644
+--- a/research/mycelic_e2e/reviews/REVIEW_WP1.md
++++ b/research/mycelic_e2e/reviews/REVIEW_WP1.md
+@@ -691,3 +691,68 @@ python -m pytest mycelic/tests/test_review_wp1.py -q -s   → all earlier probes
+    sequence. Add probe HB as a test.
+ 2. **B1-d:** `evidence/service.py:1022,1032` and `_entity_counts_sync`. Apply deny patterns to the record text before
+    computing stems and entities, as answers do (`_redact`). Add probe T3 as a test.
++
++---
++
++## Re-review of `fca60ea` (HB-1 heartbeat clock bound, B1-d deny phrases)
++
++Reviewer: REVIEWER-2 (`claude-opus-5-5`). Copy: `git archive fca60ea | tar -x -C $SCR/rv5`.
++Probes: `$SCR/rv5/mycelic/tests/test_review_wp1.py` (all earlier probes, plus HB2 and T4).
++
++**Verdict: ACCEPT. HB-1 and B1-d are fixed.** One required follow-up is a one-line change (L1) and must land before this
++code runs against an *existing* `coord.db`. It does not block benchmark runs on fresh databases.
++
++### Reproduction
++```
++python -m pytest mycelic/tests -q -p no:warnings          → 509 passed, 7 skipped in 174.15s (matches the commit message)
++python -m pytest mycelic/tests/test_review_wp1.py -q -s   → every earlier probe passes (R8: expected, as before); HB, T3 and the new T4 now pass
++```
++
++### HB-1: fixed (`org.py:19,509-534`)
++- **The fix.** A holder `at` more than `HEARTBEAT_MAX_SKEW_SECONDS = 300` ahead of the coordinator counts as now. The
++  stored value is clamped too, with `at_reported`, `at_clamped` and `received_at` kept beside it. A beat with no time
++  keeps the previous ordering value.
++- **The stale start-up replay is still ignored.** Covered by `test_a_stale_heartbeat_never_rolls_the_registry_back` and
++  `test_a_holder_clock_ahead_or_far_future_cannot_freeze_retractions`.
++- **HB probe output:**
++
++  `HB indexed after ahead-beat: True | after corrected vouched empty beat: False | after beat without at: False | far-future holder still indexed after empty beat: False`
++
++  A holder clock that runs ahead can now suppress its own later beats for at most 300 s. A far-future value no longer
++  freezes anything.
++- **L1 (required before upgrading an existing coordinator; one line).** The *stored* value `seen` is not clamped
++  (`org.py:510`). A far-future `at` written by an earlier version (every version before `36a9951` stored `stats.at`
++  unbounded) still freezes that holder after the upgrade.
++  - Probe HB2 (stored `at` = 9999-12-31): `HB2 legacy far-future stored at still freezes: True`.
++  - Fix: `if seen and seen > now_dt + timedelta(seconds=HEARTBEAT_MAX_SKEW_SECONDS): seen = now_dt`, and add HB2 as a test.
++- **Residual (non-blocking, inherent to ordering by clock).** A holder clock that jumps *backwards* suppresses that
++  holder's own beats until its clock passes the last applied time. Probe HB2 output: `backward clock jump (1 h)
++  suppresses the vouched retraction: True`.
++  - A clock-based check cannot tell this apart from the stale replay it exists to drop. The impact is limited to that
++    holder's own entries, and it corrects itself when the clock does.
++  - Owner opt-out and revocation still withdraw immediately (`update_holder`).
++  - The durable fix remains ordering by a transport-assigned sequence (SQLite message row id or NATS stream sequence), as
++    recommended in the 36a9951 re-review.
++
++### B1-d: fixed (`evidence/service.py:1063-1080` and the two call sites)
++- **The fix.** Terms are stemmed from the text after the owner's deny patterns are removed (`_strip_denied`, the same
++  `pattern.sub` an answer's redaction applies). Records whose text matches a deny pattern contribute no entity ids
++  (`_denied_records`, then `record_id NOT IN json_each(?)`).
++- **Probe outputs:**
++  - `T3 redacted answer text: Status of [redacted]: … | 'falcon' still a published term: False`
++  - New probe T4 (5 records saying "Project Falcon: the ledgergate-service …", deny `project\s+falcon`):
++
++    `T4 entities before deny: ['service:dispatch', 'service:ledgergate', 'symptom:timeout'] | after deny: ['service:dispatch', 'symptom:timeout']`
++
++  - Covered by `test_phrase_deny_patterns_keep_every_word_of_the_phrase_out_of_the_published_ids`.
++- **Non-blocking cost.** When deny patterns exist, `_denied_records` scans and regex-tests every active chunk of the
++  holder on *every* stats call (every heartbeat, about 20 s), and nothing caches it. Terms are cached, entities are not.
++  Cache the denied record ids under the same signature as terms (`change_seq`, count, deny tuple).
++
++### Status
++- No blocking items remain in my WP1 scope.
++- Open follow-ups:
++  - L1, the one-line `seen` clamp, before any upgrade of an existing coordinator;
++  - transport-sequence heartbeat ordering;
++  - the `_denied_records` cache;
++  - the non-blocking items listed in the earlier sections.
+-- 
+2.43.0
+

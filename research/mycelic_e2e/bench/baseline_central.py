@@ -52,6 +52,7 @@ import json
 import re
 import shutil
 import sqlite3
+import sys
 import tempfile
 import time
 import uuid
@@ -59,7 +60,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-from . import arch_gate
+from . import arch_gate, ledger
 from .gold import copy_gold
 
 PROVIDER_LABEL = "deterministic-provider"
@@ -511,27 +512,47 @@ def write_raw_authority(run_dir: str | Path, *, org_db: str | Path | None = None
 
 # ---------------------------------------------------------------------------------------------- entry point
 def run(world_dir: str | Path, tasks_public: Sequence[Any] | None, out_dir: str | Path, *, variant: str = PRIMARY_VARIANT, org_db: str | Path | None = None,
-        evidence_budget: int = EVIDENCE_BUDGET, split: str | None = None, log: Any = print) -> dict[str, Any]:
+        evidence_budget: int = EVIDENCE_BUDGET, split: str | None = None, log: Any = print, ledger_rows: bool = False) -> dict[str, Any]:
     """Run the baseline on the sources of ``world_dir`` and write a scorable run directory to ``out_dir``. ``tasks_public`` defaults to the
     public task file of ``world_dir``. Returns the run manifest."""
     if variant not in VARIANTS:
         raise ValueError(f"variant must be one of {VARIANTS}")
-    return asyncio.run(_run(Path(world_dir), tasks_public, Path(out_dir), variant, Path(org_db) if org_db else None, evidence_budget, split, log))
+    return asyncio.run(_run(Path(world_dir), tasks_public, Path(out_dir), variant, Path(org_db) if org_db else None, evidence_budget, split, log, ledger_rows))
 
 
-async def _run(world: Path, tasks_public: Sequence[Any] | None, out: Path, variant: str, org_db: Path | None, budget: int, split: str | None, log: Any) -> dict[str, Any]:
+async def _run(world: Path, tasks_public: Sequence[Any] | None, out: Path, variant: str, org_db: Path | None, budget: int, split: str | None, log: Any,
+               ledger_rows: bool = False) -> dict[str, Any]:
+    t_start = time.perf_counter()
+    run_manifest = _load_json(world / "run_manifest.json", {}) or {}
+    split = split or run_manifest.get("split") or "dev"
+    # the holdout guard first: nothing is created if a holdout baseline may not run (raises ledger.HoldoutRefused)
+    ledger_run_id = None
+    if split == "holdout" or ledger_rows:
+        ledger_run_id = ledger.start_run({"split": split, "mode": "baseline", "variant": variant, "ablation": None, "seed": run_manifest.get("seed"),
+                                          "size": run_manifest.get("size"), "provider_label": PROVIDER_LABEL, "transport": None, "inprocess": True,
+                                          "run_dir": str(out.resolve())})
+    try:
+        manifest = await _run_guarded(world, tasks_public, out, variant, org_db, budget, split, log, t_start, run_manifest, ledger_run_id)
+    except BaseException as exc:
+        if ledger_run_id:
+            ledger.abort_run(ledger_run_id, f"{type(exc).__name__}: {exc}")
+        raise
+    if ledger_run_id:
+        ledger.mark_completed(ledger_run_id, {"out": str(out)})
+    return manifest
+
+
+async def _run_guarded(world: Path, tasks_public: Sequence[Any] | None, out: Path, variant: str, org_db: Path | None, budget: int, split: str, log: Any,
+                       t_start: float, run_manifest: dict[str, Any], ledger_run_id: str | None) -> dict[str, Any]:
     from mycelic.models.fake import FakeProvider
     from mycelic.models.ledger import MemoryUsageLedger
     from mycelic.models.router import DefaultModelRouter
 
-    t_start = time.perf_counter()
     out.mkdir(parents=True, exist_ok=True)
     (out / "views").mkdir(exist_ok=True)
     src_manifest = _load_json(world / "sources_manifest.json")
     if not src_manifest:
         raise BaselineError(f"{world}/sources_manifest.json missing or empty")
-    run_manifest = _load_json(world / "run_manifest.json", {}) or {}
-    split = split or run_manifest.get("split") or "dev"
     pub_file = world / f"tasks_{split}.public.json"
     tasks = [_as_dict(t) for t in tasks_public] if tasks_public is not None else load_public_tasks(pub_file)
     coord = org_db or (world / "data" / "coord.db")
@@ -590,7 +611,7 @@ async def _run(world: Path, tasks_public: Sequence[Any] | None, out: Path, varia
             by_purpose[c.purpose] = by_purpose.get(c.purpose, 0) + 1
         errors = sum(1 for v in views.values() if v["status"] != "ok")
         manifest = {
-            "run_id": "base_" + uuid.uuid4().hex[:10], "split": split, "mode": "baseline", "ablation": None, "variant": variant, "seed": run_manifest.get("seed"),
+            "run_id": "base_" + uuid.uuid4().hex[:10], "ledger_run_id": ledger_run_id, "split": split, "mode": "baseline", "ablation": None, "variant": variant, "seed": run_manifest.get("seed"),
             "size": run_manifest.get("size"), "provider_label": PROVIDER_LABEL, "provider": "fake (deterministic)", "tasks_sha256": tasks_sha, "n_tasks": len(tasks),
             "raw_checks_enabled": True, "evidence_budget_items": budget, "per_origin_cap": PER_ORIGIN_CAP if variant == "source" else None,
             "counts": {"created": len(stores), "with_records": len(stores), "activated": len(answered_tenants), "routed": 0},
@@ -632,13 +653,18 @@ def main(argv: Iterable[str] | None = None) -> int:      # pragma: no cover - th
     ap.add_argument("--authority-only", action="store_true", help="only write <world_dir>/raw_authority.json (for scoring the system run) and exit")
     ap.add_argument("--variant", choices=VARIANTS, default=PRIMARY_VARIANT)
     ap.add_argument("--org-db")
+    ap.add_argument("--ledger", action="store_true", help="also write ledger rows for a dev run (a holdout run always does, and is refused by the holdout guard)")
     ns = ap.parse_args(list(argv) if argv is not None else None)
     if ns.authority_only:
         print(write_raw_authority(ns.world_dir, org_db=ns.org_db))
         return 0
     if not ns.out:
         ap.error("--out is required")
-    m = run(ns.world_dir, None, ns.out, variant=ns.variant, org_db=ns.org_db)
+    try:
+        m = run(ns.world_dir, None, ns.out, variant=ns.variant, org_db=ns.org_db, ledger_rows=ns.ledger)
+    except ledger.HoldoutRefused as exc:
+        print(f"HOLDOUT REFUSED: {exc}", file=sys.stderr)
+        return 3
     print(json.dumps({k: m[k] for k in ("run_id", "variant", "n_tasks", "view_errors", "counts", "model_usage", "timings_s")}, indent=2, default=str))
     return 0
 

@@ -38,6 +38,9 @@ LAST = tuple("""Abbott Baker Castro Dubois Evans Fischer Garcia Huang Ito Jensen
 TASK_MIX = (("cross_domain", 40), ("contradiction", 10), ("temporal", 10), ("common_origin_pos", 8), ("common_origin_copies", 7),
             ("coincidence", 10), ("single_domain", 10), ("denied", 10), ("cross_tenant", 5), ("fault", 10))
 GOAL_ONLY = 10                                 # of the 40 cross_domain positives
+RIVAL_SIZES = (2, 4, 8, 12)                    # people who state the popular rival (all in one department), drawn per task: about half exceed the routing budget
+RIVAL_GLUE = ("", ", as we do", ", as it is", ", as they do", ", at all")         # stopword-only endings: more distinct records than templates, same content tokens
+BACKGROUND_USER, BACKGROUND_DEPT = 3, 12     # routine records per user holder / per department unit holder (every person's graph has content)
 FAULT_KINDS = ("duplicate", "replay", "out_of_order", "edit", "delete", "missing_metadata", "malformed", "restart_mid_ingest", "duplicate", "delete")
 COMMENTS = ("Passing this along from the other group, it matches what we see on our side as well.",
             "Sharing the note below with you since it looks like the same situation we are handling.",
@@ -371,6 +374,9 @@ class TaskSpec:
     forbidden_texts: list[str] = field(default_factory=list)   # texts whose roots must never be visible
     fault: str | None = None
     note: str = ""
+    rival_size: int | None = None                  # people stating the popular rival (gold only)
+    rival_dept: str | None = None
+    rival_entity: str | None = None
     pattern: str = ""                              # planner-internal pattern id (records carry the same id)
     opt_args: tuple | None = None                 # (tenant idx, gold service, extra services): options are drawn once every entity exists
 
@@ -413,7 +419,8 @@ class Plan:
             out.append(Gold(task_id=t.public.task_id, cls=t.cls, answer=t.answer, expected_abstain=t.answer == "abstain", entity_id=t.entity,
                             genuine_roots=t.genuine_roots, holders=hid(t.holder_keys), departments=list(t.departments), decoy_options=list(t.decoy_options),
                             forbidden_holder_ids=hid(t.forbidden_holders), forbidden_root_ids=[fingerprint(x) for x in t.forbidden_texts],
-                            forbidden_markers=list(t.forbidden_markers), raw_allowed_holder_ids=hid(self.raw_allowed(t.public.asker_key)), fault=t.fault, note=t.note))
+                            forbidden_markers=list(t.forbidden_markers), raw_allowed_holder_ids=hid(self.raw_allowed(t.public.asker_key)), fault=t.fault, note=t.note,
+                            rival_size=t.rival_size, rival_department=t.rival_dept, rival_entity_id=t.rival_entity))
         return out
 
 
@@ -441,11 +448,16 @@ class Planner:
             raise RuntimeError(f"the bank offers {self.ctx_pool} contexts; {self.decoy_ctx_idx + 1} are needed")
         names = sorted(p + s for p in bank.service_prefixes for s in bank.service_suffixes)
         _rng(seed, world.size, split, "svc").shuffle(names)
-        self.svc_names: list[list[str]] = [names[0::2], names[1::2]]   # disjoint service names per tenant
+        pools = [names[0::2], names[1::2]]                              # disjoint service names per tenant
+        self.svc_names: list[list[str]] = [x[:-22] for x in pools]
+        self.rival_names: list[list[str]] = [x[-22:] for x in pools]     # a separate tail for the rivals: other patterns keep their names
+        self.rival_next = [0] * len(world.tenants)
+        self.rrng = _rng(seed, world.size, split, "rival")             # the rivals draw from their own stream: nothing else shifts
         self.reserved_holders: list[set[str]] = [{f"h-{m}" for p in t.projects for m in p.members} for t in world.tenants]
         self.lead_holders: list[set[str]] = [{f"h-{u.key}" for u in t.users.values() if any(r == "department_lead" for _, r in u.memberships)} for t in world.tenants]
         self.svc_next = [0] * len(world.tenants)
         self.entities: list[list[str]] = [[] for _ in world.tenants]
+        self.rival_entities: list[list[str]] = [[] for _ in world.tenants]
         self.rec_counter = [0] * len(world.tenants)
         self.proj_next = [0] * len(world.tenants)
         self.used_pairs: dict[int, set] = {}
@@ -463,6 +475,8 @@ class Planner:
         return f"{self.bank.ctx_adjectives[i]} {self.bank.ctx_nouns[i]}"
 
     def svc(self, ti: int) -> str:
+        if self.svc_next[ti] >= len(self.svc_names[ti]):
+            raise RuntimeError("the bank has too few service names for this task mix: add prefixes or suffixes to the bank (75 pattern + 20 rival names per tenant are used)")
         n = self.svc_names[ti][self.svc_next[ti]]
         self.svc_next[ti] += 1
         self.entities[ti].append(n)
@@ -604,13 +618,51 @@ class Planner:
             if any(t.holders[h].owner_type == "user" and t.holders[h].vis == "members" for h in self.dept_holders(t, hd)):
                 self.add_obs(t, self.pick_holders(t, hd, 1, kind="hidden")[0], hd, svc, ctx, n, self.rng.randrange(len(self.bank.obs_templates)),
                              pattern=pid, days=self.rng.uniform(5, 90), role="hidden_obs")
+        rival = self.add_rival(t, a, b, svc, ctx, n, pid, [r.holder for r in recs])
         options, decoys = self.options_for(ti, svc)
+        if rival:
+            self._last_opt_args = (ti, svc, (rival[0],))               # the rival is one of the task's three non-gold options (drawn in the final pass)
         pub = self.make_public(t, a, b, ctx, options)
         spec = TaskSpec(pub, "fault" if fault else "cross_domain", svc_label(svc), f"service:{svc}", len(recs), sorted({r.holder for r in recs}), [a.key, b.key], decoys,
                         fault=fault)
+        if rival:
+            spec.rival_size, spec.rival_dept, spec.rival_entity = rival[1], rival[2], f"service:{rival[0]}"
+            self.rival_entities[ti].append(rival[0])
         if fault:
             self.apply_fault(t, spec, recs, svc, ctx, n, fault)
         return spec
+
+    def add_rival(self, t: TenantSpec, a: UnitSpec, b: UnitSpec, svc: str, ctx: str, n: int, pid: str, avoid: list[str]) -> tuple[str, int, str] | None:
+        """The "popular rival": the SAME context stated by R people of ONE department (about half the time one of the gold departments)
+        as a DIFFERENT service with its own consistent number. Each person is a distinct reachable holder with a record of their own root,
+        under the same visibility distribution as the gold observations. One department can never satisfy
+        min_independent_units = {department: 2}, so the gold answer is unchanged. Returns (service, size, department)."""
+        saved, self.rng = self.rng, self.rrng
+        try:
+            want = self.rng.choice(RIVAL_SIZES)
+            inside = [a.key, b.key]
+            outside = [d.key for d in t.depts() if d.key not in inside]
+            first = inside if (self.rng.random() < 0.5 or not outside) else outside
+            for dept in [self.rng.choice(first)] + [d for d in inside + outside if d not in first] + [d for d in first]:
+                pool = [h for h in self.dept_holders(t, dept) if t.holders[h].vis == "public" and h not in set(avoid)]
+                if len(pool) >= 2:
+                    break
+            else:
+                return None
+            size = min(want, len(pool))
+            if self.rival_next[t.idx] >= len(self.rival_names[t.idx]):
+                raise RuntimeError("the bank has too few service names for the rivals")
+            rsvc = self.rival_names[t.idx][self.rival_next[t.idx]]
+            self.rival_next[t.idx] += 1
+            rn = self.other_number(n)
+            order = self.rng.sample(range(len(self.bank.obs_templates)), len(self.bank.obs_templates))
+            for i, h in enumerate(self.pick_holders(t, dept, size, avoid=avoid)):
+                r = self.add_obs(t, h, dept, rsvc, ctx, rn, order[i % len(order)], pattern=pid, days=self.rng.uniform(5, 90), role="rival")
+                glue = RIVAL_GLUE[(i // len(order)) % len(RIVAL_GLUE)]
+                r.text = r.text[:-1] + glue + "."
+            return rsvc, size, dept
+        finally:
+            self.rng = saved
 
     def goal_only_task(self, ti: int, svc: str, n: int, ctx: str, pid: str) -> TaskSpec:
         """One exclusive scope (a project of five people) holds exactly ONE hidden positive pattern (3 observations, 2 departments)
@@ -894,8 +946,34 @@ class Planner:
             self.specs[idx].public.task_id = f"{self.split}-{pos:03d}"
         self.specs.sort(key=lambda s: s.public.task_id)
         self.add_filler()
+        self.add_background()
         return Plan(self.split, self.seed, self.specs, self.records, self.fault_plan, self.w,
-                    [_option(e) for e in sorted({e for lst in self.entities for e in lst})])         # same dict form as the options, so one entity has one key
+                    [_option(e) for e in sorted({e for lst in (self.entities + self.rival_entities) for e in lst})])         # same dict form as the options, so one entity has one key
+
+    def add_background(self) -> None:
+        """Routine records so that every person's graph (and every department's) has content: ``BACKGROUND_USER`` notes per user holder and
+        ``BACKGROUND_DEPT`` per department unit holder, in the holder's own source (its own visibility, drawn once per holder, class-independent).
+        They mention random services of the tenant (task options included), a routine symptom and a number - never a task context. They
+        draw from their own random stream, so no task or earlier record changes."""
+        rng = _rng(self.seed, self.w.size, self.split, "background")
+        tpls = self.bank.background_templates
+        if not tpls:
+            return
+        for ti, t in enumerate(self.w.tenants):
+            services = sorted(set(self.entities[ti]) | set(self.rival_entities[ti]))
+            for hk in sorted(t.holders):
+                h = t.holders[hk]
+                if h.owner_type == "user":
+                    count = BACKGROUND_USER
+                elif t.units[h.owner_key].type == "department":
+                    count = BACKGROUND_DEPT
+                else:
+                    continue
+                for _ in range(count):
+                    text = tpls[rng.randrange(len(tpls))].format(svc=rng.choice(services), n=rng.randint(2, 98))
+                    author = h.owner_key if h.owner_type == "user" else rng.choice([u.key for u in t.users.values() if u.dept == h.dept and
+                                                                                     not any(r == "department_lead" for _, r in u.memberships)])
+                    self.records.append(Rec(self.rid(ti, "b"), ti, hk, "pub", text, "Note", author, rng.uniform(3, 200), role="background"))
 
     def add_filler(self) -> None:
         """Every holder that carries content gets unrelated notes, so its source domain reaches the publication threshold (5 records)

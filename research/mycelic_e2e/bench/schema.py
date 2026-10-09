@@ -41,11 +41,12 @@ class TemplateBank:
     current_question_templates: tuple[str, ...]   # "currently" form for temporal tasks
     goal_templates: tuple[tuple[str, str], ...]   # (title, objective) with {ctx}/{a}/{b}
     goal_only_templates: tuple[tuple[str, str], ...]  # (title, objective) for goal-only tasks ({fam}, {ctx})
+    background_templates: tuple[str, ...] = ()       # routine personal / team notes that mention a service ({svc}, {n}); never a task context
     goal_decoy_templates: tuple[str, ...] = ()       # in-scope single-department decoy of a goal-only task (disjoint vocabulary from GOAL_OBS)
 
     def all_template_strings(self) -> list[str]:
         out = list(self.obs_templates + self.decoy_templates + self.filler_templates + self.correction_templates
-                   + self.question_templates + self.current_question_templates + self.goal_decoy_templates)
+                   + self.question_templates + self.current_question_templates + self.goal_decoy_templates + self.background_templates)
         for t, o in self.goal_templates + self.goal_only_templates:
             out += [t, o]
         return out
@@ -90,3 +91,6 @@ class Gold:
     raw_allowed_holder_ids: list[str] = field(default_factory=list)
     fault: str | None = None
     note: str = ""
+    rival_size: int | None = None                 # popular rival: people (one department) who state the same context as a different service
+    rival_department: str | None = None           # generator department key of the rival's people
+    rival_entity_id: str | None = None            # the rival's canonical entity id (always one of the task's options)

@@ -1,7 +1,7 @@
 From c9bb423c9af52d7297799f616bc0c5136b334925 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 06:40:11 +0000
-Subject: [PATCH 16/28] Re-review: ingestion fixes accepted (copies never add
+Subject: [PATCH 16/43] Re-review: ingestion fixes accepted (copies never add
  roots; undated evidence never fresh)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

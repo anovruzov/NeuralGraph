@@ -1,7 +1,7 @@
 From 36a995112380b3e1e7d64c3821ee7bc023413c98 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 07:56:16 +0000
-Subject: [PATCH 27/28] Fix the start-up heartbeat replay blackout; publication
+Subject: [PATCH 27/43] Fix the start-up heartbeat replay blackout; publication
  follows the effective ACL (B1); review fixes
 
 WP1 (claude-sonnet-5-5): the transport retains one heartbeat per holder per minute, and the core

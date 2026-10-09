@@ -100,7 +100,7 @@ def test_holdout_refused_when_not_frozen_changed_dirty_or_repeated(env, monkeypa
         ledger.start_run(cfg(env, split="holdout", ablation="A2"))
     monkeypatch.setattr(ledger, "git_info", lambda: {"git_sha": "def456", "git_branch": "b", "dirty": True, "dirty_count": 2, "dirty_files": ["a", "b"]})
     ledger.freeze_holdout(env["hold"], sha_file=env["sha"], force=True)
-    with pytest.raises(ledger.HoldoutRefused, match="clean working tree"):
+    with pytest.raises(ledger.HoldoutRefused, match="clean repository"):
         ledger.start_run(cfg(env, split="holdout"))
     ledger.start_run(cfg(env, split="holdout", allow_dirty_holdout=True))
 

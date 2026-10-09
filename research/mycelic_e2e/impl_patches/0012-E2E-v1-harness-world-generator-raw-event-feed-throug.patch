@@ -1,7 +1,7 @@
 From c254a3352371eeb853ad4585bc96dacf05f54296 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 9 Oct 2026 06:34:51 +0000
-Subject: [PATCH 12/28] E2E v1 harness: world generator, raw-event feed through
+Subject: [PATCH 12/43] E2E v1 harness: world generator, raw-event feed through
  connectors, task issuing (WP2)
 
 Deterministic two-tenant worlds (S/M/L), raw local_export JSONL sources only, attached and synced

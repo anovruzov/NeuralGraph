@@ -1,0 +1,138 @@
+From b145e2140f26eadf31307596bb9143d8540c5a2d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 09:03:43 +0000
+Subject: [PATCH 40/43] Question detail returns the run state only to full
+ viewers (K1)
+
+QuestionService.detail() returned the whole question_runs row to every viewer
+can_view admits, including a holder owner who was only routed the question.
+Since C1 the checkpoint state carries text derived from every holder's response
+(gate_notes competing/verification_competing, verified, investigation notes), so
+a routed-only owner could read the other side's values.
+
+detail() now returns the run state only when the viewer is a full viewer (the
+flag that already filters responses). Everyone else gets the run's question_id,
+tenant_id, step, attempts and updated_at with an empty state.
+
+Regression tests (REVIEWER-2 probe P4): a routed-only owner on the rival side
+sees no value, competing or verification_competing text; a full viewer still
+gets the state unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ mycelic/inquiry/service.py               |  8 ++-
+ mycelic/tests/test_question_detail_k1.py | 81 ++++++++++++++++++++++++
+ 2 files changed, 88 insertions(+), 1 deletion(-)
+ create mode 100644 mycelic/tests/test_question_detail_k1.py
+
+diff --git a/mycelic/inquiry/service.py b/mycelic/inquiry/service.py
+index 17ea8dc..9258b3d 100644
+--- a/mycelic/inquiry/service.py
++++ b/mycelic/inquiry/service.py
+@@ -202,8 +202,14 @@ class QuestionService:
+         discs = [self.knowledge.discovery_summary(d) for d in rows_to_dicts(self.db.all("SELECT * FROM discoveries WHERE question_id=?", (question_id,)), json_fields=("claim_ids", "followup_question_ids"))
+                  if self.authz.can_view_scoped(principal, d, resource_type="discovery")]
+         children = rows_to_dicts(self.db.all("SELECT question_id, text, kind, status, depth, created_at FROM questions WHERE parent_question_id=? ORDER BY created_at", (question_id,)))
++        run = row_to_dict(self.db.one("SELECT * FROM question_runs WHERE question_id=?", (question_id,)), json_fields=("state",))
++        if run is not None and not full:
++            # K1: the checkpoint state holds text derived from EVERY holder's response (gate notes, competing and verification findings, the
++            # investigation and verification outcomes). A holder owner who was merely routed the question sees only their own responses, so
++            # they get the step and counters of the run, never its state.
++            run = {**{k: run.get(k) for k in ("question_id", "tenant_id", "step", "attempts", "updated_at")}, "state": {}}
+         return {"question": self.view(q, principal=principal), "responses": resp, "claims": claims, "discoveries": discs, "followups": children,
+-                "lineage": self.knowledge.lineage_graph(principal, question_id=question_id), "run": row_to_dict(self.db.one("SELECT * FROM question_runs WHERE question_id=?", (question_id,)), json_fields=("state",))}
++                "lineage": self.knowledge.lineage_graph(principal, question_id=question_id), "run": run}
+ 
+     def _full_view(self, principal: Principal, q: Mapping[str, Any], *, row: dict[str, Any] | None = None, goal: Any = ...) -> bool:
+         """True when the principal sees the question through its scope or its goal, not merely because one of their holders was asked.
+diff --git a/mycelic/tests/test_question_detail_k1.py b/mycelic/tests/test_question_detail_k1.py
+new file mode 100644
+index 0000000..96ce586
+--- /dev/null
++++ b/mycelic/tests/test_question_detail_k1.py
+@@ -0,0 +1,81 @@
++"""K1 (REVIEWER-2, C5): ``QuestionService.detail`` returns the question run's checkpoint state only to full viewers.
++
++Since C1 the run state carries text derived from every holder's response (``gate_notes`` with the ``competing`` pair and its summary
++"Numbers differ: 19 vs 50", ``verification_competing`` finding text, ``verified``, the investigation notes). A holder owner who was merely
++routed the question sees only their own responses; the other side's value must not reach them through ``run``.
++"""
++from __future__ import annotations
++
++import json
++import re
++
++from .test_c4_followup import GOLD, RIVAL, evaluate_question, seed_two_services, state_of
++from .test_hypergraph import add_ref, cand, question_row, world
++from .test_loop_engine import build
++
++LEAKS = ("competing", "verification_competing", "Numbers differ", "19 vs 50", "ledgergate", "ivory jetty", "gate_notes", "verified", "investigated")
++
++
++async def _routed_only_owner(db, org, auth, authz):
++    s = await build(db, org, auth, authz)
++    w = await world(auth, org, n_depts=3)
++    responses = await seed_two_services(s, db, s["knowledge"], w)
++    qid, _out = await evaluate_question(s, db, w, responses)
++    owner_key = "u3a"                                                          # the rival side's holder: answered with the 50, was never told the 19
++    hid = w["holders"][owner_key]["holder_id"]
++    db.conn.execute("INSERT OR IGNORE INTO question_routes(route_id, tenant_id, question_id, holder_id, status, msg_id, attempts, sent_at, deadline_at) "
++                    "VALUES ('rt_k1', ?, ?, ?, 'answered', 'm_k1', 1, 'n', 'n')", (w["t"], qid, hid))
++    owner = authz.principal_for_user(w["users"][owner_key]["user_id"])
++    return s, w, qid, owner
++
++
++async def test_k1_routed_only_owner_does_not_get_the_run_state(db, org, auth, authz):
++    s, w, qid, owner = await _routed_only_owner(db, org, auth, authz)
++    qs = s["questions"]
++    # the stored state really holds the other side's value, so the assertions below are not vacuous
++    stored = json.dumps(state_of(s, qid))
++    assert "competing" in stored and "Numbers differ" in stored and "19" in stored
++    assert not qs._full_view(owner, qs.get(qid))                              # routed, not a full viewer
++    det = qs.detail(owner, qid)                                               # can_view admits them through the route
++    assert {r["holder_id"] for r in det["responses"]} == {w["holders"]["u3a"]["holder_id"]}              # only their own response
++    run = det["run"]
++    assert run is not None and run["question_id"] == qid and run["step"] and run["state"] == {}
++    seen = json.dumps(run)
++    assert not [leak for leak in LEAKS if leak in seen] and not re.search(r"\b(19|50)\b", seen), seen          # no figure of either side
++    assert set(run) == {"question_id", "tenant_id", "step", "attempts", "updated_at", "state"}
++
++
++async def test_k1_full_viewer_still_gets_the_run_state(db, org, auth, authz):
++    s, w, qid, owner = await _routed_only_owner(db, org, auth, authz)
++    qs = s["questions"]
++    admin = authz.principal_for_user(db.one("SELECT user_id FROM users WHERE tenant_id=? AND email='admin@acme.test'", (w["t"],))["user_id"])
++    assert qs._full_view(admin, qs.get(qid))
++    run = qs.detail(admin, qid)["run"]
++    assert run["step"] and run["state"] == state_of(s, qid)                   # the same checkpoint, unredacted
++    notes = [n["competing"] for n in run["state"]["gate_notes"] if "competing" in n]
++    assert notes and {n["a"] for n in notes} | {n["b"] for n in notes} == {"service:ledgergate", "service:parcelrouter"}
++    assert all("Numbers differ: 19 vs 50" == n["summary"] for n in notes)
++    assert len(qs.detail(admin, qid)["responses"]) == 5                       # and every response, as before
++
++
++async def test_k1_verification_competing_text_is_not_visible_to_a_routed_owner(db, org, auth, authz):
++    s = await build(db, org, auth, authz)
++    w = await world(auth, org, n_depts=3)
++    ks, qs = s["knowledge"], s["questions"]
++    sysp = authz.principal_for_system(w["t"])
++    await add_ref(ks, w, "u1a", "g1", "rg1", GOLD)
++    await add_ref(ks, w, "u2a", "g3", "rg3", GOLD)
++    target, _ = await ks.commit_claim(sysp, cand(w, GOLD), evidence=[{"ref_id": "g1"}, {"ref_id": "g3"}], question=question_row(w, min_independent_units={"department": 2}),
++                                      idempotency_key="target")
++    await add_ref(ks, w, "u3a", "x1", "rx1", RIVAL)
++    topic = "Independently of any other team: what do your own records show about the ivory jetty retry window?"
++    qid, _ = await evaluate_question(s, db, w, [("u3a", RIVAL, ["x1"])], text=topic, kind="verification",
++                                     trigger={"kind": "verification", "claim_id": target["claim_id"]})
++    st = state_of(s, qid)
++    assert any("verification_competing" in n for n in st["gate_notes"]) and st["verified"]["target_claim_id"] == target["claim_id"]
++    hid = w["holders"]["u3a"]["holder_id"]
++    db.conn.execute("INSERT OR IGNORE INTO question_routes(route_id, tenant_id, question_id, holder_id, status, msg_id, attempts, sent_at, deadline_at) "
++                    "VALUES ('rt_k1v', ?, ?, ?, 'answered', 'm_k1v', 1, 'n', 'n')", (w["t"], qid, hid))
++    owner = authz.principal_for_user(w["users"]["u3a"]["user_id"])
++    run = qs.detail(owner, qid)["run"]
++    assert run["state"] == {} and "verification_competing" not in json.dumps(run) and "parcelrouter" not in json.dumps(run) and target["claim_id"] not in json.dumps(run)
+-- 
+2.43.0
+

@@ -1,0 +1,24 @@
+From 6fc3e38ec99c3e3d420e79904542014d07f53ded Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 09:04:19 +0000
+Subject: [PATCH 41/43] Ledger: holdout bank generation smoke at non-holdout
+ seeds (counts only)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 107ab4b..e18a519 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -41,3 +41,4 @@
+ {"id": "X040", "utc": "2026-10-09T08:49:44Z", "kind": "custody", "what": "disk allowance", "result": "free space fell to ~0 then 5.2 GB; deleted regenerable WP2 --generate-only L output (7.1 GB), orchestrator debug copy, DB copies inside superseded reviewer/live scratch dirs, and holder stores of superseded dev runs (S1, C1-S1, smoke-cap40, C2a-M2, C3-L3); kept every run's views, gold, manifests, score/gate reports and coord.db; free 15 GB", "class": "custody"}
+ {"id": "X041", "utc": "2026-10-09T08:40:00Z", "kind": "review", "agent": "REVIEWER-2 (claude-opus-5-5)", "subject": "C5 92d3d7c (C1 competing findings, C2 contradiction follow-ups to both sides, C3 department round-robin)", "result": "ACCEPT C2, C3; C1 accepted for the benchmark (canonical service names), product rule needs same-kind subjects, related/alias subjects keeping the conflict, tenant-independent verdict (probes P1-P3b); BLOCKING K1: QuestionService.detail() returns run state carrying competing/verification_competing text to routed-only holder owners (probe P4)", "evidence": "reviews/REVIEW_WP1.md 'Review of C5 92d3d7c'; probes $SCR/rv6/mycelic/tests/test_review_c5.py", "class": "review"}
+ {"id": "X042", "utc": "2026-10-09T09:00:00Z", "kind": "custody", "what": "disk allowance exhausted at ~08:46Z with four concurrent runs", "result": "system runs C4-M2 (54fec3f), C5-M2 and C5-L3 (92d3d7c) aborted with ENOSPC (no scores; outputs renamed *.enospc, holder stores deleted); their completed central baselines kept as *-baseline-*.unpaired (no paired system result, not reported); C5-S1 unaffected; free space restored to 21 GB by deleting regenerable holder/central stores of failed or already-gated runs; C5-L3 relaunched 08:59Z alone; from now on at most two runs concurrently", "class": "aborted-infra"}
++{"id": "X043", "utc": "2026-10-09T09:02:30Z", "kind": "harness-check", "agent": "orchestrator (claude-opus-5-5)", "what": "holdout bank generation smoke before the freeze", "result": "W.generate + W.plan with the sealed bank (sha 6a5eabd3...) at NON-holdout seeds S/9001 and L/9002, in memory, nothing written; printed only counts and class names: both 120 tasks in the contract mix (40/10/10/8+7/10/10/10/5/10); L: 10,648 holders, 35,724 records. Purpose: a crash in the never-exercised holdout generation path would otherwise consume the single holdout shot. No task text, entity, gold or holdout seed was viewed.", "class": "integrity"}
+-- 
+2.43.0
+

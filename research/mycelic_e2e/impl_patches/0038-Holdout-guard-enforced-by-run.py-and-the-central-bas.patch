@@ -1,0 +1,600 @@
+From 02c05d4ee249a23666a204680201a8f820add7de Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 08:49:44 +0000
+Subject: [PATCH 38/43] Holdout guard enforced by run.py and the central
+ baseline (one shot per candidate, snapshot must match HEAD)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QgQYqiZ8KjrbuXgxGadraA
+---
+ research/mycelic_e2e/EXPERIMENTS.jsonl        |   2 +
+ .../mycelic_e2e/bench/baseline_central.py     |  44 ++-
+ research/mycelic_e2e/bench/ledger.py          |  64 ++++-
+ research/mycelic_e2e/bench/report.py          |   1 +
+ research/mycelic_e2e/bench/run.py             |  28 +-
+ .../bench/tests/test_holdout_guard.py         | 271 ++++++++++++++++++
+ .../mycelic_e2e/bench/tests/test_ledger.py    |   2 +-
+ 7 files changed, 389 insertions(+), 23 deletions(-)
+ create mode 100644 research/mycelic_e2e/bench/tests/test_holdout_guard.py
+
+diff --git a/research/mycelic_e2e/EXPERIMENTS.jsonl b/research/mycelic_e2e/EXPERIMENTS.jsonl
+index 7181ced..813e165 100644
+--- a/research/mycelic_e2e/EXPERIMENTS.jsonl
++++ b/research/mycelic_e2e/EXPERIMENTS.jsonl
+@@ -37,3 +37,5 @@
+ {"id": "X036", "utc": "2026-10-09T08:24:15Z", "kind": "live-component-check", "agent": "ENGINEER-C (claude-sonnet-5-5)", "artifact": "research/mycelic_e2e/live/LIVE_ANSWER_CHECK.md", "provider": "live Qwen3-4B-Instruct-2507 Q4_K_M (llama.cpp CPU) vs deterministic", "result": "n=40 (question, holder) pairs from dev run C1-S1 through the real EvidenceStore.answer_question: agreement both-answer 13, only-fake 7, only-live 0, neither 20; gold-holder pairs: fake 17/17, live 13/17 (Wilson ~0.53-0.90); live never cited a non-gold or decoy excerpt; misses are answer-step refusals (model reads named departments literally), gold excerpt was retrieved in 17/17; median 142 s/pair at 4 concurrent; 28,889 prompt + 1,570 completion tokens", "class": "component-only live check (dev split, n=40)"}
+ {"id": "X037", "utc": "2026-10-09T08:32:45Z", "kind": "analysis", "agent": "PLANNER (claude-fable-5-1)", "artifact": "research/mycelic_e2e/plan/DEV_ANALYSIS_C4.md", "result": "all 17 C4-S1 failures: routing/clustering/gate correct (gold supported, rival hypothesis by dept rule) but the deterministic evaluator flags gold-vs-rival (different services, shared context tokens, different numbers) as a disagreement -> engine opens a conflict -> both claims contested; contradiction follow-up routed away from both sides' supporters -> never resolves. Fails iff rival dept is one of the question's two depts (17/17 vs 23/23 passing). Baseline avoids it by not propagating conflicts to the cluster finding.", "orchestrator_decision": "approve C1 (different-entity disagreements are competing evidence, not contradictions), C2-routing defect fix (contradiction follow-ups reach both sides' holders), C3 department round-robin; reject 'hypothesis cannot demote supported' policy (not reviewed). Baseline asymmetry (no conflict propagation to cluster findings) disclosed as a declared difference.", "class": "analysis"}
+ {"id": "X038", "utc": "2026-10-09T08:44:07Z", "kind": "custody", "what": "llama-server (Qwen3-4B, PID 8513, :8082) stopped gracefully with /root/mycelic-live/serve.sh stop 4b", "why": "live component check finished; its ~6.3 GB RSS was needed for concurrent M/L dev runs; restart: /root/mycelic-live/serve.sh 4b", "class": "custody"}
++{"id": "X039", "utc": "2026-10-09T08:49:44Z", "kind": "harness", "agent": "WP3 (claude-sonnet-5-5)", "result": "holdout guard wired into run.py and baseline_central (start_run before anything is written; refuse when not frozen / bank hash changed / repo dirty / snapshot .rev != repo HEAD / candidate already run; completed and aborted rows use up the shot; key = git sha, ablation, mode, variant); 131 harness tests pass", "class": "harness"}
++{"id": "X040", "utc": "2026-10-09T08:49:44Z", "kind": "custody", "what": "disk allowance", "result": "free space fell to ~0 then 5.2 GB; deleted regenerable WP2 --generate-only L output (7.1 GB), orchestrator debug copy, DB copies inside superseded reviewer/live scratch dirs, and holder stores of superseded dev runs (S1, C1-S1, smoke-cap40, C2a-M2, C3-L3); kept every run's views, gold, manifests, score/gate reports and coord.db; free 15 GB", "class": "custody"}
+diff --git a/research/mycelic_e2e/bench/baseline_central.py b/research/mycelic_e2e/bench/baseline_central.py
+index 2e362ec..217d32a 100644
+--- a/research/mycelic_e2e/bench/baseline_central.py
++++ b/research/mycelic_e2e/bench/baseline_central.py
+@@ -52,6 +52,7 @@ import json
+ import re
+ import shutil
+ import sqlite3
++import sys
+ import tempfile
+ import time
+ import uuid
+@@ -59,7 +60,7 @@ from datetime import datetime, timedelta, timezone
+ from pathlib import Path
+ from typing import Any, Iterable, Mapping, Sequence
+ 
+-from . import arch_gate
++from . import arch_gate, ledger
+ from .gold import copy_gold
+ 
+ PROVIDER_LABEL = "deterministic-provider"
+@@ -511,27 +512,47 @@ def write_raw_authority(run_dir: str | Path, *, org_db: str | Path | None = None
+ 
+ # ---------------------------------------------------------------------------------------------- entry point
+ def run(world_dir: str | Path, tasks_public: Sequence[Any] | None, out_dir: str | Path, *, variant: str = PRIMARY_VARIANT, org_db: str | Path | None = None,
+-        evidence_budget: int = EVIDENCE_BUDGET, split: str | None = None, log: Any = print) -> dict[str, Any]:
++        evidence_budget: int = EVIDENCE_BUDGET, split: str | None = None, log: Any = print, ledger_rows: bool = False) -> dict[str, Any]:
+     """Run the baseline on the sources of ``world_dir`` and write a scorable run directory to ``out_dir``. ``tasks_public`` defaults to the
+     public task file of ``world_dir``. Returns the run manifest."""
+     if variant not in VARIANTS:
+         raise ValueError(f"variant must be one of {VARIANTS}")
+-    return asyncio.run(_run(Path(world_dir), tasks_public, Path(out_dir), variant, Path(org_db) if org_db else None, evidence_budget, split, log))
++    return asyncio.run(_run(Path(world_dir), tasks_public, Path(out_dir), variant, Path(org_db) if org_db else None, evidence_budget, split, log, ledger_rows))
+ 
+ 
+-async def _run(world: Path, tasks_public: Sequence[Any] | None, out: Path, variant: str, org_db: Path | None, budget: int, split: str | None, log: Any) -> dict[str, Any]:
++async def _run(world: Path, tasks_public: Sequence[Any] | None, out: Path, variant: str, org_db: Path | None, budget: int, split: str | None, log: Any,
++               ledger_rows: bool = False) -> dict[str, Any]:
++    t_start = time.perf_counter()
++    run_manifest = _load_json(world / "run_manifest.json", {}) or {}
++    split = split or run_manifest.get("split") or "dev"
++    # the holdout guard first: nothing is created if a holdout baseline may not run (raises ledger.HoldoutRefused)
++    ledger_run_id = None
++    if split == "holdout" or ledger_rows:
++        ledger_run_id = ledger.start_run({"split": split, "mode": "baseline", "variant": variant, "ablation": None, "seed": run_manifest.get("seed"),
++                                          "size": run_manifest.get("size"), "provider_label": PROVIDER_LABEL, "transport": None, "inprocess": True,
++                                          "run_dir": str(out.resolve())})
++    try:
++        manifest = await _run_guarded(world, tasks_public, out, variant, org_db, budget, split, log, t_start, run_manifest, ledger_run_id)
++    except BaseException as exc:
++        if ledger_run_id:
++            ledger.abort_run(ledger_run_id, f"{type(exc).__name__}: {exc}")
++        raise
++    if ledger_run_id:
++        ledger.mark_completed(ledger_run_id, {"out": str(out)})
++    return manifest
++
++
++async def _run_guarded(world: Path, tasks_public: Sequence[Any] | None, out: Path, variant: str, org_db: Path | None, budget: int, split: str, log: Any,
++                       t_start: float, run_manifest: dict[str, Any], ledger_run_id: str | None) -> dict[str, Any]:
+     from mycelic.models.fake import FakeProvider
+     from mycelic.models.ledger import MemoryUsageLedger
+     from mycelic.models.router import DefaultModelRouter
+ 
+-    t_start = time.perf_counter()
+     out.mkdir(parents=True, exist_ok=True)
+     (out / "views").mkdir(exist_ok=True)
+     src_manifest = _load_json(world / "sources_manifest.json")
+     if not src_manifest:
+         raise BaselineError(f"{world}/sources_manifest.json missing or empty")
+-    run_manifest = _load_json(world / "run_manifest.json", {}) or {}
+-    split = split or run_manifest.get("split") or "dev"
+     pub_file = world / f"tasks_{split}.public.json"
+     tasks = [_as_dict(t) for t in tasks_public] if tasks_public is not None else load_public_tasks(pub_file)
+     coord = org_db or (world / "data" / "coord.db")
+@@ -590,7 +611,7 @@ async def _run(world: Path, tasks_public: Sequence[Any] | None, out: Path, varia
+             by_purpose[c.purpose] = by_purpose.get(c.purpose, 0) + 1
+         errors = sum(1 for v in views.values() if v["status"] != "ok")
+         manifest = {
+-            "run_id": "base_" + uuid.uuid4().hex[:10], "split": split, "mode": "baseline", "ablation": None, "variant": variant, "seed": run_manifest.get("seed"),
++            "run_id": "base_" + uuid.uuid4().hex[:10], "ledger_run_id": ledger_run_id, "split": split, "mode": "baseline", "ablation": None, "variant": variant, "seed": run_manifest.get("seed"),
+             "size": run_manifest.get("size"), "provider_label": PROVIDER_LABEL, "provider": "fake (deterministic)", "tasks_sha256": tasks_sha, "n_tasks": len(tasks),
+             "raw_checks_enabled": True, "evidence_budget_items": budget, "per_origin_cap": PER_ORIGIN_CAP if variant == "source" else None,
+             "counts": {"created": len(stores), "with_records": len(stores), "activated": len(answered_tenants), "routed": 0},
+@@ -632,13 +653,18 @@ def main(argv: Iterable[str] | None = None) -> int:      # pragma: no cover - th
+     ap.add_argument("--authority-only", action="store_true", help="only write <world_dir>/raw_authority.json (for scoring the system run) and exit")
+     ap.add_argument("--variant", choices=VARIANTS, default=PRIMARY_VARIANT)
+     ap.add_argument("--org-db")
++    ap.add_argument("--ledger", action="store_true", help="also write ledger rows for a dev run (a holdout run always does, and is refused by the holdout guard)")
+     ns = ap.parse_args(list(argv) if argv is not None else None)
+     if ns.authority_only:
+         print(write_raw_authority(ns.world_dir, org_db=ns.org_db))
+         return 0
+     if not ns.out:
+         ap.error("--out is required")
+-    m = run(ns.world_dir, None, ns.out, variant=ns.variant, org_db=ns.org_db)
++    try:
++        m = run(ns.world_dir, None, ns.out, variant=ns.variant, org_db=ns.org_db, ledger_rows=ns.ledger)
++    except ledger.HoldoutRefused as exc:
++        print(f"HOLDOUT REFUSED: {exc}", file=sys.stderr)
++        return 3
+     print(json.dumps({k: m[k] for k in ("run_id", "variant", "n_tasks", "view_errors", "counts", "model_usage", "timings_s")}, indent=2, default=str))
+     return 0
+ 
+diff --git a/research/mycelic_e2e/bench/ledger.py b/research/mycelic_e2e/bench/ledger.py
+index de6f768..81ff604 100644
+--- a/research/mycelic_e2e/bench/ledger.py
++++ b/research/mycelic_e2e/bench/ledger.py
+@@ -49,19 +49,42 @@ class HoldoutRefused(RuntimeError):
+ 
+ 
+ # ---------------------------------------------------------------------------------------------- environment facts
++REPO_ENV = "MYCELIC_E2E_REPO"
++GIT_EXCLUDES = (":(exclude)research/mycelic_e2e/results", ":(exclude)research/mycelic_e2e/EXPERIMENTS.jsonl")      # run outputs, not code
++
++
++def repo_path() -> Path:
++    """The git repository the code under test belongs to: ``MYCELIC_E2E_REPO`` when set (runs execute from a code snapshot with no
++    ``.git``), else the code directory itself."""
++    env = os.environ.get(REPO_ENV)
++    return Path(env) if env else REPO_ROOT
++
++
++def snapshot_rev() -> str | None:
++    """The short sha recorded in ``<code dir>/.rev`` by the snapshot (``git archive`` of the frozen commit), or None when running from a checkout."""
++    try:
++        v = (REPO_ROOT / ".rev").read_text(encoding="utf-8").strip()
++    except OSError:
++        return None
++    return v or None
++
++
+ def _git(*args: str) -> str:
+     try:
+-        return subprocess.run(["git", "-C", str(REPO_ROOT), *args], capture_output=True, text=True, timeout=60, check=True).stdout
++        return subprocess.run(["git", "-C", str(repo_path()), *args], capture_output=True, text=True, timeout=60, check=True).stdout
+     except (subprocess.SubprocessError, OSError):
+         return ""
+ 
+ 
+ def git_info() -> dict[str, Any]:
++    """Commit, branch and cleanliness of the REAL repository (see :func:`repo_path`), plus the snapshot rev the code was run from. The dirty
++    flag ignores run outputs (``results/``, ``EXPERIMENTS.jsonl``)."""
+     sha = _git("rev-parse", "HEAD").strip()
+-    status = _git("status", "--porcelain", "--", ".", ":(exclude)research/mycelic_e2e/results").splitlines()
++    status = _git("status", "--porcelain", "--", ".", *GIT_EXCLUDES).splitlines()
+     files = [ln[3:] for ln in status if ln.strip()]
+-    return {"git_sha": sha or None, "git_branch": _git("rev-parse", "--abbrev-ref", "HEAD").strip() or None,
+-            "dirty": bool(files), "dirty_count": len(files), "dirty_files": files[:20]}
++    return {"git_sha": sha or None, "repo_sha": sha or None, "git_branch": _git("rev-parse", "--abbrev-ref", "HEAD").strip() or None,
++            "dirty": bool(files), "dirty_count": len(files), "dirty_files": files[:20],
++            "repo_path": str(repo_path()), "snapshot_rev": snapshot_rev()}
+ 
+ 
+ def host_info() -> dict[str, Any]:
+@@ -192,9 +215,11 @@ def _norm_ablation(a: Any) -> str | None:
+     return None if a in (None, "", "none", "None") else str(a)
+ 
+ 
+-def holdout_rows(sha: str | None, ablation: Any, mode: str, path: str | os.PathLike[str] | None = None) -> list[dict[str, Any]]:
++def holdout_rows(sha: str | None, ablation: Any, mode: str, path: str | os.PathLike[str] | None = None, variant: Any = None) -> list[dict[str, Any]]:
++    """Holdout rows for the same candidate: git sha, ablation, mode and (for the baseline) variant."""
++    norm = lambda v: None if v in (None, "", "none") else str(v)      # noqa: E731
+     return [r for r in runs(path) if r.get("split") == "holdout" and r.get("git_sha") == sha and _norm_ablation(r.get("ablation")) == _norm_ablation(ablation)
+-            and r.get("mode") == mode]
++            and r.get("mode") == mode and norm(r.get("variant")) == norm(variant)]
+ 
+ 
+ # ---------------------------------------------------------------------------------------------- run lifecycle
+@@ -211,12 +236,19 @@ def start_run(cfg: Mapping[str, Any]) -> str:
+     if split == "holdout":
+         if check["status"] != "ok":
+             raise HoldoutRefused(f"holdout hash check: {check['status']} (expected {str(check.get('expected'))[:16]}, actual {str(check.get('actual'))[:16]})")
++        if not git["git_sha"]:
++            raise HoldoutRefused(f"cannot determine the git commit of {git.get('repo_path')} (set {REPO_ENV} to the real repository when running from a snapshot)")
++        rev = git.get("snapshot_rev")
++        if os.environ.get(REPO_ENV) and not rev:
++            raise HoldoutRefused(f"{REPO_ENV} is set but the code directory has no .rev file: the run cannot prove it executes the frozen commit")
++        if rev and not (len(rev) >= 7 and str(git["git_sha"]).startswith(rev)):
++            raise HoldoutRefused(f"code snapshot .rev {rev} does not match the repository HEAD {str(git['git_sha'])[:12]}: the code under test is not the frozen commit")
+         if git["dirty"] and not cfg.get("allow_dirty_holdout"):
+-            raise HoldoutRefused(f"holdout needs a clean working tree ({git['dirty_count']} changed files); commit first")
+-        prior = holdout_rows(git["git_sha"], ablation, mode, path)
++            raise HoldoutRefused(f"holdout needs a clean repository ({git['dirty_count']} changed files, e.g. {git['dirty_files'][:3]}); commit first")
++        prior = holdout_rows(git["git_sha"], ablation, mode, path, cfg.get("variant"))
+         if prior:
+-            raise HoldoutRefused(f"holdout already run for git {str(git['git_sha'])[:10]} ablation={ablation} mode={mode} (run {prior[0].get('run_id')}); "
+-                                 "a holdout is run once per candidate")
++            raise HoldoutRefused(f"holdout already run for git {str(git['git_sha'])[:10]} ablation={ablation} mode={mode} variant={cfg.get('variant')} "
++                                 f"(run {prior[0].get('run_id')}); a holdout is run once per candidate")
+     run_id = f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{split}-{mode}-{ablation or 'full'}-s{cfg.get('size', '?')}-{cfg.get('seed', '?')}-{uuid.uuid4().hex[:6]}"
+     row = {
+         "run_id": run_id, "status": "started", "started_at": now_iso(), "finished_at": None,
+@@ -296,6 +328,18 @@ def finish_run(run_id: str, score: Any, gate: Any = None, *, extra: Mapping[str,
+     return row
+ 
+ 
++def mark_completed(run_id: str, extra: Mapping[str, Any] | None = None, *, ledger: str | os.PathLike[str] | None = None) -> dict[str, Any]:
++    """The run itself finished (all views written); scoring and the gate come later through ``report.finalize`` / ``finish_run``, which add
++    the accuracy fields. Appends a ``completed`` row so a crash between the two is visible."""
++    path = Path(ledger) if ledger else ledger_path()
++    start = next((r for r in reversed(read_rows(path)) if r.get("run_id") == run_id), None)
++    if start is None:
++        raise KeyError(f"no started row for run {run_id} in {path}")
++    row = dict(start, status="completed", finished_at=now_iso(), **({"extra": dict(extra)} if extra else {}))
++    _append(path, row)
++    return row
++
++
+ def abort_run(run_id: str, reason: str, *, ledger: str | os.PathLike[str] | None = None) -> dict[str, Any]:
+     path = Path(ledger) if ledger else ledger_path()
+     start = next((r for r in reversed(read_rows(path)) if r.get("run_id") == run_id), None)
+diff --git a/research/mycelic_e2e/bench/report.py b/research/mycelic_e2e/bench/report.py
+index 1c8d89b..36619aa 100644
+--- a/research/mycelic_e2e/bench/report.py
++++ b/research/mycelic_e2e/bench/report.py
+@@ -60,6 +60,7 @@ def finalize(run_dir: str | Path, *, coord_db: str | Path | None = None, holders
+                                expect_ranker=expect_ranker if expect_ranker is not None else (hg and rs.ablation != "A1"))
+         (d / "arch_gate.json").write_text(json.dumps(gate.to_dict(), indent=2, default=str), encoding="utf-8")
+     row = None
++    run_id = run_id or (rs.manifest or {}).get("ledger_run_id")          # run.py / baseline_central record the id their holdout guard issued
+     if run_id:
+         row = ledger_mod.finish_run(run_id, rs, gate, extra=extra, ledger=ledger)
+     return {"score": rs, "gate": gate, "ledger_row": row}
+diff --git a/research/mycelic_e2e/bench/run.py b/research/mycelic_e2e/bench/run.py
+index 6ad1331..ab7a9d5 100644
+--- a/research/mycelic_e2e/bench/run.py
++++ b/research/mycelic_e2e/bench/run.py
+@@ -34,7 +34,7 @@ logging.disable(logging.CRITICAL)
+ 
+ from aiohttp import web  # noqa: E402
+ 
+-from research.mycelic_e2e.bench import ablations, events, feed, issue, world as W  # noqa: E402
++from research.mycelic_e2e.bench import ablations, events, feed, issue, ledger, world as W  # noqa: E402
+ from research.mycelic_e2e.bench.feed import ApiClient  # noqa: E402
+ from research.mycelic_e2e.bench.gold import GoldSink, gold_path  # noqa: E402
+ from research.mycelic_e2e.bench.schema import SIZES, SPLITS  # noqa: E402
+@@ -309,7 +309,7 @@ async def amain(a: argparse.Namespace) -> int:
+         for v in view_summary.values():
+             statuses[str(v["q"])] = statuses.get(str(v["q"]), 0) + 1
+         run_manifest = {
+-            "run_id": run_id, "split": a.split, "mode": a.mode, "ablation": abl_short, "ablation_name": abl_name,
++            "run_id": run_id, "ledger_run_id": getattr(a, "ledger_run_id", None), "split": a.split, "mode": a.mode, "ablation": abl_short, "ablation_name": abl_name,
+             "ablation_patches": abl_patch.describe()["patched"] if abl_patch else [], "seed": a.seed, "size": a.size, "provider_label": PROVIDER_LABEL,
+             "provider": "fake (deterministic)", "fake_py_sha256": hashlib.sha256(fake_py.read_bytes()).hexdigest()[:16], "tasks_sha256": tasks_sha, "sources_sha256": sources_sha,
+             "n_tasks": len(public), "n_gold_written": n_gold, "world_sha256": world.fingerprint(), "world_counts": world.counts(), "transport": "sqlite",
+@@ -362,8 +362,30 @@ def main(argv: list[str] | None = None) -> int:
+                                                    "A5_authz_routing_off, A6_dedupe_off (or A1..A6); recorded in run_manifest.json")
+     ap.add_argument("--anchor", default="", help="ISO timestamp the record ages are measured from (default: now); fix it to get byte-identical sources")
+     ap.add_argument("--generate-only", action="store_true", help="materialize, write tasks (public + gold) and sources, hash them, and stop (no feed, no tasks)")
++    ap.add_argument("--ledger", action="store_true", help="also write ledger rows for a dev run (a holdout run always does, and is refused by the holdout guard)")
+     a = ap.parse_args(argv)
+-    return asyncio.run(amain(a))
++    # the holdout guard runs BEFORE anything is generated or written: frozen bank hash, clean repository, snapshot rev == HEAD, one run per candidate
++    a.ledger_run_id = None
++    if a.split == "holdout" or a.ledger:
++        cfg = {"split": a.split, "mode": a.mode, "ablation": ablations.normalize(a.ablation)[0], "seed": a.seed, "size": a.size, "provider_label": PROVIDER_LABEL,
++               "transport": "sqlite", "inprocess": True, "run_dir": str(Path(a.out).resolve()), "generate_only": a.generate_only}
++        try:
++            a.ledger_run_id = ledger.start_run(cfg)
++        except ledger.HoldoutRefused as exc:
++            print(f"HOLDOUT REFUSED: {exc}", file=sys.stderr)
++            return 3
++    try:
++        rc = asyncio.run(amain(a))
++    except BaseException as exc:
++        if a.ledger_run_id:
++            ledger.abort_run(a.ledger_run_id, f"{type(exc).__name__}: {exc}")
++        raise
++    if a.ledger_run_id:
++        if rc == 0:
++            ledger.mark_completed(a.ledger_run_id, {"out": str(a.out)})
++        else:
++            ledger.abort_run(a.ledger_run_id, f"run.py returned {rc}")
++    return rc
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/research/mycelic_e2e/bench/tests/test_holdout_guard.py b/research/mycelic_e2e/bench/tests/test_holdout_guard.py
+new file mode 100644
+index 0000000..2b84295
+--- /dev/null
++++ b/research/mycelic_e2e/bench/tests/test_holdout_guard.py
+@@ -0,0 +1,271 @@
++"""The holdout guard wired into the runs: frozen bank hash, clean repository, snapshot .rev == HEAD, one holdout run per candidate, and
++that run.py / baseline_central call it BEFORE anything is generated or written. Dev runs are never refused."""
++from __future__ import annotations
++
++import asyncio
++import json
++import subprocess
++import sys
++from pathlib import Path
++
++import pytest
++
++BENCH = Path(__file__).resolve().parents[1]
++REPO = BENCH.parents[2]
++sys.path.insert(0, str(BENCH.parent))
++sys.path.insert(0, str(REPO))
++sys.path.insert(0, str(Path(__file__).resolve().parent))
++
++from bench import baseline_central, ledger as bled            # noqa: E402  (the alias baseline_central itself imports)
++from research.mycelic_e2e.bench import ledger as rled          # noqa: E402  (the alias run.py imports)
++
++GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t", "PATH": "/usr/bin:/bin:/usr/local/bin", "HOME": "/tmp"}
++
++
++def git(repo: Path, *args: str) -> str:
++    return subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True, env=GIT_ENV).stdout.strip()
++
++
++class Env:
++    def __init__(self, led, tmp: Path, monkeypatch) -> None:
++        self.led, self.tmp, self.mp = led, tmp, monkeypatch
++        self.repo = tmp / "repo"
++        self.repo.mkdir()
++        git(self.repo, "init", "-q", "-b", "main")
++        (self.repo / "code.py").write_text("X = 1\n")
++        (self.repo / "research" / "mycelic_e2e").mkdir(parents=True)
++        (self.repo / "research" / "mycelic_e2e" / "EXPERIMENTS.jsonl").write_text("{}\n")
++        git(self.repo, "add", "-A")
++        git(self.repo, "commit", "-q", "-m", "c1")
++        self.snapshot = tmp / "snapshot"                          # what a run executes from: no .git, a .rev file
++        self.snapshot.mkdir()
++        self.write_rev()
++        self.bank = tmp / "sealed" / "templates_holdout.py"
++        self.bank.parent.mkdir()
++        self.bank.write_text("BANK = 1\n")
++        self.sha = tmp / "HOLDOUT_SHA256"
++        led.freeze_holdout(self.bank, sha_file=self.sha)
++        self.ledger = tmp / "ledger.jsonl"
++        monkeypatch.setattr(led, "REPO_ROOT", self.snapshot)
++        monkeypatch.setattr(led, "HOLDOUT_SHA_FILE", self.sha)
++        monkeypatch.setenv("MYCELIC_E2E_REPO", str(self.repo))
++        monkeypatch.setenv("MYCELIC_E2E_HOLDOUT_BANK", str(self.bank))
++        monkeypatch.setenv("MYCELIC_E2E_LEDGER", str(self.ledger))
++
++    def head(self) -> str:
++        return git(self.repo, "rev-parse", "HEAD")
++
++    def write_rev(self, rev: str | None = None) -> None:
++        (self.snapshot / ".rev").write_text((rev or self.head()[:10]) + "\n")
++
++    def cfg(self, **kw):
++        return {"split": "holdout", "mode": "system", "seed": 1, "size": "S", **kw}
++
++    def rows(self):
++        return self.led.read_rows(self.ledger)
++
++
++@pytest.fixture
++def env(tmp_path, monkeypatch):
++    return Env(bled, tmp_path, monkeypatch)
++
++
++@pytest.fixture
++def renv(tmp_path, monkeypatch):
++    return Env(rled, tmp_path, monkeypatch)
++
++
++def test_a_clean_frozen_snapshot_run_is_allowed_and_the_row_names_the_repo_and_the_snapshot(env):
++    rid = env.led.start_run(env.cfg())
++    row = env.rows()[0]
++    assert row["run_id"] == rid and row["git_sha"] == env.head() and row["repo_sha"] == env.head() and row["snapshot_rev"] == env.head()[:10]
++    assert row["repo_path"] == str(env.repo) and row["holdout_hash_check"] == "ok" and row["dirty"] is False
++
++
++def test_refused_when_the_bank_is_not_frozen(env):
++    env.sha.unlink()
++    with pytest.raises(env.led.HoldoutRefused, match="not_frozen"):
++        env.led.start_run(env.cfg())
++    assert env.rows() == []                                       # nothing written
++
++
++def test_refused_when_the_bank_hash_changed(env):
++    env.bank.write_text("BANK = 2\n")
++    with pytest.raises(env.led.HoldoutRefused, match="mismatch"):
++        env.led.start_run(env.cfg())
++    assert env.rows() == []
++
++
++def test_refused_when_the_repository_is_dirty_but_run_outputs_do_not_count(env):
++    results = env.repo / "research" / "mycelic_e2e" / "results"
++    results.mkdir()
++    (results / "ledger.jsonl").write_text("{}\n")                                                  # untracked run output
++    (env.repo / "research" / "mycelic_e2e" / "EXPERIMENTS.jsonl").write_text('{"changed": 1}\n')    # tracked run log, modified
++    env.led.start_run(env.cfg(ablation="A9"))                                                      # still clean as far as code goes
++    (env.repo / "code.py").write_text("X = 2\n")                                                   # a code change
++    with pytest.raises(env.led.HoldoutRefused, match="clean repository"):
++        env.led.start_run(env.cfg())
++    git(env.repo, "checkout", "code.py")
++    (env.repo / "new_module.py").write_text("Y = 1\n")                                             # an untracked code file is dirty too
++    with pytest.raises(env.led.HoldoutRefused, match="clean repository"):
++        env.led.start_run(env.cfg())
++    assert len(env.rows()) == 1
++
++
++def test_refused_when_the_snapshot_rev_is_not_the_repo_head(env):
++    env.write_rev("deadbeef12")
++    with pytest.raises(env.led.HoldoutRefused, match="does not match the repository HEAD"):
++        env.led.start_run(env.cfg())
++    env.write_rev()
++    env.led.start_run(env.cfg())                                                                   # the right rev passes
++    (env.repo / "code.py").write_text("X = 3\n")
++    git(env.repo, "commit", "-q", "-am", "c2")                                                     # HEAD moves on, the snapshot is stale
++    with pytest.raises(env.led.HoldoutRefused, match="does not match the repository HEAD"):
++        env.led.start_run(env.cfg(ablation="A1"))
++
++
++def test_refused_when_the_repo_env_is_set_but_the_snapshot_has_no_rev_or_no_commit_is_known(env, monkeypatch):
++    (env.snapshot / ".rev").unlink()
++    with pytest.raises(env.led.HoldoutRefused, match="no .rev file"):
++        env.led.start_run(env.cfg())
++    monkeypatch.setenv("MYCELIC_E2E_REPO", str(env.tmp / "not-a-repo"))
++    with pytest.raises(env.led.HoldoutRefused, match="cannot determine the git commit"):
++        env.led.start_run(env.cfg())
++
++
++def test_a_checkout_run_without_a_snapshot_needs_no_rev(env, monkeypatch):
++    monkeypatch.delenv("MYCELIC_E2E_REPO")
++    monkeypatch.setattr(env.led, "REPO_ROOT", env.repo)                                            # the code directory is the repository itself
++    (env.repo / ".rev").unlink() if (env.repo / ".rev").exists() else None
++    env.led.start_run(env.cfg())
++    assert env.rows()[0]["snapshot_rev"] is None
++
++
++def test_second_holdout_run_of_the_same_candidate_is_refused_per_ablation_mode_and_variant(env):
++    env.led.start_run(env.cfg())
++    with pytest.raises(env.led.HoldoutRefused, match="already run"):
++        env.led.start_run(env.cfg())
++    env.led.start_run(env.cfg(ablation="A1"))                                                      # each ablation is its own candidate row
++    env.led.start_run(env.cfg(mode="baseline", variant="source"))
++    env.led.start_run(env.cfg(mode="baseline", variant="single"))                                  # primary and secondary baseline variants each run once
++    with pytest.raises(env.led.HoldoutRefused, match="variant=source"):
++        env.led.start_run(env.cfg(mode="baseline", variant="source"))
++    (env.repo / "code.py").write_text("X = 4\n")
++    git(env.repo, "commit", "-q", "-am", "c2")
++    env.write_rev()
++    env.led.start_run(env.cfg())                                                                   # a new commit is a new candidate
++
++
++def test_dev_runs_are_never_refused(env):
++    env.sha.unlink()                                            # not frozen
++    (env.repo / "code.py").write_text("dirty\n")                # dirty
++    env.write_rev("deadbeef12")                                 # wrong rev
++    ids = {env.led.start_run(env.cfg(split="dev")), env.led.start_run(env.cfg(split="dev"))}
++    assert len(ids) == 2 and {r["split"] for r in env.rows()} == {"dev"} and {r["holdout_hash_check"] for r in env.rows()} == {"not_frozen"}
++
++
++def test_completed_and_aborted_rows_keep_the_run_visible_until_report_finalize_adds_the_score(env):
++    rid = env.led.start_run(env.cfg())
++    env.led.mark_completed(rid, {"out": "x"}, ledger=env.ledger)
++    assert [r["status"] for r in env.led.runs(env.ledger)] == ["completed"]
++    with pytest.raises(env.led.HoldoutRefused):                                                    # a completed or crashed run still uses up the single shot
++        env.led.start_run(env.cfg())
++
++
++# ------------------------------------------------------------------------------------------------ wiring: run.py
++def test_run_py_holdout_is_refused_before_anything_is_written(renv, tmp_path):
++    from research.mycelic_e2e.bench import run
++    renv.sha.unlink()                                                                              # not frozen
++    out = tmp_path / "out"
++    rc = run.main(["--size", "S", "--split", "holdout", "--out", str(out)])
++    assert rc == 3 and not out.exists() and renv.rows() == []
++    renv.led.freeze_holdout(renv.bank, sha_file=renv.sha)
++    (renv.repo / "code.py").write_text("dirty\n")
++    assert run.main(["--size", "S", "--split", "holdout", "--out", str(out)]) == 3 and not out.exists() and renv.rows() == []
++    git(renv.repo, "checkout", "code.py")
++    renv.write_rev("deadbeef12")
++    assert run.main(["--size", "S", "--split", "holdout", "--out", str(out)]) == 3 and not out.exists() and renv.rows() == []
++
++
++def test_run_py_holdout_runs_after_the_guard_records_start_and_completion_and_aborts_on_failure(renv, tmp_path, monkeypatch):
++    from research.mycelic_e2e.bench import run
++    seen = {}
++
++    async def fake_amain(a):
++        seen["run_id"] = a.ledger_run_id
++        return 0
++    monkeypatch.setattr(run, "amain", fake_amain)
++    assert run.main(["--size", "S", "--split", "holdout", "--out", str(tmp_path / "o1")]) == 0
++    rows = renv.led.runs(renv.ledger)
++    assert len(rows) == 1 and rows[0]["status"] == "completed" and rows[0]["run_id"] == seen["run_id"] and rows[0]["split"] == "holdout" and rows[0]["mode"] == "system"
++    assert rows[0]["snapshot_rev"] == renv.head()[:10]
++    assert run.main(["--size", "S", "--split", "holdout", "--out", str(tmp_path / "o2")]) == 3                       # second run of the candidate
++
++    async def failing(a):
++        raise RuntimeError("boom")
++    monkeypatch.setattr(run, "amain", failing)
++    with pytest.raises(RuntimeError):
++        run.main(["--size", "S", "--split", "holdout", "--ablation", "A1", "--out", str(tmp_path / "o3")])
++    assert [r["status"] for r in renv.led.runs(renv.ledger)][-1] == "aborted"
++
++
++def test_run_py_dev_runs_do_not_touch_the_ledger_unless_asked(renv, tmp_path, monkeypatch):
++    from research.mycelic_e2e.bench import run
++    async def ok(a):
++        return 0
++    monkeypatch.setattr(run, "amain", ok)
++    renv.sha.unlink()                                                                              # nothing would pass a holdout guard here
++    assert run.main(["--size", "S", "--split", "dev", "--out", str(tmp_path / "d1")]) == 0 and renv.rows() == []
++    assert run.main(["--size", "S", "--split", "dev", "--ledger", "--out", str(tmp_path / "d2")]) == 0
++    assert [r["split"] for r in renv.rows()] == ["dev", "dev"]                                   # started + completed
++
++
++# ------------------------------------------------------------------------------------------------ wiring: baseline_central
++def holdout_world(tmp_path: Path) -> Path:
++    import test_baseline
++    w = test_baseline.build_world(tmp_path / "world")
++    for kind in ("public", "gold"):
++        (w / f"tasks_dev.{kind}.json").rename(w / f"tasks_holdout.{kind}.json")
++    m = json.loads((w / "run_manifest.json").read_text())
++    m["split"] = "holdout"
++    (w / "run_manifest.json").write_text(json.dumps(m))
++    return w
++
++
++def test_baseline_holdout_is_refused_before_anything_is_written_and_runs_once_per_variant(env, tmp_path):
++    w = holdout_world(tmp_path)
++    out = tmp_path / "base-source"
++    env.sha.unlink()
++    with pytest.raises(env.led.HoldoutRefused, match="not_frozen"):
++        baseline_central.run(w, None, out, variant="source", log=None)
++    assert not out.exists() and env.rows() == []
++    env.led.freeze_holdout(env.bank, sha_file=env.sha)
++    m = baseline_central.run(w, None, out, variant="source", log=None)
++    rows = env.led.runs(env.ledger)
++    assert len(rows) == 1 and rows[0]["status"] == "completed" and rows[0]["mode"] == "baseline" and rows[0]["variant"] == "source" and rows[0]["split"] == "holdout"
++    assert m["ledger_run_id"] == rows[0]["run_id"] and rows[0]["snapshot_rev"] == env.head()[:10]
++    with pytest.raises(env.led.HoldoutRefused, match="already run"):
++        baseline_central.run(w, None, tmp_path / "again", variant="source", log=None)
++    assert not (tmp_path / "again").exists()
++    baseline_central.run(w, None, tmp_path / "base-single", variant="single", log=None)         # the secondary variant has its own single shot
++    assert len(env.led.runs(env.ledger)) == 2
++
++
++def test_baseline_dev_runs_skip_the_guard_and_write_no_rows_unless_asked(env, tmp_path):
++    import test_baseline
++    w = test_baseline.build_world(tmp_path / "devworld")
++    env.sha.unlink()
++    (env.repo / "code.py").write_text("dirty\n")
++    baseline_central.run(w, None, tmp_path / "dev-out", variant="source", log=None)
++    assert env.rows() == []
++    baseline_central.run(w, None, tmp_path / "dev-out2", variant="single", log=None, ledger_rows=True)
++    assert [r["status"] for r in env.rows()] == ["started", "completed"] and env.rows()[0]["variant"] == "single"
++
++
++def test_report_finalize_picks_up_the_ledger_run_id_the_guard_issued(env, tmp_path):
++    from bench import report
++    w = holdout_world(tmp_path)
++    out = tmp_path / "b"
++    m = baseline_central.run(w, None, out, variant="source", log=None)
++    res = report.finalize(out, ledger=env.ledger)
++    assert res["ledger_row"]["run_id"] == m["ledger_run_id"] and res["ledger_row"]["status"] == "finished" and res["ledger_row"]["accuracy"] is not None
+diff --git a/research/mycelic_e2e/bench/tests/test_ledger.py b/research/mycelic_e2e/bench/tests/test_ledger.py
+index a3c39e5..6027ad1 100644
+--- a/research/mycelic_e2e/bench/tests/test_ledger.py
++++ b/research/mycelic_e2e/bench/tests/test_ledger.py
+@@ -100,7 +100,7 @@ def test_holdout_refused_when_not_frozen_changed_dirty_or_repeated(env, monkeypa
+         ledger.start_run(cfg(env, split="holdout", ablation="A2"))
+     monkeypatch.setattr(ledger, "git_info", lambda: {"git_sha": "def456", "git_branch": "b", "dirty": True, "dirty_count": 2, "dirty_files": ["a", "b"]})
+     ledger.freeze_holdout(env["hold"], sha_file=env["sha"], force=True)
+-    with pytest.raises(ledger.HoldoutRefused, match="clean working tree"):
++    with pytest.raises(ledger.HoldoutRefused, match="clean repository"):
+         ledger.start_run(cfg(env, split="holdout"))
+     ledger.start_run(cfg(env, split="holdout", allow_dirty_holdout=True))
+ 
+-- 
+2.43.0
+

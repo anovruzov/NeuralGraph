@@ -1,0 +1,37 @@
+pairs where retrieval returned nothing (the model is not called, both routers say no_evidence): 4
+pairs: 40; live model calls made: 36; live errors / rule fallbacks: 0
+fake re-run reproduces the recorded status: 40/40; status and answer text: 40/40
+
+agreement (fake vs live answered):
+| subset | n | both answer | only fake | only live | neither | live unavailable |
+|---|---|---|---|---|---|---|
+| all | 40 | 13 | 7 | 0 | 20 | 0 |
+| answered/gold-holder | 17 | 13 | 4 | 0 | 0 | 0 |
+| answered/non-gold-holder | 3 | 0 | 3 | 0 | 0 | 0 |
+| no_evidence/non-gold-holder | 20 | 0 | 0 | 0 | 20 | 0 |
+
+gold-holder pairs: 17
+| metric | fake | live |
+|---|---|---|
+| answered | 17/17 | 13/17 |
+| hit (answered and cites >=1 gold observation) | 17/17 | 13/17 |
+| clean hit (every cited excerpt is gold) | 17/17 | 13/17 |
+| answer text names the gold entity (answerable tasks) | 10/10 | 7/10 |
+| answer text names a decoy entity (answerable tasks) | 0/10 | 0/10 |
+| gold observation among the retrieved 8 (same retrieval for both) | 17/17 | same |
+
+live citations that are not gold, and live disagreements:
+- idx 9 dev-042 (cross_domain) answered/gold-holder: fake=answered live=no_evidence; live answer=''; live cited=[]
+- idx 10 dev-110 (contradiction) answered/gold-holder: fake=answered live=no_evidence; live answer=''; live cited=[]
+- idx 11 dev-061 (coincidence) answered/gold-holder: fake=answered live=no_evidence; live answer=''; live cited=[]
+- idx 12 dev-088 (temporal) answered/gold-holder: fake=answered live=no_evidence; live answer=''; live cited=[]
+- idx 17 dev-040 (contradiction) answered/non-gold-holder: fake=answered live=no_evidence; live answer=''; live cited=[]
+- idx 18 dev-092 (contradiction) answered/non-gold-holder: fake=answered live=no_evidence; live answer=''; live cited=[]
+- idx 19 dev-097 (common_origin_copies) answered/non-gold-holder: fake=answered live=no_evidence; live answer=''; live cited=[]
+
+live cost per pair (answer_from_evidence incl. any repair retries):
+- latency_s: median 141.7, mean 149.6, min 55.1, max 318.5
+- tokens_in: median 825.5, mean 802.5, min 379.0, max 1750.0
+- tokens_out: median 26.0, mean 43.6, min 24.0, max 115.0
+- model calls per pair: Counter({1: 33, 2: 3}); invalid-output retries: 3
+- live pass wall time: 1359.2 s at concurrency 4
