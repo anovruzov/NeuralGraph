@@ -51,6 +51,21 @@ class EndToEndTests(unittest.TestCase):
         self.assertFalse(self.result["measurement"])
         self.assertEqual(len(self.docs["planted"]["labels"]), 26)
 
+    def test_the_export_splits_off_a_timing_free_routes_file(self) -> None:
+        summary, routes = R.export_docs(self.result)
+        self.assertNotIn("routes_and_answers", summary)
+        self.assertIn("timings", json.dumps(summary))
+        text = json.dumps(routes)
+        self.assertNotIn("timings", text)
+        self.assertNotIn("seconds", text)
+        self.assertEqual(sorted(routes["worlds"]), sorted(self.result["routes_and_answers"]))
+        for name, w in routes["worlds"].items():
+            src = self.result["routes_and_answers"][name]
+            self.assertEqual(len(w["candidates"]), len(src["candidates"]))
+            self.assertEqual(sorted(w["routes"]), sorted(src["routes"]))
+            for i, c in enumerate(src["candidates"]):
+                self.assertEqual(len(w["answers"][i]), len(src["answers"][c["question_id"]]))
+
     def test_the_result_holds_no_record_text_or_record_ref(self) -> None:
         text = json.dumps(self.result) + json.dumps(self.docs)
         self.assertIsNone(re.search(r"(plant|werk)-[a-z]+-(plant-)?\d{6}", text))
@@ -62,13 +77,37 @@ class EndToEndTests(unittest.TestCase):
             world.pipeline.store.close()
 
     def test_process_mode_gives_byte_identical_verdicts(self) -> None:
-        path = R.run_world_job(1, False, str(Path(self.tmp.name) / "process"), "process", top_n=2)
-        doc = strict_load(Path(path).read_bytes())
+        # the suite's small check; ``run.py process-check`` runs a whole planted world this way (section 10,
+        # deviation 18)
+        res = R.process_check(self.run_dir, 1, False, Path(self.tmp.name) / "process", top_n=2)
+        self.assertTrue(res["ok"], res)
+        self.assertEqual((res["mode"], res["reference_mode"]), ("process", "in_process"))
+        self.assertEqual(res["candidates"], 2)
+        self.assertGreater(res["pairs"], 0)
+        self.assertEqual(res["differing_pairs"], 0)
+        doc = strict_load((Path(self.tmp.name) / "process" / "worlds" / "seed-01-noplant" / "world.json")
+                          .read_bytes())
         self.assertEqual(doc["mode"], "process")
         mine = self.docs["noplant"]["answers"]
         self.assertTrue(doc["answers"])
         for qid, sites in doc["answers"].items():
             self.assertEqual(sites, mine[qid])
+
+    def test_the_process_check_sees_a_differing_verdict(self) -> None:
+        # the comparison can fail: a reference world whose answer for one (question, site) differs
+        import shutil
+        ref = Path(self.tmp.name) / "tampered"
+        shutil.copytree(self.run_dir / "worlds" / "seed-01-noplant", ref / "worlds" / "seed-01-noplant",
+                        ignore=shutil.ignore_patterns("*.sqlite3*", "fabric", "pristine", "compare", "edge", "hq"))
+        doc = strict_load((ref / "worlds" / "seed-01-noplant" / "world.json").read_bytes())
+        qid = doc["candidates"][0]["question_id"]
+        site = next(iter(doc["answers"][qid]))
+        doc["answers"][qid][site]["sha256"] = "0" * 64
+        (ref / "worlds" / "seed-01-noplant" / "world.json").write_text(json.dumps(doc), encoding="utf-8")
+        res = R.process_check(ref, 1, False, Path(self.tmp.name) / "process-tampered", top_n=1)
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["differing_pairs"], 1)
+        self.assertFalse(res["same"]["answers"])
 
 
 class PerArmModeTests(unittest.TestCase):
@@ -122,6 +161,22 @@ class SettingsTests(unittest.TestCase):
         self.assertIn(f"`{SETTINGS['bootstrap']['noplant_seed']}`", rows["No-plant"])
         self.assertIn(f"{SETTINGS['noplant_bar']:.2f}", rows["No-plant"])
         self.assertIn(SETTINGS["plant_sha256"], text)
+
+    def test_run_2_changes_only_the_rankers_scope(self) -> None:
+        # section 10, deviation 16: the one settings change between Run 1's prereg and Run 2's
+        base = ROOT / "docs" / "collective" / "routing_spike"
+        run1 = strict_load((base / "prereg.json").read_bytes())
+        run2 = strict_load((base / "prereg-run-2.json").read_bytes())
+        self.assertEqual(run2["settings"], SETTINGS)
+        s1, s2 = json.loads(json.dumps(run1["settings"])), json.loads(json.dumps(run2["settings"]))
+        self.assertEqual(s1["site_retrieval"]["ranker"], "Tesseract over the whole session")
+        self.assertIn("on or before the question's as_of", s2["site_retrieval"]["ranker"])
+        s1["site_retrieval"].pop("ranker")
+        s2["site_retrieval"].pop("ranker")
+        self.assertEqual(s1, s2)
+        self.assertEqual(run1["pack_hashes"], run2["pack_hashes"])
+        self.assertEqual(run1["plant_sha256"], run2["plant_sha256"])
+        self.assertNotEqual(run1["code_hash"], run2["code_hash"])
 
     def test_prereg_holds_the_settings_and_the_code_hash(self) -> None:
         doc = R.prereg_doc()

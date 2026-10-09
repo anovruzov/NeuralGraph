@@ -51,9 +51,9 @@ class FabricTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def logs(self, drop: str | None = None) -> tuple[set, dict]:
-        receive = {(r.site, r.sha256) for r in self.received if r.site != drop}
-        egress = {r.site: {r.sha256} for r in self.received}
+    def logs(self, drop: str | None = None) -> tuple[dict, dict]:
+        receive = {(r.site, r.sha256): dict(r.body) for r in self.received if r.site != drop}
+        egress = {r.site: {r.sha256: dict(r.body)} for r in self.received}
         return receive, egress
 
     def test_the_conclusion_cites_its_verdict_events_and_its_lineage_reconstructs(self) -> None:
@@ -92,7 +92,48 @@ class FabricTests(unittest.TestCase):
 
     def test_the_scorer_rejects_a_sha256_missing_from_the_site_egress_log(self) -> None:
         receive, egress = self.logs()
-        egress["plant-ashvale"] = set()
+        egress["plant-ashvale"] = {}
+        [row] = S.fabric_conclusions(self.db, ["R"], min_confirming_sites=2, receive=receive, egress=egress)["R"]
+        self.assertFalse(S.qualifying(row))
+
+    def test_the_scorer_rejects_a_confirm_event_that_cites_a_refutes_sha256(self) -> None:
+        # HQ publishes "confirm" for plant-fennick, but the sha256 it cites is the one of a real refute from that
+        # site: both logs hold that sha256, with a refute body
+        forged_db = Path(self.tmp.name) / "forged" / "mycelic.db"
+        refute = verdict("plant-fennick", "refute")
+        claimed = Received("plant-fennick", QID, "site", verdict("plant-fennick").body, refute.sha256)
+        received = [verdict("plant-ashvale"), claimed]
+        asyncio.run(publish(forged_db, received))
+        receive = {("plant-ashvale", received[0].sha256): dict(received[0].body),
+                   ("plant-fennick", refute.sha256): dict(refute.body)}
+        egress = {"plant-ashvale": {received[0].sha256: dict(received[0].body)},
+                  "plant-fennick": {refute.sha256: dict(refute.body)}}
+        [row] = S.fabric_conclusions(forged_db, ["R"], min_confirming_sites=2, receive=receive, egress=egress)["R"]
+        self.assertEqual(row["confirm_sites"], ["plant-ashvale", "plant-fennick"])
+        self.assertFalse(row["sha_ok"])
+        self.assertFalse(row["lineage_ok"])
+        self.assertFalse(S.qualifying(row))
+        # the same event with logs that hold the confirm body it claims is accepted
+        receive[("plant-fennick", refute.sha256)] = dict(claimed.body)
+        egress["plant-fennick"][refute.sha256] = dict(claimed.body)
+        [row] = S.fabric_conclusions(forged_db, ["R"], min_confirming_sites=2, receive=receive, egress=egress)["R"]
+        self.assertTrue(S.qualifying(row))
+
+    def test_the_scorer_rejects_an_event_whose_buckets_differ_from_the_logged_body(self) -> None:
+        for field, value in (("support_bucket", "50+"), ("roots_bucket", "10-49"), ("reporters_bucket", "<k"),
+                             ("newest_week", "2024-W26"), ("verdict", "refute")):
+            with self.subTest(field=field):
+                receive, egress = self.logs()
+                site, sha = "plant-ashvale", self.received[0].sha256
+                for body in (receive[(site, sha)], egress[site][sha]):
+                    body[field] = value
+                [row] = S.fabric_conclusions(self.db, ["R"], min_confirming_sites=2, receive=receive,
+                                             egress=egress)["R"]
+                self.assertFalse(row["sha_ok"])
+                self.assertFalse(S.qualifying(row))
+        # a body that differs in the receive log only (the egress log holds the event's fields) is refused too
+        receive, egress = self.logs()
+        receive[("plant-ashvale", self.received[0].sha256)]["support_bucket"] = "50+"
         [row] = S.fabric_conclusions(self.db, ["R"], min_confirming_sites=2, receive=receive, egress=egress)["R"]
         self.assertFalse(S.qualifying(row))
 
@@ -105,8 +146,8 @@ class FabricTests(unittest.TestCase):
         tmp = Path(self.tmp.name) / "weak" / "mycelic.db"
         received = [verdict("plant-ashvale"), verdict("plant-fennick", support="<k")]
         asyncio.run(publish(tmp, received))
-        receive = {(r.site, r.sha256) for r in received}
-        egress = {r.site: {r.sha256} for r in received}
+        receive = {(r.site, r.sha256): dict(r.body) for r in received}
+        egress = {r.site: {r.sha256: dict(r.body)} for r in received}
         [row] = S.fabric_conclusions(tmp, ["R"], min_confirming_sites=2, receive=receive, egress=egress)["R"]
         self.assertEqual(row["confirm_sites"], ["plant-ashvale"])
         self.assertFalse(S.qualifying(row))

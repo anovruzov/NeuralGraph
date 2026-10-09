@@ -2,12 +2,18 @@
 
     python -m research.routing_spike.run prereg [--out docs/collective/routing_spike/prereg.json]
     python -m research.routing_spike.run run --run-id ID [--jobs 4] [--mode in_process|process] [--runs-dir runs]
+                                             [--prereg docs/collective/routing_spike/prereg.json]
     python -m research.routing_spike.run score --run-dir runs/routing_spike/ID
+    python -m research.routing_spike.run process-check --run-dir runs/routing_spike/ID [--seed 1] [--world planted]
+    python -m research.routing_spike.run export RESULT SUMMARY_OUT ROUTES_OUT
 
 ``prereg`` writes the frozen settings (section 8), the code hash and the pack and plant hashes. ``run`` refuses a
-missing, uncommitted or mismatched prereg and any uncommitted change under the spike's code paths, then runs every
-pre-registered seed's planted and no-plant world (each in its own worker process; the worlds share nothing), and
-scores them. ``score`` re-scores a finished run directory. Results are synthetic and stamped ``measurement: false``.
+missing, uncommitted or mismatched prereg (``--prereg``; Run 1 used ``prereg.json``, Run 2 ``prereg-run-2.json``) and
+any uncommitted change under the spike's code paths, then runs every pre-registered seed's planted and no-plant world
+(each in its own worker process; the worlds share nothing), and scores them. ``score`` re-scores a finished run
+directory. ``process-check`` re-runs one world of a finished run with every site as a child process and requires
+byte-identical answers, routes and traces (``ROUTING-SPIKE.md`` section 10, deviation 18). Results are synthetic and
+stamped ``measurement: false``.
 
 Per world (``run_world``):
 
@@ -584,7 +590,7 @@ def prereg_check(path: str | Path = PREREG_PATH) -> dict[str, Any]:
     tracked = _git("ls-files", "--error-unmatch", str(path))
     if tracked.returncode != 0:
         problems.append("prereg not committed")
-    dirty = code_dirty(list(DIRTY_PATHS))
+    dirty = code_dirty(sorted({*DIRTY_PATHS, str(path)}))
     if dirty is not False:
         problems.append("uncommitted change under the spike's code paths")
     return {"ok": not problems, "problems": problems, "code_hash": current["code_hash"],
@@ -727,7 +733,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     if run_dir.exists():
         print(f"error: run directory exists: {run_dir}", file=sys.stderr)
         return 2
-    pre = prereg_check()
+    pre = prereg_check(args.prereg)
+    pre["path"] = args.prereg
     if args.top_n is not None:
         pre = {**pre, "ok": False, "problems": [*pre["problems"], "top_n override: not the pre-registered setting"]}
     if not pre["ok"] and not args.allow_dirty:
@@ -756,6 +763,99 @@ def cmd_run(args: argparse.Namespace) -> int:
                   "top_n_override": args.top_n, "allow_dirty": bool(args.allow_dirty)}
     sha = write_json_atomic(run_dir / "result.json", doc)
     print(_report(doc, run_dir / "result.json", sha))
+    return 0
+
+
+def process_check(run_dir: str | Path, seed: int, planted: bool, out_dir: str | Path,
+                  top_n: int | None = None) -> dict[str, Any]:
+    """Re-run one world of a finished run with every site as a child process (process mode) and compare it with the
+    run's own world file: every (question, site) verdict sha256, source and reason, every route and gate status,
+    every coordinator trace and the candidate list must be byte-identical. ``top_n`` (tests only) re-runs the first
+    candidates and compares those."""
+    run_dir = Path(run_dir)
+    name = f"seed-{seed:02d}-{'planted' if planted else 'noplant'}"
+    ref = strict_load((run_dir / "worlds" / name / "world.json").read_bytes())
+    t0 = time.perf_counter()
+    doc = strict_load(Path(run_world_job(seed, planted, str(out_dir), "process", top_n)).read_bytes())
+    seconds = time.perf_counter() - t0
+    qids = list(doc["answers"])
+    ref_answers = {q: ref["answers"][q] for q in qids if q in ref["answers"]}
+    pairs = sum(len(doc["answers"][q]) for q in qids)
+    differing = sum(1 for q in qids for s in doc["answers"][q]
+                    if ref_answers.get(q, {}).get(s) != doc["answers"][q][s])
+    same = {
+        "candidates": canonical_bytes(doc["candidates"]) == canonical_bytes(ref["candidates"][:len(doc["candidates"])]),
+        "answers": len(ref_answers) == len(qids) and differing == 0
+        and all(set(doc["answers"][q]) == set(ref_answers[q]) for q in qids),
+        "routes": all(canonical_bytes(doc["routes"][label]) == canonical_bytes(
+            {q: ref["routes"][label][q] for q in doc["routes"][label]}) for label in ref["labels"])
+        and doc["labels"] == ref["labels"],
+        "traces": all(canonical_bytes(doc["traces"][label]) == canonical_bytes(
+            {q: ref["traces"][label][q] for q in doc["traces"][label]}) for label in ref["labels"]),
+        "world_checks": all(c["ok"] for c in doc["checks"].values()),
+    }
+    if top_n is None:
+        same["candidates"] = same["candidates"] and doc["candidate_sha256"] == ref["candidate_sha256"]
+    return {"ok": all(same.values()), "world": name, "mode": doc["mode"], "reference_mode": ref["mode"],
+            "candidates": len(doc["candidates"]), "pairs": pairs, "differing_pairs": differing, "same": same,
+            "labels": len(doc["labels"]), "seconds": seconds}
+
+
+def cmd_process_check(args: argparse.Namespace) -> int:
+    run_dir = Path(args.run_dir)
+    meta = strict_load((run_dir / "run.json").read_bytes())
+    out_dir = run_dir / "process-check"
+    if out_dir.exists():
+        print(f"error: {out_dir} exists", file=sys.stderr)
+        return 2
+    code = spike_code_hash()
+    res = process_check(run_dir, args.seed, args.world == "planted", out_dir)
+    res["code_hash"] = code
+    res["reference_code_hash"] = meta["prereg"]["code_hash"]
+    res["ok"] = res["ok"] and code == meta["prereg"]["code_hash"]
+    res["command"] = "python -m research.routing_spike.run " + " ".join(sys.argv[1:])
+    sha = write_json_atomic(run_dir / "process-check.json", res)
+    print(f"process check: ok={res['ok']} world={res['world']} pairs={res['pairs']} "
+          f"differing={res['differing_pairs']} same={json.dumps(res['same'], sort_keys=True)} "
+          f"seconds={res['seconds']:.1f} -> {run_dir / 'process-check.json'} sha256={sha}")
+    return 0 if res["ok"] else 1
+
+
+def export_docs(result: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The committed copies of a result file: the result without its routes section, and the routes, answers and
+    gate statuses in a compact, timing-free form (the same script as Appendix B of the design gave for Run 1)."""
+    d = json.loads(json.dumps(result))
+    ra = d.pop("routes_and_answers")
+    compact = {}
+    for name, w in sorted(ra.items()):
+        idx = {s: i for i, s in enumerate(w["site_ids"])}
+        order = [c["question_id"] for c in w["candidates"]]
+        compact[name] = {
+            "site_ids": w["site_ids"],
+            "candidates": [[c["key"], c["question_id"], c["as_of"], c["week"], c["label"], c["pattern"],
+                            c["decoy_class"]] for c in w["candidates"]],
+            "answers": [[[idx[s], a["verdict"], a["reason"], a["source"], a["sha256"]]
+                         for s, a in sorted(w["answers"][q].items())] for q in order],
+            "routes": {label: [w["routes"][label][q]["route"] + ":" + w["routes"][label][q]["status"] for q in order]
+                       for label in sorted(w["routes"])},
+        }
+    routes = {"kind": "routing_spike_routes", "synthetic": True, "measurement": False,
+              "format": {"candidates": "[key, question_id, as_of, snapshot week, label, pattern, decoy class]",
+                         "answers": "per candidate, per site: [site index, verdict, wire reason, source, sha256 of the "
+                                    "verdict bytes]",
+                         "routes": "per route label, per candidate: site indices into site_ids, then ':' and the "
+                                   "gate status"},
+              "worlds": compact}
+    return d, routes
+
+
+def cmd_export(args: argparse.Namespace) -> int:
+    result = strict_load(Path(args.result).read_bytes())
+    summary, routes = export_docs(result)
+    for path, doc in ((args.summary, summary), (args.routes, routes)):
+        data = (json.dumps(doc, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
+        Path(path).write_bytes(data)
+        print(f"export: {path} sha256={sha256_hex(data)}")
     return 0
 
 
@@ -788,12 +888,22 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--runs-dir", default="runs")
     r.add_argument("--top-n", type=int, default=None, help="tests only: fewer candidates (the prereg says 60)")
     r.add_argument("--allow-dirty", action="store_true", help="tests only: run without a matching committed prereg")
+    r.add_argument("--prereg", default=PREREG_PATH, help="the committed prereg file this run must match")
     s = sub.add_parser("score")
     s.add_argument("--run-dir", required=True)
+    c = sub.add_parser("process-check")
+    c.add_argument("--run-dir", required=True)
+    c.add_argument("--seed", type=int, default=1)
+    c.add_argument("--world", choices=("planted", "noplant"), default="planted")
+    e = sub.add_parser("export")
+    e.add_argument("result")
+    e.add_argument("summary")
+    e.add_argument("routes")
     args = parser.parse_args(argv)
     if args.command == "run" and (args.top_n is not None or args.allow_dirty):
         print("note: a run with --top-n or --allow-dirty is not the pre-registered run", file=sys.stderr)
-    return {"prereg": cmd_prereg, "run": cmd_run, "score": cmd_score}[args.command](args)
+    return {"prereg": cmd_prereg, "run": cmd_run, "score": cmd_score, "process-check": cmd_process_check,
+            "export": cmd_export}[args.command](args)
 
 
 if __name__ == "__main__":

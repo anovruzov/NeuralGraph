@@ -10,7 +10,9 @@ that (1) is the memory of a ``collective.conclusion`` event whose metadata names
 predicate and a snapshot week inside p's found window; (2) has ``value`` ``supported``; (3) has lineage the fabric
 reconstructs, whose source events include ``collective.verdict`` events from at least ``min_confirming_sites``
 distinct sites, each ``confirm`` with a support bucket other than ``'<k'``; (4) each of those verdict events carries the
-sha256 of a verdict row from that site in HQ's receive log and in that site's egress log. A find is a **chance find**
+sha256 of a verdict row from that site in HQ's receive log and in that site's egress log, and its ``verdict``,
+``support_bucket``, ``roots_bucket``, ``reporters_bucket`` and ``newest_week`` equal that logged body's (so a verdict
+event cannot claim a confirm while it cites a refute's sha256). A find is a **chance find**
 when the same seed's no-plant world, the same label, has a ``supported`` conclusion on p's key whose snapshot week is in
 p's found window and no later than the planted world's earliest find. **Found net** is found and not a chance find.
 """
@@ -36,20 +38,41 @@ ARM_ORDER = ("R", "U", "A", "R1", "R0", "O", "P")
 
 # --------------------------------------------------------------------------------------------------- logs
 
-def log_index(world_dir: str | Path, site_ids: Sequence[str]) -> tuple[set[tuple[str, str]], dict[str, set[str]]]:
-    """((site, sha256) of every verdict row in HQ's receive log, site -> sha256 of its egress log's verdict rows)."""
+#: the verdict event's payload fields that must equal the logged verdict body its sha256 names
+LINEAGE_FIELDS = ("verdict", "support_bucket", "roots_bucket", "reporters_bucket", "newest_week")
+
+
+def log_index(world_dir: str | Path, site_ids: Sequence[str]
+              ) -> tuple[dict[tuple[str, str], dict[str, Any]], dict[str, dict[str, dict[str, Any]]]]:
+    """((site, sha256) -> body of every verdict row in HQ's receive log, site -> sha256 -> body of its egress log's
+    verdict rows). ``read_log`` refuses a row whose sha256 is not its body's."""
     world_dir = Path(world_dir)
-    receive = {(row["site"], row["sha256"]) for row in read_log(world_dir / "hq" / "receive.jsonl")
+    receive = {(row["site"], row["sha256"]): row["body"] for row in read_log(world_dir / "hq" / "receive.jsonl")
                if row["artifact_type"] == "verdict"}
-    egress = {site: {row["sha256"] for row in read_log(world_dir / "edge" / f"site-{site}.egress.jsonl")
+    egress = {site: {row["sha256"]: row["body"]
+                     for row in read_log(world_dir / "edge" / f"site-{site}.egress.jsonl")
                      if row["artifact_type"] == "verdict"} for site in site_ids}
     return receive, egress
+
+
+def logged_match(event: Mapping[str, Any], receive: Mapping[tuple[str, str], Mapping[str, Any]],
+                 egress: Mapping[str, Mapping[str, Mapping[str, Any]]]) -> bool:
+    """3.5 item 4 for one verdict event: its sha256 names a verdict row from its site in HQ's receive log and in the
+    site's egress log, and the event's ``LINEAGE_FIELDS`` equal both logged bodies. The scorer does not trust the
+    fields HQ wrote into the event."""
+    site, sha = event.get("site"), event.get("sha256")
+    received = receive.get((site, sha))
+    sent = egress.get(site, {}).get(sha)
+    if received is None or sent is None:
+        return False
+    return all(event.get(f) == received.get(f) == sent.get(f) for f in LINEAGE_FIELDS)
 
 
 # --------------------------------------------------------------------------------------------------- the fabric
 
 def fabric_conclusions(db_path: str | Path, labels: Sequence[str], *, min_confirming_sites: int,
-                       receive: set[tuple[str, str]], egress: Mapping[str, set[str]]) -> dict[str, list[dict[str, Any]]]:
+                       receive: Mapping[tuple[str, str], Mapping[str, Any]],
+                       egress: Mapping[str, Mapping[str, Mapping[str, Any]]]) -> dict[str, list[dict[str, Any]]]:
     """Every conclusion note per route label, with the checks of 3.5 items 3 and 4."""
     store = MycelicStore(db_path)
     try:
@@ -71,8 +94,7 @@ def fabric_conclusions(db_path: str | Path, labels: Sequence[str], *, min_confir
                 confirming = [v for v in verdicts if v.get("source") == "site" and v.get("verdict") == "confirm"
                               and v.get("support_bucket") not in (None, SUPPRESSED)]
                 confirm_sites = sorted({v["site"] for v in confirming})
-                sha_ok = all((v["site"], v["sha256"]) in receive and v["sha256"] in egress.get(v["site"], set())
-                             for v in confirming)
+                sha_ok = all(logged_match(v, receive, egress) for v in confirming)
                 status = md.get("value")
                 reconstructable = bool(graph["evidence"]["reconstructable"])
                 rows.append({

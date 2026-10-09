@@ -13,14 +13,19 @@ with one change: retrieval is Tesseract through the adapter instead of ``edge/ve
 5. retrieval: the graph holds one MESSAGE node per own record (forwarded-in copies left out), whose text is the
    narrative plus one line of the record's structured entity values and codes, with the record's received date. The
    query is the question rendered by ``pushdown.questions.render_text`` plus the entity's alias phrases. Tesseract
-   ranks the site's whole session with the hash embedder (256 dimensions) and ``limit`` set to the session's node
-   count; the adapter's ``local_retrieve`` keeps the returned nodes received in the question window, in Tesseract's
-   order, the first ``max_records`` (L = 50). The adapter's ``claim_projection`` exports only the record handle, and
-   its claims stay in this process;
+   ranks the session's nodes received on or before the question's ``as_of`` (``AsOfStorage``; a site at ``as_of``
+   holds no later record) with the hash embedder (256 dimensions) and ``limit`` set to the session's node count; the
+   adapter's ``local_retrieve`` keeps the returned nodes received in the question window, in Tesseract's order, the
+   first ``max_records`` (L = 50). The adapter's ``claim_projection`` exports only the record handle, and its claims
+   stay in this process;
 6. each exported record is read with ``edge.verify.judge_payload`` and ``edge.verify.lexical_judge``;
    ``edge.verify.decide`` applies the verdict rules;
 7. counts become buckets, ``evidence_ref`` is the HMAC of the verdict id with the site's seeded-demo secret, the
-   verdict is stored and sent through the Boundary. ``truncated`` is true when the window held more than L own records.
+   verdict is stored and sent through the Boundary. ``truncated`` is true when at least one in-window own record that
+   the shipped retrieval matches to the entity was not read.
+
+Run 1 ranked the whole session (records received after ``as_of`` included) and set ``truncated`` when the window held
+more than L own records; ``ROUTING-SPIKE.md`` section 10, deviations 16 and 17, say why both changed.
 
 With ``retrieval = "shipped"`` step 5 is ``edge.verify.retrieve`` with cap ``max_records`` (the equivalence test sets
 it to ``verify_max_records``), and the bytes must equal ``SiteVerifier.answer``'s.
@@ -140,6 +145,28 @@ class ShippedRetrieval:
         pass
 
 
+class AsOfStorage:
+    """The site's graph storage as Tesseract sees it for one question: only the nodes received on or before
+    ``cutoff`` (the question's ``as_of``). A site at ``as_of`` holds no record received later, so none may take part in
+    the ranking (``ROUTING-SPIKE.md`` section 10, deviation 16). Every other call goes to the wrapped storage."""
+
+    def __init__(self, base: Any) -> None:
+        self._base = base
+        self.cutoff: str | None = None
+        self.last_count: int | None = None
+
+    async def get_nodes_by_session(self, session_key: str, layer: Any = None) -> list[Any]:
+        if self.cutoff is None:
+            raise RuntimeError("a ranking needs the question's as_of") from None
+        nodes = await self._base.get_nodes_by_session(session_key, layer)
+        kept = [n for n in nodes if n.metadata["received_date"] <= self.cutoff]
+        self.last_count = len(kept)
+        return kept
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._base, name)
+
+
 class TesseractRetrieval:
     """Tesseract over the site's graph, through ``NeuralGraphMemoryAdapter``; the adapter's claims stay here."""
 
@@ -169,7 +196,9 @@ class TesseractRetrieval:
             Path(str(path) + suffix).unlink(missing_ok=True)
         self._loop = asyncio.new_event_loop()
         self._storage = SQLiteNeuralGraphStorage(db_path=path)
-        self._tesseract = Tesseract(self._storage)
+        self._view = AsOfStorage(self._storage)
+        self._tesseract = Tesseract(self._view)
+        self._match_cache: dict[tuple[str, str], frozenset[str]] = {}
         pack = process.pack
         desc = wire.descriptor(process.config.site_id, pack.id, pack.config_hash, sorted(pack.questions))
         self.capability = CapabilityDescriptor(
@@ -216,19 +245,38 @@ class TesseractRetrieval:
         current = self._current
         assert current is not None and current["query_id"] == request.query_id
         text = request.content
+        self._view.cutoff, self._view.last_count = current["as_of"], None
         t0 = time.perf_counter()
-        ranked = await self._tesseract.retrieve(text, self._embed(text, self._dim), self.session, limit=self.nodes)
+        try:
+            ranked = await self._tesseract.retrieve(text, self._embed(text, self._dim), self.session,
+                                                    limit=self.nodes)
+        finally:
+            self._view.cutoff = None
         current["seconds"] = time.perf_counter() - t0
+        current["nodes_as_of"] = self._view.last_count
         current["returned"] = len(ranked)
         start, end = current["window"]["start_week"], current["window"]["end_week"]
         kept = [(node, charge) for node, charge in ranked if start <= node.metadata["iso_week"] <= end]
         current["in_window_returned"] = len(kept)
         return kept[:self._max]
 
+    def entity_matched(self, store: RecordStore, question: Mapping[str, Any], own: int) -> list[WindowRecord]:
+        """The in-window own records the shipped retrieval would read for the question, uncapped: the records that
+        hold a stored claim on the entity, resolve to it in a structured field, or name it in the narrative. Read here,
+        site side, only to say whether the site judged a subset of them (``truncated``)."""
+        params = question["params"]
+        records, cut = retrieve(store, self._process.site.canonicaliser, entity_type=params["entity_type"],
+                                entity_id=params["entity_id"], window=question["window"], cap=max(1, own),
+                                cache=self._match_cache)
+        assert not cut
+        return records
+
     def retrieve(self, store: RecordStore, question: Mapping[str, Any]) -> tuple[list[WindowRecord], bool]:
+        """Tesseract's kept records, and ``truncated``: true when at least one in-window own record that the shipped
+        retrieval matches to the entity was not read (``ROUTING-SPIKE.md`` section 10, deviation 17)."""
         window = question["window"]
         own = {r.record_ref: r for r in store.window_records(window["start_week"], window["end_week"])}
-        self._current = {"query_id": question["question_id"], "window": dict(window)}
+        self._current = {"query_id": question["question_id"], "window": dict(window), "as_of": question["as_of"]}
         request = self._QueryRequest(
             query_id=question["question_id"], content=query_text(self._process.pack, question),
             requester_id=f"site-local:{self._process.config.site_id}", issued_at=self._process.clock(),
@@ -238,11 +286,15 @@ class TesseractRetrieval:
         refs = [claim.content["record_ref"] for export in exports for claim in export.claims]
         records = [own[ref] for ref in refs]
         current, self._current = self._current, None
+        matched = self.entity_matched(store, question, len(own))
+        read = set(refs)
+        unread = sum(1 for r in matched if r.record_ref not in read)
         self._process.diag({"question_id": question["question_id"], "seconds": current["seconds"],
-                            "nodes": self.nodes, "returned": current["returned"],
-                            "in_window_returned": current["in_window_returned"], "own_in_window": len(own),
-                            "read": len(records), "refs": refs})
-        return records, len(own) > self._max
+                            "nodes": self.nodes, "nodes_as_of": current["nodes_as_of"],
+                            "returned": current["returned"], "in_window_returned": current["in_window_returned"],
+                            "own_in_window": len(own), "read": len(records), "entity_matched": len(matched),
+                            "entity_matched_unread": unread, "refs": refs})
+        return records, unread > 0
 
     def close(self) -> None:
         self._storage.close()

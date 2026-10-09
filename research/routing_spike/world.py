@@ -30,7 +30,9 @@ PLANT_PATH = "mycelic/collective/packs/data/device_quality/fixtures/plant_e2_smo
 WORLDS = ("planted", "noplant")
 
 #: section 8 of the design, frozen before any run; ``run.py prereg`` writes these values and a test compares them
-#: with the design's table
+#: with the design's table. One value changed after Run 1, before Run 2 (section 10, deviation 16): the ranker sees
+#: only records received on or before the question's ``as_of`` (Run 1: "Tesseract over the whole session"). A test
+#: requires that to be the only settings difference between ``prereg.json`` and ``prereg-run-2.json``.
 SETTINGS: dict[str, Any] = {
     "pack": "device_quality",
     "sites": 6,
@@ -48,8 +50,8 @@ SETTINGS: dict[str, Any] = {
     "question": "snapshot as_of; question_window and build_question",
     "site_graph": {"storage": "sqlite", "sessions": "one per site", "nodes": "one MESSAGE node per own record",
                    "embedder": "NeuralGraph.chat_memory.llm.fake_embedding", "dim": 256},
-    "site_retrieval": {"ranker": "Tesseract over the whole session", "keep": "own records received in the window",
-                       "max_records": 50},
+    "site_retrieval": {"ranker": "Tesseract over the session's records received on or before the question's as_of",
+                       "keep": "own records received in the window", "max_records": 50},
     "site_reader": {"judge": "edge.verify.lexical_judge", "rules": "edge.verify.decide",
                     "secret": "seeded-demo with the world seed"},
     "m": 3,

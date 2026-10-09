@@ -7,9 +7,11 @@ import unittest
 from pathlib import Path
 
 from mycelic.collective.edge.egress import VERDICT_KEYS, check_artifact
+from mycelic.collective.edge.records import RecordStore
 from mycelic.collective.edge.site import EdgeSite
-from mycelic.collective.edge.verify import SiteVerifier
+from mycelic.collective.edge.verify import SiteVerifier, retrieve
 from mycelic.collective.jsonio import canonical_bytes, strict_load
+from mycelic.collective.packs.canonical import Canonicaliser
 from research.routing_spike import wire
 from research.routing_spike.run import site_configs
 from research.routing_spike.site_process import SiteProcess, node_text, query_text
@@ -90,29 +92,116 @@ class SiteProcessTests(unittest.TestCase):
         diag = (edge / f"site-{self.site}.tesseract.jsonl").read_bytes()
         self.assertIn(b'"refs"', diag)
 
+    def _diag(self, edge: Path) -> list[dict]:
+        return [strict_load(line) for line in (edge / f"site-{self.site}.tesseract.jsonl").read_bytes()
+                .split(b"\n") if line]
+
+    def _entity_matched(self, edge: Path, q: dict) -> set[str]:
+        """Harness side: the in-window own records the shipped retrieval matches to the question's entity."""
+        store = RecordStore(edge / f"site-{self.site}.sqlite3", site_id=self.site, pack_id=self.world.pack.id,
+                            config_hash=self.world.pack.config_hash)
+        try:
+            canon = Canonicaliser(self.world.pack, known=self.world.master_data[self.site])
+            records, _ = retrieve(store, canon, entity_type=q["params"]["entity_type"],
+                                  entity_id=q["params"]["entity_id"], window=q["window"], cap=100_000)
+            return {r.record_ref for r in records}
+        finally:
+            store.close()
+
     def test_tesseract_reads_at_most_max_records_and_marks_truncation(self) -> None:
         world = self.world
-        edge, hq = self._copy("cap")
-        config = site_configs(world, edge=edge, hq_dir=hq, max_records=2)[self.site]
-        process = SiteProcess(config)
+        for cap in (2, 50):
+            with self.subTest(cap=cap):
+                edge, hq = self._copy(f"cap-{cap}")
+                config = site_configs(world, edge=edge, hq_dir=hq, max_records=cap)[self.site]
+                process = SiteProcess(config)
+                try:
+                    for q in self.questions:
+                        process.handle("question", canonical_bytes(q))
+                    rows = {r["question_id"]: r for r in self._diag(edge)}
+                    self.assertTrue(rows)
+                    for row in rows.values():
+                        self.assertLessEqual(row["read"], cap)
+                        self.assertEqual(row["nodes"], process.retrieval.nodes)
+                    flags = []
+                    for q in self.questions:
+                        stored = process.verifier.audit(strict_load(process.handle("question", canonical_bytes(q)))
+                                                        ["verdict_id"])
+                        if stored is None:
+                            continue
+                        self.assertLessEqual(stored.judged, cap)
+                        row = rows[q["question_id"]]
+                        matched = self._entity_matched(edge, q)
+                        unread = matched - set(row["refs"])
+                        # truncated: some in-window record about the entity was not read; not "the window held
+                        # more than the cap" (Run 1's flag)
+                        self.assertEqual(stored.truncated, bool(unread))
+                        self.assertEqual(row["entity_matched"], len(matched))
+                        self.assertEqual(row["entity_matched_unread"], len(unread))
+                        flags.append(stored.truncated)
+                    if cap == 2:
+                        self.assertIn(True, flags)
+                finally:
+                    process.close()
+
+    def test_the_ranking_sees_only_records_received_on_or_before_as_of(self) -> None:
+        world = self.world
+        edge, hq = self._copy("asof")
+        process = SiteProcess(site_configs(world, edge=edge, hq_dir=hq)[self.site])
         try:
             for q in self.questions:
                 process.handle("question", canonical_bytes(q))
-            rows = [strict_load(line) for line in (edge / f"site-{self.site}.tesseract.jsonl").read_bytes()
-                    .split(b"\n") if line]
-            self.assertTrue(rows)
-            for row in rows:
-                self.assertLessEqual(row["read"], 2)
-                self.assertEqual(row["nodes"], process.retrieval.nodes)
-            for q in self.questions:
-                stored = process.verifier.audit(strict_load(process.handle("question", canonical_bytes(q)))
-                                                ["verdict_id"])
-                if stored is not None:
-                    self.assertLessEqual(stored.judged, 2)
-                    own = next(r["own_in_window"] for r in rows if r["question_id"] == q["question_id"])
-                    self.assertEqual(stored.truncated, own > 2)
         finally:
             process.close()
+        own = [r for r in world.records if r["site"] == self.site
+               and not (r["origin_site"] is not None and r["origin_site"] != self.site)]
+        rows = {r["question_id"]: r for r in self._diag(edge)}
+        later = 0
+        for q in self.questions:
+            row = rows[q["question_id"]]
+            visible = sum(1 for r in own if r["received_date"][:10] <= q["as_of"])
+            self.assertEqual(row["nodes_as_of"], visible)
+            later += row["nodes"] - visible
+        self.assertGreater(later, 0)      # the graph does hold records received after these questions' as_of
+
+    def test_records_received_after_as_of_cannot_crowd_the_ranking(self) -> None:
+        from datetime import date, datetime, timedelta, timezone
+
+        from mycelic.collective.edge.weeks import iso_week
+        world, q = self.world, self.questions[0]
+
+        def answer(name: str, *, inject: bool, unbounded: bool = False) -> tuple[bytes, list[str], int]:
+            edge, hq = self._copy(name)
+            process = SiteProcess(site_configs(world, edge=edge, hq_dir=hq)[self.site])
+            try:
+                r = process.retrieval
+                if inject:
+                    # 200 records received a day after as_of whose text is the query itself: visible to the ranking,
+                    # they would take every store's top places
+                    day = (date.fromisoformat(q["as_of"]) + timedelta(days=1)).isoformat()
+                    at = datetime.fromisoformat(day).replace(tzinfo=timezone.utc)
+                    text = query_text(world.pack, q)
+                    nodes = [r._NeuralNode(node_id=f"future-{i:03d}", layer=r._MESSAGE, content=text,
+                                           embedding=r._embed(text, r._dim), session_key=r.session, created_at=at,
+                                           updated_at=at, last_activated=at,
+                                           metadata={"iso_week": iso_week(day), "received_date": day})
+                             for i in range(200)]
+                    r._loop.run_until_complete(r._storage.save_nodes_batch(nodes))
+                if unbounded:
+                    r._tesseract._storage = r._storage      # Run 1's ranking: the whole session
+                data = process.handle("question", canonical_bytes(q))
+            finally:
+                process.close()
+            row = self._diag(edge)[-1]
+            return data, row["refs"], row["in_window_returned"]
+
+        plain = answer("crowd-plain", inject=False)
+        injected = answer("crowd-injected", inject=True)
+        self.assertEqual(injected, plain)
+        self.assertGreater(plain[2], 0)
+        # the check can fail: with the whole session visible, the later records crowd the in-window ones out
+        crowded = answer("crowd-unbounded", inject=True, unbounded=True)
+        self.assertNotEqual(crowded[1], plain[1])
 
     def test_the_graph_holds_one_node_per_own_record_with_its_received_date(self) -> None:
         import asyncio
