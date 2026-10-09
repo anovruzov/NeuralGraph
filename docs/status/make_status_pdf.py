@@ -82,8 +82,10 @@ bl([
     "read (0.713, 95% CI 0.678–0.750), up from 62.5%. The strongest centralised baseline (A2) finds <b>74%</b> on "
     "the same worlds, and <b>80%</b> vs Mycelic's 58% at 50,000 users. Centralised still wins on raw accuracy.",
     "<b>Real LLM agents (first run):</b> 429 employee agents, each a real Qwen3-1.7B call on its own notes, one "
-    "400-user world. Mycelic v4 finds <b>65%</b> (60% backed by real evidence), central triage on the same claims "
-    "45%. The centralised A2 reader on the same model is still running. One world, 40 patterns: indicative, not a claim.",
+    "400-user world. Mycelic v4 finds <b>65%</b> (60% backed by real evidence); central triage on the same claims 45%. "
+    "<b>The centralised A2 reader on the same model finds 87.5%</b>, with about a third of the model tokens "
+    "(313k vs 919k). Mycelic accepts fewer decoys (0.35 vs 0.525) and moves no raw text. One world, 40 patterns: "
+    "indicative, not a claim, but centralised wins this one plainly.",
     "<b>The biggest live failure is not discovery, it is negation.</b> The small model read 2 of 43 negated notes. "
     "Retractions vanish, so every stale-chain decoy got through (D5 acceptance 1.00 vs 0.20 in the simulator).",
     "<b>NeuralGraph memory (LoCoMo benchmark):</b> 72.2% with a lenient same-family judge (744 of 1,540 questions), "
@@ -109,10 +111,13 @@ table([
     ["Mycelic v4", "<b>live</b> Qwen3-1.7B, 400 users, seed 702", "<b>0.650</b>", "0.600", "0.350", "<font color='#a61b1b'><b>1.00</b></font>", "stage_400_s702"],
     ["Mycelic v3", "live, same world", "0.575", "0.500", "0.325", "0.70", "stage_400_s702"],
     ["Central triage (B4)", "live, same world", "0.450", "0.450", "0.350", "0.90", "stage_400_s702"],
-    ["A2, same 1.7B model", "live, same world", "running", "", "", "", "stage_400_s702_A2_matched"],
+    ["<b>A2, same 1.7B model</b>", "live, same world", "<b>0.875</b>", "0.875", "0.525", "0.80", "stage_400_s702_A2_matched"],
 ], [33, 40, 26, 15, 14, 18, 28])
 P("Live vs simulated operators on that same world: Mycelic v4 0.55 → 0.65, v3 0.60 → 0.575, central triage "
-  "0.575 → 0.45. Simulator decoy acceptance (0.10–0.23) badly understates live decoy acceptance (0.33–0.35).", small)
+  "0.575 → 0.45, A2 0.925 → 0.875. Simulator decoy acceptance (0.10–0.23 for the hierarchy) badly understates live "
+  "decoy acceptance (0.33–0.35). Live model cost on this world: Mycelic 429 calls, 754k prompt + 165k output tokens, "
+  "~5.0 h of this CPU; A2 143 calls, 255k + 58k tokens, ~1.5 h. A2 reads only the notes its keyword prefilter "
+  "flags as causal, which is exact on this generator's template text and would not be on real prose.", small)
 
 P("NeuralGraph memory on LoCoMo (conversational memory QA)", h3)
 table([
