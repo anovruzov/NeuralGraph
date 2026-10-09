@@ -92,7 +92,7 @@ and `bootstrap_seed`, as for `e2`.
 | key | values | default |
 | --- | --- | --- |
 | `minutes` | per unit | |
-| `pack` | a built-in pack with an openFDA mapping | |
+| `pack` | a built-in pack, or a replay pack `lab/packs/<id>` (built by `tools/market/replay_pack.py`), with an openFDA mapping | |
 | `product_codes` | 3 to 5 distinct codes of three upper-case letters | |
 | `date_from`, `date_to` | calendar dates `YYYYMMDD`; the span must cover enough ISO weeks | |
 | `max_records_per_code` | 1 to 25000 | |

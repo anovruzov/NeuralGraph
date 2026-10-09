@@ -293,7 +293,7 @@ CASES: list[tuple[str, Callable[[str], bytes], str, str]] = [
      "must be a list of 1 to 10 seeds"),
     ("x1-missing-plant", _block("x1", X1, plant=_DELETE), "$.experiments.x1.plant", "required"),
     ("openfda-pack-without-mapping", _block("openfda", OPENFDA, pack="claims_integrity"),
-     "$.experiments.openfda.pack", "must be a built-in pack with an openFDA mapping"),
+     "$.experiments.openfda.pack", "must be a built-in pack or a replay pack lab/packs/<id>, with an openFDA mapping"),
     ("openfda-code-lowercase", _block("openfda", OPENFDA, product_codes=["aaa", "BBB", "CCC"]),
      "$.experiments.openfda.product_codes[0]", "must be three upper-case letters"),
     ("openfda-two-codes", _block("openfda", OPENFDA, product_codes=["AAA", "BBB"]),
@@ -470,6 +470,34 @@ class ExperimentBlockTests(unittest.TestCase):
             self.blocks(openfda={**OPENFDA, "max_records_per_code": 13400})
         self.assertIn("about 804 openFDA requests, more than the 800 allowed without an API key",
                       caught.exception.problem)
+
+    def test_a_replay_pack_under_lab_packs(self) -> None:
+        from lab import request as lab_request
+        base = ROOT / "mycelic" / "collective" / "packs" / "data" / "device_quality"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            shutil.copytree(base, root / "lab" / "packs" / "replay_x")
+            (root / "lab" / "packs" / "link_x").symlink_to(root / "lab" / "packs" / "replay_x")
+            shutil.copytree(base, root / "elsewhere" / "replay_y")
+            lab_request.replay_pack.cache_clear()
+            try:
+                with mock.patch.object(lab_request, "ROOT", root):
+                    got = self.blocks(openfda={**OPENFDA, "pack": "lab/packs/replay_x"})["openfda"]
+                    self.assertEqual(got["pack"], "lab/packs/replay_x")
+                    for ref in ("lab/packs/link_x", "lab/packs/missing", "elsewhere/replay_y", "lab/packs/../x",
+                                str(root / "lab" / "packs" / "replay_x"), "lab/packs/replay_x/"):
+                        with self.subTest(ref=ref), self.assertRaises(RequestError) as caught:
+                            self.blocks(openfda={**OPENFDA, "pack": ref})
+                        self.assertEqual(caught.exception.path, "$.experiments.openfda.pack")
+            finally:
+                lab_request.replay_pack.cache_clear()
+
+    def test_every_committed_replay_pack_is_accepted(self) -> None:
+        packs = ROOT / "lab" / "packs"
+        for directory in sorted(packs.iterdir()) if packs.is_dir() else []:
+            with self.subTest(pack=directory.name):
+                ref = f"lab/packs/{directory.name}"
+                self.assertEqual(self.blocks(openfda={**OPENFDA, "pack": ref})["openfda"]["pack"], ref)
 
     def test_model_kinds_for_e1_and_e2(self) -> None:
         from lab import request as lab_request

@@ -63,7 +63,7 @@ are refused at every level::
 
 ``openfda``, the public replay and the labelling sheets (one unit, no model; it reaches api.fda.gov)::
 
-    {"minutes": 1..capacity, "pack": "<a built-in pack with an openFDA mapping>",
+    {"minutes": 1..capacity, "pack": "<a built-in pack, or lab/packs/<id>, with an openFDA mapping>",
      "product_codes": ["ABC", ...],       # 3..5 distinct, three upper-case letters each
      "date_from": "YYYYMMDD", "date_to": "YYYYMMDD",   # calendar dates; the span must cover enough ISO weeks
      "max_records_per_code": 1..25000,
@@ -134,7 +134,7 @@ from mycelic.collective.experiments.openfda_replay import OPENFDA_MAPPING, repla
 from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
 from mycelic.collective.packs import loader
 
-from . import LabError, check_keys, display_path, safe_path
+from . import ROOT, LabError, check_keys, display_path, safe_path
 from .goldlabels import build_labels
 from .hosted import PREFLIGHT_MAX_CALLS, preflight_tasks, unit_bound
 from .manifest import Manifest
@@ -189,7 +189,9 @@ _G0_KEYS = ("models", "minutes", "pack", "records", "seed")
 _SIM_KEYS = ("models", "minutes", "plant", "weeks", "top_n", "seeds")
 PACK_PROBLEM = "must be a built-in pack id"
 PLANT_PROBLEM = "must name a plant fixture of the pack"
-OPENFDA_PACK_PROBLEM = "must be a built-in pack with an openFDA mapping"
+OPENFDA_PACK_PROBLEM = "must be a built-in pack or a replay pack lab/packs/<id>, with an openFDA mapping"
+REPLAY_PACK_ROOT = "lab/packs"         # replay packs built by tools/market/replay_pack.py; only the openfda unit takes them
+_REPLAY_PACK_RE = re.compile(rf"{REPLAY_PACK_ROOT}/{loader.ID_RE.pattern}", re.ASCII)
 PRINTABLE_PROBLEM = "must be printable characters"
 FIELD_PATH_PROBLEM = "must be a field path such as device[].manufacturer_d_name"
 DATE_PROBLEM = "must be a calendar date YYYYMMDD"
@@ -653,6 +655,34 @@ def _sheet(value: Any, path: str, high: int) -> dict[str, int]:
     return {"n": _int(block["n"], f"{path}.n", 1, high), "seed": _seed(block["seed"], f"{path}.seed")}
 
 
+@functools.lru_cache(maxsize=None)
+def replay_pack(ref: str) -> bool:
+    """Whether ``ref`` is ``lab/packs/<id>``: a directory (not a symlink) directly under :data:`REPLAY_PACK_ROOT`
+    that loads as a pack."""
+    if _REPLAY_PACK_RE.fullmatch(ref) is None:
+        return False
+    root = ROOT / REPLAY_PACK_ROOT
+    name = ref.rsplit("/", 1)[1]
+    try:
+        directory = root / name
+        listed = name in os.listdir(root) and not directory.is_symlink() and directory.is_dir()
+    except OSError:
+        return False
+    if not listed:
+        return False
+    failed = False
+    try:
+        loader.load_pack(directory)
+    except (loader.PackError, OSError, ValueError):
+        failed = True
+    return not failed
+
+
+def openfda_pack(ref: str) -> loader.FrozenPack:
+    """The pack an openfda block names: a built-in id, or a replay pack path relative to the repository."""
+    return loader.load_pack(ref if builtin_pack(ref) else ROOT / ref)
+
+
 def _coverage(value: Any, path: str) -> int | float:
     _no_hazard(value, path)
     ok = (isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
@@ -671,7 +701,7 @@ def _openfda(raw: Any, capacity: int, openfda_key: bool) -> dict[str, Any]:
     if not isinstance(pack_id, str):
         raise RequestError(f"{path}.pack", "must be a string") from None
     _no_hazard(pack_id, f"{path}.pack")
-    if not builtin_pack(pack_id) or OPENFDA_MAPPING not in loader.load_pack(pack_id).mappings:
+    if not (builtin_pack(pack_id) or replay_pack(pack_id)) or OPENFDA_MAPPING not in openfda_pack(pack_id).mappings:
         raise RequestError(f"{path}.pack", OPENFDA_PACK_PROBLEM) from None
     out["pack"] = pack_id
     codes = block["product_codes"]
@@ -690,7 +720,7 @@ def _openfda(raw: Any, capacity: int, openfda_key: bool) -> dict[str, Any]:
     last = _compact_date(block["date_to"], f"{path}.date_to")
     if last <= first:
         raise RequestError(f"{path}.date_to", "must be after date_from") from None
-    pack = loader.load_pack(pack_id)
+    pack = openfda_pack(pack_id)
     need = pack.detectors["window_weeks"] + pack.detectors["min_history_weeks"] + 1
     if len(replay_weeks(first.isoformat(), last.isoformat())) < need:
         raise RequestError(f"{path}.date_to", f"the date range must span at least {need} ISO weeks") from None

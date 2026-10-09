@@ -137,7 +137,10 @@ E1_PAIRED_KEYS = ("against", "n", "decision_metric", "diff", "ci_low", "ci_high"
                   "underpowered", "non_inferior", "kill_flag", "withheld_reason")
 E2_CONDITION_FIELDS = ("ap", "ap_ci_low", "ap_ci_high", "precision_at_k")
 OPENFDA_CHANNEL_FIELDS = ("in_scope", "found", "recall_rate", "median_lead_days", "post_recall_alerts", "false_alarms",
-                          "false_alarms_per_week")
+                          "false_alarms_per_week", "alerts", "found_minus_expected")
+OPENFDA_CHANCE_FIELDS = ("expected_found", "p_value")      # the replay's circular-shift null, per channel
+OPENFDA_COVERAGE_FIELDS = ("date_received", "narrative", "product_problems", "mapped_codes", "model_number",
+                           "lot_number", "resolved_entity", "partition_field", "manufacturer_field")
 OPENFDA_RECALL_COUNTS = ("cache_records", "duplicates", "bad_record", "other_firm", "bad_date", "out_of_range",
                          "not_evaluable")
 
@@ -453,7 +456,9 @@ def _openfda_row(row: dict[str, Any], root: Path, record: dict[str, Any]) -> dic
     return {"unit": row["unit"], "display_class": row["display_class"], "data_label": replay.get("data_label"),
             "recall_outcomes_seen_before_prereg": replay.get("recall_outcomes_seen_before_prereg"),
             "channels": {name: {**{k: _get(block, "summary", k) for k in OPENFDA_CHANNEL_FIELDS},
+                                "chance": {k: _get(block, "summary", "chance", k) for k in OPENFDA_CHANCE_FIELDS},
                                 "reason": _get(block, "reason")} for name, block in sorted(channels.items())},
+            "coverage": {k: _get(replay, "coverage", k, "share") for k in OPENFDA_COVERAGE_FIELDS},
             "recalls": {**{k: _get(replay, "recalls", k) for k in OPENFDA_RECALL_COUNTS},
                         "items": len(items) if isinstance(items, list) else None},
             "warnings": replay.get("warnings"), "fetch": fetch,
