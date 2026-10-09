@@ -11,6 +11,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from mycelic.collective.evaluate.baselines import closing_date, r_mf_cells
+from mycelic.collective.experiments.openfda_replay import replay_weeks
 from mycelic.collective.packs.connector import map_rows
 from mycelic.collective.packs.generator import generate
 from mycelic.collective.packs.loader import load_pack, thaw
@@ -294,22 +296,20 @@ class ComparatorUnitTests(unittest.TestCase):
             for j in range(40):
                 rows += cells(f"P-{j}", "leak", {i: 2}) + cells(f"P-{j}", "crack", {i: 2})
         rows += cells("P-0", "overheat", {10: 2, 11: 2, 12: 1})               # a burst no other product shares
-        result = A.prr_result(pack, rows, weeks, first=0, tie_salt="t")
+        result = A.prr_result(pack, rows, weeks, tie_salt="t")
         # the count reaches 3 at index 11 (2024-W12); the key keeps signalling while the burst is in the 26-week
         # window, so it cools and does not alert again
         self.assertEqual([(a["week"], a["key"]) for a in result["alerts"]], [("2024-W12", "product:P-0:overheat")])
         # it stops signalling at index 37 and is released four quiet steps later; a new burst then alerts again
-        late = A.prr_result(pack, rows + cells("P-0", "overheat", {50: 4}), weeks, first=0, tie_salt="t")
+        late = A.prr_result(pack, rows + cells("P-0", "overheat", {50: 4}), weeks, tie_salt="t")
         self.assertEqual([a["week"] for a in late["alerts"]], ["2024-W12", "2024-W51"])
-        soon = A.prr_result(pack, rows + cells("P-0", "overheat", {38: 4}), weeks, first=0, tie_salt="t")
+        soon = A.prr_result(pack, rows + cells("P-0", "overheat", {38: 4}), weeks, tie_salt="t")
         self.assertEqual([a["week"] for a in soon["alerts"]], ["2024-W12"])     # still cooling at index 38
-        # walking from a later first week leaves the earlier alert out
-        self.assertEqual(A.prr_result(pack, rows, weeks, first=13, tie_salt="t")["alerts"][0]["week"], "2024-W14")
         # a budget of 5 a week: six keys signal at once (P-0 is cooling), five alert, ranked by chi-squared
         burst = []
         for j in range(7):
             burst += cells(f"P-{j}", "overheat", {20: 3 + j})
-        top = A.prr_result(pack, rows + burst, weeks, first=0, tie_salt="t")["alerts"]
+        top = A.prr_result(pack, rows + burst, weeks, tie_salt="t")["alerts"]
         at = [a for a in top if a["week"] == "2024-W21"]
         self.assertEqual([a["key"] for a in at], [f"product:P-{j}:overheat" for j in (6, 5, 4, 3, 2)])
         self.assertEqual([a["rank"] for a in at], [1, 2, 3, 4, 5])
@@ -408,6 +408,58 @@ class PooledChannelTests(unittest.TestCase):
         found = {n: doc["channels"][n]["by_outcome"][0]["found"] for n in A.channel_names(doc)}
         self.assertEqual((found["X"], found["S"], found["R_mf"]), (False, False, False))
         self.assertTrue(found["P"])
+
+
+class ComparatorWalkTests(unittest.TestCase):
+    def test_prr_walks_from_the_first_week_and_drops_early_alerts_as_the_detectors_do(self) -> None:
+        # twelve sites, three vehicles, every failure spread evenly; then engine complaints on the first vehicle from
+        # the first week, and fuel complaints on the second from week 30, both on no other vehicle
+        pack = A._load(str(ROOT / "docs" / "collective" / "replay" / "vehicles" / "pack"))
+        sites = [f"s{i:02d}" for i in range(1, 13)]
+        vehicles = ["SYN-V0001-2020", "SYN-V0002-2020", "SYN-V0003-2020"]
+        comps = ["AIR BAGS", "STEERING", "SUSPENSION"]
+        rows: list[dict[str, Any]] = []
+        start = date(2024, 1, 1)
+
+        def add(week: int, site: str, vehicle: str, comp: str) -> None:
+            day = start.toordinal() + 7 * week + len(rows) % 5
+            rows.append({"odino": str(len(rows) + 1), "state": site, "received": date.fromordinal(day).strftime(
+                "%Y%m%d"), "components": [comp], "vehicle": vehicle, "summary": f"Problem with the {comp.lower()}."})
+        for week in range(52):
+            for i, site in enumerate(sites):
+                add(week, site, vehicles[(week + i) % 3], comps[(week + 2 * i) % 3])
+            add(week, sites[week % 12], vehicles[0], "ENGINE")
+        for week in range(30, 34):
+            add(week, sites[week % 12], vehicles[1], "FUEL SYSTEM, GASOLINE")
+            add(week, sites[(week + 6) % 12], vehicles[1], "FUEL SYSTEM, GASOLINE")
+        opened = date.fromordinal(start.toordinal() + 7 * 45).isoformat()
+        outcomes = [A.Outcome("O1", opened, "vehicle", vehicles[0], "engine"),
+                    A.Outcome("O2", opened, "vehicle", vehicles[1], "fuel_system_gasoline")]
+        doc = A.audit(pack, rows, outcomes, synthetic=True)
+        found = {r["outcome_id"]: r["found"] for r in doc["channels"]["PRR"]["by_outcome"]}
+        self.assertEqual(found, {"O1": False, "O2": True})
+
+        # the same walks outside the audit: both channels walk from the export's first week
+        records = list(map_rows(rows, pack, synthetic=True).records)
+        days = sorted(r["received_date"][:10] for r in records)
+        weeks = replay_weeks(days[0], days[-1])
+        master = A._master_data(pack, records, sorted({r["site"] for r in records}))
+        cells = r_mf_cells(pack, records, master_data=master, last_week=weeks[-1])
+        raw = A.comparator_results(pack, cells, weeks, as_of=closing_date(pack, weeks[-1]), tie_salt="pilot")
+        evaluated_from = doc["weeks"]["evaluated_from"]
+        self.assertEqual(evaluated_from, weeks[19])
+        engine = f"vehicle:{vehicles[0]}:engine"
+        # PRR: the standing engine signal reaches chi-squared 4 in week index 3, alerts there, before the evaluated
+        # weeks, and keeps signalling, so it cools from then on
+        self.assertEqual([a["week"] for a in raw["PRR"]["alerts"] if a["key"] == engine], [weeks[3]])
+        # the detectors walk the same weeks and cannot alert before the evaluated weeks: no site has the history
+        self.assertEqual([w["week"] for w in raw["P"]["weeks"]], weeks)
+        self.assertEqual([w["candidates"] for w in raw["P"]["weeks"][:19]], [0] * 19)
+        # the audit keeps exactly each walk's alerts from the first evaluated week on
+        for name in A.COMPARATORS:
+            kept = [(a["week"], a["key"]) for a in raw[name]["alerts"] if a["week"] >= evaluated_from]
+            timeline = [(t["week"], max(t["keys"], key=len)) for t in doc["channels"][name]["alert_timeline"]]
+            self.assertEqual(timeline, kept, name)
 
 
 class GuardTests(unittest.TestCase):

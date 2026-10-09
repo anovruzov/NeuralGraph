@@ -172,7 +172,7 @@ class SummaryTests(unittest.TestCase):
                 ("control", P.SEXTUPLE, None, {"X": False, "P": None})]
         s = P.summarise([world(4, rows)], lookbacks=[26], threshold=0.8, max_control_share=0.2)
         self.assertEqual([(c["kind"], c["rate"]) for c in s["cells"]], [(P.RAMP, 2.0), (P.SEXTUPLE, None)])
-        self.assertFalse(s["cells"][1]["by_lookback"]["26"]["passes"])
+        self.assertIsNone(s["cells"][1]["by_lookback"]["26"]["passes"])
         self.assertTrue(s["gate"]["passes"])
 
 
@@ -206,6 +206,9 @@ class CliTests(unittest.TestCase):
         md = (self.tmp / "weak" / "power.md").read_text(encoding="utf-8")
         self.assertIn(P.LABEL, md)
         self.assertIn("## Sextuplings, look-back 104 weeks", md)
+        rows = [line for line in md.splitlines() if line.startswith("| 6x |")]
+        self.assertEqual(len(rows), 2)                   # one per look-back, and neither reads as a gate verdict
+        self.assertTrue(all(line.endswith("| not gated |") for line in rows), rows)
 
     def test_a_strong_ramp_passes_and_exits_0(self) -> None:
         code, out, err, doc = self.run_check("strong", "--rates", "20")

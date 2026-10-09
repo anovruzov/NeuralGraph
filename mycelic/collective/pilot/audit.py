@@ -46,6 +46,10 @@ same either way). Both read model-free R's record-level cells, so neither runs w
   Yates-corrected chi-squared at least 4, at least 3 records). The trailing window is the variant: over the whole
   history, an entity that always had a high share would signal once and never again, and a rise would be diluted.
   Signals are ranked by chi-squared and alert under the pack's alert budget and cooldown, as the detectors do.
+Both walk every week of the export from its first, and their alerts before the first evaluated week are dropped, as
+for X, S and R_mf. The detectors cannot alert there (no site has ``min_history_weeks`` yet). PRR needs no history, so
+a failure already disproportionate before that week alerts there, is dropped, and stays cooling while it keeps
+signalling: a PRR alert marks when a disproportion starts, not when the evaluated weeks start.
 Comparators are scored like the other channels but add nothing to the review list.
 
 ``demo`` builds a synthetic history for a pack with a smoke plant (its generator and ``fixtures/plant_smoke.json``), writes it as the
@@ -100,7 +104,8 @@ COMPARATOR_NOTES = {
          "detectors, with the cross-site minimums at 1 because there is one site",
     "PRR": "PRR, disproportionality (comparator): on the pooled cells, each entity and failure against every other "
            "entity of its type over the trailing baseline weeks; Evans' criteria (PRR >= 2, chi-squared >= 4, "
-           "n >= 3), ranked by chi-squared under the same alert budget and cooldown",
+           "n >= 3), ranked by chi-squared under the same alert budget and cooldown, walked from the export's first "
+           "week as the detectors are",
 }
 OUTCOME_COLUMNS = ("outcome_id", "opened", "entity_type", "entity_id")
 LIST_SEP = ";"
@@ -449,13 +454,14 @@ def prr_stats(a: int, b: int, c: int, d: int) -> tuple[float, float] | None:
     return prr, n * diff * diff / (row1 * row2 * col1 * col2)
 
 
-def prr_result(pack: FrozenPack, cells: Sequence[Mapping[str, Any]], weeks: Sequence[str], *, first: int,
+def prr_result(pack: FrozenPack, cells: Sequence[Mapping[str, Any]], weeks: Sequence[str], *,
                tie_salt: str) -> dict[str, Any]:
-    """The disproportionality channel over pooled codes cells, walked week by week from week index ``first``: a key
-    signals at week W when, over the ``baseline_weeks`` ending at W, PRR >= 2, chi-squared >= 4 and its count >= 3.
-    Signals not cooling are ranked by chi-squared (ties by ``sha256(tie_salt|key)``) and the first
-    ``alert_budget_per_week`` alert; a key that alerted cools until it has not signalled for ``cooldown_weeks``
-    steps, as in the detectors."""
+    """The disproportionality channel over pooled codes cells, walked over every week of ``weeks`` from the first, as
+    the detectors walk theirs: a key signals at week W when, over the ``baseline_weeks`` ending at W (fewer at the
+    start), PRR >= 2, chi-squared >= 4 and its count >= 3. Signals not cooling are ranked by chi-squared (ties by
+    ``sha256(tie_salt|key)``) and the first ``alert_budget_per_week`` alert; a key that alerted cools until it has
+    not signalled for ``cooldown_weeks`` steps, as in the detectors. The audit drops alerts before the first evaluated
+    week (:func:`_alerts`), so a key signalling since before then is still cooling there."""
     d = pack.detectors
     window, budget, cooldown = d["baseline_weeks"], d["alert_budget_per_week"], d["cooldown_weeks"]
     pos = {w: i for i, w in enumerate(weeks)}
@@ -477,7 +483,7 @@ def prr_result(pack: FrozenPack, cells: Sequence[Mapping[str, Any]], weeks: Sequ
     keys = [key for key in sorted(prefix) if key[0] == "k" and prefix[key][-1] >= PRR_N_MIN]
     alerts: list[dict[str, Any]] = []
     cooling: dict[str, int] = {}
-    for i in range(max(first, 0), nw):
+    for i in range(nw):
         lo = max(0, i - window + 1)
         found: dict[str, float] = {}
         for key in keys:
@@ -505,18 +511,24 @@ def prr_result(pack: FrozenPack, cells: Sequence[Mapping[str, Any]], weeks: Sequ
     return {"alerts": alerts}
 
 
+def comparator_results(pack: FrozenPack, cells: Mapping[str, Sequence[Mapping[str, Any]]], weeks: Sequence[str], *,
+                       as_of: str, tie_salt: str) -> dict[str, dict[str, Any]]:
+    """P's detector result and PRR's result over every site's R_mf cells, each walked over every week; the audit then
+    drops the alerts before the first evaluated week from both, as from the other channels."""
+    pooled = pooled_cells(cells)
+    return {"P": exact_result(pooled_pack(pack), org_for_sites([POOLED_SITE], ENTERPRISE), {POOLED_SITE: pooled},
+                              as_of=as_of, run_channel="S", tie_salt=tie_salt),
+            "PRR": prr_result(pack, pooled, weeks, tie_salt=tie_salt)}
+
+
 def _comparators(pack: FrozenPack, pipeline: Any, cells: Mapping[str, Sequence[Mapping[str, Any]]] | None,
                  evaluated_index: int, tie_salt: str, reason: str | None) -> dict[str, dict[str, Any]]:
     if cells is None:
         why = f"needs model-free R's cells: {reason}"
         return {name: {"alerts": None, "reason": why} for name in COMPARATORS}
-    weeks = pipeline.weeks
-    pooled = pooled_cells(cells)
-    result = exact_result(pooled_pack(pack), org_for_sites([POOLED_SITE], ENTERPRISE), {POOLED_SITE: pooled},
-                          as_of=pipeline.as_of, run_channel="S", tie_salt=tie_salt)
-    prr = prr_result(pack, pooled, weeks, first=evaluated_index, tie_salt=tie_salt)
-    return {"P": {"alerts": _alerts(result, pipeline, "S", weeks[evaluated_index]), "reason": None},
-            "PRR": {"alerts": _alerts(prr, pipeline, "S", weeks[evaluated_index]), "reason": None}}
+    results = comparator_results(pack, cells, pipeline.weeks, as_of=pipeline.as_of, tie_salt=tie_salt)
+    return {name: {"alerts": _alerts(results[name], pipeline, "S", pipeline.weeks[evaluated_index]), "reason": None}
+            for name in COMPARATORS}
 
 
 def channel_names(doc: Mapping[str, Any]) -> tuple[str, ...]:

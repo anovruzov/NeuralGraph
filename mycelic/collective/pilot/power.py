@@ -360,7 +360,8 @@ def summarise(worlds: Sequence[Mapping[str, Any]], *, lookbacks: Sequence[int], 
             best = max(eligible, key=lambda n: eligible[n]) if eligible else None     # ties: the first in order
             cell["by_lookback"][str(lb)] = {
                 "channels": per, "best": best, "best_power": eligible.get(best) if best else None,
-                "passes": bool(best is not None and eligible[best] >= threshold)}
+                "passes": (bool(best is not None and eligible[best] >= threshold) if kind == RAMP
+                           else None)}                  # sextuplings are reported, not gated
         cells.append(cell)
     gate_lb = str(lookbacks[0])
     ramps = [c for c in cells if c["kind"] == RAMP]
@@ -407,9 +408,10 @@ def render(doc: Mapping[str, Any]) -> str:
             for c in cells:
                 b = c["by_lookback"][str(lb)]
                 rate = "6x" if c["rate"] is None else f"{c['rate']:g}"
+                verdict = "not gated" if b["passes"] is None else ("yes" if b["passes"] else "no")
                 lines.append(f"| {rate} | {c['years']} | {c['plants']} | {c['planted_records_mean']:.1f} | "
                              + " | ".join(_fmt(b["channels"].get(n)) for n in names)
-                             + f" | {b['best'] or 'none'} | {'yes' if b['passes'] else 'no'} |")
+                             + f" | {b['best'] or 'none'} | {verdict} |")
             lines.append("")
     lines += ["Each channel cell: power (plants found of plants); control: found where nothing was planted.", ""]
     return "\n".join(lines)
