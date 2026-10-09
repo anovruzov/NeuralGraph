@@ -10,13 +10,12 @@ Usage:
 Recall uses the same substring check as the benchmark (gold split on "," / " and ").
 """
 import asyncio
+import hashlib
 import json
 import os
-import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
 
 import aiohttp
@@ -26,15 +25,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling harness modules
 
 
-from NeuralGraph.research.retrieval import NeuralNode, NeuralEdge, NodeLayer, EdgeType, generate_edge_id
+from NeuralGraph.research.retrieval import NeuralEdge, EdgeType, generate_edge_id
 from NeuralGraph import llm_backend
 from NeuralGraph.research.retrieval.storage import InMemoryNeuralGraphStorage
 from NeuralGraph.research.retrieval.tesseract import Tesseract
 from NeuralGraph.research.retrieval.dialogue_linker import DialogueLinker
-from NeuralGraph.research.retrieval.service import extract_keywords
-from NeuralGraph.temporal_utils import (
-    parse_datetime_flexible, resolve_relative_dates, generate_temporal_tokens,
-    extract_explicit_date, extract_duration_metadata,
+from NeuralGraph.research.retrieval.benchmark_ingest import (
+    allow_missing_from_env, build_message_node, check_embeddings, flatten_locomo,
 )
 import runner  # reuse benchmark helpers so both evaluators agree
 from runner import check_gold_in_memories_substring, expand_via_graph, CATEGORIES
@@ -68,66 +65,44 @@ async def embed_batch(http, texts: list[str]) -> list[list[float]]:
 
 
 async def cached_embeddings(http, key: str, texts: list[str]) -> list[list[float]]:
-    path = CACHE_DIR / f"{key}.json"
+    # The file name carries a digest of the texts, so a cache built from other texts (e.g. before
+    # image captions were added to message text) is never reused just because the count matches.
+    digest = hashlib.sha256("\x00".join(texts).encode("utf-8")).hexdigest()[:12]
+    path = CACHE_DIR / f"{key}-{digest}.json"
     if path.exists():
         cached = json.load(open(path))
         if len(cached) == len(texts):
             return cached
     vecs = await embed_batch(http, texts)
-    json.dump(vecs, open(path, "w"))
+    if all(vecs):  # never cache a failed (empty) embedding
+        json.dump(vecs, open(path, "w"))
     return vecs
 
 
 def flatten_messages(conv: dict) -> list[dict]:
-    conversation = conv.get("conversation", conv)
-    messages, i = [], 1
-    while f"session_{i}" in conversation:
-        dt = conversation.get(f"session_{i}_date_time", "")
-        for msg in conversation[f"session_{i}"]:
-            messages.append({"speaker": msg.get("speaker", "Unknown"), "text": msg.get("text", ""), "datetime": dt})
-        i += 1
-    return messages
+    """LoCoMo turns in order (shared helper: dia_id, session index and image caption kept)."""
+    return flatten_locomo(conv)
 
 
-async def ingest(http, conv_idx: int, conv: dict):
-    """Mirror of demo/runner.py ingestion (same node metadata, same edges, same dialogue links)."""
+async def ingest(http, conv_idx: int, conv: dict, allow_missing: bool | None = None):
+    """Same ingestion as research/benchmarks/runner.py (shared node builder, same edges, same dialogue links).
+
+    Raises EmbeddingFailureError naming the count if any message has no embedding, unless
+    allow_missing (default: ALLOW_MISSING_EMBEDDINGS=1) is set; then those messages are skipped.
+    """
     messages = flatten_messages(conv)
     embeddings = await cached_embeddings(http, f"conv{conv_idx}_msgs", [m["text"] for m in messages])
+    if allow_missing is None:
+        allow_missing = allow_missing_from_env()
+    check_embeddings(embeddings, where=f"conv_{conv_idx}", allow_missing=allow_missing)
     storage = InMemoryNeuralGraphStorage()
     speaker_nodes: dict[str, list[str]] = defaultdict(list)
     all_ids: list[str] = []
     for idx, (msg, emb) in enumerate(zip(messages, embeddings)):
-        message_date = parse_datetime_flexible(msg["datetime"])
-        temporal = generate_temporal_tokens(message_date, msg["text"])
-        _, resolved_dates = resolve_relative_dates(msg["text"], message_date)
-        explicit_date = extract_explicit_date(msg["text"], message_date)
-        duration = extract_duration_metadata(msg["text"], message_date)
-        resolved_date, source = None, None
-        if explicit_date:
-            resolved_date, source = explicit_date, "explicit"
-        elif resolved_dates:
-            vals = list(dict.fromkeys(v for v in resolved_dates.values() if isinstance(v, str) and re.search(r"\d", v)))
-            if len(vals) == 1:
-                resolved_date, source = vals[0], "relative"
-        if not resolved_date and message_date:
-            resolved_date, source = message_date.strftime("%Y-%m-%d"), "message"
-        entities = set(re.findall(r"\b[A-Z][a-z]+\b", msg["text"]))
-        entities.discard("I")
+        if not emb:
+            continue
         node_id = f"msg_{conv_idx}_{idx}"
-        node = NeuralNode(
-            node_id=node_id, session_key=f"conv_{conv_idx}", content=msg["text"],
-            layer=NodeLayer.MESSAGE, embedding=emb, created_at=datetime.now(),
-            metadata={
-                "speaker": msg["speaker"], "datetime": msg["datetime"],
-                "keywords": list(extract_keywords(msg["text"])), "entities": list(entities),
-                "temporal_tokens": temporal["date_tokens"], "temporal_metadata": temporal["temporal_metadata"],
-                "resolved_date": resolved_date, "resolved_date_source": source, "explicit_date": explicit_date,
-                "duration_years": duration.get("duration_years"), "duration_months": duration.get("duration_months"),
-                "since_year": duration.get("since_year"), "since_date": duration.get("since_date"),
-                "date_tokens": temporal["date_tokens"], "temporal": temporal["temporal_metadata"],
-                "resolved_dates": resolved_dates,
-            },
-        )
+        node = build_message_node(node_id, f"conv_{conv_idx}", msg, emb)
         await storage.save_node(node)
         all_ids.append(node_id)
         speaker_nodes[msg["speaker"].lower()].append(node_id)

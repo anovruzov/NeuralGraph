@@ -236,6 +236,28 @@ class NeuralGraphStorage(ABC):
         """
         ...
 
+    @abstractmethod
+    async def get_neighbors(
+        self,
+        node_id: str,
+        edge_types: list[EdgeType] | None = None,
+        direction: str = "outgoing"
+    ) -> list[tuple[NeuralNode, NeuralEdge]]:
+        """Get neighboring nodes.
+
+        Outgoing neighbors (edge targets) come first, then incoming ones
+        (edge sources). Edges whose other end is not stored are skipped.
+
+        Args:
+            node_id: Center node ID
+            edge_types: Optional edge type filter
+            direction: "outgoing", "incoming", or "both"
+
+        Returns:
+            List of (neighbor_node, connecting_edge) tuples
+        """
+        ...
+
     # =========================================================================
     # VECTOR SEARCH
     # =========================================================================

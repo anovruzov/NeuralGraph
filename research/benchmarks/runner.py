@@ -29,7 +29,6 @@ from NeuralGraph.research.retrieval.dialogue_linker import DialogueLinker
 from NeuralGraph.research.retrieval.answering import AnsweringConfig, generate_answer, get_embedding
 from NeuralGraph.research.retrieval.reranker import rerank_candidates_parallel
 from NeuralGraph.research.retrieval.service import (
-    extract_keywords,
     is_temporal_question,
     extract_month_year_from_text,
     extract_topic_keywords_for_temporal,
@@ -41,20 +40,21 @@ from NeuralGraph.research.retrieval.service import (
 )
 
 # Import CORE temporal utilities - ensures benchmark uses production code
+# (ingestion-time functions run in benchmark_ingest.build_message_node, shared with retrieval_eval.py)
 from NeuralGraph.temporal_utils import (
-    # Ingestion-time functions (used during message indexing)
-    parse_datetime_flexible,
-    resolve_relative_dates,
-    generate_temporal_tokens,
     preprocess_message_for_indexing,
-    extract_explicit_date,
-    extract_duration_metadata,
     # Query-time functions (used during retrieval)
     expand_temporal_query,
     infer_query_mode,
 )
 from NeuralGraph.research.retrieval.speaker_profiles import UniversalSpeakerProfiler
 from NeuralGraph.research.retrieval import llm_profile_extractor
+from NeuralGraph.research.retrieval.benchmark_ingest import (
+    allow_missing_from_env,
+    build_message_node,
+    check_embeddings,
+    flatten_locomo,
+)
 
 
 import os
@@ -81,7 +81,10 @@ llm_profile_extractor.USE_OPENAI_EXTRACTION = False
 
 TOP_K = 50
 
-CATEGORIES = {1: "single_hop", 2: "temporal", 3: "open_domain", 4: "multi_hop"}
+# LoCoMo category ids. Category 1 questions cite 3.14 evidence turns on average and category 4
+# questions 1.07, so 1 is multi-hop and 4 is single-hop. Before 2026-10-09 this map had the two
+# names swapped; per-category numbers produced before then are labelled with the swapped names.
+CATEGORIES = {1: "multi_hop", 2: "temporal", 3: "open_domain", 4: "single_hop"}
 
 # ---- Run controls (env vars) -------------------------------------------------
 #   RUN_NAME=flat_single_hop      -> writes research/results/<RUN_NAME>.json
@@ -122,6 +125,10 @@ SPEAKER_BOOST = float(os.environ.get("SPEAKER_BOOST", "1.5"))
 OPEN_DOMAIN_KEEP_CONTEXT = os.environ.get("OPEN_DOMAIN_KEEP_CONTEXT", "0") == "1"
 OPEN_DOMAIN_FORCE_INFER = int(os.environ.get("OPEN_DOMAIN_FORCE_INFER", "0"))
 OPEN_DOMAIN_INFER_WORLD = os.environ.get("OPEN_DOMAIN_INFER_WORLD", "0") == "1"
+#   ALLOW_MISSING_EMBEDDINGS=1 -> index a conversation even if some messages could not be embedded
+#                                 (they are skipped and counted); default: stop with EmbeddingFailureError
+ALLOW_MISSING_EMBEDDINGS = allow_missing_from_env()
+MISSING_EMBEDDINGS = {"messages": 0, "questions": 0}  # recorded in result metadata
 
 # Timing storage
 import time
@@ -293,7 +300,8 @@ def save_results(results, stats):
             "model": "Tesseract 4D Memory",
             "answer_model": OLLAMA_MODEL,
             "reranker_model": RERANKER_MODEL,
-            "judge": "GPT-4o (OpenAI)",
+            "judge": judge_model_id(),
+            "missing_embeddings": dict(MISSING_EMBEDDINGS),
             "timestamp": datetime.now().isoformat(),
             "total_questions": total_questions,
             "total_correct": total_correct,
@@ -380,8 +388,13 @@ def parse_judge_label(resp: str) -> bool:
     return False
 
 
+def judge_model_id() -> str:
+    """Model id of the judge judge_answer calls: JUDGE_MODEL with an API key, else the local model."""
+    return (JUDGE_MODEL if USE_OPENAI_JUDGE else llm_backend.LLM_MODEL) or "unknown"
+
+
 async def judge_answer(session, question: str, generated: str, gold) -> bool:
-    """Judge using GPT-4o."""
+    """Judge with the configured judge model (see judge_model_id)."""
     gen_lower = str(generated).lower().strip()
     gold_lower = str(gold).lower().strip()
 
@@ -464,7 +477,7 @@ async def build_pair_nodes(http, conv_idx, messages, nodes):
         anchor = nodes[k + 1]
         out.append(NeuralNode(
             node_id=f"pair_{conv_idx}_{k}", session_key=f"conv_{conv_idx}", content=text,
-            layer=NodeLayer.MESSAGE, embedding=emb, created_at=datetime.now(),
+            layer=NodeLayer.MESSAGE, embedding=emb, created_at=anchor.created_at,
             metadata={"speaker": anchor.speaker_id, "datetime": anchor.metadata.get("datetime"), "pair_members": mem},
         ))
     return out
@@ -557,18 +570,9 @@ async def run_benchmark():
             print(f"CONVERSATION {conv_idx + 1}")
             print(f"{'='*60}")
 
-            conversation = conv.get("conversation", conv)
-            messages = []
-            session_idx = 1
-            while f"session_{session_idx}" in conversation:
-                datetime_str = conversation.get(f"session_{session_idx}_date_time", "")
-                for msg in conversation[f"session_{session_idx}"]:
-                    messages.append({
-                        "speaker": msg.get("speaker", "Unknown"),
-                        "text": msg.get("text", ""),
-                        "datetime": datetime_str,
-                    })
-                session_idx += 1
+            # Shared LoCoMo flattening: keeps dia_id, session index and image captions
+            # ("[image: <caption>]" appended to the text), dated by the session date.
+            messages = flatten_locomo(conv)
 
             print(f"Loaded {len(messages)} messages")
 
@@ -600,74 +604,20 @@ async def run_benchmark():
             speaker_nodes: dict[str, list[str]] = {}
             all_node_ids: list[str] = []
 
-            for msg_idx, msg in enumerate(messages):
+            embeddings = [await get_embedding(http, msg["text"], config=ANSWERING_CONFIG) for msg in messages]
+            # get_embedding returns [] on any error: count the failures and stop unless
+            # ALLOW_MISSING_EMBEDDINGS=1, instead of silently indexing a partial conversation.
+            missing = check_embeddings(embeddings, where=f"conv_{conv_idx}", allow_missing=ALLOW_MISSING_EMBEDDINGS)
+            MISSING_EMBEDDINGS["messages"] += missing
 
-                embedding = await get_embedding(http, msg["text"], config=ANSWERING_CONFIG)
+            for msg_idx, (msg, embedding) in enumerate(zip(messages, embeddings)):
                 if not embedding:
                     continue
 
-                keywords = extract_keywords(msg["text"])
-                content_entities = set(re.findall(r'\b[A-Z][a-z]+\b', msg["text"]))
-                content_entities.discard("I")
-
-                message_date = parse_datetime_flexible(msg["datetime"])
-                temporal_data = generate_temporal_tokens(message_date, msg["text"])
-                date_tokens = temporal_data["date_tokens"]
-                temporal_metadata = temporal_data["temporal_metadata"]
-
-                # FAIR TEMPORAL: Resolve dates for METADATA ONLY (not stored in text)
-                # The LLM must reason about "yesterday" at answer-time using created_at
-                resolved_content, resolved_dates = resolve_relative_dates(msg["text"], message_date)
-
-                resolved_date = None
-                resolved_date_source = None
-                explicit_date = extract_explicit_date(msg["text"], message_date)
-                duration_meta = extract_duration_metadata(msg["text"], message_date)
-
-                if explicit_date:
-                    resolved_date = explicit_date
-                    resolved_date_source = "explicit"
-                elif resolved_dates:
-                    date_values = [
-                        v for v in resolved_dates.values()
-                        if isinstance(v, str) and re.search(r'\d', v)
-                    ]
-                    unique_values = list(dict.fromkeys(date_values))
-                    if len(unique_values) == 1:
-                        resolved_date = unique_values[0]
-                        resolved_date_source = "relative"
-                if not resolved_date and message_date:
-                    resolved_date = message_date.strftime("%Y-%m-%d")
-                    resolved_date_source = "message"
-
-                # Store ORIGINAL text - no date tokens baked in (non-leaky)
+                # Store the message text (plus its marked image caption) - no date tokens baked in
+                # (non-leaky). Resolved dates go to METADATA ONLY; created_at is the session date.
                 node_id = f"msg_{conv_idx}_{msg_idx}"
-                node = NeuralNode(
-                    node_id=node_id,
-                    session_key=f"conv_{conv_idx}",
-                    content=msg["text"],  # FAIR: original text only
-                    layer=NodeLayer.MESSAGE,
-                    embedding=embedding,
-                    created_at=datetime.now(),
-                    metadata={
-                        "speaker": msg["speaker"],
-                        "datetime": msg["datetime"],  # Message timestamp for reasoning
-                        "keywords": list(keywords),
-                        "entities": list(content_entities),
-                        "temporal_tokens": date_tokens,  # For retrieval indexing only
-                        "temporal_metadata": temporal_metadata,
-                        "resolved_date": resolved_date,
-                        "resolved_date_source": resolved_date_source,
-                        "explicit_date": explicit_date,
-                        "duration_years": duration_meta.get("duration_years"),
-                        "duration_months": duration_meta.get("duration_months"),
-                        "since_year": duration_meta.get("since_year"),
-                        "since_date": duration_meta.get("since_date"),
-                        "date_tokens": date_tokens,  # Backward compat
-                        "temporal": temporal_metadata,  # Backward compat
-                        "resolved_dates": resolved_dates,  # Metadata only, not in text
-                    },
-                )
+                node = build_message_node(node_id, f"conv_{conv_idx}", msg, embedding)
                 await storage.save_node(node)
                 all_node_ids.append(node_id)
 
@@ -756,6 +706,8 @@ async def run_benchmark():
 
                 query_emb = await get_embedding(http, question, config=ANSWERING_CONFIG)
                 if not query_emb:
+                    MISSING_EMBEDDINGS["questions"] += 1  # skipped, but counted in the metadata
+                    print(f"  [skip] no embedding for question {q_idx} of conv {conv_idx}")
                     continue
 
                 # Start end-to-end and retrieval timing
@@ -1084,7 +1036,7 @@ async def run_benchmark():
     accuracy = 100 * total_correct / total_questions if total_questions > 0 else 0
 
     print(f"\n{'='*60}")
-    print(f"BENCHMARK COMPLETE (Answer: {OLLAMA_MODEL}, Judge: GPT-4o)")
+    print(f"BENCHMARK COMPLETE (Answer: {OLLAMA_MODEL}, Judge: {judge_model_id()})")
     print(f"{'='*60}")
     print(f"Total: {total_correct}/{total_questions} ({accuracy:.1f}%)")
     for cat, s in stats.items():
