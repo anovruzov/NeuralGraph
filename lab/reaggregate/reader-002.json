@@ -1,0 +1,4 @@
+{
+  "run_id": 37910989965,
+  "purpose": "R002 run 1 (CHOICE-R002.md, Runs): score each model from its completed E1 repeats; the aggregate skipped all scoring because two a-4b repeats timed out. Same artifacts, no unit runs again; declared in f8653d9 before this re-aggregation."
+}
