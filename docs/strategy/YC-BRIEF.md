@@ -23,7 +23,7 @@ cross-unit detection would have flagged those issues earlier than chance (`docs/
 | HQ detectors, pushdown questions, commit gate, follow-up drafts with owner approval | Built and tested | `mycelic/collective/` |
 | Packs: the same code in four fields with data-only configuration | Device complaints, insurance claims, IT incidents, vehicle complaints. The IT-incidents pack was added with 0 lines of code changed: 13 data files, loaded 11 minutes after the start (AI agent wall clock, same author as the code; internal, not a buyer claim). The vehicle pack was built by rule from public NHTSA data | `docs/collective/PACKS.md`, `docs/collective/x3/effort.json` |
 | Signal audit (the pilot) with a chance baseline and a power check before any replay | Built and tested | `docs/collective/PILOT.md`, `docs/collective/POWER.md` |
-| Cloud lab: pre-registered runs of small models on shared CPU runners | Eight runs recorded | `docs/lab/RESULTS.md` |
+| Cloud lab: pre-registered runs of small models on shared CPU runners | Nine runs recorded | `docs/lab/RESULTS.md` |
 | Routing layer: per-site NeuralGraph and Tesseract behind the Boundary, routing HQ's questions | Research spike, not in the product path | `docs/collective/ROUTING-SPIKE.md` |
 
 ## 3. What the evidence says
@@ -32,6 +32,7 @@ cross-unit detection would have flagged those issues earlier than chance (`docs/
 |---|---|---|
 | Does raw text stay inside a unit? | Yes, in the canary scan with a small model reading every record: 0 of 4,259 planted markers crossed; the positive control was hit 884 times. Text only: the counts themselves can reveal whether a known complaint is at a site | RESULTS run 8; `docs/collective/LEAKAGE.md` |
 | Do small models read real complaints better than a word list? | No. On 150 public vehicle complaints, predicate F1 was 0.03, 0.18 and 0.22 for the three models, against 0.43 for word matching | RESULTS run 7; `CHOICE-R002.md` |
+| Can small models answer HQ's narrow question at a site (does this complaint describe this component)? | No. On the same 150 complaints, balanced accuracy 0.50, 0.48 and 0.39 against 0.67 for the word-matching judge; 0.5 is a judge that always answers the same. The two smaller models say yes to nearly everything; the largest tells filed from unfiled components but answers "unclear" instead of "no" | RESULTS run 9; `CHOICE-J001.md` |
 | On synthetic worlds built to reward reading, do they help? | Partly: the two larger models found 9 and 10 of 20 planted patterns, the codes alone 5, word matching 19 | RESULTS run 5 |
 | On public data, does cross-unit counting warn earlier than chance? | No, in five replays over two fields. With the baseline corrected for complaints that react to recalls, the finds sit at chance (recalls 14 against 16.4 expected; investigations 6 against 5.6) | `docs/collective/replay/vehicles/DIAG-E002.md`; `docs/strategy/MARKET.md` 5.1 |
 | Could the detectors have seen a signal of that size at all? | No. At the replays' settings they found 0 of 30 planted ramps. A pooled national channel caught 36 of 60 planted sextuplings, against 8 to 10 for state-split channels | `docs/collective/POWER.md` |
@@ -43,13 +44,16 @@ What this means for the pitch:
 - **Detection value is unproven**, and public data cannot prove it: it is too thin for these detectors. Only a
   company's own records can answer the question. That is why the first product is the audit.
 - **Small models are the privacy and cost choice, not yet the accuracy choice.** On public complaint text they read
-  worse than a word list. What they must earn on a partner's own text is a measured question, not a claim.
+  worse than a word list, and they answer HQ's narrow question worse than a word list too. What they must earn on a partner's own text is a measured question, not a claim.
 
 ## 4. Small models: what is measured
 
 - **Latency per extraction call** on shared 4-vCPU runners: a-4b a median of 6.5 s on synthetic records (AMD EPYC
   9V74) and 25.8 s on real complaints (Intel Xeon Platinum 8573C); a-0p5b 10.9 to 12.5 s on real complaints
   (RESULTS runs 7 and 8). This is batch speed: a site reads its day's records overnight, not interactively.
+- **A narrow yes-or-no question is short work:** median 1.0 to 1.5 s a call for a-0p5b, 1.4 to 3.2 s for a-1p5b and
+  6.0 to 9.0 s for a-4b on the same runners (RESULTS run 9). Fast enough to answer HQ within minutes; not yet accurate
+  enough to be worth it on public text.
 - **Retrieval is fast:** Tesseract answers a query in about 0.24 s over a 419-message conversation
   (`docs/BENCHMARKS.md`), and a site ranked its records for a routed question in a median 0.46 s in the spike's first run, four worlds at once.
 - **No GPU and no egress of text:** every number above ran on CPU, with the model file verified by hash.

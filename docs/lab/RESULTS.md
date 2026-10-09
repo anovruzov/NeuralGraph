@@ -2,8 +2,8 @@
 
 Every number below is copied from a lab report printed in a GitHub Actions job log (between
 `=== MYCELIC-LAB … BEGIN/END ===` markers), from a shard's own summary or, for the vehicle replay, from its audit
-printed between `VEHICLE-AUDIT` markers. Each row names its run. **Synthetic data, except runs 3, 4, 6 and 7 and
-the vehicle replay**: their records are public FDA reports and NHTSA complaints; every other record and narrative was
+printed between `VEHICLE-AUDIT` markers. Each row names its run. **Synthetic data, except runs 3, 4, 6, 7 and 9
+and the vehicle replay**: their records are public FDA reports and NHTSA complaints; every other record and narrative was
 generated from a seed. **Runner hardware only**: one shared 4-vCPU GitHub-hosted runner per shard, whose CPU model
 varies between shards; compare timings only between rows of the same CPU model, and never read them as site hardware.
 A unit without a result is listed with its reason, not left out.
@@ -310,6 +310,33 @@ created; with the planter now reserving the run's organisation strings, no plant
 run, and the positive control shows the scan finds planted text where it is put on purpose. Model calls: 1,000
 extractions at a median 6.5 s and 653 judge calls at 4.0 s. G0 covers text only, not timing, sizes or the counts
 themselves (`docs/collective/LEAKAGE.md`, section 7).
+
+## Run 9: judge-001 (small models answer HQ's narrow question about real complaints): every model below word matching
+
+[Run 37996675559](https://github.com/anovruzov/NeuralGraph/actions/runs/37996675559), request
+`lab/requests/judge-001.json`, commit `5fcfda3`, 2026-10-09 21:59 to 22:21 UTC; rule
+`docs/collective/replay/vehicles/CHOICE-J001.md`, committed in `fb40e68` and amended twice before the run (`85be37f`,
+`388f497`). Report from the `aggregate` job (114051000850): `report.md` sha256 `72821c46a793…`, matching. The same
+150 narratives as runs 6 and 7 (labels sha `bc6d092d8bca`), codes hidden. Each record gets one question about a
+filed component and one about a component it was not filed under; each model answers the site verifier's two-part
+question, and its verdict is scored against the filed codes. All 18 units finished; no call failed.
+
+| Judge | Balanced accuracy [95% interval] | Sensitivity | Specificity | Unknown share | Median s per call (runner CPU) |
+|---|---|---|---|---|---|
+| Lexical judge | 0.670 [0.627, 0.713] | 0.380 | 0.960 | 0.000 | n/a |
+| Record-blind control (decides nothing) | 0.527 [0.467, 0.587] | | | | n/a |
+| a-0p5b | 0.500 [0.500, 0.500] | 0.967 | 0.033 | 0.000 | 1.0 (AMD EPYC 9V74), 1.5 (AMD EPYC 7763) |
+| a-1p5b | 0.477 [0.447, 0.503] | 0.867 | 0.087 | 0.080 | 1.4 (AMD EPYC 9V45), 2.2 (AMD EPYC 9V74), 3.2 (AMD EPYC 7763) |
+| a-4b | 0.387 [0.340, 0.433] | 0.647 | 0.127 | 0.483 | 6.0 (Intel Xeon Platinum 8573C), 9.0 (AMD EPYC 7763) |
+
+**By the pre-registered rule, every model judges worse than the lexical judge** (paired differences -0.170, -0.193
+and -0.283, each interval below zero). 0.5 is a judge that answers the same way every time. a-0p5b and a-1p5b say the
+narrative describes the component on nearly every question, filed or not. a-4b tells them apart (it says yes on 97 of
+150 filed components and 37 of 150 others), but on most others it says "unclear" rather than "no", and the shipped
+verdict rule turns unclear into `unknown`, which is never correct. A reading chosen after the result (unclear as
+refute) would put a-4b at 0.700; it decides nothing (`CHOICE-J001.md`, Runs). The lexical judge's sensitivity and
+specificity come from its answer counts (57 of 150 positives confirmed, 6 of 150 negatives). Judge calls are short:
+the slowest model's median was 9.0 s, against 25.8 s for an extraction call in run 7.
 
 ## Outside the lab: public replay V001 (vehicle complaints, model-free, real data)
 

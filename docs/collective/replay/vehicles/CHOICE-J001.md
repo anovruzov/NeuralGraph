@@ -331,4 +331,39 @@ control and the bound 0.500 each.
 
 ## Runs
 
-None yet.
+### Run 1: judge-001, 2026-10-09 (the result)
+
+[Run 37996675559](https://github.com/anovruzov/NeuralGraph/actions/runs/37996675559), request
+`lab/requests/judge-001.json` (sha `64c80cc4b1c8…`), commit `5fcfda3`, 21:59 to 22:21 UTC. Report from the
+`aggregate` job (114051000850): `report.md` sha256 `72821c46a793…`, matching. Every one of the 18 units finished;
+no call failed; no record was left out. Labels sha `bc6d092d8bca`, the same 150 narratives as R001 and R002.
+
+| Judge | Balanced accuracy [95% interval] | Sensitivity | Specificity | Unknown share | Minus lexical, paired [95% interval] | Headline |
+|---|---|---|---|---|---|---|
+| Lexical judge | 0.670 [0.627, 0.713] | | | | | |
+| Record-blind control | 0.527 [0.467, 0.587] | | | | | decides nothing |
+| Predicate-only bound | 0.580 (optimistic, no interval) | | | | | decides nothing |
+| a-0p5b | 0.500 [0.500, 0.500] | 0.967 | 0.033 | 0.000 | -0.170 [-0.213, -0.127] | worse |
+| a-1p5b | 0.477 [0.447, 0.503] | 0.867 | 0.087 | 0.080 | -0.193 [-0.243, -0.143] | worse |
+| a-4b | 0.387 [0.340, 0.433] | 0.647 | 0.127 | 0.483 | -0.283 [-0.340, -0.230] | worse |
+
+**By the rule, every model judges worse than the lexical judge.** This is a real negative for the site model on
+this text, on the task the product gives it.
+
+What the answer counts show (report.json's `answers`, read from the job log; they decide nothing):
+
+- `mentions_entity` was yes on every question for a-0p5b and a-4b, and on 276 of 300 for a-1p5b.
+- **a-0p5b says the record describes the component almost always:** `describes_predicate` yes on 145 of 150
+  positives and 145 of 150 negatives. It does not tell them apart.
+- **a-1p5b** says yes on 138 of 150 positives and 131 of 150 negatives.
+- **a-4b tells them apart but rarely says no.** On positives: yes 97, unclear 51, no 2. On negatives: yes 37,
+  unclear 94, no 19. The shipped rule needs a yes or a no for a verdict, so each unclear is `unknown`, which is never
+  correct. Read after the result, counting unclear as a refute would give a-4b a balanced accuracy of 0.700
+  ((97/150 + 113/150) / 2). That reading was not pre-registered, was chosen after seeing the answers, and decides
+  nothing. Testing it needs a new choice file and records these models have not judged.
+- The lexical judge confirmed 57 of 150 positives and 6 of 150 negatives.
+
+Seconds per judge call, from the ledgers (runner CPUs, not site hardware): a-0p5b median 1.0 s (AMD EPYC 9V74) and
+1.5 s (AMD EPYC 7763); a-1p5b 1.4 s (AMD EPYC 9V45) to 3.2 s (AMD EPYC 7763); a-4b 6.0 s (Intel Xeon Platinum 8573C)
+and 9.0 s (AMD EPYC 7763).
+
