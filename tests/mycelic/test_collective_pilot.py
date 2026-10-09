@@ -172,6 +172,24 @@ class ScoreTests(unittest.TestCase):
                             available_first=date(2024, 3, 3), evaluated_weeks=20)
         self.assertEqual(s["summary"]["found"], 0)
 
+    def test_shift_totals_give_the_corrected_null_and_shift_zero_finds_the_found_count(self) -> None:
+        outcomes = [A.Outcome("O1", "2024-06-03", "product", "SD-9", None),
+                    A.Outcome("O2", "2024-04-01", "product", "IP-7", None)]
+        alerts = [alert("2024-W18", "2024-05-06", "product:SD-9:leak"),     # in O1's look-back: found
+                  alert("2024-W23", "2024-06-10", "product:SD-9:leak"),     # O1's own reaction: left out
+                  alert("2024-W12", "2024-03-24", "product:IP-7:crack"),    # in O2's look-back: found
+                  alert("2024-W20", "2024-05-20", "product:IP-7:crack")]    # O2's own reaction: left out
+        keyed = [(a, A._match_keys(a)) for a in alerts]
+        settings = {"lookback": 8, "post": 8, "available_first": date(2024, 3, 3), "evaluated_weeks": 20}
+        totals = A.own_post_shift_totals(outcomes, keyed, **settings)
+        s = A.score_channel(outcomes, alerts, **settings)["summary"]
+        self.assertEqual(len(totals), 20)
+        self.assertEqual(totals[0], s["found"])
+        self.assertEqual(s["found"], 2)
+        self.assertEqual(s["expected_found_excluding_own_post"], sum(totals) / 20)
+        self.assertEqual(s["p_value_excluding_own_post"], (1 + sum(1 for t in totals if t >= 2)) / 21)
+        self.assertGreaterEqual(s["p_value_excluding_own_post"], 2 / 21)
+
 
 def _tool(name: str) -> Any:
     spec = importlib.util.spec_from_file_location(name, ROOT / "tools" / "market" / f"{name}.py")
@@ -211,6 +229,14 @@ class ReactiveWorldTests(unittest.TestCase):
         w = self.result["worlds"]["presignal"]
         self.assertGreaterEqual(w["mean_found"] - w["mean_expected_found_excluding_own_post"], 0.15 * self.n)
         self.assertGreaterEqual(w["p_value_excluding_own_post_below_alpha"], 18)
+
+    def test_why_the_corrected_p_stays_high_written_after_the_first_run(self) -> None:
+        # not a pass criterion: what the first run showed, pinned. Shift zero leaves every look-back as observed, so
+        # it always finds the found count, and with a pre-signal every shift that finds as many lies within the
+        # look-back of shift zero: the near shifts keep each pre-signal inside its own look-back
+        for name in RW.WORLDS:
+            self.assertEqual(self.result["worlds"][name]["seeds_shift_zero_equals_found"], 20, name)
+        self.assertLess(self.result["worlds"]["presignal"]["farthest_shift_reaching_found"], RW.LOOKBACK)
 
     def test_the_worlds_are_what_they_say(self) -> None:
         for seed in (1, 2):
@@ -272,6 +298,18 @@ class EndToEndTests(unittest.TestCase):
                 md = (self.tmp / pack_id / "audit.md").read_text(encoding="utf-8")
                 self.assertIn(A.DEMO_LABEL, md)
                 self.assertIn("Expected by chance", md)
+
+    def test_the_audit_keeps_the_date_its_rotations_start_from(self) -> None:
+        from mycelic.collective.evaluate.baselines import closing_date
+        for pack_id, doc in self.docs.items():
+            with self.subTest(pack=pack_id):
+                w = doc["weeks"]
+                self.assertEqual(sorted(w), ["available_first", "evaluated_from", "evaluated_weeks", "first", "last"])
+                self.assertEqual(w["available_first"], closing_date(load_pack(pack_id), w["evaluated_from"]))
+                for name in A.CHANNELS:
+                    timeline = doc["channels"][name]["alert_timeline"]
+                    self.assertTrue(all(t["available_date"] >= w["available_first"] for t in timeline))
+                    self.assertEqual(len(timeline), doc["channels"][name]["summary"]["alerts"])
 
     def test_codes_only_channels_cannot_see_narrative_only_plants(self) -> None:
         for pack_id, doc in self.docs.items():

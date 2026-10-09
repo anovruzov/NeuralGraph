@@ -22,6 +22,8 @@ settings). No detector runs and no real record is read.
 Each part of a world draws from its own random stream, so the three worlds of one seed share their openings,
 reactions and background, and differ only in what they add. It prints, per world, the means over the seeds of the
 found count and of each null's expected count, the mean of each null's p, and in how many seeds each p is below 0.05.
+It also prints two facts about the corrected rotation: in how many seeds its shift zero finds exactly the found count,
+and the farthest shift, in weeks either way, that finds at least as many as were found.
 """
 from __future__ import annotations
 
@@ -36,7 +38,7 @@ from typing import Any, Iterable, Sequence
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from mycelic.collective.pilot.audit import Outcome, score_channel  # noqa: E402
+from mycelic.collective.pilot.audit import Outcome, _match_keys, own_post_shift_totals, score_channel  # noqa: E402
 
 LABEL = "synthetic: alert timelines generated with a known truth; no detector ran and no real data was read"
 WORLDS = ("reactive", "background", "presignal")
@@ -91,10 +93,17 @@ def world(name: str, seed: int) -> tuple[list[Outcome], list[dict[str, Any]]]:
 
 
 def score(name: str, seed: int) -> dict[str, Any]:
+    """One seed's scores, and the shifts of the corrected rotation that find at least as many as were found (in
+    weeks, signed: -3 moves every alert three weeks earlier)."""
     outcomes, alerts = world(name, seed)
     s = score_channel(outcomes, alerts, lookback=LOOKBACK, post=POST, available_first=AVAILABLE_FIRST,
                       evaluated_weeks=EVALUATED_WEEKS)["summary"]
-    return {"seed": seed, **{k: s[k] for k in SCORED}}
+    totals = own_post_shift_totals(outcomes, [(a, _match_keys(a)) for a in alerts], lookback=LOOKBACK, post=POST,
+                                   available_first=AVAILABLE_FIRST, evaluated_weeks=EVALUATED_WEEKS)
+    reaching = [k if k <= EVALUATED_WEEKS // 2 else k - EVALUATED_WEEKS
+                for k, total in enumerate(totals) if total >= s["found"]]
+    return {"seed": seed, **{k: s[k] for k in SCORED}, "shift_zero_found": totals[0],
+            "shifts_reaching_found": sorted(reaching)}
 
 
 def _mean(values: Sequence[float]) -> float:
@@ -114,6 +123,8 @@ def check(seeds: int = SEEDS) -> dict[str, Any]:
             "p_value_below_alpha": sum(1 for r in rows if r["p_value"] < ALPHA),
             "p_value_excluding_own_post_below_alpha": sum(1 for r in rows if r["p_value_excluding_own_post"] < ALPHA),
             "mean_alerts": _mean([r["alerts"] for r in rows]),
+            "seeds_shift_zero_equals_found": sum(1 for r in rows if r["shift_zero_found"] == r["found"]),
+            "farthest_shift_reaching_found": max(abs(k) for r in rows for k in r["shifts_reaching_found"]),
             "per_seed": rows}
     return {"kind": "reactive_world_check", "label": LABEL, "seeds": seeds, "alpha": ALPHA,
             "settings": {"outcomes": OUTCOMES, "noise_keys": NOISE_KEYS, "evaluated_weeks": EVALUATED_WEEKS,
