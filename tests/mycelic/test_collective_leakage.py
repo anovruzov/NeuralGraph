@@ -235,6 +235,19 @@ class CanaryPlantTests(unittest.TestCase):
         _, manifest = plant_canaries(record, ScriptedRng(floats=[0.1], choices=choices), DQ)
         self.assertEqual((manifest.canaries[0].canary_class, manifest.canaries[0].token), ("b", "L987654Q"))
 
+    def test_reserved_strings_force_a_redraw(self) -> None:
+        # main-001's G0 failed on "TE-002", the tail of the unit path g0/region-1/site-002 that HQ's store holds
+        record = world_records(DQ, 1)
+        first, second = [2, "T", "E", 3, *"002"], [2, "Q", "X", 3, *"719"]
+
+        def token(draws: list[Any], reserved: tuple[str, ...]) -> str:
+            rng = ScriptedRng(floats=[0.1], choices=["patient_ref", "product", *draws])
+            _, manifest = plant_canaries(record, rng, DQ, reserved=reserved)
+            return manifest.canaries[0].token
+
+        self.assertEqual(token(first, ()), "TE-002")
+        self.assertEqual(token(first + second, ("g0", "g0/region-1/site-002")), "QX-719")
+
     def test_draw_exhaustion_raises(self) -> None:
         record = world_records(DQ, 1)
         with self.assertRaises(LeakageError):

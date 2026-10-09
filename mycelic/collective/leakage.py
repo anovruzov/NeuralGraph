@@ -19,7 +19,9 @@ Canaries (:func:`plant_canaries`, from a ``random.Random`` passed in, on deep co
   which the report lists under ``known_limitation`` instead of ``hits``.
 
 Id canaries use only types whose ids can reach :data:`MIN_ID_CANARY` characters, and must hold a letter ``g`` to
-``z`` so no hex digest can contain one. The manifest (:func:`write_manifest`) is the only file holding tokens; it
+``z`` so no hex digest can contain one. No canary may occur, case-folded, inside a string the run itself writes where
+the scan reads (``reserved``: G0 passes its org's enterprise, site ids and unit paths). Without that, the id canary
+``TE-002`` matched the tail of ``g0/region-1/site-002`` in HQ's store and a 1,000-record scan failed on no leak. The manifest (:func:`write_manifest`) is the only file holding tokens; it
 must never sit inside a scanned path, and :func:`scan` refuses one that does.
 
 The scan (:func:`scan`) reads each artifact as raw bytes (so SQLite pages and ``-wal`` files are scanned too) and
@@ -270,10 +272,15 @@ def _max_len(fmt: "IdFormat") -> int:
 class _Planter:
     """Draws canaries for one pack from the rng it is given (``random()`` and ``choice()`` only)."""
 
-    def __init__(self, pack: "FrozenPack", rng: random.Random) -> None:
+    def __init__(self, pack: "FrozenPack", rng: random.Random, reserved: Iterable[str] = ()) -> None:
         self.pack = pack
         self.rng = rng
         self.corpus, self.corpus_windows = collision_corpus(pack)
+        extra = "\n".join(s.lower() for s in reserved)
+        if extra:                            # the run's own crossing strings collide like the pack's text
+            self.corpus += "\n" + extra
+            self.corpus_windows |= frozenset(extra[i:i + CANARY_WINDOW]
+                                             for i in range(len(extra) - CANARY_WINDOW + 1))
         self.person_fields = sorted(pack.mapping()["persons"])
         self.id_types = sorted(t for t in pack.egress.egress_entity_types
                                if pack.entity_types[t].id_format is not None
@@ -398,10 +405,11 @@ class _Planter:
         return rec
 
 
-def plant_canaries(records: Iterable[Mapping[str, Any]], rng: random.Random,
-                   pack: "FrozenPack") -> tuple[tuple[dict[str, Any], ...], Manifest]:
-    """Deep copies of ``records`` with canaries planted, and the manifest that lists them (no path yet)."""
-    planter = _Planter(pack, rng)
+def plant_canaries(records: Iterable[Mapping[str, Any]], rng: random.Random, pack: "FrozenPack", *,
+                   reserved: Iterable[str] = ()) -> tuple[tuple[dict[str, Any], ...], Manifest]:
+    """Deep copies of ``records`` with canaries planted, and the manifest that lists them (no path yet).
+    ``reserved``: strings the run writes into scanned artifacts by design; no canary is drawn inside one."""
+    planter = _Planter(pack, rng, tuple(reserved))
     planted = tuple(planter.plant(r) for r in records)
     return planted, Manifest(pack_id=pack.id, config_hash=pack.config_hash, prefix=CANARY_PREFIX,
                              canaries=tuple(planter.canaries))

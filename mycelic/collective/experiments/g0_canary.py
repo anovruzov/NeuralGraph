@@ -710,7 +710,9 @@ def run(args: argparse.Namespace) -> int:
     out.mkdir(parents=True, exist_ok=True)
     pack, overridden = _override(base, args, out)
     records = world.records[:args.records]
-    planted, manifest = plant_canaries(records, random.Random(f"g0-canaries:{args.seed}"), pack)
+    org = org_for_sites(tuple(world.params["site_ids"]), G0_ENTERPRISE)
+    reserved = (org.enterprise, *org.sites, *(site.unit_path for site in org.sites.values()))
+    planted, manifest = plant_canaries(records, random.Random(f"g0-canaries:{args.seed}"), pack, reserved=reserved)
     manifest = write_manifest(manifest, out / "private" / "manifest.json")
     ctx = build_context(pack, planted, world.master_data, out, mode=args.mode, seed=args.seed, routing=routing,
                         sites=tuple(world.params["site_ids"]))

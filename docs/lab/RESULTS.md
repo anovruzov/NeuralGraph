@@ -149,7 +149,7 @@ No warning: 91.9% of the manufacturer's reports carried an identifier the pack r
 with readable identifiers, the model-free detectors gave no early warning. One manufacturer, four codes, eight
 recalls; the requester declared it may have seen recall outcomes before choosing.
 
-## Run 5: main-001 (five seeds, three models, and a leakage scan that failed)
+## Run 5: main-001 (five seeds, three models, and a leakage scan that failed on a false alarm)
 
 [Run 37866392839](https://github.com/anovruzov/NeuralGraph/actions/runs/37866392839), request
 `lab/requests/main-001.json`, commit `3db19a0`, 2026-10-09 00:45 to 05:49 UTC; report from the `aggregate` job
@@ -165,9 +165,23 @@ with a-4b, E3 for a-4b and the model-free X1 baseline. 27 units in 23 shards, al
 - 0 shingle-overlap bytes and 0 model path problems;
 - the positive control was hit 885 times, so the scanner worked.
 
-The smoke run's 200-record scan with a-1p5b had passed (0 of 875). Which artifact carried the canary is in the run's
-`leakage.json` artifact, which this environment cannot download. Until it is traced, "no planted text crossed a
-boundary" no longer holds for the model path.
+The smoke run's 200-record scan with a-1p5b had passed (0 of 875).
+
+**Traced afterwards: a scanner false alarm, not a leak.** The same scan, re-run offline with the fake model (seed 1,
+1,000 records, about 8 s), gave the same single hit. So the hit does not depend on a model. The hit was:
+
+- canary `b-000230`, an id-shaped value planted in a patient-name field;
+- token `TE-002`, product id format;
+- found in HQ's store at `hqdb/collective.sqlite3`.
+
+The bytes around it are HQ's org table, where the unit path `g0/region-1/site-002` sits by design. The scan matches
+id tokens case-insensitively, and `te-002` is the tail of `site-002`. The planter checked new canaries against the
+pack's text but not against the org paths G0 itself writes.
+
+**The fix:** `plant_canaries` now takes the run's `reserved` strings (G0 passes its enterprise, site ids and unit
+paths) and re-draws any canary inside one. A regression test forces exactly that draw. After it, the offline
+1,000-record scan passes on seeds 1, 2 and 3 in fake mode, and on seed 1 in lexical mode: 0 hits, 0 shingle bytes,
+positive control hit. The real-model scan has not been re-run; it is the next G0 to run.
 
 **Six-site simulation** (plant `sim_small`, 34 weeks, seeds 1 to 5, each seed one synthetic world shared by the three
 models; 4 planted patterns per seed, 3 of them narrative-only, so 20 patterns of which S and model-free R can see 5; the
@@ -222,11 +236,11 @@ Every model is below E1's 0.80 kill line. The same post-processing rule that zer
 **X1** (model-free harness, same-author plant fixture, not blind, so not eligible as STRATEGY's X1). X, U and single
 site found 9 of 9; S, model-free R and rules found 0 of 9 (all 9 narrative-only).
 
-**What this says.** On five synthetic worlds built to reward reading, the two larger models found a quarter of the
-narrative-only patterns (4 and 5 of 15) that the lexical extractor found 14 of. Each site alone did at least as well
-as the collective channel. The one leakage scan with a 4B model in the loop failed by one canary. None of it is real
-data, and all of it measures this pipeline, including the post-processing rule that run 6 shows discards model
-answers.
+**What this says.** On five synthetic worlds built to reward reading, the two larger models found 9 and 10 of the 20
+planted patterns, against 5 for the codes and 19 for the lexical extractor. Each site alone did at least as well as
+the collective channel. The one leakage scan with a 4B model in the loop failed by one canary, a scanner false alarm
+traced and fixed afterwards (above). None of it is real data, and all of it measures this pipeline, including the
+post-processing rule that run 6 shows discards model answers.
 
 ## Run 6: reader-001 (small models reading real complaints): every model scored zero
 
