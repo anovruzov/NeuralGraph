@@ -177,6 +177,13 @@ fixed and run 001's result seen:
 **No early warning beyond chance**, as in run 4: the same five outcomes in every channel, fewer than randomly timed
 alerts find.
 
+**Public replay V002** ([37871216150](https://github.com/anovruzov/NeuralGraph/actions/runs/37871216150);
+`docs/collective/replay/vehicles/CHOICE-V002.md`, rule and criterion committed before the run): the same audit on the
+next five makes by complaint volume (CHEVROLET, JEEP, HONDA, NISSAN, DODGE; 35,838 complaints, 598 outcomes in scope).
+The pre-set criterion was Fisher's combined p below 0.05/3 per channel. It was not met: combined p above 0.9999 in
+every channel. X found 9 where 19.51 were expected, S 8 where 19.03 were, R 10 where 23.63 were, and no make beat
+chance. Across all six makes, X flagged 14 of 896 outcomes before the recall and 51 in the 26 weeks after it.
+
 ## What has not run
 
 - **A replay with a model reading real narratives**, and replays of other manufacturers. **N1 and E1 on real

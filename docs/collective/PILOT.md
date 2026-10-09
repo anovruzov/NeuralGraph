@@ -84,9 +84,9 @@ field.
 - **On real data so far:** two public replays, and neither found recalls earlier than chance.
   - The same pipeline over two years of one device manufacturer's public FDA reports, with eight recalls
     (`docs/lab/RESULTS.md`, run 4).
-  - This audit, run unchanged, over two years of one car make's public NHTSA complaints (27,397, each state a site),
-    with 91 recalls covering 298 model-years. Every channel found 5 of the 298 before the recall, where randomly
-    timed alerts find 11 to 12 (`docs/collective/replay/vehicles/CHOICE-V001.md`).
+  - This audit, run unchanged, over two years of six car makes' public NHTSA complaints (63,235, each state a site),
+    with 896 recall outcomes. It flagged 14 before the recall, where randomly timed alerts find about 30, and 51 in
+    the 26 weeks after (`docs/collective/replay/vehicles/CHOICE-V001.md` and `CHOICE-V002.md`).
 
   Public reports carry far less than your own complaint, warranty and service files, and states are not your sites.
   That is why the pilot runs on yours, and why its answer may well be no.
