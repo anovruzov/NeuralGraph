@@ -216,7 +216,14 @@ One of the two ids still missing on the no-store route, `D10:19`, is not a
 turn of its conversation. The handoff's 30.7% was measured before merge
 61c893e. The fallback costs no measurable time: on conversation 0 (419
 messages) a no-store question took 240 ms before and 241 ms after, mean over
-82 questions, timed with an uncommitted loop around `Tesseract.retrieve`.
+82 questions, timed with an uncommitted loop around `Tesseract.retrieve`; the
+difference is within run-to-run noise.
+
+Measured and not adopted, also with an uncommitted script: removing the caps on
+every route, not only the no-store one. It gives ev@50 73.3% overall and +10.5
+points on the entity route, but -3.9 points ev@50 on the multi_hop route and
+-1.9 points ev@10 on the temporal route. The task was the minimal fix to the
+no-store route; uncapping store routes is a separate decision.
 
 Not changed: `detect_query_type` still sends conversational questions to OPEN,
 because a speaker's name is not a session marker. Routes with a store still

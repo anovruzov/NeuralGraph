@@ -258,7 +258,7 @@ class NoStoreFallbackTests(unittest.IsolatedAsyncioTestCase):
                 got = await tesseract.retrieve(q, fake_embedding(q), "conv_0", limit=everything)
                 capped = set().union(*await store_lists(q, STORE_DEPTHS))
                 extra = {n.node_id for n, _ in got} - capped
-                self.assertLessEqual(len(extra), 6 * 3)  # only temporal-momentum neighbours of the top 6
+                self.assertLessEqual(len(extra), 6 * 3)  # only temporal-momentum neighbours of the temporal store's first 6
 
 
 if __name__ == "__main__":
