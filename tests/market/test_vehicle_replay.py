@@ -96,7 +96,7 @@ class ExportTests(unittest.TestCase):
                 complaint("6", "FORD", "TIRE", "2020", "TIRES", "CA", "20230106", prod="T")]
         out, counts = E.complaints(rows, "FORD", "20230101", "20241231", self.cats)
         self.assertEqual(out, [{"odino": "1", "state": "tx", "received": "20230105",
-                                "components[]": ["AIR BAGS", "ENGINE", "UNKNOWN OR OTHER"],
+                                "components": ["AIR BAGS", "ENGINE", "UNKNOWN OR OTHER"],
                                 "vehicle": "FORD-F150-2021", "summary": "The engine stalled."}])
         self.assertEqual((counts["no_model_year"], counts["no_state"], counts["outside_window"],
                           counts["not_vehicle"], counts["complaints"]), (1, 1, 1, 1, 1))
@@ -139,6 +139,9 @@ class ExportTests(unittest.TestCase):
                                               text=f"Problem with the {comp.lower()}."))
             export, _ = E.complaints(rows, "FORD", "20230101", "20241231", cats)
             A.write_csv(export, Path(tmp) / "export.csv")
+            with open(Path(tmp) / "export.csv", newline="", encoding="utf-8") as fh:
+                # the mapping's codes path; run 001 exported "components[][]", which read back as no codes
+                self.assertIn("components[]", next(csv.reader(fh)))
             outcomes, _ = E.recalls([recall("24V100000", "FORD", "ESCAPE", "2021", "AIR BAGS:INFLATOR", "20240115")],
                                     "FORD", "20230101", "20241231", preds)
             E.write_outcomes(outcomes, Path(tmp) / "outcomes.csv")
@@ -149,10 +152,11 @@ class ExportTests(unittest.TestCase):
             self.assertEqual(doc["export"]["rejected"], {})
             self.assertEqual(len(doc["export"]["sites"]), 6)
             self.assertEqual(doc["export"]["coverage"]["resolved_entity"]["share"], 1.0)
+            self.assertEqual(doc["export"]["coverage"]["codes"]["share"], 1.0)
             self.assertEqual(doc["outcomes"]["in_scope"], 1)
-            # the planted air bag burst: one complaint per state and week sits under k in the codes-only cells,
-            # but the codes and text cells together carry it
-            self.assertTrue(doc["channels"]["X"]["by_outcome"][0]["found"])
+            # the planted air bag burst reaches every channel, the codes-only ones included
+            for channel in ("X", "S", "R_mf"):
+                self.assertTrue(doc["channels"][channel]["by_outcome"][0]["found"], channel)
 
 
 if __name__ == "__main__":

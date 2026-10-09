@@ -80,17 +80,17 @@ def complaints(rows: Iterable[Sequence[str]], make: str, date_from: str, date_to
         cat = cat if cat in categories else GENERIC_CATEGORY
         entry = by.get(odino)
         if entry is None:
-            by[odino] = {"odino": odino, "state": state.lower(), "received": day, "components[]": [cat],
+            by[odino] = {"odino": odino, "state": state.lower(), "received": day, "components": [cat],
                          "vehicle": vid, "summary": _field(row, C_DESCR)}
             continue
         if entry["vehicle"] != vid:
             counts["second_vehicle_rows"] += 1
             continue
-        if cat not in entry["components[]"]:
-            entry["components[]"].append(cat)
+        if cat not in entry["components"]:
+            entry["components"].append(cat)
         if not entry["summary"]:
             entry["summary"] = _field(row, C_DESCR)
-    out = [dict(by[k], **{"components[]": sorted(by[k]["components[]"])}) for k in sorted(by)]
+    out = [dict(by[k], components=sorted(by[k]["components"])) for k in sorted(by)]
     counts["complaints"] = len(out)
     counts["without_narrative"] = sum(1 for r in out if not r["summary"])
     return out, dict(sorted(counts.items()))

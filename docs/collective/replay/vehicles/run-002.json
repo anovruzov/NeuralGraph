@@ -1,0 +1,9 @@
+{
+  "purpose": "Public replay V001, run 002 (CHOICE-V001.md, Runs): run 001's settings unchanged, with the exporter fixed so the complaint codes reach the audit. Run 001's result was seen first; both runs stand.",
+  "make": "FORD",
+  "date_from": "20230101",
+  "date_to": "20241231",
+  "lookback_weeks": 26,
+  "post_weeks": 26,
+  "saw_recall_outcomes": "yes"
+}

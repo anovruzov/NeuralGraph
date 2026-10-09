@@ -56,3 +56,26 @@ The make is chosen by complaint volume before the window, not by recalls.
 
   It is a second, larger public test of whether cross-site counting of complaints flags a problem before it is acted
   on, run by the same tool a partner would run.
+
+## Runs
+
+1. **Run 001** ([37869797640](https://github.com/anovruzov/NeuralGraph/actions/runs/37869797640), commit `91b107e`,
+   job 113625006888; audit sha256 `e400c485eb92c1e848eb3619794cd49cd92161926cf8c839bac265e90029d851`, matching the one
+   the job printed). Read in full, and **its result was seen before run 002**.
+   - **Export:** 27,397 FORD complaints of 72,114 FORD rows (35,525 outside the window, 8 not vehicles, one with no
+     state, one with no model year); 60 sites (the 50 states, DC, six territories
+     and freely associated states, two military mail codes and `CD`, a code the file does not explain); none rejected;
+     every record has a narrative and resolves to a vehicle.
+   - **A bug: no codes reached the audit.** The exporter named its list column `components[]` and the audit's CSV
+     writer adds `[]` to every list column, so the file's header was `components[][]`, which reads back as a field
+     the mapping does not name. Codes coverage was **0 of 27,397**, so S and R_mf, which read codes only, had nothing
+     to read, and X read the narratives alone. The offline tests checked the rows, not the header the audit reads; they
+     now check the header, codes coverage and that a planted burst reaches all three channels.
+   - **Outcomes:** 117 campaigns, 373 campaign-vehicle outcomes, 298 in scope (opened after the first evaluated
+     week, so their look-back has evaluated weeks); 87 evaluated weeks, 2023-W19 to 2025-W01.
+   - **Result, as it ran:** X raised 128 alerts and found **0 of 298** outcomes before their recall, against 5.75 by
+     chance (p 1.0); 112 of its alerts matched no outcome. S and R_mf raised no alerts. The review list has 67
+     patterns.
+2. **Run 002** (`run-002.json`): the same rule, make, window and settings, with the exporter fixed (commit below). It is
+   not a fresh test: the AI agent saw run 001's result, and run 001's text-only X found nothing. The fix changes
+   only what reaches the audit (the codes column); no setting, threshold or pack file changes. Both runs stand.
