@@ -2,8 +2,8 @@
 
 Every number below is copied from a lab report printed in a GitHub Actions job log (between
 `=== MYCELIC-LAB … BEGIN/END ===` markers), from a shard's own summary or, for the vehicle replay, from its audit
-printed between `VEHICLE-AUDIT` markers. Each row names its run. **Synthetic data, except runs 3, 4 and 6 and the
-vehicle replay**: their records are public FDA reports and NHTSA complaints; every other record and narrative was
+printed between `VEHICLE-AUDIT` markers. Each row names its run. **Synthetic data, except runs 3, 4, 6 and 7 and
+the vehicle replay**: their records are public FDA reports and NHTSA complaints; every other record and narrative was
 generated from a seed. **Runner hardware only**: one shared 4-vCPU GitHub-hosted runner per shard, whose CPU model
 varies between shards; compare timings only between rows of the same CPU model, and never read them as site hardware.
 A unit without a result is listed with its reason, not left out.
@@ -265,6 +265,33 @@ to a pack id is dropped whole. A reconstruction through the repo's own code give
 reply, against 1.000 for the same predicates with the entity left null. The raw replies were not stored, so the
 cause cannot be confirmed from the run (`CHOICE-R001.md`, "What the zero most likely is"). Whether small models can
 read real complaints is therefore still unmeasured; R002 has to fix the reading path first.
+
+## Run 7: reader-002 (small models reading real complaints, post-processing fixed): every model below word matching
+
+[Run 37910989965](https://github.com/anovruzov/NeuralGraph/actions/runs/37910989965), request
+`lab/requests/reader-002.json`, commit `7a94535`, 2026-10-09 09:23 to 14:28 UTC; rule
+`docs/collective/replay/vehicles/CHOICE-R002.md`, committed in `abf94dd` and amended in `fd2a67a`, both before the
+run. The same 150 narratives as run 6 (labels sha `bc6d092d8bca`). a-0p5b and a-1p5b finished all three repeats;
+a-4b finished repeat 3, and repeats 1 and 2 timed out at the unit's 150-minute limit. The run's own aggregate
+(`report.md` `081347404246…`, `report.json` `41ebc90eb48e…`) scored no model, because E1's comparison needs every
+repeat of its reference. The scores come from a re-aggregation of the same artifacts,
+[run 37955383933](https://github.com/anovruzov/NeuralGraph/actions/runs/37955383933) (commit `e36a903`; `report.md`
+`01857500265c…`, `report.json` `0918c541f440…`, both matching), declared in `CHOICE-R002.md` before it ran. No unit
+ran again.
+
+| Reader | Repeats scored | Predicate F1 [95% interval] | Field F1 | Valid JSON | Median s per call (runner CPU) |
+|---|---|---|---|---|---|
+| Lexical extractor | n/a | 0.434 | 0.550 | n/a | n/a |
+| a-0p5b | 3 of 3 | 0.026 [0.015, 0.038] | 0.216 | 1.000 | 10.9 (AMD EPYC 7763), 12.5 (Intel Xeon 6973P-C) |
+| a-1p5b | 3 of 3 | 0.178 [0.150, 0.209] | 0.369 | 1.000 | 34.7 (AMD EPYC 9V74), 52.1 (Intel Xeon Platinum 8573C) |
+| a-4b | 1 of 3 | 0.218 [0.185, 0.254] | 0.429 | 0.993 | 25.8 (Intel Xeon Platinum 8573C) |
+
+**By the pre-registered rule, every model reads worse than the lexical baseline.** The fix removed the zero: the
+models now attach predicates to the structured vehicle, and nearly every record gets a claim. They name many
+components per complaint, and most do not match the filed ones: summed over its repeats, a-1p5b re-attached 7,513
+items and dropped 5,166 duplicates for 150 records a repeat. The raw replies are now stored, so the reason can be
+read in a later choice file. This measures three small models reading public complaints against filed codes; it does
+not measure a company's own text.
 
 ## Outside the lab: public replay V001 (vehicle complaints, model-free, real data)
 

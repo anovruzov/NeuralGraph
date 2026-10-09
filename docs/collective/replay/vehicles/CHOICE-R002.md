@@ -88,3 +88,30 @@ when this was changed.
 
    **Model call latency** (median per extraction call, from the ledgers; shared runners, not site hardware):
    a-0p5b 10.9 s and 12.5 s on two CPU types, a-1p5b 34.7 s and 52.1 s, a-4b 25.8 s.
+
+   **The reading: re-aggregation [37955383933](https://github.com/anovruzov/NeuralGraph/actions/runs/37955383933)**
+   (commit `e36a903`, request `lab/reaggregate/reader-002.json`, job 113904457571). The report stamps it as a
+   re-aggregation of run 37910989965 in which no unit ran again. `report.md` sha256 `01857500265c…` and `report.json` `0918c541f440…` were
+   read from the log and both match. E1's cross-model comparison still did not run (its reference has one repeat); each
+   model is scored from its completed repeats:
+
+   | Reader | Repeats scored | Predicate F1 [95% interval] | Field F1 | Valid JSON | Records with no claim |
+   |---|---|---|---|---|---|
+   | Lexical extractor | n/a | 0.434 | 0.550 | n/a | n/a |
+   | a-0p5b | 3 of 3 | 0.026 [0.015, 0.038] | 0.216 | 1.000 | 0.0% |
+   | a-1p5b | 3 of 3 | 0.178 [0.150, 0.209] | 0.369 | 1.000 | 0.0% |
+   | a-4b | 1 of 3 (repeat 3) | 0.218 [0.185, 0.254] | 0.429 | 0.993 | 0.7% |
+
+   **By rule 4, every model reads worse than the lexical baseline:** the upper end of each interval is below 0.434.
+   The post-processing fix did what it was for: the models now score above zero, and nearly every record gets a
+   claim. Their predicates still match the filed components far less often than a list of category names does.
+
+   What was dropped and re-attached, summed over the repeats scored (rule 3): a-0p5b re-attached 3,388 items whose
+   entity did not resolve and 1,925 whose text was not found, and dropped 2,205 duplicates; a-1p5b 6,339, 1,174 and
+   5,166 (and 10 empty items); a-4b 990, 62 and 458. No item was lost to a person value, a missing entity or a
+   failed resolution. So the models name many components per complaint, and most are wrong or repeated. The raw
+   replies are kept in the run's artifacts (`replies.jsonl`), so a later choice file can say why.
+
+   **Reading, by "How it is read" above:** a real negative for "small models at the site" on this text, now with
+   the replies kept. It does not show how models do on a company's own complaint, warranty or service text, and
+   nothing here was tuned.
