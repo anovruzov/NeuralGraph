@@ -51,3 +51,9 @@ F1 of 1.0, and a reader can be right where the key is wrong.
 - 150 records give intervals of several F1 points; small differences between models are not readable.
 - This is one public field. It is not a company's records, and complaints written to a regulator are not internal
   service notes.
+
+## Runs
+
+1. **reader-001** ([37874950202](https://github.com/anovruzov/NeuralGraph/actions/runs/37874950202), commit `16901e5`):
+   the plan job downloaded the complaint file and pre-registered the labels: 150 records, 206 claims, sha256 beginning
+   `bc6d092d8bca`. The models have not finished; the result is recorded here when the report is in.

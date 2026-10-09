@@ -157,6 +157,15 @@ a-0p5b, a-1p5b and a-4b (20 planted patterns per model), E1 on generator text, t
 a-4b, E3 for a-4b and the model-free X1 baseline; 27 units in 23 shards. Recorded here when its report is in,
 whatever it shows.
 
+## Run 6: reader-001, in progress (small models reading real complaints)
+
+[Run 37874950202](https://github.com/anovruzov/NeuralGraph/actions/runs/37874950202), request
+`lab/requests/reader-001.json`, commit `16901e5`, started 2026-10-09 02:31 UTC; rule
+`docs/collective/replay/vehicles/CHOICE-R001.md`, committed in `389d278` before the run. E1 on **real public data** for
+the first time: a-0p5b, a-1p5b and a-4b read 150 NHTSA complaint narratives with their component codes hidden, 3
+repeats each, scored against the codes the complaints were filed under (206 claims; labels sha `bc6d092d8bca`), beside
+the lexical extractor on the same records. Recorded here when its report is in, whatever it shows.
+
 ## Outside the lab: public replay V001 (vehicle complaints, model-free, real data)
 
 Not a lab run: the `vehicle-replay` workflow runs the pilot audit (`docs/collective/PILOT.md`) on two years of FORD's
@@ -192,6 +201,7 @@ found 6 where 9.07 were expected, and alerted after 17 of the 126 had opened.
 
 ## What has not run
 
-- **A replay with a model reading real narratives**, and replays of other manufacturers. **N1 and E1 on real
-  narratives** need a person to label the sheets.
+- **A replay with a model reading real narratives** (run 6 measures the reading alone, against filed codes), and
+  replays of other device manufacturers. **N1 and E1 on human-labelled narratives** need a person to label the
+  sheets.
 - **A hosted (non-local) model:** the lab supports one through `MYCELIC_LAB_HOSTED_API_KEY`; no key is configured.
