@@ -1,12 +1,13 @@
 name: vehicle-probe
 
 # Schema-only probe of NHTSA's defect investigation file (tools/market/nhtsa_inv_probe.py): the field list, and each
-# candidate flat file's size, rows and fields per row; no investigation's content. Prints between NHTSA-INV-PROBE
-# markers in the job log and uploads as an artifact.
+# candidate flat file's size, rows and fields per row; no investigation's content. Then diagnostic E001
+# (tools/market/nhtsa_event_study.py, docs/collective/replay/vehicles/DIAG-E001.md): complaint counts by quarter around
+# recalls and investigations, aggregates only. Each prints between markers in the job log and uploads as an artifact.
 on:
   push:
     branches-ignore: [main]
-    paths: ["tools/market/nhtsa_inv_probe.py", ".github/workflows/vehicle-probe.yml"]
+    paths: ["tools/market/nhtsa_inv_probe.py", "tools/market/nhtsa_event_study.py", ".github/workflows/vehicle-probe.yml"]
   workflow_dispatch:
 
 permissions:
@@ -27,10 +28,14 @@ jobs:
         run: python -m unittest tests.market.test_vehicle_replay -v
       - name: probe
         run: python tools/market/nhtsa_inv_probe.py --out nhtsa-inv-probe.json
+      - name: event study (diagnostic E001, aggregates only)
+        run: python tools/market/nhtsa_event_study.py --out event-study.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: vehicle-probe
-          path: nhtsa-inv-probe.json
+          path: |
+            nhtsa-inv-probe.json
+            event-study.json
           if-no-files-found: warn
           retention-days: 30

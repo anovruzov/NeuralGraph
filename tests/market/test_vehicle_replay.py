@@ -26,6 +26,7 @@ V = _load("vehicle_pack")
 E = _load("nhtsa_export")
 S = _load("vehicle_summary")
 I = _load("nhtsa_inv_probe")
+ES = _load("nhtsa_event_study")
 COUNTS = [["ENGINE", 5000], ["AIR BAGS", 4000], ["ENGINE AND ENGINE COOLING", 1500], ["VISIBILITY/WIPER", 1800],
           ["VISIBILITY", 1200], ["UNKNOWN OR OTHER", 9000], ["SERVICE BRAKES, HYDRAULIC", 1100],
           ["SERVICE BRAKES", 3000], ["TRAILER HITCHES", 200]]
@@ -276,6 +277,39 @@ class InvestigationProbeTests(unittest.TestCase):
         text = json.dumps(got)
         for content in ("SECRET", "FORD", "PE23001", "WRANGLER"):
             self.assertNotIn(content, text)
+
+
+class EventStudyTests(unittest.TestCase):
+    def test_quarters_and_placement(self) -> None:
+        self.assertEqual([ES.quarter_of(d) for d in (-1, -91, -92, 0, 90)], [-1, -1, -2, 0, 0])
+        rows = [complaint("1", "FORD", "F-150", "2021", "ENGINE", "TX", "20230301"),       # 61 days before: lookback
+                complaint("1", "FORD", "F-150", "2021", "AIR BAGS", "TX", "20230301"),
+                complaint("2", "FORD", "F-150", "2021", "ENGINE", "CA", "20220101"),       # 485 days before, pre-2023
+                complaint("3", "FORD", "F-150", "2021", "TIRES", "CA", "20230601"),        # after, not matching
+                complaint("4", "FORD", "ESCAPE", "2020", "ENGINE", "CA", "20230301"),      # another vehicle
+                complaint("5", "TOYOTA", "CAMRY", "2020", "ENGINE", "CA", "20230301")]     # another make
+        index = ES.complaint_index(rows, ES.MAKES)
+        self.assertEqual(index["FORD-F150-2021"]["1"][1], {"ENGINE", "AIR BAGS"})
+        self.assertNotIn("TOYOTA-CAMRY-2020", index)
+        evs = ES.events([recall("23V001000", "FORD", "F-150", "2021", "ENGINE:FUEL", "20230501"),
+                         recall("23V001000", "FORD", "F-150", "2021", "ENGINE", "20230502"),
+                         recall("24V001000", "FORD", "F-150", "2021", "ENGINE", "20240501"),  # after the window
+                         recall("23V002000", "FORD", "RANGER", "2019", "STEERING", "20230501")], "recall", ES.MAKES)
+        self.assertEqual([(e["vehicle"], e["date"].isoformat()) for e in evs],
+                         [("FORD-F150-2021", "2023-05-01"), ("FORD-RANGER-2019", "2023-05-01")])
+        got = ES.study(evs, index)
+        self.assertEqual((got["events"], got["events_with_any_complaint"],
+                          got["events_with_matching_complaints_in_3y_before"]), (2, 1, 1))
+        self.assertEqual(got["matching_complaints_3y_before"],
+                         {"in_lookback": 1, "earlier_in_3y": 1, "before_export_start": 1, "matching_3y_total": 2})
+        by_q = {row["quarter"]: row for row in got["by_quarter"]}
+        self.assertEqual((by_q[-1]["mean_complaints"], by_q[-1]["mean_matching"]), (0.5, 0.5))
+        self.assertEqual(by_q[0]["mean_complaints"], 0.5)                    # the tires complaint, 31 days after
+        self.assertEqual(by_q[0]["mean_matching"], 0.0)
+        investigations = ES.events([investigation("PE23001", "FORD", "F-150", "2021", "ENGINE", "20230501"),
+                                    investigation("RQ23002", "FORD", "F-150", "2021", "ENGINE", "20230501")],
+                                   "investigation", ES.MAKES)
+        self.assertEqual([e["vehicle"] for e in investigations], ["FORD-F150-2021"])
 
 
 if __name__ == "__main__":
