@@ -1,0 +1,65 @@
+name: onboard-demo
+
+# The pack drafter on public data (demo/onboard/README.md): D002's pipeline pointed at MSHA's public accident file for
+# one mine operator. Starts by hand (workflow_dispatch, operator c1 unless the input names another) or when a request
+# file demo/onboard/record-*.json ({"company": "c1"}) is pushed; it then takes the newest one. It downloads the file,
+# runs the demo, prints demo.json between markers with its sha256, and uploads demo.html and demo.json, nothing else:
+# never the download, the split exports or the drafted pack (the demo keeps those in a temporary directory that it
+# deletes). A withheld demo (exit 1) still uploads its two files, which then hold only the guard's hit counts.
+on:
+  push:
+    branches-ignore: [main]
+    paths: ["demo/onboard/record-*.json"]
+  workflow_dispatch:
+    inputs:
+      company:
+        description: "the operator, c1 to c5 (D002's labels)"
+        required: false
+        default: "c1"
+
+permissions:
+  contents: read
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: offline tests
+        run: python -m unittest tests.onboard.test_onboard_demo
+      - name: the operator (the newest request file's on a push, else the input; c1 by default)
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_COMPANY: ${{ github.event.inputs.company }}
+        run: |
+          COMPANY="${INPUT_COMPANY:-c1}"
+          if [ "$EVENT" = "push" ]; then
+            REQUEST=$(ls demo/onboard/record-*.json | sort | tail -n 1)
+            echo "request file: $REQUEST"
+            COMPANY=$(python -c "import json,sys; print(json.load(open(sys.argv[1]))['company'])" "$REQUEST")
+          fi
+          if ! [[ "$COMPANY" =~ ^c[1-9][0-9]?$ ]]; then
+            echo "the company must be an operator label such as c1"
+            exit 1
+          fi
+          echo "company: $COMPANY"
+          echo "COMPANY=$COMPANY" >> "$GITHUB_ENV"
+      - name: download
+        run: python tools/onboard/fetch_msha.py download --out work/raw
+      - name: the demo (demo.json printed between markers with its sha256)
+        run: python demo/onboard/run_demo.py --raw work/raw --out work/demo --company "$COMPANY" --markers
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: onboard-demo-${{ env.COMPANY }}
+          path: |
+            work/demo/demo.html
+            work/demo/demo.json
+          if-no-files-found: warn
+          retention-days: 30

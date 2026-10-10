@@ -179,7 +179,8 @@ CLI_MODULES = (
     ("mycelic.collective.onboard", "score"),
     ("mycelic.collective.onboard", "report"),
 )
-NAME_SCAN_ROOTS = ("mycelic/collective", "docs/collective", "demo/collective", "tests/mycelic/test_collective_*.py",
+NAME_SCAN_ROOTS = ("mycelic/collective", "docs/collective", "demo/collective", "demo/onboard",
+                   "tests/onboard/test_onboard_demo.py", "tests/mycelic/test_collective_*.py",
                    "runs/.gitignore")
 NAME_SCAN_EXCLUDED = ("docs/collective/examples",)
 DETERMINISTIC_MODULES = (
@@ -244,6 +245,7 @@ DETERMINISTIC_MODULES = (
     "demo/collective/codes_miss.py",
     "demo/collective/screen.py",
     "demo/collective/lint_numbers.py",
+    "demo/onboard/run_demo.py",
 )
 DETECT_DIR = ROOT / "mycelic" / "collective" / "detect"
 PUSHDOWN_DIR = ROOT / "mycelic" / "collective" / "pushdown"
@@ -616,7 +618,7 @@ class ImportGuardTests(unittest.TestCase):
 
 # --------------------------------------------------------------------------------------------------- stdlib only
 
-DEMO_SCRIPTS = ("demo/collective/collective_demo.py", "demo/collective/lint_numbers.py")
+DEMO_SCRIPTS = ("demo/collective/collective_demo.py", "demo/collective/lint_numbers.py", "demo/onboard/run_demo.py")
 
 
 def _run_without_site_packages(*args: str) -> subprocess.CompletedProcess[str]:
