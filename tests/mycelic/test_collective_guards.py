@@ -138,6 +138,7 @@ STDLIB_ONLY_MODULES = (
     "mycelic.collective.pilot",
     "mycelic.collective.pilot.audit",
     "mycelic.collective.pilot.power",
+    "mycelic.collective.pilot.start",
     "mycelic.collective.onboard",
     "mycelic.collective.onboard.__main__",
     "mycelic.collective.onboard.exports",
@@ -173,6 +174,8 @@ CLI_MODULES = (
     ("mycelic.collective.pilot.audit", "run"),
     ("mycelic.collective.pilot.audit", "demo"),
     ("mycelic.collective.pilot.power", "run"),
+    ("mycelic.collective.pilot.start", "run"),
+    ("mycelic.collective.pilot.start", "example"),
     ("mycelic.collective.onboard", "draft"),
     ("mycelic.collective.onboard", "export"),
     ("mycelic.collective.onboard", "check"),
@@ -216,6 +219,7 @@ DETERMINISTIC_MODULES = (
     "mycelic/collective/experiments/openfda_replay.py",
     "mycelic/collective/pilot/audit.py",
     "mycelic/collective/pilot/power.py",
+    "mycelic/collective/pilot/start.py",
     "mycelic/collective/pushdown/__init__.py",
     "mycelic/collective/pushdown/questions.py",
     "mycelic/collective/pushdown/orchestrator.py",
@@ -628,7 +632,7 @@ def _run_without_site_packages(*args: str) -> subprocess.CompletedProcess[str]:
 
 class StdlibOnlyTests(unittest.TestCase):
     def test_every_collective_module_imports_without_site_packages(self) -> None:
-        self.assertEqual(len(STDLIB_ONLY_MODULES), 73)
+        self.assertEqual(len(STDLIB_ONLY_MODULES), 74)
         code = "import importlib\n" + "".join(f"importlib.import_module({m!r})\n" for m in STDLIB_ONLY_MODULES)
         r = _run_without_site_packages("-c", code)
         self.assertEqual(r.returncode, 0, r.stderr)
