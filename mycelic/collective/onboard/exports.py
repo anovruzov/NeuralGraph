@@ -1,4 +1,4 @@
-"""Reading an export (D001 rule 1.1): any CSV, pipe- or tab-delimited text with a header, or JSON lines.
+"""Reading an export (rule 1.1, as D002 changed it): any CSV, pipe- or tab-delimited text with a header, or JSON lines.
 
 * **Text.** The bytes are decoded as UTF-8, a leading byte-order mark dropped; if that fails, the whole file is
   decoded as Latin-1. A line ends at ``\\r\\n``, ``\\r`` or ``\\n`` (nothing else, so a Latin-1 ``\\x85`` stays text).
@@ -6,9 +6,13 @@
 * **Format.** JSON lines when the first non-empty line starts with ``{`` (leading spaces aside). Otherwise delimited
   text: the header is the first non-empty line, and the delimiter is whichever of ``|``, tab and ``,`` occurs most
   often in it, ties in that order.
-* **Splitting.** Pipe and tab: one row per line, split on the delimiter, no quoting. Comma: Python's ``csv`` module
-  with its default quoting. A row with a different number of fields than the header is rejected as
-  ``wrong_width``.
+* **Splitting** (``docs/collective/onboard/CHOICE-D002.md``, change (a)). For every delimiter, each line is one row,
+  the header line too. :func:`split_line` reads one line with Python's ``csv`` module, that delimiter and the module's
+  default quoting (quote character ``"``; two quotes inside a quoted field stand for one), so a field in double
+  quotes loses its quotes and a delimiter inside the quotes does not split it. Each line is read on its own: a quote
+  it leaves open closes at its end and never takes in the next line. The module's limit on a field's length does not
+  apply. A row with a different number of fields than the header is rejected as ``wrong_width``.
+  ``tools/onboard/fetch_msha.py`` splits the accident file with the same function.
 * **JSON lines.** The columns are the keys in the order they first appear. A line that is not JSON is
   ``invalid_json``, one that is not an object ``not_object``; an object value, or a list under a key without the
   ``[]`` suffix, is ``nested_value``. A number becomes its text, ``true``/``false`` their words, ``null`` absent.
@@ -22,7 +26,6 @@ caller (the drafter) can be shown to read only what it is allowed to (rule 1.3).
 from __future__ import annotations
 
 import csv
-import io
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,6 +42,9 @@ LIST_SUFFIX = "[]"
 LIST_SEP = ";"
 LINE_BREAK = re.compile(r"\r\n|\r|\n")
 REJECT_REASONS = ("wrong_width", "invalid_json", "not_object", "nested_value")
+# the csv module's default quoting, written out so that a later default cannot change how a line reads
+QUOTING = {"quotechar": '"', "doublequote": True, "escapechar": None, "skipinitialspace": False, "strict": False,
+           "quoting": csv.QUOTE_MINIMAL}
 
 Cell = Any          # None (absent), str, or tuple[str, ...] for a list column
 
@@ -104,6 +110,26 @@ def choose_delimiter(header: str) -> tuple[str, str]:
     return best
 
 
+def _read_line(line: str, delim: str) -> list[str]:
+    return next(csv.reader((line,), delimiter=delim, **QUOTING), [])
+
+
+def split_line(line: str, delim: str) -> list[str]:
+    """The fields of one line (rule 1.1 as D002 changed it): Python's ``csv`` module with ``delim`` and its default
+    quoting, the line read on its own. A field in double quotes loses its quotes; a delimiter inside them does not
+    split; two quotes inside a quoted field stand for one; a quote the line leaves open closes at its end. The
+    module's field-length limit is raised for this line when it is too short to hold the line, and put back after.
+    An empty line has no field. Values are returned as read, not stripped."""
+    limit = csv.field_size_limit()
+    if len(line) < limit:
+        return _read_line(line, delim)
+    csv.field_size_limit(len(line) + 1)
+    try:
+        return _read_line(line, delim)
+    finally:
+        csv.field_size_limit(limit)
+
+
 def _scalar(value: str) -> str | None:
     s = value.strip()
     return s or None
@@ -142,40 +168,18 @@ def _delimited(lines: list[str], delim: str) -> tuple[tuple[str, ...], list[tupl
         start += 1
     if start == len(lines):
         raise ExportError("the export has no header line")
-    columns = _header(lines[start].split(delim))
+    columns = _header(split_line(lines[start], delim))
     rows: list[tuple[Cell, ...]] = []
     rejected: dict[str, int] = {}
     for line in lines[start + 1:]:
         if line == "":
             blank += 1
             continue
-        fields = line.split(delim)
+        fields = split_line(line, delim)
         if len(fields) != len(columns):
             rejected["wrong_width"] = rejected.get("wrong_width", 0) + 1
             continue
         rows.append(tuple(_cell(name, raw) for name, raw in zip(columns, fields)))
-    return columns, rows, rejected, blank
-
-
-def _comma(text: str) -> tuple[tuple[str, ...], list[tuple[Cell, ...]], dict[str, int], int]:
-    reader = csv.reader(io.StringIO(text, newline=""))
-    columns: tuple[str, ...] | None = None
-    rows: list[tuple[Cell, ...]] = []
-    rejected: dict[str, int] = {}
-    blank = 0
-    for record in reader:
-        if not record:
-            blank += 1
-            continue
-        if columns is None:
-            columns = _header(record)
-            continue
-        if len(record) != len(columns):
-            rejected["wrong_width"] = rejected.get("wrong_width", 0) + 1
-            continue
-        rows.append(tuple(_cell(name, raw) for name, raw in zip(columns, record)))
-    if columns is None:
-        raise ExportError("the export has no header line")
     return columns, rows, rejected, blank
 
 
@@ -244,10 +248,7 @@ def parse_export(data: bytes) -> Export:
         columns, rows, rejected, blank = _json_lines(lines)
     else:
         delim, fmt = choose_delimiter(first)
-        if fmt == "comma":
-            columns, rows, rejected, blank = _comma(text)
-        else:
-            columns, rows, rejected, blank = _delimited(lines, delim)
+        columns, rows, rejected, blank = _delimited(lines, delim)
     return Export(format=fmt, encoding=encoding, columns=columns, rows=tuple(rows),
                   rejected=MappingProxyType(dict(sorted(rejected.items()))), blank_lines=blank)
 

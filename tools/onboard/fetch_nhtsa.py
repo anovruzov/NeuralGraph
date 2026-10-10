@@ -1,10 +1,11 @@
 #!/usr/bin/env python
-"""D001's NHTSA arm input: the 2020-2024 complaint file, one export per make (CHOICE-D001, rule 2.2).
+"""The drafting test's NHTSA arm input: the 2020-2024 complaint file, one export per make (CHOICE-D001, rule 2.2).
 
     python tools/onboard/fetch_nhtsa.py download --out DIR
     python tools/onboard/fetch_nhtsa.py split --settings FILE --raw DIR --out DIR
 
-Two steps, so that a download failure is told apart from a run (rule 9):
+Two steps, so that a failure before the run is told apart from a run (rule 9; under D002 the run starts after both
+splits have printed their counts, ``docs/collective/onboard/CHOICE-D002.md`` change (b)):
 
 * ``download`` fetches ``COMPLAINTS_RECEIVED_2020-2024.zip`` (the file of the vehicle replays and of R001 and R002,
   ``tools/market/nhtsa_export.COMPLAINTS_URL``) with ``download.json``; it prints the size and sha256, nothing else.
@@ -14,6 +15,10 @@ Two steps, so that a download failure is told apart from a run (rule 9):
   catch-all. A ``reporter`` column repeats each row's own complaint number, which ``pack-v2/`` reads. It writes
   ``<MAKE>.csv`` with the settings' columns in their order, ``companies.json`` with the counts of what was kept and
   dropped, and ``source.json`` with the download facts. It prints counts only.
+
+The complaint file is read by ``nhtsa_export``, the vehicle replays' code, unchanged: one line per row, split at the
+tab, each field stripped. So no field it writes holds a line break, and each ``<MAKE>.csv`` holds one complaint per
+line, which the drafter reads by rule 1.1 (as D002 changed it) as the ``csv`` module wrote it.
 
 This is per-field code, and so are the two ``tools/market`` modules it imports (``nhtsa_export.py`` and
 ``vehicle_pack.py``): the report gives the line count of all three, and its code hash covers them (amendment A8
@@ -36,7 +41,7 @@ sys.path.insert(0, str(ROOT / "tools" / "market"))
 import nhtsa_export  # noqa: E402
 
 FILE = "COMPLAINTS_RECEIVED_2020-2024.zip"
-UA = "mycelic-onboard-d001 (drafting test D001 on public data)"
+UA = "mycelic-onboard (pack-drafting test on public data)"
 REPORTER = "reporter"
 LIST_SEP = ";"
 

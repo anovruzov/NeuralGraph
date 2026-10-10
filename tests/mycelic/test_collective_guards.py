@@ -1742,10 +1742,11 @@ class DomainLiteralTests(unittest.TestCase):
                 self.assertNotIn(name, string_constants(f'def f():\n    """{name}"""\n'))
 
 
-# --------------------------------------------------------------------------------------------------- onboard (D001)
+# --------------------------------------------------------------------------------------------- onboard (D001, D002)
 
 ONBOARD_DIR = ROOT / "mycelic" / "collective" / "onboard"
-ONBOARD_SETTINGS = ROOT / "docs" / "collective" / "onboard" / "D001-settings.json"
+ONBOARD_SETTINGS = tuple(ROOT / "docs" / "collective" / "onboard" / f"{name}-settings.json"
+                         for name in ("D001", "D002"))
 # what the pack drafter may never import: any inference module, the model extractor and every model client (it reads
 # no model; its readers are the lexical extractor)
 ONBOARD_FORBIDDEN = ("mycelic.collective.inference", "mycelic.collective.edge.extract.ModelExtractor", "openai",
@@ -1753,18 +1754,19 @@ ONBOARD_FORBIDDEN = ("mycelic.collective.inference", "mycelic.collective.edge.ex
 
 
 def onboard_column_terms() -> set[str]:
-    """D001's M1 terms: every column name in ``D001-settings.json`` (both arms' columns and every declared role),
-    with and without a trailing ``[]``, less the loader's reserved words (the pipeline's own record fields, such as
-    ``reporter``)."""
+    """M1's terms: every column name in ``D001-settings.json`` and ``D002-settings.json`` (both arms' columns and every
+    declared role), with and without a trailing ``[]``, less the loader's reserved words (the pipeline's own record
+    fields, such as ``reporter``)."""
     from mycelic.collective.packs.loader import RESERVED
-    settings = json.loads(ONBOARD_SETTINGS.read_text(encoding="utf-8"))
     names: set[str] = set()
-    for arm in settings["arms"].values():
-        names.update(arm["columns"])
-        roles = arm["roles"]
-        names.update(v for v in roles.values() if isinstance(v, str))
-        names.update(roles["entities"])
-        names.update(roles["forbidden"])
+    for path in ONBOARD_SETTINGS:
+        settings = json.loads(path.read_text(encoding="utf-8"))
+        for arm in settings["arms"].values():
+            names.update(arm["columns"])
+            roles = arm["roles"]
+            names.update(v for v in roles.values() if isinstance(v, str))
+            names.update(roles["entities"])
+            names.update(roles["forbidden"])
     terms = {t for name in names for t in (name, name.removesuffix("[]")) if t}
     return terms - set(RESERVED)
 

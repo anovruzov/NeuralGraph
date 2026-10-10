@@ -1,4 +1,5 @@
-"""The onboard CLI: draft, export, check, score and report (``docs/collective/onboard/BUILD-D001.md``, section 3).
+"""The onboard CLI: draft, export, check, score and report (``docs/collective/onboard/BUILD-D001.md``, section 3;
+``BUILD-D002.md`` for what D002 changed).
 
     python -m mycelic.collective.onboard draft --export FILE --roles FILE --pack-id ID --train-from DATE
         --train-to DATE --out DIR [--params FILE]
@@ -36,7 +37,7 @@ ERRORS = (DraftError, ExportError, RolesError, ScoreError, StrictJsonError, OSEr
 
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="python -m mycelic.collective.onboard",
-                                description="Draft a pack from one export, check it, and score D001.")
+                                description="Draft a pack from one export, check it, and score a drafting test.")
     sub = p.add_subparsers(dest="command", required=True)
     d = sub.add_parser("draft", help="draft a pack from one export")
     d.add_argument("--export", required=True)
@@ -62,12 +63,12 @@ def _parser() -> argparse.ArgumentParser:
     c.add_argument("--out", required=True)
     c.add_argument("--params")
     c.add_argument("--settings")
-    s = sub.add_parser("score", help="score one arm of D001")
+    s = sub.add_parser("score", help="score one arm of the settings' drafting test")
     s.add_argument("--settings", required=True)
     s.add_argument("--arm", required=True)
     s.add_argument("--exports", required=True)
     s.add_argument("--out", required=True)
-    r = sub.add_parser("report", help="merge the arms into D001's report")
+    r = sub.add_parser("report", help="merge the arms into the drafting test's report")
     r.add_argument("--settings", required=True)
     r.add_argument("--arms", required=True, nargs="+")
     r.add_argument("--audit", required=True)
