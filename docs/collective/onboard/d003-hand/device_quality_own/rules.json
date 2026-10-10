@@ -1,0 +1,28 @@
+{
+  "rules": {
+    "multi_site_product_crack": {
+      "label": "Cracks on one product model at several plants",
+      "entity_type": "product",
+      "predicate": "crack",
+      "min_sites": 2,
+      "min_count_per_site": 2,
+      "window_weeks": 8
+    },
+    "multi_site_lot_leak": {
+      "label": "Leaks on one lot at several plants",
+      "entity_type": "lot",
+      "predicate": "leak",
+      "min_sites": 2,
+      "min_count_per_site": 1,
+      "window_weeks": 8
+    },
+    "supplier_part_detachment": {
+      "label": "Detachment of one supplier's parts at several plants",
+      "entity_type": "supplier",
+      "predicate": "detachment",
+      "min_sites": 2,
+      "min_count_per_site": 1,
+      "window_weeks": 12
+    }
+  }
+}

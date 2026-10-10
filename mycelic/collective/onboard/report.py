@@ -1,6 +1,6 @@
 """A drafting test's report: both arms, the checks, the audit summary and the six criteria (rules 6 and 8, amended).
 
-    python -m mycelic.collective.onboard report --settings FILE --arms DIR [DIR ...] --audit FILE --out DIR
+    python -m mycelic.collective.onboard report --settings FILE --arms DIR [DIR ...] [--audit FILE] --out DIR
 
 * **C1 and C2** come from the arms (``arm.json``'s ``criterion``), each from the arm the settings give it to. The
   report prints each criterion's deciding values unrounded beside the comparison it makes (amendment A8).
@@ -32,6 +32,14 @@ Both files are printed between markers, ``=== <experiment> report.json BEGIN lin
 ``... END ===``. The experiment id (``D001``, ``D002``) comes from the settings (:func:`.score.experiment_id`), and so
 do the report's title and ``report.json``'s ``experiment``. The ``kind`` fields name the file schemas D001 defined,
 which D002 keeps.
+
+**D003** (``docs/collective/onboard/CHOICE-D003.md``, section 11 and E18) adds, each only when its settings ask:
+the criteria the verdict takes (P3: without M4 the report reads no audit file and prints no audit section); several
+criteria from one arm (P1); the report's source-specific sentences from the settings' ``report_text`` (P5); the
+days intervals (P8), C2's space (P7), the reader guard (P10), the echo and template measures (P6, P11) in their own
+tables; M1's names from the earlier settings files (P12, in :func:`.check.column_names`); and the last guard's
+exemption of FDA's generic terms from its n-gram scan, with its count of hits inside printed labels (P13). Without
+them, D002's report, byte for byte.
 """
 from __future__ import annotations
 
@@ -44,11 +52,11 @@ from typing import Any, Callable, Mapping, Sequence
 from ..experiments.common import code_hash
 from ..jsonio import strict_load
 from ..packs.canonical import folded
-from .check import column_names, json_strings, ngram_hits, package_hits
+from .check import column_names, exempt_labels, json_strings, ngram_hits, package_hits, within_spellings
 from .draft import REFUSAL_KINDS, Refusal, ValueIndex, _cells, export_refusal, load_template
 from .exports import Export, ExportError, read_export
 from .roles import Roles
-from .score import EXACT, ROOT, arm_roles, experiment_id, load_companies, rounded, tree_hashes
+from .score import EXACT, ROOT, arm_roles, criterion_specs, experiment_id, load_companies, rounded, tree_hashes
 
 CRITERIA = ("C1", "C2", "M1", "M2", "M3", "M4")
 ONBOARD_DIR = "mycelic/collective/onboard"
@@ -133,14 +141,34 @@ def code_files(settings: Mapping[str, Any]) -> dict[str, str]:
     return dict(sorted(files.items()))
 
 
+def needs_audit(settings: Mapping[str, Any]) -> bool:
+    """D003's change P3: the audit file is read only when the settings list no criteria (D001, D002: the six) or
+    list M4."""
+    listed = settings.get("criteria")
+    return listed is None or "M4" in listed
+
+
+def listed_criteria(settings: Mapping[str, Any]) -> tuple[str, ...]:
+    """The criteria the verdict takes: the settings' list (P3), else the six."""
+    return tuple(settings.get("criteria") or CRITERIA)
+
+
+def arm_criterion(doc: Mapping[str, Any], cid: str) -> Mapping[str, Any] | None:
+    """An arm's criterion by id: its one (D001, D002) or one of its list (P1)."""
+    c = doc["criterion"]
+    return next((x for x in (c if isinstance(c, list) else [c]) if x.get("id") == cid), None)
+
+
 def criteria(settings: Mapping[str, Any], arms: Mapping[str, Mapping[str, Any]],
              audit: Mapping[str, Any] | None, guard_clean: bool) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     for name, spec in settings["arms"].items():
-        cid = spec["criterion"]["id"]
-        doc = arms.get(name)
-        out[cid] = dict(doc["criterion"]) if doc is not None else {"id": cid, "passed": False,
-                                                                   "reason": f"the {name} arm did not finish"}
+        for cs in criterion_specs(spec):
+            cid = cs["id"]
+            doc = arms.get(name)
+            found = arm_criterion(doc, cid) if doc is not None else None
+            out[cid] = dict(found) if found is not None else {"id": cid, "passed": False,
+                                                              "reason": f"the {name} arm did not finish"}
     names = column_names(settings)
     commits = {doc["code_commit"] for doc in arms.values()}
     code = {json.dumps(doc["code_files"], sort_keys=True) for doc in arms.values()}
@@ -171,9 +199,12 @@ def criteria(settings: Mapping[str, Any], arms: Mapping[str, Mapping[str, Any]],
                   if "error" not in c and c["check"]["passed"])
     out["M3"] = {"passed": bool(all_arms and errors == 0 and drafted > 0 and checked == drafted and guard_clean),
                  "packs": drafted, "passed_floor": checked, "last_guard_clean": guard_clean}
-    ok = audit is not None and audit["records"] >= 1 and all(audit["channels_run"].get(ch) for ch in AUDIT_CHANNELS)
-    out["M4"] = {"passed": bool(ok), "audit": audit}
-    return {k: out[k] for k in CRITERIA if k in out}
+    if needs_audit(settings):
+        ok = audit is not None and audit["records"] >= 1 and all(audit["channels_run"].get(ch)
+                                                                 for ch in AUDIT_CHANNELS)
+        out["M4"] = {"passed": bool(ok), "audit": audit}
+    return {k: out.get(k, {"id": k, "passed": False, "reason": "not computed"}) for k in listed_criteria(settings)
+            if k in out or settings.get("criteria") is not None}
 
 
 # --------------------------------------------------------------------------------------------------- the last guard
@@ -238,23 +269,37 @@ def company_strings(c: Mapping[str, Any], placeholder_prefix: str) -> list[tuple
     top = c.get("controls", {}).get("majority_prior", {}).get("predicate")
     if top:
         out.append(("id", top))
+    for p in c.get("controls", {}).get("set_prior", {}).get("predicates") or ():
+        out.append(("id", p))
     return out
 
 
-def company_hits(c: Mapping[str, Any], sent: Sentinels, ngram: int, placeholder_prefix: str) -> dict[str, int]:
-    """Rule 8's last guard over one company (amendment A10): its printed strings against its own sentinels."""
+EXEMPT_COUNTS = ("exempt_strings", "within_labels")
+
+
+def company_hits(c: Mapping[str, Any], sent: Sentinels, ngram: int, placeholder_prefix: str,
+                 exempt: frozenset[str] = frozenset()) -> dict[str, int]:
+    """Rule 8's last guard over one company (amendment A10): its printed strings against its own sentinels. With
+    D003's change P13, a string that folds equal to one of FDA's generic terms (``exempt``) is left out of the n-gram
+    scan only, and the n-gram hits that lie wholly within a printed label are counted."""
     strings = company_strings(c, placeholder_prefix)
     kinds: Counter[str] = Counter()
     for kind, s in strings:
         refused = sent.refusal.term(s) if kind == "term" else sent.refusal.string(s)
         if refused is not None:
             kinds[f"refused_{refused}"] += 1
-    kinds["narrative_ngrams"] = len(ngram_hits([s for _, s in strings], sent.narratives, ngram))
-    return {**{k: kinds[k] for k in GUARD_KINDS}, "strings": len(strings)}
+    scanned = [s for _, s in strings if folded(s) not in exempt]
+    hits = ngram_hits(scanned, sent.narratives, ngram)
+    kinds["narrative_ngrams"] = len(hits)
+    out = {**{k: kinds[k] for k in GUARD_KINDS}, "strings": len(strings)}
+    if exempt:
+        out["exempt_strings"] = len(strings) - len(scanned)
+        out["within_labels"] = within_spellings(hits, [s for kind, s in strings if kind == "label"], ngram)
+    return out
 
 
 def guard_hits(doc: Mapping[str, Any], sents: Mapping[str, Sentinels], ngram: int,
-               placeholder_prefix: str) -> dict[str, Any]:
+               placeholder_prefix: str, exempt: frozenset[str] = frozenset()) -> dict[str, Any]:
     """Rule 8's last guard over one arm, company by company (amendment A10): each company's printed strings against
     its own sentinels only. The hit counts by kind summed over the arm, the strings read, each company's counts, and
     the companies with no sentinels (``unread``: the guard cannot clear them)."""
@@ -266,10 +311,13 @@ def guard_hits(doc: Mapping[str, Any], sents: Mapping[str, Sentinels], ngram: in
         if sent is None:
             unread += 1
             continue
-        per[label] = company_hits(c, sent, ngram, placeholder_prefix)
+        per[label] = company_hits(c, sent, ngram, placeholder_prefix, exempt)
         totals.update(per[label])
-    return {**{k: totals[k] for k in GUARD_KINDS}, "strings": totals["strings"], "unread": unread,
-            "companies": per}
+    out = {**{k: totals[k] for k in GUARD_KINDS}, "strings": totals["strings"], "unread": unread,
+           "companies": per}
+    if exempt:
+        out.update({k: totals[k] for k in EXEMPT_COUNTS})
+    return out
 
 
 def guard_arm(settings: Mapping[str, Any], name: str, doc: Mapping[str, Any], ngram: int, placeholder_prefix: str,
@@ -297,11 +345,25 @@ def guard_arm(settings: Mapping[str, Any], name: str, doc: Mapping[str, Any], ng
             sents[label] = company_sentinels(export, roles, settings["params"])
         else:
             unread_listed += 1
-    hits = guard_hits(doc, sents, ngram, placeholder_prefix)
+    hits = guard_hits(doc, sents, ngram, placeholder_prefix, exempt_labels(settings["params"]))
     hits["unread"] += unread_listed
     if listed is None:
         hits["unread"] = max(hits["unread"], 1)
     return hits
+
+
+def exempt_counts(arms: Mapping[str, Mapping[str, Any]], hits: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """D003's change P13, counted for M3: per arm, the printed strings and pack strings left out of the n-gram scans
+    as FDA's generic terms, and the n-gram hits that lie wholly within a printed label (the last guard) or within a
+    value-map spelling (rule 1.7's check). A hit still fails M3; the counts tell a long FDA term from a fragment."""
+    out: dict[str, Any] = {}
+    for name, doc in sorted(arms.items()):
+        checks = [c["check"]["checks"]["ngram"] for c in doc.get("companies", {}).values() if "error" not in c]
+        out[name] = {"guard_exempt_strings": hits.get(name, {}).get("exempt_strings", 0),
+                     "guard_within_labels": hits.get(name, {}).get("within_labels", 0),
+                     "check_exempt_strings": sum(c.get("exempt_strings", 0) for c in checks),
+                     "check_within_value_map": sum(c.get("within_value_map", 0) for c in checks)}
+    return out
 
 
 def guard_clear(hits: Mapping[str, Mapping[str, Any]]) -> bool:
@@ -344,51 +406,225 @@ def _refusal_detail(r: Mapping[str, Any]) -> str:
             f"{r['label_parts']}; companies {r['companies']}")
 
 
-def _criterion_detail(c: Mapping[str, Any]) -> str:
+# D002's source-specific sentences; D003's change P5 replaces each one its settings' ``report_text`` gives
+D002_TEXT = {
+    "verdict": "{exp} passes only if all six criteria pass.",
+    "below_criteria": "C2 compares the drafted pack with `pack/`, whose lexicons are mostly the component names "
+                      "themselves: a pass means no worse than that list of names, within the margin.",
+    "intervals": "Every interval resamples the sampled records of these companies. It is not an interval for the "
+                 "field in general.",
+    "roles_note": "Roles right: the inference's header words and markers were chosen knowing both sources' headers "
+                  "(rule 1.2, amendment A9). The count says little, and for MSHA nothing.",
+    "matched_names": "matched names per make",
+    "audit_heading": "## Pilot audit (M4)",
+    "not_decided": "not decided: {reason}",
+    "kept_days": "kept days per company (training/test)",
+    "label_words": "",
+}
+
+
+def report_text(settings: Mapping[str, Any] | None) -> dict[str, str]:
+    """The report's source-specific sentences: D002's, each replaced by the settings' ``report_text`` (P5)."""
+    return {**D002_TEXT, **((settings or {}).get("report_text") or {})}
+
+
+def _exact_value(value: Any) -> str:
+    if isinstance(value, dict):
+        return ", ".join(f"{k} {_exact(v)}" for k, v in value.items())
+    return _exact(value)
+
+
+def _criterion_detail(c: Mapping[str, Any], text: Mapping[str, str] = D002_TEXT) -> str:
     """One criterion's detail: C1 and C2 by their unrounded deciding values and each comparison's outcome, and what
-    the refusal removed (A14); the rest by their counts."""
+    the refusal removed (A14); the rest by their counts. D003's C2 when not decided (E8) says so first, with its
+    reason, and the kept days per company stand beside C1 and C2 (E11)."""
     detail = []
+    if c.get("decided") is False:
+        detail.append(text["not_decided"].format(reason=c.get("reason")))
     exact = c.get(EXACT)
     if exact is not None:
         for key in ("diff", "diff_fraction", "ci_low", "ci_high"):
             if key in exact:
-                detail.append(f"{key} {_exact(exact[key])}")
+                detail.append(f"{key} {_exact_value(exact[key])}")
         detail += [f"{test}: {'yes' if ok else 'no'}" for test, ok in exact["comparisons"].items()]
     for key in ("best_control", "against", "records", "reason", "drafted", "loaded", "packs", "passed_floor",
                 "last_guard_clean", "label_hits", "code_commits", "download_code_total"):
         if key in c and c[key] is not None:
             detail.append(f"{key} {_f(c[key])}")
+    for key in ("scored", "min_records", "clusters", "records_ci_low", "records_ci_high"):
+        if key in c and c[key] is not None:
+            detail.append(f"{key} {_f(c[key])}")
     if c.get("matched_names"):
-        detail.append("matched names per make " + ", ".join(f"{k} {v}" for k, v in c["matched_names"].items()))
+        detail.append(text["matched_names"] + " " + ", ".join(f"{k} {v}" for k, v in c["matched_names"].items()))
+    if c.get("kept_days"):
+        detail.append(text["kept_days"] + " " + ", ".join(f"{k} {_f(v.get('train'))}/{_f(v.get('test'))}"
+                                                          for k, v in c["kept_days"].items()))
     if c.get("refusal"):
         detail.append("what the refusal removed: " + _refusal_detail(c["refusal"]))
+    for arm, v in (c.get("ngram_exempt") or {}).items():
+        detail.append(f"{arm}: FDA's generic terms left out of the n-gram scans (P13): check {v['check_exempt_strings']} "
+                      f"strings, guard {v['guard_exempt_strings']}; n-gram hits inside a value-map spelling "
+                      f"{v['check_within_value_map']}, inside a printed label {v['guard_within_labels']}")
     return "; ".join(detail)
 
 
-def render(doc: Mapping[str, Any]) -> str:
+def _arm_criteria(arm: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    c = arm.get("criterion") or {}
+    return list(c) if isinstance(c, list) else [c]
+
+
+def _interval(d: Mapping[str, Any] | None) -> str:
+    d = d or {}
+    return f"{_f(d.get('ci_low'))} to {_f(d.get('ci_high'))}"
+
+
+def _days_rows(pooled: Mapping[str, Any]) -> list[str]:
+    """D003's E3 (P8): each pooled reader's micro F1 with its interval over (company, received day) clusters, and
+    each drafted-minus-control difference with both intervals."""
+    cl = pooled["cluster"]
+    rows = ["", f"Clusters (company, received day): {cl['clusters']} in all; per company "
+            + ", ".join(f"{k} {v}" for k, v in cl["per_company"].items()) + ".", "",
+            "| Reader | Micro F1 | 95% interval, days | Clusters |", "|---|---|---|---|"]
+    for r, m in cl["readers"].items():
+        rows.append(f"| {r} | {_f(m.get('f1'))} | {_interval(m)} | {_f(m.get('clusters'))} |")
+    rows += ["", "| Drafted minus | Difference | 95% interval, days | 95% interval, records |", "|---|---|---|---|"]
+    for r, cmp in pooled.get("compared", {}).items():
+        rows.append(f"| {r} | {_f(cmp['days'].get('diff'))} | {_interval(cmp['days'])} | "
+                    f"{_interval(cmp['records'])} |")
+    return rows
+
+
+def _space_rows(arm: Mapping[str, Any]) -> list[str]:
+    """D003's C2 space (E2, P7): per hand copy, the records scored, the readers and the differences, and the hand
+    predicates each company's drafted names reach."""
+    rows: list[str] = []
+    for h, sp in arm["space"].items():
+        rows += ["", f"C2's space under the value map of `{h}`: {sp['scored']} records scored, {sp['with_gold']} with "
+                 f"a nonempty gold.", "",
+                 "| Reader | Micro P | Micro R | Micro F1 | 95% interval, days | 95% interval, records |",
+                 "|---|---|---|---|---|---|"]
+        for r, m in sp["readers"].items():
+            mi = m["micro"]
+            rows.append(f"| {r} | {_f(mi['precision'])} | {_f(mi['recall'])} | {_f(mi['f1'])} | {_interval(m['days'])} "
+                        f"| {_interval(mi)} |")
+        rows += ["", "| Drafted minus | Difference | 95% interval, days | 95% interval, records |", "|---|---|---|---|"]
+        for r, cmp in sp["compared"].items():
+            rows.append(f"| {r} | {_f(cmp['days'].get('diff'))} | {_interval(cmp['days'])} | "
+                        f"{_interval(cmp['records'])} |")
+        rows += ["", f"`{h}` in its own space: micro F1 {_f(sp['own_space']['micro']['f1'])} on "
+                 f"{sp['own_space']['records']} records. Reached hand predicates per company: "
+                 + "; ".join(f"{label} " + (", ".join(c["hand"][h]["reach"]) or "none")
+                             + f" (most frequent: {c['hand'][h]['most_frequent_reached'] or 'none'})"
+                             for label, c in arm["companies"].items() if "error" not in c and h in c.get("hand", {}))
+                 + "."]
+    return rows
+
+
+def _subset_rows(arm: Mapping[str, Any]) -> list[str]:
+    """D003's E7 and P6, reported only: C1's and C2's comparisons on the records with no echo or masked repeat."""
+    rows = ["", "Reported only, deciding nothing: the comparisons on the sampled records without an echo of their own "
+            "filed labels (whole label; label word) and on those without a digit-masked repeat.", "",
+            "| Records | Kept | Drafted minus | Difference | 95% interval, days | 95% interval, records |",
+            "|---|---|---|---|---|---|"]
+    for key, sub in arm["subsets"].items():
+        c1 = sub["c1"]
+        rows.append(f"| {key} | {sub['records']} | {c1['against']} (C1) | {_f(c1['days'].get('diff'))} | "
+                    f"{_interval(c1['days'])} | {_interval(c1['records'])} |")
+        for r, cmp in (sub.get("c2") or {}).get("compared", {}).items():
+            rows.append(f"| {key}, C2 space | {sub['c2']['scored']} ({sub['c2']['with_gold']} with a gold) | {r} (C2) "
+                        f"| {_f(cmp['days'].get('diff'))} | {_interval(cmp['days'])} | {_interval(cmp['records'])} |")
+    return rows
+
+
+def _guard_rows(arm: Mapping[str, Any]) -> list[str]:
+    """D003's E1 guard (P10): per company and reader, counts only."""
+    rows = ["", "Reader guard (E1): rows the reader's mapping rejected, records without a primary entity, structured "
+            "values left unresolved and predicates dropped for want of an entity.", "",
+            "| Company | Reader | Rejected | Without a primary entity | Structured unresolved | No-entity drops |",
+            "|---|---|---|---|---|---|"]
+    for label, c in arm["companies"].items():
+        for r, g in (c.get("reader_guard") or {}).items():
+            rows.append(f"| {label} | {r} | {g['rejected']} | {g['no_primary']} | {g['structured_unresolved']} | "
+                        f"{g['no_entity']} |")
+    return rows
+
+
+def _share_of_drawn(count: Any, drawn: Any) -> str:
+    """E7's per-company share: the share of the records drawn, with the count of them beside it."""
+    if count is None:
+        return _f(None)
+    share = count / drawn if isinstance(drawn, int) and drawn else None
+    return f"{_f(share)} ({count} of {_f(drawn)})"
+
+
+def _company_extra_rows(arm: Mapping[str, Any]) -> list[str]:
+    """D003's reported measures per company (E4, E7, E11, P11): kept days, clusters, echoes, masked repeats (each
+    the share of the company's records drawn, with the count of them), terms resting on one narrative, and the label
+    words the refusal took out of that control."""
+    rows = ["", "| Company | Kept days, training | Kept days, test | Clusters | Whole-label echo, share of drawn | "
+            "Word echo, share of drawn | Masked repeats, share of drawn | Lexicon terms in one narrative | "
+            "Printed terms in one narrative | Label words refused |",
+            "|---|---|---|---|---|---|---|---|---|---|"]
+    for label, c in arm["companies"].items():
+        if "error" in c:
+            continue
+        e = c.get("echo") or {}
+        t = c.get("single_narrative_terms") or {}
+        lw = (c.get("controls") or {}).get("label_words") or {}
+        drawn = e.get("records")
+        rows.append(f"| {label} | {_f(c['counts'].get('kept_days_train'))} | {_f(c['counts'].get('kept_days_test'))} | "
+                    f"{_f(c.get('clusters'))} | {_share_of_drawn(e.get('label_echo'), drawn)} | "
+                    f"{_share_of_drawn(e.get('word_echo'), drawn)} | "
+                    f"{_share_of_drawn(e.get('masked_repeat'), drawn)} | "
+                    f"{_f(t.get('lexicon_single'))} of {_f(t.get('lexicon_terms'))} | "
+                    f"{_f(t.get('printed_single'))} of {_f(t.get('printed_terms'))} | {_f(lw.get('refused'))} |")
+    return rows
+
+
+def render(doc: Mapping[str, Any], settings: Mapping[str, Any] | None = None) -> str:
+    """``report.md``. Without settings that change it (P3, P5), D002's text byte for byte; D003's tables (P6 to P11)
+    appear only when the arm holds them."""
+    text = report_text(settings)
     exp = doc["experiment"]
     lines = [f"# {exp}: can a pack be drafted from an export alone?", "",
-             f"Verdict: **{doc['verdict']}**. {exp} passes only if all six criteria pass.", "",
+             f"Verdict: **{doc['verdict']}**. " + text["verdict"].format(exp=exp), "",
              "| Criterion | Passes | Detail |", "|---|---|---|"]
-    for cid in CRITERIA:
+    for cid in (listed_criteria(settings) if settings is not None else CRITERIA):
         c = doc["criteria"].get(cid, {})
-        lines.append(f"| {cid} | {'yes' if c.get('passed') else 'no'} | {_criterion_detail(c)} |")
+        lines.append(f"| {cid} | {'yes' if c.get('passed') else 'no'} | {_criterion_detail(c, text)} |")
     lines += ["", "Every number below comes from the run. Filed categories are the answer key, not checked labels.",
-              "C2 compares the drafted pack with `pack/`, whose lexicons are mostly the component names themselves: "
-              "a pass means no worse than that list of names, within the margin.", ""]
+              text["below_criteria"], ""]
     for name, arm in doc["arms"].items():
         lines += [f"## Arm {name}", ""]
         pooled = arm.get("pooled", {})
         lines += [f"Sampled records, pooled: {pooled.get('records')}. Share whose narrative holds its own filed label: "
-                  f"{_f(pooled.get('label_in_text_share'))}.", "",
-                  "Every interval resamples the sampled records of these companies. It is not an interval for the "
-                  "field in general.", "",
+                  f"{_f(pooled.get('label_in_text_share'))}.", ""]
+        sel = (arm.get("source") or {}).get("selection")
+        if sel:
+            src = arm["source"]
+            ex = sel["excluded"]
+            dropped = ", ".join(f"{k} ({v})" for k, v in sorted((src.get("not_used") or {}).items()))
+            lines += [f"Companies: {sel['candidates']} names in both count lists; excluded as a placeholder "
+                      f"{ex.get('placeholder')}, not searchable {ex.get('not_searchable')}, a variant spelling "
+                      f"{ex.get('variant')}, too few reports {ex.get('too_few')}; {sel['qualifying']} qualify, "
+                      f"{sel['chosen']} chosen, {src.get('used')} used" + (f"; not used: {dropped}" if dropped else "")
+                      + ".", ""]
+        if pooled.get("echo"):
+            e = pooled["echo"]
+            lines += [f"Shares of the sampled records, pooled: holding a word of their own filed label "
+                      f"{_f(e.get('word_echo'))}; repeating a training or another test narrative once digits are "
+                      f"masked {_f(e.get('masked_repeat'))}.", ""]
+        lines += [text["intervals"], "",
                   "label_names is a mechanical split of each label at '/', ',', ';', brackets and the joining words. "
                   "It is not how a person would start a hand pack.", ""]
+        if "label_words" in pooled.get("readers", {}) and text["label_words"]:
+            lines += [text["label_words"], ""]
         lines += _reader_rows(pooled.get("readers", {}))
         lines += ["", "| Drafted minus | Difference | 95% interval |", "|---|---|---|"]
         for r, dif in pooled.get("differences", {}).items():
             lines.append(f"| {r} | {_f(dif.get('diff'))} | {_f(dif.get('ci_low'))} to {_f(dif.get('ci_high'))} |")
+        if pooled.get("cluster"):
+            lines += _days_rows(pooled)
         matched = arm.get("matched")
         if matched:
             lines += ["", "Matched label space (rule 2.2):", "",
@@ -399,8 +635,15 @@ def render(doc: Mapping[str, Any]) -> str:
                              f"{_f(m['hand']['micro']['f1'])} | {_f(m['difference'].get('diff'))} | "
                              f"{_f(m['difference'].get('ci_low'))} to {_f(m['difference'].get('ci_high'))} | "
                              f"{_f(m['own_space']['micro']['f1'])} |")
-        best = (arm.get("criterion") or {}).get("best_control")
-        refusal = (arm.get("criterion") or {}).get("refusal")
+        if arm.get("space"):
+            lines += _space_rows(arm)
+        if arm.get("subsets"):
+            lines += _subset_rows(arm)
+        if any(c.get("reader_guard") for c in arm["companies"].values()):
+            lines += _guard_rows(arm)
+        crits = _arm_criteria(arm)
+        best = next((c.get("best_control") for c in crits if c.get("best_control")), None)
+        refusal = crits[0].get("refusal") if crits else None
         if refusal:
             lines += ["", "What the refusal removed (amendment A14), summed over the companies: "
                           + _refusal_detail(refusal) + ". No refused label or term is printed."]
@@ -422,12 +665,13 @@ def render(doc: Mapping[str, Any]) -> str:
                          f"{c['controls']['label_names']['refused']} | {c['sample']['drawn']} | "
                          f"{_f(c['readers']['drafted']['micro']['f1'])} | {_f(best_f1)} | "
                          f"{dr['roles']['right']} of 5 | {'passed' if c['check']['passed'] else 'failed'} |")
+        if any("echo" in c or "single_narrative_terms" in c for c in arm["companies"].values()):
+            lines += _company_extra_rows(arm)
         lines += ["", "Refused categories: the corpus rows of each, largest first: "
                   + "; ".join(f"{label} " + (", ".join(str(n) for n in c["draft"]["refusal"]["category_rows"])
                                              or "none")
                               for label, c in arm["companies"].items() if "error" not in c) + "."]
-        lines += ["", "Roles right: the inference's header words and markers were chosen knowing both sources' "
-                      "headers (rule 1.2, amendment A9). The count says little, and for MSHA nothing."]
+        lines += ["", text["roles_note"]]
         for label, c in arm["companies"].items():
             if "error" in c:
                 continue
@@ -438,14 +682,15 @@ def render(doc: Mapping[str, Any]) -> str:
             for p in c["draft"]["predicates"]:
                 lines.append(f"- {p['label']} ({p['records']} corpus records; {p['refused_assignable']} refused terms "
                              f"would have been assigned): {', '.join(p['first_terms'])}")
-    a = doc.get("audit")
-    lines += ["", "## Pilot audit (M4)", ""]
-    if a is None:
-        lines.append("No audit.json.")
-    else:
-        lines.append(f"Records {a['records']}; sites {a['sites']}; weeks evaluated {a['weeks_evaluated']}; "
-                     f"review list {a['review_list']}; alerts by channel: "
-                     + ", ".join(f"{k} {_f(v)}" for k, v in a["alerts"].items()) + ".")
+    if "M4" in doc["criteria"]:
+        a = doc.get("audit")
+        lines += ["", text["audit_heading"], ""]
+        if a is None:
+            lines.append("No audit.json.")
+        else:
+            lines.append(f"Records {a['records']}; sites {a['sites']}; weeks evaluated {a['weeks_evaluated']}; "
+                         f"review list {a['review_list']}; alerts by channel: "
+                         + ", ".join(f"{k} {_f(v)}" for k, v in a["alerts"].items()) + ".")
     lines += ["", "## Code and inputs", "",
               f"- Code commit `{doc['code_commit']}`; code hash of the onboard package and the download code "
               f"`{doc['code_hash']}`; settings sha256 `{doc['settings']['sha256']}`."]
@@ -456,9 +701,9 @@ def render(doc: Mapping[str, Any]) -> str:
             lines.append(f"- {name} download `{item['file']}`: {item['bytes']} bytes, sha256 `{item['sha256']}`.")
     for name, defs in doc["definitions"].items():
         lines += ["", f"### {name}: the definition file's lines for the declared columns", ""]
-        for column, text in defs.items():
+        for column, text_lines in defs.items():
             lines.append(f"- `{column}`:")
-            lines += [f"  > {line}" for line in text] or ["  > (no line names it)"]
+            lines += [f"  > {line}" for line in text_lines] or ["  > (no line names it)"]
     return "\n".join(lines) + "\n"
 
 
@@ -505,11 +750,11 @@ def block(name: str, data: bytes, experiment: str) -> str:
 
 
 def run_report(settings: Mapping[str, Any], settings_path: str, settings_sha256: str, arm_dirs: Sequence[str | Path],
-               audit_path: str | Path, out: str | Path, commit: Callable[[], str],
+               audit_path: str | Path | None, out: str | Path, commit: Callable[[], str],
                emit: Callable[[str], None] = print) -> dict[str, Any]:
     experiment = experiment_id(settings)
     arms = load_arms(arm_dirs)
-    audit = audit_summary(audit_path)
+    audit = audit_summary(audit_path) if audit_path is not None else None
     prefix = load_template()["ids.json"]["placeholder_prefix"]
     ngram = settings["report_guard"]["ngram"]
     backstop = Backstop(settings["params"]["refusal"]["reference_inside_min_chars"])
@@ -523,9 +768,12 @@ def run_report(settings: Mapping[str, Any], settings_path: str, settings_sha256:
         doc["criteria"]["M3"]["exports_unread"] = 0
         doc["criteria"]["M3"]["guard_strings"] = {name: h["strings"] for name, h in sorted(hits.items())}
         doc["criteria"]["M3"]["backstop_values"] = {k: len(v) for k, v in sorted(backstop.values.items())}
+        if exempt_labels(settings["params"]):
+            doc["criteria"]["M3"]["ngram_exempt"] = exempt_counts(arms, hits)
         doc["verdict"] = "pass" if all(c["passed"] for c in doc["criteria"].values()) else "fail"
         doc = rounded(doc)
-        text_md = render(doc)
+        # D001's and D002's settings change nothing in the rendering: the call stays as D002 made it
+        text_md = render(doc, settings) if settings.get("report_text") or settings.get("criteria") else render(doc)
         text_json = json.dumps(doc, indent=1, sort_keys=True, ensure_ascii=False) + "\n"
         found = backstop.hits([text_json, text_md, *json_strings(doc)])
         if any(found.values()):

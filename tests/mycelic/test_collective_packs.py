@@ -1072,9 +1072,13 @@ class DisclaimerTests(unittest.TestCase):
 
     def test_official_wording_occurs_only_on_the_allow_listed_lines(self) -> None:
         disclaimer = pack("device_quality").disclaimer
-        allowed = {("mycelic/collective/packs/data/device_quality/pack.json",
-                    f"  \"disclaimer\": {json.dumps(disclaimer, ensure_ascii=False)},"),
+        line = f"  \"disclaimer\": {json.dumps(disclaimer, ensure_ascii=False)},"
+        allowed = {("mycelic/collective/packs/data/device_quality/pack.json", line),
                    ("docs/collective/PACKS.md", f"> {disclaimer}")}
+        # D003's two hand copies (CHOICE-D003.md 6.2 and E1 (c)) keep device_quality's pack.json byte for byte, so
+        # its disclaimer line, the same line and nothing else, occurs once in each
+        allowed |= {(f"docs/collective/onboard/d003-hand/{name}/pack.json", line)
+                    for name in ("device_quality", "device_quality_own")}
         found = set()
         files = [p for p in (ROOT / "mycelic/collective/packs/data/device_quality").rglob("*") if p.is_file()]
         files += [p for p in (ROOT / "docs" / "collective").rglob("*") if p.is_file()]

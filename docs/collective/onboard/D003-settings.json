@@ -1,0 +1,246 @@
+{
+  "arms": {
+    "maude": {
+      "columns": [
+        "mdr_report_key",
+        "date_received",
+        "product_problems[]",
+        "mdr_text",
+        "received_day",
+        "maker_entity",
+        "makers[]"
+      ],
+      "companies": {
+        "count": 5,
+        "count_limit": 100,
+        "field": "device.manufacturer_d_name",
+        "labels": [
+          "d1",
+          "d2",
+          "d3",
+          "d4",
+          "d5"
+        ],
+        "max_name_chars": 120,
+        "min_companies": 3,
+        "min_test_reports": 1000,
+        "min_train_reports": 2000,
+        "placeholders": [
+          "",
+          "-",
+          "0",
+          "ask",
+          "asku",
+          "masked",
+          "n.a.",
+          "n/a",
+          "na",
+          "ni",
+          "no information",
+          "none",
+          "not applicable",
+          "not available",
+          "not known",
+          "not provided",
+          "notavailable",
+          "nr",
+          "redacted",
+          "unavailable",
+          "unk",
+          "unknown"
+        ]
+      },
+      "criterion": [
+        {
+          "controls": [
+            "majority_prior",
+            "set_prior",
+            "permuted_labels",
+            "label_names",
+            "label_words"
+          ],
+          "id": "C1",
+          "interval": "cluster",
+          "labels": {
+            "interval": "ci_low > 0 (days)",
+            "margin": "diff >= 0.1",
+            "records": "ci_low > 0 (records; reported only, decides nothing)"
+          },
+          "margin": 0.1
+        },
+        {
+          "against": "device_quality",
+          "controls": [
+            "all_reached",
+            "most_frequent_reached"
+          ],
+          "guard": true,
+          "id": "C2",
+          "interval": "cluster",
+          "labels": {
+            "reported": "ci_low > -0.05 (days) against device_quality: non-inferiority, reported only, decides nothing",
+            "superior": "ci_low > 0 (days) against {reader}"
+          },
+          "min_records": 100,
+          "reported_margin": 0.05,
+          "space": "reach"
+        }
+      ],
+      "download_code": [
+        "tools/onboard/fetch_openfda.py",
+        "mycelic/collective/connectors/openfda.py",
+        "mycelic/collective/experiments/n1_narratives.py",
+        "mycelic/collective/packs/canonical.py",
+        "tools/market/openfda_establishments.py"
+      ],
+      "download_script": "tools/onboard/fetch_openfda.py",
+      "fetch": {
+        "attempt_cap": 800,
+        "base_url": "https://api.fda.gov",
+        "budgets": {
+          "test": 50,
+          "train": 70
+        },
+        "day_caps": {
+          "test": 10,
+          "train": 14
+        },
+        "day_refetches": 1,
+        "days_seed_prefix": "d003:days",
+        "endpoint": "device/event",
+        "exact_check_repeats": 1,
+        "min_days": 5,
+        "min_reports": {
+          "test": 500,
+          "train": 1000
+        },
+        "page_limit": 100,
+        "text_type": "Description of Event or Problem",
+        "user_agent": "mycelic-onboard (pack-drafting test on public data)"
+      },
+      "hand_packs": {
+        "device_quality": "docs/collective/onboard/d003-hand/device_quality",
+        "device_quality_own": "docs/collective/onboard/d003-hand/device_quality_own"
+      },
+      "per_company": 200,
+      "reported": {
+        "echo_free": [
+          "label",
+          "word"
+        ],
+        "kept_days": true,
+        "masked_repeats": true,
+        "reader_guard": true,
+        "single_narrative_terms": true
+      },
+      "roles": {
+        "category": "product_problems[]",
+        "date": "date_received",
+        "entities": [],
+        "forbidden": [
+          "makers[]"
+        ],
+        "narrative": "mdr_text",
+        "record_id": "mdr_report_key",
+        "reporter": null,
+        "site": "received_day"
+      },
+      "test": [
+        "2023-01-01",
+        "2024-12-31"
+      ],
+      "train": [
+        "2021-01-01",
+        "2022-12-31"
+      ]
+    }
+  },
+  "bootstrap": {
+    "B": 10000,
+    "alpha": 0.05,
+    "seed_prefix": "d003:boot"
+  },
+  "choice": "docs/collective/onboard/CHOICE-D003.md",
+  "criteria": [
+    "C1",
+    "C2",
+    "M1",
+    "M2",
+    "M3"
+  ],
+  "experiment": "D003",
+  "kind": "onboard_d001_settings",
+  "language": "en",
+  "m1_settings": [
+    "docs/collective/onboard/D001-settings.json",
+    "docs/collective/onboard/D002-settings.json"
+  ],
+  "params": {
+    "date_min_share": 0.95,
+    "entity_id_max_chars": 40,
+    "entity_max_ids": 500,
+    "floor_records": 10,
+    "floor_sites": 3,
+    "id_max_chars": 36,
+    "inference": {
+      "date_min_share": 0.95,
+      "label_max_distinct": 200,
+      "label_max_mean_tokens": 8,
+      "label_min_distinct": 2,
+      "label_min_fill": 0.9,
+      "label_min_letter_share": 0.9,
+      "narrative_min_fill": 0.5,
+      "narrative_min_mean_tokens": 8,
+      "record_id_min_fill": 0.99,
+      "site_fallback_max_mean_tokens": 2,
+      "site_min_distinct": 2,
+      "site_min_fill": 0.99
+    },
+    "label_max_chars": 80,
+    "max_predicates": 199,
+    "max_terms": 50,
+    "ngram_tokens": 8,
+    "non_specific_labels": [
+      "adverse event without identified device or use problem",
+      "appropriate device problem term/code not available",
+      "appropriate term/code not available",
+      "insufficient device problem information",
+      "insufficient information",
+      "no apparent adverse event",
+      "no device problem",
+      "unknown (for use when the device problem is not known)",
+      "no known impact or consequence to patient"
+    ],
+    "predicate_min_records": 50,
+    "refusal": {
+      "forbidden_inside_min_chars": 4,
+      "name_word_min_letters": 4,
+      "reference_inside_min_chars": 5
+    },
+    "term_max_chars": 64,
+    "term_min_df": 10,
+    "term_min_p": 0.6,
+    "token_min_letters": 3
+  },
+  "permute": {
+    "seed_prefix": "d003:permute"
+  },
+  "report_guard": {
+    "ngram": 8
+  },
+  "report_text": {
+    "below_criteria": "C2 compares the drafted pack with `device_quality`'s illustrative vocabulary, unchanged, read through the 22-name value map of `lab/packs/device_quality_bd`, in the hand predicates that each company's drafted names reach. It passes only when the drafted pack reads better there than that vocabulary and than two record-blind readers, on at least 100 records with a nonempty gold. The six-name map of `device_quality` is reported beside it and decides nothing.",
+    "intervals": "Intervals marked days resample (company, received day) clusters and decide C1 and C2; the others resample the sampled records and decide nothing. Days are treated as independent and the companies are fixed: no interval covers the field in general.",
+    "kept_days": "kept days per company (training/test)",
+    "label_words": "label_words takes each label's words of four or more letters, stop words and negation words aside; set_prior predicts, for every record, the set of specific predicates that most training records carry.",
+    "matched_names": "matched names per company",
+    "not_decided": "not decided ({reason})",
+    "roles_note": "Roles right: the declared site is `received_day`, the day a report was received, which is only the privacy floor's unit of spread (E4). No field of these reports is a site that a company runs, so the count says nothing about sites.",
+    "verdict": "{exp} passes only if C1, C2, M1, M2 and M3 all pass. M4 does not apply: no field of these reports is a site that a company runs."
+  },
+  "sample": {
+    "seed_prefix": "d003:sample"
+  },
+  "schema_version": 1,
+  "timeout_minutes": 180
+}

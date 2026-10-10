@@ -221,10 +221,41 @@ def ngram_hits(strings: Iterable[str], narratives: Iterable[str], n: int) -> set
     return hits
 
 
+REPO = Path(__file__).resolve().parents[3]
+
+
+def earlier_settings(settings: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """D003's change P12: the settings files the settings list under ``m1_settings`` (repository-relative paths), each
+    read as it is. Settings without the list (D001's, D002's) name none."""
+    out = []
+    for rel in settings.get("m1_settings") or ():
+        path = Path(rel)
+        out.append(strict_load((path if path.is_absolute() else REPO / path).read_bytes()))
+    return out
+
+
+def exempt_labels(params: Mapping[str, Any]) -> frozenset[str]:
+    """D003's change P13 (E15): the folded ``non_specific_labels`` of the parameters, FDA's public generic terms. A
+    string that folds equal to one is left out of rule 1.7's n-gram check and of the last guard's n-gram scan; every
+    other check still reads it. Parameters without them (D001's, D002's) exempt nothing."""
+    return frozenset(folded(w) for w in params.get("non_specific_labels") or ())
+
+
+def within_spellings(hits: Iterable[tuple[str, ...]], spellings: Iterable[str], n: int) -> int:
+    """D003's change P13: how many n-gram hits lie wholly within one of the given value-map spellings."""
+    grams: set[tuple[str, ...]] = set()
+    for s in spellings:
+        grams |= ngrams(s, n)
+    return sum(1 for g in hits if g in grams)
+
+
 def column_names(settings: Mapping[str, Any]) -> set[str]:
     """M1's terms: every column name of either source in the settings (with and without a trailing ``[]``), less the
-    words the loader reserves for the pipeline's own record fields."""
+    words the loader reserves for the pipeline's own record fields. With D003's change P12, the column names of the
+    earlier settings files the settings list join them."""
     names: set[str] = set()
+    for earlier in earlier_settings(settings):
+        names |= column_names(earlier)
     for arm in settings["arms"].values():
         names.update(arm["columns"])
         roles = arm["roles"]
@@ -373,10 +404,16 @@ def check_pack(pack_dir: str | Path, export: Export, roles: Roles, window: Windo
     narratives = [n for n in (export.value(r, roles.narrative) for r in range(len(export))) if n is not None]
     strings = pack_strings(pack_dir)
     n = params["ngram_tokens"]
-    hits = ngram_hits([s for _, s in strings], narratives, n)
-    hit_files = sorted({name for name, s in strings if ngrams(s, n) & hits})
+    exempt = exempt_labels(params)
+    scanned = [(name, s) for name, s in strings if folded(s) not in exempt]
+    hits = ngram_hits([s for _, s in scanned], narratives, n)
+    hit_files = sorted({name for name, s in scanned if ngrams(s, n) & hits})
     result["ngram"] = {"passed": not hits, "tokens": n, "narratives": len(narratives), "failures": len(hits),
                        "files": hit_files}
+    if exempt:
+        spellings = [s for spec in mapping["codes"] for s in (spec["value_map"] or {})]
+        result["ngram"]["exempt_strings"] = len(strings) - len(scanned)
+        result["ngram"]["within_value_map"] = within_spellings(hits, spellings, n)
     if settings is not None:
         names = column_names(settings)
         labels = [p["label"] for p in vocab["predicates"].values()]

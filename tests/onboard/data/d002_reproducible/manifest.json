@@ -1,0 +1,18 @@
+{
+ "codes": {
+  "audit": 0,
+  "export": 0,
+  "report": 0,
+  "score msha": 0,
+  "score nhtsa": 0,
+  "split msha": 0,
+  "split nhtsa": 0
+ },
+ "files": {
+  "msha.arm.json": "c27b17ac129e888949c64d0175388ae1d271d2a2d2dcc027037efe4d1a0e2386",
+  "nhtsa.arm.json": "988bb8b20cf5489e8d618c0746e4ed541442953b69cbfcaec83e0fac199a32bb",
+  "report.json": "873102a55a122fc032be7fe0464b915ca96f68ffd12a9de2efc1adf6a96cd982",
+  "report.md": "710b544750b72fbfd790a415622aff4428022ebee4f0608767b1aaa140c9a4c5"
+ },
+ "recorded_at": "9070788"
+}

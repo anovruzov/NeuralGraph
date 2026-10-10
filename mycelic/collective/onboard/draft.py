@@ -27,7 +27,7 @@ import re
 import unicodedata
 from array import array
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, timedelta
 from fractions import Fraction
 from pathlib import Path
@@ -111,6 +111,16 @@ def load_language(code: str) -> Language:
         site_words=tuple(raw["site_words"]), category_words=tuple(raw["category_words"]),
         other_label=raw["other_bucket"]["label"], other_phrase=raw["other_bucket"]["phrase"],
         scope_label=raw["scope"]["label"], scope_alias=raw["scope"]["alias"], templates=raw["templates"])
+
+
+def with_non_specific(lang: Language, params: Mapping[str, Any]) -> Language:
+    """D003's change P4 (``CHOICE-D003.md``, section 3): the parameters' ``non_specific_labels``, folded, join the
+    language file's non-specific labels for this run. Parameters without them (D001's, D002's) leave the language
+    as the file gives it."""
+    extra = params.get("non_specific_labels")
+    if not extra:
+        return lang
+    return replace(lang, non_specific=lang.non_specific | frozenset(folded(w) for w in extra))
 
 
 def at_least(k: int, n: int, share: float) -> bool:
@@ -668,6 +678,48 @@ def refused_label_parts(plan: Plan, lang: Language, refusal: Refusal) -> int:
                 if refusal.term(part) is not None})
 
 
+LABEL_WORD_MIN_LETTERS = 4
+
+
+def label_words(label: str, lang: Language) -> list[str]:
+    """D003's E6: the words (runs of letters and digits) of a folded label that are letters only, have at least
+    four letters, and are neither a stop word nor a word of a negation cue; in order, each once."""
+    out: list[str] = []
+    for w in words_of(folded(label)):
+        if (w.isalpha() and len(w) >= LABEL_WORD_MIN_LETTERS and w not in lang.stop_words
+                and w not in lang.negation_words and w not in out):
+            out.append(w)
+    return out
+
+
+def label_word_lexicon(plan: Plan, lang: Language, refusal: Refusal | None = None) -> dict[str, list[str]]:
+    """D003's E6, the label-words control: each specific predicate's lexicon is its label's words
+    (:func:`label_words`); a word several labels share goes to the predicate with the most corpus rows (ties: the
+    smaller id), as in :func:`label_name_lexicon`; a word the refusal's term rule refuses is no term (A13). A
+    predicate left with no word gets the placeholder (:func:`with_placeholders`)."""
+    owner: dict[str, str] = {}
+    for p in sorted(plan.ids, key=lambda p: (-plan.counts[p], p)):
+        for w in label_words(plan.labels[p], lang):
+            owner.setdefault(w, p)
+    return {p: [w for w in label_words(plan.labels[p], lang)
+                if owner[w] == p and (refusal is None or refusal.term(w) is None)] for p in plan.ids}
+
+
+def refused_label_words(plan: Plan, lang: Language, refusal: Refusal) -> int:
+    """How many distinct label words the refusal takes out of the label-words control (A14's count, for E6)."""
+    return len({w for p in plan.ids for w in label_words(plan.labels[p], lang) if refusal.term(w) is not None})
+
+
+def set_prior(labels: Sequence[tuple[str, ...]]) -> tuple[str, ...]:
+    """D003's E6, the set prior: of the corpus records filed under at least one specific predicate, the set of
+    specific predicates most of them carry; ties go to the smaller set, then to the set whose sorted ids come first.
+    Empty when no record carries a specific predicate."""
+    counts = Counter(tuple(sorted(set(x))) for x in labels if x)
+    if not counts:
+        return ()
+    return min(counts, key=lambda k: (-counts[k], len(k), k))
+
+
 # --------------------------------------------------------------------------------------------------- rule 1.6
 
 @dataclass(frozen=True)
@@ -881,7 +933,7 @@ def draft_export(export: Export, roles: Roles, window: Window, pack_id: str, *,
                  template: Mapping[str, Any] | None = None) -> Draft:
     """Rules 1.2 to 1.6 over one export: the training rows, the predicates, the lexicon and the pack's files."""
     params = params if params is not None else load_params()
-    lang = lang if lang is not None else load_language(roles.language)
+    lang = with_non_specific(lang if lang is not None else load_language(roles.language), params)
     template = template if template is not None else load_template()
     ids = template["ids.json"]
     check_roles(roles, export)

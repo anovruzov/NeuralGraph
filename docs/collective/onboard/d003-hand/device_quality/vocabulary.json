@@ -1,0 +1,348 @@
+{
+  "entity_types": {
+    "product": {
+      "label": "Product model",
+      "id_format": [
+        {
+          "alpha": [
+            2,
+            2
+          ]
+        },
+        {
+          "sep": "required"
+        },
+        {
+          "digit": [
+            1,
+            3
+          ]
+        }
+      ],
+      "separator": "-",
+      "case": "upper",
+      "strip_leading_zeros": false,
+      "exact_match_metric": false,
+      "egress": true,
+      "ids": null
+    },
+    "component": {
+      "label": "Component",
+      "id_format": null,
+      "separator": null,
+      "case": "upper",
+      "strip_leading_zeros": false,
+      "exact_match_metric": false,
+      "egress": true,
+      "ids": [
+        "ALARM-SPEAKER",
+        "BATTERY-DOOR",
+        "DISPLAY-PANEL",
+        "INFUSION-TUBING",
+        "LUER-CONNECTOR",
+        "O-RING-SEAL",
+        "PRESSURE-SENSOR",
+        "PUMP-HOUSING"
+      ]
+    },
+    "lot": {
+      "label": "Lot",
+      "id_format": [
+        {
+          "literal": "L"
+        },
+        {
+          "digit": [
+            5,
+            6
+          ]
+        },
+        {
+          "alpha": [
+            0,
+            1
+          ]
+        }
+      ],
+      "separator": null,
+      "case": "upper",
+      "strip_leading_zeros": false,
+      "exact_match_metric": true,
+      "egress": true,
+      "ids": null
+    },
+    "supplier": {
+      "label": "Supplier",
+      "id_format": [
+        {
+          "literal": "V"
+        },
+        {
+          "digit": [
+            4,
+            4
+          ]
+        }
+      ],
+      "separator": null,
+      "case": "upper",
+      "strip_leading_zeros": false,
+      "exact_match_metric": true,
+      "egress": true,
+      "ids": null
+    },
+    "maker": {
+      "label": "Company label (D003)",
+      "id_format": null,
+      "separator": null,
+      "case": "upper",
+      "strip_leading_zeros": false,
+      "exact_match_metric": false,
+      "egress": false,
+      "ids": [
+        "D1",
+        "D2",
+        "D3",
+        "D4",
+        "D5"
+      ]
+    }
+  },
+  "predicates": {
+    "crack": {
+      "label": "Crack or fracture",
+      "lexicon": {
+        "en": [
+          "crack",
+          "cracks",
+          "cracked",
+          "cracking",
+          "fracture",
+          "fractured"
+        ],
+        "de": [
+          "Riss",
+          "Risse",
+          "gerissen",
+          "gebrochen"
+        ]
+      }
+    },
+    "leak": {
+      "label": "Fluid leak",
+      "lexicon": {
+        "en": [
+          "leak",
+          "leaks",
+          "leaked",
+          "leaking",
+          "leakage",
+          "seeped"
+        ],
+        "de": [
+          "undicht",
+          "Leck",
+          "Leckage",
+          "ausgelaufen"
+        ]
+      }
+    },
+    "overheat": {
+      "label": "Overheating",
+      "lexicon": {
+        "en": [
+          "overheat",
+          "overheated",
+          "overheating",
+          "scorch mark",
+          "scorch marks",
+          "too hot to touch"
+        ],
+        "de": [
+          "überhitzt",
+          "Überhitzung",
+          "zu heiß"
+        ]
+      }
+    },
+    "power_loss": {
+      "label": "Loss of power",
+      "lexicon": {
+        "en": [
+          "lost power",
+          "power loss",
+          "powered off unexpectedly",
+          "shut down unexpectedly"
+        ],
+        "de": [
+          "Stromausfall"
+        ]
+      }
+    },
+    "alarm_failure": {
+      "label": "Alarm failure",
+      "lexicon": {
+        "en": [
+          "alarm failure",
+          "alarm failed",
+          "alarm was silent",
+          "silent alarm"
+        ]
+      }
+    },
+    "occlusion": {
+      "label": "Occlusion or blockage",
+      "lexicon": {
+        "en": [
+          "occlusion",
+          "occluded",
+          "blockage",
+          "blocked",
+          "clogged"
+        ],
+        "de": [
+          "Okklusion",
+          "verstopft",
+          "blockiert"
+        ]
+      }
+    },
+    "display_fault": {
+      "label": "Display fault",
+      "lexicon": {
+        "en": [
+          "display fault",
+          "blank display",
+          "display went blank",
+          "display flickered",
+          "blank readout",
+          "readout went blank",
+          "flickering readout",
+          "readout flickered",
+          "frozen readout"
+        ]
+      }
+    },
+    "detachment": {
+      "label": "Detachment or disconnection",
+      "lexicon": {
+        "en": [
+          "detached",
+          "came loose",
+          "came off",
+          "fell off",
+          "disconnected"
+        ],
+        "de": [
+          "abgelöst",
+          "abgefallen"
+        ]
+      }
+    },
+    "inaccurate_reading": {
+      "label": "Inaccurate reading or dose",
+      "lexicon": {
+        "en": [
+          "inaccurate reading",
+          "incorrect reading",
+          "wrong reading",
+          "incorrect dose",
+          "over-infusion",
+          "under-infusion"
+        ]
+      }
+    },
+    "contamination": {
+      "label": "Contamination or foreign matter",
+      "lexicon": {
+        "en": [
+          "contaminated",
+          "contamination",
+          "particulate",
+          "particles",
+          "foreign matter",
+          "discoloured",
+          "discolored"
+        ]
+      }
+    },
+    "malfunction_unspecified": {
+      "label": "Malfunction, not further specified",
+      "lexicon": {
+        "en": [
+          "malfunction",
+          "malfunctioned",
+          "malfunctioning",
+          "stopped working",
+          "faulty"
+        ],
+        "de": [
+          "Fehlfunktion",
+          "defekt"
+        ]
+      }
+    }
+  },
+  "negation": {
+    "en": {
+      "pre": [
+        "no",
+        "not",
+        "never",
+        "without",
+        "did not",
+        "does not",
+        "no evidence of",
+        "denied"
+      ],
+      "post": [
+        "not observed",
+        "not found",
+        "not seen",
+        "not confirmed",
+        "ruled out",
+        "was ruled out"
+      ],
+      "terminators": [
+        "but",
+        "however",
+        "although",
+        "though",
+        "yet",
+        ","
+      ]
+    },
+    "de": {
+      "pre": [
+        "kein",
+        "keine",
+        "keinen",
+        "keiner",
+        "nicht",
+        "ohne"
+      ],
+      "post": [
+        "nicht festgestellt",
+        "nicht beobachtet",
+        "nicht bestätigt"
+      ],
+      "terminators": [
+        "aber",
+        "jedoch",
+        "sondern",
+        ","
+      ]
+    }
+  },
+  "negation_window": 3,
+  "extraction": {
+    "max_input_chars": 6000,
+    "max_output_tokens": 1024,
+    "max_claims": 20,
+    "confidence": {
+      "exact": 1.0,
+      "alias": 0.95,
+      "variant": 0.9
+    }
+  }
+}

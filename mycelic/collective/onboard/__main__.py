@@ -7,7 +7,10 @@
     python -m mycelic.collective.onboard check --pack DIR --export FILE --roles FILE --train-from DATE --train-to DATE
         --out FILE [--params FILE] [--settings FILE]
     python -m mycelic.collective.onboard score --settings FILE --arm NAME --exports DIR --out DIR
-    python -m mycelic.collective.onboard report --settings FILE --arms DIR [DIR ...] --audit FILE --out DIR
+    python -m mycelic.collective.onboard report --settings FILE --arms DIR [DIR ...] [--audit FILE] --out DIR
+
+``report`` needs ``--audit`` when the settings list no criteria (D001, D002) or list M4 (D003's change P3: D003 lists
+C1, C2, M1, M2 and M3, so its report reads no audit file).
 
 Every command takes ``--dry-run``: it says what it would read and write and touches nothing. Exit codes: 0 done; 1 a
 check failed (a draft the rule refuses, a pack the loader refuses, a privacy floor not held, a company not drafted, a
@@ -71,7 +74,8 @@ def _parser() -> argparse.ArgumentParser:
     r = sub.add_parser("report", help="merge the arms into the drafting test's report")
     r.add_argument("--settings", required=True)
     r.add_argument("--arms", required=True, nargs="+")
-    r.add_argument("--audit", required=True)
+    r.add_argument("--audit", help="the pilot audit's audit.json; needed when the settings' criteria include M4 "
+                                   "or list none (D003's change P3)")
     r.add_argument("--out", required=True)
     for q in (d, e, c, s, r):
         q.add_argument("--dry-run", action="store_true", help="say what would be read and written; touch nothing")
@@ -165,17 +169,20 @@ def _check(args: argparse.Namespace) -> int:
 def _score(args: argparse.Namespace) -> int:
     settings, sha = load_settings(args.settings)
     doc = run_arm(settings, sha, args.arm, Path(args.exports), Path(args.out), code_commit)
-    c = doc["criterion"]
     failed = bool(doc["errors"]) or any(not co["check"]["passed"] for co in doc["companies"].values()
                                          if "error" not in co)
+    said = "; ".join(f"{c['id']} {'passed' if c['passed'] else 'failed'}"
+                     for c in (doc["criterion"] if isinstance(doc["criterion"], list) else [doc["criterion"]]))
     print(f"onboard score: arm {args.arm}, {len(doc['companies'])} companies, {len(doc['errors'])} not drafted; "
-          f"{c['id']} {'passed' if c['passed'] else 'failed'} -> {Path(args.out) / 'arm.json'}")
+          f"{said} -> {Path(args.out) / 'arm.json'}")
     return 1 if failed else 0
 
 
 def _report(args: argparse.Namespace) -> int:
-    from .report import run_report
+    from .report import needs_audit, run_report
     settings, sha = load_settings(args.settings)
+    if args.audit is None and needs_audit(settings):
+        return fail("--audit is needed: the settings' criteria include M4")
     doc = run_report(settings, args.settings, sha, args.arms, args.audit, args.out, code_commit)
     return 0 if doc["verdict"] == "pass" else 1
 

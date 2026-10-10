@@ -1,0 +1,1323 @@
+{
+ "arm": "msha",
+ "code_commit": "<code>",
+ "code_files": "<code>",
+ "companies": {
+  "c1": {
+   "check": {
+    "checks": {
+     "labels": {
+      "failures": 0,
+      "labels": 8,
+      "passed": true
+     },
+     "loader": {
+      "error": null,
+      "passed": true
+     },
+     "ngram": {
+      "failures": 0,
+      "files": "<code>",
+      "narratives": 295,
+      "passed": true,
+      "tokens": 8
+     },
+     "refused_strings": {
+      "failures": 0,
+      "files": "<code>",
+      "kinds": {
+       "equal": 0,
+       "inside": 0,
+       "name_word": 0
+      },
+      "passed": true,
+      "strings": 16
+     },
+     "refused_terms": {
+      "failures": 0,
+      "files": "<code>",
+      "kinds": {
+       "equal": 0,
+       "inside": 0,
+       "name_word": 0
+      },
+      "passed": true,
+      "terms": 14
+     },
+     "template": {
+      "error": null,
+      "files": "<code>",
+      "passed": true
+     },
+     "term_floor": {
+      "failures": 0,
+      "passed": true,
+      "terms": 14
+     },
+     "value_floor": {
+      "entity_ids": 0,
+      "failures": 0,
+      "passed": true,
+      "spellings": 4
+     }
+    },
+    "kind": "onboard_check",
+    "pack": "msha_c1",
+    "passed": true,
+    "schema_version": 1
+   },
+   "controls": {
+    "label_names": {
+     "placeholders": 0,
+     "refused": 0,
+     "terms": 5
+    },
+    "majority_prior": {
+     "code": "D-001",
+     "predicate": "fall_of_roof_or_back"
+    },
+    "permuted_labels": {
+     "placeholders": 3,
+     "terms": 3
+    }
+   },
+   "counts": {
+    "rows": 295,
+    "test_rows_with_narrative": 100,
+    "training_mines": 4,
+    "training_rows_with_narrative": 195
+   },
+   "draft": {
+    "categories": {
+     "below_floor": 0,
+     "other": 1,
+     "passing_floor": [
+      {
+       "label": "FALL OF ROOF OR BACK",
+       "predicate": "fall_of_roof_or_back",
+       "records": 60,
+       "sites": 4
+      },
+      {
+       "label": "HANDLING OF MATERIALS",
+       "predicate": "handling_of_materials",
+       "records": 60,
+       "sites": 4
+      },
+      {
+       "label": "SLIP OR FALL OF PERSON",
+       "predicate": "slip_or_fall_of_person",
+       "records": 60,
+       "sites": 4
+      },
+      {
+       "label": "NO VALUE FOUND",
+       "predicate": "other_category",
+       "records": 15,
+       "sites": 4
+      }
+     ],
+     "refused": 0,
+     "specific": 3
+    },
+    "dates": {
+     "format": "M/D/YYYY",
+     "rejected": 0
+    },
+    "entity_types": [],
+    "export": {
+     "blank_lines": 0,
+     "columns": 57,
+     "encoding": "utf-8",
+     "format": "pipe",
+     "rejected": {},
+     "rows": 295
+    },
+    "other_bucket_rows": 15,
+    "other_bucket_share": 0.0769,
+    "placeholders": 0,
+    "predicates": [
+     {
+      "code": "D-001",
+      "first_terms": [
+       "rock",
+       "bolter",
+       "roof",
+       "brow"
+      ],
+      "id": "fall_of_roof_or_back",
+      "label": "FALL OF ROOF OR BACK",
+      "records": 60,
+      "refused_assignable": 0,
+      "terms": 4
+     },
+     {
+      "code": "D-002",
+      "first_terms": [
+       "pallet",
+       "carrying",
+       "lifting",
+       "strained"
+      ],
+      "id": "handling_of_materials",
+      "label": "HANDLING OF MATERIALS",
+      "records": 60,
+      "refused_assignable": 0,
+      "terms": 4
+     },
+     {
+      "code": "D-003",
+      "first_terms": [
+       "slipped",
+       "walkway",
+       "icy",
+       "stairs",
+       "icy slipped",
+       "stairs walkway"
+      ],
+      "id": "slip_or_fall_of_person",
+      "label": "SLIP OR FALL OF PERSON",
+      "records": 60,
+      "refused_assignable": 0,
+      "terms": 6
+     }
+    ],
+    "refusal": {
+     "assignable": 0,
+     "categories": 0,
+     "category_rows": [],
+     "rows": 0,
+     "share": 0.0,
+     "terms": 0,
+     "with_minimum": 0,
+     "within_cap": 0
+    },
+    "refused_entity_values": 0,
+    "roles": {
+     "declared": {
+      "category": "CLASSIFICATION",
+      "date": "ACCIDENT_DT",
+      "narrative": "NARRATIVE",
+      "record_id": "DOCUMENT_NO",
+      "site": "MINE_ID"
+     },
+     "inferred": {
+      "category": "CLASSIFICATION",
+      "date": "ACCIDENT_DT",
+      "narrative": "NARRATIVE",
+      "record_id": "DOCUMENT_NO",
+      "site": "MINE_ID"
+     },
+     "of": 5,
+     "right": 5
+    },
+    "rows_without_specific": 15,
+    "terms": {
+     "candidates": 424,
+     "eligible": 36,
+     "max": 6,
+     "median": 4,
+     "min": 4,
+     "refused": 0,
+     "total": 14
+    },
+    "training": {
+     "corpus": 195,
+     "rows": 195,
+     "window": [
+      "2015-01-01",
+      "2021-12-31"
+     ],
+     "without_narrative": 0
+    }
+   },
+   "file_sha256": "1e83a526eeca23fa5bdf61676a968520e9d819965c2012cde8e2e796fe6463c9",
+   "label_in_text": 0,
+   "label_in_text_share": 0.0,
+   "pack": {
+    "files": "<code>",
+    "hashes": {
+     "config_hash": "1284a80ed232f33ccd1b6d9083d86946971cdae823ca36fa9c3d46f8f69b2f4a",
+     "detector_hash": "39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416",
+     "fixtures_hash": "efc9b3f90f7812dea405050a481b818e0e036611138cfe5beb36d8d4afb4e110",
+     "vocabulary_hash": "3b68739396701ea0e764f2872e1163390ce818039c8e412ed46f615666d6d69c"
+    },
+    "id": "msha_c1",
+    "loader": {
+     "error": null,
+     "passed": true
+    }
+   },
+   "reader_rejected": {
+    "drafted": 0,
+    "label_names": 0,
+    "permuted_labels": 0
+   },
+   "readers": {
+    "drafted": {
+     "coverage": 1.0,
+     "macro": {
+      "B": 10000,
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "f1": 1.0,
+      "pairs": 3,
+      "seed": "d001:boot:msha",
+      "undefined": 0
+     },
+     "micro": {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 18,
+      "undefined": 0
+     },
+     "records": 18
+    },
+    "label_names": {
+     "coverage": 0.0,
+     "macro": {
+      "B": 10000,
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "f1": 0.0,
+      "pairs": 3,
+      "seed": "d001:boot:msha",
+      "undefined": 0
+     },
+     "micro": {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "f1": 0.0,
+      "fn": 18,
+      "fp": 0,
+      "precision": null,
+      "recall": 0.0,
+      "tp": 0,
+      "undefined": 0
+     },
+     "records": 18
+    },
+    "majority_prior": {
+     "coverage": 1.0,
+     "macro": {
+      "B": 10000,
+      "ci_high": 0.2381,
+      "ci_low": 0.0667,
+      "f1": 0.1667,
+      "pairs": 3,
+      "seed": "d001:boot:msha",
+      "undefined": 0
+     },
+     "micro": {
+      "ci_high": 0.5556,
+      "ci_low": 0.1111,
+      "f1": 0.3333,
+      "fn": 12,
+      "fp": 12,
+      "precision": 0.3333,
+      "recall": 0.3333,
+      "tp": 6,
+      "undefined": 0
+     },
+     "records": 18
+    },
+    "permuted_labels": {
+     "coverage": 0.0,
+     "macro": {
+      "B": 10000,
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "f1": 0.0,
+      "pairs": 3,
+      "seed": "d001:boot:msha",
+      "undefined": 0
+     },
+     "micro": {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "f1": 0.0,
+      "fn": 18,
+      "fp": 0,
+      "precision": null,
+      "recall": 0.0,
+      "tp": 0,
+      "undefined": 0
+     },
+     "records": 18
+    }
+   },
+   "sample": {
+    "drawn": 18,
+    "eligible": 18,
+    "in_training": 82,
+    "no_record_id": 0,
+    "no_specific": 0,
+    "repeated_in_test": 0,
+    "repeated_record_id": 0,
+    "test_rows": 100,
+    "with_narrative": 100
+   }
+  },
+  "c2": {
+   "check": {
+    "checks": {
+     "labels": {
+      "failures": 0,
+      "labels": 8,
+      "passed": true
+     },
+     "loader": {
+      "error": null,
+      "passed": true
+     },
+     "ngram": {
+      "failures": 0,
+      "files": "<code>",
+      "narratives": 283,
+      "passed": true,
+      "tokens": 8
+     },
+     "refused_strings": {
+      "failures": 0,
+      "files": "<code>",
+      "kinds": {
+       "equal": 0,
+       "inside": 0,
+       "name_word": 0
+      },
+      "passed": true,
+      "strings": 16
+     },
+     "refused_terms": {
+      "failures": 0,
+      "files": "<code>",
+      "kinds": {
+       "equal": 0,
+       "inside": 0,
+       "name_word": 0
+      },
+      "passed": true,
+      "terms": 13
+     },
+     "template": {
+      "error": null,
+      "files": "<code>",
+      "passed": true
+     },
+     "term_floor": {
+      "failures": 0,
+      "passed": true,
+      "terms": 13
+     },
+     "value_floor": {
+      "entity_ids": 0,
+      "failures": 0,
+      "passed": true,
+      "spellings": 4
+     }
+    },
+    "kind": "onboard_check",
+    "pack": "msha_c2",
+    "passed": true,
+    "schema_version": 1
+   },
+   "controls": {
+    "label_names": {
+     "placeholders": 0,
+     "refused": 0,
+     "terms": 5
+    },
+    "majority_prior": {
+     "code": "D-001",
+     "predicate": "fall_of_roof_or_back"
+    },
+    "permuted_labels": {
+     "placeholders": 3,
+     "terms": 3
+    }
+   },
+   "counts": {
+    "rows": 283,
+    "test_rows_with_narrative": 100,
+    "training_mines": 4,
+    "training_rows_with_narrative": 183
+   },
+   "draft": {
+    "categories": {
+     "below_floor": 0,
+     "other": 1,
+     "passing_floor": [
+      {
+       "label": "FALL OF ROOF OR BACK",
+       "predicate": "fall_of_roof_or_back",
+       "records": 56,
+       "sites": 4
+      },
+      {
+       "label": "HANDLING OF MATERIALS",
+       "predicate": "handling_of_materials",
+       "records": 56,
+       "sites": 4
+      },
+      {
+       "label": "SLIP OR FALL OF PERSON",
+       "predicate": "slip_or_fall_of_person",
+       "records": 56,
+       "sites": 4
+      },
+      {
+       "label": "NO VALUE FOUND",
+       "predicate": "other_category",
+       "records": 15,
+       "sites": 4
+      }
+     ],
+     "refused": 0,
+     "specific": 3
+    },
+    "dates": {
+     "format": "M/D/YYYY",
+     "rejected": 0
+    },
+    "entity_types": [],
+    "export": {
+     "blank_lines": 0,
+     "columns": 57,
+     "encoding": "utf-8",
+     "format": "pipe",
+     "rejected": {},
+     "rows": 283
+    },
+    "other_bucket_rows": 15,
+    "other_bucket_share": 0.082,
+    "placeholders": 0,
+    "predicates": [
+     {
+      "code": "D-001",
+      "first_terms": [
+       "bolter",
+       "brow",
+       "roof",
+       "rock",
+       "near"
+      ],
+      "id": "fall_of_roof_or_back",
+      "label": "FALL OF ROOF OR BACK",
+      "records": 56,
+      "refused_assignable": 2,
+      "terms": 5
+     },
+     {
+      "code": "D-002",
+      "first_terms": [
+       "pallet",
+       "strained",
+       "carrying",
+       "lifting"
+      ],
+      "id": "handling_of_materials",
+      "label": "HANDLING OF MATERIALS",
+      "records": 56,
+      "refused_assignable": 0,
+      "terms": 4
+     },
+     {
+      "code": "D-003",
+      "first_terms": [
+       "slipped",
+       "stairs",
+       "walkway",
+       "icy"
+      ],
+      "id": "slip_or_fall_of_person",
+      "label": "SLIP OR FALL OF PERSON",
+      "records": 56,
+      "refused_assignable": 0,
+      "terms": 4
+     }
+    ],
+    "refusal": {
+     "assignable": 2,
+     "categories": 0,
+     "category_rows": [],
+     "rows": 0,
+     "share": 0.0,
+     "terms": 2,
+     "with_minimum": 0,
+     "within_cap": 2
+    },
+    "refused_entity_values": 0,
+    "roles": {
+     "declared": {
+      "category": "CLASSIFICATION",
+      "date": "ACCIDENT_DT",
+      "narrative": "NARRATIVE",
+      "record_id": "DOCUMENT_NO",
+      "site": "MINE_ID"
+     },
+     "inferred": {
+      "category": "CLASSIFICATION",
+      "date": "ACCIDENT_DT",
+      "narrative": "NARRATIVE",
+      "record_id": "DOCUMENT_NO",
+      "site": "MINE_ID"
+     },
+     "of": 5,
+     "right": 5
+    },
+    "rows_without_specific": 15,
+    "terms": {
+     "candidates": 438,
+     "eligible": 37,
+     "max": 5,
+     "median": 4,
+     "min": 4,
+     "refused": 2,
+     "total": 13
+    },
+    "training": {
+     "corpus": 183,
+     "rows": 183,
+     "window": [
+      "2015-01-01",
+      "2021-12-31"
+     ],
+     "without_narrative": 0
+    }
+   },
+   "file_sha256": "dd1826c17c55feb8d1c8dbaddee8426436ff56be1f329bc5165116e1c8cbea23",
+   "label_in_text": 0,
+   "label_in_text_share": 0.0,
+   "pack": {
+    "files": "<code>",
+    "hashes": {
+     "config_hash": "aa538f57222f0fe84c8b20ad588936c339cb8a71019d4b0903354b196e2eda5b",
+     "detector_hash": "39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416",
+     "fixtures_hash": "ab465e2b00190878dd11ef703e5805d308569926614a876dc57802193e8dbc4c",
+     "vocabulary_hash": "f1155e49d7b29028f9f5b696b54ba412443a6ab2f6b37cb29ba7aa488909637e"
+    },
+    "id": "msha_c2",
+    "loader": {
+     "error": null,
+     "passed": true
+    }
+   },
+   "reader_rejected": {
+    "drafted": 0,
+    "label_names": 0,
+    "permuted_labels": 0
+   },
+   "readers": {
+    "drafted": {
+     "coverage": 1.0,
+     "macro": {
+      "B": 10000,
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "f1": 1.0,
+      "pairs": 3,
+      "seed": "d001:boot:msha",
+      "undefined": 0
+     },
+     "micro": {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 18,
+      "undefined": 0
+     },
+     "records": 18
+    },
+    "label_names": {
+     "coverage": 0.0,
+     "macro": {
+      "B": 10000,
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "f1": 0.0,
+      "pairs": 3,
+      "seed": "d001:boot:msha",
+      "undefined": 0
+     },
+     "micro": {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "f1": 0.0,
+      "fn": 18,
+      "fp": 0,
+      "precision": null,
+      "recall": 0.0,
+      "tp": 0,
+      "undefined": 0
+     },
+     "records": 18
+    },
+    "majority_prior": {
+     "coverage": 1.0,
+     "macro": {
+      "B": 10000,
+      "ci_high": 0.2381,
+      "ci_low": 0.0667,
+      "f1": 0.1667,
+      "pairs": 3,
+      "seed": "d001:boot:msha",
+      "undefined": 0
+     },
+     "micro": {
+      "ci_high": 0.5556,
+      "ci_low": 0.1111,
+      "f1": 0.3333,
+      "fn": 12,
+      "fp": 12,
+      "precision": 0.3333,
+      "recall": 0.3333,
+      "tp": 6,
+      "undefined": 0
+     },
+     "records": 18
+    },
+    "permuted_labels": {
+     "coverage": 0.0,
+     "macro": {
+      "B": 10000,
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "f1": 0.0,
+      "pairs": 3,
+      "seed": "d001:boot:msha",
+      "undefined": 0
+     },
+     "micro": {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "f1": 0.0,
+      "fn": 18,
+      "fp": 0,
+      "precision": null,
+      "recall": 0.0,
+      "tp": 0,
+      "undefined": 0
+     },
+     "records": 18
+    }
+   },
+   "sample": {
+    "drawn": 18,
+    "eligible": 18,
+    "in_training": 82,
+    "no_record_id": 0,
+    "no_specific": 0,
+    "repeated_in_test": 0,
+    "repeated_record_id": 0,
+    "test_rows": 100,
+    "with_narrative": 100
+   }
+  },
+  "c3": {
+   "check": {
+    "checks": {
+     "labels": {
+      "failures": 0,
+      "labels": 8,
+      "passed": true
+     },
+     "loader": {
+      "error": null,
+      "passed": true
+     },
+     "ngram": {
+      "failures": 0,
+      "files": "<code>",
+      "narratives": 271,
+      "passed": true,
+      "tokens": 8
+     },
+     "refused_strings": {
+      "failures": 0,
+      "files": "<code>",
+      "kinds": {
+       "equal": 0,
+       "inside": 0,
+       "name_word": 0
+      },
+      "passed": true,
+      "strings": 16
+     },
+     "refused_terms": {
+      "failures": 0,
+      "files": "<code>",
+      "kinds": {
+       "equal": 0,
+       "inside": 0,
+       "name_word": 0
+      },
+      "passed": true,
+      "terms": 13
+     },
+     "template": {
+      "error": null,
+      "files": "<code>",
+      "passed": true
+     },
+     "term_floor": {
+      "failures": 0,
+      "passed": true,
+      "terms": 13
+     },
+     "value_floor": {
+      "entity_ids": 0,
+      "failures": 0,
+      "passed": true,
+      "spellings": 4
+     }
+    },
+    "kind": "onboard_check",
+    "pack": "msha_c3",
+    "passed": true,
+    "schema_version": 1
+   },
+   "controls": {
+    "label_names": {
+     "placeholders": 0,
+     "refused": 0,
+     "terms": 5
+    },
+    "majority_prior": {
+     "code": "D-001",
+     "predicate": "fall_of_roof_or_back"
+    },
+    "permuted_labels": {
+     "placeholders": 3,
+     "terms": 3
+    }
+   },
+   "counts": {
+    "rows": 271,
+    "test_rows_with_narrative": 100,
+    "training_mines": 4,
+    "training_rows_with_narrative": 171
+   },
+   "draft": {
+    "categories": {
+     "below_floor": 0,
+     "other": 1,
+     "passing_floor": [
+      {
+       "label": "FALL OF ROOF OR BACK",
+       "predicate": "fall_of_roof_or_back",
+       "records": 52,
+       "sites": 4
+      },
+      {
+       "label": "HANDLING OF MATERIALS",
+       "predicate": "handling_of_materials",
+       "records": 52,
+       "sites": 4
+      },
+      {
+       "label": "SLIP OR FALL OF PERSON",
+       "predicate": "slip_or_fall_of_person",
+       "records": 52,
+       "sites": 4
+      },
+      {
+       "label": "NO VALUE FOUND",
+       "predicate": "other_category",
+       "records": 15,
+       "sites": 4
+      }
+     ],
+     "refused": 0,
+     "specific": 3
+    },
+    "dates": {
+     "format": "M/D/YYYY",
+     "rejected": 0
+    },
+    "entity_types": [],
+    "export": {
+     "blank_lines": 0,
+     "columns": 57,
+     "encoding": "utf-8",
+     "format": "pipe",
+     "rejected": {},
+     "rows": 271
+    },
+    "other_bucket_rows": 15,
+    "other_bucket_share": 0.0877,
+    "placeholders": 0,
+    "predicates": [
+     {
+      "code": "D-001",
+      "first_terms": [
+       "bolter",
+       "rock",
+       "roof",
+       "brow"
+      ],
+      "id": "fall_of_roof_or_back",
+      "label": "FALL OF ROOF OR BACK",
+      "records": 52,
+      "refused_assignable": 0,
+      "terms": 4
+     },
+     {
+      "code": "D-002",
+      "first_terms": [
+       "strained",
+       "pallet",
+       "lifting",
+       "carrying",
+       "carrying strained"
+      ],
+      "id": "handling_of_materials",
+      "label": "HANDLING OF MATERIALS",
+      "records": 52,
+      "refused_assignable": 0,
+      "terms": 5
+     },
+     {
+      "code": "D-003",
+      "first_terms": [
+       "walkway",
+       "slipped",
+       "stairs",
+       "icy"
+      ],
+      "id": "slip_or_fall_of_person",
+      "label": "SLIP OR FALL OF PERSON",
+      "records": 52,
+      "refused_assignable": 0,
+      "terms": 4
+     }
+    ],
+    "refusal": {
+     "assignable": 0,
+     "categories": 0,
+     "category_rows": [],
+     "rows": 0,
+     "share": 0.0,
+     "terms": 0,
+     "with_minimum": 0,
+     "within_cap": 0
+    },
+    "refused_entity_values": 0,
+    "roles": {
+     "declared": {
+      "category": "CLASSIFICATION",
+      "date": "ACCIDENT_DT",
+      "narrative": "NARRATIVE",
+      "record_id": "DOCUMENT_NO",
+      "site": "MINE_ID"
+     },
+     "inferred": {
+      "category": "CLASSIFICATION",
+      "date": "ACCIDENT_DT",
+      "narrative": "NARRATIVE",
+      "record_id": "DOCUMENT_NO",
+      "site": "MINE_ID"
+     },
+     "of": 5,
+     "right": 5
+    },
+    "rows_without_specific": 15,
+    "terms": {
+     "candidates": 417,
+     "eligible": 35,
+     "max": 5,
+     "median": 4,
+     "min": 4,
+     "refused": 0,
+     "total": 13
+    },
+    "training": {
+     "corpus": 171,
+     "rows": 171,
+     "window": [
+      "2015-01-01",
+      "2021-12-31"
+     ],
+     "without_narrative": 0
+    }
+   },
+   "file_sha256": "600bea7cb02852a45aec2273aebe674b5b30e18622f6571a08f8ba040d2c3030",
+   "label_in_text": 0,
+   "label_in_text_share": 0.0,
+   "pack": {
+    "files": "<code>",
+    "hashes": {
+     "config_hash": "8b9bd6828cdb3ee505d120f0f5b3311a00ee66df3c50fbe9bf1d8c03e0e10a3e",
+     "detector_hash": "39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416",
+     "fixtures_hash": "5f9f56fe45c5ac80a02c848a89634240fd60bce5c8fa62bfe191ef5c784ad33b",
+     "vocabulary_hash": "5ae0b1e39ba46a2d29b0786033618cd851aeed6e58ffd3380c6d2f8e77f36f8c"
+    },
+    "id": "msha_c3",
+    "loader": {
+     "error": null,
+     "passed": true
+    }
+   },
+   "reader_rejected": {
+    "drafted": 0,
+    "label_names": 0,
+    "permuted_labels": 0
+   },
+   "readers": {
+    "drafted": {
+     "coverage": 1.0,
+     "macro": {
+      "B": 10000,
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "f1": 1.0,
+      "pairs": 3,
+      "seed": "d001:boot:msha",
+      "undefined": 0
+     },
+     "micro": {
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 18,
+      "undefined": 0
+     },
+     "records": 18
+    },
+    "label_names": {
+     "coverage": 0.0,
+     "macro": {
+      "B": 10000,
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "f1": 0.0,
+      "pairs": 3,
+      "seed": "d001:boot:msha",
+      "undefined": 0
+     },
+     "micro": {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "f1": 0.0,
+      "fn": 18,
+      "fp": 0,
+      "precision": null,
+      "recall": 0.0,
+      "tp": 0,
+      "undefined": 0
+     },
+     "records": 18
+    },
+    "majority_prior": {
+     "coverage": 1.0,
+     "macro": {
+      "B": 10000,
+      "ci_high": 0.2381,
+      "ci_low": 0.0667,
+      "f1": 0.1667,
+      "pairs": 3,
+      "seed": "d001:boot:msha",
+      "undefined": 0
+     },
+     "micro": {
+      "ci_high": 0.5556,
+      "ci_low": 0.1111,
+      "f1": 0.3333,
+      "fn": 12,
+      "fp": 12,
+      "precision": 0.3333,
+      "recall": 0.3333,
+      "tp": 6,
+      "undefined": 0
+     },
+     "records": 18
+    },
+    "permuted_labels": {
+     "coverage": 0.0,
+     "macro": {
+      "B": 10000,
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "f1": 0.0,
+      "pairs": 3,
+      "seed": "d001:boot:msha",
+      "undefined": 0
+     },
+     "micro": {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "f1": 0.0,
+      "fn": 18,
+      "fp": 0,
+      "precision": null,
+      "recall": 0.0,
+      "tp": 0,
+      "undefined": 0
+     },
+     "records": 18
+    }
+   },
+   "sample": {
+    "drawn": 18,
+    "eligible": 18,
+    "in_training": 82,
+    "no_record_id": 0,
+    "no_specific": 0,
+    "repeated_in_test": 0,
+    "repeated_record_id": 0,
+    "test_rows": 100,
+    "with_narrative": 100
+   }
+  }
+ },
+ "criterion": {
+  "best_control": "majority_prior",
+  "ci_high": 0.7963,
+  "ci_low": 0.537,
+  "diff": 0.6667,
+  "exact": {
+   "ci_high": 0.7962962962962963,
+   "ci_low": 0.537037037037037,
+   "comparisons": {
+    "ci_low > 0": true,
+    "diff >= 0.1": true
+   },
+   "diff": 0.6666666666666666,
+   "diff_fraction": "2/3"
+  },
+  "id": "C1",
+  "margin": 0.1,
+  "passed": true,
+  "reason": null,
+  "refusal": {
+   "assignable": 2,
+   "categories": 0,
+   "companies": 3,
+   "corpus": 549,
+   "label_parts": 0,
+   "rows": 0,
+   "share": 0.0,
+   "terms": 2,
+   "with_minimum": 0,
+   "within_cap": 2
+  }
+ },
+ "definitions": {
+  "ACCIDENT_DT": [
+   "ACCIDENT_DT\tThe accident date, mm/dd/yyyy."
+  ],
+  "ACCIDENT_TYPE": [],
+  "CLASSIFICATION": [
+   "CLASSIFICATION\tThe circumstances."
+  ],
+  "CLOSED_DOC_NO": [],
+  "CONTRACTOR_ID": [],
+  "CONTROLLER_ID": [],
+  "CONTROLLER_NAME": [],
+  "DOCUMENT_NO": [
+   "DOCUMENT_NO\tThe document number of the accident."
+  ],
+  "FIPS_STATE_CD": [],
+  "MINE_ID": [
+   "MINE_ID\tThe mine."
+  ],
+  "NARRATIVE": [
+   "NARRATIVE\tWhat happened.",
+   "In words."
+  ],
+  "OPERATOR_ID": [],
+  "OPERATOR_NAME": []
+ },
+ "errors": [],
+ "experiment": "D002",
+ "exports_dir": "<path>",
+ "kind": "onboard_d001_arm",
+ "matched": null,
+ "pooled": {
+  "differences": {
+   "label_names": {
+    "B": 10000,
+    "ci_high": 1.0,
+    "ci_low": 1.0,
+    "diff": 1.0,
+    "exact_diff": 1.0,
+    "f1_a": 1.0,
+    "f1_b": 0.0,
+    "method": "paired percentile",
+    "n": 54,
+    "seed": "d001:boot:msha",
+    "undefined": 0
+   },
+   "majority_prior": {
+    "B": 10000,
+    "ci_high": 0.7963,
+    "ci_low": 0.537,
+    "diff": 0.6667,
+    "exact_diff": 0.6667,
+    "f1_a": 1.0,
+    "f1_b": 0.3333,
+    "method": "paired percentile",
+    "n": 54,
+    "seed": "d001:boot:msha",
+    "undefined": 0
+   },
+   "permuted_labels": {
+    "B": 10000,
+    "ci_high": 1.0,
+    "ci_low": 1.0,
+    "diff": 1.0,
+    "exact_diff": 1.0,
+    "f1_a": 1.0,
+    "f1_b": 0.0,
+    "method": "paired percentile",
+    "n": 54,
+    "seed": "d001:boot:msha",
+    "undefined": 0
+   }
+  },
+  "label_in_text_share": 0.0,
+  "readers": {
+   "drafted": {
+    "coverage": 1.0,
+    "macro": {
+     "B": 10000,
+     "ci_high": 1.0,
+     "ci_low": 1.0,
+     "f1": 1.0,
+     "pairs": 9,
+     "seed": "d001:boot:msha",
+     "undefined": 0
+    },
+    "micro": {
+     "ci_high": 1.0,
+     "ci_low": 1.0,
+     "f1": 1.0,
+     "fn": 0,
+     "fp": 0,
+     "precision": 1.0,
+     "recall": 1.0,
+     "tp": 54,
+     "undefined": 0
+    },
+    "records": 54
+   },
+   "label_names": {
+    "coverage": 0.0,
+    "macro": {
+     "B": 10000,
+     "ci_high": 0.0,
+     "ci_low": 0.0,
+     "f1": 0.0,
+     "pairs": 9,
+     "seed": "d001:boot:msha",
+     "undefined": 0
+    },
+    "micro": {
+     "ci_high": 0.0,
+     "ci_low": 0.0,
+     "f1": 0.0,
+     "fn": 54,
+     "fp": 0,
+     "precision": null,
+     "recall": 0.0,
+     "tp": 0,
+     "undefined": 0
+    },
+    "records": 54
+   },
+   "majority_prior": {
+    "coverage": 1.0,
+    "macro": {
+     "B": 10000,
+     "ci_high": 0.2107,
+     "ci_low": 0.1124,
+     "f1": 0.1667,
+     "pairs": 9,
+     "seed": "d001:boot:msha",
+     "undefined": 0
+    },
+    "micro": {
+     "ci_high": 0.463,
+     "ci_low": 0.2037,
+     "f1": 0.3333,
+     "fn": 36,
+     "fp": 36,
+     "precision": 0.3333,
+     "recall": 0.3333,
+     "tp": 18,
+     "undefined": 0
+    },
+    "records": 54
+   },
+   "permuted_labels": {
+    "coverage": 0.0,
+    "macro": {
+     "B": 10000,
+     "ci_high": 0.0,
+     "ci_low": 0.0,
+     "f1": 0.0,
+     "pairs": 9,
+     "seed": "d001:boot:msha",
+     "undefined": 0
+    },
+    "micro": {
+     "ci_high": 0.0,
+     "ci_low": 0.0,
+     "f1": 0.0,
+     "fn": 54,
+     "fp": 0,
+     "precision": null,
+     "recall": 0.0,
+     "tp": 0,
+     "undefined": 0
+    },
+    "records": 54
+   }
+  },
+  "records": 54
+ },
+ "schema_version": 1,
+ "settings_sha256": "8bb9ba6ab9c8d4dca14ac86aa8df89f8cd1926b5355b9908ec3b71020c42c0e5",
+ "source": {
+  "arm": "msha",
+  "controllers": 4,
+  "date_format": "M/D/YYYY",
+  "downloads": [
+   {
+    "bytes": 445989,
+    "file": "Accidents.zip",
+    "sha256": "a3641432636c96f870ce27e0f17584564a4968d39e32aa46f549781c3f743cb5"
+   },
+   {
+    "bytes": 183,
+    "file": "Accidents_Definition_File.txt",
+    "sha256": "d5b8abeebdf10953205dbc0bd8fc7e8d95e198216ea7ad76e3fe3b90f1c39121"
+   }
+  ],
+  "header": {
+   "columns": 57,
+   "missing_expected": [],
+   "unexpected": []
+  },
+  "member_encoding": "utf-8",
+  "qualifying": 3,
+  "rejected": {
+   "wrong_width": 1
+  },
+  "rows": 1078,
+  "rows_without_controller": 0,
+  "used": 3
+ }
+}

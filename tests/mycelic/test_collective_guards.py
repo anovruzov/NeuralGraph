@@ -1748,7 +1748,7 @@ class DomainLiteralTests(unittest.TestCase):
 
 ONBOARD_DIR = ROOT / "mycelic" / "collective" / "onboard"
 ONBOARD_SETTINGS = tuple(ROOT / "docs" / "collective" / "onboard" / f"{name}-settings.json"
-                         for name in ("D001", "D002"))
+                         for name in ("D001", "D002", "D003"))
 # what the pack drafter may never import: any inference module, the model extractor and every model client (it reads
 # no model; its readers are the lexical extractor)
 ONBOARD_FORBIDDEN = ("mycelic.collective.inference", "mycelic.collective.edge.extract.ModelExtractor", "openai",
@@ -1756,9 +1756,10 @@ ONBOARD_FORBIDDEN = ("mycelic.collective.inference", "mycelic.collective.edge.ex
 
 
 def onboard_column_terms() -> set[str]:
-    """M1's terms: every column name in ``D001-settings.json`` and ``D002-settings.json`` (both arms' columns and every
-    declared role), with and without a trailing ``[]``, less the loader's reserved words (the pipeline's own record
-    fields, such as ``reporter``)."""
+    """M1's terms: every column name in ``D001-settings.json``, ``D002-settings.json`` and, since D003 (whose M1 names
+    D001's, D002's and its own columns), ``D003-settings.json`` (every arm's columns and every declared role), with
+    and without a trailing ``[]``, less the loader's reserved words (the pipeline's own record fields, such as
+    ``reporter``)."""
     from mycelic.collective.packs.loader import RESERVED
     names: set[str] = set()
     for path in ONBOARD_SETTINGS:
