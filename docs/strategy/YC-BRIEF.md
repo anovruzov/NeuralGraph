@@ -22,6 +22,7 @@ cross-unit detection would have flagged those issues earlier than chance (`docs/
 | Site pipeline: in-boundary reading, k-suppressed cells, the Boundary validator | Built and tested | `mycelic/collective/edge/` |
 | HQ detectors, pushdown questions, commit gate, follow-up drafts with owner approval | Built and tested | `mycelic/collective/` |
 | Packs: the same code in four fields with data-only configuration | Device complaints, insurance claims, IT incidents, vehicle complaints. The IT-incidents pack was added with 0 lines of code changed: 13 data files, loaded 11 minutes after the start (AI agent wall clock, same author as the code; internal, not a buyer claim). The vehicle pack was built by rule from public NHTSA data | `docs/collective/PACKS.md`, `docs/collective/x3/effort.json` |
+| Pack drafter: a pack drafted from any export (CSV, pipe, tab or JSON lines) by the same code for every field, learning its vocabulary from the export's own filed categories, with a privacy floor on what it learns | Built and tested; passed its pre-registered real-data test D002 on its second rule | `mycelic/collective/onboard/`, `docs/collective/onboard/CHOICE-D002.md` |
 | Signal audit (the pilot) with a chance baseline and a power check before any replay | Built and tested | `docs/collective/PILOT.md`, `docs/collective/POWER.md` |
 | Cloud lab: pre-registered runs of small models on shared CPU runners | Nine runs recorded | `docs/lab/RESULTS.md` |
 | Routing layer: per-site NeuralGraph and Tesseract behind the Boundary, routing HQ's questions | Research spike, not in the product path | `docs/collective/ROUTING-SPIKE.md` |
@@ -30,6 +31,7 @@ cross-unit detection would have flagged those issues earlier than chance (`docs/
 
 | Question | Result | Source |
 |---|---|---|
+| Does a new field need new code? | No, on public data. In D002 the same code drafted a pack for each of 5 mine operators (MSHA accident reports, a field no pack covered) and 6 vehicle makes. On held-out later years the drafted packs matched the filed categories with micro F1 0.559 against 0.344 for the best control, and 0.590 against 0.406 for our hand-built vehicle pack. D001, the first rule, crashed on MSHA's quoted fields before reading anything; that is recorded | `docs/collective/onboard/CHOICE-D002.md`; RESULTS (outside the lab) |
 | Does raw text stay inside a unit? | Yes, in the canary scan with a small model reading every record: 0 of 4,259 planted markers crossed; the positive control was hit 884 times. Text only: the counts themselves can reveal whether a known complaint is at a site | RESULTS run 8; `docs/collective/LEAKAGE.md` |
 | Do small models read real complaints better than a word list? | No. On 150 public vehicle complaints, predicate F1 was 0.03, 0.18 and 0.22 for the three models, against 0.43 for word matching | RESULTS run 7; `CHOICE-R002.md` |
 | Can small models answer HQ's narrow question at a site (does this complaint describe this component)? | No. On the same 150 complaints, balanced accuracy 0.50, 0.48 and 0.39 against 0.67 for the word-matching judge; 0.5 is a judge that always answers the same. The two smaller models say yes to nearly everything; the largest tells filed from unfiled components but answers "unclear" instead of "no" | RESULTS run 9; `CHOICE-J001.md` |
@@ -41,6 +43,9 @@ cross-unit detection would have flagged those issues earlier than chance (`docs/
 What this means for the pitch:
 - The **privacy architecture** is demonstrated: text stays in, counts and verdicts go out, and every conclusion is
   traceable.
+- **Generalization is measured, not claimed:** a pack drafted from an export alone read a new field's real records
+  well above chance and beat our hand-built pack in the old field. Onboarding a company's own export is a drafting run,
+  not a coding project. It measures reading against filed categories, not early warning.
 - **Detection value is unproven**, and public data cannot prove it: it is too thin for these detectors. Only a
   company's own records can answer the question. That is why the first product is the audit.
 - **Small models are the privacy and cost choice, not yet the accuracy choice.** On public complaint text they read
@@ -61,15 +66,21 @@ What this means for the pitch:
 ## 5. The demo
 
 STRATEGY 9.1 bars synthetic-fixture results from the YC screen, and the recorded console run shows such results
-(`demo/collective/README.md`). Three options, in order of strength:
+(`demo/collective/README.md`). Four options, in order of strength:
 
 1. **The signal audit on a design partner's export, run inside their walls** (best). It needs one partner: an export
    of complaints or nonconformances with their past CAPAs. The output is two answers with a chance baseline and a
    review list. A "no" is cheap for both sides and still a result.
-2. **The recorded console run, labelled fictional.** It shows the whole loop on a fictional six-plant company: the
+2. **The pack drafter on public data, live** (real records, so 9.1's bar on synthetic fixtures does not apply; the
+   founder decides). Point it at MSHA's public accident file: it drafts a pack for each mine operator it has never seen
+   (D002's MSHA arm took 89 s for five operators on a shared runner, scoring and intervals included), shows the terms it learned (for example
+   `roof fall` for fall of roof, `pneumoconiosis` for dust disease) and scores the operator's later years against the
+   filed categories (D002: 0.56 F1 against 0.34 for the best control). It shows generality and speed on real records.
+   It is not detection, and it should be shown with that label.
+3. **The recorded console run, labelled fictional.** It shows the whole loop on a fictional six-plant company: the
    alert, the narrow question, the verdicts, the gate, the CAPA draft and its approval. It needs the founder to change
    STRATEGY 9.1 or keep it internal (`python demo/collective/collective_demo.py --replay`).
-3. **The research record as proof of rigour:** pre-registered tests, negative results kept, every number traced to a
+4. **The research record as proof of rigour:** pre-registered tests, negative results kept, every number traced to a
    job log. This is not a product demo, but it answers "how do you know it works" honestly.
 
 ## 6. The pilot offer

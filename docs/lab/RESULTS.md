@@ -338,6 +338,29 @@ refute) would put a-4b at 0.700; it decides nothing (`CHOICE-J001.md`, Runs). Th
 specificity come from its answer counts (57 of 150 positives confirmed, 6 of 150 negatives). Judge calls are short:
 the slowest model's median was 9.0 s, against 25.8 s for an extraction call in run 7.
 
+## Outside the lab: D001 and D002 (a pack drafted from an export alone, real data): passed on the second rule
+
+Not lab runs: the `onboard-run` workflow downloads MSHA's mine-accident file and NHTSA's complaint file, drafts a pack
+per company from that company's own export (no code per field), and reads the later years with it. Rules:
+`docs/collective/onboard/CHOICE-D001.md` and `CHOICE-D002.md`. Public data; the answer key is each record's filed
+category, not checked labels; the reader is the lexical extractor, not a model.
+
+- **D001** ([run 38017322304](https://github.com/anovruzov/NeuralGraph/actions/runs/38017322304)): **failed** after the
+  downloads, at the MSHA split. MSHA's pipe-delimited file quotes every field, and D001's rule split pipe files with no
+  quoting, so no date parsed. Nothing was read. By its rule that crash is D001's result.
+- **D002** ([run 38024536763](https://github.com/anovruzov/NeuralGraph/actions/runs/38024536763), commit `9070788`,
+  `report.md` sha256 `a068c323be5d…`): D001 with quoted fields parsed for every delimiter and the run starting after the
+  splits. **Passed all six criteria.**
+
+| Arm | Drafted micro F1 [95%] | Comparator | Comparator F1 | Difference [95%] |
+|---|---|---|---|---|
+| MSHA, 5 mine operators, 1,000 held-out records (2022-2024) | 0.559 [0.532, 0.586] | best record-blind or label-blind control (majority prior) | 0.344 | +0.215 [0.173, 0.257] |
+| NHTSA, 6 makes, 1,198 held-out records (2023-2024) | 0.590 [0.568, 0.611] | hand-built vehicle pack `pack/`, matched label space | 0.406 | +0.184 [0.157, 0.212] |
+
+11 packs drafted and loaded, all 11 passed the privacy floor, no product code differed between the two fields, and the
+pilot audit ran on a drafted pack. The whole job took under nine minutes on one shared runner. Limits: these companies'
+records only; `pack/` is mostly a list of component names; nothing here measures detection or early warning.
+
 ## Outside the lab: public replay V001 (vehicle complaints, model-free, real data)
 
 Not a lab run: the `vehicle-replay` workflow runs the pilot audit (`docs/collective/PILOT.md`) on two years of FORD's

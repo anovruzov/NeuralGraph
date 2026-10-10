@@ -208,4 +208,59 @@ source.
 
 ## Runs
 
-None yet.
+### Run 1: run-002, 2026-10-10 (the result): passed, all six criteria
+
+[Run 38024536763](https://github.com/anovruzov/NeuralGraph/actions/runs/38024536763), run file
+`docs/collective/onboard/run-002.json`, commit `9070788`, settings sha256 `8bb9ba6ab9c8…`, 04:34 to 04:43 UTC. Every
+step finished: offline tests 26 s, downloads 3 s, both splits 27 s, then `RUN-START`, the MSHA arm 89 s, the NHTSA arm
+358 s, the pilot audit 4 s and the report 7 s. `report.md` sha256 `a068c323be5d…` (printed between the D002 markers,
+checked against its 328 lines). The log tool returned only the last 5,000 of the job's 9,956 log lines, so
+`report.json`'s block was cut at its start and is not quoted here; every number below is from `report.md`.
+
+**Verdict: pass.** D002 passes only if all six criteria pass, and all six did.
+
+| Criterion | Result |
+|---|---|
+| C1 (MSHA, the field no pack covers) | Drafted micro F1 0.559 [0.532, 0.586] against the best control, the majority prior, 0.344. Difference 0.215 (403/1875) [0.173, 0.257]: at least 0.10, lower end above 0 |
+| C2 (NHTSA, against `pack/`) | In the matched label space, drafted 0.590 against the hand pack's 0.406 on 1,198 records. Difference 0.184 [0.157, 0.212]: lower end above -0.05, and above 0 (superior, which decides nothing) |
+| M1 | No column name of either source in the onboard package; no filed label equal to one; one code commit and one set of code files for both arms. The per-source download code is 902 lines |
+| M2 | 11 packs drafted (5 MSHA companies, 6 makes), 11 loaded |
+| M3 | 11 packs passed the privacy floor; the last guard was clean |
+| M4 | The pilot audit ran end to end on c1's drafted pack: 1,033 records, 10 sites, 139 weeks, a review list of 4 |
+
+Each arm, pooled over its companies:
+
+| Arm | Reader | Micro F1 [95%] | Macro F1 | Coverage |
+|---|---|---|---|---|
+| MSHA (1,000 records) | drafted | 0.559 [0.532, 0.586] | 0.499 | 0.709 |
+| | majority prior | 0.344 [0.315, 0.373] | 0.088 | 1.000 |
+| | label names | 0.046 [0.029, 0.064] | 0.036 | 0.094 |
+| | permuted labels | 0.008 [0.002, 0.016] | 0.004 | 0.011 |
+| NHTSA (1,200 records) | drafted | 0.590 [0.568, 0.611] | 0.395 | 0.840 |
+| | label names | 0.405 [0.380, 0.430] | 0.284 | 0.476 |
+| | majority prior | 0.206 [0.186, 0.226] | 0.020 | 1.000 |
+| | permuted labels | 0.002 [0.000, 0.006] | 0.001 | 0.002 |
+
+- **Per company,** drafted F1 against the best control: MSHA c1 0.568 / 0.360, c2 0.604 / 0.355, c3 0.558 / 0.260, c4
+  0.530 / 0.320, c5 0.532 / 0.425. NHTSA drafted F1: CHEVROLET 0.623, DODGE 0.661, FORD 0.615, HONDA 0.537, JEEP 0.569,
+  NISSAN 0.529. Against `pack-v2/` (reported only): 0.609 against 0.422.
+- **Label echo:** 0.2% of the sampled MSHA narratives hold their own filed label, against 33.8% for NHTSA. On MSHA the
+  drafted lexicon is not reading the label back.
+- **The refusal** removed no category in either arm. It refused 11 floor-passing MSHA terms (none would have been
+  assigned) and 666 NHTSA terms (30 would have been assigned, 9 within the 50-term cap).
+- **The learned terms read as the categories would suggest,** for example `pneumoconiosis` and `cwp diagnosis` for
+  dust disease of the lungs, `roof fall` and `unplanned roof` for fall of roof or back, `torque converter` and
+  `shifting` for the power train. Some predicates learned no term and got a placeholder: 3 MSHA predicates (one per
+  company in c3, c4 and c5) and 30 NHTSA ones.
+
+**What it shows.** A pack drafted only from an export's own history, with no code written for the field, read the
+held-out later years of five mine operators' accident narratives better than the majority prior by 0.215 F1, and read
+six makes' vehicle complaints better than the hand-built vehicle pack by 0.184 F1. The drafting took seconds per
+company; the whole job took under nine minutes on one shared runner.
+
+**What it does not show.** The answer key is the filed category, not checked labels. The reader is the lexical
+extractor, not a model. The intervals cover these companies' sampled records only. `pack/` is mostly a list of
+component names, so beating it means beating that list. Nothing here measures detection, early warning, or how the
+drafted packs behave in the collective pipeline beyond M4's single audit run. The drafter needs a category column with
+history; a company without filed categories has nothing for it to learn from.
+
