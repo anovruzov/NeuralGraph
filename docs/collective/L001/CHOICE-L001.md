@@ -14,6 +14,10 @@ under. This rule is committed alone, before any code is written for it and befor
 How the lab will run it (a new experiment kind, `l1`, on J001's pattern) goes in `BUILD-L001.md`, which is written
 after this rule.
 
+**Amended before any run, on 2026-10-10.** The section of that name, just before "Runs", changes rules 2 to 13, the
+settings, "How it is read", the traps and "What it does not show" (K1 to K13). It was written after a review, before
+any of L001's code and before any of L001's data was read. Where it disagrees with the text above it, it wins.
+
 ## The declaration
 
 - The rule was written by the AI system that wrote this repository's code.
@@ -417,6 +421,457 @@ after this rule.
 - How a judge does when it sees the codes, as the product's payload has them.
 - Whether a larger model or a hosted model would answer better.
 - Anything about a synthetic world, since none is run.
+
+## Amended before any run, 2026-10-10
+
+No L001 code exists, nothing has been fetched for L001, and no judge has run. A review of this rule against the code
+found two gaps that would let the headline read wrongly, and ten smaller ones. The changes are K1 to K13, numbered
+apart from D001's A1 to A14, D002's B1 and B2 and D003's E1 to E18. Each says what was, what is now, and why. Where
+the text above disagrees with this section, this section wins.
+
+The declaration still holds. Since the rule was committed, its author has read the code and the lab files that each
+item cites, and the demo's recorded file again, which the declaration already lists. No figure here comes from L001's
+data, which no one has read.
+
+### K1. Each question goes to its own key's mines (rules 3 and 5; "How it is read"; trap 4)
+
+- **Was:**
+  - Rule 3 said the control questions "ask the same mines about the same records" as the alert question, so their
+    answers hold refutes as well as confirms.
+  - Rule 5 said the record-blind control "is what the alert alone tells HQ". "How it is read" said it "shows what the
+    alert alone gives".
+  - Trap 4 said the control questions are there to supply refutes.
+- **Why that is wrong:**
+  - The orchestrator routes every question, a control question included, from that question's own key (`_routes` in
+    `pushdown/orchestrator.py`, which `_verify` calls for every question). `constructed_candidate` takes no routes,
+    and no pinned function sends a question to another key's mines.
+  - The contributing mines are those with a cell of the question's key in the window, visible at `as_of`, in the run
+    channel's cell channels. For X these are `codes` and `text_only` (ARCHITECTURE 15.3).
+  - A mine sends a cell for every key with a record in the week, a suppressed count included (`build_cells` in
+    `edge/site.py`). So one record makes a mine contributing.
+  - The siblings are the first `max_sibling_sites` (2) other mines by the entity's lower-bound cell volume, over the
+    span from `baseline_weeks` before the window to its end. The entity is `ALL`, which every cell names, so this is
+    each mine's volume of all its cells there. A sibling need not have a record in the window.
+  - So a control question about a predicate p goes mostly to mines that filed a record under p in the window, or
+    whose narratives matched p's drafted terms. There the key mostly confirms. The control questions do not ask the
+    alert's mines.
+  - At a mine that two questions both reach, the records read are the same ("What the code allows", item 3). What
+    differs between the questions is which mines are asked.
+  - The record-blind control confirms the alert question and refutes every control question, at each mine with
+    records. At a control question's contributing mines it is wrong wherever the key confirms. It is not what the
+    alert alone tells HQ.
+- **Now:**
+  - **Rule 3's reason for the controls** reads: each question, alert or control, goes to the mines with a `codes` or
+    `text_only` cell of its own key in the window, and to at most 2 siblings chosen by cell volume. The key's refutes
+    then come only from siblings with records in the window and from mines that sent only `text_only` cells of the
+    key (K2). The control questions add site answers, confirms and refutes alike. They are not asked of the alert's
+    mines.
+  - **The plan job counts**, before any model runs and for each question:
+    - the routed mines by role, contributing or sibling;
+    - the contributing mines by the channels of their cells of the key (K2's strata);
+    - the siblings with a record in the window, and those without.
+
+    These counts and every question's routes are preregistered. Every judge's path must give each question the same
+    id and the same routes, or the plan job or the unit refuses.
+  - **The record-blind control** stays, and it decides nothing. It is a judge that answers by which question it was
+    asked, never by the record: the alert question yes, every control question no. It answers one way per question,
+    so it cannot score above the predicate-only bound. What HQ's routes alone give is K2's route-role baseline.
+  - Trap 4 is replaced (see "Traps, as amended").
+
+### K2. The route-role baseline, three strata, and the lexical judge by construction (rules 5, 7, 8 and 10)
+
+- **Was:** The lexical judge was the only comparator. The record-blind control and the predicate-only bound sat beside
+  it, and the site answers were scored as one pool.
+- **Why that fails:** With K1's routing, HQ's cells fix both the key and the lexical judge at most mines, before any
+  record is read.
+  - **The key.** Every record in the window names `ALL`, so a mine retrieves all of them, newest first, up to
+    `verify_max_records` (500). The key judge confirms at a mine when one of them was filed under p. A record filed
+    under p in the window is also what makes the mine send a `codes` cell of the key there. So the key confirms where
+    a mine sent a `codes` cell of the key, and refutes at every other mine with records.
+  - **The lexical judge, with the codes hidden** (`lexical_judge` in `edge/verify.py`). It answers `mentions_entity`
+    yes on every record, because the structured `ALL` always resolves (`codes_channel`). With no codes, `pair` joins
+    every text predicate the extractor affirms with `ALL` (`edge/extract.py`). So it confirms at a mine when one
+    narrative affirms p under the drafted terms.
+  - **The `text_only` cells** come from the same extraction at the mine's ingest: C_text less C_codes, with negated
+    claims dropped (`pair`). The mine extracts from the whole narrative, and the judge reads it cut at
+    `max_input_chars`. That cut is the only difference.
+  - **So, at each kind of mine:**
+    - A mine that sent only `text_only` cells of the key holds no record filed under p and a narrative that affirms
+      p. The key refutes and the lexical judge confirms: wrong by construction.
+    - A sibling with records sent no cell of the key, so it holds neither. Both refute: right by construction.
+    - At a mine that sent a `codes` cell, the key confirms. The lexical judge confirms too when the mine also sent a
+      `text_only` cell. Otherwise it confirms only when a record filed under p also affirms p in its text, which no
+      cell shows.
+
+    Each "by construction" holds up to three exceptions: the narrative's cut, the cap of 500 records, and records
+    outside the pack's languages.
+  - **A reader HQ already has.** It confirms at a contributing mine and refutes at a sibling, and reads no record. It
+    is right at every key confirm, and it agrees with the lexical judge at every key refute, with the same exceptions.
+    So it is no worse than the lexical judge on sensitivity, specificity or balanced accuracy, up to those
+    exceptions.
+  - **What follows:**
+    - The lexical judge's specificity is set by routing, up to those exceptions: the scored siblings, over the scored
+      siblings plus the mines that sent only `text_only` cells.
+    - So the sign of a model's difference from the lexical judge can follow the mix of routes, not reading.
+    - A model could be "better than the lexical judge" and still be below a reader that reads nothing.
+    - Neither the record-blind control nor the predicate-only bound uses the route, so neither shows this.
+  - **The key is HQ's own cells.** A reader of HQ's `codes`-channel cells would equal the key. So the correctness half
+    of L001 measures whether a reader recovers the filed category from the narratives alone, with the codes hidden. It
+    does not measure whether HQ gains an answer it lacks.
+- **Now:**
+  - **The route-role baseline** joins rule 5.
+    - It is a fake runtime at each mine that never reads a record. At a mine routed as contributing for the question,
+      it answers yes and yes on every record. At a sibling, it answers yes and no.
+    - It runs through the same path as every judge, in the plan job, on its own fresh stores (K4), before any model
+      runs. Its verdicts, gate results and scores are preregistered.
+    - Like every judge, it answers `unknown` at a mine with no record.
+    - It decides the headline, beside the lexical judge (K3).
+  - **Three strata,** fixed by HQ's cells before any model runs (K1's counts). For each question, a routed mine is one
+    of these:
+    - a *codes contributor*: contributing, with a `codes` cell of the key in the window, whatever `text_only` cells it
+      also sent;
+    - a *text-only contributor*: contributing, with only `text_only` cells of the key in the window;
+    - a *sibling*.
+  - **Rule 10 adds, for every judge** (each model, the lexical judge, the key, the record-blind control and the
+    route-role baseline), its site answers in each stratum:
+    - the counts of `confirm`, `refute` and `unknown`;
+    - among the scored answers, how many equal the key's;
+    - sensitivity over the codes contributors, and specificity over the text-only contributors and over the siblings
+      apart, each with rule 8's interval.
+
+    These decide nothing.
+  - **The plan job checks the construction** before any model runs, and preregisters these counts:
+    - mines where the key does not confirm at a codes contributor, or does not refute at a text-only contributor or
+      at a sibling with records. None is expected; a record filed under p beyond the 500 newest would make one;
+    - mines where the lexical judge does not confirm at a text-only contributor, or does not refute at a sibling with
+      records. None is expected, except through the narrative's cut or a record outside the pack's languages;
+    - the lexical judge's confirms and refutes at codes contributors that sent no `text_only` cell.
+
+    A count above zero is reported, not refused. The strata stay as HQ's cells define them.
+  - "How it is read, as amended" and "Traps, as amended" below say what this means.
+
+### K3. The headline: better than both the lexical judge and the route-role baseline (rule 9; "How it is read")
+
+- **Was:** A model answered better when the interval of its balanced accuracy minus the lexical judge's was above 0.
+  "How it is read" said that this supports a small model inside the mine on this kind of text.
+- **Why:** K2. A model can beat the lexical judge through the mix of routes alone, and still sit below a reader that
+  reads nothing and that HQ already has. "Supports a small model inside the mine" would then be wrong.
+- **Now:**
+  - For each model, two paired differences, over the same scored site answers, with intervals from the same draws
+    (rule 8):
+    - *D_lex*: its balanced accuracy minus the lexical judge's;
+    - *D_route*: its balanced accuracy minus the route-role baseline's.
+  - **The headline, fixed now:**
+    - **answers better**: the lower ends of both intervals are above 0;
+    - **better than the lexical judge only**: the lower end of D_lex's interval is above 0, and that of D_route's is
+      not. This is read as adding nothing over HQ's cells;
+    - **answers worse**: the upper end of D_lex's interval is below 0;
+    - **not told apart**: any other case;
+    - **no verdict**: an interval is withheld (K7), more than 5% of the model's scored site answers are left out
+      (rule 7), or one of its units did not finish (rule 9).
+  - Each model is compared once with each of the two, with no correction for the six comparisons.
+  - Rule 10 shows both comparators, the record-blind control and the predicate-only bound beside each model.
+
+### K4. Fresh stores for every question and judge, and a check on the timed calls (rules 3 and 5)
+
+- **Was:** Every question got a fresh HQ store and fresh mine stores. Each unit also ran the lexical path again on its
+  own runner.
+- **Why that fails:** The stores were fresh for each question, not for each judge.
+  - A mine that has answered a question re-sends its stored verdict, with no budget used and no model call (`_answer`
+    in `edge/verify.py`, `store.verdict_for_question`).
+  - HQ reuses a stored question with its stored routes (`_verify` in `pushdown/orchestrator.py`).
+  - The question id does not depend on the judge.
+  - So if a unit's lexical rerun and its timed model path shared stores, the model path would make no model call,
+    take almost no time and return the lexical judge's verdicts. The same holds in the plan job, for the key judge,
+    the lexical judge and the controls.
+- **Now:**
+  - **Fresh stores for each path.** A path is one judge on one question. Each gets its own fresh HQ store and fresh
+    mine stores, rebuilt by the same pipeline.
+    - In the plan job: the key judge, the lexical judge, the record-blind control and the route-role baseline.
+    - In each unit: the timed model path and the lexical rerun. The timed model path runs on stores that no other
+      judge has touched, and the lexical rerun runs after it.
+  - **The plan job preregisters** each routed mine's retrieved records for each question: their count, read with the
+    codes hidden. Rule 4 already checks that they are the unchanged store's records.
+  - **The unit check.** On the timed path, at every routed mine:
+    - the calls to `Runtime.run`, counted by rule 10's wrapper, must equal the mine's preregistered count of retrieved
+      records;
+    - fewer are allowed only when the verifier stopped early: its verdict is `degraded`, or its ledger shows the
+      breaker's stop after `BREAKER_AFTER` consecutive failures that say the server is down;
+    - at a mine that timed out (K6), the calls are counted when the unit ends, and fewer are allowed if its late
+      thread was still running then;
+    - every call must have at least one `judge_record` row in the mine's ledger.
+
+    A failed check fails the unit, naming the mine and the check. That model's question is then not finished
+    (rule 9).
+
+### K5. The warm-up and the shared prompt cache (rule 6, "Not timed"; trap 7; a new trap)
+
+- **Was:** The server's start and warm-up were not timed. The rule did not say what the warm-up sends.
+- **Why:**
+  - The lab's server keeps its prompt cache. It runs with `--cache-ram` (`server_argv` in `lab/server.py`), and the
+    client never sets `cache_prompt`, so the server's default prompt caching applies (`inference/client.py`).
+  - The judge's prompt is the system text with the task's instructions and schema, then the payload
+    (`render_messages` in `inference/tasks.py`). In the payload's canonical key order, the question part comes before
+    the record.
+  - So on the one server, each mine after the first starts its first call with a cached prefix that holds the whole
+    question part. In the product, each mine's own server would evaluate that prefix once. The lab saves one prefix
+    evaluation for each mine after the first.
+  - A warm-up that sent one of the unit's own payloads would make the first timed call a full cache hit.
+- **Now:**
+  - **The warm-up** sends only judge payloads built from no MSHA record and about no question that a unit asks: a
+    generated record, as J001's warm-up uses (`judge_example` in `lab/warmup.py`), with a question that none of the
+    five asks. Its fit check's worst case is a generated narrative, cut at the drafted pack's `max_input_chars`.
+  - **Rule 6 adds, for each mine,** the latency of its first judge call beside the median of its calls. So the size of
+    the effect can be read.
+  - **Not recorded:** the server's count of cached tokens. The client keeps only the reply's `prompt_tokens` and
+    `completion_tokens` (`inference/client.py`), and no pinned code is changed for it.
+  - **A new trap,** trap 12, says that the question part is cached across mines on the one server.
+
+### K6. One reading of a timeout (rule 4, "Delivery"; rule 6, the stages; rule 7)
+
+- **Was:**
+  - Rule 7 said a timeout is never correct. Rule 4 took the late verdicts in, and rule 7 used "the final decision ...
+    after any late verdicts".
+  - The Gate stage ran "from the last mine's return".
+  - Rule 4 said that a deadline of 3600 s keeps the calls one at a time.
+- **Why:**
+  - It was unclear whether a mine that timed out is scored as the timeout or as its late verdict.
+  - The Gate stage is undefined when the last mine timed out.
+  - By "Why the units are this size", a-4b times out at a mine with more than about 400 records. Its late thread then
+    keeps calling the shared server while the next mines are timed. The product's mines would not share a server.
+- **Now:**
+  - **A site answer is scored as the first decision saw it,** when `verify_stored` or `verify_candidate` returned. A
+    mine that timed out is `unknown` there (HQ's `timeout` record), which is never correct. Its late verdict is
+    reported beside it, and it decides nothing.
+  - **The gate's decision** that is compared with the key's is that first decision. The decision after `collect_late`
+    is reported beside it, and it decides nothing.
+  - **A mine that timed out ends** at its handler's start plus the deadline (3600 s), when the orchestrator stopped
+    waiting for it. *Between mines* after it runs from that end to the next mine's start. *Gate* runs from the last
+    mine's end, so defined, to the call's return.
+  - **Contention is flagged.** A mine whose handler ran while a late thread of the same question was still alive is
+    flagged *contended*. Its times, and its question's time to answer, are reported apart, and any figure that pools
+    them with others is labelled so.
+  - **Rule 4's sentence** now reads: a deadline of 3600 s keeps the calls one at a time until a mine times out.
+
+### K7. A withheld interval gives no verdict, and the plan job checks the draws first (rules 8 and 9)
+
+- **Was:** When more than 5% of the draws had no key confirm or no key refute, the interval was withheld. The rule did
+  not say what the headline then was.
+- **Why:**
+  - It could be read as "not told apart".
+  - The case is likely. The key's refutes come only from scored siblings (at most 2 for each question) and from
+    text-only contributors (K2), over 10 mines. The demo's alert question had 9 contributing mines of 10, so at most 1
+    sibling.
+  - If the refutes sit at 2 of the 10 mines, a draw of 10 mines misses both with probability (8/10)^10, which is 0.107
+    rounded.
+  - The share depends only on the key's verdicts, so it can be computed before any model runs.
+- **Now:**
+  - A withheld interval gives that model no headline verdict. Its headline is "no verdict" (K3), never "not told
+    apart".
+  - The plan job runs rule 8's draws (B 10,000, `random.Random("l1:1")`, the same draws that every judge is scored on)
+    over the key's scored site answers. It preregisters the share of draws with no key confirm or no key refute.
+  - If that share is above 5%, L001 stops in the plan job, before any model runs, as it stops when no alert is raised
+    ("What the code allows", item 7). A new choice file then decides.
+  - If a model's left-out answers (rule 7) raise the share above 5% on its own scored answers, its intervals are
+    withheld, and it gets no verdict.
+
+### K8. The gate's agreement, beside a constant status (rules 7 and 10; "How it is read")
+
+- **Was:** Rule 10 reported, for each judge, how many gate decisions were correct, out of the questions.
+- **Why:**
+  - A confirm with fewer than k (3) yes-and-yes records is weak, and the gate does not count it (`pushdown/gate.py`).
+  - An 8-week window holds few records at a mine. In the demo's recorded file, 1,078 of the 1,109 weekly cells that
+    c1's mines sent held a count under 3.
+  - So the key's gate status will mostly be `hypothesis`, or `contested` where a text-only contributor refutes. A
+    judge can agree with it largely by default, and a count of agreements could be read as skill.
+- **Now:** Rule 10 also reports the key's gate statuses over the 5 questions. Beside each judge's count, it reports
+  the agreement that a constant status would get: the number of questions with the key's most frequent status. "How
+  it is read, as amended" says how to read the two.
+
+### K9. What the guard scans, and when; what the console shows (rule 12)
+
+- **Was:** Before upload, every file that the plan job or a unit writes was scanned with D002's last guard and
+  backstop. A hit withheld the file and failed the job.
+- **Why:** The repository and its workflow logs are public. The rule left out four places where values from records
+  can land:
+  - the shard root's server logs (`server/`);
+  - the units' `stdout.log` and `stderr.log` (REFERENCE.md, "Shard root");
+  - the plan job's console, since `python -m lab.prereg` writes to the job log (`.github/workflows/mycelic-lab.yml`);
+  - the step summaries that `lab.summary ... --log` writes. That step and the upload run under `!cancelled()`, so they
+    run after a failed step too.
+
+  Also, a traceback's exception value, such as a `KeyError` that holds a document number, goes straight to the job
+  log. And a step that reads the whole MSHA file holds values of operators outside c1 to c5, which are not in the
+  guard's sentinels at all (`company_sentinels` and `Backstop` in `onboard/report.py`).
+- **Now:**
+  - **What is scanned:** every file of every directory the run uploads. That is the plan directory; the whole shard
+    root, with `server/`, `routing/`, `units/` (the unit records and logs), `runs/`, `provenance.json` and
+    `status.json`; and the aggregate's report directory.
+  - **When:** on every path (success, failure, a unit's budget, SIGTERM), always before any `lab.summary --log` reads
+    the directory, and before upload. A hit withholds the file, keeping only the hit counts, and fails the job. The
+    summary then reads only those counts.
+  - **The console.** Every step that reads MSHA data sends its stdout and stderr to captured files, which are scanned
+    like any file. The console gets only fixed lines and exception class names, never an exception's value.
+  - **Steps that read the whole file** write an error, in the console and in their captured files alike, as its class
+    name and code location only. The guard's sentinels cover c1 to c5 only, so this rule, not the scan, keeps other
+    operators' values out.
+
+### K10. The units' file: the plan's cache first, and a re-run before the first model call (rules 11 and 13)
+
+- **Was:** Each unit got the file by fetching it, or from a cache the plan job saved. Only a run that failed before
+  any model judged could run again unchanged.
+- **Why:**
+  - `tools/onboard/fetch_msha.py` fetches the file live from MSHA. Up to 15 shards and the plan job would each
+    download it.
+  - If a fetch fails, or MSHA changes the file between the plan job and a unit, that unit fails its sha256 check.
+  - Under rule 9 its model then gets no headline. With the other units' models already judging, rule 13 then needs a
+    new choice file. One network failure or a weekly refresh could cost a model its result.
+- **Now:**
+  - The plan job saves the file in the workflow's cache, under a key made from the file's sha256 in the plan. Every
+    unit restores it from there first, and fetches it from MSHA only on a cache miss. Either way, the unit checks the
+    sha256 against the plan's before anything else.
+  - A failed restore and fetch, or a sha256 mismatch, before the unit's first model call, is an infrastructure
+    failure.
+  - A shard job whose unit failed so may run again against the same plan and the same preregistration, without a new
+    choice file. Its model is then scored when all its units finish.
+  - A unit that made any model call may not run again. How the lab re-runs a shard job, and how the aggregate takes
+    the re-run's result in place of the failed one, is for BUILD-L001.
+
+### K11. Five question slots, fixed in the request (rules 2 and 11; the settings)
+
+- **Was:** One unit per model and question, with 5 questions expected. Rule 2 allowed up to 3 alerts, each with up to
+  4 control questions: up to 15 questions and 45 units. The rule did not say how the unit matrix is built.
+- **Why:** The lab fixes the unit matrix in `lab.plan`, from the request alone, before any data is read. In
+  `.github/workflows/mycelic-lab.yml`, the plan job's `matrix` and `max_parallel` come from the `plan` step, and the
+  `prereg` step runs after it. J001 fixed its number of parts in its request (REFERENCE.md, `j1`).
+- **Now:**
+  - The request fixes 5 question slots per model, so 15 units. Slot 1 is the alert question. Slots 2 to 5 are the
+    control questions, in sorted predicate id order.
+  - The plan job stops before any model runs if the data give any other number of questions: not exactly one X or S
+    alert in the evaluated weeks, or not exactly 4 other specific predicates. A new choice file then decides.
+  - Rule 2's "at most 3" is so narrowed to exactly one, and its paragraph on a key that alerts again does not arise.
+  - On the demo's file, rule 1 already requires one X alert and no S alert, and the demo's drafted pack had 5
+    specific predicates. So 5 questions are expected.
+
+### K12. Number formats (rule 12)
+
+- **Was:** The rule fixed no format for the numbers L001 writes.
+- **Why:**
+  - The backstop and the refusal match a record id or a mine id of at least `reference_inside_min_chars` (5)
+    characters as a whole run of letters and digits (`ValueIndex` and `Refusal` in `onboard/draft.py`; D002's
+    settings).
+  - L001's files are mostly numbers. A total in milliseconds, or a float written with many decimals, can hold a run of
+    digits that equals a mine id or a record id.
+  - Such a false hit after the models ran would withhold the result, and rule 13 allows no unchanged re-run.
+- **Now:**
+  - Every number that L001's own code writes takes one of these forms:
+    - a time in seconds, with at most 3 decimals, and never a total in milliseconds;
+    - a share, an accuracy or an interval end, with at most 3 decimals;
+    - a count, as an integer below 100,000. Tokens summed over calls are not written, and a size is written in KiB
+      with at most 3 decimals.
+
+    No float is written unrounded, and no time is written as an epoch; timestamps are ISO 8601 text.
+  - A unit has 300 minutes, so no time it writes reaches 100,000 s. No number that L001's code writes after the plan
+    job holds a run of more than 5 digits.
+  - The ledgers keep the pinned client's format: one HTTP try's latency in milliseconds, with one decimal. The HTTP
+    deadline of 600 s keeps it to 6 digits before the point.
+  - The plan job's own larger numbers, such as the file's byte count, are scanned before any model runs (K9), so a
+    false hit there costs no model result.
+  - Nothing is exempt from the scan. A hit on a number is still a hit.
+
+### K13. The shard's minutes, added up (rule 11; the settings)
+
+- **Was:** "A shard job has 330 minutes: the unit's 300 plus the lab's 25-minute overhead, within the shard's capacity
+  of 305."
+- **Why:** 300 plus 25 is 325, not 330. The lab sets each shard's timeout to its planned minutes plus 25
+  (`timeout_minutes` in `lab/plan.py`), and a shard's capacity is `job_minutes` less 25 (REFERENCE.md, "Request
+  format"). 330 is `job_minutes`.
+- **Now:** `job_minutes` 330 gives a shard capacity of 305. One 300-minute unit fills a shard, whose job timeout is
+  then 325 minutes. `max_parallel` stays 15.
+
+### What the plan job does before any model runs, as amended
+
+In this order. Any stop or refusal ends L001 before any model runs, and everything else is preregistered.
+
+1. Rule 1's checks: the file's sha256, the drafted pack's config hash, the alert list and the audit's counts, and the
+   demo's figures when the file is the demo's.
+2. The questions: exactly 5 (K11). With no alert, L001 stops ("What the code allows", item 7).
+3. For each question: its id, window and routes; the routed mines by role and by stratum; the siblings with and
+   without a record in the window (K1, K2); and each routed mine's retrieved records with the codes hidden, checked
+   against the unchanged store and counted (rule 4, K4).
+4. The key judge, the lexical judge, the record-blind control and the route-role baseline, each on its own fresh
+   stores for each question (K4): their site verdicts, gate results and scores, by stratum, and the construction
+   counts (K2).
+5. The predicate-only bound, the key's gate statuses and the agreement of a constant status (K8).
+6. The share of bootstrap draws with no key confirm or no key refute. Above 5%, L001 stops (K7).
+7. The guard over the plan directory, before the summary and the upload (K9).
+
+### The settings, as amended
+
+| Setting | Value |
+|---|---|
+| Models | a-0p5b, a-1p5b, a-4b; one run each |
+| Operator, pack, records | c1; drafted from 2015-01-01 to 2021-12-31; held out 2022-01-01 to 2024-12-31; D002's settings |
+| Questions | 5 slots per model, in the request: the alert question, then the 4 other specific predicates, sorted |
+| Routes | the product's: each question's own contributing mines (`codes` or `text_only` cells) and at most 2 siblings |
+| Codes in the judges' payloads | empty (the key judge alone reads them) |
+| Headline comparators | the lexical judge and the route-role baseline; a model answers better only above both |
+| Beside, deciding nothing | the record-blind control, the predicate-only bound, every judge's answers by stratum |
+| Stores | fresh HQ and mine stores for every question and judge |
+| Orchestrator deadline | 3600 s per mine; sites one after another, in sorted order; scored at the first decision |
+| Endpoint | the lab's pinned model server on loopback, at `site:<mine>`; HTTP deadline 600 s, 1 retry; no escalation |
+| Warm-up | a generated record and a question that no unit asks |
+| Verifier secret | `demo_seed` 1 |
+| Bootstrap | over mines, B 10,000, seed `l1:1`; over records, seed `l1:1:records`; stop above 5% empty draws |
+| Units | 15 (3 models x 5 slots); 300 min; one per shard; `job_minutes` 330 (capacity 305, timeout 325) |
+| Parallel shards | `max_parallel` 15 |
+| The file in a unit | the plan's cache first, MSHA on a miss; sha256 checked against the plan's |
+| Numbers written | seconds and shares with at most 3 decimals; integer counts below 100,000 |
+
+### How it is read, as amended
+
+These replace or extend the bullets of "How it is read" that they name. The others stand.
+
+- **A model that answers better** (replacing "A model that answers better than the lexical judge"). It reads the filed
+  category from these narratives, with the codes hidden, better than the drafted terms and better than HQ's routes.
+  Here HQ's `codes`-channel cells already hold that category (K2), so it is not an answer HQ lacked. Hiding the codes
+  stands in for mines whose records carry no code the pack maps, and the result bears on those. It shows nothing for
+  another field or another company.
+- **A model better than the lexical judge only** adds nothing over HQ's cells. It is not shown to beat a reader of
+  HQ's routes, which reads no record.
+- **The lexical judge reads with the extractor that chose the routes.** It is wrong by construction at text-only
+  contributors and right at siblings with records, so its specificity is set by the mix of routes (K2).
+- **The strata show where a model differs.** Against the route-role baseline, a model can gain only at text-only
+  contributors. At codes contributors and at siblings, that baseline is right by construction (K2, with its
+  exceptions), so a model can only lose there.
+- **The record-blind control** (replacing "shows what the alert alone gives") answers by which question was asked. The
+  route-role baseline shows what HQ's routes alone give.
+- **The gate's decisions** (extending "The gate's decisions are few"). Read each judge's agreement with the key beside
+  the agreement of a constant status (K8). A judge that matches the key no more often than a constant status shows
+  nothing by it.
+- **The time** (extending "The time"). The first call at each mine after the first can be faster than the product's
+  would be, because the question part is cached on the one server. Compare each mine's first-call latency with its
+  median (K5). Mines flagged as contended were timed while a late thread shared the server (K6).
+
+### Traps, as amended
+
+- **Trap 4 is replaced: routing sets much of the score.** Each question asks its own key's mines (K1). The key refutes
+  only at siblings with records and at text-only contributors. By construction, the lexical judge is wrong at the
+  second and right at the first (K2). A pooled score mixes the three strata, so read them apart.
+- **Trap 7 is extended.** After a mine times out, its late thread keeps calling the shared server while the next
+  mines are timed. Those mines are flagged (K6).
+- **Trap 11 is extended.** The same drafted terms, run by each mine's extractor, made the `text_only` cells that chose
+  the routes. The lexical judge reads again with that extractor.
+- **Trap 12, new: the question part is cached across mines.** The judge's prompt starts with the task's instructions
+  and the question part, and one server serves every mine. After the first mine, each mine's first call takes that
+  prefix from the cache, where a mine's own server would evaluate it once. The first-call latencies show how much
+  this saves (K5).
+
+### What it does not show, as amended
+
+One item is added:
+
+- Whether HQ gains an answer it lacks. Here, HQ's `codes`-channel cells hold the answer key (K2).
 
 ## Runs
 
