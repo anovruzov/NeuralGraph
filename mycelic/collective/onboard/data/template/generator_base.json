@@ -1,0 +1,96 @@
+{
+  "codes": {
+    "generic_rate": 0.2,
+    "specific_rate": 0.5
+  },
+  "entity_sentence_rate": 0.3,
+  "forwarding_rate": 0.08,
+  "master_data": {},
+  "mixed_language_rate": 0,
+  "negated_sentence_rate": 0.3,
+  "reporter": {
+    "kind": "choice",
+    "values": [
+      "Synthetic reporter 1",
+      "Synthetic reporter 2",
+      "Synthetic reporter 3",
+      "Synthetic reporter 4",
+      "Synthetic reporter 5",
+      "Synthetic reporter 6"
+    ]
+  },
+  "second_predicate_rate": 0.25,
+  "sites": [
+    {
+      "id": "site-a",
+      "label": "Synthetic site A",
+      "language": "en",
+      "reporters": 5,
+      "weekly_volume": [
+        3,
+        7
+      ]
+    },
+    {
+      "id": "site-b",
+      "label": "Synthetic site B",
+      "language": "en",
+      "reporters": 5,
+      "weekly_volume": [
+        3,
+        7
+      ]
+    },
+    {
+      "id": "site-c",
+      "label": "Synthetic site C",
+      "language": "en",
+      "reporters": 5,
+      "weekly_volume": [
+        3,
+        7
+      ]
+    },
+    {
+      "id": "site-d",
+      "label": "Synthetic site D",
+      "language": "en",
+      "reporters": 5,
+      "weekly_volume": [
+        3,
+        7
+      ]
+    },
+    {
+      "id": "site-e",
+      "label": "Synthetic site E",
+      "language": "en",
+      "reporters": 5,
+      "weekly_volume": [
+        3,
+        7
+      ]
+    },
+    {
+      "id": "site-f",
+      "label": "Synthetic site F",
+      "language": "en",
+      "reporters": 5,
+      "weekly_volume": [
+        3,
+        7
+      ]
+    }
+  ],
+  "start": "2024-01-01",
+  "surface": {
+    "alias": 2,
+    "en_dash": 1,
+    "exact": 6,
+    "fullwidth": 0.5,
+    "lower": 1,
+    "space": 0.5,
+    "underscore": 1
+  },
+  "zero_claim_rate": 0.05
+}

@@ -315,3 +315,16 @@ non-author (X3).
 | `docs/collective/x3/effort.json#/term_renames` | pack terms renamed because a check refused them |
 | `docs/collective/x3/effort.json#/fit_to_code_choices` | data choices made to fit the generic code |
 | `docs/collective/x3/effort.json#/wall_clock` | the AI agent's wall clock per milestone, not engineer-hours |
+
+## 5. Drafting a pack from an export
+
+`python -m mycelic.collective.onboard` drafts a pack from one export: CSV, pipe- or tab-delimited text with a header,
+or JSON lines. Its predicates are the export's own filed categories. Its terms are counted from the export's own
+narratives. Everything else comes from a neutral template in `mycelic/collective/onboard/data/`. The code names no
+field: the roles file says which column is which.
+
+- `draft` writes the pack and `draft.json`; `export` writes the normalised records the drafted mapping reads; `check`
+  checks the privacy floor and the loader; `score` and `report` run test D001.
+- The rule is `docs/collective/onboard/CHOICE-D001.md`. The build is `docs/collective/onboard/BUILD-D001.md`.
+- It is not yet measured. Test D001 measures it on public records; until its run, nothing here claims that a drafted
+  pack reads a field well.

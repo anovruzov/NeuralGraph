@@ -1,0 +1,243 @@
+{
+  "arms": {
+    "msha": {
+      "audit_company": "c1",
+      "columns": [
+        "MINE_ID",
+        "CONTROLLER_ID",
+        "CONTROLLER_NAME",
+        "OPERATOR_ID",
+        "OPERATOR_NAME",
+        "CONTRACTOR_ID",
+        "DOCUMENT_NO",
+        "SUBUNIT_CD",
+        "SUBUNIT",
+        "ACCIDENT_DT",
+        "CAL_YR",
+        "CAL_QTR",
+        "FISCAL_YR",
+        "FISCAL_QTR",
+        "ACCIDENT_TIME",
+        "DEGREE_INJURY_CD",
+        "DEGREE_INJURY",
+        "FIPS_STATE_CD",
+        "UG_LOCATION_CD",
+        "UG_LOCATION",
+        "UG_MINING_METHOD_CD",
+        "UG_MINING_METHOD",
+        "MINING_EQUIP_CD",
+        "MINING_EQUIP",
+        "EQUIP_MFR_CD",
+        "EQUIP_MFR_NAME",
+        "EQUIP_MODEL_NO",
+        "SHIFT_BEGIN_TIME",
+        "CLASSIFICATION_CD",
+        "CLASSIFICATION",
+        "ACCIDENT_TYPE_CD",
+        "ACCIDENT_TYPE",
+        "NO_INJURIES",
+        "TOT_EXPER",
+        "MINE_EXPER",
+        "JOB_EXPER",
+        "OCCUPATION_CD",
+        "OCCUPATION",
+        "ACTIVITY_CD",
+        "ACTIVITY",
+        "INJURY_SOURCE_CD",
+        "INJURY_SOURCE",
+        "NATURE_INJURY_CD",
+        "NATURE_INJURY",
+        "INJ_BODY_PART_CD",
+        "INJ_BODY_PART",
+        "SCHEDULE_CHARGE",
+        "DAYS_RESTRICT",
+        "DAYS_LOST",
+        "TRANS_TERM",
+        "RETURN_TO_WORK_DT",
+        "IMMED_NOTIFY_CD",
+        "IMMED_NOTIFY",
+        "INVEST_BEGIN_DT",
+        "NARRATIVE",
+        "CLOSED_DOC_NO",
+        "COAL_METAL_IND"
+      ],
+      "companies": {
+        "column": "CONTROLLER_ID",
+        "count": 5,
+        "labels": [
+          "c1",
+          "c2",
+          "c3",
+          "c4",
+          "c5"
+        ],
+        "min_test_rows": 100,
+        "min_training_sites": 3
+      },
+      "criterion": {
+        "id": "C1",
+        "margin": 0.1
+      },
+      "definition_columns": [
+        "DOCUMENT_NO",
+        "MINE_ID",
+        "ACCIDENT_DT",
+        "NARRATIVE",
+        "CLASSIFICATION",
+        "ACCIDENT_TYPE",
+        "CONTROLLER_ID",
+        "CONTROLLER_NAME",
+        "OPERATOR_ID",
+        "OPERATOR_NAME",
+        "CONTRACTOR_ID",
+        "CLOSED_DOC_NO",
+        "FIPS_STATE_CD"
+      ],
+      "download_code": [
+        "tools/onboard/fetch_msha.py"
+      ],
+      "download_script": "tools/onboard/fetch_msha.py",
+      "per_company": 200,
+      "roles": {
+        "category": "CLASSIFICATION",
+        "date": "ACCIDENT_DT",
+        "entities": [],
+        "forbidden": [
+          "CONTROLLER_ID",
+          "CONTROLLER_NAME",
+          "OPERATOR_ID",
+          "OPERATOR_NAME",
+          "CONTRACTOR_ID",
+          "CLOSED_DOC_NO",
+          "FIPS_STATE_CD"
+        ],
+        "narrative": "NARRATIVE",
+        "record_id": "DOCUMENT_NO",
+        "reporter": null,
+        "site": "MINE_ID"
+      },
+      "test": [
+        "2022-01-01",
+        "2024-12-31"
+      ],
+      "train": [
+        "2015-01-01",
+        "2021-12-31"
+      ]
+    },
+    "nhtsa": {
+      "columns": [
+        "odino",
+        "state",
+        "received",
+        "components[]",
+        "vehicle",
+        "summary",
+        "reporter"
+      ],
+      "companies": {
+        "makes": [
+          "FORD",
+          "CHEVROLET",
+          "JEEP",
+          "HONDA",
+          "NISSAN",
+          "DODGE"
+        ]
+      },
+      "criterion": {
+        "against": "pack",
+        "id": "C2",
+        "margin": 0.05
+      },
+      "download_code": [
+        "tools/onboard/fetch_nhtsa.py",
+        "tools/market/nhtsa_export.py",
+        "tools/market/vehicle_pack.py"
+      ],
+      "download_script": "tools/onboard/fetch_nhtsa.py",
+      "hand_packs": {
+        "pack": "docs/collective/replay/vehicles/pack",
+        "pack-v2": "docs/collective/replay/vehicles/pack-v2"
+      },
+      "per_company": 200,
+      "roles": {
+        "category": "components[]",
+        "date": "received",
+        "entities": [],
+        "forbidden": [
+          "reporter",
+          "vehicle"
+        ],
+        "narrative": "summary",
+        "record_id": "odino",
+        "reporter": null,
+        "site": "state"
+      },
+      "test": [
+        "2023-01-01",
+        "2024-12-31"
+      ],
+      "train": [
+        "2020-01-01",
+        "2022-12-31"
+      ]
+    }
+  },
+  "bootstrap": {
+    "B": 10000,
+    "alpha": 0.05,
+    "seed_prefix": "d001:boot"
+  },
+  "choice": "docs/collective/onboard/CHOICE-D001.md",
+  "experiment": "D001",
+  "kind": "onboard_d001_settings",
+  "language": "en",
+  "params": {
+    "date_min_share": 0.95,
+    "entity_id_max_chars": 40,
+    "entity_max_ids": 500,
+    "floor_records": 10,
+    "floor_sites": 3,
+    "id_max_chars": 36,
+    "inference": {
+      "date_min_share": 0.95,
+      "label_max_distinct": 200,
+      "label_max_mean_tokens": 8,
+      "label_min_distinct": 2,
+      "label_min_fill": 0.9,
+      "label_min_letter_share": 0.9,
+      "narrative_min_fill": 0.5,
+      "narrative_min_mean_tokens": 8,
+      "record_id_min_fill": 0.99,
+      "site_fallback_max_mean_tokens": 2,
+      "site_min_distinct": 2,
+      "site_min_fill": 0.99
+    },
+    "label_max_chars": 80,
+    "max_predicates": 199,
+    "max_terms": 50,
+    "ngram_tokens": 8,
+    "predicate_min_records": 50,
+    "refusal": {
+      "forbidden_inside_min_chars": 4,
+      "name_word_min_letters": 4,
+      "reference_inside_min_chars": 5
+    },
+    "term_max_chars": 64,
+    "term_min_df": 10,
+    "term_min_p": 0.6,
+    "token_min_letters": 3
+  },
+  "permute": {
+    "seed_prefix": "d001:permute"
+  },
+  "report_guard": {
+    "ngram": 8
+  },
+  "sample": {
+    "seed_prefix": "d001:sample"
+  },
+  "schema_version": 1,
+  "timeout_minutes": 180
+}

@@ -1,0 +1,98 @@
+name: onboard-run
+
+# Drafting test D001 (docs/collective/onboard/CHOICE-D001.md, BUILD-D001.md): a pack drafted from an export alone, on
+# MSHA mine accidents and NHTSA vehicle complaints. Starts when a run file is pushed and runs the newest one. The run
+# starts at the RUN-START marker, after both downloads: a failure before it is not a run (rule 9). The report prints
+# between D001 markers in the job log and uploads with the arm files and the drafted packs that passed their check;
+# never the downloads, the split exports, the normalised records or audit.json. A withheld report, or none, uploads
+# alone: no arm file and no pack (amendment A5).
+on:
+  push:
+    branches-ignore: [main]
+    paths: ["docs/collective/onboard/run-*.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  d001:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: offline tests
+        run: python -m unittest tests.mycelic.test_collective_onboard tests.onboard.test_onboard_fetch tests.mycelic.test_collective_guards.OnboardGenericTests
+      - name: settings check (the run file's sha256 against the settings file)
+        run: |
+          RUN=$(ls docs/collective/onboard/run-*.json | sort | tail -n 1)
+          echo "run file: $RUN"
+          SETTINGS=$(python -c "import json,sys; r=json.load(open(sys.argv[1])); assert r['experiment'] == 'D001', 'not a D001 run file'; print(r['settings'])" "$RUN")
+          python -c "import hashlib,json,sys; r=json.load(open(sys.argv[1])); got=hashlib.sha256(open(sys.argv[2],'rb').read()).hexdigest(); print('settings sha256', got); sys.exit(0 if got == r['settings_sha256'] else 'the settings file differs from the run file')" "$RUN" "$SETTINGS"
+          echo "SETTINGS=$SETTINGS" >> "$GITHUB_ENV"
+      - name: download (a failure here is not a run)
+        run: |
+          python tools/onboard/fetch_msha.py download --out d001/raw/msha
+          python tools/onboard/fetch_nhtsa.py download --out d001/raw/nhtsa
+      - name: run start
+        id: start
+        run: echo "=== D001 RUN-START ==="
+      - name: split both sources
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        run: |
+          python tools/onboard/fetch_msha.py split --settings "$SETTINGS" --raw d001/raw/msha --out d001/split/msha
+          python tools/onboard/fetch_nhtsa.py split --settings "$SETTINGS" --raw d001/raw/nhtsa --out d001/split/nhtsa
+      - name: score msha
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        run: python -m mycelic.collective.onboard score --settings "$SETTINGS" --arm msha --exports d001/split/msha --out d001/arms/msha
+      - name: score nhtsa
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        run: python -m mycelic.collective.onboard score --settings "$SETTINGS" --arm nhtsa --exports d001/split/nhtsa --out d001/arms/nhtsa
+      - name: pilot audit on the audit company's drafted pack (M4)
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        run: |
+          read -r COMPANY FROM TO < <(python -c "import json,sys; a=json.load(open(sys.argv[1]))['arms']['msha']; print(a['audit_company'], a['test'][0], a['test'][1])" "$SETTINGS")
+          FILE=$(python -c "import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]]['file'])" d001/split/msha/companies.json "$COMPANY")
+          python -m mycelic.collective.onboard export --export "d001/split/msha/$FILE" --roles "d001/arms/msha/$COMPANY/roles.json" --pack "d001/arms/msha/$COMPANY/pack" --from "$FROM" --to "$TO" --out d001/audit-in/records.jsonl
+          printf 'outcome_id,opened,entity_type,entity_id,predicate\n' > d001/audit-in/outcomes.csv
+          python -m mycelic.collective.pilot.audit run --pack "d001/arms/msha/$COMPANY/pack" --records d001/audit-in/records.jsonl --outcomes d001/audit-in/outcomes.csv --out d001/audit
+      - name: report
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        run: python -m mycelic.collective.onboard report --settings "$SETTINGS" --arms d001/arms/msha d001/arms/nhtsa --audit d001/audit/audit.json --out d001/report
+      - name: collect the files to upload
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        run: |
+          mkdir -p d001/upload
+          python - <<'EOF'
+          import json, shutil
+          from pathlib import Path
+          up = Path("d001/upload")
+          report = Path("d001/report")
+          for name in ("report.json", "report.md"):
+              if (report / name).is_file():
+                  shutil.copy(report / name, up / name)
+          verdict = json.loads((report / "report.json").read_text())["verdict"] if (report / "report.json").is_file() else None
+          if verdict in (None, "withheld"):
+              print("no report, or a withheld one: no arm file and no pack is uploaded")
+          else:
+              for arm in sorted(Path("d001/arms").glob("*")):
+                  if (arm / "arm.json").is_file():
+                      (up / arm.name).mkdir(parents=True, exist_ok=True)
+                      shutil.copy(arm / "arm.json", up / arm.name / "arm.json")
+                  for company in sorted(p for p in arm.glob("*") if p.is_dir()):
+                      check = company / "check.json"
+                      if check.is_file() and json.loads(check.read_text())["passed"] and (company / "pack").is_dir():
+                          shutil.copytree(company / "pack", up / arm.name / company.name / "pack")
+          EOF
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        with:
+          name: onboard-d001
+          path: d001/upload/
+          if-no-files-found: warn
+          retention-days: 30
