@@ -769,6 +769,19 @@ class NameShapedWordsTests(unittest.TestCase):
         self.assertNotIn("okonkwo", names)
         self.assertTrue(any("in lower case" in line and "is not caught" in line for line in RD.NOT_SHOWN))
 
+    def test_where_case_is_not_read_one_lower_case_use_makes_a_name_plain(self) -> None:
+        # the limit the screen states: after a full stop ('Mr.') and in all-capitals narratives case is not read, so
+        # one lower-case use makes the name a plain word, and the screen and the talk track say so
+        texts = ["it was reported to Mr. Okonkwo."] * 5 + ["THE CREW TOLD OKONKWO."] * 5 + ["then okonkwo left."]
+        names, _ = RD.name_shaped_words(texts)
+        self.assertNotIn("okonkwo", names)
+        line = next(line for line in RD.NOT_SHOWN if "is not caught" in line)
+        self.assertIn("after a full stop (so after 'Mr.' or 'Dr.')", line)
+        self.assertIn("in lower case even once", line)
+        script = (DEMO_DIR / "SCRIPT.md").read_text()
+        self.assertIn("where the check can read case", script)
+        self.assertIn("even once if its other uses open a sentence", " ".join(script.split()))
+
     def test_a_term_is_withheld_when_any_of_its_words_is(self) -> None:
         names = frozenset({"okonkwo"})
         self.assertTrue(RD.name_shaped("supervisor okonkwo", names))

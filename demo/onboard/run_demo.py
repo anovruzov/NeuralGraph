@@ -109,8 +109,10 @@ NOT_SHOWN = (
     "refused values (operator and controller names and ids among them) of the operators in the split, as D002's "
     "guard reads them. A drafted term is withheld from the screen when one of its words is a word of those refused "
     "values, or when the operator's narratives write that word like a name (with a capital or in capitals) or never "
-    "in lower case. A name that is not such a word and that the narratives write in lower case in most of its uses, "
-    "as a common word or not, is not caught: the screen does not show that no name is on it.",
+    "in lower case. Case is not read at the start of a sentence, after a full stop (so after 'Mr.' or 'Dr.') or in "
+    "narratives written all in capitals. A name that is not such a word is not caught when the narratives write it in "
+    "lower case in most of its uses, or in lower case even once with its other uses only where case is not read: the "
+    "screen does not show that no name is on it.",
 )
 REVIEW_MEANS = ("Items from the weekly cells: {counted}. Each is a category whose counts rose at {min_sites} or more "
                 "of {company}'s mines in the same weeks, and none matches an outcome on record, because the demo has "

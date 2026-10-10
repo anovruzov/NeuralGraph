@@ -106,9 +106,11 @@ audit's result does not change, and every function the watch wraps is put back.
   for it (D002's M1 counts such code). The drafter's code names no column. The screen says so too.
 - **Operators are c1 to c5** and mines m01 onwards. The guard (below) looks for every record id, mine id and refused
   value of the split. A drafted term is withheld from the screen when one of its words is a word of a refused value,
-  or when the operator's narratives write that word like a name or never in lower case. A name that is not a word of
-  a refused value and that the narratives write in lower case in most of its uses, as a common word or not, is not
-  caught, so the demo does not claim that no name is on screen.
+  or when the operator's narratives write that word like a name or never in lower case. Case is not read at the start
+  of a sentence, after a full stop (so after "Mr." or "Dr.") or in narratives written all in capitals. A name that is
+  not a word of a refused value is not caught when the narratives write it in lower case in most of its uses, or in
+  lower case even once with its other uses only where case is not read, so the demo does not claim that no name is on
+  screen.
 
 ## The D002 figures it compares with
 
@@ -145,7 +147,9 @@ Before anything is printed or written:
   of any operator in the split (letters only, at least 3 of them: short words and single-word values included, which
   D002's refusal does not cover), or when that word is not a plain word of the operator's narratives
   (`name_shaped_words`). A plain word is written in lower case, and written like a name (a capital first letter, or
-  all capitals, away from the start of a sentence) in fewer than half of its uses that show case. So a word written
+  all capitals, away from the start of a sentence) in fewer than half of its uses that show case. Any word after
+  '.', '!' or '?' counts as a sentence start, and narratives written all in capitals show no case, so one lower-case
+  use makes a word plain when its other uses are only there. So a word written
   like a name, in capitals inside mixed-case text included, and a word never written in lower case (only at sentence
   starts, or only in narratives written all in capitals) are withheld. The screen counts the terms withheld for each
   reason, and the narratives written all in capitals, whose case is not read;
