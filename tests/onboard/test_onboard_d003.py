@@ -1157,7 +1157,16 @@ class D002FrozenTests(unittest.TestCase):
         run = json.loads((ONBOARD_DOCS / "run-002.json").read_text())
         self.assertEqual(run, {"experiment": "D002", "settings": "docs/collective/onboard/D002-settings.json",
                                "settings_sha256": self.PINS["docs/collective/onboard/D002-settings.json"]})
-        self.assertFalse((ONBOARD_DOCS / "run-003.json").exists())
+
+    def test_a_run_003_file_is_a_d003_run_file(self) -> None:
+        """The build does not add run-003.json; the owner does, and this test then runs in the workflow's offline step
+        on that tree. So it may not require the file to be absent: when present, it names D003 and its settings."""
+        path = ONBOARD_DOCS / "run-003.json"
+        if not path.exists():
+            return
+        run = json.loads(path.read_text())
+        self.assertEqual((run["experiment"], run["settings"]), ("D003", "docs/collective/onboard/D003-settings.json"))
+        self.assertRegex(run["settings_sha256"], r"\A[0-9a-f]{64}\Z")
 
     def test_onboard_run_refuses_a_d003_run_file(self) -> None:
         """A push of run-003.json starts onboard-run.yml too: its settings check takes the newest run file, which is
@@ -1187,11 +1196,15 @@ class D002FrozenTests(unittest.TestCase):
             self.assertIn("run file: docs/collective/onboard/run-003.json", r.stdout)
             self.assertEqual(env_file.read_text(), "")
 
-    def test_the_rule_is_as_committed_with_no_run(self) -> None:
-        text = CHOICE.read_text()
-        self.assertEqual(text.split("## Runs", 1)[1].strip(), "None yet.")
-        self.assertEqual(hashlib.sha256(CHOICE.read_bytes()).hexdigest(),
-                         "78dd1176087a1da4575c0f1b714ac2345eaa47022ad3193108ffe0e8cb24752a")
+    def test_the_rule_is_as_committed(self) -> None:
+        """The rule the build was made to: CHOICE-D003.md up to its "Runs" section, byte for byte as amended at
+        7f4766d (whole file sha256 78dd1176087a1da4575c0f1b714ac2345eaa47022ad3193108ffe0e8cb24752a, "Runs" then
+        reading "None yet."). Recording a run under "Runs" does not fail it, so a later attempt (E14) still passes the
+        offline step; an amendment must change this pin with it."""
+        data = CHOICE.read_bytes()
+        self.assertEqual(data.count(b"\n## Runs\n"), 1)
+        self.assertEqual(hashlib.sha256(data.split(b"## Runs", 1)[0]).hexdigest(),
+                         "f99aa2188e841fc282a7a12405d35bb35d8c87f846e078d57ac297eab61a2c10")
 
 
 if __name__ == "__main__":
