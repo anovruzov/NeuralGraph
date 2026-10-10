@@ -672,7 +672,8 @@ class GuardTests(unittest.TestCase):
     def assert_withheld(self, planted: str, kind: str) -> dict[str, Any]:
         doc, md, code = self.present_with(planted)
         self.assertEqual((doc["status"], code), ("withheld", 1))
-        self.assertGreater(doc["guard"].get(kind, 0), 0, doc["guard"])
+        # found by the strict scan of the strings from records (printed_<kind>) or by a later scan (<kind>)
+        self.assertGreater(doc["guard"].get(kind, 0) + doc["guard"].get(f"printed_{kind}", 0), 0, doc["guard"])
         self.assertNotIn(planted.strip(), md + json.dumps(doc))
         self.assertEqual(set(doc), {"kind", "schema_version", "status", "label", "guard", "withheld"})
         return doc
@@ -813,7 +814,7 @@ class GuardTests(unittest.TestCase):
         self.assertNotIn("Kestrel", P.render_md(doc))
         out, md, code = P.present(computed)
         self.assertEqual((out["status"], code), ("withheld", 1))
-        self.assertGreater(out["guard"]["report_site"], 0)
+        self.assertGreater(out["guard"].get("report_site", 0) + out["guard"].get("printed_report_site", 0), 0)
         self.assertNotIn("Kestrel", md + json.dumps(out))
 
     def test_an_entity_id_a_review_item_prints_goes_through_the_last_guard(self) -> None:
@@ -1016,6 +1017,66 @@ class PlaceholderTests(unittest.TestCase):
         self.assertEqual(run["doc"]["guard"]["exempt_values"], 0)
 
 
+class ShortSiteInLabelTests(unittest.TestCase):
+    """A site value of four characters inside a printed label (site "Pack", category "Pack line strain") is found:
+    the onboard last guard looks inside strings for site values of five characters or more only, and the strings
+    from records are scanned with nothing exempt, even when the word is also in the report's fixed text."""
+
+    def renamed(self, site_from: str, site_to: str, cat_from: str, cat_to: str) -> list[list[str]]:
+        ex = example()
+        si, ci = ex.col["depot"], ex.col["incident_type"]
+        rows = []
+        for r in ex.body:
+            r = list(r)
+            if r[si] == site_from:
+                r[si] = site_to
+            if r[ci] == cat_from:
+                r[ci] = cat_to
+            rows.append(r)
+        return rows
+
+    def assert_withheld(self, name: str, site: str, label: str) -> None:
+        ex = example()
+        rows = self.renamed("Ashford Hub", site, "Manual handling", label)
+        result = ex.run(name, ex.write(name, rows))
+        self.assertEqual(result["code"], 1, result["stderr"])
+        self.assertEqual(result["doc"]["status"], "withheld")
+        self.assertTrue(any(k.startswith("printed_") and v for k, v in result["doc"]["guard"].items()),
+                        result["doc"]["guard"])
+        for text in (result["md"], result["json_text"], result["stdout"], result["stderr"]):
+            self.assertNotIn(folded(label), folded(text))
+
+    def test_a_site_named_like_a_fixed_word_inside_a_label(self) -> None:
+        self.assert_withheld("site-pack", "Pack", "Pack line strain")
+
+    def test_a_site_named_like_a_roles_column_inside_a_label(self) -> None:
+        self.assert_withheld("site-yard", "Yard", "Yard collision")
+
+    def test_strict_ignores_the_exemption(self) -> None:
+        ex = example()
+        roles = P.load_roles(ex.paths["roles"])
+        guard = P.Guard(read_export(Path(ex.paths["export"])), roles, D.load_params())
+        site = folded(ex.body[0][ex.col["depot"]])
+        guard.exempt([site])
+        self.assertEqual(guard.texts([site])["refused_value"], 0)
+        self.assertGreater(guard.strict([site])["refused_value"], 0)
+
+
+class AlertWeeksTextTests(unittest.TestCase):
+    def test_weeks_are_listed_not_spanned(self) -> None:
+        self.assertEqual(P.alert_weeks_text(["2024-W29"]), "week 2024-W29")
+        self.assertEqual(P.alert_weeks_text(["2024-W29", "2024-W39"]), "weeks 2024-W29 and 2024-W39")
+        self.assertEqual(P.alert_weeks_text(["2024-W29", "2024-W30", "2024-W39"]),
+                         "weeks 2024-W29, 2024-W30 and 2024-W39")
+        self.assertEqual(P.alert_weeks_text(["2024-W29", "2024-W30", "2024-W31", "2024-W39"]),
+                         "4 weeks between 2024-W29 and 2024-W39")
+
+    def test_the_report_says_what_the_guard_looks_for(self) -> None:
+        md = shape_run("msha")["md"]
+        self.assertIn("The guard looks for record ids of 5 characters or more", " ".join(md.split()))
+        self.assertNotIn("No record id, site value, refused-column value or narrative text is printed", md)
+
+
 class ReviewPartTests(unittest.TestCase):
     """The X and S part of a review item holds that item's own unexplained X and S alerts: not an R_mf-only week
     (the audit pools records over the three channels) and not an X week an issue explains."""
@@ -1047,8 +1108,8 @@ class ReviewPartTests(unittest.TestCase):
         self.assertEqual(reference, [])
         self.assertEqual(extra, [])
         self.assertEqual(counted, [{"predicate": "Label one", "entity": None, "channels": ["X"], "also": ["R_mf"],
-                                    "first_week": "2024-W03", "last_week": "2024-W03", "alerts": 1,
-                                    "sites": ["s01", "s02"], "records": 2}])
+                                    "first_week": "2024-W03", "last_week": "2024-W03", "weeks": ["2024-W03"],
+                                    "alerts": 1, "sites": ["s01", "s02"], "records": 2}])
 
     def test_sites_from_hq_cells_must_match_the_audits(self) -> None:
         x = [self.alert("2024-W03", ["s01", "s02"], ["a"])]

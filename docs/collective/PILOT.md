@@ -85,15 +85,17 @@ D.M.YYYY or YYYY-MM-DD.
 was about as your export writes it (case and spacing aside), or empty for any category. An issue whose category is not
 a drafted predicate is counted by why and not scored. Issues are `i01` onwards, in the file's row order.
 
-**What is never written:** before anything is written, the strings that came from your records go through the
-drafter's last guard (`onboard.report.company_hits`), and the whole of `pilot.md`, every string of `pilot.json` and every
+**What the guard looks for:** before anything is written, the strings that came from your records go through the
+drafter's last guard (`onboard.report.company_hits`) and the scans below with nothing set aside, and the whole of `pilot.md`, every string of `pilot.json` and every
 JSON string of the bytes that left the sites (HQ's receive log, one JSON object a line) are scanned for your record ids
 and site values of five characters or more (the values of `onboard.report.Backstop`), for every value of a refused
 column or site of four characters or more that holds a letter (five otherwise), and for eight consecutive words of any
 narrative. A value or run of words that the report's own fixed text holds (`pilot.json` with every string from your
 records left out and every count and date fixed, and the `pilot.md` rendered from it), such as `None` in a refused
-column or a site called `Other`, is not looked for, and the guard line counts them. A hit replaces both files with the
-hit counts by kind, with exit code 1. `--work <dir>` keeps the record data a reviewer needs:
+column or a site called `Other`, is not looked for in that fixed text, and the guard line counts them. It is still
+looked for inside the strings that came from your records, so a site called `Pack` inside a label "Pack line strain"
+withholds the report. Shorter values are not looked for at all. A hit replaces both files with the hit counts by kind,
+with exit code 1. `--work <dir>` keeps the record data a reviewer needs:
 the drafted pack (which `pilot.audit run --pack` reads), the audit's own `audit.json` and `audit.md` (with record
 ids), and `sites.csv` and `issues.csv` (each label against your own value). It is never `--out` or inside it.
 

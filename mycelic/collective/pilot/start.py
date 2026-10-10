@@ -173,8 +173,14 @@ def joined(items: Sequence[str]) -> str:
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
-def weeks_text(first: str, last: str) -> str:
-    return f"week {first}" if first == last else f"weeks {first} to {last}"
+def alert_weeks_text(weeks: Sequence[str]) -> str:
+    """The weeks an item's alerts fell in: each one when there are three or fewer, else how many and their span, so
+    two alerts months apart never read as a run of weeks."""
+    if len(weeks) == 1:
+        return f"week {weeks[0]}"
+    if len(weeks) <= 3:
+        return f"weeks {joined(weeks)}"
+    return f"{n(len(weeks))} weeks between {weeks[0]} and {weeks[-1]}"
 
 
 def file_facts(path: Path) -> dict[str, Any]:
@@ -543,6 +549,15 @@ class Guard:
     def texts(self, texts: Sequence[str]) -> dict[str, int]:
         return {k: len(v) for k, v in self.found(texts).items()}
 
+    def strict(self, texts: Sequence[str]) -> dict[str, int]:
+        """:meth:`texts` with nothing exempt, whatever :meth:`exempt` set aside."""
+        saved = self.exempt_values, self.exempt_ngrams
+        self.exempt_values, self.exempt_ngrams = frozenset(), frozenset()
+        try:
+            return self.texts(texts)
+        finally:
+            self.exempt_values, self.exempt_ngrams = saved
+
     def exempt(self, fixed: Sequence[str]) -> None:
         """Set aside every value and run of words found in ``fixed``, the report's own text with nothing from records
         in it (:func:`skeleton`): a refused ``None`` or a site called ``Other`` is a word of that text, and finding it
@@ -570,12 +585,7 @@ class Guard:
 
     def message(self, text: str) -> str:
         """An error text as shown: itself when the scans, with nothing exempt, and the refusal find nothing in it."""
-        saved = self.exempt_values, self.exempt_ngrams
-        self.exempt_values, self.exempt_ngrams = frozenset(), frozenset()
-        try:
-            found = self.texts([text])
-        finally:
-            self.exempt_values, self.exempt_ngrams = saved
+        found = self.strict([text])
         found["refused_own"] = int(self.sentinels.refusal.term(text) is not None)
         return text if not any(found.values()) else WITHHELD_ERROR
 
@@ -684,12 +694,13 @@ def review_parts(doc: Mapping[str, Any], watch: Watch, pack: Any, scope: tuple[s
             weeks = sorted({a["week"] for _, a in hits})
             counted.append({"predicate": label, "entity": entity, "channels": by,
                             "also": [c for c in e["channels"] if c not in COUNT_CHANNELS], "first_week": weeks[0],
-                            "last_week": weeks[-1], "alerts": len(hits), "sites": sorted(sites),
+                            "last_week": weeks[-1], "weeks": weeks, "alerts": len(hits), "sites": sorted(sites),
                             "records": len({ref for _, a in hits for ref in a["record_refs"]})})
         else:
             weeks = sorted(e["alert_weeks"])
             reference.append({"predicate": label, "entity": entity, "channels": list(e["channels"]),
-                              "first_week": weeks[0], "last_week": weeks[-1], "sites": list(e["sites"]),
+                              "first_week": weeks[0], "last_week": weeks[-1], "weeks": weeks,
+                              "sites": list(e["sites"]),
                               "records": e["records"]})
     # with no issue in scope every X and S alert is on the review list; an issue's alerts leave it
     raised = {a["key"] for name in COUNT_CHANNELS for a in watch.alerts.get(name, ())}
@@ -915,9 +926,9 @@ def _review_item(r: Mapping[str, Any], window: int, counted: bool) -> str:
     sites = f"{n(len(r['sites']))} sites ({', '.join(r['sites'])})" if r["sites"] else "no site"
     if counted:
         also = f"; {joined(r['also'])} also raised it" if r["also"] else ""
-        return (f"{about}: {joined(r['channels'])} alerts in {weeks_text(r['first_week'], r['last_week'])}; {sites} "
+        return (f"{about}: {joined(r['channels'])} alerts in {alert_weeks_text(r['weeks'])}; {sites} "
                 f"sent a cell of it in the {window} weeks up to one of them; {n(r['records'])} records{also}")
-    return (f"{about}: {joined(r['channels'])} alerts in {weeks_text(r['first_week'], r['last_week'])}; {sites} with "
+    return (f"{about}: {joined(r['channels'])} alerts in {alert_weeks_text(r['weeks'])}; {sites} with "
             f"records of it in the {window} weeks up to one of them; {n(r['records'])} records")
 
 
@@ -1068,7 +1079,9 @@ def render_md(doc: Mapping[str, Any]) -> str:
     out = [f"# {TITLE}", "", f"_{doc['label']}._", "",
            "Sites are s01 onwards, in an order drawn from a hash keyed by the export's own bytes, not the order of "
            "their names (--work's sites.csv maps each label to its value); issues are i01 onwards, in the order of "
-           "the outcomes file's rows. No record id, site value, refused-column value or narrative text is printed.",
+           "the outcomes file's rows. The guard looks for record ids of 5 characters or more, site and refused-column "
+           "values of 4 or more with a letter (5 or more without one), and runs of 8 words of any narrative; shorter "
+           "values are not looked for.",
            ""]
     out += _md_export(doc) + _md_draft(doc) + _md_floor(doc)
     if doc["audit"] is not None:
@@ -1132,6 +1145,21 @@ def skeleton(doc: Mapping[str, Any]) -> dict[str, Any]:
     return _fixed(s)
 
 
+def record_strings(doc: Mapping[str, Any]) -> list[str]:
+    """The strings :func:`skeleton` leaves out, because they came from records: predicate ids, labels and first
+    terms; review items' predicates and entities; issues' categories. :func:`present` scans them with nothing
+    exempt, so a value the report's fixed text also holds is still found inside them."""
+    out: list[str] = []
+    for p in doc["draft"]["predicates"]:
+        out += [p.get("id") or "", p.get("label") or "", *(p.get("first_terms") or ())]
+    for part in ("from_cells", "reference_only"):
+        for r in (doc.get("review") or {}).get(part, ()):
+            out += [r.get("predicate") or "", r.get("entity") or ""]
+    for r in (doc.get("outcomes") or {}).get("by_issue", ()):
+        out.append(r.get("category") or "")
+    return [t for t in out if t]
+
+
 def skeleton_texts(doc: Mapping[str, Any]) -> list[str]:
     s = skeleton(doc)
     return [render_md(s), *json_strings(s)]
@@ -1139,10 +1167,13 @@ def skeleton_texts(doc: Mapping[str, Any]) -> list[str]:
 
 def present(c: Computed) -> tuple[dict[str, Any], str, int]:
     """The guard, then the files: (pilot.json's content, pilot.md, exit code). The strings printed from records are
-    checked with nothing exempt; then the values and runs of words the report's fixed text holds are set aside
+    checked with nothing exempt (the onboard last guard, then :meth:`Guard.strict` over :func:`record_strings`,
+    which also finds site and refused values of four characters); then the values and runs of words the report's fixed text holds are set aside
     (:meth:`Guard.exempt`) and the bytes that left the sites, ``pilot.md`` and ``pilot.json`` are scanned."""
     hits = dict(c.guard.strings(c.entry, c.extra_strings))
     strings = hits.pop("strings")
+    for kind, count in c.guard.strict(record_strings(c.doc)).items():
+        hits[f"printed_{kind}"] = count
     c.guard.exempt(skeleton_texts(dict(c.doc, guard={"strings": strings, **c.guard.summary()})))
     if c.doc["audit"] is not None:
         hits.update(c.guard.sent(c.sent))
