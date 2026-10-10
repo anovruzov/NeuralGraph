@@ -10,27 +10,33 @@ unchanged, in the order ``demo/onboard/run_demo.py`` chains it, for any company 
 
 1. **Read the export** with the drafter's reader (:func:`.onboard.exports.read_export`: CSV, pipe- or tab-delimited
    text with a header, or JSON lines; fields in double quotes). ``--roles`` names the export's own columns
-   (:func:`load_roles`, checked strictly; an error names the missing role).
+   (:func:`load_roles`, checked strictly; an error names the missing role). A column the export lacks is named with
+   its role and the header's column count, never the header's names: with no header row, or a title line above it,
+   the line read as the header is a record (:func:`check_columns`).
 2. **Draft a pack** (:func:`.onboard.draft.draft_export`, D002's defaults) from the records dated on or before
    ``--train-until``. By default that is the date of the record at the three-quarter mark of the dated records in date
    order, so the last quarter (fewer when records share that date) comes after it (:func:`default_train_until`).
+   Records from fewer sites than the privacy floor needs stop the run first, with that reason (:func:`few_sites`).
 3. **Check it** (:func:`.onboard.check.check_pack`): the loader and the privacy floor of rule 1.7. When the floor fails
    the run stops: ``pilot.md`` and ``pilot.json`` then hold the check's counts and no label or term, and the exit
    code is 1.
 4. **Audit the records after ``--train-until``** with the drafted pack (:func:`.audit.audit`, every setting at its
-   default, comparators on), and with the issues in ``--outcomes`` when it is given. Each site value is replaced by a
-   label, ``s01`` onwards in the sorted order of the site column's values, before the audit reads a row, so every
-   bundle and cell that crosses from a site's store to HQ's carries a label. What each site sent is counted from the
-   audit's own collective store while it runs (:class:`Watch`, which wraps three of the audit's functions read-only
-   and puts them back).
+   default, comparators on), and with the issues in ``--outcomes`` when it is given. A held-out row whose record id a
+   training row has is left out of the audit and counted. Each site value is replaced by a label before the audit
+   reads a row, so every bundle and cell that crosses from a site's store to HQ's carries a label: values that differ
+   only in case or spacing (:func:`.packs.canonical.folded`) are one site, and the labels, ``s01`` onwards, follow a
+   hash keyed by the export's own bytes, not the order of the names (:func:`site_labels`). What each site sent is
+   counted from the audit's own collective store while it runs (:class:`Watch`, which wraps three of the audit's
+   functions read-only and puts them back).
 5. **Write ``pilot.md`` and ``pilot.json``**: the drafted predicates and their first terms; the floor result; the
    weekly cells each site sent; the alerts by channel, the weekly-cell channels (X, S) apart from the reference
-   channels (R_mf, P, PRR); the review list in the same two parts (items X or S raised, with the sites counted from
-   HQ's cells, and items R_mf alone raised); with outcomes, each channel's issues found before opening against what
-   the same alerts at random times find; and a fixed list of what the run does not show.
+   channels (R_mf, P, PRR); the review list in the same two parts (items X or S raised, with their own alerts' weeks,
+   sites and records, the sites counted from HQ's cells, and items R_mf alone raised); with outcomes, each channel's
+   issues found before opening against what the same alerts at random times find; and a fixed list of what the run
+   does not show.
 
 **The outcomes file** (optional) is a CSV with ``outcome_id``, ``opened`` (``YYYY-MM-DD``) and ``category``: the filed
-category the issue was about, as the export writes it (matched after folding case and accents), or empty for any
+category the issue was about, as the export writes it (matched after folding case and spacing), or empty for any
 category. Other columns are ignored. An issue whose category is not a drafted predicate is not scored, and is counted
 by why. Issues are ``i01`` onwards, in the order of the file's rows, and are scored on the whole export (the pack's
 scope entity), so an alert on any record of that category counts.
@@ -38,19 +44,24 @@ scope entity), so an alert on any record of that category counts.
 **The guard** (:class:`Guard`), before anything is written: the strings ``pilot.md`` prints that came from records
 (category labels, predicate ids and first terms, entity ids) go through the onboard report's last guard against the
 export (:func:`.onboard.report.company_hits`: its one refusal and every narrative's eight-word runs); the whole of
-``pilot.md`` and every string of ``pilot.json`` are scanned for the export's record ids and site values
-(:class:`.onboard.report.Backstop`, values of at least five characters), for every value of a refused column or site
-of at least four characters holding a letter (or five), and for eight consecutive words of any narrative
-(:func:`.onboard.check.ngram_hits`); and the bytes that left the sites for the same values. Numbers in ``pilot.json``
-are counts the run computed and are not scanned; ``pilot.md`` prints every count of 1,000 or more with separators. A
-hit replaces both files with the hit counts by kind and nothing else; the exit code is 1. An error text after the
-export is read is shown only when the same scans find nothing in it.
+``pilot.md``, every string of ``pilot.json`` and every JSON string of the bytes that left the sites (the HQ receive
+log, one JSON object a line) are scanned for the export's record ids and site values (the values of
+:class:`.onboard.report.Backstop`, at least five characters), for every value of a refused column or site of at least
+four characters holding a letter (or five), and for eight consecutive words of any narrative
+(:func:`.onboard.check.ngram_hits`). A value or run of words that the report's own fixed text holds (``pilot.json``
+with every string from records left out and every count and date fixed, and the ``pilot.md`` rendered from it:
+:func:`skeleton`), such as a refused column's ``None`` or a site called ``Other``, is not looked for, and the guard
+line counts them. Numbers in ``pilot.json`` are counts the run computed and are not scanned; ``pilot.md`` prints every
+count of 1,000 or more with separators. A hit replaces both files with the hit counts by kind and nothing else; the
+exit code is 1. An error text after the export is read is shown only when the same scans (with nothing exempt) find
+nothing in it; an error before then names no value of the export.
 
 ``--work`` keeps record data: the drafted pack (``pack/``, which ``pilot.audit run --pack`` reads), the audit's own
 ``audit/audit.json`` and ``audit.md`` (which name record ids, under site and issue labels), ``sites.csv`` and
 ``issues.csv`` (label to your own value). It can never be ``--out`` or inside it. Without it a temporary directory is
-used and deleted. Nothing is sent anywhere. Exit codes: 0 shown; 1 the privacy floor failed or the guard withheld the
-report; 2 a usage, input or run error (never a traceback).
+used and deleted. ``--out`` is checked before the run (:func:`check_out`). Nothing is sent anywhere. Exit codes: 0
+shown; 1 the privacy floor failed or the guard withheld the report; 2 a usage, input, run or write error (never a
+traceback).
 """
 from __future__ import annotations
 
@@ -59,7 +70,9 @@ import contextlib
 import csv
 import dataclasses
 import hashlib
+import hmac
 import json
+import os
 import random
 import re
 import sys
@@ -76,7 +89,7 @@ from ..packs.canonical import folded
 from ..onboard import draft as D
 from ..onboard import report as R
 from ..onboard.check import check_pack, json_strings, ngram_hits
-from ..onboard.exports import Export, ExportError, is_list_column, read_export
+from ..onboard.exports import BOM, Export, ExportError, is_list_column, read_export
 from ..onboard.roles import SINGLE_ROLES, Roles, RolesError, roles_from_json
 from . import audit as A
 
@@ -110,6 +123,15 @@ NOT_SCORED_SAYS = {"other_bucket": "in the other bucket (under the predicate min
                    "below_floor": "under the privacy floor in the training records",
                    "refused": "refused (a string of it is a record id, site or refused value)",
                    "not_in_training": "not filed in any training record with a narrative"}
+# why a held-out row was not audited: the drafter's normalised rows (rule 1.6), this runner's own check, then the
+# audit's mapping; an undated row is neither training nor held out, and the export section counts it
+HELD_OUT_SAYS = {"missing_record_id": "no record id", "bad_record_id": "a record id too long or not printable",
+                 "duplicate_record_id": "a record id an earlier held-out row has",
+                 "in_training": "a record id a training row has", "bad_site": "no site value"}
+SITE_KEY_SALT = b"mycelic pilot.start site labels\x00"
+DATE_TEXT = re.compile(r"\d{4}-\d{2}-\d{2}")
+WEEK_TEXT = re.compile(r"\d{4}-W\d{2}")
+HEX_TEXT = re.compile(r"[0-9a-f]{64}")
 NOT_SHOWN = (
     "That any alert finds a real problem. The review list is unjudged: only your own people can say which item is a "
     "missed problem, a known one never written up, or noise.",
@@ -123,6 +145,8 @@ NOT_SHOWN = (
     "That no name is printed. The guard looks for your record ids, site values and refused-column values, and for "
     "eight words of any narrative. A person's name written only in the narratives, in no refused column, is not "
     "looked for, and a drafted term can be one; read the first terms before you pass the report on.",
+    "That no site can be told apart. Site labels follow a hash keyed by your export's own bytes, not the order of "
+    "the names, but each site's cell counts are printed, and a reader who knows your sites' sizes may match them.",
 )
 WITHHELD_ERROR = "(its text is withheld: it may name a record value)"
 
@@ -158,11 +182,36 @@ def file_facts(path: Path) -> dict[str, Any]:
     return {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
 
 
-def labels_for(values: Iterable[str], prefix: str) -> dict[str, str]:
-    """``prefix`` and a rank from 01, in the sorted order of the distinct values."""
-    ordered = sorted(set(values))
+def labels_for(values: Iterable[str], prefix: str, key: bytes) -> dict[str, str]:
+    """``prefix`` and a rank from 01 for each distinct value, in the order of its HMAC-SHA256 under ``key`` (ties, which
+    do not happen, by the value): an order that does not follow the values for anyone without the key."""
+    ordered = sorted(set(values), key=lambda v: (hmac.new(key, v.encode("utf-8"), hashlib.sha256).digest(), v))
     width = max(2, len(str(len(ordered))))
     return {v: f"{prefix}{rank:0{width}d}" for rank, v in enumerate(ordered, start=1)}
+
+
+def site_key(export_bytes: bytes) -> bytes:
+    """The key of the site labels: a hash of the export's own bytes under a fixed prefix. ``pilot.json`` prints the
+    export's plain SHA-256, from which this cannot be computed; whoever holds the export can recompute it."""
+    return hashlib.sha256(SITE_KEY_SALT + export_bytes).digest()
+
+
+@dataclasses.dataclass(frozen=True)
+class SiteLabels:
+    """Each site value's label (:func:`site_labels`), how many sites (values that fold equal are one) and how many
+    distinct spellings the export has."""
+
+    of_value: Mapping[str, str]
+    sites: int
+    spellings: int
+
+
+def site_labels(export: Export, roles: Roles, key: bytes) -> SiteLabels:
+    """``s01`` onwards for the site column's values: values equal after :func:`.packs.canonical.folded` (case,
+    spacing, hyphens) are one site with one label; the labels follow :func:`labels_for` over the folded values."""
+    raw = {v for r in range(len(export)) for v in D._cells(export.value(r, roles.site))}
+    labels = labels_for({folded(v) for v in raw}, "s", key)
+    return SiteLabels(of_value={v: labels[folded(v)] for v in sorted(raw)}, sites=len(labels), spellings=len(raw))
 
 
 # --------------------------------------------------------------------------------------------------- the roles file
@@ -225,24 +274,33 @@ def roles_from_obj(obj: Any) -> Roles:
 
 
 def load_roles(path: str | Path) -> Roles:
+    """The roles file: UTF-8 JSON, a leading byte-order mark (as Windows Notepad writes) dropped."""
     try:
-        obj = strict_load(Path(path).read_bytes())
+        data = Path(path).read_bytes()
     except OSError as exc:
         raise StartError(f"cannot read the roles file {path} ({exc.__class__.__name__})") from None
+    try:
+        obj = strict_load(data[len(BOM):] if data.startswith(BOM) else data)
     except StrictJsonError as err:
         raise StartError(f"the roles file {path} is not JSON ({err})") from None
     return roles_from_obj(obj)
 
 
 def check_columns(roles: Roles, export: Export) -> None:
-    """Every column the roles name must be a column of the export (its header, or its JSON keys)."""
+    """Every column the roles name must be a column of the export (its header, or its JSON keys). The error names
+    the missing column, its role and how many columns the header has, never the header's names: an export with no
+    header row, or a title line above it, has a record or the title read as its header. No guard exists yet to
+    check such a text against the export, and that record would be in no row to check it against."""
     named = [(r, getattr(roles, r)) for r in SINGLE_ROLES] + [("forbidden", c) for c in roles.forbidden] \
         + [("entities", c) for c in roles.entities] + ([("reporter", roles.reporter)] if roles.reporter else [])
+    count = len(export.columns)
     for role, column in named:
         if not export.has(column):
-            have = ", ".join(c for c in export.columns if c)
-            raise StartError(f'the export has no column {column!r}, which the roles file names for "{role}" '
-                             f"(the export's columns: {have})")
+            raise StartError(f'the export has no column {column!r}, which the roles file names for "{role}". The '
+                             f"export has {n(count)} column{'' if count == 1 else 's'}, whose names are not shown: "
+                             "without a header row, or under a title line, they are a record's values or the "
+                             "title's. Check that the first non-empty line of the export is its header, with no "
+                             "title line above it, and that the roles file names its columns as written")
 
 
 # --------------------------------------------------------------------------------------------------- the cut
@@ -262,6 +320,39 @@ def parse_day(value: str, what: str) -> date:
         return date.fromisoformat(value)
     except (TypeError, ValueError):
         raise StartError(f"{what} must be a date YYYY-MM-DD") from None
+
+
+def few_sites(export: Export, roles: Roles, dated: D.Dated, train: D.Window, params: Mapping[str, Any]) -> str | None:
+    """Why the floor cannot pass, when the training records (dated in ``train``, with a narrative: the rows the
+    drafter learns from) come from fewer sites than the privacy floor's minimum, values that fold equal counted as
+    one site; else None. Counts only, no value."""
+    sites = {folded(s) for r in D.window_rows(dated, train) if export.value(r, roles.narrative) is not None
+             for s in D._cells(export.value(r, roles.site))}
+    need = params["floor_sites"]
+    if len(sites) >= need:
+        return None
+    return (f"the privacy floor needs training records from at least {need} sites, and the records dated "
+            f"{train.first} to {train.last} with a narrative come from {len(sites)} (site values that differ only in "
+            "case or spacing counted as one): no category can pass it")
+
+
+def record_ids(export: Export, roles: Roles, dated: D.Dated, cut: date) -> tuple[int, set[str], int]:
+    """Record ids across the cut: training rows (dated on or before ``cut``) whose id an earlier training row has (each
+    counts toward the drafter's floor and predicate sizes again), the training ids, and held-out rows whose id a
+    training row has (left out of the audit)."""
+    seen: set[str] = set()
+    repeated = 0
+    later: list[str | None] = []
+    for r, day in enumerate(dated.dates):
+        if day is None:
+            continue
+        ref = export.value(r, roles.record_id)
+        if day > cut:
+            later.append(ref)
+        elif ref is not None:
+            repeated += ref in seen
+            seen.add(ref)
+    return repeated, seen, sum(1 for ref in later if ref is not None and ref in seen)
 
 
 def labelled_export(export: Export, roles: Roles, labels: Mapping[str, str]) -> Export:
@@ -402,8 +493,9 @@ class Watch:
 # --------------------------------------------------------------------------------------------------- the guard
 
 class Guard:
-    """The onboard report's last guard over the strings printed from records, its backstop over the whole output, a
-    scan for refused-column and site values, and an eight-word scan of the narratives; all built from the export."""
+    """The onboard report's last guard over the strings printed from records, its backstop's values over the whole
+    output, a scan for refused-column and site values, and an eight-word scan of the narratives; all built from the
+    export. :meth:`exempt` sets aside the values and runs of words the report's own fixed text holds."""
 
     def __init__(self, export: Export, roles: Roles, params: Mapping[str, Any]) -> None:
         self.ngram = params["ngram_tokens"]
@@ -412,6 +504,7 @@ class Guard:
         p = params["refusal"]
         self.backstop = R.Backstop(p["reference_inside_min_chars"])
         self.backstop.add(export, roles)
+        self.index = {kind: D.ValueIndex(self.backstop.values[kind]) for kind in R.BACKSTOP_KINDS}
         _, refused = D.refused_values(export, roles)
         sites = [v for r in range(len(export)) for v in D._cells(export.value(r, roles.site))]
         values = set()
@@ -422,10 +515,12 @@ class Guard:
                 values.add(f)
         self.refused = D.ValueIndex(values)
         self.refused_count = len(values)
+        self.exempt_values: frozenset[str] = frozenset()
+        self.exempt_ngrams: frozenset[tuple[str, ...]] = frozenset()
 
     def strings(self, entry: Mapping[str, Any], extra: Sequence[str] = ()) -> dict[str, int]:
         """The onboard last guard (:func:`.onboard.report.company_hits`) over the draft's printed strings, plus the
-        same refusal and n-gram scan over ``extra`` (entity ids a review item prints)."""
+        same refusal and n-gram scan over ``extra`` (entity ids a review item prints). Nothing is exempt here."""
         hits = R.company_hits(entry, self.sentinels, self.ngram, self.prefix)
         for s in extra:
             kind = self.sentinels.refusal.string(s)
@@ -435,21 +530,52 @@ class Guard:
         hits["strings"] += len(extra)
         return hits
 
-    def texts(self, texts: Sequence[str], ngrams: bool = True) -> dict[str, int]:
-        found = self.backstop.hits(texts)
-        found["refused_value"] = len(self.refused.found_all("\n".join(folded(t) for t in texts)))
-        if ngrams:
-            found["narrative_ngrams"] = len(ngram_hits(texts, self.sentinels.narratives, self.ngram))
-        return found
+    def found(self, texts: Sequence[str]) -> dict[str, set[Any]]:
+        """The record ids and site values (backstop kinds), refused and site values, and narrative n-grams found in
+        ``texts`` (folded, whole tokens), less what :meth:`exempt` set aside."""
+        body = "\n".join(folded(t) for t in texts)
+        out: dict[str, set[Any]] = {kind: set(self.index[kind].found_all(body)) - self.exempt_values
+                                    for kind in R.BACKSTOP_KINDS}
+        out["refused_value"] = set(self.refused.found_all(body)) - self.exempt_values
+        out["narrative_ngrams"] = ngram_hits(texts, self.sentinels.narratives, self.ngram) - self.exempt_ngrams
+        return out
+
+    def texts(self, texts: Sequence[str]) -> dict[str, int]:
+        return {k: len(v) for k, v in self.found(texts).items()}
+
+    def exempt(self, fixed: Sequence[str]) -> None:
+        """Set aside every value and run of words found in ``fixed``, the report's own text with nothing from records
+        in it (:func:`skeleton`): a refused ``None`` or a site called ``Other`` is a word of that text, and finding it
+        says nothing about a record. Replaces any earlier exemption."""
+        self.exempt_values, self.exempt_ngrams = frozenset(), frozenset()
+        found = self.found(fixed)
+        self.exempt_ngrams = frozenset(found.pop("narrative_ngrams"))
+        self.exempt_values = frozenset(v for values in found.values() for v in values)
 
     def sent(self, text: str | None) -> dict[str, int]:
-        """The bytes that left the sites: record ids, site values and refused values. Unread bytes are a hit."""
+        """The bytes that left the sites (HQ's receive log, one JSON object a line): every JSON string of them (keys
+        included; a JSON ``null`` is no string) scanned as :meth:`texts` scans. Unread bytes, or a line that is not
+        JSON, are a hit."""
         if text is None:
             return {"sent_unread": 1}
-        return {f"sent_{k}": v for k, v in self.texts([text], ngrams=False).items()}
+        strings: set[str] = set()
+        for line in text.splitlines():
+            if not line.strip():
+                continue
+            try:
+                strings.update(json_strings(json.loads(line)))
+            except ValueError:
+                return {"sent_unread": 1}
+        return {f"sent_{k}": v for k, v in self.texts(sorted(strings)).items()}
 
     def message(self, text: str) -> str:
-        found = self.texts([text])
+        """An error text as shown: itself when the scans, with nothing exempt, and the refusal find nothing in it."""
+        saved = self.exempt_values, self.exempt_ngrams
+        self.exempt_values, self.exempt_ngrams = frozenset(), frozenset()
+        try:
+            found = self.texts([text])
+        finally:
+            self.exempt_values, self.exempt_ngrams = saved
         found["refused_own"] = int(self.sentinels.refusal.term(text) is not None)
         return text if not any(found.values()) else WITHHELD_ERROR
 
@@ -457,7 +583,8 @@ class Guard:
         return {"record_ids": len(self.backstop.values["report_record_id"]),
                 "site_values": len(self.backstop.values["report_site"]),
                 "refused_and_site_values": self.refused_count, "narratives": len(self.sentinels.narratives),
-                "ngram_words": self.ngram}
+                "ngram_words": self.ngram, "exempt_values": len(self.exempt_values),
+                "exempt_ngrams": len(self.exempt_ngrams)}
 
 
 # --------------------------------------------------------------------------------------------------- the run
@@ -473,12 +600,13 @@ class Computed:
     sent: str | None
 
 
-def _split(dated: D.Dated, train_until: date) -> dict[str, Any]:
+def _split(dated: D.Dated, train_until: date, ids: tuple[int, set[str], int]) -> dict[str, Any]:
     days = sorted(day for day in dated.dates if day is not None)
     return {"date_format": dated.format, "dated": len(days), "undated": dated.rejected,
             "first": days[0].isoformat(), "last": days[-1].isoformat(), "train_until": train_until.isoformat(),
             "training_records": sum(1 for day in days if day <= train_until),
-            "held_out_records": sum(1 for day in days if day > train_until)}
+            "held_out_records": sum(1 for day in days if day > train_until),
+            "training_repeated_ids": ids[0], "held_out_training_ids": ids[2]}
 
 
 def _draft_data(d: D.Draft, shown: bool, params: Mapping[str, Any]) -> dict[str, Any]:
@@ -525,10 +653,13 @@ def _scope(template: Mapping[str, Any]) -> tuple[str, str]:
 
 def review_parts(doc: Mapping[str, Any], watch: Watch, pack: Any, scope: tuple[str, str]
                  ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
-    """The review list in two parts: each item X or S raised, with the weeks of its X and S alerts and the sites that
-    sent HQ a cell of it in the window up to one of them (counted from the cells those runs read; they must be the
-    sites the audit took from the sites' own stores for the same alerts); then each item R_mf alone raised, with the
-    sites the audit lists. Also the entity ids the items print."""
+    """The review list in two parts: each item X or S raised, with its own X and S alerts only, those on the item's
+    key in one of its listed weeks (the audit lists the weeks of the alerts no issue explains, pooled over X, S and
+    R_mf, and whether an issue explains an alert depends on its key and week alone, so these are exactly the X and S
+    alerts the audit left unexplained): their weeks, their count, their records (the distinct record ids behind
+    them) and the sites that sent HQ a cell of the key in the window up to one of them (counted from the cells those
+    runs read; they must be the sites the audit took from the sites' own stores for the same alerts). Then each item
+    R_mf alone raised, with the sites and records the audit lists. Also the entity ids the items print."""
     counted, reference, extra = [], [], []
     for e in doc["review"]:
         label = pack.predicates[e["predicate"]].label if e["predicate"] in pack.predicates else e["predicate"]
@@ -538,10 +669,12 @@ def review_parts(doc: Mapping[str, Any], watch: Watch, pack: Any, scope: tuple[s
             entity = f"{et.label if et is not None else e['entity_type']} {e['entity_id']}"
             extra.append(e["entity_id"])
         by = [name for name in e["channels"] if name in COUNT_CHANNELS]
+        listed = set(e["alert_weeks"])
+        hits = [(name, a) for name in COUNT_CHANNELS for a in watch.alerts.get(name, ())
+                if a["key"] == e["key"] and a["week"] in listed]
+        if sorted({name for name, _ in hits}) != sorted(by):
+            raise StartError("the X and S alerts in an item's weeks do not match the channels the audit lists for it")
         if by:
-            hits = [(name, a) for name in by for a in watch.alerts.get(name, ()) if a["key"] == e["key"]]
-            if not hits:
-                raise StartError("an X or S item of the review list has no X or S alert")
             sites: set[str] = set()
             for name, a in hits:
                 sent = watch.cell_sites(name, a)
@@ -552,7 +685,7 @@ def review_parts(doc: Mapping[str, Any], watch: Watch, pack: Any, scope: tuple[s
             counted.append({"predicate": label, "entity": entity, "channels": by,
                             "also": [c for c in e["channels"] if c not in COUNT_CHANNELS], "first_week": weeks[0],
                             "last_week": weeks[-1], "alerts": len(hits), "sites": sorted(sites),
-                            "records": e["records"]})
+                            "records": len({ref for _, a in hits for ref in a["record_refs"]})})
         else:
             weeks = sorted(e["alert_weeks"])
             reference.append({"predicate": label, "entity": entity, "channels": list(e["channels"]),
@@ -566,8 +699,17 @@ def review_parts(doc: Mapping[str, Any], watch: Watch, pack: Any, scope: tuple[s
     return counted, reference, extra
 
 
+def held_out_rejected(rejected: Mapping[str, int], mapped: Mapping[str, int]) -> dict[str, int]:
+    """The held-out rows the audit did not read, by why: the drafter's normalised rows' reasons and this runner's
+    ``in_training`` (:data:`HELD_OUT_SAYS`), then the audit's own mapping's, as ``mapping_<reason>``. ``bad_date`` is
+    left out: an undated row is neither training nor held out, and the export section counts it."""
+    out = {k: int(v) for k, v in rejected.items() if k != "bad_date" and v}
+    out.update({f"mapping_{k}": int(v) for k, v in mapped.items() if v})
+    return dict(sorted(out.items()))
+
+
 def _audit_data(doc: Mapping[str, Any], watch: Watch, pack: Any, scope: tuple[str, str], rejected: Mapping[str, int],
-                all_sites: int) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
+                labels: SiteLabels) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
     sites = list(doc["export"]["sites"])
     per_site = []
     for site in sites:
@@ -581,9 +723,11 @@ def _audit_data(doc: Mapping[str, Any], watch: Watch, pack: Any, scope: tuple[st
                           "reason": doc["channels"][name].get("reason")}
     counted, reference, extra = review_parts(doc, watch, pack, scope)
     det, w = pack.detectors, doc["weeks"]
+    not_used = held_out_rejected(rejected, doc["export"]["rejected"])
     audit = {"records": doc["export"]["records"], "rows": doc["export"]["rows"],
-             "rows_rejected": sum(rejected.values()) + sum(doc["export"]["rejected"].values()),
-             "sites_in_export": all_sites, "sites": sites, "weeks_first": w["first"], "weeks_last": w["last"],
+             "rows_rejected": sum(not_used.values()), "rejected_by_reason": not_used,
+             "sites_in_export": labels.sites, "site_spellings": labels.spellings, "sites": sites,
+             "weeks_first": w["first"], "weeks_last": w["last"],
              "evaluated_from": w["evaluated_from"], "evaluated_weeks": w["evaluated_weeks"],
              "history_weeks": det["window_weeks"] + det["min_history_weeks"] - 1, "window_weeks": det["window_weeks"],
              "min_sites": min(det["burst"]["min_sites"], det["cooccurrence"]["min_sites"]), "k": pack.egress.k,
@@ -665,6 +809,10 @@ def _compute(export: Export, roles: Roles, params: Mapping[str, Any], template: 
         raise StartError("no record is dated after --train-until: there is nothing left to audit")
     train = D.Window(min(days), cut)
     held = D.Window(cut + timedelta(days=1), max(days))
+    why = few_sites(export, roles, dated, train, params)
+    if why is not None:
+        raise StartError(why)
+    ids = record_ids(export, roles, dated, cut)
     d = D.draft_export(export, roles, train, PACK_ID, params=params, lang=lang, template=template)
     pack_dir = work / "pack"
     D.write_pack(d.files, pack_dir)
@@ -685,7 +833,7 @@ def _compute(export: Export, roles: Roles, params: Mapping[str, Any], template: 
         "label": LABEL,
         "inputs": {"export": export_facts, "roles": roles_doc,
                    "outcomes": None if outcomes_path is None else file_facts(outcomes_path)},
-        "split": {**_split(dated, cut), "train_until_given": train_until is not None},
+        "split": {**_split(dated, cut, ids), "train_until_given": train_until is not None},
         "draft": _draft_data(d, shown, params), "floor": _floor_data(checked, loader_error),
         "audit": None, "review": None, "outcomes": None, "not_shown": list(NOT_SHOWN)}
     entry: dict[str, Any] = {"draft": d.facts, "pack": {"loader": {"error": loader_error}}, "controls": {}}
@@ -694,10 +842,14 @@ def _compute(export: Export, roles: Roles, params: Mapping[str, Any], template: 
         return Computed(doc=doc, guard=guard, entry=entry, extra_strings=[], sent=None)
 
     t0 = time.perf_counter()
-    site_values = [v for r in range(len(export)) for v in D._cells(export.value(r, roles.site))]
-    labels = labels_for(site_values, "s")
-    rows, rejected = D.normalised_rows(labelled_export(export, roles, labels), roles, d.dated, held, template,
+    labels = site_labels(export, roles, site_key(export_path.read_bytes()))
+    rows, rejected = D.normalised_rows(labelled_export(export, roles, labels.of_value), roles, d.dated, held, template,
                                        d.etypes)
+    ref_key = template["ids.json"]["normalised"]["record_ref"]
+    audited = [row for row in rows if row[ref_key] not in ids[1]]
+    if len(audited) != len(rows):
+        rejected = {**rejected, "in_training": len(rows) - len(audited)}
+    rows = audited
     scope = _scope(template)
     outcome_rows: list[dict[str, str]] = []
     issues: dict[str, Any] | None = None
@@ -718,13 +870,13 @@ def _compute(export: Export, roles: Roles, params: Mapping[str, Any], template: 
         s = audit_doc["channels"][name]["summary"]
         if name not in watch.alerts or s is None or len(watch.alerts[name]) != s["alerts"]:
             raise StartError(f"the {name} alerts could not be read from the audit")
-    audit, review, extra = _audit_data(audit_doc, watch, pack, scope, rejected, len(labels))
+    audit, review, extra = _audit_data(audit_doc, watch, pack, scope, rejected, labels)
     doc["audit"], doc["review"] = audit, review
     if issues is not None:
         doc["outcomes"] = _outcome_data(audit_doc, issues, pack, outcome_rows)
     if keep:
         A._write(audit_doc, work / "audit")
-        _write_map(work / "sites.csv", ("site", "value"), sorted((v, k) for k, v in labels.items()))
+        _write_map(work / "sites.csv", ("site", "value"), sorted((v, k) for k, v in labels.of_value.items()))
         if issues is not None:
             _write_map(work / "issues.csv", ("issue", "outcome_id"), sorted(issues["labels"].items()))
     emit(f"(4) audit the held-out records: {time.perf_counter() - t0:.1f} s")
@@ -780,8 +932,13 @@ def _md_export(doc: Mapping[str, Any]) -> list[str]:
             f"- Dates read as {s['date_format']}: {n(s['dated'])} records dated, {n(s['undated'])} not.",
             f"- Drafted from the {n(s['training_records'])} records dated {s['first']} to {s['train_until']} "
             f"(the cut is {how}).",
-            f"- Audited: the {n(s['held_out_records'])} records dated after {s['train_until']}, to {s['last']}, which "
-            "the draft never read.", ""]
+            f"- Audited: the {n(s['held_out_records'])} records dated after {s['train_until']}, to {s['last']}, whose "
+            "narratives and categories the draft never read (it reads every row's date, record id, site and refused "
+            "values, to choose the date format and to refuse those values).",
+            f"- Record ids: {n(s['training_repeated_ids'])} training rows repeat an earlier training row's id, and "
+            "count toward the drafted floor and predicates again; "
+            f"{n(s['held_out_training_ids'])} held-out rows have a training row's id, and are left out of the "
+            "audit.", ""]
 
 
 def _md_draft(doc: Mapping[str, Any]) -> list[str]:
@@ -826,12 +983,19 @@ def _md_floor(doc: Mapping[str, Any]) -> list[str]:
 def _md_audit(doc: Mapping[str, Any]) -> list[str]:
     a, rv = doc["audit"], doc["review"]
     k, window = a["k"], a["window_weeks"]
+    spellings = "" if a["site_spellings"] == a["sites_in_export"] else (
+        f" ({n(a['site_spellings'])} spellings of them: values that differ only in case or spacing are one site "
+        "here, under one label, but the drafter's privacy floor counted sites as spelled)")
+    why = [f"{n(v)} with {HELD_OUT_SAYS[k]}" if k in HELD_OUT_SAYS else
+           f"{n(v)} refused by the audit's mapping ({k.removeprefix('mapping_').replace('_', ' ')})"
+           for k, v in a["rejected_by_reason"].items()]
     out = ["## 3. What left each site", "",
-           f"{n(a['sites_in_export'])} sites in the export, {n(len(a['sites']))} with audited records. Each ran as its "
-           "own site inside this process, under its label; nothing was sent over a network. What left a site is what "
-           "crossed from its store to HQ's: weekly cells only, one per category, week and channel that had a "
-           f"record. A cell holds counts (a count under {k} leaves as '<k') and no record id or text.", "",
-           f"Audited: {n(a['records'])} records; {n(a['rows_rejected'])} held-out rows not used. Weeks evaluated: "
+           f"{n(a['sites_in_export'])} sites in the export{spellings}, {n(len(a['sites']))} with audited records. Each "
+           "ran as its own site inside this process, under its label; nothing was sent over a network. What left a "
+           "site is what crossed from its store to HQ's: weekly cells only, one per category, week and channel that "
+           f"had a record. A cell holds counts (a count under {k} leaves as '<k') and no record id or text.", "",
+           f"Audited: {n(a['records'])} records; {n(a['rows_rejected'])} held-out rows not used"
+           + (f" ({'; '.join(why)})" if why else "") + f". Weeks evaluated: "
            f"{n(a['evaluated_weeks'])} ({a['evaluated_from']} to {a['weeks_last']}); the {a['history_weeks']} weeks "
            "before build each series' history.", "",
            f"| Site | Weekly bundles | Cells | Cells with a count under {k} |", "|---|---|---|---|"]
@@ -902,9 +1066,10 @@ def render_md(doc: Mapping[str, Any]) -> str:
     if doc["status"] == "withheld":
         return "\n".join([f"# {TITLE}", "", f"_{doc['label']}._", "", doc["withheld"], ""]) + "\n"
     out = [f"# {TITLE}", "", f"_{doc['label']}._", "",
-           "Sites are s01 onwards, numbered in the sorted order of the site column's values; issues are i01 onwards, "
-           "in the order of the outcomes file's rows. No record id, site value, refused-column value or narrative "
-           "text is printed.", ""]
+           "Sites are s01 onwards, in an order drawn from a hash keyed by the export's own bytes, not the order of "
+           "their names (--work's sites.csv maps each label to its value); issues are i01 onwards, in the order of "
+           "the outcomes file's rows. No record id, site value, refused-column value or narrative text is printed.",
+           ""]
     out += _md_export(doc) + _md_draft(doc) + _md_floor(doc)
     if doc["audit"] is not None:
         out += _md_audit(doc) + _md_outcomes(doc)
@@ -915,7 +1080,9 @@ def render_md(doc: Mapping[str, Any]) -> str:
                 f"{n(g['record_ids'])} record ids, {n(g['site_values'])} site values and "
                 f"{n(g['refused_and_site_values'])} refused and site values looked for in this file, in pilot.json "
                 f"and in the bytes that left the sites, and {g['ngram_words']} words in a row of "
-                f"{n(g['narratives'])} narratives. Found: none.", ""]
+                f"{n(g['narratives'])} narratives. Not looked for, because this report's own fixed text holds them: "
+                f"{n(g['exempt_values'])} of those values and {n(g['exempt_ngrams'])} runs of words. Found: none.",
+                ""]
     return "\n".join(out)
 
 
@@ -928,10 +1095,55 @@ def withheld_doc(hits: Mapping[str, int]) -> dict[str, Any]:
                         "from the run is shown; the exit code is 1."}
 
 
+def _fixed(value: Any) -> Any:
+    """Every count 0 and every date, ISO week and SHA-256 one fixed text: what the report prints whatever the export."""
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, int):
+        return 0
+    if isinstance(value, float):
+        return 0.0
+    if isinstance(value, str):
+        if DATE_TEXT.fullmatch(value):
+            return "2000-01-01"
+        if WEEK_TEXT.fullmatch(value):
+            return "2000-W01"
+        return "" if HEX_TEXT.fullmatch(value) else value
+    if isinstance(value, dict):
+        return {k: _fixed(v) for k, v in value.items()}
+    return [_fixed(v) for v in value]
+
+
+def skeleton(doc: Mapping[str, Any]) -> dict[str, Any]:
+    """``pilot.json``'s content with nothing from records: every string that came from one (predicate ids, labels
+    and first terms; review items' predicates and entities; issues' categories) left out, and every count and date
+    fixed (:func:`_fixed`). What it and the ``pilot.md`` rendered from it hold is the report's own fixed text, plus
+    your column names and labels such as s01."""
+    s = json.loads(json_text(doc))
+    for p in s["draft"]["predicates"]:
+        p.update({k: "" for k in ("id", "label") if k in p})
+        if "first_terms" in p:
+            p["first_terms"] = []
+    for part in ("from_cells", "reference_only"):
+        for r in (s.get("review") or {}).get(part, ()):
+            r.update(predicate="", entity=None)
+    for r in (s.get("outcomes") or {}).get("by_issue", ()):
+        r["category"] = None
+    return _fixed(s)
+
+
+def skeleton_texts(doc: Mapping[str, Any]) -> list[str]:
+    s = skeleton(doc)
+    return [render_md(s), *json_strings(s)]
+
+
 def present(c: Computed) -> tuple[dict[str, Any], str, int]:
-    """The guard, then the files: (pilot.json's content, pilot.md, exit code)."""
+    """The guard, then the files: (pilot.json's content, pilot.md, exit code). The strings printed from records are
+    checked with nothing exempt; then the values and runs of words the report's fixed text holds are set aside
+    (:meth:`Guard.exempt`) and the bytes that left the sites, ``pilot.md`` and ``pilot.json`` are scanned."""
     hits = dict(c.guard.strings(c.entry, c.extra_strings))
     strings = hits.pop("strings")
+    c.guard.exempt(skeleton_texts(dict(c.doc, guard={"strings": strings, **c.guard.summary()})))
     if c.doc["audit"] is not None:
         hits.update(c.guard.sent(c.sent))
     if any(hits.values()):
@@ -944,6 +1156,18 @@ def present(c: Computed) -> tuple[dict[str, Any], str, int]:
         doc = withheld_doc(found)
         return doc, render_md(doc), 1
     return doc, md, 0 if doc["status"] == "shown" else 1
+
+
+def check_out(out: Path) -> None:
+    """``--out`` is a directory, or can be made one: the nearest path at or above it that exists is a directory this
+    process may write in. Checked before the run, so a bad ``--out`` costs no run; nothing is created here."""
+    at = out
+    while not at.exists() and at.parent != at:
+        at = at.parent
+    if not at.is_dir():
+        raise StartError(f"--out {out} cannot be written: {at} is not a directory")
+    if not os.access(at, os.W_OK | os.X_OK):
+        raise StartError(f"--out {out} cannot be written: {at} is not writable")
 
 
 def write(out: Path, doc: Mapping[str, Any], md: str) -> None:
@@ -1081,6 +1305,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     out = Path(args.out).resolve()
     try:
         with contextlib.ExitStack() as stack:
+            check_out(out)
             if args.work:
                 work = Path(args.work).resolve()
                 if work == out or out in work.parents:
@@ -1093,13 +1318,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             computed = compute(Path(args.export), Path(args.roles), Path(args.outcomes) if args.outcomes else None,
                                args.train_until, work, emit, keep=bool(args.work))
             doc, md, code = present(computed)
+            write(out, doc, md)
     except (StartError, OSError) as err:
         print(f"error: {err}", file=sys.stderr)
         return 2
     except Exception as err:                       # noqa: BLE001 (never a traceback: it could print a record value)
         print(f"error: {err.__class__.__name__} (its text is not shown)", file=sys.stderr)
         return 2
-    write(out, doc, md)
     if doc["status"] == "withheld":
         print("pilot start: withheld by the guard (hit counts only) -> " + str(out / "pilot.md"), file=sys.stderr)
     elif doc["status"] == "privacy_floor_failed":

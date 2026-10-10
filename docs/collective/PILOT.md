@@ -34,22 +34,33 @@ python -m mycelic.collective.pilot.start run --export <your export> --roles <rol
 It chains code that already exists, unchanged, in the order the drafter demo (`demo/onboard/run_demo.py`) chains it:
 
 1. **Reads the export** with the drafter's reader: CSV, pipe- or tab-delimited text with a header, or JSON lines; a
-   field in double quotes may hold the delimiter.
+   field in double quotes may hold the delimiter. The first non-empty line must be the header: with no header row, or
+   a title line above it, the roles check stops the run, and its error gives the column count, never the names (they
+   would be a record's values).
 2. **Drafts a pack** with the drafter of D002 and D003 (`onboard.draft`, D002's defaults) from the records dated on or
    before `--train-until`. Its predicates are your filed categories with at least 50 training records, from at least
    3 sites, and a label that is not generic (such as "other" or "misc"); its terms are words counted from your
-   narratives. By default the cut is the date that leaves the last quarter of your dated records after it.
+   narratives. By default the cut is the date that leaves the last quarter of your dated records after it. Training
+   records from fewer than 3 sites stop the run first, with that reason. The draft reads every row's date, record id,
+   site and refused values (to choose the date format and to refuse those values), and the narratives and categories
+   of the training records only.
 3. **Checks it** (`onboard.check`): the loader, and the privacy floor (every term and category spelling in at least 10
    training records from at least 3 sites, no record id, site or refused value in any string, no eight consecutive
    words of a narrative). If the floor fails, the run stops with exit code 1, and `pilot.md` holds the check's counts
    and no label or term.
 4. **Audits the records after the cut** with the drafted pack: `pilot.audit`'s own audit, every setting at its default,
-   with your issues when `--outcomes` is given. Before it reads a row, each site value becomes a label, `s01` onwards
-   in the sorted order of your site values, so every weekly cell that leaves a site carries a label.
+   with your issues when `--outcomes` is given. A held-out row whose record id a training row has is left out, and
+   `pilot.md` counts the rows left out by why, and the record ids repeated within the training rows. Before the audit
+   reads a row, each site value becomes a label, so every weekly cell that leaves a site carries a label: site values
+   that differ only in case or spacing are one site (the drafter's floor still counts them as spelled, and `pilot.md`
+   says how many spellings there are), and the labels, `s01` onwards, follow a hash keyed by your export's own bytes,
+   not the order of the names. Each site's cell counts are still printed: a reader who knows your sites' sizes may
+   match them.
 5. **Writes `pilot.md` and `pilot.json`:** the drafted predicates and their first terms; the floor result; the weekly
    cells each site sent; the alerts by channel, with the weekly-cell channels (X, S) apart from the reference channels
-   (R_mf, P, PRR); the review list in the same two parts; with outcomes, each channel's issues found before opening
-   against what chance finds; and what the run does not show.
+   (R_mf, P, PRR); the review list in the same two parts, each X or S item with its own unexplained X and S alerts'
+   weeks, sites and records only; with outcomes, each channel's issues found before opening against what chance
+   finds; and what the run does not show.
 
 **The roles file** names your own columns:
 
@@ -63,22 +74,26 @@ It chains code that already exists, unchanged, in the order the drafter demo (`d
 | `forbidden` | the refused columns: names, ids and anything that must never be printed or learned (`[]` when none) |
 
 `entities` (a list of columns) and `reporter` (a column) are optional, as is `language` (default `en`). The file is
-checked strictly: an error names every missing role and what it is, an unknown key, a column your export lacks and the
-role that named it, a column named twice, or a record id, site, date or narrative given as a list column. Dates are read
+UTF-8 JSON (a byte-order mark, as Windows Notepad writes, is dropped) and is checked strictly: an error names every
+missing role and what it is, an unknown key, a column your export lacks and the role that named it, a column named
+twice, or a record id, site, date or narrative given as a list column. Dates are read
 in one of YYYY-MM-DD, YYYYMMDD, YYYY/MM/DD, M/D/YYYY, M/D/YY, D.M.YYYY, D-MON-YYYY and D-MON-YY, the first that
 reads 95% of the values, with any time after the date ignored. Dates written D/M/YYYY are not among them: export them as
 D.M.YYYY or YYYY-MM-DD.
 
 **The outcomes file** is optional: `outcome_id`, `opened` (`YYYY-MM-DD`) and `category`, the filed category the issue
-was about as your export writes it (case and accents aside), or empty for any category. An issue whose category is not
+was about as your export writes it (case and spacing aside), or empty for any category. An issue whose category is not
 a drafted predicate is counted by why and not scored. Issues are `i01` onwards, in the file's row order.
 
 **What is never written:** before anything is written, the strings that came from your records go through the
-drafter's last guard (`onboard.report.company_hits`), and the whole of `pilot.md`, every string of `pilot.json` and the
-bytes that left the sites are scanned for your record ids and site values of five characters or more
-(`onboard.report.Backstop`), for every value of a refused column or site of four characters or more that holds a letter
-(five otherwise), and for eight consecutive words of any narrative. A hit
-replaces both files with the hit counts by kind, with exit code 1. `--work <dir>` keeps the record data a reviewer needs:
+drafter's last guard (`onboard.report.company_hits`), and the whole of `pilot.md`, every string of `pilot.json` and every
+JSON string of the bytes that left the sites (HQ's receive log, one JSON object a line) are scanned for your record ids
+and site values of five characters or more (the values of `onboard.report.Backstop`), for every value of a refused
+column or site of four characters or more that holds a letter (five otherwise), and for eight consecutive words of any
+narrative. A value or run of words that the report's own fixed text holds (`pilot.json` with every string from your
+records left out and every count and date fixed, and the `pilot.md` rendered from it), such as `None` in a refused
+column or a site called `Other`, is not looked for, and the guard line counts them. A hit replaces both files with the
+hit counts by kind, with exit code 1. `--work <dir>` keeps the record data a reviewer needs:
 the drafted pack (which `pilot.audit run --pack` reads), the audit's own `audit.json` and `audit.md` (with record
 ids), and `sites.csv` and `issues.csv` (each label against your own value). It is never `--out` or inside it.
 
@@ -117,7 +132,8 @@ The second command exited 0. These lines are from the `pilot.md` it wrote:
 - 1,317 rows read (comma, utf-8), 7 columns; 0 rows rejected by the reader.
 - Dates read as D.M.YYYY: 1,317 records dated, 0 not.
 - Drafted from the 988 records dated 2021-01-05 to 2024-02-27 (the cut is the default: the last quarter of the dated records come after it).
-- Audited: the 329 records dated after 2024-02-27, to 2025-01-04, which the draft never read.
+- Audited: the 329 records dated after 2024-02-27, to 2025-01-04, whose narratives and categories the draft never read (it reads every row's date, record id, site and refused values, to choose the date format and to refuse those values).
+- Record ids: 0 training rows repeat an earlier training row's id, and count toward the drafted floor and predicates again; 0 held-out rows have a training row's id, and are left out of the audit.
 Filed categories that passed the floor (at least 10 training records at 3 sites): 6. Predicates among them (at least 50 records and a specific label): 5. Other bucket: 1. Below the floor, left out: 0. Refused (a string of theirs is a record id, site or refused value): 0.
 Terms: 53 in all, counted from 988 training narratives; 0 predicates learned none. The refusal removed 0 floor-passing terms.
 | Racking strike | 179 | 12 | upright, beam, struck, racking, aisle, beam struck, beam upright, upright racking, aisle beam, aisle upright |
@@ -144,7 +160,7 @@ In all 332 cells (311 under 3) in 270 bundles, 164,722 bytes. The guard scanned 
 | PRR | 0 of 2 | n/a | 0.00 | 1.00 | 0.00 | 1.00 | 0 |
 | i02 | Manual handling | 2024-11-11 | 36 days earlier | 36 days earlier | 36 days earlier | 106 days earlier | not flagged |
 | i03 | any category | 2024-12-02 | 57 days earlier | 57 days earlier | 57 days earlier | 127 days earlier | not flagged |
-Guard: 62 printed strings from records checked against the export; 1,317 record ids, 6 site values and 1,319 refused and site values looked for in this file, in pilot.json and in the bytes that left the sites, and 8 words in a row of 1,317 narratives. Found: none.
+Guard: 62 printed strings from records checked against the export; 1,317 record ids, 6 site values and 1,319 refused and site values looked for in this file, in pilot.json and in the bytes that left the sites, and 8 words in a row of 1,317 narratives. Not looked for, because this report's own fixed text holds them: 0 of those values and 0 runs of words. Found: none.
 ```
 
 The X row reads: of the 2 issues in scope, X flagged both before they were opened, with its 1 alert (the audit's
@@ -153,8 +169,9 @@ those shifts does at least as well. The review list is empty because every X, S 
 
 - **Shown:** the whole chain runs on an export in its own column names and date format, with no pack written for it.
   The drafted predicates are the export's own types, the floor held, only weekly cells left the depots, under the
-  labels s01 to s06, and the planted rise was flagged 36 days before the issue about it was opened, while it was
-  still rising.
+  labels s01 to s06 (in the order of a hash keyed by the export, not of the depots' names), and the planted rise was
+  flagged 36 days before the issue about it was opened, while it was still rising. No value the guard looks for is in
+  the report's fixed text, so none was set aside.
 - **Not shown:** that it finds real problems. The planted rise and the detectors share an author, two issues are far
   too few, and the found count sits at chance (p 0.62). The issue about any type is found by the same alert as the
   other. Your own pilot needs your history: years of records and tens of issues.

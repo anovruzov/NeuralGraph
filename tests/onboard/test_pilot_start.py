@@ -14,24 +14,37 @@ output is scanned for every record id, site value and refused value of four char
 consecutive words of any narrative. Then: the roles file's errors, a privacy floor that fails, outcomes given and not
 given, the guard catching a planted site name, record id and narrative, the audit being ``pilot.audit``'s own run path,
 and two runs giving the same ``pilot.json``. The worked example in ``docs/collective/PILOT.md`` is checked against a
-fresh run of ``example`` and ``run``."""
+fresh run of ``example`` and ``run``.
+
+Then the review fixes, on variants of the example export: an export with no header row or a title line above it (no
+record value in any error), placeholders such as ``NULL``, ``None`` and ``Other`` in a refused or site column (the
+report is shown), the review items' own alerts, held-out rows not used by reason, record ids repeated or shared across
+the cut, site values that differ only in case, too few sites, a byte-order mark in the roles file, an ``--out`` that
+cannot be written, and each guard path that a mutation of the first build left untested."""
 from __future__ import annotations
 
 import contextlib
+import csv
+import dataclasses
+import hashlib
+import hmac
 import io
 import json
 import random
 import re
 import tempfile
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Callable
 from unittest import mock
 
 from mycelic.collective.onboard import draft as D
+from mycelic.collective.onboard import report as R
 from mycelic.collective.onboard.check import ngram_hits
-from mycelic.collective.onboard.exports import read_export
+from mycelic.collective.onboard.exports import Export, read_export
+from mycelic.collective.packs.canonical import folded
 from mycelic.collective.packs.loader import load_pack_dir
 from mycelic.collective.pilot import audit as A
 from mycelic.collective.pilot import start as P
@@ -40,6 +53,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PILOT_DOC = ROOT / "docs" / "collective" / "PILOT.md"
 ORIGINAL = (A.run_pipeline, A.hq_results, A._alerts)
 RENDER = P.render_md
+DRAFT_DATA = P._draft_data
 NON_SPECIFIC = D.load_language("en").non_specific
 
 # --------------------------------------------------------------------------------------------------- the exports
@@ -303,10 +317,19 @@ class ShapeTests(unittest.TestCase):
                 self.assertGreater(a["sent"]["bytes"], 0)
                 self.assertEqual(a["sites_in_export"], 5)
 
-    def test_the_labels_follow_the_sorted_site_values(self) -> None:
-        run = shape_run("generic")
-        maps = (run["dir"] / "work" / "sites.csv").read_text(encoding="utf-8").splitlines()
-        self.assertEqual(maps[1:], [f"s{i:02d},{v}" for i, v in enumerate(sorted(GENERIC_SITES), start=1)])
+    def test_the_labels_follow_a_hash_keyed_by_the_export_not_the_names(self) -> None:
+        """Labels in the sorted order of the names map back to the sites for anyone who knows the site list; the
+        order is that of an HMAC keyed by a hash of the export's own bytes, which pilot.json does not print."""
+        for shape, sites in (("generic", GENERIC_SITES), ("msha", MSHA_SITES)):
+            with self.subTest(shape=shape):
+                run = shape_run(shape)
+                maps = (run["dir"] / "work" / "sites.csv").read_text(encoding="utf-8").splitlines()[1:]
+                key = P.site_key(run["export"].read_bytes())
+                ranked = sorted(sites, key=lambda v: hmac.new(key, folded(v).encode(), hashlib.sha256).digest())
+                self.assertEqual(maps, sorted(f"s{i:02d},{v}" for i, v in enumerate(ranked, start=1)))
+                self.assertNotEqual(maps, [f"s{i:02d},{v}" for i, v in enumerate(sorted(sites), start=1)])
+                self.assertNotEqual(key, hashlib.sha256(run["export"].read_bytes()).digest())
+                self.assertNotIn(key.hex(), run["json_text"])
 
     def test_alerts_keep_the_weekly_cell_channels_apart_from_the_reference_channels(self) -> None:
         for shape in ("msha", "nhtsa", "generic"):
@@ -396,7 +419,7 @@ class AuditRunPathTests(unittest.TestCase):
         dated = D.date_column(export, roles, D.load_language("en"), params)
         cut = date.fromisoformat(TRAIN_UNTIL)
         held = D.Window(cut + timedelta(days=1), max(d for d in dated.dates if d is not None))
-        labels = P.labels_for([v for i in range(len(export)) for v in D._cells(export.value(i, roles.site))], "s")
+        labels = P.site_labels(export, roles, P.site_key(run["export"].read_bytes())).of_value
         d = D.draft_export(export, roles, D.Window(min(d for d in dated.dates if d), cut), P.PACK_ID)
         rows, _ = D.normalised_rows(P.labelled_export(export, roles, labels), roles, dated, held, template, d.etypes)
         D.write_jsonl(rows, run["dir"] / "rows.jsonl")
@@ -505,11 +528,21 @@ class RolesTests(unittest.TestCase):
         self.assertIn("unknown keys extra", self.error({**self.roles(), "extra": 1}))
         self.assertIn('no "roles" object', self.error({"language": "en"}))
 
-    def test_a_column_the_export_lacks_is_named_with_its_role(self) -> None:
+    def test_a_column_the_export_lacks_is_named_with_its_role_and_the_header_is_not_listed(self) -> None:
+        """The header's names are not echoed: without a header row they would be the first record's values."""
         err = self.error(self.roles(site="plant_name"))
         self.assertIn("'plant_name'", err)
         self.assertIn('"site"', err)
-        self.assertIn("ticket_ref", err)
+        self.assertIn("has 9 columns", err)
+        self.assertIn("first non-empty line of the export is its header", err)
+        for column in ("ticket_ref", "branch", "logged_on", "what_happened", "staff_member", "badge"):
+            self.assertNotIn(column, err)
+
+    def test_a_roles_file_with_a_byte_order_mark_is_read(self) -> None:
+        path = self.dir / "bom-roles.json"
+        path.write_bytes(b"\xef\xbb\xbf" + json.dumps(self.made["roles"]).encode("utf-8"))
+        roles = P.load_roles(path)
+        self.assertEqual((roles.site, roles.forbidden), ("branch", ("staff_member", "badge")))
 
     def test_a_record_id_site_date_or_narrative_cannot_be_a_list(self) -> None:
         for role in P.SCALAR_ROLES:
@@ -619,7 +652,9 @@ class FloorTests(unittest.TestCase):
 
 class GuardTests(unittest.TestCase):
     """The guard runs before anything is written: a site name, a record id, a refused value or eight words of a
-    narrative planted in what would be written replaces both files with the hit counts."""
+    narrative planted in what would be written replaces both files with the hit counts. Each is planted where a
+    record value would reach the report, in a string the run printed (a predicate's first terms), which the
+    skeleton the exemptions are read from leaves out."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -630,9 +665,9 @@ class GuardTests(unittest.TestCase):
         cls.computed = P.compute(cls.made["export"], roles, None, TRAIN_UNTIL, cls.dir / "work")
 
     def present_with(self, planted: str) -> tuple[dict[str, Any], str, int]:
-        with mock.patch.object(P, "render_md", side_effect=lambda doc: RENDER(doc) +
-                               (planted if doc["status"] != "withheld" else "")):
-            return P.present(self.computed)
+        doc = json.loads(json.dumps(self.computed.doc))
+        doc["draft"]["predicates"][0]["first_terms"].append(planted.strip())
+        return P.present(dataclasses.replace(self.computed, doc=doc))
 
     def assert_withheld(self, planted: str, kind: str) -> dict[str, Any]:
         doc, md, code = self.present_with(planted)
@@ -673,9 +708,22 @@ class GuardTests(unittest.TestCase):
         self.assertEqual((doc["status"], code), ("withheld", 1))
         self.assertGreater(doc["guard"]["refused_equal"], 0)
 
+    def test_a_value_the_fixed_text_holds_is_counted_not_looked_for(self) -> None:
+        """A value every rendering holds, whatever the run, is the report's own text: it is set aside and counted.
+        (No real site is called this; the test plants it in every rendering, the skeleton's too.)"""
+        with mock.patch.object(P, "render_md", side_effect=lambda doc: RENDER(doc) +
+                               ("\nKestrel Point Plant\n" if doc["status"] != "withheld" else "")):
+            doc, md, code = P.present(self.computed)
+        self.assertEqual((doc["status"], code), ("shown", 0))
+        self.assertEqual(doc["guard"]["exempt_values"], 1)
+        self.assertIn("own fixed text holds them: 1 of those values and 0 runs of words. Found: none.", md)
+        doc, _, _ = P.present(self.computed)
+        self.assertEqual(doc["guard"]["exempt_values"], 0)
+
     def test_a_site_value_in_what_left_the_sites_is_caught(self) -> None:
+        line = json.dumps({"artifact_type": "cells_bundle", "site": "Millbrook Depot"})
         computed = P.Computed(doc=self.computed.doc, guard=self.computed.guard, entry=self.computed.entry,
-                              extra_strings=[], sent=(self.computed.sent or "") + " Millbrook Depot")
+                              extra_strings=[], sent=(self.computed.sent or "") + line + "\n")
         doc, _, code = P.present(computed)
         self.assertEqual((doc["status"], code), ("withheld", 1))
         self.assertGreater(doc["guard"]["sent_report_site"], 0)
@@ -691,8 +739,12 @@ class GuardTests(unittest.TestCase):
 
     def test_the_guard_runs_before_anything_is_written(self) -> None:
         out = self.dir / "planted-out"
-        with mock.patch.object(P, "render_md", side_effect=lambda doc: RENDER(doc) +
-                               ("\nRiverbend Works\n" if doc["status"] != "withheld" else "")):
+
+        def planted(*args: Any) -> dict[str, Any]:
+            data = DRAFT_DATA(*args)
+            data["predicates"][0].setdefault("first_terms", []).append("Riverbend Works")
+            return data
+        with mock.patch.object(P, "_draft_data", side_effect=planted):
             code, _, err = run_main(["run", "--export", str(self.made["export"]), "--roles",
                                      str(self.dir / "roles.json"), "--out", str(out), "--train-until", TRAIN_UNTIL])
         self.assertEqual(code, 1)
@@ -707,6 +759,524 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(guard.message("the export spans 3 weeks"), "the export spans 3 weeks")
         self.assertEqual(guard.message("site Ashcombe Yard rejected a record"), P.WITHHELD_ERROR)
         self.assertEqual(guard.message(f"record {self.made['refs'][9]} is bad"), P.WITHHELD_ERROR)
+
+    def test_an_error_text_holding_a_word_of_a_refused_name_is_withheld(self) -> None:
+        """A surname alone is no refused value and no site, so only the refusal's own check (refused_own) holds it."""
+        guard = self.computed.guard
+        text = "the column of Quenneville could not be read"
+        self.assertFalse(any(guard.texts([text]).values()))
+        self.assertEqual(guard.message(text), P.WITHHELD_ERROR)
+
+    def run_with(self, target: Any, name: str, error: Exception) -> tuple[int, str, str]:
+        with mock.patch.object(target, name, side_effect=error):
+            return run_main(["run", "--export", str(self.made["export"]), "--roles", str(self.dir / "roles.json"),
+                             "--out", str(self.dir / f"err-{name}"), "--train-until", TRAIN_UNTIL])
+
+    def test_an_audit_error_naming_a_site_is_withheld_on_stderr(self) -> None:
+        code, out, err = self.run_with(A, "audit", A.AuditError("site Harrow Lane Mill has no week to audit"))
+        self.assertEqual(code, 2)
+        self.assertIn(f"error: {P.WITHHELD_ERROR}", err)
+        self.assertNotIn("Harrow", out + err)
+        self.assertFalse((self.dir / "err-audit").exists())
+
+    def test_a_draft_error_naming_a_record_id_is_withheld_on_stderr(self) -> None:
+        ref = self.made["refs"][77]
+        code, out, err = self.run_with(D, "draft_export", D.DraftError(f"record {ref} has a value too long"))
+        self.assertEqual(code, 2)
+        self.assertIn(f"error: DraftError: {P.WITHHELD_ERROR}", err)
+        self.assertNotIn(ref, out + err)
+        code, _, err = self.run_with(D, "draft_export", D.DraftError("no category reaches the predicate minimum"))
+        self.assertEqual(code, 2)
+        self.assertIn("error: DraftError: no category reaches the predicate minimum", err)
+
+    def test_a_four_character_refused_value_is_looked_for(self) -> None:
+        """Refused values of four characters with a letter (a surname in its own column) are looked for; three are
+        not. Record ids and site values need five (the backstop's minimum)."""
+        export = Export(format="comma", encoding="utf-8", columns=("ref", "site", "day", "text", "cat", "who"),
+                        rows=(("R-0001", "Ashcombe Yard", "2024-01-01", "a text", "Cat", "Pike"),
+                              ("R-0002", "Ashcombe Yard", "2024-01-02", "a text", "Cat", "Ng"),
+                              ("R-0003", "Ashcombe Yard", "2024-01-03", "a text", "Cat", "Low")),
+                        rejected={}, blank_lines=0)
+        roles = P.roles_from_obj({"roles": {"record_id": "ref", "site": "site", "date": "day", "narrative": "text",
+                                            "category": "cat", "forbidden": ["who"]}})
+        guard = P.Guard(export, roles, D.load_params())
+        self.assertEqual(guard.texts(["reported by Pike at noon"])["refused_value"], 1)
+        self.assertEqual(guard.texts(["reported by Low at noon"])["refused_value"], 0)
+        self.assertEqual(guard.summary()["refused_and_site_values"], 2)
+
+    def test_a_value_only_in_a_pilot_json_string_is_caught(self) -> None:
+        """A predicate's id is in pilot.json only (pilot.md prints its label)."""
+        doc = json.loads(json.dumps(self.computed.doc))
+        doc["draft"]["predicates"][0]["id"] = "Kestrel Point Plant"
+        computed = P.Computed(doc=doc, guard=self.computed.guard, entry=self.computed.entry, extra_strings=[],
+                              sent=self.computed.sent)
+        self.assertNotIn("Kestrel", P.render_md(doc))
+        out, md, code = P.present(computed)
+        self.assertEqual((out["status"], code), ("withheld", 1))
+        self.assertGreater(out["guard"]["report_site"], 0)
+        self.assertNotIn("Kestrel", md + json.dumps(out))
+
+    def test_an_entity_id_a_review_item_prints_goes_through_the_last_guard(self) -> None:
+        computed = P.Computed(doc=self.computed.doc, guard=self.computed.guard, entry=self.computed.entry,
+                              extra_strings=[self.made["refs"][3]], sent=self.computed.sent)
+        doc, _, code = P.present(computed)
+        self.assertEqual((doc["status"], code), ("withheld", 1))
+        self.assertGreater(doc["guard"]["refused_equal"], 0)
+
+    def test_eight_words_of_a_narrative_in_what_left_the_sites_are_caught(self) -> None:
+        line = json.dumps({"artifact_type": "cells_bundle", "note": self.made["records"][40]["text"]})
+        computed = P.Computed(doc=self.computed.doc, guard=self.computed.guard, entry=self.computed.entry,
+                              extra_strings=[], sent=(self.computed.sent or "") + line + "\n")
+        doc, _, code = P.present(computed)
+        self.assertEqual((doc["status"], code), ("withheld", 1))
+        self.assertGreater(doc["guard"]["sent_narrative_ngrams"], 0)
+
+    def test_an_error_text_is_scanned_with_nothing_exempt(self) -> None:
+        """A narrative set aside for the report is still looked for in an error text (whose words the refusal alone
+        would not catch), and the exemption is kept for the report."""
+        guard = P.Guard(read_export(self.made["export"]), P.load_roles(self.dir / "roles.json"), D.load_params())
+        text = self.made["records"][40]["text"]
+        guard.exempt([text])
+        self.assertGreater(guard.summary()["exempt_ngrams"], 0)
+        self.assertEqual(guard.texts([text])["narrative_ngrams"], 0)
+        self.assertIsNone(guard.sentinels.refusal.term(text))
+        self.assertEqual(guard.message(text), P.WITHHELD_ERROR)
+        self.assertEqual(guard.texts([text])["narrative_ngrams"], 0)
+
+    def test_a_narrative_that_quotes_the_fixed_text_is_set_aside_and_counted(self) -> None:
+        """Eight words of the report's own text in a narrative say nothing about that record: set aside, counted."""
+        quoted = P.NOT_SHOWN[0].split(". ")[1]
+        export = Export(format="comma", encoding="utf-8", columns=("ref", "site", "day", "text", "cat", "who"),
+                        rows=(("R-0001", "Ashcombe Yard", "2024-01-01", f"Noted: {quoted}", "Cat", "Pike"),),
+                        rejected={}, blank_lines=0)
+        roles = P.roles_from_obj({"roles": {"record_id": "ref", "site": "site", "date": "day", "narrative": "text",
+                                            "category": "cat", "forbidden": ["who"]}})
+        guard = P.Guard(export, roles, D.load_params())
+        self.assertGreater(guard.texts([P.NOT_SHOWN[0]])["narrative_ngrams"], 0)
+        guard.exempt([P.NOT_SHOWN[0]])
+        self.assertGreater(guard.summary()["exempt_ngrams"], 0)
+        self.assertEqual(guard.texts([P.NOT_SHOWN[0]])["narrative_ngrams"], 0)
+        self.assertGreater(guard.texts(["Pike was there"])["refused_value"], 0)
+
+    def test_what_left_the_sites_is_read_as_json_strings(self) -> None:
+        """JSON's own null is no string, so a refused NULL is not found in '"after":null'; a string is scanned."""
+        export = Export(format="comma", encoding="utf-8", columns=("ref", "site", "day", "text", "cat", "who"),
+                        rows=(("R-0001", "Ashcombe Yard", "2024-01-01", "a text", "Cat", "NULL"),),
+                        rejected={}, blank_lines=0)
+        roles = P.roles_from_obj({"roles": {"record_id": "ref", "site": "site", "date": "day", "narrative": "text",
+                                            "category": "cat", "forbidden": ["who"]}})
+        guard = P.Guard(export, roles, D.load_params())
+        self.assertEqual(guard.texts(['{"after":null}'])["refused_value"], 1)
+        self.assertFalse(any(guard.sent('{"after":null,"site":"s01"}\n').values()))
+        self.assertEqual(guard.sent('{"after":"NULL"}\n')["sent_refused_value"], 1)
+        self.assertEqual(guard.sent('{"after":null}\nnot json\n'), {"sent_unread": 1})
+
+
+# --------------------------------------------------------------------------------------------------- example variants
+
+class Example:
+    """The worked example's export (``pilot.start example``), read back as rows, and variants of it written out."""
+
+    def __init__(self, directory: Path, seed: int = 1) -> None:
+        self.dir = directory
+        self.paths = P.write_example(directory / "example", seed=seed)
+        with open(self.paths["export"], newline="", encoding="utf-8") as fh:
+            rows = list(csv.reader(fh))
+        self.header, self.body = rows[0], rows[1:]
+        self.col = {name: i for i, name in enumerate(self.header)}
+        self.narratives = [r[self.col["what_happened"]] for r in self.body]
+
+    def secrets(self, rows: list[list[str]] | None = None) -> list[str]:
+        """Every record id, site value and refused value of four characters or more, and every distinct value of a
+        refused column split into words of four letters or more (a surname)."""
+        rows = self.body if rows is None else rows
+        values: set[str] = set()
+        for r in rows:
+            for name in ("incident_no", "depot", "reported_by", "staff_no"):
+                values.add(r[self.col[name]])
+                if name in ("reported_by", "depot"):
+                    values.update(r[self.col[name]].split())
+        return sorted(v for v in values if len(v) >= 4)
+
+    def write(self, name: str, rows: list[list[str]], header: bool = True, title: str = "") -> Path:
+        path = self.dir / f"{name}.csv"
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        if header:
+            w.writerow(self.header)
+        w.writerows(rows)
+        path.write_text(title + buf.getvalue(), encoding="utf-8")
+        return path
+
+    def with_value(self, column: str, value: str, every: int, offset: int = 0) -> list[list[str]]:
+        i = self.col[column]
+        return [r[:i] + [value] + r[i + 1:] if k % every == offset else list(r) for k, r in enumerate(self.body)]
+
+    def run(self, name: str, export: Path, *extra: str) -> dict[str, Any]:
+        out = self.dir / f"out-{name}"
+        code, stdout, stderr = run_main(["run", "--export", str(export), "--roles", str(self.paths["roles"]),
+                                         "--out", str(out), *extra])
+        result: dict[str, Any] = {"code": code, "stdout": stdout, "stderr": stderr, "out": out}
+        if (out / "pilot.json").is_file():
+            result["json_text"] = (out / "pilot.json").read_text(encoding="utf-8")
+            result["md"] = (out / "pilot.md").read_text(encoding="utf-8")
+            result["doc"] = json.loads(result["json_text"])
+        return result
+
+
+_EXAMPLE: list[Example] = []
+
+
+def example() -> Example:
+    if not _EXAMPLE:
+        directory = TMP / "variants"
+        directory.mkdir()
+        _EXAMPLE.append(Example(directory))
+    return _EXAMPLE[0]
+
+
+class HeaderTests(unittest.TestCase):
+    """An export written without its header row, or with a title line above it, stops at the roles check. The error
+    must not list the header's names: they are the first record's values, which no guard can check (that record is
+    in no row)."""
+
+    def assert_nothing_from_records(self, result: dict[str, Any], ex: Example) -> None:
+        self.assertEqual(result["code"], 2)
+        text = result["stdout"] + result["stderr"]
+        self.assertIn("first non-empty line of the export is its header", text)
+        self.assertEqual(token_hits(text, ex.secrets()), [])
+        self.assertEqual(ngram_hits([text], ex.narratives, 3), set())
+        first = ex.body[0]
+        for value in first:
+            self.assertNotIn(value, text)
+        self.assertFalse(result["out"].exists())
+
+    def test_an_export_with_no_header_row_prints_no_record_value(self) -> None:
+        ex = example()
+        result = ex.run("no-header", ex.write("no-header", ex.body, header=False))
+        self.assert_nothing_from_records(result, ex)
+        self.assertIn("has 7 columns", result["stderr"])
+
+    def test_an_export_with_a_title_line_prints_no_record_value(self) -> None:
+        ex = example()
+        for name, title in (("title-comma", "Incident export, Ashford Hub and others\n"),
+                            ("title-plain", "Incident export for Imogen Sallow\n")):
+            with self.subTest(title=name):
+                result = ex.run(name, ex.write(name, ex.body, title=title))
+                self.assert_nothing_from_records(result, ex)
+                self.assertNotIn("Ashford", result["stderr"])
+                self.assertNotIn("Sallow", result["stderr"])
+
+
+class PlaceholderTests(unittest.TestCase):
+    """NULL, None and Other are what SQL and pandas exports write into optional columns. Values that the report's
+    own fixed text holds ('Found: none.', 'Other bucket') are not looked for and are counted; JSON's own null in the
+    bytes that left the sites is no string. The report is shown, with no record value in it."""
+
+    def assert_shown_clean(self, result: dict[str, Any], ex: Example, rows: list[list[str]], exempt: int) -> None:
+        self.assertEqual(result["code"], 0, result["stderr"])
+        self.assertEqual(result["doc"]["status"], "shown")
+        self.assertEqual(result["doc"]["guard"]["exempt_values"], exempt)
+        self.assertIn(f"Not looked for, because this report's own fixed text holds them: {exempt} of those values",
+                      result["md"])
+        secrets = [v for v in ex.secrets(rows) if folded(v) not in ("none", "null", "other")]
+        for text in (result["md"], result["json_text"], result["stdout"], result["stderr"]):
+            self.assertEqual(token_hits(text, secrets), [])
+        self.assertEqual(ngram_hits([result["md"], result["json_text"]], ex.narratives, 8), set())
+
+    def test_null_and_none_in_refused_columns_and_none_as_a_site(self) -> None:
+        ex = example()
+        rows = ex.with_value("reported_by", "NULL", 50)
+        i = ex.col["staff_no"]
+        rows = [r[:i] + ["None"] + r[i + 1:] if k % 50 == 25 else r for k, r in enumerate(rows)]
+        i = ex.col["depot"]
+        rows = [r[:i] + ["None"] + r[i + 1:] if k % 50 == 10 else r for k, r in enumerate(rows)]
+        result = ex.run("null-none", ex.write("null-none", rows))
+        self.assert_shown_clean(result, ex, rows, exempt=1)
+
+    def test_other_as_a_site(self) -> None:
+        ex = example()
+        rows = ex.with_value("depot", "Other", 50)
+        result = ex.run("site-other", ex.write("site-other", rows))
+        self.assert_shown_clean(result, ex, rows, exempt=1)
+        self.assertEqual(result["doc"]["audit"]["sites_in_export"], 7)
+
+    def test_the_skeleton_holds_no_string_from_records(self) -> None:
+        run = shape_run("msha")
+        skeleton = P.skeleton(run["doc"])
+        self.assertTrue(all(p["label"] == p["id"] == "" and p["first_terms"] == []
+                            for p in skeleton["draft"]["predicates"]))
+        self.assertTrue(all(r["predicate"] == "" for r in skeleton["review"]["from_cells"]))
+        self.assertTrue(all(r["category"] is None for r in skeleton["outcomes"]["by_issue"]))
+        joined = folded("\n".join(P.skeleton_texts(run["doc"])))
+        for p in run["doc"]["draft"]["predicates"]:
+            self.assertNotIn(folded(p["label"]), joined)
+        self.assertIn("found: none.", joined)
+        self.assertNotIn(run["doc"]["split"]["train_until"], joined)
+        self.assertEqual(run["doc"]["guard"]["exempt_values"], 0)
+
+
+class ReviewPartTests(unittest.TestCase):
+    """The X and S part of a review item holds that item's own unexplained X and S alerts: not an R_mf-only week
+    (the audit pools records over the three channels) and not an X week an issue explains."""
+
+    KEY = "export_scope:ALL:p1"
+
+    def parts(self, alerts: dict[str, list[dict[str, Any]]], entry: dict[str, Any],
+              cells: list[tuple[str, str]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+        watch = P.Watch()
+        watch.weeks = [f"2024-W{w:02d}" for w in range(1, 11)]
+        watch.window = 2
+        watch.alerts = alerts
+        watch.cell_weeks = {"X": {self.KEY: cells}, "S": {}}
+        doc = {"review": [entry], "outcomes": {"in_scope": 1}}
+        pack = SimpleNamespace(predicates={"p1": SimpleNamespace(label="Label one")},
+                               entity_types={"lot": SimpleNamespace(label="Lot")})
+        return P.review_parts(doc, watch, pack, ("export_scope", "ALL"))
+
+    def alert(self, week: str, sites: list[str], refs: list[str], key: str | None = None) -> dict[str, Any]:
+        return {"key": key or self.KEY, "week": week, "sites": sites, "record_refs": refs}
+
+    def test_an_r_mf_only_week_and_an_explained_x_week_stay_out_of_the_x_part(self) -> None:
+        x = [self.alert("2024-W03", ["s01", "s02"], ["a", "b"]), self.alert("2024-W07", ["s01", "s03"], ["c", "d"])]
+        entry = {"key": self.KEY, "entity_type": "export_scope", "entity_id": "ALL", "predicate": "p1",
+                 "channels": ["X", "R_mf"], "alert_weeks": ["2024-W03", "2024-W05"], "sites": ["s01", "s02", "s04"],
+                 "records": 5}
+        cells = [("2024-W03", "s01"), ("2024-W02", "s02"), ("2024-W07", "s01"), ("2024-W06", "s03")]
+        counted, reference, extra = self.parts({"X": x, "S": []}, entry, cells)
+        self.assertEqual(reference, [])
+        self.assertEqual(extra, [])
+        self.assertEqual(counted, [{"predicate": "Label one", "entity": None, "channels": ["X"], "also": ["R_mf"],
+                                    "first_week": "2024-W03", "last_week": "2024-W03", "alerts": 1,
+                                    "sites": ["s01", "s02"], "records": 2}])
+
+    def test_sites_from_hq_cells_must_match_the_audits(self) -> None:
+        x = [self.alert("2024-W03", ["s01", "s02"], ["a"])]
+        entry = {"key": self.KEY, "entity_type": "export_scope", "entity_id": "ALL", "predicate": "p1",
+                 "channels": ["X"], "alert_weeks": ["2024-W03"], "sites": ["s01", "s02"], "records": 1}
+        with self.assertRaisesRegex(P.StartError, "differ between HQ's cells and the audit"):
+            self.parts({"X": x, "S": []}, entry, [("2024-W03", "s01")])
+        with self.assertRaisesRegex(P.StartError, "do not match the channels"):
+            self.parts({"X": [], "S": []}, entry, [])
+
+    def test_an_entity_item_prints_its_entity_id_for_the_last_guard(self) -> None:
+        key = "lot:E-LOT-1:p1"
+        entry = {"key": key, "entity_type": "lot", "entity_id": "E-LOT-1", "predicate": "p1", "channels": ["R_mf"],
+                 "alert_weeks": ["2024-W04"], "sites": ["s02"], "records": 3}
+        counted, reference, extra = self.parts({"X": [], "S": []}, entry, [])
+        self.assertEqual((counted, extra), ([], ["E-LOT-1"]))
+        self.assertEqual(reference[0]["entity"], "Lot E-LOT-1")
+        self.assertEqual(reference[0]["records"], 3)
+
+
+class ReviewRunTests(unittest.TestCase):
+    """On example seeds: each X/S item's weeks are among the audit's listed weeks for it, and its records are those of
+    its own X and S alerts, never more than the audit's pooled count."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.runs = {}
+        for seed, issue in ((4, None), (5, "X-1,2025-02-03,manual handling")):
+            ex = Example(TMP / f"review-seed{seed}", seed=seed)
+            extra = ["--work", str(ex.dir / "work")]
+            if issue is not None:
+                path = ex.dir / "issue.csv"
+                path.write_text("outcome_id,opened,category\n" + issue + "\n", encoding="utf-8")
+                extra += ["--outcomes", str(path)]
+            result = ex.run(f"seed{seed}", ex.paths["export"], *extra)
+            audit = json.loads((ex.dir / "work" / "audit" / "audit.json").read_text(encoding="utf-8"))
+            cls.runs[seed] = (result, {e["predicate"]: e for e in audit["review"]})
+
+    def items(self, seed: int) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+        result, entries = self.runs[seed]
+        self.assertEqual(result["code"], 0, result["stderr"])
+        slug = {p["label"]: p["id"] for p in result["doc"]["draft"]["predicates"]}
+        return [(r, entries[slug[r["predicate"]]]) for r in result["doc"]["review"]["from_cells"]]
+
+    def test_items_hold_their_own_alerts_only(self) -> None:
+        for seed in self.runs:
+            for item, entry in self.items(seed):
+                with self.subTest(seed=seed, item=item["predicate"]):
+                    self.assertIn(item["first_week"], entry["alert_weeks"])
+                    self.assertIn(item["last_week"], entry["alert_weeks"])
+                    self.assertLessEqual(item["records"], entry["records"])
+
+    def test_an_r_mf_only_week_adds_no_records_to_an_x_item(self) -> None:
+        """Seed 4, no issue: an item whose audit entry also lists a week only R_mf alerted in counts fewer records
+        than the audit's pooled entry."""
+        fewer = [(i, e) for i, e in self.items(4) if i["records"] < e["records"]]
+        self.assertTrue(fewer)
+        for item, entry in fewer:
+            weeks = [w for w in entry["alert_weeks"] if item["first_week"] <= w <= item["last_week"]]
+            self.assertLess(len(weeks), len(entry["alert_weeks"]))
+
+    def test_an_issue_matched_x_week_is_not_in_the_item(self) -> None:
+        """Seed 5 with an issue about manual handling: its later X alert matches the issue and leaves the list; the
+        item keeps only the week the audit lists."""
+        item, entry = next((i, e) for i, e in self.items(5) if i["predicate"] == "Manual handling")
+        self.assertEqual(entry["alert_weeks"], [item["first_week"]])
+        self.assertEqual((item["first_week"], item["last_week"], item["alerts"]),
+                         (entry["alert_weeks"][0], entry["alert_weeks"][0], 1))
+
+
+class MessyExportTests(unittest.TestCase):
+    """One example export with undated rows, record ids repeated within the training rows, within the held-out rows
+    and across the cut, and every third site value upper-cased."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        ex = cls.ex = Example(TMP / "messy")
+        d, i, s = ex.col["reported_on"], ex.col["incident_no"], ex.col["depot"]
+        rows = [list(r) for r in ex.body]
+        for k, r in enumerate(rows):
+            if k % 10 == 3:
+                r[d] = ""
+            elif k % 97 == 5:
+                r[d] = "n/a"
+            if k % 3 == 0:
+                r[s] = r[s].upper()
+        n = len(rows)
+        for k in range(1, n):
+            if k % 41 == 0:
+                rows[k][i] = rows[k - 1][i]                 # a repeat of the row before (training or held out)
+            elif k > n - n // 5 and k % 13 == 0:
+                rows[k][i] = rows[k - n // 2][i]            # a held-out row reusing a training row's id
+        cls.rows = rows
+        cls.result = ex.run("messy", ex.write("messy", rows), "--work", str(ex.dir / "work"))
+        cls.doc = cls.result["doc"]
+
+    def expected(self) -> dict[str, int]:
+        """Counted from the rows as written, with the cut the run printed."""
+        cut = date.fromisoformat(self.doc["split"]["train_until"])
+        d, i = self.ex.col["reported_on"], self.ex.col["incident_no"]
+
+        def day(text: str) -> date | None:
+            try:
+                return datetime.strptime(text, "%d.%m.%Y").date()
+            except ValueError:
+                return None
+        dated = [(day(r[d]), r[i]) for r in self.rows]
+        training = [ref for when, ref in dated if when is not None and when <= cut]
+        held = [ref for when, ref in dated if when is not None and when > cut]
+        seen: set[str] = set()
+        held_dups = 0
+        for ref in held:
+            held_dups += ref in seen
+            seen.add(ref)
+        shared_rows = 0
+        seen = set()
+        for ref in held:
+            if ref in seen:
+                continue
+            seen.add(ref)
+            shared_rows += ref in set(training)
+        return {"undated": sum(1 for when, _ in dated if when is None),
+                "training_repeated": len(training) - len(set(training)),
+                "held_out_shared": sum(1 for ref in held if ref in set(training)),
+                "duplicate_record_id": held_dups, "in_training": shared_rows, "held": len(held)}
+
+    def test_the_run_is_shown(self) -> None:
+        self.assertEqual(self.result["code"], 0, self.result["stderr"])
+        self.assertEqual(self.doc["status"], "shown")
+
+    def test_undated_rows_are_not_counted_as_held_out_rows_not_used(self) -> None:
+        e = self.expected()
+        self.assertGreater(e["undated"], 0)
+        self.assertEqual(self.doc["split"]["undated"], e["undated"])
+        a = self.doc["audit"]
+        self.assertNotIn("bad_date", a["rejected_by_reason"])
+        self.assertEqual(a["rejected_by_reason"], {"duplicate_record_id": e["duplicate_record_id"],
+                                                   "in_training": e["in_training"]})
+        self.assertEqual(a["rows_rejected"], e["duplicate_record_id"] + e["in_training"])
+        self.assertEqual(a["records"] + a["rows_rejected"], e["held"])
+        line = next(x for x in self.result["md"].splitlines() if x.startswith("Audited: "))
+        self.assertIn(f"{a['rows_rejected']} held-out rows not used ({e['duplicate_record_id']} with a record id an "
+                      f"earlier held-out row has; {e['in_training']} with a record id a training row has)", line)
+
+    def test_record_ids_repeated_or_shared_across_the_cut_are_counted(self) -> None:
+        e = self.expected()
+        self.assertGreater(e["training_repeated"], 0)
+        self.assertGreater(e["held_out_shared"], 0)
+        s = self.doc["split"]
+        self.assertEqual((s["training_repeated_ids"], s["held_out_training_ids"]),
+                         (e["training_repeated"], e["held_out_shared"]))
+        self.assertIn(f"- Record ids: {e['training_repeated']} training rows repeat an earlier training row's id",
+                      self.result["md"])
+
+    def test_no_held_out_row_with_a_training_id_is_audited(self) -> None:
+        cut = date.fromisoformat(self.doc["split"]["train_until"])
+        d, i = self.ex.col["reported_on"], self.ex.col["incident_no"]
+        training = {r[i] for r in self.rows if r[d] not in ("", "n/a")
+                    and datetime.strptime(r[d], "%d.%m.%Y").date() <= cut}
+        audit = json.loads((self.ex.dir / "work" / "audit" / "audit.json").read_text(encoding="utf-8"))
+        refs = {ref for e in audit["review"] for ref in e["record_refs"]}
+        self.assertEqual(refs & training, set())
+
+    def test_site_values_that_differ_only_in_case_are_one_site(self) -> None:
+        a = self.doc["audit"]
+        self.assertEqual((a["sites_in_export"], a["site_spellings"]), (6, 12))
+        self.assertEqual(len(a["sites"]), 6)
+        self.assertIn("6 sites in the export (12 spellings of them", self.result["md"])
+        maps = (self.ex.dir / "work" / "sites.csv").read_text(encoding="utf-8").splitlines()[1:]
+        labels: dict[str, set[str]] = {}
+        for line in maps:
+            label, value = line.split(",", 1)
+            labels.setdefault(label, set()).add(value.lower())
+        self.assertEqual(len(labels), 6)
+        self.assertTrue(all(len(v) == 1 for v in labels.values()))
+
+
+class RunStopTests(unittest.TestCase):
+    """Runs that stop before drafting, with the cause named."""
+
+    def test_records_from_fewer_sites_than_the_floor_needs_say_so(self) -> None:
+        ex = example()
+        for name, sites in (("one-site", ("Ashford Hub",)), ("two-sites", ("Ashford Hub", "ASHFORD HUB", "Calder"))):
+            with self.subTest(sites=name):
+                i = ex.col["depot"]
+                rows = [r[:i] + [sites[k % len(sites)]] + r[i + 1:] for k, r in enumerate(ex.body)]
+                result = ex.run(name, ex.write(name, rows))
+                self.assertEqual(result["code"], 2)
+                need = len({folded(s) for s in sites})
+                self.assertIn("the privacy floor needs training records from at least 3 sites", result["stderr"])
+                self.assertIn(f"come from {need} (site values that differ only in case", result["stderr"])
+                self.assertNotIn("Ashford", result["stderr"])
+                self.assertNotIn("DraftError", result["stderr"])
+
+    def test_an_out_that_cannot_be_written_stops_before_the_run(self) -> None:
+        ex = example()
+        out = ex.paths["outcomes"] / "out"
+        code, _, err = run_main(["run", "--export", str(ex.paths["export"]), "--roles", str(ex.paths["roles"]),
+                                 "--out", str(out)])
+        self.assertEqual(code, 2)
+        self.assertIn(f"{ex.paths['outcomes']} is not a directory", err)
+        self.assertNotIn("(1) read the export", err)
+        self.assertNotIn("Traceback", err)
+
+    def test_a_write_error_after_the_run_is_exit_2(self) -> None:
+        ex = example()
+        with mock.patch.object(P, "write", side_effect=PermissionError(13, "Permission denied")):
+            code, _, err = run_main(["run", "--export", str(ex.paths["export"]), "--roles", str(ex.paths["roles"]),
+                                     "--out", str(ex.dir / "unwritable")])
+        self.assertEqual(code, 2)
+        self.assertIn("error: [Errno 13] Permission denied", err)
+
+
+class EntitiesTests(unittest.TestCase):
+    def test_a_run_with_a_declared_entities_column_counts_the_entity_ids_it_prints(self) -> None:
+        directory = TMP / "entities"
+        directory.mkdir()
+        made = generic_jsonl(directory)
+        roles = {"language": "en", "roles": dict(made["roles"]["roles"], entities=["severity"])}
+        path = write_roles(directory, roles)
+        computed = P.compute(made["export"], path, None, TRAIN_UNTIL, directory / "work")
+        self.assertEqual(computed.doc["draft"]["entity_types"], 1)
+        doc, _, code = P.present(computed)
+        self.assertEqual((doc["status"], code), ("shown", 0))
+        printed = sum(1 for part in ("from_cells", "reference_only") for r in doc["review"][part] if r["entity"])
+        self.assertEqual(len(computed.extra_strings), printed)
+        prefix = D.load_template()["ids.json"]["placeholder_prefix"]
+        self.assertEqual(doc["guard"]["strings"], len(R.company_strings(computed.entry, prefix)) + printed)
 
 
 # --------------------------------------------------------------------------------------------------- determinism
