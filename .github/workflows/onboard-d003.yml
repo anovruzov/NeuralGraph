@@ -1,0 +1,89 @@
+name: onboard-d003
+
+# Drafting test D003 (docs/collective/onboard/CHOICE-D003.md; BUILD-D003.md): a pack drafted from the FDA device
+# adverse-event reports (openFDA device/event) that name one maker's devices, for the five makers with the most
+# reports, read against D002's controls and the hand-built device_quality pack. Starts when run-003.json is pushed,
+# or by hand (E14), and reads that run file only: it refuses it, before any request, when its experiment is not
+# D003, when the settings file's sha256 differs from the one it names, or when the two name different experiments
+# or the id is not a plain name. The run starts at the RUN-START marker, after the fetch has selected the companies,
+# fetched and checked every day, written every export and printed its counts: a failure before it is not a run
+# (section 12). The result is the first attempt, of any start, that prints the marker (E14). The report prints
+# between the experiment's markers in the job log and uploads with the arm file and the drafted packs that passed
+# their check; never the exports, the fetch's working files or its source record. A withheld report, or none,
+# uploads alone. onboard-run.yml (D002) is unchanged: a push of run-003.json also starts it, and its settings check
+# refuses the file before any download.
+on:
+  push:
+    branches-ignore: [main]
+    paths: ["docs/collective/onboard/run-003.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  onboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: offline tests
+        run: python -m unittest tests.mycelic.test_collective_onboard tests.onboard.test_onboard_fetch tests.onboard.test_onboard_d003 tests.onboard.test_d002_reproducible tests.mycelic.test_collective_guards.OnboardGenericTests
+      - name: settings check (run-003.json's experiment and sha256 against its settings file)
+        run: |
+          RUN=docs/collective/onboard/run-003.json
+          echo "run file: $RUN"
+          SETTINGS=$(python -c "import json,sys; r=json.load(open(sys.argv[1])); assert r['experiment'] == 'D003', 'not a D003 run file'; print(r['settings'])" "$RUN")
+          python -c "import hashlib,json,sys; r=json.load(open(sys.argv[1])); got=hashlib.sha256(open(sys.argv[2],'rb').read()).hexdigest(); print('settings sha256', got); sys.exit(0 if got == r['settings_sha256'] else 'the settings file differs from the run file')" "$RUN" "$SETTINGS"
+          EXPERIMENT=$(python -c "import json,re,sys; r=json.load(open(sys.argv[1])); s=json.load(open(sys.argv[2])); assert r['experiment'] == s['experiment'], 'the run file and its settings file name different experiments'; assert re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,31}', s['experiment']), 'not a plain experiment id'; print(s['experiment'])" "$RUN" "$SETTINGS")
+          echo "experiment: $EXPERIMENT"
+          echo "SETTINGS=$SETTINGS" >> "$GITHUB_ENV"
+          echo "EXPERIMENT=$EXPERIMENT" >> "$GITHUB_ENV"
+      - name: fetch, select and split (a failure here is not a run)
+        run: python tools/onboard/fetch_openfda.py fetch --settings "$SETTINGS" --out work/split/maude
+      - name: run start
+        id: start
+        run: echo "=== $EXPERIMENT RUN-START ==="
+      - name: score maude
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        run: python -m mycelic.collective.onboard score --settings "$SETTINGS" --arm maude --exports work/split/maude --out work/arms/maude
+      - name: report
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        run: python -m mycelic.collective.onboard report --settings "$SETTINGS" --arms work/arms/maude --out work/report
+      - name: collect the files to upload
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        run: |
+          mkdir -p work/upload
+          python - <<'EOF'
+          import json, shutil
+          from pathlib import Path
+          up = Path("work/upload")
+          report = Path("work/report")
+          for name in ("report.json", "report.md"):
+              if (report / name).is_file():
+                  shutil.copy(report / name, up / name)
+          verdict = json.loads((report / "report.json").read_text())["verdict"] if (report / "report.json").is_file() else None
+          if verdict in (None, "withheld"):
+              print("no report, or a withheld one: no arm file and no pack is uploaded")
+          else:
+              for arm in sorted(Path("work/arms").glob("*")):
+                  if (arm / "arm.json").is_file():
+                      (up / arm.name).mkdir(parents=True, exist_ok=True)
+                      shutil.copy(arm / "arm.json", up / arm.name / "arm.json")
+                  for company in sorted(p for p in arm.glob("*") if p.is_dir()):
+                      check = company / "check.json"
+                      if check.is_file() and json.loads(check.read_text())["passed"] and (company / "pack").is_dir():
+                          shutil.copytree(company / "pack", up / arm.name / company.name / "pack")
+          EOF
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        with:
+          name: onboard-${{ env.EXPERIMENT }}
+          path: work/upload/
+          if-no-files-found: warn
+          retention-days: 30

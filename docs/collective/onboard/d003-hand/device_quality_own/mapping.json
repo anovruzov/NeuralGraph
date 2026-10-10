@@ -1,0 +1,41 @@
+{
+  "record_ref": "mdr_report_key",
+  "site": "received_day",
+  "received_date": {
+    "path": "date_received",
+    "format": "yyyymmdd"
+  },
+  "language": null,
+  "codes": [
+    {
+      "path": "product_problems[]",
+      "value_map": {
+        "Crack": "ILL-0101",
+        "Fluid/Blood Leak": "ILL-0201",
+        "Overheating of Device": "ILL-0301",
+        "Occlusion Within Device": "ILL-0601",
+        "Detachment of Device or Device Component": "ILL-0801",
+        "Adverse Event Without Identified Device or Use Problem": "ILL-9002"
+      }
+    }
+  ],
+  "entities": {
+    "maker": [
+      "maker_entity"
+    ]
+  },
+  "primary_entity_type": "maker",
+  "narrative": [
+    {
+      "path": "mdr_text",
+      "where": null
+    }
+  ],
+  "persons": {},
+  "reporter": null,
+  "origin_ref": null,
+  "origin_site": null,
+  "required": [
+    "narrative"
+  ]
+}

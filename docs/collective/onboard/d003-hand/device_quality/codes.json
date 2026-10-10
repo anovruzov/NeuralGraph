@@ -1,0 +1,72 @@
+{
+  "ILL-0101": {
+    "label": "Crack, illustrative placeholder",
+    "predicate": "crack",
+    "specific": true
+  },
+  "ILL-0102": {
+    "label": "Fracture of a part, illustrative placeholder",
+    "predicate": "crack",
+    "specific": true
+  },
+  "ILL-0201": {
+    "label": "Fluid leak, illustrative placeholder",
+    "predicate": "leak",
+    "specific": true
+  },
+  "ILL-0202": {
+    "label": "Seal leak, illustrative placeholder",
+    "predicate": "leak",
+    "specific": true
+  },
+  "ILL-0301": {
+    "label": "Overheating, illustrative placeholder",
+    "predicate": "overheat",
+    "specific": true
+  },
+  "ILL-0401": {
+    "label": "Loss of power, illustrative placeholder",
+    "predicate": "power_loss",
+    "specific": true
+  },
+  "ILL-0501": {
+    "label": "Alarm failure, illustrative placeholder",
+    "predicate": "alarm_failure",
+    "specific": true
+  },
+  "ILL-0601": {
+    "label": "Occlusion, illustrative placeholder",
+    "predicate": "occlusion",
+    "specific": true
+  },
+  "ILL-0701": {
+    "label": "Display fault, illustrative placeholder",
+    "predicate": "display_fault",
+    "specific": true
+  },
+  "ILL-0801": {
+    "label": "Detachment, illustrative placeholder",
+    "predicate": "detachment",
+    "specific": true
+  },
+  "ILL-0901": {
+    "label": "Inaccurate reading or dose, illustrative placeholder",
+    "predicate": "inaccurate_reading",
+    "specific": true
+  },
+  "ILL-1001": {
+    "label": "Contamination, illustrative placeholder",
+    "predicate": "contamination",
+    "specific": true
+  },
+  "ILL-9001": {
+    "label": "Device malfunction, not further specified (illustrative)",
+    "predicate": "malfunction_unspecified",
+    "specific": false
+  },
+  "ILL-9002": {
+    "label": "Event without an identified device problem (illustrative)",
+    "predicate": "malfunction_unspecified",
+    "specific": false
+  }
+}

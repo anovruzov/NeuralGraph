@@ -1,0 +1,476 @@
+{
+  "start": "2024-01-01",
+  "sites": [
+    {
+      "id": "plant-ashvale",
+      "label": "Ashvale plant (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 6
+    },
+    {
+      "id": "plant-brindlemoor",
+      "label": "Brindlemoor plant (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        2,
+        6
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "plant-corrowfield",
+      "label": "Corrowfield plant (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        2,
+        5
+      ],
+      "reporters": 4
+    },
+    {
+      "id": "werk-dornhagen",
+      "label": "Werk Dornhagen (fictional)",
+      "language": "de",
+      "weekly_volume": [
+        3,
+        6
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "werk-erlenbruch",
+      "label": "Werk Erlenbruch (fictional)",
+      "language": "de",
+      "weekly_volume": [
+        2,
+        5
+      ],
+      "reporters": 4
+    },
+    {
+      "id": "plant-fennick",
+      "label": "Fennick plant (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        2,
+        6
+      ],
+      "reporters": 5
+    }
+  ],
+  "forwarding_rate": 0.08,
+  "mixed_language_rate": 0.05,
+  "negated_sentence_rate": 0.3,
+  "second_predicate_rate": 0.25,
+  "entity_sentence_rate": 0.3,
+  "zero_claim_rate": 0.05,
+  "predicate_weights": {
+    "alarm_failure": 1,
+    "contamination": 1,
+    "crack": 1.5,
+    "detachment": 1,
+    "display_fault": 1,
+    "inaccurate_reading": 1,
+    "leak": 1.5,
+    "malfunction_unspecified": 0.5,
+    "occlusion": 1,
+    "overheat": 1,
+    "power_loss": 1
+  },
+  "codes": {
+    "specific_rate": 0.5,
+    "generic_rate": 0.3,
+    "generic_code": "ILL-9001"
+  },
+  "fill_rates": {
+    "maker": 1.0
+  },
+  "universe": {
+    "component": [
+      "ALARM-SPEAKER",
+      "BATTERY-DOOR",
+      "DISPLAY-PANEL",
+      "INFUSION-TUBING",
+      "LUER-CONNECTOR",
+      "O-RING-SEAL",
+      "PRESSURE-SENSOR",
+      "PUMP-HOUSING"
+    ],
+    "lot": [
+      "L10001",
+      "L10002",
+      "L10017",
+      "L20045",
+      "L20046",
+      "L31007",
+      "L31008A",
+      "L405512"
+    ],
+    "product": [
+      "CM-5",
+      "IP-21",
+      "IP-300",
+      "IP-7",
+      "SD-12",
+      "SD-40",
+      "SD-9"
+    ],
+    "supplier": [
+      "V1001",
+      "V1002",
+      "V2040",
+      "V3300"
+    ],
+    "maker": [
+      "D1",
+      "D2",
+      "D3",
+      "D4",
+      "D5"
+    ]
+  },
+  "links": {
+    "lot": {
+      "parent": "product",
+      "map": {
+        "CM-5": [
+          "L405512"
+        ],
+        "IP-21": [
+          "L31008A"
+        ],
+        "IP-300": [
+          "L405512"
+        ],
+        "IP-7": [
+          "L31007"
+        ],
+        "SD-12": [
+          "L20045"
+        ],
+        "SD-40": [
+          "L20046"
+        ],
+        "SD-9": [
+          "L10001",
+          "L10002",
+          "L10017"
+        ]
+      }
+    },
+    "supplier": {
+      "parent": "component",
+      "map": {
+        "ALARM-SPEAKER": [
+          "V3300"
+        ],
+        "BATTERY-DOOR": [
+          "V1001"
+        ],
+        "DISPLAY-PANEL": [
+          "V3300"
+        ],
+        "INFUSION-TUBING": [
+          "V2040"
+        ],
+        "LUER-CONNECTOR": [
+          "V1002"
+        ],
+        "O-RING-SEAL": [
+          "V2040"
+        ],
+        "PRESSURE-SENSOR": [
+          "V3300"
+        ],
+        "PUMP-HOUSING": [
+          "V1001",
+          "V1002"
+        ]
+      }
+    }
+  },
+  "surface": {
+    "exact": 6,
+    "lower": 1,
+    "underscore": 1,
+    "en_dash": 1,
+    "fullwidth": 0.5,
+    "space": 0.5,
+    "alias": 2
+  },
+  "narratives": {
+    "en": {
+      "crack": {
+        "affirmed": [
+          "The {component} cracked during routine use.",
+          "A crack was found on the {component} of a {product} unit.",
+          "Units from lot {lot} arrived cracked.",
+          "Staff reported that the {product} casing fractured after a drop."
+        ],
+        "negated": [
+          "No crack was seen on the {component}.",
+          "The {component} was examined and a crack was not observed."
+        ]
+      },
+      "leak": {
+        "affirmed": [
+          "Fluid leaked from the {component} during priming.",
+          "A leak was noticed at the {component} of {product}.",
+          "Saline seeped out near the port of the device."
+        ],
+        "negated": [
+          "No leak was found at the {component}.",
+          "A leak was ruled out after a pressure test."
+        ]
+      },
+      "overheat": {
+        "affirmed": [
+          "The {product} overheated while charging.",
+          "Scorch marks were visible near the {component}.",
+          "The device became too hot to touch after an hour."
+        ],
+        "negated": [
+          "The unit did not overheat during the bench test."
+        ]
+      },
+      "power_loss": {
+        "affirmed": [
+          "The {product} lost power in the middle of an infusion.",
+          "The device shut down unexpectedly while on battery."
+        ],
+        "negated": [
+          "There was no power loss during the session."
+        ]
+      },
+      "alarm_failure": {
+        "affirmed": [
+          "The alarm failed during a pressure fault on the {product}.",
+          "Nurse noted a silent alarm on {product}.",
+          "The {component} stayed quiet and the alarm was silent."
+        ],
+        "negated": [
+          "No alarm failure was found when the unit was retested."
+        ]
+      },
+      "occlusion": {
+        "affirmed": [
+          "The {component} was blocked by a kink.",
+          "An occlusion was detected in the {component} of {product}.",
+          "Flow stopped because the line was clogged."
+        ],
+        "negated": [
+          "No occlusion was present in the {component}."
+        ]
+      },
+      "display_fault": {
+        "affirmed": [
+          "The {product} readout went blank during use.",
+          "Users saw a flickering readout on the {product}."
+        ],
+        "negated": [
+          "No frozen readout was seen during the check."
+        ]
+      },
+      "detachment": {
+        "affirmed": [
+          "The {component} came loose from the {product} body.",
+          "The {component} detached during transport.",
+          "A clip fell off the device during cleaning."
+        ],
+        "negated": [
+          "The {component} had not detached when the unit was received."
+        ]
+      },
+      "inaccurate_reading": {
+        "affirmed": [
+          "The {product} gave an inaccurate reading compared with a reference meter.",
+          "The patient received an incorrect dose from the {product}."
+        ],
+        "negated": [
+          "No incorrect dose was given to the patient."
+        ]
+      },
+      "contamination": {
+        "affirmed": [
+          "Particles were seen inside the {component}.",
+          "The fluid from lot {lot} looked discoloured.",
+          "Foreign matter was found in a sealed pouch."
+        ],
+        "negated": [
+          "No contamination was found in the returned {component}."
+        ]
+      },
+      "malfunction_unspecified": {
+        "affirmed": [
+          "The {product} malfunctioned during use.",
+          "The {product} stopped working after a few minutes."
+        ],
+        "negated": [
+          "The device was tested and no malfunction was found."
+        ]
+      }
+    },
+    "de": {
+      "crack": {
+        "affirmed": [
+          "Am Bauteil {component} wurde ein Riss festgestellt.",
+          "Das Gerät {product} ist während der Anwendung gerissen."
+        ],
+        "negated": [
+          "Am Bauteil {component} wurde kein Riss gefunden."
+        ]
+      },
+      "leak": {
+        "affirmed": [
+          "Am Bauteil {component} trat eine Leckage auf.",
+          "Das Gerät {product} war undicht."
+        ],
+        "negated": [
+          "Eine Leckage wurde nicht festgestellt."
+        ]
+      },
+      "overheat": {
+        "affirmed": [
+          "Das Gerät {product} hat sich beim Laden überhitzt.",
+          "Eine Überhitzung trat nach einer Stunde auf."
+        ],
+        "negated": [
+          "Keine Überhitzung beim Test."
+        ]
+      },
+      "occlusion": {
+        "affirmed": [
+          "Die Leitung am Bauteil {component} war verstopft.",
+          "Am Gerät {product} wurde eine Okklusion gemeldet."
+        ],
+        "negated": [
+          "Keine Okklusion im Bauteil {component}."
+        ]
+      },
+      "detachment": {
+        "affirmed": [
+          "Das Bauteil {component} hat sich abgelöst.",
+          "Eine Klammer ist beim Reinigen abgefallen."
+        ],
+        "negated": [
+          "Das Bauteil {component} hat sich nicht abgelöst."
+        ]
+      },
+      "malfunction_unspecified": {
+        "affirmed": [
+          "Das Gerät {product} zeigte eine Fehlfunktion.",
+          "Das Gerät {product} war nach kurzer Zeit defekt."
+        ],
+        "negated": [
+          "Keine Fehlfunktion bei der Prüfung."
+        ]
+      }
+    }
+  },
+  "entity_sentences": {
+    "en": [
+      "The report concerns {product}.",
+      "Lot {lot} was quarantined for review.",
+      "Supplier {supplier} provided the {component}.",
+      "The affected unit was a {product} from lot {lot}."
+    ],
+    "de": [
+      "Betroffen ist das Gerät {product}.",
+      "Die Charge {lot} wurde gesperrt.",
+      "Lieferant {supplier} hat das Bauteil {component} geliefert."
+    ]
+  },
+  "filler": {
+    "en": [
+      "The customer returned the unit for evaluation.",
+      "A replacement unit was shipped to the customer.",
+      "The complaint was logged by the service desk.",
+      "Further information was requested from the user facility.",
+      "The investigation is ongoing.",
+      "The unit was received in its original packaging.",
+      "A field engineer visited the site.",
+      "The event was entered in the complaint register.",
+      "The user manual was checked for guidance.",
+      "A second unit from the same ward was reviewed.",
+      "The case was assigned to a quality engineer.",
+      "The user facility confirmed the order number."
+    ],
+    "de": [
+      "Das Gerät wurde zur Untersuchung zurückgesandt.",
+      "Ein Ersatzgerät wurde an den Kunden geschickt.",
+      "Die Reklamation wurde vom Kundendienst erfasst.",
+      "Weitere Informationen wurden angefordert.",
+      "Die Untersuchung läuft noch.",
+      "Ein Servicetechniker hat die Station besucht.",
+      "Der Fall wurde einem Qualitätsingenieur zugewiesen.",
+      "Die Gebrauchsanweisung wurde geprüft.",
+      "Die Bestellnummer wurde bestätigt."
+    ]
+  },
+  "persons": {},
+  "reporter": {
+    "kind": "pattern",
+    "segments": [
+      {
+        "literal": "RPT"
+      },
+      {
+        "sep": "required"
+      },
+      {
+        "digit": [
+          4,
+          4
+        ]
+      }
+    ],
+    "separator": "-",
+    "case": "upper"
+  },
+  "master_data": {
+    "plant-ashvale": {
+      "lot": "all",
+      "product": "all",
+      "supplier": "all"
+    },
+    "plant-brindlemoor": {
+      "lot": [
+        "L10001",
+        "L10002",
+        "L20045"
+      ],
+      "product": "all",
+      "supplier": "all"
+    },
+    "plant-corrowfield": {
+      "lot": "all",
+      "product": "all",
+      "supplier": [
+        "V1001",
+        "V2040"
+      ]
+    },
+    "werk-dornhagen": {
+      "lot": "all",
+      "product": "all",
+      "supplier": "all"
+    },
+    "werk-erlenbruch": {
+      "lot": [
+        "L31007",
+        "L31008A"
+      ],
+      "product": "all",
+      "supplier": "all"
+    },
+    "plant-fennick": {
+      "lot": "all",
+      "product": "all",
+      "supplier": "all"
+    }
+  }
+}

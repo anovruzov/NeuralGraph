@@ -1,0 +1,41 @@
+{
+  "product": {
+    "SalineDuo": "SD-9",
+    "FlowLine Pro": "IP-21"
+  },
+  "component": {
+    "battery door": "BATTERY-DOOR",
+    "battery cover": "BATTERY-DOOR",
+    "battery compartment door": "BATTERY-DOOR",
+    "Batteriedeckel": "BATTERY-DOOR",
+    "Batteriefachdeckel": "BATTERY-DOOR",
+    "luer connector": "LUER-CONNECTOR",
+    "luer lock": "LUER-CONNECTOR",
+    "Luer-Anschluss": "LUER-CONNECTOR",
+    "display": "DISPLAY-PANEL",
+    "screen": "DISPLAY-PANEL",
+    "Anzeige": "DISPLAY-PANEL",
+    "pump housing": "PUMP-HOUSING",
+    "housing": "PUMP-HOUSING",
+    "Gehäuse": "PUMP-HOUSING",
+    "infusion tubing": "INFUSION-TUBING",
+    "tubing": "INFUSION-TUBING",
+    "infusion line": "INFUSION-TUBING",
+    "Schlauch": "INFUSION-TUBING",
+    "o-ring": "O-RING-SEAL",
+    "seal": "O-RING-SEAL",
+    "Dichtung": "O-RING-SEAL",
+    "alarm speaker": "ALARM-SPEAKER",
+    "speaker": "ALARM-SPEAKER",
+    "Lautsprecher": "ALARM-SPEAKER",
+    "pressure sensor": "PRESSURE-SENSOR",
+    "Drucksensor": "PRESSURE-SENSOR"
+  },
+  "maker": {
+    "d003 maker d1": "D1",
+    "d003 maker d2": "D2",
+    "d003 maker d3": "D3",
+    "d003 maker d4": "D4",
+    "d003 maker d5": "D5"
+  }
+}
