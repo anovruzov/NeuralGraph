@@ -91,9 +91,7 @@
         "OPERATOR_NAME",
         "CONTRACTOR_ID",
         "CLOSED_DOC_NO",
-        "FIPS_STATE_CD",
-        "EQUIP_MFR_NAME",
-        "EQUIP_MODEL_NO"
+        "FIPS_STATE_CD"
       ],
       "download_code": [
         "tools/onboard/fetch_msha.py"
@@ -111,9 +109,7 @@
           "OPERATOR_NAME",
           "CONTRACTOR_ID",
           "CLOSED_DOC_NO",
-          "FIPS_STATE_CD",
-          "EQUIP_MFR_NAME",
-          "EQUIP_MODEL_NO"
+          "FIPS_STATE_CD"
         ],
         "narrative": "NARRATIVE",
         "record_id": "DOCUMENT_NO",

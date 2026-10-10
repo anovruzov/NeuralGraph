@@ -1002,11 +1002,12 @@ class ReportTests(TempDir):
                              **({"c2": {"error": strings["error"][0]}} if "error" in strings else {})}}
         sent = REP.Sentinels(D.Refusal([r["ID"] for r in self.rows] + ["mine-12345"], ["Person 1", "Person 2"],
                                        PARAMS), [r["TEXT"] for r in self.rows])
-        return REP.guard_hits(doc, sent, 8, IDS["placeholder_prefix"])
+        return REP.guard_hits(doc, {"c1": sent, "c2": sent}, 8, IDS["placeholder_prefix"])
 
     def test_the_guard_counts_each_kind(self) -> None:
         clean = self.guard({"label": ["HAULAGE"], "term": ["roof", "unlearned-x"]})
-        self.assertEqual({k: v for k, v in clean.items() if k != "strings"}, dict.fromkeys(REP.GUARD_KINDS, 0))
+        self.assertEqual({k: clean[k] for k in REP.GUARD_KINDS}, dict.fromkeys(REP.GUARD_KINDS, 0))
+        self.assertEqual(clean["unread"], 0)
         self.assertEqual(clean["strings"], 5)          # two labels, one id, two terms (a placeholder read as an id)
         long_text = next(r["TEXT"] for r in self.rows if len(re.findall(r"\w+", r["TEXT"])) >= 8)
         hits = self.guard({"label": [f"x {long_text} y", self.rows[0]["ID"], "Person 2"], "term": ["person"],
@@ -1197,11 +1198,15 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual((m["per_company"], m["criterion"], m["audit_company"]), (200, {"id": "C1", "margin": 0.1},
                                                                                    "c1"))
         self.assertEqual(len(m["columns"]), 57)
-        self.assertEqual(m["roles"], {
+        self.assertEqual(m["roles"], {                                     # A12: the equipment columns left
             "record_id": "DOCUMENT_NO", "site": "MINE_ID", "date": "ACCIDENT_DT", "narrative": "NARRATIVE",
             "category": "CLASSIFICATION", "entities": [], "reporter": None,
             "forbidden": ["CONTROLLER_ID", "CONTROLLER_NAME", "OPERATOR_ID", "OPERATOR_NAME", "CONTRACTOR_ID",
-                          "CLOSED_DOC_NO", "FIPS_STATE_CD", "EQUIP_MFR_NAME", "EQUIP_MODEL_NO"]})
+                          "CLOSED_DOC_NO", "FIPS_STATE_CD"]})
+        self.assertEqual(m["definition_columns"], ["DOCUMENT_NO", "MINE_ID", "ACCIDENT_DT", "NARRATIVE",
+                                                   "CLASSIFICATION", "ACCIDENT_TYPE", "CONTROLLER_ID",
+                                                   "CONTROLLER_NAME", "OPERATOR_ID", "OPERATOR_NAME", "CONTRACTOR_ID",
+                                                   "CLOSED_DOC_NO", "FIPS_STATE_CD"])
         self.assertEqual((n["train"], n["test"]), (["2020-01-01", "2022-12-31"], ["2023-01-01", "2024-12-31"]))
         self.assertEqual(n["companies"]["makes"], ["FORD", "CHEVROLET", "JEEP", "HONDA", "NISSAN", "DODGE"])
         self.assertEqual(n["columns"], ["odino", "state", "received", "components[]", "vehicle", "summary",
@@ -1682,7 +1687,7 @@ class GuardTests(TempDir):
             {"label": "the operator backed\tthe loader into the berm"}, {"label": "told joe"}]}, "predicates": [
             {"label": "OTHER WORDS", "id": "p", "first_terms": ["kowalczyk", "told joe"]}]},
             "pack": {"loader": {"error": None}}, "controls": {"majority_prior": {}}}}}
-        hits = REP.guard_hits(doc, sent, 8, IDS["placeholder_prefix"])
+        hits = REP.guard_hits(doc, {"c1": sent}, 8, IDS["placeholder_prefix"])
         self.assertEqual(hits["narrative_ngrams"], 1)        # a tab inside a label: still the narrative's 8 words
         self.assertEqual(hits["refused_equal"], 2)           # 'OTHER WORDS' folded; the term 'told joe' by its word
         self.assertEqual(hits["refused_name_word"], 1)       # a surname inside a name
@@ -2028,6 +2033,482 @@ class WorkflowAmendmentTests(TempDir):
         self.assertEqual(self.step_run("download (a failure here is not a run)").splitlines(),
                          ["python tools/onboard/fetch_msha.py download --out d001/raw/msha",
                           "python tools/onboard/fetch_nhtsa.py download --out d001/raw/nhtsa"])
+
+
+# =================================================================================================== 17 the second amendment
+
+def leaf_rows(make: str, vehicle: str, seed: int, first_id: int, leaf: bool) -> list[dict[str, str]]:
+    """An NHTSA-shaped make: :func:`nhtsa_rows` with its own record ids, and, when ``leaf``, every STEERING narrative
+    saying "leaf spring" (a word of another make's vehicle, NISSAN-LEAF, in the review's case)."""
+    rows = nhtsa_rows(seed=seed, vehicle=vehicle)
+    for i, r in enumerate(rows):
+        r["odino"] = r["reporter"] = str(first_id + i)
+        if leaf and r["components[]"] == "STEERING":
+            r["summary"] = r["summary"][:-1] + " leaf spring."
+    return rows
+
+
+def nhtsa_layout_settings() -> dict[str, Any]:
+    """The NHTSA roles and windows on the synthetic arm (C1, no hand pack): the guard's reading of real-shaped makes."""
+    s = arm_settings()
+    del s["arms"]["nhtsa"]
+    arm = s["arms"]["msha"]
+    arm["roles"] = copy.deepcopy(NHTSA_ROLES)
+    arm["train"], arm["test"] = ["2020-01-01", "2022-12-31"], ["2023-01-01", "2024-12-31"]
+    return s
+
+
+class PerCompanyGuardTests(TempDir):
+    """Amendment A10: the last guard reads each company against its own export only. A value of one company never
+    withholds a string another company learned honestly, with two companies or with three, where one holds the cell."""
+
+    def run_one(self, companies: dict[str, list[dict[str, str]]], header: tuple[str, ...] = HEADER,
+                settings: dict[str, Any] | None = None) -> tuple[dict[str, Any], dict[str, Any], str]:
+        settings = settings or msha_only_settings()
+        work = self.tmp / f"run{len(list(self.tmp.iterdir()))}"
+        exports = write_arm(work / "in", companies, header)
+        arm = SC.run_arm(settings, "0" * 64, "msha", exports, work / "arm", lambda: "c" * 40)
+        fake_audit(work / "audit.json")
+        doc = REP.run_report(settings, "s.json", "0" * 64, [work / "arm"], work / "audit.json", work / "report",
+                             lambda: "c" * 40, emit=lambda s: None)
+        text = (work / "report" / "report.json").read_text() + (work / "report" / "report.md").read_text()
+        return doc, arm, text
+
+    @staticmethod
+    def companies(n: int, cell_in: str, cell: str, edit: Any = None) -> dict[str, list[dict[str, str]]]:
+        out = {}
+        for k in range(n):
+            rows = corpus_rows(seed=101 + k, per_cat=90)
+            for i, r in enumerate(rows):
+                r["ID"] = f"{chr(75 + k)}{i + 1:05d}"
+                if edit is not None:
+                    edit(r)
+            out[f"c{k + 1}"] = rows
+        out[cell_in][4]["PERSON"] = cell
+        return out
+
+    def assert_cleared(self, doc: dict[str, Any]) -> None:
+        self.assertNotEqual(doc["verdict"], "withheld", doc.get("guard_hits"))
+        self.assertTrue(doc["criteria"]["M3"]["passed"], doc["criteria"]["M3"])
+
+    @staticmethod
+    def labels(arm: dict[str, Any], company: str) -> list[str]:
+        return [x["label"] for x in arm["companies"][company]["draft"]["categories"]["passing_floor"]]
+
+    @staticmethod
+    def first_terms(arm: dict[str, Any], company: str, label: str) -> list[str]:
+        return next(p["first_terms"] for p in arm["companies"][company]["draft"]["predicates"] if p["label"] == label)
+
+    def test_a_cell_equal_to_another_companys_other_bucket_label(self) -> None:
+        for n in (2, 3):
+            with self.subTest(companies=n):
+                doc, arm, text = self.run_one(self.companies(n, "c1", "Other"))
+                self.assertNotIn("OTHER", self.labels(arm, "c1"))          # c1 refuses its own category
+                for other in [f"c{k}" for k in range(2, n + 1)]:
+                    self.assertIn("OTHER", self.labels(arm, other))      # the others print it
+                self.assert_cleared(doc)
+                self.assertIn('"label": "OTHER"', text)
+
+    def test_a_name_word_of_one_company_equal_to_a_term_another_learned(self) -> None:
+        for n in (2, 3):
+            with self.subTest(companies=n):
+                doc, arm, text = self.run_one(self.companies(n, "c2", "Continental Conveyor"))
+                self.assertNotIn("conveyor", self.first_terms(arm, "c2", "HAULAGE"))
+                for other in ["c1", *([f"c{k}" for k in range(3, n + 1)])]:
+                    self.assertIn("conveyor", self.first_terms(arm, other, "HAULAGE"))
+                self.assert_cleared(doc)
+                self.assertIn("conveyor", text)
+
+    def test_a_three_letter_identifier_equal_to_a_word_of_a_term(self) -> None:
+        def car(r: dict[str, str]) -> None:
+            r["TEXT"] = r["TEXT"].replace("shuttle", "shuttle car").replace("Shuttle", "Shuttle car")
+        for n in (2, 3):
+            with self.subTest(companies=n):
+                doc, arm, text = self.run_one(self.companies(n, "c2", "CAR", car))
+                self.assertFalse(any("car" in t.split() for t in self.first_terms(arm, "c2", "HAULAGE")))
+                for other in ["c1", *([f"c{k}" for k in range(3, n + 1)])]:
+                    self.assertTrue(any("car" in t.split() for t in self.first_terms(arm, other, "HAULAGE")))
+                self.assert_cleared(doc)
+
+    def test_a_vehicle_word_of_one_make_equal_to_a_term_another_learned(self) -> None:
+        # the review's case: FORD's narratives say "leaf spring"; NISSAN's vehicle is NISSAN-LEAF-2019
+        for n in (2, 3):
+            with self.subTest(companies=n):
+                makes = {"FORD": leaf_rows("FORD", "FORD-RANGER-2019", 111, 11400000, leaf=True),
+                         "NISSAN": leaf_rows("NISSAN", "NISSAN-LEAF-2019", 112, 12400000, leaf=False)}
+                if n == 3:
+                    makes["HONDA"] = leaf_rows("HONDA", "HONDA-PILOT-2019", 113, 13400000, leaf=True)
+                doc, arm, text = self.run_one(makes, NHTSA_COLUMNS, nhtsa_layout_settings())
+                for make in [m for m in makes if m != "NISSAN"]:
+                    self.assertIn("leaf", self.first_terms(arm, make, "STEERING"))
+                self.assert_cleared(doc)
+                self.assertIn("leaf", text)
+
+    def test_a_companys_own_value_still_withholds_and_the_report_names_the_company(self) -> None:
+        companies = self.companies(2, "c2", "Person 9")
+        work = self.tmp / "own"
+        settings = msha_only_settings()
+        exports = write_arm(work / "in", companies)
+        SC.run_arm(settings, "0" * 64, "msha", exports, work / "arm", lambda: "c" * 40)
+        arm = json.loads((work / "arm" / "arm.json").read_text())
+        arm["companies"]["c2"]["draft"]["predicates"][0]["label"] = "Person 9"     # c2's own forbidden value
+        arm["companies"]["c1"]["draft"]["predicates"][0]["label"] = "Person 9 x"   # not a value of c1
+        (work / "arm" / "arm.json").write_text(json.dumps(arm))
+        fake_audit(work / "audit.json")
+        doc = REP.run_report(settings, "s.json", "0" * 64, [work / "arm"], work / "audit.json", work / "report",
+                             lambda: "c" * 40, emit=lambda s: None)
+        self.assertEqual(doc["verdict"], "withheld")
+        self.assertFalse(doc["criteria"]["M3"]["passed"])
+        self.assertEqual(doc["guard_hits_by_company"]["msha"], {"c1": {}, "c2": {"refused_equal": 1}})
+        md = (work / "report" / "report.md").read_text()
+        self.assertIn("Hits by company: msha c2 refused_equal 1.", md)
+        self.assertNotIn("Person 9", md + (work / "report" / "report.json").read_text())
+
+    def test_an_unreadable_or_unknown_listed_export_withholds(self) -> None:
+        companies = self.companies(2, "c1", "Person 2")
+        settings = msha_only_settings()
+        for case in ("unreadable", "not in the arm file"):
+            with self.subTest(case=case):
+                work = self.tmp / case.replace(" ", "_")
+                exports = write_arm(work / "in", companies)
+                SC.run_arm(settings, "0" * 64, "msha", exports, work / "arm", lambda: "c" * 40)
+                listing = json.loads((exports / "companies.json").read_text())
+                listing["c9"] = {"file": "c9.txt" if case == "unreadable" else "c2.txt"}   # c9.txt does not exist
+                (exports / "companies.json").write_text(json.dumps(listing))
+                fake_audit(work / "audit.json")
+                doc = REP.run_report(settings, "s.json", "0" * 64, [work / "arm"], work / "audit.json",
+                                     work / "report", lambda: "c" * 40, emit=lambda s: None)
+                self.assertEqual(doc["verdict"], "withheld")
+                self.assertEqual(doc["exports_unread"], 1)
+                self.assertFalse(doc["criteria"]["M3"]["passed"])
+
+    def test_a_company_missing_a_declared_column_is_read_with_the_rest(self) -> None:
+        companies = self.companies(2, "c1", "Person 2")
+        work = self.tmp / "missing"
+        settings = msha_only_settings()
+        exports = write_arm(work / "in", {"c1": companies["c1"]})
+        (exports / "c2.txt").write_bytes(pipe(companies["c2"], HEADER[:-1]))          # no PERSON column
+        listing = json.loads((exports / "companies.json").read_text())
+        listing["c2"] = {"file": "c2.txt"}
+        (exports / "companies.json").write_text(json.dumps(listing))
+        arm = SC.run_arm(settings, "0" * 64, "msha", exports, work / "arm", lambda: "c" * 40)
+        self.assertIn("RolesError", arm["companies"]["c2"]["error"])
+        export = parse_export(pipe(companies["c2"], HEADER[:-1]))
+        refusal = D.export_refusal(export, roles(), PARAMS)                               # no crash: the rest
+        self.assertIn(D.folded(companies["c2"][0]["ID"]), refusal.equal)
+        fake_audit(work / "audit.json")
+        doc = REP.run_report(settings, "s.json", "0" * 64, [work / "arm"], work / "audit.json", work / "report",
+                             lambda: "c" * 40, emit=lambda s: None)
+        self.assertEqual(doc["verdict"], "fail")                                           # C1 and M2 fail; no hold
+        self.assertTrue(doc["criteria"]["M3"]["last_guard_clean"])
+
+
+def msha_only_settings() -> dict[str, Any]:
+    s = arm_settings()
+    del s["arms"]["nhtsa"]
+    return s
+
+
+def backstop_rows(seed: int, prefix: str) -> list[dict[str, str]]:
+    """Record ids of 5 characters (``<prefix>0001`` ...), one of 4 (``<prefix>999``), and sites of 6 characters."""
+    rows = corpus_rows(seed=seed, per_cat=90)
+    for i, r in enumerate(rows):
+        r["ID"] = f"{prefix}{i + 1:04d}"
+        r["SITE"] = f"pit-0{SITES.index(r['SITE']) + 1}"
+    rows[-1]["ID"] = f"{prefix}999"
+    return rows
+
+
+class BackstopTests(TempDir):
+    """Amendment A11: the whole rendered report is scanned for record ids and site values of at least 5 characters of
+    every company, exact after folding, as whole tokens. A planted one withholds the report."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._t = tempfile.TemporaryDirectory()
+        cls.base = Path(cls._t.name)
+        cls.rows = {"c1": backstop_rows(121, "Q"), "c2": backstop_rows(122, "V")}
+        cls.settings = msha_only_settings()
+        exports = write_arm(cls.base / "in", cls.rows)
+        SC.run_arm(cls.settings, "0" * 64, "msha", exports, cls.base / "arm", lambda: "c" * 40)
+        fake_audit(cls.base / "audit.json")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._t.cleanup()
+
+    def report(self, md: str | None = None, js: str | None = None) -> tuple[dict[str, Any], str]:
+        render, build = REP.render, REP.build_report
+        if md is not None:
+            REP.render = lambda doc: render(doc) + f"\nleak {md}\n"
+        if js is not None:
+            REP.build_report = lambda *a, **kw: dict(build(*a, **kw), leak=f"at {js} here")
+        try:
+            doc = REP.run_report(self.settings, "s.json", "0" * 64, [self.base / "arm"], self.base / "audit.json",
+                                 self.tmp / "report", lambda: "c" * 40, emit=lambda s: None)
+        finally:
+            REP.render, REP.build_report = render, build
+        text = (self.tmp / "report" / "report.json").read_text() + (self.tmp / "report" / "report.md").read_text()
+        return doc, text
+
+    def test_a_clean_report_clears_and_counts_the_values(self) -> None:
+        doc, text = self.report()
+        self.assertNotEqual(doc["verdict"], "withheld")
+        values = doc["criteria"]["M3"]["backstop_values"]
+        n = len(self.rows["c1"]) + len(self.rows["c2"]) - 2                    # each company's 4-character id aside
+        self.assertEqual(values, {"report_record_id": n, "report_site": 6})
+
+    def test_a_planted_record_id_or_site_value_withholds(self) -> None:
+        cases = {"record id in report.md": ({"md": self.rows["c1"][0]["ID"]}, "report_record_id"),
+                 "record id of the other company": ({"md": self.rows["c2"][7]["ID"]}, "report_record_id"),
+                 "folded": ({"md": self.rows["c1"][0]["ID"].lower()}, "report_record_id"),
+                 "five characters exactly": ({"md": "Q0002"}, "report_record_id"),
+                 "site value in report.json": ({"js": "PIT-03"}, "report_site")}
+        for case, (plant, kind) in cases.items():
+            with self.subTest(case=case):
+                doc, text = self.report(**plant)
+                self.assertEqual(doc["verdict"], "withheld")
+                self.assertFalse(doc["criteria"]["M3"]["passed"])
+                self.assertEqual(doc["backstop_hits"][kind], 1)
+                self.assertIn(REP.BACKSTOP_SAYS[kind], text)
+                self.assertNotIn(next(iter(plant.values())), text)
+                self.assertNotIn('"arms"', text)
+
+    def test_only_whole_tokens_of_five_or_more_characters(self) -> None:
+        for plant in ("Q999", "Q00019", "xQ0001", "Q0001x", "pit-0", "pit-07"):
+            with self.subTest(plant=plant):
+                doc, _ = self.report(md=plant)
+                self.assertNotEqual(doc["verdict"], "withheld")
+
+    def test_the_record_id_planted_into_the_render_of_a_one_company_report(self) -> None:
+        # the test the first fix deleted, restored against the backstop: a record id planted into render()'s output
+        rows = corpus_rows(seed=31, per_cat=90)
+        exports = write_arm(self.tmp / "one", {"c1": rows})
+        SC.run_arm(self.settings, "0" * 64, "msha", exports, self.tmp / "one_arm", lambda: "c" * 40)
+        planted = rows[0]["ID"]
+        original = REP.render
+        REP.render = lambda doc: original(doc) + f"\nleak {planted}\n"
+        try:
+            doc = REP.run_report(self.settings, "s.json", "0" * 64, [self.tmp / "one_arm"], self.base / "audit.json",
+                                 self.tmp / "report", lambda: "c" * 40, emit=lambda s: None)
+        finally:
+            REP.render = original
+        self.assertEqual(doc["verdict"], "withheld")
+        self.assertFalse(doc["criteria"]["M3"]["passed"])
+        text = (self.tmp / "report" / "report.json").read_text() + (self.tmp / "report" / "report.md").read_text()
+        self.assertNotIn(planted, text)
+
+
+class EquipmentColumnTests(TempDir):
+    """Amendment A12: MSHA's equipment columns are not declared: their values are neither read nor refused."""
+
+    def test_the_settings_leave_the_equipment_columns_undeclared(self) -> None:
+        s = json.loads(SETTINGS_PATH.read_text())
+        m = s["arms"]["msha"]
+        for column in ("EQUIP_MFR_NAME", "EQUIP_MODEL_NO"):
+            self.assertIn(column, m["columns"])                              # still a column of the file (M1)
+            self.assertNotIn(column, m["roles"]["forbidden"])
+            self.assertNotIn(column, m["definition_columns"])
+        self.assertEqual(s["arms"]["nhtsa"]["roles"]["forbidden"], ["reporter", "vehicle"])   # NHTSA unchanged
+
+    def test_an_equipment_name_refuses_nothing_in_the_msha_layout(self) -> None:
+        s = json.loads(SETTINGS_PATH.read_text())
+        columns = tuple(s["arms"]["msha"]["columns"])
+        rows = []
+        for r in corpus_rows(seed=131):
+            rows.append({"DOCUMENT_NO": r["ID"], "MINE_ID": r["SITE"], "ACCIDENT_DT": r["DATE"],
+                         "NARRATIVE": r["TEXT"], "CLASSIFICATION": r["CAT"], "OPERATOR_NAME": r["PERSON"],
+                         "EQUIP_MFR_NAME": "Continental Conveyor", "EQUIP_MODEL_NO": "Haul Shuttle 9"})
+        export = parse_export(pipe(rows, columns))
+        declared = SC.arm_roles(s, "msha")
+        d = D.draft_export(export, declared, TRAIN, "equip", params=PARAMS, lang=LANG, template=TEMPLATE)
+        for word in ("conveyor", "shuttle", "haul"):
+            self.assertIn(word, d.learned["haulage"])
+            self.assertIsNone(d.refusal.term(word))
+        self.assertEqual(d.facts["refusal"]["terms"], 0)
+        D.write_pack(d.files, self.tmp / "pack")
+        self.assertTrue(C.check_pack(self.tmp / "pack", export, declared, TRAIN, params=PARAMS, lang=LANG,
+                                     template=TEMPLATE)["passed"])
+        old = roles_from_json({"language": "en", "roles": dict(declared.to_json()["roles"], forbidden=[
+            *declared.forbidden, "EQUIP_MFR_NAME", "EQUIP_MODEL_NO"])})
+        before = D.draft_export(export, old, TRAIN, "equip_old", params=PARAMS, lang=LANG, template=TEMPLATE)
+        self.assertNotIn("conveyor", before.learned["haulage"])               # what A12 stops
+        self.assertGreater(before.facts["refusal"]["terms"], 0)
+
+
+class LabelNamesRefusalTests(TempDir):
+    """Amendment A13: the label-names control passes the same refusal as the drafted and permuted lexicons."""
+
+    def test_a_refused_label_part_is_no_term_of_the_control(self) -> None:
+        rows = corpus_rows(seed=141)
+        rows[2]["PERSON"] = "Roof Bolter"
+        d = drafted(rows)
+        self.assertEqual(d.refusal.term("roof fall"), "name_word")
+        self.assertFalse(any("roof" in t.split() for t in d.learned["roof_fall"]))      # the drafted pack lost it
+        self.assertEqual(D.label_name_lexicon(d.plan, LANG)["roof_fall"], ["roof fall"])  # unrefused, as before
+        lex = D.label_name_lexicon(d.plan, LANG, d.refusal)
+        self.assertEqual(lex["roof_fall"], [])
+        self.assertEqual(lex["haulage"], ["haulage"])
+        self.assertEqual(D.with_placeholders(lex, IDS)["roof_fall"], ["unlearned-roof-fall"])
+        self.assertEqual(D.refused_label_parts(d.plan, LANG, d.refusal), 1)
+        control = drafted(corpus_rows(seed=141))
+        self.assertEqual(D.refused_label_parts(control.plan, LANG, control.refusal), 0)
+
+    def test_the_scorer_reads_the_refused_control_and_counts_it(self) -> None:
+        rows = corpus_rows(seed=142, per_cat=90)
+        rows[2]["PERSON"] = "Roof Bolter"
+        exports = write_arm(self.tmp / "in", {"c1": rows})
+        with tempfile.TemporaryDirectory() as work:
+            agg, mem = SC._company(msha_only_settings(), "msha", "c1", {"file": "c1.txt"}, exports, self.tmp / "out",
+                                   Path(work))
+        self.assertEqual(mem["lexicons"]["label_names"]["roof_fall"], ["unlearned-roof-fall"])
+        self.assertEqual(agg["controls"]["label_names"]["refused"], 1)
+        self.assertEqual(agg["controls"]["label_names"]["placeholders"], 1)
+
+
+class RefusalCountTests(TempDir):
+    """Amendment A14: what the refusal removed, counted per company and per arm, and printed without a refused
+    string."""
+
+    def test_refused_terms_that_would_have_been_assigned(self) -> None:
+        rows = corpus_rows(seed=151)
+        base = drafted(rows)                                            # no word of a person value in a narrative
+        self.assertEqual(base.facts["refusal"]["terms"], 0)
+        rows[2]["PERSON"] = "Roof Bolter"
+        d = drafted(rows)
+        self.assertEqual(d.plan.ids, base.plan.ids)
+        removed = d.facts["refusal"]
+        uncapped = D.assign_terms(base.table, base.eligible, base.labels, base.plan.ids,
+                                  dict(PARAMS, max_terms=10 ** 6))
+        would = {p: [t for t in ts if d.refusal.term(t) is not None] for p, ts in uncapped.items()}
+        kept = [t for ts in base.learned.values() for t in ts if d.refusal.term(t) is not None]
+        self.assertEqual(removed["terms"], d.refused_terms)
+        self.assertGreater(removed["terms"], 0)
+        self.assertEqual(removed["assignable"], sum(len(v) for v in would.values()))
+        self.assertGreater(removed["assignable"], 0)
+        self.assertEqual(removed["within_cap"], len(kept))
+        self.assertEqual({p["id"]: p["refused_assignable"] for p in d.facts["predicates"]},
+                         {p: len(v) for p, v in would.items()})
+        self.assertEqual((removed["categories"], removed["rows"], removed["category_rows"]), (0, 0, []))
+
+    def test_the_cap_and_the_thresholds_of_the_counterfactual(self) -> None:
+        # one sentence per word, so no bigram: 'alpha' in 55 BIG and 5 SMALL records (p 55/60: assignable); 'omega'
+        # in the 55 BIG (p 1: assignable); 'beta' in 20 and 20 (p 0.5: not); 'gamma' in 9 BIG and 1 SMALL (df(t, c) 9:
+        # not); 'delta' in the 55 BIG (p 1, kept). The person value refuses alpha, beta, gamma and omega; each passed
+        # the floor.
+        r = Rows().add(9, "Alpha. Delta. Omega. Gamma.", "BIG").add(20, "Alpha. Delta. Omega. Beta.", "BIG")
+        r.add(26, "Alpha. Delta. Omega.", "BIG").add(5, "Alpha. Theta.", "SMALL").add(20, "Beta. Theta.", "SMALL")
+        r.add(1, "Gamma. Theta.", "SMALL").add(30, "Theta.", "SMALL")
+        r.rows[0]["PERSON"] = "Alpha Beta Gamma Omega"
+        d = drafted(r.rows)
+        self.assertEqual(sorted(d.table.terms[t] for t in d.refused_tids), ["alpha", "beta", "gamma", "omega"])
+        self.assertEqual(d.learned, {"big": ["delta"], "small": ["theta"]})
+        removed = d.facts["refusal"]
+        self.assertEqual((removed["terms"], removed["assignable"], removed["within_cap"]), (4, 2, 2))
+        self.assertEqual({p["id"]: p["refused_assignable"] for p in d.facts["predicates"]}, {"big": 2, "small": 0})
+        # K 1: the assignable count has no cap (2); within K, delta outranks both (df 55 and p 1 as omega, then the
+        # term's order; alpha has the smaller p)
+        one = drafted(r.rows, params=dict(PARAMS, max_terms=1))
+        self.assertEqual((one.facts["refusal"]["assignable"], one.facts["refusal"]["within_cap"]), (2, 0))
+
+    def test_refused_categories_with_their_rows(self) -> None:
+        rows = corpus_rows(seed=152)
+        for r in rows:
+            if r["CAT"] == "SLIP OR FALL":
+                r["CAT"] = "MACHINERY"
+            elif r["CAT"] == "OTHER":
+                r["CAT"] = "?"
+        rows[5]["PERSON"] = "Jeffrey Mining Machinery"
+        rows[6]["PERSON"] = "?"
+        d = drafted(rows)
+        removed = d.facts["refusal"]
+        corpus = [r for r in rows if TRAIN.contains(parse_date(r["DATE"], "M/D/YYYY", LANG.months))]
+        machinery = sum(1 for r in corpus if r["CAT"] == "MACHINERY")
+        marker = sum(1 for r in corpus if r["CAT"] == "?")
+        self.assertEqual(removed["categories"], 2)
+        self.assertEqual(removed["category_rows"], sorted([machinery, marker], reverse=True))
+        self.assertEqual(removed["rows"], machinery + marker)
+        self.assertAlmostEqual(removed["share"], (machinery + marker) / len(corpus))
+        self.assertEqual(removed["with_minimum"], 1)                     # '?' is a non-specific label
+
+    def test_a_row_under_two_refused_categories_counts_once(self) -> None:
+        rows = corpus_rows(seed=155)
+        header = ("ID", "SITE", "DATE", "TEXT", "CAT[]", "PERSON")
+        both = 0
+        for r in rows:
+            cat = {"SLIP OR FALL": "MACHINERY", "OTHER": "?"}.get(r["CAT"], r["CAT"])
+            if cat == "MACHINERY" and both < 15:
+                cat, both = "MACHINERY;?", both + 1
+            r["CAT[]"] = cat
+        rows[5]["PERSON"] = "Jeffrey Mining Machinery"
+        rows[6]["PERSON"] = "?"
+        d = D.draft_export(parse_export(pipe(rows, header)), roles(category="CAT[]"), TRAIN, "two_pack",
+                           params=PARAMS, lang=LANG, template=TEMPLATE)
+        corpus = [r["CAT[]"].split(";") for r in rows
+                  if TRAIN.contains(parse_date(r["DATE"], "M/D/YYYY", LANG.months))]
+        under = sum(1 for cats in corpus if {"MACHINERY", "?"} & set(cats))
+        each = sorted([sum(1 for cats in corpus if "MACHINERY" in cats), sum(1 for cats in corpus if "?" in cats)],
+                      reverse=True)
+        removed = d.facts["refusal"]
+        self.assertEqual(removed["category_rows"], each)
+        self.assertEqual(removed["rows"], under)
+        self.assertLess(removed["rows"], sum(each))                      # a row under both counts once
+
+    def test_the_report_prints_the_counts_and_no_refused_string(self) -> None:
+        c1 = corpus_rows(seed=153, per_cat=90)
+        for r in c1:
+            if r["CAT"] == "SLIP OR FALL":
+                r["CAT"] = "MACHINERY"
+        c1[5]["PERSON"] = "Jeffrey Mining Machinery"
+        c1[6]["PERSON"] = "Roof Bolter"
+        c2 = corpus_rows(seed=154, per_cat=90)
+        for i, r in enumerate(c2):
+            r["ID"] = f"B{i + 1:05d}"
+        settings = msha_only_settings()
+        exports = write_arm(self.tmp / "in", {"c1": c1, "c2": c2})
+        arm = SC.run_arm(settings, "0" * 64, "msha", exports, self.tmp / "arm", lambda: "c" * 40)
+        r1 = arm["companies"]["c1"]["draft"]["refusal"]
+        total = arm["criterion"]["refusal"]
+        self.assertEqual(total["categories"], 1)
+        self.assertEqual(total["rows"], r1["rows"])
+        self.assertEqual(total["terms"], r1["terms"])
+        self.assertEqual(total["assignable"], r1["assignable"])
+        self.assertEqual(total["label_parts"], 1)
+        self.assertEqual(total["companies"], 2)
+        self.assertEqual(total["corpus"], sum(c["draft"]["training"]["corpus"] for c in arm["companies"].values()))
+        fake_audit(self.tmp / "audit.json")
+        doc = REP.run_report(settings, "s.json", "0" * 64, [self.tmp / "arm"], self.tmp / "audit.json",
+                             self.tmp / "report", lambda: "c" * 40, emit=lambda s: None)
+        self.assertNotEqual(doc["verdict"], "withheld")
+        md = (self.tmp / "report" / "report.md").read_text()
+        text = md + (self.tmp / "report" / "report.json").read_text()
+        rd = doc["arms"]["msha"]["companies"]["c1"]["draft"]["refusal"]
+        detail = REP._refusal_detail(doc["criteria"]["C1"]["refusal"])
+        self.assertIn(f"refused categories 1 (corpus rows {r1['rows']} of {total['corpus']}", detail)
+        self.assertIn(f"refused floor-passing terms {r1['terms']} (would have been assigned {r1['assignable']}",
+                      detail)
+        self.assertIn("what the refusal removed: " + detail, md)                     # beside C1
+        self.assertIn(f"| {rd['categories']}, {rd['rows']}, {REP._f(rd['share'])} | "
+                      f"{rd['terms']}, {rd['assignable']}, {rd['within_cap']} | 1 |", md)   # per company
+        self.assertIn(f"c1 {r1['category_rows'][0]}; c2 none.", md)
+        for refused in ("MACHINERY", "Machinery", "machinery"):
+            self.assertNotIn(refused, text)
+
+
+class SecondAmendmentRecordTests(unittest.TestCase):
+    def test_the_choice_file_records_the_second_amendment_before_any_run(self) -> None:
+        text = CHOICE.read_text()
+        first, second = "## Amended before any run, 2026-10-09", "## Amended again before any run, 2026-10-09"
+        self.assertLess(text.index(first), text.index(second))
+        self.assertLess(text.index(second), text.index("## Runs"))
+        section = text.split(second, 1)[1].split("## Runs", 1)[0]
+        for needle in ("### A10. The last guard reads each company against its own export",
+                       "### A11. A backstop over the whole report", "### A12. MSHA's equipment columns",
+                       "### A13. The label-names control goes through the refusal",
+                       "### A14. What the refusal removed", "of at least 5 characters", "as a whole token",
+                       "`EQUIP_MFR_NAME`", "`reporter` and `vehicle` stay forbidden"):
+            self.assertIn(needle, section)
+        self.assertEqual(text.split("## Runs", 1)[1].strip(), "None yet.")
 
 
 if __name__ == "__main__":

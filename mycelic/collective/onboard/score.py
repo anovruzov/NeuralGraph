@@ -23,6 +23,8 @@ Rules 2 to 6 of ``docs/collective/onboard/CHOICE-D001.md``:
 Per-record data (gold, predictions) stays in memory. ``arm.json`` holds aggregates, category labels that passed the
 floor and the first ten terms of each predicate; floats are rounded to four places, except under an ``exact`` key. A
 company whose pack failed the privacy floor keeps none of those strings (amendment A5, :func:`withhold_strings`).
+What the refusal removed is counted per company and summed beside the criterion (amendment A14,
+:func:`refusal_totals`); the label-names control goes through the same refusal as the drafted pack (A13).
 """
 from __future__ import annotations
 
@@ -46,8 +48,8 @@ from ..packs.loader import FrozenPack, PackError, load_pack_dir
 from ..pilot.audit import set_path
 from .check import check_pack
 from .draft import (Draft, DraftError, Window, _cells, assign_terms, draft_export, label_name_lexicon, load_language,
-                    load_template, load_written, parse_window, permuted_labels, record_labels, slug, with_placeholders,
-                    write_pack)
+                    load_template, load_written, parse_window, permuted_labels, record_labels, refused_label_parts, slug,
+                    with_placeholders, write_pack)
 from .exports import Export, ExportError, read_export
 from .roles import Roles, RolesError, roles_from_json
 
@@ -493,10 +495,32 @@ def withhold_strings(agg: Mapping[str, Any]) -> dict[str, Any]:
     out = copy.deepcopy(dict(agg))
     facts = out["draft"]
     facts["categories"]["passing_floor"] = len(facts["categories"]["passing_floor"])
-    facts["predicates"] = [{"code": p["code"], "records": p["records"], "terms": p["terms"]}
-                           for p in facts["predicates"]]
+    facts["predicates"] = [{"code": p["code"], "records": p["records"], "terms": p["terms"],
+                            "refused_assignable": p["refused_assignable"]} for p in facts["predicates"]]
     out["controls"]["majority_prior"].pop("predicate", None)
     out["strings_withheld"] = True
+    return out
+
+
+REFUSAL_SUMS = ("categories", "rows", "with_minimum", "terms", "assignable", "within_cap")
+
+
+def refusal_totals(companies: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """Amendment A14: what the refusal removed, summed over an arm's drafted companies (printed beside its criterion):
+    refused categories and the corpus rows filed under them, with their share of the pooled corpus; refused terms,
+    those that would have been assigned and those that would have been among their predicate's K terms; and the
+    label parts the refusal took out of the label-names control. Counts only."""
+    out: dict[str, Any] = dict.fromkeys((*REFUSAL_SUMS, "corpus", "label_parts", "companies"), 0)
+    for c in companies.values():
+        if "error" in c:
+            continue
+        removed = c["draft"]["refusal"]
+        for key in REFUSAL_SUMS:
+            out[key] += removed[key]
+        out["corpus"] += c["draft"]["training"]["corpus"]
+        out["label_parts"] += c["controls"]["label_names"]["refused"]
+        out["companies"] += 1
+    out["share"] = out["rows"] / out["corpus"] if out["corpus"] else None
     return out
 
 
@@ -541,7 +565,7 @@ def _company(settings: Mapping[str, Any], arm: str, label: str, entry: Mapping[s
     permuted = permuted_labels(d.corpus, f"{settings['permute']['seed_prefix']}:{arm}:{label}")
     perm_lex = with_placeholders(assign_terms(d.table, d.eligible, record_labels(permuted, d.plan), d.plan.ids,
                                               params), template["ids.json"])
-    name_lex = with_placeholders(label_name_lexicon(d.plan, lang), template["ids.json"])
+    name_lex = with_placeholders(label_name_lexicon(d.plan, lang, d.refusal), template["ids.json"])
     agg["controls"] = {"majority_prior": {"predicate": top, "code": d.plan.codes[top]},
                        "permuted_labels": {"placeholders": sum(1 for p in d.plan.ids
                                                                if perm_lex[p][0].startswith(
@@ -550,7 +574,8 @@ def _company(settings: Mapping[str, Any], arm: str, label: str, entry: Mapping[s
                        "label_names": {"placeholders": sum(1 for p in d.plan.ids
                                                            if name_lex[p][0].startswith(
                                                                template["ids.json"]["placeholder_prefix"])),
-                                       "terms": sum(len(v) for v in name_lex.values())}}
+                                       "terms": sum(len(v) for v in name_lex.values()),
+                                       "refused": refused_label_parts(d.plan, lang, d.refusal)}}
     rows = drafted_rows(sample, export, d)
     other = {d.plan.other_id}
     preds: dict[str, list[frozenset[str]]] = {}
@@ -658,6 +683,7 @@ def run_arm(settings: Mapping[str, Any], settings_sha256: str, arm: str, exports
                 "own_space": own}
     doc["matched"] = matched
     doc["criterion"] = criterion(spec["criterion"], pooled, matched, doc["errors"], len(companies))
+    doc["criterion"]["refusal"] = refusal_totals(doc["companies"])
     against = spec["criterion"].get("against")
     if against is not None:
         doc["criterion"]["matched_names"] = {label: c["hand"][against]["matched_names"]

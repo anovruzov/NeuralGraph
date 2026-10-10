@@ -8,14 +8,16 @@ written in a fixed order, JSON with sorted keys. Each rule is one function here,
   read in every row, and so are the record-id, site and forbidden columns, only to refuse; every other value only in
   a training row with a narrative);
 * amendment A2, the one refusal: :class:`Refusal`, built by :func:`export_refusal` from every row's record-id, site
-  and forbidden values; the drafter, the check and the last guard all use it;
+  and forbidden values of one company's export; the drafter, the check, the label-names control and the last guard
+  all use it (amendments A10 and A13); :func:`refusal_removed` counts what it removed (amendment A14);
 * rule 1.4, the predicates: :func:`group_categories`, :func:`category_floor`, :func:`split_categories`,
   :func:`predicate_ids`, :func:`plan_predicates` (codes and the value map; refused categories left out);
 * rule 1.5, the lexicon: :func:`candidate_terms`, :func:`term_table`, :func:`eligible_terms`, :func:`term_score`,
   :func:`assign_terms`, :func:`placeholder`;
 * rule 1.6, the rest of the pack: :func:`entity_types`, :func:`assemble_pack`, :func:`fixtures`, and the normalised
   export :func:`normalised_rows`;
-* rule 4, the controls: :func:`permuted_labels` (then :func:`assign_terms` again) and :func:`label_name_lexicon`.
+* rule 4, the controls: :func:`permuted_labels` (then :func:`assign_terms` again) and :func:`label_name_lexicon`
+  (through the refusal, amendment A13; :func:`refused_label_parts` counts the parts it removed).
 """
 from __future__ import annotations
 
@@ -245,6 +247,13 @@ class ValueIndex:
                 return v
         return None
 
+    def found_all(self, text: str) -> list[str]:
+        """Every value found in ``text`` as whole words, sorted."""
+        out = [v for run in sorted(set(_ALNUM_RUN.findall(text))) for v in self.by_run.get(run, ())
+               if find_bounded(v, text)]
+        out += [v for v in self.general if find_bounded(v, text)]
+        return sorted(set(out))
+
 
 def words_of(text: str) -> list[str]:
     """The words of a folded string: its runs of letters and digits."""
@@ -261,8 +270,9 @@ class Refusal:
     3. ``name_word``: equals a word (letters only, at least ``name_word_min_letters`` of them) of a forbidden value of
        two or more words: a surname inside a name.
 
-    A lexicon term is refused when it or any of its words is (:meth:`term`). The drafter, the check (rule 1.7) and the
-    last guard (rule 8) all use this one class."""
+    A lexicon term is refused when it or any of its words is (:meth:`term`). The drafter, the check (rule 1.7), the
+    label-names control (rule 4, amendment A13) and the last guard (rule 8, amendment A10) all use this one class,
+    each over one company's export."""
 
     def __init__(self, references: Iterable[str], forbidden: Iterable[str], params: Mapping[str, Any]) -> None:
         p = params["refusal"]
@@ -306,19 +316,23 @@ class Refusal:
 
 def refused_values(export: Export, roles: Roles) -> tuple[list[str], list[str]]:
     """Amendment A2: the values of the record-id and site columns, and of the forbidden columns, in every row. These
-    columns are read in every row for this one purpose (rule 1.3 as amended)."""
+    columns are read in every row for this one purpose (rule 1.3 as amended). A declared column the export lacks has
+    no value: the drafter refuses such an export before it gets here, and the last guard still reads the rest."""
     references: list[str] = []
     forbidden: list[str] = []
+    ref_columns = [name for name in (roles.record_id, roles.site) if export.has(name)]
+    bad_columns = [name for name in roles.forbidden if export.has(name)]
     for r in range(len(export)):
-        for name in (roles.record_id, roles.site):
+        for name in ref_columns:
             references.extend(_cells(export.value(r, name)))
-        for name in roles.forbidden:
+        for name in bad_columns:
             forbidden.extend(_cells(export.value(r, name)))
     return references, forbidden
 
 
 def export_refusal(export: Export, roles: Roles, params: Mapping[str, Any]) -> Refusal:
-    """The one refusal of an export (amendment A2), used by the drafter and by the check alike."""
+    """The one refusal of an export (amendment A2): the drafter, the check, the label-names control and the last
+    guard each build it with this function from the same company's export (amendment A10)."""
     return Refusal(*refused_values(export, roles), params)
 
 
@@ -552,15 +566,15 @@ def term_table(corpus: Corpus, lang: Language, params: Mapping[str, Any]) -> Ter
                      sites=tuple(cap if s is None else len(s) for s in sites))
 
 
-def eligible_terms(table: TermTable, refusal: Refusal, params: Mapping[str, Any]) -> tuple[list[int], int]:
+def eligible_terms(table: TermTable, refusal: Refusal, params: Mapping[str, Any]) -> tuple[list[int], list[int]]:
     """Rule 1.5's floor: a term in at least N records at at least S sites that the refusal does not refuse
-    (amendment A2). Also the number of terms that passed the floor and were refused."""
-    out, refused = [], 0
+    (amendment A2). Also the terms that passed the floor and were refused (amendment A14 counts them)."""
+    out, refused = [], []
     for tid, term in enumerate(table.terms):
         if not category_floor(table.df[tid], table.sites[tid], params):
             continue
         if refusal.term(term) is not None:
-            refused += 1
+            refused.append(tid)
             continue
         out.append(tid)
     return out, refused
@@ -636,14 +650,22 @@ def label_parts(label: str, lang: Language) -> list[str]:
     return out
 
 
-def label_name_lexicon(plan: Plan, lang: Language) -> dict[str, list[str]]:
+def label_name_lexicon(plan: Plan, lang: Language, refusal: Refusal | None = None) -> dict[str, list[str]]:
     """Rule 4: each lexicon replaced by the words of its label; a part several labels share goes to the predicate with
-    the most corpus rows (ties: the smaller id)."""
+    the most corpus rows (ties: the smaller id). Amendment A13: a part the refusal's term rule refuses is no term, as
+    in the drafted and permuted lexicons (a refusal depends on the part alone, so it never moves a shared part)."""
     owner: dict[str, str] = {}
     for p in sorted(plan.ids, key=lambda p: (-plan.counts[p], p)):
         for part in label_parts(plan.labels[p], lang):
             owner.setdefault(part, p)
-    return {p: [part for part in label_parts(plan.labels[p], lang) if owner[part] == p] for p in plan.ids}
+    return {p: [part for part in label_parts(plan.labels[p], lang)
+                if owner[part] == p and (refusal is None or refusal.term(part) is None)] for p in plan.ids}
+
+
+def refused_label_parts(plan: Plan, lang: Language, refusal: Refusal) -> int:
+    """Amendment A13: how many distinct label parts the refusal takes out of the label-names control."""
+    return len({part for p in plan.ids for part in label_parts(plan.labels[p], lang)
+                if refusal.term(part) is not None})
 
 
 # --------------------------------------------------------------------------------------------------- rule 1.6
@@ -851,6 +873,7 @@ class Draft:
     refusal: Refusal | None = None
     refused_terms: int = 0
     refused_entity_values: int = 0
+    refused_tids: list[int] = field(default_factory=list)
 
 
 def draft_export(export: Export, roles: Roles, window: Window, pack_id: str, *,
@@ -871,7 +894,7 @@ def draft_export(export: Export, roles: Roles, window: Window, pack_id: str, *,
     categories = group_categories(corpus)
     plan = plan_predicates(categories, params, lang, ids, refusal)
     table = term_table(corpus, lang, params)
-    eligible, refused_terms = eligible_terms(table, refusal, params)
+    eligible, refused_tids = eligible_terms(table, refusal, params)
     labels = record_labels(corpus.categories, plan)
     learned = assign_terms(table, eligible, labels, plan.ids, params)
     lexicon = with_placeholders(learned, ids)
@@ -882,16 +905,42 @@ def draft_export(export: Export, roles: Roles, window: Window, pack_id: str, *,
     d = Draft(roles=roles, lang=lang, params=params, template=template, dated=dated, window=window, corpus=corpus,
               categories=categories, plan=plan, table=table, eligible=eligible, labels=labels, learned=learned,
               lexicon=lexicon, etypes=etypes, files=files, inferred=inferred, refusal=refusal,
-              refused_terms=refused_terms, refused_entity_values=refused_entities)
+              refused_terms=len(refused_tids), refused_entity_values=refused_entities, refused_tids=refused_tids)
     d.facts = summarise(export, d)
     return d
 
 
+def refusal_removed(d: Draft) -> dict[str, Any]:
+    """Amendment A14: what the refusal removed, in counts only, never a refused label or term.
+
+    * categories: how many were refused, each one's corpus rows (descending), the corpus rows filed under any of them
+      and their share of the corpus, and how many had at least R rows and a specific label;
+    * terms: how many floor-passing terms were refused; how many would have been assigned to a drafted predicate
+      (``df(t, c)`` and ``p(c | t)`` at their minimums, rule 1.5, no cap), per predicate too; and how many of those
+      would have been among their predicate's K terms had the refusal not applied."""
+    plan, corpus, params = d.plan, d.corpus, d.params
+    n = len(corpus)
+    refused_keys = {c.key for c in plan.refused}
+    rows = sum(1 for cats in corpus.categories if any(folded(v) in refused_keys for v in cats))
+    specific = sum(1 for c in plan.refused
+                   if c.count >= params["predicate_min_records"] and c.key not in d.lang.non_specific)
+    uncapped = dict(params, max_terms=max(1, len(d.table.terms)))
+    assignable = assign_terms(d.table, d.refused_tids, d.labels, plan.ids, uncapped)
+    refused_set = {d.table.terms[t] for t in d.refused_tids}
+    capped = assign_terms(d.table, sorted({*d.eligible, *d.refused_tids}), d.labels, plan.ids, params)
+    return {"categories": len(plan.refused), "category_rows": [c.count for c in plan.refused],
+            "rows": rows, "share": rows / n if n else None, "with_minimum": specific,
+            "terms": len(d.refused_tids), "assignable": sum(len(v) for v in assignable.values()),
+            "assignable_by_predicate": {p: len(assignable[p]) for p in plan.ids},
+            "within_cap": sum(1 for p in plan.ids for t in capped[p] if t in refused_set)}
+
+
 def summarise(export: Export, d: Draft) -> dict[str, Any]:
-    """The draft's counts, roles and sizes (``draft.json``): aggregates, category labels that passed the floor, and
-    each predicate's first ten terms; no record value."""
+    """The draft's counts, roles and sizes (``draft.json``): aggregates, category labels that passed the floor, each
+    predicate's first ten terms, and what the refusal removed (counts only); no record value."""
     plan, corpus = d.plan, d.corpus
     n = len(corpus)
+    removed = refusal_removed(d)
     other_keys = {c.key for c in plan.split.other}
     other_rows = sum(1 for cats in corpus.categories if any(folded(v) in other_keys for v in cats))
     no_specific = sum(1 for labels in d.labels if not labels)
@@ -910,7 +959,8 @@ def summarise(export: Export, d: Draft) -> dict[str, Any]:
         "categories": {"passing_floor": passing, "below_floor": len(plan.split.below),
                        "specific": len(plan.ids), "other": len(plan.split.other), "refused": len(plan.refused)},
         "predicates": [{"id": p, "code": plan.codes[p], "label": plan.labels[p], "records": plan.counts[p],
-                        "terms": len(d.learned[p]), "first_terms": d.lexicon[p][:10]} for p in plan.ids],
+                        "terms": len(d.learned[p]), "first_terms": d.lexicon[p][:10],
+                        "refused_assignable": removed["assignable_by_predicate"][p]} for p in plan.ids],
         "other_bucket_rows": other_rows, "other_bucket_share": other_rows / n if n else None,
         "rows_without_specific": no_specific,
         "terms": {"total": sum(sizes), "min": sizes[0], "median": sizes[len(sizes) // 2], "max": sizes[-1],
@@ -918,6 +968,7 @@ def summarise(export: Export, d: Draft) -> dict[str, Any]:
         "placeholders": sum(1 for p in plan.ids if not d.learned[p]),
         "entity_types": [{"id": et.id, "ids": len(et.ids)} for et in d.etypes],
         "refused_entity_values": d.refused_entity_values,
+        "refusal": {k: v for k, v in removed.items() if k != "assignable_by_predicate"},
     }
 
 
