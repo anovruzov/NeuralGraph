@@ -18,6 +18,9 @@ built is in `BUILD-D001.md`. The sources are in `SOURCES.md`.
 **Amended before any run, on 2026-10-09.** The section of that name, just before "Runs", changes rules 1.3 to 1.7,
 2.2, 4, 5, 7, 8 and M1, and adds to the declaration. Where it disagrees with the text above it, it wins.
 
+**Amended again before any run, on 2026-10-09.** The section of that name follows the first amendment. It changes
+A5, rules 2.1, 4, 5 and 8. Where it disagrees with any text above it, it wins.
+
 ## The declaration
 
 - The rule was written by the AI system that wrote this repository's code.
@@ -529,6 +532,99 @@ therefore says little, and for MSHA nothing. The report says so beside it.
   for every reader. The report counts both.
 - Reading the identifying columns of test rows lets test rows remove terms. They cannot add one, and no test label or
   narrative is read.
+
+## Amended again before any run, 2026-10-09
+
+No value of either source has been seen. No run has happened, and no run file exists. A review of the fixed build
+found that the last guard still refused against the values of other companies, and that the report did not show how
+much the refusal removed. The owner decided the five changes below. Each replaces the text it names. Where any text
+above disagrees with this section, this section wins. `BUILD-D001.md` records the guard's problem as its conflict 8.
+
+### A10. The last guard reads each company against its own export (rule 8, A5)
+
+- **Was (A5):** per arm, a printed string was a hit when A2 refused it against every row of every company of the arm.
+  A value of one company in the printed strings of another company was a hit.
+- **Now:** per company. A company's printed strings (its category labels, predicate ids, first terms, the majority
+  prior's id and its error texts) are checked against that company's own export only:
+  - the refusal of A2, built from that export's record-id, site and forbidden columns;
+  - the 8-token scan, over that export's narratives.
+- These are the refused values and the narratives that the drafter and the check used for that company. One function
+  builds the refusal for all three. A value of one company never refuses a string of another company.
+- An export the guard cannot read still withholds the report, and M3 fails. The withheld report gives the hits by
+  kind for each company, never a string.
+- **Why:** the drafter and the check refused against one company's export, but the guard refused against every
+  company of the arm. A label, id or term that one company learned honestly, and that passed its own floor, withheld
+  the whole report when it equalled a value of another company, or a word of one. MSHA has five companies and NHTSA
+  six. A vehicle model named for a common word, or a three-letter contractor code that reads as a word, in one
+  company's rows would do it. D001 would then fail on a false "privacy floor failed". With one refused set per
+  company, a printed string cannot collide by construction.
+
+### A11. A backstop over the whole report (rule 8)
+
+- When the per-company guard finds nothing, the whole rendered text of `report.json` and `report.md` is scanned once
+  more, before either file is written.
+- It looks only for values that cannot be ordinary words: the record ids and site values, of at least 5 characters,
+  of every company of both arms. A match is exact after folding, as a whole token: no letter or digit next to it.
+- A match withholds the report, and M3 fails, as for a guard hit. The withheld report gives the matches by kind,
+  never a value.
+- **Why:** the guard reads a fixed list of fields of the arm files. A later change to the report's text or to the arm
+  files could print a record value outside that list. The backstop catches a record id or a site value wherever the
+  report prints it.
+
+### A12. MSHA's equipment columns (rule 2.1)
+
+- **Was:** MSHA's `forbidden` held `EQUIP_MFR_NAME` and `EQUIP_MODEL_NO`.
+- **Now:** they are not declared. Like every other undeclared column, no value of theirs enters a pack and they refuse
+  nothing. MSHA's forbidden columns are `CONTROLLER_ID`, `CONTROLLER_NAME`, `OPERATOR_ID`, `OPERATOR_NAME`,
+  `CONTRACTOR_ID`, `CLOSED_DOC_NO` and `FIPS_STATE_CD`. The run no longer prints the definition lines of the two
+  equipment columns.
+- **Rule 8** no longer lists manufacturer ids or names among what is never printed. A word that names an equipment
+  maker or model can be learned from the narratives, and printed, as any term: when it passes the floor.
+- **NHTSA is unchanged:** `reporter` and `vehicle` stay forbidden, since rule 8 promises that no vehicle is printed.
+- **Why:** these columns name equipment, not people and not the companies under study. Their free text holds
+  ordinary accident words. Through A2's name-word rule they would have removed such words from every company's
+  lexicon, and could have removed a whole category.
+
+### A13. The label-names control goes through the refusal (rule 4)
+
+- **Now:** a part of a label is a term of the label-names control only when A2's term rule, against the company's
+  export, does not refuse it. A predicate left with no part gets the placeholder of rule 1.5.
+- The drafted, permuted-labels and label-names lexicons now pass the same refusal. The report gives, per company, the
+  number of label parts the refusal removed.
+- **Why:** the drafted and permuted lexicons lost a refused word, but the label-names control kept it. That biased C1
+  against the drafter.
+
+### A14. What the refusal removed (rules 5 and 8)
+
+The report prints, per company, and summed over each arm beside C1 and C2:
+
+- **the refused categories:** how many; each one's corpus rows; the corpus rows filed under any of them, and their
+  share of the corpus; and how many of them had at least R corpus rows and a specific label;
+- **the refused terms that passed the floor:** how many; how many would have been assigned to a predicate
+  (`df(t, c)` at least 10 and `p(c | t)` at least 0.6, with the drafted pack's predicates); and how many of those
+  would have been among their predicate's K terms;
+- **the label-names control:** the label parts the refusal removed (A13).
+
+It never names a refused category or term. A reader can then see whether C1 measured the drafter or the refusal.
+
+### The settings
+
+`D001-settings.json` changes with this amendment: MSHA's `forbidden` and `definition_columns` lose `EQUIP_MFR_NAME`
+and `EQUIP_MODEL_NO`. Nothing else changes. The run file names the amended file's sha256.
+
+### What these changes risk
+
+- The per-company guard no longer catches a value of one company printed in the strings of another. Those strings
+  are each company's own filed labels and words that passed its own floor (10 records at 3 sites), never one record
+  of another company. The backstop still catches any company's record id or site value of 5 or more characters
+  anywhere in the report.
+- The backstop matches whole tokens, numbers included. A count, a byte size or a fraction in the report that equals a
+  record id or a site value of 5 or more characters withholds the report: a false "privacy floor failed". It needs a
+  printed number equal to such a value, digit for digit.
+- Without the equipment columns, the drafted and permuted lexicons can keep words those columns would have refused,
+  and a category those columns would have left out can be scored. With A13, the label-names control loses words it
+  kept before. No value has been seen, so no one knows how this moves C1. The report prints what the refusal still
+  removes (A14).
 
 ## Runs
 
