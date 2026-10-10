@@ -367,6 +367,25 @@ records only; `pack/` is mostly a list of component names; nothing here measures
   (drafted 0.568 against 0.360 for the majority prior) and its audit counts (1,033 records, 10 mines, 139 weeks, a
   review list of 4). The demo's own steps took 28.5 s. Not a new test: it shows D002's result, step by step.
 
+## Outside the lab: D003 (a pack drafted from a device maker's own FDA reports, real data): failed, on C2
+
+The same onboard code drafted a pack for each of five device makers (d1 to d5). Each pack was drafted from that maker's
+own openFDA adverse-event reports of 2021 to 2022 and read its 2023 to 2024 reports. Rule:
+`docs/collective/onboard/CHOICE-D003.md`, committed alone before any code and amended once before any run.
+[Run 38055858262](https://github.com/anovruzov/NeuralGraph/actions/runs/38055858262), commit `85709ad`, `report.md`
+sha256 `9b8a60ccc753…`. **Verdict: fail.**
+
+| Criterion | Result |
+|---|---|
+| C1, against D002's controls | **Passed.** Drafted micro F1 0.590 against the majority prior's 0.346 on 820 records; difference 0.244 [0.164, 0.317] over 42 (company, day) clusters |
+| C2, against the hand-built `device_quality` pack | **Failed.** On 114 records with a gold: drafted 0.398 against 0.225; difference 0.173 [-0.009, 0.349]. Superiority needed the lower end above 0 |
+| M1 to M3 | Passed: no code per field, 5 packs loaded, the privacy floor and the last guard held |
+
+The point estimate favoured the drafted pack, but with 114 records in 42 day-clusters superiority was not shown. Per
+company, d1's drafted pack read worse than its best control (0.132 against 0.149). On records whose narrative holds
+no word of its filed label, C1's margin is 0.158 [0.074, 0.231] (reported only). Limits: public reports, filed codes as
+the answer key, five makers, a lexical reader; nothing here measures detection.
+
 ## Outside the lab: public replay V001 (vehicle complaints, model-free, real data)
 
 Not a lab run: the `vehicle-replay` workflow runs the pilot audit (`docs/collective/PILOT.md`) on two years of FORD's

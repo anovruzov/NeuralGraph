@@ -1117,4 +1117,73 @@ settings test checks every value against this file.
 
 ## Runs
 
-None yet.
+### Run 1: run-003, 2026-10-10 (the result): failed, on C2
+
+[Run 38055858262](https://github.com/anovruzov/NeuralGraph/actions/runs/38055858262), run file
+`docs/collective/onboard/run-003.json`, commit `85709ad`, settings sha256 `9b06b12c9697…`, 13:28 to 13:45 UTC.
+- **Steps:** offline tests 2 min 2 s; the settings check; the fetch, select and split 9 min 31 s; `RUN-START` at
+  13:40:25; score `maude` 5 min 4 s; the report 3 s.
+- **The report step exited 1** after printing its blocks, as it does on a fail verdict. By section 12, from the marker
+  on, whatever happens is the result.
+- **The record:** `report.md` sha256 `9b8a60ccc753…` (printed between the D003 markers, checked against its 241
+  lines). The log tool returned only the last 5,000 of the job's 7,432 log lines, so the fetch's printed counts and the
+  start of `report.json`'s block were cut and are not quoted here. Every number below is from `report.md`.
+- **The D002 workflow,** started by the same push (run 38055858248), refused `run-003.json` at its settings check,
+  before any download, as section 12 says it must.
+
+**Verdict: fail.** D003 passes only if C1, C2, M1, M2 and M3 all pass. C2 did not.
+
+| Criterion | Result |
+|---|---|
+| C1 (reading against D002's controls) | **Passed.** Drafted micro F1 0.590 against the best control, the majority prior, 0.346, on 820 sampled records of 5 makers. Difference 0.244, 95% interval over (company, received day) clusters [0.164, 0.317], 42 clusters: at least 0.10, lower end above 0 |
+| C2 (against `device_quality`, 22-name map) | **Failed, on its interval.** 114 records with a nonempty gold (at least 100 needed). Drafted 0.398, `device_quality` 0.225, all reached 0.228, most frequent reached 0.210. Drafted minus `device_quality` 0.173 [-0.009, 0.349], minus all reached 0.171 [-0.025, 0.386], minus most frequent reached 0.188 [0.002, 0.398]. Superiority needs every lower end above 0; two are not |
+| M1 | Passed: no declared column name in the onboard package, no drafted label equal to one, one code commit. The download code is 2,124 lines in five files |
+| M2 | Passed: 5 packs drafted, 5 loaded |
+| M3 | Passed: 5 packs passed the privacy floor, and the last guard was clean. FDA's generic terms were left out of the n-gram scans, as P13 says; no n-gram hit fell inside a value-map spelling or a printed label |
+| M4 | Does not apply (section 2.5) |
+
+All readers, pooled (micro F1; 95% interval over clusters):
+
+| Reader | Micro F1 [95%, days] | Macro F1 | Coverage |
+|---|---|---|---|
+| drafted | 0.590 [0.473, 0.684] | 0.369 | 0.879 |
+| majority prior | 0.346 [0.251, 0.442] | 0.051 | 1.000 |
+| set prior | 0.305 [0.199, 0.415] | 0.045 | 1.000 |
+| permuted labels | 0.235 [0.099, 0.375] | 0.025 | 0.306 |
+| label words | 0.204 [0.163, 0.249] | 0.176 | 0.799 |
+| label names | 0.141 [0.072, 0.224] | 0.091 | 0.161 |
+
+- **Companies:** 77 names were in both count lists; 1 was excluded as a placeholder, and 76 qualified. 5 were
+  chosen and used, d1 to d5. Kept days, training and test: d1 20/18, d2 9/7, d3 11/6, d4 9/6, d5 15/10.
+- **Per company,** drafted F1 against the best control:
+  - d1 0.132 / 0.149: below its control. 10 of d1's 21 predicates learned no term, and its "Crack" terms are words
+    like `customer` and `data`.
+  - d2 0.726 / 0.475; d3 0.654 / 0.163; d5 0.852 / 0.685.
+  - d4 0.857 / 0.600 on only 20 drawn records.
+- **Label echo:** 8.5% of the sampled narratives hold their own filed label, and 27.6% hold a word of it. On the 594
+  records with no word echo (reported only, deciding nothing), drafted minus the majority prior is still 0.158
+  [0.074, 0.231].
+- **The six-name map** of `device_quality` (reported only): drafted 0.454 against 0.212 on 73 records with a gold;
+  difference 0.242 [0.009, 0.460].
+- **Non-inferiority** against `device_quality` at -0.05 (reported only): the lower end -0.009 is above -0.05.
+- **The learned terms read as device problems,** for example:
+  - `signal loss`, `transmitter failed` and `early sensor` for a continuous glucose monitor's wireless, output and
+    end-of-life problems;
+  - `insulin flow` and `flow block` for obstruction of flow;
+  - `osseointegrate`, `primary stability` and `sinus perforation` for a dental implant's failure to osseointegrate.
+- **The refusal** removed no category and 7 floor-passing terms, 4 of which would have been assigned.
+
+**How it is read (section 9).**
+- C1 passed. On the field closest to the beachhead, packs drafted from five device makers' own reports, with no code
+  per field, read those makers' later reports better than every record-blind and label-blind control, by 0.244 F1.
+  This is D002's C1 holding in a third field. On word-echo-free records the margin shrinks to 0.158, but it stays
+  above 0.
+- C2 failed on its interval. Section 9's reading, fixed before the run, is that the illustrative hand vocabulary reads
+  the filed problems it names as well as the drafted pack does. The point estimates favoured the drafted pack: 0.398
+  against 0.225. But with 114 records in 42 day-clusters, the interval did not exclude 0, so superiority was not shown.
+- D003 fails. The claim it tested, a better reader than the hand-built device pack, is not supported by this run.
+
+**What it does not show.** The answer key is FDA's filed problem codes, not checked labels. The companies are fixed
+and the days are resampled, so no interval covers the field in general. The reader is the lexical extractor, not a
+model. Nothing here measures detection or early warning. No field is a site a company runs, so nothing here is about
+sites.
