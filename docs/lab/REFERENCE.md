@@ -19,7 +19,7 @@ capacity of a shard is `job_minutes` less the shard overhead of 25 minutes; ever
 | `job_minutes` | 45 to 330: each shard job's limit | |
 | `max_parallel` | 1 to 16: shard jobs at once | |
 | `retention_days` | 1 to 90: how long artifacts are kept | |
-| `experiments` | at least one of `e1`, `e2`, `e3`, `g0`, `sim`, `x1`, `openfda`, `j1` | |
+| `experiments` | at least one of `e1`, `e2`, `e3`, `g0`, `sim`, `x1`, `openfda`, `j1`, `l1` | |
 | `hosted` | per hosted model key, `{"max_calls": 1..1000000}` | `{}` |
 
 A fake model needs provider `fake`, a gguf model the server provider; a hosted model goes with either. Provider
@@ -131,6 +131,40 @@ runtime at boundary `site:lab`, data label `public`, and the verifier's own verd
 parts, checks every verdict line against its question and the verdict rule, scores the control and the bound on each
 model's records, and reports each judge's confirms per predicate (`by_predicate`).
 
+`l1`, latency test L001 (`docs/collective/L001/CHOICE-L001.md`, amended K1 to K13 before any run; the build note is
+`BUILD-L001.md` beside it): the product's pushdown path timed on CPU on the drafter demo's alert of MSHA's accident
+file, and its site answers scored against the filed categories, one unit per model and question slot (`lab/l1.py`,
+`lab/l1path.py`, `lab/l1score.py`, `lab/l1guard.py`; the template is `lab/templates/latency.json`, to copy to
+`lab/requests/latency-001.json`):
+
+| key | values | default |
+| --- | --- | --- |
+| `models` | gguf or fake models of `models`; a hosted model is refused (`MSHA_HOSTED`), as the lab sends no real narrative to a host | `models` |
+| `minutes` | per question unit | |
+| `questions` | exactly 5: the alert question and the four control questions (K11) | |
+| `bootstrap_b` | 1000 to 20000 | 10000 |
+| `bootstrap_seed` | a seed; the draws over mines use `random.Random("l1:<seed>")`, those over records `"l1:<seed>:records"` | 1 |
+
+The plan job (`lab.prereg`, which runs `lab.l1 prereg` in a subprocess whose output goes to `prereg-logs/`) downloads
+MSHA's file into `lab-msha` beside the plan directory (`tools/onboard/fetch_msha.py`), rebuilds the drafter demo's
+pipeline on c1's held-out years (D002's settings), and stops before any model runs, refusing the plan with
+`L1_STOPPED` and the stop's code, unless the audit gives exactly one X or S alert and the drafted pack exactly four
+other specific predicates (`no_alert`, `alerts`, `questions`), the demo's figures when the file is the demo's
+(`demo_figures`), a hidden-codes store that retrieves what the unchanged store does (`retrieval`), the same question
+id and routes on every judge's path (`routes`) and at most 5% of rule 8's draws without a key confirm or a key refute
+(`draws`); a failed download refuses it with `L1_FETCH_FAILED`. It writes `prereg/l1/prereg.json` (the file's sha256,
+the pack's hashes, the audit's counts, the alert, the five questions with their ids, windows, routes, strata and each
+routed mine's retrieved records, the key judge's, the lexical judge's, the record-blind control's and the route-role
+baseline's verdicts and gate statuses, each on its own fresh stores, the draws, the code hash, the judge task and the
+endpoints' pins), `scores.json` (their scores on every scored site answer, by stratum, the construction counts, the
+predicate-only bound and the gate's agreement beside a constant status) and `warmup.json` (the warm-up's payloads: a
+generated record asked about the drafted pack's other bucket, which no question asks, K5). The manifest's `l1` block
+holds them with `cache_key`, `lab-msha-<16 hex of the file's sha256>`, which `lab.msha cache-key` hands the workflow.
+Each unit restores the file from that cache (else downloads it), checks its sha256 and every preregistered pin before
+its first model call, and runs the timed path with one runtime per mine at boundary `site:<mine>` (`judge_record`
+only, HTTP deadline 600 s, 1 retry, no escalation), sites one after another with the orchestrator's deadline of
+3600 s; then the unit check, the per-record replies and the lexical rerun, which must give the preregistered verdicts.
+
 The fetch makes up to `product_codes` x 2 x ceil(`max_records_per_code` / page) requests, where a page is 100 records
 without the `MYCELIC_LAB_OPENFDA_API_KEY` secret (openFDA refuses larger pages without a key) and 1000 with it; at most
 800 requests without the secret and 1000 with it.
@@ -188,7 +222,8 @@ cached as `lab-server-<tag>-<sha16>` under `server/<tag>`, a model file as `lab-
 ## Ids
 
 - A unit id is `<experiment>-<model>` (E2, E3, G0), `e1-<model>-r<k>` (one E1 repeat), `j1-<model>-p<k>` (one J1
-  part), `sim-<model>-s<seed>` (one simulation seed), `x1` or `openfda`; at most 55 characters.
+  part), `l1-<model>-q<k>` (one L1 question slot, 1 the alert question), `sim-<model>-s<seed>` (one simulation seed),
+  `x1` or `openfda`; at most 55 characters.
 - A run id is the unit id, a hyphen and the first 8 hex digits of sha256(request sha256 `|` unit id); the harness
   writes under it.
 - A shard id is `s<NNN>-<label>`: a three-digit number in creation order and the shard's model key, `none` for
@@ -227,6 +262,33 @@ participation check: the choice file scores such a reply as `unknown`, so it is 
 A call's last ledger row decides: a call whose repair then failed in transport is not answered. The check's floor acts
 before the choice file's 1% withhold: with fifty calls a part, three transport failures make the part `invalid`, so the
 model reads incomplete rather than withheld.
+
+An L1 unit (`lab.l1 run`) keeps under `runs/l1/<run id>/` (no record id, mine id, name or narrative; mines are
+`m01` onwards, records their index in their mine's retrieved list; every number in seconds with at most three
+decimals, a share, or a count below 100,000, K12):
+
+- `run.json` (`kind: lab_l1_run`, written with `complete: false` before the first call and again at the end):
+  `run_id`, `endpoint`, `slot`, `question_id`, `prereg_sha256`, `pinned`, `checks` (each pin, `unit_check` (K4: calls
+  equal the retrieved records, fewer only for a degraded verdict, a breaker stop or a timed-out mine; a ledger row for
+  every call) and `lexical_reproduced`), `complete`, `finished` (the timed path reached its first decision), `stopped`
+  (null, `budget` or `interrupted`), `problem`, `model_calls`, `measurement`, `models_listed`, `listed_fake`,
+  `models_served`, `timing` (the time to answer, the question build, each mine's seconds with `timed_out` and
+  `contended`, the gaps between mines and the gate; for a path not finished, `elapsed_lower_bound_s`), `derived`
+  (`at_once_s`, `default_deadline` with its status and timeouts, `no_model_s`), `time_to_final_s`,
+  `late_still_running`, `verdicts` (each mine's verdict, reason and support bucket at the first decision and after the
+  late verdicts, and both gate statuses), `mines` (role, stratum, records, calls, attempts, failures by class,
+  `model_s`, `first_call_s`, `median_call_s`, seconds and each call's latency), `lexical`, `confirm_shares`,
+  `crossing` (the overlap of every artifact that crossed, in bytes, and their size in KiB), `budget_seconds`,
+  `boundary_prefix`, `data_label`, `code_commit`, `started_at` and `finished_at`;
+- `records.jsonl`: one line per retrieved record of each routed mine: `slot`, `mine`, `index`, `positive` (filed
+  under the question's predicate), and the model's and the lexical judge's `mentions_entity`, `describes_predicate`
+  and `error_kind`;
+- `ledger-<mine>.jsonl`: each mine's runtime ledger, one row per attempt.
+
+The guard (`lab.msha guard`, `lab/l1guard.py`, K9) scans every file of the plan directory, of each shard root (before
+and after its seal) and of the report directory for c1 to c5's record ids, mine ids and refused values and any 8-word
+run of c1's narratives; a file with a hit is replaced by its hit counts (`kind: lab_l1_withheld`) and the step fails.
+A plan without L1 units is left alone.
 
 ## Provenance and status files
 
@@ -292,12 +354,12 @@ A unit's status (`lab.units.STATUSES`):
 | `ok` | the harness ran to a valid result and the model answered enough |
 | `result_fail` | a valid FAIL verdict: G0's canary scan or the simulation's raw-text scan did not pass (something crossed, or the scan's positive control found nothing) |
 | `invalid` | it ran, but the model answered too few calls, the server died, or G0's model path had problems |
-| `failed` | the harness failed, refused its configuration or wrote no readable result, or a J1 run stopped before its last question (`J1_STOPPED`) |
+| `failed` | the harness failed, refused its configuration or wrote no readable result, a J1 run stopped before its last question (`J1_STOPPED`), or an L1 unit did not finish (`L1_NOT_FINISHED`), failed a check after its model ran (`L1_CHECK_FAILED`) or could not get its file before any model call (`L1_INFRA`) |
 | `timed_out` | the unit ran out of its minutes |
 | `interrupted` | a signal stopped it |
 | `skipped` | it did not start: the shard's budget, the server, the warm-up, a projection or the hosted gate |
 | `not_run` | (report only) its shard left no artifact, or its sealed shard has no record of it |
-| `excluded` | (report only) its shard's artifact or files could not be trusted |
+| `excluded` | (report only) its shard's artifact or files could not be trusted, or it is an L1 re-run after an earlier attempt's model call (`L1_RERUN_AFTER_CALLS`) |
 
 A shard's artifact in the report is `sealed` (used), `unsealed` (no readable status file), `altered` (a file differs
 from the sealed list), `other_plan` (another plan's), `ambiguous` (two artifacts of the newest attempt) or
@@ -376,6 +438,26 @@ unit that stopped says `J1_STOPPED`:
 - `J1_WITHHELD`: transport failures left out more than one in a hundred of this model's records, so its headline is withheld
 - `J1_STOPPED`: the judge run stopped before its last question, at its budget or after the server stayed down; the verdicts it wrote are kept, and the part did not finish
 
+Latency test L001's labels, where `{l_one}` is L1 and `{stop}` a stop's code: the label, then the headline and
+comparator notes above the per-model tables and the time note above the time tables; a model without a headline says
+why in its row; a unit's status reason and the plan's refusal use the others:
+
+- `L1_LABEL`: {l_one} here times the product's whole pushdown path on a real alert of MSHA's public accident file: HQ forms the narrow question, each routed mine's verifier judges its own records with the model inside the mine, one mine after another, and the commit gate decides. Each mine's verdict is scored against the key judge's, which reads the categories the records were filed under: filed categories, not checked labels.
+- `L1_HEADLINE_NOTE`: The headline compares each model's balanced accuracy over the site answers with the lexical judge's and with the route-role baseline's, by paired intervals over mines: better only when both low ends are above zero; better than the lexical judge only, which adds nothing over HQ's cells, when only the first is; worse when the first high end is below zero; otherwise not told apart. Each model is compared once with each, with no correction for several comparisons. Latency is a measurement, not a test.
+- `L1_COMPARATORS_NOTE`: The lexical judge is the verifier's judge when no model runs, and it reads with the extractor that chose the routes; the route-role baseline confirms where HQ routed a mine as contributing and refutes at a sibling, reading no record; the record-blind control answers by which question was asked; the predicate-only bound is the most a judge that knows only the question could score, fitted to the answers, so optimistic. The key judge reads the filed categories, which HQ's codes cells already hold. All of them ran in the plan job, before any model.
+- `L1_TIME_NOTE`: Times are seconds on one shared runner whose one model server serves every mine in turn: a mine's first call after the first mine can reuse the question's prompt prefix from the server's cache; the time with every mine asked at once and the time under the product's default deadline are derived, not run; mines timed while a late call of the same question ran are flagged contended; no transport between machines is timed.
+- `L1_INCOMPLETE`: not every question of this model finished, so it gets no headline: its finished questions are a partial reading and decide nothing
+- `L1_NOT_MEASURED`: not every question of this model is a model measurement, so it gets no headline
+- `L1_LEFT_OUT`: transport failures left out more than one in twenty of this model's scored site answers, so it gets no verdict
+- `L1_WITHHELD`: more than one in twenty bootstrap draws had no key confirm or no key refute, so the intervals are withheld and the model gets no verdict
+- `L1_NOT_FINISHED`: the timed path did not reach the gate's first decision within the unit's budget; its elapsed time is a lower bound, and the question did not finish
+- `L1_CHECK_FAILED`: a check of the unit failed: the calls, the ledger, the routes or the lexical rerun differ from the preregistration, so the question did not finish
+- `L1_INFRA`: the unit could not restore, fetch or check MSHA's file before its first model call; the shard job may run again against the same plan
+- `L1_RERUN_AFTER_CALLS`: an earlier attempt of this unit made model calls, so its re-run is not taken
+- `L1_STOPPED`: the latency test stopped in the plan job before any model ran ({stop}); a new choice file decides what comes next
+- `L1_FETCH_FAILED`: the plan job could not fetch MSHA's accident file; nothing ran, and the same request may run again
+- `L1_NO_REAGGREGATION`: a re-aggregation scans no file for MSHA's values, so it reads no latency test; the run's own report holds it
+
 Sizing and cost:
 
 - `SIZING_NOTE`: Sizing: the per-call medians measured on this runner and the minutes they suggest for the next request's sim block, a quarter above the estimate and rounded up; a skipped or timed-out unit's estimate is projected, not measured. One minutes value serves every model of a block, so the block needs the largest suggestion among its models.
@@ -414,6 +496,8 @@ A unit's notes, printed once under the report's notes:
 - `NOTES.public_data`: Public data: openFDA records under an artificial partitioning; no model ran, and nothing here is confidential or a confidentiality demonstration.
 - `NOTES.public_narratives`: Public data: real NHTSA vehicle complaint narratives, read with each complaint's codes hidden and scored against them. The codes are the components the complaint was filed under, not checked labels, and the models may have seen public complaints in training.
 - `NOTES.model_measurement_public`: Model measurement: a verified model file answered through a verified server on one shared GitHub-hosted runner; quality numbers describe this model on public complaint narratives against their filed codes, and timings describe this runner, not site hardware.
+- `NOTES.public_msha`: Public data: real MSHA mine accident narratives of one operator, read inside each mine with the filed categories hidden and scored against them. The categories are what the records were filed under, not checked labels, and the models may have seen public narratives in training. No record id, mine id, name or narrative is written.
+- `NOTES.model_measurement_msha`: Model measurement: a verified model file answered through a verified server on one shared GitHub-hosted runner, as every mine's model in turn; quality numbers describe this model on public mine accident narratives against their filed categories, and timings describe this runner, not site hardware.
 - `NOTES.hosted_api`: Hosted API: a model on the configured OpenAI-compatible host answered over the network. It is not deterministic: temperature and seed are requests, not guarantees on shared batched servers. Its latencies include the network and the host's queue and say nothing about this runner.
 - `NOTES.hosted_raw`: Raw synthetic text was sent to the configured host under allow_external_raw synthetic; the lab sends no partner data anywhere, and hosted models never run in the canary scan or the simulation.
 - `NOTES.central_hosted`: The central comparator was a hosted API model: its scores are not deterministic, so the ratio and the bar verdict compare the model under test with a moving reference.
@@ -729,6 +813,45 @@ synthetic worlds describe synthetic worlds.
 | why no headline | why a J1 model has no headline: incomplete, not a model measurement, or withheld | a model result |
 | questions | J1's questions: one positive and one negative per record | n/a: not a number |
 | parts | the parts J1's records are cut into, one unit per model and part | n/a: not a number |
+| questions finished | an L1 model's question units that finished (status ok, a complete run of this preregistration, every routed mine's verdict, whole timing and records), of the slots planned | questions that ran: a unit that did not finish, failed a check or was a re-run after a model call is left out |
+| minus the lexical judge | D_lex: the model's balanced accuracy over the scored site answers minus the lexical judge's, with its paired percentile-bootstrap interval over mines (K3) | a per-record difference: the per-record measures are in report.json |
+| minus the route-role baseline | D_route: the model's balanced accuracy minus the route-role baseline's, on the same draws (K3) | a reader of records: the baseline reads none |
+| route-role balanced accuracy | the route-role baseline's balanced accuracy on the same site answers: it confirms where HQ routed a mine as contributing and refutes at a sibling (K2) | a judge that reads |
+| record-blind balanced accuracy | the record-blind control's balanced accuracy on the same site answers: it answers by which question was asked; it decides nothing | what the alert alone tells HQ (K1) |
+| site answers left out | an L1 model's scored site answers with a transport failure in any call, left out of every judge's scores for that model, of its scored site answers; more than one in twenty gives no verdict | model failures, which count as they fall |
+| time to answer s | seconds from the call to the gate's first decision, on this runner: the median over the scope's finished questions (one alert gives one time) | site hardware, the detection, the model's loading or any transport between machines |
+| time to answer ninety-fifth percentile s | the ninety-fifth percentile of those times (`stats.percentile`); with one alert, that one time | a tail estimate from five questions |
+| question build s | the median seconds from the call's start to the first mine's start: the window, the question, the routes | a mine's time |
+| gate s | the median seconds from the last mine's end to the call's return: the last intake, the gate and the stored conclusion | the late verdicts' collection |
+| mine median s | the median of a mine's seconds, its handler's start to its return (a timed-out mine ends at its deadline), contended mines apart | a contended mine: those are in report.json |
+| mine ninety-fifth percentile s | the ninety-fifth percentile of those mine times | a contended mine |
+| judge call median s | the median latency of the finished questions' successful judge calls, from the mines' ledgers | a call's time on a site's own server: on the one server the question part is cached after the first mine (K5) |
+| judge call ninety-fifth percentile s | the ninety-fifth percentile of those latencies | a site's tail |
+| model calls | the median number of judge calls per finished question: the retrieved records of its routed mines | HTTP attempts: repairs and retries are in run.json |
+| at once s | derived: the question build plus the slowest mine plus the gate, what asking every mine at once would take if each had a server like this runner's | a time that ran |
+| default deadline s | derived: the time had the product's default deadline of 600 s held, each mine over it counted as 600 s and an HQ timeout | a time that ran |
+| no model s | the lexical path's time to answer on the same runner (the unit's lexical rerun) | a model's time |
+| scope | `alert` (the alert question) or `all` (the alert and the controls together) | n/a: not a number |
+| slot | the question slot: 1 the alert question, 2 to 5 the controls in sorted predicate order | n/a: a label |
+| question kind | `alert` or `control` | n/a: not a number |
+| contributing mines | the mines HQ routed as contributing for the question: a codes or text-only cell of its key in the window (K1) | the mines that confirm |
+| codes contributors | contributing mines with a codes cell of the key in the window (K2) | mines where the key confirms by reading |
+| text-only contributors | contributing mines with only text-only cells of the key in the window (K2) | mines where the key confirms |
+| siblings | mines routed as siblings, at most two, chosen by cell volume | mines with records in the window |
+| records retrieved | the records the question's routed mines retrieve with the codes hidden, preregistered; a model makes one call per record | every record of the window: the retrieval is cut at the pack's verify_max_records |
+| key's gate status | the gate's status on the key judge's verdicts at the first decision, preregistered | a checked truth |
+| MSHA file | the sha256 of MSHA's accident file the run read | n/a: not a number |
+| the demo's file | whether that file is the one the drafter demo read (same sha256 and size) | n/a: not a number |
+| alert | the audit's alert: channel, week and predicate | a checked event |
+| empty draws share | the share of rule 8's bootstrap draws over mines with no key confirm or no key refute; above 5% the plan stops (K7) | a model result |
+| constant status agreement | the number of questions with the key's most frequent gate status: what a constant status would agree on (K8) | a judge's skill |
+| gate decisions equal to the key's | questions whose gate status at the first decision equals the key's, of the finished questions | a correct decision beyond the constant status: read it beside that column |
+| contended questions | finished questions with a mine timed while a late call of the same question still ran (K6) | a slow question |
+| judge | the comparator: `lexical`, `route_role`, `record_blind` or `key` | n/a: not a number |
+| gate status, first decision | the gate's status on the model's verdicts when the call returned (K6) | the status after the late verdicts, which is in report.json |
+| mines | the mines of the audited operator, each a site | n/a: a count of sites, not records |
+| operator | the audited operator's label (`c1`) | a name or an id: none is written |
+| predicate | the question's predicate, a filed category of the drafted pack | n/a: not a number |
 
 ## Summary sections
 
@@ -770,6 +893,9 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Each model's own scores | E1's per-model scores from each model's valid repeats only (`endpoint_scores` in report.json), compared or not: predicate F1 and its interval beside the lexical extractor's, field F1, zero-claim and transport failure shares, drops and re-attachments |
 | Judge test: the verifier's narrow question, per model, beside the lexical judge | J1's label, labels, questions and the lexical judge, the record-blind control and the predicate-only bound on every record, then per model: parts finished, class, balanced accuracy and its interval beside the lexical judge's, the control's and the bound on the same records, the headline, sensitivity, specificity, the unknown share and the records left out (the report's `j1` block, which also holds each judge's confirms per predicate) |
 | Judge test: model minus lexical judge, paired by record | per J1 model, the mean per-record difference of balanced accuracy from the lexical judge's, with its paired percentile-bootstrap interval |
+| Latency test: alert to answer on CPU, per model, beside the comparators | L1's label, the operator, the file and the audit, the alert, the questions (routes by role and stratum, records, the key's gate status), the headline and comparator notes, the comparators on every scored site answer and the predicate-only bound and empty draws, then per model: questions finished, class, balanced accuracy and its interval beside the lexical judge's, the route-role baseline's and the record-blind control's on the same answers, sensitivity, specificity, the unknown share and the answers left out; and D_lex, D_route, the headline and the gate's agreement beside a constant status (the report's `l1` block, which also holds the strata, the per-record measures and each question's verdicts and mines) |
+| Latency test: where the time goes | the time note, then per model and scope (the alert, all questions) the CPU models, the time to answer and its ninety-fifth percentile, the question build, the gate, a mine's and a judge call's median and ninety-fifth percentile, the model calls and the contended questions; then each finished question's status, time and derived times |
+| Latency test: the alert, the questions and the comparators, fixed before any model runs | (plan summary) L1's file, audit, alert, questions, the comparators' scores, the predicate-only bound, the empty draws share and the constant status agreement |
 | Pushdown verification against central reading: conditions | E2's labels and conditions |
 | Pushdown ratio and verdict | E2's ratio and, for a hosted central, the bar verdict |
 | Pushdown candidates | E2's candidates by label |
@@ -812,5 +938,8 @@ its log blocks say `REAGGREGATION_LINE` with the run id and the commit; the aggr
 (plan, preregistration, seals, unit files) and records the shards' commits and lab code hashes beside its own.
 
 Artifacts are kept for the request's `retention_days`. Caches (`actions/cache`): `lab-server-<tag>-<sha16>` holds the
-verified server archive and `lab-gguf-<key>-<sha16>` a verified model file; a run restores only caches of its own
-branch or the default branch, and an entry unused for 7 days is removed.
+verified server archive and `lab-gguf-<key>-<sha16>` a verified model file; `lab-msha-<sha16>` holds MSHA's accident
+file for L1 (`$RUNNER_TEMP/lab-msha`), saved by the plan job after the preregistration and restored by the run and
+aggregate jobs before anything reads it (K10); a run restores only caches of its own branch or the default branch,
+and an entry unused for 7 days is removed. A re-aggregation reads no L1 block (`L1_NO_REAGGREGATION`): it has no guard
+over MSHA's file.

@@ -20,6 +20,15 @@
   at :data:`PLACEHOLDER_BASE_URL`); and ``prereg.json`` (``lab.j1.prereg_doc``:
   the hashes, the judge task's instructions, schema and ``max_tokens``, the code hash and files, the endpoints' pins,
   the boundary, the data label, the seeds, ``parts``, the twins, the excluded predicate and the bootstrap settings);
+* L1 (latency test L001, ``lab.l1``), in a subprocess whose stdout and stderr go to ``D/prereg-logs`` (K9: the step
+  reads MSHA's file, so nothing of it reaches the console): ``lab.l1 prereg`` downloads the file into ``lab-msha``
+  beside ``D`` (:func:`lab.l1.raw_dir`, the workflow's cache path) unless it is there, rebuilds the drafter demo's
+  pipeline, asks every question with the key judge, the lexical judge, the record-blind control and the route-role
+  baseline on fresh stores, and writes ``D/prereg/l1/prereg.json``, ``scores.json`` and ``warmup.json``. A stop of the
+  rule (no alert, more than one, the demo's figures, the draws, ...) leaves ``D/prereg-l1-stop.json`` and refuses the
+  plan with :data:`~lab.notes.L1_STOPPED` and the stop's code; a failed download refuses it with
+  :data:`~lab.notes.L1_FETCH_FAILED`. The manifest's ``l1`` block holds ``cache_key`` (:func:`l1_cache_key`), which
+  ``lab.l1 cache-key`` hands the workflow, so the plan job saves the file in the workflow's cache (K10);
 * X1: the evaluation harness's prereg (run id ``x1``, ``D/prereg/x1/x1/prereg.json``) and ``check-plant``;
 * E2: the same with run id ``e2`` (``D/prereg/x1/e2/prereg.json``) and ``check-plant``, then a model-free rehearsal:
   ``e2_pushdown run`` without routing (fake site and central judges) in a scratch directory beside ``D``, removed
@@ -40,7 +49,8 @@ as its directory, and :data:`STEP_TIMEOUT_S` (:data:`REHEARSAL_TIMEOUT_S` for th
 The NHTSA complaint archive (``nhtsa`` labels, E1's or J1's) is downloaded at most once per preregistration;
 :func:`preregister` takes a keyword-only ``nhtsa_fetch`` in its place, which only tests pass.
 
-stdout is one line, ``prereg: e1 yes|no x1 yes|no e2 yes|no j1 yes|no``. A plan that cannot be read, or a
+stdout is one line, ``prereg: e1 yes|no x1 yes|no e2 yes|no j1 yes|no``, with `` l1 yes`` appended for a plan with L1
+units. A plan that cannot be read, or a
 ``D/prereg`` that exists already, is a usage error (exit 2, nothing written). A refused step writes
 ``D/plan-error.json`` (source
 ``prereg``), prints ``error: <path>: <problem>`` first on stderr and an ``::error`` workflow command, and exits 2; the
@@ -66,14 +76,17 @@ from mycelic.collective.packs import loader
 from . import EXIT_OK, EXIT_USAGE, ROOT, shown_path
 from . import hosted as lab_hosted
 from . import j1 as lab_j1
+from . import l1 as lab_l1
 from . import units as lab_units
 from .goldlabels import GoldLabelsError, build_labels, nhtsa_export
+from .notes import L1_FETCH_FAILED, L1_STOPPED
 from .plan import write_plan_error
 
 PLACEHOLDER_BASE_URL = "http://127.0.0.1:9/v1"
 E1_BOUNDARY = "site:lab"
 STEP_TIMEOUT_S = 300
 REHEARSAL_TIMEOUT_S = 900
+L1_TIMEOUT_S = 1080                 # the L1 step: the file, the draft, the audit and 25 paths on fresh stores
 REHEARSAL_DEADLINE_S = 3600
 REHEARSAL_BOOTSTRAP_B = 1000
 E1_MODULE = "mycelic.collective.experiments.e1_extract"
@@ -339,6 +352,44 @@ def _j1(plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path,
             "bootstrap_b": p["bootstrap_b"], "bootstrap_seed": p["bootstrap_seed"]}
 
 
+def l1_cache_key(sha256: str) -> str:
+    """K10: the workflow cache key of the MSHA file, ``lab-msha-<16 hex of its sha256>``."""
+    return f"lab-msha-{sha256[:16]}"
+
+
+def _l1(steps: _Steps, plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path,
+        raw: Path | None) -> dict[str, Any]:
+    """L1's preregistration (see the module docstring), in a subprocess; the manifest's ``l1`` block."""
+    raw = raw if raw is not None else lab_l1.raw_dir(root)
+    code = steps.run("l1-prereg", "$.experiments.l1", "lab.l1", "prereg",
+                     [("plan", root / "plan.json"), ("raw", raw)], timeout_s=L1_TIMEOUT_S)
+    if code == lab_l1.EXIT_INFRA:
+        raise _StepFailed("$.experiments.l1", L1_FETCH_FAILED)
+    stop = root / lab_l1.STOP_FILE
+    if code != 0 or not (root / "prereg" / "l1" / "prereg.json").is_file():
+        reason = "unknown"
+        if stop.is_file():
+            try:
+                found = strict_load(stop.read_bytes()).get("stop")
+                reason = found if found in lab_l1.STOPS else "unknown"
+            except (OSError, StrictJsonError, AttributeError):
+                reason = "unknown"
+        raise _StepFailed("$.experiments.l1", L1_STOPPED.format(stop=reason))
+    doc = strict_load((root / "prereg" / "l1" / "prereg.json").read_bytes())
+    scores = strict_load((root / "prereg" / "l1" / "scores.json").read_bytes())
+    p = units[0]["params"]
+    return {"prereg": "prereg/l1/prereg.json", "scores_path": "prereg/l1/scores.json",
+            "warmup": "prereg/l1/warmup.json", "input": doc["input"], "audit": doc["audit"],
+            "demo_figures": doc["demo_figures"], "alert": doc["alert"], "mines": doc["mines"],
+            "questions": [{**{k: q[k] for k in ("slot", "kind", "predicate", "question_id", "window", "routes",
+                                                "strata", "records")}, "counts": lab_l1.question_counts(q),
+                           "key_status": doc["judges"]["key"][str(q["slot"])]["status"]}
+                          for q in doc["questions"]],
+            "draws": doc["draws"], "scores": scores, "endpoints": sorted({u["model"] for u in units}),
+            "cache_key": l1_cache_key(doc["input"]["sha256"]), "bootstrap_b": p["bootstrap_b"],
+            "bootstrap_seed": p["bootstrap_seed"]}
+
+
 def _once(fetch: Callable[[], bytes] | None) -> Callable[[], bytes]:
     """``fetch``, or the NHTSA complaint archive's download, called at most once."""
     kept: list[bytes] = []
@@ -366,18 +417,21 @@ def _file_map(root: Path) -> dict[str, dict[str, Any]]:
     return dict(sorted(files.items()))
 
 
-def preregister(plan_path: Path, *, nhtsa_fetch: Callable[[], bytes] | None = None) -> dict[str, Any]:
+def preregister(plan_path: Path, *, nhtsa_fetch: Callable[[], bytes] | None = None,
+                l1_raw: Path | None = None) -> dict[str, Any]:
     """Every step the plan's units need, then the manifest; raises :class:`_StepFailed` for a refused step.
-    ``nhtsa_fetch`` (tests only) returns the NHTSA complaint archive in place of its download."""
+    ``nhtsa_fetch`` (tests only) returns the NHTSA complaint archive in place of its download; ``l1_raw`` names the
+    directory of MSHA's file for L1 (default :func:`lab.l1.raw_dir`)."""
     plan_bytes = plan_path.read_bytes()
     plan = strict_load(plan_bytes)
     root = plan_path.parent
     (root / "prereg").mkdir()
     steps = _Steps(root)
-    e1_units, x1_units, e2_units, j1_units = (_units(plan, name) for name in ("e1", "x1", "e2", "j1"))
+    e1_units, x1_units, e2_units, j1_units, l1_units = (_units(plan, name)
+                                                        for name in ("e1", "x1", "e2", "j1", "l1"))
     fetch = _once(nhtsa_fetch)
     manifest: dict[str, Any] = {"schema_version": 1, "kind": "lab_prereg", "plan_sha256": sha256_hex(plan_bytes),
-                                "files": {}, "e1": None, "x1": None, "e2": None, "j1": None}
+                                "files": {}, "e1": None, "x1": None, "e2": None, "j1": None, "l1": None}
     if e1_units:
         manifest["e1"] = _e1(steps, plan, e1_units, root, fetch)
     if x1_units:
@@ -386,6 +440,8 @@ def preregister(plan_path: Path, *, nhtsa_fetch: Callable[[], bytes] | None = No
         manifest["e2"] = _e2(steps, e2_units[0], root)
     if j1_units:
         manifest["j1"] = _j1(plan, j1_units, root, fetch)
+    if l1_units:
+        manifest["l1"] = _l1(steps, plan, l1_units, root, l1_raw)
     manifest["files"] = _file_map(root)
     write_json_atomic(root / MANIFEST, manifest)
     return manifest
@@ -421,8 +477,9 @@ def main(argv: list[str] | None = None) -> int:
         manifest = preregister(plan_path)
     except _StepFailed as err:
         return write_plan_error(plan_path.parent, "prereg", request_path, err.path, err.problem)
-    print(" ".join(["prereg:", *(f"{name} {'yes' if manifest[name] is not None else 'no'}"
-                                 for name in ("e1", "x1", "e2", "j1"))]), flush=True)
+    shown = ("e1", "x1", "e2", "j1", *(("l1",) if manifest["l1"] is not None else ()))
+    print(" ".join(["prereg:", *(f"{name} {'yes' if manifest[name] is not None else 'no'}" for name in shown)]),
+          flush=True)
     return EXIT_OK
 
 

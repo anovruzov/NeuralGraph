@@ -282,6 +282,47 @@ J1_INCOMPLETE = ("not every part of this model finished, so it gets no headline:
 J1_WITHHELD = ("transport failures left out more than one in a hundred of this model's records, so its headline is "
                "withheld")
 J1_NOT_MEASURED = "not every part of this model is a model measurement, so it gets no headline"
+L1_LABEL = ("{l_one} here times the product's whole pushdown path on a real alert of MSHA's public accident file: HQ "
+            "forms the narrow question, each routed mine's verifier judges its own records with the model inside the "
+            "mine, one mine after another, and the commit gate decides. Each mine's verdict is scored against the key "
+            "judge's, which reads the categories the records were filed under: filed categories, not checked labels.")
+L1_HEADLINE_NOTE = ("The headline compares each model's balanced accuracy over the site answers with the lexical "
+                    "judge's and with the route-role baseline's, by paired intervals over mines: better only when both "
+                    "low ends are above zero; better than the lexical judge only, which adds nothing over HQ's cells, "
+                    "when only the first is; worse when the first high end is below zero; otherwise not told apart. "
+                    "Each model is compared once with each, with no correction for several comparisons. Latency is a "
+                    "measurement, not a test.")
+L1_COMPARATORS_NOTE = ("The lexical judge is the verifier's judge when no model runs, and it reads with the extractor "
+                       "that chose the routes; the route-role baseline confirms where HQ routed a mine as contributing "
+                       "and refutes at a sibling, reading no record; the record-blind control answers by which question "
+                       "was asked; the predicate-only bound is the most a judge that knows only the question could "
+                       "score, fitted to the answers, so optimistic. The key judge reads the filed categories, which "
+                       "HQ's codes cells already hold. All of them ran in the plan job, before any model.")
+L1_TIME_NOTE = ("Times are seconds on one shared runner whose one model server serves every mine in turn: a mine's "
+                "first call after the first mine can reuse the question's prompt prefix from the server's cache; the "
+                "time with every mine asked at once and the time under the product's default deadline are derived, "
+                "not run; mines timed while a late call of the same question ran are flagged contended; no transport "
+                "between machines is timed.")
+L1_INCOMPLETE = ("not every question of this model finished, so it gets no headline: its finished questions are a "
+                 "partial reading and decide nothing")
+L1_NOT_MEASURED = "not every question of this model is a model measurement, so it gets no headline"
+L1_LEFT_OUT = ("transport failures left out more than one in twenty of this model's scored site answers, so it gets "
+               "no verdict")
+L1_WITHHELD = ("more than one in twenty bootstrap draws had no key confirm or no key refute, so the intervals are "
+               "withheld and the model gets no verdict")
+L1_NOT_FINISHED = ("the timed path did not reach the gate's first decision within the unit's budget; its elapsed time "
+                   "is a lower bound, and the question did not finish")
+L1_CHECK_FAILED = ("a check of the unit failed: the calls, the ledger, the routes or the lexical rerun differ from the "
+                   "preregistration, so the question did not finish")
+L1_INFRA = ("the unit could not restore, fetch or check MSHA's file before its first model call; the shard job may run "
+            "again against the same plan")
+L1_RERUN_AFTER_CALLS = "an earlier attempt of this unit made model calls, so its re-run is not taken"
+L1_STOPPED = ("the latency test stopped in the plan job before any model ran ({stop}); a new choice file decides "
+              "what comes next")
+L1_FETCH_FAILED = ("the plan job could not fetch MSHA's accident file; nothing ran, and the same request may run "
+                   "again")
+L1_NO_REAGGREGATION = ("a re-aggregation scans no file for MSHA's values, so it reads no latency test; the run's own "
+                       "report holds it")
 E2_SIZING_NOTE = ("Pushdown sizing: the model-free rehearsal's call counts times this runner's warm-up latencies, "
                   "against the share of the unit's budget the projection may use; a projection above it skips the "
                   "unit, and the suggested minutes are a quarter above the projection, rounded up.")
@@ -345,6 +386,14 @@ NOTES = {
     "public_narratives": "Public data: real NHTSA vehicle complaint narratives, read with each complaint's codes "
                          "hidden and scored against them. The codes are the components the complaint was filed "
                          "under, not checked labels, and the models may have seen public complaints in training.",
+    "public_msha": "Public data: real MSHA mine accident narratives of one operator, read inside each mine with the "
+                   "filed categories hidden and scored against them. The categories are what the records were filed "
+                   "under, not checked labels, and the models may have seen public narratives in training. No record "
+                   "id, mine id, name or narrative is written.",
+    "model_measurement_msha": "Model measurement: a verified model file answered through a verified server on one "
+                              "shared GitHub-hosted runner, as every mine's model in turn; quality numbers describe "
+                              "this model on public mine accident narratives against their filed categories, and "
+                              "timings describe this runner, not site hardware.",
     "model_measurement_public": "Model measurement: a verified model file answered through a verified server on one "
                                 "shared GitHub-hosted runner; quality numbers describe this model on public complaint "
                                 "narratives against their filed codes, and timings describe this runner, not site "
@@ -433,6 +482,9 @@ HEADINGS = {
     "e1-scores": "Each model's own scores",
     "j1": "Judge test: the verifier's narrow question, per model, beside the lexical judge",
     "j1-paired": "Judge test: model minus lexical judge, paired by record",
+    "l1": "Latency test: alert to answer on CPU, per model, beside the comparators",
+    "l1-time": "Latency test: where the time goes",
+    "l1-prereg": "Latency test: the alert, the questions and the comparators, fixed before any model runs",
     "e2": "Pushdown verification against central reading: conditions",
     "e2-ratio": "Pushdown ratio and verdict",
     "e2-candidates": "Pushdown candidates",
@@ -685,4 +737,43 @@ COLUMNS = {
     "headline_reason": "why no headline",
     "questions": "questions",
     "parts": "parts",
+    "l1_finished": "questions finished",
+    "l1_d_lex": "minus the lexical judge",
+    "l1_d_route": "minus the route-role baseline",
+    "l1_route_ba": "route-role balanced accuracy",
+    "l1_blind_ba": "record-blind balanced accuracy",
+    "l1_left_out": "site answers left out",
+    "l1_answer_s": "time to answer s",
+    "l1_answer_p95_s": "time to answer ninety-fifth percentile s",
+    "l1_build_s": "question build s",
+    "l1_gate_s": "gate s",
+    "l1_mine_s": "mine median s",
+    "l1_mine_p95_s": "mine ninety-fifth percentile s",
+    "l1_call_s": "judge call median s",
+    "l1_call_p95_s": "judge call ninety-fifth percentile s",
+    "l1_calls": "model calls",
+    "l1_at_once_s": "at once s",
+    "l1_default_s": "default deadline s",
+    "l1_no_model_s": "no model s",
+    "l1_scope": "scope",
+    "l1_slot": "slot",
+    "l1_kind": "question kind",
+    "l1_routes": "contributing mines",
+    "l1_codes": "codes contributors",
+    "l1_text_only": "text-only contributors",
+    "l1_siblings": "siblings",
+    "l1_retrieved": "records retrieved",
+    "l1_key_status": "key's gate status",
+    "l1_file": "MSHA file",
+    "l1_demo_file": "the demo's file",
+    "l1_alert": "alert",
+    "l1_empty_draws": "empty draws share",
+    "l1_constant": "constant status agreement",
+    "l1_gate_equal": "gate decisions equal to the key's",
+    "l1_contended": "contended questions",
+    "l1_judge": "judge",
+    "l1_status": "gate status, first decision",
+    "l1_mines": "mines",
+    "l1_operator": "operator",
+    "l1_predicate": "predicate",
 }

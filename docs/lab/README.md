@@ -29,7 +29,12 @@ model. The experiments:
 - X1: the model-free evaluation harness on a plant fixture;
 - openFDA: a model-free replay of public openFDA data and the labelling sheets for a person;
 - J1: judge test J001, the site verifier's narrow question ("does this record report this failure on this vehicle?")
-  asked of each model about real public complaints, one record at a time, beside the verifier's lexical judge.
+  asked of each model about real public complaints, one record at a time, beside the verifier's lexical judge;
+- L1: latency test L001, the product's whole pushdown path from an alert to the gate's answer, timed on the runner's
+  CPU on the drafter demo's alert of MSHA's public accident file, each mine's verifier judging with the model, and its
+  site answers scored against the filed categories beside the lexical judge and the route-role baseline. Its template
+  is `lab/templates/latency.json` (copy it to `lab/requests/latency-001.json`); every file a run writes is scanned for
+  MSHA's values before any summary reads it and before upload (REFERENCE.md, Shard root).
 
 ## What a run costs
 

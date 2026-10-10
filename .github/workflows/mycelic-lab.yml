@@ -34,6 +34,7 @@ jobs:
       plan_sha256: ${{ steps.plan.outputs.plan_sha256 }}
       retention_days: ${{ steps.plan.outputs.retention_days }}
       result_class: ${{ steps.plan.outputs.result_class }}
+      l1_cache_key: ${{ steps.l1-key.outputs.l1_cache_key }}
       plan_artifact: lab-plan-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -56,10 +57,22 @@ jobs:
         if: steps.plan.outputs.has_units == 'true'
         timeout-minutes: 20
         run: python -m lab.prereg --plan "$RUNNER_TEMP/lab-plan/plan.json"
+      - id: l1-key
+        if: steps.prereg.outcome == 'success'
+        run: python -m lab.msha cache-key --plan "$RUNNER_TEMP/lab-plan/plan.json" --github-output "$GITHUB_OUTPUT"
+      - if: steps.l1-key.outputs.l1_cache_key != ''
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/lab-msha
+          key: ${{ steps.l1-key.outputs.l1_cache_key }}
+      - if: ${{ !cancelled() }}
+        run: python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --dir "$RUNNER_TEMP/lab-plan"
       - if: ${{ !cancelled() }}
         run: >-
           python -m lab.summary plan --dir "$RUNNER_TEMP/lab-plan" --append-to "$GITHUB_STEP_SUMMARY"
           --md-out "$RUNNER_TEMP/lab-plan/summary.md" --sources-out "$RUNNER_TEMP/lab-plan/summary.sources.json" --log
+      - if: ${{ !cancelled() }}
+        run: python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --dir "$RUNNER_TEMP/lab-plan"
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -188,6 +201,15 @@ jobs:
           path: ${{ runner.temp }}/lab-cache/${{ steps.keys.outputs.model_path }}
           key: ${{ steps.keys.outputs.model_key }}
           restore-keys: ${{ steps.keys.outputs.model_prefix }}
+      - if: needs.plan.outputs.l1_cache_key != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: "4"
+        with:
+          path: ${{ runner.temp }}/lab-msha
+          key: ${{ needs.plan.outputs.l1_cache_key }}
       - id: prepare
         timeout-minutes: 20
         env:
@@ -208,6 +230,8 @@ jobs:
         run: >-
           python -m lab.shard run --plan "$RUNNER_TEMP/lab-plan/plan.json" --shard "$LAB_SHARD"
           --out "$RUNNER_TEMP/lab-shard" --deadline-epoch "$LAB_DEADLINE"
+      - if: ${{ !cancelled() }}
+        run: python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --dir "$RUNNER_TEMP/lab-shard"
       - id: seal
         if: ${{ !cancelled() }}
         env:
@@ -222,10 +246,14 @@ jobs:
           --step-outcome "get-plan=$LAB_GET_PLAN" --step-outcome "get-prov=$LAB_GET_PROV"
           --step-outcome "keys=$LAB_KEYS" --step-outcome "prepare=$LAB_PREPARE" --step-outcome "run=$LAB_RUN"
       - if: ${{ !cancelled() }}
+        run: python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --dir "$RUNNER_TEMP/lab-shard"
+      - if: ${{ !cancelled() }}
         run: >-
           python -m lab.summary shard --dir "$RUNNER_TEMP/lab-shard" --append-to "$GITHUB_STEP_SUMMARY"
           --md-out "$RUNNER_TEMP/lab-shard/summary/summary.md"
           --sources-out "$RUNNER_TEMP/lab-shard/summary/summary.sources.json" --log
+      - if: ${{ !cancelled() }}
+        run: python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --dir "$RUNNER_TEMP/lab-shard"
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -259,14 +287,27 @@ jobs:
         with:
           pattern: lab-run-${{ github.run_id }}-*
           path: ${{ runner.temp }}/lab-runs
+      - if: needs.plan.outputs.l1_cache_key != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: "4"
+        with:
+          path: ${{ runner.temp }}/lab-msha
+          key: ${{ needs.plan.outputs.l1_cache_key }}
       - id: aggregate
         run: >-
           python -m lab.aggregate --plan "$RUNNER_TEMP/lab-plan/plan.json" --provision "$RUNNER_TEMP/lab-prov"
           --shards "$RUNNER_TEMP/lab-runs" --manifest lab/models.json --out "$RUNNER_TEMP/lab-report"
       - if: ${{ !cancelled() }}
+        run: python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --dir "$RUNNER_TEMP/lab-report"
+      - if: ${{ !cancelled() }}
         run: >-
           python -m lab.summary report --dir "$RUNNER_TEMP/lab-report" --append-to "$GITHUB_STEP_SUMMARY"
           --md-out "$RUNNER_TEMP/lab-report/report.md" --sources-out "$RUNNER_TEMP/lab-report/report.sources.json" --log
+      - if: ${{ !cancelled() }}
+        run: python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --dir "$RUNNER_TEMP/lab-report"
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

@@ -45,7 +45,11 @@ routing from ``lab.j1.routing_doc`` at boundary ``site:lab``, ``--budget-seconds
 ``run.json``, ``verdicts.jsonl`` (each question's two answers and verdict: the replies, kept because the narratives
 are public) and ``ledger.jsonl``; ``openfda`` is ``lab.openfda``'s steps (caches' manifests, the replay's prereg,
 signals and score, and the sheets). Nothing else is collected: no ``private/``, no other ``work/``, no SQLite file, no
-``pages/``, no ``hq*`` or ``followup/`` directory. E1, E2, X1 and J1 need the preregistration (:mod:`lab.prereg`):
+``pages/``, no ``hq*`` or ``followup/`` directory. ``l1`` runs ``lab.l1 run`` (the preregistered L1 prereg, MSHA's
+file in ``lab-msha`` beside the plan's directory, one question slot of one model, one routing file per mine from
+``lab.l1.routing_doc`` at boundary ``site:<mine>``, ``--budget-seconds`` as the sim's) and keeps ``run.json``,
+``records.jsonl`` (each judged record's answers by index, no record id or narrative) and ``ledger-<mine>.jsonl``.
+E1, E2, X1, J1 and L1 need the preregistration (:mod:`lab.prereg`):
 without it they fail with :data:`~lab.notes.PREREG_MISSING` and nothing starts. An E2 unit behind a model server is
 first projected
 (:func:`e2_projection`): the rehearsal's call counts times the warm-up's latencies, against
@@ -61,6 +65,10 @@ Status, from :func:`harness_status`, then the participation check, then G0's mod
 * E2: exit 0 with an ``e2.json`` of kind ``e2_pushdown`` is ``ok``; exit 1 (an uncaught error, the ledgers kept) is
   ``failed`` with :data:`~lab.notes.E2_ABORTED`;
 * X1: exit 0 with a ``scorecard.json`` of kind ``x1_scorecard`` is ``ok``;
+* L1: exit 0 with a ``run.json`` of kind ``lab_l1_run`` that says ``complete: true`` is ``ok``; exit 1 with one that
+  says ``complete: false`` is ``failed``, with :data:`~lab.notes.L1_NOT_FINISHED` when the timed path did not reach
+  its first decision and :data:`~lab.notes.L1_CHECK_FAILED` otherwise; exit 3 (the file could not be restored,
+  fetched or checked before any model call) is ``failed`` with :data:`~lab.notes.L1_INFRA`;
 * J1: exit 0 with a ``run.json`` of kind ``lab_j1_run`` that says ``complete: true`` is ``ok``; exit 1 with one that
   says ``complete: false`` (the run stopped at its budget or after the server stayed down) is ``failed`` with
   :data:`~lab.notes.J1_STOPPED`, its verdicts kept; any other pairing is ``failed``;
@@ -152,9 +160,11 @@ from mycelic.collective.packs.loader import load_pack
 from . import ROOT
 from . import hosted as lab_hosted
 from . import j1 as lab_j1
+from . import l1 as lab_l1
 from . import prereg as lab_prereg
 from .notes import (E2_ABORTED, E3_FAILURES, FAKE_SERVER_NOTE, G0_MODEL_PATH, HARNESS_INTERRUPTED, HARNESS_USAGE,
-                    J1_STOPPED, KILLED_BY_SIGNAL, LAB_ROUTING, LOW_PARTICIPATION, NO_MODEL_CALLS, PREREG_MISSING,
+                    J1_STOPPED, KILLED_BY_SIGNAL, L1_CHECK_FAILED, L1_INFRA, L1_NOT_FINISHED, LAB_ROUTING,
+                    LOW_PARTICIPATION, NO_MODEL_CALLS, PREREG_MISSING,
                     RESULT_CONTRADICTS_EXIT, RESULT_MISSING, SHARD_INTERRUPTED, SIM_LOW_PARTICIPATION, SIM_PROJECTED,
                     TIMED_OUT, UNEXPECTED_EXIT)
 from .server import EXIT_GRACE_S, LOG_LINE_CAP, WATCH_INTERVAL_S, FakeServer, exit_reason, printable
@@ -174,8 +184,8 @@ ENDPOINT = "lab"
 CENTRAL_ENDPOINT = "lab-central"
 CENTRAL_DEADLINE_S = 3600
 E2_DEADLINE_SECONDS = 3600
-PREREG_EXPERIMENTS = ("e1", "e2", "x1", "j1")
-REPLY_PARTICIPATION = ("j1",)       # ok counts calls the model answered, an invalid reply after its repair included
+PREREG_EXPERIMENTS = ("e1", "e2", "x1", "j1", "l1")
+REPLY_PARTICIPATION = ("j1", "l1")  # ok counts calls the model answered, an invalid reply after its repair included
 WARMUP_LEDGER = "server/warmup.ledger.jsonl"
 FLAG_NAME_RE = re.compile(r"[a-z][a-z0-9-]*", re.ASCII)
 CHECK_KEYS = ("model_verified", "server_verified", "download_hosts", "model_path", "ledger_host", "model_served",
@@ -268,6 +278,8 @@ ADAPTERS = {
     "openfda": Adapter("openfda", "lab.openfda", (), "", 0, "runs/replay/score/replay.json", OPENFDA_COLLECT, ()),
     "j1": Adapter("j1", "lab.j1", (JUDGE_TASK,), lab_j1.BOUNDARY, lab_j1.DEADLINE_S, "run.json",
                   ("run.json", "verdicts.jsonl", "ledger.jsonl"), ("ledger.jsonl",), "run"),
+    "l1": Adapter("l1", "lab.l1", (JUDGE_TASK,), "site:", lab_l1.ENDPOINT_DEADLINE_S, "run.json",
+                  ("run.json", "records.jsonl", "ledger-*.jsonl"), ("ledger-*.jsonl",), "run"),
 }
 
 
@@ -278,7 +290,7 @@ def required_tasks(unit: Mapping[str, Any]) -> list[str]:
         return [WORKLOADS[w][0].name for w in unit["params"]["workloads"]]
     if unit["experiment"] == "e2":
         return [JUDGE_TASK, CENTRAL_TASKS[0]]
-    if unit["experiment"] == "j1":
+    if unit["experiment"] in ("j1", "l1"):
         return [JUDGE_TASK]
     return [TASK_NAME]
 
@@ -307,8 +319,15 @@ def build_argv(unit: Mapping[str, Any], out: Path, routing_path: Path, server_no
     runs_dir = Path(out) / "work" / unit["unit"]
     adapter = ADAPTERS[unit["experiment"]]
     if unit["experiment"] in PREREG_EXPERIMENTS and prereg is None:
-        raise ValueError("E1, E2, X1 and J1 units need the preregistration directory") from None
-    if unit["experiment"] == "j1":
+        raise ValueError("E1, E2, X1, J1 and L1 units need the preregistration directory") from None
+    if unit["experiment"] == "l1":
+        if budget_s is None:
+            raise ValueError("an L1 unit needs its budget in seconds") from None
+        flags = [("prereg", prereg / "prereg" / "l1" / "prereg.json"), ("raw", lab_l1.raw_dir(prereg)),
+                 ("routing-dir", Path(out) / "routing" / unit["unit"] / "sites"), ("endpoint", unit["model"]),
+                 ("slot", p["slot"]), ("run-id", unit["run_id"]), ("runs-dir", runs_dir),
+                 ("budget-seconds", budget_s)]
+    elif unit["experiment"] == "j1":
         if budget_s is None:
             raise ValueError("a J1 unit needs its budget in seconds") from None
         j1 = prereg / "prereg" / "j1"
@@ -397,7 +416,11 @@ def write_routing(unit: Mapping[str, Any], plan: Mapping[str, Any], entry: Mappi
     gets ``lab.hosted.redact``'s copy, whose hash is the one recorded."""
     out = Path(out)
     files: list[tuple[Path, dict[str, Any], tuple[str, ...], str]] = []
-    if unit["experiment"] == "j1":
+    if unit["experiment"] == "l1":
+        base = out / "routing" / unit["unit"] / "sites"
+        files += [(base / f"{mine}.json", lab_l1.routing_doc(plan["models"], unit["model"], base_url, mine),
+                   (JUDGE_TASK,), "") for mine in prereg.manifest["l1"]["mines"]]
+    elif unit["experiment"] == "j1":
         files.append((out / "routing" / f"{unit['unit']}.json",
                       lab_j1.routing_doc(plan["models"], [unit["model"]], base_url), (JUDGE_TASK,), "routing"))
     elif unit["experiment"] == "e1":
@@ -431,7 +454,7 @@ def write_routing(unit: Mapping[str, Any], plan: Mapping[str, Any], entry: Mappi
         except ConfigError:
             valid = False
     main = files[-1][0].relative_to(out).as_posix()
-    return (hashes[main], (dict(sorted(hashes.items())) if unit["experiment"] == "e2" else None), valid,
+    return (hashes[main], (dict(sorted(hashes.items())) if unit["experiment"] in ("e2", "l1") else None), valid,
             harness_paths)
 
 
@@ -464,6 +487,8 @@ def harness_status(experiment: str, exit_code: int | None, timed_out: bool,
         return ("ok", None) if good else ("failed", RESULT_MISSING)
     if experiment == "j1":
         return _j1_status(exit_code, result)
+    if experiment == "l1":
+        return _l1_status(exit_code, result)
     if experiment == "e2" and exit_code == 1:
         return "failed", E2_ABORTED
     if experiment in ("e1", "e2", "x1"):
@@ -502,6 +527,22 @@ def _j1_status(exit_code: int, result: Any) -> tuple[str, str | None]:
         return "ok", None
     if exit_code == 1 and result["complete"] is False:
         return "failed", J1_STOPPED
+    return "failed", RESULT_CONTRADICTS_EXIT
+
+
+def _l1_status(exit_code: int, result: Any) -> tuple[str, str | None]:
+    """L1's reading of its exit code and ``run.json`` (see the module docstring)."""
+    if exit_code == lab_l1.EXIT_INFRA:
+        return "failed", L1_INFRA
+    if exit_code not in (0, 1):
+        return "failed", UNEXPECTED_EXIT
+    if not isinstance(result, dict) or result.get("kind") != "lab_l1_run" \
+            or not isinstance(result.get("complete"), bool):
+        return "failed", RESULT_MISSING
+    if exit_code == 0 and result["complete"] is True:
+        return "ok", None
+    if exit_code == 1 and result["complete"] is False:
+        return "failed", L1_CHECK_FAILED if result.get("finished") is True else L1_NOT_FINISHED
     return "failed", RESULT_CONTRADICTS_EXIT
 
 
@@ -562,13 +603,15 @@ def participation(experiment: str, rows: list[dict[str, Any]], required: list[st
     if experiment in REPLY_PARTICIPATION:
         # J1: a call counts when the model answered it, an invalid reply after its repair included (scored unknown).
         # Its last row decides, as the runner's verdict does: a repair that hit a transport failure is not answered.
-        last: dict[tuple[str, str], dict[str, Any]] = {}
+        # L1's mines number their calls alike, each in its own ledger at its own boundary, so the boundary is part
+        # of a call's key (J1's calls all share one).
+        last: dict[tuple[str, Any, str], dict[str, Any]] = {}
         for row in rows:
-            last[(row["task"], row["ref"])] = row
-        replied: dict[str, set[str]] = {}
-        for (task, ref), row in last.items():
+            last[(row["task"], row.get("boundary"), row["ref"])] = row
+        replied: dict[str, set[tuple[Any, str]]] = {}
+        for (task, boundary, ref), row in last.items():
             if row["ok"] is True or row["error_kind"] in VALIDATION_KINDS:
-                replied.setdefault(task, set()).add(ref)
+                replied.setdefault(task, set()).add((boundary, ref))
         for task, c in counts.items():
             c["ok"] = len(replied.get(task, ()))
     tasks = {task: {**c, "share": round(c["ok"] / c["attempted"], 6) if c["attempted"] else None}
@@ -605,7 +648,7 @@ def harness_measurement(experiment: str, result: Any) -> Any:
     the sim's, E2's and X1's ``stamps.measurement``; None for G0, openFDA or a result that is not an object."""
     if not isinstance(result, dict):
         return None
-    if experiment in ("e1", "e3", "j1"):
+    if experiment in ("e1", "e3", "j1", "l1"):
         return result.get("measurement")
     if experiment in ("sim", "e2", "x1"):
         stamps = result.get("stamps")
@@ -617,7 +660,7 @@ def harness_verdict(experiment: str, result: Any) -> bool | None:
     """E1's, E2's, E3's, J1's and the sim's own verdict that the run was a measurement, for :func:`model_checks`: only
     ``measurement: true`` counts (a missing key or result does not); None for a harness that gives no such verdict
     (G0, X1, openFDA)."""
-    if experiment not in ("e1", "e2", "e3", "sim", "j1"):
+    if experiment not in ("e1", "e2", "e3", "sim", "j1", "l1"):
         return None
     return harness_measurement(experiment, result) is True
 
@@ -739,7 +782,7 @@ def display_class(record: Mapping[str, Any], provenance: Mapping[str, Any] | Non
 
 
 def unit_notes(experiment: str, measurement: str, hosted_role: str | None = None,
-               public_text: bool = False) -> list[str]:
+               public_text: bool = False, msha: bool = False) -> list[str]:
     """The note keys (``notes.NOTES``) of a unit. ``public_text`` (an E1 unit with ``nhtsa`` labels, a J1 unit) swaps
     ``synthetic`` and ``model_measurement`` for ``public_narratives`` and ``model_measurement_public``. A hosted E1
     endpoint (``hosted_role`` ``endpoint``) drops
@@ -747,12 +790,12 @@ def unit_notes(experiment: str, measurement: str, hosted_role: str | None = None
     (``central``) adds ``central_hosted`` and ``hosted_raw``. A plumbing unit with a hosted role gets
     ``plumbing_hosted`` in place of ``plumbing``: its hosted calls went to the configured host, not to a fake."""
     plumbing = "plumbing" if hosted_role is None else "plumbing_hosted"
-    model = "model_measurement_public" if public_text else "model_measurement"
+    model = "model_measurement_msha" if msha else "model_measurement_public" if public_text else "model_measurement"
     notes = [plumbing] if measurement == "plumbing" else [model] if measurement == "model" else []
     if experiment == "openfda":
         return [*notes, "public_data"]
-    notes.append("public_narratives" if public_text else "synthetic")
-    if experiment in ("e1", "e2", "e3", "sim", "j1") and hosted_role != "endpoint":
+    notes.append("public_msha" if msha else "public_narratives" if public_text else "synthetic")
+    if experiment in ("e1", "e2", "e3", "sim", "j1", "l1") and hosted_role != "endpoint":
         notes.append("runner_hardware")
     if experiment in ("e2", "g0", "sim"):
         notes.append("text_only_scan")
@@ -764,10 +807,16 @@ def unit_notes(experiment: str, measurement: str, hosted_role: str | None = None
 
 
 def public_text(unit: Mapping[str, Any]) -> bool:
-    """Whether the unit reads real public narratives: an E1 unit with ``nhtsa`` labels, or a J1 unit."""
-    if unit["experiment"] == "j1":
+    """Whether the unit reads real public narratives: an E1 unit with ``nhtsa`` labels, a J1 unit or an L1 unit (MSHA's,
+    :func:`msha_text`)."""
+    if unit["experiment"] in ("j1", "l1"):
         return True
     return unit["experiment"] == "e1" and unit["params"].get("labels", {}).get("source") == "nhtsa"
+
+
+def msha_text(unit: Mapping[str, Any]) -> bool:
+    """Whether the unit reads MSHA's public mine accident narratives: an L1 unit."""
+    return unit["experiment"] == "l1"
 
 
 def hosted_role(unit: Mapping[str, Any]) -> str | None:
@@ -790,7 +839,7 @@ def unit_record(unit: Mapping[str, Any], shard: str, provider: str, provider_ove
         "argv": [], "seeds": list(unit["seeds"]), "timeout_s": None, "started_at": None, "finished_at": None,
         "wall_s": 0.0, "exit_code": None, "signal": None, "status": "skipped", "status_reason": None,
         "measurement_class": measurement, "class_reason": reason,
-        "notes": unit_notes(unit["experiment"], measurement, hosted_role(unit), public_text(unit)),
+        "notes": unit_notes(unit["experiment"], measurement, hosted_role(unit), public_text(unit), msha_text(unit)),
         "routing_sha256": None,
         "files": {}, "fake_rows": None, "ledger_rows": None, "participation": None, "harness_measurement": None,
         "logs": None, "serving": None, "server_exit": None, "server_after": None, "class_checks": None,
@@ -1061,7 +1110,8 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
                 base_url = hosted.base_url
             elif serving is None:
                 with_pack = experiment in ("e1", "e2", "g0", "sim", "j1")
-                server = FakeServer(persona, load_pack(unit["params"]["pack"]) if with_pack else None)
+                server = FakeServer(persona, load_pack(unit["params"]["pack"]) if with_pack else None,
+                                    pack_free_judge=experiment == "l1")
                 server.start()
                 base_url = server.base_url
             else:
@@ -1080,7 +1130,7 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
                 reason = SIM_PROJECTED.format(projected=f"{projection['projected_s'] / 60:.1f}",
                                               budget=f"{projection['share'] * projection['budget_s'] / 60:.1f}")
         if status is None:
-            budget_s = (max(1, math.floor(timeout_s) - SIM_BUDGET_MARGIN_S) if experiment in ("sim", "j1")
+            budget_s = (max(1, math.floor(timeout_s) - SIM_BUDGET_MARGIN_S) if experiment in ("sim", "j1", "l1")
                         else None)
             argv = build_argv(unit, out, harness_paths.get("routing", routing_path), server_note, budget_s=budget_s,
                               prereg=prereg.dir if prereg is not None else None,
@@ -1150,7 +1200,8 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
         exit_code=proc.exit_code if proc is not None else None,
         signal=proc.signal_name if proc is not None else None, status=status, status_reason=reason,
         measurement_class=measurement, class_reason=class_reason,
-        notes=unit_notes(experiment, measurement, hosted.role if hosted is not None else None, public_text(unit)),
+        notes=unit_notes(experiment, measurement, hosted.role if hosted is not None else None, public_text(unit),
+                         msha_text(unit)),
         routing_sha256=routing_sha256, routing_files=routing_files, projection=projection, files=files,
         fake_rows=sum(1 for r in rows if r["fake_marker"]) if rows is not None else None,
         ledger_rows=len(rows) if rows is not None else None, participation=record_participation,

@@ -4,7 +4,10 @@
 sends (``response_format.json_schema.name``, which is the task name):
 
 * ``extract_claims``: the pack's lexical extractor, as model reply items (``edge.extract.lexical_handler``);
-* ``judge_record``: the pack's lexical judge (``edge.verify.lexical_judge``);
+* ``judge_record``: the pack's lexical judge (``edge.verify.lexical_judge``); with ``pack_free_judge`` and no pack (an
+  L1 unit, whose pack is drafted inside the unit), :func:`pack_free_judge`: ``mentions_entity`` yes, and
+  ``describes_predicate`` yes exactly when a word of the question's predicate label (four or more letters, folded)
+  is a word of the record's text (a plumbing answer, not a judgement);
 * ``e3_extraction_like`` and ``e3_short_answer``: a fixed reply that satisfies the E3 workload schema;
 * ``judge_candidate_raw`` and ``judge_candidate_allowed`` (E2's central comparator): ``{"score": <the payload's
   canonical sha256 as an integer, mod 101>}``, deterministic and pack-free (a plumbing answer, not a judgement).
@@ -24,7 +27,7 @@ from mycelic.collective.experiments.e3_latency import WORKLOADS
 from mycelic.collective.experiments.e2_pushdown import CENTRAL_TASKS
 from mycelic.collective.inference.fakeserver import request_payload
 from mycelic.collective.jsonio import canonical_bytes, sha256_hex
-from mycelic.collective.packs.canonical import Canonicaliser
+from mycelic.collective.packs.canonical import Canonicaliser, folded
 from mycelic.collective.packs.loader import FrozenPack
 
 E3_REPLIES = {
@@ -38,14 +41,23 @@ class ResponderError(Exception):
         super().__init__("the lab responder cannot answer this request")
 
 
+def pack_free_judge(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """A plumbing judge that needs no pack (see the module docstring)."""
+    words = {w for w in folded(str(payload["question"]["predicate_label"])).split() if len(w) >= 4 and w.isalpha()}
+    text = set(folded(str(payload["record"]["text"])).split())
+    return {"mentions_entity": "yes", "describes_predicate": "yes" if words & text else "no"}
+
+
 class Responder:
-    def __init__(self, pack: FrozenPack | None) -> None:
+    def __init__(self, pack: FrozenPack | None, *, pack_free_judge: bool = False) -> None:
         self.pack = pack
         self._handlers: dict[str, Callable[[Mapping[str, Any]], dict[str, Any]]] = {}
         if pack is not None:
             canonicaliser = Canonicaliser(pack)
             self._handlers[TASK_NAME] = lexical_handler(pack, canonicaliser)
             self._handlers[JUDGE_TASK] = lexical_judge(pack, canonicaliser)
+        elif pack_free_judge:
+            self._handlers[JUDGE_TASK] = globals()["pack_free_judge"]
 
     def __call__(self, request_json: Any) -> dict[str, Any]:
         fmt = request_json.get("response_format") if isinstance(request_json, dict) else None

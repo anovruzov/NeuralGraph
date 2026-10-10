@@ -50,7 +50,13 @@ field F1, the zero-claim and transport failure shares and the drops and re-attac
 comes once, in the class section of its display class (:func:`_j1_tables`): its label, the labels, questions and the
 lexical judge's and the record-blind control's balanced accuracy and the predicate-only bound on every record, the
 lexical, control and headline notes, one row per model and the paired table; a plan's preregistration adds J1's labels,
-questions, the lexical judge's and the control's scores and the bound. The class sections
+questions, the lexical judge's and the control's scores and the bound. L1 (latency test L001) comes once too, in the class
+section of its display class (:func:`_l1_tables`): its label, the operator, the file and the audit, the alert, the
+questions, the headline and comparator notes, the comparators' scores, one row per model with its scores and one with its
+headline and gate agreement, then the time note and the time table (the alert and all questions apart, per model, with
+the CPU models) and each finished question's times beside the derived ones; a plan's preregistration adds L1's file,
+audit, alert, questions, the comparators' scores, the predicate-only bound and the share of empty draws
+(:func:`_l1_prereg_lines`). The class sections
 come in the order of :data:`CLASS_ORDER`: ``model``, then ``hosted-api`` (hosted API results, never measured on this
 runner), then the rest. A G0 table gains a protocol records column, after its note, when a scan was below the
 protocol size, and a model path problems column when a row counts them. After the class sections, a sizing table of
@@ -117,7 +123,9 @@ from .notes import (BRANCH_DELETED, BY_CONSTRUCTION_LABEL, BY_CONSTRUCTION_NOTE,
                     E1_SCORES_REFUSED, E1_SCORES_UNPINNED, E1_VERDICTS_WITHHELD, E1_WITHOUT_HOSTED,
                     E2_CENTRAL_HOSTED_SKIPPED, E2_LABELS, E2_SIZING_NOTE, G0_BELOW_PROTOCOL, HEADINGS,
                     HOSTED_COST_NOTE, HOSTED_SECRETS_MISSING, J1_HEADLINE_NOTE, J1_INCOMPLETE, J1_LABEL,
-                    J1_LEXICAL_NOTE, J1_NOT_MEASURED, J1_PRIOR_NOTE, J1_WITHHELD, LOCK_CONFLICT_NOTE, LOCK_NEW,
+                    J1_LEXICAL_NOTE, J1_NOT_MEASURED, J1_PRIOR_NOTE, J1_WITHHELD, L1_COMPARATORS_NOTE,
+                    L1_HEADLINE_NOTE, L1_INCOMPLETE, L1_LABEL, L1_LEFT_OUT, L1_NO_REAGGREGATION, L1_NOT_MEASURED,
+                    L1_TIME_NOTE, L1_WITHHELD, LOCK_CONFLICT_NOTE, LOCK_NEW,
                     LOCK_NOT_COMPUTED, LOCK_UNCHANGED, MERGE_SEVERAL, NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT,
                     NOT_A_BRANCH, NOT_PINNED, NOTES, OPENFDA_FALSE_ALARM_SCOPE, OPENFDA_LABEL, OPENFDA_PUBLIC_FLAG, OPENFDA_SAW_RECALLS,
                     OPENFDA_WARNED, PLAN_FIX_HINT, PLUMBING_CHECK_LINE, PLUMBING_HOSTED_LINE, PREREG_MISSING,
@@ -159,11 +167,14 @@ LEXICAL_PREDICATE_F1 = ("e1", "labels", "public", "lexical", "predicate_f1", "va
 PREREG_FILE = "prereg/prereg.json"
 J1_HEADLINE_REASONS = (J1_INCOMPLETE, J1_NOT_MEASURED, J1_WITHHELD)
 J1_METRICS = ("balanced_accuracy", "sensitivity", "specificity", "unknown_share")
+L1_HEADLINE_REASONS = (L1_INCOMPLETE, L1_NOT_MEASURED, L1_LEFT_OUT, L1_WITHHELD)
+L1_COMPARATORS = ("lexical", "route_role", "record_blind", "key")
 
 
 def ids(sentence: str) -> str:
     """A notes sentence with its experiment-id placeholders filled with code spans."""
-    return sentence.format(e_one=code("E1"), e_two=code("E2"), x_one=code("X1"), n_one=code("N1"), j_one=code("J1"))
+    return sentence.format(e_one=code("E1"), e_two=code("E2"), x_one=code("X1"), n_one=code("N1"), j_one=code("J1"),
+                           l_one=code("L1"))
 _INDEX_RE = re.compile(r"0|[1-9][0-9]*", re.ASCII)
 _BACKTICKS_RE = re.compile(r"`+")
 
@@ -502,6 +513,58 @@ def _prereg_section(doc: _Doc, src: Sources) -> None:
                 f"{src.num(f, pointer(*at, 'specificity', 'value'), 'f3')}")
         doc.add(f"- {code('J1')} {COLUMNS['prior_bound_all']}: {src.num(f, '/j1/prior_bound/value', 'f3')}")
         doc.add("\n" + J1_PRIOR_NOTE)
+    if isinstance(_get(manifest, "l1"), dict):
+        _l1_prereg_lines(doc, src, f)
+
+
+def _l1_question_table(doc: _Doc, src: Sources, f: str, base: tuple[Any, ...], questions: Any,
+                       counts_key: str) -> None:
+    """One row per preregistered L1 question: slot, kind, predicate, routes by role and stratum, the siblings, the
+    retrieved records and the key's gate status."""
+    rows = [(i, q) for i, q in enumerate(questions) if isinstance(q, dict)] if isinstance(questions, list) else []
+
+    def question_rows() -> Any:
+        for i, q in rows:
+            at = (*base, i, counts_key)
+            yield [src.num(f, pointer(*base, i, "slot"), "int"), code(q.get("kind"), table=True),
+                   code(q.get("predicate"), table=True), src.num(f, pointer(*at, "contributing"), "int"),
+                   src.num(f, pointer(*at, "codes"), "int"), src.num(f, pointer(*at, "text_only"), "int"),
+                   src.num(f, pointer(*at, "sibling"), "int"), src.num(f, pointer(*at, "records"), "int"),
+                   code(q.get("key_status"), table=True)]
+
+    doc.table(["l1_slot", "l1_kind", "l1_predicate", "l1_routes", "l1_codes", "l1_text_only", "l1_siblings",
+               "l1_retrieved", "l1_key_status"], question_rows)
+
+
+def _l1_comparator_table(doc: _Doc, src: Sources, f: str, base: tuple[Any, ...]) -> None:
+    """The comparators' balanced accuracy with its interval, sensitivity, specificity and unknown share, on every
+    scored site answer (``scores.json``'s ``judges``)."""
+    doc.table(["l1_judge", "balanced_accuracy", "ci_low", "ci_high", "sensitivity", "specificity", "unknown_share"],
+              lambda: ([code(judge, table=True),
+                        *(src.num(f, pointer(*base, judge, "balanced_accuracy", k), "f3")
+                          for k in ("value", "ci_low", "ci_high")),
+                        *(src.num(f, pointer(*base, judge, m, "value"), "f3")
+                          for m in ("sensitivity", "specificity", "unknown_share"))]
+                       for judge in L1_COMPARATORS))
+
+
+def _l1_prereg_lines(doc: _Doc, src: Sources, f: str) -> None:
+    """A plan's L1 preregistration (``prereg/prereg.json``'s ``l1`` block): the file, the audit, the alert, the
+    questions and the comparators' scores, the predicate-only bound, the share of empty draws and the key's gate."""
+    l1 = _get(src.doc(f), "l1")
+    _heading(doc, "l1-prereg", 4)
+    doc.add(f"\n- {COLUMNS['l1_file']}: {COLUMNS['sha']} {code(short(_get(l1, 'input', 'sha256')))}; "
+            f"{COLUMNS['l1_demo_file']}: {yes_no(_get(l1, 'input', 'is_demo'))}")
+    doc.add(f"- {COLUMNS['records']} {src.num(f, '/l1/audit/records', 'int')}, {COLUMNS['l1_mines']} "
+            f"{src.num(f, '/l1/audit/mines', 'int')}, {COLUMNS['weeks']} {src.num(f, '/l1/audit/weeks', 'int')}")
+    doc.add(f"- {COLUMNS['l1_alert']}: {COLUMNS['channel']} {code(_get(l1, 'alert', 'channel'))}, "
+            f"{code(_get(l1, 'alert', 'week'))}, {code(_get(l1, 'alert', 'predicate'))}")
+    _l1_question_table(doc, src, f, ("l1", "questions"), _get(l1, "questions"), "counts")
+    _l1_comparator_table(doc, src, f, ("l1", "scores", "judges"))
+    doc.add(f"\n- {COLUMNS['prior_bound']}: {src.num(f, '/l1/scores/predicate_bound/value', 'f3')}; "
+            f"{COLUMNS['l1_empty_draws']}: {src.num(f, '/l1/draws/share', 'f3')}; {COLUMNS['l1_constant']}: "
+            f"{src.num(f, '/l1/scores/gate/constant', 'int')} of {src.num(f, '/l1/scores/gate/questions', 'int')}")
+    doc.add("\n" + L1_COMPARATORS_NOTE)
 
 
 # --------------------------------------------------------------------------------------------------- shard
@@ -651,10 +714,12 @@ def render_report(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[d
                                                         for _, u in no_result))
     e1 = report.get("e1") if isinstance(report.get("e1"), dict) else None
     j1 = report.get("j1") if isinstance(report.get("j1"), dict) else None
+    l1 = report.get("l1") if isinstance(report.get("l1"), dict) else None
     for cls in CLASS_ORDER:
         if (any(u.get("display_class") == cls for _, u in units) or (e1 is not None and e1.get("display_class") == cls)
-                or (j1 is not None and j1.get("display_class") == cls)):
-            _class_section(doc, src, cls, units, rows, e1, j1)
+                or (j1 is not None and j1.get("display_class") == cls)
+                or (l1 is not None and l1.get("display_class") == cls)):
+            _class_section(doc, src, cls, units, rows, e1, j1, l1)
     sizing = rows("sim_sizing")
     if sizing:
         _sizing_section(doc, src, sizing)
@@ -695,7 +760,7 @@ def render_report(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[d
 
 def _class_section(doc: _Doc, src: Sources, cls: str, units: list[tuple[int, dict[str, Any]]],
                    rows: Callable[[str], list[tuple[int, dict[str, Any]]]], e1: dict[str, Any] | None = None,
-                   j1: dict[str, Any] | None = None) -> None:
+                   j1: dict[str, Any] | None = None, l1: dict[str, Any] | None = None) -> None:
     f = "report.json"
     _heading(doc, cls, 3)
     mine = [(i, u) for i, u in units if u.get("display_class") == cls]
@@ -764,6 +829,8 @@ def _class_section(doc: _Doc, src: Sources, cls: str, units: list[tuple[int, dic
         _e1_tables(doc, src, e1)
     if j1 is not None and j1.get("display_class") == cls:
         _j1_tables(doc, src, j1)
+    if l1 is not None and l1.get("display_class") == cls:
+        _l1_tables(doc, src, l1)
     latency = [(i, r) for i, r in rows("latency") if r.get("display_class") == cls]
     if latency:
         _heading(doc, "latency", 4)
@@ -1191,6 +1258,117 @@ def _j1_tables(doc: _Doc, src: Sources, j1: dict[str, Any]) -> None:
                                        for key, style in (("n", "int"), ("mean_diff", "f3"), ("ci_low", "f3"),
                                                           ("ci_high", "f3")))]
             for name in paired))
+
+
+def _l1_tables(doc: _Doc, src: Sources, l1: dict[str, Any]) -> None:
+    """L1's label, then (once the preregistration verified) the operator, the file and the audit, the alert, the
+    questions, the headline and comparator notes, the comparators on every scored site answer, one row per model with
+    its scores beside the comparators' on the same answers, one with its paired differences, headline and gate
+    agreement beside a constant status, then the time note, the time table (per model, the alert and all questions
+    apart) and each finished question's times beside the derived ones. Every verdict, mine and per-record measure stays
+    in ``report.json``."""
+    f = "report.json"
+    _heading(doc, "l1", 4)
+    doc.add("\n" + ids(L1_LABEL))
+    if l1.get("reason") is not None:
+        reason = l1["reason"]
+        doc.add("\n" + (reason if reason in (PREREG_MISSING, L1_NO_REAGGREGATION) else
+                        f"{COLUMNS['reason']}: {code(reason)}"))
+        return
+    doc.add(f"\n- {COLUMNS['l1_operator']}: {code(l1.get('operator'))}; {COLUMNS['l1_file']}: {COLUMNS['sha']} "
+            f"{code(short(_get(l1, 'input', 'sha256')))}; {COLUMNS['l1_demo_file']}: "
+            f"{yes_no(_get(l1, 'input', 'is_demo'))}")
+    doc.add(f"- {COLUMNS['records']} {src.num(f, '/l1/audit/records', 'int')}, {COLUMNS['l1_mines']} "
+            f"{src.num(f, '/l1/audit/mines', 'int')}, {COLUMNS['weeks']} {src.num(f, '/l1/audit/weeks', 'int')}")
+    doc.add(f"- {COLUMNS['l1_alert']}: {COLUMNS['channel']} {code(_get(l1, 'alert', 'channel'))}, "
+            f"{code(_get(l1, 'alert', 'week'))}, {code(_get(l1, 'alert', 'predicate'))}")
+    _l1_question_table(doc, src, f, ("l1", "questions"), l1.get("questions"), "routes")
+    doc.add("\n" + L1_HEADLINE_NOTE)
+    doc.add("\n" + L1_COMPARATORS_NOTE)
+    _l1_comparator_table(doc, src, f, ("l1", "comparators", "judges"))
+    doc.add(f"\n- {COLUMNS['prior_bound']}: {src.num(f, '/l1/comparators/predicate_bound/value', 'f3')}; "
+            f"{COLUMNS['l1_empty_draws']}: {src.num(f, '/l1/comparators/draws/share', 'f3')}")
+    models = l1.get("models") if isinstance(l1.get("models"), dict) else {}
+    named = sorted(name for name in models if isinstance(models[name], dict))
+    reasons = any(models[name].get("headline_reason") is not None for name in named)
+
+    def score_rows() -> Any:
+        for name in named:
+            entry, at = models[name], ("l1", "models", name)
+            row = [code(name, table=True), code(entry.get("display_class"), table=True),
+                   f"{src.num(f, pointer(*at, 'slots_finished'), 'int')} of "
+                   f"{src.num(f, pointer(*at, 'slots_planned'), 'int')}"]
+            row += [src.num(f, pointer(*at, "scores", "model", "balanced_accuracy", k), "f3")
+                    for k in ("value", "ci_low", "ci_high")]
+            row += [src.num(f, pointer(*at, "scores", judge, "balanced_accuracy", "value"), "f3")
+                    for judge in ("lexical", "route_role", "record_blind")]
+            row += [src.num(f, pointer(*at, "scores", "model", m, "value"), "f3")
+                    for m in ("sensitivity", "specificity", "unknown_share")]
+            row.append(f"{src.num(f, pointer(*at, 'left_out'), 'int')} of {src.num(f, pointer(*at, 'answers'), 'int')}")
+            yield row
+
+    doc.table(["model", "class", "l1_finished", "balanced_accuracy", "ci_low", "ci_high", "lexical_balanced_accuracy",
+               "l1_route_ba", "l1_blind_ba", "sensitivity", "specificity", "unknown_share", "l1_left_out"],
+              score_rows)
+
+    def headline_rows() -> Any:
+        for name in named:
+            entry, at = models[name], ("l1", "models", name)
+            row = [code(name, table=True)]
+            for diff in ("d_lex", "d_route"):
+                row += [src.num(f, pointer(*at, diff, k), "f3") for k in ("value", "ci_low", "ci_high")]
+            row.append(code(entry.get("headline"), table=True))
+            row.append(f"{src.num(f, pointer(*at, 'gate', 'judges', 'model', 'equal'), 'int')} of "
+                       f"{src.num(f, pointer(*at, 'gate', 'questions'), 'int')}")
+            row.append(src.num(f, pointer(*at, "gate", "constant"), "int"))
+            if reasons:
+                reason = entry.get("headline_reason")
+                row.append(reason if reason in L1_HEADLINE_REASONS else code(reason, table=True))
+            yield row
+
+    doc.table(["model", "l1_d_lex", "ci_low", "ci_high", "l1_d_route", "ci_low", "ci_high", "headline",
+               "l1_gate_equal", "l1_constant", *(["headline_reason"] if reasons else [])], headline_rows)
+    _heading(doc, "l1-time", 4)
+    doc.add("\n" + L1_TIME_NOTE)
+
+    def time_rows() -> Any:
+        for name in named:
+            cpus = _get(models[name], "latency", "cpu_models")
+            cpu = ", ".join(code(c, table=True) for c in cpus) if isinstance(cpus, list) and cpus else "n/a"
+            for scope in ("alert", "all"):
+                at = ("l1", "models", name, "latency", scope)
+                yield [code(name, table=True), code(scope, table=True), cpu,
+                       src.num(f, pointer(*at, "questions"), "int"),
+                       src.num(f, pointer(*at, "time_to_answer_s", "median"), "f3"),
+                       src.num(f, pointer(*at, "time_to_answer_s", "p95"), "f3"),
+                       src.num(f, pointer(*at, "question_build_s", "median"), "f3"),
+                       src.num(f, pointer(*at, "gate_s", "median"), "f3"),
+                       src.num(f, pointer(*at, "mine_s", "median"), "f3"),
+                       src.num(f, pointer(*at, "mine_s", "p95"), "f3"),
+                       src.num(f, pointer(*at, "judge_call_s", "median"), "f3"),
+                       src.num(f, pointer(*at, "judge_call_s", "p95"), "f3"),
+                       src.num(f, pointer(*at, "model_calls", "median"), "f1"),
+                       src.num(f, pointer(*at, "contended_questions"), "int")]
+
+    doc.table(["model", "l1_scope", "cpu", "questions", "l1_answer_s", "l1_answer_p95_s", "l1_build_s", "l1_gate_s",
+               "l1_mine_s", "l1_mine_p95_s", "l1_call_s", "l1_call_p95_s", "l1_calls", "l1_contended"], time_rows)
+
+    def question_rows() -> Any:
+        for name in named:
+            qs = models[name].get("questions")
+            for i, q in (enumerate(qs) if isinstance(qs, list) else ()):
+                if not isinstance(q, dict):
+                    continue
+                at = ("l1", "models", name, "questions", i)
+                yield [code(name, table=True), src.num(f, pointer(*at, "slot"), "int"),
+                       code(q.get("status_first"), table=True), code(q.get("key_status"), table=True),
+                       src.num(f, pointer(*at, "time_to_answer_s"), "f3"),
+                       src.num(f, pointer(*at, "derived", "at_once_s"), "f3"),
+                       src.num(f, pointer(*at, "derived", "default_deadline", "seconds"), "f3"),
+                       src.num(f, pointer(*at, "no_model_s"), "f3"), code(q.get("cpu_model"), table=True)]
+
+    doc.table(["model", "l1_slot", "l1_status", "l1_key_status", "l1_answer_s", "l1_at_once_s", "l1_default_s",
+               "l1_no_model_s", "cpu"], question_rows)
 
 
 def _reaggregation_lines(doc: _Doc, stamp: dict[str, Any]) -> None:

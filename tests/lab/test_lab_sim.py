@@ -1275,7 +1275,7 @@ class RequestAndPlanTests(unittest.TestCase):
         obj = plumbing_min()
         obj["experiments"] = {}
         self.assertEqual(self._error(obj),
-                         ("$.experiments", "needs at least one of e1, e2, e3, g0, sim, x1, openfda, j1"))
+                         ("$.experiments", "needs at least one of e1, e2, e3, g0, sim, x1, openfda, j1, l1"))
 
     def test_unit_params(self) -> None:
         with tempfile.TemporaryDirectory(prefix="lab-sim-plan-") as tmp:

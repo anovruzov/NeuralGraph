@@ -1,6 +1,6 @@
 """Merge one run's shard artifacts into one report: which artifact counts for each shard, what each unit gave, the
-E3, G0, sim, sizing, E2, X1, openFDA and latency rows, the E1 comparison, the J1 judge test, the provision records and
-the lock candidate.
+E3, G0, sim, sizing, E2, X1, openFDA and latency rows, the E1 comparison, the J1 judge test, the L1 latency test, the
+provision records and the lock candidate.
 
     python -m lab.aggregate --plan FILE --provision DIR --shards DIR --manifest FILE --out DIR [--reaggregation FILE]
 
@@ -82,6 +82,26 @@ pooled over its finished parts (with each predicate's confirms), the lexical jud
 records and the bound on them, the paired difference, the records left out, and the headline of rule 7 or why there is
 none. No verdict line, question or narrative is copied.
 
+**L1** (``l1``; null without L1 units), latency test L001 (:func:`l1_block`, ``docs/collective/L001/CHOICE-L001.md``
+with its amendments K1 to K13): from the verified preregistration, the operator (``c1``), the file's sha256 and whether
+it is the demo's, the audit's counts, the alert, each question's slot, kind, predicate, window, routes by role and
+stratum and retrieved records with the key's gate status, the settings and the comparators' preregistered scores
+(``scores.json``: every judge on every scored site answer, by stratum, the construction counts, the predicate-only
+bound, the gate's agreement and the empty draws); then per model its units (one per question slot), whether it is
+complete, its display class, and over its finished questions: the site answers scored against the key (the model's at
+the first decision, K6), the answers left out for a transport failure and their share, every judge's scores on the same
+draws (``lab.l1score``), the paired differences ``d_lex`` and ``d_route``, the strata, the gate's agreement beside a
+constant status (K8), the per-record measures from ``records.jsonl``, each question's verdicts, statuses, timings,
+derived times, mines (calls, first and median call latency, contention) and crossing overlap, the latency figures of
+rule 6 for the alert and for all questions with the CPU models they ran on, and the headline (K3) or why there is
+none. Every number is in seconds, a share or a count (K12): L1's ledgers give no row to the ``latency`` table, whose
+figures are milliseconds. **A re-run** (K10): an L1 unit whose chosen shard root is a later attempt is ``excluded``
+with :data:`~lab.notes.L1_RERUN_AFTER_CALLS` when an earlier attempt's artifact of its shard shows a model call of the
+unit (a ``run.json`` with ``model_calls`` above zero or unreadable, a ledger with any row, or a unit record with ledger
+rows); an attempt that left no artifact shows nothing. Under ``--reaggregation`` the block holds only its reason
+(:data:`~lab.notes.L1_NO_REAGGREGATION`): a re-aggregation has no guard over MSHA's file. No record id, mine id,
+narrative or drafted term is copied; mines are ``m01`` onwards.
+
 **Re-aggregation** (``reaggregation``; null unless ``--reaggregation FILE`` names a request, ``lab.reaggregate``):
 the request (path, sha256, run id, purpose), the aggregating checkout's ``commit`` and ``lab_code_hash``, and what
 the sealed shards recorded (``shards``: their GitHub ``run_ids``, checkout ``commits`` and ``lab_code_hashes``),
@@ -134,13 +154,16 @@ from mycelic.collective.stats import percentile
 from . import EXIT_OK, EXIT_USAGE, ROOT, LabError, forbidden_root
 from . import hosted as lab_hosted
 from . import j1 as lab_j1
+from . import l1 as lab_l1
+from . import l1score as l1_score
 from . import provision as lab_provision
 from . import units as lab_units
 from .manifest import ManifestError, load_manifest, lock_path
 from .notes import (ALTERED, AMBIGUOUS_ARTIFACTS, E1_COMPARE_FAILED, E1_NO_REFERENCE, E1_SCORES_REFUSED,
-                    E1_SCORES_UNPINNED, FILES_DIFFER, J1_INCOMPLETE, J1_NOT_MEASURED, J1_WITHHELD, NO_ARTIFACT,
-                    NOT_RUN, OTHER_PLAN, PLUMBING_BANNER, PLUMBING_HOSTED_BANNER, PREREG_MISSING, STEP_FAILED,
-                    UNIT_RECORD_INVALID, UNSEALED)
+                    E1_SCORES_UNPINNED, FILES_DIFFER, J1_INCOMPLETE, J1_NOT_MEASURED, J1_WITHHELD, L1_INCOMPLETE,
+                    L1_LEFT_OUT, L1_NO_REAGGREGATION, L1_NOT_MEASURED, L1_RERUN_AFTER_CALLS, L1_WITHHELD,
+                    NO_ARTIFACT, NOT_RUN, OTHER_PLAN, PLUMBING_BANNER, PLUMBING_HOSTED_BANNER, PREREG_MISSING,
+                    STEP_FAILED, UNIT_RECORD_INVALID, UNSEALED)
 from .plan import SHARD_ID_RE, UNIT_ID_RE
 from .prereg import PreregError, load_prereg
 from .reaggregate import load_request as load_reaggregation
@@ -170,6 +193,13 @@ E1_PAIRED_KEYS = ("against", "n", "decision_metric", "diff", "ci_low", "ci_high"
                   "underpowered", "non_inferior", "kill_flag", "withheld_reason")
 E1_SCORE_EXTRA = ("record_runs", "transport_failure_share", "failures")   # beside _e1_endpoint's keys
 J1_HEADLINE_REASONS = {"incomplete": J1_INCOMPLETE, "not_measured": J1_NOT_MEASURED, "withheld": J1_WITHHELD}
+L1_JUDGES = ("model", "lexical", "route_role", "record_blind", "key")
+L1_HEADLINE_REASONS = {"incomplete": L1_INCOMPLETE, "not_measured": L1_NOT_MEASURED, "left_out": L1_LEFT_OUT,
+                       "withheld": L1_WITHHELD}
+L1_SETTINGS = ("bootstrap_b", "bootstrap_seed", "withhold_share", "slots", "deadline_seconds", "endpoint_deadline_s",
+               "max_retries", "demo_seed", "tie_salt")
+L1_MINE_FIELDS = ("role", "stratum", "records", "calls", "attempts", "failures", "model_s", "first_call_s",
+                  "median_call_s", "seconds", "timed_out", "contended")
 E2_CONDITION_FIELDS = ("ap", "ap_ci_low", "ap_ci_high", "precision_at_k")
 OPENFDA_CHANNEL_FIELDS = ("in_scope", "found", "recall_rate", "median_lead_days", "post_recall_alerts", "false_alarms",
                           "false_alarms_per_week", "alerts", "found_minus_expected")
@@ -868,6 +898,262 @@ def j1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
     return block
 
 
+# --------------------------------------------------------------------------------------------------- L1
+
+def _l1_called(root: Path, unit: dict[str, Any]) -> bool:
+    """Whether a shard root shows a model call of the L1 unit (see the module docstring, K10)."""
+    base = root / "runs" / "l1" / unit["run_id"]
+    if (base / "run.json").exists():
+        run = _read(base / "run.json")
+        calls = run.get("model_calls") if isinstance(run, dict) else None
+        if not _is_int(calls) or calls > 0:
+            return True
+    if any(p.is_file() and p.stat().st_size > 0 for p in base.glob("ledger-*.jsonl")):
+        return True
+    record = _read(root / "units" / unit["unit"] / "unit.json")
+    rows = record.get("ledger_rows") if isinstance(record, dict) else None
+    return _is_int(rows) and rows > 0
+
+
+def l1_reruns(plan: dict[str, Any], roots: list[_Root], chosen: dict[str, _Root | None]) -> dict[str, list[int]]:
+    """K10: per L1 unit whose shard's chosen root is a later attempt, the earlier attempts (of the roots found) that
+    show a model call of the unit; a unit listed here is not taken."""
+    out: dict[str, list[int]] = {}
+    for unit in plan["units"]:
+        root = chosen.get(unit["shard"])
+        if unit["experiment"] != "l1" or root is None or root.attempt <= 1:
+            continue
+        called = sorted({r.attempt for r in roots if r.shard == unit["shard"] and r.attempt < root.attempt
+                         and _l1_called(r.path, unit)})
+        if called:
+            out[unit["unit"]] = called
+    return out
+
+
+def _finite(value: Any) -> bool:
+    return l1_score.finite(value)
+
+
+def _l1_timing_ok(t: Any, routes: dict[str, Any]) -> bool:
+    if not isinstance(t, dict) or t.get("finished") is not True or not _is_int(t.get("calls")):
+        return False
+    if not all(_finite(t.get(k)) for k in ("time_to_answer_s", "question_build_s", "gate_s")):
+        return False
+    gaps, mines = t.get("between_s"), t.get("mines")
+    if not isinstance(gaps, list) or not all(_finite(g) for g in gaps) or not isinstance(mines, list):
+        return False
+    return (sorted(m.get("mine") for m in mines if isinstance(m, dict)) == sorted(routes)
+            and all(isinstance(m, dict) and _finite(m.get("seconds")) and isinstance(m.get("contended"), bool)
+                    for m in mines))
+
+
+def _l1_lines_ok(lines: list[Any], slot: int, question: dict[str, Any]) -> bool:
+    keys = sorted(lab_l1.RECORD_KEYS)
+    records = question["records"]
+    seen = set()
+    for line in lines:
+        if not isinstance(line, dict) or sorted(line) != keys or line["slot"] != slot \
+                or line["mine"] not in question["routes"] or not _is_int(line["index"]) \
+                or not 0 <= line["index"] < records[line["mine"]] or not isinstance(line["positive"], bool):
+            return False
+        for judge in ("model", "lexical"):
+            answer = line[judge]
+            if answer is not None and (not isinstance(answer, dict)
+                                       or sorted(answer) != ["describes_predicate", "error_kind", "mentions_entity"]):
+                return False
+        seen.add((line["mine"], line["index"]))
+    return len(seen) == len(lines) == sum(records[m] for m in question["routes"])
+
+
+def _l1_part(unit: dict[str, Any], source: E1Source, prereg_sha: str,
+             question: dict[str, Any]) -> tuple[Any, list[dict[str, Any]] | None, str | None]:
+    """(run.json, record lines, problem) of one L1 unit's collected files: the run only when the unit's record lists
+    it and it is an L1 run of this preregistration, endpoint, slot and question; the lines only when ``records.jsonl``
+    is listed too and holds exactly one line per retrieved record of every routed mine of the question, each with the
+    runner's keys."""
+    _, record, root = source
+    if record is None or root is None:
+        return None, None, "no_result"
+    base = f"runs/l1/{unit['run_id']}/"
+    files = record.get("files") if isinstance(record.get("files"), dict) else {}
+    if base + "run.json" not in files:
+        return None, None, "no_run"
+    run = _read(root / (base + "run.json"))
+    if (not isinstance(run, dict) or run.get("kind") != "lab_l1_run" or run.get("prereg_sha256") != prereg_sha
+            or run.get("endpoint") != unit["model"] or run.get("slot") != unit["params"]["slot"]
+            or run.get("question_id") != question["question_id"]):
+        return None, None, "run_differs"
+    if base + "records.jsonl" not in files:
+        return run, None, "no_records"
+    failed = False
+    try:
+        lines = _jsonl((root / (base + "records.jsonl")).read_bytes())
+    except (OSError, StrictJsonError):
+        failed = True
+    if failed or not _l1_lines_ok(lines, unit["params"]["slot"], question):
+        return run, None, "records_differ"
+    return run, lines, None
+
+
+def _l1_verdicts_ok(run: Any, question: dict[str, Any]) -> bool:
+    first = _get(run, "verdicts", "first")
+    return (isinstance(first, dict) and sorted(first) == sorted(question["routes"])
+            and all(isinstance(v, dict) and v.get("verdict") in l1_score.VERDICTS for v in first.values())
+            and isinstance(_get(run, "verdicts", "status_first"), str)
+            and isinstance(run.get("mines"), dict) and sorted(run["mines"]) == sorted(question["routes"]))
+
+
+def _l1_question(slot: int, q: dict[str, Any], run: dict[str, Any], key: dict[str, Any],
+                 cpu: Any) -> dict[str, Any]:
+    v = run["verdicts"]
+    return {"slot": slot, "kind": q["kind"], "predicate": q["predicate"], "cpu_model": cpu,
+            "verdicts": {m: e["verdict"] for m, e in sorted(v["first"].items())},
+            "reasons": {m: e.get("reason") for m, e in sorted(v["first"].items())},
+            "support": {m: e.get("support_bucket") for m, e in sorted(v["first"].items())},
+            "final": {m: _get(e, "verdict") for m, e in sorted((v.get("final") or {}).items())},
+            "key": dict(sorted(key["verdicts"].items())), "status_first": v["status_first"],
+            "status_final": v.get("status_final"), "key_status": key["status"],
+            "time_to_answer_s": _get(run, "timing", "time_to_answer_s"), "time_to_final_s": run.get("time_to_final_s"),
+            "late_still_running": run.get("late_still_running"), "derived": run.get("derived"),
+            "no_model_s": _get(run, "derived", "no_model_s"), "lexical_reproduces": _get(run, "lexical", "reproduces"),
+            "confirm_shares": run.get("confirm_shares"), "crossing": run.get("crossing"),
+            "mines": {m: {k: d.get(k) for k in L1_MINE_FIELDS} for m, d in sorted(run["mines"].items())}}
+
+
+def _l1_model(model: str, units: list[dict[str, Any]], sources: dict[str, E1Source], doc: dict[str, Any],
+              prereg_sha: str, settings: dict[str, Any], fallback: str, refused: dict[str, list[int]]
+              ) -> dict[str, Any]:
+    """One model's L1 entry (see :func:`l1_block`)."""
+    b, seed = settings["bootstrap_b"], settings["bootstrap_seed"]
+    questions = {q["slot"]: q for q in doc["questions"]}
+    judges = doc["judges"]
+    parts, runs, lines_ok, timings, measured = [], {}, [], [], []
+    for unit in sorted(units, key=lambda u: u["params"]["slot"]):
+        row = sources[unit["unit"]][0]
+        slot = unit["params"]["slot"]
+        q = questions.get(slot)
+        run, lines, problem = _l1_part(unit, sources[unit["unit"]], prereg_sha, q) if q is not None else (
+            None, None, "slot")
+        if problem is None and not _l1_verdicts_ok(run, q):
+            problem = "verdicts_differ"
+        if problem is None and not _l1_timing_ok(run.get("timing"), q["routes"]):
+            problem = "timing_differs"
+        ok = (problem is None and row["status"] == "ok" and run.get("complete") is True
+              and run.get("finished") is True and unit["unit"] not in refused)
+        parts.append({"unit": unit["unit"], "slot": slot, "status": row["status"],
+                      "status_reason": row["status_reason"], "display_class": row["display_class"],
+                      "cpu_model": row["cpu_model"], "ok": ok,
+                      "problem": problem if problem is not None else (run.get("problem") if not ok else None),
+                      "measurement": run.get("measurement") if isinstance(run, dict) else None,
+                      "rerun_after_calls": refused.get(unit["unit"])})
+        if ok:
+            runs[slot] = run
+            lines_ok += lines
+            measured.append(run.get("measurement") is True)
+            timings.append({**run["timing"], "slot": slot})
+        else:
+            timings.append({"slot": slot, "finished": False})
+    slots_ok = sorted(runs)
+    complete = slots_ok == list(range(1, settings["slots"] + 1))
+    cls = _class_of([p["display_class"] for p in parts if p["display_class"] != "no-result"], fallback)
+    entry: dict[str, Any] = {
+        "slots_planned": settings["slots"], "slots_finished": len(slots_ok), "slots_ok": slots_ok, "units": parts,
+        "complete": complete, "partial": not complete and bool(slots_ok), "display_class": cls,
+        "measurement": all(measured) if measured else None, "answers": None, "left_out": None,
+        "left_out_share": None, "scores": None, "d_lex": None, "d_route": None, "strata": None, "gate": None,
+        "per_record": None, "questions": [], "latency": None, "headline": None, "headline_reason": None}
+    cpu = {p["slot"]: p["cpu_model"] for p in parts}
+    calls = {s: [x for m in runs[s]["mines"].values() for x in (m.get("call_latencies_s") or []) if _finite(x)]
+             for s in slots_ok}
+    entry["latency"] = {"alert": l1_score.latency([t for t in timings if t["slot"] == 1], calls),
+                        "all": l1_score.latency(timings, calls),
+                        "cpu_models": sorted({c for s, c in cpu.items() if s in runs and isinstance(c, str)})}
+    if slots_ok:
+        qs = [questions[s] for s in slots_ok]
+        by_judge = {j: {str(s): judges[j][str(s)]["verdicts"] for s in slots_ok} for j in L1_JUDGES if j != "model"}
+        by_judge["model"] = {str(s): {m: v["verdict"] for m, v in runs[s]["verdicts"]["first"].items()}
+                             for s in slots_ok}
+        rows = l1_score.site_answers(qs, by_judge, by_judge["key"])
+        scored = l1_score.scored(rows)
+        left = {(r["slot"], r["mine"]) for r in scored
+                if (_get(runs[r["slot"]], "mines", r["mine"], "failures", "transport") or 0) > 0}
+        kept = [r for r in rows if (r["slot"], r["mine"]) not in left]
+        scores, drawn = l1_score.score_judges(kept, L1_JUDGES, b=b, seed=l1_score.seed_of(seed))
+        statuses = {"model": {str(s): runs[s]["verdicts"]["status_first"] for s in slots_ok}}
+        entry.update(
+            answers=len(scored), left_out=len(left),
+            left_out_share=l1_score.r3(len(left) / len(scored)) if scored else None, scores=scores,
+            d_lex=drawn.paired("model", "lexical"), d_route=drawn.paired("model", "route_role"),
+            strata=l1_score.by_stratum(kept, L1_JUDGES, b=b, seed=l1_score.seed_of(seed), mines=drawn.mines),
+            gate=l1_score.gate_agreement(statuses, {str(s): judges["key"][str(s)]["status"] for s in slots_ok}),
+            per_record=(l1_score.per_record(lines_ok, ("model", "lexical"), b=b,
+                                            seed=l1_score.record_seed_of(seed)) if lines_ok else None),
+            questions=[_l1_question(s, questions[s], runs[s], judges["key"][str(s)], cpu.get(s)) for s in slots_ok])
+    headline, why = l1_score.headline(
+        finished=complete, measured=cls == "model" and entry["measurement"] is True,
+        left_out_share=entry["left_out_share"], d_lex=entry["d_lex"], d_route=entry["d_route"])
+    entry["headline"] = headline
+    entry["headline_reason"] = L1_HEADLINE_REASONS.get(why) if why is not None else None
+    return entry
+
+
+def l1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source], refused: dict[str, list[int]],
+             reaggregation: bool = False) -> dict[str, Any] | None:
+    """The report's ``l1`` block (null without L1 units; see the module docstring). ``sources`` maps each L1 unit to
+    (its row, its record, its shard root) and ``refused`` the re-runs not taken (:func:`l1_reruns`). It needs the
+    verified preregistration (else its reason is :data:`~lab.notes.PREREG_MISSING`). Per model: each question unit's
+    status, display class and whether it finished (status ``ok``, a complete and finished run.json of this
+    preregistration, endpoint, slot and question, whose verdicts name every routed mine and whose timing and
+    ``records.jsonl`` are whole, :func:`_l1_part`); ``complete`` (every slot finished); the display class (``model`` only
+    when every unit with a result is); and over the finished questions the scores, intervals, strata, gate agreement,
+    per-record measures, questions and latency figures. The headline (K3) only for a complete model of display class
+    ``model`` whose runs say ``measurement: true``: ``better``, ``better_than_lexical_only``, ``worse``,
+    ``not_told_apart``, or ``no_verdict`` with :data:`~lab.notes.L1_LEFT_OUT` or :data:`~lab.notes.L1_WITHHELD`; else
+    null with :data:`~lab.notes.L1_INCOMPLETE` or :data:`~lab.notes.L1_NOT_MEASURED`. An incomplete model's finished
+    questions are a partial reading (``partial``) and decide nothing."""
+    units = sorted((u for u in plan["units"] if u["experiment"] == "l1"), key=lambda u: u["unit"])
+    if not units:
+        return None
+    fallback = "plumbing" if plan.get("result_class") == "plumbing" else "unverified"
+    shown = [sources[u["unit"]][0]["display_class"] for u in units
+             if sources[u["unit"]][0]["display_class"] != "no-result"]
+    block: dict[str, Any] = {"label": "public_msha", "reason": None, "display_class": _class_of(shown, fallback),
+                             "operator": None, "input": None, "audit": None, "demo_figures": None, "alert": None,
+                             "questions": None, "settings": None, "comparators": None, "models": {}}
+    if reaggregation:
+        block["reason"] = L1_NO_REAGGREGATION
+        return block
+    try:
+        prereg = load_prereg(plan_path)
+        manifest = prereg.manifest["l1"]
+        data = (prereg.dir / manifest["prereg"]).read_bytes()
+        doc = strict_load(data)
+        scores = strict_load((prereg.dir / manifest["scores_path"]).read_bytes())
+        settings = {k: doc[k] for k in L1_SETTINGS}
+        ok = (doc["kind"] == "lab_l1_prereg" and isinstance(scores, dict) and scores.get("kind") == "lab_l1_scores"
+              and [q["slot"] for q in doc["questions"]] == list(range(1, settings["slots"] + 1)))
+    except (PreregError, OSError, StrictJsonError, KeyError, TypeError):
+        ok = False
+    if not ok:
+        block["reason"] = PREREG_MISSING
+        return block
+    prereg_sha = sha256_hex(data)
+    key = doc["judges"]["key"]
+    block.update(
+        operator=doc["operator"],
+        input={"sha256": doc["input"]["sha256"], "is_demo": doc["input"]["is_demo"],
+               "demo_sha256": _get(doc, "input", "demo", "sha256")},
+        audit=doc["audit"], demo_figures=doc["demo_figures"], alert=doc["alert"], settings=settings,
+        questions=[{"slot": q["slot"], "kind": q["kind"], "predicate": q["predicate"], "window": q["window"],
+                    "routes": lab_l1.question_counts(q), "key_status": key[str(q["slot"])]["status"]} for q in doc["questions"]],
+        comparators={k: scores.get(k) for k in ("judges", "strata", "construction", "predicate_bound", "gate",
+                                                 "draws", "routes")})
+    for model in sorted({u["model"] for u in units}):
+        block["models"][model] = _l1_model(model, [u for u in units if u["model"] == model], sources, doc,
+                                           prereg_sha, settings, fallback, refused)
+    return block
+
+
 def _sim_files(row: dict[str, Any], root: Path) -> tuple[Any, Any]:
     """(the collected scorecard, the collected progress.json), each None unless it reads as its kind."""
     run = root / "runs" / "sim" / row["run_id"]
@@ -1099,12 +1385,17 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
     e2, e2_sizing, x1, openfda = [], [], [], []
     e1_sources: dict[str, E1Source] = {}
     j1_sources: dict[str, E1Source] = {}
+    l1_sources: dict[str, E1Source] = {}
+    l1_refused = l1_reruns(plan, roots, {s: root for s, (_, root) in states.items()})
     samples: dict[tuple[Any, ...], list[float]] = {}
     hosted_sources: list[tuple[str, Path]] = []
     models = plan.get("models") if isinstance(plan.get("models"), dict) else {}
     for unit in sorted(plan["units"], key=lambda u: u["unit"]):
         state, root = states.get(unit["shard"], ("no_artifact", None))
         row, record = _unit_row(unit, state, root)
+        if unit["unit"] in l1_refused:
+            row.update(status="excluded", status_reason=L1_RERUN_AFTER_CALLS, display_class="no-result")
+            record = None
         units.append(row)
         hosted_role = lab_hosted.role(unit, models)
         if hosted_role is not None and record is not None and root is not None:
@@ -1115,6 +1406,8 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
             e1_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
         if unit["experiment"] == "j1":
             j1_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
+        if unit["experiment"] == "l1":
+            l1_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
         if unit["experiment"] == "e2" and record is not None:
             sizing_row = _e2_sizing_row(row, record)
             if sizing_row is not None:
@@ -1141,6 +1434,8 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
                    "openfda": lambda: _openfda_row(row, root.path, record)}.get(unit["experiment"], lambda: None)()
         if new_row is not None:
             {"e2": e2, "x1": x1, "openfda": openfda}[unit["experiment"]].append(new_row)
+        if unit["experiment"] == "l1":
+            continue                # K12: L1 reports its latencies in seconds, in its own block
         groups = [(ledger_rows(unit, root.path), (row["display_class"], row["model"], row["cpu_model"]))]
         if hosted_role is not None and hosted_role[0] == "central":
             # the central comparator answered from the host: its latencies are not this runner's
@@ -1165,6 +1460,7 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
     request = plan["request"]
     e1 = e1_block(plan, plan_path, e1_sources, out)
     j1 = j1_block(plan, plan_path, j1_sources)
+    l1 = l1_block(plan, plan_path, l1_sources, l1_refused, reaggregation is not None)
     sealed_roots = [root for state, root in (states[s["shard"]] for s in plan["shards"])
                     if state == "sealed" and root is not None]
     sealed = [root.path for root in sealed_roots]
@@ -1180,7 +1476,7 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
         "plan": {"sha256": plan_sha256, **{k: plan.get(k) for k in ("git_sha", "provider", "job_minutes",
                                                                      "max_parallel", "retention_days")}},
         "unit_count": len(units), "shard_count": len(shard_rows), "shards": shard_rows, "units": units,
-        "e3": e3, "g0": g0, "sim": sim, "sim_sizing": sim_sizing, "e1": e1, "j1": j1,
+        "e3": e3, "g0": g0, "sim": sim, "sim_sizing": sim_sizing, "e1": e1, "j1": j1, "l1": l1,
         "e2": e2, "e2_sizing": e2_sizing, "x1": x1, "openfda": openfda, "latency": latency_rows(samples),
         "provision": provision_rows(records, plan_sha256), "lock": lock,
         "notes": {"cpu_models": cpu_models, "world_digest": world_digest_groups(g0),

@@ -443,9 +443,9 @@ class ModelServer:
 class FakeServer:
     """The collective's in-process fake behind the same surface as :class:`ModelServer` (plumbing runs)."""
 
-    def __init__(self, persona: str, pack: FrozenPack | None) -> None:
-        self._server = FakeOpenAIServer(persona, responder=Responder(pack), first_token_s=FAKE_FIRST_TOKEN_S,
-                                        token_s=FAKE_TOKEN_S)
+    def __init__(self, persona: str, pack: FrozenPack | None, pack_free_judge: bool = False) -> None:
+        self._server = FakeOpenAIServer(persona, responder=Responder(pack, pack_free_judge=pack_free_judge),
+                                        first_token_s=FAKE_FIRST_TOKEN_S, token_s=FAKE_TOKEN_S)
 
     def start(self) -> dict[str, Any]:
         self._server.start()

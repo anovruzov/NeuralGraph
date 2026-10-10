@@ -129,7 +129,8 @@ class ShippedRequestTests(unittest.TestCase):
                          [("gguf", first, ["sim", "g0", "e3"], 305, 330)]
                          + [("gguf", model, ["sim", "e3"], 260, 285) for model in others])
         self.assertEqual(sorted(p.name for p in TEMPLATES.iterdir()),
-                         ["check.json", "hosted-comparison.json", "main.json", "openfda-replay.json", "smoke.json"])
+                         ["check.json", "hosted-comparison.json", "latency.json", "main.json", "openfda-replay.json",
+                          "smoke.json"])
 
 
 if __name__ == "__main__":
