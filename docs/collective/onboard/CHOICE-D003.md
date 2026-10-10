@@ -22,6 +22,11 @@ reports: no narrative, no problem-code distribution, no per-manufacturer categor
 this file says otherwise. `CHOICE-D001.md`, `CHOICE-D002.md`, `D001-settings.json`, `D002-settings.json`,
 `run-001.json`, `run-002.json` and `docs/collective/replay/vehicles/pack/` do not change.
 
+**Amended before any run, on 2026-10-10.** The section of that name, just before "Runs", changes the export, the
+hand pack's entity, C2's matched space and controls, the deciding intervals, the privacy floor's unit, C1's controls,
+the fetch and the list of onboard changes, and qualifies the sentence above and the declaration. It was written
+before any of D003's code. Where it disagrees with the text above it, it wins.
+
 ## Why openFDA now, when D001 left it out
 
 `CHOICE-D001.md` section 2.3 gave three reasons. D003 answers each:
@@ -580,6 +585,535 @@ template and every pinned file stay as they are.
     specific predicate.
 - **The code:**
   - **P1 to P6 change shared code.** A mistake there could change D002. Section 11's test guards against it.
+
+## Amended before any run, 2026-10-10
+
+No D003 code exists, no D003 run file exists, and no one has fetched any D003 data. A review of this rule found three
+gaps that would let a criterion pass for the wrong reason, and nineteen smaller ones. The changes are E1 to E18,
+numbered apart from D001's A1 to A14 and D002's B1 and B2 (C and D are taken by the criteria and the experiments).
+Each says what was, what is now, and why. Where the text above disagrees with this section, this section wins.
+
+### E1. The hand copies' primary entity resolves exactly (section 2.4; section 6.2 (a) to (c))
+
+- **Was:** `maker_label` held `d1` to `d5`. It was every reader's site, and section 6.2 (a) read the hand copies'
+  primary entity from it. Section 6.2 (b) gave the added entity type the ids `D1` to `D5`.
+- **Why that fails:**
+  - One column cannot hold both values. The loader allows an alias-only id only in upper case (`ALIAS_ONLY_ID_RE`,
+    `packs/loader.py`). The connector rejects a site that is not lower case (`SITE_ID_RE`, `packs/connector.py`, as
+    `bad_site`).
+  - `Canonicaliser.resolve_exact` compares an alias-only id exactly, so `d1` never resolves to `D1`. The record then
+    has no primary entity (`codes_channel`).
+  - `LexicalExtractor.extract` drops, as `no_entity`, the predicates of every sentence that names none of the pack's
+    own entities. The hand pack would read almost nothing, and C2 would pass for that reason alone.
+- **Now:**
+  - A new column, `maker_entity`, holds the company's label in upper case, `D1` to `D5`, in every row (E5). It has no
+    role in the drafted arm, so the drafter never reads it. D002's NHTSA export also carried the hand pack's entity
+    in a column of its own (`vehicle`).
+  - Both hand copies read their primary entity from `maker_entity`, as an exact id of the added type. Their site is
+    `received_day` (E4).
+  - **(c) is made exact.** Besides (a) and (b), the hand copies change only what the loader requires before the new
+    mapping and the added type will load. For the added type, that is its ids in `generator.json`'s universe, a fill
+    rate, and one alias for each id listed there: the loader requires an alias for every alias-only id in the
+    universe. The aliases are `d003 maker d1` to `d003 maker d5`, strings that no narrative is expected to hold. A
+    mention of one could change which entity a claim names. It cannot add a predicate. `BUILD-D003.md` records every
+    such change.
+- **A test in the build.** It builds a row in D003's layout: a narrative of one invented sentence holding a term of a
+  `device_quality` lexicon, `maker_entity` `D1` and a day in `received_day`. Read through each hand copy by the
+  score's own reading function, the row yields that term's predicate. The same row with `maker_entity` `d1` yields
+  no primary entity, and the run guard below counts it.
+- **A guard in the run** (change P10). For each company, each hand copy and the drafted reader, the run prints the
+  rows the reader's mapping rejected, the records left without a primary entity, `structured_unresolved` and the
+  `no_entity` drops. It prints counts only. If the deciding copy's mapping rejects any sampled record, or leaves one
+  without a primary entity, C2 cannot be computed and fails, and the report says why.
+
+### E2. C2 scores every record it can score, against record-blind controls too (sections 6.2 and 8)
+
+- **Was:** C2 kept only the sampled records whose gold fell in the matched space.
+- **Why that fails:**
+  - When C reaches a single hand predicate, every kept record is filed under it, and a false positive is impossible.
+    Micro F1 is then 2R / (1 + R), where R is recall, so it measures recall only.
+  - A reader that predicts the reached predicate on every record scores 1.0.
+  - Superiority would then reward the reader with the broader lexicon, not the one that reads better. Small reaches
+    are likely: the 22-name map gives `device_quality`'s eleven predicates about two names each, and the review found
+    little overlap with the largest codes' most frequent problems ("The declaration, added").
+  - No record-blind reader was scored in this space.
+- **Now:**
+  - **The records scored:** every sampled record of each company whose C is not empty.
+  - **The gold:** the record's filed names, by A7's rule, restricted to the predicates C reaches. It may be empty. A
+    reached predicate predicted on a record not filed under it is then a false positive, for every reader.
+  - **The readers in that space:** the drafted pack and `device_quality`, as before, and two record-blind controls:
+    - **all reached:** every predicate C reaches, predicted on every record of the company;
+    - **most frequent reached:** the one reached predicate that the most training-corpus records of the company carry
+      by A7's rule (ties: the smaller id), predicted on every record of the company.
+  - **C2 passes** when the pooled records with a nonempty gold number at least 100 and the lower end of the 95%
+    interval (E3) of the drafted micro F1 minus each of these three is above 0: `device_quality`, all reached, and
+    most frequent reached. These are three comparisons, all required.
+  - **Reported, deciding nothing:** drafted minus `device_quality` as non-inferiority (lower end above -0.05), under a
+    label that says it is reported only. Also printed: the same space under the six-name map; the reached hand
+    predicates per company, by id; the scored records and those with a nonempty gold.
+- **The 100-record minimum** counts records with a nonempty gold, as before.
+
+### E3. The deciding intervals resample received days (section 7; section 8, C1 and C2; sections 9 and 13)
+
+- **Was:** a percentile bootstrap over records decided C1's and C2's lower ends.
+- **Why that fails:**
+  - Each company's test records come from a few whole days. A large maker keeps about 10 test days under a budget of
+    50 pages (MARKET 3.6's 173,163 reports a year for one name is about 474 a day, or 5 pages).
+  - Reports filed on the same day share products, problems and templates. A record bootstrap treats them as
+    independent and understates the variance, so a lower end can lie above 0 wrongly.
+- **Now:**
+  - **The clusters:** the (company, received day) pairs of the scored records. The day is the record's
+    `date_received`.
+  - **The interval:** per reader, a cluster's (tp, fp, fn) is the sum over its records. `stats.paired_bootstrap_f1`
+    runs on these cluster triples, ordered by (company label, day), with B = 10,000 and seed `d003:boot:maude`. With
+    K clusters, each replicate therefore draws K of them with replacement by `randrange(K)` and keeps every record
+    of each drawn cluster. The point difference is the same as over records. `stats` is not changed.
+  - **What it decides:** C1's lower end (C1's 0.10 margin stays on the exact difference) and C2's three lower ends
+    (E2). Every comparison of one criterion uses the same seed, so the same draws.
+  - **Reported beside it:** the record bootstrap of D002 for the same differences, deciding nothing, and the clusters
+    per company and in total. Each pooled reader's F1 gets a cluster interval beside its record interval.
+    `stats.bootstrap_f1` runs on the same cluster triples.
+- **Section 9's claim.** "Finds the filed problems in later years" now reads: finds the filed problems in reports
+  received in the two later years, on days drawn at random from them, leaving aside days too large for the budget
+  (E11). The deciding intervals resample those days.
+- **Section 13.** "The intervals resample records, not days or companies" now reads: the deciding intervals resample
+  days, and treat them as independent. Days near each other can still be alike, for example a run of reports about
+  one event. The five companies are fixed, not sampled. "The intervals cover these companies' sampled records only"
+  now reads "these companies' sampled days only".
+
+### E4. The privacy floor counts received days (sections 2.5, 10 and 14)
+
+- **Was:** S = 1, since a company had one site. A term or a category then needed only 10 reports, which could all come
+  from one batch filed on one day, or from one narrative filed in 10 reports. Section 14 named the risk and offered
+  nothing against it.
+- **Now:**
+  - A new column, `received_day`, holds the report's `date_received`, the day the walk kept. It takes the site role in
+    the drafted arm, and S is 3 (`floor_sites` 3, D002's value).
+  - So a category, a term or a value-map spelling passes the floor only when it appears in at least 10 training
+    records received on at least 3 distinct days. One filing day cannot meet that, and neither can one narrative
+    filed in one batch.
+  - The day is the floor's spread unit and nothing else. It is not a site a company runs. Section 2.5 stands
+    otherwise: D003 makes no claim about sites, and M4 does not apply.
+- **What follows from the site role:**
+  - Rule 1.7, the last guard and the backstop read the day as D002 read a site. An 8-digit day fits the site pattern.
+  - The refusal refuses a string equal to a day, or holding one as a whole word. A term is letters only, so this
+    can remove no term. A category label that held a day would be refused, and A14 counts it.
+  - The backstop scans the report for every kept day as a whole token. So nothing the report prints may hold a date
+    written `YYYYMMDD`. `companies.json`, and any `source.json` or `definitions.json` in the exports directory (the
+    score copies these into `arm.json`), hold counts, and windows written `YYYY-MM-DD`, only. E11's list of kept days
+    goes to the fetch's log, never into the report.
+- **Reported, deciding nothing** (P11): per company, how many of the printed terms (the first 10 per predicate), and
+  how many lexicon terms, occur in only one distinct folded narrative of the training corpus.
+- **Numeric identifiers.** Report keys, lots and UDIs carry digits. Rule 1.5 takes only letters-only tokens as terms,
+  so none of them can become a term. That rule keeps them out of the lexicons, not the refusal, since no column holds
+  them. Category labels come only from `product_problems`. This holds for sections 2.5 and 10.
+- **The declaration** no longer lists "the site count of the floor" among the choices new after D002. S = 3 is
+  D002's value, and the received day as its unit is E4's choice.
+
+### E5. The export, as amended (section 2.4)
+
+One JSON-lines file per company, `d<i>.jsonl`, one object per kept report, sorted by `mdr_report_key`. Each object has
+these keys, in this order:
+
+| Column | Role in the drafted arm | Value |
+|---|---|---|
+| `mdr_report_key` | `record_id` | the report's key, as returned |
+| `date_received` | `date` | as returned (`YYYYMMDD`) |
+| `product_problems[]` | `category` | the report's `product_problems` list as returned; strings only |
+| `mdr_text` | `narrative` | the report's description entries, joined (section 4); absent when there is none |
+| `received_day` | `site` | the day the walk kept, `YYYYMMDD`, equal to `date_received` (E4) |
+| `maker_entity` | none | the company's label in upper case, `D1` to `D5`, in every row (E1) |
+| `makers[]` | `forbidden` | the exact names of every company chosen in section 2.2, dropped ones included (E12) |
+
+- **`maker_label` is gone.** Its two jobs moved to `received_day` (site) and `maker_entity` (the hand entity).
+- **Each hand copy reads:** record ref `mdr_report_key`, site `received_day`, received date `date_received`
+  (`yyyymmdd`), codes from `product_problems[]` through its value map, narrative `mdr_text` (language null, no
+  persons), primary entity from `maker_entity`.
+- **M1's names** are these seven, with D001's and D002's (P12).
+  - Before this commit, the package's own guard (`check.package_hits`) was run on the seven names, and on
+    `maker_label`. It found nothing.
+  - None of them is a word the loader reserves.
+- **`date_received` and `received_day` hold the same value.** The onboard code gives a column at most one role, so the
+  date and the floor's unit take two columns.
+- Section 2.4's other rules stand: nothing else is written, and `companies.json` holds no name.
+
+### E6. Two more controls in C1 (section 6.1; section 8, C1)
+
+- **Added controls**, each read like the others (the drafted pack's mapping, its other bucket dropped):
+  - **Label words.** Each specific predicate's lexicon is the words (runs of letters and digits) of its folded label
+    that are letters only, have at least 4 letters, and are neither a stop word nor a negation word of the language
+    file. A word the refusal's term rule refuses is left out (A13).
+    - A word several labels share goes to the predicate with the most corpus rows (ties: the smaller id), as in the
+      label-names control.
+    - A predicate left with no word gets a placeholder.
+  - **Set prior.** Take the company's training-corpus records that carry at least one specific predicate. The set of
+    specific predicates most of them carry is predicted for every sampled record. Ties go to the smaller set, then to
+    the set whose sorted ids come first as text.
+- **C1's best control** is now the one with the highest micro F1 among five: majority prior, set prior, permuted
+  labels, label names and label words. C1's margin (0.10) and its other condition stay as they were, the latter
+  decided by E3's interval.
+- **Why label words.** FDA's problem terms are long phrases, and `label_parts` splits a label only at `/`, `,`, `;`,
+  brackets and the joining words. A narrative rarely repeats a whole phrase, so the label-names control is weaker
+  here than on NHTSA's short component names, where it reached 0.405 in D002. A narrative that says "leak" for a
+  code ending in "Leak" is what the word-level control reads.
+- **Why the set prior.** The gold holds every filed specific problem, and micro F1 counts (record, predicate) pairs.
+  When reports often carry two common codes, a record-blind set beats the single-label prior. "Better than
+  record-blind controls" should mean the stronger of the two.
+
+### E7. Reported measures of label echo and templates (sections 4, 5 and 7; P6, P11)
+
+All of these are reported and decide nothing:
+
+- **The word-level echo share.** Per company and pooled: the share of sampled records whose folded narrative holds,
+  word-bounded, a word of one of its own filed specific labels. A word is taken as E6 takes label words.
+- **The echo-free comparison (P6)** under both definitions, the whole label (section 4) and the word level. C1's
+  comparison and C2's comparisons are repeated on the records that hold no echo.
+- **Digit-masked repeats.**
+  - The narrative is folded and every run of digits is replaced by `0`.
+  - Per company and pooled, the run reports the share of sampled records whose masked narrative equals that of a
+    training-corpus record, or that of another test-window record of the same company.
+  - C1's and C2's comparisons are repeated on the sampled records that have no such repeat, with E3's intervals.
+- **Rule 3 is not changed** (the reviewer's optional proposal is declined).
+  - Masked dedup would change which records are eligible, by a measure no recorded fact sizes.
+  - Templated narratives are part of what a company's own file holds.
+  - Reporting both results shows whether template repeats carry the result.
+- **How it reads** (section 9's last bullet, extended): the C1 or C2 margin may vanish on the records with no echo
+  under either definition, or on the records that survive the masked dedup. Such a pass says that the drafted pack
+  mostly read the label back, or recognised the company's templates.
+
+### E8. When C2 is not decided (sections 8 and 9)
+
+- **C2 fails without deciding** in two cases: it has fewer than 100 records with a nonempty gold, or E1's guard fails.
+  The report then prints C2 as "not decided", with the reason and the count, beside its failure.
+- **The verdict is still "fail".** D003 passes only if C1, C2, M1, M2 and M3 all pass.
+- **How it reads.** "C1 and M1 to M3 pass; C2 not decided" means that the drafted packs read these reports better than
+  the controls, and that D003 says nothing about the hand pack. D003 can therefore fail with no result against the
+  hand pack at all.
+- **Why.** The 16 added names come from Becton Dickinson's terms in four product codes. The chosen companies are the
+  largest names, and the review counted little overlap between the 22 names and the largest codes' most frequent
+  problems (see "The declaration, added"). A shortfall says how little the two vocabularies share, which section 9
+  already says decides nothing about reading.
+
+### E9. HTTP attempts, counted and capped (section 2.3, "The request budget"; section 2.6)
+
+- **Was:** the fetch counted its calls of `_get` and stopped before the 701st.
+- **Why that fails:**
+  - `_get` retries inside each call: up to 6 times on 429 and 5xx, and twice on a network error. One call can
+    therefore make up to 9 HTTP attempts.
+  - So counting calls bounds nothing that reaches openFDA. The "388 for retries" was not enforced.
+  - The walk's design maximum is 612 calls, so a stop at 701 could never fire, and 700 had no source.
+- **Now:**
+  - **The wrapper.** The fetch passes `_get` a wrapper around the connector's `build_opener()`. Its `open()` counts
+    every HTTP attempt, retries included, before it delegates.
+  - **The cap.** Before the 801st attempt, the wrapper raises the fetch's own exception. That exception is not an
+    `OSError` or an `http.client.HTTPException`, so `_get` does not retry it.
+  - **Why 800:** it is the lab's keyless cap (`lab/request.py`, `OPENFDA_CAP`), below openFDA's 1,000 requests a day
+    for a client without a key. The connector is not modified.
+- **The bound on calls:** 2 count requests, then per company 2 exact-name checks, at most 2 repeats of them (E10) and
+  at most 70 + 50 page requests. That is at most 2 + 5 x (2 + 2 + 70 + 50) = 622 calls of `_get`, which leaves at
+  least 178 attempts for retries.
+- **The fetch prints** its attempts and its calls.
+- **Not a run:** reaching the cap ends the attempt before the run starts. So does a run of 429s that outlasts the
+  connector's retries.
+- **No pacing.** No per-minute limit is recorded, so the fetch adds none beyond the connector's back-off.
+
+### E10. The exact-name check, incomplete days and the order of pages (section 2.3; sections 2.6 and 14)
+
+- **The exact-name check tolerates no difference.**
+  - When a total differs from the count, the search is made once more.
+  - If it still differs, the company is not used. It is dropped before its days are walked and counted as
+    `exact_check_failed`. It is not replaced, and its name stays in `makers[]`.
+  - If fewer than three companies remain, the fetch stops. That is not a run, and the author of any amendment that
+    follows will have seen the fetch's counts and nothing else.
+- **An incomplete day is fetched once more, then left out.** Step 4 fails when any of these holds:
+  - the day's pages give a number of distinct `mdr_report_key` values other than `T`;
+  - a key appears twice;
+  - a record was received on another day;
+  - a record names the company in no device entry.
+
+  Such a day is fetched once more, all its pages, if the budget left allows. If the second fetch passes, the day is
+  kept with that fetch's records. Otherwise the day is not kept, and it is counted as `incomplete` with its reason.
+  A refetch takes its pages from the window's budget. Step 4 no longer stops the fetch.
+- **Paging order.** Section 2.3 said that "a result set fetched whole does not depend on that order". That is false
+  for a day of more than 100 reports.
+  - Its pages are separate requests (`skip` 0, 100, 200 and so on). If openFDA's unsorted order changes between them,
+    the pages overlap or miss records.
+  - No recorded fact says keyless paging is stable. Replays 001 and 002 recorded totals only.
+  - The fetch now prints, per label and window, the duplicate keys and the missing keys (`T` minus the distinct keys),
+    summed over first fetches and over refetches, and the days refetched and incomplete. All are counts.
+- **Section 14 adds:**
+  - If paging is unstable, multi-page days are lost. The largest makers' days are mostly multi-page, so they can fall
+    under their minimum. With fewer than three companies left, the fetch stops, and that is not a run.
+  - The counts show which happened. Duplicates and misses point to unstable paging. A failed exact-name check, or
+    records naming no device entry of the company, point to the `.exact` search.
+
+### E11. The walk: a cap per day, a minimum of kept days, and the list of kept days (section 2.3)
+
+- **A day is too large** when its `P` exceeds a fifth of the window's budget: 14 pages in training (1,400 reports) and
+  10 in test (1,000). It is also too large, as before, when its `P - 1` further pages exceed the budget left. Its
+  first page is discarded unread, as before. No page is deeper than `skip` 1,300, below the 9,200 recorded.
+- **Minimum kept days.** A company needs at least 5 kept days in each window. This is checked with the report
+  minimums. A company below it is dropped before the run starts and is not replaced.
+- **The fetch prints the kept days** per label and window: each kept day as its date and its total `T`, sorted by
+  date, then the sha256 of that list. The list is written one line per day, `YYYYMMDD T`, joined by `\n`, in UTF-8.
+  - These dates are the walk's own days, which every kept record equals by step 4. The totals are search totals.
+  - No other date, and no key, is printed.
+  - A later fetch can then show whether openFDA's data changed, or the code did.
+- **The number of kept days** per company goes into `companies.json`, and the report prints it beside C1 and C2. The
+  dates never go into the report (E4).
+- **Why.** Otherwise one very large day could take a whole window, and templated narratives from one batch could fill
+  the corpus and the sample. The fifth and the five days are choices made without data. Five days keep a window from
+  resting on one or two days, and give the cluster bootstrap several days per company. A fifth of the budget lets
+  five days fit when enough days are small enough.
+
+### E12. Selection, dates and minimums, made exact (sections 2.2 and 2.3; the question; section 9)
+
+- **The order of selection.**
+  - The candidates are taken in "The order": most training-window reports first, ties by the name's UTF-8 bytes.
+  - A candidate is chosen when it passes exclusions 1 to 4.
+  - Exclusion 3 compares it with the names already chosen, which passed 1 to 4 earlier in that order.
+  - Choosing stops at five.
+- **The fold of exclusion 1** is `packs.canonical.folded`.
+- **"Another manufacturer"** is a device entry whose `manufacturer_d_name` is present, not blank after stripping, and
+  not the company's exact name.
+  - A blank or absent entry is not another manufacturer.
+  - A variant spelling is, including one that exclusion 3 removed.
+- **`makers[]`** holds every name chosen under section 2.2, including companies dropped later: by E10's check, by the
+  report minimums or by E11's day minimum.
+- **Both minimums count reports with a narrative,** meaning a "Description of Event or Problem" entry (section 4):
+  1,000 kept training reports and 500 kept test reports.
+- **Dates in a search** are written `YYYYMMDD`, as the connector writes them (`page_url`, `DATE_RE`):
+  - a window is `date_received:[20210101 TO 20221231]` or `date_received:[20230101 TO 20241231]`;
+  - a day is `date_received:[<day> TO <day>]`.
+- **What is fetched** is every report that names the company in a device entry. That includes voluntary reports and
+  user-facility reports, since no report-source field is fetched.
+  - The question now reads: "a pack drafted ... from the FDA adverse-event reports that name one maker's device ...
+    read that maker's later such reports".
+  - Section 9's "five device makers' own filed problems" now reads "the problems filed in reports that name five
+    device makers' devices".
+
+### E13. What the fetch prints, when it stops, and how it prints an error (section 2.6)
+
+- **It prints counts only:**
+  - the HTTP attempts and the `_get` calls (E9);
+  - for each count list, how many names it returned; the candidates in both lists, the exclusions by reason (1 to
+    4), and how many qualify;
+  - per label: its training and test counts from the lists, and whether its exact-name check passed, passed on its
+    repeat, or failed;
+  - per label and window:
+    - the days walked, kept, too large (over the per-day cap or over the budget left), empty, refetched and
+      incomplete (by reason);
+    - the duplicate and missing keys (E10) and the pages fetched;
+    - the reports kept, those with a narrative, and those dropped for naming another manufacturer;
+    - the kept days with their totals, and that list's sha256 (E11);
+  - per label: its export's bytes and sha256, whether the company is used, and if not, why: the exact-name check,
+    the report minimums or the day minimum.
+- **It never prints:**
+  - a name, a record key, a URL or a query;
+  - any value of a record other than the kept days;
+  - openFDA's error message;
+  - an exception's text, or a traceback.
+- **How it prints an error.** The fetch catches every exception at its top level. It prints the exception's class
+  name only, plus, for an HTTP error, the status and openFDA's `error.code`, and exits nonzero.
+  - `fetch_nhtsa.py` printed `{err}`. An exception's text can carry a record value, such as a key that `int()` could
+    not parse.
+  - **A test in the build** serves the fetch a malformed record through the local server: a key that is not a
+    number, a date that does not parse, a problem that is not a string, each a distinctive string. It checks that
+    none of those strings reaches stdout or stderr.
+- **It stops, before the run starts and so not as a run,** when:
+  - an HTTP error remains after the connector's retries, or the host cannot be reached;
+  - openFDA answers 400 for a skip;
+  - the 801st HTTP attempt would be needed (E9);
+  - fewer than three companies qualify, or fewer than three remain;
+  - any other exception is raised.
+- **Removed from the stops:**
+  - a window total that differs from its count (now E10's drop);
+  - a day whose pages do not give its total (now E10's refetch);
+  - a record that names neither its company nor its day (now an incomplete day);
+  - the 701st request (now E9's cap).
+
+### E14. The workflow can be started again (section 12)
+
+- **Was:** `onboard-d003.yml` started only on a push that changes `run-003.json`. A failed fetch is not a run, and the
+  rule said the run file could be pushed again unchanged. But a push filtered on paths does not fire for an unchanged
+  file, and the rule named no other way to start again.
+- **Now:**
+  - `onboard-d003.yml` has `workflow_dispatch` beside its push trigger, as `onboard-run.yml` has. The owner may also
+    use Actions' "Re-run".
+  - Every start reads `run-003.json` and applies the same refusals before any request.
+  - **The result is the first attempt, of any start, that prints `=== D003 RUN-START ===`.** A later attempt is
+    recorded under "Runs" and decides nothing.
+
+### E15. FDA's generic terms and the n-gram scans (section 3; section 8, M3; section 14)
+
+- **The risk.** Rule 1.7's text check reads every string of the pack, the value-map spellings of the other bucket
+  included. It compares their 8-token runs with every narrative of the export.
+  - `adverse event without identified device or use problem` has exactly 8 tokens.
+  - `unknown (for use when the device problem is not known)` has 10.
+  - One narrative that quotes either fails M3 for its company, and so D003. Yet nothing leaks: these are FDA's public
+    terms, and section 4 expects descriptions to repeat coded wording.
+- **Now (P13):**
+  - A string whose folded form equals one of the nine non-specific labels (section 3, `params.non_specific_labels`)
+    is left out of rule 1.7's n-gram check and of the last guard's n-gram scan.
+  - Those nine are constants of this rule, not values of records.
+  - Every other check of rule 1.7 and of the last guard still applies to them, the refusal and the floor among
+    them.
+- **Reported:** the check and the last guard count, as counts only, the n-gram hits that lie wholly within a value-map
+  spelling. A failure on a long specific FDA term can then be told apart from a fragment of a narrative. Such a
+  failure still fails M3.
+- **Section 14 adds:** a specific FDA term of 8 tokens or more that a narrative quotes fails M3 for that company, and
+  the counts show it.
+
+### E16. Numbers and their basis (sections 2.2, 2.3 and the declaration)
+
+- **120 characters** (exclusion 2): a choice made without data. It bounds a name the search writes into a URL.
+- **2,000 and 1,000** (exclusion 4): choices made without data, twice the per-company minimums, so that a company has
+  room to reach them under the walk.
+- **1,000 and 500** (the minimums): choices made without data. No eligible share of test reports is recorded, so
+  "leaves room for the 200 drawn records" is a hope, not a derivation. When fewer than 200 are eligible, all are drawn
+  (rule 3).
+- **700** is removed (E9). The cap is 800 attempts, the lab's.
+- **A fifth of the budget and five days** (E11): choices made without data.
+- **34.4%** is the share of the 2023-2024 reports under the listed Becton Dickinson names, in four product codes (JKA,
+  FOZ, FMI and MDB), that carried a problem code replay 002's pack mapped (`docs/collective/replay/CHOICE-002.md`,
+  the result). It is not a share of all reports.
+- **The declaration's sentence** "Each is justified below from a recorded fact or file" now reads: each is justified
+  from a recorded fact or file, or labelled as a choice made without data.
+
+### E17. The declaration, qualified (opening paragraph; "The declaration")
+
+- **The opening sentence** "No one has seen any value of a D003 company's reports: no narrative, no problem-code
+  distribution, no per-manufacturer category count" now reads as follows.
+  - No one has seen any narrative of a device report.
+  - For this rule, no one has read a problem-code distribution or a category count of any manufacturer.
+  - The repository does hold some that may in effect cover a chosen company, and the author has seen some of them.
+    They are listed below.
+- **"So D003 is not blind," added:**
+  - `field-coverage.json` lists, for each of the ten largest product codes of 2024 (a test-window year), up to eight
+    coded problems with their counts in a 200-report sample. Where one maker files most of a code, that sample is in
+    effect the maker's test-year distribution, and D003 picks the largest names.
+  - `CHOICE-002.md`'s result records that 34.4% of the 2023-2024 reports under the listed Becton Dickinson names in
+    four codes carried a mapped problem code (E16). That is a per-manufacturer fact in D003's test years.
+- **"What is new and chosen after D002's run,"** as amended:
+  - C2 as superiority with a 100-record minimum, and E2's two record-blind controls;
+  - the generic problem terms;
+  - the received day as the floor's unit (E4);
+  - E6's two controls and E3's cluster intervals;
+  - E11's per-day cap and minimum of kept days;
+  - E9's cap of 800 attempts.
+
+### E18. The changes to the onboard package, as amended (section 11)
+
+Section 11 said D003 needs six changes. The rule as written already needed more, and E1 to E15 add others. The list,
+each item off unless D003's settings turn it on:
+
+- **P1.** Several criteria from one arm, as before.
+- **P2.** A record minimum for C2, counted on records with a nonempty gold (E2).
+- **P3.** The criteria the verdict takes, as before.
+  - The report CLI's `--audit` becomes optional. It is needed only when the list holds M4, or when there is no list.
+  - D002, with no list, still passes it as before.
+- **P4.** Extra non-specific labels, as before.
+- **P5.** The report's source-specific sentences come from the settings when the settings give them. Added to the
+  list:
+  - the verdict sentence ("{exp} passes only if all six criteria pass");
+  - C2's comparison labels, including the reported-only non-inferiority line;
+  - E8's "not decided" line;
+  - the sentence under the criteria table about `pack/`, which was already listed.
+
+  Without them, D002's text, byte for byte.
+- **P6.** The echo-free comparison, under both definitions, for C1's and C2's comparisons (E7).
+- **P7.** C2 as E2 has it:
+  - the records scored, and the gold restricted to the reach;
+  - the two record-blind controls;
+  - the reached predicates printed per company;
+  - the decision by superiority over the three readers.
+
+  `score.criterion` today passes C2 on `ci_low > -margin` and prints the superiority comparison as "decides nothing".
+  P7's switch reverses the two for D003.
+- **P8.** E3's cluster intervals for the deciding differences, with the record intervals beside them.
+- **P9.** E6's two C1 controls.
+- **P10.** E1's guard on the readers' rejected rows, unresolved primary entities, `structured_unresolved` and
+  `no_entity` drops, and C2's failure when the deciding copy does not resolve.
+- **P11.** E4's and E7's reported measures, and the kept days per company (E11).
+- **P12.** M1's names.
+  - The settings may list earlier settings files: D003's lists `D001-settings.json` and `D002-settings.json`.
+  - Their column names join the run's own in M1's package check, in M1's label check, and in rule 1.7's label check
+    (`check.column_names`).
+  - Today `report.criteria` takes names only from the run's own settings.
+- **P13.** E15's exemption, and its count of hits within value-map spellings.
+
+Section 11's test stands and covers every item: D002's settings on a fixed synthetic input give byte-identical
+`arm.json`, `report.json` and `report.md` on the code D002 ran and on D003's code.
+
+### The settings, as amended (section 12)
+
+`D003-settings.json` differs from section 12's description as follows. The key names are the build's, and the
+settings test checks every value against this file.
+
+- **Columns and roles:** E5's seven columns. Record id `mdr_report_key`, date `date_received`, category
+  `product_problems[]`, narrative `mdr_text`, site `received_day`, no entity column, no reporter, forbidden
+  `makers[]`.
+- **Parameters:** D002's, unchanged (`floor_sites` 3, E4), plus the nine non-specific labels.
+- **C1:** margin 0.10; the five controls (E6); the cluster interval (E3).
+- **C2:** against `device_quality`, decided by superiority over it and over both record-blind controls (E2); 100
+  records with a nonempty gold; the cluster interval; the -0.05 comparison reported only.
+- **M1:** the earlier settings files (P12).
+- **The fetch:**
+  - budgets of 70 and 50 pages, with per-day caps of 14 and 10 pages;
+  - minimums of 5 kept days, and of 1,000 and 500 reports with a narrative;
+  - the cap of 800 HTTP attempts;
+  - one repeat of each exact-name check, and one refetch of an incomplete day.
+- **The reported switches:**
+  - the echo-free comparison, under both definitions;
+  - digit-masked repeats;
+  - terms resting on one narrative;
+  - the reader guard, which also decides C2 (E1).
+- **The rest as section 12 says:** the criteria list and the report's sentences (P3, P5), and a time limit of 180
+  minutes.
+
+### What these changes risk
+
+- **The cluster intervals are wider.** With about 10 test days for a large company, and five companies, a few dozen
+  clusters decide. C1 or C2 can fail on width alone, while their point differences look large.
+- **The floor by days** removes categories and terms that a company files on fewer than three of its kept training
+  days. A company with few kept days can lose most of its categories.
+- **The added controls can only raise C1's bar.**
+  - A label word shared by many labels ("device", "problem") goes to the most frequent predicate and fires on many
+    narratives, so the label-words control can act partly as a prior.
+  - Under the word-level definition, the echo-free subset can be small, since such words are common in narratives.
+    It is reported only.
+- **C2 is harder to pass.** False positives now count, and two record-blind controls must be beaten. A small reach
+  can leave C2 undecided (E8).
+- **The per-day cap** leaves out days of more than 1,400 training or 1,000 test reports. A maker that files mostly in
+  large batches can fall under its day minimum and be dropped.
+- **A successful refetch** can hide unstable paging on that day. The duplicate and missing counts still show it.
+- **E10's drop** can leave fewer than five companies. With fewer than three, the fetch stops.
+- **The day as the floor's unit** puts every kept day into the backstop. A report that printed a date written
+  `YYYYMMDD` would be withheld. E4 keeps such dates out of everything the report reads.
+
+### The declaration, added
+
+- This amendment was written by the same AI system, after a review of this rule and before any of D003's code.
+- **What it read for the amendment:**
+  - the onboard package, `D002-settings.json` and `CHOICE-D002.md`;
+  - the pack loader, the canonicaliser, the pack connector and the lexical extractor;
+  - `device_quality`'s mapping, entity types, predicate ids, aliases and generator universe, and the vehicle hand
+    pack's mapping and entity type;
+  - `stats`, `lab/request.py` and the openFDA connector;
+  - replay 002's result paragraph (the 34.4% line and its window);
+  - `onboard-run.yml`'s triggers and `fetch_nhtsa.py`'s error line.
+- **What it learned of the data from the review:**
+  - The top eight coded problems of each of the four largest 2024 product codes (DZE, QBJ, QFG and OZP) hold at most
+    one specific name of the 22-name map. The review counted this from `field-coverage.json` and gave only the
+    overlap.
+  - The review cited MARKET 3.6's 2024 report counts for Abbott Diabetes Care Inc and for the largest Becton
+    Dickinson name.
+- **What it did not open:** while writing this amendment it opened none of `field-coverage.json`, `site-split.json`,
+  `inputs-001.json`, `inputs-002.json` and MARKET 3.5 or 3.6. It saw no narrative, no problem-code distribution and
+  no category count by manufacturer.
+- **What that knowledge could shape:** E2's controls and E8's reading of an undecided C2, which were written because
+  small reaches are likely. Neither depends on which names overlap.
+- **What it ran:** `check.package_hits` on the new column names, as recorded in E5. No request was made to any host.
 
 ## Runs
 
