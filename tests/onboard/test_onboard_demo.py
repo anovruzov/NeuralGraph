@@ -4,9 +4,11 @@ No public record is read.
 
 Markers are planted in the identifying columns and in a few narratives (an operator's name, controller, operator and
 contractor ids, mine ids, document numbers, a person's name and a sentence). Every printed or written output is
-scanned for them, and for any eight consecutive words of any narrative. The reading numbers are checked against
+scanned for them, and for any eight consecutive words of any narrative. A second file plants names in tens of
+narratives, so that the drafter learns them as terms; none may be printed. The reading numbers are checked against
 ``score.run_arm`` on the same export, and the audit against D002's M4 path (``onboard export`` and
-``pilot.audit run``)."""
+``pilot.audit run``). What left the mines carries the mines' labels only, and the review list's reference items are
+never shown as coming from the weekly counts."""
 from __future__ import annotations
 
 import contextlib
@@ -45,7 +47,7 @@ from mycelic.collective.onboard import report as R  # noqa: E402
 from mycelic.collective.onboard import score as S  # noqa: E402
 from mycelic.collective.onboard.__main__ import main as onboard_main  # noqa: E402
 from mycelic.collective.onboard.check import ngram_hits  # noqa: E402
-from mycelic.collective.onboard.exports import read_export  # noqa: E402
+from mycelic.collective.onboard.exports import ExportError, read_export  # noqa: E402
 from mycelic.collective.pilot import audit as A  # noqa: E402
 
 # --------------------------------------------------------------------------------------------------- the file
@@ -120,39 +122,45 @@ class Writer:
         return ("\r\n".join(self.lines) + "\r\n").encode("utf-8")
 
 
-def accident_file(seed: int = 7, scale: int = 1, fillers: int = 0) -> Writer:
+def accident_file(seed: int = 7, scale: int = 1, fillers: int = 0, operator: dict[str, str] | None = None,
+                  extra: Any = None) -> Writer:
     """Three operators by construction. The first (c1) has the most training rows: five mines, six filed categories
     (one non-specific) and one under the floor, a background of held-out rows and, in 2023, a burst of one category at
     three mines. A word of its controller's name is written into many of its narratives, its person's name and a
     sentence into a few. The second qualifies too (c2); the third has too few held-out rows. ``scale`` multiplies the
-    rows; ``fillers`` adds that many small non-qualifying operators (for a file of MSHA's size)."""
+    rows; ``fillers`` adds that many small non-qualifying operators (for a file of MSHA's size). ``operator`` replaces
+    c1's identifying values, and ``extra(category, k)`` gives text added to the k-th training narrative of a category
+    (none by default: the file is then the same)."""
     w = Writer(seed)
     rng = w.rng
+    op = operator or OPERATOR
     mines = [mine_id(4612001, i) for i in range(5)]
     train = (date(2015, 1, 1), date(2021, 12, 31))
     for cat in sorted(CUES):
-        for _ in range(60 * scale):
+        for k in range(60 * scale):
             text = None
             if cat == "MACHINERY" and rng.random() < 0.4:
                 text = w.narrative(cat, f"The {NAME_WORD} crusher was idle.")
-            w.add(OPERATOR, rng.choice(mines), w.day(*train), cat, text)
+            elif extra is not None and extra(cat, k):
+                text = w.narrative(cat, extra(cat, k))
+            w.add(op, rng.choice(mines), w.day(*train), cat, text)
     for i in range(4):
-        w.add(OPERATOR, mines[i % 2], w.day(*train), RARE[0])
-    w.add(OPERATOR, mines[0], date(2018, 5, 7), "MACHINERY", w.narrative("MACHINERY", f"{PERSON} saw it."))
-    w.add(OPERATOR, mines[1], date(2019, 6, 3), "HANDLING OF MATERIALS",
+        w.add(op, mines[i % 2], w.day(*train), RARE[0])
+    w.add(op, mines[0], date(2018, 5, 7), "MACHINERY", w.narrative("MACHINERY", f"{PERSON} saw it."))
+    w.add(op, mines[1], date(2019, 6, 3), "HANDLING OF MATERIALS",
           w.narrative("HANDLING OF MATERIALS", f"{PERSON} helped."))
     for _ in range(3):
-        w.add(OPERATOR, mines[2], w.day(*train), "POWERED HAULAGE", w.narrative("POWERED HAULAGE", SENTENCE + "."))
+        w.add(op, mines[2], w.day(*train), "POWERED HAULAGE", w.narrative("POWERED HAULAGE", SENTENCE + "."))
     start = date(2022, 1, 3)
     for week in range(156):
         monday = start + timedelta(days=7 * week)
         for _ in range(2 * scale):
             cat = rng.choice(sorted(CUES))
-            w.add(OPERATOR, rng.choice(mines), monday + timedelta(days=rng.randrange(5)), cat)
+            w.add(op, rng.choice(mines), monday + timedelta(days=rng.randrange(5)), cat)
         if 60 <= week < 68:
             for mine in mines[:3]:
                 for _ in range(4 * scale):
-                    w.add(OPERATOR, mine, monday + timedelta(days=rng.randrange(5)), "HANDLING OF MATERIALS")
+                    w.add(op, mine, monday + timedelta(days=rng.randrange(5)), "HANDLING OF MATERIALS")
     other = [mine_id(4713001, i) for i in range(4)]
     for cat in sorted(CUES)[:5]:
         for _ in range(55 * scale):
@@ -209,29 +217,50 @@ def token_hits(text: str, values: list[str]) -> list[str]:
 
 # --------------------------------------------------------------------------------------------------- one demo run
 
+_SHARED: dict[str, Any] = {}
+
+
+def shared_run() -> dict[str, Any]:
+    """The one run of the demo every :class:`DemoRun` reads (made once per test process; its directory is removed
+    by ``tearDownModule``). Tests that need a directory of their own make it under ``tmp``, with a new name."""
+    if not _SHARED:
+        holder = tempfile.TemporaryDirectory()
+        tmp = Path(holder.name)
+        writer = accident_file()
+        write_raw(tmp / "raw", writer)
+        settings = small_settings(tmp / "settings.json")
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = RD.main(["--raw", str(tmp / "raw"), "--out", str(tmp / "out"), "--company", "c1",
+                            "--settings", str(settings), "--work", str(tmp / "work"), "--markers"])
+        _SHARED.update(holder=holder, tmp=tmp, writer=writer, settings=settings, code=code, stdout=out.getvalue(),
+                       stderr=err.getvalue())
+    return _SHARED
+
+
+def tearDownModule() -> None:
+    if _SHARED:
+        _SHARED.pop("holder").cleanup()
+        _SHARED.clear()
+
+
 class DemoRun(unittest.TestCase):
     """One run of the demo for c1 on the synthetic file, shared by the tests below."""
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls._tmp = tempfile.TemporaryDirectory()
-        cls.tmp = Path(cls._tmp.name)
-        cls.writer = accident_file()
-        write_raw(cls.tmp / "raw", cls.writer)
-        cls.settings = small_settings(cls.tmp / "settings.json")
-        out, err = io.StringIO(), io.StringIO()
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            cls.code = RD.main(["--raw", str(cls.tmp / "raw"), "--out", str(cls.tmp / "out"), "--company", "c1",
-                                "--settings", str(cls.settings), "--work", str(cls.tmp / "work"), "--markers"])
-        cls.stdout, cls.stderr = out.getvalue(), err.getvalue()
+        run = shared_run()
+        cls.tmp, cls.writer, cls.settings = run["tmp"], run["writer"], run["settings"]
+        cls.code, cls.stdout, cls.stderr = run["code"], run["stdout"], run["stderr"]
         cls.json_text = (cls.tmp / "out" / "demo.json").read_text()
         cls.html_text = (cls.tmp / "out" / "demo.html").read_text()
         cls.doc = json.loads(cls.json_text)
         cls.steps = {s["id"]: s for s in cls.doc["steps"]}
 
-    @classmethod
-    def tearDownClass(cls) -> None:
-        cls._tmp.cleanup()
+    def block(self, step: str, title_start: str) -> dict[str, Any]:
+        found = [b for b in self.steps[step]["blocks"] if (b.get("title") or "").startswith(title_start)]
+        self.assertEqual(len(found), 1, title_start)
+        return found[0]
 
 
 class EveryStepTests(DemoRun):
@@ -254,11 +283,19 @@ class EveryStepTests(DemoRun):
         self.assertEqual(a["file"]["columns"], 57)
         self.assertEqual(a["file"]["date_format"], "M/D/YYYY")
         self.assertEqual(a["file"]["rows"], len(self.writer.lines) - 1)
-        self.assertEqual((a["file"]["operators"], a["file"]["qualifying"], a["file"]["used"]), (3, 2, 2))
+        self.assertEqual((a["file"]["controllers"], a["file"]["qualifying"], a["file"]["used"]), (3, 2, 2))
+        self.assertEqual(a["split_column"], "CONTROLLER_ID")
         self.assertEqual(a["export"]["columns"], 57)
         self.assertEqual(a["roles"]["narrative"], "NARRATIVE")
         self.assertEqual(a["roles"]["refused"], SETTINGS["arms"]["msha"]["roles"]["forbidden"])
         self.assertIn("Dates read as M/D/YYYY", self.stdout)
+
+    def test_the_controllers_are_named_as_controllers(self) -> None:
+        # D002 splits by CONTROLLER_ID: the count is of controllers, and the screen says what D002 calls an operator
+        self.assertIn("Controllers in the file: 3. A controller is a parent company that can run several operators "
+                      "and mines. D002 splits the file by controller (CONTROLLER_ID) and calls each one an operator",
+                      self.stdout)
+        self.assertNotIn("Operators in the file", self.stdout)
 
     def test_the_drafted_pack(self) -> None:
         b = self.steps["b"]["data"]
@@ -271,11 +308,13 @@ class EveryStepTests(DemoRun):
         roof = next(p for p in b["predicates"] if p["label"] == "FALL OF ROOF OR BACK")
         self.assertIn("roof", roof["first_terms"])
         self.assertLessEqual(len(roof["first_terms"]), 10)
-        # each predicate line exactly as D002's report.render prints it
+        # nothing in this file is written like a name, so each predicate line is exactly as D002's report prints it
+        self.assertEqual(b["names"], {"withheld_terms": 0, "narratives_in_capitals": 0})
         for p in b["predicates"]:
+            self.assertEqual(p["withheld_terms"], 0)
             line = (f"{p['label']} ({p['records']} corpus records; {p['refused_assignable']} refused terms would have "
                     f"been assigned): {', '.join(p['first_terms'])}")
-            self.assertIn(line, self.stdout)
+            self.assertIn(line + "\n", self.stdout)
         self.assertGreater(b["refusal"]["terms"], 0)            # the controller's name word was refused
 
     def test_the_reading_says_the_settings_are_not_d002s(self) -> None:
@@ -286,22 +325,56 @@ class EveryStepTests(DemoRun):
         self.assertEqual(c["sample"]["drawn"], SETTINGS["arms"]["msha"]["per_company"])
         self.assertEqual(set(c["readers"]), set(S.READERS))
 
+    def test_the_input_is_compared_with_the_file_d002_read(self) -> None:
+        raw = (self.tmp / "raw" / "Accidents.zip").read_bytes()
+        self.assertEqual(self.doc["input"], {"file": "Accidents.zip", "bytes": len(raw),
+                                             "sha256": __import__("hashlib").sha256(raw).hexdigest(),
+                                             "d002": "revised"})
+        self.assertIn("not the file D002 read, which was 52,269,752 bytes, sha256 62d0c861a5c3...", self.stdout)
+
     def test_the_audit(self) -> None:
         d = self.steps["d"]["data"]
         self.assertEqual(d["mines"], 5)
         self.assertEqual([m["mine"] for m in d["per_mine"]], ["m01", "m02", "m03", "m04", "m05"])
+        self.assertTrue(d["same_under_own_ids"])
         self.assertEqual(d["outcomes"], 0)
         self.assertGreater(d["cells"], 0)
         self.assertGreater(d["suppressed_cells"], 0)
+        self.assertGreater(d["sent"]["bytes"], 0)
+        self.assertEqual(d["sent"]["bundles"], sum(m["weekly_bundles"] for m in d["per_mine"]))
         self.assertGreater(d["alerts"]["X"], 0)
-        self.assertTrue(d["review_list"])
-        for item in d["review_list"]:
-            self.assertEqual(sorted(item), ["category", "channels", "first_week", "last_week", "mines"])
+        self.assertEqual((d["window_weeks"], d["min_sites"]), (8, 2))
+        review = d["review"]
+        self.assertEqual(review["total"], len(review["from_counts"]) + len(review["reference_only"]))
+        self.assertTrue(review["from_counts"])
+        for item in review["from_counts"]:
+            self.assertEqual(sorted(item), ["alerts", "also", "category", "channels", "first_week", "last_week",
+                                            "mines"])
+            self.assertTrue(set(item["channels"]) <= {"X", "S"} and item["channels"])
+            self.assertTrue(set(item["also"]) <= {"R_mf"})
             self.assertRegex(item["first_week"], r"^\d{4}-W\d{2}$")
-            self.assertIsInstance(item["mines"], int)
-        self.assertTrue(any(i["category"] == "HANDLING OF MATERIALS" and i["mines"] >= 2 for i in d["review_list"]))
+            self.assertGreaterEqual(item["mines"], d["min_sites"])
+        self.assertTrue(any(i["category"] == "HANDLING OF MATERIALS" and i["mines"] >= 2
+                            for i in review["from_counts"]))
         self.assertIn("A count under 3 leaves as '<3'", self.stdout)
-        self.assertIn("match no outcome on record", self.stdout)
+        self.assertIn("none matches an outcome on record", self.stdout)
+
+    def test_the_header_says_what_is_configured_for_this_field(self) -> None:
+        header = "\n".join(self.doc["header"])
+        self.assertNotIn("It holds no code for this field", header)
+        self.assertIn("The code: the drafter (the onboard package) names no column of this source. The settings file "
+                      "names them: the 57 columns it expects, 5 roles, 7 refused columns, and CONTROLLER_ID, which "
+                      "splits the file by controller. tools/onboard/fetch_msha.py (", header)
+        lines = len((ROOT / "tools" / "onboard" / "fetch_msha.py").read_text().splitlines())
+        self.assertIn(f"tools/onboard/fetch_msha.py ({lines} lines) is MSHA's download and split code.", header)
+        self.assertTrue(any(line.startswith('Not "no configuration".') for line in self.doc["not_shown"]))
+        self.assertIn('  - Not "no configuration". The settings file names this source\'s columns, and fetch_msha.py '
+                      "is download code for it", self.stdout)
+
+    def test_the_outcomes_line_leaves_the_comparators_off_the_review_list(self) -> None:
+        self.assertIn("Outcomes given: 0. So every X, S and R_mf alert lands on the review list, grouped by pattern; P "
+                      "and PRR add nothing to it.", self.stdout)
+        self.assertNotIn("So every alert lands on the review list", self.stdout)
 
     def test_the_markers_hold_demo_json(self) -> None:
         m = re.search(r"=== onboard-demo demo\.json BEGIN lines=(\d+) sha256=([0-9a-f]{64}) ===\n(.*?)"
@@ -318,6 +391,90 @@ class EveryStepTests(DemoRun):
                 for line in block.get("lines", []) + block.get("items", []):
                     self.assertIn(line, console)
                     self.assertIn(__import__("html").escape(line), self.html_text)
+
+
+class ReviewListTests(DemoRun):
+    """The review list in two parts: an item R_mf alone raised is never shown as coming from the weekly counts."""
+
+    def test_this_file_has_items_of_both_kinds(self) -> None:
+        review = self.steps["d"]["data"]["review"]
+        self.assertTrue(review["from_counts"])
+        self.assertTrue(review["reference_only"])
+        for item in review["reference_only"]:
+            self.assertEqual(item["channels"], ["R_mf"])
+
+    def test_a_reference_item_is_only_in_the_reference_list(self) -> None:
+        review = self.steps["d"]["data"]["review"]
+        counted = self.block("d", "The review list, from the weekly counts (X or S)")
+        reference = self.block("d", "Reference only, raised by R_mf alone")
+        counted_categories = {i["category"] for i in review["from_counts"]}
+        for item in review["reference_only"]:
+            if item["category"] in counted_categories:
+                continue                                # the same label on both lists is a different pattern key
+            self.assertFalse(any(line.startswith(item["category"] + ":") for line in counted["items"]))
+            self.assertTrue(any(line.startswith(item["category"] + ":") for line in reference["items"]))
+            self.assertNotIn(item["category"], self.steps["e"]["blocks"][0]["lines"][0])
+        self.assertEqual(len(counted["items"]), len(review["from_counts"]))
+        self.assertEqual(len(reference["items"]), len(review["reference_only"]))
+
+    def test_step_e_counts_each_part(self) -> None:
+        review = self.steps["d"]["data"]["review"]
+        line = self.steps["e"]["blocks"][0]["lines"][0]
+        self.assertTrue(line.startswith(f"Items from the weekly counts: {len(review['from_counts'])}. Each is a "
+                                        "category whose counts rose at 2 or more of c1's mines in the same weeks"))
+        self.assertIn(f"Reference only, from R_mf: {len(review['reference_only'])}. Those need record-level codes",
+                      line)
+
+    def test_the_alert_lines_lead_with_x_and_s(self) -> None:
+        d = self.steps["d"]["data"]
+        lines = [b for b in self.steps["d"]["blocks"] if b["kind"] == "text"][1]["lines"]
+        self.assertTrue(lines[0].startswith(f"Alerts from the weekly counts alone: X {d['alerts']['X']}, "
+                                            f"S {d['alerts']['S']}."))
+        self.assertNotIn("R_mf", lines[0])
+        self.assertTrue(lines[1].startswith("Reference channels, which count record-level codes centrally and are "
+                                            f"not what left the mines: R_mf {d['alerts']['R_mf']}"))
+
+    def test_blocks_never_put_an_r_mf_item_with_the_counts(self) -> None:
+        data = {"k": 3, "window_weeks": 8, "min_sites": 2, "records": 10, "mines": 2, "weeks_evaluated": 1,
+                "evaluated_from": "2023-W01", "evaluated_to": "2023-W02", "same_under_own_ids": True,
+                "per_mine": [{"mine": "m01", "weekly_bundles": 1, "cells": 1, "suppressed_cells": 0},
+                             {"mine": "m02", "weekly_bundles": 1, "cells": 1, "suppressed_cells": 1}],
+                "sent": {"bytes": 1, "bundles": 2}, "outcomes": 0,
+                "alerts": {"X": 1, "S": 0, "R_mf": 1, "P": 0, "PRR": 0},
+                "review": {"total": 2,
+                           "from_counts": [{"category": "COUNTED PATTERN", "channels": ["X"], "also": [],
+                                            "first_week": "2023-W02", "last_week": "2023-W02", "alerts": 1,
+                                            "mines": 2}],
+                           "reference_only": [{"category": "RECORD LEVEL PATTERN", "channels": ["R_mf"],
+                                               "first_week": "2023-W02", "last_week": "2023-W02", "mines": 2}]}}
+        blocks = RD.blocks_audit(data, {"status": "not_recorded"}, "c1", 2)
+        means = RD.blocks_means(data, "c1")[0]["lines"][0]
+        counted = next(b for b in blocks if (b.get("title") or "").startswith("The review list, from the weekly"))
+        reference = next(b for b in blocks if (b.get("title") or "").startswith("Reference only"))
+        self.assertEqual(counted["items"], ["COUNTED PATTERN: X alerts in week 2023-W02; 2 mines with records of it "
+                                            "in the 8 weeks up to one of them"])
+        self.assertEqual(reference["items"], ["RECORD LEVEL PATTERN: R_mf alerts in week 2023-W02; 2 mines with "
+                                              "records of it in the 8 weeks up to one of them"])
+        self.assertNotIn("RECORD LEVEL PATTERN", means)
+        self.assertIn("Items from the weekly counts: 1.", means)
+        self.assertIn("Reference only, from R_mf: 1.", means)
+
+    def test_review_parts_splits_by_channel(self) -> None:
+        doc = {"review": [
+            {"key": "k:1:a", "predicate": "a", "channels": ["X", "R_mf"], "alert_weeks": ["2023-W01", "2023-W09"],
+             "sites": ["m01", "m02", "m03"]},
+            {"key": "k:1:b", "predicate": "b", "channels": ["R_mf"], "alert_weeks": ["2023-W05"],
+             "sites": ["m01", "m02"]}]}
+        alerts = {"X": [{"key": "k:1:a", "week": "2023-W01", "sites": ["m01", "m02"]}], "S": []}
+        counted, reference = RD.review_parts(doc, alerts, lambda p: p.upper())
+        # the counted item keeps only its X alert's week and mines, and says R_mf also raised it
+        self.assertEqual(counted, [{"category": "A", "channels": ["X"], "also": ["R_mf"], "first_week": "2023-W01",
+                                    "last_week": "2023-W01", "alerts": 1, "mines": 2}])
+        self.assertEqual(reference, [{"category": "B", "channels": ["R_mf"], "first_week": "2023-W05",
+                                      "last_week": "2023-W05", "mines": 2}])
+        with self.assertRaises(RD.DemoError):           # an X alert with no review item: the parts are not trusted
+            RD.review_parts(doc, {"X": [*alerts["X"], {"key": "k:1:z", "week": "2023-W02", "sites": []}], "S": []},
+                            str)
 
 
 class NothingIdentifyingLeavesTests(DemoRun):
@@ -344,6 +501,177 @@ class NothingIdentifyingLeavesTests(DemoRun):
         # the mine id, the controller's name and the name's word written into narratives
         self.assertEqual(len(token_hits(planted, secrets(self.writer))), 3)
         self.assertTrue(ngram_hits([self.writer.narratives[5]], self.writer.narratives, 8))
+
+    def test_the_guard_scanned_what_left_the_mines(self) -> None:
+        self.assertEqual(self.doc["guard"]["sent"], {"sent_refused_value": 0, "sent_report_record_id": 0,
+                                                     "sent_report_site": 0})
+        self.assertEqual(self.doc["guard"]["unread"], 0)
+
+
+class WhatLeftTheMinesTests(DemoRun):
+    """Every bundle and cell that leaves a mine carries the mine's label, never its id; the labelled audit's result
+    is the same as D002's M4 path under the mines' own ids."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cls.calls: list[dict[str, Any]] = []
+        original = A.run_pipeline
+
+        def recording(*args: Any, **kwargs: Any) -> Any:
+            pipeline = original(*args, **kwargs)
+            bundles, cells = pipeline.store.detection_inputs(pipeline.as_of, "X")
+            log = (Path(kwargs["workdir"]) / "hq" / "receive.jsonl").read_text()
+            cls.calls.append({"site_ids": list(kwargs["site_ids"]), "bundle_sites": {b.site for b in bundles},
+                              "cell_sites": {c.site for c in cells}, "log": log})
+            return pipeline
+
+        with mock.patch.object(A, "run_pipeline", recording), contextlib.redirect_stdout(io.StringIO()):
+            cls.demo_doc = RD.run(cls.tmp / "raw", "c1", cls.settings, cls.tmp / "work-sites", lambda line: None)[0]
+
+    def test_the_labelled_audit_sends_labels_only(self) -> None:
+        self.assertEqual(len(self.calls), 2)              # the labelled audit, then D002's path under the own ids
+        labelled, own = self.calls
+        labels = {"m01", "m02", "m03", "m04", "m05"}
+        self.assertEqual(set(labelled["site_ids"]), labels)
+        self.assertEqual(labelled["bundle_sites"], labels)
+        self.assertEqual(labelled["cell_sites"], labels)
+        self.assertEqual(token_hits(labelled["log"], sorted(self.writer.ids["mines"] | self.writer.ids["documents"])),
+                         [])
+        self.assertEqual(ngram_hits([labelled["log"]], self.writer.narratives, 8), set())
+        # the comparison run is D002's M4 path, under the mines' own ids; the table does not describe it
+        self.assertTrue(set(own["site_ids"]) <= set(self.writer.ids["mines"]))
+        self.assertEqual(len(own["site_ids"]), 5)
+
+    def test_the_labels_follow_the_order_of_the_ids(self) -> None:
+        self.assertEqual(RD.mine_labels(["4612003", "4612001", "4612002", "4612001"]),
+                         {"4612001": "m01", "4612002": "m02", "4612003": "m03"})
+        self.assertEqual(RD.mine_labels(str(1000 + i) for i in range(100))["1099"], "m100")
+
+    def test_the_table_title_no_longer_says_no_mine_id_leaves_by_assertion_alone(self) -> None:
+        title = self.block("d", "What left each mine").get("title")
+        self.assertIn("under its label", title)
+        self.assertIn("bytes that left were scanned for the record ids, mine ids and refused values of the 2 "
+                      "operators in the split, as D002's guard reads them: none found.", title)
+
+    def test_a_mine_id_in_what_left_withholds_everything(self) -> None:
+        mine = sorted(self.writer.ids["mines"])[0]
+        original = RD.Watch.active
+
+        @contextlib.contextmanager
+        def leaky(watch: Any) -> Any:
+            with original(watch):
+                yield watch
+            watch.sent = (watch.sent or "") + f'{{"site": "{mine}"}}\n'
+
+        out = Path(tempfile.mkdtemp(dir=self.tmp))
+        with mock.patch.object(RD.Watch, "active", leaky), contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()):
+            code = RD.main(["--raw", str(self.tmp / "raw"), "--out", str(out), "--settings", str(self.settings)])
+        doc = json.loads((out / "demo.json").read_text())
+        self.assertEqual(code, 1)
+        self.assertEqual(doc["status"], "withheld")
+        self.assertEqual(doc["guard"]["sent_report_site"], 1)
+
+
+# --------------------------------------------------------------------------------------------------- names
+
+NAMED = {"person": "Okonkwo Vasquez", "place": "Beckleyville", "other_word": "Brackenridge", "own_word": "Rox"}
+NAMED_OPERATOR = dict(OPERATOR, controller_name="Rox Quillfeather Holdings")
+
+
+def named_extra(cat: str, k: int) -> str:
+    """Names that recur in many narratives of one category at every mine, mid-sentence: a person, a place, a word of
+    another operator's controller name and a three-letter word of this operator's own."""
+    if k >= 45:
+        return ""
+    return {"POWERED HAULAGE": f"It was reported to {NAMED['person']} at once.",
+            "HANDLING OF MATERIALS": f"The crew drove in from {NAMED['place']} that day.",
+            "FALL OF ROOF OR BACK": f"A {NAMED['other_word']} hauler stood by.",
+            "SLIP OR FALL OF PERSON": f"It happened on the {NAMED['own_word']} walkway."}.get(cat, "")
+
+
+class NameShapedWordsTests(unittest.TestCase):
+    def test_capitalised_away_from_a_sentence_start(self) -> None:
+        names, caps = RD.name_shaped_words(["The crew met Okonkwo near the belt.", "Then okonkwo left.",
+                                            "Rock fell. The rock was loose. A rock hit Vasquez.",
+                                            "It was Vasquez again.", "EE SLIPPED ON ICE NEAR VASQUEZ."])
+        self.assertIn("vasquez", names)
+        self.assertNotIn("rock", names)                  # capitalised only at a sentence start, lower case elsewhere
+        self.assertNotIn("okonkwo", names)               # one of two uses in lower case: under nine in ten
+        self.assertNotIn("ee", names)                    # all capitals: not read
+        self.assertEqual(caps, 1)
+
+    def test_a_word_seen_only_at_sentence_starts(self) -> None:
+        names, _ = RD.name_shaped_words(["Okonkwo slipped. Okonkwo fell.", "the crew. Crew left."])
+        self.assertIn("okonkwo", names)
+        self.assertNotIn("crew", names)
+
+    def test_nine_in_ten(self) -> None:
+        texts = [f"It was Brackenridge {i}." for i in range(9)] + ["It was brackenridge 9."]
+        self.assertIn("brackenridge", RD.name_shaped_words(texts)[0])
+        self.assertNotIn("brackenridge", RD.name_shaped_words(texts + ["by brackenridge."])[0])
+
+    def test_a_term_is_withheld_when_any_of_its_words_is(self) -> None:
+        names = frozenset({"okonkwo"})
+        self.assertTrue(RD.name_shaped("supervisor okonkwo", names))
+        self.assertFalse(RD.name_shaped("roof fall", names))
+
+
+class NamesInNarrativesTests(unittest.TestCase):
+    """A person's name, a place, a word of another operator's controller name and a three-letter word of the
+    operator's own controller name, each in tens of narratives at every mine: the drafter learns them as terms, and the
+    demo prints none of them."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.tmp = Path(cls._tmp.name)
+        cls.writer = accident_file(seed=11, operator=NAMED_OPERATOR, extra=named_extra)
+        write_raw(cls.tmp / "raw", cls.writer)
+        cls.settings = small_settings(cls.tmp / "settings.json")
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            cls.code = RD.main(["--raw", str(cls.tmp / "raw"), "--out", str(cls.tmp / "out"), "--settings",
+                                str(cls.settings), "--work", str(cls.tmp / "work")])
+        cls.stdout, cls.stderr = out.getvalue(), err.getvalue()
+        cls.doc = json.loads((cls.tmp / "out" / "demo.json").read_text())
+        cls.outputs = {"stdout": cls.stdout, "stderr": cls.stderr,
+                       "demo.json": (cls.tmp / "out" / "demo.json").read_text(),
+                       "demo.html": (cls.tmp / "out" / "demo.html").read_text()}
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._tmp.cleanup()
+
+    def words(self) -> list[str]:
+        return sorted({w.lower() for v in NAMED.values() for w in v.split()})
+
+    def test_the_names_clear_the_drafters_floor(self) -> None:
+        settings = json.loads(self.settings.read_text())
+        with contextlib.redirect_stdout(io.StringIO()):
+            export, _ = RD.step_export(self.settings, settings, self.tmp / "raw", self.tmp / "work-draft", "c1")
+        b = RD.step_draft(settings, export, "c1", self.tmp / "work-draft")
+        self.assertTrue(b["check"]["passed"])
+        terms = " ".join(t for p in b["draft"].facts["predicates"] for t in p["first_terms"])
+        for word in self.words():
+            with self.subTest(word=word):
+                self.assertIn(word, terms.split())
+
+    def test_no_name_is_printed_or_written(self) -> None:
+        self.assertEqual(self.code, 0, self.stderr)
+        self.assertEqual(self.doc["status"], "shown")
+        for name, text in self.outputs.items():
+            with self.subTest(output=name):
+                self.assertEqual(token_hits(text, self.words()), [])
+
+    def test_the_withheld_terms_are_counted(self) -> None:
+        b = {s["id"]: s for s in self.doc["steps"]}["b"]["data"]
+        self.assertGreaterEqual(b["names"]["withheld_terms"], 4)
+        self.assertEqual(b["names"]["withheld_terms"], sum(p["withheld_terms"] for p in b["predicates"]))
+        self.assertIn(f"Terms withheld because c1's narratives write one of their words like a name: "
+                      f"{b['names']['withheld_terms']}.", self.stdout)
+        self.assertIn("more withheld: written like a name in the narratives)", self.stdout)
 
 
 # --------------------------------------------------------------------------------------------------- equal numbers
@@ -411,19 +739,38 @@ class SameNumbersTests(DemoRun):
         audit = json.loads((tmp / "audit" / "audit.json").read_text())
         summary = R.audit_summary(tmp / "audit" / "audit.json")
         d = {s["id"]: s for s in self.demo_doc["steps"]}["d"]["data"]
-        self.assertEqual((d["records"], d["mines"], d["weeks_evaluated"], len(d["review_list"])),
+        self.assertTrue(d["same_under_own_ids"])
+        self.assertEqual((d["records"], d["mines"], d["weeks_evaluated"], d["review"]["total"]),
                          (summary["records"], summary["sites"], summary["weeks_evaluated"], summary["review_list"]))
         self.assertEqual(d["alerts"], summary["alerts"])
-        self.assertEqual([(i["mines"], i["channels"], i["first_week"], i["last_week"]) for i in d["review_list"]],
+        # the reference part is exactly the audit's items with R_mf alone, in its order
+        self.assertEqual([(i["mines"], i["channels"], i["first_week"], i["last_week"])
+                          for i in d["review"]["reference_only"]],
                          [(len(e["sites"]), e["channels"], min(e["alert_weeks"]), max(e["alert_weeks"]))
-                          for e in audit["review"]])
+                          for e in audit["review"] if e["channels"] == ["R_mf"]])
+        # the counted part: the audit's other items, in its order; an item with no R_mf alert is the audit's as is,
+        # and one R_mf also raised keeps only its X and S alerts' weeks and mines
+        others = [e for e in audit["review"] if e["channels"] != ["R_mf"]]
+        self.assertEqual(len(d["review"]["from_counts"]), len(others))
+        for item, e in zip(d["review"]["from_counts"], others):
+            self.assertEqual(item["channels"] + item["also"], e["channels"])
+            self.assertLessEqual(item["mines"], len(e["sites"]))
+            self.assertTrue(min(e["alert_weeks"]) <= item["first_week"] <= item["last_week"]
+                            <= max(e["alert_weeks"]))
+            if not item["also"]:
+                self.assertEqual((item["mines"], item["first_week"], item["last_week"]),
+                                 (len(e["sites"]), min(e["alert_weeks"]), max(e["alert_weeks"])))
+        self.assertEqual(sum(i["alerts"] for i in d["review"]["from_counts"]), d["alerts"]["X"] + d["alerts"]["S"])
 
-    def test_the_cells_counted_are_every_cell_the_sites_sent(self) -> None:
+    def test_the_watch_puts_every_function_back(self) -> None:
         d = {s["id"]: s for s in self.demo_doc["steps"]}["d"]["data"]
         self.assertEqual(d["cells"], sum(m["cells"] for m in d["per_mine"]))
         self.assertTrue(all(m["weekly_bundles"] > 0 for m in d["per_mine"]))
-        self.assertIs(A.run_pipeline, __import__("mycelic.collective.evaluate.baselines",
-                                                  fromlist=["run_pipeline"]).run_pipeline)   # the watcher put it back
+        baselines = __import__("mycelic.collective.evaluate.baselines", fromlist=["run_pipeline"])
+        self.assertIs(A.run_pipeline, baselines.run_pipeline)
+        self.assertIs(A.hq_results, baselines.hq_results)
+        self.assertEqual(A._alerts.__module__, A.__name__)
+        self.assertEqual(A._alerts.__qualname__, "_alerts")
 
 
 # --------------------------------------------------------------------------------------------------- D002's record
@@ -472,6 +819,37 @@ class D002RecordTests(unittest.TestCase):
         self.assertEqual(RD.compare_reading("c1", self.fake(0.568, 0.36), rec, False)["status"], "not_comparable")
         self.assertEqual(RD.compare_reading("c9", self.fake(0.568, 0.36), rec, True)["status"], "not_recorded")
 
+    def test_a_difference_says_whether_the_file_or_the_code_changed(self) -> None:
+        rec = RD.d002_record()
+        lines = {s: RD.reproduce_line(RD.compare_reading("c1", self.fake(0.571, 0.36), rec, True, s), "c1")
+                 for s in ("same", "revised", "unknown")}
+        self.assertIn("the input is the file D002 read (the same size and sha256 prefix), so the code differs",
+                      lines["same"])
+        self.assertIn("the input is not the file D002 read: MSHA has revised the file since D002's run",
+                      lines["revised"])
+        self.assertIn("so the file and the code cannot be told apart as the cause", lines["unknown"])
+
+    def test_the_recorded_input(self) -> None:
+        recorded = RD.d002_input()
+        self.assertEqual({k: recorded[k] for k in ("file", "bytes", "sha256_prefix", "run")},
+                         {"file": "Accidents.zip", "bytes": 52269752, "sha256_prefix": "62d0c861a5c3",
+                          "run": "38024536763"})
+        # the same download as D001's committed record of that day
+        self.assertIn("| `Accidents.zip` | 52,269,752 | `62d0c861a5c3…` |",
+                      (ROOT / "docs" / "collective" / "onboard" / "CHOICE-D001.md").read_text())
+        same = {"file": "Accidents.zip", "bytes": 52269752, "sha256": "62d0c861a5c3" + "0" * 52}
+        self.assertEqual(RD.compare_input(same, recorded), "same")
+        self.assertEqual(RD.compare_input(dict(same, bytes=52269753), recorded), "revised")
+        self.assertEqual(RD.compare_input(dict(same, sha256="f" * 64), recorded), "revised")
+        self.assertEqual(RD.compare_input(same, None), "unknown")
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(RD.d002_input(Path(tmp) / "missing.json"))
+            (Path(tmp) / "bad.json").write_text('{"file": "Accidents.zip", "bytes": "many"}')
+            self.assertIsNone(RD.d002_input(Path(tmp) / "bad.json"))
+        self.assertIn("the file D002 read", RD.input_line(same, "same", recorded))
+        self.assertIn("MSHA has revised the file since D002's run",
+                      RD.input_line(dict(same, bytes=1), "revised", recorded))
+
     def test_three_places_as_d002_printed_them(self) -> None:
         # D002's report rounds to four places in the file, then shows three: 0.56749 became 0.5675, shown 0.568
         self.assertEqual(RD.f3(0.56749), "0.568")
@@ -481,11 +859,11 @@ class D002RecordTests(unittest.TestCase):
 
     def test_the_audit_comparison(self) -> None:
         rec = RD.d002_record()
-        data = {"records": 1033, "mines": 10, "weeks_evaluated": 139, "review_list": [{}] * 4}
-        self.assertEqual(RD.compare_audit("c1", data, rec, True)["status"], "reproduced")
-        self.assertEqual(RD.compare_audit("c1", dict(data, mines=9), rec, True)["status"], "differs")
-        self.assertEqual(RD.compare_audit("c1", data, rec, False)["status"], "not_comparable")
-        self.assertEqual(RD.compare_audit("c2", data, rec, True)["status"], "not_recorded")
+        own = {"records": 1033, "sites": 10, "weeks": 139, "review_list": 4}
+        self.assertEqual(RD.compare_audit("c1", own, rec, True)["status"], "reproduced")
+        self.assertEqual(RD.compare_audit("c1", dict(own, sites=9), rec, True)["status"], "differs")
+        self.assertEqual(RD.compare_audit("c1", own, rec, False)["status"], "not_comparable")
+        self.assertEqual(RD.compare_audit("c2", own, rec, True)["status"], "not_recorded")
 
 
 # --------------------------------------------------------------------------------------------------- the guard
@@ -501,6 +879,10 @@ class GuardTests(DemoRun):
                 code = RD.main(["--raw", str(self.tmp / "raw"), "--out", str(out / "out"), "--settings",
                                 str(self.settings)])
         return code, o.getvalue(), e.getvalue(), out / "out"
+
+    def guard(self) -> Any:
+        export = read_export(self.tmp / "work" / "split" / "c1.txt")
+        return RD.Guard(json.loads(self.settings.read_text()), export, ())
 
     def test_a_mine_id_in_the_rendered_text_withholds_everything(self) -> None:
         mine = sorted(self.writer.ids["mines"])[0]
@@ -536,13 +918,79 @@ class GuardTests(DemoRun):
         self.assertGreaterEqual(doc["guard"]["refused_equal"], 1)
         self.assertNotIn("Quillfeather", stdout)
 
+    def test_an_unreadable_export_of_the_split_withholds_everything(self) -> None:
+        original = RD.read_export
+
+        def failing(path: Any) -> Any:
+            if Path(path).name == "c2.txt":
+                raise ExportError("cannot read it")
+            return original(path)
+
+        code, stdout, _, out = self.run_with(mock.patch.object(RD, "read_export", failing))
+        self.assertEqual(code, 1)
+        doc = json.loads((out / "demo.json").read_text())
+        self.assertEqual(doc["status"], "withheld")
+        self.assertEqual(doc["guard"]["unread"], 1)
+        self.assertNotIn("FALL OF ROOF", stdout)
+
     def test_an_error_text_naming_a_mine_is_withheld(self) -> None:
-        export = read_export(self.tmp / "work" / "split" / "c1.txt")
-        guard = RD.Guard(json.loads(self.settings.read_text()), export, ())
+        guard = self.guard()
         mine = sorted(self.writer.ids["mines"])[0]
         self.assertNotIn(mine, guard.message(f"site {mine} rejected or duplicated records"))
         self.assertEqual(guard.message("no category reaches the predicate minimum"),
                          "no category reaches the predicate minimum")
+
+    def test_an_error_text_with_narrative_words_names_or_name_words_is_withheld(self) -> None:
+        guard = self.guard()
+        narrative = next(t for t in self.writer.narratives if len(t.split()) >= 10)
+        for text in (f"bad value: {narrative}",                          # eight words of a narrative
+                     f"cannot map {NAME_WORD} to a predicate",             # a word of the controller's name
+                     f"row from {OPERATOR['contractor_id']} rejected"):    # a refused value, whole
+            with self.subTest(text=text[:30]):
+                self.assertEqual(guard.message(text), RD.WITHHELD_ERROR)
+        named = RD.Guard.__new__(RD.Guard)
+        named.__dict__.update(guard.__dict__, names=frozenset({"okonkwo"}))
+        self.assertEqual(named.message("a row of Okonkwo was rejected"), RD.WITHHELD_ERROR)
+
+    def test_the_loader_error_is_trimmed_as_d002_trims_it(self) -> None:
+        original = RD.step_draft
+
+        def unloadable(*args: Any) -> dict[str, Any]:
+            b = original(*args)
+            return dict(b, pack=None, loader_error="lexicon.json: entry 'roof fall at the far heading' is bad")
+
+        code, _, stderr, _ = self.run_with(mock.patch.object(RD, "step_draft", unloadable))
+        self.assertEqual(code, 2)
+        self.assertIn("error: DraftError: the drafted pack does not load (lexicon.json)", stderr)
+        self.assertNotIn("far heading", stderr)
+
+    def test_a_step_a_error_is_withheld_when_no_export_can_check_it(self) -> None:
+        mine = sorted(self.writer.ids["mines"])[0]
+        fetch = RD.load_fetch()
+
+        class Broken:
+            FILES = fetch.FILES
+
+            @staticmethod
+            def split(*args: Any) -> Any:
+                raise ValueError(f"a bad row at mine {mine}")
+
+        code, _, stderr, _ = self.run_with(mock.patch.object(RD, "load_fetch", lambda: Broken))
+        self.assertEqual(code, 2)
+        self.assertIn("error: ValueError: (its text is withheld: no export could be read to check it)", stderr)
+        self.assertNotIn(mine, stderr)
+
+    def test_an_unexpected_error_prints_its_class_only(self) -> None:
+        mine = sorted(self.writer.ids["mines"])[0]
+
+        def boom(*args: Any) -> Any:
+            raise RuntimeError(f"mine {mine}")
+
+        code, stdout, stderr, out = self.run_with(mock.patch.object(RD, "run", boom))
+        self.assertEqual(code, 2)
+        self.assertEqual(stderr.strip(), "error: RuntimeError (its text is not shown)")
+        self.assertNotIn("Traceback", stderr)
+        self.assertFalse(out.exists())
 
 
 # --------------------------------------------------------------------------------------------------- the html
@@ -643,11 +1091,28 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("work/demo/demo.json", text)
         self.assertNotIn("work/raw\n", text.split("upload-artifact")[1])
 
+    def test_the_newest_request_file_is_taken_in_version_order(self) -> None:
+        line = next(line for line in self.text.splitlines() if "REQUEST=$(" in line)
+        self.assertIn("sort -V", line)
+        self.assertNotRegex(line, r"\| sort \|")
+        sorter = __import__("shutil").which("sort")
+        if sorter is None:
+            self.skipTest("no sort on this machine")
+        names = "demo/onboard/record-9.json\ndemo/onboard/record-10.json\ndemo/onboard/record-2.json\n"
+        r = __import__("subprocess").run([sorter, "-V"], input=names, capture_output=True, text=True, check=True)
+        self.assertEqual(r.stdout.splitlines()[-1], "demo/onboard/record-10.json")
+
     def test_the_company_check_refuses_anything_but_a_label(self) -> None:
         self.assertIn("^c[1-9][0-9]?$", self.text)
 
     def test_no_record_file_is_committed(self) -> None:
         self.assertEqual(sorted(DEMO_DIR.glob("record-*.json")), [])
+
+    def test_the_regular_ci_runs_these_tests(self) -> None:
+        text = (ROOT / ".github" / "workflows" / "mycelic.yml").read_text()
+        self.assertIn("python -m pytest tests/onboard -q -p no:warnings", text)
+        for path in ('"demo/onboard/**"', '"tools/onboard/**"'):
+            self.assertIn(path, text.split("pull_request")[0])
 
 
 # --------------------------------------------------------------------------------------------------- the docs
@@ -665,6 +1130,8 @@ class DocsTests(unittest.TestCase):
         text = (DEMO_DIR / "README.md").read_text()
         self.assertIn("python tools/onboard/fetch_msha.py download --out", text)
         self.assertIn("python demo/onboard/run_demo.py --raw", text)
+        self.assertIn("## The D002 figures it compares with", text)
+        self.assertNotIn("figures it reproduces", text)
 
     def test_the_talk_track_quotes_no_count_of_its_own(self) -> None:
         text = (DEMO_DIR / "SCRIPT.md").read_text()
@@ -676,6 +1143,16 @@ class DocsTests(unittest.TestCase):
         self.assertIn("'<3'", text)
         self.assertEqual(len(re.findall(r"^\| \d:\d{2}–\d:\d{2} \|", text, re.M)), 6)
         self.assertIn("| 1:50–2:00 |", text)
+
+    def test_the_talk_track_says_two_commands_and_reads_only_the_counted_items(self) -> None:
+        text = (DEMO_DIR / "SCRIPT.md").read_text()
+        self.assertNotIn("One command points the drafter", text)
+        self.assertIn("Two commands: one downloads the file, one runs the drafter on it", text)
+        beat = next(line for line in text.splitlines() if line.startswith("| 1:25–1:50 |"))
+        self.assertNotIn("Read the review list", beat)
+        self.assertIn("reference only", beat)
+        self.assertIn("record-level codes", beat)
+        self.assertIn("From those counts alone", beat)
 
 
 if __name__ == "__main__":

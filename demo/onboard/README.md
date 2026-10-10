@@ -1,9 +1,13 @@
 # The pack drafter on public data
 
-Point D002's pipeline at MSHA's public file of mine accidents, a field no pack covers, for one mine operator. In one
-command it reads the operator's export, drafts a pack from its training years alone, reads the later years it never
-saw, and counts patterns across the operator's mines while only weekly counts leave each mine. Every number it shows
-is computed by the run. The figures D002 recorded are read from its choice file and shown beside them.
+Point D002's pipeline at MSHA's public file of mine accidents, a field no pack covers, for one mine operator. After
+the download it reads the operator's export, drafts a pack from its training years alone, reads the later years it
+never saw, and counts patterns across the operator's mines while only weekly counts leave each mine, under a mine label.
+Every number it shows is computed by the run. The figures D002 recorded are read from its choice file and shown beside
+them.
+
+D002 splits the file by controller (`CONTROLLER_ID`, a parent company that can run several operators and mines) and
+calls each one an operator, c1 to c5. This README does the same.
 
 This is the demo option "The pack drafter on public data, live" of `docs/strategy/YC-BRIEF.md`, section 5. D002 is
 `docs/collective/onboard/CHOICE-D002.md` (run 38024536763, passed all six criteria).
@@ -31,7 +35,8 @@ and fits a phone. Exit codes: 0 shown; 1 withheld by the guard, or the drafted p
 input or run error.
 
 **To record it on a runner:** start the `onboard-demo` workflow by hand (operator c1 unless the input names another),
-or push `demo/onboard/record-<n>.json` holding `{"company": "c1"}`. It runs the demo's tests, downloads, runs the
+or push `demo/onboard/record-<n>.json` holding `{"company": "c1"}` (on a push it takes the file with the highest
+number, in version order: `record-10.json` after `record-9.json`). It runs the demo's tests, downloads, runs the
 demo, prints `demo.json` between the markers and uploads `demo.html` and `demo.json` only. No request file is
 committed here; the owner pushes one to record.
 
@@ -39,31 +44,50 @@ committed here; the owner pushes one to record.
 
 Each step shows its wall time.
 
+The header says what is set up for this field: the settings file names this source's columns (the columns it
+expects, the five roles, the refused columns and the column that splits the file), and `fetch_msha.py` (its line
+count is printed) is MSHA's download and split code. The drafter's code (the onboard package) names no column. The
+header also gives the input file's size and sha256, and whether it is the file D002 read
+(`demo/onboard/d002-input.json` holds D002's record of it: its size and the first 12 hex digits of its sha256).
+
 - **(a) The export read.** `fetch_msha.py split`, with the settings, cuts MSHA's file into one export per operator,
-  c1 to c5 by D002's rule. The demo shows the file's rows, rejected rows, columns and date format; how many operators
-  there are and qualify; the chosen operator's rows and columns; and the roles. The roles are data in the settings
-  file. The refused columns (operator, controller and contractor names and ids, and others) are read only to refuse
-  words and are never shown.
+  c1 to c5 by D002's rule. The demo shows the file's rows, rejected rows, columns and date format; how many
+  controllers there are and qualify; the chosen operator's rows and columns; and the roles. The roles are data in the
+  settings file. The refused columns (operator, controller and contractor names and ids, and others) are read only to
+  refuse words and are never shown.
 - **(b) The drafted pack.** `draft.draft_export` over the training years, the loader, and the privacy floor
   (`check.check_pack`). It shows how many filed categories passed the floor, which became predicates, and each
-  predicate's label and first terms, exactly as D002's report prints them. It says what the refusal removed, in
-  counts.
+  predicate's label and first terms as D002's report prints them, less any term written like a name (see the guard).
+  It says what the refusal removed, in counts, and how many terms were withheld as names.
 - **(c) Reading the held-out years.** The functions of `onboard/score.py`, in the order D002's per-operator step calls
   them: the same sample (up to 200 records), the same seeds and the same 10,000 bootstrap draws. Each reader sees
   only the narrative and is scored against the filed category. It shows the drafted pack's micro F1 with its interval
   against the three controls (the majority prior, permuted labels, label names), the difference from the best
   control, and D002's recorded figure beside the demo's. The last line says whether they reproduce D002's run, differ
-  from it, or cannot be compared (other settings).
-- **(d) The cross-mine audit.** D002's M4: the operator's normalised export of the held-out years and the pilot audit
-  (`pilot.audit.audit`) with no outcomes, every audit setting at its default. For each mine (m01 onwards) it shows the
-  weekly bundles and the cells that left, and how many cells carried a count under 3 (sent as `'<3'`). Then the alerts
-  by channel (X and S read only those weekly cells; R_mf, P and PRR are reference channels over record-level codes) and
-  the review list: each item as a category label, a week range, a number of mines and the channels. Never a mine id.
-- **(e) What the review list means.** One line: patterns seen at several of the operator's mines that match no outcome
-  on record, because the demo has no outcomes file. Only the operator's own people could say which are real.
+  from it, or cannot be compared (other settings). When they differ with D002's settings, it says whether the input is
+  the file D002 read (then the code differs) or not (then MSHA has revised the file since, or it is another file).
+- **(d) The cross-mine audit.** D002's M4, with each mine id replaced by its label (m01 onwards, in the order of the
+  ids) in the normalised export of the held-out years, before the pilot audit (`pilot.audit.audit`) runs with no
+  outcomes, every audit setting at its default. So every bundle and cell that leaves a mine carries its label, never
+  its id. The same audit then runs under the mines' own ids, D002's M4 path, and the demo says whether the two give the
+  same result (alerts, weeks, review list and counts); D002's recorded M4 counts are compared with that run. For each
+  mine it shows the weekly bundles and the cells that left, and how many cells carried a count under 3 (sent as
+  `'<3'`). The bytes that left the mines are scanned by the guard.
+  Then the alerts by channel, X and S first: they read only the weekly cells that left the mines, and each alerts only
+  when a category's counts rise at 2 or more mines in the same weeks (the pack's cross-site minimum). R_mf, P and PRR
+  are reference channels over record-level codes counted centrally. With no outcomes, every X, S and R_mf alert lands
+  on the review list, grouped by pattern; P and PRR add nothing to it. The review list is shown in two parts:
+  - **from the weekly counts:** each item X or S raised, with the weeks of its X and S alerts, the number of mines
+    with records of it in the 8 weeks up to one of those alerts, and its channels (and whether R_mf also raised it);
+  - **reference only:** each item R_mf alone raised, apart. It needs record-level codes counted centrally, which this
+    setup does not send.
+- **(e) What the review list means.** One line: how many items came from the weekly counts (categories whose counts
+  rose at 2 or more of the operator's mines in the same weeks, matching no outcome on record because the demo has no
+  outcomes file; only the operator's own people could say which are real), and how many are reference only.
 
-The cells per mine are counted from the audit's own collective store while the audit runs (`watching_cells`). The
-audit's result does not change.
+The cells per mine and the bytes that left are read from the audit's own collective store and receive log while the
+labelled audit runs, and the X and S alerts as the audit computed them (`Watch`). The audit's result does not change,
+and every function the watch wraps is put back.
 
 ## What it does not show
 
@@ -72,11 +96,14 @@ audit's result does not change.
 - **The filed categories are the answer key** of the reading score. They are not checked labels. The reader is the
   lexical extractor, not a model. The interval covers this operator's sampled records only.
 - **Public data.** Records written to a regulator, not a company's own files.
-- **Not "no configuration".** The settings file names five columns of this source, and `fetch_msha.py` is download
-  code for it (D002's M1 counts such code). The drafter's code names no column.
-- **Operators are c1 to c5** and mines m01 onwards. No name, id, narrative or record text is printed or written.
+- **Not "no configuration".** The settings file names this source's columns, and `fetch_msha.py` is download code
+  for it (D002's M1 counts such code). The drafter's code names no column. The screen says so too.
+- **Operators are c1 to c5** and mines m01 onwards. The guard (below) looks for every record id, mine id and refused
+  value of the split. A drafted term is withheld when the operator's narratives write one of its words like a name. A
+  name written in lower case, or only in narratives written all in capitals, is not caught by that check; the screen
+  prints how many narratives are written all in capitals.
 
-## The D002 figures it reproduces
+## The D002 figures it compares with
 
 From `CHOICE-D002.md`, "Runs", run 38024536763. The demo reads them from that file when it runs.
 
@@ -95,33 +122,50 @@ From `CHOICE-D002.md`, "Runs", run 38024536763. The demo reads them from that fi
 - D002 recorded each operator's F1 to three places and no per-operator interval, so the demo's intervals have nothing
   to compare with. They use D002's seeds and draws, so on the same file they are the intervals D002's arm file held.
 - The demo compares to three places, after rounding to four as D002's report did. With D002's settings, a difference
-  means the input file or the code differs from that run's (a revised file, for example), and the demo says so.
+  means the input file or the code differs from that run's, and the demo says which, from the input's size and
+  sha256 against D002's record (`d002-input.json`: 52,269,752 bytes, sha256 `62d0c861a5c3…`, as D002's report.md
+  printed it; `CHOICE-D001.md` records the same for D001's download that day). MSHA refreshes the file, so a live run
+  will most likely say the file was revised.
 
 ## The guard
 
 Before anything is printed or written:
 
-- the strings that came from records (category labels and drafted terms) go through D002's last guard, against the
-  operator's own export (`report.company_hits`);
-- the whole console text, `demo.json` and `demo.html` are scanned for every record id and mine id of every operator in
-  the split (D002's backstop, `report.Backstop`), and for every value of a refused column of at least four characters.
+- the strings that came from records (category labels and every drafted term, shown or not) go through D002's last
+  guard, against the operator's own export (`report.company_hits`);
+- a drafted term is withheld from the screen when the operator's narratives write one of its words like a name: a
+  capital first letter away from the start of a sentence in at least nine of ten uses, or only capitalised at sentence
+  starts (`name_shaped_words`). Narratives written all in capitals cannot be read for this and are counted;
+- the whole console text, `demo.json`, `demo.html` and the bytes that left the mines are scanned for every record id
+  and mine id of every operator in the split (D002's backstop, `report.Backstop`, values of at least five
+  characters), and for every value of a refused column of at least four characters that holds a letter, or of five.
+  An export of the split that cannot be read counts as a hit, as in D002's guard.
 
 A hit replaces every output with the hit counts by kind and nothing else, and the exit code is 1. An error text is
-shown only when it holds none of the operator's values.
+shown only when the same checks find nothing in it (and none of its words is refused or written like a name); a step
+(a) error with no readable export to check it against is never shown. The drafted pack's loader error is cut to its
+first part, as D002 cuts it. Any other error prints its class name only, never a traceback.
 
 ## Dry run (synthetic)
 
 On a synthetic file in MSHA's layout (every value invented: every field in double quotes, pipe-delimited, dates
-mm/dd/yyyy; 276,568 rows, 2,103 operators, c1 with 2,313 rows at 5 mines), with D002's settings, on one machine with
-4 cores: (a) 3.5 s, (b) 0.4 s, (c) 5.3 s, (d) 2.5 s, the guard 0.2 s; 11.9 s in all. Every step ran and nothing was
-withheld, and none of the markers planted in the file's identifying columns and narratives was in any output. Its F1 values mean nothing about MSHA, and step (c) said they differ from D002's run, as it should. The real
-file's narratives are longer and its c1 larger (D002's M4: 1,033 held-out records at 10 mines); D002's MSHA arm took
-89 s for five operators on a shared runner, scoring and intervals included.
+mm/dd/yyyy; 276,568 rows, 2,103 controllers, c1 with 2,313 rows at 5 mines), with D002's settings, on one machine with
+4 cores: (a) 3.7 s, (b) 0.4 s, (c) 5.3 s, (d) 6.3 s (the audit runs twice: under the mine labels and under the mines'
+own ids), the guard 0.6 s; 16.3 s in all. Every step ran and nothing was withheld. The audit under the labels gave
+the same result as under the own ids. None of the markers planted in the file's identifying columns and narratives,
+and no eight words of any narrative, was in stdout, stderr, `demo.json` or `demo.html`. Its F1 values mean nothing
+about MSHA. Step (c) said they differ from D002's run and that the input is not the file D002 read, as it should. The
+real file's narratives are longer and its c1 larger (D002's M4: 1,033 held-out records at 10 mines); D002's MSHA arm
+took 89 s for five operators on a shared runner, scoring and intervals included.
 
 ## Files
 
 - `run_demo.py`: the demo.
 - `SCRIPT.md`: a 2-minute talk track that says only what the output shows.
 - `.github/workflows/onboard-demo.yml`: the recording workflow.
+- `d002-input.json`: D002's record of its input file (size and sha256 prefix).
 - `tests/onboard/test_onboard_demo.py`: every step on a synthetic export in MSHA's layout; nothing identifying in any
-  output; the reading numbers equal `score.run_arm`'s and the audit D002's M4 path; the page has no script or link.
+  output, names planted in tens of narratives included; what left the mines carries labels only; a reference-only
+  item is never shown with the counted ones; the reading numbers equal `score.run_arm`'s and the audit D002's M4 path;
+  the page has no script or link. The regular CI (`mycelic.yml`) runs `tests/onboard`, and the recording workflow
+  runs the demo's tests before it records.

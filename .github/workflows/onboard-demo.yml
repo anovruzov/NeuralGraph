@@ -2,7 +2,8 @@ name: onboard-demo
 
 # The pack drafter on public data (demo/onboard/README.md): D002's pipeline pointed at MSHA's public accident file for
 # one mine operator. Starts by hand (workflow_dispatch, operator c1 unless the input names another) or when a request
-# file demo/onboard/record-*.json ({"company": "c1"}) is pushed; it then takes the newest one. It downloads the file,
+# file demo/onboard/record-*.json ({"company": "c1"}) is pushed; it then takes the one with the highest number
+# (record-10.json after record-9.json: version order, sort -V). It downloads the file,
 # runs the demo, prints demo.json between markers with its sha256, and uploads demo.html and demo.json, nothing else:
 # never the download, the split exports or the drafted pack (the demo keeps those in a temporary directory that it
 # deletes). A withheld demo (exit 1) still uploads its two files, which then hold only the guard's hit counts.
@@ -33,14 +34,14 @@ jobs:
           python-version: "3.11"
       - name: offline tests
         run: python -m unittest tests.onboard.test_onboard_demo
-      - name: the operator (the newest request file's on a push, else the input; c1 by default)
+      - name: the operator (on a push, the request file with the highest number; else the input; c1 by default)
         env:
           EVENT: ${{ github.event_name }}
           INPUT_COMPANY: ${{ github.event.inputs.company }}
         run: |
           COMPANY="${INPUT_COMPANY:-c1}"
           if [ "$EVENT" = "push" ]; then
-            REQUEST=$(ls demo/onboard/record-*.json | sort | tail -n 1)
+            REQUEST=$(ls demo/onboard/record-*.json | sort -V | tail -n 1)
             echo "request file: $REQUEST"
             COMPANY=$(python -c "import json,sys; print(json.load(open(sys.argv[1]))['company'])" "$REQUEST")
           fi
