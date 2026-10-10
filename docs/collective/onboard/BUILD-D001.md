@@ -166,13 +166,15 @@ Modelled on `vehicle-replay.yml`, with the same pinned action commits.
      `python -m mycelic.collective.pilot.audit run` on c1's drafted pack (M4);
   8. `report`, with `if: always()`, so that a failed step still yields a report of what finished.
 - **Upload** (`if: always()`): `report.json`, `report.md`, every `arm.json`, and the drafted packs whose `check`
-  passed. Never the downloads, the split exports, the normalised records or `audit.json`.
+  passed. Never the downloads, the split exports, the normalised records or `audit.json`. A withheld report, or no
+  report, uploads alone: no arm file and no pack (amendment A5).
 
 ## 7. The report and its printed blocks
 
 - `report.json`: `kind` `onboard_d001_report`, `schema_version` 1, the settings sha256, the code commit, the sha256
-  of every file under `mycelic/collective/onboard/` and `tools/onboard/`, the downloads' sizes and sha256, the
-  download scripts' line counts, the definition lines, each arm (per company: counts, role inference, pack sizes,
+  of every file under `mycelic/collective/onboard/` and `tools/onboard/` and of every module the download scripts
+  import from `tools/` (amendment A8), the downloads' sizes and sha256, the line counts of that download code, the
+  definition lines, each arm (per company: counts, role inference, pack sizes,
   hashes, labels with corpus counts, first 10 terms per predicate, check results; per reader: micro precision, recall
   and F1 with intervals, macro F1 with interval, coverage; the differences; for NHTSA the matched space's sizes and
   the hand-pack comparisons), the audit summary (records, number of sites, weeks evaluated, alerts per channel,
@@ -187,8 +189,9 @@ Modelled on `vehicle-replay.yml`, with the same pinned action commits.
   ```
 
   and the same for `report.md`. The sha256 is of the file's bytes.
-- **The last guard** of rule 8 runs before either file is written. A hit writes a report holding only the hit counts
-  by kind and the verdict "withheld", and M3 fails.
+- **The last guard** of rule 8 runs before either file is written. As amended (A5), it reads per arm the strings the
+  report prints that came from records (labels, ids, terms, error texts) against that arm's exports. A hit writes a
+  report holding only the hit counts by kind and the verdict "withheld", and M3 fails.
 
 ## 8. Tests
 
@@ -274,16 +277,20 @@ Built on branch `wf/d001` from the design commit `539ca60`. The rule decided eve
 the choice below was made before any record of either source was seen. None of them changes a criterion. No code was
 run on MSHA or NHTSA records: this machine cannot reach them, and every test and the dry run used invented records.
 
+Two reviews then found that the rule as written failed privacy checks by construction. The rule was amended before
+any run (`CHOICE-D001.md`, "Amended before any run, 2026-10-09", commit `ba7b754`), and the code was fixed on
+`wf/d001-fix`. This section describes the code as it now stands; "The review findings" below lists each finding.
+
 ### What is where
 
 | File | What it holds |
 |---|---|
 | `mycelic/collective/onboard/exports.py` | rule 1.1: decoding, format and delimiter, list columns, rejected rows by reason |
 | `mycelic/collective/onboard/roles.py` | the roles file, rule 1.2's evidence and inference, rule 1.3's date formats |
-| `mycelic/collective/onboard/draft.py` | rules 1.3 to 1.6 and the two control lexicons of rule 4; the normalised export |
-| `mycelic/collective/onboard/check.py` | rule 1.7, the loader's check, M1's package and label scans |
+| `mycelic/collective/onboard/draft.py` | rules 1.3 to 1.6, the one refusal of amendment A2 (`Refusal`, `export_refusal`), the two control lexicons of rule 4; the normalised export |
+| `mycelic/collective/onboard/check.py` | rule 1.7 as amended (A3: the derived strings and the template rebuild), the loader's check, M1's package and label scans |
 | `mycelic/collective/onboard/score.py` | one arm: rules 2 to 6 |
-| `mycelic/collective/onboard/report.py` | both arms, the criteria, the last guard of rule 8, the printed blocks |
+| `mycelic/collective/onboard/report.py` | both arms, the criteria, the last guard of rule 8 as amended (A5), the printed blocks |
 | `mycelic/collective/onboard/__main__.py` | the CLI: `draft`, `export`, `check`, `score`, `report`, each with `--dry-run` |
 | `mycelic/collective/onboard/data/` | `defaults.json`, `lang/en.json` and the neutral template (eight files) |
 | `docs/collective/onboard/D001-settings.json` | every value of the rule; `params` equal `data/defaults.json` |
@@ -306,8 +313,20 @@ run on MSHA or NHTSA records: this machine cannot reach them, and every test and
 - **The normalised export** uses the keys `record_ref`, `site`, `received_date`, `codes`, `narrative` and `scope`
   (plus `entities` and `reporter` when declared). The mapping requires nothing, so a row without a narrative still
   carries its codes.
-- **The check** reads site, record-id and forbidden values from every row of the export, not only the training rows.
-  It recounts term presence from the folded sentences directly, not through the drafter's candidate terms.
+- **The refusal** (A2) is one class, `draft.Refusal`, built by `draft.export_refusal` from every row's record-id, site
+  and forbidden values. The drafter, the check and the last guard call it. Lengths are counted after folding. The
+  check recounts term presence from the folded sentences directly, not through the drafter's candidate terms.
+- **A refused category** is found by planning the predicates, refusing every category one of whose strings (its
+  spellings, its label cut to 80 and to 120 characters, its id, its placeholder) is refused, and planning again
+  without them until nothing more is refused. A removal can change other ids and the 199 cap.
+- **The template rebuild** (A3, 3b) compares each pack file's parsed JSON with what `check.rebuild_pack` makes, so a
+  pack written with other spacing but the same content passes. A pack the rebuild cannot read fails.
+- **Loader errors** keep the failing file and the problem, without the JSON path, which can name a predicate or a
+  category spelling. A company whose drafted pack does not load is reported with the failing file only.
+- **A pack that failed the floor** keeps counts only in `arm.json` (`strings_withheld`): no label, id or term. Its
+  `draft.json` and `check.json` stay inside the job.
+- **M1's download code** is listed per arm in the settings (`download_code`). A test checks that each list is its
+  script's import closure within `tools/`.
 - **The generator base** takes the IT pack's rates (mixed language set to 0) and surface weights. Its six sites and
   six reporters are invented names, not the IT pack's reporters, so that no field's words sit in the template.
 - **The controls** are the drafted pack with each lexicon replaced; its generator and fixtures stay. The loader checks
@@ -321,10 +340,14 @@ run on MSHA or NHTSA records: this machine cannot reach them, and every test and
 - **The best control** on a tie of micro F1 is the first of majority prior, permuted labels, label names.
 - **Per-company intervals** use the arm's seed.
 - **Numbers written** to `arm.json` and the report are rounded to four places. Every decision uses full precision;
-  C1's margin compares the exact difference of two fractions.
-- **The last guard** matches record ids, site values and forbidden values as written, case-sensitive, as whole words.
-  It matches narrative 8-grams on folded tokens. Its sentinels come from every row of both arms' exports. If it
-  cannot read an export, it cannot clear the report: the report is withheld as for a hit, and M3 fails.
+  C1's margin compares the exact difference of two fractions. A criterion's deciding values sit unrounded under
+  `exact`, with each comparison's outcome, and the report prints them in full beside the comparison (A8).
+- **The last guard** (A5) reads, per arm, these printed strings of each arm file: the passing-floor labels, each
+  predicate's label and id, its first terms (a placeholder read as an id), the majority prior's id, a company's error
+  text and a loader error. Terms go through the term rule, the rest through the string rule, against the refusal
+  built from every row of every company export of that arm. The 8-gram scan runs on the parsed strings. If it cannot
+  read an export, it cannot clear the report: the report is withheld as for a hit, and M3 fails. The withheld report
+  gives each arm's hit counts by kind and names the kinds found, never a string.
 - **M4's "has a summary"** is read as "the channel ran": no reason and an alert timeline. This keeps the column name
   `summary` out of the package (M1).
 - **Definition lines:** the first line naming a column, plus the following lines up to a blank line, a line naming
@@ -334,24 +357,35 @@ run on MSHA or NHTSA records: this machine cannot reach them, and every test and
   the verdict is pass. Every workflow step after the run-start marker runs when an earlier one failed. A job stopped
   by its time limit writes no report: that run fails.
 
-### Conflicts with the rule as written, for the owner
+### Conflicts with the rule as written, and how they were settled
 
-The code follows the rule's words in each case. Each can change a result, so the owner may want an amendment before
-any run.
+The build first followed the rule's words. Each conflict below could change a result. The amendment before any run
+settles all of them.
 
 1. **October in `D-MON` dates.** Rule 1.3 cuts a date at its first space or `T`. An upper-case `OCT` holds a `T`, so
    `04-OCT-2021` becomes `04-OC` and does not parse. If the MSHA date column were written that way, every October
    date would fail to parse, the column could miss the 0.95 share, and the drafts would fail. The probe did not show
-   the column's format (`SOURCES.md`).
+   the column's format (`SOURCES.md`). **Settled by A1:** the cut is at a space, or at a `T` a digit follows.
 2. **A category spelling equal to a forbidden value.** Rule 1.4 puts every category that passes the floor into the
    value map. Check 1.7.3 then fails the pack if any pack string folds equal to a forbidden, site or record-id value.
    A missing-value marker shared by the category column and a forbidden column (such as `?`) would fail M3 by
-   construction.
+   construction. **Settled by A2:** such a category is left out of every pack file and counted.
 3. **The last guard and common words.** A forbidden value of four or more characters with a letter that is also a
    common word (such as `OTHER` in a manufacturer column) withholds the report if a printed category label is that
-   word.
+   word. **Settled by A5:** the guard reads only the printed strings that came from records, per arm.
 4. **A bigram longer than 64 characters** would pass rule 1.5 and fail the loader's term limit (M2). It needs two very
-   long words side by side in at least ten records at three sites.
+   long words side by side in at least ten records at three sites. **Settled by A4.**
+5. **The template's own strings against record values** (found by the reviews). Check 1.7.3 compared every pack
+   string, keys included. NHTSA's sites are lower-cased states, and Idaho's `id` equals the key `id` of `pack.json`:
+   one complaint from Idaho failed every NHTSA pack. **Settled by A3:** only the strings derived from records are
+   compared, and the rest of the pack must rebuild from the template.
+6. **Two refused sets** (found by the reviews). The drafter refused training-row values; the check refused every
+   row's. A term learned honestly failed the floor when a test-window row held it as a forbidden value, and a refusal
+   was never counted. **Settled by A2:** one refusal from every row, and `draft.json` counts refused terms and
+   categories.
+7. **Names and vehicles** (found by the reviews). A surname inside a multi-word name passed every check, and NHTSA's
+   vehicle column was not forbidden, so a model name could become a printed term. **Settled by A2** (a word of a
+   multi-word forbidden value) **and A6** (`vehicle` forbidden).
 
 ### Tests
 

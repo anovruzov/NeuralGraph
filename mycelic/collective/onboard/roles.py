@@ -4,7 +4,8 @@
 "entities": [...], "reporter": null|column, "forbidden": [...]}}``: one column per single role, each column at most
 one role. :func:`check_roles` checks every declared column against the export's header.
 
-**Dates.** The part of a value before its first space or ``T`` is parsed, in the formats of :data:`DATE_FORMATS`
+**Dates.** The part of a value before its first space, or before a ``T`` followed by a digit (amendment A1), is
+parsed, in the formats of :data:`DATE_FORMATS`
 (``MON`` is a month abbreviation of the language file, any case; a two-digit year ``YY`` is ``20YY`` below 70, else
 ``19YY``). :func:`choose_date_format` picks the first format that parses at least the given share of the non-empty
 values.
@@ -40,7 +41,7 @@ _DATE_RE = {
     "D-MON-YYYY": re.compile(r"(?P<d>[0-9]{1,2})-(?P<mon>[A-Za-z]{3})-(?P<y>[0-9]{4})", re.ASCII),
     "D-MON-YY": re.compile(r"(?P<d>[0-9]{1,2})-(?P<mon>[A-Za-z]{3})-(?P<yy>[0-9]{2})", re.ASCII),
 }
-_DATE_CUT = re.compile(r"[ T]")
+_DATE_CUT = re.compile(r" |T(?=[0-9])")
 _TOKEN = re.compile(r"\w+")
 _LETTER = re.compile(r"[^\W\d_]")
 _HEADER_SPLIT = re.compile(r"[^0-9A-Za-z]+")
@@ -128,7 +129,8 @@ def check_roles(roles: Roles, export: Export) -> None:
 # --------------------------------------------------------------------------------------------------- dates
 
 def date_part(value: str) -> str:
-    """Rule 1.3: the part of a date value before its first space or ``T``."""
+    """Rule 1.3 as amended (A1): the part of a date value before its first space, or before a ``T`` that a digit
+    follows (an ISO time); an upper-case month such as ``OCT`` is not cut."""
     return _DATE_CUT.split(value, maxsplit=1)[0]
 
 

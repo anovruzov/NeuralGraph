@@ -1,4 +1,4 @@
-"""The privacy floor of a drafted pack (D001 rule 1.7), the loader's check (M2) and the label scan of M1.
+"""The privacy floor of a drafted pack (D001 rule 1.7 as amended), the loader's check (M2) and the label scan of M1.
 
 Every check is recomputed from the export, never taken from the drafter's counts:
 
@@ -6,13 +6,19 @@ Every check is recomputed from the export, never taken from the drafter's counts
    folded sentence, in at least N corpus records at at least S sites (:func:`term_presence`, which reads the folded
    sentences directly rather than the drafter's candidate terms);
 2. **value floor:** every category spelling in the value map, and every declared entity id, passes the same floor;
-3. **values:** no string in any pack file, keys included, folds equal to a value of a forbidden, site or record-id
-   column (every row of the export), and no lexicon term holds a folded site or forbidden value as whole words;
-4. **text:** no string in any pack file holds ``ngram_tokens`` consecutive ``\\w+`` tokens (folded) that occur
+3. **refused strings and terms** (amendment A3, 3a): the strings the drafter derived from records, read from the
+   written pack by position (:func:`derived_strings`: the specific predicates' ids, labels and placeholders, their
+   code labels, the value map's spellings, the declared entity types' ids and aliases), and apart the learned lexicon
+   terms. The export's one :class:`.draft.Refusal` (every row's record-id, site and forbidden values, the very
+   function the drafter used) refuses none of them: a term by its term rule, every other string by its string rule.
+   The template's own strings and keys are never compared with record values;
+4. **template** (A3, 3b): every other string is the template's. :func:`rebuild_pack` fills the neutral template and
+   the language file with the strings of 3 and the written pack must hold the same content, file by file;
+5. **text:** no string in any pack file holds ``ngram_tokens`` consecutive ``\\w+`` tokens (folded) that occur
    consecutively in any narrative of the export, training or test.
 
-The result names each check with counts and the files where a failure sits, never the offending string: a failing
-pack may hold exactly what must not be printed.
+The result names each check with counts, kinds and the files where a failure sits, never the offending string: a
+failing pack may hold exactly what must not be printed.
 """
 from __future__ import annotations
 
@@ -26,12 +32,13 @@ from typing import Any, Iterable, Mapping, Sequence
 from ..jsonio import strict_load
 from ..packs.canonical import fold_phrase, folded, is_alnum, split_sentences, term_regex
 from ..packs.loader import RESERVED
-from .draft import (FIXTURES, PACK_FILES, Language, ValueIndex, Window, _cells, build_corpus, category_floor,
-                    date_column, entity_id, load_language, load_params, load_template, load_written, window_rows)
+from .draft import (FIXTURES, PACK_FILES, REFUSAL_KINDS, EntityType, Language, Plan, Refusal, Split, Window,
+                    assemble_pack, build_corpus, category_floor, date_column, entity_id, export_refusal,
+                    load_language, load_params, load_template, load_written, window_rows)
 from .exports import Export
 from .roles import Roles
 
-CHECKS = ("loader", "term_floor", "value_floor", "fold_equal", "term_contains", "ngram", "labels")
+CHECKS = ("loader", "term_floor", "value_floor", "refused_strings", "refused_terms", "template", "ngram", "labels")
 _TOKEN = re.compile(r"\w+")
 _RUN = re.compile(r"[^\W_]+")
 
@@ -63,6 +70,94 @@ def pack_strings(pack_dir: str | Path) -> list[tuple[str, str]]:
             if line.strip():
                 out += [(FIXTURES, s) for s in json_strings(strict_load(line))]
     return out
+
+
+def derived_strings(pack_dir: str | Path, template: Mapping[str, Any]) -> tuple[list[tuple[str, str]],
+                                                                               list[tuple[str, str]]]:
+    """Amendment A3, 3a: ``(file, string)`` for every string the drafter derived from records, read from the written
+    pack by position (the specific predicates' ids, labels and placeholders, their code labels and predicates, the
+    value map's spellings, the declared entity types' ids and aliases); and apart ``(file, term)`` for every learned
+    lexicon term. The other bucket's label and phrase and every template string are left out: none comes from a
+    record."""
+    pack_dir = Path(pack_dir)
+    ids = template["ids.json"]
+    other = ids["other_predicate"]
+    scope_type = next(iter(template["vocabulary_base.json"]["entity_types"]))
+    vocab = strict_load((pack_dir / "vocabulary.json").read_bytes())
+    codes = strict_load((pack_dir / "codes.json").read_bytes())
+    mapping = strict_load((pack_dir / "mapping.json").read_bytes())
+    aliases = strict_load((pack_dir / "aliases.json").read_bytes())
+    strings: list[tuple[str, str]] = []
+    terms: list[tuple[str, str]] = []
+    for p, pred in vocab["predicates"].items():
+        if p == other:
+            continue
+        strings += [("vocabulary.json", p), ("vocabulary.json", pred["label"])]
+        for lexicon in pred["lexicon"].values():
+            for t in lexicon:
+                (strings if t.startswith(ids["placeholder_prefix"]) else terms).append(("vocabulary.json", t))
+    for spec in codes.values():
+        if spec["predicate"] != other:
+            strings += [("codes.json", spec["label"]), ("codes.json", spec["predicate"])]
+    for spec in mapping["codes"]:
+        strings += [("mapping.json", s) for s in (spec["value_map"] or {})]
+    for t, et in vocab["entity_types"].items():
+        if t != scope_type:
+            strings += [("vocabulary.json", e) for e in et["ids"] or ()]
+    for t, table in aliases.items():
+        if t != scope_type:
+            for alias, eid in table.items():
+                strings += [("aliases.json", alias), ("aliases.json", eid)]
+    return strings, terms
+
+
+def refusal_result(items: Sequence[tuple[str, str]], refuse: Any, what: str) -> dict[str, Any]:
+    """One refusal check's result: counts by kind and the files where a refused string sits, never the string."""
+    kinds: Counter[str] = Counter()
+    files: set[str] = set()
+    for name, s in items:
+        kind = refuse(s)
+        if kind is not None:
+            kinds[kind] += 1
+            files.add(name)
+    return {"passed": not kinds, what: len(items), "failures": sum(kinds.values()),
+            "kinds": {k: kinds[k] for k in REFUSAL_KINDS}, "files": sorted(files)}
+
+
+def rebuild_pack(loaded: Mapping[str, Any], lang: Language, template: Mapping[str, Any],
+                 params: Mapping[str, Any], roles: Roles) -> dict[str, Any]:
+    """Amendment A3, 3b: the pack the neutral template and the language file make from the written pack's own derived
+    strings (predicate ids, code labels, value map, lexicons, entity types and aliases) and its id."""
+    ids = template["ids.json"]
+    scope_type = next(iter(template["vocabulary_base.json"]["entity_types"]))
+    vocab, codes = loaded["vocabulary.json"], loaded["codes.json"]
+    pred_code = {spec["predicate"]: code for code, spec in codes.items() if code != ids["other_code"]}
+    pids = tuple(sorted(pred_code, key=lambda p: pred_code[p]))
+    plan = Plan(ids=pids, of_key={}, labels={p: codes[pred_code[p]]["label"] for p in pids},
+                codes={p: pred_code[p] for p in pids}, counts={},
+                value_map=dict(loaded["mapping.json"]["codes"][0]["value_map"] or {}),
+                other_id=ids["other_predicate"], other_code=ids["other_code"], split=Split((), (), ()))
+    lexicon = {p: list(vocab["predicates"][p]["lexicon"][lang.code]) for p in pids}
+    etypes = [EntityType(id=t, column=et["label"], label=et["label"], ids=tuple(et["ids"] or ()),
+                         aliases=dict(loaded["aliases.json"].get(t, {})))
+              for t, et in sorted(vocab["entity_types"].items()) if t != scope_type]
+    return assemble_pack(loaded["pack.json"]["id"], plan, lexicon, lang, template, params, roles, etypes)
+
+
+def template_result(pack_dir: str | Path, lang: Language, template: Mapping[str, Any], params: Mapping[str, Any],
+                    roles: Roles) -> dict[str, Any]:
+    """Amendment A3, 3b: the files whose content differs from :func:`rebuild_pack`'s, or the error that stopped the
+    rebuild (a pack the template cannot make)."""
+    pack_dir = Path(pack_dir)
+    try:
+        loaded: dict[str, Any] = {name: strict_load((pack_dir / name).read_bytes()) for name in PACK_FILES}
+        loaded[FIXTURES] = [strict_load(line) for line in (pack_dir / FIXTURES).read_bytes().split(b"\n")
+                            if line.strip()]
+        rebuilt = rebuild_pack(loaded, lang, template, params, roles)
+    except (OSError, KeyError, TypeError, ValueError, AttributeError, IndexError, StopIteration) as err:
+        return {"passed": False, "files": [], "error": err.__class__.__name__}
+    differ = [name for name in (*PACK_FILES, FIXTURES) if json.loads(json.dumps(rebuilt[name])) != loaded[name]]
+    return {"passed": not differ, "files": differ, "error": None}
 
 
 def _runs(text: str) -> list[tuple[int, int]]:
@@ -269,30 +364,14 @@ def check_pack(pack_dir: str | Path, export: Export, roles: Roles, window: Windo
     result["value_floor"] = {"passed": not bad_values and not entity_fail, "spellings": len(spellings),
                              "failures": len(bad_values) + entity_fail, "entity_ids": entity_count}
 
-    refused_equal: set[str] = set()
-    refused_inside: set[str] = set()
-    narratives: list[str] = []
-    for r in range(len(export)):
-        for name in (roles.record_id, roles.site, *roles.forbidden):
-            for v in _cells(export.value(r, name)):
-                f = folded(v)
-                if f:
-                    refused_equal.add(f)
-                    if name != roles.record_id:
-                        refused_inside.add(f)
-        n = export.value(r, roles.narrative)
-        if n is not None:
-            narratives.append(n)
-    strings = pack_strings(pack_dir)
-    equal_files = sorted({name for name, s in strings if folded(s) in refused_equal})
-    result["fold_equal"] = {"passed": not equal_files, "strings": len(strings),
-                            "failures": sum(1 for _, s in strings if folded(s) in refused_equal),
-                            "files": equal_files}
-    inside = ValueIndex(refused_inside)
-    lexicon_terms = [folded(t) for p in vocab["predicates"].values() for lex in p["lexicon"].values() for t in lex]
-    contained = [t for t in lexicon_terms if inside.found_in(t) is not None]
-    result["term_contains"] = {"passed": not contained, "terms": len(lexicon_terms), "failures": len(contained)}
+    refusal = export_refusal(export, roles, params)
+    derived, learned = derived_strings(pack_dir, template)
+    result["refused_strings"] = refusal_result(derived, refusal.string, "strings")
+    result["refused_terms"] = refusal_result(learned, refusal.term, "terms")
+    result["template"] = template_result(pack_dir, lang, template, params, roles)
 
+    narratives = [n for n in (export.value(r, roles.narrative) for r in range(len(export))) if n is not None]
+    strings = pack_strings(pack_dir)
     n = params["ngram_tokens"]
     hits = ngram_hits([s for _, s in strings], narratives, n)
     hit_files = sorted({name for name, s in strings if ngrams(s, n) & hits})

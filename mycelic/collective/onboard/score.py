@@ -16,11 +16,13 @@ Rules 2 to 6 of ``docs/collective/onboard/CHOICE-D001.md``:
   over (company, predicate) pairs with gold, by the same draw rule (:func:`bootstrap_macro`); coverage; differences
   by ``stats.paired_bootstrap_f1``; all with seed ``<prefix>:<arm>`` and B from the settings, so every reader gets the
   same draws.
-* **The matched space** (rule 2.2, :func:`matched_space`) when the arm names hand packs; the criterion of rule 6 the
-  arm names (:func:`criterion`).
+* **The matched space** (rule 2.2, :func:`matched_space`, the gold by :func:`matched_gold` as amended in A7) when the
+  arm names hand packs; the criterion of rule 6 the arm names (:func:`criterion`), with its deciding values unrounded
+  under ``exact`` beside the comparisons it makes.
 
 Per-record data (gold, predictions) stays in memory. ``arm.json`` holds aggregates, category labels that passed the
-floor and the first ten terms of each predicate; floats are rounded to four places.
+floor and the first ten terms of each predicate; floats are rounded to four places, except under an ``exact`` key. A
+company whose pack failed the privacy floor keeps none of those strings (amendment A5, :func:`withhold_strings`).
 """
 from __future__ import annotations
 
@@ -54,6 +56,7 @@ READERS = ("drafted", "majority_prior", "permuted_labels", "label_names")
 CONTROLS = READERS[1:]
 LABEL_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", re.ASCII)
 DIGITS = 4
+EXACT = "exact"
 
 
 class ScoreError(ValueError):
@@ -108,10 +111,12 @@ def tree_hashes(rel_dirs: Iterable[str], root: Path = ROOT) -> dict[str, str]:
 
 
 def rounded(value: Any, digits: int = DIGITS) -> Any:
+    """Floats rounded to ``digits`` places, except the values under an ``exact`` key: a criterion's deciding values,
+    printed as the comparison saw them."""
     if isinstance(value, float):
         return round(value, digits)
     if isinstance(value, dict):
-        return {k: rounded(v, digits) for k, v in value.items()}
+        return {k: (v if k == EXACT else rounded(v, digits)) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
         return [rounded(v, digits) for v in value]
     return value
@@ -405,6 +410,22 @@ def names_of(d: Draft) -> dict[str, list[str]]:
     return out
 
 
+def matched_gold(sample: Sequence[Sampled], hand: FrozenPack, reach: set[str]) -> list[frozenset[str]]:
+    """Rule 2.2 as amended (A7): a record's gold in the matched space is the hand predicate of each filed name that
+    the hand pack maps to a specific code whose predicate C reaches. A hand pack with one name per code (``pack/``)
+    gives the same gold as the names in C."""
+    spec = hand.mapping()["codes"][0]["value_map"] or {}
+    out = []
+    for s in sample:
+        preds = set()
+        for n in s.names:
+            code = spec.get(n)
+            if code is not None and hand.codes[code].specific and hand.codes[code].predicate in reach:
+                preds.add(hand.codes[code].predicate)
+        out.append(frozenset(preds))
+    return out
+
+
 def hand_gold(sample: Sequence[Sampled], hand: FrozenPack) -> list[frozenset[str]]:
     spec = hand.mapping()["codes"][0]["value_map"] or {}
     out = []
@@ -440,7 +461,13 @@ def criterion(spec: Mapping[str, Any], pooled: Mapping[str, Any], matched: Mappi
         if diff["exact_diff"] is None or diff["ci_low"] is None:
             out["reason"] = "the difference is undefined"
             return out
-        out["passed"] = bool(diff["exact_diff"] >= Fraction(str(margin)) and diff["ci_low"] > 0)
+        exact = Fraction(diff["exact_diff"])
+        at_margin = exact >= Fraction(str(margin))
+        above_zero = diff["ci_low"] > 0
+        out[EXACT] = {"diff": float(exact), "diff_fraction": f"{exact.numerator}/{exact.denominator}",
+                      "ci_low": diff["ci_low"], "ci_high": diff["ci_high"],
+                      "comparisons": {f"diff >= {margin}": at_margin, "ci_low > 0": above_zero}}
+        out["passed"] = bool(at_margin and above_zero)
         return out
     against = spec["against"]
     if matched is None or against not in matched["hand"]:
@@ -454,6 +481,22 @@ def criterion(spec: Mapping[str, Any], pooled: Mapping[str, Any], matched: Mappi
         return out
     out["passed"] = bool(diff["ci_low"] > -margin)
     out["superior"] = bool(diff["ci_low"] > 0)
+    out[EXACT] = {"diff": diff["diff"], "ci_low": diff["ci_low"], "ci_high": diff["ci_high"],
+                  "comparisons": {f"ci_low > -{margin}": out["passed"], "ci_low > 0 (superior, decides nothing)":
+                                  out["superior"]}}
+    return out
+
+
+def withhold_strings(agg: Mapping[str, Any]) -> dict[str, Any]:
+    """Amendment A5: a company whose pack failed the privacy floor keeps no label, id or term in ``arm.json``: the
+    category labels become their count, each predicate keeps its code and counts, and the majority prior its code."""
+    out = copy.deepcopy(dict(agg))
+    facts = out["draft"]
+    facts["categories"]["passing_floor"] = len(facts["categories"]["passing_floor"])
+    facts["predicates"] = [{"code": p["code"], "records": p["records"], "terms": p["terms"]}
+                           for p in facts["predicates"]]
+    out["controls"]["majority_prior"].pop("predicate", None)
+    out["strings_withheld"] = True
     return out
 
 
@@ -486,7 +529,7 @@ def _company(settings: Mapping[str, Any], arm: str, label: str, entry: Mapping[s
                                      "loader": {"passed": pack is not None, "error": error}},
         "check": checked}
     if pack is None:
-        raise DraftError(f"the drafted pack does not load: {error}")
+        raise DraftError(f"the drafted pack does not load ({error.split(': ', 1)[0]})")
     boot = settings["bootstrap"]
     seed = f"{settings['sample']['seed_prefix']}:{arm}:{label}"
     sample, counts = draw_sample(export, d, test, seed, spec["per_company"], label)
@@ -499,7 +542,7 @@ def _company(settings: Mapping[str, Any], arm: str, label: str, entry: Mapping[s
     perm_lex = with_placeholders(assign_terms(d.table, d.eligible, record_labels(permuted, d.plan), d.plan.ids,
                                               params), template["ids.json"])
     name_lex = with_placeholders(label_name_lexicon(d.plan, lang), template["ids.json"])
-    agg["controls"] = {"majority_prior": {"predicate": top},
+    agg["controls"] = {"majority_prior": {"predicate": top, "code": d.plan.codes[top]},
                        "permuted_labels": {"placeholders": sum(1 for p in d.plan.ids
                                                                if perm_lex[p][0].startswith(
                                                                    template["ids.json"]["placeholder_prefix"])),
@@ -522,7 +565,8 @@ def _company(settings: Mapping[str, Any], arm: str, label: str, entry: Mapping[s
     companies = [label] * len(sample)
     agg["readers"] = {r: reader_metrics(companies, preds[r], golds, B=boot["B"],
                                         seed=f"{boot['seed_prefix']}:{arm}") for r in READERS}
-    memory: dict[str, Any] = {"sample": sample, "preds": preds, "golds": golds, "hand": {}}
+    memory: dict[str, Any] = {"sample": sample, "preds": preds, "golds": golds, "hand": {}, "draft": d,
+                              "lexicons": {"permuted_labels": perm_lex, "label_names": name_lex}, "majority": top}
     for name, path in sorted(spec.get("hand_packs", {}).items()):
         hand = load_pack_dir(resolve(path))
         hrows = raw_rows(sample, export, hand)
@@ -530,7 +574,7 @@ def _company(settings: Mapping[str, Any], arm: str, label: str, entry: Mapping[s
         space = matched_space(d, hand)
         by_name = names_of(d)
         reach = set(space.values())
-        m_gold = [frozenset(space[n] for n in s.names if n in space) for s in sample]
+        m_gold = matched_gold(sample, hand, reach)
         m_hand = [p & reach for p in hpred]
         m_draft = [frozenset(space[n] for p in pr for n in by_name.get(p, ()) if n in space)
                    for pr in preds["drafted"]]
@@ -547,6 +591,8 @@ def _company(settings: Mapping[str, Any], arm: str, label: str, entry: Mapping[s
                         "hand": reader_metrics(mc, [m_hand[i] for i in keep], [m_gold[i] for i in keep],
                                                B=boot["B"], seed=f"{boot['seed_prefix']}:{arm}")},
             "own_space": reader_metrics(companies, hpred, h_gold, B=boot["B"], seed=f"{boot['seed_prefix']}:{arm}")}
+    if not checked["passed"]:
+        agg = withhold_strings(agg)
     return agg, memory
 
 
@@ -612,6 +658,11 @@ def run_arm(settings: Mapping[str, Any], settings_sha256: str, arm: str, exports
                 "own_space": own}
     doc["matched"] = matched
     doc["criterion"] = criterion(spec["criterion"], pooled, matched, doc["errors"], len(companies))
+    against = spec["criterion"].get("against")
+    if against is not None:
+        doc["criterion"]["matched_names"] = {label: c["hand"][against]["matched_names"]
+                                             for label, c in doc["companies"].items()
+                                             if "error" not in c and against in c.get("hand", {})}
     for d in (doc["criterion"], *(doc["pooled"]["differences"].values()),
               *((m["difference"] for m in matched["hand"].values()) if matched else ())):
         if isinstance(d.get("exact_diff"), Fraction):

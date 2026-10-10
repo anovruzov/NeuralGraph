@@ -15,7 +15,9 @@ Two steps, so that a download failure is told apart from a run (rule 9):
   ``<MAKE>.csv`` with the settings' columns in their order, ``companies.json`` with the counts of what was kept and
   dropped, and ``source.json`` with the download facts. It prints counts only.
 
-This is per-field code: the report gives its line count. It never prints a field value.
+This is per-field code, and so are the two ``tools/market`` modules it imports (``nhtsa_export.py`` and
+``vehicle_pack.py``): the report gives the line count of all three, and its code hash covers them (amendment A8
+of CHOICE-D001). It never prints a field value.
 """
 from __future__ import annotations
 

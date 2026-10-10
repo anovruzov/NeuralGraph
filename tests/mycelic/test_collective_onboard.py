@@ -185,10 +185,17 @@ class DateTests(unittest.TestCase):
         self.assertIsNone(parse_date("2021-02-30", "YYYY-MM-DD", self.MONTHS))
         self.assertIsNone(parse_date("4-xyz-2021", "D-MON-YYYY", self.MONTHS))
 
-    def test_the_part_before_the_first_space_or_capital_t_is_parsed(self) -> None:
-        # rule 1.3 as written: the cut is at the first space or "T"; an upper-case October abbreviation holds a T
-        self.assertIsNone(parse_date("4-OCT-2021", "D-MON-YYYY", self.MONTHS))
+    def test_the_part_before_the_first_space_or_a_t_before_a_digit_is_parsed(self) -> None:
+        # rule 1.3 as amended (A1): the cut is at the first space, or at a "T" a digit follows; "OCT" is not cut
+        self.assertEqual(parse_date("4-OCT-2021", "D-MON-YYYY", self.MONTHS), date(2021, 10, 4))
+        self.assertEqual(parse_date("04-OCT-21", "D-MON-YY", self.MONTHS), date(2021, 10, 4))
         self.assertEqual(parse_date("4-Oct-2021", "D-MON-YYYY", self.MONTHS), date(2021, 10, 4))
+        self.assertEqual(parse_date("04-OCT-2021 00:00:00", "D-MON-YYYY", self.MONTHS), date(2021, 10, 4))
+        self.assertEqual(parse_date("2021-10-04T08:00", "YYYY-MM-DD", self.MONTHS), date(2021, 10, 4))
+        self.assertIsNone(parse_date("2021-10-04Tx", "YYYY-MM-DD", self.MONTHS))     # a T before a letter: no cut
+        # a whole year of upper-case D-MON-YYYY dates reaches the share (it did not under the old cut)
+        year = [f"{d:02d}-{m.upper()}-2021" for m in self.MONTHS for d in (1, 15, 28)]
+        self.assertEqual(choose_date_format(year, self.MONTHS, 0.95), "D-MON-YYYY")
 
     def test_two_digit_years_on_both_sides_of_70(self) -> None:
         self.assertEqual(parse_date("1/2/69", "M/D/YY", self.MONTHS), date(2069, 1, 2))
@@ -224,7 +231,12 @@ class DateTests(unittest.TestCase):
         d = D.draft_export(rec, roles(), TRAIN, "rec_pack", params=PARAMS, lang=LANG, template=TEMPLATE)
         outside = {r for r, day in enumerate(d.dated.dates) if not TRAIN.contains(day)}
         self.assertTrue(outside)
-        self.assertEqual({name for r, name in seen if r in outside}, {"DATE"})
+        # rule 1.3 as amended (A2): outside the window only the date and the identifying columns (record id, site,
+        # forbidden) are read, the latter only to refuse; never a narrative or a category
+        self.assertEqual({name for r, name in seen if r in outside}, {"DATE", "ID", "SITE", "PERSON"})
+        seen.clear()
+        D.export_refusal(rec, roles(), PARAMS)
+        self.assertEqual({name for _, name in seen}, {"ID", "SITE", "PERSON"})
 
 
 # =================================================================================================== 3 role inference
@@ -626,15 +638,16 @@ class CheckTests(TempDir):
             v["predicates"][pid]["label"] = "PERSON 2"
         self.edit(p, "vocabulary.json", plant)
         result = self.check(p)
-        self.assertFalse(result["checks"]["fold_equal"]["passed"])
-        self.assertEqual(result["checks"]["fold_equal"]["files"], ["vocabulary.json"])
+        self.assertFalse(result["checks"]["refused_strings"]["passed"])
+        self.assertEqual(result["checks"]["refused_strings"]["files"], ["vocabulary.json"])
+        self.assertEqual(result["checks"]["refused_strings"]["kinds"]["equal"], 1)
         self.assertNotIn("Person 2", json.dumps(result))
 
     def test_a_person_value_inside_a_term_fails(self) -> None:
         p = self.fresh()
         pid = self.d.plan.ids[0]
         self.edit(p, "vocabulary.json", lambda v: v["predicates"][pid]["lexicon"]["en"].append("person 3 roof"))
-        self.assertFalse(self.check(p)["checks"]["term_contains"]["passed"])
+        self.assertFalse(self.check(p)["checks"]["refused_terms"]["passed"])
 
     def test_an_eight_gram_of_a_narrative_in_a_fixture_fails(self) -> None:
         p = self.fresh()
@@ -893,6 +906,7 @@ class SampleAndReadTests(TempDir):
         self.assertGreater(m["records"], 0)
         self.assertIn("passed", doc["criterion"])
         self.assertEqual(doc["companies"]["c1"]["hand"]["hand"]["matched_names"], 3)
+        self.assertEqual(doc["criterion"]["matched_names"], {"c1": 3})          # printed beside C2 (A8)
 
 
 class ArmTests(TempDir):
@@ -969,30 +983,65 @@ class ReportTests(TempDir):
         self.assertEqual(set(doc["criteria"]), {"C1", "M1", "M2", "M3", "M4"})
         self.assertTrue(doc["criteria"]["M4"]["passed"])
         self.assertTrue(doc["criteria"]["M2"]["passed"])
+        # amendment A8 and A9: what the numbers do not say is said beside them
+        md = (self.tmp / "report" / "report.md").read_text()
+        for needle in ("It is not an interval for the field in general.",
+                       "label_names is a mechanical split of each label",
+                       "Roles right: the inference's header words and markers were chosen knowing both sources'",
+                       "a pass means no worse than that list of names"):
+            self.assertIn(needle, md)
+        self.assertIn("exact", doc["criteria"]["C1"])
+
+    def guard(self, strings: dict[str, list[str]]) -> dict[str, int]:
+        """The guard over a one-company arm doc whose printed strings are ``strings`` (labels, terms, an error)."""
+        doc = {"companies": {"c1": {"draft": {"categories": {"passing_floor": [{"label": s} for s in
+                                                                                strings.get("label", [])]},
+                                              "predicates": [{"label": "ROOF FALL", "id": "roof_fall",
+                                                              "first_terms": strings.get("term", [])}]},
+                                    "pack": {"loader": {"error": None}}, "controls": {"majority_prior": {}}},
+                             **({"c2": {"error": strings["error"][0]}} if "error" in strings else {})}}
+        sent = REP.Sentinels(D.Refusal([r["ID"] for r in self.rows] + ["mine-12345"], ["Person 1", "Person 2"],
+                                       PARAMS), [r["TEXT"] for r in self.rows])
+        return REP.guard_hits(doc, sent, 8, IDS["placeholder_prefix"])
 
     def test_the_guard_counts_each_kind(self) -> None:
-        sent = REP.Sentinels([r["TEXT"] for r in self.rows], [r["ID"] for r in self.rows],
-                             ["Person 1", "Person 2"])
-        clean = REP.guard_hits(["nothing here"], sent, 8)
-        self.assertEqual(clean, {"narrative_ngrams": 0, "record_ids_or_sites": 0, "forbidden_values": 0})
+        clean = self.guard({"label": ["HAULAGE"], "term": ["roof", "unlearned-x"]})
+        self.assertEqual({k: v for k, v in clean.items() if k != "strings"}, dict.fromkeys(REP.GUARD_KINDS, 0))
+        self.assertEqual(clean["strings"], 5)          # two labels, one id, two terms (a placeholder read as an id)
         long_text = next(r["TEXT"] for r in self.rows if len(re.findall(r"\w+", r["TEXT"])) >= 8)
-        hits = REP.guard_hits([f"x {long_text} y", f"id {self.rows[0]['ID']} and Person 2."], sent, 8)
+        hits = self.guard({"label": [f"x {long_text} y", self.rows[0]["ID"], "Person 2"], "term": ["person"],
+                           "error": ["at mine-12345 here"]})
         self.assertGreater(hits["narrative_ngrams"], 0)
-        self.assertEqual((hits["record_ids_or_sites"], hits["forbidden_values"]), (1, 1))
-        self.assertEqual(REP.guard_hits([f"{self.rows[0]['ID']}9"], sent, 8)["record_ids_or_sites"], 0)
+        self.assertEqual(hits["refused_equal"], 2)     # the record id and the forbidden value, as labels
+        self.assertEqual(hits["refused_name_word"], 1)  # 'person': a word of a forbidden value of two words
+        self.assertEqual(hits["refused_inside"], 1)     # a site-like reference of 5+ characters in an error text
+        self.assertEqual(self.guard({"label": [f"{self.rows[0]['ID']}9"]})["refused_equal"], 0)
 
     def test_a_planted_hit_withholds_the_report(self) -> None:
-        planted = self.rows[0]["ID"]
-        original = REP.render
-        REP.render = lambda doc: original(doc) + f"\nleak {planted}\n"
-        try:
-            doc, printed = self.run_report()
-        finally:
-            REP.render = original
-        self.assertEqual(doc["verdict"], "withheld")
-        self.assertFalse(doc["criteria"]["M3"]["passed"])
-        text = (self.tmp / "report" / "report.json").read_text() + (self.tmp / "report" / "report.md").read_text()
-        self.assertNotIn(planted, text)
+        # each kind, read by the guard from the arm's own exports (record id, site and forbidden columns, narratives)
+        eight = " ".join(re.findall(r"\w+", next(r["TEXT"] for r in self.rows
+                                                  if len(re.findall(r"\w+", r["TEXT"])) >= 8))[:8])
+        cases = {"record id": (self.rows[0]["ID"], "refused_equal"), "site": ("s3", "refused_equal"),
+                 "forbidden": ("Person 2", "refused_equal"), "name word": ("person", "refused_name_word"),
+                 "narrative": (eight, "narrative_ngrams")}
+        for case, (planted, kind) in cases.items():
+            with self.subTest(case=case):
+                arm_dir = self.tmp / f"arm_planted_{case.replace(' ', '_')}"
+                shutil.copytree(self.base / "arms" / "msha", arm_dir)
+                doc = json.loads((arm_dir / "arm.json").read_text())
+                doc["companies"]["c1"]["draft"]["predicates"][0]["first_terms"].append(planted)
+                (arm_dir / "arm.json").write_text(json.dumps(doc))
+                out = REP.run_report(self.settings, "settings.json", "0" * 64, [arm_dir],
+                                     self.base / "audit" / "audit.json", self.tmp / "report", lambda: "c" * 40,
+                                     emit=lambda s: None)
+                self.assertEqual(out["verdict"], "withheld")
+                self.assertFalse(out["criteria"]["M3"]["passed"])
+                self.assertGreaterEqual(out["guard_hits"]["msha"][kind], 1)
+                text = (self.tmp / "report" / "report.json").read_text() + \
+                    (self.tmp / "report" / "report.md").read_text()
+                self.assertNotIn(planted, text)
+                self.assertIn(REP.GUARD_SAYS[kind], text)
+                self.assertNotIn("record text", text)
 
     def test_the_block_markers_and_their_sha256(self) -> None:
         _, printed = self.run_report()
@@ -1136,7 +1185,11 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(s["bootstrap"], {"B": 10000, "seed_prefix": "d001:boot", "alpha": 0.05})
         self.assertEqual((s["sample"]["seed_prefix"], s["permute"]["seed_prefix"]), ("d001:sample", "d001:permute"))
         self.assertEqual(s["timeout_minutes"], 180)
-        self.assertEqual(s["report_guard"], {"ngram": 8, "ref_min_chars": 5, "forbidden_min_chars": 4})
+        # amendment A2: the refusal's lengths are rule 8's (forbidden 4 with a letter, references 5), now in params
+        self.assertEqual(s["report_guard"], {"ngram": 8})
+        self.assertEqual(p["refusal"], {"forbidden_inside_min_chars": 4, "reference_inside_min_chars": 5,
+                                        "name_word_min_letters": 4})
+        self.assertEqual(p["term_max_chars"], 64)                                         # amendment A4
         m, n = s["arms"]["msha"], s["arms"]["nhtsa"]
         self.assertEqual((m["train"], m["test"]), (["2015-01-01", "2021-12-31"], ["2022-01-01", "2024-12-31"]))
         self.assertEqual(m["companies"], {"column": "CONTROLLER_ID", "count": 5, "min_test_rows": 100,
@@ -1155,7 +1208,10 @@ class SettingsTests(unittest.TestCase):
                                         "reporter"])
         self.assertEqual(n["roles"], {"record_id": "odino", "site": "state", "date": "received",
                                       "narrative": "summary", "category": "components[]", "entities": [],
-                                      "reporter": None, "forbidden": ["reporter"]})
+                                      "reporter": None, "forbidden": ["reporter", "vehicle"]})       # A6
+        self.assertEqual(m["download_code"], ["tools/onboard/fetch_msha.py"])                            # A8
+        self.assertEqual(n["download_code"], ["tools/onboard/fetch_nhtsa.py", "tools/market/nhtsa_export.py",
+                                              "tools/market/vehicle_pack.py"])
         self.assertEqual(n["hand_packs"], {"pack": "docs/collective/replay/vehicles/pack",
                                            "pack-v2": "docs/collective/replay/vehicles/pack-v2"})
         self.assertEqual((n["per_company"], n["criterion"]), (200, {"id": "C2", "margin": 0.05, "against": "pack"}))
@@ -1238,6 +1294,740 @@ class WorkflowTests(unittest.TestCase):
         for never in ("raw", "split", "audit-in", "audit.json", "records.jsonl"):
             self.assertNotIn(never, collect)
         self.assertIn('json.loads(check.read_text())["passed"]', collect)
+
+
+# ====================================================================== 16 the amendment before any run (A1 to A9)
+
+NHTSA_ROLES = json.loads(SETTINGS_PATH.read_text())["arms"]["nhtsa"]["roles"]
+NHTSA_COLUMNS = ("odino", "state", "received", "components[]", "vehicle", "summary", "reporter")
+# real two-letter state codes, lower-cased as NHTSA's sites are: Idaho's "id" equals the template's key "id"
+STATES = ("id", "in", "or", "me", "oh", "ok", "hi", "pa", "tx", "ca")
+
+
+def nhtsa_rows(seed: int = 51, per_cat: int = 120, vehicle: str = "FORD-EXPLORER-2019") -> list[dict[str, str]]:
+    """An NHTSA-shaped synthetic export: real state codes as sites, a vehicle on every row, and the model's word in
+    the ENGINE narratives (so a reader without the vehicle refused would learn it)."""
+    rng = random.Random(seed)
+    cues = {"ENGINE": ["stalled", "idle", "explorer"], "SERVICE BRAKES": ["brake", "pedal", "stopping"],
+            "STEERING": ["steering", "wheel", "pull"], "UNKNOWN OR OTHER": ["noise", "strange", "rattle"]}
+    filler = ["vehicle", "driving", "highway", "contacted", "manufacturer", "repair", "warning", "light"]
+    rows = []
+    for cat, words in cues.items():
+        for _ in range(per_cat):
+            year = rng.randint(2020, 2024)
+            rows.append({"state": rng.choice(STATES), "received": f"{year}{rng.randint(1, 12):02d}{rng.randint(1, 28):02d}",
+                         "components[]": cat, "vehicle": vehicle,
+                         "summary": " ".join(rng.sample(words, 2) + rng.sample(filler, 5)).capitalize() + "."})
+    rng.shuffle(rows)
+    for i, r in enumerate(rows):
+        r["odino"] = r["reporter"] = str(11400000 + i)
+    return rows
+
+
+def nhtsa_export(rows: list[dict[str, str]]) -> Export:
+    return parse_export(pipe(rows, NHTSA_COLUMNS))
+
+
+NHTSA_TRAIN = D.parse_window("2020-01-01", "2022-12-31")
+
+
+class RefusalTests(unittest.TestCase):
+    """Amendment A2: the one refusal, its three rules and their thresholds on both sides."""
+
+    def test_equal_at_any_length_and_case_folded(self) -> None:
+        r = D.Refusal(["id", "R00001"], ["OTHER", "?"], PARAMS)
+        for s in ("ID", "id", "r00001", "Other", "?"):
+            self.assertEqual(r.string(s), "equal", s)
+        for s in ("idaho", "others", "r000011", ""):
+            self.assertIsNone(r.string(s), s)
+
+    def test_inside_thresholds(self) -> None:
+        r = D.Refusal(["mine1", "mine12", "s1"], ["Roof", "Gas", "1234", "AB-9"], PARAMS)
+        self.assertEqual(r.string("FALL OF ROOF OR BACK"), "inside")       # forbidden of 4 characters with a letter
+        self.assertIsNone(r.string("gas leak"))                            # forbidden of 3 characters: not inside
+        self.assertEqual(r.string("gas"), "equal")                         # ...but equal at any length
+        self.assertIsNone(r.string("code 1234 here"))                      # forbidden of 4 with no letter
+        self.assertEqual(r.string("type ab-9 here"), "inside")             # 4 characters, one a letter
+        self.assertEqual(r.string("at mine1 today"), "inside")             # a reference of 5 characters
+        self.assertIsNone(r.string("at s1 today"))                         # a reference of 2: equal only
+        self.assertIsNone(r.string("roofing"))                             # whole words only
+
+    def test_name_words(self) -> None:
+        r = D.Refusal([], ["Halvorsen Quarry Holdings", "Joe Smith", "Kowalczyk", "FORD-EXPLORER-2019"], PARAMS)
+        self.assertEqual(r.string("halvorsen"), "name_word")
+        self.assertEqual(r.string("Explorer"), "name_word")                # a model inside a vehicle
+        self.assertEqual(r.string("smith"), "name_word")
+        self.assertIsNone(r.string("joe"))                                 # 3 letters: not a name word
+        self.assertIsNone(r.string("2019"))                                # digits: not a name word
+        self.assertEqual(r.string("kowalczyk"), "equal")                   # a one-word value: equal only
+        self.assertIsNone(r.string("halvorsen haul"))                      # a string equals a word; a term below
+        self.assertEqual(r.term("halvorsen haul"), "name_word")            # a term: any of its words
+        self.assertEqual(r.term("told joe"), None)
+        self.assertEqual(D.Refusal([], ["Joe"], PARAMS).term("told joe"), "equal")
+
+    def test_the_drafter_and_the_check_build_the_same_refusal(self) -> None:
+        rows = corpus_rows(seed=61)
+        rows[-1]["PERSON"] = "Late Value"
+        export = parse_export(pipe(rows))
+        d = drafted(rows)
+        r = D.export_refusal(export, roles(), PARAMS)
+        self.assertEqual((d.refusal.equal, d.refusal.name_words, d.refusal.inside.by_run),
+                         (r.equal, r.name_words, r.inside.by_run))
+        self.assertIn("late value", r.equal)
+
+
+class AmendedDraftTests(TempDir):
+    """Amendments A2, A4 and A6 in the drafter, each with the check passing on what it drafts."""
+
+    def check(self, export: Export, d: D.Draft, rl: Any, window: D.Window = TRAIN) -> dict[str, Any]:
+        out = self.tmp / f"p{len(list(self.tmp.iterdir()))}"
+        D.write_pack(d.files, out)
+        return C.check_pack(out, export, rl, window, params=PARAMS, lang=LANG, template=TEMPLATE)
+
+    def test_real_state_codes_as_sites_pass_the_floor(self) -> None:
+        rows = nhtsa_rows()
+        export = nhtsa_export(rows)
+        rl = roles_from_json({"language": "en", "roles": NHTSA_ROLES})
+        d = D.draft_export(export, rl, NHTSA_TRAIN, "nhtsa_ford", params=PARAMS, lang=LANG, template=TEMPLATE)
+        self.assertIn("id", {r["state"] for r in rows if r["received"][:4] <= "2022"})
+        result = self.check(export, d, rl, NHTSA_TRAIN)
+        self.assertTrue(result["passed"], result)
+        p = self.tmp / "p0"
+        self.assertIn("id", {s for _, s in C.pack_strings(p)})                 # the template's key "id" ...
+        self.assertEqual(d.refusal.string("id"), "equal")                       # ... equals Idaho's site value
+
+    def test_the_vehicle_column_refuses_model_words(self) -> None:
+        rows = nhtsa_rows()
+        export = nhtsa_export(rows)
+        declared = roles_from_json({"language": "en", "roles": NHTSA_ROLES})
+        d = D.draft_export(export, declared, NHTSA_TRAIN, "nhtsa_v", params=PARAMS, lang=LANG, template=TEMPLATE)
+        terms = {t for ts in d.learned.values() for t in ts}
+        self.assertNotIn("explorer", terms)
+        self.assertNotIn("ford", terms)
+        self.assertGreater(d.refused_terms, 0)
+        self.assertTrue(self.check(export, d, declared, NHTSA_TRAIN)["passed"])
+        unrefused = roles_from_json({"language": "en", "roles": dict(NHTSA_ROLES, forbidden=["reporter"])})
+        d2 = D.draft_export(export, unrefused, NHTSA_TRAIN, "nhtsa_v2", params=PARAMS, lang=LANG, template=TEMPLATE)
+        self.assertIn("explorer", {t for ts in d2.learned.values() for t in ts})  # what A6 stops
+
+    def test_a_forbidden_value_equal_to_a_template_word_or_key_passes(self) -> None:
+        rows = corpus_rows(seed=62)
+        for i, word in enumerate(("case", "id", "label", "Other", "never", "codes")):
+            rows[i]["PERSON"] = word
+        export = parse_export(pipe(rows))
+        d = D.draft_export(export, roles(), TRAIN, "tpl_pack", params=PARAMS, lang=LANG, template=TEMPLATE)
+        result = self.check(export, d, roles())
+        self.assertTrue(result["passed"], result)
+
+    def test_a_forbidden_value_only_in_test_rows_refuses_the_term_in_drafter_and_check_alike(self) -> None:
+        rows = corpus_rows(seed=63)
+        base = drafted(rows)
+        self.assertIn("conveyor", base.learned["haulage"])
+        late = next(i for i, r in enumerate(rows) if int(r["DATE"].rsplit("/", 1)[1]) >= 2022)
+        rows[late]["PERSON"] = "Conveyor"
+        export = parse_export(pipe(rows))
+        d = D.draft_export(export, roles(), TRAIN, "late_pack", params=PARAMS, lang=LANG, template=TEMPLATE)
+        self.assertFalse(any("conveyor" in t.split() for ts in d.learned.values() for t in ts))
+        self.assertGreater(d.facts["terms"]["refused"], base.facts["terms"]["refused"])   # counted, not silent
+        result = self.check(export, d, roles())
+        self.assertTrue(result["passed"], result)
+
+    def test_a_surname_inside_a_name_is_never_learned(self) -> None:
+        rows = corpus_rows(seed=64, per_cat=100)
+        n = 0
+        for r in rows:
+            if r["CAT"] == "HAULAGE" and int(r["DATE"].rsplit("/", 1)[1]) <= 2021 and n < 40:
+                r["TEXT"] += " Supervisor Kowalczyk was told."
+                n += 1
+        learned = drafted(rows)
+        self.assertIn("kowalczyk", {t for ts in learned.learned.values() for t in ts})   # without the name: learned
+        rows[0]["PERSON"] = "Anna Kowalczyk"
+        export = parse_export(pipe(rows))
+        d = D.draft_export(export, roles(), TRAIN, "name_pack", params=PARAMS, lang=LANG, template=TEMPLATE)
+        terms = {t for ts in d.learned.values() for t in ts}
+        self.assertFalse(any("kowalczyk" in t.split() for t in terms))
+        self.assertTrue(self.check(export, d, roles())["passed"])
+
+    def test_a_category_equal_to_a_forbidden_marker_is_left_out_not_failed(self) -> None:
+        rows = corpus_rows(seed=65)
+        for r in rows:
+            if r["CAT"] == "OTHER":
+                r["CAT"] = "?"
+        rows[3]["PERSON"] = "?"
+        export = parse_export(pipe(rows))
+        d = D.draft_export(export, roles(), TRAIN, "marker_pack", params=PARAMS, lang=LANG, template=TEMPLATE)
+        self.assertNotIn("?", d.plan.value_map)
+        self.assertEqual(d.facts["categories"]["refused"], 1)
+        self.assertNotIn("?", [x["label"] for x in d.facts["categories"]["passing_floor"]])
+        self.assertTrue(self.check(export, d, roles())["passed"])
+
+    def test_a_predicate_whose_label_is_a_name_word_is_left_out_and_the_plan_redone(self) -> None:
+        rows = corpus_rows(seed=66)
+        for r in rows:
+            if r["CAT"] == "SLIP OR FALL":
+                r["CAT"] = "MACHINERY"
+        rows[5]["PERSON"] = "Jeffrey Mining Machinery"
+        export = parse_export(pipe(rows))
+        d = D.draft_export(export, roles(), TRAIN, "word_pack", params=PARAMS, lang=LANG, template=TEMPLATE)
+        self.assertNotIn("machinery", d.plan.ids)
+        self.assertEqual(set(d.plan.ids), {"roof_fall", "haulage"})
+        self.assertEqual([c.key for c in d.plan.refused], ["machinery"])
+        self.assertEqual(d.facts["categories"]["refused"], 1)
+        self.assertTrue(self.check(export, d, roles())["passed"])
+
+    def test_a_term_longer_than_the_loader_allows_is_no_candidate(self) -> None:
+        long_a, long_b = "a" * 33, "b" * 31            # the bigram is 65 characters, each word fits
+        self.assertEqual(D.candidate_terms(f"{long_a} {long_b}", LANG, PARAMS), {long_a, long_b})
+        self.assertEqual(D.candidate_terms(f"{long_a} {'b' * 30}", LANG, PARAMS),
+                         {long_a, "b" * 30, f"{long_a} {'b' * 30}"})           # 64: still a candidate
+        self.assertEqual(D.candidate_terms("x" * 65, LANG, PARAMS), set())
+        rows = corpus_rows(seed=67)
+        for r in rows:
+            if r["CAT"] == "HAULAGE":
+                r["TEXT"] += f" {long_a} {long_b}."
+        d = drafted(rows)
+        D.write_pack(d.files, self.tmp / "long")
+        self.assertIsNone(D.load_written(self.tmp / "long")[1])
+        self.assertIn(long_a, d.learned["haulage"])
+        with self.assertRaises(Exception):          # the loader's own limit, which A4 keeps the drafter under
+            files = copy.deepcopy(d.files)
+            files["vocabulary.json"]["predicates"]["haulage"]["lexicon"]["en"].append(f"{long_a} {long_b}")
+            D.write_pack(files, self.tmp / "too_long")
+            load_pack_dir(self.tmp / "too_long")
+
+    def test_a_refused_entity_value_is_left_out(self) -> None:
+        rows = corpus_rows(seed=68)
+        for i, r in enumerate(rows):
+            r["UNIT"] = "Unit A" if i % 2 else "Person 2"
+        export = parse_export(pipe(rows, HEADER + ("UNIT",)))
+        rl = roles(entities=["UNIT"])
+        d = D.draft_export(export, rl, TRAIN, "ent_pack", params=PARAMS, lang=LANG, template=TEMPLATE)
+        (et,) = d.etypes
+        self.assertEqual(et.ids, ("V-UNIT-A",))
+        self.assertEqual(d.facts["refused_entity_values"], 1)
+        self.assertTrue(self.check(export, d, rl)["passed"])
+
+
+class AmendedCheckTests(TempDir):
+    """Amendment A3: the planted violations each check must catch, and the template rebuild."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.rows = corpus_rows(seed=12)
+        cls.rows += Rows().add(12, "duoword here", "HAULAGE", sites=SITES[:2], day=date(2016, 1, 1)).rows
+        for i, r in enumerate(cls.rows):
+            r["ID"] = f"A{i + 1:05d}"
+        cls.export = parse_export(pipe(cls.rows))
+        cls.d = D.draft_export(cls.export, roles(), TRAIN, "check_pack", params=PARAMS, lang=LANG, template=TEMPLATE)
+
+    def fresh(self) -> Path:
+        p = self.tmp / f"p{len(list(self.tmp.iterdir()))}"
+        D.write_pack(self.d.files, p)
+        return p
+
+    def check(self, p: Path) -> dict[str, Any]:
+        return C.check_pack(p, self.export, roles(), TRAIN, params=PARAMS, lang=LANG, template=TEMPLATE)["checks"]
+
+    def plant(self, name: str, fn: Any) -> dict[str, Any]:
+        p = self.fresh()
+        if name.endswith(".jsonl"):
+            lines = [json.loads(x) for x in (p / name).read_text().splitlines()]
+            fn(lines)
+            (p / name).write_text("".join(json.dumps(x, sort_keys=True) + "\n" for x in lines))
+        else:
+            obj = json.loads((p / name).read_text())
+            fn(obj)
+            (p / name).write_text(json.dumps(obj, indent=2, sort_keys=True) + "\n")
+        return self.check(p)
+
+    def label(self, value: str) -> Any:
+        pid = self.d.plan.ids[0]
+        return lambda v: v["predicates"][pid].update(label=value)
+
+    def term(self, value: str) -> Any:
+        pid = self.d.plan.ids[0]
+        return lambda v: v["predicates"][pid]["lexicon"]["en"].append(value)
+
+    def test_a_clean_pack_rebuilds_from_the_template(self) -> None:
+        checks = self.check(self.fresh())
+        self.assertTrue(all(c["passed"] for c in checks.values()), checks)
+        self.assertEqual(checks["template"], {"passed": True, "files": [], "error": None})
+        self.assertGreater(checks["refused_strings"]["strings"], 0)
+
+    def test_a_record_id_or_a_site_value_written_as_a_label_fails(self) -> None:
+        for value in (self.rows[0]["ID"], "s1"):
+            with self.subTest(value=value):
+                c = self.plant("vocabulary.json", self.label(value))["refused_strings"]
+                self.assertFalse(c["passed"])
+                self.assertEqual((c["kinds"]["equal"], c["files"]), (1, ["vocabulary.json"]))
+
+    def test_a_value_map_key_equal_to_a_forbidden_value_fails(self) -> None:
+        c = self.plant("mapping.json", lambda m: m["codes"][0]["value_map"].update({"Person 1": "D-999"}))
+        self.assertFalse(c["refused_strings"]["passed"])
+        self.assertEqual(c["refused_strings"]["files"], ["mapping.json"])
+
+    def test_a_term_holding_a_site_value_fails(self) -> None:
+        c = self.plant("vocabulary.json", self.term("roof s1"))["refused_terms"]
+        self.assertFalse(c["passed"])
+        self.assertEqual(c["kinds"]["equal"], 1)
+
+    def test_a_term_at_two_sites_fails_the_term_floor(self) -> None:
+        self.assertNotIn("duoword", {t for ts in self.d.learned.values() for t in ts})
+        c = self.plant("vocabulary.json", self.term("duoword"))["term_floor"]
+        self.assertEqual((c["passed"], c["failures"]), (False, 1))
+
+    def test_a_placeholder_lookalike_is_not_exempt_from_the_term_floor(self) -> None:
+        c = self.plant("vocabulary.json", self.term("unrelatedword"))["term_floor"]
+        self.assertEqual((c["passed"], c["failures"]), (False, 1))
+
+    def test_eight_tokens_of_a_narrative_fail_and_seven_do_not(self) -> None:
+        tokens = re.findall(r"\w+", self.rows[0]["TEXT"])
+        self.assertGreaterEqual(len(tokens), 8)
+        for n, passed in ((8, False), (7, True)):
+            with self.subTest(tokens=n):
+                def plant(lines: list, n: int = n) -> None:
+                    lines[0]["record"]["narrative"] = " ".join(tokens[:n])
+                self.assertEqual(self.plant("fixtures/records.jsonl", plant)["ngram"]["passed"], passed)
+
+    def test_a_value_at_a_template_position_fails_the_template_check(self) -> None:
+        cases = {"generator.json": lambda g: g["filler"]["en"].append("Person 1 was there."),
+                 "egress.json": lambda e: e.update({"Person 2": 1}),
+                 "pack.json": lambda p: p.update(title="Person 2")}
+        for name, fn in cases.items():
+            with self.subTest(file=name):
+                c = self.plant(name, fn)
+                self.assertTrue(c["refused_strings"]["passed"])           # not a record-derived position ...
+                self.assertFalse(c["template"]["passed"])                  # ... and still caught
+                self.assertIn(name, c["template"]["files"])
+
+
+# ---------------------------------------------------------------------------------------- the last guard (A5)
+
+def two_arm_settings() -> dict[str, Any]:
+    """Both arms on the synthetic layout, each with C1: the guard's per-arm reading without a hand pack."""
+    s = arm_settings()
+    s["arms"]["nhtsa"] = copy.deepcopy(s["arms"]["msha"])
+    return s
+
+
+class GuardTests(TempDir):
+    def run_arms(self, arms: dict[str, dict[str, list[dict[str, str]]]],
+                 settings: dict[str, Any] | None = None) -> tuple[dict[str, Any], str]:
+        settings = settings or two_arm_settings()
+        for name in list(settings["arms"]):
+            if name not in arms:
+                del settings["arms"][name]
+        dirs = []
+        for name, companies in arms.items():
+            exports = write_arm(self.tmp / "in" / name, companies)
+            SC.run_arm(settings, "0" * 64, name, exports, self.tmp / "arms" / name, lambda: "c" * 40)
+            dirs.append(self.tmp / "arms" / name)
+        fake_audit(self.tmp / "audit.json")
+        doc = REP.run_report(settings, "s.json", "0" * 64, dirs, self.tmp / "audit.json", self.tmp / "report",
+                             lambda: "c" * 40, emit=lambda s: None)
+        text = (self.tmp / "report" / "report.json").read_text() + (self.tmp / "report" / "report.md").read_text()
+        return doc, text
+
+    def test_a_forbidden_cell_equal_to_a_report_word_does_not_withhold(self) -> None:
+        rows = corpus_rows(seed=71, per_cat=90)
+        for i, word in enumerate(("Other", "Records", "label", "Share", "Code", "Verdict")):
+            rows[i]["PERSON"] = word
+        doc, text = self.run_arms({"msha": {"c1": rows}})
+        self.assertNotEqual(doc["verdict"], "withheld")
+        self.assertTrue(doc["criteria"]["M3"]["passed"], doc["criteria"]["M3"])
+        self.assertIn("Other share", text)
+
+    def test_the_other_arms_make_and_labels_do_not_withhold(self) -> None:
+        msha = corpus_rows(seed=72, per_cat=90)
+        for i, word in enumerate(("FORD", "UNKNOWN", "Unknown or other")):
+            msha[i]["PERSON"] = word
+        nhtsa = corpus_rows(seed=73, per_cat=90)
+        for r in nhtsa:
+            r["ID"] = "N" + r["ID"]
+            if r["CAT"] == "OTHER":
+                r["CAT"] = "UNKNOWN OR OTHER"
+        doc, text = self.run_arms({"msha": {"c1": msha}, "nhtsa": {"FORD": nhtsa}})
+        self.assertNotEqual(doc["verdict"], "withheld")
+        self.assertTrue(doc["criteria"]["M3"]["passed"], doc["criteria"]["M3"])
+        self.assertIn("FORD", text)
+        self.assertIn("UNKNOWN OR OTHER", text)
+
+    def test_a_failed_floor_company_prints_no_label_id_or_term(self) -> None:
+        rows = corpus_rows(seed=74, per_cat=90)
+        real = SC.check_pack
+
+        def failing(*a: Any, **kw: Any) -> dict[str, Any]:
+            out = real(*a, **kw)
+            out["passed"] = False
+            return out
+        SC.check_pack = failing
+        try:
+            doc, text = self.run_arms({"msha": {"c1": rows}})
+        finally:
+            SC.check_pack = real
+        arm = (self.tmp / "arms" / "msha" / "arm.json").read_text()
+        c1 = json.loads(arm)["companies"]["c1"]
+        self.assertTrue(c1["strings_withheld"])
+        for s in ("ROOF FALL", "roof_fall", "HAULAGE", "haulage", "shuttle", "conveyor", "slipped"):
+            self.assertNotIn(s, arm)
+            self.assertNotIn(s, text)
+        self.assertIn("Labels and terms withheld: this pack failed the privacy floor.", text)
+        self.assertFalse(doc["criteria"]["M3"]["passed"])
+
+    def test_the_guard_reads_parsed_strings_and_folds(self) -> None:
+        sent8 = "the operator backed the loader into the berm"
+        sent = REP.Sentinels(D.Refusal([], ["Anna Kowalczyk", "OTHER WORDS", "Joe"], PARAMS),
+                             [f"x {sent8.capitalize()} y"])
+        doc = {"companies": {"c1": {"draft": {"categories": {"passing_floor": [
+            {"label": "the operator backed\tthe loader into the berm"}, {"label": "told joe"}]}, "predicates": [
+            {"label": "OTHER WORDS", "id": "p", "first_terms": ["kowalczyk", "told joe"]}]},
+            "pack": {"loader": {"error": None}}, "controls": {"majority_prior": {}}}}}
+        hits = REP.guard_hits(doc, sent, 8, IDS["placeholder_prefix"])
+        self.assertEqual(hits["narrative_ngrams"], 1)        # a tab inside a label: still the narrative's 8 words
+        self.assertEqual(hits["refused_equal"], 2)           # 'OTHER WORDS' folded; the term 'told joe' by its word
+        self.assertEqual(hits["refused_name_word"], 1)       # a surname inside a name
+        self.assertEqual(hits["strings"], 6)                 # the label 'told joe' is read by the string rule
+
+
+class ExactPrintingTests(unittest.TestCase):
+    """Amendment A8: a criterion's deciding values are printed unrounded beside each comparison."""
+
+    def test_c1_prints_the_exact_difference_and_each_comparison(self) -> None:
+        pooled = {"readers": {r: {"micro": {"f1": 0.5}} for r in SC.READERS},
+                  "differences": {r: {"diff": 0.09996, "exact_diff": Fraction(2499, 25000), "ci_low": -0.05049,
+                                      "ci_high": 0.2} for r in SC.CONTROLS}}
+        c1 = SC.criterion({"id": "C1", "margin": 0.1}, pooled, None, [], 5)
+        self.assertFalse(c1["passed"])
+        self.assertEqual(c1["exact"]["diff_fraction"], "2499/25000")
+        self.assertEqual(c1["exact"]["comparisons"], {"diff >= 0.1": False, "ci_low > 0": False})
+        kept = SC.rounded({"criterion": c1})["criterion"]
+        self.assertEqual(kept["exact"]["ci_low"], -0.05049)
+        self.assertEqual(kept["diff"], round(0.09996, 4))                 # the rounded copy beside it
+        detail = REP._criterion_detail(kept)
+        for needle in ("diff 0.09996", "diff_fraction 2499/25000", "ci_low -0.05049", "diff >= 0.1: no",
+                       "ci_low > 0: no"):
+            self.assertIn(needle, detail)
+        self.assertNotIn("0.100", detail)
+
+    def test_c2_prints_its_comparison_and_the_matched_names(self) -> None:
+        matched = {"hand": {"pack": {"difference": {"diff": -0.01, "ci_low": -0.0499999, "ci_high": 0.02, "n": 9}}}}
+        c2 = SC.criterion({"id": "C2", "margin": 0.05, "against": "pack"}, {}, matched, [], 6)
+        c2["matched_names"] = {"FORD": 21}
+        detail = REP._criterion_detail(SC.rounded(c2))
+        self.assertIn("ci_low -0.0499999", detail)
+        self.assertIn("ci_low > -0.05: yes", detail)
+        self.assertIn("matched names per make FORD 21", detail)
+
+
+class MatchedGoldTests(TempDir):
+    """Amendment A7: the matched gold counts a filed name outside C that the hand pack maps to a reached predicate;
+    a non-specific hand code never enters the matched space."""
+
+    def test_matched_gold_and_specificity(self) -> None:
+        rng = random.Random(81)
+        names = {"ENGINE": ["piston", "cylinder"], "BRAKES": ["pedal", "rotor"], "ENGINE PARTS": ["gasket"],
+                 "STEERING": ["wheel", "pull"]}
+        rows = []
+        for name, cues in names.items():
+            for _ in range(70 if name != "ENGINE PARTS" else 20):
+                rows.append({"record_ref": "", "site": rng.choice(SITES), "received_date": "2019-03-04",
+                             "codes[]": name, "narrative": " ".join(rng.sample(cues, 1) + rng.sample(FILLER, 3)),
+                             "scope": "ALL"})
+        for i, r in enumerate(rows):
+            r["record_ref"] = f"H{i:04d}"
+        header = ("record_ref", "site", "received_date", "codes[]", "narrative", "scope")
+        rl = roles(record_id="record_ref", site="site", date="received_date", narrative="narrative",
+                   category="codes[]", forbidden=[])
+        d = D.draft_export(parse_export(pipe(rows, header)), rl, TRAIN, "mg_pack", params=PARAMS, lang=LANG,
+                           template=TEMPLATE)
+        self.assertNotIn("engine_parts", d.plan.ids)                          # 20 rows: the other bucket
+        D.write_pack(d.files, self.tmp / "hand")
+        mapping = json.loads((self.tmp / "hand" / "mapping.json").read_text())
+        vm = mapping["codes"][0]["value_map"]
+        vm["ENGINE PARTS"] = vm["ENGINE"]                                     # the hand pack merges it in
+        (self.tmp / "hand" / "mapping.json").write_text(json.dumps(mapping))
+        codes = json.loads((self.tmp / "hand" / "codes.json").read_text())
+        codes[vm["STEERING"]]["specific"] = False                             # a non-specific hand code
+        (self.tmp / "hand" / "codes.json").write_text(json.dumps(codes))
+        hand = load_pack_dir(self.tmp / "hand")
+        space = SC.matched_space(d, hand)
+        self.assertEqual(space, {"BRAKES": "brakes", "ENGINE": "engine"})
+        sample = [SC.Sampled("c1", 0, "x1", "t", frozenset(), ("ENGINE PARTS",)),
+                  SC.Sampled("c1", 1, "x2", "t", frozenset(), ("BRAKES", "STEERING")),
+                  SC.Sampled("c1", 2, "x3", "t", frozenset(), ("STEERING",))]
+        self.assertEqual(SC.matched_gold(sample, hand, set(space.values())),
+                         [frozenset({"engine"}), frozenset({"brakes"}), frozenset()])
+
+    def test_the_arm_scores_the_matched_space_with_the_amended_gold(self) -> None:
+        rng = random.Random(82)
+        names = {"ENGINE": ["piston", "cylinder"], "BRAKES": ["pedal", "rotor"], "ENGINE PARTS": ["gasket"]}
+        rows = []
+        for name, cues in names.items():
+            for _ in range(70 if name != "ENGINE PARTS" else 20):
+                rows.append({"site": rng.choice(SITES), "received_date": "2019-03-04", "codes[]": name,
+                             "narrative": " ".join(rng.sample(cues, 1) + rng.sample(FILLER, 3))})
+        for i in range(30):              # test window: filed under a name in C and a merged name outside C
+            rows.append({"site": SITES[i % 6], "received_date": "2023-03-04", "codes[]": "BRAKES;ENGINE PARTS",
+                         "narrative": f"pedal piston {FILLER[i % 10]} test{chr(97 + i % 26)}{chr(97 + i // 26)}"})
+        for i, r in enumerate(rows):
+            r["record_ref"], r["scope"] = f"M{i:04d}", "ALL"
+        header = ("record_ref", "site", "received_date", "codes[]", "narrative", "scope")
+        rl = roles(record_id="record_ref", site="site", date="received_date", narrative="narrative",
+                   category="codes[]", forbidden=[])
+        d = D.draft_export(parse_export(pipe(rows, header)), rl, TRAIN, "mga_pack", params=PARAMS, lang=LANG,
+                           template=TEMPLATE)
+        D.write_pack(d.files, self.tmp / "hand")
+        mapping = json.loads((self.tmp / "hand" / "mapping.json").read_text())
+        vm = mapping["codes"][0]["value_map"]
+        vm["ENGINE PARTS"] = vm["ENGINE"]
+        (self.tmp / "hand" / "mapping.json").write_text(json.dumps(mapping))
+        exports = write_arm(self.tmp / "arm", {"c1": rows}, header)
+        s = arm_settings(hand={"hand": str(self.tmp / "hand")}, criterion={"id": "C2", "margin": 0.05,
+                                                                           "against": "hand"})
+        s["arms"]["msha"]["roles"] = rl.to_json()["roles"]
+        doc = SC.run_arm(s, "0" * 64, "msha", exports, self.tmp / "out", lambda: "c" * 40)
+        m = doc["companies"]["c1"]["hand"]["hand"]["matched"]
+        # both readers name engine for 'piston'; the record's merged name maps there, so it is no false positive
+        self.assertEqual((m["drafted"]["micro"]["tp"], m["drafted"]["micro"]["fp"]), (60, 0))
+        self.assertEqual((m["hand"]["micro"]["tp"], m["hand"]["micro"]["fp"]), (60, 0))
+
+    def test_pack_maps_one_name_to_each_specific_code(self) -> None:
+        # so the amended gold equals the names-in-C gold for pack/, and C2 is unchanged
+        hand = load_pack_dir(ROOT / "docs" / "collective" / "replay" / "vehicles" / "pack")
+        vm = hand.mapping()["codes"][0]["value_map"]
+        specific = [code for code in vm.values() if hand.codes[code].specific]
+        self.assertEqual(len(specific), len(set(specific)))
+
+
+def wiring_rows(seed: int = 91) -> list[dict[str, str]]:
+    """One large category and two small ones, so that even permuted labels leave the large one terms."""
+    rng = random.Random(seed)
+    sizes = {"BIG": 400, "SMALL ONE": 70, "SMALL TWO": 70, "OTHER": 30}
+    cues = {"BIG": ["alpha", "beta"], "SMALL ONE": ["gamma"], "SMALL TWO": ["delta"], "OTHER": ["misc"]}
+    rows = []
+    for cat, n in sizes.items():
+        for _ in range(n):
+            year = rng.randint(2015, 2024)
+            rows.append({"SITE": rng.choice(SITES), "DATE": f"{rng.randint(1, 12)}/{rng.randint(1, 28)}/{year}",
+                         "TEXT": " ".join(rng.sample(cues[cat], 1) + rng.sample(FILLER, 5)).capitalize() + ".",
+                         "CAT": cat, "PERSON": ""})
+    rng.shuffle(rows)
+    for i, r in enumerate(rows):
+        r["ID"] = f"W{i + 1:05d}"
+    return rows
+
+
+class ArmWiringTests(TempDir):
+    """The controls, the gold and the draw as one company's scoring wires them (rules 3 and 4)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._t = tempfile.TemporaryDirectory()
+        base = Path(cls._t.name)
+        cls.rows = wiring_rows()
+        exports = write_arm(base / "in", {"c1": cls.rows})
+        cls.settings = arm_settings()
+        cls.settings["arms"]["msha"]["per_company"] = 7
+        with tempfile.TemporaryDirectory() as work:
+            cls.agg, cls.mem = SC._company(cls.settings, "msha", "c1", {"file": "c1.txt"}, exports, base / "out",
+                                           Path(work))
+        cls.d = cls.mem["draft"]
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._t.cleanup()
+
+    def test_the_majority_prior_names_the_largest_predicate_for_every_record(self) -> None:
+        counts: dict[str, int] = {}
+        for r in self.rows:
+            if TRAIN.contains(parse_date(r["DATE"], "M/D/YYYY", LANG.months)) and r["CAT"] != "OTHER":
+                counts[r["CAT"]] = counts.get(r["CAT"], 0) + 1
+        largest = max(counts, key=counts.get)
+        self.assertEqual(largest, "BIG")
+        self.assertEqual(self.mem["majority"], "big")
+        self.assertEqual(self.mem["preds"]["majority_prior"], [frozenset({"big"})] * 7)
+
+    def test_the_permuted_control_is_learned_and_read(self) -> None:
+        corpus = self.d.corpus
+        order = sorted(range(len(corpus)), key=lambda i: corpus.refs[i])
+        values = [corpus.categories[i] for i in order]
+        random.Random("d001:permute:msha:c1").shuffle(values)
+        permuted: list[tuple[str, ...]] = [()] * len(corpus)
+        for pos, i in enumerate(order):
+            permuted[i] = values[pos]
+        lex = D.with_placeholders(D.assign_terms(self.d.table, self.d.eligible, D.record_labels(permuted,
+                                                                                               self.d.plan),
+                                                 self.d.plan.ids, PARAMS), IDS)
+        self.assertEqual(self.mem["lexicons"]["permuted_labels"], lex)
+        self.assertFalse(lex["big"][0].startswith(IDS["placeholder_prefix"]))      # the large category keeps terms
+        with tempfile.TemporaryDirectory() as work:
+            pack = SC.control_pack(self.d, lex, Path(work), "perm")
+            rows = SC.drafted_rows(self.mem["sample"], parse_export(pipe(self.rows)), self.d)
+            preds, _ = SC.read_records(pack, rows, {"other_category"})
+        self.assertEqual(self.mem["preds"]["permuted_labels"], preds)
+        self.assertTrue(any(preds))
+
+    def test_the_label_names_control_is_its_labels_and_read(self) -> None:
+        lex = D.with_placeholders(D.label_name_lexicon(self.d.plan, LANG), IDS)
+        self.assertEqual(self.mem["lexicons"]["label_names"], lex)
+        self.assertEqual(lex["big"], ["big"])
+        with tempfile.TemporaryDirectory() as work:
+            pack = SC.control_pack(self.d, lex, Path(work), "names")
+            rows = SC.drafted_rows(self.mem["sample"], parse_export(pipe(self.rows)), self.d)
+            preds, _ = SC.read_records(pack, rows, {"other_category"})
+        self.assertEqual(self.mem["preds"]["label_names"], preds)
+
+    def test_per_company_is_honoured_and_the_gold_is_specific_only(self) -> None:
+        self.assertEqual((self.agg["sample"]["drawn"], len(self.mem["sample"])), (7, 7))
+        self.assertGreater(self.agg["sample"]["eligible"], 7)
+        for s in self.mem["sample"]:
+            self.assertTrue(s.gold <= set(self.d.plan.ids))
+            self.assertNotIn("other_category", s.gold)
+            self.assertEqual(s.gold, frozenset({self.d.plan.of_key[D.folded(n)] for n in s.names}))
+
+    def test_exactly_ten_first_terms_are_written(self) -> None:
+        for p in self.agg["draft"]["predicates"]:
+            self.assertEqual(p["first_terms"], self.d.lexicon[p["id"]][:10])
+        self.assertGreater(len(self.d.lexicon["big"]), 10)
+        self.assertEqual(len(next(p for p in self.agg["draft"]["predicates"] if p["id"] == "big")["first_terms"]),
+                         10)
+
+
+class GoldTests(unittest.TestCase):
+    def test_other_bucket_and_below_floor_values_never_enter_the_gold(self) -> None:
+        rows = corpus_rows(seed=95)
+        header = ("ID", "SITE", "DATE", "TEXT", "CAT[]", "PERSON")
+        test_day = date(2023, 4, 5)
+        extra = Rows()
+        for i in range(12):
+            extra.add(1, f"fresh haul words number{i:02d}", "HAULAGE;OTHER", day=test_day)
+            extra.add(1, f"fresh roof words number{i:02d}", "ROOF FALL;RARE THING", day=test_day)
+        for i, r in enumerate(extra.rows):
+            r["ID"] = f"G{i:03d}"
+        for r in rows + extra.rows:
+            r["CAT[]"] = r["CAT"]
+        export = parse_export(pipe(rows + extra.rows, header))
+        d = D.draft_export(export, roles(category="CAT[]"), TRAIN, "gold_pack", params=PARAMS, lang=LANG,
+                           template=TEMPLATE)
+        sample, _ = SC.draw_sample(export, d, TEST, "d001:sample:msha:c1", 10 ** 6, "c1")
+        by_ref = {s.ref: s for s in sample}
+        for r in extra.rows:
+            s = by_ref[r["ID"]]
+            self.assertEqual(len(s.names), 2)
+            self.assertEqual(s.gold, frozenset({d.plan.of_key[D.folded(r["CAT"].split(";")[0])]}))
+        self.assertTrue(all(s.gold <= set(d.plan.ids) for s in sample))
+
+
+class DownloadCodeTests(unittest.TestCase):
+    """Amendment A8: M1 counts and hashes every module the download scripts import from tools/."""
+
+    @staticmethod
+    def closure(script: Path) -> set[str]:
+        import ast
+        seen, todo = set(), [script]
+        while todo:
+            path = todo.pop()
+            rel = path.relative_to(ROOT).as_posix()
+            if rel in seen:
+                continue
+            seen.add(rel)
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                names = [a.name for a in node.names] if isinstance(node, ast.Import) else \
+                    [node.module] if isinstance(node, ast.ImportFrom) and node.module and not node.level else []
+                for name in names:
+                    for base in sorted((ROOT / "tools").iterdir()):
+                        candidate = base / f"{name.split('.')[0]}.py"
+                        if base.is_dir() and candidate.is_file():
+                            todo.append(candidate)
+        return seen
+
+    def test_the_settings_list_the_import_closure(self) -> None:
+        s = json.loads(SETTINGS_PATH.read_text())
+        for arm in s["arms"].values():
+            with self.subTest(script=arm["download_script"]):
+                self.assertEqual(set(arm["download_code"]), self.closure(ROOT / arm["download_script"]))
+                self.assertEqual(arm["download_code"][0], arm["download_script"])
+
+    def test_the_report_counts_and_hashes_them(self) -> None:
+        s = json.loads(SETTINGS_PATH.read_text())
+        lines = REP.script_lines(s)
+        self.assertEqual(set(lines), {"tools/onboard/fetch_msha.py", "tools/onboard/fetch_nhtsa.py",
+                                      "tools/market/nhtsa_export.py", "tools/market/vehicle_pack.py"})
+        for path, n in lines.items():
+            self.assertEqual(n, len((ROOT / path).read_text(encoding="utf-8").splitlines()))
+        files = REP.code_files(s)
+        self.assertIn("tools/market/nhtsa_export.py", files)
+        self.assertIn("tools/market/vehicle_pack.py", files)
+        self.assertIn("mycelic/collective/onboard/draft.py", files)
+
+
+class AmendmentRecordTests(unittest.TestCase):
+    def test_the_choice_file_records_the_amendment_before_any_run(self) -> None:
+        text = CHOICE.read_text()
+        self.assertIn("## Amended before any run, 2026-10-09", text)
+        self.assertLess(text.index("## Amended before any run, 2026-10-09"), text.index("## Runs"))
+        for needle in ("### A1. Dates", "### A2. One refusal", "### A3. The privacy floor check", "### A4.",
+                       "### A5. The last guard", "### A6. NHTSA's vehicle column", "### A7.", "### A8.",
+                       "### A9. The declaration, added"):
+            self.assertIn(needle, text)
+        self.assertEqual(text.split("## Runs", 1)[1].strip(), "None yet.")
+
+
+class WorkflowAmendmentTests(TempDir):
+    """Amendment A5 in the workflow (a withheld report uploads alone) and the honest download step."""
+
+    text = WORKFLOW.read_text(encoding="utf-8")
+
+    def step_run(self, name: str) -> str:
+        """The ``run:`` block of the named step, dedented, read from the text (no YAML library)."""
+        lines = self.text.splitlines()
+        start = next(i for i, line in enumerate(lines) if line.strip() == f"- name: {name}")
+        body, inside = [], False
+        for line in lines[start + 1:]:
+            if line.strip().startswith("- ") and line.startswith("      - "):
+                break
+            if line.strip() == "run: |":
+                inside = True
+                continue
+            if inside:
+                body.append(line)
+        indent = min(len(x) - len(x.lstrip()) for x in body if x.strip())
+        return "\n".join(x[indent:] for x in body).strip("\n")
+
+    def collect(self, verdict: str | None) -> list[str]:
+        script = self.step_run("collect the files to upload").split("<<'EOF'\n", 1)[1].rsplit("\nEOF", 1)[0]
+        work = self.tmp / (verdict or "none")
+        if verdict is not None:
+            (work / "d001" / "report").mkdir(parents=True)
+            (work / "d001" / "report" / "report.json").write_text(json.dumps({"verdict": verdict}))
+            (work / "d001" / "report" / "report.md").write_text("# report\n")
+        arm = work / "d001" / "arms" / "msha"
+        for company, passed in (("c1", True), ("c2", False)):
+            (arm / company / "pack").mkdir(parents=True)
+            (arm / company / "pack" / "pack.json").write_text("{}")
+            (arm / company / "check.json").write_text(json.dumps({"passed": passed}))
+        (arm / "arm.json").write_text("{}")
+        (work / "d001" / "upload").mkdir(parents=True)
+        import subprocess
+        import sys
+        subprocess.run([sys.executable, "-c", script], cwd=work, check=True, capture_output=True, text=True)
+        return sorted(p.relative_to(work / "d001" / "upload").as_posix()
+                      for p in (work / "d001" / "upload").rglob("*") if p.is_file())
+
+    def test_a_withheld_or_missing_report_uploads_alone(self) -> None:
+        self.assertEqual(self.collect("withheld"), ["report.json", "report.md"])
+        self.assertEqual(self.collect(None), [])
+
+    def test_a_cleared_report_uploads_the_arm_files_and_the_packs_that_passed(self) -> None:
+        for verdict in ("pass", "fail"):
+            with self.subTest(verdict=verdict):
+                self.assertEqual(self.collect(verdict), ["msha/arm.json", "msha/c1/pack/pack.json", "report.json",
+                                                         "report.md"])
+
+    def test_the_download_step_runs_exactly_the_two_downloads(self) -> None:
+        self.assertEqual(self.step_run("download (a failure here is not a run)").splitlines(),
+                         ["python tools/onboard/fetch_msha.py download --out d001/raw/msha",
+                          "python tools/onboard/fetch_nhtsa.py download --out d001/raw/nhtsa"])
 
 
 if __name__ == "__main__":

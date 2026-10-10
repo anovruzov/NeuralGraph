@@ -4,7 +4,8 @@ name: onboard-run
 # MSHA mine accidents and NHTSA vehicle complaints. Starts when a run file is pushed and runs the newest one. The run
 # starts at the RUN-START marker, after both downloads: a failure before it is not a run (rule 9). The report prints
 # between D001 markers in the job log and uploads with the arm files and the drafted packs that passed their check;
-# never the downloads, the split exports, the normalised records or audit.json.
+# never the downloads, the split exports, the normalised records or audit.json. A withheld report, or none, uploads
+# alone: no arm file and no pack (amendment A5).
 on:
   push:
     branches-ignore: [main]
@@ -71,17 +72,22 @@ jobs:
           import json, shutil
           from pathlib import Path
           up = Path("d001/upload")
+          report = Path("d001/report")
           for name in ("report.json", "report.md"):
-              if (Path("d001/report") / name).is_file():
-                  shutil.copy(Path("d001/report") / name, up / name)
-          for arm in sorted(Path("d001/arms").glob("*")):
-              if (arm / "arm.json").is_file():
-                  (up / arm.name).mkdir(parents=True, exist_ok=True)
-                  shutil.copy(arm / "arm.json", up / arm.name / "arm.json")
-              for company in sorted(p for p in arm.glob("*") if p.is_dir()):
-                  check = company / "check.json"
-                  if check.is_file() and json.loads(check.read_text())["passed"] and (company / "pack").is_dir():
-                      shutil.copytree(company / "pack", up / arm.name / company.name / "pack")
+              if (report / name).is_file():
+                  shutil.copy(report / name, up / name)
+          verdict = json.loads((report / "report.json").read_text())["verdict"] if (report / "report.json").is_file() else None
+          if verdict in (None, "withheld"):
+              print("no report, or a withheld one: no arm file and no pack is uploaded")
+          else:
+              for arm in sorted(Path("d001/arms").glob("*")):
+                  if (arm / "arm.json").is_file():
+                      (up / arm.name).mkdir(parents=True, exist_ok=True)
+                      shutil.copy(arm / "arm.json", up / arm.name / "arm.json")
+                  for company in sorted(p for p in arm.glob("*") if p.is_dir()):
+                      check = company / "check.json"
+                      if check.is_file() and json.loads(check.read_text())["passed"] and (company / "pack").is_dir():
+                          shutil.copytree(company / "pack", up / arm.name / company.name / "pack")
           EOF
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() && steps.start.outcome == 'success' }}

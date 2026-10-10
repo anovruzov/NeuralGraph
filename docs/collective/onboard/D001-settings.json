@@ -95,6 +95,9 @@
         "EQUIP_MFR_NAME",
         "EQUIP_MODEL_NO"
       ],
+      "download_code": [
+        "tools/onboard/fetch_msha.py"
+      ],
       "download_script": "tools/onboard/fetch_msha.py",
       "per_company": 200,
       "roles": {
@@ -151,6 +154,11 @@
         "id": "C2",
         "margin": 0.05
       },
+      "download_code": [
+        "tools/onboard/fetch_nhtsa.py",
+        "tools/market/nhtsa_export.py",
+        "tools/market/vehicle_pack.py"
+      ],
       "download_script": "tools/onboard/fetch_nhtsa.py",
       "hand_packs": {
         "pack": "docs/collective/replay/vehicles/pack",
@@ -162,7 +170,8 @@
         "date": "received",
         "entities": [],
         "forbidden": [
-          "reporter"
+          "reporter",
+          "vehicle"
         ],
         "narrative": "summary",
         "record_id": "odino",
@@ -214,6 +223,12 @@
     "max_terms": 50,
     "ngram_tokens": 8,
     "predicate_min_records": 50,
+    "refusal": {
+      "forbidden_inside_min_chars": 4,
+      "name_word_min_letters": 4,
+      "reference_inside_min_chars": 5
+    },
+    "term_max_chars": 64,
     "term_min_df": 10,
     "term_min_p": 0.6,
     "token_min_letters": 3
@@ -222,9 +237,7 @@
     "seed_prefix": "d001:permute"
   },
   "report_guard": {
-    "forbidden_min_chars": 4,
-    "ngram": 8,
-    "ref_min_chars": 5
+    "ngram": 8
   },
   "sample": {
     "seed_prefix": "d001:sample"

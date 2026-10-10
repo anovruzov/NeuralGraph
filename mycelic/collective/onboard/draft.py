@@ -4,10 +4,13 @@ The output is a function of the export, the roles, the parameters (``data/defaul
 (``data/lang/<code>.json``) and the neutral template (``data/template/``): no clock, no unseeded randomness, every list
 written in a fixed order, JSON with sorted keys. Each rule is one function here, named after it:
 
-* rule 1.3, the training rows: :func:`date_column`, :func:`window_rows`, :func:`build_corpus` (only the date column
-  is read in every row; every other value only in a training row with a narrative);
+* rule 1.3, the training rows: :func:`date_column`, :func:`window_rows`, :func:`build_corpus` (the date column is
+  read in every row, and so are the record-id, site and forbidden columns, only to refuse; every other value only in
+  a training row with a narrative);
+* amendment A2, the one refusal: :class:`Refusal`, built by :func:`export_refusal` from every row's record-id, site
+  and forbidden values; the drafter, the check and the last guard all use it;
 * rule 1.4, the predicates: :func:`group_categories`, :func:`category_floor`, :func:`split_categories`,
-  :func:`predicate_ids`, :func:`plan_predicates` (codes and the value map);
+  :func:`predicate_ids`, :func:`plan_predicates` (codes and the value map; refused categories left out);
 * rule 1.5, the lexicon: :func:`candidate_terms`, :func:`term_table`, :func:`eligible_terms`, :func:`term_score`,
   :func:`assign_terms`, :func:`placeholder`;
 * rule 1.6, the rest of the pack: :func:`entity_types`, :func:`assemble_pack`, :func:`fixtures`, and the normalised
@@ -47,6 +50,7 @@ FIXTURES = "fixtures/records.jsonl"
 MIN_FIXTURES = 40
 VALUE_KEY_MAX = 200
 VALUE_MAP_MAX = 1000
+CODE_LABEL_MAX = 120
 _TOKEN = re.compile(r"\w+")
 _ALNUM_RUN = re.compile(r"[^\W_]+")
 _SLUG_RUN = re.compile(r"[^a-z0-9]+")
@@ -178,7 +182,6 @@ class Corpus:
     narratives: tuple[str, ...]
     categories: tuple[tuple[str, ...], ...]
     entities: Mapping[str, tuple[tuple[str, ...], ...]]
-    refused: frozenset[str]
     training_rows: int
     without_narrative: int
 
@@ -188,12 +191,11 @@ class Corpus:
 
 def build_corpus(export: Export, roles: Roles, rows: Sequence[int]) -> Corpus:
     """Rule 1.3: the training rows with a non-empty narrative. A training row without one is ignored: none of its
-    other values is read. ``refused`` holds the folded site and forbidden values of the corpus rows (rule 1.5)."""
+    other values is read. The refused values are read apart, by :func:`export_refusal` (amendment A2)."""
     for name, role in ((roles.narrative, "narrative"), (roles.site, "site"), (roles.record_id, "record_id")):
         _scalar_column(export, name, role)
     keep, refs, sites, narratives, categories = [], [], [], [], []
     entities: dict[str, list[tuple[str, ...]]] = {c: [] for c in roles.entities}
-    refused: set[str] = set()
     without = 0
     for r in rows:
         narrative = export.value(r, roles.narrative)
@@ -208,14 +210,116 @@ def build_corpus(export: Export, roles: Roles, rows: Sequence[int]) -> Corpus:
         categories.append(_cells(export.value(r, roles.category)))
         for c in roles.entities:
             entities[c].append(_cells(export.value(r, c)))
-        for name in (roles.site, *roles.forbidden):
-            for v in _cells(export.value(r, name)):
-                f = folded(v)
-                if f:
-                    refused.add(f)
     return Corpus(rows=tuple(keep), refs=tuple(refs), sites=tuple(sites), narratives=tuple(narratives),
                   categories=tuple(categories), entities={c: tuple(v) for c, v in entities.items()},
-                  refused=frozenset(refused), training_rows=len(rows), without_narrative=without)
+                  training_rows=len(rows), without_narrative=without)
+
+
+# --------------------------------------------------------------------------------------------------- amendment A2
+
+REFUSAL_KINDS = ("equal", "inside", "name_word")
+
+
+class ValueIndex:
+    """Values to find inside a text as whole words (``find_bounded``), indexed by their first alphanumeric run: a
+    value that starts with a letter or digit can only match where that run is a whole run of the text."""
+
+    def __init__(self, values: Iterable[str]) -> None:
+        self.by_run: dict[str, list[str]] = {}
+        self.general: list[str] = []
+        for v in sorted(set(values)):
+            if not v:
+                continue
+            if is_alnum(v[0]):
+                self.by_run.setdefault(_ALNUM_RUN.match(v).group(), []).append(v)
+            else:
+                self.general.append(v)
+
+    def found_in(self, text: str) -> str | None:
+        for run in sorted(set(_ALNUM_RUN.findall(text))):
+            for v in self.by_run.get(run, ()):
+                if find_bounded(v, text):
+                    return v
+        for v in self.general:
+            if find_bounded(v, text):
+                return v
+        return None
+
+
+def words_of(text: str) -> list[str]:
+    """The words of a folded string: its runs of letters and digits."""
+    return _ALNUM_RUN.findall(text)
+
+
+class Refusal:
+    """Amendment A2: what no string taken from records may carry. Built from the folded values of an export's
+    record-id, site and forbidden columns (every row), it refuses a string that, folded,
+
+    1. ``equal``: equals one of those values;
+    2. ``inside``: holds, as whole words, a forbidden value of at least ``forbidden_inside_min_chars`` characters that
+       holds a letter, or a record-id or site value of at least ``reference_inside_min_chars`` characters;
+    3. ``name_word``: equals a word (letters only, at least ``name_word_min_letters`` of them) of a forbidden value of
+       two or more words: a surname inside a name.
+
+    A lexicon term is refused when it or any of its words is (:meth:`term`). The drafter, the check (rule 1.7) and the
+    last guard (rule 8) all use this one class."""
+
+    def __init__(self, references: Iterable[str], forbidden: Iterable[str], params: Mapping[str, Any]) -> None:
+        p = params["refusal"]
+        refs = {f for f in (folded(v) for v in references) if f}
+        bad = {f for f in (folded(v) for v in forbidden) if f}
+        self.equal = frozenset(refs | bad)
+        self.inside = ValueIndex([v for v in bad if len(v) >= p["forbidden_inside_min_chars"]
+                                  and any(ch.isalpha() for ch in v)]
+                                 + [v for v in refs if len(v) >= p["reference_inside_min_chars"]])
+        names: set[str] = set()
+        for v in bad:
+            words = words_of(v)
+            if len(words) >= 2:
+                names.update(w for w in words if w.isalpha() and len(w) >= p["name_word_min_letters"])
+        self.name_words = frozenset(names)
+
+    def string(self, text: str) -> str | None:
+        """The kind of refusal of one string (a label, a spelling, an id, an alias), or None."""
+        f = folded(text)
+        if not f:
+            return None
+        if f in self.equal:
+            return "equal"
+        if self.inside.found_in(f) is not None:
+            return "inside"
+        if f in self.name_words:
+            return "name_word"
+        return None
+
+    def term(self, text: str) -> str | None:
+        """The kind of refusal of a lexicon term: the term itself, then each of its words."""
+        kind = self.string(text)
+        if kind is not None:
+            return kind
+        for w in words_of(folded(text)):
+            kind = self.string(w)
+            if kind is not None:
+                return kind
+        return None
+
+
+def refused_values(export: Export, roles: Roles) -> tuple[list[str], list[str]]:
+    """Amendment A2: the values of the record-id and site columns, and of the forbidden columns, in every row. These
+    columns are read in every row for this one purpose (rule 1.3 as amended)."""
+    references: list[str] = []
+    forbidden: list[str] = []
+    for r in range(len(export)):
+        for name in (roles.record_id, roles.site):
+            references.extend(_cells(export.value(r, name)))
+        for name in roles.forbidden:
+            forbidden.extend(_cells(export.value(r, name)))
+    return references, forbidden
+
+
+def export_refusal(export: Export, roles: Roles, params: Mapping[str, Any]) -> Refusal:
+    """The one refusal of an export (amendment A2), used by the drafter and by the check alike."""
+    return Refusal(*refused_values(export, roles), params)
 
 
 # --------------------------------------------------------------------------------------------------- rule 1.4
@@ -309,7 +413,8 @@ def predicate_ids(specific: Sequence[Category], params: Mapping[str, Any], ids: 
 
 @dataclass(frozen=True)
 class Plan:
-    """The predicates of one draft: ``ids`` in code order (descending count, ties by label)."""
+    """The predicates of one draft: ``ids`` in code order (descending count, ties by label). ``refused`` holds the
+    categories that passed the floor but were left out because a string of theirs is refused (amendment A2)."""
 
     ids: tuple[str, ...]
     of_key: Mapping[str, str]
@@ -320,14 +425,36 @@ class Plan:
     other_id: str
     other_code: str
     split: Split
+    refused: tuple[Category, ...] = ()
+
+
+def category_strings(c: Category, pid: str | None, params: Mapping[str, Any], ids: Mapping[str, Any]) -> list[str]:
+    """Every string the drafter would write or print for a category (amendment A2): its spellings (its label among
+    them); for a predicate also its label as cut, its id and its placeholder."""
+    out = list(c.spellings)
+    if pid is not None:
+        out += [c.label[:params["label_max_chars"]], c.label[:CODE_LABEL_MAX], pid, placeholder(pid, ids)]
+    return out
 
 
 def plan_predicates(categories: Sequence[Category], params: Mapping[str, Any], lang: Language,
-                    ids: Mapping[str, Any]) -> Plan:
-    split = split_categories(categories, params, lang)
-    if not split.specific:
-        raise DraftError("no category reaches the predicate minimum: a pack needs one specific predicate")
-    pids = predicate_ids(split.specific, params, ids)
+                    ids: Mapping[str, Any], refusal: Refusal | None = None) -> Plan:
+    """Rule 1.4 with amendment A2: a category any of whose strings the refusal refuses is left out, as if under the
+    floor, and the predicates are planned again without it (a removal can change other ids and the cap)."""
+    refused: dict[str, Category] = {}
+    while True:
+        split = split_categories([c for c in categories if c.key not in refused], params, lang)
+        if not split.specific:
+            raise DraftError("no category reaches the predicate minimum: a pack needs one specific predicate")
+        pids = predicate_ids(split.specific, params, ids)
+        if refusal is None:
+            break
+        pairs = [*zip(split.specific, pids), *((c, None) for c in split.other)]
+        newly = [c for c, pid in pairs
+                 if any(refusal.string(x) is not None for x in category_strings(c, pid, params, ids))]
+        if not newly:
+            break
+        refused.update((c.key, c) for c in newly)
     codes = {p: ids["code_format"].format(i) for i, p in enumerate(pids, start=1)}
     value_map: dict[str, str] = {}
     for c, p in zip(split.specific, pids):
@@ -344,7 +471,8 @@ def plan_predicates(categories: Sequence[Category], params: Mapping[str, Any], l
                 labels={p: c.label for c, p in zip(split.specific, pids)}, codes=codes,
                 counts={p: c.count for c, p in zip(split.specific, pids)},
                 value_map=dict(sorted(value_map.items())), other_id=ids["other_predicate"],
-                other_code=ids["other_code"], split=split)
+                other_code=ids["other_code"], split=split,
+                refused=tuple(sorted(refused.values(), key=lambda c: (-c.count, c.label))))
 
 
 def record_labels(categories: Sequence[tuple[str, ...]], plan: Plan) -> list[tuple[str, ...]]:
@@ -365,8 +493,10 @@ def qualifies(token: str, lang: Language, params: Mapping[str, Any]) -> bool:
 
 def candidate_terms(narrative: str, lang: Language, params: Mapping[str, Any]) -> set[str]:
     """Rule 1.5: the unigrams and bigrams of one narrative, split into sentences and folded as the extractor does; a
-    bigram is two qualifying tokens next to each other with exactly one space between them."""
+    bigram is two qualifying tokens next to each other with exactly one space between them. A term longer than the
+    loader's limit is not a candidate (amendment A4)."""
     out: set[str] = set()
+    longest = params["term_max_chars"]
     for s, e in split_sentences(narrative):
         sent = fold_phrase(narrative[s:e])[0]
         prev: tuple[str, int, bool] | None = None
@@ -374,9 +504,12 @@ def candidate_terms(narrative: str, lang: Language, params: Mapping[str, Any]) -
             tok = m.group()
             q = qualifies(tok, lang, params)
             if q:
-                out.add(tok)
+                if len(tok) <= longest:
+                    out.add(tok)
                 if prev is not None and prev[2] and sent[prev[1]:m.start()] == " ":
-                    out.add(f"{prev[0]} {tok}")
+                    bigram = f"{prev[0]} {tok}"
+                    if len(bigram) <= longest:
+                        out.add(bigram)
             prev = (tok, m.end(), q)
     return out
 
@@ -419,36 +552,18 @@ def term_table(corpus: Corpus, lang: Language, params: Mapping[str, Any]) -> Ter
                      sites=tuple(cap if s is None else len(s) for s in sites))
 
 
-class ValueIndex:
-    """Values to find inside a text as whole words (``find_bounded``), indexed by their first alphanumeric run: a
-    value that starts with a letter or digit can only match where that run is a whole run of the text."""
-
-    def __init__(self, values: Iterable[str]) -> None:
-        self.by_run: dict[str, list[str]] = {}
-        self.general: list[str] = []
-        for v in sorted(set(values)):
-            if not v:
-                continue
-            if is_alnum(v[0]):
-                self.by_run.setdefault(_ALNUM_RUN.match(v).group(), []).append(v)
-            else:
-                self.general.append(v)
-
-    def found_in(self, text: str) -> str | None:
-        for run in sorted(set(_ALNUM_RUN.findall(text))):
-            for v in self.by_run.get(run, ()):
-                if find_bounded(v, text):
-                    return v
-        for v in self.general:
-            if find_bounded(v, text):
-                return v
-        return None
-
-
-def eligible_terms(table: TermTable, refused: ValueIndex, params: Mapping[str, Any]) -> list[int]:
-    """Rule 1.5's floor: a term in at least N records at at least S sites that holds no refused value."""
-    return [tid for tid, term in enumerate(table.terms)
-            if category_floor(table.df[tid], table.sites[tid], params) and refused.found_in(term) is None]
+def eligible_terms(table: TermTable, refusal: Refusal, params: Mapping[str, Any]) -> tuple[list[int], int]:
+    """Rule 1.5's floor: a term in at least N records at at least S sites that the refusal does not refuse
+    (amendment A2). Also the number of terms that passed the floor and were refused."""
+    out, refused = [], 0
+    for tid, term in enumerate(table.terms):
+        if not category_floor(table.df[tid], table.sites[tid], params):
+            continue
+        if refusal.term(term) is not None:
+            refused += 1
+            continue
+        out.append(tid)
+    return out, refused
 
 
 def term_score(df_tc: int, df_t: int) -> Fraction:
@@ -549,12 +664,14 @@ def entity_id(value: str, ids: Mapping[str, Any]) -> str:
 
 
 def entity_types(corpus: Corpus, roles: Roles, params: Mapping[str, Any], ids: Mapping[str, Any],
-                 taken: Iterable[str]) -> list[EntityType]:
+                 taken: Iterable[str], refusal: Refusal | None = None) -> tuple[list[EntityType], int]:
     """Rule 1.6: a declared entity column becomes an alias-only type whose ids are its values that pass the floor,
     written in capitals with every run of other characters as ``-`` and the prefix; a value whose id is too long or
-    repeats another's is left out; at most the most frequent are kept (ties by id). Its aliases are its values."""
+    repeats another's is left out, and so is one that the refusal refuses, or whose id it refuses (amendment A2); at
+    most the most frequent are kept (ties by id). Its aliases are its values. Also the number of values refused."""
     used = set(taken)
     out = []
+    refused = 0
     for column in roles.entities:
         tid, n = slug(column, params, ids["id_prefix"]), 2
         base = tid
@@ -575,13 +692,16 @@ def entity_types(corpus: Corpus, roles: Roles, params: Mapping[str, Any], ids: M
             eid = entity_id(v, ids)
             if not eid or len(eid) > params["entity_id_max_chars"] or eid in kept.values():
                 continue
+            if refusal is not None and (refusal.string(v) is not None or refusal.string(eid) is not None):
+                refused += 1
+                continue
             kept[v] = eid
             if len(kept) >= params["entity_max_ids"]:
                 break
         if kept:
             out.append(EntityType(id=tid, column=column, label=column[:params["label_max_chars"]],
                                   ids=tuple(sorted(kept.values())), aliases=dict(sorted(kept.items()))))
-    return out
+    return out, refused
 
 
 def _fill(text: str, slot: str, value: str) -> str:
@@ -612,7 +732,8 @@ def assemble_pack(pack_id: str, plan: Plan, lexicon: Mapping[str, list[str]], la
     vocabulary = {"entity_types": types, "predicates": predicates,
                   "negation": {lang.code: {k: list(v) for k, v in lang.negation.items()}},
                   "negation_window": base["negation_window"], "extraction": base["extraction"]}
-    codes = {plan.codes[p]: {"label": plan.labels[p][:120], "predicate": p, "specific": True} for p in plan.ids}
+    codes = {plan.codes[p]: {"label": plan.labels[p][:CODE_LABEL_MAX], "predicate": p, "specific": True}
+             for p in plan.ids}
     codes[plan.other_code] = {"label": lang.other_label, "predicate": plan.other_id, "specific": False}
     aliases = {scope_type: {lang.scope_alias: scope_id}}
     for et in etypes:
@@ -727,6 +848,9 @@ class Draft:
     files: dict[str, Any]
     inferred: dict[str, str | None]
     facts: dict[str, Any] = field(default_factory=dict)
+    refusal: Refusal | None = None
+    refused_terms: int = 0
+    refused_entity_values: int = 0
 
 
 def draft_export(export: Export, roles: Roles, window: Window, pack_id: str, *,
@@ -741,21 +865,24 @@ def draft_export(export: Export, roles: Roles, window: Window, pack_id: str, *,
     dated = date_column(export, roles, lang, params)
     train = window_rows(dated, window)
     corpus = build_corpus(export, roles, train)
+    refusal = export_refusal(export, roles, params)
     evidence = column_evidence(export, train, lang.months)
     inferred = infer_roles(evidence, params, lang.site_words, lang.category_words, len(train))
     categories = group_categories(corpus)
-    plan = plan_predicates(categories, params, lang, ids)
+    plan = plan_predicates(categories, params, lang, ids, refusal)
     table = term_table(corpus, lang, params)
-    eligible = eligible_terms(table, ValueIndex(corpus.refused), params)
+    eligible, refused_terms = eligible_terms(table, refusal, params)
     labels = record_labels(corpus.categories, plan)
     learned = assign_terms(table, eligible, labels, plan.ids, params)
     lexicon = with_placeholders(learned, ids)
     scope_type = next(iter(template["vocabulary_base.json"]["entity_types"]))
-    etypes = entity_types(corpus, roles, params, ids, {scope_type, plan.other_id, *plan.ids})
+    etypes, refused_entities = entity_types(corpus, roles, params, ids, {scope_type, plan.other_id, *plan.ids},
+                                            refusal)
     files = assemble_pack(pack_id, plan, lexicon, lang, template, params, roles, etypes)
     d = Draft(roles=roles, lang=lang, params=params, template=template, dated=dated, window=window, corpus=corpus,
               categories=categories, plan=plan, table=table, eligible=eligible, labels=labels, learned=learned,
-              lexicon=lexicon, etypes=etypes, files=files, inferred=inferred)
+              lexicon=lexicon, etypes=etypes, files=files, inferred=inferred, refusal=refusal,
+              refused_terms=refused_terms, refused_entity_values=refused_entities)
     d.facts = summarise(export, d)
     return d
 
@@ -781,24 +908,26 @@ def summarise(export: Export, d: Draft) -> dict[str, Any]:
         "roles": {"declared": d.roles.single(), "inferred": dict(d.inferred),
                   "right": roles_right(d.inferred, d.roles), "of": 5},
         "categories": {"passing_floor": passing, "below_floor": len(plan.split.below),
-                       "specific": len(plan.ids), "other": len(plan.split.other)},
+                       "specific": len(plan.ids), "other": len(plan.split.other), "refused": len(plan.refused)},
         "predicates": [{"id": p, "code": plan.codes[p], "label": plan.labels[p], "records": plan.counts[p],
                         "terms": len(d.learned[p]), "first_terms": d.lexicon[p][:10]} for p in plan.ids],
         "other_bucket_rows": other_rows, "other_bucket_share": other_rows / n if n else None,
         "rows_without_specific": no_specific,
         "terms": {"total": sum(sizes), "min": sizes[0], "median": sizes[len(sizes) // 2], "max": sizes[-1],
-                  "candidates": len(d.table.terms), "eligible": len(d.eligible)},
+                  "candidates": len(d.table.terms), "eligible": len(d.eligible), "refused": d.refused_terms},
         "placeholders": sum(1 for p in plan.ids if not d.learned[p]),
         "entity_types": [{"id": et.id, "ids": len(et.ids)} for et in d.etypes],
+        "refused_entity_values": d.refused_entity_values,
     }
 
 
 def load_written(directory: str | Path) -> tuple[Any, str | None]:
-    """The loader's check of a written pack: (the frozen pack or None, the error text or None)."""
+    """The loader's check of a written pack: (the frozen pack or None, the error text or None). The text is the
+    failing file and the problem, without the JSON path, which can name a predicate or a category spelling."""
     try:
         return load_pack_dir(directory), None
     except PackError as err:
-        return None, str(err)
+        return None, f"{err.file}: {err.problem}"
 
 
 # --------------------------------------------------------------------------------------------------- normalised export

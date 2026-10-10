@@ -24,6 +24,12 @@
   "max_terms": 50,
   "ngram_tokens": 8,
   "predicate_min_records": 50,
+  "refusal": {
+    "forbidden_inside_min_chars": 4,
+    "name_word_min_letters": 4,
+    "reference_inside_min_chars": 5
+  },
+  "term_max_chars": 64,
   "term_min_df": 10,
   "term_min_p": 0.6,
   "token_min_letters": 3

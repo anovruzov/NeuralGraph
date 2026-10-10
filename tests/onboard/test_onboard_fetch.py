@@ -218,5 +218,75 @@ class DownloadTests(unittest.TestCase):
                 self.assertEqual(json.loads((Path(tmp) / "download.json").read_text()), facts)
 
 
+HONEST_UA = "mycelic-onboard-d001 (drafting test D001 on public data)"
+
+
+class HonestFetchTests(unittest.TestCase):
+    """The brief's honest-fetch rules: one plain request per file, with the run's own User-Agent, and no retry by
+    any other route when a host refuses."""
+
+    def test_both_scripts_name_themselves_in_the_user_agent(self) -> None:
+        self.assertEqual((M.UA, N.UA), (HONEST_UA, HONEST_UA))
+
+    def test_fetch_sends_the_user_agent_once_and_never_retries(self) -> None:
+        import urllib.error
+        from unittest import mock
+
+        for mod in (M, N):
+            with self.subTest(script=mod.__name__):
+                calls: list[Any] = []
+
+                class Resp(io.BytesIO):
+                    def __enter__(self) -> "Resp":
+                        return self
+
+                    def __exit__(self, *exc: Any) -> None:
+                        return None
+
+                def ok(req: Any, timeout: float) -> Resp:
+                    calls.append((req, timeout))
+                    return Resp(b"body")
+
+                with mock.patch("urllib.request.urlopen", ok):
+                    self.assertEqual(mod.fetch("https://example.invalid/file.zip"), b"body")
+                (req, timeout), = calls
+                self.assertEqual(req.get_header("User-agent"), HONEST_UA)
+                self.assertEqual((req.full_url, req.get_method(), timeout),
+                                 ("https://example.invalid/file.zip", "GET", 900))
+
+                calls.clear()
+
+                def refuse(req: Any, timeout: float) -> Resp:
+                    calls.append(req)
+                    raise urllib.error.HTTPError(req.full_url, 403, "Forbidden", {}, None)
+
+                with mock.patch("urllib.request.urlopen", refuse), self.assertRaises(urllib.error.HTTPError):
+                    mod.fetch("https://example.invalid/file.zip")
+                self.assertEqual(len(calls), 1)
+
+    def test_download_asks_each_file_once_and_stops_at_a_refusal(self) -> None:
+        for mod, n in ((M, len(M.FILES)), (N, 1)):
+            with self.subTest(script=mod.__name__), tempfile.TemporaryDirectory() as tmp:
+                asked: list[str] = []
+
+                def fetcher(url: str) -> bytes:
+                    asked.append(url)
+                    return b"x"
+
+                with contextlib.redirect_stdout(io.StringIO()):
+                    mod.download(Path(tmp), fetcher)
+                self.assertEqual(len(asked), n)
+                self.assertEqual(len(set(asked)), n)
+                asked.clear()
+
+                def refusing(url: str) -> bytes:
+                    asked.append(url)
+                    raise OSError("refused")
+
+                with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(OSError):
+                    mod.download(Path(tmp) / "again", refusing)
+                self.assertEqual(len(asked), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
