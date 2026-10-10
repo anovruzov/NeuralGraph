@@ -189,9 +189,11 @@ Modelled on `vehicle-replay.yml`, with the same pinned action commits.
   ```
 
   and the same for `report.md`. The sha256 is of the file's bytes.
-- **The last guard** of rule 8 runs before either file is written. As amended (A5), it reads per arm the strings the
-  report prints that came from records (labels, ids, terms, error texts) against that arm's exports. A hit writes a
-  report holding only the hit counts by kind and the verdict "withheld", and M3 fails.
+- **The last guard** of rule 8 runs before either file is written. As amended again (A10), it reads per company the
+  strings the report prints that came from records (labels, ids, terms, error texts) against that company's own
+  export. Then a backstop (A11) scans the whole rendered text for the record ids and site values of 5 or more
+  characters of every company. A hit writes a report holding only the hit counts by kind and the verdict "withheld",
+  and M3 fails.
 
 ## 8. Tests
 
@@ -279,7 +281,10 @@ run on MSHA or NHTSA records: this machine cannot reach them, and every test and
 
 Two reviews then found that the rule as written failed privacy checks by construction. The rule was amended before
 any run (`CHOICE-D001.md`, "Amended before any run, 2026-10-09", commit `ba7b754`), and the code was fixed on
-`wf/d001-fix`. This section describes the code as it now stands; "The review findings" below lists each finding.
+`wf/d001-fix`. A review of that fix found that the last guard still refused across companies. The owner decided five
+changes, recorded as a second amendment ("Amended again before any run, 2026-10-09", commit `16fbb58`, A10 to A14),
+and the code was fixed again on `wf/d001-fix2`. This section describes the code as it now stands; "The review
+findings" and "The fix's review findings" below list each finding.
 
 ### What is where
 
@@ -287,10 +292,10 @@ any run (`CHOICE-D001.md`, "Amended before any run, 2026-10-09", commit `ba7b754
 |---|---|
 | `mycelic/collective/onboard/exports.py` | rule 1.1: decoding, format and delimiter, list columns, rejected rows by reason |
 | `mycelic/collective/onboard/roles.py` | the roles file, rule 1.2's evidence and inference, rule 1.3's date formats |
-| `mycelic/collective/onboard/draft.py` | rules 1.3 to 1.6, the one refusal of amendment A2 (`Refusal`, `export_refusal`), the two control lexicons of rule 4; the normalised export |
+| `mycelic/collective/onboard/draft.py` | rules 1.3 to 1.6, the one refusal of amendment A2 (`Refusal`, `export_refusal`) and what it removed (`refusal_removed`, A14), the two control lexicons of rule 4 (the label-names one through the refusal, A13); the normalised export |
 | `mycelic/collective/onboard/check.py` | rule 1.7 as amended (A3: the derived strings and the template rebuild), the loader's check, M1's package and label scans |
 | `mycelic/collective/onboard/score.py` | one arm: rules 2 to 6 |
-| `mycelic/collective/onboard/report.py` | both arms, the criteria, the last guard of rule 8 as amended (A5), the printed blocks |
+| `mycelic/collective/onboard/report.py` | both arms, the criteria, the last guard of rule 8 per company (A10: `guard_arm`, `guard_hits`), the backstop over the rendered report (A11: `Backstop`), the printed blocks |
 | `mycelic/collective/onboard/__main__.py` | the CLI: `draft`, `export`, `check`, `score`, `report`, each with `--dry-run` |
 | `mycelic/collective/onboard/data/` | `defaults.json`, `lang/en.json` and the neutral template (eight files) |
 | `docs/collective/onboard/D001-settings.json` | every value of the rule; `params` equal `data/defaults.json` |
@@ -314,8 +319,11 @@ any run (`CHOICE-D001.md`, "Amended before any run, 2026-10-09", commit `ba7b754
   (plus `entities` and `reporter` when declared). The mapping requires nothing, so a row without a narrative still
   carries its codes.
 - **The refusal** (A2) is one class, `draft.Refusal`, built by `draft.export_refusal` from every row's record-id, site
-  and forbidden values. The drafter, the check and the last guard call it. Lengths are counted after folding. The
-  check recounts term presence from the folded sentences directly, not through the drafter's candidate terms.
+  and forbidden values of one company's export. The drafter, the check, the label-names control and the last guard
+  each build it with that function from the same export (A10, A13). Lengths are counted after folding. The check
+  recounts term presence from the folded sentences directly, not through the drafter's candidate terms.
+- **A declared column an export lacks** gives no refused value. The drafter refuses such an export first (a roles
+  error), so this only lets the last guard read the other columns of a company that could not be drafted.
 - **A refused category** is found by planning the predicates, refusing every category one of whose strings (its
   spellings, its label cut to 80 and to 120 characters, its id, its placeholder) is refused, and planning again
   without them until nothing more is refused. A removal can change other ids and the 199 cap.
@@ -342,12 +350,30 @@ any run (`CHOICE-D001.md`, "Amended before any run, 2026-10-09", commit `ba7b754
 - **Numbers written** to `arm.json` and the report are rounded to four places. Every decision uses full precision;
   C1's margin compares the exact difference of two fractions. A criterion's deciding values sit unrounded under
   `exact`, with each comparison's outcome, and the report prints them in full beside the comparison (A8).
-- **The last guard** (A5) reads, per arm, these printed strings of each arm file: the passing-floor labels, each
-  predicate's label and id, its first terms (a placeholder read as an id), the majority prior's id, a company's error
-  text and a loader error. Terms go through the term rule, the rest through the string rule, against the refusal
-  built from every row of every company export of that arm. The 8-gram scan runs on the parsed strings. If it cannot
-  read an export, it cannot clear the report: the report is withheld as for a hit, and M3 fails. The withheld report
-  gives each arm's hit counts by kind and names the kinds found, never a string.
+- **The last guard** (A10) reads, per company, these printed strings of its arm-file entry: the passing-floor
+  labels, each predicate's label and id, its first terms (a placeholder read as an id), the majority prior's id, its
+  error text and a loader error. Terms go through the term rule, the rest through the string rule, against the
+  refusal of that company's own export. The 8-gram scan runs on the parsed strings against that export's narratives,
+  as check 4 does. Each export is read once, from the arm's `companies.json`. If the guard cannot read an export, or
+  the companies file, or a company of the arm file is not listed there, it cannot clear the report: the report is
+  withheld as for a hit, and M3 fails. The withheld report gives the hit counts by kind per arm and per company, and
+  names the kinds found, never a string.
+- **The backstop** (A11) runs only when the guard found nothing. Its values are the folded record-id and site values
+  of at least 5 characters (the refusal's `reference_inside_min_chars`) of every row of every listed export of each
+  arm that wrote its arm file (an arm without one prints nothing of its records). It folds the rendered `report.json`
+  and `report.md` and the parsed strings of `report.json`, keys included, and looks each value up as whole words
+  (`find_bounded`, through the same index as the refusal). It counts the distinct values found, by kind. Any match
+  writes the withheld report instead. A cleared report gives, under M3, how many values of each kind the backstop
+  held.
+- **What the refusal removed** (A14) is counted by `draft.refusal_removed` with the drafted pack's own predicates, so
+  a refused category stays left out of the counterfactual. "Would have been assigned" runs rule 1.5's assignment over
+  the refused floor-passing terms with no cap. "Within K" runs it over the eligible and the refused terms together,
+  with the cap, and counts the refused terms kept. The corpus rows under refused categories count a row once, however
+  many refused categories it carries. Each predicate also gets its own count of refused terms that would have been
+  assigned to it. The arm sums the companies' counts beside its criterion (`score.refusal_totals`).
+- **The label-names control** (A13) drops each label part that the term rule refuses. The refusal depends on the part
+  alone, so a part shared by two labels is dropped from both, and no part moves to another label. The report counts
+  the distinct parts dropped.
 - **M4's "has a summary"** is read as "the channel ran": no reason and an alert timeline. This keeps the column name
   `summary` out of the package (M1).
 - **Definition lines:** the first line naming a column, plus the following lines up to a blank line, a line naming
@@ -360,7 +386,7 @@ any run (`CHOICE-D001.md`, "Amended before any run, 2026-10-09", commit `ba7b754
 ### Conflicts with the rule as written, and how they were settled
 
 The build first followed the rule's words. Each conflict below could change a result. The amendment before any run
-settles all of them.
+settles the first seven, and the second amendment the eighth.
 
 1. **October in `D-MON` dates.** Rule 1.3 cuts a date at its first space or `T`. An upper-case `OCT` holds a `T`, so
    `04-OCT-2021` becomes `04-OC` and does not parse. If the MSHA date column were written that way, every October
@@ -386,6 +412,16 @@ settles all of them.
 7. **Names and vehicles** (found by the reviews). A surname inside a multi-word name passed every check, and NHTSA's
    vehicle column was not forbidden, so a model name could become a printed term. **Settled by A2** (a word of a
    multi-word forbidden value) **and A6** (`vehicle` forbidden).
+8. **One company's value against another company's strings** (found by the review of the fix). After A5, the drafter and
+   the check refused against one company's export, but the last guard refused against every row of every company of
+   the arm. A label, id or term that one company learned honestly, and that passed its own floor, withheld the whole
+   report when it equalled a value of another company, or a word of one: a vehicle model named for a common word in
+   one make's rows, a three-letter contractor code that reads as a word, or one equipment cell reading `Other`. MSHA
+   has five companies and NHTSA six; no test had two companies with the value in only one, and the dry run put the
+   colliding cells in every company. D001 would have failed on a false "privacy floor failed". **Settled by A10**
+   (the guard reads each company against its own export, so a printed string cannot collide by construction), **A11**
+   (a backstop over the whole rendered report for record ids and site values of 5 or more characters of every
+   company) **and A12** (MSHA's equipment columns are no longer forbidden).
 
 ### Tests
 
@@ -396,6 +432,9 @@ settles all of them.
   `RefusalTests`, `AmendedDraftTests`, `AmendedCheckTests`, `GuardTests`, `ExactPrintingTests`, `MatchedGoldTests`,
   `ArmWiringTests`, `GoldTests`, `DownloadCodeTests`, `AmendmentRecordTests` and `WorkflowAmendmentTests`. The last
   runs the workflow's own collect script, read from the YAML text, on a withheld, a missing and a cleared report.
+  Section 17 holds the second amendment's tests: `PerCompanyGuardTests` (A10), `BackstopTests` (A11, with the
+  planted-render test restored), `EquipmentColumnTests` (A12), `LabelNamesRefusalTests` (A13), `RefusalCountTests`
+  (A14) and `SecondAmendmentRecordTests`.
 - `tests/onboard/test_onboard_fetch.py`: the company rule, unchanged company lines, no controller id or value
   printed, definition lines, the NHTSA split, both downloads with a fake fetcher, and `HonestFetchTests`: the
   User-Agent names the run, one request per file, no retry after a refusal.
@@ -409,28 +448,36 @@ identifying columns are read, never a narrative or a category) and the settings 
 check's result keys `fold_equal` and `term_contains` became `refused_strings` and `refused_terms`, and two report
 tests now plant their hit in the arm file, where the guard reads.
 
-Counts from `python -B -m pytest <file> -q -p no:cacheprovider` on `wf/d001-fix`:
+Three existing tests changed with the second amendment, each to assert the amended rule as strictly as before. Two
+guard tests (`test_the_guard_counts_each_kind`, `test_the_guard_reads_parsed_strings_and_folds`) give `guard_hits` one
+company's sentinels per company instead of one per arm; their expected counts are unchanged, and the first also
+requires no unread company. The settings test holds A12's forbidden and definition columns.
 
-| File | Result |
-|---|---|
-| `tests/mycelic/test_collective_onboard.py` | 116 passed, 35 subtests passed |
-| `tests/onboard/test_onboard_fetch.py` | 11 passed, 6 subtests passed |
-| `tests/mycelic/test_collective_guards.py` | 83 passed, 721 subtests passed |
-| `tests/mycelic/test_collective_x3.py` (the hash pins, untouched) | 32 passed, 141 subtests passed |
+Counts from `python -B -m pytest <file> -q -p no:cacheprovider`:
 
-The full suites, each by `python -B -m pytest <dir> -q -p no:cacheprovider`:
-
-| Suite | On `wf/d001-fix` | On `8a3ba97` (as this file recorded it then) |
+| File | On `wf/d001-fix2` (`d42b832`) | On `wf/d001-fix` (as recorded then) |
 |---|---|---|
-| `tests/mycelic` | 1662 passed, 1 xfailed, 45530 subtests passed | 1620 passed, 1 xfailed, 45514 subtests passed |
-| `NeuralGraph/tests` | 264 passed, 1 skipped, 305 subtests passed | 264 passed, 1 skipped, 305 subtests passed |
-| `tests/onboard` and `tests/market` | 98 passed, 39 subtests passed | 95 passed, 35 subtests passed |
-| `tests/lab` | 578 passed, 17372 subtests passed | 578 passed, 17372 subtests passed |
+| `tests/mycelic/test_collective_onboard.py` | 137 passed, 56 subtests passed | 116 passed, 35 subtests passed |
+| `tests/onboard/test_onboard_fetch.py` | 11 passed, 6 subtests passed | 11 passed, 6 subtests passed |
+| `tests/mycelic/test_collective_guards.py` | 83 passed, 721 subtests passed | 83 passed, 721 subtests passed |
+| `tests/mycelic/test_collective_x3.py` (the hash pins, untouched) | 32 passed, 141 subtests passed | 32 passed, 141 subtests passed |
 
-No test failed in any of these runs. The `tests/lab` run was on the committed fix (`ef66192`): its E1
-preregistration refuses a tree with uncommitted collective code, and a first run before the commit failed for that
-reason alone. `actionlint` and `shellcheck` are not installed on this machine, so the workflow was not linted after
-the fix; the earlier `actionlint` 1.7.12 run was on `8a3ba97`.
+The full suites, each by `python -B -m pytest <dir> -q -p no:cacheprovider` (`tests/mycelic` on `wf/d001-fix2` with
+`-x` added):
+
+| Suite | On `wf/d001-fix2` (`d42b832`) | On `wf/d001-fix` | On `8a3ba97` (as recorded then) |
+|---|---|---|---|
+| `tests/mycelic` | 1683 passed, 1 xfailed, 45551 subtests passed | 1662 passed, 1 xfailed, 45530 subtests passed | 1620 passed, 1 xfailed, 45514 subtests passed |
+| `NeuralGraph/tests` | 264 passed, 1 skipped, 305 subtests passed | 264 passed, 1 skipped, 305 subtests passed | 264 passed, 1 skipped, 305 subtests passed |
+| `tests/onboard` and `tests/market` | 98 passed, 39 subtests passed | 98 passed, 39 subtests passed | 95 passed, 35 subtests passed |
+| `tests/lab` | 578 passed, 17372 subtests passed | 578 passed, 17372 subtests passed | 578 passed, 17372 subtests passed |
+
+No test failed in any of these runs. The last commit of `wf/d001-fix2` changes, in the tests, only two invented
+company names of section 17; `tests/mycelic/test_collective_onboard.py` gives the same counts on it. The `tests/lab`
+runs were on committed code: its E1 preregistration refuses a
+tree with uncommitted collective code (on `wf/d001-fix`, a first run before the commit failed for that reason alone).
+`actionlint` and `shellcheck` are not installed on this machine, so the workflow was not linted after either fix; the
+earlier `actionlint` 1.7.12 run was on `8a3ba97`. The workflow did not change in this round.
 
 **The mutation run.** `run_mutants.py` (kept outside the repository) applied one textual mutant at a time to a copy of
 this tree and ran the two onboard test files with `python -B -m pytest -q -x`. It holds the reviews' surviving
@@ -439,34 +486,69 @@ mutants, adapted to the amended code, and at least one for each amendment: 44 mu
 rule, the matched gold from names in C only, no matched names beside C2). Tests were added for each, and a second
 pass of all 44 killed every one.
 
+**The second mutation run.** `run_mutants2.py` (also outside the repository) holds the 44, with the eight whose code
+moved adapted to it, and 21 more for the second amendment: the guard reading every company with the first company's
+sentinels, an unreadable listed export not counted, a missing declared column crashing the refusal; the backstop
+never run, reading `report.md` only, unfolded, at 4 or 6 characters, by substring, or over the first company only;
+the equipment columns forbidden again; the label-names control unrefused in the scorer or in the drafter, its count
+dropped; the "would be assigned" count over the eligible terms or under the cap, "within K" without the competing
+terms, the rows as a sum of category counts, the specific-label condition dropped, and the arm's totals dropped or
+missing. That is 65 mutants. The first pass ran 64 of them (the missing-column mutant was added after it): it skipped
+one, whose pattern no longer matched the moved code, and left two alive (an unreadable listed export not counted; the
+assignable count under the cap). The skipped pattern was fixed, and a test was added or strengthened for each
+survivor (`test_an_unreadable_or_unknown_listed_export_withholds`; two refused assignable terms against K 1 in
+`test_the_cap_and_the_thresholds_of_the_counterfactual`). A second pass of all 65 killed every one.
+
 ### The dry run
 
-`synth2.py` (kept outside the repository) is the earlier `synth.py` with four changes that reach the amendment's
-paths: MSHA dates written in upper-case D-MON-YYYY (`04-OCT-2021`); Idaho and Maine among the NHTSA states; equipment
-cells that read `Other`, `UNKNOWN`, `FORD` or `?`; and `?` filed as a classification too. It wrote an MSHA-style pipe
-file of 275,220 rows over 14 invented controllers, and an NHTSA-style tab file of 349,896 rows over seven makes. The
-split counted 40,000 complaints for each of the six makes the settings name. The steps then ran as the workflow runs
-them, after the downloads, on one machine (`run_pipeline.py`, also outside the repository):
+**On `wf/d001-fix2`.** `synth3.py` (outside the repository) is round 1's `synth2.py` with four changes that reach
+the second amendment's paths, every value invented:
 
-| Step | Seconds |
-|---|---|
-| split, MSHA layout | 5.7 |
-| split, NHTSA layout | 12.0 |
-| score, MSHA arm (5 companies, 1,000 sampled records) | 169.3 |
-| score, NHTSA arm (6 makes, 1,200 sampled records, two hand packs) | 279.3 |
-| export of c1's test window | 1.4 |
-| pilot audit of c1 | 15.7 |
-| report and last guard | 21.1 |
+- every row of the largest invented controller has a contractor id equal to an invented cue word that every
+  narrative of one classification holds;
+- every row of the second largest has an operator name whose last word is the cue word of another classification;
+- every MSHA equipment maker cell either reads `Other`, `UNKNOWN` or `FORD`, or ends in the cue word of a third
+  classification;
+- one of NISSAN's invented models is the cue word that every SUSPENSION narrative holds.
 
-- Every step exited 0 and the verdict was pass. The largest process used 774 MB.
-- The MSHA date column parsed as D-MON-YYYY, with no row rejected.
-- FORD's export held 2,041 rows from Idaho, and every NHTSA pack passed its floor.
-- Each MSHA company left out two categories, `OTHER` and `?`, each equal to an equipment cell, and refused 305 terms
-  that passed the floor, all by the name-word rule: the invented equipment and operator names share invented
-  syllable words with the invented narratives. Each make refused 6 to 8 terms, words of its invented vehicles.
-- The last guard read 785 MSHA and 1,338 NHTSA printed strings and found nothing; the equipment cells `Other`,
-  `UNKNOWN` and `FORD` withheld nothing.
+So each colliding word is a value, or a word of a value, of one company only, and every other company learns and
+prints it. The file sizes are round 1's: 275,220 MSHA rows over 14 invented controllers, and 350,020 NHTSA rows over
+seven makes, of which the split kept 40,000 complaints for each of the six makes the settings name. The steps ran as
+the workflow runs them (`run_pipeline.py`, on one machine):
+
+| Step | Seconds, `wf/d001-fix2` | Seconds, `wf/d001-fix` |
+|---|---|---|
+| split, MSHA layout | 4.9 | 5.7 |
+| split, NHTSA layout | 12.4 | 12.0 |
+| score, MSHA arm (5 companies, 1,000 sampled records) | 132.8 | 169.3 |
+| score, NHTSA arm (6 makes, 1,200 sampled records, two hand packs) | 273.1 | 279.3 |
+| export of c1's test window | 1.4 | 1.4 |
+| pilot audit of c1 | 17.1 | 15.7 |
+| report, last guard and backstop | 13.4 | 21.1 |
+
+- Every step exited 0 and the verdict was pass. The largest process used 768 MB. The whole run took 7 minutes 35
+  seconds.
+- The per-company guard read 795 MSHA and 1,338 NHTSA printed strings and found nothing. The backstop held 383,186
+  record ids and 84 site values of 5 or more characters, and found none in the rendered report.
+- Each colliding word was printed by every company but its own: the contractor-id word by c2 to c5, the operator
+  word by c1 and c3 to c5, the NISSAN model word by the five other makes. The equipment word, no longer forbidden
+  (A12), was printed by all five MSHA companies, and no MSHA company left out a category: round 1's `OTHER` and `?`,
+  equal to equipment cells then, now stay.
+- What the refusal removed, as the report prints it: no category in either arm. MSHA refused 1,225 floor-passing
+  terms over the five companies, of which 5 would have been assigned to a predicate, all 5 within K. All but 3 went
+  by the name-word rule: invented narrative words equal to a word of the invented operator names. c1's other 3 were
+  its contractor-id word and two bigrams holding it. NHTSA refused 44, of which 3 would have been assigned, all
+  NISSAN's. The label-names control lost 60 label parts in MSHA (12 per company: every invented label holds the
+  invented word "synth", which every invented operator and controller name holds) and none in NHTSA.
 - The numbers say nothing about reading: the invented narratives hold their category's cue words by construction.
+
+**On `wf/d001-fix`** (round 1, recorded then): `synth2.py` wrote the same layouts with upper-case D-MON-YYYY MSHA
+dates, Idaho and Maine among the NHTSA states, equipment cells reading `Other`, `UNKNOWN`, `FORD` or `?`, and `?` filed
+as a classification too. Every step exited 0 and the verdict was pass; the largest process used 774 MB; the MSHA date
+column parsed as D-MON-YYYY with no row rejected; FORD's export held 2,041 rows from Idaho and every NHTSA pack passed
+its floor. Each MSHA company left out `OTHER` and `?` and refused 305 floor-passing terms by the name-word rule; each
+make refused 6 to 8. The guard then read every company of an arm together, and the colliding cells were in every
+company, so the dry run never reached conflict 8.
 
 ### The review findings
 
@@ -490,12 +572,38 @@ Two adversarial reviews of `8a3ba97` found the issues below. Each fix has a test
 | The language file's words were chosen knowing both sources; C1's interval read as general; label names read as a hand start | A9 and A8: the declaration, and notes beside the numbers | `ReportTests.test_sentinels_never_appear`, `AmendmentRecordTests` |
 | The privacy checks, the controls' wiring and the honest-fetch rules were not pinned | New tests | the mutation run above |
 
+### The fix's review findings
+
+A review of `91b1a75` (`wf/d001-fix`) found one blocking issue and three minor ones. The owner decided how each is
+settled; the second amendment records the decisions (A10 to A14). Each fix has a test, written as section 17 of
+`tests/mycelic/test_collective_onboard.py`.
+
+| Finding | What changed | Pinned by |
+|---|---|---|
+| The drafter and the check refused against one company's export, but the last guard against every company of the arm: a label, id or term one company learned honestly withheld the report when it equalled another company's value or a word of one; the guard read only the first 10 terms (blocking) | A10: the guard reads each company against its own export, with the one `export_refusal`; A12: MSHA's `EQUIP_MFR_NAME` and `EQUIP_MODEL_NO` are no longer forbidden; conflict 8 above | `PerCompanyGuardTests`: an other-bucket label, a name word, a three-letter identifier and a vehicle word, each with two and with three companies and the value in one; a company's own value still withholds, and the report names the company; `EquipmentColumnTests`; `SettingsTests` |
+| The label-names control was not refused, so a C1 failure could partly be the refusal's (minor) | A13: the control passes the same term rule; the report counts the parts removed | `LabelNamesRefusalTests` |
+| The report could not tell how much the refusal removed (minor) | A14: `refusal_removed` per company, `refusal_totals` per arm, printed in the company table, beside C1 and C2 and per predicate; counts only | `RefusalCountTests` |
+| Nothing scanned the rendered report any more; the planted-render test had been deleted (minor) | A11: `Backstop` over the rendered text of both files and the parsed strings of `report.json`; the planted-render test restored | `BackstopTests` |
+
+The review's four probes (`rev2probes`, outside the repository) now give, on this tree: round 1's `Other` cell with
+one and with two companies, verdict pass with M3 passed; FORD's "leaf spring" beside NISSAN-LEAF-2019, verdict pass,
+C2 computed; a two-word maker cell ending in "Conveyor" in c2 while c1 learns "conveyor", verdict pass; a `CAR` contractor cell in
+c2 while c1 learns "shuttle car", verdict pass. In the fourth probe, "leaf" sits at position 18 of FORD's SUSPENSION
+lexicon and the report passes: the word is no value of FORD's export, so the drafter, the check and the guard all keep
+it, whether it is printed or not.
+
 ### Not fixed
 
 - **A unigram label-word variant of the label-names control** (optional in the review). It would add a control and so
   could change C1's best control. Only the wording changed (A8).
 - **A company-stratified bootstrap for C1** (optional in the review). The report says the interval is over these
   companies' records and prints each company's drafted and best-control F1 side by side.
+- **The fix review's option (a)**, one refusal per arm for the drafter and the check. The owner chose the
+  per-company guard (A10); option (a) would have removed from every company the words of every other company.
+- **What the backstop risks** (A11): a printed count, byte size or fraction equal, digit for digit, to a record id or
+  site value of 5 or more characters withholds the report. The second amendment accepts this. The dry run's report
+  held none among 383,186 invented values; real ids may differ.
 - **Linting the workflow:** `actionlint` and `shellcheck` are not on this machine.
 - **The real run:** this machine cannot reach either source. The owner adds `docs/collective/onboard/run-001.json`
-  after review, naming `docs/collective/onboard/D001-settings.json` and its sha256 as amended.
+  after review, naming `docs/collective/onboard/D001-settings.json` and its sha256 as amended again
+  (`f319aae9bbc503440f0e2d509e7784066fc7ccc775c6924f02741a7e6a792c90` at `d42b832`, by `sha256sum`).

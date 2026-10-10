@@ -2112,7 +2112,7 @@ class PerCompanyGuardTests(TempDir):
     def test_a_name_word_of_one_company_equal_to_a_term_another_learned(self) -> None:
         for n in (2, 3):
             with self.subTest(companies=n):
-                doc, arm, text = self.run_one(self.companies(n, "c2", "Continental Conveyor"))
+                doc, arm, text = self.run_one(self.companies(n, "c2", "Kestrelvane Conveyor"))
                 self.assertNotIn("conveyor", self.first_terms(arm, "c2", "HAULAGE"))
                 for other in ["c1", *([f"c{k}" for k in range(3, n + 1)])]:
                     self.assertIn("conveyor", self.first_terms(arm, other, "HAULAGE"))
@@ -2318,7 +2318,7 @@ class EquipmentColumnTests(TempDir):
         for r in corpus_rows(seed=131):
             rows.append({"DOCUMENT_NO": r["ID"], "MINE_ID": r["SITE"], "ACCIDENT_DT": r["DATE"],
                          "NARRATIVE": r["TEXT"], "CLASSIFICATION": r["CAT"], "OPERATOR_NAME": r["PERSON"],
-                         "EQUIP_MFR_NAME": "Continental Conveyor", "EQUIP_MODEL_NO": "Haul Shuttle 9"})
+                         "EQUIP_MFR_NAME": "Kestrelvane Conveyor", "EQUIP_MODEL_NO": "Haul Shuttle 9"})
         export = parse_export(pipe(rows, columns))
         declared = SC.arm_roles(s, "msha")
         d = D.draft_export(export, declared, TRAIN, "equip", params=PARAMS, lang=LANG, template=TEMPLATE)
@@ -2418,7 +2418,7 @@ class RefusalCountTests(TempDir):
                 r["CAT"] = "MACHINERY"
             elif r["CAT"] == "OTHER":
                 r["CAT"] = "?"
-        rows[5]["PERSON"] = "Jeffrey Mining Machinery"
+        rows[5]["PERSON"] = "Harlowmere Mining Machinery"
         rows[6]["PERSON"] = "?"
         d = drafted(rows)
         removed = d.facts["refusal"]
@@ -2440,7 +2440,7 @@ class RefusalCountTests(TempDir):
             if cat == "MACHINERY" and both < 15:
                 cat, both = "MACHINERY;?", both + 1
             r["CAT[]"] = cat
-        rows[5]["PERSON"] = "Jeffrey Mining Machinery"
+        rows[5]["PERSON"] = "Harlowmere Mining Machinery"
         rows[6]["PERSON"] = "?"
         d = D.draft_export(parse_export(pipe(rows, header)), roles(category="CAT[]"), TRAIN, "two_pack",
                            params=PARAMS, lang=LANG, template=TEMPLATE)
@@ -2459,7 +2459,7 @@ class RefusalCountTests(TempDir):
         for r in c1:
             if r["CAT"] == "SLIP OR FALL":
                 r["CAT"] = "MACHINERY"
-        c1[5]["PERSON"] = "Jeffrey Mining Machinery"
+        c1[5]["PERSON"] = "Harlowmere Mining Machinery"
         c1[6]["PERSON"] = "Roof Bolter"
         c2 = corpus_rows(seed=154, per_cat=90)
         for i, r in enumerate(c2):
