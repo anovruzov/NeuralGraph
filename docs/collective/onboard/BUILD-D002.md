@@ -4,6 +4,9 @@ D002 (`CHOICE-D002.md`) is D001's rule with two changes: how a delimited line is
 starts (rule 9). This note says what changed in D001's code (`BUILD-D001.md`). It was built on branch `wf/d002` from
 `7b41e1b`. The rule was committed first, alone (`d55872a`), and the code after it (`cdcb5de`).
 
+A review of the build then found two gaps. `CHOICE-D002.md` was amended before any run (B1 and B2), alone
+(`024026f`), and the fix followed it on branch `wf/d002-fix`. See "The amendment before any run" below.
+
 No code was run on MSHA or NHTSA records. This machine is offline, and every test and the dry run used invented
 records.
 
@@ -37,9 +40,10 @@ The steps, in order:
 
 1. the offline tests (the same command);
 2. **the settings check:** the newest run file (`ls docs/collective/onboard/run-*.json | sort | tail -n 1`); its
-   settings file's sha256 against the one it names; its experiment against its settings file's; the id must be a
-   plain name. It writes `SETTINGS` and `EXPERIMENT` to the job's environment. A newest run file that fails a check
-   fails the job before any download. The job never falls back to an older run file;
+   experiment must be `D002`, checked first (amendment B1); its settings file's sha256 against the one it names; its
+   experiment against its settings file's; the id must be a plain name. It writes `SETTINGS` and `EXPERIMENT` to the
+   job's environment. A newest run file that fails a check fails the job before any download. The job never falls
+   back to an older run file;
 3. the two downloads (the same commands);
 4. **the two splits**, `split both sources (a failure here is not a run)`. The step has no `if:`, so it runs only when
    the downloads passed;
@@ -77,7 +81,8 @@ The working directory is `work/` (it was `d001/`). The artifact is `onboard-${{ 
   company files hold the original quoted lines; the drafter reads them unquoted; only counts are printed; a quoted
   header reads the same) and `NhtsaCsvReadTests`.
 
-Counts from `python -B -m pytest <file or directory> -q -p no:cacheprovider`, on this tree:
+Counts from `python -B -m pytest <file or directory> -q -p no:cacheprovider`, at `d108e20`, before the amendment
+(the counts after it are under "The amendment before any run"):
 
 | Tests | Result |
 |---|---|
@@ -146,6 +151,90 @@ after the downloads, with `D002-settings.json`, on one machine with 4 cores:
   holds a pipe; for c1 it would have kept 29,531 of 39,108 rows. D002 kept them all.
 - The numbers say nothing about reading: the invented narratives hold their category's cue words by construction.
 
+## The amendment before any run (B1, B2)
+
+A review of the build found two gaps. `CHOICE-D002.md` records both in its section "Amended before any run,
+2026-10-10" (`024026f`, committed alone before this fix).
+
+**B1: only a D002 run file runs.** Until `run-002.json` is committed, the newest run file is `run-001.json`. The
+settings check as built accepted it: its experiment equals its settings file's, and the sha256 matches. So a start of
+the workflow on this code, by hand or by a push that changes a run file, would have run D001 again on D002's code. Once
+its splits passed, it would have printed `=== D001 RUN-START ===`, titled the report D001 and uploaded
+`onboard-D001`.
+
+- `.github/workflows/onboard-run.yml`: the settings check's first read of the run file now asserts that its
+  experiment is `D002` (`not a D002 run file`), as D001's check asserted `D001`. It comes before the sha256 check, so
+  a refused file sets nothing. The header comment says the workflow runs D002 only.
+- No other code changes. `D002-settings.json` is unchanged, sha256
+  `8bb9ba6ab9c8d4dca14ac86aa8df89f8cd1926b5355b9908ec3b71020c42c0e5`.
+
+**B2: a line break inside a quoted field.** No code changes. The amendment says what the line reader already does.
+Each piece is a line. A piece with the header's number of fields is read as a row, unrepaired. An empty piece is an
+empty line. Every other piece is rejected and counted. In MSHA's layout, a break in `NARRATIVE` (field 55 of 57)
+gives a first piece of 55 fields, which is rejected; a later piece is a row only if it has 57 fields.
+
+### Tests added
+
+- **`WorkflowD002Tests.test_only_a_d002_run_file_is_run`** runs the settings check under `bash` on three layouts:
+  `run-001.json` alone (this tree's layout), D001's run file pushed again as `run-002.json`, and a `D003` run file
+  whose settings file names `D003` and has the sha256 it names. Each is refused with `AssertionError: not a D002 run
+  file` before the sha256 is printed, and nothing is written to the job's environment. `layout` and
+  `settings_check` take extra files for the third layout.
+- **Section 19 of `tests/mycelic/test_collective_onboard.py`:**
+  - `D002AmendmentRecordTests`: the amendment and its pointer come before "Runs", with B1's refusal, B2's numbers
+    and the settings' sha256. Without the pointer and the section, the text before "Runs" has the sha256 of
+    `d55872a`'s, so the rule committed before the code is kept byte for byte. B2's 57, 55 and 2 are the settings'
+    MSHA columns.
+  - `LineBreakPieceTests`: the review's case, `a,b` then `"1\r\n2",3` (D001 read one row holding `1\r\n2`; D002
+    reads the row `2"`, `3` and one reject); a break in the first, the last or a middle field, with pipe, tab and
+    comma, and an empty piece; the MSHA layout (pieces of 55 and 3 fields, both rejected; a narrative's end with 53,
+    54 or 55 pipes, read as a row only with 54, its values from the wrong columns).
+- **`QuotedMshaSplitTests.test_a_narrative_holding_a_line_break_is_two_rejected_pieces`** in
+  `tests/onboard/test_onboard_fetch.py`: the MSHA split on the quoted synthetic file with one more line, whose
+  narrative holds a CRLF and a pipe. Its pieces have 55 and 4 fields. The split counts 2 more `wrong_width` rejects,
+  and its companies, company files and other counts do not change.
+
+### Counts after the fix
+
+From `python -B -m pytest <file or directory> -q -p no:cacheprovider`, on this tree:
+
+| Tests | Result |
+|---|---|
+| `tests/mycelic/test_collective_onboard.py` | 164 passed, 96 subtests passed |
+| `tests/onboard` (it holds `test_onboard_fetch.py` alone) | 20 passed, 6 subtests passed |
+| `tests/onboard` and `tests/market` | 107 passed, 39 subtests passed |
+| `tests/mycelic/test_collective_guards.py` | 83 passed, 721 subtests passed |
+| `tests/mycelic/test_collective_x3.py` (the hash pins, untouched) | 32 passed, 141 subtests passed |
+| `tests/mycelic` | 1710 passed, 1 xfailed, 45591 subtests passed |
+| the workflow's own command (`python -m unittest ...`) | 189 tests, OK |
+
+**The mutation check.** `mutants.py` (outside the repository) applied 10 mutants, one at a time, to a copy of this
+tree, and ran the tests named for each:
+
+- the pin removed, refusing `D001` only, pinned to `D001`, moved after the sha256 check, or printed as a warning;
+- a reader that joins the pieces of a quoted break, one that rejects a piece of the header's width, and one that
+  counts an empty piece as a reject;
+- B1's refusal cut from the amendment, and a word added to the rule above it.
+
+The first pass left one alive: the pin printed as a warning. The check still failed there, one command later, and the
+test looked only for the words. It now asserts `AssertionError: not a D002 run file`. The second pass killed all 10.
+
+### The dry run after the fix
+
+- **The settings check**, as written in the workflow, under `bash -e -o pipefail` on a copy of this tree's onboard
+  directory (`settings_check_dry.py`, outside the repository):
+  - with `run-001.json` alone, it exits 1 with `AssertionError: not a D002 run file` and writes nothing to
+    `GITHUB_ENV`;
+  - with a `run-002.json` naming `D002-settings.json` and its sha256, written into the copy only, it exits 0 and
+    writes `SETTINGS=docs/collective/onboard/D002-settings.json` and `EXPERIMENT=D002`.
+- `bash -n` passes on every `run:` block.
+- **The steps after the downloads** (`run_pipeline2.py`, on the files of "The dry run" above, with
+  `D002-settings.json`): every step exited 0, in 472.6 seconds in all (473.4 before). The verdict was pass, with all
+  six criteria passed, and both files name D002 only.
+  - `report.json` differs from the earlier dry run's only in its three `code_commit` values and the settings file's
+    path. `report.md` differs only in its code commit.
+  - The code hash is the same (`6fb78f90fafd…`): the fix changed no file of the onboard package or the download code.
+
 ## Not done
 
 - **The real run.** This machine cannot reach either source. The owner adds `docs/collective/onboard/run-002.json`
@@ -154,3 +243,5 @@ after the downloads, with `D002-settings.json`, on one machine with 4 cores:
   `bash -n` passes on every `run:` block.
 - **What the probe did not show.** It showed the date column's shape only. How MSHA writes a quote inside a narrative
   is unknown; `CHOICE-D002.md` says what each case does. The splits print their rejected counts before the run starts.
+- **Line breaks in MSHA's narratives.** How often a narrative holds one is not known. Amendment B2 says what each
+  piece does. The split prints the pieces it rejects in its count, before the run starts.
