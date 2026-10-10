@@ -3,6 +3,11 @@
 This is what to build so that the rule in `CHOICE-D001.md` can run. The rule decides every value; this brief says
 where each piece lives and how it is checked. Where the two disagree, the rule wins and the brief is wrong.
 
+**D002.** D001 ran once and is recorded. D002 (`CHOICE-D002.md`) changed two rules: how a line is split (1.1) and
+when the run starts (9). The code changed with them: `BUILD-D002.md` says what changed. Where this brief describes
+the splitting, the run start marker, the workflow's paths or a fixed experiment id, `BUILD-D002.md` holds the code as
+it now stands.
+
 ## 0. Hard rules for the build
 
 - **New product code** goes only in the new package `mycelic/collective/onboard/` (not hash-pinned). Download scripts
