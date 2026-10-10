@@ -1,4 +1,4 @@
-"""D001's report: both arms, the checks, the audit summary and the six criteria (rules 6 and 8, as amended).
+"""A drafting test's report: both arms, the checks, the audit summary and the six criteria (rules 6 and 8, amended).
 
     python -m mycelic.collective.onboard report --settings FILE --arms DIR [DIR ...] --audit FILE --out DIR
 
@@ -28,7 +28,10 @@ company of every arm: exact after folding, as whole tokens.
 A guard hit, a backstop match, or an export the guard cannot read writes a report holding only the hit counts by kind
 (per arm and per company) and the verdict ``withheld``, and M3 fails; the workflow then uploads nothing else.
 
-Both files are printed between markers, ``=== D001 report.json BEGIN lines=<n> sha256=<hex> ===`` and ``... END ===``.
+Both files are printed between markers, ``=== <experiment> report.json BEGIN lines=<n> sha256=<hex> ===`` and
+``... END ===``. The experiment id (``D001``, ``D002``) comes from the settings (:func:`.score.experiment_id`), and so
+do the report's title and ``report.json``'s ``experiment``. The ``kind`` fields name the file schemas D001 defined,
+which D002 keeps.
 """
 from __future__ import annotations
 
@@ -45,7 +48,7 @@ from .check import column_names, json_strings, ngram_hits, package_hits
 from .draft import REFUSAL_KINDS, Refusal, ValueIndex, _cells, export_refusal, load_template
 from .exports import Export, ExportError, read_export
 from .roles import Roles
-from .score import EXACT, ROOT, arm_roles, load_companies, rounded, tree_hashes
+from .score import EXACT, ROOT, arm_roles, experiment_id, load_companies, rounded, tree_hashes
 
 CRITERIA = ("C1", "C2", "M1", "M2", "M3", "M4")
 ONBOARD_DIR = "mycelic/collective/onboard"
@@ -314,7 +317,7 @@ def build_report(settings: Mapping[str, Any], settings_path: str, settings_sha25
     for name, doc in sorted(arms.items()):
         slim[name] = {k: v for k, v in doc.items() if k not in ("exports_dir", "code_files")}
     files = code_files(settings)
-    return {"kind": "onboard_d001_report", "schema_version": 1, "experiment": "D001",
+    return {"kind": "onboard_d001_report", "schema_version": 1, "experiment": experiment_id(settings),
             "settings": {"path": settings_path, "sha256": settings_sha256}, "code_commit": commit,
             "code_hash": code_hash([ROOT / rel for rel in files]), "files": files,
             "downloads": {name: (doc.get("source") or {}).get("downloads") for name, doc in sorted(arms.items())},
@@ -363,8 +366,9 @@ def _criterion_detail(c: Mapping[str, Any]) -> str:
 
 
 def render(doc: Mapping[str, Any]) -> str:
-    lines = ["# D001: can a pack be drafted from an export alone?", "",
-             f"Verdict: **{doc['verdict']}**. D001 passes only if all six criteria pass.", "",
+    exp = doc["experiment"]
+    lines = [f"# {exp}: can a pack be drafted from an export alone?", "",
+             f"Verdict: **{doc['verdict']}**. {exp} passes only if all six criteria pass.", "",
              "| Criterion | Passes | Detail |", "|---|---|---|"]
     for cid in CRITERIA:
         c = doc["criteria"].get(cid, {})
@@ -458,7 +462,7 @@ def render(doc: Mapping[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def withheld(hits: Mapping[str, Mapping[str, Any]], unread: int = 0,
+def withheld(experiment: str, hits: Mapping[str, Mapping[str, Any]], unread: int = 0,
              backstop: Mapping[str, int] | None = None) -> tuple[dict[str, Any], str]:
     """The report that replaces a report the last guard did not clear: a hit, a backstop match, or an export it could
     not read. It names the kinds of hit, per arm and per company, never a string."""
@@ -480,29 +484,30 @@ def withheld(hits: Mapping[str, Mapping[str, Any]], unread: int = 0,
     by_company = {name: {label: {k: v for k, v in h.items() if k in GUARD_KINDS and v}
                          for label, h in sorted(arm.get("companies", {}).items())}
                   for name, arm in sorted(hits.items())}
-    doc = {"kind": "onboard_d001_report", "schema_version": 1, "experiment": "D001", "verdict": "withheld",
+    doc = {"kind": "onboard_d001_report", "schema_version": 1, "experiment": experiment, "verdict": "withheld",
            "guard_hits": {name: {k: v for k, v in h.items() if k != "companies"} for name, h in sorted(hits.items())},
            "guard_hits_by_company": by_company, "backstop_hits": backstop, "exports_unread": unread,
            "criteria": {"M3": {"passed": False, "reason": reason}}}
     companies = "; ".join(f"{name} {label} " + ", ".join(f"{k} {v}" for k, v in kinds.items())
                           for name, per in by_company.items() for label, kinds in per.items() if kinds)
-    md = ("# D001 report withheld\n\n" + " ".join(said) + " The report, the arm files and the drafted packs are "
-          "withheld, and M3 fails. Hits by kind: " + ", ".join(f"{k} {totals[k]}" for k in GUARD_KINDS)
+    md = (f"# {experiment} report withheld\n\n" + " ".join(said) + " The report, the arm files and the drafted packs "
+          "are withheld, and M3 fails. Hits by kind: " + ", ".join(f"{k} {totals[k]}" for k in GUARD_KINDS)
           + "; backstop " + ", ".join(f"{k} {backstop.get(k, 0)}" for k in BACKSTOP_KINDS)
           + f"; exports unread {unread}." + (f" Hits by company: {companies}." if companies else "") + "\n")
     return doc, md
 
 
-def block(name: str, data: bytes) -> str:
+def block(name: str, data: bytes, experiment: str) -> str:
     text = data.decode("utf-8")
     n = len(text.splitlines())
-    return (f"=== D001 {name} BEGIN lines={n} sha256={hashlib.sha256(data).hexdigest()} ===\n{text}"
-            + ("" if text.endswith("\n") else "\n") + f"=== D001 {name} END ===")
+    return (f"=== {experiment} {name} BEGIN lines={n} sha256={hashlib.sha256(data).hexdigest()} ===\n{text}"
+            + ("" if text.endswith("\n") else "\n") + f"=== {experiment} {name} END ===")
 
 
 def run_report(settings: Mapping[str, Any], settings_path: str, settings_sha256: str, arm_dirs: Sequence[str | Path],
                audit_path: str | Path, out: str | Path, commit: Callable[[], str],
                emit: Callable[[str], None] = print) -> dict[str, Any]:
+    experiment = experiment_id(settings)
     arms = load_arms(arm_dirs)
     audit = audit_summary(audit_path)
     prefix = load_template()["ids.json"]["placeholder_prefix"]
@@ -511,7 +516,7 @@ def run_report(settings: Mapping[str, Any], settings_path: str, settings_sha256:
     hits = {name: guard_arm(settings, name, doc, ngram, prefix, backstop) for name, doc in sorted(arms.items())}
     unread = sum(h["unread"] for h in hits.values())
     if not guard_clear(hits):
-        doc, text_md = withheld(hits, unread)
+        doc, text_md = withheld(experiment, hits, unread)
     else:
         doc = build_report(settings, settings_path, settings_sha256, arms, audit, commit())
         doc["criteria"] = criteria(settings, arms, audit, guard_clean=True)
@@ -524,13 +529,13 @@ def run_report(settings: Mapping[str, Any], settings_path: str, settings_sha256:
         text_json = json.dumps(doc, indent=1, sort_keys=True, ensure_ascii=False) + "\n"
         found = backstop.hits([text_json, text_md, *json_strings(doc)])
         if any(found.values()):
-            doc, text_md = withheld(hits, unread, found)
+            doc, text_md = withheld(experiment, hits, unread, found)
     text_json = json.dumps(doc, indent=1, sort_keys=True, ensure_ascii=False) + "\n"
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     data_json, data_md = text_json.encode("utf-8"), text_md.encode("utf-8")
     (out / "report.json").write_bytes(data_json)
     (out / "report.md").write_bytes(data_md)
-    emit(block("report.json", data_json))
-    emit(block("report.md", data_md))
+    emit(block("report.json", data_json, experiment))
+    emit(block("report.md", data_md, experiment))
     return doc

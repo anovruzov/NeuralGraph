@@ -1,5 +1,8 @@
-"""D001's download scripts (``tools/onboard/fetch_msha.py`` and ``fetch_nhtsa.py``), offline, on a synthetic accident
-file and a synthetic complaint archive that the tests write. No public record is read."""
+"""The drafting tests' download scripts (``tools/onboard/fetch_msha.py`` and ``fetch_nhtsa.py``), offline, on a
+synthetic accident file and a synthetic complaint archive that the tests write. No public record is read. The
+settings are D002's, the run's (``docs/collective/onboard/D002-settings.json``), whose values equal D001's but for the
+experiment id. ``QuotedMshaSplitTests`` holds D002's change (a) in the MSHA split: the file written as the date probe
+shows it, every value in double quotes."""
 from __future__ import annotations
 
 import contextlib
@@ -15,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-SETTINGS = ROOT / "docs" / "collective" / "onboard" / "D001-settings.json"
+SETTINGS = ROOT / "docs" / "collective" / "onboard" / "D002-settings.json"
 
 
 def _load(name: str) -> Any:
@@ -30,11 +33,14 @@ N = _load("fetch_nhtsa")
 COLUMNS = json.loads(SETTINGS.read_text())["arms"]["msha"]["columns"]
 
 
-def accident(controller: str, mine: str, doc: str, day: str, narrative: str) -> str:
+def accident(controller: str, mine: str, doc: str, day: str, narrative: str, quote: bool = False) -> str:
+    """One accident line; with ``quote``, every value in double quotes and a quote inside a value doubled."""
     row = dict.fromkeys(COLUMNS, "")
     row.update({"CONTROLLER_ID": controller, "CONTROLLER_NAME": f"Name of {controller}", "MINE_ID": mine,
                 "DOCUMENT_NO": doc, "ACCIDENT_DT": day, "NARRATIVE": narrative, "CLASSIFICATION": "SYNTH CLASS",
                 "OPERATOR_NAME": "Operator Never Printed"})
+    if quote:
+        return "|".join('"' + row[c].replace('"', '""') + '"' for c in COLUMNS)
     return "|".join(row[c] for c in COLUMNS)
 
 
@@ -194,6 +200,173 @@ class NhtsaSplitTests(unittest.TestCase):
                 self.assertNotIn(secret, printed)
 
 
+def quoted_accident_file() -> tuple[bytes, dict[str, list[bytes]]]:
+    """:func:`accident_file`'s controllers and counts, written as the date probe shows MSHA's file: the header's names
+    bare, every value in double quotes, dates mm/dd/yyyy. Narratives hold a pipe and a doubled quote. Two lines are
+    rejected: one whose narrative opens a quote it never closes (the line after it is still read), and one with too few
+    fields."""
+    lines: dict[str, list[bytes]] = {}
+    out = ["|".join(COLUMNS).encode("latin-1") + b"\r\n"]
+    n = 0
+
+    def add(controller: str, mines: int, count: int, day: str, text: str = 'Synthetic "event" | text') -> None:
+        nonlocal n
+        m, d, y = day.split("/")
+        for i in range(count):
+            n += 1
+            line = accident(controller, f"M{controller}{i % mines}", f"D{n:06d}", f"{int(m):02d}/{int(d):02d}/{y}",
+                            text, quote=True).encode("latin-1") + b"\r\n"
+            lines.setdefault(controller, []).append(line)
+            out.append(line)
+            if controller == "C03" and day == "7/8/2019" and i == 0:
+                # a narrative that opens a quote and never closes it: the rest of its line is one field
+                bad = accident("C03", "MC030", "D999999", "07/08/2019", "x", quote=True)
+                bad = bad.replace('"x"', '"open quote never closed', 1).encode("latin-1") + b"\r\n"
+                out.append(bad)
+
+    add("C10", 4, 30, "3/4/2016")
+    add("C10", 4, 20, "3/4/2017", "")
+    add("C10", 4, 120, "5/6/2023", "Caf\xe9 text")
+    add("C20", 3, 50, "1/2/2018")
+    add("C20", 3, 100, "1/2/2022")
+    add("C03", 3, 50, "7/8/2019")
+    add("C03", 3, 100, "7/8/2024")
+    add("C40", 5, 80, "2/2/2020")
+    add("C40", 5, 99, "2/2/2022")
+    add("C50", 2, 90, "4/4/2015")
+    add("C50", 2, 150, "4/4/2023")
+    add("C60", 3, 5, "4/4/2010")
+    out.append(b'"too"|"few"|"fields"\r\n')
+    return b"".join(out), lines
+
+
+class QuotedMshaSplitTests(unittest.TestCase):
+    """D002 change (a) in the MSHA split: every line through the drafter's own ``split_line``."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._tmp.name)
+        self.raw = self.tmp / "raw"
+        self.raw.mkdir()
+        self.data, self.lines = quoted_accident_file()
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("Accidents.txt", self.data)
+        (self.raw / "Accidents.zip").write_bytes(buf.getvalue())
+        (self.raw / "Accidents_Definition_File.txt").write_text("ACCIDENT_DT\tDate of the accident (mm/dd/yyyy).\n")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.result = M.split(SETTINGS, self.raw, self.tmp / "split")
+        self.printed = out.getvalue()
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_the_split_uses_the_drafters_own_parser(self) -> None:
+        from mycelic.collective.onboard import exports
+        self.assertIs(M.split_line, exports.split_line)
+
+    def test_quoted_dates_parse_and_the_company_rule_is_unchanged(self) -> None:
+        companies = json.loads((self.tmp / "split" / "companies.json").read_text())
+        self.assertEqual(sorted(companies), ["c1", "c2", "c3"])
+        self.assertEqual([companies[k]["training_rows_with_narrative"] for k in ("c1", "c2", "c3")], [50, 50, 30])
+        self.assertEqual([companies[k]["test_rows_with_narrative"] for k in ("c1", "c2", "c3")], [100, 100, 120])
+        self.assertEqual([companies[k]["training_mines"] for k in ("c1", "c2", "c3")], [3, 3, 4])
+        source = json.loads((self.tmp / "split" / "source.json").read_text())
+        self.assertEqual(source["date_format"], "M/D/YYYY")
+        self.assertEqual((source["controllers"], source["qualifying"], source["used"]), (6, 3, 3))
+        self.assertEqual(source["rejected"], {"wrong_width": 2})      # the open quote, and the short line
+        self.assertEqual(source["header"], {"columns": 57, "missing_expected": [], "unexpected": []})
+        self.assertEqual(json.loads(self.printed)["date_format"], "M/D/YYYY")
+
+    def test_d001s_split_could_not_read_these_dates(self) -> None:
+        # D001's split cut each line at the pipe with no quoting: every date keeps its quotes and no format parses
+        lang = M.load_language("en")
+        at = COLUMNS.index("ACCIDENT_DT")
+        lines = self.data.decode("latin-1").split("\r\n")[1:-1]
+        dates = [line.split("|")[at].strip() for line in lines if len(line.split("|")) == len(COLUMNS)]
+        self.assertEqual(len(dates), 141)     # D001 also rejected every line whose narrative holds a pipe
+        self.assertTrue(all(d.startswith('"') and d.endswith('"') for d in dates))
+        self.assertIsNone(M.choose_date_format(dates, lang.months, 0.95))
+        self.assertEqual(M.choose_date_format([d.strip('"') for d in dates], lang.months, 0.95), "M/D/YYYY")
+
+    def test_company_files_hold_the_original_quoted_lines(self) -> None:
+        header = "|".join(COLUMNS).encode() + b"\r\n"
+        for label, controller in (("c1", "C03"), ("c2", "C20"), ("c3", "C10")):
+            data = (self.tmp / "split" / f"{label}.txt").read_bytes()
+            self.assertEqual(data, header + b"".join(self.lines[controller]))
+        c1 = (self.tmp / "split" / "c1.txt").read_bytes()
+        self.assertNotIn(b"open quote never closed", c1)          # the rejected line is in no company file
+        self.assertIn(b'"Synthetic ""event"" | text"', c1)
+
+    def test_the_drafter_reads_a_company_file_without_quotes(self) -> None:
+        from mycelic.collective.onboard.exports import read_export
+        e = read_export(self.tmp / "split" / "c1.txt")
+        self.assertEqual((e.format, len(e.columns), len(e), dict(e.rejected)), ("pipe", 57, 150, {}))
+        self.assertEqual(e.value(0, "NARRATIVE"), 'Synthetic "event" | text')
+        self.assertEqual(e.value(0, "ACCIDENT_DT"), "07/08/2019")
+        self.assertEqual(e.value(0, "CLASSIFICATION"), "SYNTH CLASS")
+        self.assertIsNone(e.value(0, "SUBUNIT"))                  # a value written "" is absent
+
+    def test_nothing_but_counts_is_printed(self) -> None:
+        for secret in ("C03", "C20", "C10", "Name of", "Operator Never Printed", "Synthetic", "event", "D000",
+                       "MC03", "open quote"):
+            self.assertNotIn(secret, self.printed)
+
+    def test_a_quoted_header_is_read_the_same(self) -> None:
+        header = "|".join(COLUMNS).encode("latin-1")
+        data = self.data.replace(header, "|".join(f'"{c}"' for c in COLUMNS).encode("latin-1"), 1)
+        self.assertNotEqual(data, self.data)
+        raw = self.tmp / "raw_quoted_header"
+        raw.mkdir()
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("Accidents.txt", data)
+        (raw / "Accidents.zip").write_bytes(buf.getvalue())
+        with contextlib.redirect_stdout(io.StringIO()):
+            M.split(SETTINGS, raw, self.tmp / "split_quoted_header")
+        for name in ("companies.json", "source.json"):
+            got = json.loads((self.tmp / "split_quoted_header" / name).read_text())
+            want = json.loads((self.tmp / "split" / name).read_text())
+            if name == "source.json":
+                got.pop("downloads"), want.pop("downloads")
+            self.assertEqual(got, want)
+
+
+class NhtsaCsvReadTests(unittest.TestCase):
+    """D002 change (a) on the NHTSA layout: the drafter reads each make's CSV, written one complaint per line, as the
+    csv module reads the whole file (D001's comma reading)."""
+
+    def test_the_drafter_reads_the_split_csv_as_written(self) -> None:
+        from mycelic.collective.onboard.exports import parse_export
+        rows = [complaint_row("11000001", "FORD", "ENGINE:COOLING", "TX", "20210305", 'Engine "stalled", then; quit'),
+                complaint_row("11000001", "FORD", "SYNTH PART", "TX", "20210305", 'Engine "stalled", then; quit'),
+                complaint_row("11000002", "FORD", "AIR BAGS", "CA", "20230101", "Plain, text"),
+                complaint_row("11000003", "FORD", "STEERING", "OH", "20220202", "")]
+        with tempfile.TemporaryDirectory() as tmp:
+            raw = Path(tmp) / "raw"
+            raw.mkdir()
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w") as z:
+                z.writestr("COMPLAINTS.txt", "\r\n".join(rows) + "\r\n")
+            (raw / N.FILE).write_bytes(buf.getvalue())
+            with contextlib.redirect_stdout(io.StringIO()):
+                N.split(SETTINGS, raw, Path(tmp) / "split")
+            data = (Path(tmp) / "split" / "FORD.csv").read_bytes()
+        with io.StringIO(data.decode(), newline="") as fh:
+            whole = list(csv.reader(fh))
+        self.assertEqual(len(data.decode().splitlines()), len(whole))    # one complaint per line
+        e = parse_export(data)
+        self.assertEqual((e.format, e.columns, dict(e.rejected)), ("comma", tuple(whole[0]), {}))
+        self.assertEqual(len(e), 3)
+        self.assertEqual(e.value(0, "summary"), 'Engine "stalled", then; quit')
+        self.assertEqual(e.value(0, "components[]"), ("ENGINE", "SYNTH PART"))
+        self.assertIsNone(e.value(2, "summary"))
+        for r, record in enumerate(whole[1:]):
+            self.assertEqual([e.value(r, c) or "" for c in ("odino", "state", "received", "summary")],
+                             [record[0], record[1], record[2], record[5]])
+
+
 class DownloadTests(unittest.TestCase):
     def test_downloads_write_the_files_and_print_only_sizes_and_hashes(self) -> None:
         for mod, names in ((M, [n for n, _ in M.FILES]), (N, [N.FILE])):
@@ -218,7 +391,7 @@ class DownloadTests(unittest.TestCase):
                 self.assertEqual(json.loads((Path(tmp) / "download.json").read_text()), facts)
 
 
-HONEST_UA = "mycelic-onboard-d001 (drafting test D001 on public data)"
+HONEST_UA = "mycelic-onboard (pack-drafting test on public data)"
 
 
 class HonestFetchTests(unittest.TestCase):

@@ -1,20 +1,26 @@
-"""D001: the pack drafter (``mycelic.collective.onboard``), offline, on small synthetic exports the tests write.
+"""D001 and D002: the pack drafter (``mycelic.collective.onboard``), offline, on small synthetic exports the tests
+write.
 
 Every export here is invented by the test: no record of any public source. The sections follow
 ``docs/collective/onboard/BUILD-D001.md`` section 8: reading, dates, role inference, categories, the lexicon,
 determinism, loading, the normalised export, the pipeline, the check, scoring, the report, the CLI, the settings and the
-workflow.
+workflow. Sections 16 and 17 hold D001's two amendments; section 18 holds D002's two changes
+(``docs/collective/onboard/CHOICE-D002.md``) and the experiment id read from the settings.
 """
 from __future__ import annotations
 
 import contextlib
 import copy
+import csv
 import hashlib
 import io
 import json
+import os
 import random
 import re
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from dataclasses import fields
@@ -27,6 +33,7 @@ from mycelic.collective import stats
 from mycelic.collective.edge.extract import LexicalExtractor, sense
 from mycelic.collective.onboard import check as C
 from mycelic.collective.onboard import draft as D
+from mycelic.collective.onboard import exports as EXP
 from mycelic.collective.onboard import report as REP
 from mycelic.collective.onboard import score as SC
 from mycelic.collective.onboard.__main__ import main as cli
@@ -41,6 +48,10 @@ from mycelic.collective.pilot import audit as AUDIT
 ROOT = Path(__file__).resolve().parents[2]
 SETTINGS_PATH = ROOT / "docs" / "collective" / "onboard" / "D001-settings.json"
 CHOICE = ROOT / "docs" / "collective" / "onboard" / "CHOICE-D001.md"
+D002_SETTINGS_PATH = ROOT / "docs" / "collective" / "onboard" / "D002-settings.json"
+D002_CHOICE = ROOT / "docs" / "collective" / "onboard" / "CHOICE-D002.md"
+# D001 ran once and is frozen; its "Runs" section holds run 1 alone, recorded after both amendments
+D001_RUN_1 = "### Run 1: run-001, 2026-10-10 (the result): failed, the drafter could not read MSHA's dates"
 WORKFLOW = ROOT / ".github" / "workflows" / "onboard-run.yml"
 PARAMS = D.load_params()
 LANG = D.load_language("en")
@@ -681,8 +692,8 @@ class CheckTests(TempDir):
 # =================================================================================================== 11 score
 
 def arm_settings(B: int = 200, hand: dict[str, str] | None = None, margin: float = 0.1,
-                  criterion: dict | None = None) -> dict[str, Any]:
-    s = json.loads(SETTINGS_PATH.read_text())
+                  criterion: dict | None = None, path: Path = SETTINGS_PATH) -> dict[str, Any]:
+    s = json.loads(path.read_text())
     s["bootstrap"]["B"] = B
     arm = s["arms"]["msha"]
     arm["roles"] = roles().to_json()["roles"]
@@ -1258,9 +1269,14 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("ls docs/collective/onboard/run-*.json | sort | tail -n 1", t)
         self.assertIn("timeout-minutes: 180", t)
         self.assertIn("settings_sha256", t)
-        self.assertLess(t.index("fetch_msha.py download"), t.index("=== D001 RUN-START ==="))
-        self.assertLess(t.index("fetch_nhtsa.py download"), t.index("=== D001 RUN-START ==="))
-        self.assertLess(t.index("=== D001 RUN-START ==="), t.index("fetch_msha.py split"))
+        marker = 'echo "=== $EXPERIMENT RUN-START ==="'
+        self.assertEqual(t.count("RUN-START ==="), 1)
+        # D002 rule 9: both downloads, then both splits, then the marker, then the scoring
+        self.assertLess(t.index("fetch_msha.py download"), t.index("fetch_nhtsa.py download"))
+        self.assertLess(t.index("fetch_nhtsa.py download"), t.index("fetch_msha.py split"))
+        self.assertLess(t.index("fetch_msha.py split"), t.index("fetch_nhtsa.py split"))
+        self.assertLess(t.index("fetch_nhtsa.py split"), t.index(marker))
+        self.assertLess(t.index(marker), t.index("onboard score"))
         self.assertIn("persist-credentials: false", t)
         self.assertIn("contents: read", t)
 
@@ -1283,9 +1299,14 @@ class WorkflowTests(unittest.TestCase):
         steps = job["steps"]
         names = [s.get("name", s.get("uses")) for s in steps]
         start = next(i for i, s in enumerate(steps) if s.get("id") == "start")
-        self.assertIn("=== D001 RUN-START ===", steps[start]["run"])
+        self.assertEqual(steps[start]["run"], 'echo "=== $EXPERIMENT RUN-START ==="')
         download = next(i for i, n in enumerate(names) if n and n.startswith("download"))
-        self.assertLess(download, start)
+        split = next(i for i, n in enumerate(names) if n and n.startswith("split"))
+        self.assertEqual((download + 1, split + 1), (split, start))      # D002 rule 9: the marker after the splits
+        for s in steps[:start]:
+            self.assertNotIn("if", s)          # before the marker, a step runs only when every earlier one passed
+        self.assertIn("fetch_msha.py split", steps[split]["run"])
+        self.assertIn("fetch_nhtsa.py split", steps[split]["run"])
         for s in steps[start + 1:]:
             self.assertIn("steps.start.outcome == 'success'", s.get("if", ""))
         tests = steps[next(i for i, n in enumerate(names) if n == "offline tests")]["run"]
@@ -1294,7 +1315,8 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn(module, tests)
         upload = steps[-1]
         self.assertTrue(upload["uses"].startswith("actions/upload-artifact@"))
-        self.assertEqual(upload["with"]["path"], "d001/upload/")
+        self.assertEqual(upload["with"]["path"], "work/upload/")
+        self.assertEqual(upload["with"]["name"], "onboard-${{ env.EXPERIMENT }}")
         collect = next(s for s in steps if s.get("name") == "collect the files to upload")["run"]
         for never in ("raw", "split", "audit-in", "audit.json", "records.jsonl"):
             self.assertNotIn(never, collect)
@@ -1975,7 +1997,9 @@ class AmendmentRecordTests(unittest.TestCase):
                        "### A5. The last guard", "### A6. NHTSA's vehicle column", "### A7.", "### A8.",
                        "### A9. The declaration, added"):
             self.assertIn(needle, text)
-        self.assertEqual(text.split("## Runs", 1)[1].strip(), "None yet.")
+        runs = text.split("## Runs", 1)[1]
+        self.assertEqual(re.findall(r"^#{1,3} .*$", runs, re.M), [D001_RUN_1])
+        self.assertTrue(runs.strip().startswith(D001_RUN_1))
 
 
 class WorkflowAmendmentTests(TempDir):
@@ -2003,21 +2027,21 @@ class WorkflowAmendmentTests(TempDir):
         script = self.step_run("collect the files to upload").split("<<'EOF'\n", 1)[1].rsplit("\nEOF", 1)[0]
         work = self.tmp / (verdict or "none")
         if verdict is not None:
-            (work / "d001" / "report").mkdir(parents=True)
-            (work / "d001" / "report" / "report.json").write_text(json.dumps({"verdict": verdict}))
-            (work / "d001" / "report" / "report.md").write_text("# report\n")
-        arm = work / "d001" / "arms" / "msha"
+            (work / "work" / "report").mkdir(parents=True)
+            (work / "work" / "report" / "report.json").write_text(json.dumps({"verdict": verdict}))
+            (work / "work" / "report" / "report.md").write_text("# report\n")
+        arm = work / "work" / "arms" / "msha"
         for company, passed in (("c1", True), ("c2", False)):
             (arm / company / "pack").mkdir(parents=True)
             (arm / company / "pack" / "pack.json").write_text("{}")
             (arm / company / "check.json").write_text(json.dumps({"passed": passed}))
         (arm / "arm.json").write_text("{}")
-        (work / "d001" / "upload").mkdir(parents=True)
+        (work / "work" / "upload").mkdir(parents=True)
         import subprocess
         import sys
         subprocess.run([sys.executable, "-c", script], cwd=work, check=True, capture_output=True, text=True)
-        return sorted(p.relative_to(work / "d001" / "upload").as_posix()
-                      for p in (work / "d001" / "upload").rglob("*") if p.is_file())
+        return sorted(p.relative_to(work / "work" / "upload").as_posix()
+                      for p in (work / "work" / "upload").rglob("*") if p.is_file())
 
     def test_a_withheld_or_missing_report_uploads_alone(self) -> None:
         self.assertEqual(self.collect("withheld"), ["report.json", "report.md"])
@@ -2031,8 +2055,8 @@ class WorkflowAmendmentTests(TempDir):
 
     def test_the_download_step_runs_exactly_the_two_downloads(self) -> None:
         self.assertEqual(self.step_run("download (a failure here is not a run)").splitlines(),
-                         ["python tools/onboard/fetch_msha.py download --out d001/raw/msha",
-                          "python tools/onboard/fetch_nhtsa.py download --out d001/raw/nhtsa"])
+                         ["python tools/onboard/fetch_msha.py download --out work/raw/msha",
+                          "python tools/onboard/fetch_nhtsa.py download --out work/raw/nhtsa"])
 
 
 # =================================================================================================== 17 the second amendment
@@ -2508,7 +2532,358 @@ class SecondAmendmentRecordTests(unittest.TestCase):
                        "### A14. What the refusal removed", "of at least 5 characters", "as a whole token",
                        "`EQUIP_MFR_NAME`", "`reporter` and `vehicle` stay forbidden"):
             self.assertIn(needle, section)
-        self.assertEqual(text.split("## Runs", 1)[1].strip(), "None yet.")
+        runs = text.split("## Runs", 1)[1]
+        self.assertEqual(re.findall(r"^#{1,3} .*$", runs, re.M), [D001_RUN_1])
+        self.assertTrue(runs.strip().startswith(D001_RUN_1))
+
+
+# =================================================================================================== 18 D002
+
+def quoted(rows: list[dict[str, str]], header: tuple[str, ...] = HEADER, delim: str = "|",
+           quote_header: bool = False) -> bytes:
+    """An export written as the date probe shows MSHA's accident file (CHOICE-D002): every value in double quotes, a
+    quote inside a value doubled, lines ending in CRLF; the header's names bare unless ``quote_header``."""
+    def q(v: str) -> str:
+        return '"' + v.replace('"', '""') + '"'
+
+    head = delim.join(q(h) if quote_header else h for h in header)
+    lines = [head] + [delim.join(q(r.get(h, "")) for h in header) for r in rows]
+    return ("\r\n".join(lines) + "\r\n").encode("utf-8")
+
+
+def padded(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    """The rows with their dates written mm/dd/yyyy, as MSHA's definition file gives the format."""
+    out = []
+    for r in rows:
+        m, d, y = r["DATE"].split("/")
+        out.append(dict(r, DATE=f"{int(m):02d}/{int(d):02d}/{y}"))
+    return out
+
+
+def d001_comma(data: bytes) -> tuple[tuple[str, ...], list[tuple[Any, ...]], int, int]:
+    """D001's reading of a comma file (rule 1.1 before D002): the csv module over the whole text. Columns, rows (cells
+    as the reader keeps them), wrong-width rejects and blank lines."""
+    text, _ = EXP.decode(data)
+    columns: tuple[str, ...] | None = None
+    rows, rejected, blank = [], 0, 0
+    for record in csv.reader(io.StringIO(text, newline="")):
+        if not record:
+            blank += 1
+            continue
+        if columns is None:
+            columns = tuple(n.strip() for n in record)
+            continue
+        if len(record) != len(columns):
+            rejected += 1
+            continue
+        rows.append(tuple(EXP._cell(name, raw) for name, raw in zip(columns, record)))
+    return columns or (), rows, rejected, blank
+
+
+class QuotedFieldTests(TempDir):
+    """D002 change (a): every delimited line through the csv module, read on its own."""
+
+    def test_msha_style_pipe_and_tab_rows_lose_their_quotes(self) -> None:
+        text = 'Roof fell | bolter said ""stop"" twice\tthen left'
+        for delim, fmt in (("|", "pipe"), ("\t", "tab")):
+            with self.subTest(fmt=fmt):
+                data = (delim.join(HEADER) + "\r\n" + delim.join(
+                    f'"{v}"' for v in ("R00001", "s1", "03/04/2016", text, "ROOF FALL", "")) + "\r\n").encode()
+                e = parse_export(data)
+                self.assertEqual((e.format, e.columns, dict(e.rejected)), (fmt, HEADER, {}))
+                self.assertEqual(e.rows, (("R00001", "s1", "03/04/2016",
+                                           'Roof fell | bolter said "stop" twice\tthen left', "ROOF FALL", None),))
+
+    def test_a_quoted_header_loses_its_quotes_and_a_bare_one_stays(self) -> None:
+        rows = Rows().add(3, "text").rows
+        self.assertEqual(parse_export(quoted(rows, quote_header=True)).columns, HEADER)
+        self.assertEqual(parse_export(quoted(rows)).columns, HEADER)
+        self.assertEqual(parse_export(quoted(rows, quote_header=True)).rows, parse_export(pipe(rows)).rows)
+
+    def test_quoted_mm_dd_yyyy_dates_parse_as_m_d_yyyy_and_did_not_before(self) -> None:
+        rows = padded(corpus_rows(seed=61))
+        data = quoted(rows)
+        dated = D.date_column(parse_export(data), roles(), LANG, PARAMS)
+        self.assertEqual((dated.format, dated.rejected), ("M/D/YYYY", 0))
+        m, d, y = rows[0]["DATE"].split("/")
+        self.assertEqual(dated.dates[0], date(int(y), int(m), int(d)))
+        # D001's reading: split on the pipe with no quoting, every value keeps its quotes, and no format reaches 0.95
+        lines = data.decode().splitlines()[1:]
+        kept = [line.split("|")[HEADER.index("DATE")].strip() for line in lines]
+        self.assertTrue(all(v.startswith('"') and v.endswith('"') for v in kept))
+        self.assertIsNone(choose_date_format(kept, LANG.months, PARAMS["date_min_share"]))
+        self.assertTrue(all(parse_date(v, f, LANG.months) is None for v in kept[:50] for f in DATE_FORMATS))
+
+    def test_an_unbalanced_quote_does_not_swallow_the_next_line(self) -> None:
+        data = (b'A|B|C\n"1"|"open quote|"x"\n"2"|"b"|"c"\n"3"|"b"|"never closed\n"4"|"b"|"c"\n')
+        e = parse_export(data)
+        self.assertEqual(e.rows, (("2", "b", "c"), ("3", "b", "never closed"), ("4", "b", "c")))
+        self.assertEqual(dict(e.rejected), {"wrong_width": 1})
+        # read over the whole text, as D001 read comma files, the open quote of row 3 takes in row 4
+        whole = list(csv.reader(io.StringIO(data.decode(), newline=""), delimiter="|"))
+        self.assertEqual(len(whole[3]), 5)
+        self.assertNotIn(["4", "b", "c"], whole)
+
+    def test_field_count_rejects_are_counted_and_a_quoted_delimiter_does_not_split(self) -> None:
+        data = b'A|B|C\n"1"|"x|y"|"z"\n"1"|"2"\n"1"|"2"|"3"|"4"\n1|2|3\n"a ""b"" c"|""|" d "\n'
+        e = parse_export(data)
+        self.assertEqual(e.rows, (("1", "x|y", "z"), ("1", "2", "3"), ('a "b" c', None, "d")))
+        self.assertEqual(dict(e.rejected), {"wrong_width": 2})
+        for delim in ("|", "\t", ","):
+            with self.subTest(delim=delim):
+                self.assertEqual(EXP.split_line(f'"x{delim}y"{delim}z', delim), [f"x{delim}y", "z"])
+                self.assertEqual(EXP.split_line(f' "x"{delim}z', delim), [' "x"', "z"])   # a quote not first stays
+                self.assertEqual(EXP.split_line("", delim), [])
+
+    def test_comma_files_read_as_before(self) -> None:
+        buf = io.StringIO()
+        writer = csv.writer(buf, lineterminator="\n")
+        writer.writerow(NHTSA_COLUMNS)
+        for i, (summary, comps) in enumerate((("Brake, then \"pedal\" sank", "SERVICE BRAKES;ENGINE"),
+                                              ("plain text", "STEERING"), ('only "quotes"', "AIR BAGS"),
+                                              ("", "ENGINE"), ("semi; colon, comma", "ENGINE;ENGINE"))):
+            writer.writerow([str(11400000 + i), "tx", "20210305", comps, "FORD-X-2019", summary, str(11400000 + i)])
+        cases = [b'A,B\n1,"a, b"\n2,"say ""hi"""\n', b"A,B\n1,2\n1,2,3\n", b'\n\nA,B[]\n1,"x;y; x"\n\n2,\n3, z \r\n',
+                 b'\xef\xbb\xbfA,B\r\n"1",caf\xc3\xa9\r\n', b"A,B\n1,caf\xe9 \x85 x\n", b'A,B\n1, "x"\n',
+                 b'A,B\n1,"x\n', buf.getvalue().encode()]
+        for data in cases:
+            with self.subTest(data=data[:40]):
+                e = parse_export(data)
+                columns, rows, rejected, blank = d001_comma(data)
+                self.assertEqual(e.format, "comma")
+                self.assertEqual((e.columns, list(e.rows), sum(e.rejected.values()), e.blank_lines),
+                                 (columns, rows, rejected, blank))
+
+    def test_a_quoted_line_break_in_a_comma_file_is_the_one_change(self) -> None:
+        data = b'A,B\n1,"two\nlines"\n2,ok\n'
+        self.assertEqual(d001_comma(data)[1:3], ([("1", "two\nlines"), ("2", "ok")], 0))
+        e = parse_export(data)
+        self.assertEqual((e.rows, dict(e.rejected)), ((("1", "two"), ("2", "ok")), {"wrong_width": 1}))
+
+    def test_a_field_longer_than_the_csv_default_limit_reads(self) -> None:
+        limit = csv.field_size_limit()
+        long_text = "word " * 40000
+        e = parse_export(f'A|B\n"1"|"{long_text}"\n"2"|"short"\n'.encode())
+        self.assertEqual([r[0] for r in e.rows], ["1", "2"])
+        self.assertEqual(e.rows[0][1], long_text.strip())
+        self.assertGreater(len(long_text), limit)
+        self.assertEqual(csv.field_size_limit(), limit)          # the module's limit is put back
+
+    def test_a_quoted_export_drafts_the_same_pack_as_the_bare_one(self) -> None:
+        rows = corpus_rows(seed=62)
+        rows[0]["TEXT"] = 'Roof "rock" fell | twice. ' + rows[0]["TEXT"]
+        bare = D.draft_export(parse_export(pipe([dict(r, TEXT=r["TEXT"].replace("|", "/")) for r in rows])),
+                              roles(), TRAIN, "q_pack", params=PARAMS, lang=LANG, template=TEMPLATE)
+        q = parse_export(quoted(rows))
+        self.assertEqual(q.value(0, "TEXT"), rows[0]["TEXT"])
+        self.assertEqual(dict(q.rejected), {})
+        d = D.draft_export(q, roles(), TRAIN, "q_pack", params=PARAMS, lang=LANG, template=TEMPLATE)
+        self.assertEqual(d.dated.format, "M/D/YYYY")
+        self.assertEqual(d.files, bare.files)
+        labels = [x["label"] for x in d.facts["categories"]["passing_floor"]]
+        self.assertTrue(labels)
+        self.assertFalse([x for x in labels if '"' in x])
+
+
+class ExperimentIdTests(TempDir):
+    """Every printed artifact takes the experiment id from the settings (CHOICE-D002, "The settings and the run")."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._t = tempfile.TemporaryDirectory()
+        cls.base = Path(cls._t.name)
+        cls.rows = corpus_rows(seed=31, per_cat=90)
+        cls.exports = write_arm(cls.base / "msha", {"c1": cls.rows})
+        cls.settings = arm_settings(path=D002_SETTINGS_PATH)
+        del cls.settings["arms"]["nhtsa"]
+        cls.arm = SC.run_arm(cls.settings, "0" * 64, "msha", cls.exports, cls.base / "arms" / "msha",
+                             lambda: "c" * 40)
+        fake_audit(cls.base / "audit" / "audit.json")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._t.cleanup()
+
+    def report(self, settings: dict[str, Any], arm_dir: Path | None = None) -> tuple[dict, list[str], str, str]:
+        printed: list[str] = []
+        doc = REP.run_report(settings, "settings.json", "0" * 64, [arm_dir or self.base / "arms" / "msha"],
+                             self.base / "audit" / "audit.json", self.tmp / "report", lambda: "c" * 40,
+                             emit=printed.append)
+        return (doc, printed, (self.tmp / "report" / "report.json").read_text(),
+                (self.tmp / "report" / "report.md").read_text())
+
+    def test_the_d002_report_names_d002_everywhere_it_names_the_experiment(self) -> None:
+        self.assertEqual(self.settings["experiment"], "D002")
+        self.assertEqual(self.arm["experiment"], "D002")
+        doc, printed, js, md = self.report(self.settings)
+        self.assertNotEqual(doc["verdict"], "withheld")
+        self.assertEqual(json.loads(js)["experiment"], "D002")
+        self.assertTrue(md.startswith("# D002: can a pack be drafted from an export alone?\n"))
+        self.assertIn("D002 passes only if all six criteria pass.", md)
+        for name, block in zip(("report.json", "report.md"), printed):
+            self.assertTrue(block.startswith(f"=== D002 {name} BEGIN lines="))
+            self.assertTrue(block.endswith(f"=== D002 {name} END ==="))
+        for text in (js, md, *printed):
+            self.assertNotIn("D001", text)
+
+    def test_any_plain_id_is_printed_as_the_settings_give_it(self) -> None:
+        settings = dict(self.settings, experiment="X123")
+        doc, printed, js, md = self.report(settings)
+        self.assertEqual(doc["experiment"], "X123")
+        self.assertTrue(md.startswith("# X123: "))
+        self.assertEqual([b.split("\n", 1)[0].split(" ")[1] for b in printed], ["X123", "X123"])
+        self.assertEqual([b.rsplit("\n", 1)[1] for b in printed], ["=== X123 report.json END ===",
+                                                                   "=== X123 report.md END ==="])
+
+    def test_a_withheld_report_names_the_settings_experiment(self) -> None:
+        arm_dir = self.tmp / "planted"
+        shutil.copytree(self.base / "arms" / "msha", arm_dir)
+        doc = json.loads((arm_dir / "arm.json").read_text())
+        doc["companies"]["c1"]["draft"]["predicates"][0]["first_terms"].append(self.rows[0]["ID"])
+        (arm_dir / "arm.json").write_text(json.dumps(doc))
+        out, printed, js, md = self.report(self.settings, arm_dir)
+        self.assertEqual((out["verdict"], out["experiment"]), ("withheld", "D002"))
+        self.assertTrue(md.startswith("# D002 report withheld\n"))
+        self.assertTrue(printed[0].startswith("=== D002 report.json BEGIN "))
+        self.assertNotIn("D001", js + md)
+
+    def test_an_experiment_id_that_is_not_a_plain_name_is_refused(self) -> None:
+        for bad in (None, "", "D002 RUN-START ===", "D002\n", "1D", "a" * 33, 2):
+            with self.subTest(bad=bad), self.assertRaises(SC.ScoreError):
+                SC.experiment_id({"experiment": bad})
+        with self.assertRaises(SC.ScoreError):
+            SC.experiment_id({})
+        for good in ("D001", "D002", "X123", "d-2_b"):
+            self.assertEqual(SC.experiment_id({"experiment": good}), good)
+        with self.assertRaises(SC.ScoreError):
+            REP.run_report(dict(self.settings, experiment="D 2"), "settings.json", "0" * 64,
+                           [self.base / "arms" / "msha"], self.base / "audit" / "audit.json", self.tmp / "r",
+                           lambda: "c" * 40, emit=lambda s: None)
+
+
+class D002SettingsTests(unittest.TestCase):
+    def test_the_d002_settings_are_d001s_with_the_experiment_changed(self) -> None:
+        one, two = SETTINGS_PATH.read_bytes(), D002_SETTINGS_PATH.read_bytes()
+        self.assertEqual(two, one.replace(b'"experiment": "D001"', b'"experiment": "D002"'))
+        self.assertNotEqual(one, two)
+        s1, s2 = json.loads(one), json.loads(two)
+        self.assertEqual((s1["experiment"], s2["experiment"]), ("D001", "D002"))
+        self.assertEqual({k: v for k, v in s2.items() if k != "experiment"},
+                         {k: v for k, v in s1.items() if k != "experiment"})
+        # the values CHOICE-D002 says D002 keeps
+        self.assertEqual((s2["bootstrap"]["seed_prefix"], s2["sample"]["seed_prefix"], s2["permute"]["seed_prefix"]),
+                         ("d001:boot", "d001:sample", "d001:permute"))
+        self.assertEqual((s2["kind"], s2["choice"]),
+                         ("onboard_d001_settings", "docs/collective/onboard/CHOICE-D001.md"))
+
+    def test_d001_is_frozen(self) -> None:
+        onboard = ROOT / "docs" / "collective" / "onboard"
+        self.assertEqual(hashlib.sha256((onboard / "CHOICE-D001.md").read_bytes()).hexdigest(),
+                         "43c2febd587dd0af84c5957fc6d10ee71b158db2309ebadc9944f5b55d10337a")
+        run = json.loads((onboard / "run-001.json").read_text())
+        self.assertEqual(run, {"experiment": "D001", "settings": "docs/collective/onboard/D001-settings.json",
+                               "settings_sha256": "f319aae9bbc503440f0e2d509e7784066fc7ccc775c6924f02741a7e6a792c90"})
+        self.assertEqual(hashlib.sha256(SETTINGS_PATH.read_bytes()).hexdigest(), run["settings_sha256"])
+
+
+class D002RecordTests(unittest.TestCase):
+    text = D002_CHOICE.read_text(encoding="utf-8")
+
+    def test_the_choice_file_states_the_two_changes_and_why(self) -> None:
+        t = " ".join(self.text.split())
+        for needle in ("D002 is D001's rule with two changes and nothing else.",
+                       "with both of its sections \"Amended before any run\"",
+                       "38017322304", "38017465175", "275,220", '`"99/99/9999"`', "mm/dd/yyyy", "`7b41e1b`",
+                       "By D001's rule 9, that crash is D001's result.",
+                       "Python's `csv` module, with that delimiter and the module's default quoting",
+                       "Two quotes inside a quoted field stand for one quote.",
+                       "It never joins the next line to the row.",
+                       "A row whose number of fields differs from the header's is rejected and counted, as before.",
+                       "the run starts when both downloads and both splits have finished, and both splits have printed",
+                       "`=== D002 RUN-START ===`", "`docs/collective/onboard/D002-settings.json`",
+                       "`docs/collective/onboard/run-002.json`", "**The first run is the result.**",
+                       "**D001's result stands**", "No record value, category or narrative"):
+            self.assertIn(needle, t)
+        order = ["## Why: D001's run 1 and the date probe", "## Change (a): rule 1.1, splitting", "### Comma files",
+                 "## Change (b): rule 9, what counts as a run", "## The settings and the run",
+                 "## The declaration, added", "## Runs"]
+        self.assertEqual(sorted(order, key=t.index), order)
+        self.assertNotIn("\n## ", self.text.split("\n## Runs\n", 1)[1])          # "Runs" is the last section
+
+
+class WorkflowD002Tests(TempDir):
+    """D002 in the workflow: the run file's experiment against its settings file's, and the run start marker."""
+
+    text = WORKFLOW.read_text(encoding="utf-8")
+    step_run = WorkflowAmendmentTests.step_run
+
+    def layout(self, runs: dict[str, dict[str, str]]) -> Path:
+        repo = self.tmp / "repo"
+        onboard = repo / "docs" / "collective" / "onboard"
+        onboard.mkdir(parents=True)
+        for path in (SETTINGS_PATH, D002_SETTINGS_PATH):
+            shutil.copy(path, onboard / path.name)
+        for name, doc in runs.items():
+            (onboard / name).write_text(json.dumps(doc))
+        return repo
+
+    def settings_check(self, runs: dict[str, dict[str, str]]) -> tuple[int, str, str]:
+        repo = self.layout(runs)
+        bin_dir = self.tmp / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        if not (bin_dir / "python").exists():
+            (bin_dir / "python").symlink_to(sys.executable)
+        env_file = self.tmp / "github_env"
+        env_file.write_text("")
+        env = dict(os.environ, PATH=f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}", GITHUB_ENV=str(env_file))
+        script = self.step_run("settings check (the run file's experiment and sha256 against its settings file)")
+        r = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", script], cwd=repo, env=env, capture_output=True,
+                           text=True)
+        return r.returncode, r.stdout + r.stderr, env_file.read_text()
+
+    @staticmethod
+    def run_doc(experiment: str, settings: Path) -> dict[str, str]:
+        return {"experiment": experiment, "settings": f"docs/collective/onboard/{settings.name}",
+                "settings_sha256": hashlib.sha256(settings.read_bytes()).hexdigest()}
+
+    def test_the_newest_run_file_is_accepted_when_its_experiment_matches_its_settings(self) -> None:
+        code, out, env = self.settings_check({"run-001.json": self.run_doc("D001", SETTINGS_PATH),
+                                              "run-002.json": self.run_doc("D002", D002_SETTINGS_PATH)})
+        self.assertEqual(code, 0, out)
+        self.assertIn("run file: docs/collective/onboard/run-002.json", out)
+        self.assertEqual(env.splitlines(), ["SETTINGS=docs/collective/onboard/D002-settings.json",
+                                            "EXPERIMENT=D002"])
+
+    def test_a_mismatched_or_changed_newest_run_file_is_refused_with_no_fallback(self) -> None:
+        good = self.run_doc("D001", SETTINGS_PATH)
+        cases = {"experiment differs": (self.run_doc("D002", SETTINGS_PATH), "name different experiments"),
+                 "settings changed": (dict(self.run_doc("D002", D002_SETTINGS_PATH), settings_sha256="0" * 64),
+                                      "the settings file differs from the run file")}
+        for case, (newest, said) in cases.items():
+            with self.subTest(case=case):
+                shutil.rmtree(self.tmp / "repo", ignore_errors=True)
+                code, out, env = self.settings_check({"run-001.json": good, "run-002.json": newest})
+                self.assertNotEqual(code, 0)
+                self.assertIn(said, out)
+                self.assertIn("run file: docs/collective/onboard/run-002.json", out)
+                self.assertEqual(env, "")            # nothing set: no later step can run D001's file instead
+
+    def test_the_run_start_marker_prints_the_settings_experiment(self) -> None:
+        script = next(s for s in self.text.split("      - name: ") if s.startswith("run start\n"))
+        line = script.split("run: ", 1)[1].strip()
+        self.assertEqual(line, 'echo "=== $EXPERIMENT RUN-START ==="')
+        r = subprocess.run(["bash", "-c", line], env=dict(os.environ, EXPERIMENT="D002"), capture_output=True,
+                           text=True, check=True)
+        self.assertEqual(r.stdout, "=== D002 RUN-START ===\n")
+
+    def test_the_split_step_runs_exactly_the_two_splits_before_the_marker(self) -> None:
+        self.assertEqual(self.step_run("split both sources (a failure here is not a run)").splitlines(),
+                         ['python tools/onboard/fetch_msha.py split --settings "$SETTINGS" --raw work/raw/msha '
+                          '--out work/split/msha',
+                          'python tools/onboard/fetch_nhtsa.py split --settings "$SETTINGS" --raw work/raw/nhtsa '
+                          '--out work/split/nhtsa'])
+        self.assertLess(self.text.index("- name: split both sources"), self.text.index("- name: run start"))
+        self.assertLess(self.text.index("- name: download (a failure"), self.text.index("- name: split both sources"))
 
 
 if __name__ == "__main__":

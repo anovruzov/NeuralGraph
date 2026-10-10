@@ -1,4 +1,5 @@
-"""One arm of D001: per company, the draft, its checks, the controls, the held-out sample, reading and metrics.
+"""One arm of a drafting test (D001, or D002, which changes only rules 1.1 and 9): per company, the draft, its
+checks, the controls, the held-out sample, reading and metrics.
 
     python -m mycelic.collective.onboard score --settings FILE --arm NAME --exports DIR --out DIR
 
@@ -57,6 +58,7 @@ ROOT = Path(__file__).resolve().parents[3]
 READERS = ("drafted", "majority_prior", "permuted_labels", "label_names")
 CONTROLS = READERS[1:]
 LABEL_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", re.ASCII)
+EXPERIMENT_RE = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,31}", re.ASCII)
 DIGITS = 4
 EXACT = "exact"
 
@@ -73,6 +75,15 @@ def load_settings(path: str | Path) -> tuple[dict[str, Any], str]:
     except OSError as exc:
         raise ScoreError(f"cannot read {path} ({exc.__class__.__name__})") from None
     return strict_load(data), hashlib.sha256(data).hexdigest()
+
+
+def experiment_id(settings: Mapping[str, Any]) -> str:
+    """The settings' experiment id (``D001``, ``D002``): every printed artifact takes it from here. A plain name, so
+    that it can sit in a printed marker."""
+    value = settings.get("experiment")
+    if not isinstance(value, str) or EXPERIMENT_RE.fullmatch(value) is None:
+        raise ScoreError("the settings name no plain experiment id")
+    return value
 
 
 def arm_roles(settings: Mapping[str, Any], arm: str) -> Roles:
@@ -629,8 +640,8 @@ def run_arm(settings: Mapping[str, Any], settings_sha256: str, arm: str, exports
     boot = settings["bootstrap"]
     seed = f"{boot['seed_prefix']}:{arm}"
     companies = load_companies(exports)
-    doc: dict[str, Any] = {"kind": "onboard_d001_arm", "schema_version": 1, "arm": arm,
-                           "settings_sha256": settings_sha256, "code_commit": commit(),
+    doc: dict[str, Any] = {"kind": "onboard_d001_arm", "schema_version": 1, "experiment": experiment_id(settings),
+                           "arm": arm, "settings_sha256": settings_sha256, "code_commit": commit(),
                            "code_files": tree_hashes(("mycelic/collective/onboard",)),
                            "exports_dir": str(exports), "companies": {}, "errors": []}
     for extra in ("source.json", "definitions.json"):

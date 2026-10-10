@@ -1,14 +1,17 @@
 #!/usr/bin/env python
-"""D001's MSHA arm input: the public accident file, split into one export per controller (CHOICE-D001, rule 2.1).
+"""The drafting test's MSHA arm input: the public accident file, one export per controller (CHOICE-D001, rule 2.1).
 
     python tools/onboard/fetch_msha.py download --out DIR
     python tools/onboard/fetch_msha.py split --settings FILE --raw DIR --out DIR
 
-Two steps, so that a download failure is told apart from a run (rule 9):
+Two steps, so that a failure before the run is told apart from a run (rule 9; under D002 the run starts after both
+splits have printed their counts, ``docs/collective/onboard/CHOICE-D002.md`` change (b)):
 
 * ``download`` fetches ``Accidents.zip`` and ``Accidents_Definition_File.txt`` (``docs/collective/onboard/SOURCES.md``)
   and writes them with ``download.json``. It prints each file's size and sha256, nothing else.
-* ``split`` reads ``Accidents.txt`` from the zip, checks that every declared column is in its header (a missing one is
+* ``split`` reads ``Accidents.txt`` from the zip, one line per row. Each line, the header too, is read by
+  :func:`mycelic.collective.onboard.exports.split_line`, the drafter's own function (rule 1.1 as D002 changed it), so
+  a field in double quotes loses its quotes. It checks that every declared column is in the header (a missing one is
   an error; any other difference from the settings' expected columns is reported by name), and applies the company
   rule: the controllers with the most training rows that have a narrative, among those with enough test rows that
   have a narrative and enough distinct mines in their training rows; ties go to the smaller controller id as a string.
@@ -37,14 +40,14 @@ from typing import Any, Callable, Mapping, Sequence
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from mycelic.collective.onboard.draft import load_language  # noqa: E402
-from mycelic.collective.onboard.exports import choose_delimiter, decode  # noqa: E402
+from mycelic.collective.onboard.exports import choose_delimiter, decode, split_line  # noqa: E402
 from mycelic.collective.onboard.roles import choose_date_format, parse_date  # noqa: E402
 
 BASE = "https://arlweb.msha.gov/OpenGovernmentData/DataSets"
 FILES = (("Accidents.zip", f"{BASE}/Accidents.zip"),
          ("Accidents_Definition_File.txt", f"{BASE}/Accidents_Definition_File.txt"))
 MEMBER = "accidents.txt"
-UA = "mycelic-onboard-d001 (drafting test D001 on public data)"
+UA = "mycelic-onboard (pack-drafting test on public data)"
 LINE = re.compile(r"\r\n|\r|\n")
 MAX_DEFINITION_LINES = 8
 
@@ -137,7 +140,7 @@ def split(settings_path: Path, raw: Path, out: Path) -> dict[str, Any]:
         raise SplitError("the accident file is empty")
     header_line, header_end = lines[0]
     delim, _ = choose_delimiter(header_line)
-    header = [h.strip() for h in header_line.split(delim)]
+    header = [h.strip() for h in split_line(header_line, delim)]
     declared = [roles[k] for k in ("record_id", "site", "date", "narrative", "category")] + list(roles["forbidden"])
     declared.append(rule["column"])
     missing = [c for c in declared if c not in header]
@@ -153,7 +156,7 @@ def split(settings_path: Path, raw: Path, out: Path) -> dict[str, Any]:
         if line == "":
             rejected["blank_line"] = rejected.get("blank_line", 0) + 1
             continue
-        fields = line.split(delim)
+        fields = split_line(line, delim)
         if len(fields) != len(header):
             rejected["wrong_width"] = rejected.get("wrong_width", 0) + 1
             continue
