@@ -1368,13 +1368,29 @@ class WorkflowTests(unittest.TestCase):
 # --------------------------------------------------------------------------------------------------- the docs
 
 class DocsTests(unittest.TestCase):
-    def test_every_rate_in_the_docs_is_one_d002_recorded(self) -> None:
+    def test_every_rate_in_the_docs_is_one_d002_or_a_recorded_run_printed(self) -> None:
         recorded = set(re.findall(r"\d\.\d{3}", (ROOT / RD.CHOICE).read_text()))
+        for path in sorted((DEMO_DIR / "recorded").glob("record-*-demo.json")):
+            recorded |= set(re.findall(r"\d\.\d{3}", path.read_text()))
         for name in ("README.md", "SCRIPT.md"):
             text = (DEMO_DIR / name).read_text()
             with self.subTest(doc=name):
                 found = set(re.findall(r"(?<![\d.])\d\.\d{3}(?!\d)", text))
                 self.assertTrue(found <= recorded, sorted(found - recorded))
+
+    def test_a_recorded_run_is_the_file_its_log_printed(self) -> None:
+        # the README gives each recorded demo.json's sha256 as the run printed it; the committed copy must match it,
+        # and it must render as a demo document does
+        readme = " ".join((DEMO_DIR / "README.md").read_text().split())
+        files = sorted((DEMO_DIR / "recorded").glob("record-*-demo.json"))
+        self.assertTrue(files)
+        for path in files:
+            with self.subTest(file=path.name):
+                digest = __import__("hashlib").sha256(path.read_bytes()).hexdigest()
+                self.assertIn(f"`recorded/{path.name}` (sha256 `{digest}`", readme)
+                doc = json.loads(path.read_text())
+                self.assertEqual(doc["status"], "shown")
+                self.assertTrue(RD.render_console(doc).startswith(doc["title"]))
 
     def test_the_readme_names_the_two_commands(self) -> None:
         text = (DEMO_DIR / "README.md").read_text()

@@ -1,0 +1,746 @@
+{
+ "code_commit": "a34031bd6fb3808a3589fdc7b52e195d00db243c",
+ "company": "c1",
+ "footer": "Guard: 59 printed strings from records checked against c1's own export (its record ids, mine ids, refused values and their name words, and any 8 words of a narrative); 0 drafted terms withheld from the screen (a word of a refused value, or one written like a name or never in lower case); 26,180 record ids, 392 mine ids and 11,770 refused values of the 5 operators in the split looked for in every output and in the bytes that left the mines. Found: none. Guard 3.1 s. Total 28.5 s. Code commit a34031bd6fb3. D002's figures are read from docs/collective/onboard/CHOICE-D002.md and demo/onboard/d002-input.json.",
+ "guard": {
+  "mine_ids": 392,
+  "narratives_in_capitals": 20,
+  "operators": 5,
+  "record_ids": 26180,
+  "refused_values": 11770,
+  "refused_words": 285,
+  "sent": {
+   "sent_refused_value": 0,
+   "sent_report_record_id": 0,
+   "sent_report_site": 0
+  },
+  "strings": {
+   "narrative_ngrams": 0,
+   "refused_equal": 0,
+   "refused_inside": 0,
+   "refused_name_word": 0,
+   "strings": 59
+  },
+  "unread": 0
+ },
+ "header": [
+  "Settings: docs/collective/onboard/D002-settings.json, sha256 8bb9ba6ab9c8..., the settings D002's run file names.",
+  "The code: the drafter (the onboard package) names no column of this source. The settings file names them: the 57 columns it expects, 5 roles, 7 refused columns, and CONTROLLER_ID, which splits the file by controller. tools/onboard/fetch_msha.py (242 lines) is MSHA's download and split code.",
+  "Input: Accidents.zip, 52,269,752 bytes, sha256 62d0c861a5c3...: the file D002 read (D002 recorded the same size and sha256 prefix)."
+ ],
+ "input": {
+  "bytes": 52269752,
+  "d002": "same",
+  "file": "Accidents.zip",
+  "sha256": "62d0c861a5c3a8e76bd06de79ac60e4dcc643bca148501cb3fc752fa76c6687d"
+ },
+ "kind": "onboard_drafter_demo",
+ "not_shown": [
+  "No early warning is measured. The demo has no outcomes, so nothing here says the alerts come early or at all.",
+  "The review list is unjudged. No one has checked whether any item is a real problem.",
+  "The reading score uses the filed categories as the answer key. They are not checked labels.",
+  "The data are public records written to a regulator, not a company's own files.",
+  "Not \"no configuration\". The settings file names this source's columns, and fetch_msha.py is download code for it (D002's M1 counts such code). The drafter's code names no column.",
+  "Operators are c1 to c5 and mines m01 onwards. The guard looks in every output for the record ids, mine ids and refused values (operator and controller names and ids among them) of the operators in the split, as D002's guard reads them. A drafted term is withheld from the screen when one of its words is a word of those refused values, or when the operator's narratives write that word like a name (with a capital or in capitals) or never in lower case. Case is not read at the start of a sentence, after a full stop (so after 'Mr.' or 'Dr.') or in narratives written all in capitals. A name that is not such a word is not caught when the narratives write it in lower case in most of its uses, or in lower case even once with its other uses only where case is not read: the screen does not show that no name is on it."
+ ],
+ "schema_version": 3,
+ "seconds": {
+  "a": 9.9452,
+  "b": 1.4771,
+  "c": 7.2887,
+  "d": 6.6969,
+  "guard": 3.0769,
+  "total": 28.4899
+ },
+ "settings": {
+  "experiment": "D002",
+  "is_d002": true,
+  "path": "docs/collective/onboard/D002-settings.json",
+  "sha256": "8bb9ba6ab9c8d4dca14ac86aa8df89f8cd1926b5355b9908ec3b71020c42c0e5"
+ },
+ "status": "shown",
+ "steps": [
+  {
+   "blocks": [
+    {
+     "kind": "text",
+     "lines": [
+      "MSHA's accident file: 275,220 rows read, 0 rejected, 57 columns. Dates read as M/D/YYYY.",
+      "Controllers in the file: 6,675. A controller is a parent company that can run several operators and mines. D002 splits the file by controller (CONTROLLER_ID) and calls each one an operator: 28 qualify by D002's rule, and 5 are used, c1 to c5 in D002's order.",
+      "c1's export: 5,276 rows, 57 columns, 0 rejected. 1,780 training rows and 1,033 held-out rows have a narrative, from 13 mines in the training years."
+     ]
+    },
+    {
+     "columns": [
+      "Role",
+      "Column"
+     ],
+     "kind": "table",
+     "rows": [
+      [
+       "record id",
+       "DOCUMENT_NO"
+      ],
+      [
+       "site (a mine)",
+       "MINE_ID"
+      ],
+      [
+       "date",
+       "ACCIDENT_DT"
+      ],
+      [
+       "narrative",
+       "NARRATIVE"
+      ],
+      [
+       "filed category (the answer key)",
+       "CLASSIFICATION"
+      ]
+     ],
+     "title": "The roles come from the settings file: data, not code."
+    },
+    {
+     "kind": "text",
+     "lines": [
+      "Values of 7 columns are read only to split the file (CONTROLLER_ID), to refuse and withhold terms, and to check every output, and are never shown: CONTROLLER_ID, CONTROLLER_NAME, OPERATOR_ID, OPERATOR_NAME, CONTRACTOR_ID, CLOSED_DOC_NO, FIPS_STATE_CD. Every other column is ignored."
+     ]
+    }
+   ],
+   "data": {
+    "export": {
+     "columns": 57,
+     "company": "c1",
+     "encoding": "latin-1",
+     "rejected": {},
+     "rows": 5276,
+     "test_rows_with_narrative": 1033,
+     "training_mines": 13,
+     "training_rows_with_narrative": 1780
+    },
+    "file": {
+     "columns": 57,
+     "controllers": 6675,
+     "date_format": "M/D/YYYY",
+     "labels": [
+      "c1",
+      "c2",
+      "c3",
+      "c4",
+      "c5"
+     ],
+     "qualifying": 28,
+     "rejected": {},
+     "rows": 275220,
+     "used": 5
+    },
+    "roles": {
+     "category": "CLASSIFICATION",
+     "date": "ACCIDENT_DT",
+     "narrative": "NARRATIVE",
+     "record_id": "DOCUMENT_NO",
+     "refused": [
+      "CONTROLLER_ID",
+      "CONTROLLER_NAME",
+      "OPERATOR_ID",
+      "OPERATOR_NAME",
+      "CONTRACTOR_ID",
+      "CLOSED_DOC_NO",
+      "FIPS_STATE_CD"
+     ],
+     "site": "MINE_ID"
+    },
+    "split_column": "CONTROLLER_ID"
+   },
+   "id": "a",
+   "seconds": 9.9452,
+   "title": "Read the export"
+  },
+  {
+   "blocks": [
+    {
+     "kind": "text",
+     "lines": [
+      "Training years 2015-01-01 to 2021-12-31: 1,780 rows, 1,780 with a narrative. The drafter learns only from these.",
+      "Filed categories that passed the floor (at least 10 records at 3 mines): 14. Predicates among them (at least 50 records and a specific label): 5. Other bucket: 9. Below the floor, left out: 10.",
+      "The refusal (the refused columns' values, record ids and mine ids) removed 0 categories and 2 floor-passing terms.",
+      "The privacy floor passed: the loader, the term floor, the value floor, refused strings, refused terms, the template, narrative n-grams, column-name labels."
+     ]
+    },
+    {
+     "items": [
+      "HANDLING OF MATERIALS (521 corpus records; 0 refused terms would have been assigned): moving, ring, pinched, lifting, index, middle finger, index finger, liner, changing, ring finger",
+      "SLIP OR FALL OF PERSON (405 corpus records; 0 refused terms would have been assigned): fell, walking, ankle, ground, stepped, step, fall, stairs, tripped, lost",
+      "POWERED HAULAGE (208 corpus records; 0 refused terms would have been assigned): driving, road, traveling, pothole, dump, haul road",
+      "MACHINERY (182 corpus records; 0 refused terms would have been assigned): welding, rubber tire, shovel operator",
+      "HANDTOOLS (NONPOWERED) (177 corpus records; 0 refused terms would have been assigned): hammer, knife, pry, pry bar, knife slipped"
+     ],
+     "kind": "list",
+     "title": "Predicates and their first terms, as D002's report prints them (81 terms in all; 0 predicates learned none):"
+    },
+    {
+     "kind": "text",
+     "lines": [
+      "Terms withheld from the screen: 0. 0 hold a word of a refused value (a name or an id) of an operator in the split. 0 hold a word c1's narratives write like a name (with a capital or in capitals away from a sentence start, in at least half of its uses that show case) or never write in lower case. Narratives written all in capitals, whose case is not read: 20."
+     ]
+    }
+   ],
+   "data": {
+    "categories": {
+     "below_floor": 10,
+     "other": 9,
+     "passing_floor": 14,
+     "refused": 0,
+     "specific": 5
+    },
+    "corpus": 1780,
+    "floor": {
+     "predicate_records": 50,
+     "records": 10,
+     "sites": 3
+    },
+    "loader_passed": true,
+    "names": {
+     "name_shaped": 0,
+     "narratives_in_capitals": 20,
+     "refused_word": 0,
+     "withheld_terms": 0
+    },
+    "placeholders": 0,
+    "predicates": [
+     {
+      "first_terms": [
+       "moving",
+       "ring",
+       "pinched",
+       "lifting",
+       "index",
+       "middle finger",
+       "index finger",
+       "liner",
+       "changing",
+       "ring finger"
+      ],
+      "label": "HANDLING OF MATERIALS",
+      "records": 521,
+      "refused_assignable": 0,
+      "withheld_terms": 0
+     },
+     {
+      "first_terms": [
+       "fell",
+       "walking",
+       "ankle",
+       "ground",
+       "stepped",
+       "step",
+       "fall",
+       "stairs",
+       "tripped",
+       "lost"
+      ],
+      "label": "SLIP OR FALL OF PERSON",
+      "records": 405,
+      "refused_assignable": 0,
+      "withheld_terms": 0
+     },
+     {
+      "first_terms": [
+       "driving",
+       "road",
+       "traveling",
+       "pothole",
+       "dump",
+       "haul road"
+      ],
+      "label": "POWERED HAULAGE",
+      "records": 208,
+      "refused_assignable": 0,
+      "withheld_terms": 0
+     },
+     {
+      "first_terms": [
+       "welding",
+       "rubber tire",
+       "shovel operator"
+      ],
+      "label": "MACHINERY",
+      "records": 182,
+      "refused_assignable": 0,
+      "withheld_terms": 0
+     },
+     {
+      "first_terms": [
+       "hammer",
+       "knife",
+       "pry",
+       "pry bar",
+       "knife slipped"
+      ],
+      "label": "HANDTOOLS (NONPOWERED)",
+      "records": 177,
+      "refused_assignable": 0,
+      "withheld_terms": 0
+     }
+    ],
+    "privacy_floor": {
+     "checks": {
+      "labels": true,
+      "loader": true,
+      "ngram": true,
+      "refused_strings": true,
+      "refused_terms": true,
+      "template": true,
+      "term_floor": true,
+      "value_floor": true
+     },
+     "passed": true
+    },
+    "refusal": {
+     "assignable": 0,
+     "categories": 0,
+     "terms": 2
+    },
+    "terms": {
+     "eligible": 687,
+     "refused": 2,
+     "total": 81
+    },
+    "training_rows": 1780,
+    "window": [
+     "2015-01-01",
+     "2021-12-31"
+    ]
+   },
+   "id": "b",
+   "seconds": 1.4771,
+   "title": "Draft a pack from c1's training years"
+  },
+  {
+   "blocks": [
+    {
+     "kind": "text",
+     "lines": [
+      "Held-out years 2022-01-01 to 2024-12-31. 200 records drawn from 863 eligible (a narrative, a filed category that is a predicate, no copy of a training narrative).",
+      "Each reader sees only the narrative. The filed category is the answer key.",
+      "0 of the 200 narratives hold their own filed label."
+     ]
+    },
+    {
+     "columns": [
+      "Reader",
+      "Micro F1",
+      "95% interval",
+      "D002 for c1"
+     ],
+     "kind": "table",
+     "rows": [
+      [
+       "drafted pack",
+       "0.568",
+       "0.500 to 0.632",
+       "0.568"
+      ],
+      [
+       "majority prior",
+       "0.360",
+       "0.295 to 0.425",
+       "0.360"
+      ],
+      [
+       "permuted labels",
+       "0.000",
+       "0.000 to 0.000",
+       "not recorded"
+      ],
+      [
+       "label names",
+       "0.020",
+       "0.000 to 0.049",
+       "not recorded"
+      ]
+     ],
+     "title": "Micro F1, with a bootstrap interval over these records (10,000 draws):"
+    },
+    {
+     "kind": "text",
+     "lines": [
+      "Drafted minus the best control here (majority prior): 0.208, 95% interval 0.108 to 0.304.",
+      "These reproduce D002's run 38024536763 for c1: it recorded drafted 0.568 and majority prior 0.360. The demo gives the same to three places."
+     ]
+    }
+   ],
+   "data": {
+    "best_control": "majority_prior",
+    "bootstrap_B": 10000,
+    "d002": {
+     "best_control": "majority_prior",
+     "demo": {
+      "best_control": "0.360",
+      "drafted": "0.568"
+     },
+     "input": "same",
+     "recorded": {
+      "best_control": "0.360",
+      "drafted": "0.568"
+     },
+     "run": "38024536763",
+     "source": "docs/collective/onboard/CHOICE-D002.md",
+     "status": "reproduced"
+    },
+    "difference": {
+     "against": "majority_prior",
+     "ci_high": 0.3045,
+     "ci_low": 0.1084,
+     "diff": 0.2081
+    },
+    "label_in_text": 0,
+    "readers": {
+     "drafted": {
+      "ci_high": 0.6325,
+      "ci_low": 0.5,
+      "coverage": 0.66,
+      "f1": 0.5681,
+      "macro_f1": 0.4949,
+      "precision": 0.6759,
+      "recall": 0.49,
+      "records": 200
+     },
+     "label_names": {
+      "ci_high": 0.0488,
+      "ci_low": 0.0,
+      "coverage": 0.015,
+      "f1": 0.0197,
+      "macro_f1": 0.0167,
+      "precision": 0.6667,
+      "recall": 0.01,
+      "records": 200
+     },
+     "majority_prior": {
+      "ci_high": 0.425,
+      "ci_low": 0.295,
+      "coverage": 1.0,
+      "f1": 0.36,
+      "macro_f1": 0.1059,
+      "precision": 0.36,
+      "recall": 0.36,
+      "records": 200
+     },
+     "permuted_labels": {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "coverage": 0.005,
+      "f1": 0.0,
+      "macro_f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "records": 200
+     }
+    },
+    "sample": {
+     "drawn": 200,
+     "eligible": 863,
+     "in_training": 0,
+     "no_record_id": 0,
+     "no_specific": 163,
+     "repeated_in_test": 7,
+     "repeated_record_id": 0,
+     "test_rows": 1033,
+     "with_narrative": 1033
+    },
+    "window": [
+     "2022-01-01",
+     "2024-12-31"
+    ]
+   },
+   "id": "c",
+   "seconds": 7.2887,
+   "title": "Read the held-out years"
+  },
+  {
+   "blocks": [
+    {
+     "kind": "text",
+     "lines": [
+      "c1's held-out years through the audit: 1,033 records at 10 mines, 139 weeks evaluated (2022-W19 to 2025-W01). The weeks before build each series' history.",
+      "Each mine runs as its own site inside this process, built from c1's export on this machine, and nothing is sent over a network. What left a mine is what crossed from its site's store to HQ's, as HQ's receive log holds it.",
+      "Each mine's cells carry its label (m01 to m10), never its id. The same audit under the mines' own ids, as D002's M4 ran it, gives the same alerts, review list and counts.",
+      "D002's run 38024536763 recorded 1,033 records, 10 mines, 139 weeks, a review list of 4 for c1: the same."
+     ]
+    },
+    {
+     "columns": [
+      "Mine",
+      "Weekly bundles",
+      "Cells",
+      "Cells with a count under 3"
+     ],
+     "kind": "table",
+     "rows": [
+      [
+       "m01",
+       "158",
+       "489",
+       "459"
+      ],
+      [
+       "m02",
+       "158",
+       "22",
+       "22"
+      ],
+      [
+       "m03",
+       "158",
+       "117",
+       "117"
+      ],
+      [
+       "m04",
+       "158",
+       "127",
+       "127"
+      ],
+      [
+       "m05",
+       "158",
+       "1",
+       "1"
+      ],
+      [
+       "m06",
+       "158",
+       "133",
+       "132"
+      ],
+      [
+       "m07",
+       "158",
+       "28",
+       "28"
+      ],
+      [
+       "m08",
+       "158",
+       "81",
+       "81"
+      ],
+      [
+       "m09",
+       "158",
+       "23",
+       "23"
+      ],
+      [
+       "m10",
+       "158",
+       "88",
+       "88"
+      ]
+     ],
+     "title": "What left each mine: weekly cells only, under its label, one per category, week and channel that had a record. A cell holds counts (a count under 3 leaves as '<k', with k = 3 in its bundle) and, with 3 or more records, the lowest match confidence, one of the pack's fixed levels. The 822,676 bytes that left were scanned for the record ids, mine ids and refused values of the 5 operators in the split, as D002's guard reads them: none found. No narrative or record id leaves."
+    },
+    {
+     "kind": "text",
+     "lines": [
+      "Alerts from the weekly cells alone: X 1, S 0. X reads the codes and text cells, S the codes cells only. Each raises an alert only when a category's counts rise at 2 or more mines in the same weeks.",
+      "Reference channels, which count record-level codes centrally and are not what left the mines: R_mf 6, P 9, PRR 0.",
+      "Outcomes given: 0. So every X, S and R_mf alert lands on the review list, grouped by pattern; P and PRR add nothing to it."
+     ]
+    },
+    {
+     "items": [
+      "SLIP OR FALL OF PERSON: X alerts in week 2023-W51; 9 mines sent a cell of it in the 8 weeks up to one of them (R_mf also raised it)"
+     ],
+     "kind": "list",
+     "title": "The review list, from the weekly cells (X or S): 1 of 4."
+    },
+    {
+     "items": [
+      "POWERED HAULAGE: R_mf alerts in week 2023-W07; 4 mines with records of it in the 8 weeks up to one of them",
+      "Other filed categories (no specific predicate): R_mf alerts in week 2023-W35; 4 mines with records of it in the 8 weeks up to one of them",
+      "HANDLING OF MATERIALS: R_mf alerts in week 2024-W15; 4 mines with records of it in the 8 weeks up to one of them"
+     ],
+     "kind": "list",
+     "title": "Reference only, raised by R_mf alone: 3 of 4. They need record-level codes counted centrally, which this setup does not send."
+    }
+   ],
+   "data": {
+    "alerts": {
+     "P": 9,
+     "PRR": 0,
+     "R_mf": 6,
+     "S": 0,
+     "X": 1
+    },
+    "cells": 1109,
+    "d002": {
+     "demo": {
+      "records": "1,033",
+      "review_list": "4",
+      "sites": "10",
+      "weeks": "139"
+     },
+     "recorded": {
+      "company": "c1",
+      "records": "1,033",
+      "review_list": "4",
+      "sites": "10",
+      "weeks": "139"
+     },
+     "run": "38024536763",
+     "status": "reproduced"
+    },
+    "evaluated_from": "2022-W19",
+    "evaluated_to": "2025-W01",
+    "k": 3,
+    "min_sites": 2,
+    "mines": 10,
+    "outcomes": 0,
+    "own_ids": {
+     "records": 1033,
+     "review_list": 4,
+     "sites": 10,
+     "weeks": 139
+    },
+    "per_mine": [
+     {
+      "cells": 489,
+      "mine": "m01",
+      "suppressed_cells": 459,
+      "weekly_bundles": 158
+     },
+     {
+      "cells": 22,
+      "mine": "m02",
+      "suppressed_cells": 22,
+      "weekly_bundles": 158
+     },
+     {
+      "cells": 117,
+      "mine": "m03",
+      "suppressed_cells": 117,
+      "weekly_bundles": 158
+     },
+     {
+      "cells": 127,
+      "mine": "m04",
+      "suppressed_cells": 127,
+      "weekly_bundles": 158
+     },
+     {
+      "cells": 1,
+      "mine": "m05",
+      "suppressed_cells": 1,
+      "weekly_bundles": 158
+     },
+     {
+      "cells": 133,
+      "mine": "m06",
+      "suppressed_cells": 132,
+      "weekly_bundles": 158
+     },
+     {
+      "cells": 28,
+      "mine": "m07",
+      "suppressed_cells": 28,
+      "weekly_bundles": 158
+     },
+     {
+      "cells": 81,
+      "mine": "m08",
+      "suppressed_cells": 81,
+      "weekly_bundles": 158
+     },
+     {
+      "cells": 23,
+      "mine": "m09",
+      "suppressed_cells": 23,
+      "weekly_bundles": 158
+     },
+     {
+      "cells": 88,
+      "mine": "m10",
+      "suppressed_cells": 88,
+      "weekly_bundles": 158
+     }
+    ],
+    "records": 1033,
+    "review": {
+     "from_cells": [
+      {
+       "alerts": 1,
+       "also": [
+        "R_mf"
+       ],
+       "category": "SLIP OR FALL OF PERSON",
+       "channels": [
+        "X"
+       ],
+       "first_week": "2023-W51",
+       "last_week": "2023-W51",
+       "mines": 9
+      }
+     ],
+     "reference_only": [
+      {
+       "category": "POWERED HAULAGE",
+       "channels": [
+        "R_mf"
+       ],
+       "first_week": "2023-W07",
+       "last_week": "2023-W07",
+       "mines": 4
+      },
+      {
+       "category": "Other filed categories (no specific predicate)",
+       "channels": [
+        "R_mf"
+       ],
+       "first_week": "2023-W35",
+       "last_week": "2023-W35",
+       "mines": 4
+      },
+      {
+       "category": "HANDLING OF MATERIALS",
+       "channels": [
+        "R_mf"
+       ],
+       "first_week": "2024-W15",
+       "last_week": "2024-W15",
+       "mines": 4
+      }
+     ],
+     "total": 4
+    },
+    "rows_rejected": 0,
+    "same_under_own_ids": true,
+    "sent": {
+     "bundles": 1580,
+     "bytes": 822676
+    },
+    "suppressed_cells": 1078,
+    "weeks_evaluated": 139,
+    "window_weeks": 8
+   },
+   "id": "d",
+   "seconds": 6.6969,
+   "title": "Count across c1's mines"
+  },
+  {
+   "blocks": [
+    {
+     "kind": "text",
+     "lines": [
+      "Items from the weekly cells: 1. Each is a category whose counts rose at 2 or more of c1's mines in the same weeks, and none matches an outcome on record, because the demo has no outcomes file. Only the operator's own people could say which are real. Reference only, from R_mf: 3. Those need record-level codes counted centrally, which this setup does not send."
+     ]
+    }
+   ],
+   "id": "e",
+   "seconds": null,
+   "title": "What the review list means"
+  }
+ ],
+ "subtitle": "MSHA mine accidents, public data. Operator c1, a field no pack covers.",
+ "title": "A pack drafted from an export alone"
+}

@@ -12,6 +12,38 @@ calls each one an operator, c1 to c5. This README does the same.
 This is the demo option "The pack drafter on public data, live" of `docs/strategy/YC-BRIEF.md`, section 5. D002 is
 `docs/collective/onboard/CHOICE-D002.md` (run 38024536763, passed all six criteria).
 
+## The recorded run (c1)
+
+Run [38036725404](https://github.com/anovruzov/NeuralGraph/actions/runs/38036725404), 2026-10-10, commit `a34031b`,
+started by `record-001.json`. Its `demo.json` is committed as `recorded/record-001-demo.json` (sha256
+`3e9f2e790f703d22f0cd2de307659cd517f35655f076f2d3eafd1ddc5cac1f00`, the hash the run printed beside the file in its
+log); `render_console` on it gives the console text the log holds, line for line. Every figure below is from that
+file.
+
+- **Input:** `Accidents.zip`, 52,269,752 bytes, sha256 `62d0c861a5c3…`: the file D002 read. The job took 1 min 44 s
+  on a shared runner: 66 s of tests, 1 s of download, 29 s for the demo. The demo's own steps took 28.5 s: (a) 9.9 s,
+  (b) 1.5 s, (c) 7.3 s, (d) 6.7 s, the guard 3.1 s.
+- **(a) Read:** 275,220 rows, 0 rejected, 57 columns. 6,675 controllers; 28 qualify by D002's rule and 5 are used.
+  c1's export: 5,276 rows; 1,780 training rows and 1,033 held-out rows with a narrative, from 13 mines.
+- **(b) Drafted:** from the training years alone (2015 to 2021), 14 filed categories passed the floor, 5 became
+  predicates, with 81 terms. The privacy floor passed. The refusal removed 2 terms; 0 terms were withheld from the
+  screen. Among the terms: `fell`, `ankle`, `stairs`, `tripped` (slip or fall of person); `hammer`, `knife`,
+  `pry bar` (hand tools); `pinched`, `index finger` (handling of materials); `haul road`, `pothole` (powered haulage).
+- **(c) Read the later years (2022 to 2024)**, 200 records drawn from 863: drafted pack micro F1 0.568
+  [0.500, 0.632]; majority prior 0.360 [0.295, 0.425]; permuted labels 0.000; label names 0.020 [0.000, 0.049].
+  Drafted minus the best control: 0.208 [0.108, 0.304]. This reproduces D002's figures for c1 to three places.
+- **(d) Counted across c1's mines:** 1,033 records at 10 mines over 139 weeks, as D002's M4 recorded. 822,676 bytes
+  left the mines, under the labels m01 to m10, and the guard found no record id, mine id or refused value in them.
+  From the weekly cells alone, X raised 1 alert and S none. The review list holds 4 items: 1 from the weekly cells
+  (slip or fall of person, X in week 2023-W51) and 3 that R_mf alone raised, which need record-level codes counted
+  centrally and are shown as reference only.
+- **Guard:** 26,180 record ids, 392 mine ids and 11,770 refused values of the 5 operators were searched for in every
+  output. None was found, and nothing was withheld.
+
+What it shows: the same code, given only an export and a settings file, read a field it had never seen and scored
+above every control on later years, in under 30 seconds of compute, reproducing a pre-registered result. What it does
+not show is under "What it does not show": no early warning is measured and the review list is unjudged.
+
 ## Run it
 
 Two commands. Python 3.11 and the standard library; the network is needed for the download only.

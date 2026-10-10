@@ -361,6 +361,12 @@ category, not checked labels; the reader is the lexical extractor, not a model.
 pilot audit ran on a drafted pack. The whole job took under nine minutes on one shared runner. Limits: these companies'
 records only; `pack/` is mostly a list of component names; nothing here measures detection or early warning.
 
+- **The drafter demo** ([run 38036725404](https://github.com/anovruzov/NeuralGraph/actions/runs/38036725404), commit
+  `a34031b`, `demo.json` sha256 `3e9f2e790f70…`, committed as `demo/onboard/recorded/record-001-demo.json`) runs D002's
+  pipeline for one operator, c1, on the same file D002 read. It reproduced D002's figures for c1 to three places
+  (drafted 0.568 against 0.360 for the majority prior) and its audit counts (1,033 records, 10 mines, 139 weeks, a
+  review list of 4). The demo's own steps took 28.5 s. Not a new test: it shows D002's result, step by step.
+
 ## Outside the lab: public replay V001 (vehicle complaints, model-free, real data)
 
 Not a lab run: the `vehicle-replay` workflow runs the pilot audit (`docs/collective/PILOT.md`) on two years of FORD's

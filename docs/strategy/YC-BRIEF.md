@@ -76,7 +76,12 @@ STRATEGY 9.1 bars synthetic-fixture results from the YC screen, and the recorded
    (D002's MSHA arm took 89 s for five operators on a shared runner, scoring and intervals included), shows the terms it learned (for example
    `roof fall` for fall of roof, `pneumoconiosis` for dust disease) and scores the operator's later years against the
    filed categories (D002: 0.56 F1 against 0.34 for the best control). It shows generality and speed on real records.
-   It is not detection, and it should be shown with that label.
+   It is not detection, and it should be shown with that label. **Built and recorded** (`demo/onboard/`, run
+   38036725404 on operator c1): the steps took 28.5 s on a shared runner. It drafted 5 predicates from c1's
+   training years and read 200 later records at micro F1 0.568 [0.500, 0.632] against 0.360 for the best control,
+   reproducing D002's figures for c1 to three places. Across c1's 10 mines only weekly cells left, under labels; the
+   review list holds 4 items, 1 raised from those cells alone and 3 by a reference channel that needs record-level
+   codes, and the screen shows them apart.
 3. **The recorded console run, labelled fictional.** It shows the whole loop on a fictional six-plant company: the
    alert, the narrow question, the verdicts, the gate, the CAPA draft and its approval. It needs the founder to change
    STRATEGY 9.1 or keep it internal (`python demo/collective/collective_demo.py --replay`).
