@@ -628,4 +628,28 @@ and `EQUIP_MODEL_NO`. Nothing else changes. The run file names the amended file'
 
 ## Runs
 
-None yet.
+### Run 1: run-001, 2026-10-10 (the result): failed, the drafter could not read MSHA's dates
+
+[Run 38017322304](https://github.com/anovruzov/NeuralGraph/actions/runs/38017322304), run file
+`docs/collective/onboard/run-001.json`, commit `be12e5f`, settings sha256 `f319aae9bbc5…`, 02:32 to 02:33 UTC. The
+offline tests passed (153 tests, 1 skipped), the settings check passed, and both downloads finished:
+
+| File | Bytes | sha256 |
+|---|---|---|
+| `Accidents.zip` | 52,269,752 | `62d0c861a5c3…` |
+| `Accidents_Definition_File.txt` | 10,214 | `c7681808dd37…` |
+| `COMPLAINTS_RECEIVED_2020-2024.zip` | 75,874,025 | `308c3b54b9bc…` |
+
+So the run started (rule 9). The MSHA split then stopped with `SplitError: no date format parses enough of the date
+column`: none of the eight fixed formats of rule 1.3 (`roles.DATE_FORMATS`) parsed 95% of `ACCIDENT_DT`. The step
+stopped at its first error, so the NHTSA split never ran. Both arms had no export, so nothing was drafted, scored,
+checked or audited. The report (`report.json` sha256 `1e0df16a6778…`, `report.md` `edeb7caa92fd…`, both printed
+between the D001 markers) reads **fail**: C1 and C2 fail because their arms did not finish, M1 because no pack was
+drafted to scan, M2 with 0 drafted, M3 with 0 packs, and M4 with no audit.
+
+**By rule 9 this is D001's result: a crash after the downloads is the run.** What it shows: a drafter whose date
+formats are fixed in advance failed on the first real export it met, in a field no pack covers. That is a real limit
+of "any export" as built, not a statement about reading. Nothing was read: no narrative, category or value of any
+record was seen, and the probe record (`SOURCES.md`) never showed the date column's format. Any fix is a new choice
+file.
+

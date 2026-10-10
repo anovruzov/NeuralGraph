@@ -3,11 +3,12 @@ name: onboard-probe
 # Schema-only probes of public record sources a pack-drafting test could use in a field no pack covers. Run 1 asked the
 # CFPB complaint database (tools/onboard/cfpb_probe.py), which refused every request from the runner with 403. This
 # run asks the candidates in tools/onboard/source_probe.py: status, size, field names and row counts; no record's values.
-# Prints between markers and uploads an artifact.
+# Run 3 asks only for the shapes of MSHA's date columns (tools/onboard/date_probe.py), after D001's first run stopped
+# at the split. Prints between markers and uploads an artifact.
 on:
   push:
     branches-ignore: [main]
-    paths: ["tools/onboard/source_probe.py", ".github/workflows/onboard-probe.yml"]
+    paths: ["tools/onboard/source_probe.py", "tools/onboard/date_probe.py", ".github/workflows/onboard-probe.yml"]
   workflow_dispatch:
 
 permissions:
@@ -25,11 +26,11 @@ jobs:
         with:
           python-version: "3.11"
       - name: probe
-        run: python tools/onboard/source_probe.py --out source-probe.json
+        run: python tools/onboard/date_probe.py --out date-probe.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: onboard-probe
-          path: source-probe.json
+          path: date-probe.json
           if-no-files-found: warn
           retention-days: 30
