@@ -301,9 +301,11 @@ L1_COMPARATORS_NOTE = ("The lexical judge is the verifier's judge when no model 
 L1_TIME_NOTE = ("Times are seconds on one shared runner whose one model server serves every mine in turn: a mine's "
                 "first call after the first mine can reuse the question's prompt prefix from the server's cache; the "
                 "time with every mine asked at once and the time under the product's default deadline are derived, "
-                "not run; mines timed while a late call of the same question ran are flagged contended; no transport "
-                "between machines is timed.")
-L1_INCOMPLETE = ("not every question of this model finished, so it gets no headline: its finished questions are a "
+                "not run; mines timed while a late call of the same question ran are flagged contended, and their "
+                "times and their questions' times to answer are shown apart, while the question build, the gate, the "
+                "judge calls and the model calls pool them with the others; a question that did not finish within its "
+                "unit's budget shows its elapsed time as a lower bound; no transport between machines is timed.")
+L1_INCOMPLETE = ("not every question of this model finished, so it gets no verdict: its finished questions are a "
                  "partial reading and decide nothing")
 L1_NOT_MEASURED = "not every question of this model is a model measurement, so it gets no headline"
 L1_LEFT_OUT = ("transport failures left out more than one in twenty of this model's scored site answers, so it gets "
@@ -317,6 +319,8 @@ L1_CHECK_FAILED = ("a check of the unit failed: the calls, the ledger, the route
 L1_INFRA = ("the unit could not restore, fetch or check MSHA's file before its first model call; the shard job may run "
             "again against the same plan")
 L1_RERUN_AFTER_CALLS = "an earlier attempt of this unit made model calls, so its re-run is not taken"
+L1_RERUN_CALLS_UNKNOWN = ("an earlier attempt of this unit's shard left no artifact, so whether it made model calls "
+                          "cannot be read, and the re-run is not taken")
 L1_STOPPED = ("the latency test stopped in the plan job before any model ran ({stop}); a new choice file decides "
               "what comes next")
 L1_FETCH_FAILED = ("the plan job could not fetch MSHA's accident file; nothing ran, and the same request may run "
@@ -771,6 +775,9 @@ COLUMNS = {
     "l1_constant": "constant status agreement",
     "l1_gate_equal": "gate decisions equal to the key's",
     "l1_contended": "contended questions",
+    "l1_answer_contended_s": "contended time to answer s",
+    "l1_not_finished": "questions not finished",
+    "l1_elapsed_s": "elapsed s, a lower bound",
     "l1_judge": "judge",
     "l1_status": "gate status, first decision",
     "l1_mines": "mines",

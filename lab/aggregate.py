@@ -93,12 +93,15 @@ the first decision, K6), the answers left out for a transport failure and their 
 draws (``lab.l1score``), the paired differences ``d_lex`` and ``d_route``, the strata, the gate's agreement beside a
 constant status (K8), the per-record measures from ``records.jsonl``, each question's verdicts, statuses, timings,
 derived times, mines (calls, first and median call latency, contention) and crossing overlap, the latency figures of
-rule 6 for the alert and for all questions with the CPU models they ran on, and the headline (K3) or why there is
-none. Every number is in seconds, a share or a count (K12): L1's ledgers give no row to the ``latency`` table, whose
-figures are milliseconds. **A re-run** (K10): an L1 unit whose chosen shard root is a later attempt is ``excluded``
-with :data:`~lab.notes.L1_RERUN_AFTER_CALLS` when an earlier attempt's artifact of its shard shows a model call of the
-unit (a ``run.json`` with ``model_calls`` above zero or unreadable, a ledger with any row, or a unit record with ledger
-rows); an attempt that left no artifact shows nothing. Under ``--reaggregation`` the block holds only its reason
+rule 6 for the alert and for all questions with the CPU models they ran on (a contended question's time to answer
+apart, K6), each unit that did not finish with its elapsed time as a lower bound and its model calls (rule 11), and the
+headline (K3) or why there is none. Every number is in seconds, a share or a count (K12): L1's ledgers give no row to
+the ``latency`` table, whose figures are milliseconds. **A re-run** (K10): an L1 unit whose chosen shard root is a
+later attempt is ``excluded`` with :data:`~lab.notes.L1_RERUN_AFTER_CALLS` when an earlier attempt's artifact of its
+shard shows a model call of the unit (a ``run.json`` with ``model_calls`` above zero or unreadable, a ledger with any
+row, or a unit record with ledger rows), and with :data:`~lab.notes.L1_RERUN_CALLS_UNKNOWN` when an earlier attempt
+of its shard left no artifact (a cancelled or timed-out job uploads none, so whether it made a call cannot be read).
+Under ``--reaggregation`` the block holds only its reason
 (:data:`~lab.notes.L1_NO_REAGGREGATION`): a re-aggregation has no guard over MSHA's file. No record id, mine id,
 narrative or drafted term is copied; mines are ``m01`` onwards.
 
@@ -161,7 +164,8 @@ from . import units as lab_units
 from .manifest import ManifestError, load_manifest, lock_path
 from .notes import (ALTERED, AMBIGUOUS_ARTIFACTS, E1_COMPARE_FAILED, E1_NO_REFERENCE, E1_SCORES_REFUSED,
                     E1_SCORES_UNPINNED, FILES_DIFFER, J1_INCOMPLETE, J1_NOT_MEASURED, J1_WITHHELD, L1_INCOMPLETE,
-                    L1_LEFT_OUT, L1_NO_REAGGREGATION, L1_NOT_MEASURED, L1_RERUN_AFTER_CALLS, L1_WITHHELD,
+                    L1_LEFT_OUT, L1_NO_REAGGREGATION, L1_NOT_MEASURED, L1_RERUN_AFTER_CALLS, L1_RERUN_CALLS_UNKNOWN,
+                    L1_WITHHELD,
                     NO_ARTIFACT, NOT_RUN, OTHER_PLAN, PLUMBING_BANNER, PLUMBING_HOSTED_BANNER, PREREG_MISSING,
                     STEP_FAILED, UNIT_RECORD_INVALID, UNSEALED)
 from .plan import SHARD_ID_RE, UNIT_ID_RE
@@ -915,18 +919,22 @@ def _l1_called(root: Path, unit: dict[str, Any]) -> bool:
     return _is_int(rows) and rows > 0
 
 
-def l1_reruns(plan: dict[str, Any], roots: list[_Root], chosen: dict[str, _Root | None]) -> dict[str, list[int]]:
-    """K10: per L1 unit whose shard's chosen root is a later attempt, the earlier attempts (of the roots found) that
-    show a model call of the unit; a unit listed here is not taken."""
-    out: dict[str, list[int]] = {}
+def l1_reruns(plan: dict[str, Any], roots: list[_Root],
+              chosen: dict[str, _Root | None]) -> dict[str, dict[str, list[int]]]:
+    """K10: per L1 unit whose shard's chosen root is a later attempt, the earlier attempts that may have made a model
+    call of the unit: ``called``, those whose root shows one (:func:`_l1_called`), and ``unknown``, those of which no
+    root of the shard was found (a cancelled or timed-out job uploads no artifact, so whether it made a call cannot be
+    read). A unit listed here is not taken."""
+    out: dict[str, dict[str, list[int]]] = {}
     for unit in plan["units"]:
         root = chosen.get(unit["shard"])
         if unit["experiment"] != "l1" or root is None or root.attempt <= 1:
             continue
-        called = sorted({r.attempt for r in roots if r.shard == unit["shard"] and r.attempt < root.attempt
-                         and _l1_called(r.path, unit)})
-        if called:
-            out[unit["unit"]] = called
+        earlier = [r for r in roots if r.shard == unit["shard"] and r.attempt < root.attempt]
+        called = sorted({r.attempt for r in earlier if _l1_called(r.path, unit)})
+        unknown = sorted(set(range(1, root.attempt)) - {r.attempt for r in earlier})
+        if called or unknown:
+            out[unit["unit"]] = {"called": called, "unknown": unknown}
     return out
 
 
@@ -1034,25 +1042,35 @@ def _l1_model(model: str, units: list[dict[str, Any]], sources: dict[str, E1Sour
         q = questions.get(slot)
         run, lines, problem = _l1_part(unit, sources[unit["unit"]], prereg_sha, q) if q is not None else (
             None, None, "slot")
+        # rule 11: a run of this unit (``_l1_part`` verified it) that did not finish keeps its elapsed time
+        unfinished = problem in (None, "no_records", "records_differ") and run.get("finished") is False
+        bound = _get(run, "timing", "elapsed_lower_bound_s") if unfinished else None
+        bound = l1_score.r3(bound) if _finite(bound) and bound >= 0 else None
+        calls_made = run.get("model_calls") if unfinished and _is_int(run.get("model_calls")) else None
+        if problem is None and unfinished:
+            problem = "not_finished"
         if problem is None and not _l1_verdicts_ok(run, q):
             problem = "verdicts_differ"
         if problem is None and not _l1_timing_ok(run.get("timing"), q["routes"]):
             problem = "timing_differs"
         ok = (problem is None and row["status"] == "ok" and run.get("complete") is True
               and run.get("finished") is True and unit["unit"] not in refused)
+        refusal = refused.get(unit["unit"]) or {}
         parts.append({"unit": unit["unit"], "slot": slot, "status": row["status"],
                       "status_reason": row["status_reason"], "display_class": row["display_class"],
                       "cpu_model": row["cpu_model"], "ok": ok,
                       "problem": problem if problem is not None else (run.get("problem") if not ok else None),
                       "measurement": run.get("measurement") if isinstance(run, dict) else None,
-                      "rerun_after_calls": refused.get(unit["unit"])})
+                      "elapsed_lower_bound_s": bound, "model_calls": calls_made,
+                      "rerun_after_calls": refusal.get("called") or None,
+                      "rerun_calls_unknown": refusal.get("unknown") or None})
         if ok:
             runs[slot] = run
             lines_ok += lines
             measured.append(run.get("measurement") is True)
             timings.append({**run["timing"], "slot": slot})
         else:
-            timings.append({"slot": slot, "finished": False})
+            timings.append({"slot": slot, "finished": False, "elapsed_lower_bound_s": bound})
     slots_ok = sorted(runs)
     complete = slots_ok == list(range(1, settings["slots"] + 1))
     cls = _class_of([p["display_class"] for p in parts if p["display_class"] != "no-result"], fallback)
@@ -1106,11 +1124,13 @@ def l1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
     preregistration, endpoint, slot and question, whose verdicts name every routed mine and whose timing and
     ``records.jsonl`` are whole, :func:`_l1_part`); ``complete`` (every slot finished); the display class (``model`` only
     when every unit with a result is); and over the finished questions the scores, intervals, strata, gate agreement,
-    per-record measures, questions and latency figures. The headline (K3) only for a complete model of display class
-    ``model`` whose runs say ``measurement: true``: ``better``, ``better_than_lexical_only``, ``worse``,
+    per-record measures, questions and latency figures; a unit whose verified run did not finish keeps its elapsed time
+    as a lower bound and its model calls (``elapsed_lower_bound_s``, ``model_calls``). The headline (K3): ``no_verdict``
+    with :data:`~lab.notes.L1_INCOMPLETE` when not every question unit finished; for a complete model of display class
+    ``model`` whose runs say ``measurement: true``, ``better``, ``better_than_lexical_only``, ``worse``,
     ``not_told_apart``, or ``no_verdict`` with :data:`~lab.notes.L1_LEFT_OUT` or :data:`~lab.notes.L1_WITHHELD`; else
-    null with :data:`~lab.notes.L1_INCOMPLETE` or :data:`~lab.notes.L1_NOT_MEASURED`. An incomplete model's finished
-    questions are a partial reading (``partial``) and decide nothing."""
+    null with :data:`~lab.notes.L1_NOT_MEASURED`. An incomplete model's finished questions are a partial reading
+    (``partial``) and decide nothing."""
     units = sorted((u for u in plan["units"] if u["experiment"] == "l1"), key=lambda u: u["unit"])
     if not units:
         return None
@@ -1394,7 +1414,9 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
         state, root = states.get(unit["shard"], ("no_artifact", None))
         row, record = _unit_row(unit, state, root)
         if unit["unit"] in l1_refused:
-            row.update(status="excluded", status_reason=L1_RERUN_AFTER_CALLS, display_class="no-result")
+            row.update(status="excluded", display_class="no-result",
+                       status_reason=(L1_RERUN_AFTER_CALLS if l1_refused[unit["unit"]]["called"]
+                                      else L1_RERUN_CALLS_UNKNOWN))
             record = None
         units.append(row)
         hosted_role = lab_hosted.role(unit, models)

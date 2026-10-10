@@ -54,7 +54,9 @@ questions, the lexical judge's and the control's scores and the bound. L1 (laten
 section of its display class (:func:`_l1_tables`): its label, the operator, the file and the audit, the alert, the
 questions, the headline and comparator notes, the comparators' scores, one row per model with its scores and one with its
 headline and gate agreement, then the time note and the time table (the alert and all questions apart, per model, with
-the CPU models) and each finished question's times beside the derived ones; a plan's preregistration adds L1's file,
+the CPU models; contended questions' time to answer apart, and the questions not finished), each question not finished
+with its elapsed time as a lower bound, and each finished question's times beside the derived ones; a plan's
+preregistration adds L1's file,
 audit, alert, questions, the comparators' scores, the predicate-only bound and the share of empty draws
 (:func:`_l1_prereg_lines`). The class sections
 come in the order of :data:`CLASS_ORDER`: ``model``, then ``hosted-api`` (hosted API results, never measured on this
@@ -1265,8 +1267,9 @@ def _l1_tables(doc: _Doc, src: Sources, l1: dict[str, Any]) -> None:
     questions, the headline and comparator notes, the comparators on every scored site answer, one row per model with
     its scores beside the comparators' on the same answers, one with its paired differences, headline and gate
     agreement beside a constant status, then the time note, the time table (per model, the alert and all questions
-    apart) and each finished question's times beside the derived ones. Every verdict, mine and per-record measure stays
-    in ``report.json``."""
+    apart; a contended question's time to answer apart, K6), each question not finished with its elapsed time as a
+    lower bound and its model calls (rule 11; only when there is one), and each finished question's times beside the
+    derived ones. Every verdict, mine and per-record measure stays in ``report.json``."""
     f = "report.json"
     _heading(doc, "l1", 4)
     doc.add("\n" + ids(L1_LABEL))
@@ -1348,10 +1351,25 @@ def _l1_tables(doc: _Doc, src: Sources, l1: dict[str, Any]) -> None:
                        src.num(f, pointer(*at, "judge_call_s", "median"), "f3"),
                        src.num(f, pointer(*at, "judge_call_s", "p95"), "f3"),
                        src.num(f, pointer(*at, "model_calls", "median"), "f1"),
-                       src.num(f, pointer(*at, "contended_questions"), "int")]
+                       src.num(f, pointer(*at, "contended_questions"), "int"),
+                       src.num(f, pointer(*at, "time_to_answer_s_contended", "median"), "f3"),
+                       src.num(f, pointer(*at, "not_finished"), "int")]
 
     doc.table(["model", "l1_scope", "cpu", "questions", "l1_answer_s", "l1_answer_p95_s", "l1_build_s", "l1_gate_s",
-               "l1_mine_s", "l1_mine_p95_s", "l1_call_s", "l1_call_p95_s", "l1_calls", "l1_contended"], time_rows)
+               "l1_mine_s", "l1_mine_p95_s", "l1_call_s", "l1_call_p95_s", "l1_calls", "l1_contended",
+               "l1_answer_contended_s", "l1_not_finished"], time_rows)
+
+    # rule 11: a question that did not finish within its unit's budget, its elapsed time a lower bound
+    unfinished = [(name, i) for name in named
+                  for i, part in enumerate(models[name].get("units") if isinstance(models[name].get("units"), list)
+                                           else ())
+                  if isinstance(part, dict) and part.get("elapsed_lower_bound_s") is not None]
+    if unfinished:
+        doc.table(["model", "l1_slot", "l1_elapsed_s", "l1_calls"], lambda: (
+            [code(name, table=True)] + [src.num(f, pointer("l1", "models", name, "units", i, key), style)
+                                        for key, style in (("slot", "int"), ("elapsed_lower_bound_s", "f3"),
+                                                           ("model_calls", "int"))]
+            for name, i in unfinished))
 
     def question_rows() -> Any:
         for name in named:

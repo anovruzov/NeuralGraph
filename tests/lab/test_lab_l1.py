@@ -12,6 +12,7 @@ changed and re-sealed for the aggregate's cases.
 from __future__ import annotations
 
 import contextlib
+import functools
 import hashlib
 import io
 import json
@@ -37,6 +38,7 @@ from lab import msha as lab_msha
 from lab import notes
 from lab import plan as lab_plan
 from lab import prereg as lab_prereg
+from lab import summary as lab_summary
 from lab import units
 from lab import warmup as lab_warmup
 from lab.manifest import load_manifest
@@ -315,6 +317,27 @@ class PathTests(unittest.TestCase):
         derived = P.default_deadline(self.data.pack, result, self.specs[0]["as_of"])
         self.assertEqual((derived["status"], derived["timeouts"]), (result.status_first, 0))
 
+    def test_a_control_question_is_timed_from_its_call(self) -> None:
+        """Rule 6: the time to answer runs from the call to ``verify_candidate``; the constructed candidate (an HQ
+        cell query) is built before the clock starts."""
+        built: list[float] = []
+        original = P.constructed_candidate
+
+        def slow(*args: Any, **kwargs: Any) -> Any:
+            out = original(*args, **kwargs)
+            time.sleep(0.3)
+            built.append(time.perf_counter())
+            return out
+
+        with mock.patch.object(P, "constructed_candidate", slow):
+            result, _ = P.run_path(self.data, self.specs[1], "lexical", self.tmp / "control")
+        t = result.timing
+        (done,) = built
+        started = t["mines"][0]["start"] - t["question_build_s"]           # the clock's start, t0
+        self.assertGreaterEqual(started, done - 1e-6)
+        self.assertAlmostEqual(t["question_build_s"] + sum(m["seconds"] for m in t["mines"]) + sum(t["between_s"])
+                               + t["gate_s"], t["time_to_answer_s"], places=9)
+
     def test_a_mine_that_times_out(self) -> None:
         """K6: the mine is unknown (HQ's timeout) at the first decision, ends at its deadline, the next mines are
         contended, and its late verdict is taken in after the call; the derived default deadline counts it."""
@@ -425,8 +448,11 @@ class ScoringTests(unittest.TestCase):
             with self.subTest(want=want):
                 self.assertEqual(SC.headline(finished=True, measured=True, left_out_share=0.0, d_lex=lex,
                                              d_route=route), (want, None))
+        # K3: a model one of whose units did not finish gets "no verdict", with its reason
         self.assertEqual(SC.headline(finished=False, measured=True, left_out_share=0.0, d_lex=iv(1, 1),
-                                     d_route=iv(1, 1)), (None, "incomplete"))
+                                     d_route=iv(1, 1)), ("no_verdict", "incomplete"))
+        self.assertEqual(SC.headline(finished=False, measured=False, left_out_share=None, d_lex=None, d_route=None),
+                         ("no_verdict", "incomplete"))
         self.assertEqual(SC.headline(finished=True, measured=False, left_out_share=0.0, d_lex=iv(1, 1),
                                      d_route=iv(1, 1)), (None, "not_measured"))
         self.assertEqual(SC.headline(finished=True, measured=True, left_out_share=0.051, d_lex=iv(1, 1),
@@ -484,12 +510,31 @@ class ScoringTests(unittest.TestCase):
              {"slot": 3, "finished": False}]
         lat = SC.latency(q, {1: [1.0, 2.0, 3.0], 2: [4.0], 3: [99.0]})
         self.assertEqual((lat["questions"], lat["not_finished"], lat["contended_questions"]), (2, 1, 1))
-        self.assertEqual(lat["time_to_answer_s"], {"n": 2, "median": 15.0, "p95": 19.5})
+        # K6: a contended question's time to answer is apart, never pooled with the others
+        self.assertEqual(lat["time_to_answer_s"], {"n": 1, "median": 20.0, "p95": 20.0})
+        self.assertEqual(lat["time_to_answer_s_contended"], {"n": 1, "median": 10.0, "p95": 10.0})
         self.assertEqual(lat["mine_s"]["n"], 2)                    # the contended mine is apart
         self.assertEqual(lat["mine_s_contended"], {"n": 1, "median": 5.0, "p95": 5.0})
         self.assertEqual(lat["judge_call_s"]["n"], 4)              # the unfinished question's calls are not pooled
+        # the figures that pool a contended question's parts with the others say so
+        self.assertEqual(lat["pooled_with_contended"], ["between_mines_s", "gate_s", "judge_call_s", "model_calls",
+                                                        "question_build_s"])
         alert = SC.latency(q[:1], {1: [1.0]})
-        self.assertEqual(alert["time_to_answer_s"], {"n": 1, "median": 10.0, "p95": 10.0})
+        self.assertEqual(alert["time_to_answer_s"], {"n": 0, "median": None, "p95": None})
+        self.assertEqual(alert["time_to_answer_s_contended"], {"n": 1, "median": 10.0, "p95": 10.0})
+        quiet = SC.latency(q[1:], {2: [4.0]})
+        self.assertEqual((quiet["time_to_answer_s"], quiet["pooled_with_contended"]),
+                         ({"n": 1, "median": 20.0, "p95": 20.0}, []))
+        # rule 11: an unfinished question's elapsed time is kept as a lower bound, by slot
+        bounded = SC.latency([q[1], {"slot": 3, "finished": False, "elapsed_lower_bound_s": 17.5}], {2: [4.0]})
+        self.assertEqual(bounded["not_finished_lower_bounds"], [{"slot": 3, "elapsed_lower_bound_s": 17.5}])
+        self.assertEqual(lat["not_finished_lower_bounds"], [{"slot": 3, "elapsed_lower_bound_s": None}])
+
+    def test_an_interval_at_exactly_one_in_twenty_empty_draws(self) -> None:
+        """Rule 8 and K7: the interval is withheld only when the empty draws are more than 5%."""
+        values = [0.1 * (i % 10) for i in range(95)]
+        self.assertFalse(SC._interval(values, 100, 5)["withheld"])
+        self.assertTrue(SC._interval(values[:94], 100, 6)["withheld"])
 
 
 # --------------------------------------------------------------------------------------------------- prereg
@@ -623,6 +668,25 @@ class PreregTests(unittest.TestCase):
         self.assertEqual((code, stop["stop"], stop["counts"]), (2, "draws", {"share": 0.107, "draws": 1000,
                                                                                "empty": 107}))
         self.assertFalse((plan / "prereg" / "l1").exists())
+
+    def test_a_judge_s_other_routes_stop_the_plan(self) -> None:
+        """K1 and K4: every judge's path must give the probe's question id and routes, else the plan job stops."""
+        original = P.run_path
+        for change in ("routes", "question_id"):
+            def other(data: Any, spec: Any, judge: str, workdir: Path, **kwargs: Any) -> Any:
+                result, world = original(data, spec, judge, workdir, **kwargs)
+                if judge == "lexical" and change == "routes":
+                    result.routes = {**result.routes, sorted(result.routes)[0]: "sibling"
+                                     if result.routes[sorted(result.routes)[0]] != "sibling" else "contributing"}
+                if judge == "record_blind" and change == "question_id":
+                    result.question_id = "q-other"
+                return result, world
+
+            with self.subTest(change=change):
+                plan = self.plan_dir()
+                code, stop = self.stop(plan, P__run_path=other)
+                self.assertEqual((code, stop["stop"]), (2, "routes"))
+                self.assertFalse((plan / "prereg" / "l1").exists())
 
     def test_the_plan_job_s_reading_of_the_step(self) -> None:
         """``lab.prereg`` refuses the plan with the stop's code, or with the fetch sentence on exit 3."""
@@ -779,7 +843,11 @@ class RunTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "fetch")
 
     def test_it_stops_at_its_budget(self) -> None:
-        """Rule 11: a path not finished at the budget is not finished, its elapsed time a lower bound."""
+        """Rule 11: a path not finished at the budget is not finished, its elapsed time a lower bound. The budget's
+        timer is armed when the timed path starts, for the time the budget's clock says is left then (the checks
+        before the path count against the budget but never run under the timer), so how long the checks take on this
+        machine does not decide whether the path makes a call. Slot 1 retrieves 45 records here: at half a second a
+        call, its calls alone outlast the path's twenty seconds."""
         base = Responder(None, pack_free_judge=True)
 
         def slow(request: dict[str, Any]) -> dict[str, Any]:
@@ -787,16 +855,34 @@ class RunTests(unittest.TestCase):
             return base(request)
 
         server = self.server(slow)
-        with mock.patch.object(lab_l1, "AFTER_PATH_S", 0):        # the budget's timer covers the checks too
+        events: list[tuple[str, float]] = []
+        prepare, setitimer = P.prepare, lab_l1.signal.setitimer
+
+        def prepared(*args: Any, **kwargs: Any) -> Any:
+            out = prepare(*args, **kwargs)
+            events.append(("prepared", 0.0))
+            return out
+
+        def timer(which: int, seconds: float, *rest: float) -> Any:
+            events.append(("timer", seconds))
+            return setitimer(which, seconds, *rest)
+
+        path_s = 20
+        with mock.patch.object(lab_l1, "_clock", lambda: 0.0), mock.patch.object(P, "prepare", prepared), \
+                mock.patch.object(lab_l1.signal, "setitimer", timer):
             started = time.monotonic()
             code, _, err, run = self.run_l1(self.argv(self.routing(server.base_url), slot=1, run_id="budget",
-                                                      budget=14))
+                                                      budget=lab_l1.AFTER_PATH_S + path_s))
         doc = read_json(run / "run.json")
         self.assertEqual((code, doc["complete"], doc["finished"], doc["stopped"]), (1, False, False, "budget"), err)
-        self.assertGreater(doc["timing"]["elapsed_lower_bound_s"], 0.5)
+        armed = [i for i, (what, seconds) in enumerate(events) if what == "timer" and seconds > 0]
+        self.assertEqual([events[i][1] for i in armed], [float(path_s)])    # the time left, by the budget's clock
+        self.assertLess(events.index(("prepared", 0.0)), armed[0])           # armed after the checks, not before
+        self.assertGreaterEqual(doc["timing"]["elapsed_lower_bound_s"], path_s - 0.01)
         self.assertIsNone(doc["timing"]["time_to_answer_s"])
         self.assertGreater(doc["model_calls"], 0)
-        self.assertLess(time.monotonic() - started, 60)
+        self.assertLess(doc["model_calls"], sum(self.dry.prereg["questions"][0]["records"].values()))
+        self.assertLess(time.monotonic() - started, 180)
         self.assertEqual(units.harness_status("l1", 1, False, doc), ("failed", L1_NOT_FINISHED))
         for path in run.glob("ledger-*.jsonl"):
             self.assertTrue(path.read_bytes().endswith(b"\n") or not path.read_bytes())
@@ -822,6 +908,26 @@ class RunTests(unittest.TestCase):
         if code == 1:
             self.assertEqual(units.harness_status("l1", 1, False, doc), ("failed", L1_CHECK_FAILED))
 
+    def test_a_lexical_rerun_that_differs_fails_the_unit(self) -> None:
+        """Rule 5: the unit's lexical rerun must give the preregistered verdicts and status, else the question did
+        not finish (a check failed)."""
+        server = self.server()
+        original = P.run_path
+
+        def changed(data: Any, spec: Any, judge: str, workdir: Path, **kwargs: Any) -> Any:
+            result, world = original(data, spec, judge, workdir, **kwargs)
+            if judge == "lexical":
+                result.status_first = "refuted" if result.status_first != "refuted" else "supported"
+            return result, world
+
+        with mock.patch.object(P, "run_path", changed):
+            code, _, err, run = self.run_l1(self.argv(self.routing(server.base_url), slot=2, run_id="lexical"))
+        doc = read_json(run / "run.json")
+        self.assertEqual((code, doc["complete"], doc["finished"], doc["problem"]), (1, False, True, "lexical"), err)
+        self.assertEqual((doc["checks"]["lexical_reproduced"], doc["lexical"]["reproduces"]), (False, False))
+        self.assertEqual(doc["checks"]["unit_check"], [])
+        self.assertEqual(units.harness_status("l1", code, False, doc), ("failed", L1_CHECK_FAILED))
+
     def test_the_unit_check(self) -> None:
         """K4: fewer calls than retrieved records fail the unit unless the mine degraded, the breaker stopped it or it
         timed out with its late thread still running when the unit ended; a call without a ledger row fails it, but
@@ -835,17 +941,54 @@ class RunTests(unittest.TestCase):
                              timing={"mines": [{"mine": "m01", "timed_out": timed_out}]})
 
         rows = [{"task": JUDGE_TASK, "ref": r, "attempt": 1, "ok": True} for r in ("a", "b")]
-        self.assertEqual(lab_l1.unit_check(c, result(), {"m01": rows}), ["m01: calls"])
-        self.assertEqual(lab_l1.unit_check(c, result("degraded"), {"m01": rows}), [])
-        self.assertEqual(lab_l1.unit_check(c, result(timed_out=True, still=1), {"m01": rows}), [])
-        self.assertEqual(lab_l1.unit_check(c, result(timed_out=True), {"m01": rows}), ["m01: calls"])
-        self.assertEqual(lab_l1.unit_check(c, result("degraded"), {"m01": rows[:1]}), ["m01: ledger"])
+        check = functools.partial(lab_l1.unit_check, endpoint=MODEL)
+        self.assertEqual(check(c, result(), {"m01": rows}), ["m01: calls"])
+        self.assertEqual(check(c, result("degraded"), {"m01": rows}), [])
+        self.assertEqual(check(c, result(timed_out=True, still=1), {"m01": rows}), [])
+        self.assertEqual(check(c, result(timed_out=True), {"m01": rows}), ["m01: calls"])
+        self.assertEqual(check(c, result("degraded"), {"m01": rows[:1]}), ["m01: ledger"])
         rec.replies[1]["after_close"] = True
-        self.assertEqual(lab_l1.unit_check(c, result("degraded"), {"m01": rows[:1]}), [])
-        down = [{"task": JUDGE_TASK, "ref": f"x{i}", "attempt": 1, "ok": False} for i in range(8)]
-        self.assertEqual(lab_l1.unit_check(c, result(), {"m01": rows + down}), [])
+        self.assertEqual(check(c, result("degraded"), {"m01": rows[:1]}), [])
         rec.calls = 4
-        self.assertEqual(lab_l1.unit_check(c, result("degraded"), {"m01": rows}), ["m01: calls"])
+        self.assertEqual(check(c, result("degraded"), {"m01": rows}), ["m01: calls"])
+
+    def test_the_unit_check_s_breaker_is_the_verifier_s(self) -> None:
+        """K4: fewer calls are allowed for the breaker's stop only: the mine's last ``BREAKER_AFTER`` calls, in record
+        order, each ended (its last attempt) in a failure that says the route's endpoint is down (a SERVER_DOWN kind
+        on that endpoint, ``edge.extract.server_down``). One call that failed its attempt and its repair is not it,
+        nor two such failures followed by a call, nor failures on another endpoint."""
+        q = {"routes": {"m01": "contributing"}, "records": {"m01": 5}}
+        c = lab_l1._Checked(question=q)
+
+        def row(i: int, ok: bool = True, kind: str | None = None, attempt: int = 1,
+                endpoint: str = MODEL) -> dict[str, Any]:
+            return {"task": JUDGE_TASK, "ref": f"j:0123456789ab:{i}", "attempt": attempt, "ok": ok,
+                    "error_kind": kind, "endpoint": endpoint}
+
+        def check(rows: list[dict[str, Any]]) -> list[str]:
+            calls = sorted({int(r["ref"].rsplit(":", 1)[1]) for r in rows})
+            rec = mock.Mock(calls=len(calls), replies={i: {"ref": f"j:0123456789ab:{i}"} for i in calls})
+            result = mock.Mock(recorders={"m01": rec}, first={"m01": {"reason": None}}, late_still_running=0,
+                               timing={"mines": [{"mine": "m01", "timed_out": False}]})
+            return lab_l1.unit_check(c, result, {"m01": rows}, endpoint=MODEL)
+
+        self.assertEqual(lab_l1.BREAKER_AFTER, 2)
+        ok = [row(0), row(1)]
+        self.assertEqual(check(ok + [row(2, False, "timeout"), row(3, False, "http_5xx")]), [])
+        self.assertEqual(check(ok + [row(2, False, "network"), row(3, False, "schema_invalid"),
+                                     row(3, False, "timeout", attempt=2)]), [])      # the call's last attempt
+        cases = {
+            "one call, its attempt and its repair failed": ok + [row(2, False, "schema_invalid"),
+                                                                 row(2, False, "schema_invalid", attempt=2)],
+            "two down, then a call": [row(0, False, "timeout"), row(1, False, "timeout"), row(2)],
+            "a call that failed otherwise between": ok + [row(2, False, "timeout"), row(3, False, "json_invalid")],
+            "down on another endpoint": ok + [row(2, False, "timeout", endpoint="other"),
+                                              row(3, False, "timeout", endpoint="other")],
+            "one down call": ok + [row(2), row(3, False, "timeout")],
+        }
+        for name, rows in cases.items():
+            with self.subTest(case=name):
+                self.assertEqual(check(rows), ["m01: calls"])
 
     def test_the_recorder_after_the_unit_stopped_the_path(self) -> None:
         """A late thread starts no call once the unit stopped the path, and a call in flight then is marked."""
@@ -1085,8 +1228,92 @@ class AggregateTests(unittest.TestCase):
         shutil.rmtree(self.tree.path(self.shard(3)))
         entry = self.aggregate()["l1"]["models"][MODEL]
         self.assertEqual((entry["complete"], entry["partial"], entry["slots_ok"]), (False, True, [1, 2, 4, 5]))
-        self.assertEqual((entry["headline"], entry["headline_reason"]), (None, L1_INCOMPLETE))
+        self.assertEqual((entry["headline"], entry["headline_reason"]), ("no_verdict", L1_INCOMPLETE))   # K3
         self.assertEqual(entry["latency"]["all"]["not_finished"], 1)
+
+    def test_the_first_decision_is_scored(self) -> None:
+        """K6: a mine that timed out is scored as the first decision saw it (HQ's timeout, unknown), and the gate's
+        first status is the one compared with the key's; the late verdict and the final status decide nothing."""
+        q = self.dry.prereg["questions"][0]
+        key = self.dry.prereg["judges"]["key"]["1"]
+        mine = next(m for m in sorted(q["routes"]) if key["verdicts"][m] in SC.SCORED)
+        other = next(s for s in ("insufficient", "refuted", "supported") if s != key["status"])
+
+        def late(doc: dict[str, Any]) -> None:
+            v = doc["verdicts"]
+            v["final"] = {m: dict(e) for m, e in v["first"].items()}
+            v["first"][mine] = {"verdict": "unknown", "reason": "timeout", "support_bucket": None}
+            v["final"][mine] = {"verdict": key["verdicts"][mine], "reason": None, "support_bucket": None}
+            v["status_first"], v["status_final"] = other, key["status"]
+
+        self.edit_run(1, late)
+        runs = [self.tree.read(self.shard(s), self.rel(s, "run.json")) for s in range(1, 6)]
+        entry = self.aggregate()["l1"]["models"][MODEL]
+        question = entry["questions"][0]
+        self.assertEqual((question["verdicts"][mine], question["final"][mine]), ("unknown", key["verdicts"][mine]))
+        self.assertEqual((question["status_first"], question["status_final"]), (other, key["status"]))
+        unknowns = sum(1 for doc in runs for m, e in doc["verdicts"]["first"].items()
+                       if e["verdict"] == "unknown"
+                       and self.dry.prereg["judges"]["key"][str(doc["slot"])]["verdicts"][m] in SC.SCORED)
+        self.assertGreater(unknowns, 0)
+        self.assertEqual(sum(entry["strata"][s]["model"]["verdicts"]["unknown"] for s in SC.STRATA),
+                         sum(1 for doc in runs for e in doc["verdicts"]["first"].values() if e["verdict"] == "unknown"))
+        scored = entry["scores"]["model"]["answers"]
+        self.assertEqual(entry["scores"]["model"]["unknown_share"]["value"], round(unknowns / scored, 3))
+        equal = sum(1 for doc in runs
+                    if doc["verdicts"]["status_first"] == self.dry.prereg["judges"]["key"][str(doc["slot"])]["status"])
+        self.assertEqual(entry["gate"]["judges"]["model"]["equal"], equal)
+        self.assertEqual(sum(1 for doc in runs if doc["verdicts"]["status_final"]
+                             == self.dry.prereg["judges"]["key"][str(doc["slot"])]["status"]) - equal, 1)
+
+    def not_finished(self, slot: int, elapsed: float, calls: int) -> None:
+        """The unit of ``slot`` as a budget stop would have left it (rule 11): a run that did not finish, its timing
+        a lower bound, its record failed with :data:`L1_NOT_FINISHED`."""
+        def stop(doc: dict[str, Any]) -> None:
+            doc.update(complete=False, finished=False, stopped="budget", problem=None, model_calls=calls,
+                       verdicts=None, derived=None, lexical=None, time_to_final_s=None, confirm_shares={},
+                       crossing=None,
+                       timing={"slot": slot, "finished": False, "elapsed_lower_bound_s": elapsed, "calls": calls,
+                               "time_to_answer_s": None, "question_build_s": None, "gate_s": None,
+                               "between_s": [], "mines": []})
+
+        self.edit_run(slot, stop, reseal=False)
+        self.tree.edit(self.shard(slot), f"units/{self.dry.unit(slot)['unit']}/unit.json",
+                       lambda r: r.update(status="failed", status_reason=L1_NOT_FINISHED, exit_code=1))
+        self.tree.reseal(self.shard(slot))
+
+    def test_a_question_not_finished_keeps_its_lower_bound(self) -> None:
+        """Rule 11: a path not finished by the budget is reported as not finished, with its elapsed time as a lower
+        bound, in report.json and in report.md's time section."""
+        self.make_measured()
+        self.not_finished(1, 17890.125, 812)
+        code, _, err, report = self.tree.aggregate(self.tmp / "R")
+        self.assertEqual(code, 0, err)
+        entry = report["l1"]["models"][MODEL]
+        part = next(p for p in entry["units"] if p["slot"] == 1)
+        self.assertEqual((part["ok"], part["status"], part["problem"]), (False, "failed", "not_finished"))
+        self.assertEqual((part["elapsed_lower_bound_s"], part["model_calls"]), (17890.125, 812))
+        for p in entry["units"]:
+            if p["slot"] != 1:
+                self.assertEqual((p["elapsed_lower_bound_s"], p["model_calls"]), (None, None), p["slot"])
+        bound = [{"slot": 1, "elapsed_lower_bound_s": 17890.125}]
+        self.assertEqual(entry["latency"]["alert"]["not_finished_lower_bounds"], bound)
+        self.assertEqual(entry["latency"]["all"]["not_finished_lower_bounds"], bound)
+        self.assertEqual((entry["headline"], entry["headline_reason"]), ("no_verdict", L1_INCOMPLETE))
+        md, sources = lab_summary.render_report(self.tmp / "R")
+        check_sources(self, md, sources, self.tmp / "R")
+        columns = [notes.COLUMNS[c] for c in ("model", "l1_slot", "l1_elapsed_s", "l1_calls")]
+        self.assertIn("| " + " | ".join(columns) + " |", md)
+        self.assertIn(f"| `{MODEL}` | 1 | 17890.125 | 812 |", md)
+        k12(self, report["l1"])
+
+    def test_a_question_whose_run_is_not_this_one_shows_no_lower_bound(self) -> None:
+        """Only a run of this preregistration, endpoint, slot and question gives its elapsed time."""
+        self.not_finished(2, 99.5, 3)
+        self.edit_run(2, lambda d: d.update(question_id="q-other"))
+        part = next(p for p in self.aggregate()["l1"]["models"][MODEL]["units"] if p["slot"] == 2)
+        self.assertEqual((part["problem"], part["elapsed_lower_bound_s"], part["model_calls"]),
+                         ("run_differs", None, None))
 
     def test_a_changed_records_file_is_not_a_finished_question(self) -> None:
         lines = rows_of(self.tree.path(self.shard(2), self.rel(2, "records.jsonl")))
@@ -1116,9 +1343,9 @@ class AggregateTests(unittest.TestCase):
         self.assertEqual((entry["headline"], entry["headline_reason"]), ("no_verdict", L1_LEFT_OUT))
         self.assertEqual(entry["scores"]["model"]["answers"], entry["answers"] - entry["left_out"])
 
-    def rerun(self, slot: int, first_calls: int) -> dict[str, Any]:
-        """The shard of ``slot`` as attempt 1 (its run.json saying ``first_calls`` model calls) and a re-run as
-        attempt 2."""
+    def rerun(self, slot: int, first_calls: int, keep_ledgers: bool = False) -> dict[str, Any]:
+        """The shard of ``slot`` as attempt 1 (its run.json saying ``first_calls`` model calls; with none, its unit
+        record counts no ledger row and its ledgers are removed unless ``keep_ledgers``) and a re-run as attempt 2."""
         shard = self.shard(slot)
         root = self.tree.shards
         first = root / f"{shard}-attempt-1"
@@ -1127,8 +1354,9 @@ class AggregateTests(unittest.TestCase):
         doc.update(model_calls=first_calls)
         (first / self.rel(slot, "run.json")).write_bytes(canonical_bytes(doc) + b"\n")
         if first_calls == 0:
-            for ledger in (first / self.rel(slot, "")).glob("ledger-*.jsonl"):
-                ledger.unlink()
+            if not keep_ledgers:
+                for ledger in (first / self.rel(slot, "")).glob("ledger-*.jsonl"):
+                    ledger.unlink()
             self.tree.edit(shard, f"units/{self.dry.unit(slot)['unit']}/unit.json", lambda r: None)
             record = read_json(first / "units" / self.dry.unit(slot)["unit"] / "unit.json")
             record["ledger_rows"] = 0
@@ -1152,7 +1380,50 @@ class AggregateTests(unittest.TestCase):
         self.assertEqual(row["status"], "ok")
         entry = report["l1"]["models"][MODEL]
         self.assertTrue(entry["complete"])
-        self.assertIsNone(next(p for p in entry["units"] if p["slot"] == 2)["rerun_after_calls"])
+        part = next(p for p in entry["units"] if p["slot"] == 2)
+        self.assertEqual((part["rerun_after_calls"], part["rerun_calls_unknown"]), (None, None))
+
+    def test_a_re_run_after_ledger_rows_is_not_taken(self) -> None:
+        """K10: an earlier attempt's ledger with a row shows a model call, whatever its run.json and unit record
+        say."""
+        rows = sum(len(rows_of(p)) for p in self.tree.path(self.shard(2), self.rel(2, "")).glob("ledger-*.jsonl"))
+        self.assertGreater(rows, 0)
+        report = self.rerun(2, first_calls=0, keep_ledgers=True)
+        row = next(u for u in report["units"] if u["unit"] == self.dry.unit(2)["unit"])
+        self.assertEqual((row["status"], row["status_reason"]), ("excluded", L1_RERUN_AFTER_CALLS))
+        part = next(p for p in report["l1"]["models"][MODEL]["units"] if p["slot"] == 2)
+        self.assertEqual((part["ok"], part["rerun_after_calls"]), (False, [1]))
+
+    def test_a_re_run_after_an_attempt_without_an_artifact_is_not_taken(self) -> None:
+        """K10: an earlier attempt of the shard that left no artifact (a cancelled or timed-out job uploads none)
+        may have made model calls, so the re-run is not taken."""
+        shard = self.shard(3)
+        self.tree.reseal(shard, attempt=2)                    # attempt 1 left nothing
+        report = self.aggregate()
+        row = next(u for u in report["units"] if u["unit"] == self.dry.unit(3)["unit"])
+        self.assertEqual((row["status"], row["status_reason"], row["display_class"]),
+                         ("excluded", notes.L1_RERUN_CALLS_UNKNOWN, "no-result"))
+        entry = report["l1"]["models"][MODEL]
+        part = next(p for p in entry["units"] if p["slot"] == 3)
+        self.assertEqual((part["ok"], part["rerun_after_calls"], part["rerun_calls_unknown"]), (False, None, [1]))
+        self.assertFalse(entry["complete"])
+        # the same shard with attempts 1 and 3 found, attempt 2 missing
+        first = self.tree.shards / f"{shard}-attempt-1"
+        shutil.copytree(self.tree.path(shard), first)
+        for ledger in (first / self.rel(3, "")).glob("ledger-*.jsonl"):
+            ledger.unlink()
+        doc = read_json(first / self.rel(3, "run.json"))
+        doc.update(model_calls=0)
+        (first / self.rel(3, "run.json")).write_bytes(canonical_bytes(doc) + b"\n")
+        record = read_json(first / "units" / self.dry.unit(3)["unit"] / "unit.json")
+        record["ledger_rows"] = 0
+        (first / "units" / self.dry.unit(3)["unit"] / "unit.json").write_bytes(canonical_bytes(record))
+        self.tree.reseal(shard, attempt=1, path=first)
+        self.tree.reseal(shard, attempt=3)
+        code, _, err, report = self.tree.aggregate(self.tmp / "R3")
+        self.assertEqual(code, 0, err)
+        part = next(p for p in report["l1"]["models"][MODEL]["units"] if p["slot"] == 3)
+        self.assertEqual((part["rerun_after_calls"], part["rerun_calls_unknown"]), (None, [2]))
 
     def test_without_the_preregistration_and_under_re_aggregation(self) -> None:
         (self.tree.root / "plan" / "prereg" / "l1" / "scores.json").write_text("{}", encoding="utf-8")
@@ -1216,6 +1487,24 @@ class GuardTests(unittest.TestCase):
                           "narrative_ngrams 0 unread 0"])
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(G.run([d], self.raw.raw), 0)                   # a stub is not scanned again
+
+    def test_the_server_s_logs_are_scanned(self) -> None:
+        """K9: the shard root's ``server/`` logs are scanned; only what the seal removes and never uploads
+        (``server/bin``, ``server/home``, ``server/tmp``, ``work``) is not."""
+        d = self.tmp / "shard"
+        mine = sorted(self.raw.writer.ids["mines"])[1]
+        for rel in ("server/server.log", "server/a-0p5b/stderr.log", "server/bin/x.txt", "server/home/x.txt",
+                    "server/tmp/x.txt"):
+            (d / rel).parent.mkdir(parents=True, exist_ok=True)
+            (d / rel).write_text(f"loaded at mine {mine}\n", encoding="utf-8")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(G.run([d], self.raw.raw), 1)
+        for rel in ("server/server.log", "server/a-0p5b/stderr.log"):
+            self.assertEqual(json.loads((d / rel).read_text(encoding="utf-8"))["kind"], G.STUB_KIND, rel)
+        for rel in ("server/bin/x.txt", "server/home/x.txt", "server/tmp/x.txt"):
+            self.assertIn(mine, (d / rel).read_text(encoding="utf-8"), rel)
+        self.assertIn("files 2 withheld 2 ", out.getvalue())
 
     def test_without_the_file_every_file_is_withheld(self) -> None:
         d = self.tmp / "dir"

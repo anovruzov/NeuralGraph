@@ -38,8 +38,9 @@ per mine, ledger ``ledger-<mine>.jsonl``) on stores no other judge touched, afte
 the preregistered retrieved records, fewer only for a degraded verdict, a breaker stop or a timed-out mine; a ledger
 row for every call), the per-record replies, the counted-confirm shares and the crossing overlap, then the lexical
 rerun on fresh stores, which must give the preregistered verdicts and status (rule 5). The budget: the timed path and
-the late wait stop :data:`AFTER_PATH_S` before ``--budget-seconds`` (a timer, ``SIGALRM``), so the rest and the final
-``run.json`` are written in time; ``SIGTERM`` stops the run as an interrupt. Files under ``<runs dir>/l1/<run id>/``:
+the late wait stop :data:`AFTER_PATH_S` before ``--budget-seconds`` (a timer, ``SIGALRM``, armed when the path starts
+for the time the budget's clock says is left), so the rest and the final ``run.json`` are written in time; ``SIGTERM``
+stops the run as an interrupt. Files under ``<runs dir>/l1/<run id>/``:
 ``run.json`` (``kind: lab_l1_run``, written with ``complete: false`` before the first call and again at the end),
 ``records.jsonl`` (per judged record: slot, mine, index, positive, the model's and the lexical judge's answers; no
 record id, no narrative) and the ledgers. Exit 0 complete; 1 not finished (budget) or a check after the model ran
@@ -58,10 +59,10 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from mycelic.collective import stats
-from mycelic.collective.edge.extract import BREAKER_AFTER, truncate
+from mycelic.collective.edge.extract import BREAKER_AFTER, SERVER_DOWN_KINDS, truncate
 from mycelic.collective.edge.records import WindowRecord
 from mycelic.collective.edge.verify import JUDGE_TASK, judge_payload, judge_schema, judge_task
 from mycelic.collective.experiments import e1_extract
@@ -377,15 +378,18 @@ class _Stop(BaseException):
 
 
 class _Signals:
-    """The run's budget timer (``SIGALRM`` at ``stop_s`` from now), ``SIGTERM`` and ``SIGINT``, in the main thread.
-    A signal that arrives while the timed path runs (``in_path``) raises :class:`_Stop` there; elsewhere it is kept in
-    ``pending``. :meth:`close` cancels the timer and restores the handlers."""
+    """The run's budget timer (``SIGALRM``), ``SIGTERM`` and ``SIGINT``, in the main thread. The handlers are installed
+    at once; the timer is armed when the timed path starts (:meth:`enter`), for the seconds ``left()`` gives then, so
+    the checks before the path count against the budget without the timer running while they do (with no time left,
+    the path stops at once). A signal that arrives while the timed path runs (``in_path``) raises :class:`_Stop`
+    there; elsewhere it is kept in ``pending``. :meth:`close` cancels the timer and restores the handlers."""
 
     SIGNALS = ("SIGALRM", "SIGTERM", "SIGINT")
 
-    def __init__(self, stop_s: float) -> None:
+    def __init__(self, left: Callable[[], float]) -> None:
         self.pending: str | None = None
         self.in_path = False
+        self._left = left
         self._old: dict[int, Any] = {}
         self._armed = (threading.current_thread() is threading.main_thread() and hasattr(signal, "setitimer")
                        and hasattr(signal, "SIGALRM"))
@@ -393,7 +397,6 @@ class _Signals:
             for name in self.SIGNALS:
                 number = getattr(signal, name)
                 self._old[number] = signal.signal(number, self._on_signal)
-            signal.setitimer(signal.ITIMER_REAL, max(0.001, float(stop_s)))
 
     def _on_signal(self, signum: int, frame: Any) -> None:
         if self.pending is None:
@@ -403,10 +406,18 @@ class _Signals:
             raise _Stop(self.pending)
 
     def enter(self) -> None:
+        """The timed path starts: a signal already kept stops it at once; else the timer is armed for the seconds
+        left, and none left stops it at once."""
         self.in_path = True
-        if self.pending is not None:
-            self.in_path = False
-            raise _Stop(self.pending)
+        if self.pending is None:
+            left = float(self._left())
+            if left > 0:
+                if self._armed:
+                    signal.setitimer(signal.ITIMER_REAL, left)
+                return
+            self.pending = "budget"
+        self.in_path = False
+        raise _Stop(self.pending)
 
     def answered(self) -> None:
         """The first decision is in: the timer is cancelled and no signal stops the path any more (``SIGTERM`` is
@@ -545,11 +556,32 @@ def _mine_docs(c: _Checked, result: P.PathResult, ledgers: Mapping[str, list[dic
     return out
 
 
-def unit_check(c: _Checked, result: P.PathResult, ledgers: Mapping[str, list[dict[str, Any]]]) -> list[str]:
+def breaker_stopped(rows: Sequence[Mapping[str, Any]], endpoint: str) -> bool:
+    """Whether a mine's ``judge_record`` ledger rows show the verifier's breaker stop (``edge.verify``): its last
+    :data:`BREAKER_AFTER` calls, in record order (the index of the ledger ref ``j:<question>:<i>``), each ended in a
+    failure that says the route's endpoint is down, as ``edge.extract.server_down`` reads one: the call's last attempt
+    failed with a :data:`SERVER_DOWN_KINDS` kind on ``endpoint``. A failed call of another kind (a reply that failed
+    validation and its repair) resets the count, as it does in the verifier."""
+    final: dict[int, Mapping[str, Any]] = {}
+    for r in rows:
+        m = P.REF_RE.fullmatch(str(r.get("ref")))
+        if m is None or r.get("attempt", 0) < 1:
+            continue
+        i = int(m.group(1))
+        if i not in final or r["attempt"] >= final[i]["attempt"]:
+            final[i] = r
+    last = [final[i] for i in sorted(final)][-BREAKER_AFTER:]
+    return len(last) == BREAKER_AFTER and all(
+        not r.get("ok") and r.get("error_kind") in SERVER_DOWN_KINDS and r.get("endpoint") == endpoint for r in last)
+
+
+def unit_check(c: _Checked, result: P.PathResult, ledgers: Mapping[str, list[dict[str, Any]]], *,
+               endpoint: str) -> list[str]:
     """K4's unit check, one problem per failing mine (``<mine>: <check>``): calls equal the preregistered retrieved
-    records (fewer only for a degraded verdict, a breaker stop, or a mine that timed out while its late thread still
-    ran when the unit ended); every call has a ``judge_record`` row in the mine's ledger, but for a call still in flight
-    when the unit stopped the path (``after_close``: the ledger closed under it)."""
+    records (fewer only for a degraded verdict, the breaker's stop on ``endpoint`` (:func:`breaker_stopped`), or a
+    mine that timed out while its late thread still ran when the unit ended); every call has a ``judge_record`` row in
+    the mine's ledger, but for a call still in flight when the unit stopped the path (``after_close``: the ledger
+    closed under it)."""
     problems = []
     stage = {m["mine"]: m for m in (result.timing or {}).get("mines", [])}
     for mine in sorted(c.question["routes"]):
@@ -559,7 +591,7 @@ def unit_check(c: _Checked, result: P.PathResult, ledgers: Mapping[str, list[dic
         verdict = result.first.get(mine, {})
         rows = [r for r in ledgers.get(mine, []) if r["task"] == JUDGE_TASK]
         refs = {r["ref"] for r in rows}
-        down = sum(1 for r in rows if r["attempt"] >= 1 and not r["ok"]) >= BREAKER_AFTER
+        down = breaker_stopped(rows, endpoint)
         allowed_fewer = (verdict.get("reason") == "degraded" or down
                          or ((stage.get(mine) or {}).get("timed_out") is True and result.late_still_running > 0))
         if calls > want or (calls < want and not allowed_fewer):
@@ -613,7 +645,7 @@ def _execute(args: argparse.Namespace, c: _Checked) -> int:
     if file_sha(zip_path) != c.prereg["input"]["sha256"]:
         return finish(EXIT_INFRA, problem="input_sha256")
     work = Path(args.runs_dir) / f"l1-work-{args.run_id}"
-    signals = _Signals(max(1.0, args.budget_seconds - AFTER_PATH_S - (_clock() - t_start)))
+    signals = _Signals(lambda: args.budget_seconds - AFTER_PATH_S - (_clock() - t_start))
     try:
         return _unit(args, c, t_start, doc, finish, raw, work, signals)
     finally:
@@ -698,7 +730,7 @@ def _unit(args: argparse.Namespace, c: _Checked, t_start: float, doc: dict[str, 
         return finish(code, checks=checks, stopped=stopped, timing=timing,
                       mines=_mine_docs(c, None, rows_by_mine))
     try:
-        problems = unit_check(c, result, rows_by_mine)
+        problems = unit_check(c, result, rows_by_mine, endpoint=args.endpoint)
         checks["unit_check"] = problems
         lexical_lines = P.lexical_replies(data, model_world, spec, result.question, result.routes)
         shares = P.confirm_shares(data, model_world, result, spec["predicate"])

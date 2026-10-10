@@ -3,9 +3,10 @@
 What was built so the lab can run latency test L001 (`CHOICE-L001.md`, with its section "Amended before any run", K1
 to K13). The choice file is the rule; this note says how the build carries it out, where the rule left a choice to the
 build, and what the dry run showed. The rule was committed alone (`0fa028d`) and amended before any code (`9f505e7`);
-this build starts from `9f505e7` on branch `wf/l001`. While building, no value of MSHA's file was read: the sandbox
-reaches no MSHA host, so every run here read the synthetic file of `tests/lab/l1_data.py`, whose every value is
-invented. No model ran: every server here was the lab's fake.
+this build starts from `9f505e7` on branch `wf/l001`, and its fixes after review are on `wf/l001-fix`, from `9531318`
+("Fixes after review"). While building, no value of MSHA's file was read: the sandbox reaches no MSHA host, so every
+run here read the synthetic file of `tests/lab/l1_data.py`, whose every value is invented. No model ran: every server
+here was the lab's fake.
 
 ## The shape
 
@@ -65,11 +66,16 @@ No pinned module was changed: nothing under `mycelic/collective/` at the top lev
   with the runtime's surface (the pinned fake provider is simulated-only and refuses real records); the lexical judge
   is `SiteVerifier` with no runtime. The four run in the plan job, each on its own fresh stores, and their verdicts,
   gate statuses and scores are preregistered; the plan job also counts the strata and the construction counts.
-- **Rule 6, K5 and K6, the timing.** A wrapper around each mine's handler records its start and end
-  (`time.perf_counter`); the stages are the question build, each mine, the gaps and the gate, and they sum to the time
-  to answer. A mine still running at its deadline ends at its start plus the deadline, and a mine timed while an
-  earlier mine of the question still ran is contended. Each mine's first call's latency is beside its median. The
-  derived times (at once, the default deadline of 600 s, no model) are computed, never run.
+- **Rule 6, K5 and K6, the timing.** The clock starts at the call to `verify_stored` or `verify_candidate`: a control
+  question's candidate (`constructed_candidate`, an HQ cell query) is built before it (`l1path.question_call`). A
+  wrapper around each mine's handler records its start and end (`time.perf_counter`); the stages are the question
+  build, each mine, the gaps and the gate, and they sum to the time to answer. A mine still running at its deadline
+  ends at its start plus the deadline, and a mine timed while an earlier mine of the question still ran is contended.
+  A contended mine's time and a contended question's time to answer are reported apart (`mine_s_contended`,
+  `time_to_answer_s_contended`); the question build, the gaps, the gate, the judge calls and the model calls pool a
+  contended question's parts with the others, and the latency block names them (`pooled_with_contended`), as the time
+  note does. Each mine's first call's latency is beside its median. The derived times (at once, the default deadline
+  of 600 s, no model) are computed, never run.
 - **Rule 7, K6 and K8, the correctness.** A site answer is scored at the first decision against the key's verdict;
   `unknown` is never correct; an answer with a transport failure in any call is left out for that model and counted,
   and more than 5% left out gives no verdict. The gate's decision is compared at the first decision, beside the
@@ -77,15 +83,21 @@ No pinned module was changed: nothing under `mycelic/collective/` at the top lev
 - **Rule 8, K3 and K7, the intervals and the headline.** A percentile bootstrap over mines with `random.Random("l1:1")`
   and B 10,000, every judge on the same draws; a draw without a key confirm or a key refute is left out and counted,
   and above 5% of the draws the interval is withheld. The plan job stops when the key's own share is above 5%
-  (`draws`). The headline follows K3: `better`, `better_than_lexical_only`, `worse`, `not_told_apart` or `no_verdict`.
+  (`draws`). The headline follows K3: `better`, `better_than_lexical_only`, `worse`, `not_told_apart` or `no_verdict`,
+  with its reason when it is `no_verdict`: one of the model's units did not finish (`L1_INCOMPLETE`), too many answers
+  left out (`L1_LEFT_OUT`) or an interval withheld (`L1_WITHHELD`). A complete model that is not a model measurement
+  (a dry run's fake server) has a null headline with `L1_NOT_MEASURED`: L001 does not read it.
 - **Rule 10, beside the headline.** Every judge's scores and strata, the predicate-only bound, each question's verdicts,
   reasons, support buckets and statuses, the per-record measures (from each unit's `records.jsonl`, seed
   `l1:1:records`), each counted confirm's share of filed records (`resolve`), the crossing overlap (`leakage.scan`) and
   every latency figure with the CPU models.
 - **Rule 11, K10 and K13, the units.** 15 units, one per shard, 300 minutes each, `job_minutes` 330 (timeout 325),
   `max_parallel` 15: the planner gives exactly that for the template. A unit's budget stops the timed path 240 s before
-  its end (`SIGALRM`), so the rest and the final `run.json` are written; a path not finished is reported with its
-  elapsed time as a lower bound.
+  its end (`SIGALRM`), so the rest and the final `run.json` are written. The checks before the path count against the
+  budget, but the timer is armed only when the timed path starts, for the time the budget's clock says is left then
+  (none left stops the path at once). A path not finished is reported with its elapsed time as a lower bound: in its
+  `run.json`, in its part of the report's `l1` block with its model calls (`elapsed_lower_bound_s`, `model_calls`), in
+  the latency block's `not_finished_lower_bounds`, and in report.md's time section, a row per question not finished.
 - **Rule 12, K9 and K12, what is written.** Mines are `m01` onwards, records their index in their mine's retrieved
   list, the operator `c1`; the drafted pack is in no artifact, only its hashes. Every number L1's code writes is
   seconds or a share with at most 3 decimals or a count, sizes in KiB. Every step that reads MSHA's file sends its
@@ -99,9 +111,13 @@ No pinned module was changed: nothing under `mycelic/collective/` at the top lev
   unit whose chosen attempt is above 1, it looks at every earlier attempt's artifact of that shard: when one shows a
   model call of the unit (its `run.json` says `model_calls` above zero or cannot be read, a ledger has any row, or the
   unit record counts ledger rows), the re-run is not taken: the unit is `excluded` with `L1_RERUN_AFTER_CALLS` and its
-  model gets no headline. An attempt that left no artifact shows nothing; the upload step runs under `!cancelled()`, so
-  only a cancelled job leaves none. A unit that fails before its first call for its file says so with exit 3 and
-  `L1_INFRA`.
+  model gets no verdict. An earlier attempt of which no artifact of the shard was found is read as calls unknown, and
+  the re-run is not taken either (`L1_RERUN_CALLS_UNKNOWN`, the attempts in `rerun_calls_unknown`): the upload step
+  runs under `!cancelled()`, so a cancelled or timed-out job, the likeliest to have made calls, uploads nothing. So L1
+  shards are re-run only with "Re-run failed jobs", under which every attempt runs every failed shard (docs/lab/README,
+  "Cancel or re-run"); a shard job that failed before its unit wrote anything (checkout, Python) leaves no artifact and
+  costs its model the verdict too. A unit that fails before its first call for its file says so with exit 3 and
+  `L1_INFRA`, and its shard's artifact shows no call, so its re-run is taken.
 - **Where the guard runs (K9).** In the plan job after the preregistration and again after the summary; in the run
   job after the run step, after the seal and after the summary; in the aggregate job after the aggregate and after the
   summary. So every directory is scanned before a summary reads it and every file, the summaries' own included, before
@@ -116,7 +132,10 @@ No pinned module was changed: nothing under `mycelic/collective/` at the top lev
 - **When the unit ends (K4).** The unit check counts each mine's calls after the late wait. A call still in flight when
   the unit stops the path (its runtimes then close) ends without its ledger row, so it is no judgement of the unit: it
   is left out of the ledger check, the failure counts and the per-record replies, and fewer calls than records are
-  allowed at a mine that timed out only when its late thread was still running then.
+  allowed at a mine that timed out only when its late thread was still running then. K4's breaker allowance is read
+  as the verifier makes its stop (`l1.breaker_stopped`): the mine's last `BREAKER_AFTER` (2, `edge/extract.py`) calls,
+  in record order, each ended (its last ledger attempt) in a `SERVER_DOWN_KINDS` failure on the route's endpoint. A
+  call that failed its attempt and its repair is not a breaker stop.
 - **Re-aggregation.** `lab-reaggregate.yml` has no guard over MSHA's file, so a re-aggregation reads no L1 block: the
   block holds only `L1_NO_REAGGREGATION`. The run's own report holds the result.
 - **The lab's generic tables.** L1's ledgers give no row to the report's `latency` table, whose figures are
@@ -137,6 +156,61 @@ gains `lab.msha cache-key` and `lab.msha guard`, the run job's cache-path test s
 `lab-cache/` (L1's file has its own, tested in `test_lab_l1.py`), the two template lists gain `latency.json`, and
 `test_lab_sim.py`'s message for an empty `experiments` block gains `, l1` at its end, as it gained `, j1` with J001
 (`l1` is appended to `request.EXPERIMENTS`, so every other message is unchanged).
+
+## Fixes after review (`wf/l001-fix`)
+
+A review of `9531318` found no blocking finding and eight minor ones. Each is fixed on `wf/l001-fix`, with a test that
+fails on `9531318`; none needed the rule to change, and CHOICE-L001 is untouched.
+
+1. **The budget test depended on the machine's load.** The unit armed `SIGALRM` before `P.prepare`, so under load the
+   timer could fire before the timed path started and the path made no call. Now `_Signals` installs its handlers at
+   once and arms the timer when the timed path starts (`enter`), for the time the budget's clock says is left then;
+   none left stops the path at once. The unit's behaviour is the same: the checks before the path still count against
+   the budget. `RunTests.test_it_stops_at_its_budget` holds the budget's clock still, gives the path 20 s after
+   `AFTER_PATH_S`, and checks that the timer is armed once, for those 20 s, after `prepare`, that the path made calls
+   and stopped before its last, and that its elapsed time is at least the 20 s. On `9531318` it fails: the timer is
+   armed before `prepare`. With four busy processes beside it, it passed (`Ran 1 test in 36.663s`).
+2. **The elapsed lower bound stayed in the shard.** A unit whose verified run did not finish now keeps
+   `timing.elapsed_lower_bound_s` and `model_calls` in its part of the report's `l1` block (`elapsed_lower_bound_s`,
+   `model_calls`, problem `not_finished`, where it read `verdicts_differ` before), the latency block lists them by slot
+   (`not_finished_lower_bounds`), and report.md's time section has a row per such question under the column "elapsed
+   s, a lower bound", beside a "questions not finished" column in the time table. Test:
+   `AggregateTests.test_a_question_not_finished_keeps_its_lower_bound`, with
+   `test_a_question_whose_run_is_not_this_one_shows_no_lower_bound`.
+3. **A re-run after an attempt that left no artifact was taken (K10).** Such an attempt is now read as calls unknown,
+   and the re-run is not taken (`L1_RERUN_CALLS_UNKNOWN`, `rerun_calls_unknown`); see "Choices the rule left to the
+   build". Test: `AggregateTests.test_a_re_run_after_an_attempt_without_an_artifact_is_not_taken` (attempt 1 missing,
+   then attempt 2 missing between found attempts 1 and 3).
+4. **A control question's time included building its candidate.** `l1path.question_call` builds the constructed
+   candidate before the clock starts, so rule 6's time runs from the call to `verify_candidate`. The alert question's
+   time is as before. Test: `PathTests.test_a_control_question_is_timed_from_its_call` (a candidate build slowed in
+   the test ends before the clock's start).
+5. **K4's breaker allowance was any two failed rows.** It is now the verifier's own stop (`l1.breaker_stopped`): the
+   last `BREAKER_AFTER` calls in record order each ended in a `SERVER_DOWN_KINDS` failure on the endpoint. Test:
+   `RunTests.test_the_unit_check_s_breaker_is_the_verifier_s` (a call whose attempt and repair failed, two downs then
+   a call, a validation failure between, another endpoint, one down call: each fails the check; two downs at the end,
+   or a repair that ended in a timeout, pass it).
+6. **The time to answer pooled contended questions (K6).** `time_to_answer_s` is now over questions without a contended
+   mine, and `time_to_answer_s_contended` over those with one; `pooled_with_contended` names the figures that still
+   pool them (question build, gaps, gate, judge calls, model calls), and the time note says so. Test:
+   `ScoringTests.test_the_latency_figures`.
+7. **An unfinished model's headline was null.** It is now `no_verdict` with `L1_INCOMPLETE`, K3's "no verdict", whose
+   text now says "no verdict". A complete model that is not a model measurement keeps a null headline with
+   `L1_NOT_MEASURED`. Tests: `ScoringTests.test_the_headline_at_its_boundaries` and
+   `AggregateTests.test_a_missing_question_leaves_a_partial_reading`.
+8. **Clauses no test pinned.** New tests: `AggregateTests.test_the_first_decision_is_scored` (a timed-out mine whose
+   late verdict and final status differ from the first ones),
+   `RunTests.test_a_lexical_rerun_that_differs_fails_the_unit`,
+   `PreregTests.test_a_judge_s_other_routes_stop_the_plan` (other routes, and another question id),
+   `GuardTests.test_the_server_s_logs_are_scanned`, `AggregateTests.test_a_re_run_after_ledger_rows_is_not_taken`
+   (no model call in run.json or the unit record, a ledger with rows) and
+   `ScoringTests.test_an_interval_at_exactly_one_in_twenty_empty_draws`. The review's eighth survivor, a unit without
+   the probe's routes pin, is equivalent while the later check compares the routes, so it has no test of its own.
+
+Each of the review's seven survivors, and a mutation undoing each fix above (the timer armed at once, any two failed
+rows as a breaker stop, missing attempts ignored, the clock started before the candidate, contended questions pooled,
+a null headline for an unfinished model, the lower bound not copied, its summary table left out), was applied to a
+copy of this tree, one at a time; the tests named above failed under each of the fifteen.
 
 ## Known limits of the build
 
@@ -160,38 +234,42 @@ template with one model is shared.
   there are not exactly four other predicates.
 - Rules 4 to 6, K1, K2, K4 and K6: the codes hidden from every judge but the key, the retrieval check, each question
   routed from its own key, fresh stores for every path, the judges' rules, one mine after another with the stages
-  summing to the time to answer, a mine that times out (unknown at the first decision, contended next mine, late
-  verdict, the derived default deadline), the stages by hand.
+  summing to the time to answer, a control question timed from its call, a mine that times out (unknown at the
+  first decision, contended next mine, late verdict, the derived default deadline), the stages by hand.
 - Rules 7 to 10, K3, K7 and K8: site answers and what is scored, unknown never correct, rule 8's draws, a mine's
   answers drawn together, withheld intervals, the paired differences, the predicate-only bound by hand, the headline at
   every boundary, the gate's agreement beside a constant status, the strata and the construction counts, the
-  per-record measures, the latency figures.
+  per-record measures, the latency figures (a contended question's time to answer apart, the lower bounds of the
+  questions not finished), an interval at exactly one in twenty empty draws.
 - The preregistration: its files and keys, the route-role baseline and the lexical judge by construction (K2), the
-  manifest's block and the cache key, every stop before a path and after the paths, the plan job's reading of a stop
-  and of a failed fetch.
+  manifest's block and the cache key, every stop before a path and after the paths (a judge's other routes or
+  question id among them), the plan job's reading of a stop and of a failed fetch.
 - A unit through the fake server: one call per retrieved record and a ledger row for each at its own boundary, the
   timing and K12's number forms, every pin checked before any call, the file checked before any call (exit 3), the
-  budget, transport failures counted and recorded by index, the unit check, the recorder after the unit stopped the
-  path, an error printed as its class and place only.
+  budget (its timer armed when the path starts), transport failures counted and recorded by index, a lexical rerun
+  that differs, the unit check and the verifier's breaker stop, the recorder after the unit stopped the path, an error
+  printed as its class and place only.
 - The lab's wiring: argv, one routing file per mine, the status reading, the participation key, the warm-up (K5).
 - The dry run: the plan and units, the report block, the summaries' every number traced to its file, and no record
   id, mine id, name, id or 8-word narrative run anywhere a run writes.
-- The aggregate: the headline for a complete measurement, a missing question, a changed records file, a run of
-  another question, transport failures above one in twenty, a re-run after and before a model call, no
-  preregistration, re-aggregation.
-- The guard: its values, a hit withholds the file and fails the step with counts only, no file withholds every file,
-  other plans left alone, an error's class and place.
+- The aggregate: the headline for a complete measurement, a missing question, the first decision scored, a question
+  not finished with its lower bound, a changed records file, a run of another question, transport failures above one
+  in twenty, a re-run after a model call, after ledger rows, after an attempt that left no artifact, and before any
+  model call, no preregistration, re-aggregation.
+- The guard: its values, a hit withholds the file and fails the step with counts only, the server's logs scanned, no
+  file withholds every file, other plans left alone, an error's class and place.
 - The workflow (K9, K10), the reference's labels and keys, the request and the plan.
 
 On this build's tree before its commit, `python -m pytest tests/lab` printed `697 passed, 22738 subtests passed`, and
 `python -m pytest tests/onboard tests/mycelic/test_collective_guards.py tests/mycelic/test_collective_x3.py` printed
-`402 passed, 1080 subtests passed`.
+`402 passed, 1080 subtests passed`. On the tree of the fixes after review before its commit, the first printed
+`708 passed, 22854 subtests passed` and the second `402 passed, 1080 subtests passed`.
 
 ## The dry run
 
-The lab's dry run of the template itself, on this build's tree before its commit, on the synthetic file (no MSHA
-value; the file is the one `python -m tests.lab.l1_data --out DIR` writes with its default seed) and the lab's fake
-model server:
+The lab's dry run of the template itself, on the tree of the fixes after review before its commit (`wf/l001-fix`), on
+the synthetic file (no MSHA value; the file is the one `python -m tests.lab.l1_data --out DIR` writes with its default
+seed) and the lab's fake model server:
 
 ```
 python -m lab.dryrun --request lab/templates/latency.json --out DIR --l1-raw DIR_WITH_THE_FILE
@@ -206,16 +284,16 @@ It exited 0. What it printed, in order:
 - `l1 guard: plan files 7 withheld 0 record_id 0 mine_id 0 refused_value 0 narrative_ngrams 0 unread 0`: the guard over
   the plan directory after the preregistration.
 - For each of the 15 units, `lab: unit l1-<model>-q<k> status ok class plumbing exit 0` with its `wall_s`, between
-  15.1 and 18.6 seconds, and the guard over its shard root three times, after the run step, after the seal and after
+  14.6 and 17.5 seconds, and the guard over its shard root three times, after the run step, after the seal and after
   the shard summary: `files 22`, `files 23` and `files 25`, each with every other count 0.
 - `l1 guard: plan files 9 ...` with every count 0, after the plan summary.
 - `lab: aggregate units 15 shards 15 class real measurements false lock unchanged`.
 - `l1 guard: report files 3 ...` after the aggregate and `l1 guard: report files 5 ...` after the report summary, each
   with every count 0.
 
-The whole dry run took `real 6m27.194s` (`time`). Every unit's class is `plumbing`, since its replies come from the
+The whole dry run took `real 6m5.158s` (`time`). Every unit's class is `plumbing`, since its replies come from the
 fake server, so `measurements false`, and each model's `l1` block in `report.json` has all five slots finished and
-ok, no answer left out, and no headline, with the reason that not every question of the model is a model
-measurement. The summaries' every number is traced to its file (`lab.summary` checks it before writing), and the 49
-guard lines withheld no file and counted no hit. The times above are this machine's on the synthetic file and the fake server; they say nothing
-of the runner's times on MSHA's file with the models.
+ok, no answer left out, no question contended or not finished, and a null headline, with the reason that not every
+question of the model is a model measurement. The summaries' every number is traced to its file (`lab.summary` checks
+it before writing), and the 49 guard lines withheld no file and counted no hit. The times above are this machine's on
+the synthetic file and the fake server; they say nothing of the runner's times on MSHA's file with the models.

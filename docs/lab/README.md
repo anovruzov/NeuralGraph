@@ -171,7 +171,10 @@ Run the first requests in this order, each after the previous one's report:
   when the run was not cancelled) and the aggregate job does not run, so a cancelled run has no report. To keep
   partial results, let the run finish: units that do not fit their time are skipped and recorded.
 - Re-run failed jobs: supported. The re-run shards upload artifacts under the new attempt number, and the report
-  takes each shard's newest attempt (two artifacts of one attempt for the same shard make it `ambiguous`).
+  takes each shard's newest attempt (two artifacts of one attempt for the same shard make it `ambiguous`). An L1
+  unit's re-run is taken only when every earlier attempt of its shard left an artifact and none shows a model call
+  (K10): a cancelled or timed-out L1 shard job uploads nothing, so a re-run after it is not taken
+  (`L1_RERUN_CALLS_UNKNOWN`). Re-run L1 shards only with "Re-run failed jobs", so that every attempt runs them.
 - Re-aggregate a finished run: commit `lab/reaggregate/<name>.json` holding `{"run_id": <run id>, "purpose":
   "<why>"}` and push it to a branch other than main. The `lab-reaggregate` workflow downloads that run's artifacts,
   rebuilds its report with the pushed commit's aggregate and summary, and prints it into its job log; no unit runs

@@ -227,6 +227,8 @@ read-only:
   `constructed_candidate`; `pushdown/gate.py`: `evaluate` and `hq_record_body` for the derived default deadline;
 - `edge/verify.py`: `SiteVerifier` (seeded with `demo_seed` 1, its clock at the question's `as_of`), `retrieve`,
   `judge_payload`, `lexical_judge` and `decide`; `edge/site.py`: `EdgeSite` for the stores with the codes hidden;
+  `edge/extract.py`: `BREAKER_AFTER` and `SERVER_DOWN_KINDS`, so the unit check reads the verifier's breaker stop as
+  the verifier makes it, and `truncate` for the warm-up's worst case;
 - `inference/runtime.py`: `Runtime` at boundary `site:<mine>`, one per mine; `inference/client.py`: `list_models`;
 - `leakage.py`: `scan`, as E2 scans pushdown's artifacts; `onboard/report.py`, `onboard/draft.py` and
   `onboard/check.py`: the backstop, the refusal's value index and the n-grams the guard scans with;

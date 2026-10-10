@@ -279,11 +279,12 @@ def gate_agreement(statuses: Mapping[str, Mapping[str, str]], key: Mapping[str, 
 
 def headline(*, finished: bool, measured: bool, left_out_share: float | None, d_lex: Mapping[str, Any] | None,
              d_route: Mapping[str, Any] | None) -> tuple[str | None, str | None]:
-    """K3's headline, or (None, why) when the model gets none: ``incomplete`` (a unit did not finish),
-    ``not_measured`` (not a model measurement on the runner); ``no_verdict`` with its reason in the headline itself
-    when an interval is withheld or more than :data:`WITHHOLD_SHARE` of the answers are left out."""
+    """K3's headline and, when it is ``no_verdict``, why: ``incomplete`` (one of the model's units did not finish),
+    ``left_out`` (more than :data:`WITHHOLD_SHARE` of the answers are left out) or ``withheld`` (an interval is
+    withheld). (None, ``not_measured``) when a complete model is not a model measurement on the runner: L001 does not
+    read it at all."""
     if not finished:
-        return None, "incomplete"
+        return "no_verdict", "incomplete"
     if not measured:
         return None, "not_measured"
     if left_out_share is None or left_out_share > WITHHOLD_SHARE:
@@ -390,17 +391,27 @@ def _pct(values: Sequence[float]) -> dict[str, Any]:
     return {"n": len(values), "median": r3(stats.percentile(values, 50)), "p95": r3(stats.percentile(values, 95))}
 
 
+POOLED_WITH_CONTENDED = ("between_mines_s", "gate_s", "judge_call_s", "model_calls", "question_build_s")
+
+
 def latency(questions: Sequence[Mapping[str, Any]], call_latencies_s: Mapping[int, Sequence[float]]) -> dict[str, Any]:
     """Rule 6's figures over the given questions (each a unit's ``timing`` block with its ``slot``, ``calls`` and
     ``finished``): the median and the 95th percentile (``stats.percentile``) of the time to answer, each stage (the
-    question build, the gaps between mines, the gate), a mine's answer time (contended mines apart, K6), a judge
-    call's latency (``call_latencies_s[slot]``, seconds) and the model calls per question. Unfinished questions are
-    counted, never pooled."""
+    question build, the gaps between mines, the gate), a mine's answer time, a judge call's latency
+    (``call_latencies_s[slot]``, seconds) and the model calls per question. K6: a contended mine's time and a
+    contended question's time to answer (a question with a contended mine) are apart (``mine_s_contended``,
+    ``time_to_answer_s_contended``); ``pooled_with_contended`` names the figures that pool a contended question's parts
+    with the others (:data:`POOLED_WITH_CONTENDED`, when there is one). Unfinished questions are counted, never pooled;
+    rule 11: each one's elapsed time, a lower bound when its run gave one, is kept by slot
+    (``not_finished_lower_bounds``)."""
     done = [q for q in questions if q.get("finished")]
     mines = [m for q in done for m in q["mines"] if not m["contended"]]
     contended = [m for q in done for m in q["mines"] if m["contended"]]
+    busy = [q for q in done if any(m["contended"] for m in q["mines"])]
+    quiet = [q for q in done if not any(m["contended"] for m in q["mines"])]
     return {"questions": len(done), "not_finished": len(questions) - len(done),
-            "time_to_answer_s": _pct([q["time_to_answer_s"] for q in done]),
+            "time_to_answer_s": _pct([q["time_to_answer_s"] for q in quiet]),
+            "time_to_answer_s_contended": _pct([q["time_to_answer_s"] for q in busy]),
             "question_build_s": _pct([q["question_build_s"] for q in done]),
             "between_mines_s": _pct([g for q in done for g in q["between_s"]]),
             "gate_s": _pct([q["gate_s"] for q in done]),
@@ -408,7 +419,11 @@ def latency(questions: Sequence[Mapping[str, Any]], call_latencies_s: Mapping[in
             "mine_s_contended": _pct([m["seconds"] for m in contended]),
             "judge_call_s": _pct([x for q in done for x in call_latencies_s.get(int(q["slot"]), ())]),
             "model_calls": _pct([float(q["calls"]) for q in done]),
-            "contended_questions": sum(1 for q in done if any(m["contended"] for m in q["mines"]))}
+            "contended_questions": len(busy),
+            "pooled_with_contended": list(POOLED_WITH_CONTENDED) if busy else [],
+            "not_finished_lower_bounds": [{"slot": int(q["slot"]), "elapsed_lower_bound_s": (
+                r3(q["elapsed_lower_bound_s"]) if finite(q.get("elapsed_lower_bound_s")) else None)}
+                for q in sorted((q for q in questions if not q.get("finished")), key=lambda q: int(q["slot"]))]}
 
 
 def finite(value: Any) -> bool:

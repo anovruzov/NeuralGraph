@@ -434,15 +434,17 @@ def alert_run(world: World, spec: Mapping[str, Any]) -> str:
     return result["run_id"]
 
 
-def ask(world: World, orchestrator: Orchestrator, spec: Mapping[str, Any], run_id: str | None) -> Any:
-    """The question's call: ``verify_stored`` for the alert question, ``verify_candidate`` of a constructed candidate
-    for a control (rule 3)."""
+def question_call(world: World, orchestrator: Orchestrator, spec: Mapping[str, Any],
+                  run_id: str | None) -> Callable[[], Any]:
+    """The question's call, ready to make (rule 3): ``verify_stored`` for the alert question; for a control,
+    ``verify_candidate`` of a candidate that ``constructed_candidate`` (an HQ cell query) builds here, before the call,
+    so the time to answer runs from the call to ``verify_candidate`` (rule 6)."""
     if spec["kind"] == "alert":
-        return orchestrator.verify_stored(run_id, spec["key"])
+        return lambda: orchestrator.verify_stored(run_id, spec["key"])
     candidate = constructed_candidate(world.pipeline.store, entity_type=spec["entity_type"],
                                       entity_id=spec["entity_id"], predicate=spec["predicate"], as_of=spec["as_of"],
                                       run_channel=spec["channel"], window_start=spec["window_start"])
-    return orchestrator.verify_candidate(candidate, as_of=spec["as_of"])
+    return lambda: orchestrator.verify_candidate(candidate, as_of=spec["as_of"])
 
 
 def site_verdicts(store: Any, question_id: str, as_of: str) -> dict[str, dict[str, Any]]:
@@ -555,8 +557,9 @@ def run_path(data: Data, spec: Mapping[str, Any], judge: str, workdir: Path, *,
             handlers[sid] = timing.wrap(sid, verifier.answer)
         orchestrator = Orchestrator(world.pipeline.store, handlers=handlers, clock=world.clock,
                                     deadline_seconds=deadline_s)
+        call = question_call(world, orchestrator, spec, run_id)
         t0 = time.perf_counter()
-        conclusion = ask(world, orchestrator, spec, run_id)
+        conclusion = call()
         t1 = time.perf_counter()
         if on_answer is not None:
             late_wait_s = on_answer()
