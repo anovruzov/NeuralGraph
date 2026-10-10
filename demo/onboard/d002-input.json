@@ -1,0 +1,7 @@
+{
+ "bytes": 52269752,
+ "file": "Accidents.zip",
+ "run": "38024536763",
+ "sha256_prefix": "62d0c861a5c3",
+ "source": "D002's report.md in run 38024536763's log records this download line. CHOICE-D001.md (Runs) records the same size and sha256 prefix for D001's download of the same day. Only the first 12 hex digits of the sha256 are on record."
+}

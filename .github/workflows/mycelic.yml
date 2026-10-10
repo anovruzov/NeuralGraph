@@ -3,7 +3,8 @@ name: mycelic
 on:
   push:
     branches: [main]
-    paths: ["mycelic/**", "tests/**", "deploy/mycelic/**", "NeuralGraph/**", "requirements*.txt", ".github/workflows/mycelic.yml"]
+    paths: ["mycelic/**", "tests/**", "deploy/mycelic/**", "NeuralGraph/**", "requirements*.txt", ".github/workflows/mycelic.yml",
+            "demo/onboard/**", "tools/onboard/**"]
   pull_request:
 
 jobs:
@@ -29,6 +30,8 @@ jobs:
         run: NATS_STORE_DIR=/tmp/js NATS_USER=ci NATS_PASSWORD=ci-password-with-letters nats-server -t -c deploy/mycelic/nats/nats.conf
       - run: python -m pytest NeuralGraph/tests -q -p no:warnings
       - run: python -m pytest tests/mycelic -q -p no:warnings
+      - name: the drafter demo and the MSHA split, offline (synthetic exports in MSHA's layout)
+        run: python -m pytest tests/onboard -q -p no:warnings
       - name: production smoke test (process driver, 6 agents)
         run: python tests/smoke/mycelic_smoke.py --driver process --report smoke-process.json
       - uses: actions/upload-artifact@v4

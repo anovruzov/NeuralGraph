@@ -54,3 +54,10 @@ format and the HTTP endpoints.
 `demo/collective/` runs the pre-pilot collective layer end to end for a fictional multi-site company: synthetic
 same-author data, internal use only, never a measurement. Its [`README.md`](collective/README.md) has the commands
 and the recorded run.
+
+## The pack drafter on public data
+
+`demo/onboard/` points D002's pipeline at MSHA's public file of mine accidents for one operator: it drafts a pack
+from the export alone, reads the held-out years and counts patterns across the operator's mines, and shows D002's
+recorded figures beside its own. Real public records, no name or id shown. Its [`README.md`](onboard/README.md) has
+the two commands and what each step does and does not show.
