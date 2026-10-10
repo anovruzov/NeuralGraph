@@ -10,8 +10,14 @@ before the MSHA file is read. This probe asks, with counts only, where such coin
   files and hits by file class and by column;
 * the lab's code and docs: files and hits by class and by column.
 
+Then a second pass, after K14 (``CHOICE-L001.md``): the guard rebuilt as the lab now builds it, with the values that
+``PLAN``'s own text holds left out of its value sets (``lab.l1guard.plan_text``, the same reading), and the same counts
+again, each line prefixed ``after K14``: the counts left out (by set, and the refused values by column and length),
+the refused values kept, ``plan.json`` whole and by path class, the earlier run's files and the lab's code and docs.
+
 The guard itself (``lab.l1guard.Guard``) does the matching, so a hit here is a hit there. Prints fixed lines with counts
-and writes the same counts as JSON. Nothing else: no value, token, file name, index or line of any scanned file.
+and writes the same counts as JSON (the second pass under ``after_k14``). Nothing else: no value, token, file name,
+index or line of any scanned file.
 
     python tools/l1/guard_probe.py --raw DIR --plan PLAN --artifacts DIR --out FILE
 """
@@ -45,25 +51,24 @@ def length_bucket(n: int) -> str:
     return str(n) if n < 8 else "8+"
 
 
-class Probe:
-    """The guard of run 1 plus, for each refused value the guard keeps, the refused columns it came from."""
+class Split:
+    """D002's split of the file (c1 to c5), read once, and for each refused value the refused columns it came from."""
 
     def __init__(self, raw: Path) -> None:
         settings_path = ROOT / SETTINGS
-        settings, _ = S.load_settings(settings_path)
-        roles = S.arm_roles(settings, ARM)
-        refusal = settings["params"]["refusal"]
+        self.settings, _ = S.load_settings(settings_path)
+        roles = S.arm_roles(self.settings, ARM)
+        refusal = self.settings["params"]["refusal"]
         fetch = load_script(FETCH)
         with tempfile.TemporaryDirectory(prefix="l1-probe-") as tmp:
             with contextlib.redirect_stdout(io.StringIO()):
                 result = fetch.split(settings_path, raw, Path(tmp))
             companies = result["companies"]
-            exports = [read_export(Path(tmp) / companies[label]["file"])
-                       for label in sorted(companies, key=lambda c: int(c[1:]))]
-            own = read_export(Path(tmp) / companies[COMPANY]["file"])
-        self.guard = G.Guard(settings, exports, own)
+            self.exports = [read_export(Path(tmp) / companies[label]["file"])
+                            for label in sorted(companies, key=lambda c: int(c[1:]))]
+            self.own = read_export(Path(tmp) / companies[COMPANY]["file"])
         self.columns: dict[str, set[str]] = {}
-        for export in exports:
+        for export in self.exports:
             for name in roles.forbidden:
                 if not export.has(name):
                     continue
@@ -73,16 +78,31 @@ class Probe:
                         if (len(f) >= refusal["forbidden_inside_min_chars"] and any(ch.isalpha() for ch in f)) \
                                 or len(f) >= refusal["reference_inside_min_chars"]:
                             self.columns.setdefault(f, set()).add(name)
-        assert set(self.columns) == {v for vs in self.guard.refused.by_run.values() for v in vs} | set(
-            self.guard.refused.general), "the probe's values differ from the guard's"
+
+
+def by_column_and_length(columns: dict[str, set[str]]) -> dict[str, dict[str, int]]:
+    out: dict[str, Counter] = {}
+    for value, cols in columns.items():
+        for col in cols:
+            out.setdefault(col, Counter())[length_bucket(len(value))] += 1
+    return {c: dict(sorted(n.items())) for c, n in sorted(out.items())}
+
+
+class Probe:
+    """The guard (run 1's without a plan's text; K14's with it) plus, for each refused value the guard keeps, the
+    refused columns it came from."""
+
+    def __init__(self, split: Split, plan_text: str | None = None) -> None:
+        self.guard = G.Guard(split.settings, split.exports, split.own, plan_text)
+        kept = {v for vs in self.guard.refused.by_run.values() for v in vs} | set(self.guard.refused.general)
+        assert kept <= set(split.columns) and len(split.columns) - len(kept) == \
+            self.guard.left_out["refused_value"], "the probe's values differ from the guard's"
+        self.columns = {v: cols for v, cols in split.columns.items() if v in kept}
+        self.left_out = {v: cols for v, cols in split.columns.items() if v not in kept}
 
     def summary(self) -> dict[str, Any]:
-        by_column: dict[str, Counter] = {}
-        for value, cols in self.columns.items():
-            for col in cols:
-                by_column.setdefault(col, Counter())[length_bucket(len(value))] += 1
         return {"refused_values": len(self.columns), "operators": self.guard.counts["operators"],
-                "by_column_and_length": {c: dict(sorted(n.items())) for c, n in sorted(by_column.items())}}
+                "by_column_and_length": by_column_and_length(self.columns)}
 
     def scan(self, text: str) -> dict[str, Any]:
         """The guard's hits on ``text``, with the refused columns of the refused values found (no value)."""
@@ -172,6 +192,46 @@ def line(prefix: str, name: str, g: dict[str, Any]) -> str:
            f"refused columns: {cols}"
 
 
+def values_lines(prefix: str, values: dict[str, Any]) -> None:
+    print(f"l1 probe: {prefix}refused values {values['refused_values']} of {values['operators']} operators",
+          flush=True)
+    for col, lengths in values["by_column_and_length"].items():
+        print(f"l1 probe: {prefix}values of {col} by length: "
+              + ", ".join(f"{k} chars {n}" for k, n in lengths.items()), flush=True)
+
+
+def scans(probe: Probe, plan_text: str, artifacts: Path, prefix: str) -> dict[str, Any]:
+    """``plan.json`` whole and by path class, the earlier run's files and the lab's code and docs, each line led by
+    ``prefix``; the counts."""
+    out: dict[str, Any] = {}
+    whole = probe.scan(plan_text)
+    out["plan_whole"] = whole
+    print(f"l1 probe: {prefix}plan.json whole: " + " ".join(f"{k} {whole['hits'][k]}" for k in G.KINDS)
+          + "; refused columns: " + (", ".join(f"{c} {n}" for c, n in whole["refused_columns"].items()) or "none"),
+          flush=True)
+    classes: dict[str, dict[str, Any]] = {}
+    for path, text in leaves(json.loads(plan_text)):
+        found = probe.scan(text)
+        if any(found["hits"].values()):
+            add(classes.setdefault(INDEX.sub("[]", path), empty()), found)
+    out["plan_classes"] = classes
+    if not classes:
+        print(f"l1 probe: {prefix}plan.json: no leaf holds a hit on its own", flush=True)
+    for name, g in sorted(classes.items()):
+        print(line(f"{prefix}plan.json path", name, g), flush=True)
+
+    art = scan_tree(probe, artifacts, artifact_class)
+    out["artifacts"] = art
+    for name, g in art.items():
+        print(line(f"{prefix}earlier run", name, g), flush=True)
+
+    code = scan_tree(probe, ROOT, code_class)
+    out["code"] = code
+    for name, g in code.items():
+        print(line(f"{prefix}repository", name, g), flush=True)
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--raw", required=True)
@@ -183,40 +243,30 @@ def main(argv: list[str] | None = None) -> int:
     if not (raw / "Accidents.zip").is_file():
         with contextlib.redirect_stdout(io.StringIO()):
             load_script(FETCH).download(raw)
-    probe = Probe(raw)
+    split = Split(raw)
+    probe = Probe(split)
     out: dict[str, Any] = {"values": probe.summary()}
-    print(f"l1 probe: refused values {out['values']['refused_values']} of {out['values']['operators']} operators",
-          flush=True)
-    for col, lengths in out["values"]["by_column_and_length"].items():
-        print(f"l1 probe: values of {col} by length: "
-              + ", ".join(f"{k} chars {n}" for k, n in lengths.items()), flush=True)
-
+    values_lines("", out["values"])
     plan_text = Path(a.plan).read_text(encoding="utf-8")
-    whole = probe.scan(plan_text)
-    out["plan_whole"] = whole
-    print("l1 probe: plan.json whole: " + " ".join(f"{k} {whole['hits'][k]}" for k in G.KINDS)
-          + "; refused columns: " + (", ".join(f"{c} {n}" for c, n in whole["refused_columns"].items()) or "none"),
-          flush=True)
-    classes: dict[str, dict[str, Any]] = {}
-    for path, text in leaves(json.loads(plan_text)):
-        found = probe.scan(text)
-        if any(found["hits"].values()):
-            add(classes.setdefault(INDEX.sub("[]", path), empty()), found)
-    out["plan_classes"] = classes
-    if not classes:
-        print("l1 probe: plan.json: no leaf holds a hit on its own", flush=True)
-    for name, g in sorted(classes.items()):
-        print(line("plan.json path", name, g), flush=True)
+    out.update(scans(probe, plan_text, Path(a.artifacts), ""))
 
-    art = scan_tree(probe, Path(a.artifacts), artifact_class)
-    out["artifacts"] = art
-    for name, g in art.items():
-        print(line("earlier run", name, g), flush=True)
-
-    code = scan_tree(probe, ROOT, code_class)
-    out["code"] = code
-    for name, g in code.items():
-        print(line("repository", name, g), flush=True)
+    # K14: the guard as the lab now builds it, with the values the plan's own text holds left out (the guard's reading)
+    prefix = "after K14: "
+    k14_text = G.plan_text(Path(a.plan))
+    after = Probe(split, k14_text)
+    left = after.guard.left_out
+    if k14_text is None:
+        print(f"l1 probe: {prefix}the plan could not be read as a lab plan; nothing left out", flush=True)
+    print(f"l1 probe: {prefix}left out: " + " ".join(f"{k} {n}" for k, n in left.items()), flush=True)
+    by_col = by_column_and_length(after.left_out)
+    print(f"l1 probe: {prefix}refused values left out by column and length: "
+          + ("; ".join(f"{c} " + ", ".join(f"{k} chars {n}" for k, n in lengths.items())
+                       for c, lengths in by_col.items()) or "none"), flush=True)
+    k14: dict[str, Any] = {"plan_read": k14_text is not None, "left_out": dict(left),
+                           "left_out_by_column_and_length": by_col, "values": after.summary()}
+    values_lines(prefix, k14["values"])
+    k14.update(scans(after, plan_text, Path(a.artifacts), prefix))
+    out["after_k14"] = k14
 
     Path(a.out).write_text(json.dumps(out, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     print("l1 probe: done", flush=True)

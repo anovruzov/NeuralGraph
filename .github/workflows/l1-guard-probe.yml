@@ -4,7 +4,9 @@ name: l1-guard-probe
 # of MSHA's file was found as a whole word in plan.json, which lab.plan writes before the file is read. This probe
 # (tools/l1/guard_probe.py) counts where such coincidences fall: in plan.json as run 1 wrote it, in the files of judge
 # test J001's run (37996675559: server logs, run.json, ledgers, reports of small models on CPU), and in the lab's code
-# and docs. It prints counts by class and by refused column only, never a value, token, file name or index.
+# and docs. A second pass rebuilds the guard as K14 has it (CHOICE-L001.md: the values found as whole words in the
+# plan's own text left out) with run 1's regenerated plan.json, and prints the same counts as "after K14" lines, with
+# the number left out. It prints counts by class and by refused column only, never a value, token, file name or index.
 on:
   push:
     branches-ignore: [main]
