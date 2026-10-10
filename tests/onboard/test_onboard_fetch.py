@@ -332,6 +332,33 @@ class QuotedMshaSplitTests(unittest.TestCase):
                 got.pop("downloads"), want.pop("downloads")
             self.assertEqual(got, want)
 
+    def test_a_narrative_holding_a_line_break_is_two_rejected_pieces(self) -> None:
+        # CHOICE-D002 amendment B2: a break in the narrative (field 55 of 57) leaves a first piece of 55 fields and a
+        # last one of 3, one more for each pipe in the narrative's end; neither has 57, so each is rejected and
+        # counted, and no company file holds either
+        broken = accident("C03", "MC030", "D888888", "07/08/2019", "first part\r\nsecond | part", quote=True)
+        first, last = broken.split("\r\n")
+        self.assertEqual((len(M.split_line(first, "|")), len(M.split_line(last, "|"))), (55, 4))
+        raw = self.tmp / "raw_break"
+        raw.mkdir()
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("Accidents.txt", self.data + broken.encode("latin-1") + b"\r\n")
+        (raw / "Accidents.zip").write_bytes(buf.getvalue())
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed):
+            M.split(SETTINGS, raw, self.tmp / "split_break")
+        got = json.loads((self.tmp / "split_break" / "source.json").read_text())
+        want = json.loads((self.tmp / "split" / "source.json").read_text())
+        self.assertEqual((want["rejected"], got["rejected"]), ({"wrong_width": 2}, {"wrong_width": 4}))
+        for doc in (got, want):
+            doc.pop("downloads"), doc.pop("rejected")
+        self.assertEqual(got, want)
+        for name in ("companies.json", "c1.txt", "c2.txt", "c3.txt"):
+            self.assertEqual((self.tmp / "split_break" / name).read_bytes(), (self.tmp / "split" / name).read_bytes())
+        self.assertEqual(json.loads(printed.getvalue())["rejected"], {"wrong_width": 4})
+        self.assertNotIn("part", printed.getvalue())
+
 
 class NhtsaCsvReadTests(unittest.TestCase):
     """D002 change (a) on the NHTSA layout: the drafter reads each make's CSV, written one complaint per line, as the

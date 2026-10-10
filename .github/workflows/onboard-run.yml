@@ -1,13 +1,14 @@
 name: onboard-run
 
-# Drafting tests D001 and D002 (docs/collective/onboard/CHOICE-D001.md, CHOICE-D002.md, BUILD-D001.md, BUILD-D002.md): a
-# pack drafted from an export alone, on MSHA mine accidents and NHTSA vehicle complaints. Starts when a run file is
-# pushed and runs the newest one, only when its experiment equals its settings file's and the settings file's sha256
-# equals the one it names. The experiment id comes from the settings. The run starts at the RUN-START marker, after both
-# downloads and both splits have printed their counts: a failure before it is not a run (D002 rule 9). The report
-# prints between the experiment's markers in the job log and uploads with the arm files and the drafted packs that
-# passed their check; never the downloads, the split exports, the normalised records or audit.json. A withheld report,
-# or none, uploads alone: no arm file and no pack (amendment A5).
+# Drafting test D002 (docs/collective/onboard/CHOICE-D002.md, which is CHOICE-D001.md's rule with two changes;
+# BUILD-D002.md, BUILD-D001.md): a pack drafted from an export alone, on MSHA mine accidents and NHTSA vehicle
+# complaints. Starts when a run file is pushed and runs the newest one, only when its experiment is D002 (D002
+# amendment B1: D001 ran once, on this workflow's earlier version, and is not run again), its experiment equals its
+# settings file's and the settings file's sha256 equals the one it names. The experiment id comes from the settings.
+# The run starts at the RUN-START marker, after both downloads and both splits have printed their counts: a failure
+# before it is not a run (D002 rule 9). The report prints between the experiment's markers in the job log and uploads
+# with the arm files and the drafted packs that passed their check; never the downloads, the split exports, the
+# normalised records or audit.json. A withheld report, or none, uploads alone: no arm file and no pack (amendment A5).
 on:
   push:
     branches-ignore: [main]
@@ -34,7 +35,7 @@ jobs:
         run: |
           RUN=$(ls docs/collective/onboard/run-*.json | sort | tail -n 1)
           echo "run file: $RUN"
-          SETTINGS=$(python -c "import json,sys; print(json.load(open(sys.argv[1]))['settings'])" "$RUN")
+          SETTINGS=$(python -c "import json,sys; r=json.load(open(sys.argv[1])); assert r['experiment'] == 'D002', 'not a D002 run file'; print(r['settings'])" "$RUN")
           python -c "import hashlib,json,sys; r=json.load(open(sys.argv[1])); got=hashlib.sha256(open(sys.argv[2],'rb').read()).hexdigest(); print('settings sha256', got); sys.exit(0 if got == r['settings_sha256'] else 'the settings file differs from the run file')" "$RUN" "$SETTINGS"
           EXPERIMENT=$(python -c "import json,re,sys; r=json.load(open(sys.argv[1])); s=json.load(open(sys.argv[2])); assert r['experiment'] == s['experiment'], 'the run file and its settings file name different experiments'; assert re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,31}', s['experiment']), 'not a plain experiment id'; print(s['experiment'])" "$RUN" "$SETTINGS")
           echo "experiment: $EXPERIMENT"

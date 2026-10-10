@@ -5,7 +5,8 @@ Every export here is invented by the test: no record of any public source. The s
 ``docs/collective/onboard/BUILD-D001.md`` section 8: reading, dates, role inference, categories, the lexicon,
 determinism, loading, the normalised export, the pipeline, the check, scoring, the report, the CLI, the settings and the
 workflow. Sections 16 and 17 hold D001's two amendments; section 18 holds D002's two changes
-(``docs/collective/onboard/CHOICE-D002.md``) and the experiment id read from the settings.
+(``docs/collective/onboard/CHOICE-D002.md``) and the experiment id read from the settings; section 19 holds D002's
+amendment (B1 in ``WorkflowD002Tests``, B2 in ``LineBreakPieceTests``).
 """
 from __future__ import annotations
 
@@ -53,6 +54,7 @@ D002_CHOICE = ROOT / "docs" / "collective" / "onboard" / "CHOICE-D002.md"
 # D001 ran once and is frozen; its "Runs" section holds run 1 alone, recorded after both amendments
 D001_RUN_1 = "### Run 1: run-001, 2026-10-10 (the result): failed, the drafter could not read MSHA's dates"
 WORKFLOW = ROOT / ".github" / "workflows" / "onboard-run.yml"
+D001_RUN_FILE = ROOT / "docs" / "collective" / "onboard" / "run-001.json"
 PARAMS = D.load_params()
 LANG = D.load_language("en")
 TEMPLATE = D.load_template()
@@ -2817,18 +2819,21 @@ class WorkflowD002Tests(TempDir):
     text = WORKFLOW.read_text(encoding="utf-8")
     step_run = WorkflowAmendmentTests.step_run
 
-    def layout(self, runs: dict[str, dict[str, str]]) -> Path:
+    def layout(self, runs: dict[str, dict[str, str]], extra: dict[str, bytes] | None = None) -> Path:
         repo = self.tmp / "repo"
         onboard = repo / "docs" / "collective" / "onboard"
         onboard.mkdir(parents=True)
         for path in (SETTINGS_PATH, D002_SETTINGS_PATH):
             shutil.copy(path, onboard / path.name)
+        for name, data in (extra or {}).items():
+            (onboard / name).write_bytes(data)
         for name, doc in runs.items():
             (onboard / name).write_text(json.dumps(doc))
         return repo
 
-    def settings_check(self, runs: dict[str, dict[str, str]]) -> tuple[int, str, str]:
-        repo = self.layout(runs)
+    def settings_check(self, runs: dict[str, dict[str, str]],
+                       extra: dict[str, bytes] | None = None) -> tuple[int, str, str]:
+        repo = self.layout(runs, extra)
         bin_dir = self.tmp / "bin"
         bin_dir.mkdir(exist_ok=True)
         if not (bin_dir / "python").exists():
@@ -2868,6 +2873,30 @@ class WorkflowD002Tests(TempDir):
                 self.assertIn("run file: docs/collective/onboard/run-002.json", out)
                 self.assertEqual(env, "")            # nothing set: no later step can run D001's file instead
 
+    def test_only_a_d002_run_file_is_run(self) -> None:
+        """Amendment B1: until run-002.json is committed, the newest run file is run-001.json, and the check refuses it
+        before anything else is read. So does any run file whose experiment is not D002, even one whose settings file
+        names the same experiment and has the sha256 it names."""
+        d001 = json.loads(D001_RUN_FILE.read_text())
+        self.assertEqual(hashlib.sha256(SETTINGS_PATH.read_bytes()).hexdigest(), d001["settings_sha256"])
+        d003 = D002_SETTINGS_PATH.read_bytes().replace(b'"experiment": "D002"', b'"experiment": "D003"')
+        d003_run = {"experiment": "D003", "settings": "docs/collective/onboard/D003-settings.json",
+                    "settings_sha256": hashlib.sha256(d003).hexdigest()}
+        cases = {"only run-001.json, as on this tree": ({"run-001.json": d001}, "run-001.json"),
+                 "D001's run file pushed again as run-002.json": ({"run-001.json": d001, "run-002.json": d001},
+                                                                  "run-002.json"),
+                 "another experiment whose settings match": ({"run-001.json": d001, "run-002.json": d003_run},
+                                                             "run-002.json")}
+        for case, (runs, newest) in cases.items():
+            with self.subTest(case=case):
+                shutil.rmtree(self.tmp / "repo", ignore_errors=True)
+                code, out, env = self.settings_check(runs, {"D003-settings.json": d003})
+                self.assertNotEqual(code, 0)
+                self.assertIn(f"run file: docs/collective/onboard/{newest}", out)
+                self.assertIn("AssertionError: not a D002 run file", out)
+                self.assertNotIn("settings sha256", out)        # refused at the first read of the run file
+                self.assertEqual(env, "")                       # nothing set: no D001 marker, report or artifact
+
     def test_the_run_start_marker_prints_the_settings_experiment(self) -> None:
         script = next(s for s in self.text.split("      - name: ") if s.startswith("run start\n"))
         line = script.split("run: ", 1)[1].strip()
@@ -2884,6 +2913,113 @@ class WorkflowD002Tests(TempDir):
                           '--out work/split/nhtsa'])
         self.assertLess(self.text.index("- name: split both sources"), self.text.index("- name: run start"))
         self.assertLess(self.text.index("- name: download (a failure"), self.text.index("- name: split both sources"))
+
+
+# =================================================================================================== 19 D002's amendment
+
+D002_AMENDMENT = "## Amended before any run, 2026-10-10"
+D002_POINTER = ('\n**Amended before any run, on 2026-10-10.** The section of that name, just before "Runs", changes the '
+                'settings check\nunder "The settings and the run" and adds to change (a). Where it disagrees with the '
+                'text above it, it wins.\n')
+
+
+class D002AmendmentRecordTests(unittest.TestCase):
+    """CHOICE-D002's amendment before any run: B1 (only a D002 run file) and B2 (line-break pieces)."""
+
+    text = D002_CHOICE.read_text(encoding="utf-8")
+
+    def section(self) -> str:
+        return self.text.split(D002_AMENDMENT, 1)[1].split("\n## Runs\n", 1)[0]
+
+    def test_the_choice_file_records_the_amendment_before_any_run(self) -> None:
+        t = self.text
+        self.assertEqual(t.count(D002_AMENDMENT), 1)
+        self.assertLess(t.index("## The declaration, added"), t.index(D002_AMENDMENT))
+        self.assertLess(t.index(D002_AMENDMENT), t.index("\n## Runs\n"))
+        self.assertLess(t.index(D002_POINTER), t.index("## Why: D001's run 1 and the date probe"))
+        self.assertEqual(re.findall(r"^#{2,3} .*$", self.section(), re.M),
+                         ["### B1. The settings check takes only a D002 run file (\"The settings and the run\")",
+                          "### B2. A line break inside a quoted field (change (a))", "### The settings",
+                          "### What these changes risk", "### The declaration, added"])
+        s = " ".join(self.section().split())
+        for needle in ("It refuses that file when its experiment is not `D002`, when its experiment differs from its "
+                       "settings file's, or when the settings file's sha256 differs from the one it names.",
+                       "the newest run file is `run-001.json`", "upload `onboard-D001`",
+                       "It refused any run file whose experiment was not `D001`.", "The code does not change.",
+                       "A piece whose number of fields equals the header's is read as a row",
+                       "Every other piece is rejected and counted", "`NARRATIVE` is the 55th of 57 fields.",
+                       "a first piece of 55 fields, which is rejected",
+                       "Such a piece is read as a row only if it has 57 fields.",
+                       "`8bb9ba6ab9c8d4dca14ac86aa8df89f8cd1926b5355b9908ec3b71020c42c0e5`"):
+            self.assertIn(needle, s)
+        self.assertEqual(hashlib.sha256(D002_SETTINGS_PATH.read_bytes()).hexdigest(),
+                         "8bb9ba6ab9c8d4dca14ac86aa8df89f8cd1926b5355b9908ec3b71020c42c0e5")
+        self.assertNotIn("\n## ", t.split("\n## Runs\n", 1)[1])          # "Runs" is still the last section
+
+    def test_the_rule_committed_before_the_code_is_kept_byte_for_byte(self) -> None:
+        # the amendment only adds: without its pointer and its section, the text before "Runs" is d55872a's
+        rule = self.text.split("\n## Runs\n", 1)[0].replace(D002_POINTER, "", 1)
+        rule = rule.split("\n" + D002_AMENDMENT + "\n", 1)[0]
+        self.assertEqual(hashlib.sha256(rule.encode("utf-8")).hexdigest(),
+                         "105da79dd7bb75b1546d876a9dc052dc0354ca7b0c8e1fb6226e2126a897b8a6")
+
+    def test_the_numbers_b2_states_are_the_settings(self) -> None:
+        columns = json.loads(D002_SETTINGS_PATH.read_text())["arms"]["msha"]["columns"]
+        at = columns.index("NARRATIVE")
+        self.assertEqual((len(columns), at + 1, len(columns) - at - 1), (57, 55, 2))
+
+
+class LineBreakPieceTests(unittest.TestCase):
+    """Amendment B2: a line break inside a quoted field cuts the record into pieces, and each piece is a line read on
+    its own. A piece with the header's number of fields is a row, unrepaired; an empty piece is an empty line; every
+    other piece is rejected and counted."""
+
+    def test_a_piece_with_the_headers_width_is_read_as_a_row(self) -> None:
+        data = b'a,b\n"1\r\n2",3\n'
+        self.assertEqual(d001_comma(data)[1:3], ([("1\r\n2", "3")], 0))      # D001 read one row across the break
+        e = parse_export(data)
+        self.assertEqual((e.columns, e.rows, dict(e.rejected), e.blank_lines),
+                         (("a", "b"), (('2"', "3"),), {"wrong_width": 1}, 0))
+
+    def test_a_break_in_the_first_the_last_or_a_middle_field(self) -> None:
+        cases = {"first": ('"one\r\ntwo"|"b"|"c"', (('two"', "b", "c"),), 1),
+                 "last": ('"a"|"b"|"one\r\ntwo"', (("a", "b", "one"),), 1),
+                 "middle": ('"a"|"one\r\ntwo"|"c"', (), 2),
+                 "middle, with an empty piece": ('"a"|"one\r\n\r\ntwo"|"c"', (), 2)}
+        for delim in ("|", "\t", ","):
+            for case, (line, rows, rejected) in cases.items():
+                with self.subTest(delim=delim, case=case):
+                    data = f'A|B|C\n{line}\n"x"|"y"|"z"\n'.replace("|", delim).encode()
+                    e = parse_export(data)
+                    self.assertEqual(e.columns, ("A", "B", "C"))
+                    self.assertEqual(e.rows, rows + (("x", "y", "z"),))         # the next record reads as before
+                    self.assertEqual(dict(e.rejected), {"wrong_width": rejected})
+                    self.assertEqual(e.blank_lines, int(case.endswith("empty piece")))
+
+    def test_a_narrative_break_in_the_msha_layout(self) -> None:
+        columns = json.loads(D002_SETTINGS_PATH.read_text())["arms"]["msha"]["columns"]
+
+        def line(narrative: str) -> str:
+            return "|".join('"' + (narrative if c == "NARRATIVE" else f"v{i}").replace('"', '""') + '"'
+                            for i, c in enumerate(columns))
+
+        head = "|".join(columns)
+        cut = line('Roof fell, crew said "stop".\r\nThen left.')
+        first, last = cut.split("\r\n")
+        self.assertEqual((len(EXP.split_line(first, "|")), len(EXP.split_line(last, "|"))), (55, 3))
+        e = parse_export(f"{head}\r\n{line('Roof fell.')}\r\n{cut}\r\n".encode())
+        self.assertEqual((len(e.rows), dict(e.rejected)), (1, {"wrong_width": 2}))
+        self.assertEqual(e.value(0, "NARRATIVE"), "Roof fell.")
+        # the narrative's end holds pipes: 3 fields and one more for each, read as a row only at 57
+        for pipes, rows, rejected in ((53, 0, 2), (54, 1, 1), (55, 0, 2)):
+            with self.subTest(pipes=pipes):
+                cut = line("Roof fell.\r\n" + " | ".join(["word"] * (pipes + 1)))
+                self.assertEqual(len(EXP.split_line(cut.split("\r\n")[1], "|")), 3 + pipes)
+                e = parse_export(f"{head}\r\n{cut}\r\n".encode())
+                self.assertEqual((len(e.rows), sum(e.rejected.values())), (rows, rejected))
+                if rows:                                    # a piece read as a row: values from the wrong columns
+                    self.assertEqual((e.value(0, "MINE_ID"), e.value(0, "ACCIDENT_DT"), e.value(0, "NARRATIVE"),
+                                      e.value(0, "COAL_METAL_IND")), ("word", "word", 'word"', "v56"))
 
 
 if __name__ == "__main__":
