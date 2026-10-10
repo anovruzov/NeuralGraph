@@ -14,7 +14,8 @@ settings, ``top_n`` and the seed. An E1 unit is one model and one repeat, ``e1-<
 pack, the labels, the model as ``endpoint``, the reference, ``repeat``, ``runs``, ``margin_points``, ``seed`` and
 ``bootstrap_b``); a J1 unit is one model and one part, ``j1-<model>-p<k>`` (params: the labels' pack, the labels, the
 model as ``endpoint``, ``part``, ``parts``, ``seed``, ``bootstrap_b`` and ``bootstrap_seed``; serving class
-``quality``); an E2 unit is one model, ``e2-<model>`` (params: the block's world and harness settings, the plant's
+``quality``); an L1 unit is one model and one question slot, ``l1-<model>-q<k>`` (params: the model as ``endpoint``,
+``slot``, ``slots``, ``bootstrap_b`` and ``bootstrap_seed``; serving class ``quality``; latency test L001); an E2 unit is one model, ``e2-<model>`` (params: the block's world and harness settings, the plant's
 repository path ``plant_path``, the pack's site count ``sites``, the sorted seeds, the first of them as ``seed`` and
 ``central_context_tokens``, :func:`central_context_tokens`); ``x1`` and ``openfda`` are one model-free unit each
 (model None, kind ``none``; X1 takes E2's params without ``top_n``, ``min_candidates``, ``central`` and
@@ -227,6 +228,13 @@ def build_units(request: Request, manifest: Manifest, openfda_key: bool = False)
                                                                          "bootstrap_seed")}}
                     units.append(_unit(request, manifest, "j1", model, f"p{k}", block["minutes"], params,
                                        [block["seed"]]))
+        elif experiment == "l1":
+            for model in block["models"]:
+                for k in range(1, block["questions"] + 1):
+                    params = {"endpoint": model, "slot": k, "slots": block["questions"],
+                              **{key: block[key] for key in ("bootstrap_b", "bootstrap_seed")}}
+                    units.append(_unit(request, manifest, "l1", model, f"q{k}", block["minutes"], params,
+                                       [block["bootstrap_seed"]]))
         else:
             for model in block["models"]:
                 for seed in (block["seeds"] if experiment == "sim" else [block["seed"]]):

@@ -284,7 +284,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(restore["with"]["path"], CACHE_ROOT + "${{ matrix.cache_path }}")
         self.assertEqual(restore["with"]["key"], "${{ matrix.cache_key }}")
         self.assertEqual(save["with"]["key"], "${{ steps.server.outputs.save_key }}${{ steps.gguf.outputs.save_key }}")
-        run_restores = [s for s in steps("run") if uses(s) == "actions/cache/restore"]
+        run_restores = [s for s in steps("run") if uses(s) == "actions/cache/restore"
+                        and s["with"]["path"].startswith(CACHE_ROOT)]       # L1's file has its own (test_lab_l1)
         self.assertEqual(len(run_restores), 2)
         for s, target in zip(run_restores, ("server", "model")):
             self.assertEqual(s["if"], f"steps.keys.outputs.{target}_key != ''")
@@ -321,7 +322,8 @@ class WorkflowTests(unittest.TestCase):
                     self.fail(f"{command} does not parse ({exc})")
         self.assertEqual(modules, {"lab.plan", "lab.prereg", "lab.provision server", "lab.provision gguf",
                                    "lab.shard cache-keys", "lab.shard prepare", "lab.shard run", "lab.shard seal",
-                                   "lab.summary plan", "lab.summary shard", "lab.summary report", "lab.aggregate"})
+                                   "lab.summary plan", "lab.summary shard", "lab.summary report", "lab.aggregate",
+                                   "lab.msha cache-key", "lab.msha guard"})
 
     def test_prereg_step_before_any_shard(self) -> None:
         plan_steps = steps("plan")

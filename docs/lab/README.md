@@ -29,7 +29,12 @@ model. The experiments:
 - X1: the model-free evaluation harness on a plant fixture;
 - openFDA: a model-free replay of public openFDA data and the labelling sheets for a person;
 - J1: judge test J001, the site verifier's narrow question ("does this record report this failure on this vehicle?")
-  asked of each model about real public complaints, one record at a time, beside the verifier's lexical judge.
+  asked of each model about real public complaints, one record at a time, beside the verifier's lexical judge;
+- L1: latency test L001, the product's whole pushdown path from an alert to the gate's answer, timed on the runner's
+  CPU on the drafter demo's alert of MSHA's public accident file, each mine's verifier judging with the model, and its
+  site answers scored against the filed categories beside the lexical judge and the route-role baseline. Its template
+  is `lab/templates/latency.json` (copy it to `lab/requests/latency-001.json`); every file a run writes is scanned for
+  MSHA's values before any summary reads it and before upload (REFERENCE.md, Shard root).
 
 ## What a run costs
 
@@ -166,7 +171,10 @@ Run the first requests in this order, each after the previous one's report:
   when the run was not cancelled) and the aggregate job does not run, so a cancelled run has no report. To keep
   partial results, let the run finish: units that do not fit their time are skipped and recorded.
 - Re-run failed jobs: supported. The re-run shards upload artifacts under the new attempt number, and the report
-  takes each shard's newest attempt (two artifacts of one attempt for the same shard make it `ambiguous`).
+  takes each shard's newest attempt (two artifacts of one attempt for the same shard make it `ambiguous`). An L1
+  unit's re-run is taken only when every earlier attempt of its shard left an artifact and none shows a model call
+  (K10): a cancelled or timed-out L1 shard job uploads nothing, so a re-run after it is not taken
+  (`L1_RERUN_CALLS_UNKNOWN`). Re-run L1 shards only with "Re-run failed jobs", so that every attempt runs them.
 - Re-aggregate a finished run: commit `lab/reaggregate/<name>.json` holding `{"run_id": <run id>, "purpose":
   "<why>"}` and push it to a branch other than main. The `lab-reaggregate` workflow downloads that run's artifacts,
   rebuilds its report with the pushed commit's aggregate and summary, and prints it into its job log; no unit runs

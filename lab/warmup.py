@@ -16,7 +16,12 @@ picks the record), sorted by (task name, pack). Each carries a typical payload, 
   sorted predicate), with the typical or the worst narrative;
 * the central tasks: :func:`e2_worst_payloads` for both payloads (the warm-up's call then times the worst case, which
   the E2 projection scales), ``judge_candidate_raw`` with a 1800 s deadline;
-* E3: the workload's seeded filler (``warmup:<seed>:<workload>``), for both.
+* E3: the workload's seeded filler (``warmup:<seed>:<workload>``), for both;
+* L1 (``judge_record`` only, pack ``l1``): the preregistration's ``prereg/l1/warmup.json``
+  (:func:`lab.l1.warmup_payloads`): a generated record, built from no MSHA record, asked about the drafted pack's
+  other bucket, which no question of L001 asks (K5, so the warm-up puts none of a unit's prompt prefixes in the
+  server's cache), typical and worst (cut at the drafted pack's ``max_input_chars``). Without the preregistration an
+  L1 unit warms nothing (it fails with ``PREREG_MISSING`` anyway).
 
 :func:`e2_worst_payloads` builds the largest payload an E2 run can send its central comparator from the model-free
 rehearsal (``lab.prereg``), which retrieved exactly the records the run will: the rehearsal's largest item has
@@ -70,7 +75,7 @@ from mycelic.collective.experiments.e3_latency import WORKLOADS, filler
 from mycelic.collective.inference.routing import parse_routing
 from mycelic.collective.inference.runtime import Runtime
 from mycelic.collective.inference.tasks import TaskSpec, render_messages
-from mycelic.collective.jsonio import sha256_hex
+from mycelic.collective.jsonio import sha256_hex, strict_load
 from mycelic.collective.packs.generator import generate
 from mycelic.collective.packs.loader import FrozenPack, load_pack
 from mycelic.collective.schemacheck import Schema
@@ -198,6 +203,15 @@ def warm_tasks(units: list[Mapping[str, Any]], plan: Mapping[str, Any], prereg: 
                             "worst": payload, "stream": False, "units": [],
                             "deadline_s": CENTRAL_RAW_DEADLINE_S if name == CENTRAL_TASKS[0] else DEADLINE_S}
                     keys.append((name, pack_id))
+        elif unit["experiment"] == "l1":
+            keys = []
+            if prereg is not None and prereg.manifest.get("l1") is not None:
+                if (judge_task().name, "l1") not in found:
+                    doc = strict_load((prereg.dir / prereg.manifest["l1"]["warmup"]).read_bytes())
+                    found[(judge_task().name, "l1")] = {
+                        "task": judge_task(), "schema": judge_schema(), "payload": doc["typical"],
+                        "worst": doc["worst"], "stream": False, "units": []}
+                keys.append((judge_task().name, "l1"))
         else:
             keys = []
             for workload in unit["params"]["workloads"]:

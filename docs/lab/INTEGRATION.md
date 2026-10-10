@@ -211,3 +211,33 @@ What `SiteVerifier.answer` adds around these functions is not used: the boundary
 master data, secrets, storage and the pooling of a window of records into one verdict. Those decide whether a
 question is judged and over which records, not how one record is judged. A hook wanted upstream: a public verifier
 function that judges one record and returns the reply and the verdict, so the lab would not assemble the call itself.
+
+## 8. The latency test's path
+
+`lab/l1.py`, `lab/l1path.py`, `lab/l1score.py` and `lab/l1guard.py` (latency test L001,
+`docs/collective/L001/CHOICE-L001.md` with its amendments K1 to K13; the build note is `BUILD-L001.md` beside it) run
+the product's own pushdown path, end to end, and change nothing under `mycelic/`, `demo/` or `tools/`. They use these
+read-only:
+
+- the drafter demo's steps (`demo/onboard/run_demo.py`: `step_export`, `step_draft`, `mine_labels`), imported as a
+  module, and `tools/onboard/fetch_msha.py` (`download`, `split`), so the data are the demo's;
+- `pilot/audit.py`: `audit` and its master data, and `evaluate/baselines.py`: `run_pipeline` (enterprise `pilot`);
+- `detect/detectors.py`: `detect`, and HQ's store (`save_run`, `candidate`, `key_cells`, `pd_verdicts`, `routes`);
+- `pushdown/orchestrator.py`: `Orchestrator` (`verify_stored`, `verify_candidate`, `join_late`, `collect_late`) and
+  `constructed_candidate`; `pushdown/gate.py`: `evaluate` and `hq_record_body` for the derived default deadline;
+- `edge/verify.py`: `SiteVerifier` (seeded with `demo_seed` 1, its clock at the question's `as_of`), `retrieve`,
+  `judge_payload`, `lexical_judge` and `decide`; `edge/site.py`: `EdgeSite` for the stores with the codes hidden;
+  `edge/extract.py`: `BREAKER_AFTER` and `SERVER_DOWN_KINDS`, so the unit check reads the verifier's breaker stop as
+  the verifier makes it, and `truncate` for the warm-up's worst case;
+- `inference/runtime.py`: `Runtime` at boundary `site:<mine>`, one per mine; `inference/client.py`: `list_models`;
+- `leakage.py`: `scan`, as E2 scans pushdown's artifacts; `onboard/report.py`, `onboard/draft.py` and
+  `onboard/check.py`: the backstop, the refusal's value index and the n-grams the guard scans with;
+- `experiments/e1_extract.py`: `endpoint_pins` and `failure_class`; `experiments/e3_latency.py`: `filler` for the
+  warm-up's generated record; `stats.py`: `percentile`.
+
+The key judge, the record-blind control and the route-role baseline are lab runtimes with the runtime's surface
+(`boundary`, `config`, `exemption`, `run`), since the pinned fake provider is simulated-only and refuses real records.
+Each model runtime's `run` is wrapped to keep its reply by the record's index, and each mine's handler is wrapped by a
+timer; the calls pass through unchanged. All of these files are in L1's code hash (`lab.l1.CODE_FILES`), so a change
+between the plan job and a shard stops the shard before its first call. A hook wanted upstream: a timing callback on
+the orchestrator's delivery, so the lab would not wrap the handlers.

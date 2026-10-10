@@ -99,7 +99,8 @@ LABEL_LINE_RE = re.compile(r"- `([A-Z][A-Z0-9_]*(?:\.[A-Za-z0-9_-]+)?)`: (.*)")
 PLACEHOLDER_RE = re.compile(r"<[^<>]*>")
 COMMAND_PREFIXES = ("python -m lab.", "python -m mycelic.collective.")
 ARTIFACT_PREFIXES = ("lab-plan-", "lab-prov-", "lab-run-", "lab-report-")
-TEMPLATE_NAMES = ["check.json", "hosted-comparison.json", "main.json", "openfda-replay.json", "smoke.json"]
+TEMPLATE_NAMES = ["check.json", "hosted-comparison.json", "latency.json", "main.json", "openfda-replay.json",
+                  "smoke.json"]
 
 
 def _text(path: Path) -> str:

@@ -3,9 +3,10 @@
 A founder writes a request (``lab/requests/<name>.json``, see ``request.py``) naming experiments and models from the
 lab's model manifest (``lab/models.json``, see ``manifest.py``) and pushes it. The workflow's plan job finds the
 request the push added (``discover.py``), validates it and expands it into units, shards and the files to provision
-(``plan.py``), and preregisters what E1, J1, X1 and E2 will be judged against before any model runs (``prereg.py``:
-labels, J1's questions and lexical verdicts, harness preregistrations and a model-free E2 rehearsal, hashed into a
-manifest every later job verifies); the
+(``plan.py``), and preregisters what E1, J1, L1, X1 and E2 will be judged against before any model runs
+(``prereg.py``: labels, J1's questions and lexical verdicts, L1's questions, routes and comparators' verdicts on
+MSHA's file, harness preregistrations and a model-free E2 rehearsal, hashed into a manifest every later job
+verifies); the
 provision matrix downloads and verifies the pinned server archive and model files once per run
 (``provision.py`` over ``download.py``); each shard job restores exactly the cached files its run's provision
 records name, prepares its server binary from them, runs its units against the model server it starts on loopback
@@ -19,10 +20,14 @@ weights; the workflow is ``.github/workflows/mycelic-lab.yml``.
 Modules: ``notes`` (every fixed sentence), ``request``, ``manifest``, ``discover``, ``plan``, ``goldlabels`` (E1's
 generator or fixture labels), ``prereg``, ``download``, ``provision``, ``server``, ``warmup``, ``responder`` (the
 fake server's reply function), ``hostinfo``, ``hosted`` (the optional OpenAI-compatible hosted provider: its two
-secrets, routing, preflight and call shares), ``units`` (the harness adapters: E1, E2, E3, G0, sim, X1, openFDA, J1),
+secrets, routing, preflight and call shares), ``units`` (the harness adapters: E1, E2, E3, G0, sim, X1, openFDA, J1,
+L1),
 ``openfda`` (the openFDA unit's fetch, replay and sheet steps), ``shard``, ``sim`` (the multi-site simulation harness
 the lab adds to the collective's), ``j1`` (judge test J001: the site verifier's narrow question on real public
-complaints, its questions, runner and scoring), ``aggregate``, ``summary``, ``dryrun`` and ``reaggregate``
+complaints, its questions, runner and scoring), ``l1`` with ``l1path``, ``l1score`` and ``l1guard`` (latency test
+L001: the product's pushdown path timed and scored on the drafter demo's MSHA alert, and the guard over every file a
+run uploads), ``msha`` (the workflow's L1 steps: the file's cache key and the guard), ``aggregate``, ``summary``,
+``dryrun`` and ``reaggregate``
 (rebuilding a finished run's report from its artifacts with a later commit, no unit run again:
 ``.github/workflows/lab-reaggregate.yml``);
 ``plants/`` holds the lab's plant specs. The lab imports only the standard library, ``mycelic`` and itself.
