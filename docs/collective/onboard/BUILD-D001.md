@@ -392,53 +392,110 @@ settles all of them.
 - `tests/mycelic/test_collective_onboard.py`: reading, dates, role inference, categories, the lexicon, determinism,
   loading, the normalised export, the pipeline, the check, scoring, the controls, the sample, the matched space, the
   arm, the report, the CLI, the settings and the workflow. The workflow's structure test needs PyYAML and skips
-  without it (the run's own job has none); its textual tests do not.
+  without it (the run's own job has none); its textual tests do not. Section 16 holds the amendment's tests:
+  `RefusalTests`, `AmendedDraftTests`, `AmendedCheckTests`, `GuardTests`, `ExactPrintingTests`, `MatchedGoldTests`,
+  `ArmWiringTests`, `GoldTests`, `DownloadCodeTests`, `AmendmentRecordTests` and `WorkflowAmendmentTests`. The last
+  runs the workflow's own collect script, read from the YAML text, on a withheld, a missing and a cleared report.
 - `tests/onboard/test_onboard_fetch.py`: the company rule, unchanged company lines, no controller id or value
-  printed, definition lines, the NHTSA split, and both downloads with a fake fetcher.
+  printed, definition lines, the NHTSA split, both downloads with a fake fetcher, and `HonestFetchTests`: the
+  User-Agent names the run, one request per file, no retry after a refusal.
 - `tests/mycelic/test_collective_guards.py`: the eight onboard modules join the stdlib-only, CLI and determinism lists;
   a new `OnboardGenericTests` holds M1's static checks.
 
-Counts from `python -m pytest <file> -q` on this branch:
+Three existing tests changed with the amendment, each to assert the amended rule as strictly as before:
+`test_the_part_before_the_first_space_or_a_t_before_a_digit_is_parsed` (A1; it asserted that `4-OCT-2021` does not
+parse), `test_rows_outside_the_training_window_are_read_only_at_their_date` (A2: outside the window the date and the
+identifying columns are read, never a narrative or a category) and the settings test (A2, A4, A6, A8 values). The
+check's result keys `fold_equal` and `term_contains` became `refused_strings` and `refused_terms`, and two report
+tests now plant their hit in the arm file, where the guard reads.
+
+Counts from `python -B -m pytest <file> -q -p no:cacheprovider` on `wf/d001-fix`:
 
 | File | Result |
 |---|---|
-| `tests/mycelic/test_collective_onboard.py` | 74 passed, 19 subtests passed |
-| `tests/onboard/test_onboard_fetch.py` | 8 passed, 2 subtests passed |
+| `tests/mycelic/test_collective_onboard.py` | 116 passed, 35 subtests passed |
+| `tests/onboard/test_onboard_fetch.py` | 11 passed, 6 subtests passed |
 | `tests/mycelic/test_collective_guards.py` | 83 passed, 721 subtests passed |
 | `tests/mycelic/test_collective_x3.py` (the hash pins, untouched) | 32 passed, 141 subtests passed |
 
-The full suites on the build commit, each by `python -m pytest <dir> -q`:
+The full suites, each by `python -B -m pytest <dir> -q -p no:cacheprovider`:
 
-| Suite | On this branch | On `539ca60` |
+| Suite | On `wf/d001-fix` | On `8a3ba97` (as this file recorded it then) |
 |---|---|---|
-| `tests/mycelic` | 1620 passed, 1 xfailed, 45514 subtests passed | 1540 passed, 1 xfailed, 45407 subtests passed |
-| `NeuralGraph/tests` | 264 passed, 1 skipped, 305 subtests passed | not run |
-| `tests/onboard` and `tests/market` | 95 passed, 35 subtests passed | not run |
-| `tests/lab` | 578 passed, 17372 subtests passed | not run |
+| `tests/mycelic` | 1662 passed, 1 xfailed, 45530 subtests passed | 1620 passed, 1 xfailed, 45514 subtests passed |
+| `NeuralGraph/tests` | 264 passed, 1 skipped, 305 subtests passed | 264 passed, 1 skipped, 305 subtests passed |
+| `tests/onboard` and `tests/market` | 98 passed, 39 subtests passed | 95 passed, 35 subtests passed |
+| `tests/lab` | 578 passed, 17372 subtests passed | 578 passed, 17372 subtests passed |
 
-No test failed in any of these runs.
+No test failed in any of these runs. The `tests/lab` run was on the committed fix (`ef66192`): its E1
+preregistration refuses a tree with uncommitted collective code, and a first run before the commit failed for that
+reason alone. `actionlint` and `shellcheck` are not installed on this machine, so the workflow was not linted after
+the fix; the earlier `actionlint` 1.7.12 run was on `8a3ba97`.
 
-`actionlint` 1.7.12 reports nothing on the workflow. It ran without `shellcheck`, which this machine lacks, so the
-`run:` scripts were not linted.
+**The mutation run.** `run_mutants.py` (kept outside the repository) applied one textual mutant at a time to a copy of
+this tree and ran the two onboard test files with `python -B -m pytest -q -x`. It holds the reviews' surviving
+mutants, adapted to the amended code, and at least one for each amendment: 44 mutants. The first pass left five alive
+(the guard not reading the site column, the gold taking every filed value, the guard reading terms by the string
+rule, the matched gold from names in C only, no matched names beside C2). Tests were added for each, and a second
+pass of all 44 killed every one.
 
 ### The dry run
 
-`synth.py` (kept outside the repository) wrote invented records in each source's column layout: an MSHA-style
-pipe file of 275,220 rows over 14 invented controllers, and an NHTSA-style tab file of 350,157 rows over seven makes.
-The split counted 40,000 complaints for each of the six makes the settings name. The steps then ran as the workflow
-runs them, after the downloads, on one machine:
+`synth2.py` (kept outside the repository) is the earlier `synth.py` with four changes that reach the amendment's
+paths: MSHA dates written in upper-case D-MON-YYYY (`04-OCT-2021`); Idaho and Maine among the NHTSA states; equipment
+cells that read `Other`, `UNKNOWN`, `FORD` or `?`; and `?` filed as a classification too. It wrote an MSHA-style pipe
+file of 275,220 rows over 14 invented controllers, and an NHTSA-style tab file of 349,896 rows over seven makes. The
+split counted 40,000 complaints for each of the six makes the settings name. The steps then ran as the workflow runs
+them, after the downloads, on one machine (`run_pipeline.py`, also outside the repository):
 
 | Step | Seconds |
 |---|---|
-| split, MSHA layout | 6.0 |
-| split, NHTSA layout | 14.8 |
-| score, MSHA arm (5 companies, 1,000 sampled records) | 185.2 |
-| score, NHTSA arm (6 makes, 1,200 sampled records, two hand packs) | 362.1 |
-| export of c1's test window | 1.6 |
-| pilot audit of c1 | 19.7 |
-| report and last guard | 55.6 |
+| split, MSHA layout | 5.7 |
+| split, NHTSA layout | 12.0 |
+| score, MSHA arm (5 companies, 1,000 sampled records) | 169.3 |
+| score, NHTSA arm (6 makes, 1,200 sampled records, two hand packs) | 279.3 |
+| export of c1's test window | 1.4 |
+| pilot audit of c1 | 15.7 |
+| report and last guard | 21.1 |
 
-The report step was timed again alone after its last change (`rerun_report.py`, also outside the repository); the
-other rows are from the full run (`run_pipeline.py`). The report's verdict was pass, with every criterion met. The
-largest process used 654 MB. The bootstrap intervals (B = 10,000) take most of the scoring time. The numbers say
-nothing about reading: the invented narratives hold their category's cue words by construction.
+- Every step exited 0 and the verdict was pass. The largest process used 774 MB.
+- The MSHA date column parsed as D-MON-YYYY, with no row rejected.
+- FORD's export held 2,041 rows from Idaho, and every NHTSA pack passed its floor.
+- Each MSHA company left out two categories, `OTHER` and `?`, each equal to an equipment cell, and refused 305 terms
+  that passed the floor, all by the name-word rule: the invented equipment and operator names share invented
+  syllable words with the invented narratives. Each make refused 6 to 8 terms, words of its invented vehicles.
+- The last guard read 785 MSHA and 1,338 NHTSA printed strings and found nothing; the equipment cells `Other`,
+  `UNKNOWN` and `FORD` withheld nothing.
+- The numbers say nothing about reading: the invented narratives hold their category's cue words by construction.
+
+### The review findings
+
+Two adversarial reviews of `8a3ba97` found the issues below. Each fix has a test.
+
+| Finding | What changed | Pinned by |
+|---|---|---|
+| Check 1.7.3 compared the template's keys and words with record values; Idaho's `id` failed every NHTSA pack (blocking) | A3: only record-derived strings are compared; the rest must rebuild from the template | `test_real_state_codes_as_sites_pass_the_floor`, `test_a_forbidden_value_equal_to_a_template_word_or_key_passes`, `AmendedCheckTests` |
+| The last guard pooled both arms and matched the whole report, case-sensitive: one cell spelled `Other` or `FORD` withheld it (blocking) | A5: per arm, only printed record-derived strings, folded | `GuardTests`, `test_a_planted_hit_withholds_the_report` |
+| The drafter and the check refused different values, and a refusal was silent (blocking) | A2: one `Refusal` from every row; refused terms and categories counted | `RefusalTests`, `test_a_forbidden_value_only_in_test_rows_refuses_the_term_in_drafter_and_check_alike` |
+| A withheld report still uploaded `arm.json` and the packs | The collect step uploads the report alone when it is withheld or missing | `WorkflowAmendmentTests` |
+| A word of a multi-word name passed every check | A2's name-word rule; a term is refused when any of its words is | `RefusalTests.test_name_words`, `test_a_surname_inside_a_name_is_never_learned` |
+| Terms of a pack that failed the floor were printed; the guard read escaped JSON and matched as written | `withhold_strings`; the guard reads parsed, folded strings | `test_a_failed_floor_company_prints_no_label_id_or_term`, `test_the_guard_reads_parsed_strings_and_folds` |
+| NHTSA's vehicle column was not forbidden | A6 | `test_the_vehicle_column_refuses_model_words`, `SettingsTests` |
+| Upper-case October dates did not parse (conflict 1) | A1 | `DateTests` |
+| A marker filed as a category and in a forbidden column failed M3 (conflict 2) | A2: the category is left out | `test_a_category_equal_to_a_forbidden_marker_is_left_out_not_failed` |
+| A bigram over 64 characters failed the loader (conflict 4) | A4 | `test_a_term_longer_than_the_loader_allows_is_no_candidate` |
+| C2 read as "no worse than a hand-built pack"; matched names not printed; `pack-v2/`'s gold was one-sided | A7 and A8 | `MatchedGoldTests`, `ExactPrintingTests` |
+| M1 neither counted nor hashed the `tools/market` code the NHTSA split imports | A8: `download_code` per arm | `DownloadCodeTests` |
+| Criteria printed to three places beside "Passes: no" | A8: an unrounded `exact` block with each comparison | `ExactPrintingTests` |
+| The language file's words were chosen knowing both sources; C1's interval read as general; label names read as a hand start | A9 and A8: the declaration, and notes beside the numbers | `ReportTests.test_sentinels_never_appear`, `AmendmentRecordTests` |
+| The privacy checks, the controls' wiring and the honest-fetch rules were not pinned | New tests | the mutation run above |
+
+### Not fixed
+
+- **A unigram label-word variant of the label-names control** (optional in the review). It would add a control and so
+  could change C1's best control. Only the wording changed (A8).
+- **A company-stratified bootstrap for C1** (optional in the review). The report says the interval is over these
+  companies' records and prints each company's drafted and best-control F1 side by side.
+- **Linting the workflow:** `actionlint` and `shellcheck` are not on this machine.
+- **The real run:** this machine cannot reach either source. The owner adds `docs/collective/onboard/run-001.json`
+  after review, naming `docs/collective/onboard/D001-settings.json` and its sha256 as amended.
