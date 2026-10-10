@@ -1,0 +1,5128 @@
+{
+ "arms": {
+  "msha": {
+   "arm": "msha",
+   "code_commit": "<code>",
+   "companies": {
+    "c1": {
+     "check": {
+      "checks": {
+       "labels": {
+        "failures": 0,
+        "labels": 8,
+        "passed": true
+       },
+       "loader": {
+        "error": null,
+        "passed": true
+       },
+       "ngram": {
+        "failures": 0,
+        "files": "<code>",
+        "narratives": 295,
+        "passed": true,
+        "tokens": 8
+       },
+       "refused_strings": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "strings": 16
+       },
+       "refused_terms": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "terms": 14
+       },
+       "template": {
+        "error": null,
+        "files": "<code>",
+        "passed": true
+       },
+       "term_floor": {
+        "failures": 0,
+        "passed": true,
+        "terms": 14
+       },
+       "value_floor": {
+        "entity_ids": 0,
+        "failures": 0,
+        "passed": true,
+        "spellings": 4
+       }
+      },
+      "kind": "onboard_check",
+      "pack": "msha_c1",
+      "passed": true,
+      "schema_version": 1
+     },
+     "controls": {
+      "label_names": {
+       "placeholders": 0,
+       "refused": 0,
+       "terms": 5
+      },
+      "majority_prior": {
+       "code": "D-001",
+       "predicate": "fall_of_roof_or_back"
+      },
+      "permuted_labels": {
+       "placeholders": 3,
+       "terms": 3
+      }
+     },
+     "counts": {
+      "rows": 295,
+      "test_rows_with_narrative": 100,
+      "training_mines": 4,
+      "training_rows_with_narrative": 195
+     },
+     "draft": {
+      "categories": {
+       "below_floor": 0,
+       "other": 1,
+       "passing_floor": [
+        {
+         "label": "FALL OF ROOF OR BACK",
+         "predicate": "fall_of_roof_or_back",
+         "records": 60,
+         "sites": 4
+        },
+        {
+         "label": "HANDLING OF MATERIALS",
+         "predicate": "handling_of_materials",
+         "records": 60,
+         "sites": 4
+        },
+        {
+         "label": "SLIP OR FALL OF PERSON",
+         "predicate": "slip_or_fall_of_person",
+         "records": 60,
+         "sites": 4
+        },
+        {
+         "label": "NO VALUE FOUND",
+         "predicate": "other_category",
+         "records": 15,
+         "sites": 4
+        }
+       ],
+       "refused": 0,
+       "specific": 3
+      },
+      "dates": {
+       "format": "M/D/YYYY",
+       "rejected": 0
+      },
+      "entity_types": [],
+      "export": {
+       "blank_lines": 0,
+       "columns": 57,
+       "encoding": "utf-8",
+       "format": "pipe",
+       "rejected": {},
+       "rows": 295
+      },
+      "other_bucket_rows": 15,
+      "other_bucket_share": 0.0769,
+      "placeholders": 0,
+      "predicates": [
+       {
+        "code": "D-001",
+        "first_terms": [
+         "rock",
+         "bolter",
+         "roof",
+         "brow"
+        ],
+        "id": "fall_of_roof_or_back",
+        "label": "FALL OF ROOF OR BACK",
+        "records": 60,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-002",
+        "first_terms": [
+         "pallet",
+         "carrying",
+         "lifting",
+         "strained"
+        ],
+        "id": "handling_of_materials",
+        "label": "HANDLING OF MATERIALS",
+        "records": 60,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-003",
+        "first_terms": [
+         "slipped",
+         "walkway",
+         "icy",
+         "stairs",
+         "icy slipped",
+         "stairs walkway"
+        ],
+        "id": "slip_or_fall_of_person",
+        "label": "SLIP OR FALL OF PERSON",
+        "records": 60,
+        "refused_assignable": 0,
+        "terms": 6
+       }
+      ],
+      "refusal": {
+       "assignable": 0,
+       "categories": 0,
+       "category_rows": [],
+       "rows": 0,
+       "share": 0.0,
+       "terms": 0,
+       "with_minimum": 0,
+       "within_cap": 0
+      },
+      "refused_entity_values": 0,
+      "roles": {
+       "declared": {
+        "category": "CLASSIFICATION",
+        "date": "ACCIDENT_DT",
+        "narrative": "NARRATIVE",
+        "record_id": "DOCUMENT_NO",
+        "site": "MINE_ID"
+       },
+       "inferred": {
+        "category": "CLASSIFICATION",
+        "date": "ACCIDENT_DT",
+        "narrative": "NARRATIVE",
+        "record_id": "DOCUMENT_NO",
+        "site": "MINE_ID"
+       },
+       "of": 5,
+       "right": 5
+      },
+      "rows_without_specific": 15,
+      "terms": {
+       "candidates": 424,
+       "eligible": 36,
+       "max": 6,
+       "median": 4,
+       "min": 4,
+       "refused": 0,
+       "total": 14
+      },
+      "training": {
+       "corpus": 195,
+       "rows": 195,
+       "window": [
+        "2015-01-01",
+        "2021-12-31"
+       ],
+       "without_narrative": 0
+      }
+     },
+     "file_sha256": "1e83a526eeca23fa5bdf61676a968520e9d819965c2012cde8e2e796fe6463c9",
+     "label_in_text": 0,
+     "label_in_text_share": 0.0,
+     "pack": {
+      "files": "<code>",
+      "hashes": {
+       "config_hash": "1284a80ed232f33ccd1b6d9083d86946971cdae823ca36fa9c3d46f8f69b2f4a",
+       "detector_hash": "39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416",
+       "fixtures_hash": "efc9b3f90f7812dea405050a481b818e0e036611138cfe5beb36d8d4afb4e110",
+       "vocabulary_hash": "3b68739396701ea0e764f2872e1163390ce818039c8e412ed46f615666d6d69c"
+      },
+      "id": "msha_c1",
+      "loader": {
+       "error": null,
+       "passed": true
+      }
+     },
+     "reader_rejected": {
+      "drafted": 0,
+      "label_names": 0,
+      "permuted_labels": 0
+     },
+     "readers": {
+      "drafted": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "pairs": 3,
+        "seed": "d001:boot:msha",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "tp": 18,
+        "undefined": 0
+       },
+       "records": 18
+      },
+      "label_names": {
+       "coverage": 0.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "pairs": 3,
+        "seed": "d001:boot:msha",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "fn": 18,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0,
+        "undefined": 0
+       },
+       "records": 18
+      },
+      "majority_prior": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.2381,
+        "ci_low": 0.0667,
+        "f1": 0.1667,
+        "pairs": 3,
+        "seed": "d001:boot:msha",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.5556,
+        "ci_low": 0.1111,
+        "f1": 0.3333,
+        "fn": 12,
+        "fp": 12,
+        "precision": 0.3333,
+        "recall": 0.3333,
+        "tp": 6,
+        "undefined": 0
+       },
+       "records": 18
+      },
+      "permuted_labels": {
+       "coverage": 0.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "pairs": 3,
+        "seed": "d001:boot:msha",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "fn": 18,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0,
+        "undefined": 0
+       },
+       "records": 18
+      }
+     },
+     "sample": {
+      "drawn": 18,
+      "eligible": 18,
+      "in_training": 82,
+      "no_record_id": 0,
+      "no_specific": 0,
+      "repeated_in_test": 0,
+      "repeated_record_id": 0,
+      "test_rows": 100,
+      "with_narrative": 100
+     }
+    },
+    "c2": {
+     "check": {
+      "checks": {
+       "labels": {
+        "failures": 0,
+        "labels": 8,
+        "passed": true
+       },
+       "loader": {
+        "error": null,
+        "passed": true
+       },
+       "ngram": {
+        "failures": 0,
+        "files": "<code>",
+        "narratives": 283,
+        "passed": true,
+        "tokens": 8
+       },
+       "refused_strings": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "strings": 16
+       },
+       "refused_terms": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "terms": 13
+       },
+       "template": {
+        "error": null,
+        "files": "<code>",
+        "passed": true
+       },
+       "term_floor": {
+        "failures": 0,
+        "passed": true,
+        "terms": 13
+       },
+       "value_floor": {
+        "entity_ids": 0,
+        "failures": 0,
+        "passed": true,
+        "spellings": 4
+       }
+      },
+      "kind": "onboard_check",
+      "pack": "msha_c2",
+      "passed": true,
+      "schema_version": 1
+     },
+     "controls": {
+      "label_names": {
+       "placeholders": 0,
+       "refused": 0,
+       "terms": 5
+      },
+      "majority_prior": {
+       "code": "D-001",
+       "predicate": "fall_of_roof_or_back"
+      },
+      "permuted_labels": {
+       "placeholders": 3,
+       "terms": 3
+      }
+     },
+     "counts": {
+      "rows": 283,
+      "test_rows_with_narrative": 100,
+      "training_mines": 4,
+      "training_rows_with_narrative": 183
+     },
+     "draft": {
+      "categories": {
+       "below_floor": 0,
+       "other": 1,
+       "passing_floor": [
+        {
+         "label": "FALL OF ROOF OR BACK",
+         "predicate": "fall_of_roof_or_back",
+         "records": 56,
+         "sites": 4
+        },
+        {
+         "label": "HANDLING OF MATERIALS",
+         "predicate": "handling_of_materials",
+         "records": 56,
+         "sites": 4
+        },
+        {
+         "label": "SLIP OR FALL OF PERSON",
+         "predicate": "slip_or_fall_of_person",
+         "records": 56,
+         "sites": 4
+        },
+        {
+         "label": "NO VALUE FOUND",
+         "predicate": "other_category",
+         "records": 15,
+         "sites": 4
+        }
+       ],
+       "refused": 0,
+       "specific": 3
+      },
+      "dates": {
+       "format": "M/D/YYYY",
+       "rejected": 0
+      },
+      "entity_types": [],
+      "export": {
+       "blank_lines": 0,
+       "columns": 57,
+       "encoding": "utf-8",
+       "format": "pipe",
+       "rejected": {},
+       "rows": 283
+      },
+      "other_bucket_rows": 15,
+      "other_bucket_share": 0.082,
+      "placeholders": 0,
+      "predicates": [
+       {
+        "code": "D-001",
+        "first_terms": [
+         "bolter",
+         "brow",
+         "roof",
+         "rock",
+         "near"
+        ],
+        "id": "fall_of_roof_or_back",
+        "label": "FALL OF ROOF OR BACK",
+        "records": 56,
+        "refused_assignable": 2,
+        "terms": 5
+       },
+       {
+        "code": "D-002",
+        "first_terms": [
+         "pallet",
+         "strained",
+         "carrying",
+         "lifting"
+        ],
+        "id": "handling_of_materials",
+        "label": "HANDLING OF MATERIALS",
+        "records": 56,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-003",
+        "first_terms": [
+         "slipped",
+         "stairs",
+         "walkway",
+         "icy"
+        ],
+        "id": "slip_or_fall_of_person",
+        "label": "SLIP OR FALL OF PERSON",
+        "records": 56,
+        "refused_assignable": 0,
+        "terms": 4
+       }
+      ],
+      "refusal": {
+       "assignable": 2,
+       "categories": 0,
+       "category_rows": [],
+       "rows": 0,
+       "share": 0.0,
+       "terms": 2,
+       "with_minimum": 0,
+       "within_cap": 2
+      },
+      "refused_entity_values": 0,
+      "roles": {
+       "declared": {
+        "category": "CLASSIFICATION",
+        "date": "ACCIDENT_DT",
+        "narrative": "NARRATIVE",
+        "record_id": "DOCUMENT_NO",
+        "site": "MINE_ID"
+       },
+       "inferred": {
+        "category": "CLASSIFICATION",
+        "date": "ACCIDENT_DT",
+        "narrative": "NARRATIVE",
+        "record_id": "DOCUMENT_NO",
+        "site": "MINE_ID"
+       },
+       "of": 5,
+       "right": 5
+      },
+      "rows_without_specific": 15,
+      "terms": {
+       "candidates": 438,
+       "eligible": 37,
+       "max": 5,
+       "median": 4,
+       "min": 4,
+       "refused": 2,
+       "total": 13
+      },
+      "training": {
+       "corpus": 183,
+       "rows": 183,
+       "window": [
+        "2015-01-01",
+        "2021-12-31"
+       ],
+       "without_narrative": 0
+      }
+     },
+     "file_sha256": "dd1826c17c55feb8d1c8dbaddee8426436ff56be1f329bc5165116e1c8cbea23",
+     "label_in_text": 0,
+     "label_in_text_share": 0.0,
+     "pack": {
+      "files": "<code>",
+      "hashes": {
+       "config_hash": "aa538f57222f0fe84c8b20ad588936c339cb8a71019d4b0903354b196e2eda5b",
+       "detector_hash": "39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416",
+       "fixtures_hash": "ab465e2b00190878dd11ef703e5805d308569926614a876dc57802193e8dbc4c",
+       "vocabulary_hash": "f1155e49d7b29028f9f5b696b54ba412443a6ab2f6b37cb29ba7aa488909637e"
+      },
+      "id": "msha_c2",
+      "loader": {
+       "error": null,
+       "passed": true
+      }
+     },
+     "reader_rejected": {
+      "drafted": 0,
+      "label_names": 0,
+      "permuted_labels": 0
+     },
+     "readers": {
+      "drafted": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "pairs": 3,
+        "seed": "d001:boot:msha",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "tp": 18,
+        "undefined": 0
+       },
+       "records": 18
+      },
+      "label_names": {
+       "coverage": 0.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "pairs": 3,
+        "seed": "d001:boot:msha",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "fn": 18,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0,
+        "undefined": 0
+       },
+       "records": 18
+      },
+      "majority_prior": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.2381,
+        "ci_low": 0.0667,
+        "f1": 0.1667,
+        "pairs": 3,
+        "seed": "d001:boot:msha",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.5556,
+        "ci_low": 0.1111,
+        "f1": 0.3333,
+        "fn": 12,
+        "fp": 12,
+        "precision": 0.3333,
+        "recall": 0.3333,
+        "tp": 6,
+        "undefined": 0
+       },
+       "records": 18
+      },
+      "permuted_labels": {
+       "coverage": 0.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "pairs": 3,
+        "seed": "d001:boot:msha",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "fn": 18,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0,
+        "undefined": 0
+       },
+       "records": 18
+      }
+     },
+     "sample": {
+      "drawn": 18,
+      "eligible": 18,
+      "in_training": 82,
+      "no_record_id": 0,
+      "no_specific": 0,
+      "repeated_in_test": 0,
+      "repeated_record_id": 0,
+      "test_rows": 100,
+      "with_narrative": 100
+     }
+    },
+    "c3": {
+     "check": {
+      "checks": {
+       "labels": {
+        "failures": 0,
+        "labels": 8,
+        "passed": true
+       },
+       "loader": {
+        "error": null,
+        "passed": true
+       },
+       "ngram": {
+        "failures": 0,
+        "files": "<code>",
+        "narratives": 271,
+        "passed": true,
+        "tokens": 8
+       },
+       "refused_strings": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "strings": 16
+       },
+       "refused_terms": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "terms": 13
+       },
+       "template": {
+        "error": null,
+        "files": "<code>",
+        "passed": true
+       },
+       "term_floor": {
+        "failures": 0,
+        "passed": true,
+        "terms": 13
+       },
+       "value_floor": {
+        "entity_ids": 0,
+        "failures": 0,
+        "passed": true,
+        "spellings": 4
+       }
+      },
+      "kind": "onboard_check",
+      "pack": "msha_c3",
+      "passed": true,
+      "schema_version": 1
+     },
+     "controls": {
+      "label_names": {
+       "placeholders": 0,
+       "refused": 0,
+       "terms": 5
+      },
+      "majority_prior": {
+       "code": "D-001",
+       "predicate": "fall_of_roof_or_back"
+      },
+      "permuted_labels": {
+       "placeholders": 3,
+       "terms": 3
+      }
+     },
+     "counts": {
+      "rows": 271,
+      "test_rows_with_narrative": 100,
+      "training_mines": 4,
+      "training_rows_with_narrative": 171
+     },
+     "draft": {
+      "categories": {
+       "below_floor": 0,
+       "other": 1,
+       "passing_floor": [
+        {
+         "label": "FALL OF ROOF OR BACK",
+         "predicate": "fall_of_roof_or_back",
+         "records": 52,
+         "sites": 4
+        },
+        {
+         "label": "HANDLING OF MATERIALS",
+         "predicate": "handling_of_materials",
+         "records": 52,
+         "sites": 4
+        },
+        {
+         "label": "SLIP OR FALL OF PERSON",
+         "predicate": "slip_or_fall_of_person",
+         "records": 52,
+         "sites": 4
+        },
+        {
+         "label": "NO VALUE FOUND",
+         "predicate": "other_category",
+         "records": 15,
+         "sites": 4
+        }
+       ],
+       "refused": 0,
+       "specific": 3
+      },
+      "dates": {
+       "format": "M/D/YYYY",
+       "rejected": 0
+      },
+      "entity_types": [],
+      "export": {
+       "blank_lines": 0,
+       "columns": 57,
+       "encoding": "utf-8",
+       "format": "pipe",
+       "rejected": {},
+       "rows": 271
+      },
+      "other_bucket_rows": 15,
+      "other_bucket_share": 0.0877,
+      "placeholders": 0,
+      "predicates": [
+       {
+        "code": "D-001",
+        "first_terms": [
+         "bolter",
+         "rock",
+         "roof",
+         "brow"
+        ],
+        "id": "fall_of_roof_or_back",
+        "label": "FALL OF ROOF OR BACK",
+        "records": 52,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-002",
+        "first_terms": [
+         "strained",
+         "pallet",
+         "lifting",
+         "carrying",
+         "carrying strained"
+        ],
+        "id": "handling_of_materials",
+        "label": "HANDLING OF MATERIALS",
+        "records": 52,
+        "refused_assignable": 0,
+        "terms": 5
+       },
+       {
+        "code": "D-003",
+        "first_terms": [
+         "walkway",
+         "slipped",
+         "stairs",
+         "icy"
+        ],
+        "id": "slip_or_fall_of_person",
+        "label": "SLIP OR FALL OF PERSON",
+        "records": 52,
+        "refused_assignable": 0,
+        "terms": 4
+       }
+      ],
+      "refusal": {
+       "assignable": 0,
+       "categories": 0,
+       "category_rows": [],
+       "rows": 0,
+       "share": 0.0,
+       "terms": 0,
+       "with_minimum": 0,
+       "within_cap": 0
+      },
+      "refused_entity_values": 0,
+      "roles": {
+       "declared": {
+        "category": "CLASSIFICATION",
+        "date": "ACCIDENT_DT",
+        "narrative": "NARRATIVE",
+        "record_id": "DOCUMENT_NO",
+        "site": "MINE_ID"
+       },
+       "inferred": {
+        "category": "CLASSIFICATION",
+        "date": "ACCIDENT_DT",
+        "narrative": "NARRATIVE",
+        "record_id": "DOCUMENT_NO",
+        "site": "MINE_ID"
+       },
+       "of": 5,
+       "right": 5
+      },
+      "rows_without_specific": 15,
+      "terms": {
+       "candidates": 417,
+       "eligible": 35,
+       "max": 5,
+       "median": 4,
+       "min": 4,
+       "refused": 0,
+       "total": 13
+      },
+      "training": {
+       "corpus": 171,
+       "rows": 171,
+       "window": [
+        "2015-01-01",
+        "2021-12-31"
+       ],
+       "without_narrative": 0
+      }
+     },
+     "file_sha256": "600bea7cb02852a45aec2273aebe674b5b30e18622f6571a08f8ba040d2c3030",
+     "label_in_text": 0,
+     "label_in_text_share": 0.0,
+     "pack": {
+      "files": "<code>",
+      "hashes": {
+       "config_hash": "8b9bd6828cdb3ee505d120f0f5b3311a00ee66df3c50fbe9bf1d8c03e0e10a3e",
+       "detector_hash": "39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416",
+       "fixtures_hash": "5f9f56fe45c5ac80a02c848a89634240fd60bce5c8fa62bfe191ef5c784ad33b",
+       "vocabulary_hash": "5ae0b1e39ba46a2d29b0786033618cd851aeed6e58ffd3380c6d2f8e77f36f8c"
+      },
+      "id": "msha_c3",
+      "loader": {
+       "error": null,
+       "passed": true
+      }
+     },
+     "reader_rejected": {
+      "drafted": 0,
+      "label_names": 0,
+      "permuted_labels": 0
+     },
+     "readers": {
+      "drafted": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "pairs": 3,
+        "seed": "d001:boot:msha",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "tp": 18,
+        "undefined": 0
+       },
+       "records": 18
+      },
+      "label_names": {
+       "coverage": 0.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "pairs": 3,
+        "seed": "d001:boot:msha",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "fn": 18,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0,
+        "undefined": 0
+       },
+       "records": 18
+      },
+      "majority_prior": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.2381,
+        "ci_low": 0.0667,
+        "f1": 0.1667,
+        "pairs": 3,
+        "seed": "d001:boot:msha",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.5556,
+        "ci_low": 0.1111,
+        "f1": 0.3333,
+        "fn": 12,
+        "fp": 12,
+        "precision": 0.3333,
+        "recall": 0.3333,
+        "tp": 6,
+        "undefined": 0
+       },
+       "records": 18
+      },
+      "permuted_labels": {
+       "coverage": 0.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "pairs": 3,
+        "seed": "d001:boot:msha",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "fn": 18,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0,
+        "undefined": 0
+       },
+       "records": 18
+      }
+     },
+     "sample": {
+      "drawn": 18,
+      "eligible": 18,
+      "in_training": 82,
+      "no_record_id": 0,
+      "no_specific": 0,
+      "repeated_in_test": 0,
+      "repeated_record_id": 0,
+      "test_rows": 100,
+      "with_narrative": 100
+     }
+    }
+   },
+   "criterion": {
+    "best_control": "majority_prior",
+    "ci_high": 0.7963,
+    "ci_low": 0.537,
+    "diff": 0.6667,
+    "exact": {
+     "ci_high": 0.7962962962962963,
+     "ci_low": 0.537037037037037,
+     "comparisons": {
+      "ci_low > 0": true,
+      "diff >= 0.1": true
+     },
+     "diff": 0.6666666666666666,
+     "diff_fraction": "2/3"
+    },
+    "id": "C1",
+    "margin": 0.1,
+    "passed": true,
+    "reason": null,
+    "refusal": {
+     "assignable": 2,
+     "categories": 0,
+     "companies": 3,
+     "corpus": 549,
+     "label_parts": 0,
+     "rows": 0,
+     "share": 0.0,
+     "terms": 2,
+     "with_minimum": 0,
+     "within_cap": 2
+    }
+   },
+   "definitions": {
+    "ACCIDENT_DT": [
+     "ACCIDENT_DT\tThe accident date, mm/dd/yyyy."
+    ],
+    "ACCIDENT_TYPE": [],
+    "CLASSIFICATION": [
+     "CLASSIFICATION\tThe circumstances."
+    ],
+    "CLOSED_DOC_NO": [],
+    "CONTRACTOR_ID": [],
+    "CONTROLLER_ID": [],
+    "CONTROLLER_NAME": [],
+    "DOCUMENT_NO": [
+     "DOCUMENT_NO\tThe document number of the accident."
+    ],
+    "FIPS_STATE_CD": [],
+    "MINE_ID": [
+     "MINE_ID\tThe mine."
+    ],
+    "NARRATIVE": [
+     "NARRATIVE\tWhat happened.",
+     "In words."
+    ],
+    "OPERATOR_ID": [],
+    "OPERATOR_NAME": []
+   },
+   "errors": [],
+   "experiment": "D002",
+   "kind": "onboard_d001_arm",
+   "matched": null,
+   "pooled": {
+    "differences": {
+     "label_names": {
+      "B": 10000,
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "diff": 1.0,
+      "exact_diff": 1.0,
+      "f1_a": 1.0,
+      "f1_b": 0.0,
+      "method": "paired percentile",
+      "n": 54,
+      "seed": "d001:boot:msha",
+      "undefined": 0
+     },
+     "majority_prior": {
+      "B": 10000,
+      "ci_high": 0.7963,
+      "ci_low": 0.537,
+      "diff": 0.6667,
+      "exact_diff": 0.6667,
+      "f1_a": 1.0,
+      "f1_b": 0.3333,
+      "method": "paired percentile",
+      "n": 54,
+      "seed": "d001:boot:msha",
+      "undefined": 0
+     },
+     "permuted_labels": {
+      "B": 10000,
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "diff": 1.0,
+      "exact_diff": 1.0,
+      "f1_a": 1.0,
+      "f1_b": 0.0,
+      "method": "paired percentile",
+      "n": 54,
+      "seed": "d001:boot:msha",
+      "undefined": 0
+     }
+    },
+    "label_in_text_share": 0.0,
+    "readers": {
+     "drafted": {
+      "coverage": 1.0,
+      "macro": {
+       "B": 10000,
+       "ci_high": 1.0,
+       "ci_low": 1.0,
+       "f1": 1.0,
+       "pairs": 9,
+       "seed": "d001:boot:msha",
+       "undefined": 0
+      },
+      "micro": {
+       "ci_high": 1.0,
+       "ci_low": 1.0,
+       "f1": 1.0,
+       "fn": 0,
+       "fp": 0,
+       "precision": 1.0,
+       "recall": 1.0,
+       "tp": 54,
+       "undefined": 0
+      },
+      "records": 54
+     },
+     "label_names": {
+      "coverage": 0.0,
+      "macro": {
+       "B": 10000,
+       "ci_high": 0.0,
+       "ci_low": 0.0,
+       "f1": 0.0,
+       "pairs": 9,
+       "seed": "d001:boot:msha",
+       "undefined": 0
+      },
+      "micro": {
+       "ci_high": 0.0,
+       "ci_low": 0.0,
+       "f1": 0.0,
+       "fn": 54,
+       "fp": 0,
+       "precision": null,
+       "recall": 0.0,
+       "tp": 0,
+       "undefined": 0
+      },
+      "records": 54
+     },
+     "majority_prior": {
+      "coverage": 1.0,
+      "macro": {
+       "B": 10000,
+       "ci_high": 0.2107,
+       "ci_low": 0.1124,
+       "f1": 0.1667,
+       "pairs": 9,
+       "seed": "d001:boot:msha",
+       "undefined": 0
+      },
+      "micro": {
+       "ci_high": 0.463,
+       "ci_low": 0.2037,
+       "f1": 0.3333,
+       "fn": 36,
+       "fp": 36,
+       "precision": 0.3333,
+       "recall": 0.3333,
+       "tp": 18,
+       "undefined": 0
+      },
+      "records": 54
+     },
+     "permuted_labels": {
+      "coverage": 0.0,
+      "macro": {
+       "B": 10000,
+       "ci_high": 0.0,
+       "ci_low": 0.0,
+       "f1": 0.0,
+       "pairs": 9,
+       "seed": "d001:boot:msha",
+       "undefined": 0
+      },
+      "micro": {
+       "ci_high": 0.0,
+       "ci_low": 0.0,
+       "f1": 0.0,
+       "fn": 54,
+       "fp": 0,
+       "precision": null,
+       "recall": 0.0,
+       "tp": 0,
+       "undefined": 0
+      },
+      "records": 54
+     }
+    },
+    "records": 54
+   },
+   "schema_version": 1,
+   "settings_sha256": "8bb9ba6ab9c8d4dca14ac86aa8df89f8cd1926b5355b9908ec3b71020c42c0e5",
+   "source": {
+    "arm": "msha",
+    "controllers": 4,
+    "date_format": "M/D/YYYY",
+    "downloads": [
+     {
+      "bytes": 445989,
+      "file": "Accidents.zip",
+      "sha256": "a3641432636c96f870ce27e0f17584564a4968d39e32aa46f549781c3f743cb5"
+     },
+     {
+      "bytes": 183,
+      "file": "Accidents_Definition_File.txt",
+      "sha256": "d5b8abeebdf10953205dbc0bd8fc7e8d95e198216ea7ad76e3fe3b90f1c39121"
+     }
+    ],
+    "header": {
+     "columns": 57,
+     "missing_expected": [],
+     "unexpected": []
+    },
+    "member_encoding": "utf-8",
+    "qualifying": 3,
+    "rejected": {
+     "wrong_width": 1
+    },
+    "rows": 1078,
+    "rows_without_controller": 0,
+    "used": 3
+   }
+  },
+  "nhtsa": {
+   "arm": "nhtsa",
+   "code_commit": "<code>",
+   "companies": {
+    "CHEVROLET": {
+     "check": {
+      "checks": {
+       "labels": {
+        "failures": 0,
+        "labels": 9,
+        "passed": true
+       },
+       "loader": {
+        "error": null,
+        "passed": true
+       },
+       "ngram": {
+        "failures": 0,
+        "files": "<code>",
+        "narratives": 246,
+        "passed": true,
+        "tokens": 8
+       },
+       "refused_strings": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "strings": 20
+       },
+       "refused_terms": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "terms": 16
+       },
+       "template": {
+        "error": null,
+        "files": "<code>",
+        "passed": true
+       },
+       "term_floor": {
+        "failures": 0,
+        "passed": true,
+        "terms": 16
+       },
+       "value_floor": {
+        "entity_ids": 0,
+        "failures": 0,
+        "passed": true,
+        "spellings": 4
+       }
+      },
+      "kind": "onboard_check",
+      "pack": "nhtsa_chevrolet",
+      "passed": true,
+      "schema_version": 1
+     },
+     "controls": {
+      "label_names": {
+       "placeholders": 0,
+       "refused": 0,
+       "terms": 4
+      },
+      "majority_prior": {
+       "code": "D-001",
+       "predicate": "air_bags"
+      },
+      "permuted_labels": {
+       "placeholders": 4,
+       "terms": 4
+      }
+     },
+     "counts": {
+      "complaints": 246,
+      "make_rows": 266,
+      "without_narrative": 0
+     },
+     "draft": {
+      "categories": {
+       "below_floor": 0,
+       "other": 0,
+       "passing_floor": [
+        {
+         "label": "AIR BAGS",
+         "predicate": "air_bags",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "ENGINE",
+         "predicate": "engine",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "SERVICE BRAKES",
+         "predicate": "service_brakes",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "STEERING",
+         "predicate": "steering",
+         "records": 59,
+         "sites": 5
+        }
+       ],
+       "refused": 0,
+       "specific": 4
+      },
+      "dates": {
+       "format": "YYYYMMDD",
+       "rejected": 0
+      },
+      "entity_types": [],
+      "export": {
+       "blank_lines": 0,
+       "columns": 7,
+       "encoding": "utf-8",
+       "format": "comma",
+       "rejected": {},
+       "rows": 246
+      },
+      "other_bucket_rows": 0,
+      "other_bucket_share": 0.0,
+      "placeholders": 0,
+      "predicates": [
+       {
+        "code": "D-001",
+        "first_terms": [
+         "collision",
+         "deploy",
+         "inflated",
+         "airbag"
+        ],
+        "id": "air_bags",
+        "label": "AIR BAGS",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-002",
+        "first_terms": [
+         "misfire",
+         "idling",
+         "revving",
+         "stalled"
+        ],
+        "id": "engine",
+        "label": "ENGINE",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-003",
+        "first_terms": [
+         "pedal",
+         "grinding",
+         "braking",
+         "stopping"
+        ],
+        "id": "service_brakes",
+        "label": "SERVICE BRAKES",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-004",
+        "first_terms": [
+         "pulling",
+         "drifted",
+         "veered",
+         "steering"
+        ],
+        "id": "steering",
+        "label": "STEERING",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       }
+      ],
+      "refusal": {
+       "assignable": 0,
+       "categories": 0,
+       "category_rows": [],
+       "rows": 0,
+       "share": 0.0,
+       "terms": 0,
+       "with_minimum": 0,
+       "within_cap": 0
+      },
+      "refused_entity_values": 0,
+      "roles": {
+       "declared": {
+        "category": "components[]",
+        "date": "received",
+        "narrative": "summary",
+        "record_id": "odino",
+        "site": "state"
+       },
+       "inferred": {
+        "category": "components[]",
+        "date": "received",
+        "narrative": "summary",
+        "record_id": "odino",
+        "site": "state"
+       },
+       "of": 5,
+       "right": 5
+      },
+      "rows_without_specific": 0,
+      "terms": {
+       "candidates": 464,
+       "eligible": 58,
+       "max": 4,
+       "median": 4,
+       "min": 4,
+       "refused": 0,
+       "total": 16
+      },
+      "training": {
+       "corpus": 216,
+       "rows": 216,
+       "window": [
+        "2020-01-01",
+        "2022-12-31"
+       ],
+       "without_narrative": 0
+      }
+     },
+     "file_sha256": "478ea579d6bb45b145034ce95a50bd50c59810a83cd0b41ee64baddd48b49f6c",
+     "hand": {
+      "pack": {
+       "matched": {
+        "drafted": {
+         "coverage": 1.0,
+         "macro": {
+          "B": 10000,
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 12,
+          "undefined": 0
+         },
+         "records": 12
+        },
+        "hand": {
+         "coverage": 0.0,
+         "macro": {
+          "B": 10000,
+          "ci_high": 0.0,
+          "ci_low": 0.0,
+          "f1": 0.0,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 0.0,
+          "ci_low": 0.0,
+          "f1": 0.0,
+          "fn": 12,
+          "fp": 0,
+          "precision": null,
+          "recall": 0.0,
+          "tp": 0,
+          "undefined": 0
+         },
+         "records": 12
+        }
+       },
+       "matched_names": 4,
+       "matched_predicates": 4,
+       "matched_records": 12,
+       "own_space": {
+        "coverage": 0.0,
+        "macro": {
+         "B": 10000,
+         "ci_high": 0.0,
+         "ci_low": 0.0,
+         "f1": 0.0,
+         "pairs": 4,
+         "seed": "d001:boot:nhtsa",
+         "undefined": 0
+        },
+        "micro": {
+         "ci_high": 0.0,
+         "ci_low": 0.0,
+         "f1": 0.0,
+         "fn": 12,
+         "fp": 0,
+         "precision": null,
+         "recall": 0.0,
+         "tp": 0,
+         "undefined": 0
+        },
+        "records": 12
+       },
+       "rejected": 0
+      },
+      "pack-v2": {
+       "matched": {
+        "drafted": {
+         "coverage": 1.0,
+         "macro": {
+          "B": 10000,
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 12,
+          "undefined": 0
+         },
+         "records": 12
+        },
+        "hand": {
+         "coverage": 0.0,
+         "macro": {
+          "B": 10000,
+          "ci_high": 0.0,
+          "ci_low": 0.0,
+          "f1": 0.0,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 0.0,
+          "ci_low": 0.0,
+          "f1": 0.0,
+          "fn": 12,
+          "fp": 0,
+          "precision": null,
+          "recall": 0.0,
+          "tp": 0,
+          "undefined": 0
+         },
+         "records": 12
+        }
+       },
+       "matched_names": 4,
+       "matched_predicates": 4,
+       "matched_records": 12,
+       "own_space": {
+        "coverage": 0.0,
+        "macro": {
+         "B": 10000,
+         "ci_high": 0.0,
+         "ci_low": 0.0,
+         "f1": 0.0,
+         "pairs": 4,
+         "seed": "d001:boot:nhtsa",
+         "undefined": 0
+        },
+        "micro": {
+         "ci_high": 0.0,
+         "ci_low": 0.0,
+         "f1": 0.0,
+         "fn": 12,
+         "fp": 0,
+         "precision": null,
+         "recall": 0.0,
+         "tp": 0,
+         "undefined": 0
+        },
+        "records": 12
+       },
+       "rejected": 0
+      }
+     },
+     "label_in_text": 0,
+     "label_in_text_share": 0.0,
+     "pack": {
+      "files": "<code>",
+      "hashes": {
+       "config_hash": "935deb5ac2fd78578522114fe9bcf979a616baa1a46bbf3e8d3ae434564d9abb",
+       "detector_hash": "39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416",
+       "fixtures_hash": "fb3a2f1b0ac26c30d0eed830cec48daab534019ac65caf86e24e6b7dbb98a0c3",
+       "vocabulary_hash": "81bc0e88b543596e88d90316d3b7ab926395f2a8fb517502a3b07cf14ebc6edf"
+      },
+      "id": "nhtsa_chevrolet",
+      "loader": {
+       "error": null,
+       "passed": true
+      }
+     },
+     "reader_rejected": {
+      "drafted": 0,
+      "label_names": 0,
+      "permuted_labels": 0
+     },
+     "readers": {
+      "drafted": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "tp": 12,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "label_names": {
+       "coverage": 0.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "fn": 12,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "majority_prior": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.1961,
+        "ci_low": 0.0,
+        "f1": 0.1,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.5,
+        "ci_low": 0.0,
+        "f1": 0.25,
+        "fn": 9,
+        "fp": 9,
+        "precision": 0.25,
+        "recall": 0.25,
+        "tp": 3,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "permuted_labels": {
+       "coverage": 0.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "fn": 12,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0,
+        "undefined": 0
+       },
+       "records": 12
+      }
+     },
+     "sample": {
+      "drawn": 12,
+      "eligible": 12,
+      "in_training": 18,
+      "no_record_id": 0,
+      "no_specific": 0,
+      "repeated_in_test": 0,
+      "repeated_record_id": 0,
+      "test_rows": 30,
+      "with_narrative": 30
+     }
+    },
+    "DODGE": {
+     "check": {
+      "checks": {
+       "labels": {
+        "failures": 0,
+        "labels": 9,
+        "passed": true
+       },
+       "loader": {
+        "error": null,
+        "passed": true
+       },
+       "ngram": {
+        "failures": 0,
+        "files": "<code>",
+        "narratives": 246,
+        "passed": true,
+        "tokens": 8
+       },
+       "refused_strings": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "strings": 20
+       },
+       "refused_terms": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "terms": 17
+       },
+       "template": {
+        "error": null,
+        "files": "<code>",
+        "passed": true
+       },
+       "term_floor": {
+        "failures": 0,
+        "passed": true,
+        "terms": 17
+       },
+       "value_floor": {
+        "entity_ids": 0,
+        "failures": 0,
+        "passed": true,
+        "spellings": 4
+       }
+      },
+      "kind": "onboard_check",
+      "pack": "nhtsa_dodge",
+      "passed": true,
+      "schema_version": 1
+     },
+     "controls": {
+      "label_names": {
+       "placeholders": 0,
+       "refused": 0,
+       "terms": 4
+      },
+      "majority_prior": {
+       "code": "D-001",
+       "predicate": "air_bags"
+      },
+      "permuted_labels": {
+       "placeholders": 4,
+       "terms": 4
+      }
+     },
+     "counts": {
+      "complaints": 246,
+      "make_rows": 266,
+      "without_narrative": 0
+     },
+     "draft": {
+      "categories": {
+       "below_floor": 0,
+       "other": 0,
+       "passing_floor": [
+        {
+         "label": "AIR BAGS",
+         "predicate": "air_bags",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "ENGINE",
+         "predicate": "engine",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "SERVICE BRAKES",
+         "predicate": "service_brakes",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "STEERING",
+         "predicate": "steering",
+         "records": 59,
+         "sites": 5
+        }
+       ],
+       "refused": 0,
+       "specific": 4
+      },
+      "dates": {
+       "format": "YYYYMMDD",
+       "rejected": 0
+      },
+      "entity_types": [],
+      "export": {
+       "blank_lines": 0,
+       "columns": 7,
+       "encoding": "utf-8",
+       "format": "comma",
+       "rejected": {},
+       "rows": 246
+      },
+      "other_bucket_rows": 0,
+      "other_bucket_share": 0.0,
+      "placeholders": 0,
+      "predicates": [
+       {
+        "code": "D-001",
+        "first_terms": [
+         "collision",
+         "airbag",
+         "deploy",
+         "inflated"
+        ],
+        "id": "air_bags",
+        "label": "AIR BAGS",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-002",
+        "first_terms": [
+         "idling",
+         "stalled",
+         "revving",
+         "misfire"
+        ],
+        "id": "engine",
+        "label": "ENGINE",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-003",
+        "first_terms": [
+         "grinding",
+         "pedal",
+         "braking",
+         "stopping",
+         "braking grinding"
+        ],
+        "id": "service_brakes",
+        "label": "SERVICE BRAKES",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 5
+       },
+       {
+        "code": "D-004",
+        "first_terms": [
+         "steering",
+         "drifted",
+         "veered",
+         "pulling"
+        ],
+        "id": "steering",
+        "label": "STEERING",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       }
+      ],
+      "refusal": {
+       "assignable": 0,
+       "categories": 0,
+       "category_rows": [],
+       "rows": 0,
+       "share": 0.0,
+       "terms": 0,
+       "with_minimum": 0,
+       "within_cap": 0
+      },
+      "refused_entity_values": 0,
+      "roles": {
+       "declared": {
+        "category": "components[]",
+        "date": "received",
+        "narrative": "summary",
+        "record_id": "odino",
+        "site": "state"
+       },
+       "inferred": {
+        "category": "components[]",
+        "date": "received",
+        "narrative": "summary",
+        "record_id": "odino",
+        "site": "state"
+       },
+       "of": 5,
+       "right": 5
+      },
+      "rows_without_specific": 0,
+      "terms": {
+       "candidates": 463,
+       "eligible": 60,
+       "max": 5,
+       "median": 4,
+       "min": 4,
+       "refused": 0,
+       "total": 17
+      },
+      "training": {
+       "corpus": 216,
+       "rows": 216,
+       "window": [
+        "2020-01-01",
+        "2022-12-31"
+       ],
+       "without_narrative": 0
+      }
+     },
+     "file_sha256": "5f86001ec48d2a1eeb518569bfb18ab4c0e53a7189ce25d904e1185ef478e801",
+     "hand": {
+      "pack": {
+       "matched": {
+        "drafted": {
+         "coverage": 1.0,
+         "macro": {
+          "B": 10000,
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 12,
+          "undefined": 0
+         },
+         "records": 12
+        },
+        "hand": {
+         "coverage": 0.0833,
+         "macro": {
+          "B": 10000,
+          "ci_high": 0.25,
+          "ci_low": 0.0,
+          "f1": 0.125,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 0.4,
+          "ci_low": 0.0,
+          "f1": 0.1538,
+          "fn": 11,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 0.0833,
+          "tp": 1,
+          "undefined": 0
+         },
+         "records": 12
+        }
+       },
+       "matched_names": 4,
+       "matched_predicates": 4,
+       "matched_records": 12,
+       "own_space": {
+        "coverage": 0.0833,
+        "macro": {
+         "B": 10000,
+         "ci_high": 0.25,
+         "ci_low": 0.0,
+         "f1": 0.125,
+         "pairs": 4,
+         "seed": "d001:boot:nhtsa",
+         "undefined": 0
+        },
+        "micro": {
+         "ci_high": 0.4,
+         "ci_low": 0.0,
+         "f1": 0.1538,
+         "fn": 11,
+         "fp": 0,
+         "precision": 1.0,
+         "recall": 0.0833,
+         "tp": 1,
+         "undefined": 0
+        },
+        "records": 12
+       },
+       "rejected": 0
+      },
+      "pack-v2": {
+       "matched": {
+        "drafted": {
+         "coverage": 1.0,
+         "macro": {
+          "B": 10000,
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 12,
+          "undefined": 0
+         },
+         "records": 12
+        },
+        "hand": {
+         "coverage": 0.0833,
+         "macro": {
+          "B": 10000,
+          "ci_high": 0.25,
+          "ci_low": 0.0,
+          "f1": 0.125,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 0.4,
+          "ci_low": 0.0,
+          "f1": 0.1538,
+          "fn": 11,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 0.0833,
+          "tp": 1,
+          "undefined": 0
+         },
+         "records": 12
+        }
+       },
+       "matched_names": 4,
+       "matched_predicates": 4,
+       "matched_records": 12,
+       "own_space": {
+        "coverage": 0.0833,
+        "macro": {
+         "B": 10000,
+         "ci_high": 0.25,
+         "ci_low": 0.0,
+         "f1": 0.125,
+         "pairs": 4,
+         "seed": "d001:boot:nhtsa",
+         "undefined": 0
+        },
+        "micro": {
+         "ci_high": 0.4,
+         "ci_low": 0.0,
+         "f1": 0.1538,
+         "fn": 11,
+         "fp": 0,
+         "precision": 1.0,
+         "recall": 0.0833,
+         "tp": 1,
+         "undefined": 0
+        },
+        "records": 12
+       },
+       "rejected": 0
+      }
+     },
+     "label_in_text": 1,
+     "label_in_text_share": 0.0833,
+     "pack": {
+      "files": "<code>",
+      "hashes": {
+       "config_hash": "8c1c36ddf5d8a36e9d702f0bae9f62befc462d5f0b28e9fbdd747756d38c6984",
+       "detector_hash": "39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416",
+       "fixtures_hash": "0a75dcfd200980ac4dbc29e798633d49b7dcf3960756462e88ab401034ceaf60",
+       "vocabulary_hash": "11afc8cd582e5c01f9b265bf229b43dac8664030f1796cf6424118476d747042"
+      },
+      "id": "nhtsa_dodge",
+      "loader": {
+       "error": null,
+       "passed": true
+      }
+     },
+     "reader_rejected": {
+      "drafted": 0,
+      "label_names": 0,
+      "permuted_labels": 0
+     },
+     "readers": {
+      "drafted": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "tp": 12,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "label_names": {
+       "coverage": 0.0833,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.25,
+        "ci_low": 0.0,
+        "f1": 0.125,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.4,
+        "ci_low": 0.0,
+        "f1": 0.1538,
+        "fn": 11,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 0.0833,
+        "tp": 1,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "majority_prior": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.1961,
+        "ci_low": 0.0,
+        "f1": 0.1,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.5,
+        "ci_low": 0.0,
+        "f1": 0.25,
+        "fn": 9,
+        "fp": 9,
+        "precision": 0.25,
+        "recall": 0.25,
+        "tp": 3,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "permuted_labels": {
+       "coverage": 0.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "fn": 12,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0,
+        "undefined": 0
+       },
+       "records": 12
+      }
+     },
+     "sample": {
+      "drawn": 12,
+      "eligible": 12,
+      "in_training": 18,
+      "no_record_id": 0,
+      "no_specific": 0,
+      "repeated_in_test": 0,
+      "repeated_record_id": 0,
+      "test_rows": 30,
+      "with_narrative": 30
+     }
+    },
+    "FORD": {
+     "check": {
+      "checks": {
+       "labels": {
+        "failures": 0,
+        "labels": 9,
+        "passed": true
+       },
+       "loader": {
+        "error": null,
+        "passed": true
+       },
+       "ngram": {
+        "failures": 0,
+        "files": "<code>",
+        "narratives": 246,
+        "passed": true,
+        "tokens": 8
+       },
+       "refused_strings": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "strings": 20
+       },
+       "refused_terms": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "terms": 16
+       },
+       "template": {
+        "error": null,
+        "files": "<code>",
+        "passed": true
+       },
+       "term_floor": {
+        "failures": 0,
+        "passed": true,
+        "terms": 16
+       },
+       "value_floor": {
+        "entity_ids": 0,
+        "failures": 0,
+        "passed": true,
+        "spellings": 4
+       }
+      },
+      "kind": "onboard_check",
+      "pack": "nhtsa_ford",
+      "passed": true,
+      "schema_version": 1
+     },
+     "controls": {
+      "label_names": {
+       "placeholders": 0,
+       "refused": 0,
+       "terms": 4
+      },
+      "majority_prior": {
+       "code": "D-001",
+       "predicate": "air_bags"
+      },
+      "permuted_labels": {
+       "placeholders": 4,
+       "terms": 4
+      }
+     },
+     "counts": {
+      "complaints": 246,
+      "make_rows": 266,
+      "without_narrative": 0
+     },
+     "draft": {
+      "categories": {
+       "below_floor": 0,
+       "other": 0,
+       "passing_floor": [
+        {
+         "label": "AIR BAGS",
+         "predicate": "air_bags",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "ENGINE",
+         "predicate": "engine",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "SERVICE BRAKES",
+         "predicate": "service_brakes",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "STEERING",
+         "predicate": "steering",
+         "records": 59,
+         "sites": 5
+        }
+       ],
+       "refused": 0,
+       "specific": 4
+      },
+      "dates": {
+       "format": "YYYYMMDD",
+       "rejected": 0
+      },
+      "entity_types": [],
+      "export": {
+       "blank_lines": 0,
+       "columns": 7,
+       "encoding": "utf-8",
+       "format": "comma",
+       "rejected": {},
+       "rows": 246
+      },
+      "other_bucket_rows": 0,
+      "other_bucket_share": 0.0,
+      "placeholders": 0,
+      "predicates": [
+       {
+        "code": "D-001",
+        "first_terms": [
+         "deploy",
+         "inflated",
+         "collision",
+         "airbag"
+        ],
+        "id": "air_bags",
+        "label": "AIR BAGS",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-002",
+        "first_terms": [
+         "idling",
+         "revving",
+         "misfire",
+         "stalled"
+        ],
+        "id": "engine",
+        "label": "ENGINE",
+        "records": 59,
+        "refused_assignable": 1,
+        "terms": 4
+       },
+       {
+        "code": "D-003",
+        "first_terms": [
+         "braking",
+         "pedal",
+         "grinding",
+         "stopping"
+        ],
+        "id": "service_brakes",
+        "label": "SERVICE BRAKES",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-004",
+        "first_terms": [
+         "drifted",
+         "pulling",
+         "veered",
+         "steering"
+        ],
+        "id": "steering",
+        "label": "STEERING",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       }
+      ],
+      "refusal": {
+       "assignable": 1,
+       "categories": 0,
+       "category_rows": [],
+       "rows": 0,
+       "share": 0.0,
+       "terms": 1,
+       "with_minimum": 0,
+       "within_cap": 1
+      },
+      "refused_entity_values": 0,
+      "roles": {
+       "declared": {
+        "category": "components[]",
+        "date": "received",
+        "narrative": "summary",
+        "record_id": "odino",
+        "site": "state"
+       },
+       "inferred": {
+        "category": "components[]",
+        "date": "received",
+        "narrative": "summary",
+        "record_id": "odino",
+        "site": "state"
+       },
+       "of": 5,
+       "right": 5
+      },
+      "rows_without_specific": 0,
+      "terms": {
+       "candidates": 467,
+       "eligible": 55,
+       "max": 4,
+       "median": 4,
+       "min": 4,
+       "refused": 1,
+       "total": 16
+      },
+      "training": {
+       "corpus": 216,
+       "rows": 216,
+       "window": [
+        "2020-01-01",
+        "2022-12-31"
+       ],
+       "without_narrative": 0
+      }
+     },
+     "file_sha256": "47c0ddb6b29b672160923005b19f66bab91fbff0f5c1a2367094f53221c85c82",
+     "hand": {
+      "pack": {
+       "matched": {
+        "drafted": {
+         "coverage": 1.0,
+         "macro": {
+          "B": 10000,
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 12,
+          "undefined": 0
+         },
+         "records": 12
+        },
+        "hand": {
+         "coverage": 0.1667,
+         "macro": {
+          "B": 10000,
+          "ci_high": 0.303,
+          "ci_low": 0.0,
+          "f1": 0.2,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 0.5882,
+          "ci_low": 0.0,
+          "f1": 0.2857,
+          "fn": 10,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 0.1667,
+          "tp": 2,
+          "undefined": 0
+         },
+         "records": 12
+        }
+       },
+       "matched_names": 4,
+       "matched_predicates": 4,
+       "matched_records": 12,
+       "own_space": {
+        "coverage": 0.1667,
+        "macro": {
+         "B": 10000,
+         "ci_high": 0.303,
+         "ci_low": 0.0,
+         "f1": 0.2,
+         "pairs": 4,
+         "seed": "d001:boot:nhtsa",
+         "undefined": 0
+        },
+        "micro": {
+         "ci_high": 0.5882,
+         "ci_low": 0.0,
+         "f1": 0.2857,
+         "fn": 10,
+         "fp": 0,
+         "precision": 1.0,
+         "recall": 0.1667,
+         "tp": 2,
+         "undefined": 0
+        },
+        "records": 12
+       },
+       "rejected": 0
+      },
+      "pack-v2": {
+       "matched": {
+        "drafted": {
+         "coverage": 1.0,
+         "macro": {
+          "B": 10000,
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 12,
+          "undefined": 0
+         },
+         "records": 12
+        },
+        "hand": {
+         "coverage": 0.1667,
+         "macro": {
+          "B": 10000,
+          "ci_high": 0.303,
+          "ci_low": 0.0,
+          "f1": 0.2,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 0.5882,
+          "ci_low": 0.0,
+          "f1": 0.2857,
+          "fn": 10,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 0.1667,
+          "tp": 2,
+          "undefined": 0
+         },
+         "records": 12
+        }
+       },
+       "matched_names": 4,
+       "matched_predicates": 4,
+       "matched_records": 12,
+       "own_space": {
+        "coverage": 0.1667,
+        "macro": {
+         "B": 10000,
+         "ci_high": 0.303,
+         "ci_low": 0.0,
+         "f1": 0.2,
+         "pairs": 4,
+         "seed": "d001:boot:nhtsa",
+         "undefined": 0
+        },
+        "micro": {
+         "ci_high": 0.5882,
+         "ci_low": 0.0,
+         "f1": 0.2857,
+         "fn": 10,
+         "fp": 0,
+         "precision": 1.0,
+         "recall": 0.1667,
+         "tp": 2,
+         "undefined": 0
+        },
+        "records": 12
+       },
+       "rejected": 0
+      }
+     },
+     "label_in_text": 2,
+     "label_in_text_share": 0.1667,
+     "pack": {
+      "files": "<code>",
+      "hashes": {
+       "config_hash": "5b69f39fd246247280e3652989ceccc52f546dfe82d720294253183d16cb57f4",
+       "detector_hash": "39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416",
+       "fixtures_hash": "d4ceaa0647802b7d81b9b3b0d515bc85c508307d6f98aac6f85fcfd37ba3e3b5",
+       "vocabulary_hash": "4c69bcd11c0e1930a674a6bf588c4fc7bdfbab9a52da05de71d194264cb8bf5b"
+      },
+      "id": "nhtsa_ford",
+      "loader": {
+       "error": null,
+       "passed": true
+      }
+     },
+     "reader_rejected": {
+      "drafted": 0,
+      "label_names": 0,
+      "permuted_labels": 0
+     },
+     "readers": {
+      "drafted": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "tp": 12,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "label_names": {
+       "coverage": 0.1667,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.303,
+        "ci_low": 0.0,
+        "f1": 0.2,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.5882,
+        "ci_low": 0.0,
+        "f1": 0.2857,
+        "fn": 10,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 0.1667,
+        "tp": 2,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "majority_prior": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.1961,
+        "ci_low": 0.0,
+        "f1": 0.1,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.5,
+        "ci_low": 0.0,
+        "f1": 0.25,
+        "fn": 9,
+        "fp": 9,
+        "precision": 0.25,
+        "recall": 0.25,
+        "tp": 3,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "permuted_labels": {
+       "coverage": 0.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "fn": 12,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0,
+        "undefined": 0
+       },
+       "records": 12
+      }
+     },
+     "sample": {
+      "drawn": 12,
+      "eligible": 12,
+      "in_training": 18,
+      "no_record_id": 0,
+      "no_specific": 0,
+      "repeated_in_test": 0,
+      "repeated_record_id": 0,
+      "test_rows": 30,
+      "with_narrative": 30
+     }
+    },
+    "HONDA": {
+     "check": {
+      "checks": {
+       "labels": {
+        "failures": 0,
+        "labels": 9,
+        "passed": true
+       },
+       "loader": {
+        "error": null,
+        "passed": true
+       },
+       "ngram": {
+        "failures": 0,
+        "files": "<code>",
+        "narratives": 246,
+        "passed": true,
+        "tokens": 8
+       },
+       "refused_strings": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "strings": 20
+       },
+       "refused_terms": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "terms": 17
+       },
+       "template": {
+        "error": null,
+        "files": "<code>",
+        "passed": true
+       },
+       "term_floor": {
+        "failures": 0,
+        "passed": true,
+        "terms": 17
+       },
+       "value_floor": {
+        "entity_ids": 0,
+        "failures": 0,
+        "passed": true,
+        "spellings": 4
+       }
+      },
+      "kind": "onboard_check",
+      "pack": "nhtsa_honda",
+      "passed": true,
+      "schema_version": 1
+     },
+     "controls": {
+      "label_names": {
+       "placeholders": 0,
+       "refused": 0,
+       "terms": 4
+      },
+      "majority_prior": {
+       "code": "D-001",
+       "predicate": "air_bags"
+      },
+      "permuted_labels": {
+       "placeholders": 4,
+       "terms": 4
+      }
+     },
+     "counts": {
+      "complaints": 246,
+      "make_rows": 266,
+      "without_narrative": 0
+     },
+     "draft": {
+      "categories": {
+       "below_floor": 0,
+       "other": 0,
+       "passing_floor": [
+        {
+         "label": "AIR BAGS",
+         "predicate": "air_bags",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "ENGINE",
+         "predicate": "engine",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "SERVICE BRAKES",
+         "predicate": "service_brakes",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "STEERING",
+         "predicate": "steering",
+         "records": 59,
+         "sites": 5
+        }
+       ],
+       "refused": 0,
+       "specific": 4
+      },
+      "dates": {
+       "format": "YYYYMMDD",
+       "rejected": 0
+      },
+      "entity_types": [],
+      "export": {
+       "blank_lines": 0,
+       "columns": 7,
+       "encoding": "utf-8",
+       "format": "comma",
+       "rejected": {},
+       "rows": 246
+      },
+      "other_bucket_rows": 0,
+      "other_bucket_share": 0.0,
+      "placeholders": 0,
+      "predicates": [
+       {
+        "code": "D-001",
+        "first_terms": [
+         "airbag",
+         "deploy",
+         "inflated",
+         "collision"
+        ],
+        "id": "air_bags",
+        "label": "AIR BAGS",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-002",
+        "first_terms": [
+         "stalled",
+         "misfire",
+         "idling",
+         "revving"
+        ],
+        "id": "engine",
+        "label": "ENGINE",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-003",
+        "first_terms": [
+         "pedal",
+         "stopping",
+         "braking",
+         "grinding",
+         "pedal stopping"
+        ],
+        "id": "service_brakes",
+        "label": "SERVICE BRAKES",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 5
+       },
+       {
+        "code": "D-004",
+        "first_terms": [
+         "steering",
+         "drifted",
+         "pulling",
+         "veered"
+        ],
+        "id": "steering",
+        "label": "STEERING",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       }
+      ],
+      "refusal": {
+       "assignable": 0,
+       "categories": 0,
+       "category_rows": [],
+       "rows": 0,
+       "share": 0.0,
+       "terms": 0,
+       "with_minimum": 0,
+       "within_cap": 0
+      },
+      "refused_entity_values": 0,
+      "roles": {
+       "declared": {
+        "category": "components[]",
+        "date": "received",
+        "narrative": "summary",
+        "record_id": "odino",
+        "site": "state"
+       },
+       "inferred": {
+        "category": "components[]",
+        "date": "received",
+        "narrative": "summary",
+        "record_id": "odino",
+        "site": "state"
+       },
+       "of": 5,
+       "right": 5
+      },
+      "rows_without_specific": 0,
+      "terms": {
+       "candidates": 464,
+       "eligible": 57,
+       "max": 5,
+       "median": 4,
+       "min": 4,
+       "refused": 0,
+       "total": 17
+      },
+      "training": {
+       "corpus": 216,
+       "rows": 216,
+       "window": [
+        "2020-01-01",
+        "2022-12-31"
+       ],
+       "without_narrative": 0
+      }
+     },
+     "file_sha256": "dc642e850610586b4c2c4d73d24bdd6b83b5598d14318916abffbfb553eefa2f",
+     "hand": {
+      "pack": {
+       "matched": {
+        "drafted": {
+         "coverage": 1.0,
+         "macro": {
+          "B": 10000,
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 12,
+          "undefined": 0
+         },
+         "records": 12
+        },
+        "hand": {
+         "coverage": 0.0833,
+         "macro": {
+          "B": 10000,
+          "ci_high": 0.25,
+          "ci_low": 0.0,
+          "f1": 0.125,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 0.4,
+          "ci_low": 0.0,
+          "f1": 0.1538,
+          "fn": 11,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 0.0833,
+          "tp": 1,
+          "undefined": 0
+         },
+         "records": 12
+        }
+       },
+       "matched_names": 4,
+       "matched_predicates": 4,
+       "matched_records": 12,
+       "own_space": {
+        "coverage": 0.0833,
+        "macro": {
+         "B": 10000,
+         "ci_high": 0.25,
+         "ci_low": 0.0,
+         "f1": 0.125,
+         "pairs": 4,
+         "seed": "d001:boot:nhtsa",
+         "undefined": 0
+        },
+        "micro": {
+         "ci_high": 0.4,
+         "ci_low": 0.0,
+         "f1": 0.1538,
+         "fn": 11,
+         "fp": 0,
+         "precision": 1.0,
+         "recall": 0.0833,
+         "tp": 1,
+         "undefined": 0
+        },
+        "records": 12
+       },
+       "rejected": 0
+      },
+      "pack-v2": {
+       "matched": {
+        "drafted": {
+         "coverage": 1.0,
+         "macro": {
+          "B": 10000,
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 12,
+          "undefined": 0
+         },
+         "records": 12
+        },
+        "hand": {
+         "coverage": 0.0833,
+         "macro": {
+          "B": 10000,
+          "ci_high": 0.25,
+          "ci_low": 0.0,
+          "f1": 0.125,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 0.4,
+          "ci_low": 0.0,
+          "f1": 0.1538,
+          "fn": 11,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 0.0833,
+          "tp": 1,
+          "undefined": 0
+         },
+         "records": 12
+        }
+       },
+       "matched_names": 4,
+       "matched_predicates": 4,
+       "matched_records": 12,
+       "own_space": {
+        "coverage": 0.0833,
+        "macro": {
+         "B": 10000,
+         "ci_high": 0.25,
+         "ci_low": 0.0,
+         "f1": 0.125,
+         "pairs": 4,
+         "seed": "d001:boot:nhtsa",
+         "undefined": 0
+        },
+        "micro": {
+         "ci_high": 0.4,
+         "ci_low": 0.0,
+         "f1": 0.1538,
+         "fn": 11,
+         "fp": 0,
+         "precision": 1.0,
+         "recall": 0.0833,
+         "tp": 1,
+         "undefined": 0
+        },
+        "records": 12
+       },
+       "rejected": 0
+      }
+     },
+     "label_in_text": 1,
+     "label_in_text_share": 0.0833,
+     "pack": {
+      "files": "<code>",
+      "hashes": {
+       "config_hash": "34da79d1d11ddb9ad010f3893fa775008c3dd60068c4f8bc4bec8e0d8cc69843",
+       "detector_hash": "39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416",
+       "fixtures_hash": "490bc7ce1fb7c9c4608ab277d20e7b8172ccc0f796eb7de0f21d8421662b4f90",
+       "vocabulary_hash": "69ae01ff7f86d26dfcb968f054e05976d6ab78b395b9fa86cf6900fef15b40a0"
+      },
+      "id": "nhtsa_honda",
+      "loader": {
+       "error": null,
+       "passed": true
+      }
+     },
+     "reader_rejected": {
+      "drafted": 0,
+      "label_names": 0,
+      "permuted_labels": 0
+     },
+     "readers": {
+      "drafted": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "tp": 12,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "label_names": {
+       "coverage": 0.0833,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.25,
+        "ci_low": 0.0,
+        "f1": 0.125,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.4,
+        "ci_low": 0.0,
+        "f1": 0.1538,
+        "fn": 11,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 0.0833,
+        "tp": 1,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "majority_prior": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.1961,
+        "ci_low": 0.0,
+        "f1": 0.1,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.5,
+        "ci_low": 0.0,
+        "f1": 0.25,
+        "fn": 9,
+        "fp": 9,
+        "precision": 0.25,
+        "recall": 0.25,
+        "tp": 3,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "permuted_labels": {
+       "coverage": 0.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "fn": 12,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0,
+        "undefined": 0
+       },
+       "records": 12
+      }
+     },
+     "sample": {
+      "drawn": 12,
+      "eligible": 12,
+      "in_training": 18,
+      "no_record_id": 0,
+      "no_specific": 0,
+      "repeated_in_test": 0,
+      "repeated_record_id": 0,
+      "test_rows": 30,
+      "with_narrative": 30
+     }
+    },
+    "JEEP": {
+     "check": {
+      "checks": {
+       "labels": {
+        "failures": 0,
+        "labels": 9,
+        "passed": true
+       },
+       "loader": {
+        "error": null,
+        "passed": true
+       },
+       "ngram": {
+        "failures": 0,
+        "files": "<code>",
+        "narratives": 246,
+        "passed": true,
+        "tokens": 8
+       },
+       "refused_strings": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "strings": 20
+       },
+       "refused_terms": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "terms": 17
+       },
+       "template": {
+        "error": null,
+        "files": "<code>",
+        "passed": true
+       },
+       "term_floor": {
+        "failures": 0,
+        "passed": true,
+        "terms": 17
+       },
+       "value_floor": {
+        "entity_ids": 0,
+        "failures": 0,
+        "passed": true,
+        "spellings": 4
+       }
+      },
+      "kind": "onboard_check",
+      "pack": "nhtsa_jeep",
+      "passed": true,
+      "schema_version": 1
+     },
+     "controls": {
+      "label_names": {
+       "placeholders": 0,
+       "refused": 0,
+       "terms": 4
+      },
+      "majority_prior": {
+       "code": "D-001",
+       "predicate": "air_bags"
+      },
+      "permuted_labels": {
+       "placeholders": 4,
+       "terms": 4
+      }
+     },
+     "counts": {
+      "complaints": 246,
+      "make_rows": 266,
+      "without_narrative": 0
+     },
+     "draft": {
+      "categories": {
+       "below_floor": 0,
+       "other": 0,
+       "passing_floor": [
+        {
+         "label": "AIR BAGS",
+         "predicate": "air_bags",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "ENGINE",
+         "predicate": "engine",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "SERVICE BRAKES",
+         "predicate": "service_brakes",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "STEERING",
+         "predicate": "steering",
+         "records": 59,
+         "sites": 5
+        }
+       ],
+       "refused": 0,
+       "specific": 4
+      },
+      "dates": {
+       "format": "YYYYMMDD",
+       "rejected": 0
+      },
+      "entity_types": [],
+      "export": {
+       "blank_lines": 0,
+       "columns": 7,
+       "encoding": "utf-8",
+       "format": "comma",
+       "rejected": {},
+       "rows": 246
+      },
+      "other_bucket_rows": 0,
+      "other_bucket_share": 0.0,
+      "placeholders": 0,
+      "predicates": [
+       {
+        "code": "D-001",
+        "first_terms": [
+         "deploy",
+         "airbag",
+         "collision",
+         "inflated"
+        ],
+        "id": "air_bags",
+        "label": "AIR BAGS",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-002",
+        "first_terms": [
+         "revving",
+         "stalled",
+         "misfire",
+         "idling",
+         "stalled revving"
+        ],
+        "id": "engine",
+        "label": "ENGINE",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 5
+       },
+       {
+        "code": "D-003",
+        "first_terms": [
+         "stopping",
+         "grinding",
+         "pedal",
+         "braking"
+        ],
+        "id": "service_brakes",
+        "label": "SERVICE BRAKES",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-004",
+        "first_terms": [
+         "pulling",
+         "steering",
+         "veered",
+         "drifted"
+        ],
+        "id": "steering",
+        "label": "STEERING",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       }
+      ],
+      "refusal": {
+       "assignable": 0,
+       "categories": 0,
+       "category_rows": [],
+       "rows": 0,
+       "share": 0.0,
+       "terms": 0,
+       "with_minimum": 0,
+       "within_cap": 0
+      },
+      "refused_entity_values": 0,
+      "roles": {
+       "declared": {
+        "category": "components[]",
+        "date": "received",
+        "narrative": "summary",
+        "record_id": "odino",
+        "site": "state"
+       },
+       "inferred": {
+        "category": "components[]",
+        "date": "received",
+        "narrative": "summary",
+        "record_id": "odino",
+        "site": "state"
+       },
+       "of": 5,
+       "right": 5
+      },
+      "rows_without_specific": 0,
+      "terms": {
+       "candidates": 475,
+       "eligible": 59,
+       "max": 5,
+       "median": 4,
+       "min": 4,
+       "refused": 0,
+       "total": 17
+      },
+      "training": {
+       "corpus": 216,
+       "rows": 216,
+       "window": [
+        "2020-01-01",
+        "2022-12-31"
+       ],
+       "without_narrative": 0
+      }
+     },
+     "file_sha256": "1d6f821e6ca38b7bb6fbbd152cb38f517f8ab884d2398dd760f140509a929ed3",
+     "hand": {
+      "pack": {
+       "matched": {
+        "drafted": {
+         "coverage": 1.0,
+         "macro": {
+          "B": 10000,
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 12,
+          "undefined": 0
+         },
+         "records": 12
+        },
+        "hand": {
+         "coverage": 0.25,
+         "macro": {
+          "B": 10000,
+          "ci_high": 0.3333,
+          "ci_low": 0.0,
+          "f1": 0.25,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 0.6667,
+          "ci_low": 0.0,
+          "f1": 0.4,
+          "fn": 9,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 0.25,
+          "tp": 3,
+          "undefined": 0
+         },
+         "records": 12
+        }
+       },
+       "matched_names": 4,
+       "matched_predicates": 4,
+       "matched_records": 12,
+       "own_space": {
+        "coverage": 0.25,
+        "macro": {
+         "B": 10000,
+         "ci_high": 0.3333,
+         "ci_low": 0.0,
+         "f1": 0.25,
+         "pairs": 4,
+         "seed": "d001:boot:nhtsa",
+         "undefined": 0
+        },
+        "micro": {
+         "ci_high": 0.6667,
+         "ci_low": 0.0,
+         "f1": 0.4,
+         "fn": 9,
+         "fp": 0,
+         "precision": 1.0,
+         "recall": 0.25,
+         "tp": 3,
+         "undefined": 0
+        },
+        "records": 12
+       },
+       "rejected": 0
+      },
+      "pack-v2": {
+       "matched": {
+        "drafted": {
+         "coverage": 1.0,
+         "macro": {
+          "B": 10000,
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 12,
+          "undefined": 0
+         },
+         "records": 12
+        },
+        "hand": {
+         "coverage": 0.25,
+         "macro": {
+          "B": 10000,
+          "ci_high": 0.3333,
+          "ci_low": 0.0,
+          "f1": 0.25,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 0.6667,
+          "ci_low": 0.0,
+          "f1": 0.4,
+          "fn": 9,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 0.25,
+          "tp": 3,
+          "undefined": 0
+         },
+         "records": 12
+        }
+       },
+       "matched_names": 4,
+       "matched_predicates": 4,
+       "matched_records": 12,
+       "own_space": {
+        "coverage": 0.25,
+        "macro": {
+         "B": 10000,
+         "ci_high": 0.3333,
+         "ci_low": 0.0,
+         "f1": 0.25,
+         "pairs": 4,
+         "seed": "d001:boot:nhtsa",
+         "undefined": 0
+        },
+        "micro": {
+         "ci_high": 0.6667,
+         "ci_low": 0.0,
+         "f1": 0.4,
+         "fn": 9,
+         "fp": 0,
+         "precision": 1.0,
+         "recall": 0.25,
+         "tp": 3,
+         "undefined": 0
+        },
+        "records": 12
+       },
+       "rejected": 0
+      }
+     },
+     "label_in_text": 3,
+     "label_in_text_share": 0.25,
+     "pack": {
+      "files": "<code>",
+      "hashes": {
+       "config_hash": "95db52056a654608e8e1acd5ff29b014d0f1b2236aaa9112b706ff0e32807ce7",
+       "detector_hash": "39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416",
+       "fixtures_hash": "8c09fe676e6fb8033c0bf0e4d22b827e22284ad45bd7114fef488e8f9d6470d9",
+       "vocabulary_hash": "8c896e8843a9a5219ff197f62a4964f05d6b11d0e55d6cb696086423aae3784a"
+      },
+      "id": "nhtsa_jeep",
+      "loader": {
+       "error": null,
+       "passed": true
+      }
+     },
+     "reader_rejected": {
+      "drafted": 0,
+      "label_names": 0,
+      "permuted_labels": 0
+     },
+     "readers": {
+      "drafted": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "tp": 12,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "label_names": {
+       "coverage": 0.25,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.3333,
+        "ci_low": 0.0,
+        "f1": 0.25,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.6667,
+        "ci_low": 0.0,
+        "f1": 0.4,
+        "fn": 9,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 0.25,
+        "tp": 3,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "majority_prior": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.1961,
+        "ci_low": 0.0,
+        "f1": 0.1,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.5,
+        "ci_low": 0.0,
+        "f1": 0.25,
+        "fn": 9,
+        "fp": 9,
+        "precision": 0.25,
+        "recall": 0.25,
+        "tp": 3,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "permuted_labels": {
+       "coverage": 0.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "fn": 12,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0,
+        "undefined": 0
+       },
+       "records": 12
+      }
+     },
+     "sample": {
+      "drawn": 12,
+      "eligible": 12,
+      "in_training": 18,
+      "no_record_id": 0,
+      "no_specific": 0,
+      "repeated_in_test": 0,
+      "repeated_record_id": 0,
+      "test_rows": 30,
+      "with_narrative": 30
+     }
+    },
+    "NISSAN": {
+     "check": {
+      "checks": {
+       "labels": {
+        "failures": 0,
+        "labels": 9,
+        "passed": true
+       },
+       "loader": {
+        "error": null,
+        "passed": true
+       },
+       "ngram": {
+        "failures": 0,
+        "files": "<code>",
+        "narratives": 246,
+        "passed": true,
+        "tokens": 8
+       },
+       "refused_strings": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "strings": 20
+       },
+       "refused_terms": {
+        "failures": 0,
+        "files": "<code>",
+        "kinds": {
+         "equal": 0,
+         "inside": 0,
+         "name_word": 0
+        },
+        "passed": true,
+        "terms": 16
+       },
+       "template": {
+        "error": null,
+        "files": "<code>",
+        "passed": true
+       },
+       "term_floor": {
+        "failures": 0,
+        "passed": true,
+        "terms": 16
+       },
+       "value_floor": {
+        "entity_ids": 0,
+        "failures": 0,
+        "passed": true,
+        "spellings": 4
+       }
+      },
+      "kind": "onboard_check",
+      "pack": "nhtsa_nissan",
+      "passed": true,
+      "schema_version": 1
+     },
+     "controls": {
+      "label_names": {
+       "placeholders": 0,
+       "refused": 0,
+       "terms": 4
+      },
+      "majority_prior": {
+       "code": "D-001",
+       "predicate": "air_bags"
+      },
+      "permuted_labels": {
+       "placeholders": 4,
+       "terms": 4
+      }
+     },
+     "counts": {
+      "complaints": 246,
+      "make_rows": 266,
+      "without_narrative": 0
+     },
+     "draft": {
+      "categories": {
+       "below_floor": 0,
+       "other": 0,
+       "passing_floor": [
+        {
+         "label": "AIR BAGS",
+         "predicate": "air_bags",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "ENGINE",
+         "predicate": "engine",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "SERVICE BRAKES",
+         "predicate": "service_brakes",
+         "records": 59,
+         "sites": 5
+        },
+        {
+         "label": "STEERING",
+         "predicate": "steering",
+         "records": 59,
+         "sites": 5
+        }
+       ],
+       "refused": 0,
+       "specific": 4
+      },
+      "dates": {
+       "format": "YYYYMMDD",
+       "rejected": 0
+      },
+      "entity_types": [],
+      "export": {
+       "blank_lines": 0,
+       "columns": 7,
+       "encoding": "utf-8",
+       "format": "comma",
+       "rejected": {},
+       "rows": 246
+      },
+      "other_bucket_rows": 0,
+      "other_bucket_share": 0.0,
+      "placeholders": 0,
+      "predicates": [
+       {
+        "code": "D-001",
+        "first_terms": [
+         "inflated",
+         "airbag",
+         "deploy",
+         "collision"
+        ],
+        "id": "air_bags",
+        "label": "AIR BAGS",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-002",
+        "first_terms": [
+         "idling",
+         "revving",
+         "stalled",
+         "misfire"
+        ],
+        "id": "engine",
+        "label": "ENGINE",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-003",
+        "first_terms": [
+         "pedal",
+         "braking",
+         "grinding",
+         "stopping"
+        ],
+        "id": "service_brakes",
+        "label": "SERVICE BRAKES",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       },
+       {
+        "code": "D-004",
+        "first_terms": [
+         "steering",
+         "veered",
+         "pulling",
+         "drifted"
+        ],
+        "id": "steering",
+        "label": "STEERING",
+        "records": 59,
+        "refused_assignable": 0,
+        "terms": 4
+       }
+      ],
+      "refusal": {
+       "assignable": 0,
+       "categories": 0,
+       "category_rows": [],
+       "rows": 0,
+       "share": 0.0,
+       "terms": 0,
+       "with_minimum": 0,
+       "within_cap": 0
+      },
+      "refused_entity_values": 0,
+      "roles": {
+       "declared": {
+        "category": "components[]",
+        "date": "received",
+        "narrative": "summary",
+        "record_id": "odino",
+        "site": "state"
+       },
+       "inferred": {
+        "category": "components[]",
+        "date": "received",
+        "narrative": "summary",
+        "record_id": "odino",
+        "site": "state"
+       },
+       "of": 5,
+       "right": 5
+      },
+      "rows_without_specific": 0,
+      "terms": {
+       "candidates": 456,
+       "eligible": 57,
+       "max": 4,
+       "median": 4,
+       "min": 4,
+       "refused": 0,
+       "total": 16
+      },
+      "training": {
+       "corpus": 216,
+       "rows": 216,
+       "window": [
+        "2020-01-01",
+        "2022-12-31"
+       ],
+       "without_narrative": 0
+      }
+     },
+     "file_sha256": "1c3d7fb4025fd5219d2dc17394646ddb828ab2cb65007d1473e2cf3179cddc9d",
+     "hand": {
+      "pack": {
+       "matched": {
+        "drafted": {
+         "coverage": 1.0,
+         "macro": {
+          "B": 10000,
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 12,
+          "undefined": 0
+         },
+         "records": 12
+        },
+        "hand": {
+         "coverage": 0.25,
+         "macro": {
+          "B": 10000,
+          "ci_high": 0.3333,
+          "ci_low": 0.0,
+          "f1": 0.25,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 0.6667,
+          "ci_low": 0.0,
+          "f1": 0.4,
+          "fn": 9,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 0.25,
+          "tp": 3,
+          "undefined": 0
+         },
+         "records": 12
+        }
+       },
+       "matched_names": 4,
+       "matched_predicates": 4,
+       "matched_records": 12,
+       "own_space": {
+        "coverage": 0.25,
+        "macro": {
+         "B": 10000,
+         "ci_high": 0.3333,
+         "ci_low": 0.0,
+         "f1": 0.25,
+         "pairs": 4,
+         "seed": "d001:boot:nhtsa",
+         "undefined": 0
+        },
+        "micro": {
+         "ci_high": 0.6667,
+         "ci_low": 0.0,
+         "f1": 0.4,
+         "fn": 9,
+         "fp": 0,
+         "precision": 1.0,
+         "recall": 0.25,
+         "tp": 3,
+         "undefined": 0
+        },
+        "records": 12
+       },
+       "rejected": 0
+      },
+      "pack-v2": {
+       "matched": {
+        "drafted": {
+         "coverage": 1.0,
+         "macro": {
+          "B": 10000,
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 1.0,
+          "ci_low": 1.0,
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 12,
+          "undefined": 0
+         },
+         "records": 12
+        },
+        "hand": {
+         "coverage": 0.25,
+         "macro": {
+          "B": 10000,
+          "ci_high": 0.3333,
+          "ci_low": 0.0,
+          "f1": 0.25,
+          "pairs": 4,
+          "seed": "d001:boot:nhtsa",
+          "undefined": 0
+         },
+         "micro": {
+          "ci_high": 0.6667,
+          "ci_low": 0.0,
+          "f1": 0.4,
+          "fn": 9,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 0.25,
+          "tp": 3,
+          "undefined": 0
+         },
+         "records": 12
+        }
+       },
+       "matched_names": 4,
+       "matched_predicates": 4,
+       "matched_records": 12,
+       "own_space": {
+        "coverage": 0.25,
+        "macro": {
+         "B": 10000,
+         "ci_high": 0.3333,
+         "ci_low": 0.0,
+         "f1": 0.25,
+         "pairs": 4,
+         "seed": "d001:boot:nhtsa",
+         "undefined": 0
+        },
+        "micro": {
+         "ci_high": 0.6667,
+         "ci_low": 0.0,
+         "f1": 0.4,
+         "fn": 9,
+         "fp": 0,
+         "precision": 1.0,
+         "recall": 0.25,
+         "tp": 3,
+         "undefined": 0
+        },
+        "records": 12
+       },
+       "rejected": 0
+      }
+     },
+     "label_in_text": 3,
+     "label_in_text_share": 0.25,
+     "pack": {
+      "files": "<code>",
+      "hashes": {
+       "config_hash": "07df361c2b56a1756248e1c294f2fc7a947d6950ab02e96a1f0e220cf2ed573a",
+       "detector_hash": "39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416",
+       "fixtures_hash": "e05254c3e5376480ab577cd697b6ab3bc34bd0c970701681a62dcbd9a8041066",
+       "vocabulary_hash": "30dc2c1a8e5949d9cad3b184d56a934429d654c6a715b577aca5957c4216f904"
+      },
+      "id": "nhtsa_nissan",
+      "loader": {
+       "error": null,
+       "passed": true
+      }
+     },
+     "reader_rejected": {
+      "drafted": 0,
+      "label_names": 0,
+      "permuted_labels": 0
+     },
+     "readers": {
+      "drafted": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "tp": 12,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "label_names": {
+       "coverage": 0.25,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.3333,
+        "ci_low": 0.0,
+        "f1": 0.25,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.6667,
+        "ci_low": 0.0,
+        "f1": 0.4,
+        "fn": 9,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 0.25,
+        "tp": 3,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "majority_prior": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.1961,
+        "ci_low": 0.0,
+        "f1": 0.1,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.5,
+        "ci_low": 0.0,
+        "f1": 0.25,
+        "fn": 9,
+        "fp": 9,
+        "precision": 0.25,
+        "recall": 0.25,
+        "tp": 3,
+        "undefined": 0
+       },
+       "records": 12
+      },
+      "permuted_labels": {
+       "coverage": 0.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "pairs": 4,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "f1": 0.0,
+        "fn": 12,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0,
+        "undefined": 0
+       },
+       "records": 12
+      }
+     },
+     "sample": {
+      "drawn": 12,
+      "eligible": 12,
+      "in_training": 18,
+      "no_record_id": 0,
+      "no_specific": 0,
+      "repeated_in_test": 0,
+      "repeated_record_id": 0,
+      "test_rows": 30,
+      "with_narrative": 30
+     }
+    }
+   },
+   "criterion": {
+    "against": "pack",
+    "ci_high": 0.8701,
+    "ci_low": 0.6364,
+    "diff": 0.7561,
+    "exact": {
+     "ci_high": 0.8701298701298701,
+     "ci_low": 0.6363636363636364,
+     "comparisons": {
+      "ci_low > -0.05": true,
+      "ci_low > 0 (superior, decides nothing)": true
+     },
+     "diff": 0.7560975609756098
+    },
+    "id": "C2",
+    "margin": 0.05,
+    "matched_names": {
+     "CHEVROLET": 4,
+     "DODGE": 4,
+     "FORD": 4,
+     "HONDA": 4,
+     "JEEP": 4,
+     "NISSAN": 4
+    },
+    "passed": true,
+    "reason": null,
+    "records": 72,
+    "refusal": {
+     "assignable": 1,
+     "categories": 0,
+     "companies": 6,
+     "corpus": 1296,
+     "label_parts": 0,
+     "rows": 0,
+     "share": 0.0,
+     "terms": 1,
+     "with_minimum": 0,
+     "within_cap": 1
+    },
+    "superior": true
+   },
+   "errors": [],
+   "experiment": "D002",
+   "kind": "onboard_d001_arm",
+   "matched": {
+    "hand": {
+     "pack": {
+      "difference": {
+       "B": 10000,
+       "ci_high": 0.8701,
+       "ci_low": 0.6364,
+       "diff": 0.7561,
+       "exact_diff": 0.7561,
+       "f1_a": 1.0,
+       "f1_b": 0.2439,
+       "method": "paired percentile",
+       "n": 72,
+       "seed": "d001:boot:nhtsa",
+       "undefined": 0
+      },
+      "drafted": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "pairs": 24,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "tp": 72,
+        "undefined": 0
+       },
+       "records": 72
+      },
+      "hand": {
+       "coverage": 0.1389,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.2008,
+        "ci_low": 0.087,
+        "f1": 0.1583,
+        "pairs": 24,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.3636,
+        "ci_low": 0.1299,
+        "f1": 0.2439,
+        "fn": 62,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 0.1389,
+        "tp": 10,
+        "undefined": 0
+       },
+       "records": 72
+      },
+      "own_space": {
+       "coverage": 0.1389,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.2008,
+        "ci_low": 0.087,
+        "f1": 0.1583,
+        "pairs": 24,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.3636,
+        "ci_low": 0.1299,
+        "f1": 0.2439,
+        "fn": 62,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 0.1389,
+        "tp": 10,
+        "undefined": 0
+       },
+       "records": 72
+      },
+      "records": 72
+     },
+     "pack-v2": {
+      "difference": {
+       "B": 10000,
+       "ci_high": 0.8701,
+       "ci_low": 0.6364,
+       "diff": 0.7561,
+       "exact_diff": 0.7561,
+       "f1_a": 1.0,
+       "f1_b": 0.2439,
+       "method": "paired percentile",
+       "n": 72,
+       "seed": "d001:boot:nhtsa",
+       "undefined": 0
+      },
+      "drafted": {
+       "coverage": 1.0,
+       "macro": {
+        "B": 10000,
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "pairs": 24,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 1.0,
+        "ci_low": 1.0,
+        "f1": 1.0,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "tp": 72,
+        "undefined": 0
+       },
+       "records": 72
+      },
+      "hand": {
+       "coverage": 0.1389,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.2008,
+        "ci_low": 0.087,
+        "f1": 0.1583,
+        "pairs": 24,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.3636,
+        "ci_low": 0.1299,
+        "f1": 0.2439,
+        "fn": 62,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 0.1389,
+        "tp": 10,
+        "undefined": 0
+       },
+       "records": 72
+      },
+      "own_space": {
+       "coverage": 0.1389,
+       "macro": {
+        "B": 10000,
+        "ci_high": 0.2008,
+        "ci_low": 0.087,
+        "f1": 0.1583,
+        "pairs": 24,
+        "seed": "d001:boot:nhtsa",
+        "undefined": 0
+       },
+       "micro": {
+        "ci_high": 0.3636,
+        "ci_low": 0.1299,
+        "f1": 0.2439,
+        "fn": 62,
+        "fp": 0,
+        "precision": 1.0,
+        "recall": 0.1389,
+        "tp": 10,
+        "undefined": 0
+       },
+       "records": 72
+      },
+      "records": 72
+     }
+    }
+   },
+   "pooled": {
+    "differences": {
+     "label_names": {
+      "B": 10000,
+      "ci_high": 0.8701,
+      "ci_low": 0.6364,
+      "diff": 0.7561,
+      "exact_diff": 0.7561,
+      "f1_a": 1.0,
+      "f1_b": 0.2439,
+      "method": "paired percentile",
+      "n": 72,
+      "seed": "d001:boot:nhtsa",
+      "undefined": 0
+     },
+     "majority_prior": {
+      "B": 10000,
+      "ci_high": 0.8472,
+      "ci_low": 0.6528,
+      "diff": 0.75,
+      "exact_diff": 0.75,
+      "f1_a": 1.0,
+      "f1_b": 0.25,
+      "method": "paired percentile",
+      "n": 72,
+      "seed": "d001:boot:nhtsa",
+      "undefined": 0
+     },
+     "permuted_labels": {
+      "B": 10000,
+      "ci_high": 1.0,
+      "ci_low": 1.0,
+      "diff": 1.0,
+      "exact_diff": 1.0,
+      "f1_a": 1.0,
+      "f1_b": 0.0,
+      "method": "paired percentile",
+      "n": 72,
+      "seed": "d001:boot:nhtsa",
+      "undefined": 0
+     }
+    },
+    "label_in_text_share": 0.1389,
+    "readers": {
+     "drafted": {
+      "coverage": 1.0,
+      "macro": {
+       "B": 10000,
+       "ci_high": 1.0,
+       "ci_low": 1.0,
+       "f1": 1.0,
+       "pairs": 24,
+       "seed": "d001:boot:nhtsa",
+       "undefined": 0
+      },
+      "micro": {
+       "ci_high": 1.0,
+       "ci_low": 1.0,
+       "f1": 1.0,
+       "fn": 0,
+       "fp": 0,
+       "precision": 1.0,
+       "recall": 1.0,
+       "tp": 72,
+       "undefined": 0
+      },
+      "records": 72
+     },
+     "label_names": {
+      "coverage": 0.1389,
+      "macro": {
+       "B": 10000,
+       "ci_high": 0.2008,
+       "ci_low": 0.087,
+       "f1": 0.1583,
+       "pairs": 24,
+       "seed": "d001:boot:nhtsa",
+       "undefined": 0
+      },
+      "micro": {
+       "ci_high": 0.3636,
+       "ci_low": 0.1299,
+       "f1": 0.2439,
+       "fn": 62,
+       "fp": 0,
+       "precision": 1.0,
+       "recall": 0.1389,
+       "tp": 10,
+       "undefined": 0
+      },
+      "records": 72
+     },
+     "majority_prior": {
+      "coverage": 1.0,
+      "macro": {
+       "B": 10000,
+       "ci_high": 0.1376,
+       "ci_low": 0.0653,
+       "f1": 0.1,
+       "pairs": 24,
+       "seed": "d001:boot:nhtsa",
+       "undefined": 0
+      },
+      "micro": {
+       "ci_high": 0.3472,
+       "ci_low": 0.1528,
+       "f1": 0.25,
+       "fn": 54,
+       "fp": 54,
+       "precision": 0.25,
+       "recall": 0.25,
+       "tp": 18,
+       "undefined": 0
+      },
+      "records": 72
+     },
+     "permuted_labels": {
+      "coverage": 0.0,
+      "macro": {
+       "B": 10000,
+       "ci_high": 0.0,
+       "ci_low": 0.0,
+       "f1": 0.0,
+       "pairs": 24,
+       "seed": "d001:boot:nhtsa",
+       "undefined": 0
+      },
+      "micro": {
+       "ci_high": 0.0,
+       "ci_low": 0.0,
+       "f1": 0.0,
+       "fn": 72,
+       "fp": 0,
+       "precision": null,
+       "recall": 0.0,
+       "tp": 0,
+       "undefined": 0
+      },
+      "records": 72
+     }
+    },
+    "records": 72
+   },
+   "schema_version": 1,
+   "settings_sha256": "8bb9ba6ab9c8d4dca14ac86aa8df89f8cd1926b5355b9908ec3b71020c42c0e5",
+   "source": {
+    "arm": "nhtsa",
+    "downloads": [
+     {
+      "bytes": 332441,
+      "file": "COMPLAINTS_RECEIVED_2020-2024.zip",
+      "sha256": "f66034f5676722a2b87d3f03de294e19fa9dda4fd9b4e4c07980a9ebe61b42de"
+     }
+    ],
+    "makes": 6,
+    "window": [
+     "2020-01-01",
+     "2024-12-31"
+    ]
+   }
+  }
+ },
+ "audit": {
+  "alerts": {
+   "P": 4,
+   "PRR": 0,
+   "R_mf": 0,
+   "S": 0,
+   "X": 0
+  },
+  "channels_run": {
+   "P": true,
+   "PRR": true,
+   "R_mf": true,
+   "S": true,
+   "X": true
+  },
+  "records": 100,
+  "review_list": 0,
+  "sites": 4,
+  "weeks_evaluated": 136
+ },
+ "code_commit": "<code>",
+ "code_hash": "<code>",
+ "criteria": {
+  "C1": {
+   "best_control": "majority_prior",
+   "ci_high": 0.7963,
+   "ci_low": 0.537,
+   "diff": 0.6667,
+   "exact": {
+    "ci_high": 0.7962962962962963,
+    "ci_low": 0.537037037037037,
+    "comparisons": {
+     "ci_low > 0": true,
+     "diff >= 0.1": true
+    },
+    "diff": 0.6666666666666666,
+    "diff_fraction": "2/3"
+   },
+   "id": "C1",
+   "margin": 0.1,
+   "passed": true,
+   "reason": null,
+   "refusal": {
+    "assignable": 2,
+    "categories": 0,
+    "companies": 3,
+    "corpus": 549,
+    "label_parts": 0,
+    "rows": 0,
+    "share": 0.0,
+    "terms": 2,
+    "with_minimum": 0,
+    "within_cap": 2
+   }
+  },
+  "C2": {
+   "against": "pack",
+   "ci_high": 0.8701,
+   "ci_low": 0.6364,
+   "diff": 0.7561,
+   "exact": {
+    "ci_high": 0.8701298701298701,
+    "ci_low": 0.6363636363636364,
+    "comparisons": {
+     "ci_low > -0.05": true,
+     "ci_low > 0 (superior, decides nothing)": true
+    },
+    "diff": 0.7560975609756098
+   },
+   "id": "C2",
+   "margin": 0.05,
+   "matched_names": {
+    "CHEVROLET": 4,
+    "DODGE": 4,
+    "FORD": 4,
+    "HONDA": 4,
+    "JEEP": 4,
+    "NISSAN": 4
+   },
+   "passed": true,
+   "reason": null,
+   "records": 72,
+   "refusal": {
+    "assignable": 1,
+    "categories": 0,
+    "companies": 6,
+    "corpus": 1296,
+    "label_parts": 0,
+    "rows": 0,
+    "share": 0.0,
+    "terms": 1,
+    "with_minimum": 0,
+    "within_cap": 1
+   },
+   "superior": true
+  },
+  "M1": {
+   "code_commits": 1,
+   "download_code_lines": {
+    "tools/market/nhtsa_export.py": 271,
+    "tools/market/vehicle_pack.py": 248,
+    "tools/onboard/fetch_msha.py": 242,
+    "tools/onboard/fetch_nhtsa.py": 141
+   },
+   "download_code_total": 902,
+   "label_hits": 0,
+   "package_hits": {},
+   "passed": true
+  },
+  "M2": {
+   "drafted": 9,
+   "loaded": 9,
+   "not_drafted": 0,
+   "passed": true
+  },
+  "M3": {
+   "backstop_values": {
+    "report_record_id": 2325,
+    "report_site": 12
+   },
+   "exports_unread": 0,
+   "guard_strings": {
+    "msha": 73,
+    "nhtsa": 177
+   },
+   "last_guard_clean": true,
+   "packs": 9,
+   "passed": true,
+   "passed_floor": 9
+  },
+  "M4": {
+   "audit": {
+    "alerts": {
+     "P": 4,
+     "PRR": 0,
+     "R_mf": 0,
+     "S": 0,
+     "X": 0
+    },
+    "channels_run": {
+     "P": true,
+     "PRR": true,
+     "R_mf": true,
+     "S": true,
+     "X": true
+    },
+    "records": 100,
+    "review_list": 0,
+    "sites": 4,
+    "weeks_evaluated": 136
+   },
+   "passed": true
+  }
+ },
+ "definitions": {
+  "msha": {
+   "ACCIDENT_DT": [
+    "ACCIDENT_DT\tThe accident date, mm/dd/yyyy."
+   ],
+   "ACCIDENT_TYPE": [],
+   "CLASSIFICATION": [
+    "CLASSIFICATION\tThe circumstances."
+   ],
+   "CLOSED_DOC_NO": [],
+   "CONTRACTOR_ID": [],
+   "CONTROLLER_ID": [],
+   "CONTROLLER_NAME": [],
+   "DOCUMENT_NO": [
+    "DOCUMENT_NO\tThe document number of the accident."
+   ],
+   "FIPS_STATE_CD": [],
+   "MINE_ID": [
+    "MINE_ID\tThe mine."
+   ],
+   "NARRATIVE": [
+    "NARRATIVE\tWhat happened.",
+    "In words."
+   ],
+   "OPERATOR_ID": [],
+   "OPERATOR_NAME": []
+  }
+ },
+ "downloads": {
+  "msha": [
+   {
+    "bytes": 445989,
+    "file": "Accidents.zip",
+    "sha256": "a3641432636c96f870ce27e0f17584564a4968d39e32aa46f549781c3f743cb5"
+   },
+   {
+    "bytes": 183,
+    "file": "Accidents_Definition_File.txt",
+    "sha256": "d5b8abeebdf10953205dbc0bd8fc7e8d95e198216ea7ad76e3fe3b90f1c39121"
+   }
+  ],
+  "nhtsa": [
+   {
+    "bytes": 332441,
+    "file": "COMPLAINTS_RECEIVED_2020-2024.zip",
+    "sha256": "f66034f5676722a2b87d3f03de294e19fa9dda4fd9b4e4c07980a9ebe61b42de"
+   }
+  ]
+ },
+ "experiment": "D002",
+ "files": "<code>",
+ "kind": "onboard_d001_report",
+ "schema_version": 1,
+ "settings": {
+  "path": "docs/collective/onboard/D002-settings.json",
+  "sha256": "8bb9ba6ab9c8d4dca14ac86aa8df89f8cd1926b5355b9908ec3b71020c42c0e5"
+ },
+ "verdict": "pass"
+}
