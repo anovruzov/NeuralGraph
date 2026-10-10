@@ -13,23 +13,26 @@ file, a field no pack covers, for one operator. D002 splits the file by controll
   read by the drafter's own reader. The settings file names this source's columns; the drafter's code names none;
 * **(b) the drafted pack:** :func:`mycelic.collective.onboard.draft.draft_export` over the training years, then the
   loader and the privacy floor (:func:`mycelic.collective.onboard.check.check_pack`). A drafted term is withheld from
-  the screen when the operator's narratives write one of its words like a name (:func:`name_shaped_words`);
+  the screen when one of its words is a word of a refused value of an operator in the split, or when the operator's
+  narratives write that word like a name or never in lower case (:func:`withheld_reason`);
 * **(c) reading the held-out years:** the sample, the three controls and the metrics, with the functions of
   :mod:`mycelic.collective.onboard.score` in the order its per-company step calls them, so the numbers are D002's for
   that operator when the file and the settings are D002's. The figures D002 recorded are read from its choice file,
   and the input file's size and sha256 are compared with the ones D002 recorded (``demo/onboard/d002-input.json``);
 * **(d) the cross-mine audit:** the normalised export of the held-out years, each mine id replaced by its label (m01
-  onwards, in the order of the ids), through :func:`mycelic.collective.pilot.audit.audit` with no outcomes. So every
-  bundle and cell that leaves a mine carries its label, never its id. The same audit also runs under the mines' own
-  ids, as D002's M4 ran it, and the two results are compared. What left each mine is counted from the audit's own
-  collective store while it runs, and the bytes that left are scanned by the guard. The review list is shown in two
-  parts: the items X or S raised (they read only the weekly cells that left the mines), and the items R_mf alone
-  raised (a reference channel that counts record-level codes centrally);
+  onwards, in the order of the ids), through :func:`mycelic.collective.pilot.audit.audit` with no outcomes. Each mine
+  runs as its own site inside this process, from the operator's export; nothing is sent over a network. Every bundle
+  and cell that crosses from a mine's store to HQ's carries its label, never its id. The same audit also runs under
+  the mines' own ids, as D002's M4 ran it, and the two results are compared. What left each mine is counted from the
+  audit's own collective store while it runs, and the bytes that left are scanned by the guard. The review list is
+  shown in two parts: the items X or S raised (they read only the weekly cells that left the mines, and the mines
+  behind each are counted from those cells), and the items R_mf alone raised (a reference channel that counts
+  record-level codes centrally);
 * **(e)** one line on what the review list means.
 
 **What it never prints or writes:** a narrative or any record text, a record id, a mine id, an operator or controller
 name or id. Operators are c1 to c5 (D002's labels); mines are m01 onwards. Before anything is printed or written, the
-strings that came from records (category labels and drafted terms) go through D002's last guard against the operator's
+strings that came from records (category labels and first terms) go through D002's last guard against the operator's
 own export (:func:`mycelic.collective.onboard.report.company_hits`), and the whole rendered text and the bytes that left
 the mines are scanned for every record id and mine id of every operator in the split (D002's backstop,
 :class:`mycelic.collective.onboard.report.Backstop`) and for every value of a refused column of at least four
@@ -75,7 +78,7 @@ from mycelic.collective.packs.connector import map_rows  # noqa: E402
 from mycelic.collective.pilot import audit as A  # noqa: E402
 
 KIND = "onboard_drafter_demo"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 ARM = "msha"
 DEFAULT_SETTINGS = "docs/collective/onboard/D002-settings.json"
 RUN_FILE = "docs/collective/onboard/run-002.json"
@@ -85,7 +88,7 @@ FETCH = "tools/onboard/fetch_msha.py"
 COMPANY_RE = re.compile(r"c[1-9][0-9]?", re.ASCII)
 WORD_RE = re.compile(r"[^\W_]+")
 SENTENCE_END = frozenset(".!?")
-NAME_SHARE = 0.9          # a word is written like a name when capitalised in at least nine of ten mid-sentence uses
+NAME_SHARE = 0.5          # a word is written like a name in at least half of its lower-case and mid-sentence uses
 READER_NAMES = {"drafted": "drafted pack", "majority_prior": "majority prior", "permuted_labels": "permuted labels",
                 "label_names": "label names"}
 CHECK_NAMES = {"loader": "the loader", "term_floor": "the term floor", "value_floor": "the value floor",
@@ -104,10 +107,12 @@ NOT_SHOWN = (
     "for it (D002's M1 counts such code). The drafter's code names no column.",
     "Operators are c1 to c5 and mines m01 onwards. The guard looks in every output for the record ids, mine ids and "
     "refused values (operator and controller names and ids among them) of the operators in the split, as D002's "
-    "guard reads them. A drafted term is withheld when the operator's narratives write one of its words like a name. "
-    "A name written in lower case, or only in narratives written all in capitals, is not caught by that check.",
+    "guard reads them. A drafted term is withheld from the screen when one of its words is a word of those refused "
+    "values, or when the operator's narratives write that word like a name (with a capital or in capitals) or never "
+    "in lower case. A name that is not such a word and that the narratives write in lower case in most of its uses, "
+    "as a common word or not, is not caught: the screen does not show that no name is on it.",
 )
-REVIEW_MEANS = ("Items from the weekly counts: {counted}. Each is a category whose counts rose at {min_sites} or more "
+REVIEW_MEANS = ("Items from the weekly cells: {counted}. Each is a category whose counts rose at {min_sites} or more "
                 "of {company}'s mines in the same weeks, and none matches an outcome on record, because the demo has "
                 "no outcomes file. Only the operator's own people could say which are real. Reference only, from "
                 "R_mf: {reference}. Those need record-level codes counted centrally, which this setup does not send.")
@@ -319,7 +324,9 @@ def blocks_export(data: Mapping[str, Any], company: str) -> list[dict[str, Any]]
                                          ("date", r["date"]), ("narrative", r["narrative"]),
                                          ("filed category (the answer key)", r["category"])],
                     title="The roles come from the settings file: data, not code."),
-        text_block(f"Values of {len(r['refused'])} columns are read only to refuse terms, and never shown: "
+        text_block(f"Values of {len(r['refused'])} columns are read only to "
+                   + (f"split the file ({data['split_column']}), " if data["split_column"] in r["refused"] else "")
+                   + "to refuse and withhold terms, and to check every output, and are never shown: "
                    + ", ".join(r["refused"]) + ". Every other column is ignored."),
     ]
 
@@ -327,21 +334,23 @@ def blocks_export(data: Mapping[str, Any], company: str) -> list[dict[str, Any]]
 # --------------------------------------------------------------------------------------------------- names
 
 def name_shaped_words(narratives: Iterable[str], share: float = NAME_SHARE) -> tuple[frozenset[str], int]:
-    """The words (folded) that the narratives write like a name, and how many narratives could not be read for it.
+    """The words (folded) of the narratives that are not plain words, and how many narratives have no case to read.
 
-    A narrative written all in capitals has no case to read and is skipped (it is counted). In the others, each word
-    away from the start of a sentence is capitalised (a capital first letter, not all capitals) or in lower case; a
-    word in all capitals, such as an abbreviation, counts as neither. A word is written like a name when at least
-    ``share`` of its counted uses away from the start of a sentence are capitalised, or when it has no such use and
-    is capitalised at the start of a sentence."""
-    mid_title: Counter[str] = Counter()
-    mid_lower: Counter[str] = Counter()
-    start_title: Counter[str] = Counter()
+    A narrative with no lower-case letter is written all in capitals: its words are taken, but their case is not read
+    (the narrative is counted). In the others, a use of a word is in lower case (anywhere), or written like a name: a
+    capital first letter, or all capitals, away from the start of a sentence. A word is plain when it has a lower-case
+    use and fewer than ``share`` of its lower-case and name-like uses are name-like. Every other word is returned:
+    a word written like a name in at least ``share`` of those uses (in capitals inside mixed-case text included), and
+    a word never written in lower case (seen only at sentence starts, or only in narratives written all in capitals).
+    A name the narratives write in lower case often enough, or that is also a common word written so, is plain."""
+    name_like: Counter[str] = Counter()
+    lower: Counter[str] = Counter()
+    seen: set[str] = set()
     caps = 0
     for text in narratives:
-        if not any(ch.islower() for ch in text):
+        readable = any(ch.islower() for ch in text)
+        if not readable:
             caps += int(any(ch.isupper() for ch in text))
-            continue
         prev = None
         for m in WORD_RE.finditer(text):
             at_start = prev is None or any(ch in SENTENCE_END for ch in text[prev:m.start()])
@@ -349,23 +358,32 @@ def name_shaped_words(narratives: Iterable[str], share: float = NAME_SHARE) -> t
             word = m.group()
             if not any(ch.isalpha() for ch in word):
                 continue
-            title = word[0].isupper() and not word.isupper()
-            lower = not any(ch.isupper() for ch in word)
-            for w in D.words_of(folded(word)):
-                if title:
-                    (start_title if at_start else mid_title)[w] += 1
-                elif lower and not at_start:
-                    mid_lower[w] += 1
-    names = set()
-    for w in set(mid_title) | set(start_title):
-        counted = mid_title[w] + mid_lower[w]
-        if (counted and mid_title[w] >= share * counted) or (not counted and start_title[w]):
-            names.add(w)
-    return frozenset(names), caps
+            words = D.words_of(folded(word))
+            seen.update(words)
+            if not readable:
+                continue
+            if not any(ch.isupper() for ch in word):
+                lower.update(words)
+            elif not at_start:
+                name_like.update(words)
+    plain = {w for w in lower if name_like[w] < share * (name_like[w] + lower[w])}
+    return frozenset(seen - plain), caps
 
 
 def name_shaped(term: str, names: frozenset[str]) -> bool:
     return any(w in names for w in D.words_of(folded(term)))
+
+
+def withheld_reason(term: str, names: frozenset[str], refused_words: frozenset[str]) -> str | None:
+    """Why a drafted term is kept off the screen, or None: ``refused_word`` when one of its words is a word of a
+    refused value of an operator in the split, else ``name_shaped`` when one is not a plain word of the operator's
+    narratives (:func:`name_shaped_words`)."""
+    words = D.words_of(folded(term))
+    if any(w in refused_words for w in words):
+        return "refused_word"
+    if any(w in names for w in words):
+        return "name_shaped"
+    return None
 
 
 # --------------------------------------------------------------------------------------------------- (b) the draft
@@ -388,18 +406,25 @@ def step_draft(settings: Mapping[str, Any], export: Any, company: str, work: Pat
             "roles": roles, "template": template, "train": train}
 
 
-def data_draft(b: Mapping[str, Any], settings: Mapping[str, Any], names: frozenset[str],
+def data_draft(b: Mapping[str, Any], settings: Mapping[str, Any], names: frozenset[str], refused_words: frozenset[str],
                caps: int) -> dict[str, Any]:
     d, checked = b["draft"], b["check"]
     facts, params = d.facts, settings["params"]
     shown = bool(checked["passed"])
     prefix = b["template"]["ids.json"]["placeholder_prefix"]
     predicates = []
+    reasons: Counter[str] = Counter()
     for p in facts["predicates"]:
         if not shown:
             predicates.append({"code": p["code"], "records": p["records"], "terms": p["terms"]})
             continue
-        kept = [t for t in p["first_terms"] if t.startswith(prefix) or not name_shaped(t, names)]
+        kept = []
+        for t in p["first_terms"]:
+            why = None if t.startswith(prefix) else withheld_reason(t, names, refused_words)
+            if why is None:
+                kept.append(t)
+            else:
+                reasons[why] += 1
         predicates.append({"label": p["label"], "records": p["records"], "first_terms": kept,
                            "withheld_terms": len(p["first_terms"]) - len(kept),
                            "refused_assignable": p["refused_assignable"]})
@@ -417,17 +442,18 @@ def data_draft(b: Mapping[str, Any], settings: Mapping[str, Any], names: frozens
             "privacy_floor": {"passed": shown, "checks": {k: bool(v["passed"]) for k, v in checked["checks"].items()}},
             "loader_passed": b["pack"] is not None,
             "names": {"withheld_terms": sum(p.get("withheld_terms", 0) for p in predicates),
+                      "refused_word": reasons["refused_word"], "name_shaped": reasons["name_shaped"],
                       "narratives_in_capitals": caps},
             "predicates": predicates}
 
 
 def predicate_line(p: Mapping[str, Any]) -> str:
-    """One predicate as D002's report prints it (``report.render``), less any term written like a name, whose count
-    is added at the end."""
+    """One predicate as D002's report prints it (``report.render``), less any term kept off the screen
+    (:func:`withheld_reason`), whose count is added at the end."""
     line = (f"{p['label']} ({p['records']} corpus records; {p['refused_assignable']} refused terms would have been "
             f"assigned): {', '.join(p['first_terms']) or 'no term shown'}")
     if p.get("withheld_terms"):
-        line += f" ({p['withheld_terms']} more withheld: written like a name in the narratives)"
+        line += f" ({p['withheld_terms']} more withheld from the screen)"
     return line
 
 
@@ -453,9 +479,11 @@ def blocks_draft(data: Mapping[str, Any], company: str) -> list[dict[str, Any]]:
                                     f"({n(data['terms']['total'])} terms in all; {data['placeholders']} predicates "
                                     "learned none):"))
         out.append(text_block(
-            f"Terms withheld because {company}'s narratives write one of their words like a name: "
-            f"{n(names['withheld_terms'])}. Narratives written all in capitals, which that check cannot read: "
-            f"{n(names['narratives_in_capitals'])}."))
+            f"Terms withheld from the screen: {n(names['withheld_terms'])}. {n(names['refused_word'])} hold a word of "
+            f"a refused value (a name or an id) of an operator in the split. {n(names['name_shaped'])} hold a word "
+            f"{company}'s narratives write like a name (with a capital or in capitals away from a sentence start, in "
+            "at least half of its uses that show case) or never write in lower case. Narratives written all in "
+            f"capitals, whose case is not read: {n(names['narratives_in_capitals'])}."))
     else:
         out.append(list_block([f"{p['code']}: {p['records']} corpus records, {p['terms']} terms"
                                for p in data["predicates"]], title="Predicates by code:"))
@@ -598,9 +626,10 @@ def mine_labels(sites: Iterable[str]) -> dict[str, str]:
 
 class Watch:
     """While the labelled audit runs: the cells each site sent (the audit's own collective store holds every weekly
-    cell that left a site), the bytes that left the sites (HQ's receive log), and the X and S alerts as the audit
-    computed them, sites included. Read-only; the audit's result is unchanged, and every patched function is put
-    back."""
+    cell that left a site), the bytes that left the sites (HQ's receive log), the X and S alerts as the audit computed
+    them, sites included, and the cells each of those runs reads at HQ, so that the mines behind an alert are counted
+    from what left them (:meth:`cell_sites`). Read-only; the audit's result is unchanged, and every patched function
+    is put back."""
 
     def __init__(self) -> None:
         self.cells: dict[str, dict[str, int]] = {}
@@ -608,7 +637,18 @@ class Watch:
         self.sent_bytes = 0
         self.bundles = 0
         self.alerts: dict[str, list[dict[str, Any]]] = {}
+        self.cell_weeks: dict[str, dict[str, list[tuple[str, str]]]] = {}
+        self.weeks: list[str] = []
+        self.window = 0
         self._hq: dict[str, Any] | None = None
+
+    def cell_sites(self, run_channel: str, alert: Mapping[str, Any]) -> set[str]:
+        """The sites with a cell at HQ, of the channels ``run_channel`` reads, for the alert's key in the detectors'
+        window up to the alert's week: the weeks :func:`.audit._alerts` takes its sites from."""
+        at = self.weeks.index(alert["week"])
+        lo = self.weeks[max(0, at - self.window + 1)]
+        return {site for week, site in self.cell_weeks.get(run_channel, {}).get(alert["key"], ())
+                if lo <= week <= alert["week"]}
 
     @contextlib.contextmanager
     def active(self) -> Any:
@@ -624,6 +664,12 @@ class Watch:
                 entry["cells"] += 1
                 entry["suppressed"] += int(c.n is None)
             self.bundles = len(bundles)
+            self.weeks, self.window = list(pipeline.weeks), pipeline.pack.detectors["window_weeks"]
+            for name in COUNT_CHANNELS:
+                keyed: dict[str, list[tuple[str, str]]] = {}
+                for c in pipeline.store.detection_inputs(pipeline.as_of, name)[1]:
+                    keyed.setdefault(f"{c.entity_type}:{c.entity_id}:{c.predicate}", []).append((c.iso_week, c.site))
+                self.cell_weeks[name] = keyed
             workdir = kwargs.get("workdir")
             log = Path(workdir) / "hq" / "receive.jsonl" if workdir is not None else None
             if log is not None and log.is_file():
@@ -689,23 +735,32 @@ def step_audit(settings: Mapping[str, Any], export: Any, b: Mapping[str, Any]) -
 
 
 def review_parts(doc: Mapping[str, Any], alerts: Mapping[str, Sequence[Mapping[str, Any]]],
-                 label: Callable[[str], str]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+                 label: Callable[[str], str], cell_sites: Callable[[str, Mapping[str, Any]], set[str]]
+                 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """The review list in two parts. First, each item X or S raised, with the weeks of its X and S alerts and the
-    mines with records of it in the window up to one of them, as the audit computed them for those alerts. Second,
-    each item R_mf alone raised, as the audit lists it. An item never moves from the second part to the first."""
+    mines that sent a cell of it, in the window up to one of them, to HQ (``cell_sites``, from the cells those runs
+    read). Those mines must be the ones the audit took from the sites' own stores for the same alerts, or nothing is
+    shown. Second, each item R_mf alone raised, as the audit lists it. An item never moves from the second part to the
+    first."""
     keyed = {name: [a for a in alerts.get(name, ())] for name in COUNT_CHANNELS}
     counted, reference = [], []
     for e in doc["review"]:
         by = [name for name in e["channels"] if name in COUNT_CHANNELS]
         if by:
-            hits = [a for name in by for a in keyed[name] if a["key"] == e["key"]]
+            hits = [(name, a) for name in by for a in keyed[name] if a["key"] == e["key"]]
             if not hits:
                 raise DemoError("an X or S item of the review list has no X or S alert")
-            weeks = sorted({a["week"] for a in hits})
+            mines: set[str] = set()
+            for name, a in hits:
+                sent = cell_sites(name, a)
+                if sent != set(a["sites"]):
+                    raise DemoError("the mines behind an X or S alert differ between HQ's cells and the audit")
+                mines |= sent
+            weeks = sorted({a["week"] for _, a in hits})
             counted.append({"category": label(e["predicate"]), "channels": by,
                             "also": [name for name in e["channels"] if name not in COUNT_CHANNELS],
                             "first_week": weeks[0], "last_week": weeks[-1], "alerts": len(hits),
-                            "mines": len({s for a in hits for s in a["sites"]})})
+                            "mines": len(mines)})
         else:
             weeks = sorted(e["alert_weeks"])
             reference.append({"category": label(e["predicate"]), "channels": list(e["channels"]),
@@ -734,7 +789,7 @@ def data_audit(a: Mapping[str, Any], pack: Any, shown: bool) -> dict[str, Any]:
     for name in A.channel_names(doc):
         s = doc["channels"][name]["summary"]
         alerts[name] = s["alerts"] if s is not None else None
-    counted, reference = review_parts(doc, watch.alerts, label)
+    counted, reference = review_parts(doc, watch.alerts, label, watch.cell_sites)
     det = pack.detectors
     w = doc["weeks"]
     return {"records": doc["export"]["records"], "mines": len(sites), "weeks_evaluated": w["evaluated_weeks"],
@@ -743,10 +798,11 @@ def data_audit(a: Mapping[str, Any], pack: Any, shown: bool) -> dict[str, Any]:
             "per_mine": per_mine, "cells": sum(m["cells"] for m in per_mine),
             "suppressed_cells": sum(m["suppressed_cells"] for m in per_mine),
             "sent": {"bytes": watch.sent_bytes, "bundles": watch.bundles},
-            "same_under_own_ids": a["same_under_own_ids"], "alerts": alerts, "outcomes": doc["outcomes"]["given"],
+            "same_under_own_ids": a["same_under_own_ids"], "own_ids": dict(a["own"]), "alerts": alerts,
+            "outcomes": doc["outcomes"]["given"],
             "window_weeks": det["window_weeks"],
             "min_sites": min(det["burst"]["min_sites"], det["cooccurrence"]["min_sites"]),
-            "review": {"total": len(doc["review"]), "from_counts": counted, "reference_only": reference}}
+            "review": {"total": len(doc["review"]), "from_cells": counted, "reference_only": reference}}
 
 
 def compare_audit(company: str, own: Mapping[str, Any], record: Mapping[str, Any], is_d002: bool) -> dict[str, Any]:
@@ -764,12 +820,24 @@ def compare_audit(company: str, own: Mapping[str, Any], record: Mapping[str, Any
 def counted_item(r: Mapping[str, Any], window: int) -> str:
     also = f" ({joined(r['also'])} also raised it)" if r["also"] else ""
     return (f"{r['category']}: {joined(r['channels'])} alerts in {weeks_text(r['first_week'], r['last_week'])}; "
-            f"{r['mines']} mines with records of it in the {window} weeks up to one of them{also}")
+            f"{r['mines']} mines sent a cell of it in the {window} weeks up to one of them{also}")
 
 
 def reference_item(r: Mapping[str, Any], window: int) -> str:
     return (f"{r['category']}: {joined(r['channels'])} alerts in {weeks_text(r['first_week'], r['last_week'])}; "
             f"{r['mines']} mines with records of it in the {window} weeks up to one of them")
+
+
+def own_ids_line(data: Mapping[str, Any]) -> str:
+    """Whether the audit under the mines' own ids (D002's M4 path) gave the labelled run's result, and its figures
+    when it did not: D002's recorded counts are compared with that run."""
+    if data["same_under_own_ids"]:
+        return ("The same audit under the mines' own ids, as D002's M4 ran it, gives the same alerts, review list and "
+                "counts.")
+    o = data["own_ids"]
+    return (f"The same audit under the mines' own ids, as D002's M4 ran it, gives a different result: "
+            f"{n(o['records'])} records, {n(o['sites'])} mines, {n(o['weeks'])} weeks, a review list of "
+            f"{n(o['review_list'])}. D002's figures are compared with that run.")
 
 
 def blocks_audit(data: Mapping[str, Any], cmp: Mapping[str, Any], company: str,
@@ -780,11 +848,10 @@ def blocks_audit(data: Mapping[str, Any], cmp: Mapping[str, Any], company: str,
     lines = [f"{company}'s held-out years through the audit: {n(data['records'])} records at {data['mines']} mines, "
              f"{data['weeks_evaluated']} weeks evaluated ({data['evaluated_from']} to {data['evaluated_to']}). "
              "The weeks before build each series' history.",
-             f"Each mine sends its counts under its label ({named}), never its id. "
-             + ("The same audit under the mines' own ids, as D002's M4 ran it, gives the same alerts, review list "
-                "and counts." if data["same_under_own_ids"] else
-                "The same audit under the mines' own ids, as D002's M4 ran it, gives a different result. D002's "
-                "figures are compared with that run.")]
+             f"Each mine runs as its own site inside this process, built from {company}'s export on this machine, "
+             "and nothing is sent over a network. What left a mine is what crossed from its site's store to HQ's, as "
+             "HQ's receive log holds it.",
+             f"Each mine's cells carry its label ({named}), never its id. " + own_ids_line(data)]
     rec = cmp.get("recorded")
     if cmp["status"] != "not_recorded":
         said = (f"{rec['records']} records, {rec['sites']} mines, {rec['weeks']} weeks, a review list of "
@@ -797,15 +864,17 @@ def blocks_audit(data: Mapping[str, Any], cmp: Mapping[str, Any], company: str,
     out.append(table_block(
         ("Mine", "Weekly bundles", "Cells", f"Cells with a count under {k}"),
         [(m["mine"], n(m["weekly_bundles"]), n(m["cells"]), n(m["suppressed_cells"])) for m in data["per_mine"]],
-        title=(f"What left each mine: weekly counts only, under its label, one cell per category, week and channel. "
-               f"A count under {k} leaves as '<{k}'. The {n(data['sent']['bytes'])} bytes that left were scanned "
-               f"for the record ids, mine ids and refused values of the {operators} operators in the split, as "
-               "D002's guard reads them: none found. No narrative or record id leaves.")))
+        title=(f"What left each mine: weekly cells only, under its label, one per category, week and channel that "
+               f"had a record. A cell holds counts (a count under {k} leaves as '<k', with k = {k} in its bundle) "
+               f"and, with {k} or more records, the lowest match confidence, one of the pack's fixed levels. The "
+               f"{n(data['sent']['bytes'])} bytes that left were scanned for the record ids, mine ids and refused "
+               f"values of the {operators} operators in the split, as D002's guard reads them: none found. No "
+               "narrative or record id leaves.")))
     alerts = data["alerts"]
     counted = [f"{name} {n(alerts[name])}" for name in COUNT_CHANNELS if alerts.get(name) is not None]
     refs = [f"{name} {n(alerts[name])}" for name in (REFERENCE_CHANNEL, *COMPARATORS) if alerts.get(name) is not None]
     notrun = [name for name, v in alerts.items() if v is None]
-    alert_lines = [f"Alerts from the weekly counts alone: {', '.join(counted) or 'none run'}. X reads the codes and "
+    alert_lines = [f"Alerts from the weekly cells alone: {', '.join(counted) or 'none run'}. X reads the codes and "
                    f"text cells, S the codes cells only. Each raises an alert only when a category's counts rise at "
                    f"{data['min_sites']} or more mines in the same weeks."]
     if refs:
@@ -817,8 +886,8 @@ def blocks_audit(data: Mapping[str, Any], cmp: Mapping[str, Any], company: str,
                        "grouped by pattern; P and PRR add nothing to it.")
     out.append(text_block(*alert_lines))
     review = data["review"]
-    out.append(list_block([counted_item(r, window) for r in review["from_counts"]] or ["None."],
-                          title=f"The review list, from the weekly counts (X or S): {len(review['from_counts'])} of "
+    out.append(list_block([counted_item(r, window) for r in review["from_cells"]] or ["None."],
+                          title=f"The review list, from the weekly cells (X or S): {len(review['from_cells'])} of "
                                 f"{review['total']}."))
     out.append(list_block([reference_item(r, window) for r in review["reference_only"]] or ["None."],
                           title=f"Reference only, raised by R_mf alone: {len(review['reference_only'])} of "
@@ -829,17 +898,19 @@ def blocks_audit(data: Mapping[str, Any], cmp: Mapping[str, Any], company: str,
 
 def blocks_means(data: Mapping[str, Any], company: str) -> list[dict[str, Any]]:
     review = data["review"]
-    return [text_block(REVIEW_MEANS.format(counted=len(review["from_counts"]), min_sites=data["min_sites"],
+    return [text_block(REVIEW_MEANS.format(counted=len(review["from_cells"]), min_sites=data["min_sites"],
                                            company=company, reference=len(review["reference_only"])))]
 
 
 # --------------------------------------------------------------------------------------------------- the guard
 
-def refused_index(exports: Iterable[Any], roles: Any, params: Mapping[str, Any]) -> D.ValueIndex:
+def refused_index(exports: Iterable[Any], roles: Any, params: Mapping[str, Any]) -> tuple[D.ValueIndex, frozenset[str]]:
     """Every value of a refused column of at least four characters that holds a letter, or of at least five (the
-    lengths of D002's refusal), folded, over the given exports."""
+    lengths of D002's refusal), folded, over the given exports; and every word of a refused value that a drafted term
+    could hold (letters only, at least ``token_min_letters`` of them), short ones and single-word values included."""
     p = params["refusal"]
     values: set[str] = set()
+    words: set[str] = set()
     for export in exports:
         _, forbidden = D.refused_values(export, roles)
         for v in forbidden:
@@ -847,12 +918,13 @@ def refused_index(exports: Iterable[Any], roles: Any, params: Mapping[str, Any])
             if (len(f) >= p["forbidden_inside_min_chars"] and any(ch.isalpha() for ch in f)) \
                     or len(f) >= p["reference_inside_min_chars"]:
                 values.add(f)
-    return D.ValueIndex(values)
+            words.update(w for w in D.words_of(f) if w.isalpha() and len(w) >= params["token_min_letters"])
+    return D.ValueIndex(values), frozenset(words)
 
 
 def printed_strings_entry(b: Mapping[str, Any], c: Mapping[str, Any] | None) -> dict[str, Any]:
-    """The operator's record strings in the shape of an arm file's company entry, for D002's last guard: every drafted
-    term, shown or withheld, so the guard checks more than is printed."""
+    """The operator's record strings in the shape of an arm file's company entry, for D002's last guard: the category
+    labels and each predicate's first terms (the only terms the screen can print), shown or withheld."""
     entry: dict[str, Any] = {"draft": b["draft"].facts, "pack": {"loader": {"error": b["loader_error"]}},
                              "controls": {"majority_prior": {"predicate": c["majority_predicate"]} if c else {}}}
     if not b["check"]["passed"]:
@@ -877,7 +949,7 @@ class Guard:
         self.backstop = R.Backstop(params["refusal"]["reference_inside_min_chars"])
         for e in exports:
             self.backstop.add(e, self.roles)
-        self.refused = refused_index(exports, self.roles, params)
+        self.refused, self.refused_words = refused_index(exports, self.roles, params)
         self.names, self.caps = name_shaped_words(self.sentinels.narratives)
 
     def strings(self, entry: Mapping[str, Any]) -> dict[str, int]:
@@ -898,9 +970,10 @@ class Guard:
 
     def message(self, text: str) -> str:
         """An error text, or nothing of it when it holds a record id, a mine id, a refused value or one of its
-        words, eight words of a narrative, or a word the narratives write like a name."""
+        words, eight words of a narrative, or a word that is not a plain word of the narratives."""
         found = self.texts([text])
         found["refused_own"] = int(self.sentinels.refusal.term(text) is not None)
+        found["refused_word"] = int(any(w in self.refused_words for w in D.words_of(folded(text))))
         found["narrative_ngrams"] = len(ngram_hits([text], self.sentinels.narratives, self.ngram))
         found["name_shaped"] = int(name_shaped(text, self.names))
         return text if not any(found.values()) else WITHHELD_ERROR
@@ -909,7 +982,8 @@ class Guard:
         return {"record_ids": len(self.backstop.values["report_record_id"]),
                 "mine_ids": len(self.backstop.values["report_site"]),
                 "refused_values": sum(len(v) for v in self.refused.by_run.values()) + len(self.refused.general),
-                "operators": self.operators, "narratives_in_capitals": self.caps}
+                "refused_words": len(self.refused_words), "operators": self.operators,
+                "narratives_in_capitals": self.caps}
 
 
 def read_split(split_dir: Path, companies: Mapping[str, Any], skip: str | None) -> tuple[list[Any], int]:
@@ -1113,7 +1187,7 @@ def run(raw: Path, company: str, settings_path: Path, work: Path,
     shown = bool(b["check"]["passed"])
     input_status = compare_input(a["input"], recorded_input)
     data_a = a["data"]
-    data_b = data_draft(b, settings, guard.names, guard.caps)
+    data_b = data_draft(b, settings, guard.names, guard.refused_words, guard.caps)
     cmp_c = compare_reading(company, c["readers"], record, is_d002, input_status)
     data_c = data_read(c, cmp_c)
     data_d = data_audit(d, b["pack"], shown)
@@ -1147,8 +1221,9 @@ def run(raw: Path, company: str, settings_path: Path, work: Path,
     g = guard.summary()
     guard_line = (f"Guard: {string_hits['strings']} printed strings from records checked against {company}'s own "
                   f"export (its record ids, mine ids, refused values and their name words, and any {guard.ngram} "
-                  f"words of a narrative); {n(data_b['names']['withheld_terms'])} drafted terms withheld as written "
-                  f"like a name; {n(g['record_ids'])} record ids, {n(g['mine_ids'])} mine ids and "
+                  f"words of a narrative); {n(data_b['names']['withheld_terms'])} drafted terms withheld from the "
+                  f"screen (a word of a refused value, or one written like a name or never in lower case); "
+                  f"{n(g['record_ids'])} record ids, {n(g['mine_ids'])} mine ids and "
                   f"{n(g['refused_values'])} refused values of the {operators} operators in the split looked for in "
                   f"every output and in the bytes that left the mines. Found: none. Guard {secs(seconds['guard'])}.")
     base["footer"] = (f"{guard_line} Total {secs(clock.total())}. Code commit {base['code_commit'][:12]}. "

@@ -4,11 +4,13 @@ No public record is read.
 
 Markers are planted in the identifying columns and in a few narratives (an operator's name, controller, operator and
 contractor ids, mine ids, document numbers, a person's name and a sentence). Every printed or written output is
-scanned for them, and for any eight consecutive words of any narrative. A second file plants names in tens of
-narratives, so that the drafter learns them as terms; none may be printed. The reading numbers are checked against
+scanned for them, and for any eight consecutive words of any narrative. Two more files plant names in tens of
+narratives, so that the drafter learns them as terms: capitalised in one, and in the other in capitals inside
+mixed-case text, only in narratives written all in capitals, in lower case (words of the operators' names) and as a
+place whose first word is also a common word. None may be printed. The reading numbers are checked against
 ``score.run_arm`` on the same export, and the audit against D002's M4 path (``onboard export`` and
-``pilot.audit run``). What left the mines carries the mines' labels only, and the review list's reference items are
-never shown as coming from the weekly counts."""
+``pilot.audit run``). What left the mines carries the mines' labels only, the mines behind each counted item come
+from HQ's cells, and the review list's reference items are never shown as coming from the weekly cells."""
 from __future__ import annotations
 
 import contextlib
@@ -123,14 +125,15 @@ class Writer:
 
 
 def accident_file(seed: int = 7, scale: int = 1, fillers: int = 0, operator: dict[str, str] | None = None,
-                  extra: Any = None) -> Writer:
+                  extra: Any = None, upper: Any = None) -> Writer:
     """Three operators by construction. The first (c1) has the most training rows: five mines, six filed categories
     (one non-specific) and one under the floor, a background of held-out rows and, in 2023, a burst of one category at
     three mines. A word of its controller's name is written into many of its narratives, its person's name and a
     sentence into a few. The second qualifies too (c2); the third has too few held-out rows. ``scale`` multiplies the
     rows; ``fillers`` adds that many small non-qualifying operators (for a file of MSHA's size). ``operator`` replaces
-    c1's identifying values, and ``extra(category, k)`` gives text added to the k-th training narrative of a category
-    (none by default: the file is then the same)."""
+    c1's identifying values, and ``extra(category, k)`` gives text added to the k-th training narrative of a category,
+    which is then written all in capitals when ``upper(category, k)`` is true (neither by default: the file is then the
+    same)."""
     w = Writer(seed)
     rng = w.rng
     op = operator or OPERATOR
@@ -143,6 +146,8 @@ def accident_file(seed: int = 7, scale: int = 1, fillers: int = 0, operator: dic
                 text = w.narrative(cat, f"The {NAME_WORD} crusher was idle.")
             elif extra is not None and extra(cat, k):
                 text = w.narrative(cat, extra(cat, k))
+                if upper is not None and upper(cat, k):
+                    text = text.upper()
             w.add(op, rng.choice(mines), w.day(*train), cat, text)
     for i in range(4):
         w.add(op, mines[i % 2], w.day(*train), RARE[0])
@@ -309,7 +314,8 @@ class EveryStepTests(DemoRun):
         self.assertIn("roof", roof["first_terms"])
         self.assertLessEqual(len(roof["first_terms"]), 10)
         # nothing in this file is written like a name, so each predicate line is exactly as D002's report prints it
-        self.assertEqual(b["names"], {"withheld_terms": 0, "narratives_in_capitals": 0})
+        self.assertEqual(b["names"], {"withheld_terms": 0, "refused_word": 0, "name_shaped": 0,
+                                      "narratives_in_capitals": 0})
         for p in b["predicates"]:
             self.assertEqual(p["withheld_terms"], 0)
             line = (f"{p['label']} ({p['records']} corpus records; {p['refused_assignable']} refused terms would have "
@@ -345,9 +351,9 @@ class EveryStepTests(DemoRun):
         self.assertGreater(d["alerts"]["X"], 0)
         self.assertEqual((d["window_weeks"], d["min_sites"]), (8, 2))
         review = d["review"]
-        self.assertEqual(review["total"], len(review["from_counts"]) + len(review["reference_only"]))
-        self.assertTrue(review["from_counts"])
-        for item in review["from_counts"]:
+        self.assertEqual(review["total"], len(review["from_cells"]) + len(review["reference_only"]))
+        self.assertTrue(review["from_cells"])
+        for item in review["from_cells"]:
             self.assertEqual(sorted(item), ["alerts", "also", "category", "channels", "first_week", "last_week",
                                             "mines"])
             self.assertTrue(set(item["channels"]) <= {"X", "S"} and item["channels"])
@@ -355,8 +361,8 @@ class EveryStepTests(DemoRun):
             self.assertRegex(item["first_week"], r"^\d{4}-W\d{2}$")
             self.assertGreaterEqual(item["mines"], d["min_sites"])
         self.assertTrue(any(i["category"] == "HANDLING OF MATERIALS" and i["mines"] >= 2
-                            for i in review["from_counts"]))
-        self.assertIn("A count under 3 leaves as '<3'", self.stdout)
+                            for i in review["from_cells"]))
+        self.assertIn("a count under 3 leaves as '<k', with k = 3 in its bundle", self.stdout)
         self.assertIn("none matches an outcome on record", self.stdout)
 
     def test_the_header_says_what_is_configured_for_this_field(self) -> None:
@@ -384,6 +390,21 @@ class EveryStepTests(DemoRun):
         import hashlib
         self.assertEqual(m.group(2), hashlib.sha256(self.json_text.encode("utf-8")).hexdigest())
 
+    def test_the_refused_columns_line_names_every_use(self) -> None:
+        # CONTROLLER_ID's values cut the file, and the guard reads every refused value to check the outputs
+        self.assertIn("Values of 7 columns are read only to split the file (CONTROLLER_ID), to refuse and withhold "
+                      "terms, and to check every output, and are never shown: CONTROLLER_ID, CONTROLLER_NAME,",
+                      self.stdout)
+        self.assertNotIn("are read only to refuse terms", self.stdout)
+
+    def test_the_mines_are_sites_inside_this_process(self) -> None:
+        lines = self.steps["d"]["blocks"][0]["lines"]
+        self.assertEqual(lines[1], "Each mine runs as its own site inside this process, built from c1's export on "
+                                   "this machine, and nothing is sent over a network. What left a mine is what "
+                                   "crossed from its site's store to HQ's, as HQ's receive log holds it.")
+        self.assertTrue(lines[2].startswith("Each mine's cells carry its label (m01 to m05), never its id."))
+        self.assertNotIn("Each mine sends its counts", self.stdout)
+
     def test_console_json_and_html_hold_the_same_lines(self) -> None:
         console = self.stdout.split("=== onboard-demo")[0]
         for step in self.doc["steps"]:
@@ -398,29 +419,29 @@ class ReviewListTests(DemoRun):
 
     def test_this_file_has_items_of_both_kinds(self) -> None:
         review = self.steps["d"]["data"]["review"]
-        self.assertTrue(review["from_counts"])
+        self.assertTrue(review["from_cells"])
         self.assertTrue(review["reference_only"])
         for item in review["reference_only"]:
             self.assertEqual(item["channels"], ["R_mf"])
 
     def test_a_reference_item_is_only_in_the_reference_list(self) -> None:
         review = self.steps["d"]["data"]["review"]
-        counted = self.block("d", "The review list, from the weekly counts (X or S)")
+        counted = self.block("d", "The review list, from the weekly cells (X or S)")
         reference = self.block("d", "Reference only, raised by R_mf alone")
-        counted_categories = {i["category"] for i in review["from_counts"]}
+        counted_categories = {i["category"] for i in review["from_cells"]}
         for item in review["reference_only"]:
             if item["category"] in counted_categories:
                 continue                                # the same label on both lists is a different pattern key
             self.assertFalse(any(line.startswith(item["category"] + ":") for line in counted["items"]))
             self.assertTrue(any(line.startswith(item["category"] + ":") for line in reference["items"]))
             self.assertNotIn(item["category"], self.steps["e"]["blocks"][0]["lines"][0])
-        self.assertEqual(len(counted["items"]), len(review["from_counts"]))
+        self.assertEqual(len(counted["items"]), len(review["from_cells"]))
         self.assertEqual(len(reference["items"]), len(review["reference_only"]))
 
     def test_step_e_counts_each_part(self) -> None:
         review = self.steps["d"]["data"]["review"]
         line = self.steps["e"]["blocks"][0]["lines"][0]
-        self.assertTrue(line.startswith(f"Items from the weekly counts: {len(review['from_counts'])}. Each is a "
+        self.assertTrue(line.startswith(f"Items from the weekly cells: {len(review['from_cells'])}. Each is a "
                                         "category whose counts rose at 2 or more of c1's mines in the same weeks"))
         self.assertIn(f"Reference only, from R_mf: {len(review['reference_only'])}. Those need record-level codes",
                       line)
@@ -428,7 +449,7 @@ class ReviewListTests(DemoRun):
     def test_the_alert_lines_lead_with_x_and_s(self) -> None:
         d = self.steps["d"]["data"]
         lines = [b for b in self.steps["d"]["blocks"] if b["kind"] == "text"][1]["lines"]
-        self.assertTrue(lines[0].startswith(f"Alerts from the weekly counts alone: X {d['alerts']['X']}, "
+        self.assertTrue(lines[0].startswith(f"Alerts from the weekly cells alone: X {d['alerts']['X']}, "
                                             f"S {d['alerts']['S']}."))
         self.assertNotIn("R_mf", lines[0])
         self.assertTrue(lines[1].startswith("Reference channels, which count record-level codes centrally and are "
@@ -437,12 +458,13 @@ class ReviewListTests(DemoRun):
     def test_blocks_never_put_an_r_mf_item_with_the_counts(self) -> None:
         data = {"k": 3, "window_weeks": 8, "min_sites": 2, "records": 10, "mines": 2, "weeks_evaluated": 1,
                 "evaluated_from": "2023-W01", "evaluated_to": "2023-W02", "same_under_own_ids": True,
+                "own_ids": {"records": 10, "sites": 2, "weeks": 1, "review_list": 2},
                 "per_mine": [{"mine": "m01", "weekly_bundles": 1, "cells": 1, "suppressed_cells": 0},
                              {"mine": "m02", "weekly_bundles": 1, "cells": 1, "suppressed_cells": 1}],
                 "sent": {"bytes": 1, "bundles": 2}, "outcomes": 0,
                 "alerts": {"X": 1, "S": 0, "R_mf": 1, "P": 0, "PRR": 0},
                 "review": {"total": 2,
-                           "from_counts": [{"category": "COUNTED PATTERN", "channels": ["X"], "also": [],
+                           "from_cells": [{"category": "COUNTED PATTERN", "channels": ["X"], "also": [],
                                             "first_week": "2023-W02", "last_week": "2023-W02", "alerts": 1,
                                             "mines": 2}],
                            "reference_only": [{"category": "RECORD LEVEL PATTERN", "channels": ["R_mf"],
@@ -451,13 +473,58 @@ class ReviewListTests(DemoRun):
         means = RD.blocks_means(data, "c1")[0]["lines"][0]
         counted = next(b for b in blocks if (b.get("title") or "").startswith("The review list, from the weekly"))
         reference = next(b for b in blocks if (b.get("title") or "").startswith("Reference only"))
-        self.assertEqual(counted["items"], ["COUNTED PATTERN: X alerts in week 2023-W02; 2 mines with records of it "
+        self.assertEqual(counted["items"], ["COUNTED PATTERN: X alerts in week 2023-W02; 2 mines sent a cell of it "
                                             "in the 8 weeks up to one of them"])
         self.assertEqual(reference["items"], ["RECORD LEVEL PATTERN: R_mf alerts in week 2023-W02; 2 mines with "
                                               "records of it in the 8 weeks up to one of them"])
         self.assertNotIn("RECORD LEVEL PATTERN", means)
-        self.assertIn("Items from the weekly counts: 1.", means)
+        self.assertIn("Items from the weekly cells: 1.", means)
         self.assertIn("Reference only, from R_mf: 1.", means)
+
+    def audit_data(self, **changes: Any) -> dict[str, Any]:
+        data = {"k": 3, "window_weeks": 8, "min_sites": 2, "records": 10, "mines": 2, "weeks_evaluated": 1,
+                "evaluated_from": "2023-W01", "evaluated_to": "2023-W02", "same_under_own_ids": True,
+                "own_ids": {"records": 10, "sites": 2, "weeks": 1, "review_list": 0},
+                "per_mine": [{"mine": "m01", "weekly_bundles": 1, "cells": 1, "suppressed_cells": 0}],
+                "sent": {"bytes": 1, "bundles": 1}, "outcomes": 0, "alerts": {"X": 0, "S": 0},
+                "review": {"total": 0, "from_cells": [], "reference_only": []}}
+        data.update(changes)
+        return data
+
+    def test_the_own_ids_run_is_shown_when_it_differs(self) -> None:
+        rec = RD.d002_record()
+        own = {"records": 1033, "sites": 10, "weeks": 139, "review_list": 5}
+        cmp = RD.compare_audit("c1", own, rec, True)
+        self.assertEqual(cmp["status"], "differs")
+        data = self.audit_data(same_under_own_ids=False, own_ids=own)
+        lines = RD.blocks_audit(data, cmp, "c1", 5)[0]["lines"]
+        # the figures D002's are compared with are on screen, beside D002's
+        self.assertIn("The same audit under the mines' own ids, as D002's M4 ran it, gives a different result: 1,033 "
+                      "records, 10 mines, 139 weeks, a review list of 5. D002's figures are compared with that run.",
+                      lines[2])
+        self.assertIn("D002's run 38024536763 recorded 1,033 records, 10 mines, 139 weeks, a review list of 4 for c1: "
+                      "these differ.", lines[3])
+        same = RD.blocks_audit(self.audit_data(), {"status": "not_recorded"}, "c1", 5)[0]["lines"]
+        self.assertTrue(same[2].endswith("gives the same alerts, review list and counts."))
+
+    def test_the_mines_of_a_counted_item_come_from_hqs_cells(self) -> None:
+        doc = {"review": [{"key": "k:1:a", "predicate": "a", "channels": ["X"], "alert_weeks": ["2023-W01"],
+                           "sites": ["m01", "m02"]}]}
+        alerts = {"X": [{"key": "k:1:a", "week": "2023-W01", "sites": ["m01", "m02"]}], "S": []}
+        asked = []
+
+        def cells(name: str, a: Any) -> set[str]:
+            asked.append((name, a["key"], a["week"]))
+            return {"m01", "m02"}
+
+        counted, _ = RD.review_parts(doc, alerts, str, cells)
+        self.assertEqual(counted[0]["mines"], 2)
+        self.assertEqual(asked, [("X", "k:1:a", "2023-W01")])
+        # a mine the audit counts from a site's own store but no cell at HQ carries: nothing is shown
+        with self.assertRaises(RD.DemoError):
+            RD.review_parts(doc, alerts, str, lambda name, a: {"m01"})
+        with self.assertRaises(RD.DemoError):
+            RD.review_parts(doc, alerts, str, lambda name, a: {"m01", "m02", "m03"})
 
     def test_review_parts_splits_by_channel(self) -> None:
         doc = {"review": [
@@ -466,7 +533,9 @@ class ReviewListTests(DemoRun):
             {"key": "k:1:b", "predicate": "b", "channels": ["R_mf"], "alert_weeks": ["2023-W05"],
              "sites": ["m01", "m02"]}]}
         alerts = {"X": [{"key": "k:1:a", "week": "2023-W01", "sites": ["m01", "m02"]}], "S": []}
-        counted, reference = RD.review_parts(doc, alerts, lambda p: p.upper())
+        sent = {("X", "k:1:a", "2023-W01"): {"m01", "m02"}}
+        cells = lambda name, a: set(sent.get((name, a["key"], a["week"]), ()))  # noqa: E731
+        counted, reference = RD.review_parts(doc, alerts, lambda p: p.upper(), cells)
         # the counted item keeps only its X alert's week and mines, and says R_mf also raised it
         self.assertEqual(counted, [{"category": "A", "channels": ["X"], "also": ["R_mf"], "first_week": "2023-W01",
                                     "last_week": "2023-W01", "alerts": 1, "mines": 2}])
@@ -474,7 +543,7 @@ class ReviewListTests(DemoRun):
                                       "last_week": "2023-W05", "mines": 2}])
         with self.assertRaises(RD.DemoError):           # an X alert with no review item: the parts are not trusted
             RD.review_parts(doc, {"X": [*alerts["X"], {"key": "k:1:z", "week": "2023-W02", "sites": []}], "S": []},
-                            str)
+                            str, cells)
 
 
 class NothingIdentifyingLeavesTests(DemoRun):
@@ -554,6 +623,40 @@ class WhatLeftTheMinesTests(DemoRun):
         self.assertIn("bytes that left were scanned for the record ids, mine ids and refused values of the 2 "
                       "operators in the split, as D002's guard reads them: none found.", title)
 
+    def test_the_cells_are_as_the_table_title_says(self) -> None:
+        title = self.block("d", "What left each mine").get("title")
+        self.assertIn("weekly cells only, under its label, one per category, week and channel that had a record. A "
+                      "cell holds counts (a count under 3 leaves as '<k', with k = 3 in its bundle) and, with 3 or "
+                      "more records, the lowest match confidence, one of the pack's fixed levels.", title)
+        self.assertNotIn("'<3'", self.stdout)
+        self.assertNotIn("weekly counts only", self.stdout)
+        records = [json.loads(line) for line in self.calls[0]["log"].splitlines()]
+        self.assertTrue(records)
+        counts = ("n", "n_roots", "n_reporters")
+        for r in records:
+            self.assertEqual(r["artifact_type"], "cells_bundle")
+            self.assertEqual(r["body"]["k"], 3)
+            for cell in r["body"]["cells"]:
+                self.assertLessEqual(set(cell), {"entity_type", "entity_id", "predicate", "iso_week", "channel",
+                                                 *counts, "res_conf_min"})
+                for f in counts:
+                    self.assertTrue(cell[f] == "<k" or (isinstance(cell[f], int) and cell[f] >= 3), cell[f])
+                self.assertEqual("res_conf_min" in cell, isinstance(cell["n"], int))
+
+    def test_the_mines_of_an_item_must_match_hqs_cells(self) -> None:
+        original = RD.Watch.cell_sites
+
+        def extra_mine(watch: Any, run_channel: str, alert: Any) -> set[str]:
+            return original(watch, run_channel, alert) | {"m99"}
+
+        err = io.StringIO()
+        with mock.patch.object(RD.Watch, "cell_sites", extra_mine), contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(err):
+            code = RD.main(["--raw", str(self.tmp / "raw"), "--out", str(Path(tempfile.mkdtemp(dir=self.tmp))),
+                            "--settings", str(self.settings)])
+        self.assertEqual(code, 2)
+        self.assertIn("the mines behind an X or S alert differ between HQ's cells and the audit", err.getvalue())
+
     def test_a_mine_id_in_what_left_withholds_everything(self) -> None:
         mine = sorted(self.writer.ids["mines"])[0]
         original = RD.Watch.active
@@ -591,6 +694,30 @@ def named_extra(cat: str, k: int) -> str:
             "SLIP OR FALL OF PERSON": f"It happened on the {NAMED['own_word']} walkway."}.get(cat, "")
 
 
+HOMOGRAPH = "Mill Creek"            # a place whose first word is also a common word the narratives write in lower case
+
+
+def written_extra(cat: str, k: int) -> str:
+    """The same names written the ways the case check used to miss: the person in capitals inside mixed-case text,
+    the place only in narratives written all in capitals (:func:`written_upper`), the other operator's word and the
+    operator's own three-letter word in lower case, and a place whose first word the narratives also write in lower
+    case as a common word (8 of the uses), most often written as a name."""
+    if cat == "MACHINERY":
+        if k < 45:
+            return f"The pump at {HOMOGRAPH} was down."
+        return "The mill was shut." if k < 53 else ""
+    if k >= 45:
+        return ""
+    return {"POWERED HAULAGE": f"It was reported to {NAMED['person'].upper()} at once.",
+            "HANDLING OF MATERIALS": f"The crew drove in from {NAMED['place']} that day.",
+            "FALL OF ROOF OR BACK": f"A {NAMED['other_word'].lower()} hauler stood by.",
+            "SLIP OR FALL OF PERSON": f"It happened on the {NAMED['own_word'].lower()} walkway."}.get(cat, "")
+
+
+def written_upper(cat: str, k: int) -> bool:
+    return cat == "HANDLING OF MATERIALS" and k < 45
+
+
 class NameShapedWordsTests(unittest.TestCase):
     def test_capitalised_away_from_a_sentence_start(self) -> None:
         names, caps = RD.name_shaped_words(["The crew met Okonkwo near the belt.", "Then okonkwo left.",
@@ -598,8 +725,9 @@ class NameShapedWordsTests(unittest.TestCase):
                                             "It was Vasquez again.", "EE SLIPPED ON ICE NEAR VASQUEZ."])
         self.assertIn("vasquez", names)
         self.assertNotIn("rock", names)                  # capitalised only at a sentence start, lower case elsewhere
-        self.assertNotIn("okonkwo", names)               # one of two uses in lower case: under nine in ten
-        self.assertNotIn("ee", names)                    # all capitals: not read
+        self.assertIn("okonkwo", names)                  # written like a name in one of its two uses: half
+        self.assertNotIn("near", names)                  # in lower case in the mixed-case narrative
+        self.assertIn("slipped", names)                  # only in a narrative written all in capitals: never lower
         self.assertEqual(caps, 1)
 
     def test_a_word_seen_only_at_sentence_starts(self) -> None:
@@ -607,27 +735,83 @@ class NameShapedWordsTests(unittest.TestCase):
         self.assertIn("okonkwo", names)
         self.assertNotIn("crew", names)
 
-    def test_nine_in_ten(self) -> None:
-        texts = [f"It was Brackenridge {i}." for i in range(9)] + ["It was brackenridge 9."]
-        self.assertIn("brackenridge", RD.name_shaped_words(texts)[0])
-        self.assertNotIn("brackenridge", RD.name_shaped_words(texts + ["by brackenridge."])[0])
+    def test_half(self) -> None:
+        texts = ["It was Brackenridge 1.", "It was Brackenridge 2.", "It was brackenridge 3.", "by brackenridge."]
+        self.assertIn("brackenridge", RD.name_shaped_words(texts)[0])           # two of four: at least half
+        self.assertNotIn("brackenridge", RD.name_shaped_words(texts[1:])[0])     # one of three
+
+    def test_capitals_inside_mixed_case_text(self) -> None:
+        # the reviewer's case: a name in capitals in narratives that otherwise use lower case
+        names, caps = RD.name_shaped_words(["It was reported to OKONKWO VASQUEZ at once.",
+                                            "The crew told OKONKWO about it."])
+        self.assertIn("okonkwo", names)
+        self.assertIn("vasquez", names)
+        self.assertNotIn("crew", names)
+        self.assertEqual(caps, 0)
+
+    def test_a_word_only_in_narratives_written_all_in_capitals(self) -> None:
+        names, caps = RD.name_shaped_words(["THE CREW DROVE IN FROM BECKLEYVILLE.", "The crew left early."])
+        self.assertIn("beckleyville", names)
+        self.assertIn("drove", names)                    # no case to read: withheld too
+        self.assertNotIn("crew", names)                  # in lower case elsewhere
+        self.assertEqual(caps, 1)
+
+    def test_a_name_that_is_also_a_common_word(self) -> None:
+        texts = [f"The pump at Rose Hill was down {i}." for i in range(5)] + ["The water rose.", "It rose again."]
+        names, _ = RD.name_shaped_words(texts)
+        self.assertIn("rose", names)                     # written as a name in five of its seven uses
+        self.assertIn("hill", names)
+        self.assertNotIn("rose", RD.name_shaped_words(texts[:1] + texts[5:])[0])   # one of three: under half
+
+    def test_a_name_written_in_lower_case_is_not_caught(self) -> None:
+        # the limit the screen states: a name the narratives write in lower case reads as a plain word
+        names, _ = RD.name_shaped_words(["it was reported to okonkwo.", "then okonkwo left."])
+        self.assertNotIn("okonkwo", names)
+        self.assertTrue(any("in lower case" in line and "is not caught" in line for line in RD.NOT_SHOWN))
 
     def test_a_term_is_withheld_when_any_of_its_words_is(self) -> None:
         names = frozenset({"okonkwo"})
         self.assertTrue(RD.name_shaped("supervisor okonkwo", names))
         self.assertFalse(RD.name_shaped("roof fall", names))
 
+    def test_the_reason_a_term_is_withheld(self) -> None:
+        names, refused = frozenset({"okonkwo"}), frozenset({"rox", "brackenridge"})
+        self.assertEqual(RD.withheld_reason("rox walkway", names, refused), "refused_word")
+        self.assertEqual(RD.withheld_reason("okonkwo brackenridge", names, refused), "refused_word")
+        self.assertEqual(RD.withheld_reason("supervisor okonkwo", names, refused), "name_shaped")
+        self.assertIsNone(RD.withheld_reason("roof fall", names, refused))
 
-class NamesInNarrativesTests(unittest.TestCase):
-    """A person's name, a place, a word of another operator's controller name and a three-letter word of the
-    operator's own controller name, each in tens of narratives at every mine: the drafter learns them as terms, and the
-    demo prints none of them."""
+
+class RefusedWordsTests(unittest.TestCase):
+    def test_every_word_of_a_refused_value_a_term_could_hold(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            t = Path(tmp)
+            write_raw(t / "raw", accident_file(operator=NAMED_OPERATOR))
+            settings = json.loads(SETTINGS_PATH.read_text())
+            with contextlib.redirect_stdout(io.StringIO()):
+                RD.load_fetch().split(SETTINGS_PATH, t / "raw", t / "split")
+            exports = [read_export(t / "split" / f"{c}.txt") for c in ("c1", "c2")]
+        _, words = RD.refused_index(exports, S.arm_roles(settings, "msha"), settings["params"])
+        # a three-letter word of c1's own controller name, below D002's name-word minimum of four letters
+        self.assertIn("rox", words)
+        # the words of c2's names, which D002's refusal for c1 does not read
+        for w in ("brackenridge", "aggregates", "hollow", "quarry"):
+            self.assertIn(w, words)
+        self.assertTrue(all(w.isalpha() and len(w) >= 3 for w in words))
+
+
+class PlantedNamesRun:
+    """One run of the demo on a file with names planted in tens of narratives (``extra`` and ``upper``, see
+    :func:`accident_file`)."""
+
+    extra: Any = None
+    upper: Any = None
 
     @classmethod
     def setUpClass(cls) -> None:
         cls._tmp = tempfile.TemporaryDirectory()
         cls.tmp = Path(cls._tmp.name)
-        cls.writer = accident_file(seed=11, operator=NAMED_OPERATOR, extra=named_extra)
+        cls.writer = accident_file(seed=11, operator=NAMED_OPERATOR, extra=cls.extra, upper=cls.upper)
         write_raw(cls.tmp / "raw", cls.writer)
         cls.settings = small_settings(cls.tmp / "settings.json")
         out, err = io.StringIO(), io.StringIO()
@@ -647,16 +831,20 @@ class NamesInNarrativesTests(unittest.TestCase):
     def words(self) -> list[str]:
         return sorted({w.lower() for v in NAMED.values() for w in v.split()})
 
-    def test_the_names_clear_the_drafters_floor(self) -> None:
+    def drafted_terms(self) -> list[str]:
         settings = json.loads(self.settings.read_text())
+        work = Path(tempfile.mkdtemp(dir=self.tmp))
         with contextlib.redirect_stdout(io.StringIO()):
-            export, _ = RD.step_export(self.settings, settings, self.tmp / "raw", self.tmp / "work-draft", "c1")
-        b = RD.step_draft(settings, export, "c1", self.tmp / "work-draft")
+            export, _ = RD.step_export(self.settings, settings, self.tmp / "raw", work, "c1")
+        b = RD.step_draft(settings, export, "c1", work)
         self.assertTrue(b["check"]["passed"])
-        terms = " ".join(t for p in b["draft"].facts["predicates"] for t in p["first_terms"])
+        return " ".join(t for p in b["draft"].facts["predicates"] for t in p["first_terms"]).split()
+
+    def test_the_names_clear_the_drafters_floor(self) -> None:
+        terms = self.drafted_terms()
         for word in self.words():
             with self.subTest(word=word):
-                self.assertIn(word, terms.split())
+                self.assertIn(word, terms)
 
     def test_no_name_is_printed_or_written(self) -> None:
         self.assertEqual(self.code, 0, self.stderr)
@@ -665,13 +853,55 @@ class NamesInNarrativesTests(unittest.TestCase):
             with self.subTest(output=name):
                 self.assertEqual(token_hits(text, self.words()), [])
 
+
+class NamesInNarrativesTests(PlantedNamesRun, unittest.TestCase):
+    """A person's name, a place, a word of another operator's controller name and a three-letter word of the
+    operator's own controller name, each capitalised in tens of narratives at every mine: the drafter learns them as
+    terms, and the demo prints none of them."""
+
+    extra = staticmethod(named_extra)
+
     def test_the_withheld_terms_are_counted(self) -> None:
         b = {s["id"]: s for s in self.doc["steps"]}["b"]["data"]
         self.assertGreaterEqual(b["names"]["withheld_terms"], 4)
         self.assertEqual(b["names"]["withheld_terms"], sum(p["withheld_terms"] for p in b["predicates"]))
-        self.assertIn(f"Terms withheld because c1's narratives write one of their words like a name: "
-                      f"{b['names']['withheld_terms']}.", self.stdout)
-        self.assertIn("more withheld: written like a name in the narratives)", self.stdout)
+        self.assertEqual(b["names"]["withheld_terms"], b["names"]["refused_word"] + b["names"]["name_shaped"])
+        self.assertIn(f"Terms withheld from the screen: {b['names']['withheld_terms']}. "
+                      f"{b['names']['refused_word']} hold a word of a refused value (a name or an id) of an operator "
+                      f"in the split. {b['names']['name_shaped']} hold a word c1's narratives write like a name",
+                      self.stdout)
+        self.assertIn("more withheld from the screen)", self.stdout)
+
+
+class NamesWrittenOtherwiseTests(PlantedNamesRun, unittest.TestCase):
+    """The same names written the ways the case check used to miss (:func:`written_extra`): in capitals inside
+    mixed-case text, only in narratives written all in capitals, in lower case when they are words of an operator's
+    names, and a place whose first word is also a common word. The drafter learns them all; the demo prints none."""
+
+    extra = staticmethod(written_extra)
+    upper = staticmethod(written_upper)
+
+    def words(self) -> list[str]:
+        return sorted({*super().words(), *HOMOGRAPH.lower().split()})
+
+    def test_the_planted_texts_are_written_as_described(self) -> None:
+        narratives = self.writer.narratives
+        self.assertTrue(any("OKONKWO VASQUEZ" in t and any(ch.islower() for ch in t) for t in narratives))
+        beckley = [t for t in narratives if "BECKLEYVILLE" in t.upper()]
+        self.assertGreaterEqual(len(beckley), 20)
+        self.assertTrue(all(not any(ch.islower() for ch in t) for t in beckley))
+        self.assertTrue(any(" brackenridge hauler" in t for t in narratives))
+        self.assertTrue(any(" rox walkway" in t for t in narratives))
+        common = sum(1 for t in narratives if " mill was shut" in t)
+        self.assertTrue(0 < common < sum(1 for t in narratives if HOMOGRAPH in t))
+
+    def test_the_reasons_are_counted(self) -> None:
+        b = {s["id"]: s for s in self.doc["steps"]}["b"]["data"]
+        self.assertGreaterEqual(b["names"]["refused_word"], 2)         # brackenridge and rox, in lower case
+        self.assertGreaterEqual(b["names"]["name_shaped"], 4)          # okonkwo, vasquez, beckleyville, mill
+        self.assertGreaterEqual(b["names"]["narratives_in_capitals"], 20)
+        self.assertIn(f"Narratives written all in capitals, whose case is not read: "
+                      f"{b['names']['narratives_in_capitals']}.", self.stdout)
 
 
 # --------------------------------------------------------------------------------------------------- equal numbers
@@ -751,8 +981,8 @@ class SameNumbersTests(DemoRun):
         # the counted part: the audit's other items, in its order; an item with no R_mf alert is the audit's as is,
         # and one R_mf also raised keeps only its X and S alerts' weeks and mines
         others = [e for e in audit["review"] if e["channels"] != ["R_mf"]]
-        self.assertEqual(len(d["review"]["from_counts"]), len(others))
-        for item, e in zip(d["review"]["from_counts"], others):
+        self.assertEqual(len(d["review"]["from_cells"]), len(others))
+        for item, e in zip(d["review"]["from_cells"], others):
             self.assertEqual(item["channels"] + item["also"], e["channels"])
             self.assertLessEqual(item["mines"], len(e["sites"]))
             self.assertTrue(min(e["alert_weeks"]) <= item["first_week"] <= item["last_week"]
@@ -760,7 +990,7 @@ class SameNumbersTests(DemoRun):
             if not item["also"]:
                 self.assertEqual((item["mines"], item["first_week"], item["last_week"]),
                                  (len(e["sites"]), min(e["alert_weeks"]), max(e["alert_weeks"])))
-        self.assertEqual(sum(i["alerts"] for i in d["review"]["from_counts"]), d["alerts"]["X"] + d["alerts"]["S"])
+        self.assertEqual(sum(i["alerts"] for i in d["review"]["from_cells"]), d["alerts"]["X"] + d["alerts"]["S"])
 
     def test_the_watch_puts_every_function_back(self) -> None:
         d = {s["id"]: s for s in self.demo_doc["steps"]}["d"]["data"]
@@ -1136,13 +1366,49 @@ class DocsTests(unittest.TestCase):
     def test_the_talk_track_quotes_no_count_of_its_own(self) -> None:
         text = (DEMO_DIR / "SCRIPT.md").read_text()
         # beyond its time marks (0:00) and the test's name (D002) it may name only: the operator label c1, its length
-        # (2 minutes) and the suppression rule the output prints ('<3')
+        # (2 minutes) and the suppression threshold the output prints (a count under 3)
         rest = re.sub(r"\b\d:\d{2}\b|\bD002\b", "", text)
         numbers = set(re.findall(r"\d[\d,.]*\d|\d", rest))
         self.assertEqual(numbers, {"1", "2", "3"})
-        self.assertIn("'<3'", text)
+        self.assertIn("'<k'", text)
+        self.assertNotIn("'<3'", text)
         self.assertEqual(len(re.findall(r"^\| \d:\d{2}–\d:\d{2} \|", text, re.M)), 6)
         self.assertIn("| 1:50–2:00 |", text)
+
+    def test_the_talk_track_claims_only_what_the_guard_checks(self) -> None:
+        text = (DEMO_DIR / "SCRIPT.md").read_text()
+        self.assertNotIn("no name, id or narrative is on screen", text)
+        self.assertNotIn("They are never shown", text)
+        self.assertNotIn("read only to refuse words", text)
+        self.assertIn("no id or narrative is on screen", text)
+        self.assertIn("Do not say that no name is on screen", text)
+        beat = next(line for line in text.splitlines() if line.startswith("| 0:15–0:30 |"))
+        self.assertIn("read only to split the file, to refuse and hold back words, and to check the output", beat)
+
+    def test_the_talk_track_says_what_the_screen_shows_of_the_pack_and_the_mines(self) -> None:
+        text = (DEMO_DIR / "SCRIPT.md").read_text()
+        b = next(line for line in text.splitlines() if line.startswith("| 0:30–1:00 |"))
+        self.assertIn("Each filed category with enough records at enough mines, and a specific label, becomes a "
+                      "predicate.", b)
+        self.assertIn("Every word passed the term floor, and the privacy check passed.", b)
+        self.assertNotIn("Every word passed a floor, shown here", b)
+        d = next(line for line in text.splitlines() if line.startswith("| 1:25–1:50 |"))
+        self.assertIn("In the pipeline, each mine runs as its own site and keeps its records; here they all run in "
+                      "this one process.", d)
+        self.assertIn("a count under 3 leaves as '<k'", d)
+        self.assertNotIn("Each mine keeps its records. Only weekly counts leave", d)
+
+    def test_the_readme_names_its_sources_and_the_terms_the_guard_reads(self) -> None:
+        text = " ".join((DEMO_DIR / "README.md").read_text().split())
+        self.assertIn("The figures D002 recorded are read from its choice file and from `d002-input.json`", text)
+        self.assertIn("every first term of each predicate, shown or withheld: the only terms the screen can print",
+                      text)
+        self.assertNotIn("every drafted term, shown or not", text)
+        self.assertIn("leaves as the string `'<k'`, and each bundle carries k (3)", text)
+        self.assertNotIn("`'<3'`", text)
+        self.assertIn("Each mine runs as its own site inside this one process", text)
+        self.assertIn("so the demo does not claim that no name is on screen", text)
+        self.assertNotIn("nine of ten", text)
 
     def test_the_talk_track_says_two_commands_and_reads_only_the_counted_items(self) -> None:
         text = (DEMO_DIR / "SCRIPT.md").read_text()
@@ -1152,7 +1418,7 @@ class DocsTests(unittest.TestCase):
         self.assertNotIn("Read the review list", beat)
         self.assertIn("reference only", beat)
         self.assertIn("record-level codes", beat)
-        self.assertIn("From those counts alone", beat)
+        self.assertIn("From those cells alone", beat)
 
 
 if __name__ == "__main__":
