@@ -96,6 +96,17 @@ before they were opened, how much earlier, and what randomly timed alerts would 
 flagged and never acted on. Before the audit counts as a test, the power check must pass at the partner's volumes
 (`docs/collective/POWER.md`).
 
+**No pack needed.** A partner without a pack for their field writes a roles file naming five of their columns: record
+id, site, date, narrative and filed category, plus the columns never to print. Then one command,
+`python -m mycelic.collective.pilot.start run --export ... --roles ... --outcomes ... --out ...`, does the rest on
+their machine:
+- drafts a pack from their own earlier records, with the drafter that passed D002;
+- checks its privacy floor;
+- runs the same audit on the later records.
+
+The report labels sites s01 onwards and is guarded before it is written (`docs/collective/PILOT.md`, "No pack for your
+field?"). It has run only on synthetic exports so far.
+
 ## 7. Market
 
 From `docs/strategy/MARKET.md`, which carries every source:
