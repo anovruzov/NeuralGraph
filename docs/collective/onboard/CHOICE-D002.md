@@ -13,6 +13,9 @@ The two changes:
 This file is committed on 2026-10-10, alone, before any of D002's code. No D002 run has happened, and no D002 run file
 exists. How it is built is in `BUILD-D002.md`.
 
+**Amended before any run, on 2026-10-10.** The section of that name, just before "Runs", changes the settings check
+under "The settings and the run" and adds to change (a). Where it disagrees with the text above it, it wins.
+
 ## Why: D001's run 1 and the date probe
 
 - **D001's run 1** ([run 38017322304](https://github.com/anovruzov/NeuralGraph/actions/runs/38017322304), run file
@@ -139,6 +142,69 @@ about how any reader scores.
 - Since D001's declaration, it has seen run 1's log and the probe's record, as listed under "Why" above. No record
   value, category or narrative of either source.
 - Everything else in D001's declaration stands.
+
+## Amended before any run, 2026-10-10
+
+No D002 run has happened, and no D002 run file exists. A review of D002's build found two gaps. The changes are B1
+and B2, numbered apart from D001's A1 to A14. Where the text above disagrees with this section, this section wins.
+
+### B1. The settings check takes only a D002 run file ("The settings and the run")
+
+- **Was:** "The workflow runs the newest run file. It refuses that file when its experiment differs from its settings
+  file's, or when the settings file's sha256 differs from the one it names."
+- **Now:** the workflow runs the newest run file. It refuses that file when its experiment is not `D002`, when its
+  experiment differs from its settings file's, or when the settings file's sha256 differs from the one it names.
+  - A refused file fails the job before any download, so it is not a run.
+  - The job then sets nothing for a later step, and it never falls back to an older run file.
+- **Why.** Until `run-002.json` is committed, the newest run file is `run-001.json`, and the check as built accepted
+  it. So if the workflow had started on this code before then, by hand or by a push that changes a run file, it would
+  have run D001 a second time on D002's code.
+  - That run would print D001's markers and title, and upload `onboard-D001`.
+  - D001 has had its first run, and that run is its result. A second one would carry D001's name with code D001
+    never used.
+- **D001's workflow had the same check.** It refused any run file whose experiment was not `D001`.
+
+### B2. A line break inside a quoted field (change (a))
+
+The code does not change. This says what change (a) does with such a break. "Comma files" said only that such a file
+reads differently.
+
+- A line break inside a quoted field cuts the record into pieces. Each piece is a line, read on its own as change (a)
+  says.
+- The first piece ends inside the open quote, so that field runs to the end of its line. Each later piece starts
+  outside the quotes, so it is read as if a new field began there.
+- A piece whose number of fields equals the header's is read as a row, with the values it holds. Nothing marks it as
+  a piece, and nothing repairs it.
+- An empty piece is an empty line. Every other piece is rejected and counted, as before.
+- In pipe and tab files, D001 also read each piece as a line. In comma files, this is the one change that "Comma
+  files" names.
+
+**In D002's sources:**
+
+- The NHTSA exports hold no line break ("Comma files").
+- In MSHA's file, `NARRATIVE` is the 55th of 57 fields. A break in a narrative gives a first piece of 55 fields, which
+  is rejected.
+- Each later piece holds narrative text, split at any pipe in it. The last one also holds the 2 fields after the
+  narrative, so it has 3 fields, or more if the narrative's end holds a pipe. Such a piece is read as a row only if it
+  has 57 fields.
+- How often a narrative holds a line break is not known. The split prints its rejected count before the run starts.
+
+### The settings
+
+`D002-settings.json` does not change. Its sha256 stays
+`8bb9ba6ab9c8d4dca14ac86aa8df89f8cd1926b5355b9908ec3b71020c42c0e5`, and `run-002.json` names it as before.
+
+### What these changes risk
+
+- B1 ties the workflow to D002. A later experiment needs its own change to the check, as D002 needed one to D001's.
+- B1 does not stop a second start of D002 itself once `run-002.json` is committed. The first run is still the result.
+- B2 changes nothing in what runs. A piece read as a row holds values from the wrong columns, and the drafter reads
+  it like any other row.
+
+### The declaration, added
+
+This amendment was written by the same AI system, after a review of D002's build. It has seen nothing more of either
+source.
 
 ## Runs
 
