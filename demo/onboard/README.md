@@ -37,8 +37,8 @@ input or run error.
 **To record it on a runner:** start the `onboard-demo` workflow by hand (operator c1 unless the input names another),
 or push `demo/onboard/record-<n>.json` holding `{"company": "c1"}` (on a push it takes the file with the highest
 number, in version order: `record-10.json` after `record-9.json`). It runs the demo's tests, downloads, runs the
-demo, prints `demo.json` between the markers and uploads `demo.html` and `demo.json` only. No request file is
-committed here; the owner pushes one to record.
+demo, prints `demo.json` between the markers and uploads `demo.html` and `demo.json` only. A request file holds
+the operator label and nothing else (a test checks this); the first, `record-001.json`, asks for c1.
 
 ## What each step shows
 

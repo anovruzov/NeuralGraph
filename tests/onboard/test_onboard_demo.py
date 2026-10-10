@@ -1348,8 +1348,15 @@ class WorkflowTests(unittest.TestCase):
     def test_the_company_check_refuses_anything_but_a_label(self) -> None:
         self.assertIn("^c[1-9][0-9]?$", self.text)
 
-    def test_no_record_file_is_committed(self) -> None:
-        self.assertEqual(sorted(DEMO_DIR.glob("record-*.json")), [])
+    def test_a_committed_record_file_names_only_an_operator_label(self) -> None:
+        # a record file is the owner's request to record a run (README): it holds the operator label and nothing else,
+        # so no record data is ever committed with it
+        for path in sorted(DEMO_DIR.glob("record-*.json")):
+            with self.subTest(file=path.name):
+                self.assertRegex(path.name, r"^record-[0-9]+\.json$")
+                request = json.loads(path.read_text())
+                self.assertEqual(list(request), ["company"])
+                self.assertRegex(request["company"], r"^c[1-9][0-9]?$")
 
     def test_the_regular_ci_runs_these_tests(self) -> None:
         text = (ROOT / ".github" / "workflows" / "mycelic.yml").read_text()
