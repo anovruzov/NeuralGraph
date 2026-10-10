@@ -7,12 +7,28 @@ was built to it, on branch `wf/d003` from `7f4766d`:
 
 - `d4052b0`: D002's outputs on a fixed synthetic input, recorded from the code D002 ran, before any onboard change;
 - `445b738`: the build;
-- the commit holding this note.
+- `aa1b02e`: this note, the dry run and two test fixes;
+- the commit after it, on branch `wf/d003-fix`: the fixes after review (see "Fixes after review").
 
-**No device data was read.** The build made no request to `api.fda.gov`. Every test and the dry run read invented
+**No device data was fetched.** The build made no request to `api.fda.gov`. Every test and the dry run read invented
 data; the openFDA-shaped archive is served on `127.0.0.1` (`tests/onboard/openfda_fake.py`). The build saw no
-narrative, problem-code distribution or category count of any device maker. `run-003.json` does not exist: the owner
-adds it after review (section 12).
+narrative, and no problem-code distribution or category count by manufacturer. `run-003.json` does not exist: the
+owner adds it after review (section 12).
+
+**What the build read of recorded device facts,** all after the rule was committed (`55f4c71`, amended `7f4766d`),
+so none of it could shape a value the rule fixes. This was not recorded here until review:
+
+- `docs/strategy/data/field-coverage.json`, `definitions`: the 22 placeholder lot values and the nine generic problem
+  terms, which the settings copy and `SettingsTests` compares.
+- The same file's per-code `top_problems` samples: for each of the ten product codes with the most 2024 reports, eight
+  coded problems with their counts in a 200-report sample. They are per product code, not per maker, but E17 records
+  that where one maker files most of a code, such a sample is in effect that maker's test-year distribution. The
+  invented archive's `Battery Problem` and `Break` were taken from them (see "The dry run"). At `d428243`,
+  `field-coverage.json` was the only file of this repository that held `Battery Problem`. Nothing else was built from
+  these samples.
+- The fixes after review read the same file only to find where the archive's eight problem names occur. What they
+  printed was file paths, JSON paths and true or false, never a count. `FakeArchiveTests` reads the samples' problem
+  names and the generic terms, and prints neither.
 
 **Deviations from the rule: none.** Where the rule leaves a detail to the build, the choice is listed under
 "Choices the rule left to the build". None changes a value the rule fixes.
@@ -32,8 +48,8 @@ adds it after review (section 12).
 | `.github/workflows/onboard-d003.yml` | New. Section 12 with E14. See "The workflow". |
 | `mycelic/collective/onboard/draft.py`, `check.py`, `score.py`, `report.py`, `__main__.py` | P1 to P13 (E18), each off unless the settings turn it on. See "The onboard package". |
 | `tests/onboard/test_d002_reproducible.py` and `tests/onboard/data/d002_reproducible/` | New (`d4052b0`). Section 11's test. |
-| `tests/onboard/openfda_fake.py` | New. The invented openFDA-shaped archive and its local server. |
-| `tests/onboard/test_onboard_d003.py` | New. 73 tests: fetch, split, settings, hand copies, P1 to P13, full arm, guard, workflow, frozen files. |
+| `tests/onboard/openfda_fake.py` | New. The invented openFDA-shaped archive and its local server; extended after review. |
+| `tests/onboard/test_onboard_d003.py` | New. 73 tests at `aa1b02e`, 86 after review: fetch, split, settings, hand copies, P1 to P13, C2's space, full arm, guard, workflow, frozen files. |
 | `tests/mycelic/test_collective_guards.py`, `tests/mycelic/test_collective_packs.py` | One change each, because a D003 file now exists. See "Tests". |
 
 **Unchanged on purpose:** every hash-pinned file (`mycelic/collective/*.py` at the top level, `detect/`, `edge/`,
@@ -254,7 +270,8 @@ None changes a value the rule fixes.
     files (D001's and D002's settings, `run-002.json`, a `run-003.json` only as a D003 run file, the rule up to
     "Runs"), and `onboard-run.yml` refusing a `run-003.json` under `bash`.
 
-Counts from `python -B -m pytest <path> -q -p no:cacheprovider` on the tree of the commit holding this note:
+Counts from `python -B -m pytest <path> -q -p no:cacheprovider` on the tree of `aa1b02e` (the counts after review
+are under "Fixes after review"):
 
 | Tests | Result |
 |---|---|
@@ -273,12 +290,28 @@ Counts from `python -B -m pytest <path> -q -p no:cacheprovider` on the tree of t
 
 **The archive.** `tests/onboard/openfda_fake.py` serves an invented device-event archive on `127.0.0.1`, answering
 the three query shapes the fetch sends (a count list, an exact-name check, a day's page). Every maker name, report
-key, narrative, lot, UDI, report number and patient value in it is invented; the problem names are FDA terms that
-this repository's maps already name. It holds six invented makers and five more names in the count lists, one for
-each exclusion: `UNKNOWN` (a placeholder), `12345` (no letter), a name holding a double quote, a variant spelling of
-the largest maker, and a name with too few reports. Each maker files a seeded number of reports a day, with some days
-too large for the cap, some empty, some reports naming a second maker or a blank one, about one narrative in ten
-echoing its filed label, some quoting an FDA generic term, and some templated.
+key, narrative, lot, UDI, report number and patient value in it is invented. Its eight problem names are FDA problem
+terms copied from files of this repository (`PROBLEM_SOURCES` in the fake; `FakeArchiveTests` checks each):
+
+- `Crack`, `Fluid/Blood Leak`, `Occlusion Within Device` and `Adverse Event Without Identified Device or Use Problem`:
+  names of `device_quality`'s own six-name map, and so of the 22-name map;
+- `Material Discolored`: a name of the 22-name map of `lab/packs/device_quality_bd` only;
+- `Battery Problem` and `Break`: named by no map. They were taken from the per-code `top_problems` samples of
+  `docs/strategy/data/field-coverage.json`. At `d428243`, `Break` also occurred in
+  `docs/collective/replay/inputs-002.json` and `tests/market/test_replay_pack.py`, and `Battery Problem` in no other
+  file;
+- `Insufficient Information`: named by no map. Folded, it is one of the nine generic terms: `GENERIC_PROBLEMS` in
+  `tools/market/openfda_coverage.py` and `generic_problems` in `field-coverage.json`'s `definitions` (both lower
+  case), and so one of the settings' `non_specific_labels`.
+
+The earlier version of this paragraph said that every problem name was one the repository's maps already name. That
+was wrong for the last three.
+
+The archive holds six invented makers and five more names in the count lists, one for each exclusion: `UNKNOWN` (a
+placeholder), `12345` (no letter), a name holding a double quote, a variant spelling of the largest maker, and a name
+with too few reports. Each maker files a seeded number of reports a day, with some days too large for the cap, some
+empty, some reports naming a second maker or a blank one, about one narrative in ten echoing its filed label, some
+quoting an FDA generic term, and some templated.
 
 **The steps.** `dry_run_d003.py` (outside the repository) ran the workflow's steps after the settings check, with
 `D003-settings.json` unchanged (B 10,000, 200 per company), on one machine with 4 cores. It was run on `445b738`;
@@ -331,6 +364,147 @@ model, patient and brand values; the manufacturer's other narrative; and all 14,
 472 kept days appear only in the fetch's own output, as E11 requires.
 
 The numbers say nothing about reading: the invented narratives hold their category's cue words by construction.
+
+## Fixes after review (`wf/d003-fix`)
+
+A review of `aa1b02e` found no blocking finding and five minor ones. All five are fixed, and none needed the rule to
+change: three add tests to code that was already correct, one changes how a reported table prints three counts, and
+one corrects this note. No deciding value, setting, threshold or seed changed. `D003-settings.json` and its sha256
+are as above, the fetch is unchanged, and D002's reproducibility test passes.
+
+A first attempt at these fixes was cut off by a container restart before it was checked. Its work was read again,
+change by change, and kept. Every count and result below comes from runs made after the restart, with the code and
+tests of the commit holding this section.
+
+**Each new test fails before its fix.**
+
+- For the findings about untested code, a script outside the repository applied each mutation in turn, ran the new
+  tests meant to catch it, and restored the file. It applied the 15 mutations the review named (S6, S9, S10, S23;
+  F1 to F3, F5, F7, F8, F12, F16, F19, F20; the report step's `if:` removed) and 7 neighbours. All 22 failed those
+  tests.
+- For the table and this note, the new tests were run on `aa1b02e`'s `report.py` and `BUILD-D003.md`, and three
+  failed: the row test, the full-arm cell test and the note test.
+
+1. **C2's deciding path (E1, E2; P7, P10).** In the fake archive every company reached the same four hand
+   predicates, so the gold's restriction to the reach and the empty-reach branch never ran. The reader guard was
+   tested only on a hand-built dict.
+   - `ReachSpaceTests` runs `score.run_arm` on two invented companies in D003's layout. The settings are D003's,
+     except B = 100 and a C2 record minimum of 10, so that C2 is decided when its guard allows it.
+     - d1 files `Crack` and `Battery Problem`, so its reach is `crack` only. Some of its test reports also carry
+       `Fluid/Blood Leak`, which the map sends to `leak`, outside its reach.
+     - d2 files only names no map holds, so its C is empty.
+     - The test asserts each company's reach, most frequent reached predicate, scored records and records with a
+       gold, and `all_reached`'s counts. It also asserts the pooled space (d1's 78 records, 36 with a gold, 6
+       clusters) and C2's scored records, records and clusters.
+   - The same arm is run again with d1's `maker_entity` in lower case. The hand copies then leave all 78 of d1's
+     sampled records without a primary entity, while the drafted reader resolves all of them. C2 is not decided, and
+     gives the guard's reason. As written, C2 is decided.
+   - `MostFrequentReachedTests`: ties go to the smaller id, a record counts once per reached predicate, and names
+     outside the reach are ignored.
+   - Mutations killed: S10 (the gold not restricted to the reach); S9 (an empty-reach company's records scored), and
+     the same in the pooled `scored` flags; S23 (the guard reading the drafted reader); S6 (ties to the larger id);
+     and counting a predicate once per name instead of once per record.
+2. **The fetch's clauses (2.2, E5, E10 to E12).** The fake archive gained switches, all off by default. With the
+   default archive, the fetch's exports, `companies.json`, `source.json`, `fetch.json` and printed lines are
+   byte-identical to `aa1b02e`'s. The switches:
+   - an exact-name offset on the first search of each window only;
+   - per maker: its reports per day by position in its walk order, a share of reports without a description, and a
+     key base, so that keys differ in length;
+   - a malformed record whose only device entry is blank;
+   - a last page that repeats the day's first record.
+
+   The tests:
+   - `FetchExportTests.test_reports_naming_another_maker_are_dropped_and_counted` re-reads every kept day of the
+     default archive. Per label and window:
+     - `other_maker_dropped` equals the reports with a device entry naming another maker;
+     - none of their keys is in the export;
+     - the kept and dropped reports sum to the kept days' reports;
+     - every report whose other entry is blank is exported.
+
+     The old assertion that `Otherside Implants Inc` is not in the export could not fail, and is removed.
+   - `FetchClauseTests`:
+     - an exact check that differs once passes on its repeat (`passed_on_repeat`, used, 614 calls);
+     - four kept training days with over 1,000 reports with a narrative: dropped for the day minimum;
+     - six kept training days with over 1,000 kept reports but under 1,000 with a narrative: dropped for the report
+       minimum;
+     - a day holding a record whose only device entry is blank, and a day whose last page repeats one key while its
+       distinct keys still number `T`: each refetched once and left out;
+     - another maker's keys of different lengths, sorted by value;
+     - the boundaries in training: 1,400 reports (14 pages) kept; 1,401 too large for the cap; a day whose 13 further
+       pages equal the budget left, kept;
+     - the boundaries in test: 1,000 reports kept; 1,001 too large for the cap; a 10-page day that leaves 9 pages
+       after its first fetch, not refetched; a day too large for the 8 pages left; a 4-page day that leaves exactly 4,
+       refetched and kept.
+   - The test of an exact check that differs twice now also asserts the calls: 492, one search and one repeat, then
+     dropped.
+   - Mutations killed: F1; F2, and `pages > budget`; F20, and a refetch allowed one page short; F3, and a blank entry
+     read as another maker; F5, and two repeats; F7; F8; F12; F16; F19.
+3. **The workflow's conditions.** `test_the_steps_in_order_and_nothing_before_the_marker_is_conditional` now splits
+   the steps. It asserts that each of the four after the marker (score `maude`, report, collect, upload) carries
+   exactly `if: ${{ !cancelled() && steps.start.outcome == 'success' }}`, and that no other step has an `if:`.
+   Removing that line from the report step fails it, and so does dropping `!cancelled() &&` from the upload.
+4. **The per-company echo table (E7, P11).** `report._company_extra_rows` printed the whole-label echoes, word echoes
+   and masked repeats as bare counts. Each now prints as the share of the company's records drawn, with the count
+   beside it (`0.350 (28 of 80)`), under headers that say so. The pooled shares, every deciding value and D002's
+   report are unchanged.
+   - `ReportTextTests.test_the_per_company_echoes_are_shares_of_the_records_drawn` pins a row.
+   - The full-arm test checks each company's three cells against `arm.json`.
+5. **This note.** "The dry run" said that every invented problem name was one this repository's maps already name.
+   That was wrong for three of them: `Battery Problem` and `Break`, which the review named, and also
+   `Insufficient Information`.
+   - The paragraph now says where each name comes from.
+   - The top of this note records what the build read of `field-coverage.json`: `definitions`, and the per-code
+     `top_problems` samples.
+   - The fake records each name's source (`PROBLEM_SOURCES`). `FakeArchiveTests` checks each one against the maps
+     and `field-coverage.json`, and checks that this note names them.
+
+**The default archive is unchanged.** The fetch was run on the default archive of `aa1b02e`'s fake and of this
+one. Exit code, stdout, stderr, the 612 requests served, the five exports, `companies.json`, `source.json` and
+`fetch.json` were byte-identical.
+
+**The dry run, repeated.** The dry run's steps (fetch, marker, score, report) were run again on this fix's tree,
+with `D003-settings.json` unchanged (B 10,000, 200 per company), on one machine with 4 cores. The branch then stood
+at `aa1b02e` with this fix uncommitted, so `arm.json` names `aa1b02e` as the code commit. Its `code_files` hashes
+equal the onboard package files of the commit holding this section.
+
+- Steps: fetch 2.7 s, score 278.1 s, report 1.1 s, each exit 0. The largest process used 71 MB.
+- The fetch, the selection, the 612 calls and attempts, and the exports are as above. So is every deciding value:
+  - verdict **pass**;
+  - C1 against `label_words`: 0.538, interval over 178 clusters 0.508 to 0.570 (records: 0.507 to 0.570);
+  - C2: 800 records scored, 600 with a gold; drafted minus `device_quality` 0.087 (0.071 to 0.105), minus
+    `all_reached` 0.659 (0.644 to 0.674), minus `most_frequent_reached` 0.643 (0.603 to 0.683); under the six-name
+    map, 480 with a gold;
+  - every reader-guard count 0.
+- The same `arm.json` was also rendered by `aa1b02e`'s `report.py`.
+  - The two `report.json` files differ only in the code hash and `report.py`'s file hash.
+  - The two `report.md` files differ only in the code-hash line and the per-company table's header and four rows.
+- The per-company table now prints shares of the records drawn. Its row for d1:
+  `| d1 | 66 | 47 | 46 | 0.075 (15 of 200) | 0.290 (58 of 200) | 0.005 (1 of 200) | 0 of 108 | 0 of 60 | 0 |`.
+- A scan looked at the 57 files the steps wrote or printed: each step's stdout and stderr, `arm.json`, `report.json`,
+  `report.md` and every drafted pack file. It found no invented maker name and no word of five letters or more of
+  one. It found no never-exported value and none of the 14,200 report keys. None of the 472 kept days appears
+  outside the fetch's own output.
+
+**Counts after review,** from `python -B -m pytest <path> -q -p no:cacheprovider`, and the two workflows' offline
+commands as they run there. They were taken on the tree of the commit holding this section, before this paragraph and
+its table were filled in. Nothing else differs.
+
+| Tests | Result |
+|---|---|
+| `tests/onboard` | 202 passed, 127 subtests passed |
+| `tests/onboard/test_onboard_d003.py` | 86 passed, 71 subtests passed |
+| `tests/mycelic/test_collective_onboard.py` | 164 passed, 96 subtests passed |
+| `tests/mycelic/test_collective_guards.py` | 83 passed, 732 subtests passed |
+| `tests/mycelic/test_collective_packs.py` | 64 passed, 29,445 subtests passed |
+| `tests/mycelic/test_collective_x3.py` (the hash pins) | 32 passed, 141 subtests passed |
+| `tests/market`, `tests/routing_spike` and the three lab test files that read `docs/collective/` | 310 passed, 16,906 subtests passed |
+| `tests/mycelic` | 1,710 passed, 1 xfailed, 45,604 subtests passed |
+| `onboard-d003.yml`'s offline command (`python -m unittest ...`) | 280 tests, OK |
+| `onboard-run.yml`'s offline command | 189 tests, OK |
+
+The market and lab group must run on a committed tree. Run before this fix was committed, with `report.py` changed
+and uncommitted, it failed 23 tests. The first failure was the lab's E1 preregistration refusing its settings, as
+it does when `mycelic/collective` holds uncommitted changes. On the committed tree it passes.
 
 ## Not done
 

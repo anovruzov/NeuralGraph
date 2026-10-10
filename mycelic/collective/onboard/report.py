@@ -549,11 +549,21 @@ def _guard_rows(arm: Mapping[str, Any]) -> list[str]:
     return rows
 
 
+def _share_of_drawn(count: Any, drawn: Any) -> str:
+    """E7's per-company share: the share of the records drawn, with the count of them beside it."""
+    if count is None:
+        return _f(None)
+    share = count / drawn if isinstance(drawn, int) and drawn else None
+    return f"{_f(share)} ({count} of {_f(drawn)})"
+
+
 def _company_extra_rows(arm: Mapping[str, Any]) -> list[str]:
-    """D003's reported measures per company (E4, E7, E11, P11): kept days, clusters, echoes, masked repeats, terms
-    resting on one narrative, and the label words the refusal took out of that control."""
-    rows = ["", "| Company | Kept days, training | Kept days, test | Clusters | Whole-label echo | Word echo | "
-            "Masked repeats | Lexicon terms in one narrative | Printed terms in one narrative | Label words refused |",
+    """D003's reported measures per company (E4, E7, E11, P11): kept days, clusters, echoes, masked repeats (each
+    the share of the company's records drawn, with the count of them), terms resting on one narrative, and the label
+    words the refusal took out of that control."""
+    rows = ["", "| Company | Kept days, training | Kept days, test | Clusters | Whole-label echo, share of drawn | "
+            "Word echo, share of drawn | Masked repeats, share of drawn | Lexicon terms in one narrative | "
+            "Printed terms in one narrative | Label words refused |",
             "|---|---|---|---|---|---|---|---|---|---|"]
     for label, c in arm["companies"].items():
         if "error" in c:
@@ -561,9 +571,12 @@ def _company_extra_rows(arm: Mapping[str, Any]) -> list[str]:
         e = c.get("echo") or {}
         t = c.get("single_narrative_terms") or {}
         lw = (c.get("controls") or {}).get("label_words") or {}
+        drawn = e.get("records")
         rows.append(f"| {label} | {_f(c['counts'].get('kept_days_train'))} | {_f(c['counts'].get('kept_days_test'))} | "
-                    f"{_f(c.get('clusters'))} | {_f(e.get('label_echo'))} | {_f(e.get('word_echo'))} | "
-                    f"{_f(e.get('masked_repeat'))} | {_f(t.get('lexicon_single'))} of {_f(t.get('lexicon_terms'))} | "
+                    f"{_f(c.get('clusters'))} | {_share_of_drawn(e.get('label_echo'), drawn)} | "
+                    f"{_share_of_drawn(e.get('word_echo'), drawn)} | "
+                    f"{_share_of_drawn(e.get('masked_repeat'), drawn)} | "
+                    f"{_f(t.get('lexicon_single'))} of {_f(t.get('lexicon_terms'))} | "
                     f"{_f(t.get('printed_single'))} of {_f(t.get('printed_terms'))} | {_f(lw.get('refused'))} |")
     return rows
 

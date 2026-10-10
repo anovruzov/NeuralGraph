@@ -45,7 +45,7 @@ from mycelic.collective.onboard.__main__ import main as onboard_main  # noqa: E4
 from mycelic.collective.onboard.exports import parse_export, read_export  # noqa: E402
 from mycelic.collective.packs.canonical import folded  # noqa: E402
 from mycelic.collective.packs.loader import load_pack_dir  # noqa: E402
-from tests.onboard.openfda_fake import MAKERS, Archive, FakeServer  # noqa: E402
+from tests.onboard.openfda_fake import MAKERS, PROBLEM_SOURCES, PROBLEMS, Archive, FakeServer  # noqa: E402
 
 
 def _load(name: str, path: Path) -> Any:
@@ -222,7 +222,36 @@ class FetchExportTests(FetchRun):
         text = "".join((self.out / f"d{i}.jsonl").read_text() for i in range(1, 6))
         for needle in NEVER_EXPORTED:
             self.assertNotIn(needle, text)
-        self.assertNotIn("Otherside Implants Inc", text)          # a report naming another maker is dropped
+
+    def test_reports_naming_another_maker_are_dropped_and_counted(self) -> None:
+        """Section 2.2 with E12: a report with a device entry naming another manufacturer is dropped from the export
+        and counted; a blank entry is not another manufacturer, so its report stays. The archive's kept days are
+        re-read here, so the dropped reports' keys are known."""
+        a = Archive()
+        names = chosen_names(a)
+        walks = {(w["label"], w["window"]): w for w in lines(self.stdout, "walk")}
+        for kd in lines(self.stdout, "kept_days"):
+            label, window = kd["label"], kd["window"]
+            maker = names[int(label[1:]) - 1]
+            exported = {r["mdr_report_key"] for r in self.rows(label)}
+            other, blank, records = set(), set(), 0
+            for item in kd["days"]:
+                day = item.split()[0]
+                for rec in a.records(maker, date(int(day[:4]), int(day[4:6]), int(day[6:]))):
+                    records += 1
+                    entries = [d.get("manufacturer_d_name") for d in rec["device"]]
+                    if any(v.strip() and v != maker for v in entries):
+                        other.add(rec["mdr_report_key"])
+                    elif any(not v.strip() for v in entries):
+                        blank.add(rec["mdr_report_key"])
+            with self.subTest(label=label, window=window):
+                walk = walks[(label, window)]
+                self.assertGreater(len(other), 0)
+                self.assertGreater(len(blank), 0)
+                self.assertEqual(walk["other_maker_dropped"], len(other))
+                self.assertEqual(walk["reports_kept"] + walk["other_maker_dropped"], records)
+                self.assertEqual(other & exported, set())
+                self.assertLessEqual(blank, exported)
 
     def test_the_drafter_reads_the_export(self) -> None:
         export = read_export(self.out / "d1.jsonl")
@@ -311,6 +340,8 @@ class FetchWalkTests(TempDir):
         if code == 0:
             row = json.loads((self.tmp / "s" / "d1.jsonl").read_text().splitlines()[0])
             self.assertIn(names[1], row["makers[]"])          # E12: its name stays in makers[]
+        # one search and one repeat in the training window, then dropped; the other four walk their whole budgets
+        self.assertEqual(lines(out, "requests")[-1]["calls"], 2 + 2 + 4 * (2 + 70 + 50))
 
     def test_fewer_than_three_companies_stop_before_any_day(self) -> None:
         a = Archive()
@@ -388,6 +419,188 @@ class FetchWalkTests(TempDir):
         self.assertEqual(code, 0)
         self.assertIn("would need: network api.fda.gov", out.getvalue())
         self.assertFalse((self.tmp / "o").exists())
+
+
+WINDOW_DATES = {w: (date.fromisoformat(ARM[w][0]), date.fromisoformat(ARM[w][1])) for w in ("train", "test")}
+
+
+def walk_order(label: str, window: str) -> list[date]:
+    return F.day_order(*WINDOW_DATES[window], f"{ARM['fetch']['days_seed_prefix']}:{window}:{label}")
+
+
+def plan_days(a: Archive, maker: str, label: str, window: str, head: list[int], rest: int | None) -> list[date]:
+    """Set a maker's reports per day in one window: the first ``len(head)`` days of the walk order of ``label`` get
+    ``head``'s counts, the window's other days ``rest`` (None: the archive's own count). Returns the walk order."""
+    order = walk_order(label, window)
+    table = dict(zip(order, head))
+    if rest is not None:
+        table.update({d: rest for d in order[len(head):]})
+    previous = a.day_count.get(maker)
+    own = Archive()
+
+    def count(day: date) -> int:
+        if day in table:
+            return table[day]
+        return previous(day) if previous is not None else own.count(maker, day)
+    a.day_count[maker] = count
+    return order
+
+
+def walks_of(out: str) -> dict[tuple[str, str], dict[str, Any]]:
+    return {(w["label"], w["window"]): w for w in lines(out, "walk")}
+
+
+def kept_of(out: str) -> dict[tuple[str, str], list[str]]:
+    return {(k["label"], k["window"]): k["days"] for k in lines(out, "kept_days")}
+
+
+class FetchClauseTests(TempDir):
+    """The fetch's clauses that the default archive never reaches: the exact-name check's one repeat (E10), the day
+    and report minimums (E11, E12), the company and duplicate-key tests of a day (E10), the order of keys of different
+    lengths (E5), and the boundaries of the per-day cap, of the budget left and of a refetch's budget (E10, E11)."""
+
+    def test_an_exact_check_that_differs_once_passes_on_its_repeat(self) -> None:
+        a = Archive()
+        names = chosen_names(a)
+        a.exact_off_once = {names[2]: 5}          # the first search of each window differs, the repeat does not
+        code, out, err, _ = run_fetch(self.tmp / "s", archive=a)
+        self.assertEqual(code, 0, err)
+        printed = {c["label"]: c["exact_check"] for c in lines(out, "company")}
+        self.assertEqual(printed, {"d1": "passed", "d2": "passed", "d3": "passed_on_repeat", "d4": "passed",
+                                   "d5": "passed"})
+        exported = {e["label"]: e for e in lines(out, "export")}
+        self.assertTrue(exported["d3"]["used"])
+        self.assertIn("d3", json.loads((self.tmp / "s" / "companies.json").read_text()))
+        self.assertEqual(lines(out, "requests")[-1]["calls"], 2 + 5 * (2 + 70 + 50) + 2)   # one repeat per window
+
+    def test_a_company_under_five_kept_days_is_dropped_though_its_reports_suffice(self) -> None:
+        """E11: four kept training days of 300 reports each hold over 1,000 reports with a narrative; the company is
+        still dropped, for its days. Its unwalked days are large, so it stays the largest maker, d1."""
+        a = Archive()
+        maker = chosen_names(a)[0]
+        order = plan_days(a, maker, "d1", "train", [300] * 4 + [0] * 58, 2000)
+        self.assertEqual(chosen_names(a)[0], maker)
+        code, out, err, _ = run_fetch(self.tmp / "s", archive=a)
+        self.assertEqual(code, 0, err)
+        train, test = walks_of(out)[("d1", "train")], walks_of(out)[("d1", "test")]
+        self.assertEqual((train["days_walked"], train["days_kept"], train["empty"], train["pages"]), (62, 4, 58, 70))
+        self.assertEqual(kept_of(out)[("d1", "train")], sorted(f"{F.ymd(d)} 300" for d in order[:4]))
+        self.assertGreaterEqual(train["with_narrative"], ARM["fetch"]["min_reports"]["train"])
+        self.assertGreaterEqual(test["days_kept"], ARM["fetch"]["min_days"])
+        self.assertGreaterEqual(test["with_narrative"], ARM["fetch"]["min_reports"]["test"])
+        exported = {e["label"]: e for e in lines(out, "export")}
+        self.assertEqual((exported["d1"]["used"], exported["d1"]["not_used"]), (False, "day_minimum"))
+        self.assertNotIn("d1", json.loads((self.tmp / "s" / "companies.json").read_text()))
+        self.assertTrue((self.tmp / "s" / "d1.jsonl").is_file())
+
+    def test_the_report_minimum_counts_reports_with_a_narrative_only(self) -> None:
+        """E12: six kept training days hold over 1,000 kept reports, but a quarter of this maker's reports carry no
+        description, so fewer than 1,000 have a narrative: the company is dropped for its reports."""
+        a = Archive()
+        maker = chosen_names(a)[0]
+        plan_days(a, maker, "d1", "train", [200] * 6 + [0] * 58, 2000)
+        a.no_text = {maker: 0.25}
+        self.assertEqual(chosen_names(a)[0], maker)
+        code, out, err, _ = run_fetch(self.tmp / "s", archive=a)
+        self.assertEqual(code, 0, err)
+        train, test = walks_of(out)[("d1", "train")], walks_of(out)[("d1", "test")]
+        self.assertEqual(train["days_kept"], 6)
+        self.assertGreaterEqual(train["reports_kept"], ARM["fetch"]["min_reports"]["train"])
+        self.assertLess(train["with_narrative"], ARM["fetch"]["min_reports"]["train"])
+        self.assertGreaterEqual(test["days_kept"], ARM["fetch"]["min_days"])
+        self.assertGreaterEqual(test["with_narrative"], ARM["fetch"]["min_reports"]["test"])
+        exported = {e["label"]: e for e in lines(out, "export")}
+        self.assertEqual((exported["d1"]["used"], exported["d1"]["not_used"]), (False, "report_minimum"))
+        companies = json.loads((self.tmp / "s" / "companies.json").read_text())
+        self.assertEqual(sorted(companies), ["d2", "d3", "d4"])
+
+    def test_a_record_without_the_company_or_a_repeated_key_leaves_the_day_out(self) -> None:
+        """E10: a day whose page holds a record naming the company in no device entry (its only entry is blank), and
+        a day whose last page repeats one key while its distinct keys still number its total, are each fetched once
+        more and then left out. Also E5's order: another maker's keys differ in length and sort by their value."""
+        a = Archive()
+        names = chosen_names(a)
+        maker = names[0]
+        single = [F.ymd(d) for d in walk_order("d1", "train")[:40] if 0 < a.count(maker, d) <= 100]
+        a.malformed = {(maker, single[0]): "company"}
+        a.unstable = {(maker, single[1]): "repeat"}
+        a.key_base = {names[1]: 0}
+        code, out, err, _ = run_fetch(self.tmp / "s", archive=a)
+        self.assertEqual(code, 0, err)
+        walk = walks_of(out)[("d1", "train")]
+        self.assertEqual(walk["incomplete"], {"keys": 1, "day": 0, "company": 1})
+        self.assertEqual((walk["refetched"], walk["duplicate_keys"], walk["missing_keys"]), (2, 2, 0))
+        kept = {x.split()[0] for x in kept_of(out)[("d1", "train")]}
+        self.assertEqual(kept & {single[0], single[1]}, set())
+        rows = [json.loads(x) for x in (self.tmp / "s" / "d1.jsonl").read_text().splitlines()]
+        self.assertEqual({r["received_day"] for r in rows} & {single[0], single[1]}, set())
+        keys = [json.loads(x)["mdr_report_key"] for x in (self.tmp / "s" / "d2.jsonl").read_text().splitlines()]
+        self.assertGreater(len({len(k) for k in keys}), 1)
+        self.assertEqual(keys, sorted(keys, key=int))
+        self.assertNotEqual(keys, sorted(keys))
+        self.assertEqual(sorted(["100", "99", "1000", "abc", "KEYX", "007"], key=F.key_order),
+                         ["007", "99", "100", "1000", "KEYX", "abc"])
+
+    def test_the_boundaries_of_the_day_cap_the_budget_left_and_a_refetch(self) -> None:
+        """E10 and E11 at their edges, on d1's first walked days (its unwalked training days are large, so it stays
+        d1). Training, budget 70, cap 14: 1,400 reports (14 pages) kept; 1,401 (15) too large for the cap; then,
+        with 13 pages left after a first page, 1,400 (13 further pages) kept, ending the budget. Test, budget 50,
+        cap 10: 1,000 (10 pages) kept; 1,001 too large for the cap; a day of 10 pages fetched with 19 left whose
+        pages shift once leaves 9, so it is not refetched; 1,000 with 8 left after its first page is too large for
+        the budget; a day of 4 pages whose pages shift once leaves exactly 4, so it is refetched and kept."""
+        a = Archive()
+        maker = chosen_names(a)[0]
+        train = plan_days(a, maker, "d1", "train", [1400, 1401, 1400, 1400, 1300, 1400], 2000)
+        test = plan_days(a, maker, "d1", "test", [1000, 1001, 1000, 1000, 1000, 1000, 400], None)
+        a.unstable = {(maker, F.ymd(test[4])): "once", (maker, F.ymd(test[6])): "once"}
+        self.assertEqual(chosen_names(a)[0], maker)
+        code, out, err, server = run_fetch(self.tmp / "s", archive=a)
+        self.assertEqual(code, 0, err)
+        tr, te = walks_of(out)[("d1", "train")], walks_of(out)[("d1", "test")]
+        self.assertEqual((tr["days_walked"], tr["days_kept"], tr["too_large_cap"], tr["too_large_budget"],
+                          tr["refetched"], tr["pages"]), (6, 5, 1, 0, 0, 70))
+        self.assertEqual(kept_of(out)[("d1", "train")],
+                         sorted(f"{F.ymd(train[i])} {n}" for i, n in ((0, 1400), (2, 1400), (3, 1400), (4, 1300),
+                                                                      (5, 1400))))
+        self.assertEqual((te["days_walked"], te["days_kept"], te["too_large_cap"], te["too_large_budget"],
+                          te["refetched"], te["incomplete"]["keys"], te["duplicate_keys"], te["missing_keys"],
+                          te["pages"]), (7, 4, 1, 1, 1, 1, 2, 2, 50))
+        self.assertEqual(kept_of(out)[("d1", "test")],
+                         sorted(f"{F.ymd(test[i])} {n}" for i, n in ((0, 1000), (2, 1000), (3, 1000), (6, 400))))
+        self.assertEqual(max(server.mode["skips"]), 1300)
+
+
+class FakeArchiveTests(unittest.TestCase):
+    """The invented archive's problem names come from where the fake and BUILD-D003.md say: a value map, or, for the
+    names no map holds, field-coverage.json's per-code samples or its generic terms. Nothing of those files is
+    printed; a failure names only the problem name."""
+
+    def test_each_problem_name_is_found_where_it_is_said_to_come_from(self) -> None:
+        six = set(json.loads((DQ / "mapping_openfda.json").read_text())["codes"][0]["value_map"])
+        big = set(json.loads((ROOT / "lab/packs/device_quality_bd/mapping_openfda.json").read_text())
+                  ["codes"][0]["value_map"])
+        coverage = json.loads((ROOT / "docs/strategy/data/field-coverage.json").read_text())
+        sampled = {p["problem"] for c in coverage["codes"] for p in c["sample"]["top_problems"]}
+        generic = set(coverage["definitions"]["generic_problems"])
+        self.assertEqual(list(PROBLEM_SOURCES), list(PROBLEMS))
+        for name, source in PROBLEM_SOURCES.items():
+            found = {"six-name map": name in six and name in big, "22-name map": name in big and name not in six,
+                     "top_problems": name not in big and name in sampled,
+                     "generic_problems": name not in big and folded(name) in generic}
+            with self.subTest(name=name):
+                self.assertTrue(found[source], f"{name} is not where it is said to come from")
+        self.assertEqual(sorted(n for n, s in PROBLEM_SOURCES.items() if s in ("top_problems", "generic_problems")),
+                         ["Battery Problem", "Break", "Insufficient Information"])
+
+    def test_the_build_note_says_where_each_problem_name_comes_from(self) -> None:
+        build = (ONBOARD_DOCS / "BUILD-D003.md").read_text()
+        section = build.split("\n## The dry run\n", 1)[1].split("\n## ", 1)[0]
+        wrong = "the problem names are FDA terms that this repository's maps already name"
+        self.assertFalse(wrong in " ".join(build.split()), "BUILD-D003.md still says every problem name is a map's")
+        for name in PROBLEMS:
+            self.assertIn(f"`{name}`", section)
+        self.assertIn("`top_problems`", section)
+        self.assertIn("`definitions`", build)
 
 
 # =================================================================================================== settings
@@ -763,6 +976,150 @@ class CriterionTests(unittest.TestCase):
         self.assertTrue(detail.startswith("not decided (the deciding hand copy"))
 
 
+# Two invented companies in D003's layout for C2's space (E2). d1 files Crack and Battery Problem in training, so C
+# (its drafted names that the hand map sends to a specific code) is {Crack}, and its reach is {crack}: a strict subset
+# of what the map reaches. In the test window some of its reports also carry Fluid/Blood Leak, which the map sends to
+# leak, a predicate C does not reach. d2 files Battery Problem and Break, which no map names: its C is empty.
+REACH_CUES = {"Crack": "cracked fissure", "Battery Problem": "battery drained", "Break": "snapped fragment",
+              "Fluid/Blood Leak": "leaking seepage"}
+REACH_FILLER = ("patient", "nurse", "procedure", "hospital", "reported", "device", "during", "after", "returned",
+                "event", "clinical", "staff", "observed", "noted", "follow", "visit", "therapy", "monitor", "unit",
+                "shift")
+REACH_PLAN = {
+    "d1": {"train": [("Crack",), ("Battery Problem",)],
+           "test": [(("Crack",), 4), (("Battery Problem",), 4), (("Battery Problem", "Fluid/Blood Leak"), 3),
+                    (("Crack", "Fluid/Blood Leak"), 2)]},
+    "d2": {"train": [("Battery Problem",), ("Break",)],
+           "test": [(("Battery Problem",), 4), (("Break",), 4), (("Break", "Crack"), 3)]}}
+REACH_TEST_DAYS = 6
+
+
+def reach_exports(directory: Path, lower: tuple[str, ...] = ()) -> None:
+    """The two companies' exports and companies.json: 8 training days of 10 reports per filed list, 6 test days of
+    the plan's counts; every narrative unique. ``lower``: labels whose ``maker_entity`` is written in lower case,
+    which the hand copies cannot resolve (E1)."""
+    directory.mkdir(parents=True)
+    rng = random.Random(5)
+    k = 0
+    companies = {}
+    for label, plan in REACH_PLAN.items():
+        rows = []
+
+        def row(day: str, problems: tuple[str, ...], label: str = label) -> dict[str, Any]:
+            nonlocal k
+            k += 1
+            text = " ".join([REACH_CUES[p] for p in problems] + rng.sample(REACH_FILLER, 6)) + f" case {k}."
+            return {"mdr_report_key": str(500000 + k), "date_received": day, "product_problems[]": list(problems),
+                    "mdr_text": text, "received_day": day,
+                    "maker_entity": label if label in lower else label.upper(), "makers[]": ["Invented Maker Corp"]}
+        for d in range(8):
+            for problems in plan["train"]:
+                rows += [row(f"202103{d + 10:02d}", problems) for _ in range(10)]
+        for d in range(REACH_TEST_DAYS):
+            for problems, n in plan["test"]:
+                rows += [row(f"202305{d + 10:02d}", problems) for _ in range(n)]
+        (directory / f"{label}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+        companies[label] = {"file": f"{label}.jsonl"}
+    (directory / "companies.json").write_text(json.dumps(companies))
+
+
+class ReachSpaceTests(unittest.TestCase):
+    """E2 and E1 through the score's own wiring (P7, P10): run_arm on the two companies above, with D003's settings
+    but B = 100 and C2's record minimum at 10, so that C2 is decided when its guard allows it. Once as written, once
+    with d1's maker_entity in lower case."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._tmp = tempfile.TemporaryDirectory()
+        tmp = Path(cls._tmp.name)
+        s = copy.deepcopy(SETTINGS)
+        s["bootstrap"]["B"] = 100
+        s["arms"]["maude"]["criterion"][1]["min_records"] = 10
+        cls.docs = {}
+        for name, lower in (("clean", ()), ("lower", ("d1",))):
+            reach_exports(tmp / name / "exports", lower)
+            cls.docs[name] = SC.run_arm(s, "0" * 64, "maude", tmp / name / "exports", tmp / name / "arm",
+                                        lambda: "0" * 40)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._tmp.cleanup()
+
+    def test_a_strict_subset_reach_and_an_empty_reach(self) -> None:
+        doc = self.docs["clean"]
+        self.assertEqual(doc["errors"], [])
+        d1_test = sum(n for _, n in REACH_PLAN["d1"]["test"]) * REACH_TEST_DAYS
+        d2_test = sum(n for _, n in REACH_PLAN["d2"]["test"]) * REACH_TEST_DAYS
+        crack = sum(n for p, n in REACH_PLAN["d1"]["test"] if "Crack" in p) * REACH_TEST_DAYS
+        for name in ("device_quality", "device_quality_own"):
+            with self.subTest(hand=name):
+                h1 = doc["companies"]["d1"]["hand"][name]
+                h2 = doc["companies"]["d2"]["hand"][name]
+                self.assertEqual(doc["companies"]["d1"]["sample"]["drawn"], d1_test)
+                self.assertEqual(doc["companies"]["d2"]["sample"]["drawn"], d2_test)
+                # d1: every sampled record scored; the gold only in the reach, so Fluid/Blood Leak is no gold
+                self.assertEqual((h1["reach"], h1["most_frequent_reached"], h1["scored"], h1["with_gold"]),
+                                 (["crack"], "crack", d1_test, crack))
+                self.assertEqual(h1["space"]["all_reached"]["micro"]["tp"], crack)
+                self.assertEqual(h1["space"]["all_reached"]["micro"]["fp"], d1_test - crack)
+                self.assertEqual(h1["space"]["all_reached"]["micro"]["fn"], 0)
+                # d2: C is empty, so none of its records is in the space
+                self.assertEqual((h2["reach"], h2["most_frequent_reached"], h2["scored"], h2["with_gold"]),
+                                 ([], None, 0, 0))
+                self.assertEqual(h2["space"]["drafted"]["records"], 0)
+                # pooled: d1's records only, in d1's six (company, day) clusters
+                space = doc["space"][name]
+                self.assertEqual((space["scored"], space["with_gold"]), (d1_test, crack))
+                for r in (name, "all_reached", "most_frequent_reached"):
+                    self.assertEqual(space["compared"][r]["days"]["clusters"], REACH_TEST_DAYS)
+                self.assertEqual(space["readers"]["all_reached"]["micro"]["fn"], 0)
+        c2 = doc["criterion"][1]
+        self.assertEqual((c2["scored"], c2["records"], c2["clusters"]), (d1_test, crack, REACH_TEST_DAYS))
+
+    def test_c2_is_not_decided_when_the_deciding_copy_cannot_resolve_its_entity(self) -> None:
+        """E1: with d1's maker_entity in lower case, the hand copies leave every one of d1's sampled records without
+        a primary entity, while the drafted reader reads them as before. C2 is then not decided. As written, the same
+        records decide C2."""
+        clean, lower = self.docs["clean"], self.docs["lower"]
+        d1_test = sum(n for _, n in REACH_PLAN["d1"]["test"]) * REACH_TEST_DAYS
+        self.assertTrue(clean["criterion"][1]["decided"])
+        self.assertEqual(clean["reader_guard"]["device_quality"]["no_primary"], 0)
+        self.assertEqual(lower["reader_guard"]["drafted"], dict.fromkeys(SC.GUARD_COUNTS, 0))
+        self.assertEqual(lower["reader_guard"]["device_quality"]["no_primary"], d1_test)
+        c2 = lower["criterion"][1]
+        self.assertEqual((c2["decided"], c2["passed"]), (False, False))
+        self.assertEqual(c2["reason"], f"the deciding hand copy rejected 0 sampled records and left {d1_test} without "
+                                       "a primary entity")
+        self.assertEqual(lower["space"]["device_quality"]["with_gold"], clean["space"]["device_quality"]["with_gold"])
+
+
+class MostFrequentReachedTests(unittest.TestCase):
+    """E2's most frequent reached predicate: training-corpus records counted once per reached predicate they carry
+    through the hand map; names outside the reach ignored; ties to the smaller id."""
+
+    hand = load_pack_dir(HAND / "device_quality")
+
+    def top(self, categories: list[tuple[str, ...]], reach: set[str]) -> str | None:
+        from types import SimpleNamespace
+        d = SimpleNamespace(corpus=SimpleNamespace(categories=tuple(categories)))
+        return SC.most_frequent_reached(d, self.hand, reach)
+
+    def test_ties_go_to_the_smaller_id(self) -> None:
+        both = {"crack", "leak"}
+        self.assertEqual(self.top([("Crack",), ("Fluid/Blood Leak",)], both), "crack")
+        self.assertEqual(self.top([("Fluid/Blood Leak",), ("Crack",)], both), "crack")
+        self.assertEqual(self.top([("Leak/Splash",), ("Fracture",), ("Leak/Splash",)], both), "leak")
+
+    def test_a_record_counts_once_and_unreached_names_are_ignored(self) -> None:
+        both = {"crack", "leak"}
+        # Crack and Fracture both map to crack: one record, one count; Contamination is outside the reach
+        cats = [("Crack", "Fracture"), ("Fluid/Blood Leak",), ("Leak/Splash",), ("Contamination",),
+                ("Contamination",), ("Contamination",), ("Battery Problem",)]
+        self.assertEqual(self.top(cats, both), "leak")
+        self.assertEqual(self.top([("Contamination",), ("Battery Problem",)], both), None)
+        self.assertEqual(self.top([("Adverse Event Without Identified Device or Use Problem",)], both), None)
+
+
 class EchoTests(unittest.TestCase):
     """P6 and E7: the whole-label and word echoes, and digit-masked repeats."""
 
@@ -868,6 +1225,23 @@ class ReportTextTests(unittest.TestCase):
         self.assertNotIn("MSHA", " ".join(SETTINGS["report_text"].values()))
         self.assertNotIn("pack/", text["below_criteria"])
 
+    def test_the_per_company_echoes_are_shares_of_the_records_drawn(self) -> None:
+        """E7 asks for shares per company, as the pooled line prints them: each echo and repeat count is printed as
+        its share of the company's records drawn, with the count beside it, never as a bare count."""
+        company = {"counts": {"kept_days_train": 60, "kept_days_test": 45}, "clusters": 9,
+                   "echo": {"records": 80, "label_echo": 7, "word_echo": 47, "masked_repeat": 28},
+                   "single_narrative_terms": {"lexicon_single": 2, "lexicon_terms": 40, "printed_single": 1,
+                                              "printed_terms": 20},
+                   "controls": {"label_words": {"refused": 0}}}
+        rows = REP._company_extra_rows({"companies": {"d1": company, "d2": {"error": "DraftError: x"}}})
+        self.assertEqual(rows[1].split(" | ")[4:7], ["Whole-label echo, share of drawn", "Word echo, share of drawn",
+                                                      "Masked repeats, share of drawn"])
+        self.assertEqual(rows[3], "| d1 | 60 | 45 | 9 | 0.087 (7 of 80) | 0.588 (47 of 80) | 0.350 (28 of 80) | "
+                                  "2 of 40 | 1 of 20 | 0 |")
+        self.assertEqual(len(rows), 4)
+        empty = dict(company, echo={"records": 0, "label_echo": 0, "word_echo": 0, "masked_repeat": 0})
+        self.assertIn("| n/a (0 of 0) |", REP._company_extra_rows({"companies": {"d1": empty}})[3])
+
 
 # =================================================================================================== the full arm
 
@@ -936,10 +1310,18 @@ class FullArmTests(FullArmRun):
         self.assertEqual(set(self.arm["subsets"]), set(SC.SUBSETS))
         self.assertEqual(set(self.arm["reader_guard"]), {"drafted", "device_quality", "device_quality_own"})
         self.assertEqual(self.arm["reader_guard"]["device_quality"]["no_primary"], 0)
-        for c in self.arm["companies"].values():
+        for label, c in self.arm["companies"].items():
             self.assertEqual(set(c["hand"]), {"device_quality", "device_quality_own"})
             self.assertIn("single_narrative_terms", c)
             self.assertIn("echo", c)
+            e = c["echo"]
+            self.assertEqual(e["records"], c["sample"]["drawn"])
+            rows = [x for x in self.md.splitlines() if x.startswith(f"| {label} | ") and " of drawn" not in x
+                    and f" of {e['records']}) | " in x]
+            self.assertEqual(len(rows), 1)
+            row = rows[0]
+            for key in ("label_echo", "word_echo", "masked_repeat"):
+                self.assertIn(f" | {e[key] / e['records']:.3f} ({e[key]} of {e['records']}) | ", row)
 
     def test_the_drafted_packs_pass_the_floor_counted_by_days(self) -> None:
         for label, c in self.arm["companies"].items():
@@ -1064,6 +1446,20 @@ class WorkflowTests(TempDir):
                                  "run start", "score maude", "report", "collect the files to upload"])
         before = self.text.split("- name: run start")[0]
         self.assertNotIn("if:", before)
+        # every step after the marker runs whatever the step before it did, once the marker printed (section 12: from
+        # the marker on, whatever happens is the result): a score exit of 1 must not skip the report or the upload
+        steps = re.split(r"\n(?=      - )", self.text.split("\n    steps:\n", 1)[1].rstrip("\n"))
+        start = next(i for i, s in enumerate(steps) if s.startswith("      - name: run start\n"))
+        self.assertIn("        id: start\n", steps[start])
+        after = steps[start + 1:]
+        self.assertEqual([s.splitlines()[0].strip() for s in after],
+                         ["- name: score maude", "- name: report", "- name: collect the files to upload",
+                          "- uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2"])
+        for step in steps:
+            conditions = [line.strip() for line in step.splitlines() if line.strip().startswith("if:")]
+            with self.subTest(step=step.splitlines()[0].strip()):
+                self.assertEqual(conditions, ["if: ${{ !cancelled() && steps.start.outcome == 'success' }}"]
+                                 if step in after else [])
         self.assertIn('echo "=== $EXPERIMENT RUN-START ==="', self.text)
         self.assertEqual(self.step_run("fetch, select and split (a failure here is not a run)"),
                          'python tools/onboard/fetch_openfda.py fetch --settings "$SETTINGS" --out work/split/maude')

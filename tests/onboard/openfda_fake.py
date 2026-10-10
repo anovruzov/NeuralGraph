@@ -1,11 +1,15 @@
 """A local, openFDA-shaped device-event server for D003's offline tests and dry run. Every maker name, report key,
-narrative, lot, UDI and patient value is invented here; the problem names are terms of FDA's public problem list
-that this repository's maps already name. No record of any public source is read.
+narrative, lot, UDI and patient value is invented here. The problem names are FDA problem terms copied from files of
+this repository; ``PROBLEM_SOURCES`` says, for each, where. Three of them (``Battery Problem``, ``Break`` and
+``Insufficient Information``) are named by no value map. No record of any public source is read.
 
 The server answers the three query shapes ``tools/onboard/fetch_openfda.py`` sends (a count list, an exact-name
 check, a day's page) from a virtual archive: the reports of a (maker, day) pair are generated on demand from a seed,
 so a large archive costs nothing until it is read. Faults can be switched on per test: unstable paging on chosen
-days, a 429 before every answer, a 500 for every answer, and malformed records on chosen days.
+days (pages that shift once or always, or a last page that repeats a key), a 429 before every answer, a 500 for
+every answer, malformed records on chosen days, and an exact-name search whose total differs (always, or on the
+first search of each window only). Per maker, a test can also set the reports of each day, the share of reports
+without a description, and the base of the report keys (so that keys differ in length).
 """
 from __future__ import annotations
 
@@ -16,11 +20,12 @@ import threading
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import parse_qs, urlsplit
 
 DESCRIPTION = "Description of Event or Problem"
-# problem name -> (cue words a narrative uses, a device_quality word or none); the names are FDA's public terms
+# problem name -> (cue words a narrative uses, a device_quality word or none); the names are FDA's problem terms,
+# copied from the files PROBLEM_SOURCES names
 PROBLEMS = {
     "Crack": (("cracked", "split", "fissure"), "cracked"),
     "Fluid/Blood Leak": (("leaking", "seepage", "dripping"), "leaking"),
@@ -30,6 +35,23 @@ PROBLEMS = {
     "Break": (("broke", "snapped", "fragment"), None),
     "Adverse Event Without Identified Device or Use Problem": (("reviewed", "evaluated", "concluded"), None),
     "Insufficient Information": (("limited", "details", "unavailable"), None),
+}
+# where each problem name comes from (BUILD-D003.md, "The dry run"; checked by FakeArchiveTests):
+# - "six-name map": a name of device_quality's own value map, and so also of the 22-name map;
+# - "22-name map": a name of lab/packs/device_quality_bd's value map only;
+# - "top_problems": a name of no map, copied from the per-code `top_problems` samples of
+#   docs/strategy/data/field-coverage.json, which the build read for this;
+# - "generic_problems": a name of no map, one of the nine generic terms of field-coverage.json's `definitions`
+#   (written there in lower case).
+PROBLEM_SOURCES = {
+    "Crack": "six-name map",
+    "Fluid/Blood Leak": "six-name map",
+    "Occlusion Within Device": "six-name map",
+    "Material Discolored": "22-name map",
+    "Battery Problem": "top_problems",
+    "Break": "top_problems",
+    "Adverse Event Without Identified Device or Use Problem": "six-name map",
+    "Insufficient Information": "generic_problems",
 }
 FILLER = ("patient", "nurse", "procedure", "hospital", "reported", "device", "during", "after", "returned", "event",
           "clinical", "staff", "observed", "noted", "follow", "visit", "therapy", "monitor", "unit", "shift")
@@ -69,13 +91,24 @@ class Archive:
     makers: dict[str, tuple[int, tuple[int, ...]]] = field(default_factory=lambda: dict(MAKERS))
     extra: dict[str, tuple[int, int]] = field(default_factory=lambda: dict(EXTRA_NAMES))
     big_days: int = 6          # days per maker and window with more reports than the per-day cap allows
-    unstable: dict[tuple[str, str], str] = field(default_factory=dict)   # (maker, day): "once" or "always"
-    malformed: dict[tuple[str, str], str] = field(default_factory=dict)   # (maker, day): kind of malformed record
+    # (maker, day): "once" or "always" (pages after the first shift by one record), or "repeat" (the day's last page
+    # also carries its first record again, so one key repeats while the distinct keys still number the total)
+    unstable: dict[tuple[str, str], str] = field(default_factory=dict)
+    # (maker, day): kind of malformed record ("key", "date", "problem"; "company": its only device entry is blank)
+    malformed: dict[tuple[str, str], str] = field(default_factory=dict)
     exact_off: dict[str, int] = field(default_factory=dict)   # maker: what the exact search adds to its total
+    # maker: what the exact search adds to its total on the first search of each window only
+    exact_off_once: dict[str, int] = field(default_factory=dict)
+    day_count: dict[str, Callable[[date], int]] = field(default_factory=dict)   # maker: its reports of a day
+    no_text: dict[str, float] = field(default_factory=dict)   # maker: share of reports without a description
+    key_base: dict[str, int] = field(default_factory=dict)   # maker: the base of its report numbers
     _cache: dict[tuple[str, str], list[dict[str, Any]]] = field(default_factory=dict)
     served: dict[tuple[str, str], int] = field(default_factory=dict)
+    exact_served: dict[tuple[str, str, str], int] = field(default_factory=dict)
 
     def count(self, maker: str, day: date) -> int:
+        if maker in self.day_count:
+            return self.day_count[maker](day)
         rate, _ = self.makers[maker]
         rng = random.Random(f"n|{maker}|{_ymd(day)}")
         if rng.random() < 0.08:
@@ -119,7 +152,7 @@ class Archive:
         if rng.random() < 0.1:
             text = "Template report. The device was returned for evaluation " + str(rng.randrange(10, 99)) + "."
         maker_no = list(self.makers).index(maker) + 1
-        number = maker_no * 10_000_000 + (day - WINDOW[0]).days * 2000 + i
+        number = self.key_base.get(maker, maker_no * 10_000_000) + (day - WINDOW[0]).days * 2000 + i
         devices = [{"manufacturer_d_name": maker, "lot_number": f"LOTX{rng.randrange(10**6):06d}",
                     "udi_di": f"UDIX{rng.randrange(10**8):08d}", "model_number": f"MDL-{rng.randrange(99)}",
                     "brand_name": "Inventbrand"}]
@@ -129,7 +162,7 @@ class Archive:
             devices.append({"manufacturer_d_name": "   "})
         texts = [{"mdr_text_key": str(2 * number), "text_type_code": "Additional Manufacturer Narrative",
                   "text": "Manufacturer comment never exported."}]
-        if rng.random() > 0.05:
+        if rng.random() > self.no_text.get(maker, 0.05):
             texts.append({"mdr_text_key": str(2 * number + 1), "text_type_code": DESCRIPTION, "text": text})
         return {"mdr_report_key": str(number), "report_number": f"RPTX-{number}", "date_received": _ymd(day),
                 "product_problems": problems, "device": devices, "mdr_text": texts,
@@ -146,6 +179,8 @@ class Archive:
                 out[0]["date_received"] = "DATENOTPARSEDZQX"
             elif kind == "problem":
                 out[0]["product_problems"] = [{"nested": "PROBLEMNOTSTRINGZQX"}, "Crack"]
+            elif kind == "company":
+                out[0]["device"] = [{"manufacturer_d_name": "   "}]
         return out
 
     def count_list(self, first: date, last: date, limit: int) -> list[dict[str, Any]]:
@@ -205,14 +240,21 @@ class Handler(BaseHTTPRequestHandler):
             a.served[key] = a.served.get(key, 0) + 1
             how = a.unstable.get(key)
             pages = -(-total // limit) if limit else 1
-            if skip and (how == "always" or (how == "once" and a.served[key] <= pages)):
-                results = results[1:] + results[:1]
+            page = (results[1:] + results[:1]) if skip and (
+                how == "always" or (how == "once" and a.served[key] <= pages)) else results
+            page = page[skip:skip + limit]
+            if how == "repeat" and results and skip + limit >= total:
+                page = page + [results[0]]
         else:
-            results, total = [], a.total(name, first, last) + a.exact_off.get(name, 0)
+            searched = (name, m["a"], m["b"])
+            a.exact_served[searched] = a.exact_served.get(searched, 0) + 1
+            total = a.total(name, first, last) + a.exact_off.get(name, 0)
+            if a.exact_served[searched] == 1:
+                total += a.exact_off_once.get(name, 0)
+            page = [{"mdr_report_key": "0"}]
         if total == 0:
             return self._send(404, {"error": {"code": "NOT_FOUND", "message": "No matches found! ZQXMSG"}})
-        return self._send(200, {"meta": {"results": {"skip": skip, "limit": limit, "total": total}},
-                                "results": results[skip:skip + limit] if first == last else [{"mdr_report_key": "0"}]})
+        return self._send(200, {"meta": {"results": {"skip": skip, "limit": limit, "total": total}}, "results": page})
 
 
 class FakeServer:
