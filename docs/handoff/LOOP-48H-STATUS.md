@@ -43,6 +43,15 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
 - 04:02 CI re-run 38109670867 (3e078d9): compose smoke and manifests green; the unit/API/JetStream job still running.
   A001 built as the lab's j2 experiment (689e138: two judge tasks, a declared mapping, a fresh draw with J001's run
   excluded); its build review is running. EMERGENCE build stage A/B (bridge; site graphs + adapter) running since 03:18.
+- 05:00 CI run 38109670867 (3e078d9) finished red: compose smoke and manifests green; the unit/API/JetStream job ran
+  tests/mycelic to 1,709 passed, 1 xfailed, 1 failed: the no-model-names guard found the first path segment of the
+  branch name at two places in E2E-INGEST.md (the first tests/mycelic run since the brief was merged). Fixed by
+  wording, amendment recorded in the brief (65428d9); the guard test passes; rides the next push. A001 build review:
+  two blocking findings (prereg `main` overriding the fetch option; a digit in a note), fixed (c573f44), merged
+  (f45fd2f); the pre-push gate (tests/lab alone, onboard + guards + x3, the j2 data build, the template dry run) is
+  running since 04:52 on the merged tree with the brief fix in the working tree. The run request follows only a green
+  gate. EMERGENCE build: the bridge (1915aac) and the site graphs + adapter (63af47d) are built; harness + drills
+  building; measurement + CI, review and fix follow. Nothing pushed since 3e078d9.
 
 ## Open asks (date asked)
 
