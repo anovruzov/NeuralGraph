@@ -36,6 +36,10 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   E2E-INGEST.md amended (315a087: M1-M25 answer 25 findings, 7 blocking) and merged; build part 2 launched
   (bridge S3/S4, site graphs + EMERGENCE adapter S2, harness + drills S5/S6, measurement + CI with the suite gate
   S7/S8, then review and fix).
+- 03:50 First mycelic.yml run on this branch (38107786068): the unit/API/MCP/JetStream/process-smoke job passed in
+  24 min and the manifests job passed; the compose smoke job failed before any test, on the runner's buildx bake
+  entitlement ("additional privileges requested: pass --allow=fs.read=/dev/null"). Fix: COMPOSE_BAKE=false on that
+  job (pinned mycelic/harness.py untouched). Re-run follows the push.
 
 ## Open asks (date asked)
 
