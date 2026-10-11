@@ -144,6 +144,13 @@ Do **not** build Tesseract into the accuracy track: decisions 1, 2 and 7 are ope
 - **(d) Gate-status agreement with the key:** 5 items in L001 (run 2: 0, 1 and 2 of 5; a constant status gets 3); a count, not an estimate.
 - **Site-level BA (L-type):** rejected as primary: route-role scores 0.808 reading nothing.
 
+> **Founder update, 2026-10-11 02:08 UTC, after this prompt was written:** "Run the entire embedded bench ... the entire
+> emergence benchmark end-to-end ingestion ... each neural graph takes in the messages, ingests it, goes into the NATS,
+> and then goes into the actual fabric. Make sure tesseract routing is used. No mistakes allowed. End-to-end
+> benchmarking is a requisite." This supersedes 3.2's order and cut rule: the demonstration load is the
+> enterprise-hierarchy benchmark of `research/mycelic/` (`docs/MYCELIC_ENTERPRISE.md`), the Tesseract leg is
+> mandatory, and the design brief `docs/collective/E2E-INGEST.md` carries the binding specification.
+
 ## 3. Goal B: end-to-end ingestion (NeuralGraph → Tesseract → fabric API → outbox → JetStream → apply) with lineage to source
 
 State at HEAD `abbf2e4`: the four parts exist and are tested separately; the chain exists only in the research routing spike (`research/routing_spike/`), which publishes to an in-process fabric (`publish.py:53-58`, `nats_url=None`, `InProcessTransport()`), is synthetic, and is in no CI workflow. Nothing in `mycelic/collective` publishes into the fabric (`HANDOFF-2026-10-09.md:170-171`). NATS is the fabric's internal log: every event enters through `POST /events`, `POST /memory` or the SDK, is written to the outbox, HMAC-signed (`mycelic/service.py:1041-1044`) and published; a publish that bypasses the API is terminated, but only when the service is keyed (`service.py:929-931`, `if self.keyring.keyed`; `tests/mycelic/test_jetstream.py:541-551`). Raw records and graph nodes never cross the Boundary; only verdicts and conclusions do.
