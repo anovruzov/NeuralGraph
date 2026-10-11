@@ -31,6 +31,11 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
 - 03:13 Ingestion part 1: S0 committed (6ad04b2) and merged; the EMERGENCE brief E2E-INGEST.md committed alone
   (e3052c0, 670 lines); fakeability review done, feasibility review running, then the amendment. Accuracy: rule A001
   committed alone (90d2084), two reviews (one blocking: the fresh-draw mechanism), amended (146431c), build running.
+- 03:18 Suites gate on 5d646a9 complete: tests/mycelic 1,710 passed (1 xfailed), tests/lab 725, tests/onboard 287,
+  tests/routing_spike 61, NeuralGraph/tests and tests/market 87 together, research.mycelic 30 OK; 0 failures.
+  E2E-INGEST.md amended (315a087: M1-M25 answer 25 findings, 7 blocking) and merged; build part 2 launched
+  (bridge S3/S4, site graphs + EMERGENCE adapter S2, harness + drills S5/S6, measurement + CI with the suite gate
+  S7/S8, then review and fix).
 
 ## Open asks (date asked)
 
