@@ -72,6 +72,13 @@ Status, from :func:`harness_status`, then the participation check, then G0's mod
 * J1: exit 0 with a ``run.json`` of kind ``lab_j1_run`` that says ``complete: true`` is ``ok``; exit 1 with one that
   says ``complete: false`` (the run stopped at its budget or after the server stayed down) is ``failed`` with
   :data:`~lab.notes.J1_STOPPED`, its verdicts kept; any other pairing is ``failed``;
+* J2 (accuracy test A001, ``lab.j2 run``: the preregistered ``prereg/j2`` files, one part of one model judged twice,
+  task N first, routing from ``lab.j2.routing_doc`` for both tasks at ``site:lab``, the same files kept as J1's): exit
+  0 with a ``run.json`` of kind ``lab_j2_run`` that says ``complete: true`` is ``ok``; exit 1 with ``complete:
+  false`` is ``ok`` with :data:`~lab.notes.J2_SHIPPED_STOPPED` when ``complete_by_task`` says the first pass (the
+  negation task) finished and the stop fell in the shipped pass (A9: the primary pair's set stays complete), else
+  ``failed`` with :data:`~lab.notes.J1_STOPPED`; any other pairing is ``failed``. Its required task is the first
+  pass's; the shipped pass is judged by the participation floor only when it finished;
 * G0: exit 0 with ``passed: true`` is ``ok``, exit 1 with ``passed: false`` is ``result_fail`` (a valid FAIL
   verdict), any other pairing of exit 0/1 and ``leakage.json`` (missing, unreadable, contradicting) is ``failed``;
 * sim: exit 0 or 1 with a ``scorecard.json`` of kind ``lab_sim_scorecard``, else ``failed``. A ``skipped_projection``
@@ -160,10 +167,12 @@ from mycelic.collective.packs.loader import load_pack
 from . import ROOT
 from . import hosted as lab_hosted
 from . import j1 as lab_j1
+from . import j2 as lab_j2
 from . import l1 as lab_l1
 from . import prereg as lab_prereg
 from .notes import (E2_ABORTED, E3_FAILURES, FAKE_SERVER_NOTE, G0_MODEL_PATH, HARNESS_INTERRUPTED, HARNESS_USAGE,
-                    J1_STOPPED, KILLED_BY_SIGNAL, L1_CHECK_FAILED, L1_INFRA, L1_NOT_FINISHED, LAB_ROUTING,
+                    J1_STOPPED, J2_SHIPPED_STOPPED, KILLED_BY_SIGNAL, L1_CHECK_FAILED, L1_INFRA, L1_NOT_FINISHED,
+                    LAB_ROUTING,
                     LOW_PARTICIPATION, NO_MODEL_CALLS, PREREG_MISSING,
                     RESULT_CONTRADICTS_EXIT, RESULT_MISSING, SHARD_INTERRUPTED, SIM_LOW_PARTICIPATION, SIM_PROJECTED,
                     TIMED_OUT, UNEXPECTED_EXIT)
@@ -184,8 +193,8 @@ ENDPOINT = "lab"
 CENTRAL_ENDPOINT = "lab-central"
 CENTRAL_DEADLINE_S = 3600
 E2_DEADLINE_SECONDS = 3600
-PREREG_EXPERIMENTS = ("e1", "e2", "x1", "j1", "l1")
-REPLY_PARTICIPATION = ("j1", "l1")  # ok counts calls the model answered, an invalid reply after its repair included
+PREREG_EXPERIMENTS = ("e1", "e2", "x1", "j1", "l1", "j2")
+REPLY_PARTICIPATION = ("j1", "l1", "j2")  # ok counts calls the model answered, an invalid reply after its repair included
 WARMUP_LEDGER = "server/warmup.ledger.jsonl"
 FLAG_NAME_RE = re.compile(r"[a-z][a-z0-9-]*", re.ASCII)
 CHECK_KEYS = ("model_verified", "server_verified", "download_hosts", "model_path", "ledger_host", "model_served",
@@ -280,6 +289,8 @@ ADAPTERS = {
                   ("run.json", "verdicts.jsonl", "ledger.jsonl"), ("ledger.jsonl",), "run"),
     "l1": Adapter("l1", "lab.l1", (JUDGE_TASK,), "site:", lab_l1.ENDPOINT_DEADLINE_S, "run.json",
                   ("run.json", "records.jsonl", "ledger-*.jsonl"), ("ledger-*.jsonl",), "run"),
+    "j2": Adapter("j2", "lab.j2", lab_j2.TASKS, lab_j2.BOUNDARY, lab_j1.DEADLINE_S, "run.json",
+                  ("run.json", "verdicts.jsonl", "ledger.jsonl"), ("ledger.jsonl",), "run"),
 }
 
 
@@ -292,6 +303,8 @@ def required_tasks(unit: Mapping[str, Any]) -> list[str]:
         return [JUDGE_TASK, CENTRAL_TASKS[0]]
     if unit["experiment"] in ("j1", "l1"):
         return [JUDGE_TASK]
+    if unit["experiment"] == "j2":
+        return [lab_j2.NEGATION_TASK]       # the first pass (A9); the shipped pass is judged when it finished
     return [TASK_NAME]
 
 
@@ -311,15 +324,16 @@ def build_argv(unit: Mapping[str, Any], out: Path, routing_path: Path, server_no
                budget_s: int | None = None, prereg: Path | None = None,
                central_routing: Path | None = None) -> list[str]:
     """``[python, -m, <module>, (<subcommand>,) --flag=value ...]``: every option in one element, never a bare value,
-    and never the harness option that accepts a dirty tree. A sim or J1 unit needs ``budget_s`` (its
-    ``--budget-seconds``); E1, E2, X1 and J1 need ``prereg``, the directory holding the plan and its ``prereg/``.
+    and never the harness option that accepts a dirty tree. A sim, J1 or J2 unit needs ``budget_s`` (its
+    ``--budget-seconds``); E1, E2, X1, J1, L1 and J2 need ``prereg``, the directory holding the plan and its
+    ``prereg/``.
     ``central_routing`` replaces E2's ``routing/<unit>/central.json`` (the scratch routing of a hosted central
     comparator)."""
     p = unit["params"]
     runs_dir = Path(out) / "work" / unit["unit"]
     adapter = ADAPTERS[unit["experiment"]]
     if unit["experiment"] in PREREG_EXPERIMENTS and prereg is None:
-        raise ValueError("E1, E2, X1, J1 and L1 units need the preregistration directory") from None
+        raise ValueError("E1, E2, X1, J1, L1 and J2 units need the preregistration directory") from None
     if unit["experiment"] == "l1":
         if budget_s is None:
             raise ValueError("an L1 unit needs its budget in seconds") from None
@@ -327,12 +341,12 @@ def build_argv(unit: Mapping[str, Any], out: Path, routing_path: Path, server_no
                  ("routing-dir", Path(out) / "routing" / unit["unit"] / "sites"), ("endpoint", unit["model"]),
                  ("slot", p["slot"]), ("run-id", unit["run_id"]), ("runs-dir", runs_dir),
                  ("budget-seconds", budget_s)]
-    elif unit["experiment"] == "j1":
+    elif unit["experiment"] in ("j1", "j2"):
         if budget_s is None:
-            raise ValueError("a J1 unit needs its budget in seconds") from None
-        j1 = prereg / "prereg" / "j1"
-        flags = [("prereg", j1 / "prereg.json"), ("labels", j1 / "labels.jsonl"),
-                 ("questions", j1 / "questions.jsonl"), ("routing", routing_path), ("endpoint", unit["model"]),
+            raise ValueError("a J1 or J2 unit needs its budget in seconds") from None
+        base = prereg / "prereg" / unit["experiment"]
+        flags = [("prereg", base / "prereg.json"), ("labels", base / "labels.jsonl"),
+                 ("questions", base / "questions.jsonl"), ("routing", routing_path), ("endpoint", unit["model"]),
                  ("part", p["part"]), ("run-id", unit["run_id"]), ("runs-dir", runs_dir),
                  ("budget-seconds", budget_s)]
     elif unit["experiment"] == "e1":
@@ -423,6 +437,9 @@ def write_routing(unit: Mapping[str, Any], plan: Mapping[str, Any], entry: Mappi
     elif unit["experiment"] == "j1":
         files.append((out / "routing" / f"{unit['unit']}.json",
                       lab_j1.routing_doc(plan["models"], [unit["model"]], base_url), (JUDGE_TASK,), "routing"))
+    elif unit["experiment"] == "j2":
+        files.append((out / "routing" / f"{unit['unit']}.json",
+                      lab_j2.routing_doc(plan["models"], [unit["model"]], base_url), lab_j2.TASKS, "routing"))
     elif unit["experiment"] == "e1":
         files.append((out / "routing" / f"{unit['unit']}.json",
                       lab_prereg.e1_routing_doc(plan["models"], [unit["model"]],
@@ -487,6 +504,8 @@ def harness_status(experiment: str, exit_code: int | None, timed_out: bool,
         return ("ok", None) if good else ("failed", RESULT_MISSING)
     if experiment == "j1":
         return _j1_status(exit_code, result)
+    if experiment == "j2":
+        return _j2_status(exit_code, result)
     if experiment == "l1":
         return _l1_status(exit_code, result)
     if experiment == "e2" and exit_code == 1:
@@ -526,6 +545,26 @@ def _j1_status(exit_code: int, result: Any) -> tuple[str, str | None]:
     if exit_code == 0 and result["complete"] is True:
         return "ok", None
     if exit_code == 1 and result["complete"] is False:
+        return "failed", J1_STOPPED
+    return "failed", RESULT_CONTRADICTS_EXIT
+
+
+def _j2_status(exit_code: int, result: Any) -> tuple[str, str | None]:
+    """J2's reading of its exit code and ``run.json``: exit 0 with ``complete`` is ``ok``; exit 1 with ``complete``
+    false is ``ok`` with :data:`~lab.notes.J2_SHIPPED_STOPPED` when the first pass (task N, A9) finished and the stop
+    fell in the shipped pass, else ``failed`` with :data:`~lab.notes.J1_STOPPED`; any other pairing is ``failed``."""
+    if exit_code not in (0, 1):
+        return "failed", UNEXPECTED_EXIT
+    by_task = result.get("complete_by_task") if isinstance(result, dict) else None
+    if (not isinstance(result, dict) or result.get("kind") != "lab_j2_run"
+            or not isinstance(result.get("complete"), bool) or not isinstance(by_task, dict)
+            or not all(isinstance(by_task.get(task), bool) for task in lab_j2.TASKS)):
+        return "failed", RESULT_MISSING
+    if exit_code == 0 and result["complete"] is True and all(by_task[task] for task in lab_j2.TASKS):
+        return "ok", None
+    if exit_code == 1 and result["complete"] is False:
+        if by_task[lab_j2.NEGATION_TASK] is True and by_task[JUDGE_TASK] is False:
+            return "ok", J2_SHIPPED_STOPPED
         return "failed", J1_STOPPED
     return "failed", RESULT_CONTRADICTS_EXIT
 
@@ -635,8 +674,15 @@ def participation(experiment: str, rows: list[dict[str, Any]], required: list[st
         if not isinstance(extraction, dict) or extraction.get("passed") is not True:
             return record, (f"{SIM_LOW_PARTICIPATION}: lexical fallback share {share} above "
                             f"{MAX_SIM_FALLBACK_SHARE}")
+    judged = set(counts)
+    if experiment == "j2":
+        # A9: a pass that did not finish (the shipped pass after a stop) is reported but not judged by the floor; the
+        # first pass, the only required task, always is
+        finished = result.get("complete_by_task") if isinstance(result, dict) else None
+        if isinstance(finished, dict):
+            judged = {task for task in counts if task in required or finished.get(task) is True}
     for task, c in sorted(counts.items()):
-        if c["attempted"] and c["ok"] * 100 < round(MIN_MODEL_OK_SHARE * 100) * c["attempted"]:
+        if task in judged and c["attempted"] and c["ok"] * 100 < round(MIN_MODEL_OK_SHARE * 100) * c["attempted"]:
             return record, f"{LOW_PARTICIPATION}: {task} ok share {tasks[task]['share']} below {MIN_MODEL_OK_SHARE}"
     if e3 is not None and e3["measured"] and e3["failed"] * 100 > round(MAX_E3_FAILED_SHARE * 100) * e3["measured"]:
         return record, f"{E3_FAILURES}: {e3['failed']} of {e3['measured']} measured requests failed"
@@ -648,7 +694,7 @@ def harness_measurement(experiment: str, result: Any) -> Any:
     the sim's, E2's and X1's ``stamps.measurement``; None for G0, openFDA or a result that is not an object."""
     if not isinstance(result, dict):
         return None
-    if experiment in ("e1", "e3", "j1", "l1"):
+    if experiment in ("e1", "e3", "j1", "l1", "j2"):
         return result.get("measurement")
     if experiment in ("sim", "e2", "x1"):
         stamps = result.get("stamps")
@@ -660,7 +706,7 @@ def harness_verdict(experiment: str, result: Any) -> bool | None:
     """E1's, E2's, E3's, J1's and the sim's own verdict that the run was a measurement, for :func:`model_checks`: only
     ``measurement: true`` counts (a missing key or result does not); None for a harness that gives no such verdict
     (G0, X1, openFDA)."""
-    if experiment not in ("e1", "e2", "e3", "sim", "j1", "l1"):
+    if experiment not in ("e1", "e2", "e3", "sim", "j1", "l1", "j2"):
         return None
     return harness_measurement(experiment, result) is True
 
@@ -795,7 +841,7 @@ def unit_notes(experiment: str, measurement: str, hosted_role: str | None = None
     if experiment == "openfda":
         return [*notes, "public_data"]
     notes.append("public_msha" if msha else "public_narratives" if public_text else "synthetic")
-    if experiment in ("e1", "e2", "e3", "sim", "j1", "l1") and hosted_role != "endpoint":
+    if experiment in ("e1", "e2", "e3", "sim", "j1", "l1", "j2") and hosted_role != "endpoint":
         notes.append("runner_hardware")
     if experiment in ("e2", "g0", "sim"):
         notes.append("text_only_scan")
@@ -809,7 +855,7 @@ def unit_notes(experiment: str, measurement: str, hosted_role: str | None = None
 def public_text(unit: Mapping[str, Any]) -> bool:
     """Whether the unit reads real public narratives: an E1 unit with ``nhtsa`` labels, a J1 unit or an L1 unit (MSHA's,
     :func:`msha_text`)."""
-    if unit["experiment"] in ("j1", "l1"):
+    if unit["experiment"] in ("j1", "l1", "j2"):
         return True
     return unit["experiment"] == "e1" and unit["params"].get("labels", {}).get("source") == "nhtsa"
 
@@ -1109,7 +1155,7 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
             if endpoint_role:
                 base_url = hosted.base_url
             elif serving is None:
-                with_pack = experiment in ("e1", "e2", "g0", "sim", "j1")
+                with_pack = experiment in ("e1", "e2", "g0", "sim", "j1", "j2")
                 server = FakeServer(persona, load_pack(unit["params"]["pack"]) if with_pack else None,
                                     pack_free_judge=experiment == "l1")
                 server.start()
@@ -1130,8 +1176,8 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
                 reason = SIM_PROJECTED.format(projected=f"{projection['projected_s'] / 60:.1f}",
                                               budget=f"{projection['share'] * projection['budget_s'] / 60:.1f}")
         if status is None:
-            budget_s = (max(1, math.floor(timeout_s) - SIM_BUDGET_MARGIN_S) if experiment in ("sim", "j1", "l1")
-                        else None)
+            budget_s = (max(1, math.floor(timeout_s) - SIM_BUDGET_MARGIN_S)
+                        if experiment in ("sim", "j1", "l1", "j2") else None)
             argv = build_argv(unit, out, harness_paths.get("routing", routing_path), server_note, budget_s=budget_s,
                               prereg=prereg.dir if prereg is not None else None,
                               central_routing=harness_paths.get("central_routing"))

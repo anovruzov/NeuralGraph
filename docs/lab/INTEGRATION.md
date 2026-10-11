@@ -241,3 +241,31 @@ Each model runtime's `run` is wrapped to keep its reply by the record's index, a
 timer; the calls pass through unchanged. All of these files are in L1's code hash (`lab.l1.CODE_FILES`), so a change
 between the plan job and a shard stops the shard before its first call. A hook wanted upstream: a timing callback on
 the orchestrator's delivery, so the lab would not wrap the handlers.
+
+## 9. The accuracy test's two tasks
+
+`lab/j2.py` and `lab/j2labels.py` (accuracy test A001, `docs/collective/A001/CHOICE-A001.md` with its amendments A1
+to A12; the build note is `BUILD-A001.md` beside it) run J001's question twice on a fresh draw and change nothing under
+`mycelic/`; `lab/j1.py` and `lab/goldlabels.py`, pinned by the rule, are imported read-only too. They use these
+read-only:
+
+- `inference/tasks.py`: `TaskSpec`, so the lab-side negation task is a task of the runtime's own kind (name
+  `judge_record_negation`, data class `raw`, rule 3's instructions, the shipped `max_tokens`); `inference/runtime.py`:
+  `Runtime.run` and `Runtime.exemption`, the one call of every arm; `inference/client.py`: `list_models`;
+  `inference/ledger.py`: `read_ledger`; `inference/routing.py`: `load_routing` and `key_problem`, with both task names
+  routed to the unit's one endpoint; `inference/errors.py`: the error kinds;
+- `edge/verify.py`: `judge_task`, `judge_schema`, `JUDGE_MAX_TOKENS`, `JUDGE_TASK` and, through `lab.j1`,
+  `judge_payload`, `lexical_judge` and `decide` (the one verdict rule, applied to the shipped reply and to the reply
+  read through the mapping); `edge/records.py`: `WindowRecord`; `edge/extract.py`: `BREAKER_AFTER` and `server_down`;
+- `packs/loader.py`, `packs/canonical.py` and `packs/connector.py` (`map_rows`, with the vehicle pack's `mapping`), so
+  the fresh draw's eligible list is built exactly as `lab.goldlabels.nhtsa_lines` builds it (a test pins the two equal
+  byte for byte, A4), and `lab.goldlabels.build_labels` for mechanism two's rebuild of J001's draw;
+- `experiments/e1_extract.py`: `read_labels`, `check_data_label` and `endpoint_pins`; `experiments/common.py`:
+  `measurement_flag`, `code_hash`, `code_files`, `run_dir`, `check_run_id` and `write_json_atomic`; `jsonio.py`,
+  `schemacheck.py` and `stats.py` through `lab.j1`'s scoring and pairing.
+
+Every one of these files is in J2's code hash (`lab.j2.CODE_FILES`: J001's files plus `lab/j2.py` and
+`lab/j2labels.py`), so a change between the plan job and a shard stops the shard before its first call. Two hooks
+wanted upstream: an exclusion parameter on `goldlabels.nhtsa_lines`, so `lab.j2labels` would not re-implement its
+eligible build; and a verifier function that judges one record under a given `TaskSpec` and returns the reply and the
+verdict, which would serve J1's and J2's runners alike.

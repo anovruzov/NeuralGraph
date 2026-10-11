@@ -19,7 +19,7 @@ capacity of a shard is `job_minutes` less the shard overhead of 25 minutes; ever
 | `job_minutes` | 45 to 330: each shard job's limit | |
 | `max_parallel` | 1 to 16: shard jobs at once | |
 | `retention_days` | 1 to 90: how long artifacts are kept | |
-| `experiments` | at least one of `e1`, `e2`, `e3`, `g0`, `sim`, `x1`, `openfda`, `j1`, `l1` | |
+| `experiments` | at least one of `e1`, `e2`, `e3`, `g0`, `sim`, `x1`, `openfda`, `j1`, `l1`, `j2` | |
 | `hosted` | per hosted model key, `{"max_calls": 1..1000000}` | `{}` |
 
 A fake model needs provider `fake`, a gguf model the server provider; a hosted model goes with either. Provider
@@ -131,6 +131,53 @@ runtime at boundary `site:lab`, data label `public`, and the verifier's own verd
 parts, checks every verdict line against its question and the verdict rule, scores the control and the bound on each
 model's records, and reports each judge's confirms per predicate (`by_predicate`).
 
+`j2`, accuracy test A001 (`docs/collective/A001/CHOICE-A001.md`, amended A1 to A12 before any run; the build note is
+`BUILD-A001.md` beside it): J001's question on a fresh draw of real public complaints with an earlier run's records
+excluded, asked twice of each model, under the product's judge instruction and under a lab-side instruction that
+defines negation and absence, with a declared reply mapping read beside the shipped verdict rule; one unit per model
+and part (`lab/j2.py`, `lab/j2labels.py`; the template is `lab/templates/accuracy.json`, to copy to
+`lab/requests/accuracy-001.json`):
+
+| key | values | default |
+| --- | --- | --- |
+| `models` | gguf or fake models of `models`; a hosted model is refused (`NHTSA_HOSTED`) | `models` |
+| `minutes` | per part unit; a unit judges its part's questions twice | |
+| `labels` | as `j1`'s: `source` `nhtsa` only, `pack` exactly `docs/collective/replay/vehicles/pack`, `n` (40 to 2000) and `seed` (the fresh draw's) | |
+| `parts` | 1 to 30 | |
+| `seed` | the questions' seed | |
+| `bootstrap_b` | 1000 to 20000 | 10000 |
+| `bootstrap_seed` | a seed | 1 |
+| `exclude` | the earlier run whose records the draw excludes (A1): `run_id` (an int, 1 to 10^20), `artifact` (its plan artifact, `lab-plan-<run_id>-<attempt>`), `file` (the file in it that lists the records: `prereg/j1/labels.jsonl` for J001's artifact, `prereg/j2/excluded.jsonl` for a later cycle's), `sha256_prefix` (12 to 64 lower-case hex digits the file's bytes must hash to) | |
+| `primary` | the primary pair P of the rule: `model` (one of the block's models) and `arm` (`shipped`, `shipped_mapped`, `negation` or `negation_mapped`) | |
+| `comparisons_before` | 0 to 1000000: the (model, arm, cycle) comparisons made since the loop began before this cycle | 0 |
+
+`lab.plan --github-output` echoes the excluded run as `j2_exclude_run_id` and `j2_exclude_artifact`, and the plan job
+downloads that one artifact under `${{ runner.temp }}/lab-earlier/<run id>` (`actions/download-artifact` with the
+workflow's read-only `actions: read`; a missing or expired artifact is an absent directory, never a job failure).
+`lab.prereg` then runs both freshness mechanisms (`lab.j2labels`): the artifact's listed file must hash to the
+request's prefix and agree with the artifact's manifest, its refs must be the questions file's and its labels record
+must say nhtsa, 150, seed 1 (mechanism one, outcomes `verified`, `artifact absent`, `sha256 mismatch`, `manifest
+mismatch`, `refs mismatch`, `labels mismatch` or `malformed`; nothing read from the artifact is printed); and J001's
+seed-1, n-150 draw is rebuilt from today's complaint file and verifies only when its labels hash to the pinned prefix
+`bc6d092d8bca` (mechanism two). One verifying suffices (A2); neither verifying refuses the plan with
+`J2_FRESHNESS_UNVERIFIED`, both verifying with different record sets with `J2_EXCLUSION_DISAGREES`, and fewer eligible
+unexcluded records than `n` with `J2_TOO_FEW_RECORDS`. The draw is `random.Random("nhtsa:<seed>").sample` over the
+eligible records less the excluded refs (the eligible build is `lab.goldlabels`', pinned equal by a test, A4); then
+J001's code builds the questions, the lexical judge, the record-blind control and the predicate-only bound on the
+fresh draw (`prereg/j2/`), and `prereg/j2/excluded.jsonl` carries every excluded ref and the draw's forward for the
+next cycle (A3). The preregistration pins both tasks (the shipped `judge_record` and the lab's
+`judge_record_negation`: name, data class, instructions sha256, schema sha256, max_tokens, and the pass order, task N
+first, A9), the mapping (`describes_predicate` `unclear` read as `no`), the four arms, the primary pair, the exclusion's
+counts and hashes and the target balanced accuracy. Each unit judges its part's questions with task N, then with the
+shipped task, through the runtime at boundary `site:lab`, both tasks routed to its one endpoint without escalation;
+every verdict line holds the task and both verdicts (the shipped rule's and the mapping's), each by the pinned `decide`.
+The aggregate reads a (model, task) set as complete when every part finished for that task, builds the mapped arms as
+views of the same lines, scores each arm with J001's code beside the comparators on the same records, pairs each arm
+with the lexical judge and the arms with each other (the lifts), and computes the verdict word of rule 10 for every
+pair, the primary first (`incomplete`, `pass_provisional`, `partial`, `failure`, in that order, A5 and A6). A dry run
+needs `lab.dryrun --j2-data DIR` (a `tests.lab.j2_data` directory: a synthetic complaint archive, a synthetic earlier
+artifact and an exclusion stand-in), and its preregistration says so (`J2_STAND_IN`).
+
 `l1`, latency test L001 (`docs/collective/L001/CHOICE-L001.md`, amended K1 to K13 before any run; the build note is
 `BUILD-L001.md` beside it): the product's pushdown path timed on CPU on the drafter demo's alert of MSHA's accident
 file, and its site answers scored against the filed categories, one unit per model and question slot (`lab/l1.py`,
@@ -222,8 +269,8 @@ cached as `lab-server-<tag>-<sha16>` under `server/<tag>`, a model file as `lab-
 ## Ids
 
 - A unit id is `<experiment>-<model>` (E2, E3, G0), `e1-<model>-r<k>` (one E1 repeat), `j1-<model>-p<k>` (one J1
-  part), `l1-<model>-q<k>` (one L1 question slot, 1 the alert question), `sim-<model>-s<seed>` (one simulation seed),
-  `x1` or `openfda`; at most 55 characters.
+  part), `j2-<model>-p<k>` (one J2 part, judged under both tasks), `l1-<model>-q<k>` (one L1 question slot, 1 the
+  alert question), `sim-<model>-s<seed>` (one simulation seed), `x1` or `openfda`; at most 55 characters.
 - A run id is the unit id, a hyphen and the first 8 hex digits of sha256(request sha256 `|` unit id); the harness
   writes under it.
 - A shard id is `s<NNN>-<label>`: a three-digit number in creation order and the shard's model key, `none` for
@@ -262,6 +309,19 @@ participation check: the choice file scores such a reply as `unknown`, so it is 
 A call's last ledger row decides: a call whose repair then failed in transport is not answered. The check's floor acts
 before the choice file's 1% withhold: with fifty calls a part, three transport failures make the part `invalid`, so the
 model reads incomplete rather than withheld.
+
+A J2 unit (`lab.j2 run`) keeps the same three files under `runs/j2/<run id>/`, with these differences:
+
+- `verdicts.jsonl`: J001's line plus `task` (`judge_record_negation` or `judge_record`: which pass the line belongs to)
+  and `mapped_verdict` (the pinned verdict rule over the reply read through the mapping, `unclear` on the component as
+  `no`); every question of the part appears once per task, task N's lines first; never a narrative;
+- `run.json` (`kind: lab_j2_run`): J001's fields plus `pass_order`, `questions_planned_by_task`,
+  `questions_done_by_task`, `complete_by_task` (a part is finished for a task when every one of its calls for that task
+  was made), `stopped_task` (the pass a stop fell in), `failures_by_task` and `latency_ms_by_task`; `pinned` adds both
+  tasks' pins and the mapping's. A stop ends the pass it falls in and the passes after it: exit 1 with
+  `complete_by_task` saying task N finished and the shipped task did not is a unit `ok` with `J2_SHIPPED_STOPPED`
+  (A9: the primary's set is complete for that part, the control's is not); a stop in the first pass is `J1_STOPPED`.
+  The participation floor judges task N always and the shipped task only when its pass finished.
 
 An L1 unit (`lab.l1 run`) keeps under `runs/l1/<run id>/` (no record id, mine id, name or narrative; mines are
 `m01` onwards, records their index in their mine's retrieved list; every number in seconds with at most three
@@ -379,10 +439,10 @@ A unit's status (`lab.units.STATUSES`):
 
 | status | means |
 | --- | --- |
-| `ok` | the harness ran to a valid result and the model answered enough |
+| `ok` | the harness ran to a valid result and the model answered enough; a J2 unit whose first pass finished and whose shipped pass stopped is `ok` with `J2_SHIPPED_STOPPED` |
 | `result_fail` | a valid FAIL verdict: G0's canary scan or the simulation's raw-text scan did not pass (something crossed, or the scan's positive control found nothing) |
 | `invalid` | it ran, but the model answered too few calls, the server died, or G0's model path had problems |
-| `failed` | the harness failed, refused its configuration or wrote no readable result, a J1 run stopped before its last question (`J1_STOPPED`), or an L1 unit did not finish (`L1_NOT_FINISHED`), failed a check after its model ran (`L1_CHECK_FAILED`) or could not get its file before any model call (`L1_INFRA`) |
+| `failed` | the harness failed, refused its configuration or wrote no readable result, a J1 run or a J2 run's first pass stopped before its last question (`J1_STOPPED`), or an L1 unit did not finish (`L1_NOT_FINISHED`), failed a check after its model ran (`L1_CHECK_FAILED`) or could not get its file before any model call (`L1_INFRA`) |
 | `timed_out` | the unit ran out of its minutes |
 | `interrupted` | a signal stopped it |
 | `skipped` | it did not start: the shard's budget, the server, the warm-up, a projection or the hosted gate |
@@ -422,8 +482,8 @@ The same for every lab command (`lab/__init__.py`):
 ## Labels
 
 Every fixed sentence the summaries print comes from `lab/notes.py`. Braces stand for values the summary fills in:
-`{e_one}`, `{e_two}`, `{x_one}` and `{n_one}` are E1, E2, X1 and N1, and `{run}` and `{commit}` a run id and a
-commit.
+`{e_one}`, `{e_two}`, `{x_one}`, `{n_one}`, `{j_one}`, `{j_two}` and `{l_one}` are E1, E2, X1, N1, J1, J2 and L1,
+and `{run}` and `{commit}` a run id and a commit.
 
 The first lines and the plumbing banner:
 
@@ -465,6 +525,22 @@ unit that stopped says `J1_STOPPED`:
 - `J1_NOT_MEASURED`: not every part of this model is a model measurement, so it gets no headline
 - `J1_WITHHELD`: transport failures left out more than one in a hundred of this model's records, so its headline is withheld
 - `J1_STOPPED`: the judge run stopped before its last question, at its budget or after the server stayed down; the verdicts it wrote are kept, and the part did not finish
+
+Accuracy test A001's labels, where `{j_two}` is J2 and the braces of the primary line are its figures: the label, then
+the exclusion, lexical, control, arms and verdict notes above the primary pair's sentence and the per-pair tables; a
+unit whose shipped pass stopped after task N finished says `J2_SHIPPED_STOPPED`; the plan's refusals and the
+stand-in use the others:
+
+- `J2_LABEL`: {j_two} here asks each model the site verifier's narrow question about a fresh draw of real public NHTSA complaint narratives with an earlier run's records excluded, one record at a time with its codes hidden, twice: once with the product's judge instruction and once with a lab-side instruction that defines negation and absence; each verdict is scored against the components the complaint was filed under (filed codes, not human-checked labels), by the product's own verdict rule and, as a declared secondary, after a reply mapping that reads an unclear component answer as a no.
+- `J2_EXCLUSION_NOTE`: The draw excludes the earlier run's records: the plan job downloaded that run's plan artifact and read its record refs (mechanism one), and rebuilt the first judge test's seed-one draw from the complaint file as published on the day (mechanism two). One mechanism verifying suffices; a rebuilt sha that differs says the complaint file changed and stops nothing by itself. Counts and hashes only: no record ref is written anywhere but the plan artifact.
+- `J2_ARMS_NOTE`: Four arms, declared before the run: shipped is the product's judge unchanged; shipped_mapped reads its replies through the mapping before the verdict rule; negation is the lab-side instruction; negation_mapped is that instruction with the mapping. Model calls are made for the two instructions only: the mapped arms are the same replies read again. The lifts are paired differences between arms, record by record; a lift helps when its interval's low end is above zero, hurts when its high end is below zero, and is otherwise not told apart. They decide nothing toward the target.
+- `J2_VERDICT_NOTE`: The verdict word is read on the primary pair alone, from the figures, in this order: incomplete (a part did not finish, the set is not a model measurement, or transport failures left out more than one record in a hundred), pass_provisional (balanced accuracy at or above the target, the paired difference to the lexical judge with its low end above zero, the balanced accuracy's low end above the predicate-only bound on the same records, and the unknown share reported), partial (the target reached but an interval clause failed, or the lexical judge beaten below the target), else failure. Every other pair is a secondary with the same word, which is a hypothesis for the next cycle, never a result; a first pass is provisional until the next cycle's fresh draw confirms it.
+- `J2_PRIMARY_LINE`: Primary pair {model} {arm}: {word}. It scored balanced accuracy {ba} [{lo}, {hi}]; gap to the target {target} is {gap}; lexical judge {lex} on the same records, paired difference {diff} [{dlo}, {dhi}]; predicate-only bound {bound}; unknown share {unknown}.
+- `J2_STAND_IN`: Plumbing: a test artifact stood in for the excluded run (lab.dryrun with test data), so the exclusion checks here test the lab, not the excluded run.
+- `J2_SHIPPED_STOPPED`: the judge run finished its first pass, the negation task, and stopped in its second, the shipped task, at its budget or after the server stayed down; the first pass's verdicts are complete and kept, and the shipped pass did not finish for this part
+- `J2_FRESHNESS_UNVERIFIED`: neither freshness mechanism verified: the earlier run's plan artifact could not be read as that run's, and the rebuilt seed-one draw does not hash to the pinned prefix; the plan job stops before any model runs (CHOICE-A001, The data and the draw, as amended)
+- `J2_EXCLUSION_DISAGREES`: both freshness mechanisms verified but their record sets differ; the plan job stops before any model runs
+- `J2_TOO_FEW_RECORDS`: fewer eligible unexcluded records remain than the draw needs; no further fresh draw is pre-registered
 
 Latency test L001's labels, where `{l_one}` is L1 and `{stop}` a stop's code: the label, then the headline and
 comparator notes above the per-model tables and the time note above the time tables; a model without a headline says
@@ -717,7 +793,7 @@ synthetic worlds describe synthetic worlds.
 | average precision | average precision of the channel's alert ranking against the planted labels | precision on real data |
 | alerts | alerts the channel raised in the evaluation weeks | a count of real problems |
 | false alarms | alerts that matched no planted pattern window | alerts that are wrong on real data |
-| lift | which lift: the difference between two channels' finds | n/a: not a number |
+| lift | which lift: the difference between two channels' finds, or between two J2 arms (B minus A, C minus A, D minus A, D minus B, D minus C) | n/a: not a number |
 | estimate | the bootstrapped mean of a lift or ratio | an estimate when patterns are few |
 | interval low | the low end of the bootstrap interval | a guarantee |
 | interval high | the high end of the bootstrap interval | a guarantee |
@@ -840,8 +916,27 @@ synthetic worlds describe synthetic worlds.
 | unknown share | the share of questions answered unknown: unclear answers, a no or unclear on the vehicle, and model failures | a transport failure: those records are left out |
 | records left out | records with a transport failure, left out of the model's scores; more than one in a hundred withholds the headline | model errors |
 | why no headline | why a J1 model has no headline: incomplete, not a model measurement, or withheld | a model result |
-| questions | J1's questions: one positive and one negative per record | n/a: not a number |
-| parts | the parts J1's records are cut into, one unit per model and part | n/a: not a number |
+| questions | J1's and J2's questions: one positive and one negative per record | n/a: not a number |
+| parts | the parts J1's or J2's records are cut into, one unit per model and part | n/a: not a number |
+| arm | a J2 arm: `shipped` (the product's judge unchanged), `shipped_mapped` (its replies through the mapping), `negation` (the lab-side instruction) or `negation_mapped` (that instruction with the mapping) | a product behaviour: the product runs the shipped arm |
+| mapped | whether the arm reads the replies through the mapping (an unclear component answer as a no) before the verdict rule | a change to the product's verdict rule |
+| verdict word | rule 10's word for the (model, arm) pair, in the order incomplete, pass_provisional, partial, failure: computed from the figures beside it | a result for any pair but the primary: a secondary's word is a hypothesis for the next cycle |
+| pass test | whether the pair met every clause of the pass test: balanced accuracy at or above the target, the paired difference to the lexical judge with its low end above zero, the balanced accuracy's low end above the predicate-only bound on the same records, and the unknown share reported | a confirmed success: a first pass is provisional until the next cycle's fresh draw |
+| primary pair | whether the pair is the rule's one primary pair P, the only pair the verdict is read on | the best pair of the run |
+| gap to the target | the target balanced accuracy minus the pair's balanced accuracy; below zero, the target is reached | a distance on real failures: the key is the filed codes |
+| target balanced accuracy | the pinned target the loop runs toward: balanced accuracy 0.860 against the filed-category key | a threshold any pair but the primary is judged on |
+| lever | which lever a J2 lift reads: `unclear_mapping` (B minus A, D minus C), `negation_instruction` (C minus A, D minus B) or `both` (D minus A) | n/a: not a number |
+| reading | a lift's reading: `helps` when its interval's low end is above zero, `hurts` when its high end is below zero, else `not_told_apart` | a decision toward the target: the lifts decide nothing |
+| minus the lexical judge, paired by record | the arm's balanced accuracy minus the lexical judge's, record by record over the records both score, with its paired percentile-bootstrap interval | a difference against checked labels |
+| eligible records | the complaint file's records eligible for the draw before any exclusion: the makes, the window and the eligibility rule of `lab.goldlabels` | records the models judged |
+| excluded records | the record refs the verifying freshness mechanisms gave, removed from the eligible list before the draw | records left out for a failure |
+| eligible after exclusion | the eligible records less the excluded ones; below the draw's size the plan stops | n/a: a count before the draw |
+| overlap with the excluded set | records of the draw that are also excluded; above zero the plan stops, so it is zero in every plan that ran | n/a: a check |
+| artifact mechanism | mechanism one's outcome: `verified`, or why the earlier run's plan artifact did not verify (`artifact absent`, `sha256 mismatch`, `manifest mismatch`, `refs mismatch`, `labels mismatch`, `malformed`) | a model result |
+| rebuild mechanism | mechanism two's outcome: `verified` when the rebuilt seed-one draw hashes to the pinned prefix, else `sha256 mismatch` (the complaint file changed) or `malformed` | a reason to stop by itself: one mechanism verifying suffices |
+| excluded refs file sha | the first twelve hex digits of the sha256 of `prereg/j2/excluded.jsonl`, the refs the next cycle excludes | n/a: an identifier |
+| complaint file sha | the first twelve hex digits of the sha256 of the complaint archive the plan job read | n/a: an identifier |
+| comparisons since the loop began | the running count of (model, arm, cycle) comparisons the loop has made, this cycle's included: the multiplicity the verdict rule prints | a correction applied to any interval |
 | questions finished | an L1 model's question units that finished (status ok, a complete run of this preregistration, every routed mine's verdict, whole timing and records), of the slots planned | questions that ran: a unit that did not finish, failed a check or was a re-run after a model call is left out |
 | minus the lexical judge | D_lex: the model's balanced accuracy over the scored site answers minus the lexical judge's, with its paired percentile-bootstrap interval over mines (K3) | a per-record difference: the per-record measures are in report.json |
 | minus the route-role baseline | D_route: the model's balanced accuracy minus the route-role baseline's, on the same draws (K3) | a reader of records: the baseline reads none |
@@ -917,7 +1012,7 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Simulation pushdown verification | the simulation's pushdown candidates, raw text and fallback share |
 | Simulation sizing for the next request | per sim unit, the measured medians and the suggested minutes |
 | Baselines blind to narrative-only patterns by construction | per sim or X1 row, S and R_mf on the plant's narrative_only patterns, with the harness's label |
-| Preregistration, fixed before any model runs | E1's labels, X1's and E2's prereg hashes, E2's rehearsal, J1's labels and questions, the lexical judge's and the record-blind control's scores on every record and the predicate-only bound |
+| Preregistration, fixed before any model runs | E1's labels, X1's and E2's prereg hashes, E2's rehearsal, J1's labels and questions, the lexical judge's and the record-blind control's scores on every record and the predicate-only bound; J2's labels, questions, exclusion counts and mechanisms, primary pair, target and comparators on every record |
 | Extraction compared across models | E1's label, labels, reference and thresholds |
 | Extraction per model, pooled over repeats | E1's per-model scores and zero-claim share |
 | Extraction drops by reason, pooled over repeats | E1's post-processing counts per model and reason (`drops` of each endpoint in report.json), after the sentence that reattached reasons are not losses |
@@ -925,6 +1020,9 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Each model's own scores | E1's per-model scores from each model's valid repeats only (`endpoint_scores` in report.json), compared or not: predicate F1 and its interval beside the lexical extractor's, field F1, zero-claim and transport failure shares, drops and re-attachments |
 | Judge test: the verifier's narrow question, per model, beside the lexical judge | J1's label, labels, questions and the lexical judge, the record-blind control and the predicate-only bound on every record, then per model: parts finished, class, balanced accuracy and its interval beside the lexical judge's, the control's and the bound on the same records, the headline, sensitivity, specificity, the unknown share and the records left out (the report's `j1` block, which also holds each judge's confirms per predicate) |
 | Judge test: model minus lexical judge, paired by record | per J1 model, the mean per-record difference of balanced accuracy from the lexical judge's, with its paired percentile-bootstrap interval |
+| Accuracy test: the verifier's narrow question on a fresh draw, four declared arms, one primary pair | J2's label, the labels and questions, the exclusion's counts, mechanisms and hashes (and the stand-in note in a dry run), the lexical judge, the record-blind control and the predicate-only bound on every record, the comparison count, the exclusion, lexical, control, arms and verdict notes, and the primary pair's sentence with its figures (the report's `j2` block, which also holds each arm's answer counts before and after the mapping, verdict counts and confirms per predicate) |
+| Accuracy test: every (model, arm) pair beside the comparators on the same records | per J2 model and arm: task, mapped, class, parts finished of planned, balanced accuracy and its interval, the lexical judge's balanced accuracy and the paired difference with its interval on the same records, the control's balanced accuracy and the bound, sensitivity, specificity, the unknown share, the records left out, the verdict word, the pass test, whether the pair is the primary, and for the headline arm J001's headline and why there is none |
+| Accuracy test: the lifts between arms, paired by record | per J2 model and lift: the lever, the paired records, the difference with its interval and its reading |
 | Latency test: alert to answer on CPU, per model, beside the comparators | L1's label, the operator, the file and the audit, the alert, the questions (routes by role and stratum, records, the key's gate status), the headline and comparator notes, the comparators on every scored site answer and the predicate-only bound and empty draws, then per model: questions finished, class, balanced accuracy and its interval beside the lexical judge's, the route-role baseline's and the record-blind control's on the same answers, sensitivity, specificity, the unknown share and the answers left out; and D_lex, D_route, the headline and the gate's agreement beside a constant status (the report's `l1` block, which also holds the strata, the per-record measures and each question's verdicts and mines) |
 | Latency test: where the time goes | the time note, then per model and scope (the alert, all questions) the CPU models, the time to answer and its ninety-fifth percentile (questions without a contended mine), the question build, the gate, a mine's and a judge call's median and ninety-fifth percentile, the model calls, the contended questions and their time to answer, and the questions not finished; then each question not finished with its elapsed time as a lower bound and its model calls (only when there is one), and each finished question's status, time and derived times |
 | Latency test: the alert, the questions and the comparators, fixed before any model runs | (plan summary) L1's file, audit, alert, questions, the comparators' scores, the predicate-only bound, the empty draws share and the constant status agreement |
@@ -948,7 +1046,7 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 
 | artifact | holds |
 | --- | --- |
-| `lab-plan-<run id>-<attempt>` | the plan, its preregistration and the plan summary |
+| `lab-plan-<run id>-<attempt>` | the plan, its preregistration and the plan summary; for a J2 plan the preregistration holds the fresh draw's labels and questions files (public complaint text and refs; the artifact, never the repository) and `prereg/j2/excluded.jsonl`, the refs the next cycle excludes |
 | `lab-prov-<run id>-<attempt>-<entry>` | one provision record (`server` or `gguf-<key>`) and its lock candidate |
 | `lab-run-<run id>-<attempt>-<shard>` | one sealed shard root |
 | `lab-report-<class>-<run id>-<attempt>` | `report.json`, `report.md`, `report.sources.json`, `plan.json`, `lock-candidate.json` and E1's comparison files |
@@ -968,6 +1066,15 @@ that run (read access to the repository's actions), lays out the newest plan, th
 artifacts, and runs the aggregate job's own aggregate and summary commands, adding `--reaggregation`. The report and
 its log blocks say `REAGGREGATION_LINE` with the run id and the commit; the aggregate checks the shards as always
 (plan, preregistration, seals, unit files) and records the shards' commits and lab code hashes beside its own.
+
+**An earlier run's artifact** (A1 of `CHOICE-A001.md`): for a plan with J2 units the plan job downloads the one
+`lab-plan-` artifact the request's `exclude` names (`actions/download-artifact`, `run-id` and `name` from the plan
+step's `j2_exclude_run_id` and `j2_exclude_artifact` outputs, `github-token: ${{ github.token }}`), under the
+workflow's `permissions: {actions: read, contents: read}`, into `${{ runner.temp }}/lab-earlier/<run id>`: never
+under `lab-plan`, so it is not uploaded with this run's plan artifact, not scanned by `lab.msha guard` and not read
+by `lab.summary`. The step runs only when the run id output is not empty and continues on error, so a missing or
+expired artifact reaches `lab.j2labels` as an absent directory and one fixed message. Nothing read from the
+downloaded directory is printed or written anywhere but into the exclusion set on the runner.
 
 Artifacts are kept for the request's `retention_days`. Caches (`actions/cache`): `lab-server-<tag>-<sha16>` holds the
 verified server archive and `lab-gguf-<key>-<sha16>` a verified model file; `lab-msha-<sha16>` holds MSHA's accident

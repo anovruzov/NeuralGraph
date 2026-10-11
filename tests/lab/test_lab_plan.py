@@ -674,8 +674,9 @@ class EventCliTests(TempDirTest):
         self.assertEqual(r.stdout.strip(), f"::notice::{DELETE_ONLY}")
         self.assertFalse((self.tmp / "out" / "plan.json").exists())
         self.assertEqual(gho.read_text().splitlines(),
-                         ["has_provision=false", "has_units=false", 'matrix={"include":[]}', "max_parallel=1",
-                          "plan_sha256=", 'provision_matrix={"include":[]}', "retention_days=1", "result_class=none"])
+                         ["has_provision=false", "has_units=false", "j2_exclude_artifact=", "j2_exclude_run_id=",
+                          'matrix={"include":[]}', "max_parallel=1", "plan_sha256=", 'provision_matrix={"include":[]}',
+                          "retention_days=1", "result_class=none"])
 
     def test_nothing_outcomes_write_plan_nothing(self) -> None:
         branch = "feat-Qz9branch"
@@ -691,8 +692,9 @@ class EventCliTests(TempDirTest):
         self.assertEqual(json.loads(nothing.read_text()), {"schema_version": 1, "kind": "lab_plan_nothing",
                                                             "notice": DELETE_ONLY, "requests": []})
         self.assertEqual(gho.read_text().splitlines(),
-                         ["has_provision=false", "has_units=false", 'matrix={"include":[]}', "max_parallel=1",
-                          "plan_sha256=", 'provision_matrix={"include":[]}', "retention_days=1", "result_class=none"])
+                         ["has_provision=false", "has_units=false", "j2_exclude_artifact=", "j2_exclude_run_id=",
+                          'matrix={"include":[]}', "max_parallel=1", "plan_sha256=", 'provision_matrix={"include":[]}',
+                          "retention_days=1", "result_class=none"])
 
         shutil.rmtree(self.tmp / "out")
         w.git("checkout", "-q", "-b", "other", "main")

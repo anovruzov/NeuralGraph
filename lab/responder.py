@@ -8,6 +8,9 @@ sends (``response_format.json_schema.name``, which is the task name):
   L1 unit, whose pack is drafted inside the unit), :func:`pack_free_judge`: ``mentions_entity`` yes, and
   ``describes_predicate`` yes exactly when a word of the question's predicate label (four or more letters, folded)
   is a word of the record's text (a plumbing answer, not a judgement);
+* ``judge_record_negation`` (accuracy test A001's variant task, ``lab.j2.NEGATION_TASK``): the same handler as
+  ``judge_record`` in both branches (A10), so a dry run never measures the instruction: its arms C and D equal A and B
+  there (the lexical judge never answers unclear, so the mapping changes nothing);
 * ``e3_extraction_like`` and ``e3_short_answer``: a fixed reply that satisfies the E3 workload schema;
 * ``judge_candidate_raw`` and ``judge_candidate_allowed`` (E2's central comparator): ``{"score": <the payload's
   canonical sha256 as an integer, mod 101>}``, deterministic and pack-free (a plumbing answer, not a judgement).
@@ -29,6 +32,8 @@ from mycelic.collective.inference.fakeserver import request_payload
 from mycelic.collective.jsonio import canonical_bytes, sha256_hex
 from mycelic.collective.packs.canonical import Canonicaliser, folded
 from mycelic.collective.packs.loader import FrozenPack
+
+from .j2 import NEGATION_TASK
 
 E3_REPLIES = {
     WORKLOADS["extraction"][0].name: {"facts": ["the text lists routine equipment checks"]},
@@ -56,8 +61,10 @@ class Responder:
             canonicaliser = Canonicaliser(pack)
             self._handlers[TASK_NAME] = lexical_handler(pack, canonicaliser)
             self._handlers[JUDGE_TASK] = lexical_judge(pack, canonicaliser)
+            self._handlers[NEGATION_TASK] = self._handlers[JUDGE_TASK]
         elif pack_free_judge:
             self._handlers[JUDGE_TASK] = globals()["pack_free_judge"]
+            self._handlers[NEGATION_TASK] = self._handlers[JUDGE_TASK]
 
     def __call__(self, request_json: Any) -> dict[str, Any]:
         fmt = request_json.get("response_format") if isinstance(request_json, dict) else None
