@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, claude/mycelic-production-deployment-r93cez]
     paths: ["mycelic/**", "tests/**", "deploy/mycelic/**", "NeuralGraph/**", "requirements*.txt", ".github/workflows/mycelic.yml",
-            "demo/onboard/**", "tools/onboard/**", "research/**", "lab/**", ".github/workflows/**"]
+            "demo/onboard/**", "tools/onboard/**", "research/**", "lab/**", "!lab/requests/**", ".github/workflows/**"]
   pull_request:
   workflow_dispatch:
 
