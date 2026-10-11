@@ -40,6 +40,9 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   24 min and the manifests job passed; the compose smoke job failed before any test, on the runner's buildx bake
   entitlement ("additional privileges requested: pass --allow=fs.read=/dev/null"). Fix: COMPOSE_BAKE=false on that
   job (pinned mycelic/harness.py untouched). Re-run follows the push.
+- 04:02 CI re-run 38109670867 (3e078d9): compose smoke and manifests green; the unit/API/JetStream job still running.
+  A001 built as the lab's j2 experiment (689e138: two judge tasks, a declared mapping, a fresh draw with J001's run
+  excluded); its build review is running. EMERGENCE build stage A/B (bridge; site graphs + adapter) running since 03:18.
 
 ## Open asks (date asked)
 
