@@ -52,6 +52,19 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   running since 04:52 on the merged tree with the brief fix in the working tree. The run request follows only a green
   gate. EMERGENCE build: the bridge (1915aac) and the site graphs + adapter (63af47d) are built; harness + drills
   building; measurement + CI, review and fix follow. Nothing pushed since 3e078d9.
+- 05:28 Pushed at 04:59 (a1ee1d6) with the lab suite still running, a deviation from section 6.4's order, so that
+  the guard fix reached CI; CI run 38113330825 on it is green on all three jobs (tests/mycelic passed in 18 min 38 s).
+  A001 gate on the merged tree, all green by 05:20: tests/lab 781 passed, 25,156 subtests (21 min 51 s); onboard +
+  guards + x3 402 passed (4 min 17 s); the j2 synthetic data build; the template dry run (15 units in 15 shards,
+  exclusion verified by both mechanisms, measurements false). Request pushed alone (3361910, 05:21:29) = lab run
+  38114522160. Plan job passed in 44 s: labels 150 records (sha 623780b8a1de), 300 questions in 5 parts (sha
+  2ba18ea89bb7), prereg sha fb8f06442693; eligible 58,319, excluded 150, overlap 0, artifact and rebuild mechanisms
+  both verified; comparators printed before any shard: lexical 0.663 [0.627, 0.703] (sensitivity 0.333, specificity
+  0.993), record-blind 0.520 [0.463, 0.577], predicate-only bound 0.577; target 0.860; guard: no l1 units. All 15
+  shards started 05:23; the five a-0p5b shards finished by 05:27. Side effect found: the request push also started
+  mycelic.yml run 38114522105 (S0 put `lab/**` in the paths filter); the fix (`!lab/requests/**`) waits until the
+  shards finish, since a workflow push would start CI again. Check-ins 05:37 and 05:52 armed. EMERGENCE: harness
+  stage still building (harness module written 05:21, its test file added, a trial run at size 200 under way).
 
 ## Open asks (date asked)
 
