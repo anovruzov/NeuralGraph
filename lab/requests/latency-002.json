@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "purpose": "Latency test L001 (docs/collective/L001/CHOICE-L001.md, amended K1 to K14 before any model ran): the drafter demo's MSHA alert answered through the product's pushdown path, each mine's verifier judging with a-0p5b, a-1p5b or a-4b, one unit per model and question slot, timed on CPU and scored against the filed categories beside the lexical judge and the route-role baseline. Copy to lab/requests/latency-002.json; that push starts the run. Run 2, K14.",
+  "provider": "llama-server",
+  "models": [
+    "a-0p5b",
+    "a-1p5b",
+    "a-4b"
+  ],
+  "job_minutes": 330,
+  "max_parallel": 15,
+  "retention_days": 30,
+  "experiments": {
+    "l1": {
+      "minutes": 300,
+      "questions": 5,
+      "bootstrap_b": 10000,
+      "bootstrap_seed": 1
+    }
+  }
+}
