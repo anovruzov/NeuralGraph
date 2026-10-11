@@ -51,6 +51,9 @@ from lab.server import FakeServer
 from mycelic.collective.edge.verify import JUDGE_TASK
 from mycelic.collective.inference.fakeserver import FakeOpenAIServer, request_payload
 from mycelic.collective.jsonio import canonical_bytes, canonical_dumps
+from mycelic.collective.onboard.draft import words_of
+from mycelic.collective.onboard.score import load_settings as load_onboard_settings
+from mycelic.collective.packs.canonical import folded
 from tests.lab import l1_data
 from tests.lab.helpers import LAB_MANIFEST, ROOT, DryTree, call_main, check_sources, write_json
 
@@ -1142,12 +1145,13 @@ class DryRunTests(unittest.TestCase):
                          {(300, 325, 1)})
         self.assertEqual({(u["status"], u["display_class"]) for u in self.dry.report["units"]}, {("ok", "plumbing")})
         lines = [line for line in self.dry.stdout.splitlines() if line.startswith("l1 guard:")]
-        plan_lines = [line for line in lines if line.startswith(G.PLAN_LINE) or line == G.NO_PLAN_LINE]
+        plan_lines = [line for line in lines if line.startswith(G.PLAN_LINE) or line in G.STATE_LINES.values()]
         guard_lines = [line for line in lines if line not in plan_lines]
         self.assertEqual(len(guard_lines), 2 + 3 * 5 + 2)         # the workflow's guard steps, in order
         self.assertTrue(all(" withheld 0 " in line for line in guard_lines))
-        # K14: each guard step (one directory each) printed the plan's line once, before its directory's; the
-        # synthetic file holds no word of the template's plan
+        # K14: each guard step (one directory each) printed the plan's line once, before its directory's, the plan
+        # read with the sha256 the dry run took as lab.plan wrote it; the synthetic file holds no word of the
+        # template's plan
         self.assertEqual(plan_lines, [f"{G.PLAN_LINE} record_id 0 mine_id 0 refused_value 0"] * len(guard_lines))
         self.assertEqual((lines[0::2], lines[1::2]), (plan_lines, guard_lines))
 
@@ -1487,8 +1491,9 @@ class GuardTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.raw = _Raw.get()
-        cls.guard = G.build(cls.raw.raw, None)
+        cls.guard = G.build(cls.raw.raw, None, None)
         cls.plan = _Plan.get()
+        cls.sha = _sha(cls.plan)
 
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="lab-l1-guard-"))
@@ -1521,7 +1526,7 @@ class GuardTests(unittest.TestCase):
         (d / "work" / "skipped.txt").write_text(doc, encoding="utf-8")
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = G.run([d], self.raw.raw, self.plan)
+            code = G.run([d], self.raw.raw, self.plan, self.sha)
         self.assertEqual(code, 1)
         stub = json.loads((d / "units" / "u" / "stderr.log").read_text(encoding="utf-8"))
         self.assertEqual((stub["kind"], stub["hits"]["record_id"]), (G.STUB_KIND, 1))
@@ -1533,7 +1538,7 @@ class GuardTests(unittest.TestCase):
                           "l1 guard: dir files 2 withheld 1 record_id 1 mine_id 0 refused_value 0 "
                           "narrative_ngrams 0 unread 0"])
         with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(G.run([d], self.raw.raw, self.plan), 0)        # a stub is not scanned again
+            self.assertEqual(G.run([d], self.raw.raw, self.plan, self.sha), 0)      # a stub is not scanned again
 
     def test_the_server_s_logs_are_scanned(self) -> None:
         """K9: the shard root's ``server/`` logs are scanned; only what the seal removes and never uploads
@@ -1546,7 +1551,7 @@ class GuardTests(unittest.TestCase):
             (d / rel).write_text(f"loaded at mine {mine}\n", encoding="utf-8")
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            self.assertEqual(G.run([d], self.raw.raw, self.plan), 1)
+            self.assertEqual(G.run([d], self.raw.raw, self.plan, self.sha), 1)
         for rel in ("server/server.log", "server/a-0p5b/stderr.log"):
             self.assertEqual(json.loads((d / rel).read_text(encoding="utf-8"))["kind"], G.STUB_KIND, rel)
         for rel in ("server/bin/x.txt", "server/home/x.txt", "server/tmp/x.txt"):
@@ -1559,7 +1564,7 @@ class GuardTests(unittest.TestCase):
         (d / "a.json").write_text("{}", encoding="utf-8")
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = G.run([d], self.tmp / "no-raw", self.plan,
+            code = G.run([d], self.tmp / "no-raw", self.plan, self.sha,
                          fetcher=lambda url: (_ for _ in ()).throw(OSError("offline")))
         self.assertEqual(code, 1)
         self.assertEqual(json.loads((d / "a.json").read_text(encoding="utf-8"))["hits"]["unread"], 1)
@@ -1568,7 +1573,8 @@ class GuardTests(unittest.TestCase):
     def test_the_command_leaves_other_plans_alone(self) -> None:
         plan = write_json(self.tmp / "plan.json", {"units": [{"experiment": "j1"}]})
         (self.tmp / "x.txt").write_text(sorted(self.raw.writer.ids["documents"])[0], encoding="utf-8")
-        code, out, _ = call_main(lab_msha, ["guard", "--plan", str(plan), "--dir", str(self.tmp)])
+        code, out, _ = call_main(lab_msha, ["guard", "--plan", str(plan), "--plan-sha256", _sha(plan),
+                                            "--dir", str(self.tmp), "--raw", str(self.tmp / "no-raw")])
         self.assertEqual((code, out), (0, "l1 guard: no l1 units\n"))
 
     def test_an_error_is_its_class_and_place(self) -> None:
@@ -1579,6 +1585,11 @@ class GuardTests(unittest.TestCase):
             line = G.error_line("l1 guard", err)
         self.assertNotIn(secret, line)
         self.assertRegex(line, r"^l1 guard: ValueError at tests/lab/test_lab_l1\.py:[0-9]+$")
+
+
+def _sha(path: Path) -> str:
+    """The sha256 of the file's bytes, as ``lab.plan`` gives a plan's (the plan step's ``plan_sha256`` output)."""
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def _tree(root: Path, files: dict[str, str]) -> Path:
@@ -1618,16 +1629,25 @@ class PlanValuesTests(unittest.TestCase):
             write_json(d / "plan.json", plan)
         return d
 
-    def run_guard(self, dirs: list[Path], raw: Path, plan: Path | None) -> tuple[int, str]:
+    def run_guard(self, dirs: list[Path], raw: Path, plan: Path | None, sha: str | None = None) -> tuple[int, str]:
+        """The guard over ``dirs``, given ``sha`` as the plan's sha256 (by default, that of the plan's bytes now: the
+        plan as ``lab.plan`` wrote it)."""
+        if sha is None and plan is not None and plan.is_file():
+            sha = _sha(plan)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = G.run(dirs, raw, plan)
+            code = G.run(dirs, raw, plan, sha)
         return code, out.getvalue()
+
+    def build(self, raw: Path, plan: Path) -> G.Guard:
+        guard = G.build(raw, plan, _sha(plan))
+        assert guard is not None
+        return guard
 
     def test_a_refused_value_equal_to_a_shard_label_is_left_out(self) -> None:
         """Run 1's case: the plan, each file that carries the shard's label and the report pass, plan.json too."""
         c = self.c
-        k9, k14 = G.build(c.raw, None), G.build(c.raw, c.plan_path)
+        k9, k14 = G.build(c.raw, None, None), self.build(c.raw, c.plan_path)
         self.assertEqual(k9.hits(c.plan_path.read_text(encoding="utf-8"))["refused_value"], 1)    # as in run 1
         self.assertEqual((k14.plan_read, k14.left_out), (True, {"record_id": 0, "mine_id": 0, "refused_value": 1}))
         self.assertEqual(k14.counts["refused_values"], k9.counts["refused_values"] - 1)
@@ -1662,20 +1682,81 @@ class PlanValuesTests(unittest.TestCase):
 
     def test_the_plan_is_still_scanned(self) -> None:
         """No file is exempt: a narrative's run in the plan's text is a hit there (the n-gram scan is unchanged), and
-        the plan is withheld."""
+        the plan is withheld; the plan's own text then holds a hit, so nothing is left out (the review's fail-safe)."""
         run = " ".join(self.raw.writer.narratives[0].split()[:9])
         plan_dir = self.plan_dir(run)
         code, out = self.run_guard([plan_dir], self.raw.raw, plan_dir / "plan.json")
         self.assertEqual(code, 1)
-        self.assertEqual(out.splitlines()[0], f"{G.PLAN_LINE} record_id 0 mine_id 0 refused_value 0")
+        self.assertEqual(out.splitlines(), [G.HIT_PLAN_LINE, _dir_line("plan", 1, 1, narrative_ngrams=2)])
         self.assertEqual(json.loads((plan_dir / "plan.json").read_text(encoding="utf-8"))["kind"], G.STUB_KIND)
+
+    def test_a_plan_whose_own_text_holds_a_hit_leaves_nothing_out(self) -> None:
+        """Review finding 2: a plan carrying a narrative's run is not lab text alone. Its words (here the other
+        operator's name, a refused value) stay in the value sets for every directory of the call, so a shard file
+        that carries the name is withheld as K9 would withhold it; the plan is withheld on the n-gram and the name."""
+        run = " ".join(self.raw.writer.narratives[0].split()[:9])
+        name = l1_data.OTHER_OPERATOR["operator_name"]
+        plan_dir = self.plan_dir(f"{run} {name}")
+        k9 = G.build(self.raw.raw, None, None)
+        guard = self.build(self.raw.raw, plan_dir / "plan.json")
+        self.assertEqual((guard.plan_state, guard.plan_read, guard.left_out),
+                         (G.PLAN_HIT, False, {"record_id": 0, "mine_id": 0, "refused_value": 0}))
+        self.assertEqual(guard.counts, k9.counts)
+        self.assertEqual(guard.hits(f"for {name}")["refused_value"], 1)
+        self.assertEqual(G.plan_line(guard), G.HIT_PLAN_LINE)
+        shard = _tree(self.tmp / "shard", {"reply.log": f"for {name}\n", "ok.log": "m01 ok\n"})
+        code, out = self.run_guard([plan_dir, shard], self.raw.raw, plan_dir / "plan.json")
+        self.assertEqual(code, 1)
+        self.assertEqual(out.splitlines(), [G.HIT_PLAN_LINE,
+                                            _dir_line("plan", 1, 1, refused_value=1, narrative_ngrams=2),
+                                            _dir_line("shard", 2, 1, refused_value=1)])
+        self.assertTrue(G.is_stub((shard / "reply.log").read_bytes()))
+        self.assertFalse(G.is_stub((shard / "ok.log").read_bytes()))
+        for value in (name, *name.split()):
+            self.assertNotIn(value.lower(), out.lower(), value)
+
+    def test_a_plan_whose_bytes_changed_leaves_nothing_out(self) -> None:
+        """Review finding 1: the plan's values are left out only when its bytes are the ones ``lab.plan`` wrote (its
+        sha256 is the plan step's output). A lab plan with other bytes, or no sha256 to compare it with, leaves
+        nothing out: the label's file is withheld as K9 would withhold it."""
+        c = self.c
+        real = _sha(c.plan_path)
+        plan_dir = self.plan_dir("and a word added after lab.plan wrote it")
+        changed = plan_dir / "plan.json"
+        self.assertEqual(G.read_plan(c.plan_path, real), (c.plan_path.read_text(encoding="utf-8"), G.PLAN_READ))
+        for sha in (real, "", None, "0" * 64):
+            with self.subTest(sha=sha):
+                self.assertEqual(G.read_plan(changed, sha), (None, G.PLAN_CHANGED))
+                self.assertIsNone(G.plan_text(changed, sha))
+                guard = G.build(c.raw, changed, sha)
+                self.assertEqual((guard.plan_state, guard.left_out),
+                                 (G.PLAN_CHANGED, {"record_id": 0, "mine_id": 0, "refused_value": 0}))
+                shard = _tree(self.tmp / f"shard-{sha}", {"a.log": f"shard {c.shard}\n"})
+                code, out = self.run_guard([shard], c.raw, changed, sha or "")
+                self.assertEqual(code, 1)
+                self.assertEqual(out.splitlines(), [G.CHANGED_PLAN_LINE, _dir_line(shard.name, 1, 1, refused_value=1)])
+        # the same plan with its own sha256 leaves the label out
+        shard = _tree(self.tmp / "shard-own", {"a.log": f"shard {c.shard}\n"})
+        self.assertEqual(self.run_guard([shard], c.raw, changed, _sha(changed)),
+                         (0, f"{G.PLAN_LINE} record_id 0 mine_id 0 refused_value 1\n{_dir_line(shard.name, 1, 0)}\n"))
+
+    def test_the_command_checks_the_plan_s_sha256(self) -> None:
+        """Review finding 1, through ``lab.msha guard``: ``--plan-sha256`` is required and passed to the guard."""
+        c = self.c
+        shard = _tree(self.tmp / "shard", {"a.log": f"shard {c.shard}\n"})
+        base = ["guard", "--plan", str(c.plan_path), "--dir", str(shard), "--raw", str(c.raw)]
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            lab_msha._parser().parse_args(base)
+        code, out, _ = call_main(lab_msha, [*base, "--plan-sha256", "0" * 64])
+        self.assertEqual((code, out.splitlines()), (1, [G.CHANGED_PLAN_LINE,
+                                                        _dir_line("shard", 1, 1, refused_value=1)]))
 
     def test_a_record_id_and_a_mine_id_in_the_plan_are_left_out_the_same_way(self) -> None:
         w = self.raw.writer
         doc, other_doc = sorted(w.ids["documents"])[5:7]
         mine, other_mine = sorted(w.ids["mines"])[2:4]
         plan_dir = self.plan_dir(f"{doc} {mine}")
-        guard = G.build(self.raw.raw, plan_dir / "plan.json")
+        guard = self.build(self.raw.raw, plan_dir / "plan.json")
         self.assertEqual(guard.left_out, {"record_id": 1, "mine_id": 1, "refused_value": 0})
         self.assertEqual(guard.hits(f"see {doc} at {mine}"), dict.fromkeys(G.KINDS, 0))
         self.assertEqual(guard.hits(f"see {other_doc} at {other_mine}"),
@@ -1700,7 +1781,7 @@ class PlanValuesTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertEqual(out.splitlines(), [f"{G.PLAN_LINE} record_id 1 mine_id 1 refused_value 1",
                                             _dir_line("plan", 1, 0), _dir_line("shard", 1, 0)])
-        self.assertEqual(G.plan_line(G.build(self.raw.raw, plan_dir / "plan.json")), out.splitlines()[0])
+        self.assertEqual(G.plan_line(self.build(self.raw.raw, plan_dir / "plan.json")), out.splitlines()[0])
         for value in (doc, mine, name, *name.split()):
             self.assertNotIn(value.lower(), out.lower(), value)
 
@@ -1729,7 +1810,7 @@ class PlanValuesTests(unittest.TestCase):
     def test_an_unreadable_plan_leaves_nothing_out(self) -> None:
         c = self.c
         real = read_json(c.plan_path)
-        self.assertEqual(G.plan_text(c.plan_path), c.plan_path.read_text(encoding="utf-8"))
+        self.assertEqual(G.plan_text(c.plan_path, _sha(c.plan_path)), c.plan_path.read_text(encoding="utf-8"))
         self.assertIn(b'"purpose":"', canonical_dumps(real).encode("utf-8"))
         for case in ("not named", "missing", "withheld", "not json", "not utf-8", "not a lab plan", "another schema",
                      "a directory", "a symlink"):
@@ -1737,12 +1818,14 @@ class PlanValuesTests(unittest.TestCase):
                 d = self.tmp / case.replace(" ", "-")
                 d.mkdir()
                 plan = self.unreadable_plan(case, d, real, c.plan_path)
-                self.assertIsNone(G.plan_text(plan))
-                guard = G.build(c.raw, plan)
-                self.assertEqual((guard.plan_read, guard.left_out),
-                                 (False, {"record_id": 0, "mine_id": 0, "refused_value": 0}))
+                # the sha256 of the file's own bytes where it has any: each check refuses the plan by itself
+                sha = _sha(plan) if plan is not None and plan.is_file() else _sha(c.plan_path)
+                self.assertEqual(G.read_plan(plan, sha), (None, G.PLAN_UNREAD))
+                guard = G.build(c.raw, plan, sha)
+                self.assertEqual((guard.plan_read, guard.plan_state, guard.left_out),
+                                 (False, G.PLAN_UNREAD, {"record_id": 0, "mine_id": 0, "refused_value": 0}))
                 shard = _tree(d / "shard", {"a.log": f"shard {c.shard}\n"})
-                code, out = self.run_guard([shard], c.raw, plan)
+                code, out = self.run_guard([shard], c.raw, plan, sha)
                 self.assertEqual(code, 1)
                 self.assertEqual(out.splitlines(), [G.NO_PLAN_LINE, _dir_line("shard", 1, 1, refused_value=1)])
 
@@ -1753,11 +1836,45 @@ class PlanValuesTests(unittest.TestCase):
         d.mkdir()
         (d / "plan.json").write_bytes(G.stub({"refused_value": 1}))
         (d / "summary.md").write_text(f"| `{c.shard}` | n/a |\n", encoding="utf-8")
-        code, out, _ = call_main(lab_msha, ["guard", "--plan", str(d / "plan.json"), "--dir", str(d),
-                                            "--raw", str(c.raw)])
+        code, out, _ = call_main(lab_msha, ["guard", "--plan", str(d / "plan.json"), "--plan-sha256",
+                                            _sha(c.plan_path), "--dir", str(d), "--raw", str(c.raw)])
         self.assertEqual(code, 1)
         self.assertEqual(out.splitlines(), [G.NO_PLAN_LINE, _dir_line("plan", 1, 1, refused_value=1)])
         self.assertTrue(G.is_stub((d / "summary.md").read_bytes()))
+
+    def test_a_missing_plan_is_guarded_through_the_command_when_the_file_is_on_the_runner(self) -> None:
+        """Review findings 3 and 6: through ``lab.msha guard``, a plan that is missing or cannot be read is guarded,
+        with nothing left out (K14's fail-safe), whenever MSHA's file is on the runner (the raw directory holds
+        ``Accidents.zip``, where every step that reads the file puts it). Without the file there, no step of the job
+        has read it, and the directory is left alone (``no l1 units``), never fetched for."""
+        c = self.c
+        for case in ("missing", "not json"):
+            with self.subTest(case=case):
+                d = self.tmp / case.replace(" ", "-")
+                d.mkdir()
+                plan = d / "plan.json"
+                if case == "not json":
+                    plan.write_bytes(c.plan_path.read_bytes()[:-2])
+                shard = _tree(d / "shard", {"a.log": f"shard {c.shard}\n"})
+                args = ["guard", "--plan", str(plan), "--plan-sha256", _sha(c.plan_path), "--dir", str(shard)]
+                with mock.patch.object(G, "run", side_effect=AssertionError("fetched")) as never:
+                    code, out, _ = call_main(lab_msha, [*args, "--raw", str(d / "no-raw")])
+                self.assertEqual((code, out, never.call_count), (0, "l1 guard: no l1 units\n", 0))
+                self.assertFalse(G.is_stub((shard / "a.log").read_bytes()))
+                code, out, _ = call_main(lab_msha, [*args, "--raw", str(c.raw)])
+                self.assertEqual((code, out.splitlines()), (1, [G.NO_PLAN_LINE,
+                                                                _dir_line("shard", 1, 1, refused_value=1)]))
+                self.assertTrue(G.is_stub((shard / "a.log").read_bytes()))
+        # the default raw directory: lab-msha beside the plan's directory, where the workflow restores the file
+        root = self.tmp / "default"
+        (root / "lab-plan").mkdir(parents=True)
+        lab_l1.raw_dir(root / "lab-plan").mkdir()
+        shutil.copy(c.raw / lab_l1.ZIP, lab_l1.raw_dir(root / "lab-plan") / lab_l1.ZIP)
+        shard = _tree(root / "lab-shard", {"a.log": f"shard {c.shard}\n"})
+        code, out, _ = call_main(lab_msha, ["guard", "--plan", str(root / "lab-plan" / "plan.json"),
+                                            "--plan-sha256", _sha(c.plan_path), "--dir", str(shard)])
+        self.assertEqual((code, out.splitlines()),
+                         (1, [G.NO_PLAN_LINE, _dir_line("lab-shard", 1, 1, refused_value=1)]))
 
     def test_only_whole_words_of_the_plan_are_left_out(self) -> None:
         contractor = l1_data.OPERATOR["contractor_id"]
@@ -1765,22 +1882,65 @@ class PlanValuesTests(unittest.TestCase):
         doc = sorted(self.raw.writer.ids["documents"])[3]
         word = contractor.lower()
         inside = f"{word}x a{word} {word}{word[-1]} {mine}0 x{mine} {doc}7 0{doc}"
-        guard = G.build(self.raw.raw, self.plan_dir(inside) / "plan.json")
+        guard = self.build(self.raw.raw, self.plan_dir(inside) / "plan.json")
         self.assertEqual(guard.left_out, {"record_id": 0, "mine_id": 0, "refused_value": 0})
         self.assertEqual(guard.hits(f"by {contractor} at {mine} doc {doc}"),
                          {**dict.fromkeys(G.KINDS, 0), "record_id": 1, "mine_id": 1, "refused_value": 1})
         shutil.rmtree(self.tmp / "plan")
-        bounded = G.build(self.raw.raw, self.plan_dir(f"{word}-b ({mine}) doc:{doc.upper()}") / "plan.json")
+        bounded = self.build(self.raw.raw, self.plan_dir(f"{word}-b ({mine}) doc:{doc.upper()}") / "plan.json")
         self.assertEqual(bounded.left_out, {"record_id": 1, "mine_id": 1, "refused_value": 1})
 
     def test_the_command_passes_the_plan(self) -> None:
         c = self.c
         shard = _tree(self.tmp / "shard", {"a.log": f"shard {c.shard}\n"})
-        code, out, _ = call_main(lab_msha, ["guard", "--plan", str(c.plan_path), "--dir", str(shard),
-                                            "--raw", str(c.raw)])
+        code, out, _ = call_main(lab_msha, ["guard", "--plan", str(c.plan_path), "--plan-sha256", _sha(c.plan_path),
+                                            "--dir", str(shard), "--raw", str(c.raw)])
         self.assertEqual((code, out.splitlines()), (0, [f"{G.PLAN_LINE} record_id 0 mine_id 0 refused_value 1",
                                                         _dir_line("shard", 1, 0)]))
         self.assertFalse(G.is_stub((shard / "a.log").read_bytes()))
+
+
+class ProbeTests(unittest.TestCase):
+    """``tools/l1/guard_probe.py`` after review: its K14 pass reads the plan with the guard's ``read_plan`` and the
+    plan's sha256 (finding 1), and each pass counts run 1's plan artifact by class (finding 4: the plan summary's two
+    files, which run 1's second plan-job guard left unscanned). Counts only, run 1's case on the synthetic file."""
+
+    def test_the_probe_reads_the_plan_and_counts_run_1_s_plan_artifact(self) -> None:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("l1_guard_probe", ROOT / "tools" / "l1" / "guard_probe.py")
+        assert spec is not None and spec.loader is not None
+        probe = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(probe)
+        c = _Collide.get()
+        tmp = Path(tempfile.mkdtemp(prefix="lab-l1-probe-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        art = _tree(tmp / "run1-plan", {"summary.md": f"| `{c.shard}` | n/a |\n", "summary.sources.json": "{}\n",
+                                        "prereg/prereg.json": "{}\n"})
+        (art / "plan.json").write_bytes(G.stub({"refused_value": 1}))
+        (tmp / "earlier").mkdir()
+        out_path = tmp / "probe.json"
+        code, out, _ = call_main(probe, ["--raw", str(c.raw), "--plan", str(c.plan_path), "--artifacts",
+                                         str(tmp / "earlier"), "--out", str(out_path), "--run1-artifact", str(art)])
+        self.assertEqual(code, 0)
+        lines = out.splitlines()
+        self.assertIn("l1 probe: after K14: left out: record_id 0 mine_id 0 refused_value 1", lines)
+        self.assertFalse([line for line in lines if "nothing left out" in line])
+        result = json.loads(out_path.read_text(encoding="utf-8"))
+        k9, k14 = result["run1_plan_artifact"], result["after_k14"]["run1_plan_artifact"]
+        self.assertEqual({k: (g["files"], g["files_with_hits"]) for k, g in k9.items()},
+                         {"plan summary, never scanned": (2, 1), "scanned by the first guard": (1, 0),
+                          "withheld by the first guard": (1, 0)})
+        self.assertEqual({k: (g["files"], g["files_with_hits"]) for k, g in k14.items()},
+                         {"plan summary, never scanned": (2, 0), "scanned by the first guard": (1, 0),
+                          "withheld by the first guard": (1, 0)})
+        self.assertEqual(k9["plan summary, never scanned"]["refused_columns"], {"CONTRACTOR_ID": 1})
+        self.assertEqual((result["after_k14"]["plan_read"], result["after_k14"]["plan_state"]), (True, G.PLAN_READ))
+        for start in ("l1 probe: run 1 plan artifact [plan summary, never scanned] files 2 with hits 1 ",
+                      "l1 probe: after K14: run 1 plan artifact [plan summary, never scanned] files 2 with hits 0 "):
+            self.assertEqual(len([line for line in lines if line.startswith(start)]), 1, start)
+        self.assertNotIn(c.word.lower(), out.lower())
+        self.assertNotIn("summary.md", out)
 
 
 # --------------------------------------------------------------------------------------------------- the workflow
@@ -1858,6 +2018,25 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('--dir "$RUNNER_TEMP/lab-report"', steps[guard]["run"])
         self.assertEqual(steps[again], steps[guard])
 
+    def test_every_guard_is_given_the_plan_s_sha256(self) -> None:
+        """Review finding 1 (K14): every guard step passes the plan step's ``plan_sha256`` output (``lab.plan``'s
+        sha256 of the bytes it wrote, before any MSHA file is read) through its environment, so the guard leaves the
+        plan's values out only for those bytes."""
+        expected = {"plan": "${{ steps.plan.outputs.plan_sha256 }}", "run": "${{ needs.plan.outputs.plan_sha256 }}",
+                    "aggregate": "${{ needs.plan.outputs.plan_sha256 }}"}
+        counts: dict[str, int] = {}
+        for job, value in expected.items():
+            for i in _index(_steps(job), _guard):
+                step = _steps(job)[i]
+                self.assertIn('--plan "$RUNNER_TEMP/lab-plan/plan.json" --plan-sha256 "$LAB_PLAN_SHA256" --dir ',
+                              step["run"])
+                self.assertEqual(step["env"], {"LAB_PLAN_SHA256": value})
+                counts[job] = counts.get(job, 0) + 1
+        self.assertEqual(counts, {"plan": 2, "run": 3, "aggregate": 2})
+        self.assertEqual(WORKFLOW["jobs"]["plan"]["outputs"]["plan_sha256"], "${{ steps.plan.outputs.plan_sha256 }}")
+        self.assertTrue(_steps("plan")[[s.get("id") for s in _steps("plan")].index("plan")]["run"]
+                        .startswith("python -m lab.plan "))
+
 
 # --------------------------------------------------------------------------------------------------- the reference
 
@@ -1886,12 +2065,28 @@ class DocsTests(unittest.TestCase):
             self.assertIn(text, self.TEXT)
 
     def test_the_guard_s_plan_lines_are_quoted_as_printed(self) -> None:
-        """K14: the reference quotes both of the guard's plan lines as the code prints them."""
+        """K14: the reference quotes every one of the guard's plan lines as the code prints them, and says how the
+        command treats a missing plan (review findings 3 and 6)."""
         self.assertIn(f"- `{G.PLAN_LINE} record_id <n> mine_id <n> refused_value <n>`:", self.TEXT)
-        self.assertIn(f"- `{G.NO_PLAN_LINE}`:", self.TEXT)
+        self.assertEqual(set(G.STATE_LINES), {G.PLAN_UNREAD, G.PLAN_CHANGED, G.PLAN_HIT})
+        for line in G.STATE_LINES.values():
+            self.assertIn(f"- `{line}`:", self.TEXT)
+        self.assertIn("`--plan-sha256`", self.TEXT)
+        self.assertIn("`l1 guard: no l1 units`", self.TEXT)
+        self.assertNotIn("the plan is missing, not a regular file", self.TEXT)
 
 
 # --------------------------------------------------------------------------------------------------- request and plan
+
+def purpose_new_words(purpose: str, template: str) -> list[str]:
+    """Review finding 5 (K14): the words of a later request's purpose (its alphanumeric runs after folding, as the
+    guard reads the plan's text) that the template's purpose does not hold and that are long enough to be a value of
+    the guard by themselves (at least the shorter of D002's two refusal lengths)."""
+    refusal = load_onboard_settings(ROOT / P.SETTINGS)[0]["params"]["refusal"]
+    shortest = min(refusal["forbidden_inside_min_chars"], refusal["reference_inside_min_chars"])
+    known = set(words_of(folded(template)))
+    return sorted({w for w in words_of(folded(purpose)) if w not in known and len(w) >= shortest})
+
 
 class RequestTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -1920,7 +2115,9 @@ class RequestTests(unittest.TestCase):
                          [(m, k) for m in ("a-0p5b", "a-1p5b", "a-4b") for k in range(1, 6)])
         self.assertEqual({u["params"]["slots"] for u in plan["units"]}, {5})
         # Run 1's request was the template unchanged; a later run's (K14: latency-002) is the template with only its
-        # purpose changed, naming K14. The build adds none of them: pushing one starts a run.
+        # purpose changed, naming K14, and that purpose adds no word that could be a value by itself (review finding
+        # 5: every word of the plan's text is left out of the guard's sets). The build adds none of them: pushing one
+        # starts a run.
         template = read_json(TEMPLATE)
         for path in sorted((ROOT / "lab" / "requests").glob("latency-*.json")):
             with self.subTest(request=path.name):
@@ -1930,6 +2127,20 @@ class RequestTests(unittest.TestCase):
                 else:
                     self.assertEqual({**doc, "purpose": template["purpose"]}, template)
                     self.assertIn("K14", doc["purpose"])
+                    self.assertEqual(purpose_new_words(doc["purpose"], template["purpose"]), [])
+
+    def test_a_later_purpose_adds_no_word_that_could_be_a_value(self) -> None:
+        """Review finding 5: a later latency request's purpose may hold the template purpose's words and words too
+        short to be one of the guard's values by themselves (fewer characters than the shorter of D002's two refusal
+        lengths), and no other word: each of its words would be left out of the guard's sets in every job."""
+        template = read_json(TEMPLATE)["purpose"]
+        good = (template.replace("amended K1 to K13 before any run", "amended K1 to K14 before any model ran")
+                .replace("lab/requests/latency-001.json", "lab/requests/latency-002.json") + " Run 2, K14.")
+        self.assertEqual(purpose_new_words(good, template), [])
+        self.assertEqual(purpose_new_words(template, template), [])
+        self.assertEqual(purpose_new_words(template + " Run 2 after run 1 stopped at the guard.", template),
+                         ["after", "guard", "stopped"])
+        self.assertEqual(purpose_new_words(template + " K1400 x-ab12 ab1", template), ["ab12", "k1400"])
 
     def test_every_block_error(self) -> None:
         def check(block: dict[str, Any], path: str, problem: str | None = None) -> None:

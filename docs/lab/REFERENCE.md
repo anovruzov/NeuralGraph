@@ -289,19 +289,32 @@ decimals, a share, or a count below 100,000, K12):
 The guard (`lab.msha guard`, `lab/l1guard.py`, K9) scans every file of the plan directory, of each shard root (before
 and after its seal) and of the report directory for c1 to c5's record ids, mine ids and refused values and any 8-word
 run of c1's narratives; a file with a hit is replaced by its hit counts (`kind: lab_l1_withheld`) and the step fails.
-A plan without L1 units is left alone; a plan an earlier guard withheld is still guarded, with nothing left out.
+The command (`python -m lab.msha guard --plan PLAN --plan-sha256 SHA256 --dir DIR [--raw RAW]`) runs the guard when
+the plan has L1 units, when an earlier guard withheld the plan (only an L1 plan's guard writes that stub), or when
+MSHA's file is on the runner (`RAW`, by default `lab-msha` beside the plan's directory, holds `Accidents.zip`; every
+step that reads the file puts it there) whatever the plan, so a missing or unreadable plan is then guarded with
+nothing left out. Otherwise no step of the job has read the file, and the command prints `l1 guard: no l1 units` and
+leaves the directories alone (exit 0).
 
 With K14 (`CHOICE-L001.md`, after run 1), the guard first reads the plan that `--plan` names and leaves out of its
 record-id, mine-id and refused-value sets every value found as a whole word in the plan's own text (folded, whole
-words, the scan's matching); the plan is still scanned, and the 8-word narrative scan is unchanged. Each guard step
-prints, before its directory lines, one of two fixed lines (counts only, never a value):
+words, the scan's matching); the plan is still scanned, and the 8-word narrative scan is unchanged. It does so only
+for the bytes `lab.plan` wrote: `--plan-sha256` is the plan step's `plan_sha256` output (the workflow passes it to
+every guard step as `LAB_PLAN_SHA256`; `lab.dryrun` passes the sha256 of the plan it has just written). Each guard
+step prints, before its directory lines, one of four fixed lines (counts only, never a value):
 
 - `l1 guard: values in the plan's own text, left out: record_id <n> mine_id <n> refused_value <n>`: the plan was read
-  as a lab plan, and these are the numbers of values left out of each set;
-- `l1 guard: the plan could not be read as a lab plan; no value is left out`: the plan is missing, not a regular file,
-  withheld, not UTF-8 JSON, or not `kind: lab_plan` with `schema_version` 1; the scan is K9's.
+  as a lab plan with the bytes `lab.plan` wrote, and these are the numbers of values left out of each set;
+- `l1 guard: the plan could not be read as a lab plan; no value is left out`: the plan is not a regular file, is
+  withheld, is not UTF-8 JSON, or is not `kind: lab_plan` with `schema_version` 1, or it is missing (through the
+  command, only when MSHA's file is on the runner, as above); the scan is K9's;
+- `l1 guard: the plan's bytes are not the ones lab.plan wrote; no value is left out`: a lab plan whose sha256 is not
+  `--plan-sha256` (or with none to compare it with); the scan is K9's;
+- `l1 guard: the plan's own text holds a hit; no value is left out`: with its values left out, the plan's text still
+  holds a hit (only a narrative's 8-word run can), so it is not lab text alone and every value is put back; the scan
+  is K9's, and a scan of the plan's directory withholds the plan.
 
-Neither line is printed when the file cannot be split (`l1 guard: the file could not be split or read; every file is
+None of them is printed when the file cannot be split (`l1 guard: the file could not be split or read; every file is
 withheld`). The directory lines keep their format: `l1 guard: <dir> files <n> withheld <n> record_id <n> mine_id <n>
 refused_value <n> narrative_ngrams <n> unread <n>`.
 

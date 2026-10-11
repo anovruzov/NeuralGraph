@@ -1,7 +1,7 @@
 """Latency test L001's guard (rule 12, K9 and K14): every file a run uploads is scanned for MSHA values before any
 summary reads it and before upload.
 
-    python -m lab.msha guard --plan PLAN --dir DIR [--dir DIR ...] [--raw RAW]
+    python -m lab.msha guard --plan PLAN --plan-sha256 SHA256 --dir DIR [--dir DIR ...] [--raw RAW]
 
 The scan is D002's last guard and backstop (``mycelic.collective.onboard.report``) over whole files, with the values of
 c1 to c5 (the operators of D002's split of the file, :func:`build`):
@@ -17,9 +17,18 @@ K14 (amended after run 1): before it scans, the guard reads the plan that ``--pl
 leaves out of the record-id, mine-id and refused-value sets every value found as a whole word in the plan's text, with
 the scan's own matching (folded text, whole words; :func:`plan_values`), and prints one fixed line with the number
 left out of each set (:func:`plan_line`), never a value. The plan is still scanned like every other file, no file is
-exempt, and the n-gram scan is unchanged. A plan that cannot be read as a lab plan (:func:`plan_text`: missing, not a
-regular file, withheld, not UTF-8 JSON, or not ``kind: lab_plan``) leaves nothing out, says so in its own fixed line
-(:data:`NO_PLAN_LINE`), and the scan is K9's.
+exempt, and the n-gram scan is unchanged. Nothing is left out, the guard says why in its own fixed line, and the scan
+is K9's, when
+
+* the plan cannot be read as a lab plan (:func:`read_plan`: none named, missing, not a regular file, withheld, not
+  UTF-8 JSON, or not ``kind: lab_plan`` with ``schema_version`` 1): :data:`NO_PLAN_LINE`;
+* its bytes are not the ones ``lab.plan`` wrote: their sha256 is not ``--plan-sha256``, the plan step's ``plan_sha256``
+  output, which ``lab.plan`` gives as it writes the plan, before any MSHA file is read: :data:`CHANGED_PLAN_LINE`;
+* its own text still holds a hit with its values left out (only a narrative's run can), so it is not lab text alone:
+  :data:`HIT_PLAN_LINE`.
+
+Whether a step runs the guard at all is :mod:`lab.msha`'s: through ``lab.msha guard``, a missing plan is guarded (with
+nothing left out) only when MSHA's file is on the runner.
 
 A file with any hit is withheld: its bytes are replaced by :func:`stub` (its hit counts by kind, nothing else) and the
 command exits 1, which fails the job. A stub is never scanned again. When the file cannot be split or an export of the
@@ -29,13 +38,14 @@ directories under a shard root that the seal removes and never uploads (``work/`
 ``server/tmp``) are not scanned.
 
 The console gets fixed lines with counts only: once per invocation that built a guard, the plan's line
-(``l1 guard: values in the plan's own text, left out: record_id <n> mine_id <n> refused_value <n>``, or
-:data:`NO_PLAN_LINE`); one per directory (``l1 guard: <name> files <n> withheld <n> ...``); and for an error its class
-name and code location (:func:`error_line`), never its text.
+(``l1 guard: values in the plan's own text, left out: record_id <n> mine_id <n> refused_value <n>``, or the line that
+says why nothing is left out, :data:`STATE_LINES`); one per directory (``l1 guard: <name> files <n> withheld <n>
+...``); and for an error its class name and code location (:func:`error_line`), never its text.
 """
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import os
 import stat
@@ -63,6 +73,11 @@ SKIP_DIRS = ("work", "server/bin", "server/home", "server/tmp")
 LEFT_OUT = (("record_id", "report_record_id"), ("mine_id", "report_site"), ("refused_value", None))
 PLAN_LINE = "l1 guard: values in the plan's own text, left out:"
 NO_PLAN_LINE = "l1 guard: the plan could not be read as a lab plan; no value is left out"
+CHANGED_PLAN_LINE = "l1 guard: the plan's bytes are not the ones lab.plan wrote; no value is left out"
+HIT_PLAN_LINE = "l1 guard: the plan's own text holds a hit; no value is left out"
+# K14: how the plan was read (PLAN_READ: its values are left out; any other: nothing is), and each other state's line
+PLAN_READ, PLAN_UNREAD, PLAN_CHANGED, PLAN_HIT = "read", "unread", "changed", "hit"
+STATE_LINES = {PLAN_UNREAD: NO_PLAN_LINE, PLAN_CHANGED: CHANGED_PLAN_LINE, PLAN_HIT: HIT_PLAN_LINE}
 
 
 def error_line(prefix: str, err: BaseException) -> str:
@@ -96,28 +111,37 @@ def is_stub(data: bytes) -> bool:
     return isinstance(doc, dict) and doc.get("kind") == STUB_KIND
 
 
-def plan_text(plan: Path | None) -> str | None:
-    """K14: the text of the plan at ``plan`` when it can be read as a lab plan (a regular file, not a withheld file's
-    stub, UTF-8, a JSON object with ``kind: lab_plan`` and ``schema_version`` 1), else None: then nothing is left
-    out."""
+def read_plan(plan: Path | None, sha256: str | None) -> tuple[str | None, str]:
+    """K14: ``(text, PLAN_READ)`` when the plan at ``plan`` can be read as a lab plan (a regular file, not a withheld
+    file's stub, UTF-8, a JSON object with ``kind: lab_plan`` and ``schema_version`` 1) and its bytes are the ones
+    ``lab.plan`` wrote (their sha256 is ``sha256``, the plan step's output). Else nothing is left out:
+    ``(None, PLAN_UNREAD)``, or ``(None, PLAN_CHANGED)`` for a lab plan whose sha256 is another (or with no ``sha256``
+    to compare it with)."""
     if plan is None:
-        return None
+        return None, PLAN_UNREAD
     try:
         if not stat.S_ISREG(os.lstat(plan).st_mode):
-            return None
+            return None, PLAN_UNREAD
         data = Path(plan).read_bytes()
     except OSError:
-        return None
+        return None, PLAN_UNREAD
     if is_stub(data):
-        return None
+        return None, PLAN_UNREAD
     try:
         text = data.decode("utf-8")
         doc = strict_load(data)
     except Exception:            # noqa: BLE001 (any decoding or parse failure: not a lab plan)
-        return None
+        return None, PLAN_UNREAD
     if not isinstance(doc, dict) or doc.get("kind") != "lab_plan" or doc.get("schema_version") != 1:
-        return None
-    return text
+        return None, PLAN_UNREAD
+    if not sha256 or hashlib.sha256(data).hexdigest() != sha256:
+        return None, PLAN_CHANGED
+    return text, PLAN_READ
+
+
+def plan_text(plan: Path | None, sha256: str | None) -> str | None:
+    """K14: the plan's text when :func:`read_plan` reads it, else None: then nothing is left out."""
+    return read_plan(plan, sha256)[0]
 
 
 def plan_values(values: Iterable[str], text: str) -> set[str]:
@@ -127,11 +151,14 @@ def plan_values(values: Iterable[str], text: str) -> set[str]:
 
 class Guard:
     """The values of the operators of the split (see the module docstring), built once, less the values that the
-    plan's text holds (K14; ``plan_text`` None leaves nothing out); :meth:`hits` scans a text. ``left_out`` holds the
-    number of values left out of each set, and ``plan_read`` whether there was a plan's text to leave them out by."""
+    plan's text holds (K14; ``plan_text`` None leaves nothing out, and ``plan_state`` says why); :meth:`hits` scans a
+    text. ``left_out`` holds the number of values left out of each set, and ``plan_state`` whether they were left out
+    by the plan's text (:data:`PLAN_READ`) or why nothing was. When the plan's own text still holds a hit with its
+    values left out (only a narrative's run can), it is not lab text alone: every value is put back
+    (:data:`PLAN_HIT`)."""
 
     def __init__(self, settings: Mapping[str, Any], exports: Sequence[Any], own: Any,
-                 plan_text: str | None = None) -> None:
+                 plan_text: str | None = None, plan_state: str = PLAN_UNREAD) -> None:
         roles = S.arm_roles(settings, ARM)
         params = settings["params"]
         refusal = params["refusal"]
@@ -145,22 +172,34 @@ class Guard:
                 if (len(f) >= refusal["forbidden_inside_min_chars"] and any(ch.isalpha() for ch in f)) \
                         or len(f) >= refusal["reference_inside_min_chars"]:
                     values.add(f)
-        self.plan_read = plan_text is not None
-        self.left_out = {kind: 0 for kind, _ in LEFT_OUT}
-        if plan_text is not None:
-            for kind, backstop_kind in LEFT_OUT:
-                held = values if backstop_kind is None else self.backstop.values[backstop_kind]
-                found = plan_values(held, plan_text)
-                held -= found
-                self.left_out[kind] = len(found)
-        self.refused = D.ValueIndex(values)
         self.ngram = int(settings["report_guard"]["ngram"])
         self.grams: set[tuple[str, ...]] = set()
         for narrative in R.company_sentinels(own, roles, params).narratives:
             self.grams |= ngrams(narrative, self.ngram)
+        self.plan_state = PLAN_READ if plan_text is not None else plan_state
+        self.left_out = {kind: 0 for kind, _ in LEFT_OUT}
+        removed: dict[str, set[str]] = {}
+        if plan_text is not None:
+            for kind, backstop_kind in LEFT_OUT:
+                held = values if backstop_kind is None else self.backstop.values[backstop_kind]
+                removed[kind] = plan_values(held, plan_text)
+                held -= removed[kind]
+        self.refused = D.ValueIndex(values)
+        if plan_text is not None and any(self.hits(plan_text).values()):
+            for kind, backstop_kind in LEFT_OUT:          # not lab text alone: nothing is left out
+                (values if backstop_kind is None else self.backstop.values[backstop_kind]).update(removed[kind])
+            self.refused = D.ValueIndex(values)
+            self.plan_state = PLAN_HIT
+        elif plan_text is not None:
+            self.left_out = {kind: len(removed[kind]) for kind, _ in LEFT_OUT}
         self.counts = {"record_ids": len(self.backstop.values["report_record_id"]),
                        "mine_ids": len(self.backstop.values["report_site"]), "refused_values": len(values),
                        "operators": len(exports)}
+
+    @property
+    def plan_read(self) -> bool:
+        """Whether the values that the plan's text holds are left out (K14)."""
+        return self.plan_state == PLAN_READ
 
     def hits(self, text: str) -> dict[str, int]:
         found = self.backstop.hits([text])
@@ -170,18 +209,19 @@ class Guard:
 
 
 def plan_line(guard: Guard) -> str:
-    """K14's fixed line: the number of values left out of each set, never a value; :data:`NO_PLAN_LINE` when there
-    was no plan's text."""
+    """K14's fixed line: the number of values left out of each set, never a value; when nothing was left out, the
+    line that says why (:data:`STATE_LINES`)."""
     if not guard.plan_read:
-        return NO_PLAN_LINE
+        return STATE_LINES[guard.plan_state]
     return PLAN_LINE + "".join(f" {kind} {guard.left_out[kind]}" for kind, _ in LEFT_OUT)
 
 
-def build(raw: Path, plan: Path | None, settings_path: Path | None = None) -> Guard | None:
+def build(raw: Path, plan: Path | None, plan_sha256: str | None,
+          settings_path: Path | None = None) -> Guard | None:
     """The guard from the file in ``raw`` (D002's split into a temporary directory that is deleted), less the values
-    that the text of the plan at ``plan`` holds (K14; the plan is read first), or None when the file cannot be split
-    or an export cannot be read: then nothing can be checked."""
-    text = plan_text(plan)
+    that the text of the plan at ``plan`` holds when its sha256 is ``plan_sha256`` (K14; the plan is read first), or
+    None when the file cannot be split or an export cannot be read: then nothing can be checked."""
+    text, state = read_plan(plan, plan_sha256)
     settings_path = settings_path or ROOT / SETTINGS
     settings, _ = S.load_settings(settings_path)
     fetch = load_script(FETCH)
@@ -195,7 +235,7 @@ def build(raw: Path, plan: Path | None, settings_path: Path | None = None) -> Gu
             own = read_export(Path(tmp) / companies[COMPANY]["file"])
         except Exception:        # noqa: BLE001 (an unreadable split is no guard: every file is withheld)
             return None
-    return Guard(settings, exports, own, text)
+    return Guard(settings, exports, own, text, state)
 
 
 def files(root: Path) -> list[Path]:
@@ -236,10 +276,10 @@ def guard_line(name: str, result: Mapping[str, Any]) -> str:
     return f"l1 guard: {name} files {result['files']} withheld {result['withheld']} {hits}"
 
 
-def run(dirs: Iterable[Path], raw: Path, plan: Path | None, *, fetcher: Any = None) -> int:
+def run(dirs: Iterable[Path], raw: Path, plan: Path | None, plan_sha256: str | None, *, fetcher: Any = None) -> int:
     """The guard over each directory (see the module docstring), less the values that the text of the plan at
-    ``plan`` holds (K14): 0 when nothing was withheld, else 1. The file is fetched into ``raw`` when it is not there
-    (``fetcher`` replaces the download in tests)."""
+    ``plan`` holds when its sha256 is ``plan_sha256`` (K14): 0 when nothing was withheld, else 1. The file is fetched
+    into ``raw`` when it is not there (``fetcher`` replaces the download in tests)."""
     zip_path = raw / "Accidents.zip"
     if not zip_path.is_file():
         try:
@@ -248,7 +288,7 @@ def run(dirs: Iterable[Path], raw: Path, plan: Path | None, *, fetcher: Any = No
                 fetch.download(raw, **({"fetcher": fetcher} if fetcher is not None else {}))
         except Exception as err:   # noqa: BLE001 (a failed fetch leaves no guard: every file is withheld)
             print(error_line("l1 guard: fetch", err), flush=True)
-    guard = build(raw, plan) if zip_path.is_file() else None
+    guard = build(raw, plan, plan_sha256) if zip_path.is_file() else None
     if guard is None:
         print("l1 guard: the file could not be split or read; every file is withheld", flush=True)
     else:
@@ -263,9 +303,9 @@ def run(dirs: Iterable[Path], raw: Path, plan: Path | None, *, fetcher: Any = No
     return code
 
 
-def main_guard(dirs: Sequence[str], raw: str, plan: str) -> int:
+def main_guard(dirs: Sequence[str], raw: str, plan: str, plan_sha256: str) -> int:
     try:
-        return run([Path(d) for d in dirs], Path(raw), Path(plan))
+        return run([Path(d) for d in dirs], Path(raw), Path(plan), plan_sha256)
     except Exception as err:       # noqa: BLE001 (K9: class and location only)
         print(error_line("l1 guard", err), file=sys.stderr, flush=True)
         return 2

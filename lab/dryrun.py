@@ -19,7 +19,8 @@
 With L1 units (latency test L001), MSHA's file is read from ``DIR/lab-msha`` (``lab.l1.raw_dir``), where the
 workflow's cache restore puts it: ``--l1-raw`` names a directory holding an ``Accidents.zip`` to copy there first (a
 synthetic one, ``tests/lab/l1_data.py``: the sandbox reaches no MSHA host); without it the preregistration downloads
-the file. The L1 guard (``lab.msha guard``) then runs where the workflow runs it: over the plan directory after the
+the file. The L1 guard (``lab.msha guard``, given the plan's sha256 as ``lab.plan`` wrote it, as the workflow gives the
+plan step's ``plan_sha256``) then runs where the workflow runs it: over the plan directory after the
 preregistration and after its summary, over each shard root before and after its seal and after its summary, and over
 the report directory after the aggregate and after its summary; a guard that withholds a file makes the dry run fail
 (exit 1).
@@ -39,6 +40,7 @@ else 0.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import shutil
 import subprocess
@@ -79,9 +81,9 @@ def _summary(mode: str, directory: Path, md: Path, sources: Path) -> int:
     return lab_summary.main([mode, "--dir", str(directory), "--md-out", str(md), "--sources-out", str(sources)])
 
 
-def _guard(plan_path: Path, directory: Path) -> int:
+def _guard(plan_path: Path, plan_sha256: str, directory: Path) -> int:
     sys.stdout.flush()
-    return lab_msha.main(["guard", "--plan", str(plan_path), "--dir", str(directory)])
+    return lab_msha.main(["guard", "--plan", str(plan_path), "--plan-sha256", plan_sha256, "--dir", str(directory)])
 
 
 def _status(shard_dir: Path) -> dict[str, Any] | None:
@@ -103,6 +105,9 @@ def main(argv: list[str] | None = None) -> int:
     plan_path = plan_dir / "plan.json"
     if lab_plan.main(["--request", args.request, "--manifest", args.manifest, "--out", str(plan_dir)]) != EXIT_OK:
         return EXIT_USAGE
+    # the plan step's plan_sha256 output (K14: the guard leaves the plan's values out only for these bytes), taken as
+    # the workflow takes it, before the preregistration reads any MSHA file
+    plan_sha256 = hashlib.sha256(plan_path.read_bytes()).hexdigest()
     l1 = lab_l1.plan_has_l1(str(plan_path))
     if l1 and args.l1_raw is not None:
         raw = lab_l1.raw_dir(plan_dir)
@@ -111,12 +116,12 @@ def main(argv: list[str] | None = None) -> int:
     sys.stdout.flush()
     if lab_prereg.main(["--plan", str(plan_path)]) != EXIT_OK:
         if l1:
-            _guard(plan_path, plan_dir)
+            _guard(plan_path, plan_sha256, plan_dir)
         return EXIT_USAGE
     plan = strict_load(plan_path.read_bytes())
     failing, summaries_ok = False, True
     if l1:
-        failing |= _guard(plan_path, plan_dir) != EXIT_OK
+        failing |= _guard(plan_path, plan_sha256, plan_dir) != EXIT_OK
     openfda = [f"--openfda-base-url={args.openfda_base_url}"] if args.openfda_base_url is not None else []
     for shard in plan["shards"]:
         shard_dir = out / "shards" / shard["shard"]
@@ -124,21 +129,21 @@ def main(argv: list[str] | None = None) -> int:
                       "--provider=fake", *openfda)
         outcome = "success" if code == EXIT_OK else "failure"
         if l1:
-            failing |= _guard(plan_path, shard_dir) != EXIT_OK
+            failing |= _guard(plan_path, plan_sha256, shard_dir) != EXIT_OK
         sealed = _shard("seal", f"--out={shard_dir}", f"--shard={shard['shard']}", f"--plan={plan_path}",
                         f"--step-outcome=run={outcome}")
         if l1:
-            failing |= _guard(plan_path, shard_dir) != EXIT_OK
+            failing |= _guard(plan_path, plan_sha256, shard_dir) != EXIT_OK
         summaries_ok &= _summary("shard", shard_dir, shard_dir / "summary" / "summary.md",
                                  shard_dir / "summary" / "summary.sources.json") == EXIT_OK
         if l1:
-            failing |= _guard(plan_path, shard_dir) != EXIT_OK
+            failing |= _guard(plan_path, plan_sha256, shard_dir) != EXIT_OK
         status = _status(shard_dir)
         failing = (failing or code != EXIT_OK or sealed != EXIT_OK or status is None
                    or status.get("missing_units") != [])
     summaries_ok &= _summary("plan", plan_dir, plan_dir / "summary.md", plan_dir / "summary.sources.json") == EXIT_OK
     if l1:
-        failing |= _guard(plan_path, plan_dir) != EXIT_OK
+        failing |= _guard(plan_path, plan_sha256, plan_dir) != EXIT_OK
     report_dir = out / "report"
     sys.stdout.flush()
     aggregated = lab_aggregate.main(["--plan", str(plan_path), "--provision", str(out / "provision"),
@@ -147,11 +152,11 @@ def main(argv: list[str] | None = None) -> int:
     if aggregated != EXIT_OK:
         return EXIT_USAGE
     if l1:
-        failing |= _guard(plan_path, report_dir) != EXIT_OK
+        failing |= _guard(plan_path, plan_sha256, report_dir) != EXIT_OK
     summaries_ok &= _summary("report", report_dir, report_dir / "report.md",
                              report_dir / "report.sources.json") == EXIT_OK
     if l1:
-        failing |= _guard(plan_path, report_dir) != EXIT_OK
+        failing |= _guard(plan_path, plan_sha256, report_dir) != EXIT_OK
     if not summaries_ok:
         return EXIT_USAGE
     return EXIT_UNIT if failing else EXIT_OK

@@ -11,20 +11,28 @@ before the MSHA file is read. This probe asks, with counts only, where such coin
 * the lab's code and docs: files and hits by class and by column.
 
 Then a second pass, after K14 (``CHOICE-L001.md``): the guard rebuilt as the lab now builds it, with the values that
-``PLAN``'s own text holds left out of its value sets (``lab.l1guard.plan_text``, the same reading), and the same counts
-again, each line prefixed ``after K14``: the counts left out (by set, and the refused values by column and length),
-the refused values kept, ``plan.json`` whole and by path class, the earlier run's files and the lab's code and docs.
+``PLAN``'s own text holds left out of its value sets (``lab.l1guard.read_plan``, the same reading, with the sha256 of
+``PLAN``'s bytes: the probe's own regeneration, which nothing else writes, so it is the sha256 ``lab.plan`` gives), and
+the same counts again, each line prefixed ``after K14``: the counts left out (by set, and the refused values by column
+and length), the refused values kept, ``plan.json`` whole and by path class, the earlier run's files and the lab's
+code and docs.
+
+With ``--run1-artifact``, each pass also counts the files of run 1's plan artifact (``lab-plan-38090725021-1``) by
+class: the file the first guard withheld, the files it scanned, and the plan summary's two files, which no guard
+scanned (the second guard of run 1's plan job read the withheld ``plan.json`` as a plan without L1 units and left the
+directory alone before the upload).
 
 The guard itself (``lab.l1guard.Guard``) does the matching, so a hit here is a hit there. Prints fixed lines with counts
 and writes the same counts as JSON (the second pass under ``after_k14``). Nothing else: no value, token, file name,
 index or line of any scanned file.
 
-    python tools/l1/guard_probe.py --raw DIR --plan PLAN --artifacts DIR --out FILE
+    python tools/l1/guard_probe.py --raw DIR --plan PLAN --artifacts DIR --out FILE [--run1-artifact DIR]
 """
 from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import io
 import json
 import re
@@ -92,8 +100,8 @@ class Probe:
     """The guard (run 1's without a plan's text; K14's with it) plus, for each refused value the guard keeps, the
     refused columns it came from."""
 
-    def __init__(self, split: Split, plan_text: str | None = None) -> None:
-        self.guard = G.Guard(split.settings, split.exports, split.own, plan_text)
+    def __init__(self, split: Split, plan_text: str | None = None, plan_state: str = G.PLAN_UNREAD) -> None:
+        self.guard = G.Guard(split.settings, split.exports, split.own, plan_text, plan_state)
         kept = {v for vs in self.guard.refused.by_run.values() for v in vs} | set(self.guard.refused.general)
         assert kept <= set(split.columns) and len(split.columns) - len(kept) == \
             self.guard.left_out["refused_value"], "the probe's values differ from the guard's"
@@ -185,6 +193,29 @@ def code_class(rel: str) -> str | None:
     return None
 
 
+def run1_artifact(probe: Probe, root: Path, prefix: str) -> dict[str, Any]:
+    """Run 1's plan artifact by class (each file's hits under ``probe``): the file the first guard withheld (a stub,
+    which the guard never scans again), the plan summary's two files, which no guard scanned, and the rest, which the
+    first guard scanned. Counts only."""
+    groups: dict[str, dict[str, Any]] = {}
+    for path in sorted(p for p in root.rglob("*") if p.is_file() and not p.is_symlink()):
+        data = path.read_bytes()
+        rel = path.relative_to(root).as_posix()
+        if G.is_stub(data):
+            cls = "withheld by the first guard"
+        elif rel in ("summary.md", "summary.sources.json"):
+            cls = "plan summary, never scanned"
+        else:
+            cls = "scanned by the first guard"
+        found = probe.scan(data.decode("utf-8", errors="replace")) if not G.is_stub(data) else {
+            "hits": dict.fromkeys(G.KINDS, 0), "refused_columns": {}}
+        add(groups.setdefault(cls, empty()), found)
+    out = dict(sorted(groups.items()))
+    for name, g in out.items():
+        print(line(f"{prefix}run 1 plan artifact", name, g), flush=True)
+    return out
+
+
 def line(prefix: str, name: str, g: dict[str, Any]) -> str:
     hits = " ".join(f"{k} {g['hits'].get(k, 0)}" for k in G.KINDS)
     cols = ", ".join(f"{c} {n}" for c, n in g["refused_columns"].items()) or "none"
@@ -238,6 +269,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--plan", required=True)
     p.add_argument("--artifacts", required=True)
     p.add_argument("--out", required=True)
+    p.add_argument("--run1-artifact", help="run 1's plan artifact (lab-plan-38090725021-1), unpacked")
     a = p.parse_args(argv)
     raw = Path(a.raw)
     if not (raw / "Accidents.zip").is_file():
@@ -247,25 +279,31 @@ def main(argv: list[str] | None = None) -> int:
     probe = Probe(split)
     out: dict[str, Any] = {"values": probe.summary()}
     values_lines("", out["values"])
-    plan_text = Path(a.plan).read_text(encoding="utf-8")
+    plan_bytes = Path(a.plan).read_bytes()
+    plan_text = plan_bytes.decode("utf-8")
     out.update(scans(probe, plan_text, Path(a.artifacts), ""))
+    if a.run1_artifact:
+        out["run1_plan_artifact"] = run1_artifact(probe, Path(a.run1_artifact), "")
 
-    # K14: the guard as the lab now builds it, with the values the plan's own text holds left out (the guard's reading)
+    # K14: the guard as the lab now builds it, with the values the plan's own text holds left out (the guard's reading,
+    # with the sha256 of the plan as lab.plan wrote it: the probe's own regeneration, which nothing else writes)
     prefix = "after K14: "
-    k14_text = G.plan_text(Path(a.plan))
-    after = Probe(split, k14_text)
+    k14_text, state = G.read_plan(Path(a.plan), hashlib.sha256(plan_bytes).hexdigest())
+    after = Probe(split, k14_text, state)
     left = after.guard.left_out
-    if k14_text is None:
-        print(f"l1 probe: {prefix}the plan could not be read as a lab plan; nothing left out", flush=True)
+    if not after.guard.plan_read:
+        print(f"l1 probe: {prefix}nothing left out: the plan is {after.guard.plan_state}", flush=True)
     print(f"l1 probe: {prefix}left out: " + " ".join(f"{k} {n}" for k, n in left.items()), flush=True)
     by_col = by_column_and_length(after.left_out)
     print(f"l1 probe: {prefix}refused values left out by column and length: "
           + ("; ".join(f"{c} " + ", ".join(f"{k} chars {n}" for k, n in lengths.items())
                        for c, lengths in by_col.items()) or "none"), flush=True)
-    k14: dict[str, Any] = {"plan_read": k14_text is not None, "left_out": dict(left),
-                           "left_out_by_column_and_length": by_col, "values": after.summary()}
+    k14: dict[str, Any] = {"plan_read": after.guard.plan_read, "plan_state": after.guard.plan_state,
+                           "left_out": dict(left), "left_out_by_column_and_length": by_col, "values": after.summary()}
     values_lines(prefix, k14["values"])
     k14.update(scans(after, plan_text, Path(a.artifacts), prefix))
+    if a.run1_artifact:
+        k14["run1_plan_artifact"] = run1_artifact(after, Path(a.run1_artifact), prefix)
     out["after_k14"] = k14
 
     Path(a.out).write_text(json.dumps(out, indent=1, sort_keys=True) + "\n", encoding="utf-8")
