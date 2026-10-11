@@ -665,6 +665,407 @@ S6b and S7 follow in the same build and are not cut for any reason. Suites run l
 6. The report derives `keyring.keyed` from the driver's signing key (`harness.py:111`, `:138`) because `/status`
    exposes no key field (`service.py:2488-2519`); the forgery drill is the live proof. Sufficient?
 
+## Amended before any build, 2026-10-11
+
+No code of S2 to S9 exists. Two adversarial reviews of `e3052c0` (the commit of the sections above) returned 25
+findings, 8 blocking and 17 minor. Each is answered below as M1 to M25, in the order the reviews gave them; each item
+says what was, what is now and why, names its check, and cites the code it rests on. Every floor of sections 2.3 and 9
+stands or rises; none falls. Where the text above disagrees with this section, this section wins. The settings test of
+section 6 (`tests/e2e_ingest`) compares the harness constants with the tables above as amended here.
+
+The declaration still holds, with this addendum. Since `e3052c0` its author ran in the sandbox (Intel Xeon 2.10 GHz,
+4 vCPU) and nothing else: the routing spike's `spike_code_hash()` (M13); a timing of `Tesseract.retrieve` over graphs
+built from the 200 world's smallest, median and largest sites with the hash embedder (M15); the simulator's two
+architectures at sizes 200 and 600 (M14); the generator at 200 and 1,000 (M20); and `pytest --collect-only` over the
+six suites (M2). None of these is a result; no pipeline, detector, wire, fabric or end-to-end step ran. The numbers are
+the sandbox's and are labelled so where they appear.
+
+### Blocking findings
+
+**M1. Two lineage witnesses that were one writer** (criterion 2, drill 5, section 5, c2). Was: "each verdict sha256
+matches HQ's receive log and the site's egress log", joined with `score.log_index` and `logged_match`. Why wrong:
+`EdgeSite` builds its Boundary with `receive_log=Path(hq_dir) / "receive.jsonl"` (`edge/site.py:252-253`),
+`Boundary.send` appends the identical line to both files (`edge/egress.py:852-853`), and in process mode the site's
+own process constructs the `EdgeSite` (`site_process.py:402-404`). A site that sends one body over the wire and logs
+another passes; nothing HQ wrote is consulted. Now, for every site-sourced verdict event, five witnesses, three of
+them HQ's own records and two the site's:
+
+| Witness | Side | Source | Assertion |
+|---|---|---|---|
+| `pd_verdicts.sha256` | HQ | `append_verdict` recomputes `sha256_hex(body)` from the bytes HQ received (`detect/store.py:628-633`) | `event.sha256 == row.sha256` for (question_id, site) |
+| `hq/wire.jsonl` | HQ | every frame HQ read, with its own sha256 (`wire.py:181-186`); the harness decodes each response frame with `wire.decode_response` (`wire.py:140-151`) and hashes the body | one response frame of that site whose body sha256 `== event.sha256` |
+| `hq/intake.jsonl` | HQ | the sha256 of the bytes HQ accepted, `source == "site"` (`hq.py:271`, `:276-279`) | one row with that sha256, question id and site |
+| `site-<id>.egress.jsonl` | site | the Boundary's egress row (`egress.py:852-853`) | one verdict row with that sha256 |
+| `RecordStore.verdict_by_id` | site | `verdict_by_id(body["verdict_id"]).sha256` (`edge/records.py:521-522`; `VerdictRow`, `:268-273`) | `== event.sha256` |
+
+Then the join as drilled: `verdict_for_ref(evidence_ref)` (`records.py:518-519`) to `confirming_refs` and
+`entity_refs`, every record's `received_date` on or before the question's `as_of`. Section 5's
+`lineage.sha256_in_receive_log` and `sha256_in_egress_log` are replaced by `lineage.{sha256_in_pd_verdicts,
+sha256_in_wire_log, sha256_in_intake_log, sha256_in_site_egress, sha256_in_site_store}`; c2 asserts each
+`== publish.verdict_events` (site-sourced). `hq/receive.jsonl` is written by the site's Boundary; it stays what it is,
+the carrier of the cells HQ ingests (`baselines.py:144`, `store.ingest_log`) and the leakage scan's input
+(`run.py:188-190`), and is no witness. Section 6: `harness.py` imports `score.read_log` only; `log_index` and
+`logged_match` are not used.
+
+**M2. Criterion 10's gate left no evidence** (criterion 10, section 5 `run.suites_sha`, c10, section 11). Was:
+`run.suites_sha == run.code_commit` where `suites_sha` was the `E2E_SUITES_SHA` environment string; `run.suites_green`
+was a misnomer for that comparison; in CI the `needs` edge was the gate but the artifact carried nothing from the
+suite jobs; a skip-when-missing module reads green with its tests unrun (`tests/mycelic/test_jetstream.py:7-8`,
+`:32`). Now the gate leaves evidence in the artifact:
+
+- Every suite step runs `python -m pytest <suite> -q -p no:warnings --junitxml=suites/<suite>.xml`;
+  `python -m unittest research.mycelic.test_mycelic` becomes `python -m pytest research/mycelic/test_mycelic.py`
+  with the same flags (pytest collects the same 30 tests; `research/mycelic/README.md:53`). The suite jobs write
+  `suites/<suite>.json` with `{suite, sha, tests, failures, errors, skipped, duration_s, junit_sha256}` (sha =
+  `github.sha`) and upload them as `e2e-suites-core` and `e2e-suites-lab`; the `e2e` and `measure` jobs download both
+  (`actions/download-artifact@v4`) and the harness embeds `run.suites[]`, `run.suites_evidence = "junit"` and
+  `run.needs_results = {"suites-core": "${{ needs.suites-core.result }}", "suites-lab": ...}`. `E2E_SUITES_SHA` is
+  dropped. Locally `python -m research.e2e_ingest suites --out DIR` runs the same seven commands and writes the same
+  files, and `run --suites DIR` reads them, so the loop's pre-merge run produces the same evidence.
+- Floors, the `pytest --collect-only` counts at `e3052c0` (sandbox, 2026-10-11):
+
+| Suite | Tests at `e3052c0` (floor) |
+|---|---|
+| `NeuralGraph/tests` | 265 |
+| `tests/mycelic` | 1,711 |
+| `tests/onboard` | 287 |
+| `tests/routing_spike` | 61 |
+| `tests/lab` | 725 |
+| `research/mycelic/test_mycelic.py` | 30 |
+| `tests/e2e_ingest` | ≥ 1; its count at the build's merge is written into the settings test and may only rise |
+
+- c10 asserts, for each of the seven suites: `sha == run.code_commit`, `failures == 0`, `errors == 0`,
+  `tests >= floor`; `run.suites_evidence == "junit"`; in CI both `needs_results` are `"success"`; `skipped == 0` for
+  `tests/e2e_ingest` and for `tests/mycelic/test_jetstream.py` (per-testcase `classname` in the junit file, M11);
+  a report with `suites_evidence != "junit"` or any suite missing has `verdict.pass == false`, reason
+  `suites_not_green`. The other suites' `skipped` counts are reported, not bounded.
+
+**M3. Nothing bound the stream to the key the harness holds** (section 5 `fabric.keyring.keyed`, `signatures.*`,
+drill 4, c0, c1, section 14 question 6). Was: `fabric.keyring.keyed` from `Keyring(driver.signing_key).keyed`, which is
+True by construction (`harness.py:111` generates a key; `integrity.py:139`, `self.keyed = bool(keys)`); c1's "every
+one of the N events verifies" had no report field; a driver subclass whose `env()` dropped the key (`harness.py:131-142`
+is overridable), a bridge writing rows into the service DB, or a second broker would pass. Now:
+
+- The harness reads every message of stream `MYCELIC` (`config.py:82`) by sequence from `first_seq` to `last_seq`
+  (`/admin/status` `checks.transport.first_seq`, `.last_seq`, `transport.py:474-475`) through nats-py
+  (`JetStreamContext.get_msg`) with the driver's credentials (M25); for each it checks
+  `Keyring(driver.signing_key).verify_event(data, headers["Mycelic-Signature"])` (`integrity.py:182-190`; the service
+  signs the exact wire bytes, `service.py:1041-1044`) and reads the payload's `event_id` and `kind`. The service puts
+  five kinds on the stream and nothing else: `agent.event` (`service.py:1221`), `memory.observed` (`:1157`),
+  `memory.attested` (`:1351`), `memory.derived` (`:1588`), `memory.retracted` (`:1309`); registration writes none.
+- Section 5 adds `signatures.{stream_messages_fetched, stream_messages_verified, stream_messages_foreign,
+  stream_kinds, api_event_ids_in_stream, api_event_ids_duplicated}` and `fabric.keyring.{harness_key_set, key_id,
+  key_id_in_service_db}` (`harness_key_set` replaces `keyed`); `key_id_in_service_db` is whether
+  `Keyring(driver.signing_key).key_id` (`integrity.py:140`) is listed in `meta.known_key_ids`, which the service
+  writes at every start (`service.py:467-478`), read `mode=ro` from the service DB (`store.py:49-52`, `meta`).
+- c0 asserts `harness_key_set is True`, `key_id_in_service_db is True`, `fabric.integrity_mode == "keyed"` (M22).
+  c1 asserts `stream_messages_fetched == fabric.stream_messages`; before drill 4 `stream_messages_verified ==
+  stream_messages_fetched` and `stream_messages_foreign == 0`; after drill 4 `stream_messages_foreign == 3` (M8) and
+  `stream_messages_verified == stream_messages_fetched - 3`; every API-returned id (`event_id` and
+  `memory_event_id`, `service.py:1240-1256`) appears exactly once among the verified payloads
+  (`api_event_ids_in_stream == publish.publishes + publish.conclusion_events`, `api_event_ids_duplicated == 0`);
+  `stream_kinds["agent.event"] == publish.publishes`, `stream_kinds["memory.observed"] == publish.conclusion_events`;
+  `fabric.stream_messages == sum(stream_kinds.values()) + stream_messages_foreign`. `memory.derived` and the other
+  kinds are counted and reported. Section 14's question 6 is closed by this item and M22.
+
+**M4. The HQ-side Tesseract check was a tautology** (section 4 item 1, section 5 `routing.*`, c1, c7). Was: "the
+route has exactly `min(3, eligible)` sites and the routed sites are the first 3 of arm R's order", which holds for the
+real Router (`coordination/core.py:230-241`: eligible preferred nodes first, the rest after, cut at
+`budget.max_nodes`) and for any stub returning `order[:3]`; `route_selected` is one emit (`core.py:405-406`). Now
+section 4 states the division: at HQ the Tesseract Router decides eligibility (capability id and availability,
+`core.py:206-222`; the failure injector's masks, `:209`, `:156-157`) and the budget cut (`:241`); HQ's rank fusion
+decides the order (`hq.py:144-146`, passed as `preferred_node_ids`, `:423-424`). Three checks, each of which a stub
+fails:
+
+1. Identity. `tests/e2e_ingest` asserts `type(hq.coordinator) is core.TesseractCoordinator` and
+   `type(hq.coordinator.router) is core.Router` (`hq.py:379-380` builds them); the report carries
+   `routing.coordinator_class` and `routing.router_class`, the fully qualified names of the live objects; the two
+   classes' source is pinned by `run.spike_code_hash` (`CODE_PATTERNS` include
+   `NeuralGraph/research/coordination/*.py`, `run.py:73-75`; M13).
+2. Per question. `routing.questions[]` carries `{question_id, hq_eligible, route, trace}` with
+   `hq_eligible == len(world.site_ids)` (7 at size 200; `Asked.eligible`, `hq.py:398-404`),
+   `len(route) == min(3, hq_eligible)`, and `trace` the `TraceEventType` sequence HQ keeps (`hq.py:426-432`):
+   `query_received`, then `route_selected` before every `retrieval_selected` (`contracts.py:61-63`).
+3. The eligibility filter, exercised once. `hq_tesseract.E2EHq(Hq)` keeps the injector `Hq` builds and drops
+   (`hq.py:371`): after `Hq.__init__` it sets `self.failure = FailureInjector(...)` and rebuilds
+   `self.coordinator = TesseractCoordinator(self.registry, Router(self.registry, self.failure), ClaimNormalizer(),
+   RuleBasedSynthesizer((SLOT,)), LineageAnalyzer(), self.traces)`, the six arguments of `hq.py:379-380` with the
+   injector kept. In drill 2, while the restarted site's process is down, the harness applies
+   `failure.apply(InterventionTarget.ROUTE, site, reason="e2e drill 2: process down")` (`core.py:109-138`;
+   `contracts.py:49-56`), asks one probe question (the next candidate in order) through `hq.ask` only, not written
+   to the HQ store, not published, outside the answer matrix, then `failure.clear(...)` (`core.py:140-150`) and
+   reopens the process. Checks: the probe's `route_selected` excludes the site; `len(route) == 3`;
+   `hq_eligible == 7` (the descriptor is cached, `hq.py:391-396`, so HQ's own eligibility did not change and the
+   exclusion is the Router's, `core.py:206-209`); no received record of the probe has `source == "hq"` (a Router that
+   ignored the mask would have asked the dead process and got `wire:closed`, `hq.py:290-292`); the trace holds one
+   `failure_injected` (`core.py:130-131`; `contracts.py:70`) and `failure.records` one record with `ended_at` set.
+   Report: `routing.router_excluded_masked == 1`, `routing.intervention_records == 1`.
+
+A stub that copies `order[:3]` fails 2 and 3; a stub that reimplements the Router fails 1. The probe consumes one
+question's budget at three sites and leaves rows in their verdict logs and in `hq/wire.jsonl`, `intake.jsonl` and
+`receive.jsonl`; the lineage checks of M1 run from events to witnesses, so extra witness rows change nothing. Its
+cost is one question.
+
+**M13. c7 asserted a hash that is false on the tree it was written on** (c7). Was: `run.spike_code_hash()` equals
+the value `docs/collective/routing_spike/prereg-run-2.json` carries. Computed at `e3052c0`: `spike_code_hash()` is
+`22dc1abaaf3a30ba346118f180f255939cd04c69732d21a03eaacd0f8dfb55cd` over 142 files (`spike_code_files()`,
+`run.py:87`); `prereg-run-2.json` carries `ad2ce42517ac3293984faff39770535926be37cdb26eecb7e810afd8b26fdb77` over 133
+files, committed at `062c5e7` on 2026-10-09. The difference is nine modules added under `mycelic/collective/**`
+after run 2 (`onboard/{__init__,__main__,check,draft,exports,report,roles,score}.py`, `pilot/start.py`; the glob is
+`CODE_PATTERNS`, `run.py:73-75`) and `research/routing_spike/site_process.py` itself, changed at `9aa8230` after
+`062c5e7`. As written, c7 fails every run and would press toward editing pinned data or the run-2 record. Now the
+settings table records the hash at `e3052c0`, `22dc1aba...fb55cd` in full above, and `142` files; c7 asserts
+`run.spike_code_hash == that value`, `run.spike_code_files == 142`, and `code_dirty` over the spike's `DIRTY_PATHS`
+(`run.py:76-78`) is False; run 2's hash is historical. If the value ever differs, something under the pins changed
+(rule 4, `LOOP-48H.md:85`): the run fails, and this value is not amended without naming the commit that changed a
+pinned file and why.
+
+**M14. The measure job's budgets summed past its timeout** (section 10 scaling table, section 11 `measure`). Was: 5 +
+10 + 25 minutes for the three sizes, a sweep of five steps of at least 60 s, Tesseract at three node counts (20,000
+nodes at 8.7 s per query, `HANDOFF-2026-10-09.md:145`, is about 3 minutes alone), install, and a 10-minute simulator
+budget not placed inside any row: over 45 with every budget respected, and the report written once at the end
+would never be produced. Measured for this amendment (sandbox): the simulator's `run_arch("H_mycelic_full", ...)`
+takes 0.3 s at 200 and 0.6 s at 600, `A2_chunked_ctx` 0.1 s, `build_world` under 0.1 s (`runner.py:54-62`,
+`:193-244`), so the 10-minute budget was never the constraint; the ranking cost is about 0.43 ms per node per query
+(M15). Now the measure job runs these phases in this order, each under its own budget, and `measure.py` writes the
+report (`write_json_atomic`) when each phase ends, with `completed` and `phase`, so a timeout leaves a partial report:
+
+| Phase | Budget (min) | Work it must hold |
+|---|---|---|
+| install (pip, nats-server) | 2 | `mycelic.yml:23-28` |
+| size 200 (60 candidates) | 5 | 180 rankings at 0.6-1.1 s; 7 graphs, 12,964 nodes in all, at 0.13-0.18 s per 1k; pipeline and detection under 1 min; about 240 publishes |
+| rate sweep | 7 | 5 steps × 60 s, at most 15 s settle each; it needs only the size-200 events and is criterion 5's pass condition, so it runs before the larger sizes |
+| Tesseract at 600, 5,882, 20,000 nodes | 5 | 20 queries each: 20 × 0.26 s, 20 × 2.5 s, 20 × 8.6 s (about 3 min); the three builds under 10 s |
+| size 600 (60 candidates) | 8 | 180 rankings at a mean site of 3,209 nodes (about 1.4 s); 22,464 nodes built; about 240 publishes |
+| size 2,000 (20 candidates) | 15 | 60 rankings at 3.3 s (mean site 7,607 nodes) to 8 s (18,633); 68,463 nodes built (under 15 s); pipeline and detection up to 3 min; about 80 publishes; the simulator columns under 1 min |
+| total | 42 of 45 | |
+
+Size 2,000 routes the first 20 candidates of the same ordering, not 60: at 60 its rankings alone would be 10 to 24
+minutes. The table's `candidates` column says 20 there; Tesseract p50/p95 is per ranking and comparable across
+sizes. The simulator columns run at every size inside the size's budget; c9's null-with-`reason: budget` stays as the
+fallback at 2,000 only (unchanged). A phase over its budget is stopped, reported `completed: false` with the phase
+named, and fails the job (unchanged). The timeout stays 45. The e2e job's candidate count (60) is unchanged.
+
+**M15. The e2e time plan undercounted the ranking work** (section 3.1, 3.5, 8, 11). Was: 12 to 15 minutes, counting
+the 140 fixed queries once (criterion 3 compares them before and after re-ingest, so 280), taking the low end of the
+handoff's per-query range, and asking every routed site serially. Measured for this amendment (sandbox, Intel Xeon
+2.10 GHz, 4 vCPU; `fake_embedding` at `EMBED_DIM` 256, `site_process.py:70`; `Tesseract.retrieve(limit=nodes)` as
+`_local_retrieve` calls it, `site_process.py:264`; graphs built from the 200 world's three site sizes): per query
+p50 0.617 s at 1,458 nodes, 0.773 s at 1,805, 1.141 s at 2,574, which is 0.42 to 0.44 ms per node; graph build 0.13 to
+0.18 s per 1k nodes (the handoff's 31 s for 5,882 nodes, `HANDOFF:134`, was the conversation ingestion path, not this
+one). The coordinator asks a route one site after another (`core.py:409-410`) and `SiteProxyAdapter.query` blocks on
+the wire (`hq.py:290`). The e2e job's rankings: reference 180, main 180, the restarted site's re-answers at most 30
+(⌈Q_s / 2⌉ of the most-routed site), fixed queries 280; about 670. Now:
+
+1. The 280 fixed queries run concurrently across the seven site processes (each endpoint has its own lock,
+   `wire.py:224`; the processes are independent); each site's 40 queries stay serial.
+2. The reference pass asks a question's three routed sites in three threads over `InProcessEndpoint`s (each site runs
+   on its own worker thread, `wire.py:189-191`); the route is `orders["R"][:3]` from `Hq.prepare` (`hq.py:398-404`,
+   every site eligible in that pass). The reference pass is the byte-identity reference of drill 2, not the routing
+   proof.
+3. The main pass keeps the serial coordinator path: it is the Tesseract routing under test (section 4, M4).
+4. The estimate, on a sandbox-class runner: main pass 180 × 0.8 s, about 2.4 min (3.4 if every ranking hit the
+   largest site); reference pass 60 × 1.2 s, about 1.2 min if the three threads overlap, 2.4 to 3.4 if the interpreter
+   serialises them; fixed queries 280 × 0.8 s over 4 vCPU, about 1 min; re-answers under 0.6 min; seven graph builds
+   about 3 s; world, pipeline and detection under 1 min (the spike's 3,661 records took 3.2 to 3.9 s,
+   `ROUTING-SPIKE.md:277-279`); publishing and the broker drill about 1.5 min; forgeries, lineage and scans about 1
+   min; rebuild about 1 min; re-ingest and bridge rerun about 0.5 min; discovery score and simulator under 0.5 min;
+   install 2 min. About 12 to 16 minutes; a runner 1.5× slower lands at 17 to 23. The 20-minute bound stays (criterion
+   6; it is neither lowered nor raised here) and the one-amendment rule of section 11 stays: the first recorded run
+   decides. Section 11's estimate paragraph and section 14's question 4 are read with this item.
+
+### Minor findings, accepted
+
+**M5. The rebuild replays the forged messages** (drills 4 and 6, section 3.6, c4). The replay judges
+`rejected / seen` against `replay_max_reject_ratio`, default 0.01 (`config.py:114`, `:181`); `seen` counts every
+delivery (`service.py:984-991`), the rejected ones included (`:929-937`); over the ratio it writes `ready_block` and
+`/ready` stays 503 (`:596-612`). With three forgeries (M8) against the floors, 3 / (80 + 20 + 3) is 0.029: blocked
+by default, for a reason unrelated to recovery. Now the driver subclass's `env()` also sets
+`MYCELIC_REPLAY_MAX_REJECT_RATIO=0.05`, because three known forgeries against at least 103 deliveries give a ratio of
+at most 0.0292, and the exact count is asserted so the raised ratio hides nothing. Drill 6 reads the audit row
+`recovery.signature_rejections` (`service.py:604-608`) through `GET /admin/audit` (`api.py:459`) or the DB `mode=ro`,
+`checks.consumer.ready_block` from `/admin/status` (`service.py:2507`) and `GET /ready`. Fields:
+`recovery.service_rebuild.{replay_seen, replay_rejected, replay_blocked, ready_block, ready_after_rebuild}`. c4
+asserts `replay_seen == fabric.stream_messages` at the rebuild, `replay_rejected == 3`, `replay_blocked is False`,
+`ready_block is None`, `ready_after_rebuild is True`. This also shows the rebuilt service rejects the forgeries under
+the same key.
+
+**M6. The broker-kill fields could not show the broker was down** (drill 3, section 5, c4). "One row per id" is by
+construction on a table keyed by `event_id` (`store.py:495-499`) and is not the claim. Now, after publish N and before
+`driver.start("nats")`, the harness records from `/admin/status`: `checks.publisher.outbox_pending`
+(`service.py:2498`), `checks.transport.connected` (`transport.py:465`) and `status` (`degraded` when not
+connected, `service.py:2481-2486`; the smoke asserts the same, `mycelic_smoke.py:199-200`); after the restart
+`checks.transport.reconnects` (`transport.py:467`); from `/metrics` `mycelic_events_applied_total` by `kind`
+(`metrics.py:34`) and `mycelic_events_ignored_total` (`:39`) before and after the drill. Fields:
+`recovery.broker_kill.{outbox_pending_during_outage, transport_connected_during_outage, status_during_outage,
+transport_reconnects_after, applied_delta_agent_event, applied_delta_memory_observed, ignored_delta,
+active_notes_after, stream_duplicates}`. c4 asserts `outbox_pending_during_outage >= 1`,
+`transport_connected_during_outage is False`, `status_during_outage == "degraded"`, `transport_reconnects_after >= 1`;
+`applied_exactly_once` is defined as: every API-returned id (N `agent.event` ids plus the `memory.observed` ids, M18)
+has `status == "applied"` and `applied_at` not null (`store.py:503-507`), `applied_delta_agent_event == N`,
+`applied_delta_memory_observed == publish.conclusion_events`, `active_notes_after == publish.conclusion_events`
+(active conclusion notes in `emergence` by `hq`), and `stream_duplicates == 0` (M3's `api_event_ids_duplicated`).
+
+**M7 and M19. `GET /admin/events` caps at 1,000 rows and the sweep's events were unspecified** (section 5
+`publish.created_to_applied`, section 10 sweep). `limit` is capped at 1,000, newest first, no cursor (`api.py:425`;
+`store.py:1192-1202`), so a step at 16 or 32 events/s would be read truncated; and a re-POST of an existing key is
+`created: false` and never re-applied (`service.py:1240-1241`, `:1250-1259`), so its latency is meaningless. Now the
+measure job reads `created_at` and `applied_at` for every event of a step from the service DB `events` table
+(`store.py:495-499`) opened `mode=ro` (as `store.py:690` opens one) for the step's organisation, and asserts per step
+`publish.created_to_applied.n == events published in the step`; the e2e job may use `/admin/events` only while
+`publish.publishes + publish.conclusion_events <= 1000` (at most about 300 at size 200), else the same DB read. The
+step's events are the e2e world's N events cycled with idempotency keys `{step}:{cycle}:{original key}` until 60 s
+have elapsed, so every POST is a new event (`created: true`); per step `events_duplicate == 0`; at 32 events/s a step
+holds at most 1,920 events and 480 notes, under the 5,000 cap. For a conclusion POST the latency is the
+`memory.observed` event's (M18).
+
+**M8. One header-less forgery proved little** (drill 4, section 5 `signatures.*`, c1). Now the forged payload is a
+well-formed `memory.observed` event in org `emergence` in the shape of `test_jetstream.py:544-548` (`memory_id`,
+`org_id`, `layer`, `scope`, `text`, `producer_id`, `operator`), which an unkeyed service would apply, so the 404 is
+evidence. Three forgeries, in order: (1) no `Mycelic-Signature` header, `memory_id` `mem_forged_e2e_1`; (2) header
+`Keyring(secrets.token_hex(32)).event_signature(wire)` (`integrity.py:177-181`), `mem_forged_e2e_2`; (3) one of our
+own stream messages re-published with its `memory_id` replaced by `mem_forged_e2e_3` and its original header (altered
+bytes fail `verify_event`, `integrity.py:182-190`). After forgery i the counter
+`mycelic_events_failed_total{stage="signature"}` (`metrics.py:35`; `service.py:929-931`) is exactly i, so criterion
+1's "exactly 1 after one forged publish" holds after the first; c1 asserts `signatures.failed_after_forgery == 3`,
+`GET /memory/mem_forged_e2e_{1,2,3}` all 404, `stream_messages_foreign == 3` (M3), and the counter is read with the
+exact label `stage="signature"`.
+
+**M9. The graph node count was the builder checking itself** (section 5 `ingest.per_site`, c8). Now the harness opens
+each site's graph file `mode=ro` after the site process has exited (the end of drill 7) and reads
+`SELECT node_id FROM nodes WHERE session_key = ? AND layer = ?` with `"site:" + site_id` (`SESSION_PREFIX`,
+`site_process.py:69`, `:204`) and `NodeLayer.MESSAGE.value` (`retrieval/data_types.py:37`; the storage's own read,
+`sqlite_storage.py:317-318`; schema `:178-186`; insert `:258-263`). The expected refs come from `corpus.recs` and
+`org.ancestor_at(uid, SITE)` (`org.py:74-81`), computed without the site modules. Fields
+`ingest.per_site.<site>.{graph_nodes_db, node_ids_sha256, record_refs_sha256}`, both digests sha256 over the sorted
+ids joined by newlines. c8 asserts `graph_nodes_db == expected_records`, `node_ids_sha256 == record_refs_sha256`,
+and `graph_nodes` (what `site_graph` reported) `== graph_nodes_db`. No ref enters the report.
+
+**M10. `code_dirty` missed paths that change the run** (c10). Accepted with one correction: git's pathspec
+`mycelic/*.py` does match `mycelic/sdk/__init__.py` (`git ls-files -- 'mycelic/*.py'` at `e3052c0` lists 96 files,
+two of them under `sdk/`: a pathspec wildcard matches `/`), unlike `Path.glob` in `code_files` (`common.py:80-86`).
+The list was still too narrow. Now c10's paths are `mycelic`, `research/e2e_ingest`, `research/routing_spike`,
+`research/mycelic`, `NeuralGraph/research/coordination`, `NeuralGraph/research/retrieval`, `NeuralGraph/chat_memory`,
+`tests`, `deploy/mycelic` (the service's rules file, `harness.py:35`, `:139`), `requirements.txt`,
+`requirements-lock.txt`, `requirements-runtime.txt`, `.github/workflows/e2e-ingest.yml` and
+`.github/workflows/mycelic.yml`; `code_dirty` is evaluated at the start and at the end of the run
+(`run.code_dirty_start`, `run.code_dirty_end`, both False).
+
+**M11. A skip-when-missing test is a green suite** (section 6 `tests/e2e_ingest`, section 11). The workflow exports
+`MYCELIC_NATS_SERVER_BIN=/usr/local/bin/nats-server` (where `mycelic.yml:27` installs it; read by `harness.py:97-99`
+and `test_jetstream.py:32`) and `E2E_REQUIRE_NATS=1` for every job; under `E2E_REQUIRE_NATS` the tests in
+`tests/e2e_ingest` fail instead of skipping; c10's `skipped == 0` for `tests/e2e_ingest` and
+`tests/mycelic/test_jetstream.py` (M2) catches the rest.
+
+**M12. A JSON file cannot show it was not typed; the aggregates could not be recomputed** (section 5, c9, S9). The
+workflow prints `sha256sum` of each report into the job log and `$GITHUB_STEP_SUMMARY`; `## Runs` cites the run id,
+the job and the artifact's sha256; `check REPORT` for a recorded run requires `run.github_run_id` and `run.command`
+and recomputes every aggregate (`percentile`, `stats.py:112`) from per-item arrays the report must carry:
+`routing.tesseract.samples[]` `{question_id, site, seconds, nodes, nodes_as_of, returned, read}`;
+`routing.question_to_verdict.samples[]`; `publish.created_to_applied.samples[]` `{event_id, kind, created_at,
+applied_at}`; `lineage.rows[]` `{memory_id, verdict_event_ids, sha256s, confirming_refs_count, entity_refs_count,
+max_received_date, as_of}`; `discovery.oracle_rows[]` `{anchor, chain, as_of, route, expected, ambiguous, reason,
+per_site_facet_counts}` (synthetic Gold counts, harness side, so c1's expected statuses are recomputable). No
+`record_ref`, narrative or node id appears in any array; the report-schema test scans for the patterns of drill 5.
+Sizes: at most 60 conclusions, about 300 events, about 700 rankings.
+
+**M16. c8's `ingested` had no source** (criterion 8, section 3.3, c8). `run_pipeline` keeps the `IngestResult` local
+and raises on any duplicate or rejection (`baselines.py:136-138`); `Pipeline` exposes `sites` and `store` only
+(`:101-108`). Now `ingested` is the count of the site store's `records` rows with `forwarded_in = 0`, read `mode=ro`
+(the read `site_process.py:236-239` uses; the ingest rules, `records.py:20-27`); `duplicates == 0` and `rejected == 0`
+are proven by `run_pipeline` returning, recorded as `ingest.pipeline_raised: false`; the per-reason `rejected` dict
+leaves the report. `emergence_world.py` does not ingest on its own first: a prior `EdgeSite.ingest` (`site.py:278`)
+would make the pipeline's own ingest see duplicates and raise.
+
+**M17. The three subclasses cannot call the pinned constructors** (section 6, "What `site_graph.py` changes").
+`SiteProcess.__init__` builds `TesseractRetrieval` and `SpikeVerifier` inline (`site_process.py:412-421`);
+`TesseractRetrieval.__init__` (`:186`) unlinks the graph files (`:205-207`) and builds (`:224`);
+`ChildProcessEndpoint.__init__` hard-codes the module in `Popen` (`wire.py:221-223`). Now the mechanism is named:
+`PersistentTesseractRetrieval(TesseractRetrieval)` re-implements `__init__` (no unlink; sync by the `seq` watermark;
+`nodes` and `build_seconds` set) and inherits `_own_records`, `_local_retrieve`, `union`, `entity_matched`,
+`retrieve` and `close` (`:227`, `:257`, `:282`, `:298`, `:310`, `:338`); `E2ESiteProcess(SiteProcess)`
+re-implements `__init__` with step 5
+(`:412-416`) replaced by the persistent retrieval and nothing else changed; `E2EChildProcessEndpoint
+(wire.ChildProcessEndpoint)` re-implements `__init__`: `wire._Logged.__init__(self, site_id, log_path)`
+(`wire.py:175-178`), the same env and `Popen` with `-m research.e2e_ingest.site_graph` (`:219-223`), `self._io =
+threading.Lock()` (`:224`); it inherits `request` (`:226`) and `close` (`:240`). `tests/e2e_ingest` takes
+`inspect.getsource` of each re-implemented `__init__` and the spike's and asserts the unified diff holds exactly the
+named hunks.
+
+**M18. A conclusion POST yields two events** (section 3.6, drills 3 and 4, c1, c4). `service.py:1246-1258`: the
+`agent.event` and a `memory.observed` event with its own `new_id("evt")`, returned as `memory_event_id`. Now: N
+counts POSTs (the `agent.event` ids); the signature and exactly-once sets are N + `conclusion_events` ids, both from
+the API results; `fabric.stream_messages` expected is N + `conclusion_events` + the service's other kinds (M3) + 3
+after drill 4; `created_to_applied` for a conclusion is the `memory.observed` event's `applied_at - created_at` (the
+note's apply), with the `agent.event`'s reported beside it.
+
+**M20. The oracle named three statuses; the gate has five** (section 3.5, c1). `STATUSES` are supported, hypothesis,
+stale, contested, rejected (`pushdown/gate.py:64`); `confirming` is a site-sourced `confirm` whose support bucket is
+not suppressed (`:231-236`), `weak` a confirm that is not counted (`:237`), `refuting_contributing` (`:238`),
+`is_stale` by the Sunday of the newest confirming week (`:245-247`), assignment `:251-275`. A contradicted pattern
+carries one polarity −1 record three days after a facet (`corpus.py:577-595`): 13 of 40 real patterns at 200/seed 0
+(generator run for this amendment), and the judge's reading of such a record decides the site's verdict
+(`edge/verify.py:47`, `:243-258`). Now the oracle is over the five: `supported` as written; `hypothesis` when no routed
+site is strong; `stale` when at least two routed sites are strong, none holds a −1 record of the pattern, and the
+Sunday of the newest facet week among the strong sites is more than 42 days before `as_of`; a candidate with exactly
+one strong site, or whose pattern is contradicted at any routed site, is ambiguous and is reported with both values,
+not asserted; `contested` is never expected; `rejected` on a planted candidate is a harness fault (`gate.py:202-213`:
+pack hash, schema, look-ahead) and fails c1. The floor stands: at least one unambiguous planted candidate with
+expected `supported`.
+
+**M21. The candidate window was unstated** (section 3.5). The spike filters by `first_candidate_week` in
+`[eval_from, eval_to]` (`world.py:121-123`). Now: no window. The candidate set is every candidate with
+`snapshot is not None`, ordered as section 3.5 says, the first 60; the settings test records `eval_window: null` and
+the report carries `routing.eval_window: null`.
+
+**M22. There is no `/status`; a service-side keyedness field exists** (section 5, section 14 question 6). The routes
+are `/health`, `/ready`, `/metrics` (`api.py:434-436`) and `/admin/status` (`:458`; `MycelicClient.status()`,
+`sdk/__init__.py:223-224`). Every `/status` in section 5 reads `/admin/status`. Section 5 adds `fabric.integrity_mode`
+from `GET /verify/<id>` (`api.py:448`; `verification.py:733`) of any conclusion; c0 asserts `== "keyed"` beside M3's
+witnesses.
+
+**M23. Wrong line range** (drill 2). The byte-identity check of the spike is `run.py:472-493` (`identity_bad`,
+`answer_identity`) and `process_check` at `:769`; `:672-706` is the result dict.
+
+**M24. Tier labels are model-class names** (section 10 discovery table, S9). The report records the allocation name
+`"back-loaded"` and the five metric fields only, never the tier labels of `models.py:216-217` nor the checkpoint
+named at `models.py:8`; the report-schema test scans the report for those strings and fails on a hit.
+
+**M25. The forged publish needs its own connection** (drill 4, section 6 `drills.py`). `test_jetstream.py:548`
+publishes through the service's own transport object, which the harness does not have. Now `drills.py` connects with
+nats-py to `nats://127.0.0.1:{driver.nats_port}` with `driver.nats_user` and `driver.nats_password`
+(`harness.py:107`, `:112`, `:117-119`), publishes the forgeries on `subject_for("emergence", "memory.observed")`
+(`transport.py:41-43`) into stream `MYCELIC` (`config.py:82`), reads the stream for M3 and the broker version from
+`Client.connected_server_version`, and never touches the service's transport.
+
+### Declined
+
+None. Every finding was either right as stated or right with the correction noted (M10).
+
+### Floors after this amendment
+
+| Where | Before | Now |
+|---|---|---|
+| c1 forgeries | 1 forged publish, counter exactly 1 | 3 forged publishes (M8), counter exactly i after the i-th; three 404s; `stream_messages_foreign == 3` |
+| c1 stream binding | none | every API-returned id verified in the stream exactly once (M3) |
+| c2 witnesses | 2 Boundary logs (one writer) | 5 witnesses, 3 of them HQ's own (M1) |
+| c4 broker kill | harness-side fields | outage witnessed by the service and the metrics (M6); replay judged (M5) |
+| c7 hash | run 2's value (false) | the value at `e3052c0`, 142 files (M13) |
+| c8 graph | builder-reported count | DB-side count and digests (M9); `ingested` from the site store (M16) |
+| c10 evidence | an environment string | junit evidence per suite with the floors of M2; `skipped == 0` where M11 says |
+| c10 paths | 9 paths | 14 paths, at start and at end (M10) |
+| measure job | budgets over 45 | 42 of 45 with per-phase reports (M14); size 2,000 at 20 candidates is a scope statement of the measure job, not a floor; the e2e job's 60 stands |
+
+Nothing above this section was lowered.
+
+### Section 14 after this amendment
+
+Questions 4 and 6 are answered by M15 and by M3 with M22. One question is added:
+
+7. M4's probe question costs one question's budget at three sites and leaves rows in their verdict logs and in HQ's
+   wire, intake and receive logs, outside the answer matrix and the publish set. Is that acceptable, or should the
+   eligibility exercise be a separate world of two sites in `tests/e2e_ingest` only?
+
 ## Runs
 
 None yet.
