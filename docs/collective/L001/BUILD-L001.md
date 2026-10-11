@@ -297,3 +297,198 @@ ok, no answer left out, no question contended or not finished, and a null headli
 question of the model is a model measurement. The summaries' every number is traced to its file (`lab.summary` checks
 it before writing), and the 49 guard lines withheld no file and counted no hit. The times above are this machine's on
 the synthetic file and the fake server; they say nothing of the runner's times on MSHA's file with the models.
+
+## After run 1: K14
+
+Run 1 (`latency-001`, lab run 38090725021) stopped at the plan job's guard, before any model ran: `plan.json`, which
+`lab.plan` writes before the MSHA file is read, held one refused value as a whole word (`CHOICE-L001.md`, "Runs").
+K14 was committed alone (`161cb4f`, branch `wf/l001-k14`); this change carries it out, on `wf/l001-k14-build` from
+`161cb4f`. No MSHA value was read for it: every run here read the synthetic file.
+
+What changed:
+
+- **The guard** (`lab/l1guard.py`). `build(raw, plan)`, `run(dirs, raw, plan)` and `main_guard(dirs, raw, plan)` take
+  the plan's path. `plan_text` reads the plan first, before the file is split, and keeps its text only when it can be
+  read as a lab plan: a regular file (a symlink is not), not a withheld file's stub, UTF-8, strict JSON, an object with
+  `kind: lab_plan` and `schema_version` 1. `Guard` then removes from the backstop's record-id and site sets and from
+  the refused values every value that `plan_values` finds in the plan's folded text, with the scan's own matching
+  (`draft.ValueIndex.found_all` on `folded` text), and keeps the number removed from each set in `left_out`. `run`
+  prints, once per invocation that built a guard and before its directory lines, `l1 guard: values in the plan's own
+  text, left out: record_id <n> mine_id <n> refused_value <n>`, or, when the plan cannot be read, `l1 guard: the plan
+  could not be read as a lab plan; no value is left out` (nothing is then left out, and the scan is K9's). Every other
+  line keeps its format. The plan is still scanned like every other file, and the n-gram scan is unchanged.
+- **The command** (`lab/msha.py`). `guard` passes `--plan` to the guard. A plan that an earlier guard withheld is no
+  longer taken for a plan without L1 units: only an L1 plan's guard writes a stub, so the command runs the guard, with
+  nothing left out (K14: a withheld plan leaves nothing out and the scan is K9's). With run 1's code, a guard step after
+  the one that withheld `plan.json` read the stub as a plan without L1 units and left its directory unscanned.
+- **The probe** (`tools/l1/guard_probe.py`, workflow `l1-guard-probe.yml`). Its first pass and its lines are
+  unchanged. A second pass rebuilds the guard as K14 has it, with run 1's regenerated `plan.json` read by the guard's
+  own `plan_text`, and prints the same counts as `after K14` lines: the counts left out (by set, and the refused values
+  left out by column and length), the refused values kept, `plan.json` whole and by path class, J001's files and the
+  lab's code and docs. Counts only, as before. A push of this file re-runs the probe.
+- **The reference** (`docs/lab/REFERENCE.md`) quotes both lines.
+- **Requests.** None is added and `lab/templates/latency.json` is unchanged: the caller adds
+  `lab/requests/latency-002.json` (K14, "The next run"). `RequestTests.test_the_template_is_l001_s_settings` asserted
+  that `lab/requests/latency-001.json` does not exist, which stopped holding when run 1's request was pushed; it now
+  checks that latency-001 is the template unchanged and that any later latency request differs from it only in a
+  purpose that names K14.
+
+The tests that pin it (`tests/lab/test_lab_l1.py`). `PlanValuesTests` runs on a synthetic file whose second operator's
+contractor id is the first word of one of the template plan's shard labels, so the plan as `lab.plan` writes it holds
+one refused value as a whole word, as run 1's did (the label is the test's own choice; nothing here comes from MSHA):
+
+- `test_a_refused_value_equal_to_a_shard_label_is_left_out`: K9's guard finds it in the plan; K14's leaves it out
+  (`refused_value 1`), and the plan directory, a shard root and a report that carry the label pass, `plan.json` with
+  its bytes unchanged;
+- `test_a_refused_value_not_in_the_plan_is_still_a_hit`: another operator's contractor id and name still withhold
+  their files;
+- `test_the_plan_is_still_scanned`: a narrative's run in the plan's text withholds `plan.json`;
+- `test_a_record_id_and_a_mine_id_in_the_plan_are_left_out_the_same_way`: both backstop sets, and others still hit;
+- `test_the_line_counts_and_never_prints_a_value`: the exact lines, and no value (a document number, a mine id and an
+  operator's name, each word of it) in the output;
+- `test_an_unreadable_plan_leaves_nothing_out`: no plan named, missing, withheld, not JSON, not UTF-8, another kind,
+  another schema, a directory, a symlink: the fixed line, nothing left out, the label's file withheld, no crash;
+- `test_a_withheld_plan_is_still_guarded_through_the_command`: `lab.msha guard` with a withheld plan scans;
+- `test_only_whole_words_of_the_plan_are_left_out`: a value only inside a word of the plan is not left out; one
+  bounded by punctuation is;
+- `test_the_command_passes_the_plan`: `lab.msha guard` leaves the plan's value out.
+
+`GuardTests` pass the plan to the guard and expect the new line first; `DryRunTests.test_the_plan_and_the_units`
+expects one plan line before each guard step's directory line, each with every count 0;
+`DocsTests.test_the_guard_s_plan_lines_are_quoted_as_printed` checks the reference. Against the guard and command of
+`161cb4f`, every `PlanValuesTests` and `GuardTests` case above and the docs test fail. Fourteen mutations of the new
+code, applied one at a time to a copy of the tree, each failed at least one of them: the plan's text ignored, the
+backstop sets kept, substring matching, unfolded matching, the kind or the schema not checked, a symlinked plan
+followed, bad UTF-8 replaced, fixed counts in the line, the plan line printed for an unread plan, the plan line after
+the directory lines, `plan.json` skipped by the scan, the command passing no plan, and the command skipping a withheld
+plan.
+
+On this tree before its commit, `python -m pytest tests/lab` printed `718 passed, 22968 subtests passed` (21 min 36 s),
+and `python -m pytest tests/onboard tests/mycelic/test_collective_guards.py tests/mycelic/test_collective_x3.py`
+printed `402 passed, 1080 subtests passed`. The probe, run here on a synthetic file built as `PlanValuesTests` builds
+it, the template's plan and a stand-in for an earlier run's files, printed its first pass as before and its `after
+K14` lines with `left out: record_id 0 mine_id 0 refused_value 1`, nothing in `plan.json`, and no hit left in the files
+that carried the label.
+
+The dry run of the template on this tree before its commit, on the synthetic file (`python -m tests.lab.l1_data --out
+DIR`, default seed) and the fake server, as above (`python -m lab.dryrun --request lab/templates/latency.json --out DIR
+--l1-raw DIR_WITH_THE_FILE`), exited 0 in `real 6m32.931s`. It printed what the earlier dry run printed (`plan: 15
+units in 15 shards (real)`, `prereg: e1 no x1 no e2 no j1 no l1 yes`, the 15 units `status ok class plumbing exit 0`
+with `wall_s` between 14.2 and 18.3, and `lab: aggregate units 15 shards 15 class real measurements false lock
+unchanged`), and 98 guard lines: each of the 49 guard steps printed `l1 guard: values in the plan's own text, left out:
+record_id 0 mine_id 0 refused_value 0` and then its directory's line, with the same file counts as before (`plan files
+7` and `plan files 9`, each shard root `files 22`, `files 23` and `files 25`, `report files 3` and `report files 5`),
+every one `withheld 0` with every count 0. The synthetic file holds no word of the template's plan, so nothing is left
+out there; on MSHA's file, run 1's plan held one (K14, "What it costs").
+
+### Fixes after the review of K14's build (`wf/l001-k14-fix`)
+
+A review of `0909022` raised eight minor findings and no blocking one. This change, on `wf/l001-k14-fix` from
+`0909022`, carries out seven of them; the eighth is an order of pushes, written down below. K14's text is unchanged.
+Every fix below only narrows when values are left out, or records what happened; none widens what K14 leaves out.
+
+- **The plan's bytes (findings 1 and 7).** K14 holds because what is left out is fixed before any MSHA file is read
+  ("Why it is sound"). The build relied on the workflow's step order for that; the guard now checks it.
+  `python -m lab.msha guard` takes a required `--plan-sha256`. `l1guard.read_plan` leaves the plan's values out only
+  when the sha256 of the plan's bytes is that value; a lab plan with other bytes, or with no value to compare,
+  leaves nothing out, and the guard prints `l1 guard: the plan's bytes are not the ones lab.plan wrote; no value is
+  left out` (the scan is K9's). Every guard step in `mycelic-lab.yml` passes the plan step's own `plan_sha256` output
+  (`lab.plan`'s sha256 of the bytes it wrote) through `LAB_PLAN_SHA256`: `steps.plan.outputs.plan_sha256` in the
+  plan job, `needs.plan.outputs.plan_sha256` in the run and aggregate jobs. `lab.dryrun` takes the sha256 of the plan
+  right after `lab.plan` writes it, before the preregistration. Finding 7 proposed the preregistration's
+  `plan_sha256` instead; the plan step's output was chosen because `lab.plan` gives it as it writes the plan, while
+  `prereg.json` is written after the file is read and lies in the directory the guard scans.
+- **A plan whose own text holds a hit (finding 2).** `Guard` scans the plan's text with the guard as built, its
+  values already left out. Only a narrative's run can still hit. If one does, the plan is not lab text alone: every
+  value goes back into its set, nothing is left out for any directory of the call, and the guard prints `l1 guard:
+  the plan's own text holds a hit; no value is left out`. Such a plan is withheld by K9's n-gram scan anyway, so this
+  never stops a run that would have passed.
+- **A missing plan through the command (findings 3 and 6).** `lab.msha guard` ran the guard only for a plan with L1
+  units or a withheld one; a missing or unreadable plan printed `l1 guard: no l1 units` and scanned nothing, though
+  the reference said it printed the unreadable-plan line. Now the command also runs the guard whenever MSHA's file
+  is on the runner (`RAW`, by default `lab-msha` beside the plan's directory, holds `Accidents.zip`; every step that
+  reads the file puts it there), whatever the plan: a missing or unreadable plan is then guarded with nothing left
+  out, as K14's fail-safe bullet says. Without the file there, no step of the job has read it, the command still
+  prints `l1 guard: no l1 units` and fetches nothing. `docs/lab/REFERENCE.md`, `lab/l1guard.py` and `lab/msha.py`
+  say this, and the reference quotes all four plan lines.
+- **Run 1's plan artifact (finding 4).** In run 1's plan job the first guard scanned the plan directory's seven files
+  and withheld `plan.json`. The summary step then wrote `summary.md` and `summary.sources.json`. The second guard,
+  with the code of `2dff113`, read the withheld `plan.json` as a plan without L1 units (`lab.l1.plan_has_l1` is false
+  for a stub), printed `l1 guard: no l1 units` and scanned nothing, and the upload step (`!cancelled()`) published the
+  directory as `lab-plan-38090725021-1` (30 days, to 2026-11-09). So those two files went out without a guard. The
+  summary is what the job log printed (the preregistration's counts and figures, and the request, models, shards and
+  units as n/a), so no exposure is expected, but it was not checked. The build's change to `lab.msha` (a withheld
+  plan is still guarded) closes this for later runs. The probe (`tools/l1/guard_probe.py`, `l1-guard-probe.yml`) now
+  downloads that artifact and counts, in both passes, its files and hits by class: `withheld by the first guard`,
+  `scanned by the first guard` and `plan summary, never scanned`. Counts only. The artifact is not deleted here:
+  if the probe shows a hit in the summary class, delete it before anything else.
+- **Run 2's purpose (finding 5).** Every word of `plan.json` is left out of the guard's sets in every job, and the
+  request's purpose is in it. `RequestTests` now also checks that each word of a later latency request's purpose
+  (folded, its runs of letters and digits, as the guard reads the plan) is a word of the template's purpose or is
+  shorter than the shorter of D002's two refusal lengths (4 characters), so no new word can be a value by itself.
+  The test rejects `after`, `guard` and `stopped`, for instance. A purpose that passes: the template's, with
+  `amended K1 to K13 before any run` made `amended K1 to K14 before any model ran`, `latency-001` made `latency-002`,
+  and ` Run 2, K14.` at the end. A value of several words that are each allowed is not excluded by this; run 2's plan
+  line shows the count, which K14 expects to be `record_id 0 mine_id 0 refused_value 1`.
+- **The order of pushes (finding 8).** Not code. Push this branch without `lab/requests/latency-002.json`: a push
+  that touches no request starts no lab run, and the probe workflow runs because its file changed. Read its lines
+  first. Expect `after K14: left out: record_id 0 mine_id 0 refused_value 1`, no `nothing left out` line, `after K14:
+  plan.json whole` with every count 0, every `after K14: earlier run` class with 0 files with hits, and the run 1
+  artifact's classes. Push `latency-002.json` alone after that. If any class of J001's files still has hits after
+  K14, or the summary class of run 1's artifact has one, stop and diagnose before any model runs.
+
+The tests that pin these (`tests/lab/test_lab_l1.py`):
+
+- `PlanValuesTests.test_a_plan_whose_bytes_changed_leaves_nothing_out`: a lab plan with a word added after
+  `lab.plan` wrote it, given the original sha256, an empty one, none or another, leaves nothing out and prints the
+  new line, and the label's file is withheld; the same plan with its own sha256 leaves the label out;
+- `PlanValuesTests.test_the_command_checks_the_plan_s_sha256`: `--plan-sha256` is required, and a wrong one through
+  `lab.msha guard` leaves nothing out;
+- `PlanValuesTests.test_a_plan_whose_own_text_holds_a_hit_leaves_nothing_out`: the review's case (a narrative's run
+  and the other operator's name in the plan's purpose; a shard file with the name): the new line, the counts of
+  K9's guard, the shard file withheld, no value printed; `test_the_plan_is_still_scanned` now expects that line too;
+- `PlanValuesTests.test_a_missing_plan_is_guarded_through_the_command_when_the_file_is_on_the_runner`: a missing and
+  an unreadable plan, without the file (left alone, the guard never called) and with it (guarded, nothing left out,
+  the label's file withheld), and with the file in the default `lab-msha` beside the plan's directory;
+- `test_an_unreadable_plan_leaves_nothing_out` passes each case the sha256 of its own bytes, so each check refuses
+  the plan by itself; the other `PlanValuesTests` and `GuardTests` pass the plan's sha256;
+- `WorkflowTests.test_every_guard_is_given_the_plan_s_sha256`: the seven guard steps, their `--plan-sha256
+  "$LAB_PLAN_SHA256"` and the output each one's environment names;
+- `DryRunTests.test_the_plan_and_the_units` counts any of the four plan lines as a plan line, so a dry run that gave
+  the guard the wrong sha256 fails it;
+- `ProbeTests.test_the_probe_reads_the_plan_and_counts_run_1_s_plan_artifact`: the probe end to end on the
+  synthetic collision, with a stand-in for run 1's artifact (a withheld `plan.json`, a scanned file and the two
+  summary files, one carrying the shard's label): its K14 pass reads the plan (`left out: ... refused_value 1`),
+  the summary class has one file with a hit before K14 and none after, and no label or file name is printed;
+- `RequestTests.test_a_later_purpose_adds_no_word_that_could_be_a_value`, and the per-request check in
+  `test_the_template_is_l001_s_settings`;
+- `DocsTests.test_the_guard_s_plan_lines_are_quoted_as_printed`: all four lines, `--plan-sha256`, the command's
+  `no l1 units`, and no claim that a missing plan prints the unreadable-plan line through the command.
+
+Run against the code of `0909022` (its guard, command, dry run, workflow, probe and reference), eight of the nine new
+or changed tests above fail there; the ninth, the request test, checks the repository's request files, not that
+code. Twenty-two mutations of the new code, applied one at a time to a scratch copy of the tree, were each caught: the
+sha256 check removed; any non-empty sha256 accepted; the command passing no sha256; `--plan-sha256` optional; the
+report job's guard without it; a run or aggregate guard's environment naming another output; the plan job's naming
+`needs.plan`; the dry run passing an empty sha256; the hit fail-safe removed; the values not put back; the old value
+index kept; the hit state printing the unreadable-plan line; the command without the file condition; the command
+always guarding; the command looking for the file in the plan's directory; the purpose check with no length floor
+and with a floor of 99; the probe counting the summary as scanned; the probe passing no sha256; the probe's second
+pass reusing the first's artifact counts; and either new line missing from the reference.
+
+On this tree before its commit, `python -m pytest tests/lab` printed `725 passed, 23033 subtests passed` (20 min 51 s),
+and `python -m pytest tests/onboard tests/mycelic/test_collective_guards.py tests/mycelic/test_collective_x3.py`
+printed `402 passed, 1080 subtests passed` (4 min 37 s). The two checks above were made on this tree as well: the nine
+tests against the code of `0909022` with this tree's test file (eight fail, the request test passes), and the
+twenty-two mutations, each applied alone to a copy of this tree and run against the tests named for it (each caught).
+
+The dry run of the template on this tree before its commit, on the synthetic file (`python -m tests.lab.l1_data --out
+DIR`, default seed) and the fake server (`python -m lab.dryrun --request lab/templates/latency.json --out DIR --l1-raw
+DIR_WITH_THE_FILE`), exited 0 in 6 min 8 s. It printed what the earlier dry runs printed (`plan: 15 units in 15 shards
+(real)`, `prereg: e1 no x1 no e2 no j1 no l1 yes`, the 15 units `status ok class plumbing exit 0` with `wall_s` between
+13.4 and 19.3, and `lab: aggregate units 15 shards 15 class real measurements false lock unchanged`), and 98 guard lines
+in strict alternation: each of the 49 guard steps printed `l1 guard: values in the plan's own text, left out: record_id
+0 mine_id 0 refused_value 0`, the plan read with the sha256 the dry run took as `lab.plan` wrote it, and then its
+directory's line with the same file counts as before (`plan files 7` and `plan files 9`, each shard root `files 22`,
+`files 23` and `files 25`, `report files 3` and `report files 5`), every one `withheld 0` with every count 0. None of
+the three lines that say why nothing is left out appeared.

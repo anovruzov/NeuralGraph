@@ -18,6 +18,11 @@ after this rule.
 settings, "How it is read", the traps and "What it does not show" (K1 to K13). It was written after a review, before
 any of L001's code and before any of L001's data was read. Where it disagrees with the text above it, it wins.
 
+**Amended after run 1, on 2026-10-10, before any model ran.** K14, after K13 in the same section, changes rule 12's
+guard (K9): values that the plan's own text holds are left out of the guard's value sets. Run 1 stopped at the plan
+job's guard, and K14 was written after that job printed the preregistered comparators. Run 1 is recorded under "Runs"
+and is not a result. The first run under K14 is.
+
 ## The declaration
 
 - The rule was written by the AI system that wrote this repository's code.
@@ -433,6 +438,9 @@ The declaration still holds. Since the rule was committed, its author has read t
 item cites, and the demo's recorded file again, which the declaration already lists. No figure here comes from L001's
 data, which no one has read.
 
+K14 was added later, after run 1 stopped at the plan job's guard and before any model ran. Its heading and its first
+bullet say what its author had seen by then.
+
 ### K1. Each question goes to its own key's mines (rules 3 and 5; "How it is read"; trap 4)
 
 - **Was:**
@@ -789,6 +797,69 @@ data, which no one has read.
 - **Now:** `job_minutes` 330 gives a shard capacity of 305. One 300-minute unit fills a shard, whose job timeout is
   then 325 minutes. `max_parallel` stays 15.
 
+### K14. Values the plan's own text holds (rule 12, K9), amended after run 1 and before any model ran
+
+- **When it was written.** After run 1 (see "Runs") stopped at the plan job's guard, and after that job printed its
+  preregistration, with the comparators of K3, in its summary. Before any model ran: no model has been downloaded or
+  called for L001, and no unit has run. Unlike K1 to K13, it comes after L001's data were read, by the plan job. Its
+  author has seen the preregistered figures and the probe's counts, and no value from the file. It changes nothing
+  that those figures depend on.
+- **Was (K9; K12's last bullet):**
+  - Every file of every directory the run uploads is scanned for every record id, mine id and refused value of c1 to
+    c5, and for any 8-word run of c1's narratives. A hit withholds the file and fails the job.
+  - The values come from D002's split of the file (`D.refused_values` and `report.Backstop`), and they match as whole
+    words on folded text (`draft.ValueIndex.found_all`). Nothing is exempt.
+  - The guard is `lab/l1guard.py`, run by `python -m lab.msha guard --plan PLAN --dir DIR` in the plan, run and
+    aggregate jobs.
+- **What run 1 showed:**
+  - `plan.json` held one refused value as a whole word. `lab.plan` writes that file from the request,
+    `lab/models.json`, its lock (`lab/models.lock.json`) and the commit, before any MSHA file is read. So the value
+    did not come from the file. It is lab text that equals a record value.
+  - The probe (see "Runs") found that hit only in the plan's shard fields: one contractor id of 4 characters equals
+    the label of one of the plan's 15 shards. In J001's run, the same column's hits fell in one shard's files and in
+    the reports, the pattern of one shard label colliding.
+  - So the guard as K9 wrote it cannot pass on this file with this plan, whatever the models do. The plan job fails
+    first. Had it not, the guards over the shard root that carries that label and over the report would withhold
+    files and fail their jobs after the models had run, and rule 13 allows no unchanged re-run then.
+- **Now:**
+  - Before it scans, the guard reads `plan.json`, the file that `--plan` names. `lab.plan` writes it from the request,
+    the model manifest, the lock and the commit before the MSHA file is read. In the plan job, `lab.plan` runs before
+    `lab.prereg`, and `lab.prereg` checks the plan's bytes and does not change them.
+  - The guard leaves out of its record-id, mine-id and refused-value sets every value that is found, as a whole word,
+    in `plan.json`'s text. The matching is the scan's own: folded text, whole words.
+  - It prints one fixed line with the number of values left out of each set, and never a value.
+  - `plan.json` is still scanned like every other file. Nothing else is exempt: no file, no directory and no other
+    value. The narrative n-gram scan is unchanged.
+  - If `plan.json` cannot be read as a lab plan (it is missing, or withheld), nothing is left out, and the scan is
+    K9's.
+  - K9's "nothing is exempt" and K12's last bullet now read: no file is exempt, and a hit on a number is still a hit.
+    Only the values that `plan.json`'s text holds are left out of the value sets.
+  - This amendment is committed alone, before the guard's code changes. BUILD-L001 records the change.
+- **Why it is sound:**
+  - Such a value is already in public lab text that the run writes by design: the shard and unit labels, which the
+    plan, each shard's files and the report carry. Its occurrence in an output cannot be told apart from that text,
+    and publishing it reveals nothing that the plan does not.
+  - What is left out is fixed before any MSHA file is read, by committed files and the commit. No record, and nothing
+    a unit writes, can add to it.
+  - L001's outputs carry no contractor id by construction. They hold verdicts, counts and times, with mines as m01
+    onwards and records as indexes (rule 12).
+- **What it costs.** A record value equal to a word of the plan's text is not caught by the value scan, wherever it
+  appears. Run 1's plan held one such value: the probe found 1 refused value (a contractor id of 4 characters), no
+  record id and no mine id. Run 2's plan is expected to differ from run 1's only in what comes from the request and
+  the commit (the request's name, path, sha256 and purpose, the run ids taken from that sha256, and the commit). So 1
+  value is expected to be left out, and no record id or mine id. The guard's line prints the count, and run 2's record
+  states it. The n-gram scan still catches any run of a narrative.
+- **What does not change:** the file and its checks, the alert, the questions and their slots, the judges, the
+  comparators and how they are preregistered, the headline (K3), the settings, the units and their budgets. Where and
+  when the guard runs, and what a hit does (K9), also stay. Run 2's plan job computes the preregistration again, on the
+  same file and settings. The same figures are expected, and run 2's record sets them beside run 1's.
+- **The next run.** Run 2 is a new request, `lab/requests/latency-002.json`. It is `lab/templates/latency.json` with
+  every field unchanged except `purpose`, which names run 2 and K14. latency-001 was the template unchanged, so run 2's
+  settings are latency-001's: provider `llama-server`, the three models, `job_minutes` 330, `max_parallel` 15,
+  `retention_days` 30, and the `l1` block (`minutes` 300, `questions` 5, `bootstrap_b` 10000, `bootstrap_seed` 1).
+  The first run under K14 is the result (rule 13). A run that fails before any model judges, for an infrastructure
+  reason, may still run again unchanged, and K10 still applies.
+
 ### What the plan job does before any model runs, as amended
 
 In this order. Any stop or refusal ends L001 before any model runs, and everything else is preregistered.
@@ -804,7 +875,8 @@ In this order. Any stop or refusal ends L001 before any model runs, and everythi
    counts (K2).
 5. The predicate-only bound, the key's gate statuses and the agreement of a constant status (K8).
 6. The share of bootstrap draws with no key confirm or no key refute. Above 5%, L001 stops (K7).
-7. The guard over the plan directory, before the summary and the upload (K9).
+7. The guard over the plan directory, before the summary and the upload (K9), with the values that `plan.json`'s text
+   holds left out of its value sets (K14).
 
 ### The settings, as amended
 
@@ -875,4 +947,69 @@ One item is added:
 
 ## Runs
 
-None yet.
+### Run 1: latency-001, 2026-10-10 (stopped at the plan job's guard; no measurement, not counted)
+
+[Run 38090725021](https://github.com/anovruzov/NeuralGraph/actions/runs/38090725021), request
+`lab/requests/latency-001.json`, pushed as `2dff113`, which started the run at 22:15 UTC. The rule (`0fa028d`, amended
+K1 to K13 in `9f505e7`) and the build (`9531318`, fixes `fc202e7`) were merged in `9eadd8f`.
+
+- **What ran.** The plan job (job 114326419289) wrote the plan and ran the l1 preregistration
+  (`prereg: e1 no x1 no e2 no j1 no l1 yes`, 22:15:38 to 22:17:23 UTC). It then saved the MSHA file in the workflow's
+  cache, key `lab-msha-62d0c861a5c3a8e7` (K10). The cache is saved only after the preregistration step succeeds, so
+  rule 1's checks, K11's five questions and K7's share of empty draws did not stop the run.
+- **Where it stopped.** The guard over the plan directory (`python -m lab.msha guard --plan ... --dir lab-plan`, K9)
+  printed exactly this line and exited 1:
+
+  ```
+  l1 guard: lab-plan files 7 withheld 1 record_id 0 mine_id 0 refused_value 1 narrative_ngrams 0 unread 0
+  ```
+
+  The withheld file was `plan.json`. Its bytes were replaced by its hit counts, so the plan summary that followed
+  showed the request, the models, the shards and the units as n/a. The provision, run and aggregate jobs were skipped.
+- **No model ran.** No model was downloaded or called, and no unit ran.
+
+**The preregistration, as the plan job printed it.** Before it stopped, the plan job printed its summary
+(`summary.md`, 50 lines, sha256 `173e07ea5f31fcd28aafbae8586618b3f80061634ce848f5216a1dc410f710a2`). Its figures were
+fixed before any model ran. The lexical judge's and the route-role baseline's are the headline's comparators (K3), the
+key's is the truth, and the rest sit beside them. Quoted as printed:
+
+- MSHA file sha `62d0c861a5c3`, the demo's file: yes. Records 1033, mines 10, weeks 139.
+- Alert: channel X, 2023-W51, `slip_or_fall_of_person`.
+
+| Slot | Kind | Predicate | Contributing mines | Codes contributors | Text-only contributors | Siblings | Records retrieved | Key's gate status |
+|---|---|---|---|---|---|---|---|---|
+| 1 | alert | `slip_or_fall_of_person` | 9 | 6 | 3 | 0 | 36 | contested |
+| 2 | control | `handling_of_materials` | 7 | 6 | 1 | 2 | 36 | contested |
+| 3 | control | `handtools_nonpowered` | 1 | 1 | 0 | 2 | 19 | hypothesis |
+| 4 | control | `machinery` | 2 | 2 | 0 | 2 | 25 | hypothesis |
+| 5 | control | `powered_haulage` | 4 | 3 | 1 | 2 | 29 | contested |
+
+| Judge | Balanced accuracy [interval] | Sensitivity | Specificity | Unknown share |
+|---|---|---|---|---|
+| lexical | 0.641 [0.403, 0.840] | 0.667 | 0.615 | 0.000 |
+| route_role | 0.808 [0.667, 0.938] | 1.000 | 0.615 | 0.000 |
+| record_blind | 0.551 [0.379, 0.714] | 0.333 | 0.769 | 0.000 |
+| key | 1.000 [1.000, 1.000] | 1.000 | 1.000 | 0.000 |
+
+Predicate-only bound 0.603. Empty draws share 0.000. Constant status agreement 3 of 5.
+
+**Why the guard withheld `plan.json`: a probe, with counts only.** `tools/l1/guard_probe.py` (workflow
+`.github/workflows/l1-guard-probe.yml`, commit `920fe95`, run 38091846827, job 114329701887) rebuilt the guard on the
+same file and counted where its values meet lab text. It printed no value.
+
+- **The refused values:** 11,770, of 5 operators. By column and length: CLOSED_DOC_NO 11,185 of 8 or more
+  characters; CONTRACTOR_ID 202 of 4 characters and 111 of 5; CONTROLLER_ID 3 of 6 and 2 of 7; CONTROLLER_NAME 5 of 8
+  or more; OPERATOR_ID 72 of 6 and 30 of 7; OPERATOR_NAME 160 of 8 or more.
+- **`plan.json` as run 1 wrote it** (regenerated from the same request at `2dff113`): refused_value 1, from
+  CONTRACTOR_ID. The only path classes that held a hit were `.matrix.include[].shard`, `.shards[].shard` and
+  `.units[].shard`. So one contractor id of 4 characters equals the label of one of the plan's 15 shards.
+- **J001's run files** (run 37996675559, 9 shards): other JSON files, 7 of 99 with hits; reports, 2 of 3; summaries,
+  2 of 20; every hit from CONTRACTOR_ID. `run.json` 0 of 18 files, ledgers and replies 0 of 49, server logs 0 of 9,
+  other logs 0 of 36. The lab's code (29 files), the lab's docs (5) and L001's docs (2): 0. That pattern, one shard's
+  files plus the reports, fits one shard label colliding.
+- **So, unchanged,** the later guards would also withhold files and fail their jobs after the models had run: the
+  guard over the shard root that carries the colliding label, and the guard over the report.
+
+**Reading.** The run gave no measurement. It is recorded here and is not counted as a result of the test. It did not
+fail for an infrastructure reason: an unchanged re-run would stop at the same line. K14 changes the guard, and the
+first run under K14 is the result.

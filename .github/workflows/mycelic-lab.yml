@@ -66,13 +66,21 @@ jobs:
           path: ${{ runner.temp }}/lab-msha
           key: ${{ steps.l1-key.outputs.l1_cache_key }}
       - if: ${{ !cancelled() }}
-        run: python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --dir "$RUNNER_TEMP/lab-plan"
+        env:
+          LAB_PLAN_SHA256: ${{ steps.plan.outputs.plan_sha256 }}
+        run: >-
+          python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --plan-sha256 "$LAB_PLAN_SHA256"
+          --dir "$RUNNER_TEMP/lab-plan"
       - if: ${{ !cancelled() }}
         run: >-
           python -m lab.summary plan --dir "$RUNNER_TEMP/lab-plan" --append-to "$GITHUB_STEP_SUMMARY"
           --md-out "$RUNNER_TEMP/lab-plan/summary.md" --sources-out "$RUNNER_TEMP/lab-plan/summary.sources.json" --log
       - if: ${{ !cancelled() }}
-        run: python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --dir "$RUNNER_TEMP/lab-plan"
+        env:
+          LAB_PLAN_SHA256: ${{ steps.plan.outputs.plan_sha256 }}
+        run: >-
+          python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --plan-sha256 "$LAB_PLAN_SHA256"
+          --dir "$RUNNER_TEMP/lab-plan"
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -231,7 +239,11 @@ jobs:
           python -m lab.shard run --plan "$RUNNER_TEMP/lab-plan/plan.json" --shard "$LAB_SHARD"
           --out "$RUNNER_TEMP/lab-shard" --deadline-epoch "$LAB_DEADLINE"
       - if: ${{ !cancelled() }}
-        run: python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --dir "$RUNNER_TEMP/lab-shard"
+        env:
+          LAB_PLAN_SHA256: ${{ needs.plan.outputs.plan_sha256 }}
+        run: >-
+          python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --plan-sha256 "$LAB_PLAN_SHA256"
+          --dir "$RUNNER_TEMP/lab-shard"
       - id: seal
         if: ${{ !cancelled() }}
         env:
@@ -246,14 +258,22 @@ jobs:
           --step-outcome "get-plan=$LAB_GET_PLAN" --step-outcome "get-prov=$LAB_GET_PROV"
           --step-outcome "keys=$LAB_KEYS" --step-outcome "prepare=$LAB_PREPARE" --step-outcome "run=$LAB_RUN"
       - if: ${{ !cancelled() }}
-        run: python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --dir "$RUNNER_TEMP/lab-shard"
+        env:
+          LAB_PLAN_SHA256: ${{ needs.plan.outputs.plan_sha256 }}
+        run: >-
+          python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --plan-sha256 "$LAB_PLAN_SHA256"
+          --dir "$RUNNER_TEMP/lab-shard"
       - if: ${{ !cancelled() }}
         run: >-
           python -m lab.summary shard --dir "$RUNNER_TEMP/lab-shard" --append-to "$GITHUB_STEP_SUMMARY"
           --md-out "$RUNNER_TEMP/lab-shard/summary/summary.md"
           --sources-out "$RUNNER_TEMP/lab-shard/summary/summary.sources.json" --log
       - if: ${{ !cancelled() }}
-        run: python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --dir "$RUNNER_TEMP/lab-shard"
+        env:
+          LAB_PLAN_SHA256: ${{ needs.plan.outputs.plan_sha256 }}
+        run: >-
+          python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --plan-sha256 "$LAB_PLAN_SHA256"
+          --dir "$RUNNER_TEMP/lab-shard"
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -301,13 +321,21 @@ jobs:
           python -m lab.aggregate --plan "$RUNNER_TEMP/lab-plan/plan.json" --provision "$RUNNER_TEMP/lab-prov"
           --shards "$RUNNER_TEMP/lab-runs" --manifest lab/models.json --out "$RUNNER_TEMP/lab-report"
       - if: ${{ !cancelled() }}
-        run: python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --dir "$RUNNER_TEMP/lab-report"
+        env:
+          LAB_PLAN_SHA256: ${{ needs.plan.outputs.plan_sha256 }}
+        run: >-
+          python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --plan-sha256 "$LAB_PLAN_SHA256"
+          --dir "$RUNNER_TEMP/lab-report"
       - if: ${{ !cancelled() }}
         run: >-
           python -m lab.summary report --dir "$RUNNER_TEMP/lab-report" --append-to "$GITHUB_STEP_SUMMARY"
           --md-out "$RUNNER_TEMP/lab-report/report.md" --sources-out "$RUNNER_TEMP/lab-report/report.sources.json" --log
       - if: ${{ !cancelled() }}
-        run: python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --dir "$RUNNER_TEMP/lab-report"
+        env:
+          LAB_PLAN_SHA256: ${{ needs.plan.outputs.plan_sha256 }}
+        run: >-
+          python -m lab.msha guard --plan "$RUNNER_TEMP/lab-plan/plan.json" --plan-sha256 "$LAB_PLAN_SHA256"
+          --dir "$RUNNER_TEMP/lab-report"
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

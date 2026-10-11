@@ -4,7 +4,11 @@ name: l1-guard-probe
 # of MSHA's file was found as a whole word in plan.json, which lab.plan writes before the file is read. This probe
 # (tools/l1/guard_probe.py) counts where such coincidences fall: in plan.json as run 1 wrote it, in the files of judge
 # test J001's run (37996675559: server logs, run.json, ledgers, reports of small models on CPU), and in the lab's code
-# and docs. It prints counts by class and by refused column only, never a value, token, file name or index.
+# and docs. A second pass rebuilds the guard as K14 has it (CHOICE-L001.md: the values found as whole words in the
+# plan's own text left out) with run 1's regenerated plan.json, and prints the same counts as "after K14" lines, with
+# the number left out. Each pass also counts run 1's plan artifact (lab-plan-38090725021-1) by class, among them the
+# plan summary's two files, which run 1's second plan-job guard left unscanned. It prints counts by class and by
+# refused column only, never a value, token, file name or index.
 on:
   push:
     branches-ignore: [main]
@@ -43,10 +47,16 @@ jobs:
           run-id: 37996675559
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/j1-artifacts
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: lab-plan-38090725021-1
+          run-id: 38090725021
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/run1-plan
       - name: probe
         run: >-
           python tools/l1/guard_probe.py --raw "$RUNNER_TEMP/lab-msha" --plan "$RUNNER_TEMP/plan1/plan.json"
-          --artifacts "$RUNNER_TEMP/j1-artifacts" --out l1-guard-probe.json
+          --artifacts "$RUNNER_TEMP/j1-artifacts" --out l1-guard-probe.json --run1-artifact "$RUNNER_TEMP/run1-plan"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
