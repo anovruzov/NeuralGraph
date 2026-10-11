@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "purpose": "Accuracy test A001 (docs/collective/A001/CHOICE-A001.md, amended before any run), the first cycle toward 86: a-0p5b, a-1p5b and a-4b judge 150 fresh NHTSA complaints (J001's records excluded, codes hidden) twice, with the shipped instruction and a lab-side negation instruction, each read by the shipped verdict rule and through a declared unclear-to-no mapping; primary pair a-4b, negation arm. Public data; the first run is the result. Copy to lab/requests/accuracy-001.json to start the run.",
+  "provider": "llama-server",
+  "models": [
+    "a-0p5b",
+    "a-1p5b",
+    "a-4b"
+  ],
+  "job_minutes": 330,
+  "max_parallel": 15,
+  "retention_days": 30,
+  "experiments": {
+    "j2": {
+      "minutes": 300,
+      "labels": {
+        "source": "nhtsa",
+        "pack": "docs/collective/replay/vehicles/pack",
+        "n": 150,
+        "seed": 2
+      },
+      "parts": 5,
+      "seed": 2,
+      "bootstrap_b": 10000,
+      "bootstrap_seed": 2,
+      "exclude": {
+        "run_id": 37996675559,
+        "artifact": "lab-plan-37996675559-1",
+        "file": "prereg/j1/labels.jsonl",
+        "sha256_prefix": "bc6d092d8bca"
+      },
+      "primary": {
+        "model": "a-4b",
+        "arm": "negation"
+      },
+      "comparisons_before": 0
+    }
+  }
+}
