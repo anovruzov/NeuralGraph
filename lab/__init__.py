@@ -24,7 +24,9 @@ secrets, routing, preflight and call shares), ``units`` (the harness adapters: E
 L1),
 ``openfda`` (the openFDA unit's fetch, replay and sheet steps), ``shard``, ``sim`` (the multi-site simulation harness
 the lab adds to the collective's), ``j1`` (judge test J001: the site verifier's narrow question on real public
-complaints, its questions, runner and scoring), ``l1`` with ``l1path``, ``l1score`` and ``l1guard`` (latency test
+complaints, its questions, runner and scoring), ``j2`` with ``j2labels`` (accuracy test A001: J001's question on a
+fresh draw with an earlier run's records excluded, two judge instructions, a declared reply mapping and the verdict
+word of the pinned rule), ``l1`` with ``l1path``, ``l1score`` and ``l1guard`` (latency test
 L001: the product's pushdown path timed and scored on the drafter demo's MSHA alert, and the guard over every file a
 run uploads), ``msha`` (the workflow's L1 steps: the file's cache key and the guard), ``aggregate``, ``summary``,
 ``dryrun`` and ``reaggregate``

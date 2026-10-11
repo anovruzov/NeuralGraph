@@ -101,7 +101,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(set(on["workflow_dispatch"]["inputs"]), {"request"})
 
     def test_permissions_concurrency_defaults(self) -> None:
-        self.assertEqual(WF["permissions"], {"contents": "read"})
+        # A1: actions: read lets the plan job download an earlier run's plan artifact for a J2 exclusion; read-only
+        self.assertEqual(WF["permissions"], {"actions": "read", "contents": "read"})
         for name, job in JOBS.items():
             self.assertNotIn("permissions", job, name)
         self.assertNotIn("models: read", TEXT)
@@ -176,11 +177,17 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(set(step("run", "run")["env"]), {"LAB_DEADLINE", "MYCELIC_LAB_OPENFDA_API_KEY",
                                                           "MYCELIC_LAB_HOSTED_API_KEY", "MYCELIC_LAB_HOSTED_BASE_URL"})
         self.assertNotIn("--openfda-base-url", TEXT)
-        self.assertEqual(TEXT.count("github.token"), 1)
+        # the token in exactly two places (A1): the provision server step's environment and the plan job's download
+        # of an earlier run's plan artifact (github-token of actions/download-artifact)
+        self.assertEqual(TEXT.count("github.token"), 2)
         self.assertEqual(TEXT.count("GH_TOKEN"), 1)
         self.assertEqual(step("provision", "server")["env"]["GH_TOKEN"], "${{ github.token }}")
         holders = [(job, i) for job, i, s in all_steps() if "GH_TOKEN" in s.get("env", {})]
         self.assertEqual(holders, [("provision", steps("provision").index(step("provision", "server")))])
+        earlier = step("plan", "earlier")
+        self.assertEqual(earlier["with"]["github-token"], "${{ github.token }}")
+        tokens = [(job, i) for job, i, s in all_steps() if "github-token" in s.get("with", {})]
+        self.assertEqual(tokens, [("plan", steps("plan").index(earlier))])
 
     def test_no_provider_override_and_no_model_names(self) -> None:
         for _, s in runs():
@@ -249,9 +256,21 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn(part, report)
         plan_downloads = [s for _, _, s in all_steps() if uses(s) == "actions/download-artifact"
                           and "name" in s["with"]]
-        self.assertEqual(len(plan_downloads), 3)
-        for s in plan_downloads:
+        self.assertEqual(len(plan_downloads), 4)
+        own = [s for s in plan_downloads if s.get("id") != "earlier"]
+        self.assertEqual(len(own), 3)
+        for s in own:
             self.assertEqual(s["with"]["name"], "${{ needs.plan.outputs.plan_artifact }}")
+            self.assertNotIn("run-id", s["with"])
+        # the fourth (A1): the plan job's download of the earlier run's plan artifact a J2 request excludes
+        earlier = step("plan", "earlier")
+        self.assertEqual(earlier["with"], {
+            "name": "${{ steps.plan.outputs.j2_exclude_artifact }}",
+            "run-id": "${{ steps.plan.outputs.j2_exclude_run_id }}", "github-token": "${{ github.token }}",
+            "path": "${{ runner.temp }}/lab-earlier/${{ steps.plan.outputs.j2_exclude_run_id }}"})
+        self.assertEqual(earlier["if"], "steps.plan.outputs.j2_exclude_run_id != ''")
+        self.assertIs(earlier["continue-on-error"], True)
+        self.assertNotIn("lab-plan", earlier["with"]["path"])
         patterns = [s["with"]["pattern"] for _, _, s in all_steps() if uses(s) == "actions/download-artifact"
                     and "pattern" in s["with"]]
         self.assertEqual(sorted(patterns), ["lab-prov-${{ github.run_id }}-*", "lab-prov-${{ github.run_id }}-*",
@@ -333,7 +352,9 @@ class WorkflowTests(unittest.TestCase):
                                   "run": 'python -m lab.prereg --plan "$RUNNER_TEMP/lab-plan/plan.json"'})
         order = [s.get("id") or s.get("uses", s.get("run", ""))[:30] for s in plan_steps]
         at = plan_steps.index(prereg)
-        self.assertEqual(plan_steps[at - 1].get("id"), "plan")
+        # the earlier run's artifact download (A1) sits between the plan and the preregistration, nothing else
+        self.assertEqual(plan_steps[at - 1].get("id"), "earlier")
+        self.assertEqual(plan_steps[at - 2].get("id"), "plan")
         later = plan_steps[at + 1:]
         self.assertTrue(any("lab.summary plan" in s.get("run", "") for s in later), order)
         self.assertTrue(any(uses(s) == "actions/upload-artifact" for s in later), order)

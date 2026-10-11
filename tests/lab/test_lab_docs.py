@@ -61,7 +61,9 @@ SINGLE_LABELS = ("PLUMBING_BANNER", "PLUMBING_HOSTED_BANNER", "PLUMBING_CHECK_LI
                  "BY_CONSTRUCTION_NOTE", "OPENFDA_SAW_RECALLS", "OPENFDA_WARNED", "OPENFDA_FALSE_ALARM_SCOPE",
                  "E1_SCORES_NOTE", "E1_SCORES_ONLY", "E1_SCORES_REFUSED", "E1_SCORES_UNPINNED", "REAGGREGATION_LINE",
                  "J1_LABEL", "J1_HEADLINE_NOTE", "J1_LEXICAL_NOTE", "J1_INCOMPLETE", "J1_WITHHELD", "J1_NOT_MEASURED",
-                 "J1_PRIOR_NOTE")
+                 "J1_PRIOR_NOTE", "J2_LABEL", "J2_ARMS_NOTE", "J2_VERDICT_NOTE", "J2_PRIMARY_LINE", "J2_EXCLUSION_NOTE",
+                 "J2_STAND_IN", "J2_SHIPPED_STOPPED", "J2_FRESHNESS_UNVERIFIED", "J2_EXCLUSION_DISAGREES",
+                 "J2_TOO_FEW_RECORDS")
 DICT_LABELS = ("NOTES", "SIM_NOTES", "SIM_CHANNEL_LABELS", "SIM_LIFT_LABELS", "SIM_MEASUREMENT_REASONS", "E1_LABELS",
                "E2_LABELS", "CLASS_REASONS")
 REQUIRED_LABELS = (*SINGLE_LABELS, *(f"{d}.{k}" for d in DICT_LABELS for k in getattr(notes, d)))
@@ -84,7 +86,8 @@ TROUBLESHOOTING = (
     "WARMUP_LENGTH", "WARMUP_REASONING", "CONTEXT_TOO_SMALL", "SERVER_UNAVAILABLE", "NOT_PREPARED",
     # units
     "BUDGET_EXHAUSTED", "LOW_PARTICIPATION", "NO_MODEL_CALLS", "E3_FAILURES", "TIMED_OUT", "SIM_PROJECTED",
-    "SIM_LOW_PARTICIPATION", "E2_ABORTED", "PREREG_MISSING", "G0_MODEL_PATH", "J1_STOPPED",
+    "SIM_LOW_PARTICIPATION", "E2_ABORTED", "PREREG_MISSING", "G0_MODEL_PATH", "J1_STOPPED", "J2_SHIPPED_STOPPED",
+    "J2_FRESHNESS_UNVERIFIED", "J2_EXCLUSION_DISAGREES", "J2_TOO_FEW_RECORDS",
     # openFDA
     "OPENFDA_UNREACHABLE", "OPENFDA_RATE_LIMITED", "OPENFDA_FETCH_REFUSED",
     # the hosted provider
@@ -99,8 +102,8 @@ LABEL_LINE_RE = re.compile(r"- `([A-Z][A-Z0-9_]*(?:\.[A-Za-z0-9_-]+)?)`: (.*)")
 PLACEHOLDER_RE = re.compile(r"<[^<>]*>")
 COMMAND_PREFIXES = ("python -m lab.", "python -m mycelic.collective.")
 ARTIFACT_PREFIXES = ("lab-plan-", "lab-prov-", "lab-run-", "lab-report-")
-TEMPLATE_NAMES = ["check.json", "hosted-comparison.json", "latency.json", "main.json", "openfda-replay.json",
-                  "smoke.json"]
+TEMPLATE_NAMES = ["accuracy.json", "check.json", "hosted-comparison.json", "latency.json", "main.json",
+                  "openfda-replay.json", "smoke.json"]
 
 
 def _text(path: Path) -> str:
@@ -282,7 +285,8 @@ class ReferenceCompletenessTests(unittest.TestCase):
     def test_request_keys(self) -> None:
         keys = [*request._TOP_KEYS, "hosted", "max_calls", *request._E1_KEYS, *request._LABELS_KEYS,
                 *request._E2_KEYS, *request._X1_KEYS, *request._E3_KEYS, *request._G0_KEYS, *request._SIM_KEYS,
-                *request._OPENFDA_KEYS, *request._SHEET_KEYS, *request._J1_KEYS]
+                *request._OPENFDA_KEYS, *request._SHEET_KEYS, *request._J1_KEYS, *request._L1_KEYS,
+                *request._J2_KEYS, *request._EXCLUDE_KEYS, *request._PRIMARY_KEYS]
         spans = self.spans("Request format")
         self.assertEqual(sorted({k for k in keys if k not in spans}), [])
 

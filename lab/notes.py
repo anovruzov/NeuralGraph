@@ -282,6 +282,48 @@ J1_INCOMPLETE = ("not every part of this model finished, so it gets no headline:
 J1_WITHHELD = ("transport failures left out more than one in a hundred of this model's records, so its headline is "
                "withheld")
 J1_NOT_MEASURED = "not every part of this model is a model measurement, so it gets no headline"
+J2_SHIPPED_STOPPED = ("the judge run finished its first pass, the negation task, and stopped in its second, the "
+                      "shipped task, at its budget or after the server stayed down; the first pass's verdicts are "
+                      "complete and kept, and the shipped pass did not finish for this part")
+J2_LABEL = ("{j_two} here asks each model the site verifier's narrow question about a fresh draw of real public NHTSA "
+            "complaint narratives with an earlier run's records excluded, one record at a time with its codes hidden, "
+            "twice: once with the product's judge instruction and once with a lab-side instruction that defines "
+            "negation and absence; each verdict is scored against the components the complaint was filed under (filed "
+            "codes, not human-checked labels), by the product's own verdict rule and, as a declared secondary, after "
+            "a reply mapping that reads an unclear component answer as a no.")
+J2_ARMS_NOTE = ("Four arms, declared before the run: shipped is the product's judge unchanged; shipped_mapped reads "
+                "its replies through the mapping before the verdict rule; negation is the lab-side instruction; "
+                "negation_mapped is that instruction with the mapping. Model calls are made for the two instructions "
+                "only: the mapped arms are the same replies read again. The lifts are paired differences between "
+                "arms, record by record; a lift helps when its interval's low end is above zero, hurts when its high "
+                "end is below zero, and is otherwise not told apart. They decide nothing toward the target.")
+J2_VERDICT_NOTE = ("The verdict word is read on the primary pair alone, from the figures, in this order: incomplete "
+                   "(a part did not finish, the set is not a model measurement, or transport failures left out more "
+                   "than one record in a hundred), pass_provisional (balanced accuracy at or above the target, the "
+                   "paired difference to the lexical judge with its low end above zero, the balanced accuracy's low "
+                   "end above the predicate-only bound on the same records, and the unknown share reported), partial "
+                   "(the target reached but an interval clause failed, or the lexical judge beaten below the target), "
+                   "else failure. Every other pair is a secondary with the same word, which is a hypothesis for the "
+                   "next cycle, never a result; a first pass is provisional until the next cycle's fresh draw "
+                   "confirms it.")
+J2_PRIMARY_LINE = ("Primary pair {model} {arm}: {word}. It scored balanced accuracy {ba} [{lo}, {hi}]; gap to the "
+                   "target {target} is {gap}; lexical judge {lex} on the same records, paired difference {diff} "
+                   "[{dlo}, {dhi}]; predicate-only bound {bound}; unknown share {unknown}.")
+J2_EXCLUSION_NOTE = ("The draw excludes the earlier run's records: the plan job downloaded that run's plan artifact "
+                     "and read its record refs (mechanism one), and rebuilt the first judge test's seed-one draw from "
+                     "the complaint file as published on the day (mechanism two). One mechanism verifying suffices; a "
+                     "rebuilt sha that differs says the complaint file changed and stops nothing by itself. Counts "
+                     "and hashes only: no record ref is written anywhere but the plan artifact.")
+J2_STAND_IN = ("Plumbing: a test artifact stood in for the excluded run (lab.dryrun with test data), so the "
+               "exclusion checks here test the lab, not the excluded run.")
+J2_FRESHNESS_UNVERIFIED = ("neither freshness mechanism verified: the earlier run's plan artifact could not be read "
+                           "as that run's, and the rebuilt seed-one draw does not hash to the pinned prefix; the plan "
+                           "job stops before any model runs (the accuracy test's rule, The data and the draw, as "
+                           "amended)")
+J2_EXCLUSION_DISAGREES = ("both freshness mechanisms verified but their record sets differ; the plan job stops before "
+                          "any model runs")
+J2_TOO_FEW_RECORDS = ("fewer eligible unexcluded records remain than the draw needs; no further fresh draw is "
+                      "pre-registered")
 L1_LABEL = ("{l_one} here times the product's whole pushdown path on a real alert of MSHA's public accident file: HQ "
             "forms the narrow question, each routed mine's verifier judges its own records with the model inside the "
             "mine, one mine after another, and the commit gate decides. Each mine's verdict is scored against the key "
@@ -486,6 +528,9 @@ HEADINGS = {
     "e1-scores": "Each model's own scores",
     "j1": "Judge test: the verifier's narrow question, per model, beside the lexical judge",
     "j1-paired": "Judge test: model minus lexical judge, paired by record",
+    "j2": "Accuracy test: the verifier's narrow question on a fresh draw, four declared arms, one primary pair",
+    "j2-arms": "Accuracy test: every (model, arm) pair beside the comparators on the same records",
+    "j2-lifts": "Accuracy test: the lifts between arms, paired by record",
     "l1": "Latency test: alert to answer on CPU, per model, beside the comparators",
     "l1-time": "Latency test: where the time goes",
     "l1-prereg": "Latency test: the alert, the questions and the comparators, fixed before any model runs",
@@ -741,6 +786,27 @@ COLUMNS = {
     "headline_reason": "why no headline",
     "questions": "questions",
     "parts": "parts",
+    "j2_arm": "arm",
+    "j2_task": "task",
+    "j2_mapped": "mapped",
+    "j2_verdict_word": "verdict word",
+    "j2_pass_test": "pass test",
+    "j2_primary": "primary pair",
+    "j2_gap": "gap to the target",
+    "j2_target": "target balanced accuracy",
+    "j2_lift": "lift",
+    "j2_lever": "lever",
+    "j2_reading": "reading",
+    "j2_diff_lexical": "minus the lexical judge, paired by record",
+    "j2_available": "eligible records",
+    "j2_excluded": "excluded records",
+    "j2_eligible_after": "eligible after exclusion",
+    "j2_overlap": "overlap with the excluded set",
+    "j2_mechanism_artifact": "artifact mechanism",
+    "j2_mechanism_rebuild": "rebuild mechanism",
+    "j2_excluded_sha": "excluded refs file sha",
+    "j2_complaints_sha": "complaint file sha",
+    "j2_comparisons": "comparisons since the loop began",
     "l1_finished": "questions finished",
     "l1_d_lex": "minus the lexical judge",
     "l1_d_route": "minus the route-role baseline",

@@ -1,7 +1,7 @@
 """Run a whole request locally, every shard against the fake server: the lab's plumbing check without weights.
 
     python -m lab.dryrun --request PATH --out DIR [--manifest lab/models.json] [--openfda-base-url URL]
-                         [--l1-raw DIR]
+                         [--l1-raw DIR] [--j2-data DIR]
 
 ``DIR`` must be absent or empty. The steps are the workflow's, in the same order and with the same files:
 
@@ -24,6 +24,14 @@ plan step's ``plan_sha256``) then runs where the workflow runs it: over the plan
 preregistration and after its summary, over each shard root before and after its seal and after its summary, and over
 the report directory after the aggregate and after its summary; a guard that withholds a file makes the dry run fail
 (exit 1).
+
+With J2 units (accuracy test A001), ``--j2-data`` names a directory made by ``python -m tests.lab.j2_data --out DIR``
+(the sandbox reaches no NHTSA host and holds no earlier run's artifact): its ``complaints.zip`` is handed to
+``lab.prereg --nhtsa-archive`` in place of the complaint file's download, its ``earlier/`` to ``--earlier-plans`` in
+place of the plan job's downloaded artifact, and its ``stand-in.json`` to ``--exclude-stand-in``, so the exclusion
+checks run against a synthetic earlier artifact and the preregistration records that a stand-in was used
+(:data:`~lab.notes.J2_STAND_IN`). Without it a J2 plan's preregistration downloads the complaint file and finds no
+earlier artifact, so it stops before any shard (neither freshness mechanism verifies), as the rule says.
 
 Every record says ``plumbing``: a dry run never measures a model. stdout is the plan line, the prereg line, one line
 per unit and the aggregate line. Without ``--openfda-base-url`` an openFDA unit fetches from api.fda.gov itself.
@@ -69,6 +77,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--manifest", default=os.path.relpath(DEFAULT_MANIFEST))
     p.add_argument("--openfda-base-url", help="tests only: an openFDA stub for the openFDA unit's fetches")
     p.add_argument("--l1-raw", help="tests only: a directory holding MSHA's Accidents.zip for L1 units")
+    p.add_argument("--j2-data", help="tests only: a tests.lab.j2_data directory (complaint archive, earlier plan "
+                                     "artifact and the exclusion stand-in) for J2 units")
     return p
 
 
@@ -113,8 +123,13 @@ def main(argv: list[str] | None = None) -> int:
         raw = lab_l1.raw_dir(plan_dir)
         raw.mkdir(parents=True, exist_ok=True)
         shutil.copy(Path(args.l1_raw) / lab_l1.ZIP, raw / lab_l1.ZIP)
+    prereg_args = ["--plan", str(plan_path)]
+    if args.j2_data is not None:
+        data = Path(args.j2_data)
+        prereg_args += ["--nhtsa-archive", str(data / "complaints.zip"), "--earlier-plans", str(data / "earlier"),
+                        "--exclude-stand-in", str(data / "stand-in.json")]
     sys.stdout.flush()
-    if lab_prereg.main(["--plan", str(plan_path)]) != EXIT_OK:
+    if lab_prereg.main(prereg_args) != EXIT_OK:
         if l1:
             _guard(plan_path, plan_sha256, plan_dir)
         return EXIT_USAGE
