@@ -8,6 +8,13 @@ section 2.5. This file is the rule for the loop's first cycle. It is committed a
 it and before any record of its draw exists. How the lab will run it (a new experiment kind, `j2`, on J001's pattern)
 goes in `BUILD-A001.md`, which is written after this rule.
 
+**Amended before any run, on 2026-10-11.** The section of that name, just before "Runs", answers the review of this
+rule: A1 to A12 change "The data and the draw" (items 1 to 6), rules 1, 9, 12 and 13, the reading of rule 10 (its
+words stay), the settings, traps 11 and 14 and the Runs entry, and declare the lab changes the build needs (a
+workflow permission and an artifact download step among them). It was written after the review, before any of
+A001's code and before any record of its draw existed. Where it disagrees with the text above it, it wins. The
+pinned metric is not changed.
+
 **What the evidence says.** Every small model has judged the product's narrow question worse than word matching, and
 the dominant failure is a yes-bias: the judges confirm nearly everything and almost never say no.
 
@@ -495,10 +502,320 @@ on a balanced draw, whatever it reads.
 - **An MSHA record-level replication**, a codes-present secondary, the lever-3 schema variants and the lever-4
   lexical ensemble are left to later cycles' rules.
 
-## Amendments
+## Amended before any run, 2026-10-11
 
-None yet. After review, amendments go in a dated section here, before any run, each saying what was, what is now and
-why, as L001's K1 to K14 do. Where an amendment disagrees with the text above, the amendment wins.
+No A001 code exists, no request has been pushed, and no record of the cycle's draw exists. A review of this rule
+against the lab's code and workflows found two blocking gaps, both in the freshness mechanism, and eleven smaller
+ones. The changes are A1 to A12, numbered as this cycle's task asks (D001's A1 to A14 live in `CHOICE-D001.md` and
+are cited with that file's name). Each says what was, why, and what is now, as L001's K1 to K14 do. Where the text
+above disagrees with this section, this section wins.
+
+The declaration still holds. Since the rule was committed, its author has read the files each item cites: the three
+lab workflows, `lab/j1.py`, `lab/goldlabels.py`, `lab/prereg.py`, `lab/responder.py`, `lab/units.py`,
+`lab/warmup.py`, `lab/aggregate.py`, `tools/l1/guard_probe.py`, `tests/lab/test_lab_workflow.py` and
+`tests/lab/test_lab_guards.py`. No figure here comes from A001's data, which does not exist, and no reply of J001's
+has been read.
+
+**No finding asked to change the pinned metric, and none is changed.** 86 stays balanced accuracy 0.860 against the
+filed-category key at record level with the codes hidden, on 150 fresh records scored as J001; the comparators stay
+the lexical judge, the predicate-only bound and the record-blind control; rule 10's block stays word for word
+LOOP-48H section 2.5. A5 to A7 add readings of that block to the paragraph after it, so that the aggregate computes
+the verdict word without a hand reading. Two findings offered a choice between two fixes (A9, A1's download step) and
+one offered an optional extra (A11); each item says which was taken and why.
+
+### A1. Mechanism 1 as the lab can run it (The data and the draw, item 1; the settings; rule 13)
+
+- **Was:** Item 1 said J001's plan artifact is downloaded "as `tools/l1/guard_probe.py` downloads another run's plan
+  artifact", read `prereg/j1/labels.json` for `source`, `n`, `seed` and a `sha256` field, and took the 150 refs
+  from `prereg/j1/questions.jsonl`. Nothing said where the download runs or what it needs.
+- **Why that cannot run:**
+  - `tools/l1/guard_probe.py` downloads nothing. It takes `--run1-artifact DIR`, "run 1's plan artifact, unpacked"
+    (its docstring and `main`), a directory a workflow step fetched; its only network call fetches MSHA's file.
+  - The lab workflow's token holds `permissions: contents: read` only (`.github/workflows/mycelic-lab.yml:14-15`),
+    which cannot list or download another run's artifacts, and no token reaches the plan job's prereg step: the
+    token goes to the provision job's server step alone (`:126`; `tests/lab/test_lab_workflow.py:179-183` pins it
+    there).
+  - `lab/j2labels.py` may not call the Actions API itself: `tests/lab/test_lab_guards.py:119-125` allows the API
+    host and an `Authorization` header in `lab/provision.py` only.
+  - So, as written, mechanism 1 fails on every run for a permissions reason, freshness rests on mechanism 2 alone,
+    and the plan job stops the day the complaint file changes: the first run would not be the result, for a cause
+    the rule claimed to cover.
+  - The check trusted the `sha256` field of `labels.json`, a value the artifact asserts about itself.
+- **Now:**
+  - **The precedent** is the lab's own: `.github/workflows/lab-reaggregate.yml:18-20, 47-52` and
+    `.github/workflows/l1-guard-probe.yml:17-19, 45-55` download another run's artifacts with
+    `actions/download-artifact` (the pinned sha the lab workflow already uses), `run-id`, `name` and
+    `github-token: ${{ github.token }}`, under `permissions: actions: read`.
+  - **The workflow change, declared.** `mycelic-lab.yml` gets `permissions: {actions: read, contents: read}` at the
+    top (read-only; no job-level permissions) and one plan-job step after `plan` and before `prereg`:
+    `actions/download-artifact` with `name: ${{ steps.plan.outputs.j2_exclude_artifact }}`,
+    `run-id: ${{ steps.plan.outputs.j2_exclude_run_id }}`, `github-token: ${{ github.token }}` and
+    `path: ${{ runner.temp }}/lab-earlier/${{ steps.plan.outputs.j2_exclude_run_id }}`, run only when the run id
+    output is not empty (it is empty for a plan without j2 units), with `continue-on-error: true`, so that a
+    missing or expired artifact reaches `lab.j2labels` as an absent directory and a fixed message, never as a job
+    failure without a plan error. The directory is never under `${{ runner.temp }}/lab-plan`: `lab/prereg.py:472`
+    refuses a plan directory that already holds `prereg/`, and everything under `lab-plan` is uploaded as this
+    run's plan artifact. `lab-earlier` is not uploaded, not scanned by `lab.msha guard` and not read by
+    `lab.summary`. A shell step looping over runs was not chosen: the workflow test pins run blocks to lab commands,
+    the guard test pins the API host to `lab/provision.py`, and with A3 each cycle needs one earlier artifact.
+  - **The request names the excluded run.** The `j2` request block carries one `exclude` entry: the run id
+    (37996675559), the artifact name (`lab-plan-37996675559-1`), the file inside it that lists the records
+    (`prereg/j1/labels.jsonl`) and the sha256 prefix that file's bytes must have (`bc6d092d8bca`). `lab.request`
+    validates it (an integer run id, an artifact name of the lab's shape, a lower-case hex prefix of at least 12
+    characters, a file path from a fixed list), `lab.plan --github-output` echoes `j2_exclude_run_id` and
+    `j2_exclude_artifact`, and the j2 preregistration writes it as `excluded_runs` with the counts found. The exact
+    key names are the build's (`BUILD-A001.md`); their content is fixed here. A later cycle changes the request, not
+    `lab/j2labels.py` (A3).
+  - **The check, hardened.** `lab.prereg` passes the directory to `lab.j2labels` (`--earlier-plans`). It reads
+    `<run id>/prereg/j1/labels.jsonl` and hashes its bytes: the sha256 must start with the request's prefix
+    (`bc6d092d8bca`; the field in `labels.json` is not trusted). It cross-checks that sha256 and the file's size
+    against the artifact's manifest `prereg/prereg.json` (`lab/prereg.py`: "the sha256 and size of every other file
+    under `D/prereg`"), and `labels.json` must still say `source` `nhtsa`, `n` 150 and `seed` 1. The 150 refs are
+    the `record.record_ref` of the labels file's lines; the refs of `prereg/j1/questions.jsonl` must be the same
+    set, else the mechanism fails. Every read is `strict_load` inside `try`/`except`; any failure, a missing
+    directory included, prints one fixed message (`mechanism 1: artifact absent`, `sha256 mismatch`, `manifest
+    mismatch`, `refs mismatch`) and a count, never a value, a path or an exception's text. The downloaded directory
+    is untrusted input: nothing from it is printed or written anywhere but into the exclusion set on the runner.
+  - **Tests, declared.** `tests/lab/test_lab_workflow.py`'s pins change with the workflow: `permissions` equal to
+    `{"actions": "read", "contents": "read"}` (`:104`); `github.token` in exactly two places, the provision server
+    step's environment and the download step's `github-token` (`:179-183`); four `download-artifact` steps with a
+    `name`, the fourth's being the j2 exclude output (`:250-253`). `tests/lab/test_lab_guards.py` is unchanged:
+    `lab/j2labels.py` makes no network call. `tests/lab/test_lab_j2.py` pins the hardened check on a synthetic
+    artifact directory: a changed byte in the labels file, a manifest that disagrees, a questions file with other
+    refs and an absent directory each fail with their fixed message, and a consistent directory gives 150 refs.
+  - Item 1 reads accordingly; the artifact's size, expiry and "the API listed it on 2026-10-11" stand.
+
+### A2. The stop rule, read explicitly: one mechanism verifying suffices (items 2 and 3; trap 14; an ask)
+
+- **Was:** Item 2 said mechanism 2 "verifies only when the labels' sha256 starts with `bc6d092d8bca`" and otherwise
+  "fails and the plan job prints that it did"; item 3 said the plan job stops "if neither mechanism verifies". The
+  metric section says that where this file and LOOP-48H section 2 disagree, that section wins.
+- **Why that is not enough:** Section 2.3 holds two sentences in one bullet: "rebuild the seed-1 n-150 draw and stop
+  unless its labels sha starts with `bc6d092d8bca`" and, two sentences later, "If neither mechanism can verify
+  freshness, stop and ask". Read alone, the first stops the run the day NHTSA's file changes, whatever the artifact
+  shows; the second lets one mechanism suffice. The rule adopted the second without saying that it was choosing, so
+  the file contradicted itself on the one rule that decides whether the first run can be the result.
+- **Now:**
+  - **The reading, recorded before any run.** Mechanism 2 is a second check, not a second gate. Mechanism 1's refs
+    are the records J001 judged: the record ref is the complaint file's own id column
+    (`docs/collective/replay/vehicles/pack/mapping.json`, `record_ref`), the same in every version of the file, so
+    removing those refs gives disjointness from J001 whatever the file holds today. When mechanism 1 verifies, the
+    run proceeds; a rebuilt labels sha256 that does not start with `bc6d092d8bca` is printed as its prefix beside
+    `bc6d092d8bca`, as evidence that the complaint file changed since 2026-10-09, and recorded in the Runs entry.
+    Section 2.3's first sentence is read as the gate that applies when mechanism 1 did not verify, which is what
+    its last sentence says. If the founder rules the strict reading before the run, a dated amendment adopts it,
+    and the run then stops whenever the file changed.
+  - **The ask,** one line, in the loop's next reply and under `## Open asks` of `docs/handoff/LOOP-48H-STATUS.md`
+    when that file is created (the L001 run 2 record creates it): "NEEDS FOUNDER: section 2.3's stop rule is read
+    as 'stop when neither mechanism verifies', not 'stop unless the rebuilt sha matches'; the artifact's refs are
+    the records J001 judged (CHOICE-A001, A2)." Asked once; the loop does not block on it.
+  - **Mechanism 2's call, pinned.** `lab.goldlabels.build_labels("nhtsa", NHTSA_PACK, 150, 1, fetch=<the
+    preregistration's one cached fetch>)`: `lab.prereg` downloads the complaint archive at most once per
+    preregistration and hands the same bytes to every labels build, so the rebuild, the exclusion and the new draw
+    read one file, and the complaint file sha256 the plan job prints is that file's.
+  - **Both verifying.** When both mechanisms verify, the plan job prints the size of the symmetric difference of
+    their two ref sets (0 expected) and stops when it is above 0; item 3's "must be equal, else the plan job stops"
+    is this count, printed.
+  - Trap 14 reads: the exclusion works on refs, so freshness holds whenever mechanism 1 verifies; a changed file is
+    reported through mechanism 2's sha256 and stops nothing by itself.
+
+### A3. The excluded set carried forward (item 6; rule 13; Runs)
+
+- **Was:** Item 6 said each later cycle lists every earlier cycle's run id and labels sha256 and excludes each "from
+  its own plan artifact the same way".
+- **Why:** J001's artifact expires 2026-11-08T22:00:03Z and each cycle's after 30 days (`retention_days` 30). By the
+  third or fourth cycle freshness would rest on several artifacts, some expired, and on mechanism 2's byte-stable
+  complaint file. One `download-artifact` step fetches one run's artifact (A1).
+- **Now:**
+  - The j2 plan job writes `prereg/j2/excluded.jsonl` into this run's plan artifact: one line per ref, refs only,
+    sorted, the union of every excluded ref and this draw's 150 refs (300 lines this cycle), and prints its sha256
+    prefix in the fixed line (a hash, never a ref). The Runs entry records that prefix. The artifact, never the
+    repository, holds the file, as it holds the labels and questions files.
+  - Each later cycle's request names the previous cycle's run, artifact, `prereg/j2/excluded.jsonl` and the sha256
+    prefix its Runs entry printed; its plan job downloads that one artifact (A1's step), hashes the file's bytes,
+    excludes every ref in it, and writes its own `excluded.jsonl` with its draw added. The chain survives J001's
+    expiry as long as each cycle runs within 30 days of the previous one; if it does not, mechanism 1 cannot verify
+    and the plan job stops and asks (section 2.3). Each later CHOICE still lists every earlier run id and labels
+    sha256, as section 2.3 says, and mechanism 2's rebuild of J001's seed-1 draw stays as the independent check on
+    the chain's oldest link.
+  - Rule 13's list of what the plan artifact holds gains this file.
+
+### A4. The eligible list, rebuilt and pinned equal (item 4; rule 1)
+
+- **Was:** Item 4 said the eligible list is built "exactly as `lab.goldlabels.nhtsa_lines` builds it" and named no
+  check that the copy stays equal to the pinned code.
+- **Why:** `nhtsa_lines` (`lab/goldlabels.py:74-93`) builds `eligible` and samples it in one function, with no
+  exclusion parameter, and `lab/goldlabels.py` is pinned. `lab/j2labels.py` must therefore re-implement the
+  eligible build (`goldlabels.py:79-87`), and a re-implementation can drift.
+- **Now:**
+  - `lab/j2labels.py` re-implements the eligible build of `goldlabels.py:79-87`: `map_rows` with the pack's
+    `mapping`, `synthetic=False`; a non-blank narrative, exactly one vehicle, at least one specific component code;
+    codes emptied and `site` set to `PUBLIC_SITE`; sorted by `record_ref`. It then removes the excluded refs and
+    samples `random.Random("nhtsa:2").sample(eligible_unexcluded, 150)`, sorted by `record_ref`, in label-file
+    lines of `goldlabels`' shape, and writes a labels record with `available` (the eligible count before exclusion,
+    `goldlabels.py:143`), `excluded`, `eligible_after_exclusion`, `overlap`, the mechanisms' results and the
+    complaint file's sha256 beside the fields `lab.j1` and `e1_extract.read_labels` read.
+  - `tests/lab/test_lab_j2.py` pins, on a small synthetic export and the vehicle pack: with no exclusion and the
+    same `n` and seed, `j2labels`' lines equal `goldlabels.nhtsa_lines(pack, rows, n, seed)[0]` byte for byte;
+    with exclusions, the draw equals `sorted(random.Random("nhtsa:2").sample(eligible_unexcluded, n),
+    key=record_ref)` over the synthetic eligible list less the excluded refs, and holds no excluded ref; and fewer
+    than `n` eligible unexcluded records refuse with a fixed message. If the equality test fails, the build is
+    wrong, not the pinned code.
+  - The excluded runs reach the plan from the request block (A1), are echoed into the j2 preregistration and the
+    plan summary as `excluded_runs` (run id, artifact, sha256 prefix, refs found: counts and hashes only), and reach
+    the report the same way. Rule 1's "J001's 150 records excluded as 'The data and the draw' says" reads with A1
+    to A3.
+
+### A5. The verdict word, in one order (rule 10, "For this cycle")
+
+- **Was:** The paragraph after the verbatim block said the aggregate computes the verdict word "from the figures
+  alone" and named the four words.
+- **Why:** The verbatim words overlap. With BA at or above 0.860 and the paired interval to the lexical judge
+  including 0, "Partial" ("BA ≥ 0.860 but an interval clause fails") and "Failure" ("the interval to lexical
+  includes 0") both hold. Without a precedence the word is not computable in that cell; `lab.j1.paired` returns
+  `ci_low` and `ci_high` only (`lab/j1.py:518-534`), no word.
+- **Now:** The paragraph gains: the aggregate evaluates the words in the order `incomplete`, `pass_provisional`,
+  `partial`, `failure`, and the first whose condition holds is the verdict word; the figures behind every clause
+  (BA with its interval, the paired difference to the lexical judge with its interval, the bound's point value on
+  the same records, the unknown share, the dropped share and the parts finished) are printed beside it. So a BA at
+  or above 0.860 whose interval to the lexical judge includes 0 is `partial`, the more specific clause, and is
+  reported with both numbers as the block says; the remainder (BA below 0.860 and the lower end of the difference
+  at or below 0) is `failure`, so the four words cover every cell. The verbatim block is unchanged.
+
+### A6. "Complete", read as the lab records it (rule 10, "For this cycle"; rules 7 and 12)
+
+- **Was:** The block requires that "every planned record of the draw is scored" and that the dropped share is at
+  most 0.01; rule 7 kept a set with one dropped record. The paragraph did not say which reading the aggregate
+  implements.
+- **Why:** Read literally, one record left out by a transport failure is not scored, the set is incomplete, and the
+  0.01 clause can never apply. Read as the lab records it, "scored" and "dropped" are two of the three states of
+  `lab.j1.split_records` (`lab/j1.py:406-421`: scored, dropped, not judged), and `headline_for` returns
+  `incomplete` only when a part did not finish and `withheld` when `dropped_share` is above `WITHHOLD_SHARE`
+  (`:503-515`).
+- **Now:** The paragraph gains: "every planned record scored" is read as every part of the (model, task) set
+  finished (every one of its calls for that task made, A9; `stopped` null) with `measurement` true and
+  `records_not_judged` 0; records dropped by transport failures are governed by the 0.01 clause (`lab.j1.score`'s
+  `dropped_share`, dropped over scored plus dropped). So one dropped record of 150 (0.0067) leaves the set complete
+  and two (0.0133) withhold it, which is rule 7 as written. A set that is `incomplete` or `withheld` gets the word
+  `incomplete`, and the figures say which.
+
+### A7. How P meets "chosen from earlier recorded results" (rule 9; "Why P")
+
+- **Was:** Rule 9 named P = (a-4b, arm C) and "Why P" gave the reasoning, but not as a satisfaction of the block's
+  clause that P is "chosen from earlier recorded results before the run". Arm C has no recorded result.
+- **Why:** P is fixed before the draw exists, so there is no selection after the fact; but a later reader could
+  contest the clause, and the rule should say how it is met.
+- **Now:** Rule 9 gains: the clause is met as follows. The model comes from J001 run 9's answer counts (a-4b is the
+  only model that separated positives from negatives: yes on 97 positives and 37 negatives, 145 unclear) and from
+  L001 run 2's specificity 0.000 for all three models. The arm comes from the pinned lever order (section 2.6)
+  under the section 7 default (shipped `decide` primary, mappings secondary): lever 1 has no measurable headroom to
+  0.860, because J001's 37 yes answers on negatives are fixed under it, so lever 2 is the first arm the default
+  allows as primary. No (model, arm) pair measured on a fresh draw exists yet; the first cycle's P cannot be one.
+  If the chief scientist's decision 9 arrives before the run, a dated amendment names P = (a-4b, D) or (a-4b, B),
+  as the declaration already allows.
+
+### A8. The line check, without touching `lab/j1.py` (rule 13; rule 3, arm B)
+
+- **Was:** Rule 13 said the aggregate refuses a line that disagrees with the recomputed verdicts by
+  "`lab.j1.line_problem`'s check, extended to the mapped verdict".
+- **Why:** `lab.j1.line_problem` returns `keys` for any line whose key set is not exactly `LINE_KEYS`
+  (`lab/j1.py:364-369`), and the aggregate's `_j1_lines` does the same (`lab/aggregate.py:754-761`); a j2 line
+  carries at least `task` and the mapped verdict, so neither can be reused as is, and `lab/j1.py` is pinned
+  (section 2.3). "Extended" read as a change to pinned code.
+- **Now:**
+  - `lab/j2.py` defines `LINE_KEYS = (*lab_j1.LINE_KEYS, "task", "mapped_verdict")` and its own `line_problem`,
+    which (1) requires `task` to be one of the two task names; (2) projects the line to `lab_j1.LINE_KEYS` and calls
+    `lab_j1.line_problem(question, projected)` unchanged, so the shipped verdict is recomputed by the one pinned
+    `decide` over `lab_j1.stand_in`; (3) recomputes `mapped_verdict` as `lab_j1.verdict(lab_j1.stand_in(ref),
+    M(reply))`, `unknown` when the reply is null, and refuses a mismatch. `lab.j1` is imported and unchanged; j2
+    verdict lines are read by a j2 reader, and the comparators' files (`lexical.jsonl`, `prior.jsonl`) stay
+    j1-shaped and are read by `_j1_lines` as J001's are.
+  - Arms B and D are j1-shaped views: copies of arm A's and arm C's lines with `verdict` replaced by
+    `mapped_verdict` and, for the answer counts after M, `describes_predicate` replaced by M's reading.
+    `lab.j1.score` and `lab.j1.paired` read only the keys they name (`lab/j1.py:443-481, 518-534`), so the views,
+    and the lines with their two extra keys, pass through them unchanged.
+  - Rule 13 reads: "the aggregate recomputes the shipped verdict with `lab.j1.line_problem` on the shipped fields
+    and the mapped verdict with the pinned `decide` on the mapped reply, and refuses a line that disagrees with
+    either".
+
+### A9. Task N first in every unit (rule 12; "Why the units"; trap 11)
+
+- **Was:** Each unit judged its 60 questions in two passes, "first every question with the shipped task, then every
+  question with task N"; "a finished first pass stays complete".
+- **Why:** Any late stop (budget, runner lost, server down after the first pass; `lab/j1.py:790-795` stops the loop
+  before the next question) would complete arm A, the control, and leave arm C, hence P, incomplete; by rule 10 the
+  cycle is `incomplete` and the draw is spent. The order protected the control at the expense of the primary.
+- **Now:**
+  - Every unit runs task N first (arm C, and D by M), then the shipped task (arm A, and B by M). A stop in the
+    second pass leaves P's set complete and the control's incomplete for that part: the verdict on P is read (its
+    pairing is with the lexical judge, computed in the plan job for every record), and arm A, the lifts of rule 8
+    and the replication of J001 are recorded as incomplete and decide nothing, which they never did toward 86.
+  - A part is finished for a (model, task) set when every one of its 60 calls for that task was made (a model
+    failure after the repair is a call made: `unknown`, scored). `run.json` records `complete` per task.
+  - The interleaved alternative (shipped then N for each question, so that both sets stop together) was not chosen:
+    it protects the control, which decides nothing, by exposing P to every stop, and it alternates two prompt
+    prefixes on every call.
+  - Trap 11 reads: the two passes keep one prefix each, N's first; the first call of each pass is slower; the
+    warm-up's last request is the shipped task's probe (A11), so the N pass starts on a cold prefix. Timings are
+    reported per task and decide nothing.
+
+### A10. The fake provider answers task N (section 2.3's wiring list; the dry run)
+
+- **Was:** The wiring list (section 2.3, and the build it implies) did not name `lab/responder.py`.
+- **Why:** The fake provider used by the template dry run and by the fake-server tests dispatches on the schema
+  name, which is the task name, and refuses an unknown name by dropping the connection (`lab/responder.py:3-4,
+  15-18, 71-75`), after which the participation check makes the unit invalid. Every arm-C call
+  (`judge_record_negation`) in a dry run would fail, and the dry run the rule requires before merge could not pass.
+- **Now:** `lab/responder.py` registers the negation task under its own name with the shipped task's handler
+  (`self._handlers[lab_j2.NEGATION_TASK] = self._handlers[JUDGE_TASK]`, in the pack branch and in the
+  `pack_free_judge` branch alike), and `lab/units.py`'s `with_pack` list (`:1112`) gains `j2`, so a j2 dry-run unit
+  gets a `FakeServer` with the vehicle pack. In a dry run the fake answer to N is therefore the lexical judge's, so
+  a dry run never measures the instruction: arms C and D there equal arms A and B (the lexical judge never answers
+  unclear, so M changes nothing). `BUILD-A001.md` says so, and `tests/lab/test_lab_j2.py` pins that both names are
+  answered and that an unknown name is still refused.
+
+### A11. What the warm-up records for N (rule 13; trap 11)
+
+- **Was:** Rule 13 said the warm-up sends a generated record "with both tasks, and records `repeat_identical`".
+- **Why:** The lab's probe sends the first fitting task's request body twice, tasks sorted by task name
+  (`lab/warmup.py:9-10, 44-45`), so `repeat_identical` is recorded for `judge_record` and not for
+  `judge_record_negation`; the text overstated what the lab records for N.
+- **Now:** Rule 13 reads: the warm-up calls both tasks once on a generated record about no drawn record (its `fit`
+  and `calls` steps; `lab/warmup.py` lists both tasks for a j2 unit) and records `repeat_identical` for the shipped
+  task's probe, the only probe the lab sends. No second probe is declared: the probe's purpose is to stop on
+  `reasoning_content` and to show the server's determinism on one record, and both hold for the one server the two
+  tasks share; a j2-only probe would be a reviewed lab change with no reading attached.
+
+### A12. The build, as amended
+
+The lab changes the build makes, all unpinned, added to section 2.3's list: `lab/j2.py`, `lab/j2labels.py`;
+`lab/request.py` (the `j2` block with `exclude`), `lab/plan.py` (the two outputs), `lab/prereg.py`
+(`--earlier-plans`, the j2 preregistration with `excluded_runs` and `prereg/j2/excluded.jsonl`), `lab/units.py` (the
+j2 adapter with both task names, `with_pack`), `lab/warmup.py` (both tasks for j2), `lab/responder.py` (A10),
+`lab/aggregate.py`, `lab/summary.py`, `lab/notes.py`; `.github/workflows/mycelic-lab.yml` (`actions: read`, the
+download step); `lab/templates/accuracy.json`; `tests/lab/test_lab_j2.py` and the pins of
+`tests/lab/test_lab_workflow.py` named in A1; `docs/lab/REFERENCE.md`, `lab/requests/README.md`,
+`docs/lab/INTEGRATION.md`, `BUILD-A001.md`. `lab/j1.py`, `lab/goldlabels.py` and every pinned module are imported
+and unchanged. No privacy guard is weakened: `actions: read` is read-only; the downloaded artifact is read on the
+runner and never printed, uploaded or scanned into a summary; the console gets fixed lines and counts;
+`tests/lab/test_lab_guards.py` is unchanged.
+
+### The settings, as amended
+
+| Setting | Value |
+|---|---|
+| Excluded | J001's 150 records from `lab-plan-37996675559-1` (run 37996675559), `prereg/j1/labels.jsonl` whose bytes' sha256 starts with `bc6d092d8bca`, checked against the artifact's manifest, refs cross-checked with its `questions.jsonl`; downloaded by the plan job under `actions: read` into `lab-earlier/<run id>`; named in the request block (A1) |
+| Stop rule | mechanism 1 verifying suffices; mechanism 2's mismatch is printed and recorded; neither verifying stops the plan job before any model runs; both verifying prints the symmetric difference (0 expected; above 0 stops) (A2) |
+| Carried forward | `prereg/j2/excluded.jsonl` in the plan artifact: every excluded ref plus the draw's 150, refs only; its sha256 prefix in the Runs entry (A3) |
+| Units | 15 (3 models × 5 parts), 120 calls each: the 60 questions with task N first, then with the shipped task; 300 minutes, one per shard (A9) |
+| Verdict word | `incomplete`, `pass_provisional`, `partial`, `failure`, in that order, the first that holds; the figures printed beside it (A5) |
+| Complete | every call of the (model, task) set's five parts made, `measurement` true, `records_not_judged` 0, dropped share at most 0.01 (A6) |
+
+### Runs entry, as amended
+
+The first run's entry adds: which mechanisms verified and the symmetric difference count when both did; the rebuilt
+seed-1 labels' sha256 prefix beside `bc6d092d8bca` (A2); the `excluded.jsonl` sha256 prefix (A3); `excluded_runs` as
+the plan summary printed it (counts and hashes); and, per (model, task) set, the parts finished per task (A9).
 
 ## Runs
 
