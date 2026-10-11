@@ -21,6 +21,16 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   "bridge first, Tesseract later" cut rule is void; the Tesseract leg is mandatory. The e2e-ingest workflow was
   stopped at 02:10 and relaunched with this specification.
 - 02:15 L001 run 2 recorded and merged (RESULTS run 10, CHOICE-L001 Run 2, YC brief; figures verified); pushed.
+- 02:20 Founder: "Run unit tests before running emergence to ensure full Mycelic system gets tested." Gate added: the
+  full suites must be green on the exact commit before any EMERGENCE end-to-end run counts; the e2e CI gets a
+  prerequisite unit-suite job.
+- 02:27 Full suites started on 5d646a9. By 03:13: tests/mycelic 1,710 passed, 1 xfailed, 45,608 subtests (19 min 31 s);
+  tests/lab 725 passed, 23,056 subtests (20 min 44 s); tests/onboard 287 passed (3 min 37 s); research.mycelic 30 OK;
+  routing_spike, NeuralGraph/tests and market still running.
+- 02:35 YC brief doc (artifact e727fb40) updated with run 10 (rev 13).
+- 03:13 Ingestion part 1: S0 committed (6ad04b2) and merged; the EMERGENCE brief E2E-INGEST.md committed alone
+  (e3052c0, 670 lines); fakeability review done, feasibility review running, then the amendment. Accuracy: rule A001
+  committed alone (90d2084), two reviews (one blocking: the fresh-draw mechanism), amended (146431c), build running.
 
 ## Open asks (date asked)
 
