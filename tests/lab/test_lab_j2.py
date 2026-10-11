@@ -14,6 +14,7 @@ aggregate's cases are :class:`~tests.lab.helpers.DryTree` copies of it) and the 
 from __future__ import annotations
 
 import contextlib
+import functools
 import hashlib
 import inspect
 import io
@@ -54,6 +55,7 @@ from mycelic.collective.edge.verify import JUDGE_MAX_TOKENS, JUDGE_TASK, decide,
 from mycelic.collective.experiments import e1_extract
 from mycelic.collective.inference.fakeserver import FakeOpenAIServer, request_payload
 from mycelic.collective.inference.ledger import read_ledger
+from mycelic.collective.inference.routing import load_routing
 from mycelic.collective.jsonio import canonical_bytes, canonical_dumps, sha256_hex
 from mycelic.collective.packs import loader
 from mycelic.collective.packs.canonical import Canonicaliser
@@ -1128,6 +1130,74 @@ class PreregTests(unittest.TestCase):
                          {**J001_EXCLUDE, "rebuild_sha256_prefix": "a" * 12})
         self.assertFalse((tmp / "plan" / "prereg").exists())
 
+    def test_mechanism_two_alone_excludes_the_rebuilt_draw(self) -> None:
+        """A2's case on the real runner: the earlier artifact absent (expired, or not downloadable) and the rebuilt
+        seed-one draw hashing to the pinned prefix. The plan proceeds, the excluded set is the rebuilt draw's records
+        (mechanism one gave none), and the record says which mechanism gave them."""
+        p = _Prereg.get()
+        tmp = self.plan_dir("rebuildonly")
+        (tmp / "nothing").mkdir()
+        write_json(tmp / "stand-in.json", {**p.exclude, "rebuild_sha256_prefix": p.stand_in["rebuild_sha256_prefix"]})
+        code, out, err = self.prereg(tmp, "--earlier-plans", str(tmp / "nothing"),
+                                     "--exclude-stand-in", str(tmp / "stand-in.json"))
+        self.assertEqual(code, 0, err)
+        lines = out.splitlines()
+        self.assertIn("j2 exclusion: mechanism artifact artifact absent", lines)
+        self.assertFalse(any(line.startswith("j2 exclusion: mechanism rebuild") for line in lines))
+        self.assertFalse(any("symmetric difference" in line for line in lines))
+        self.assertTrue(any(line.startswith("j2 draw: available 360 excluded 150 eligible_after_exclusion 210 overlap "
+                                            "0 mechanisms artifact=artifact absent rebuild=verified ")
+                            for line in lines), out)
+        j2 = read_json(tmp / "plan" / "prereg" / "prereg.json")["j2"]
+        ex = j2["exclusion"]
+        self.assertEqual((ex["mechanisms"], ex["excluded"], ex["eligible_after_exclusion"], ex["overlap"],
+                          ex["symmetric_difference"]),
+                         ({"artifact": "artifact absent", "rebuild": "verified"}, 150, 210, 0, None))
+        self.assertTrue(ex["rebuilt_sha256"].startswith(p.stand_in["rebuild_sha256_prefix"]))
+        run = j2["excluded_runs"][0]
+        self.assertEqual((run["refs"], run["outcome"], run["stand_in"]), (0, "artifact absent", True))
+        drawn = refs_of_labels((tmp / "plan" / "prereg" / "j2" / "labels.jsonl").read_bytes())
+        self.assertEqual(len(drawn), 40)
+        self.assertEqual(drawn & p.excluded, set())
+        # the rebuilt draw is the synthetic artifact's labels, so the excluded set and the draw are the fixture's
+        self.assertEqual((tmp / "plan" / "prereg" / "j2" / "labels.jsonl").read_bytes(),
+                         (p.dir / "labels.jsonl").read_bytes())
+        assert_no_ref(self, out, drawn | p.excluded)
+
+    def test_main_passes_only_the_options_given(self) -> None:
+        """``lab.prereg.main`` hands :func:`lab.prereg.preregister` only the options its flags set, so a caller's own
+        keyword survives: J001's dry-run fixture wraps ``preregister`` in a ``functools.partial`` with ``nhtsa_fetch``,
+        and an explicit ``nhtsa_fetch=None`` from ``main`` would override it and download NHTSA's file."""
+        calls: list[dict[str, Any]] = []
+
+        def recorder(plan_path: Path, **kwargs: Any) -> dict[str, Any]:
+            calls.append(dict(kwargs))
+            return {"e1": None, "x1": None, "e2": None, "j1": None, "l1": None, "j2": None}
+
+        def fetch() -> bytes:
+            return ARCHIVE
+
+        tmp = Path(tempfile.mkdtemp(prefix="lab-j2-main-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        plan = write_json(tmp / "plan" / "plan.json", {"kind": "lab_plan", "units": []})
+        (tmp / "complaints.zip").write_bytes(b"not an archive")
+        stand_in = write_json(tmp / "stand-in.json", {**J001_EXCLUDE, "rebuild_sha256_prefix": "a" * 12})
+        with mock.patch.object(lab_prereg, "preregister", recorder):
+            self.assertEqual(call_main(lab_prereg, ["--plan", str(plan)])[0], 0)
+            self.assertEqual(call_main(lab_prereg, ["--plan", str(plan), "--earlier-plans", str(tmp / "e")])[0], 0)
+            self.assertEqual(call_main(lab_prereg, ["--plan", str(plan), "--nhtsa-archive", str(tmp / "complaints.zip"),
+                                                    "--exclude-stand-in", str(stand_in)])[0], 0)
+        with mock.patch.object(lab_prereg, "preregister", functools.partial(recorder, nhtsa_fetch=fetch)):
+            self.assertEqual(call_main(lab_prereg, ["--plan", str(plan)])[0], 0)
+        self.assertEqual(len(calls), 4)
+        self.assertEqual(calls[0], {})
+        self.assertEqual(calls[1], {"earlier_plans": tmp / "e"})
+        self.assertEqual(sorted(calls[2]), ["exclude_stand_in", "nhtsa_fetch"])
+        self.assertEqual(calls[2]["nhtsa_fetch"](), b"not an archive")
+        self.assertEqual(calls[2]["exclude_stand_in"], {**J001_EXCLUDE, "rebuild_sha256_prefix": "a" * 12})
+        self.assertEqual(sorted(calls[3]), ["nhtsa_fetch"])
+        self.assertIs(calls[3]["nhtsa_fetch"], fetch)
+
 
 # --------------------------------------------------------------------------------------------------- the runner
 
@@ -1173,12 +1243,12 @@ class RunTests(unittest.TestCase):
         self.addCleanup(server.stop)
         return server
 
-    def routing(self, base_url: str, model: str = "fake-a", change: Callable[[dict[str, Any]], None] | None = None
-                ) -> Path:
+    def routing(self, base_url: str, model: str = "fake-a", change: Callable[[dict[str, Any]], None] | None = None,
+                name: str | None = None) -> Path:
         doc = lab_j2.routing_doc(self.p.plan["models"], [model], base_url)
         if change is not None:
             change(doc)
-        return write_json(self.tmp / f"routing-{model}.json", doc)
+        return write_json(self.tmp / f"routing-{name or model}.json", doc)
 
     def argv(self, routing: Path, *, endpoint: str = "fake-a", part: int = 1, run_id: str = "r1",
              budget: int = 600, **files: Path) -> list[str]:
@@ -1365,68 +1435,106 @@ class RunTests(unittest.TestCase):
 
     def test_every_pin_is_checked_before_any_call(self) -> None:
         """Rule 3 and 4: both tasks' pins, the mapping, the arms, the routing of both tasks without escalation, the
-        labels, the questions, the pack and the code hash, each refused with exit 2 before a call is made."""
+        labels, the questions, the pack and the code hash, each refused with exit 2 and its own message before a call
+        is made. Every case writes its own file: a shared path would leave only the last variant to be tested."""
         server = self.server()
         good = self.routing(server.base_url)
         d = self.p.dir
+        written: list[Path] = []
 
         def changed(name: str, edit: Callable[[bytes], bytes]) -> Path:
             target = self.tmp / name
             target.write_bytes(edit((d / name).read_bytes()))
+            written.append(target)
             return target
 
-        def prereg_with(change: Callable[[dict[str, Any]], None]) -> Path:
+        def prereg_with(name: str, change: Callable[[dict[str, Any]], None]) -> Path:
             doc = read_json(d / "prereg.json")
             change(doc)
-            return write_json(self.tmp / "prereg.json", doc)
+            written.append(write_json(self.tmp / f"prereg-{name}.json", doc))
+            return written[-1]
 
-        def routing_with(change: Callable[[dict[str, Any]], None]) -> Path:
-            return self.routing(server.base_url, change=change)
+        def routing_with(name: str, change: Callable[[dict[str, Any]], None]) -> Path:
+            written.append(self.routing(server.base_url, change=change, name=name))
+            return written[-1]
 
+        def escalating(task: str) -> Callable[[dict[str, Any]], None]:
+            """Both endpoints of the preregistration, ``task`` escalating from fake-a to fake-b: a routing that
+            ``load_routing`` accepts, so only J2's own check refuses it."""
+            def change(doc: dict[str, Any]) -> None:
+                doc["endpoints"]["fake-b"] = lab_j1.endpoint(self.p.plan["models"]["fake-b"], server.base_url)
+                doc["routes"][task]["escalate_to"] = "fake-b"
+            return change
+
+        differs = "{} differs from the preregistration"
+        escalation = "the routing must route both judge tasks to the endpoint without escalation"
         cases = [
-            ("labels", {"labels": changed("labels.jsonl", lambda b: b.replace(b"stalled", b"stopped", 1))}),
-            ("questions", {"questions": changed("questions.jsonl", lambda b: b + b"\n")}),
-            ("pack", {"prereg": prereg_with(lambda p: p["pack"].update(vocabulary_hash="0" * 64))}),
-            ("code", {"prereg": prereg_with(lambda p: p.update(code_hash="0" * 64))}),
-            ("negation max_tokens", {"prereg": prereg_with(lambda p: p["tasks"]["negation"].update(max_tokens=512))}),
-            ("negation instructions", {"prereg": prereg_with(lambda p: p["tasks"]["negation"].update(
-                instructions_sha256="0" * 64))}),
-            ("shipped max_tokens", {"prereg": prereg_with(lambda p: p["tasks"]["shipped"].update(max_tokens=512))}),
-            ("task order", {"prereg": prereg_with(lambda p: p["tasks"].update(order=[SHIPPED, N]))}),
-            ("mapping rule", {"prereg": prereg_with(lambda p: p["mapping"]["rule"]["describes_predicate"].update(
-                unclear="yes"))}),
-            ("mapping sha", {"prereg": prereg_with(lambda p: p["mapping"].update(sha256="0" * 64))}),
-            ("arms", {"prereg": prereg_with(lambda p: p["arms"]["shipped_mapped"].update(mapped=False))}),
-            ("kind", {"prereg": prereg_with(lambda p: p.update(kind="lab_j1_prereg"))}),
-            ("transport", {"routing": routing_with(lambda r: r["endpoints"]["fake-a"].update(
-                transport_schema="reduced"))}),
-            ("model", {"routing": routing_with(lambda r: r["endpoints"]["fake-a"].update(model="another-alias"))}),
-            ("boundary", {"routing": routing_with(lambda r: r["endpoints"]["fake-a"].update(boundary="central"))}),
-            ("negation route missing", {"routing": routing_with(lambda r: r["routes"].pop(N))}),
-            ("shipped route missing", {"routing": routing_with(lambda r: r["routes"].pop(SHIPPED))}),
-            ("negation escalation", {"routing": routing_with(lambda r: r["routes"][N].update(escalate_to="fake-a"))}),
-            ("shipped escalation", {"routing": routing_with(lambda r: r["routes"][SHIPPED].update(
-                escalate_to="fake-a"))}),
-            ("part", {"part": 3}),
-            ("endpoint", {"endpoint": "fake-slow"}),
-            ("budget", {"budget": 0}),
+            ("labels", {"labels": changed("labels.jsonl", lambda b: b.replace(b"stalled", b"stopped", 1))},
+             differs.format("the labels' sha256")),
+            ("questions", {"questions": changed("questions.jsonl", lambda b: b + b"\n")},
+             differs.format("the questions' sha256")),
+            ("pack", {"prereg": prereg_with("pack", lambda p: p["pack"].update(vocabulary_hash="0" * 64))},
+             differs.format("the pack's vocabulary hash")),
+            ("code", {"prereg": prereg_with("code", lambda p: p.update(code_hash="0" * 64))},
+             differs.format("the code hash")),
+            ("negation max_tokens", {"prereg": prereg_with("n-tokens", lambda p: p["tasks"]["negation"].update(
+                max_tokens=512))}, differs.format("the judge tasks")),
+            ("negation instructions", {"prereg": prereg_with("n-text", lambda p: p["tasks"]["negation"].update(
+                instructions_sha256="0" * 64))}, differs.format("the judge tasks")),
+            ("shipped max_tokens", {"prereg": prereg_with("s-tokens", lambda p: p["tasks"]["shipped"].update(
+                max_tokens=512))}, differs.format("the judge tasks")),
+            ("task order", {"prereg": prereg_with("order", lambda p: p["tasks"].update(order=[SHIPPED, N]))},
+             differs.format("the judge tasks")),
+            ("mapping rule", {"prereg": prereg_with("m-rule", lambda p: p["mapping"]["rule"]["describes_predicate"]
+                                                    .update(unclear="yes"))}, differs.format("the mapping")),
+            ("mapping sha", {"prereg": prereg_with("m-sha", lambda p: p["mapping"].update(sha256="0" * 64))},
+             differs.format("the mapping")),
+            ("arms", {"prereg": prereg_with("arms", lambda p: p["arms"]["shipped_mapped"].update(mapped=False))},
+             differs.format("the arms")),
+            ("kind", {"prereg": prereg_with("kind", lambda p: p.update(kind="lab_j1_prereg"))},
+             "the preregistration is not a J2 prereg.json"),
+            ("transport", {"routing": routing_with("transport", lambda r: r["endpoints"]["fake-a"].update(
+                transport_schema="reduced"))}, differs.format("the endpoint's pins")),
+            ("model", {"routing": routing_with("model", lambda r: r["endpoints"]["fake-a"].update(
+                model="another-alias"))}, differs.format("the endpoint's pins")),
+            ("boundary", {"routing": routing_with("boundary", lambda r: r["endpoints"]["fake-a"].update(
+                boundary="central"))}, differs.format("the endpoint's pins")),
+            ("negation route missing", {"routing": routing_with("no-n", lambda r: r["routes"].pop(N))},
+             f"routing: $.routes.{N}: no route"),
+            ("shipped route missing", {"routing": routing_with("no-s", lambda r: r["routes"].pop(SHIPPED))},
+             f"routing: $.routes.{SHIPPED}: no route"),
+            ("negation escalation", {"routing": routing_with("esc-n", escalating(N))}, escalation),
+            ("shipped escalation", {"routing": routing_with("esc-s", escalating(SHIPPED))}, escalation),
+            ("part", {"part": 3}, "--part is not one of the preregistered parts"),
+            ("endpoint", {"endpoint": "fake-slow"}, "the endpoint is not in the preregistration or the routing"),
+            ("budget", {"budget": 0}, "--budget-seconds must be >= 1"),
         ]
-        for i, (label, change) in enumerate(cases):
+        self.assertEqual(len(written), len(set(written)), "two cases share a file")
+        for label, change, _ in cases:
+            if "escalation" in label:
+                load_routing(change["routing"], tasks=lab_j2.TASKS, check_env=False)     # the routing itself loads
+        for i, (label, change, message) in enumerate(cases):
             routing = change.pop("routing", good)
             argv = self.argv(routing, run_id=f"pin-{i}", **change)
             with self.subTest(pin=label):
                 code, _, err, run = self.run_j2(argv)
                 self.assertEqual(code, 2, label)
                 self.assertTrue(err.startswith("error: "), err)
+                self.assertIn(message, err)
                 self.assertFalse(run.exists())
         self.assertEqual(server.chat_requests, [])
         with mock.patch.object(lab_j2, "code_hash", lambda: "1" * 64):
-            code, _, _, run = self.run_j2(self.argv(good, run_id="pin-code-now"))
+            code, _, err, run = self.run_j2(self.argv(good, run_id="pin-code-now"))
         self.assertEqual((code, run.exists()), (2, False))
+        self.assertIn(differs.format("the code hash"), err)
         # a j1 prereg.json is not a j2 one
         code, _, err, run = self.run_j2(self.argv(good, run_id="pin-j1", prereg=ROOT / "lab" / "models.json"))
         self.assertEqual(code, 2)
         self.assertIn("not a J2 prereg.json", err)
+        # the unchanged files run: the pins above were what refused each case
+        code, _, err, run = self.run_j2(self.argv(good, run_id="pin-good"))
+        self.assertEqual((code, run.exists()), (0, True), err)
+        self.assertEqual(len(server.chat_requests), 2 * len(self.qs))
 
     def test_the_unit_adapter_runs_it(self) -> None:
         """``lab.units.run_unit`` with the fake provider: the argv, the routing of both tasks, the files, the notes,
@@ -1909,6 +2017,14 @@ class AggregateTests(unittest.TestCase):
                          {(False, None, None)})
         self.assertEqual(block["primary_result"]["verdict_word"], "incomplete")
         self.assertEqual({s["parts_finished"] for s in big["sets"].values()}, {0})
+        # A6: a part whose run.json says a task did not finish is not finished for it, whatever lines it holds
+        self.restamp("a-1p5b", 1, run=lambda doc: doc.update(complete=False, stopped="interrupted",
+                                                             complete_by_task={N: True, SHIPPED: False}))
+        small = self.aggregate()["models"]["a-1p5b"]
+        self.assertEqual([(p["part"], p["ok_by_task"]) for p in small["parts"]],
+                         [(1, {N: True, SHIPPED: False}), (2, {N: False, SHIPPED: False})])
+        self.assertEqual((small["arms"]["shipped"]["scores"], small["arms"]["negation"]["scores"]["records_scored"]),
+                         (None, 20))
         self.restamp("a-1p5b", 1, lines=lambda lines: lines.append(dict(lines[0])))
         small = self.aggregate()["models"]["a-1p5b"]
         self.assertEqual([(p["part"], p["ok_by_task"]) for p in small["parts"]],
@@ -1929,9 +2045,14 @@ class AggregateTests(unittest.TestCase):
                                                 complete_by_task={N: True, SHIPPED: False}, questions_done=40,
                                                 questions_done_by_task={N: 40, SHIPPED: 0}),
                      unit_record=lambda r: r.update(status="ok", status_reason=J2_SHIPPED_STOPPED, exit_code=1))
-        first_positive = next(q["question_id"] for q in self.questions if q["part"] == 1 and q["kind"] == "positive")
+        every = lab_j1.prior_bound(self.questions)
+        refs = sorted({q["record_ref"] for q in self.questions})
+        # a part-1 record whose removal moves the predicate-only bound, so a bound over every record would show
+        dropped = next(q for q in self.questions if q["part"] == 1 and q["kind"] == "positive"
+                       and lab_j1.prior_bound(self.questions, [r for r in refs if r != q["record_ref"]])["value"]
+                       != every["value"])
         self.restamp("a-1p5b", 1, lines=lambda ls: [self.answer(x, None, None, "timeout") for x in ls
-                                                    if x["task"] == N and x["question_id"] == first_positive])
+                                                    if x["task"] == N and x["question_id"] == dropped["question_id"]])
         block = self.aggregate()
         big = block["models"]["a-4b"]
         part = next(p for p in big["parts"] if p["part"] == 2)
@@ -1958,6 +2079,14 @@ class AggregateTests(unittest.TestCase):
         self.assertEqual((c["complete"], c["scores"]["records_scored"], c["lexical"]["records_scored"]), (True, 39, 39))
         self.assertEqual((a["records_dropped"], a["verdict_word"], a["scores"]["records_scored"]), (0, "failure", 40))
         self.assertEqual(small["lifts"]["C_minus_A"]["paired"]["n"], 39)
+        # A6, rule 10's third clause: the bound is computed on the records the arm scored, not on every record
+        kept = [r for r in refs if r != dropped["record_ref"]]
+        self.assertEqual(c["prior_bound"], lab_j1.prior_bound(self.questions, kept))
+        self.assertEqual((c["prior_bound"]["records"], c["pass_test"]["bound"]), (39, c["prior_bound"]["value"]))
+        self.assertNotEqual(c["prior_bound"]["value"], every["value"])
+        self.assertEqual((a["prior_bound"], a["pass_test"]["bound"], block["prior_bound"]),
+                         (every, every["value"], every))
+        self.assertEqual((c["lexical"]["records_scored"], c["prior"]["records_scored"]), (39, 39))
         md, sources = lab_summary.render_report(self.tmp / "R")
         check_sources(self, md, sources, self.tmp / "R")
         self.assertIn("| `a-4b` | `shipped` | `judge_record` | no | `model` | 1 of 2 |", md)

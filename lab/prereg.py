@@ -636,10 +636,17 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, StrictJsonError, RequestError):
         print("error: the exclusion stand-in cannot be read", file=sys.stderr)
         return EXIT_USAGE
+    # only the options given are passed, so a caller's own keywords (a test's ``functools.partial`` of
+    # :func:`preregister` with ``nhtsa_fetch``) are not overridden by an explicit None
+    options: dict[str, Any] = {}
+    if archive is not None:
+        options["nhtsa_fetch"] = archive.read_bytes
+    if args.earlier_plans:
+        options["earlier_plans"] = Path(args.earlier_plans)
+    if stand_in is not None:
+        options["exclude_stand_in"] = stand_in
     try:
-        manifest = preregister(plan_path, nhtsa_fetch=(lambda: archive.read_bytes()) if archive else None,
-                               earlier_plans=Path(args.earlier_plans) if args.earlier_plans else None,
-                               exclude_stand_in=stand_in)
+        manifest = preregister(plan_path, **options)
     except _StepFailed as err:
         return write_plan_error(plan_path.parent, "prereg", request_path, err.path, err.problem)
     shown = ("e1", "x1", "e2", "j1", *(("l1",) if manifest["l1"] is not None else ()),

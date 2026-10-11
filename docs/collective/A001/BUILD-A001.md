@@ -4,11 +4,12 @@ What was built so the lab can run accuracy test A001 (`CHOICE-A001.md`, with its
 2026-10-11", A1 to A12). The choice file is the rule; this note says how the build carries it out, where the rule left
 a choice to the build, what deviates (nothing of the rule's substance), what the tests pin and what the dry run showed.
 The rule was committed alone and amended before any code (`146431c`, the amended rule); this build starts from
-`146431c` on branch `wf/a001`. While building, no NHTSA record was read: the sandbox reaches no NHTSA host and holds
-no earlier run's artifact, so every run here read the synthetic complaint archive of `tests/lab/j2_data.py`, whose
-every value is invented, and a synthetic earlier plan artifact built from it by the pinned code. No model ran: every
-server here was the lab's fake, which answers task N as it answers the shipped task (A10), so no figure in this note
-is a reading of the instruction or of the mapping.
+`146431c` on branch `wf/a001` (`689e138`), and the review of that commit led to the fixes of `wf/a001-fix` (the
+section Fixed after review; the rule is unchanged). While building, no NHTSA record was read: the sandbox reaches no
+NHTSA host and holds no earlier run's artifact, so every run here read the synthetic complaint archive of
+`tests/lab/j2_data.py`, whose every value is invented, and a synthetic earlier plan artifact built from it by the
+pinned code. No model ran: every server here was the lab's fake, which answers task N as it answers the shipped task
+(A10), so no figure in this note is a reading of the instruction or of the mapping.
 
 ## The shape
 
@@ -23,7 +24,7 @@ is a reading of the instruction or of the mapping.
 | Fake provider | `lab/responder.py` | `judge_record_negation` answered by the shipped judge's handler in both branches (A10) |
 | Aggregate | `lab/aggregate.py` | a `j2` block: per model its parts, its two (model, task) sets, its four arms with the comparators on the same records and the verdict word, the lifts, and `primary_result` (A5, A6, A8) |
 | Summary | `lab/summary.py` | the J2 lines of the plan summary and the three J2 sections of the report |
-| Notes | `lab/notes.py` | the fixed sentences, columns and headings (no ASCII digit) |
+| Notes | `lab/notes.py` | the fixed sentences, columns and headings (no ASCII digit in any of them: the lab guard `test_notes_hold_no_digits` holds, so no figure can ride in a fixed sentence) |
 | Template | `lab/templates/accuracy.json` | A001's settings, to copy to `lab/requests/accuracy-001.json` |
 
 New modules: `lab/j2.py` (the two tasks, the mapping, the arms, the lines and their views, the verdict word, the
@@ -183,7 +184,62 @@ build, each tested and neither changing an earlier experiment's result: `lab.pla
 line adds ` j2 yes` only for a plan with J2 units. `tests/lab/test_lab_sim.py`'s message for an empty `experiments`
 block gains `, j2` at its end (`j2` is appended to `request.EXPERIMENTS`, so every other message is unchanged).
 
+## Fixed after review
+
+The review of the build commit `689e138` found two blocking and five minor problems. `wf/a001-fix` fixes each with a
+test that fails without the fix, and changes nothing of the rule (a fix that would have changed it is recorded under
+Known limits instead):
+
+- **`lab.prereg.main` overrode a caller's keywords (blocking).** `main` passed `nhtsa_fetch=None`, `earlier_plans=None`
+  and `exclude_stand_in=None` to `preregister` whenever a flag was absent. J001's dry-run fixture
+  (`tests/lab/test_lab_j1.py`, `_J001`) stubs the NHTSA download with `functools.partial(preregister, nhtsa_fetch=...)`,
+  and a call-time keyword wins over a partial's, so the fixture downloaded NHTSA's file for real and failed in the
+  sandbox: `tests/lab` was red on `689e138` (four errors in `J001DryRunTests`, eight failures in J001's
+  `AggregateTests`, which share the fixture). `main` now builds an options dict and passes only the options its flags
+  set. `PreregTests.test_main_passes_only_the_options_given` records what `main` passes for each flag and that a
+  partial's `nhtsa_fetch` survives.
+- **A note with digits (blocking).** `J2_FRESHNESS_UNVERIFIED` ended "(CHOICE-A001, The data and the draw, as
+  amended)": the lab guard that no note holds an ASCII digit (`tests/lab/test_lab_guards.py`,
+  `test_notes_hold_no_digits`) failed, and this note's claim that the notes hold no digit was false. The note now ends
+  "(the accuracy test's rule, The data and the draw, as amended)", in `lab/notes.py` and in the two copies
+  `tests/lab/test_lab_docs.py` pins (`docs/lab/README.md`'s troubleshooting row and `docs/lab/REFERENCE.md`'s label
+  line).
+- **The pins test tested the last variant only (minor).** `prereg_with` wrote every variant to one path and the routing
+  helper to one path per model, and the cases were built before any ran, so every prereg case exercised the `kind`
+  variant and every routing case a same-endpoint escalation that `load_routing` itself refuses: the mapping pin and the
+  escalation check could be deleted unnoticed (the review's mutations M06 and M07). Each case now writes its own file
+  (the test asserts that no two share one), asserts the message of the pin that refused it, and the two escalation
+  cases route through a second endpoint of the preregistration (`fake-a` escalating to `fake-b`), a routing that
+  `load_routing` accepts, so only J2's check refuses it; the unchanged files then run, so the refusals were the pins'.
+- **Mechanism two alone was untested (minor).** The excluded set is the union of what the verifying mechanisms gave,
+  and nothing pinned the union: replacing it with mechanism one's refs (empty when the artifact is absent) passed every
+  test, which is the case A2 was written for. `PreregTests.test_mechanism_two_alone_excludes_the_rebuilt_draw` runs the
+  plan with an empty earlier-plans directory and the rebuild's prefix: `artifact absent` and `verified`, 150 excluded,
+  overlap 0, `excluded_runs[0].refs` 0, the draw disjoint from the rebuilt records and equal to the draw mechanism one
+  gives on the synthetic artifact.
+- **The bound on the arm's scored records was untested (minor).** The pass test's third clause reads the bound over
+  the records the arm scored (A6), but a bound over every record passed every test.
+  `AggregateTests.test_a_stop_in_the_second_pass_and_a_dropped_record` now drops a record whose removal moves the bound
+  and asserts the arm's `prior_bound` equals `lab.j1.prior_bound` over the 39 records it scored, that the pass test's
+  `bound` is that value, and that the untouched arm's and the block's bound are the every-record one.
+- **A part finished by its lines but not by its `run.json` (A6).** The review's mutation list showed one more gap: the
+  aggregate's reading of `complete_by_task` was unpinned. `AggregateTests.test_what_is_not_a_finished_part` now pins
+  that a part whose `run.json` says a task did not finish is not finished for it, however many lines it holds.
+- **Cycle 2's symmetric-difference stop (minor, forward-looking).** A fix would change A2, so nothing changes here;
+  the limit is recorded below.
+- **This note** records the suite figures on the fixed commit (Tests), corrects its pins sentence and its mutation
+  table (five rows the review found missed are now caught), and adds the cycle-2 limit.
+
 ## Known limits of the build
+
+- **Cycle 2 and the symmetric-difference stop.** In the next cycle the request's `exclude` file is
+  `prereg/j2/excluded.jsonl` (this cycle's chain: J001's 150 refs and this draw's 150) while mechanism two still rebuilds
+  J001's seed-1 draw (150 refs). When both verify, the good case (the file unchanged, the artifact present),
+  `lab.prereg._j2` computes the symmetric difference as A2 says, finds 150 and stops with `J2_EXCLUSION_DISAGREES`,
+  although A3 says mechanism two checks only "the chain's oldest link". The build follows A2 literally, which is right
+  for this cycle, where both sets are J001's 150. Cycle 2's CHOICE must amend A2 before its run (when the excluded file
+  is `prereg/j2/excluded.jsonl`, the check is that the rebuilt refs are a subset of the chain's, printing the count of
+  rebuilt refs missing from the chain and stopping above 0), and the build then branches on the file in `_j2`.
 
 - The download step's token is the workflow's `github.token` under `actions: read`; an artifact of another
   repository, or one past its retention, is an absent directory and `J2_FRESHNESS_UNVERIFIED` unless mechanism two
@@ -232,15 +288,19 @@ fake provider with `--j2-data`, and the template's dry run with `--j2-data`.
   chain file (190 refs), the labels record's `excluded_runs`, the manifest's block, the fixed console lines and no ref
   or operator name in anything printed or written beside the labels and questions files, the plan summary's J2 lines
   with every number traced to its file; neither mechanism verifying, both verifying and disagreeing (symmetric
-  difference 300), too few records, the stand-in recorded and agreeing, a stand-in that cannot be read.
+  difference 300), mechanism two alone (the artifact absent, the rebuild verified: 150 excluded, the draw disjoint from
+  the rebuilt records), too few records, the stand-in recorded and agreeing, a stand-in that cannot be read; `main`
+  passing `preregister` only the options its flags set, so a partial's `nhtsa_fetch` survives.
 - The runner through the fake server: two passes, task N first, the same payload, schema and `max_tokens`, N's
   instructions in the system text, both verdicts, the ledger's refs and boundary, `run.json`'s fields, the unit
   status and participation; a reply that differs by task (C and D read N's, A and B the shipped one; `unclear` is
   `unknown` under the shipped rule and `refute` under the mapping, the answer counts before and after M); a model
   failure and a transport failure in each pass, with one repair; a stop in the second pass (N complete, the shipped
   pass not, `ok` with `J2_SHIPPED_STOPPED`, the required task N alone) and in the first (`J1_STOPPED`); the server
-  staying down; twenty-two pins each refused before any call (both tasks' pins, the order, the mapping, the arms, both
-  routes, escalation, a J1 prereg); the unit adapter (argv, both routes, files, notes, participation of both tasks);
+  staying down; twenty-two pins each refused before any call with the message of the pin that refused it, every case
+  in its own file (both tasks' pins, the order, the mapping, the arms, both routes, escalation through a second endpoint
+  that `load_routing` accepts, a J1 prereg), and the unchanged files then running; the unit adapter (argv, both routes,
+  files, notes, participation of both tasks);
   the status reading's every pairing; the participation floor judging the shipped pass only when it finished.
 - The wiring: the fake provider answers both names alike in both branches and refuses an unknown one (A10); the
   warm-up lists both tasks, the shipped one first, with the same generated payloads (A11); the plan outputs name the
@@ -254,8 +314,10 @@ fake provider with `--j2-data`, and the template's dry run with `--j2-data`.
   table cells; twelve positives the lexical judge missed confirmed gives `partial`, and ten `unclear` negatives give
   the mapping's lift `helps` and the instruction's `hurts` with the answer counts before and after M; a tampered
   mapped verdict, a third task, a run of another preregistration and a duplicated line each leave the part unfinished
-  for both tasks and a model with one part left is a partial reading; a second-pass stop keeps task N's set complete
-  and the control's incomplete, a record dropped in task N withholds that set alone; no preregistration.
+  for both tasks, a part whose `run.json` says a task did not finish is not finished for it, and a model with one part
+  left is a partial reading; a second-pass stop keeps task N's set complete and the control's incomplete, a record
+  dropped in task N withholds that set alone and its bound is the one over the 39 records it scored; no
+  preregistration.
 - The template's dry run: 15 units in 15 shards, both mechanisms verified on the stand-in, every unit ok and
   plumbing, the report block (150 records, 300 questions, 5 parts, comparisons 12, P, every word `incomplete`), the
   summaries with every number traced and no ref of the 300 anywhere.
@@ -263,8 +325,13 @@ fake provider with `--j2-data`, and the template's dry run with `--j2-data`.
 On this build's tree before its commit, `python -m pytest tests/lab/test_lab_j2.py -q` passed its 54 tests (41 in 7 s
 without the dry runs; the small dry run and the aggregate's cases in 9 s; the template's dry run in 82 s), and
 `tests/lab/test_lab_docs.py`, `test_lab_workflow.py`, `test_lab_plan.py` and `test_lab_shipped.py` passed together
-(the workflow's self-test included). The whole `tests/lab` suite and the onboard and guard suites were started at the
-end of the session; the figures of those runs are not recorded here (see the session's hand-off).
+(the workflow's self-test included). The whole `tests/lab` suite was red on `689e138` (the review's run: 9 failed, 767
+passed, 4 errors, the J001 fixture's download and the digit guard, both fixed above). On the fix commit, before it:
+`PreregTests`, the pins test and `AggregateTests` passed together (16 tests, 30 subtests, 11 s); the guard
+`test_notes_hold_no_digits` passed; the eleven mutations of the Mutation check were each caught; the whole `tests/lab`
+suite was started in the background and had reached its J1 tests with no failure when the session had to answer, so
+its final figures, the onboard and guard suites and the template dry run on this commit are the caller's to record
+before merging (the session's hand-off says so).
 
 ## Mutation check
 
@@ -297,9 +364,18 @@ named tests failed under each (the whole file passed on the unmutated tree befor
 | 22 | the fake provider does not answer task N | `WiringTests`, `RunTests` |
 | 23 | the aggregate reads a set complete with a part missing | `AggregateTests` |
 | 24 | the aggregate accepts a (question, task) twice | `AggregateTests` |
+| 25 | a judge route's escalation to another endpoint accepted (the review's M06) | `RunTests` (the pins) |
+| 26 | the mapping pin not checked before the first call (M07); likewise the arms and the judge tasks | `RunTests` (the pins) |
+| 27 | the excluded set from mechanism one only, so a rebuild-only verification excludes nothing (M13) | `PreregTests` |
+| 28 | a part pooled for a task its `run.json` says did not finish (M16) | `AggregateTests` |
+| 29 | the bound over every record instead of the arm's scored records (M17) | `AggregateTests` |
 
-The check is `scratchpad/a001/mutate.py` of this session (not committed): twenty-four mutations, twenty-four caught,
-none missed.
+Rows 1 to 24 were checked at the build (`scratchpad/a001/mutate.py` of that session, not committed: twenty-four
+caught). The review ran its own list and found rows 25 to 29 missed by the tests of `689e138` (rows 2 and 7 passed by
+the pins test only because the `kind` variant stood in for every prereg case). After the fixes, `scratchpad/a001-fix
+/mutate.py` (not committed) applied eleven mutations to the working tree one at a time, restoring the file's bytes
+after each: rows 25 to 29, the two blocking fixes reverted, the arms and judge-tasks pins deleted, and rows 2 and 7
+again; eleven caught, none missed.
 
 ## The dry run
 

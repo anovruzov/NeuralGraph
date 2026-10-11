@@ -318,7 +318,8 @@ J2_STAND_IN = ("Plumbing: a test artifact stood in for the excluded run (lab.dry
                "exclusion checks here test the lab, not the excluded run.")
 J2_FRESHNESS_UNVERIFIED = ("neither freshness mechanism verified: the earlier run's plan artifact could not be read "
                            "as that run's, and the rebuilt seed-one draw does not hash to the pinned prefix; the plan "
-                           "job stops before any model runs (CHOICE-A001, The data and the draw, as amended)")
+                           "job stops before any model runs (the accuracy test's rule, The data and the draw, as "
+                           "amended)")
 J2_EXCLUSION_DISAGREES = ("both freshness mechanisms verified but their record sets differ; the plan job stops before "
                           "any model runs")
 J2_TOO_FEW_RECORDS = ("fewer eligible unexcluded records remain than the draw needs; no further fresh draw is "

@@ -538,7 +538,7 @@ stand-in use the others:
 - `J2_PRIMARY_LINE`: Primary pair {model} {arm}: {word}. It scored balanced accuracy {ba} [{lo}, {hi}]; gap to the target {target} is {gap}; lexical judge {lex} on the same records, paired difference {diff} [{dlo}, {dhi}]; predicate-only bound {bound}; unknown share {unknown}.
 - `J2_STAND_IN`: Plumbing: a test artifact stood in for the excluded run (lab.dryrun with test data), so the exclusion checks here test the lab, not the excluded run.
 - `J2_SHIPPED_STOPPED`: the judge run finished its first pass, the negation task, and stopped in its second, the shipped task, at its budget or after the server stayed down; the first pass's verdicts are complete and kept, and the shipped pass did not finish for this part
-- `J2_FRESHNESS_UNVERIFIED`: neither freshness mechanism verified: the earlier run's plan artifact could not be read as that run's, and the rebuilt seed-one draw does not hash to the pinned prefix; the plan job stops before any model runs (CHOICE-A001, The data and the draw, as amended)
+- `J2_FRESHNESS_UNVERIFIED`: neither freshness mechanism verified: the earlier run's plan artifact could not be read as that run's, and the rebuilt seed-one draw does not hash to the pinned prefix; the plan job stops before any model runs (the accuracy test's rule, The data and the draw, as amended)
 - `J2_EXCLUSION_DISAGREES`: both freshness mechanisms verified but their record sets differ; the plan job stops before any model runs
 - `J2_TOO_FEW_RECORDS`: fewer eligible unexcluded records remain than the draw needs; no further fresh draw is pre-registered
 
