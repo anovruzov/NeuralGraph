@@ -1,7 +1,8 @@
 # YC brief: what to show, what to offer, and what the evidence says today
 
-Date: 2026-10-09. For the founder. Every number has its source in this repository. It sells nothing the evidence does
-not carry: no customer or partner exists yet, and no real-data test has found an early warning beyond chance.
+Date: 2026-10-09, updated 2026-10-11. For the founder. Every number has its source in this repository. It sells
+nothing the evidence does not carry: no customer or partner exists yet, and no real-data test has found an early
+warning beyond chance.
 
 ## 1. The product, in one paragraph
 
@@ -24,7 +25,7 @@ cross-unit detection would have flagged those issues earlier than chance (`docs/
 | Packs: the same code in four fields with data-only configuration | Device complaints, insurance claims, IT incidents, vehicle complaints. The IT-incidents pack was added with 0 lines of code changed: 13 data files, loaded 11 minutes after the start (AI agent wall clock, same author as the code; internal, not a buyer claim). The vehicle pack was built by rule from public NHTSA data | `docs/collective/PACKS.md`, `docs/collective/x3/effort.json` |
 | Pack drafter: a pack drafted from any export (CSV, pipe, tab or JSON lines) by the same code for every field, learning its vocabulary from the export's own filed categories, with a privacy floor on what it learns | Built and tested; passed its pre-registered real-data test D002 on its second rule. D003 on FDA device reports failed: it beat every control (C1) but was not shown to beat the hand-built device pack (C2) | `mycelic/collective/onboard/`, `docs/collective/onboard/CHOICE-D002.md`, `CHOICE-D003.md` |
 | Signal audit (the pilot) with a chance baseline and a power check before any replay | Built and tested | `docs/collective/PILOT.md`, `docs/collective/POWER.md` |
-| Cloud lab: pre-registered runs of small models on shared CPU runners | Nine runs recorded | `docs/lab/RESULTS.md` |
+| Cloud lab: pre-registered runs of small models on shared CPU runners | Ten runs recorded | `docs/lab/RESULTS.md` |
 | Routing layer: per-site NeuralGraph and Tesseract behind the Boundary, routing HQ's questions | Research spike, not in the product path | `docs/collective/ROUTING-SPIKE.md` |
 
 ## 3. What the evidence says
@@ -35,6 +36,7 @@ cross-unit detection would have flagged those issues earlier than chance (`docs/
 | Does raw text stay inside a unit? | Yes, in the canary scan with a small model reading every record: 0 of 4,259 planted markers crossed; the positive control was hit 884 times. Text only: the counts themselves can reveal whether a known complaint is at a site | RESULTS run 8; `docs/collective/LEAKAGE.md` |
 | Do small models read real complaints better than a word list? | No. On 150 public vehicle complaints, predicate F1 was 0.03, 0.18 and 0.22 for the three models, against 0.43 for word matching | RESULTS run 7; `CHOICE-R002.md` |
 | Can small models answer HQ's narrow question at a site (does this complaint describe this component)? | No. On the same 150 complaints, balanced accuracy 0.50, 0.48 and 0.39 against 0.67 for the word-matching judge; 0.5 is a judge that always answers the same. The two smaller models say yes to nearly everything; the largest tells filed from unfiled components but answers "unclear" instead of "no" | RESULTS run 9; `CHOICE-J001.md` |
+| Can small models answer HQ's narrow question through the whole path on real records (alert, each mine's verifier, the gate)? | No. On one mine operator's public MSHA accident records, with the filed categories hidden, balanced accuracy 0.500, 0.417 and 0.417 against 0.641 for the word-matching judge and 0.808 for a baseline that reads no record and follows HQ's routing. No model refuted anything (specificity 0.000), and the smallest model's gate opened "supported" on every question, two of which the key rated hypothesis | RESULTS run 10; `docs/collective/L001/CHOICE-L001.md` |
 | On synthetic worlds built to reward reading, do they help? | Partly: the two larger models found 9 and 10 of 20 planted patterns, the codes alone 5, word matching 19 | RESULTS run 5 |
 | On public data, does cross-unit counting warn earlier than chance? | No, in five replays over two fields. With the baseline corrected for complaints that react to recalls, the finds sit at chance (recalls 14 against 16.4 expected; investigations 6 against 5.6) | `docs/collective/replay/vehicles/DIAG-E002.md`; `docs/strategy/MARKET.md` 5.1 |
 | Could the detectors have seen a signal of that size at all? | No. At the replays' settings they found 0 of 30 planted ramps. A pooled national channel caught 36 of 60 planted sextuplings, against 8 to 10 for state-split channels | `docs/collective/POWER.md` |
@@ -49,7 +51,9 @@ What this means for the pitch:
 - **Detection value is unproven**, and public data cannot prove it: it is too thin for these detectors. Only a
   company's own records can answer the question. That is why the first product is the audit.
 - **Small models are the privacy and cost choice, not yet the accuracy choice.** On public complaint text they read
-  worse than a word list, and they answer HQ's narrow question worse than a word list too. What they must earn on a partner's own text is a measured question, not a claim.
+  worse than a word list, and they answer HQ's narrow question no better than a word list too, at a site and through
+  the whole path on mine accident records (two of three worse, the smallest not told apart), where none of them
+  refuted anything. What they must earn on a partner's own text is a measured question, not a claim.
 
 ## 4. Small models: what is measured
 
@@ -59,6 +63,12 @@ What this means for the pitch:
 - **A narrow yes-or-no question is short work:** median 1.0 to 1.5 s a call for a-0p5b, 1.4 to 3.2 s for a-1p5b and
   6.0 to 9.0 s for a-4b on the same runners (RESULTS run 9). Fast enough to answer HQ within minutes; not yet accurate
   enough to be worth it on public text.
+- **Alert to answer, the whole path, is measured once:** HQ's question to the gate's decision on the demo's MSHA
+  alert, 9 mines and 36 records, each mine asked in turn with one model server on a shared 4-vCPU runner: 22.7 s
+  for a-0p5b, 35.8 s for a-1p5b and 143.1 s for a-4b (the a-1p5b shard ran on a different CPU model from the other
+  two). Derived, not run: asking every mine at once would take 5.3, 9.2 and 34.6 s. The no-model path took 0.04 s.
+  Runner hardware; no transport between machines was timed; and the answers were no better than the word list
+  (RESULTS run 10).
 - **Retrieval is fast:** Tesseract answers a query in about 0.24 s over a 419-message conversation
   (`docs/BENCHMARKS.md`), and a site ranked its records for a routed question in a median 0.46 s in the spike's first run, four worlds at once.
 - **No GPU and no egress of text:** every number above ran on CPU, with the model file verified by hash.
