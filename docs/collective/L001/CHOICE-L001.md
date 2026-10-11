@@ -1013,3 +1013,168 @@ same file and counted where its values meet lab text. It printed no value.
 **Reading.** The run gave no measurement. It is recorded here and is not counted as a result of the test. It did not
 fail for an infrastructure reason: an unchanged re-run would stop at the same line. K14 changes the guard, and the
 first run under K14 is the result.
+
+### Run 2: latency-002, 2026-10-11 (the result)
+
+[Run 38102412415](https://github.com/anovruzov/NeuralGraph/actions/runs/38102412415), request
+`lab/requests/latency-002.json` (sha `c0757276beab`), pushed as `abbf2e4`, which started the run at 01:36 UTC on
+2026-10-11; the aggregate job finished at 01:44 UTC. It is the first run under K14, so by rule 13 and K14 it is the
+result of the test. Every figure below is copied from the aggregate job's `report.md`; none is rounded.
+
+- **What ran.** The plan job (job 114360892773) wrote the plan (`a475391c94fb`) and ran the l1 preregistration
+  (`prereg: e1 no x1 no e2 no j1 no l1 yes`). The K14 line printed
+  `l1 guard: values in the plan's own text, left out: record_id 0 mine_id 0 refused_value 1`: the one value K14
+  expected, no record id and no mine id. The guard over the plan directory then printed
+  `l1 guard: lab-plan files 9 withheld 0 …`, and the run went on to the provision, run and aggregate jobs. Every
+  shard's guard printed the same count left out (`refused_value 1`) and `withheld 0`, and so did the aggregate job's
+  (job 114362048048). Its `report.md` (146 lines, sha256 `e8b3960786ca…`, checked against the marker) is the only
+  source of the figures below. Before the run, the probe re-run under K14 on the real file (run 38102272696) left out
+  exactly 1 refused value (a contractor id of 4 characters) and found 0 hits in `plan.json`, in J001's 234 run files,
+  in the lab's code and docs, and in run 1's plan artifact.
+- **All 15 units finished.** 3 models x 5 slots, one unit per shard; every shard `sealed` at attempt 1 with exit code
+  0, every unit status `ok`, class `model`. Shard wall times 25.7 to 199.4 s; unit wall times 23.4 to 173.1 s. No
+  call failed, no question was contended or left unfinished, and no mine timed out (the longest question took
+  146.125 s against the 3,600 s deadline per mine). Provisioning verified the server and the three model files from
+  the cache against the lock (`2cda5ff93639`, `74a4da8c9fdb`, `6a1a2eb6d156`, `7485fe6f11af`); the lock is unchanged.
+- **The preregistration matched run 1's** in every figure, as K14 expected: the same alert, the same five slots with
+  the same routes and retrieved records, and the same figures for the key, the lexical judge, the route-role baseline
+  and the record-blind control. Quoted from the report:
+  - MSHA file sha `62d0c861a5c3`, the demo's file: yes. Operator c1. Records 1033, mines 10, weeks 139.
+  - Alert: channel X, 2023-W51, `slip_or_fall_of_person`.
+
+  | Slot | Kind | Predicate | Contributing mines | Codes contributors | Text-only contributors | Siblings | Records retrieved | Key's gate status |
+  |---|---|---|---|---|---|---|---|---|
+  | 1 | alert | `slip_or_fall_of_person` | 9 | 6 | 3 | 0 | 36 | contested |
+  | 2 | control | `handling_of_materials` | 7 | 6 | 1 | 2 | 36 | contested |
+  | 3 | control | `handtools_nonpowered` | 1 | 1 | 0 | 2 | 19 | hypothesis |
+  | 4 | control | `machinery` | 2 | 2 | 0 | 2 | 25 | hypothesis |
+  | 5 | control | `powered_haulage` | 4 | 3 | 1 | 2 | 29 | contested |
+
+  | Judge | Balanced accuracy [interval] | Sensitivity | Specificity | Unknown share |
+  |---|---|---|---|---|
+  | lexical | 0.641 [0.403, 0.840] | 0.667 | 0.615 | 0.000 |
+  | route_role | 0.808 [0.667, 0.938] | 1.000 | 0.615 | 0.000 |
+  | record_blind | 0.551 [0.379, 0.714] | 0.333 | 0.769 | 0.000 |
+  | key | 1.000 [1.000, 1.000] | 1.000 | 1.000 | 0.000 |
+
+  Predicate-only bound 0.603. Empty draws share 0.000. Constant status agreement 3 of 5.
+
+**The results, read by the rule as amended.** Each model finished 5 of 5 questions, and 0 of its 31 scored site
+answers were left out, so each gets a headline (K3, rule 7, rule 9). Both paired differences come from the same
+bootstrap draws over mines (rule 8).
+
+| Model | Balanced accuracy [interval] | Minus the lexical judge [interval] | Minus the route-role baseline [interval] | Headline (K3) |
+|---|---|---|---|---|
+| a-0p5b | 0.500 [0.500, 0.500] | -0.141 [-0.340, 0.097] | -0.308 [-0.438, -0.167] | **not told apart** |
+| a-1p5b | 0.417 [0.333, 0.500] | -0.224 [-0.436, -0.007] | -0.391 [-0.533, -0.256] | **worse** |
+| a-4b | 0.417 [0.333, 0.500] | -0.224 [-0.436, -0.007] | -0.391 [-0.533, -0.256] | **worse** |
+
+- **a-0p5b: not told apart.** The lower end of its interval against the lexical judge is below 0, so it does not
+  answer better; the upper end is above 0, so by K3 it is not "worse" either. Its interval against the route-role
+  baseline lies wholly below 0, which K3 does not name and which decides nothing. No model is "better than the
+  lexical judge only".
+- **a-1p5b and a-4b: worse.** The upper end of each interval against the lexical judge is below 0 (-0.007). Both
+  intervals against the route-role baseline also lie below 0.
+
+| Judge | Balanced accuracy [interval] | Sensitivity | Specificity | Unknown share | Site answers left out |
+|---|---|---|---|---|---|
+| lexical | 0.641 [0.403, 0.840] | 0.667 | 0.615 | 0.000 | |
+| route_role | 0.808 [0.667, 0.938] | 1.000 | 0.615 | 0.000 | |
+| record_blind | 0.551 [0.379, 0.714] | 0.333 | 0.769 | 0.000 | |
+| a-0p5b | 0.500 [0.500, 0.500] | 1.000 | 0.000 | 0.000 | 0 of 31 |
+| a-1p5b | 0.417 [0.333, 0.500] | 0.833 | 0.000 | 0.161 | 0 of 31 |
+| a-4b | 0.417 [0.333, 0.500] | 0.833 | 0.000 | 0.323 | 0 of 31 |
+
+- **Specificity 0.000 for every model:** none refuted at any mine where the key refuted. a-0p5b confirmed at every
+  scored mine (sensitivity 1.000, unknown share 0.000): 0.5 is a judge that gives the same answer everywhere ("How it
+  is read"). a-1p5b and a-4b confirmed at fewer of the key's confirms (0.833) and answered `unknown` at 0.161 and
+  0.323 of the scored site answers, which is never correct (rule 7), so they sit below 0.5.
+- **The gate (K8).** Gate decisions equal to the key's: a-0p5b 0 of 5, a-1p5b 1 of 5, a-4b 2 of 5. A constant
+  status, the key's most frequent (`contested`), agrees on 3 of 5. No model matches the key as often as a constant
+  status, so none shows anything by it. The statuses, by slot (the gate's first decision; no mine timed out, so no
+  late verdict followed):
+
+| Slot | Kind | Predicate | Key's gate status | a-0p5b | a-1p5b | a-4b |
+|---|---|---|---|---|---|---|
+| 1 | alert | `slip_or_fall_of_person` | contested | supported | hypothesis | hypothesis |
+| 2 | control | `handling_of_materials` | contested | supported | supported | hypothesis |
+| 3 | control | `handtools_nonpowered` | hypothesis | supported | hypothesis | hypothesis |
+| 4 | control | `machinery` | hypothesis | supported | stale | hypothesis |
+| 5 | control | `powered_haulage` | contested | supported | hypothesis | hypothesis |
+
+  a-0p5b's gate opened `supported` on all five questions, including the two (slots 3 and 4) where the key's status
+  was `hypothesis`. a-4b's gate said `hypothesis` on all five, which matches the key exactly where the key said
+  `hypothesis`. a-1p5b's gate said `supported` once, `stale` once and `hypothesis` three times.
+
+**The latency, a measurement (rule 6, rule 9: it passes or fails nothing).** Times are seconds on one shared
+GitHub-hosted runner per shard, with one model server serving every mine in turn, the mines asked one after another in
+HQ's own process; the question build, each mine and the gate are timed apart; the "at once" and "default deadline"
+times are derived, not run; "no model" is the lexical path on the same runner. The shards ran on three CPU models
+(AMD EPYC 7763, AMD EPYC 9V45, AMD EPYC 9V74), and the alert question's three shards were not all on the same one, so
+compare timings only between rows of the same CPU model.
+
+| Model | The alert (slot 1): runner CPU | Time to answer s | At once s, derived | Default deadline s, derived | No model s | Question build s | Gate s | Mine median s | Mine 95th percentile s | Judge call median s | Judge call 95th percentile s | Model calls |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| a-0p5b | AMD EPYC 7763 | 22.668 | 5.298 | 22.668 | 0.039 | 0.002 | 0.003 | 2.237 | 4.866 | 0.621 | 0.870 | 36 |
+| a-1p5b | AMD EPYC 9V74 | 35.774 | 9.162 | 35.774 | 0.036 | 0.002 | 0.002 | 3.491 | 7.969 | 0.936 | 1.379 | 36 |
+| a-4b | AMD EPYC 7763 | 143.058 | 34.633 | 143.058 | 0.039 | 0.002 | 0.003 | 14.334 | 31.167 | 3.792 | 5.306 | 36 |
+
+| Model | All five questions | Time to answer median s | Time to answer 95th percentile s | Mine median s | Mine 95th percentile s | Judge call median s | Judge call 95th percentile s | Model calls, median | Contended questions | Questions not finished |
+|---|---|---|---|---|---|---|---|---|---|---|
+| a-0p5b | 5 | 15.406 | 22.710 | 2.247 | 5.293 | 0.523 | 0.870 | 29.0 | 0 | 0 |
+| a-1p5b | 5 | 28.111 | 43.892 | 4.678 | 10.165 | 1.041 | 1.763 | 29.0 | 0 | 0 |
+| a-4b | 5 | 119.476 | 145.512 | 14.664 | 34.695 | 3.518 | 5.484 | 29.0 | 0 | 0 |
+
+| Model | Slot | Gate status, first decision | Key's gate status | Time to answer s | At once s | Default deadline s | No model s | Runner CPU |
+|---|---|---|---|---|---|---|---|---|
+| a-0p5b | 1 | supported | contested | 22.668 | 5.298 | 22.668 | 0.039 | AMD EPYC 7763 |
+| a-0p5b | 2 | supported | contested | 22.721 | 5.297 | 22.721 | 0.042 | AMD EPYC 7763 |
+| a-0p5b | 3 | supported | hypothesis | 10.940 | 5.104 | 10.940 | 0.016 | AMD EPYC 9V74 |
+| a-0p5b | 4 | supported | hypothesis | 15.406 | 5.339 | 15.406 | 0.022 | AMD EPYC 7763 |
+| a-0p5b | 5 | supported | contested | 9.362 | 2.856 | 9.362 | 0.016 | AMD EPYC 9V45 |
+| a-1p5b | 1 | hypothesis | contested | 35.774 | 9.162 | 35.774 | 0.036 | AMD EPYC 9V74 |
+| a-1p5b | 2 | supported | contested | 45.922 | 10.639 | 45.922 | 0.038 | AMD EPYC 7763 |
+| a-1p5b | 3 | hypothesis | hypothesis | 24.315 | 11.030 | 24.315 | 0.018 | AMD EPYC 7763 |
+| a-1p5b | 4 | stale | hypothesis | 28.111 | 9.713 | 28.111 | 0.018 | AMD EPYC 9V74 |
+| a-1p5b | 5 | hypothesis | contested | 27.955 | 8.002 | 27.955 | 0.021 | AMD EPYC 9V74 |
+| a-4b | 1 | hypothesis | contested | 143.058 | 34.633 | 143.058 | 0.039 | AMD EPYC 7763 |
+| a-4b | 2 | hypothesis | contested | 146.125 | 34.766 | 146.125 | 0.038 | AMD EPYC 7763 |
+| a-4b | 3 | hypothesis | hypothesis | 34.539 | 16.617 | 34.539 | 0.010 | AMD EPYC 9V45 |
+| a-4b | 4 | hypothesis | hypothesis | 95.484 | 33.311 | 95.484 | 0.020 | AMD EPYC 7763 |
+| a-4b | 5 | hypothesis | contested | 119.476 | 35.364 | 119.476 | 0.027 | AMD EPYC 7763 |
+
+- **The alert, one mine after another:** 22.668 s with a-0p5b, 35.774 s with a-1p5b and 143.058 s with a-4b, for 9
+  mines and 36 model calls. a-1p5b's alert shard ran on an AMD EPYC 9V74 and the other two on an AMD EPYC 7763, so
+  the three are not one comparison. The question build (0.002 s) and the gate (0.002 to 0.003 s) are not where the
+  time goes; the mines are, and within a mine the judge calls: medians 0.621, 0.936 and 3.792 s a call on the alert.
+- **Derived, deciding nothing.** Had every mine been asked at once, each with a server like this runner's, the
+  alert would have taken 5.298, 9.162 and 34.633 s. Under the product's default deadline of 600 s nothing changes:
+  no mine came near it, so the default-deadline time equals the time to answer on every row. The lexical path with
+  no model answered the alert in 0.039, 0.036 and 0.039 s on the same runners (0.010 to 0.042 s over all 15 rows).
+- **The five questions together:** median time to answer 15.406, 28.111 and 119.476 s; 95th percentile 22.710,
+  43.892 and 145.512 s; median 29 model calls a question (the slots retrieved 36, 36, 19, 25 and 29 records). The
+  control questions' spread is one window's questions, not alerts ("How it is read").
+- 0 contended questions and 0 questions not finished for every model, so no time is a lower bound and no time is
+  shown apart (K6, rule 11).
+
+**What it does not show** ("What it does not show", as amended). One alert of one operator on one public file, so
+nothing about other alerts, companies or fields. Shared GitHub-hosted runners whose CPU model varied between shards,
+so nothing about a site's hardware. The codes were hidden from every judge but the key, and HQ's `codes`-channel cells
+already held the answer (K2), so nothing about whether HQ gained an answer it lacked, and nothing about a judge that
+sees the codes. No transport between machines, no detection and no model loading was timed. No outcome exists, so
+nothing about whether the alert was right, early or useful; this is not an early-warning result. The "at once" and
+"default deadline" times were derived, not run.
+
+**Verdict.** The test's pre-registered question, whether a small-model verifier inside each mine answers HQ's narrow
+question better than the lexical judge and better than HQ's routes, is answered **no** for all three models: a-0p5b
+is not told apart from the lexical judge and a-1p5b and a-4b answer worse, and every interval against the route-role
+baseline, a reader of HQ's routes that reads no record, lies below 0. Specificity 0.000 means none of the three
+refuted anything: where the key refuted, every model confirmed or answered `unknown`. a-0p5b's gate opened
+`supported` on every one of the five questions, including the two the key rated `hypothesis`. The latency is
+recorded as a measurement: the alert was answered in 22.668 to 143.058 s one mine after another on these shared
+runners, with the lexical path at 0.036 to 0.039 s.
+
+**The budget.** "Why the units are this size" budgeted up to 1,033 model calls a question, c1's whole held-out set,
+and gave each unit 300 minutes. The plan job counted 36 records for the alert question and 19 to 36 for the controls,
+so each question made at most 36 calls, and the shards finished in minutes: 25.7 to 199.4 s of wall time each, the
+units 23.4 to 173.1 s.

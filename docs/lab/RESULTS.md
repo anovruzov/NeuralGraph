@@ -2,11 +2,11 @@
 
 Every number below is copied from a lab report printed in a GitHub Actions job log (between
 `=== MYCELIC-LAB … BEGIN/END ===` markers), from a shard's own summary or, for the vehicle replay, from its audit
-printed between `VEHICLE-AUDIT` markers. Each row names its run. **Synthetic data, except runs 3, 4, 6, 7 and 9
-and the vehicle replay**: their records are public FDA reports and NHTSA complaints; every other record and narrative was
-generated from a seed. **Runner hardware only**: one shared 4-vCPU GitHub-hosted runner per shard, whose CPU model
-varies between shards; compare timings only between rows of the same CPU model, and never read them as site hardware.
-A unit without a result is listed with its reason, not left out.
+printed between `VEHICLE-AUDIT` markers. Each row names its run. **Synthetic data, except runs 3, 4, 6, 7, 9 and 10
+and the vehicle replay**: their records are public FDA reports, NHTSA complaints and MSHA accident records; every other
+record and narrative was generated from a seed. **Runner hardware only**: one shared 4-vCPU GitHub-hosted runner per
+shard, whose CPU model varies between shards; compare timings only between rows of the same CPU model, and never read
+them as site hardware. A unit without a result is listed with its reason, not left out.
 
 ## Run 1: check-001 (pins and first timings)
 
@@ -337,6 +337,73 @@ verdict rule turns unclear into `unknown`, which is never correct. A reading cho
 refute) would put a-4b at 0.700; it decides nothing (`CHOICE-J001.md`, Runs). The lexical judge's sensitivity and
 specificity come from its answer counts (57 of 150 positives confirmed, 6 of 150 negatives). Judge calls are short:
 the slowest model's median was 9.0 s, against 25.8 s for an extraction call in run 7.
+
+## Run 10: latency-002 (whole path, real mine accident records): none beats word matching or refutes; alert 23 to 143 s
+
+Small models answer HQ's narrow question through the whole product path (the alert, each mine's verifier, the commit
+gate) on real mine accident records: every model scored below the word-matching judge (by the rule, two worse and one
+not told apart), none refuted anything, and the alert was answered in 23 to 143 s one mine after another (22.668 to
+143.058 s). [Run 38102412415](https://github.com/anovruzov/NeuralGraph/actions/runs/38102412415), request
+`lab/requests/latency-002.json` (sha `c0757276beab`), commit `abbf2e4`, 2026-10-11 01:36 to 01:44 UTC; rule
+`docs/collective/L001/CHOICE-L001.md`, committed in `0fa028d`, amended before any run (K1 to K13, `9f505e7`) and once
+more after run 1 and before any model ran (K14, `161cb4f`). Report from the `aggregate` job (114362048048):
+`report.md` sha256 `e8b3960786ca…`, matching. Run 1 (latency-001,
+[38090725021](https://github.com/anovruzov/NeuralGraph/actions/runs/38090725021)) stopped at the plan job's guard
+before any model ran; it is recorded in the rule's Runs and is not a result. Under K14 the guard leaves out of its
+value sets the values the plan's own text holds, and the probe re-run on the real file
+([38102272696](https://github.com/anovruzov/NeuralGraph/actions/runs/38102272696)) left out exactly 1 refused value (a
+contractor id of 4 characters, the one run 1's probe traced to a shard label) and found 0 hits in `plan.json`, in
+J001's 234 run files, in the lab's code and docs and in run 1's plan artifact; run 2's guards left out the same 1 value
+and withheld 0 files.
+
+Public data: one mine operator's (c1's) MSHA accident records, the drafter demo's file (sha `62d0c861a5c3`; 1,033
+records, 10 mines, 139 weeks), read inside each mine with the filed categories hidden and scored against them. The
+path is the product's: HQ forms the narrow question from the demo's one alert (channel X, 2023-W51,
+`slip_or_fall_of_person`) and from four control predicates (`handling_of_materials`, `handtools_nonpowered`,
+`machinery`, `powered_haulage`), routes each to its contributing mines and at most two siblings (9, 7, 1, 2 and 4
+contributing mines; 36, 36, 19, 25 and 29 records retrieved), each routed mine's verifier judges its own records with
+the model, one mine after another on one shared server, and the commit gate decides. One unit per model and question
+slot: 15 units in 15 shards, all 15 `ok`, no call failed, no mine timed out, no question contended or unfinished. The
+lexical judge (the verifier's judge when no model runs), the route-role baseline (confirms where HQ routed a mine as
+contributing and refutes at a sibling, reading no record), the record-blind control and the key judge ran in the plan
+job before any model, and their figures matched run 1's preregistration. Each model is scored on 31 site answers, 0
+left out; the predicate-only bound is 0.603.
+
+| Judge | Balanced accuracy [95% interval] | Minus the lexical judge [interval] | Minus the route-role baseline [interval] | Headline | Sensitivity | Specificity | Unknown share | Gate decisions equal to the key's, of 5 |
+|---|---|---|---|---|---|---|---|---|
+| Lexical judge | 0.641 [0.403, 0.840] | | | | 0.667 | 0.615 | 0.000 | |
+| Route-role baseline (reads no record) | 0.808 [0.667, 0.938] | | | | 1.000 | 0.615 | 0.000 | |
+| Record-blind control (decides nothing) | 0.551 [0.379, 0.714] | | | | 0.333 | 0.769 | 0.000 | |
+| a-0p5b | 0.500 [0.500, 0.500] | -0.141 [-0.340, 0.097] | -0.308 [-0.438, -0.167] | not told apart | 1.000 | 0.000 | 0.000 | 0 |
+| a-1p5b | 0.417 [0.333, 0.500] | -0.224 [-0.436, -0.007] | -0.391 [-0.533, -0.256] | worse | 0.833 | 0.000 | 0.161 | 1 |
+| a-4b | 0.417 [0.333, 0.500] | -0.224 [-0.436, -0.007] | -0.391 [-0.533, -0.256] | worse | 0.833 | 0.000 | 0.323 | 2 |
+
+A constant gate status (the key's most frequent, `contested`) agrees with the key on 3 of 5 questions, more than any
+model. By slot, the key's statuses were contested, contested, hypothesis, hypothesis, contested; a-0p5b's gate said
+`supported` on all five, a-1p5b's hypothesis, supported, hypothesis, stale, hypothesis, and a-4b's `hypothesis` on
+all five.
+
+**Latency (a measurement, not a test; one shared runner per shard, one model server serving the mines in turn, no
+transport between machines timed):**
+
+| Model | Alert: time to answer s, one mine after another (runner CPU) | Alert: at once s, derived | Alert: no model s | Alert: judge call median s | Alert: model calls | All 5 questions: time to answer median / 95th percentile s | All 5: judge call median s |
+|---|---|---|---|---|---|---|---|
+| a-0p5b | 22.668 (AMD EPYC 7763) | 5.298 | 0.039 | 0.621 | 36 | 15.406 / 22.710 | 0.523 |
+| a-1p5b | 35.774 (AMD EPYC 9V74) | 9.162 | 0.036 | 0.936 | 36 | 28.111 / 43.892 | 1.041 |
+| a-4b | 143.058 (AMD EPYC 7763) | 34.633 | 0.039 | 3.792 | 36 | 119.476 / 145.512 | 3.518 |
+
+**By the pre-registered rule (K3), no model answers better than the lexical judge and HQ's routes:** a-0p5b is not
+told apart from the lexical judge (its interval against it spans zero), a-1p5b and a-4b answer worse (upper ends
+-0.007), and every model's interval against the route-role baseline, which reads no record, lies below zero. No model
+refuted anything: specificity 0.000 for all three. a-0p5b confirmed at every scored mine, so it sits at 0.5, the score
+of a judge that answers the same way everywhere, and its gate opened `supported` on every question, including the two
+the key rated `hypothesis`. a-1p5b and a-4b answered `unknown` at 0.161 and 0.323 of the scored site answers, which is
+never correct, so they sit below 0.5. The alert's answer took 22.668 to 143.058 s one mine after another against
+0.036 to 0.039 s for the lexical path; the question build (0.002 s) and the gate (0.002 to 0.003 s) are not where the
+time goes, the judge calls are. The at-once times are derived, not run; the a-1p5b alert shard ran on a different CPU
+model from the other two, so the three alert times are not one comparison. The rule budgeted up to 1,033 calls a
+question; the alert made 36, and every shard finished within 199.4 s of wall time. One alert, one operator, codes
+hidden, runner hardware, no outcome: nothing here measures early warning.
 
 ## Outside the lab: D001 and D002 (a pack drafted from an export alone, real data): passed on the second rule
 
