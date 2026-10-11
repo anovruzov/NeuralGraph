@@ -2,10 +2,11 @@ name: mycelic
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/mycelic-production-deployment-r93cez]
     paths: ["mycelic/**", "tests/**", "deploy/mycelic/**", "NeuralGraph/**", "requirements*.txt", ".github/workflows/mycelic.yml",
-            "demo/onboard/**", "tools/onboard/**"]
+            "demo/onboard/**", "tools/onboard/**", "research/**", "lab/**", ".github/workflows/**"]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   tests:
@@ -32,6 +33,8 @@ jobs:
       - run: python -m pytest tests/mycelic -q -p no:warnings
       - name: the drafter demo and the MSHA split, offline (synthetic exports in MSHA's layout)
         run: python -m pytest tests/onboard -q -p no:warnings
+      - name: the routing spike (Tesseract site processes, HQ, in-process fabric; synthetic world, no broker needed)
+        run: python -m pytest tests/routing_spike -q -p no:cacheprovider
       - name: production smoke test (process driver, 6 agents)
         run: python tests/smoke/mycelic_smoke.py --driver process --report smoke-process.json
       - uses: actions/upload-artifact@v4
