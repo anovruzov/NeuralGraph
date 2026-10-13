@@ -819,12 +819,129 @@ the plan summary printed it (counts and hashes); and, per (model, task) set, the
 
 ## Runs
 
-None yet. The entry for the first run will hold: the lab run id and its times (UTC), the request file and its
-sha256 prefix, the commit, the aggregate job id and the report's sha256 prefix with "matching"; the plan job's fixed
-line (`available`, excluded 150, eligible after exclusion, overlap 0, the mechanisms that verified, the labels' sha256
-prefix) and the complaint file's sha256 prefix; the comparators on the fresh draw; one table over the 12 (model, arm)
-pairs with balanced accuracy and its interval, sensitivity, specificity, the unknown share, the paired difference to
-the lexical judge with its interval, the bound on the same records and the pass-test word; the verdict on P by rule
-10, written plainly with the gap to 0.860; the three per-model headlines; the lifts of rule 8 with intervals; arm A
-beside J001 run 9; the running comparison count (12); anything that stopped before a model ran; and the sentence
-that the result is on public text the models may have seen in training.
+### Run 1 (lab run 38114522160, 2026-10-11)
+
+**The run.** Lab run [38114522160](https://github.com/anovruzov/NeuralGraph/actions/runs/38114522160) (workflow
+`mycelic-lab`), created 05:21:31 UTC, completed `success` at 05:48:06 UTC. Request `lab/requests/accuracy-001.json`,
+sha256 `b623ec781075…`, pushed alone as commit `3361910` at 05:21:29 UTC; the rule is `90d2084`, amended `146431c`,
+both before the run. Plan job 114396657335 (05:21:34 to 05:22:18, success). Fifteen shards, `s001-a-0p5b` to
+`s015-a-4b`, all `sealed` with exit code 0, started at 05:23:00 and 05:23:01; the last finished at 05:46:28. Aggregate
+job 114400537232 (05:46:30 to 05:48:05, success); its log prints `report/report.md` between the `MYCELIC-LAB` markers
+as 155 lines with sha256 `cfd7749b3719…`, matching (recomputed from the log's lines with the timestamp prefix
+stripped, as `lab/summary.py` computes it). Every figure below is copied from that block or from the plan job's log.
+
+**The plan job's fixed line**, printed before any model ran: `available` 58319; excluded 150; eligible after
+exclusion 58169; overlap with the excluded set 0; mechanisms `artifact=verified` `rebuild=verified` (the job's own
+words: "both mechanisms verified; symmetric difference 0"); labels sha256 `623780b8a1de…` (150 records, seed 2);
+questions sha256 `2ba18ea89bb7…` (300 questions in 5 parts); prereg sha256 `fb8f06442693…`; excluded refs file
+(`prereg/j2/excluded.jsonl`, A3) sha256 `9a948cbf2cd9…`; complaint file sha256 `a5a5de2d31f3…`. The rebuilt seed-1
+draw verified against `bc6d092d8bca…` (the console printed the mechanism's state, not a separate prefix). Excluded
+runs, as the plan summary printed them: J001, run 37996675559, artifact `lab-plan-37996675559-1`, 150 records. Every
+(model, task) set finished 5 of 5 parts for both tasks, and `records left out` is 0 in every arm.
+
+**The comparators on the fresh draw** (plan job, the same 150 records and 300 questions):
+
+| Comparator | Balanced accuracy [95% interval] | Sensitivity | Specificity |
+|---|---|---|---|
+| Lexical judge | 0.663 [0.627, 0.703] | 0.333 | 0.993 |
+| Record-blind control (decides nothing) | 0.520 [0.463, 0.577] | | |
+| Predicate-only bound (a fitted point value, decides nothing) | 0.577 | | |
+
+**The 12 (model, arm) pairs** on the same records (cluster bootstrap over records, B 10,000; the paired difference is
+the arm minus the lexical judge, record by record; the pass test is rule 10's, the verdict word rule 10's in A5's
+order; P in bold):
+
+| Model | Arm | Balanced accuracy [95% interval] | Sensitivity | Specificity | Unknown share | Minus the lexical judge [interval] | Bound on the same records | Pass test | Verdict word |
+|---|---|---|---|---|---|---|---|---|---|
+| a-0p5b | A `shipped` | 0.493 [0.480, 0.507] | 0.933 | 0.053 | 0.000 | -0.170 [-0.210, -0.133] | 0.577 | no | `failure` |
+| a-0p5b | B `shipped_mapped` | 0.493 [0.480, 0.507] | 0.933 | 0.053 | 0.000 | -0.170 [-0.210, -0.133] | 0.577 | no | `failure` |
+| a-0p5b | C `negation` | 0.483 [0.447, 0.520] | 0.553 | 0.413 | 0.000 | -0.180 [-0.233, -0.127] | 0.577 | no | `failure` |
+| a-0p5b | D `negation_mapped` | 0.483 [0.447, 0.520] | 0.553 | 0.413 | 0.000 | -0.180 [-0.233, -0.127] | 0.577 | no | `failure` |
+| a-1p5b | A `shipped` | 0.467 [0.440, 0.493] | 0.880 | 0.053 | 0.073 | -0.197 [-0.243, -0.150] | 0.577 | no | `failure` |
+| a-1p5b | B `shipped_mapped` | 0.467 [0.440, 0.493] | 0.880 | 0.053 | 0.073 | -0.197 [-0.243, -0.150] | 0.577 | no | `failure` |
+| a-1p5b | C `negation` | 0.497 [0.480, 0.513] | 0.973 | 0.020 | 0.010 | -0.167 [-0.207, -0.127] | 0.577 | no | `failure` |
+| a-1p5b | D `negation_mapped` | 0.497 [0.480, 0.513] | 0.973 | 0.020 | 0.010 | -0.167 [-0.207, -0.127] | 0.577 | no | `failure` |
+| a-4b | A `shipped` | 0.307 [0.263, 0.350] | 0.560 | 0.053 | 0.560 | -0.357 [-0.403, -0.310] | 0.577 | no | `failure` |
+| a-4b | B `shipped_mapped` | 0.667 [0.620, 0.710] | 0.560 | 0.773 | 0.000 | 0.003 [-0.047, 0.050] | 0.577 | no | `failure` |
+| **a-4b** | **C `negation` (P)** | **0.577 [0.530, 0.623]** | 0.833 | 0.320 | 0.137 | **-0.087 [-0.140, -0.033]** | 0.577 | **no** | **`failure`** |
+| a-4b | D `negation_mapped` | 0.653 [0.610, 0.697] | 0.833 | 0.473 | 0.017 | -0.010 [-0.063, 0.043] | 0.577 | no | `failure` |
+
+**The verdict on P, by rule 10: failure.** P scored BA 0.577 [0.530, 0.623]; gap to 0.860 is 0.283; lexical 0.663
+[0.627, 0.703]; bound 0.577. In A5's order: the set is complete (a-4b's task N set finished 5 of 5 parts, measurement
+true, 0 records left out), so not `incomplete`; the point estimate is below 0.860, so not `pass_provisional`; the
+lexical judge was not beaten (the paired difference -0.087 [-0.140, -0.033] has its whole interval below zero), so not
+`partial`; `failure` holds. P's balanced accuracy equals the predicate-only bound's point value, and its lower end
+(0.530) is below it; its unknown share is 0.137. Success in the sense of the rule could not be reached in this cycle,
+and was not. Section 2.5: continue with the next lever. The first run is the result (rule 14).
+
+**The three per-model headlines** (rule 9: arm C against the lexical judge's 0.663 on the same records): a-0p5b
+**worse** (0.483 [0.447, 0.520], upper end below 0.663); a-1p5b **worse** (0.497 [0.480, 0.513]); a-4b **worse**
+(0.577 [0.530, 0.623]). Under the negation instruction no model judges as well as word matching on this draw.
+
+**The lifts of rule 8**, paired by record over 150 records ("helps" when the lower end is above 0, "hurts" when the
+upper end is below 0, else "not told apart"; they decide nothing toward 86):
+
+| Model | B − A (lever 1, the mapping under the shipped instruction) | C − A (lever 2, the instruction under the shipped reading) | D − A (both) | D − B (lever 2 under the mapping) | D − C (lever 1 under the negation instruction) |
+|---|---|---|---|---|---|
+| a-0p5b | 0.000 [0.000, 0.000], not told apart | -0.010 [-0.047, 0.030], not told apart | -0.010 [-0.047, 0.030], not told apart | -0.010 [-0.047, 0.030], not told apart | 0.000 [0.000, 0.000], not told apart |
+| a-1p5b | 0.000 [0.000, 0.000], not told apart | 0.030 [0.000, 0.060], not told apart | 0.030 [0.000, 0.060], not told apart | 0.030 [0.000, 0.060], not told apart | 0.000 [0.000, 0.000], not told apart |
+| a-4b | 0.360 [0.323, 0.393], helps | 0.270 [0.217, 0.327], helps | 0.347 [0.290, 0.407], helps | -0.013 [-0.063, 0.037], not told apart | 0.077 [0.047, 0.107], helps |
+
+Read with sensitivity and specificity, as "How it is read" asks: on a-4b the mapping under the shipped instruction
+(B − A) left sensitivity at 0.560 and moved specificity from 0.053 to 0.773 while the unknown share went from 0.560 to
+0.000, the conversion of abstention into refutation that trap 10 names; the negation instruction (C − A) moved
+sensitivity from 0.560 to 0.833 and specificity from 0.053 to 0.320, with an unknown share of 0.137; under the
+negation instruction the mapping (D − C) moved specificity from 0.320 to 0.473 at the same sensitivity, 0.833. Arm B
+and arm D of a-4b are not told apart from each other (D − B) or from the lexical judge. On a-0p5b the negation
+instruction moved the default answer (sensitivity 0.933 to 0.553, specificity 0.053 to 0.413) and balanced accuracy
+by -0.010; on a-1p5b it moved the answers toward yes (sensitivity 0.880 to 0.973, specificity 0.053 to 0.020) and
+balanced accuracy by 0.030; neither is told apart from zero. The mapping changed no score of a-0p5b or a-1p5b: B equals
+A and D equals C on every record (lifts 0.000 [0.000, 0.000]). Arms B and D are secondaries: a-4b's B (0.667 [0.620,
+0.710], pass test no) and D (0.653 [0.610, 0.697], pass test no) are hypotheses for the next cycle's rule, never
+results, and no reading other than arms A to D was made of the replies (rule 14).
+
+**Arm A beside J001 run 9** (`docs/lab/RESULTS.md`, Run 9, cited as written there; J001's bound from "What the
+evidence says" above). A between-draw difference, reported, not tested; "How it is read" calls differences within
+about 0.07 sampling:
+
+| Judge | J001 run 9 (150 records, labels `bc6d092d8bca…`): balanced accuracy [interval], sensitivity, specificity, unknown share | A001 run 1, arm A (150 fresh records, labels `623780b8a1de…`): the same | Difference of the two point values |
+|---|---|---|---|
+| a-0p5b | 0.500 [0.500, 0.500], 0.967, 0.033, 0.000 | 0.493 [0.480, 0.507], 0.933, 0.053, 0.000 | -0.007 |
+| a-1p5b | 0.477 [0.447, 0.503], 0.867, 0.087, 0.080 | 0.467 [0.440, 0.493], 0.880, 0.053, 0.073 | -0.010 |
+| a-4b | 0.387 [0.340, 0.433], 0.647, 0.127, 0.483 | 0.307 [0.263, 0.350], 0.560, 0.053, 0.560 | -0.080 |
+| Lexical judge | 0.670 [0.627, 0.713], 0.380, 0.960, 0.000 | 0.663 [0.627, 0.703], 0.333, 0.993, 0.000 | -0.007 |
+| Record-blind control | 0.527 [0.467, 0.587] | 0.520 [0.463, 0.577] | -0.007 |
+| Predicate-only bound | 0.580 | 0.577 | -0.003 |
+
+The two smaller models and every comparator moved by 0.010 or less between the draws. a-4b's arm A is 0.080 lower on
+the fresh draw, a little beyond the 0.07 that "How it is read" calls sampling; its unknown share is 0.560 against
+0.483 and its sensitivity 0.560 against 0.647. Both figures stand. Nothing here says which draw is the odd one.
+
+**The comparison count.** 12 (model, arm, cycle) comparisons this cycle (4 arms × 3 models × 1 cycle); 12 since the
+loop began (0 before this cycle; J001 and L001 predate the loop and are not counted). The aggregate printed
+"comparisons since the loop began: 12 (12 this cycle, 0 before)".
+
+**Nothing stopped before a model ran.** The plan job's guard (`l1 guard: no l1 units`), the exclusion check and the
+draw passed; no shard failed; no call failed (`records left out` 0 in every arm); no unit stopped at its budget: every
+unit finished both passes, the longest shard (`s011-a-4b`) in 1377.2 s of wall time against a 300-minute budget.
+
+**Model-call latency, from the ledgers** (one shared GitHub-hosted runner per shard, a runner number and not site
+hardware; compare only within a CPU model; a unit's two tasks ran on the same server):
+
+| Model | Runner CPU | Calls per task | Median ms, shipped task / negation task | 95th percentile ms, shipped / negation |
+|---|---|---|---|---|
+| a-0p5b | AMD EPYC 7763 | 120 | 1521.8 / 1561.0 | 2721.4 / 2754.1 |
+| a-0p5b | AMD EPYC 9V74 | 120 | 955.9 / 986.0 | 1386.3 / 1399.7 |
+| a-0p5b | Intel Xeon Platinum 8573C | 60 | 1093.8 / 1135.7 | 1803.0 / 1812.0 |
+| a-1p5b | AMD EPYC 7763 | 120 | 3140.4 / 3179.3 | 4787.3 / 4858.5 |
+| a-1p5b | AMD EPYC 9V45 | 120 | 1428.2 / 1349.8 | 2223.3 / 2231.5 |
+| a-1p5b | Intel Xeon 6973P-C | 60 | 1613.0 / 1597.2 | 2622.9 / 2736.4 |
+| a-4b | AMD EPYC 7763 | 180 | 9275.1 / 9431.5 | 16209.7 / 16427.0 |
+| a-4b | Intel Xeon Platinum 8370C | 120 | 8211.6 / 8637.7 | 11754.1 / 12020.0 |
+
+Within a CPU model the two tasks' medians differ by less than 0.5 s for every model. The shards ran on six CPU
+models; the figures of different rows are not one comparison.
+
+**Public text.** This result is on public text the models may have seen in training: real NHTSA complaint
+narratives, read with their codes hidden and scored against the filed codes, which are not checked labels. A pass here
+would have been a pass on such text; this failure is a failure on it.
