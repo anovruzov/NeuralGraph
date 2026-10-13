@@ -19,7 +19,7 @@ capacity of a shard is `job_minutes` less the shard overhead of 25 minutes; ever
 | `job_minutes` | 45 to 330: each shard job's limit | |
 | `max_parallel` | 1 to 16: shard jobs at once | |
 | `retention_days` | 1 to 90: how long artifacts are kept | |
-| `experiments` | at least one of `e1`, `e2`, `e3`, `g0`, `sim`, `x1`, `openfda`, `j1`, `l1`, `j2` | |
+| `experiments` | at least one of `e1`, `e2`, `e3`, `g0`, `sim`, `x1`, `openfda`, `j1`, `l1`, `j2`, `j3` | |
 | `hosted` | per hosted model key, `{"max_calls": 1..1000000}` | `{}` |
 
 A fake model needs provider `fake`, a gguf model the server provider; a hosted model goes with either. Provider
@@ -178,6 +178,73 @@ pair, the primary first (`incomplete`, `pass_provisional`, `partial`, `failure`,
 needs `lab.dryrun --j2-data DIR` (a `tests.lab.j2_data` directory: a synthetic complaint archive, a synthetic earlier
 artifact and an exclusion stand-in), and its preregistration says so (`J2_STAND_IN`).
 
+`j3`, accuracy test A002 (`docs/collective/A002/CHOICE-A002.md`, amended B1 to B25 before any build; the build note is
+`BUILD-A002.md` beside it): J001's question on a fresh draw of real public complaints with two earlier cycles' records
+excluded, asked three times of one model, under the lab-side negation instruction of A001 and under two schema variants
+of it that add a field before the two answers (an evidence `citation`, a verbatim passage of the record, and an
+`analysis` written before the answers), each read by the shipped verdict rule, the verbatim-substring grounding check,
+the unclear-to-no mapping and a lexical composite with its two ablations: nine arms, one primary pair; one unit per
+model and part (`lab/j3.py`, `lab/j3labels.py`; the template is `lab/templates/accuracy-002.json`, to copy to
+`lab/requests/accuracy-002.json`):
+
+| key | values | default |
+| --- | --- | --- |
+| `models` | gguf or fake models of `models`; a hosted model is refused (`NHTSA_HOSTED`) | `models` |
+| `minutes` | per part unit; a unit judges its part's questions three times | |
+| `labels` | as `j2`'s: `source` `nhtsa` only, `pack` exactly `docs/collective/replay/vehicles/pack`, `n` (40 to 2000) and `seed` (the fresh draw's) | |
+| `parts` | 1 to 30 | |
+| `seed` | the questions' seed | |
+| `bootstrap_b` | 1000 to 20000 | 10000 |
+| `bootstrap_seed` | a seed | 1 |
+| `exclude` | a list of exactly two entries, the earlier cycles in seed order (B2, B3, B5): each with `j2`'s four keys (`file` one of `prereg/j1/labels.jsonl`, `prereg/j2/labels.jsonl`, `prereg/j2/excluded.jsonl`), `rebuild_seed` (the first entry's must be 1, the second's above it) and `rebuild_sha256_prefix` (12 to 64 lower-case hex digits the rebuilt labels must hash to); the second entry alone carries `chain_file` (`prereg/j2/excluded.jsonl`) and `chain_sha256_prefix` | |
+| `primary` | the primary pair P of the rule: `model` (one of the block's models) and `arm` (one of the nine arms: `negation`, `negation_mapped`, `evidence`, `evidence_grounded`, `evidence_grounded_mapped`, `rationale`, `rationale_mapped`, `composite`, `composite_mapped`) | |
+| `comparisons_before` | 0 to 1000000: the (model, arm, cycle) comparisons made since the loop began before this cycle | 0 |
+
+`lab.plan --github-output` echoes the first excluded run as `j2_exclude_run_id` and `j2_exclude_artifact` (the
+workflow's `earlier` step downloads it) and the second as `j3_exclude_run_id_2` and `j3_exclude_artifact_2` (the
+`earlier-2` step), both under `${{ runner.temp }}/lab-earlier/<run id>` (B2). `lab.prereg` then establishes each
+cycle's set from five sources (`lab.j3labels.establish`, B5): J1, the first judge test's artifact (`lab.j2labels`'
+check, unchanged); R1, its seed-one rebuild from today's complaint file; A1, the first accuracy test's artifact (the
+same check generalised to its layout: `prereg/j2/labels.jsonl` hashing to the entry's prefix, `prereg/j2/labels.json` a
+`lab_j2_labels` record of nhtsa, 150, seed 2 with `n` the refs found, the questions' refs the labels', every file
+cross-checked against the artifact's manifest, B3); R2, that cycle's rebuild, `lab.j2labels.draw` of 150 at seed 2
+over the eligible list less J001's set, attempted only once J001's set is established (`not attempted` otherwise); and
+K, the first accuracy test's chain file through the same check. A cycle's set is its artifact's or its rebuild's; a
+cycle with neither is the chain less the other cycle's set (`by` `chain`); K alone establishes neither. Four
+consistency counts must be 0: J1 against R1, A1 against R2, every verified source's refs outside K, and K against the
+union of the two sets when both came from their own sources. A cycle not established refuses the plan with
+`J3_FRESHNESS_UNVERIFIED`, a count above 0 with `J3_EXCLUSION_DISAGREES`, and fewer eligible unexcluded records than `n`
+with `J3_TOO_FEW_RECORDS`; the excluded set is the union of every verified source's refs (300 expected). The draw,
+the questions, the lexical judge, the record-blind control and the predicate-only bound are then J001's and A001's
+code on the fresh draw (`prereg/j3/`), joined by the two ablation comparators (`prereg/j3/ablation_a.jsonl`: confirm
+where the lexical judge confirms, else refute; `prereg/j3/ablation_b.jsonl`: else the control's verdict), and
+`prereg/j3/excluded.jsonl` carries every excluded ref and the draw's forward for the next cycle. The preregistration
+pins the three tasks (`judge_record_evidence` and `judge_record_rationale`, each 512 output tokens and its schema with
+the new string field first; `judge_record_negation`, A001's, 256; name, data class, instructions sha256, schema sha256,
+max_tokens and the pass order E, R, N), the mapping, the grounding predicate (norm: whitespace collapsed, stripped,
+case-folded; at least four characters; a substring of the payload text) and its mapping (a yes read as no when the
+citation is not grounded), the composite rule and both ablations, the nine arms, the lifts and the ablation
+differences, the primary pair, the headline arm and the headline secondary (`evidence_grounded`, B1), the exclusion's
+counts, outcomes and hashes, and the target balanced accuracy. Each unit judges its part's questions with task E, then
+R, then N, through the runtime at boundary `site:lab`, the three tasks routed to its one endpoint without escalation;
+every verdict line holds the task, the whole reply (the citation or the analysis with the two answers), whether the
+citation is grounded, the reply's first key as written (B19) and every reading's verdict (the shipped rule's, the
+mapping's, the grounding's and both), each by the pinned `decide`. The aggregate reads a (model, task) set as complete
+when every part finished for that task, builds the mapped, grounded and composite arms as views of the same lines
+(the composite joins the plan job's lexical lines by question id), recomputes every reading and `grounded` from the
+stored reply and the record text rebuilt from the plan artifact's labels (B23; the report holds no narrative, citation
+or ref), scores each arm with J001's code beside the comparators and the ablations on the same records, pairs each arm
+with the lexical judge, the arms with each other (the lifts) and the composite arms with both ablations, and computes
+the verdict word of rule 12 for every arm, the primary first (`incomplete`, `pass_provisional`, `partial`, `failure`;
+for a composite arm `pass_provisional` also needs both ablation differences' low ends above zero, and a missing
+ablation figure is `incomplete`, B8), with the headline secondary's word printed beside the primary's. It also reports,
+deciding nothing, the grounded share of yes answers on positives and on negatives, the empty citations and citation
+lengths, the first-key share per task and the output tokens and cut replies per task. A dry run needs
+`lab.dryrun --j3-data DIR` (a `tests.lab.j3_data` directory: a synthetic complaint archive of 90 complaints per make,
+two synthetic earlier artifacts and a two-entry exclusion stand-in), its fake answers tasks E and R as the lexical
+judge behind an empty field (so the grounded arms refute whatever it confirmed and nothing in a dry run measures the
+instructions, the check or the composite), and its preregistration says so (`J3_STAND_IN`).
+
 `l1`, latency test L001 (`docs/collective/L001/CHOICE-L001.md`, amended K1 to K13 before any run; the build note is
 `BUILD-L001.md` beside it): the product's pushdown path timed on CPU on the drafter demo's alert of MSHA's accident
 file, and its site answers scored against the filed categories, one unit per model and question slot (`lab/l1.py`,
@@ -269,7 +336,8 @@ cached as `lab-server-<tag>-<sha16>` under `server/<tag>`, a model file as `lab-
 ## Ids
 
 - A unit id is `<experiment>-<model>` (E2, E3, G0), `e1-<model>-r<k>` (one E1 repeat), `j1-<model>-p<k>` (one J1
-  part), `j2-<model>-p<k>` (one J2 part, judged under both tasks), `l1-<model>-q<k>` (one L1 question slot, 1 the
+  part), `j2-<model>-p<k>` (one J2 part, judged under both tasks), `j3-<model>-p<k>` (one J3 part, judged
+  under the three tasks), `l1-<model>-q<k>` (one L1 question slot, 1 the
   alert question), `sim-<model>-s<seed>` (one simulation seed), `x1` or `openfda`; at most 55 characters.
 - A run id is the unit id, a hyphen and the first 8 hex digits of sha256(request sha256 `|` unit id); the harness
   writes under it.
@@ -322,6 +390,22 @@ A J2 unit (`lab.j2 run`) keeps the same three files under `runs/j2/<run id>/`, w
   `complete_by_task` saying task N finished and the shipped task did not is a unit `ok` with `J2_SHIPPED_STOPPED`
   (A9: the primary's set is complete for that part, the control's is not); a stop in the first pass is `J1_STOPPED`.
   The participation floor judges task N always and the shipped task only when its pass finished.
+
+A J3 unit (`lab.j3 run`) keeps the same three files under `runs/j3/<run id>/`, with these differences:
+
+- `verdicts.jsonl`: J001's line plus `task` (`judge_record_evidence`, `judge_record_rationale` or
+  `judge_record_negation`), `citation` (task E's passage, else null), `analysis` (task R's text, else null), `grounded`
+  (task E: whether the citation is a verbatim substring of the record text after the declared normalisation),
+  `first_key` (the reply's first key as the model wrote it, never recomputed, B19), `mapped_verdict`,
+  `grounded_verdict` and `grounded_mapped_verdict` (the pinned verdict rule over the reply read through the mapping,
+  the grounding and both; null for tasks without a citation); every question of the part appears once per task, task
+  E's lines first; never a narrative beyond what the reply itself quotes;
+- `run.json` (`kind: lab_j3_run`): A001's fields with three tasks, plus `tokens_by_task` (attempts, output tokens'
+  median and ninety-fifth percentile, replies cut at the cap); `pinned` adds the three tasks' pins, the mapping's, the
+  grounding's and the composite's. A stop ends the pass it falls in and the passes after it: exit 1 with
+  `complete_by_task` saying task E finished and a later task did not is a unit `ok` with `J3_EVIDENCE_STOPPED` (rule
+  14: the primary's set is complete for that part, the later sets are not); a stop in the first pass is `J1_STOPPED`.
+  The participation floor judges task E always and a later task only when its pass finished.
 
 An L1 unit (`lab.l1 run`) keeps under `runs/l1/<run id>/` (no record id, mine id, name or narrative; mines are
 `m01` onwards, records their index in their mine's retrieved list; every number in seconds with at most three
@@ -439,10 +523,10 @@ A unit's status (`lab.units.STATUSES`):
 
 | status | means |
 | --- | --- |
-| `ok` | the harness ran to a valid result and the model answered enough; a J2 unit whose first pass finished and whose shipped pass stopped is `ok` with `J2_SHIPPED_STOPPED` |
+| `ok` | the harness ran to a valid result and the model answered enough; a J2 unit whose first pass finished and whose shipped pass stopped is `ok` with `J2_SHIPPED_STOPPED`; a J3 unit whose evidence pass finished and whose later pass stopped is `ok` with `J3_EVIDENCE_STOPPED` |
 | `result_fail` | a valid FAIL verdict: G0's canary scan or the simulation's raw-text scan did not pass (something crossed, or the scan's positive control found nothing) |
 | `invalid` | it ran, but the model answered too few calls, the server died, or G0's model path had problems |
-| `failed` | the harness failed, refused its configuration or wrote no readable result, a J1 run or a J2 run's first pass stopped before its last question (`J1_STOPPED`), or an L1 unit did not finish (`L1_NOT_FINISHED`), failed a check after its model ran (`L1_CHECK_FAILED`) or could not get its file before any model call (`L1_INFRA`) |
+| `failed` | the harness failed, refused its configuration or wrote no readable result, a J1 run or a J2 or J3 run's first pass stopped before its last question (`J1_STOPPED`), or an L1 unit did not finish (`L1_NOT_FINISHED`), failed a check after its model ran (`L1_CHECK_FAILED`) or could not get its file before any model call (`L1_INFRA`) |
 | `timed_out` | the unit ran out of its minutes |
 | `interrupted` | a signal stopped it |
 | `skipped` | it did not start: the shard's budget, the server, the warm-up, a projection or the hosted gate |
@@ -482,7 +566,8 @@ The same for every lab command (`lab/__init__.py`):
 ## Labels
 
 Every fixed sentence the summaries print comes from `lab/notes.py`. Braces stand for values the summary fills in:
-`{e_one}`, `{e_two}`, `{x_one}`, `{n_one}`, `{j_one}`, `{j_two}` and `{l_one}` are E1, E2, X1, N1, J1, J2 and L1,
+`{e_one}`, `{e_two}`, `{x_one}`, `{n_one}`, `{j_one}`, `{j_two}`, `{j_three}` and `{l_one}` are E1, E2, X1, N1,
+J1, J2, J3 and L1,
 and `{run}` and `{commit}` a run id and a commit.
 
 The first lines and the plumbing banner:
@@ -541,6 +626,23 @@ stand-in use the others:
 - `J2_FRESHNESS_UNVERIFIED`: neither freshness mechanism verified: the earlier run's plan artifact could not be read as that run's, and the rebuilt seed-one draw does not hash to the pinned prefix; the plan job stops before any model runs (the accuracy test's rule, The data and the draw, as amended)
 - `J2_EXCLUSION_DISAGREES`: both freshness mechanisms verified but their record sets differ; the plan job stops before any model runs
 - `J2_TOO_FEW_RECORDS`: fewer eligible unexcluded records remain than the draw needs; no further fresh draw is pre-registered
+
+Accuracy test A002's labels, where `{j_three}` is J3 and the braces of the primary line are its figures (the
+last two the headline secondary's arm and word): the label, then the exclusion, lexical, control, arms,
+verdict and evidence notes above the primary pair's sentence and the per-arm tables; a unit whose later pass
+stopped after task E finished says `J3_EVIDENCE_STOPPED`; the plan's refusals and the stand-in use the others:
+
+- `J3_LABEL`: {j_three} here asks one model the site verifier's narrow question about a fresh draw of real public NHTSA complaint narratives with two earlier cycles' records excluded, one record at a time with its codes hidden, three times: under the lab-side negation instruction, under that instruction with an evidence field that asks for a verbatim passage of the record, and under it with an analysis field written before the answers; each verdict is scored against the components the complaint was filed under (filed codes, not human-checked labels), by the product's own verdict rule on the answers as answered and, as declared secondaries, after the grounding check (a yes whose passage is not in the record read as a no), after the unclear-to-no mapping, and in a composite that confirms wherever the lexical judge does.
+- `J3_EXCLUSION_NOTE`: The draw excludes two earlier cycles' records, each by its plan artifact and by a rebuild from the complaint file as published on the day: the first judge test's artifact and its seed-one rebuild, the first accuracy test's artifact (its labels file read by a check generalised to its layout) and its rebuild over the eligible list less the first judge test's set, and the first accuracy test's chain file. A cycle's set is established by its own artifact or rebuild, or else from the chain less the other cycle's set; the chain alone establishes neither; every consistency count must be zero; the excluded set is the union of every verified source's refs. Counts and hashes only: no record ref is written anywhere but the plan artifact.
+- `J3_ARMS_NOTE`: Nine arms on one model, declared before the run: negation and negation_mapped are the first accuracy test's control arms replicated; evidence reads the evidence task's answers as answered (the primary arm); evidence_grounded reads a yes as a no when the cited passage is not a verbatim substring of the record's text (the headline secondary); evidence_grounded_mapped adds the unclear-to-no mapping; rationale and rationale_mapped read the rationale task's answers as answered and under the mapping; composite and composite_mapped confirm wherever the plan job's lexical judge confirms and otherwise take the grounded arm's verdict. Model calls are made for the three tasks only: every other arm is the same replies read again. The lifts are paired differences between arms, record by record; a lift helps when its interval's low end is above zero, hurts when its high end is below zero, and is otherwise not told apart. They decide nothing toward the target.
+- `J3_VERDICT_NOTE`: The verdict word is read on the primary pair alone, from the figures, in this order: incomplete (a part did not finish, the set is not a model measurement, transport failures left out more than one record in a hundred, or, for a composite arm, an ablation difference is not a number), pass_provisional (balanced accuracy at or above the target, the paired difference to the lexical judge with its low end above zero, the balanced accuracy's low end above the predicate-only bound on the same records, the unknown share reported and, for a composite arm, the paired differences to both ablations with their low ends above zero), partial (the target reached but an interval clause failed, the lexical judge beaten below the target, or a composite that meets the four clauses but not an ablation clause), else failure. Every other arm is a secondary with the same word, which is a hypothesis for the next cycle, never a result; the headline secondary's word is printed beside the primary's as the primary under the other reading of the standing default; a first pass is provisional until the next cycle's fresh draw confirms it.
+- `J3_EVIDENCE_NOTE`: The grounding check says that a cited passage came from the record, not that it reports the problem: a yes answer whose citation is not a verbatim substring of the record's text (case and runs of whitespace aside, at least four characters) is read as a no. The grounded share of yes answers is shown for positives and for negatives apart: a check that removes yes answers on negatives and keeps them on positives is the lever working; one that removes them alike is a cost with no reading. The composite arms inherit the lexical judge, which is why their pass test also needs the paired differences to both ablations above zero; on a draw where the lexical judge never answers unknown, ablation A is the lexical judge line for line. The first-key share says whether the model wrote the new field before its answers; the token figures and the replies cut at the cap say how much it wrote. None of these decides anything.
+- `J3_PRIMARY_LINE`: Primary pair {model} {arm}: {word}. It scored balanced accuracy {ba} [{lo}, {hi}]; gap to the target {target} is {gap}; lexical judge {lex} on the same records, paired difference {diff} [{dlo}, {dhi}]; predicate-only bound {bound}; unknown share {unknown}. Under the other reading of the standing default the primary would be {other_arm}: {other_word}.
+- `J3_STAND_IN`: Plumbing: test artifacts stood in for both excluded runs (lab.dryrun with test data), so the exclusion checks here test the lab, not the excluded runs.
+- `J3_EVIDENCE_STOPPED`: the judge run finished its first pass, the evidence task, and stopped in a later pass, the rationale task or the negation task, at its budget or after the server stayed down; the evidence pass's verdicts are complete and kept, and the later passes did not finish for this part
+- `J3_FRESHNESS_UNVERIFIED`: an earlier cycle's set could not be established: neither its artifact nor its rebuild verified and the chain could not give it; the plan job stops before any model runs and the loop asks (the second accuracy test's rule, The data and the draw, as amended)
+- `J3_EXCLUSION_DISAGREES`: the verified sources of the earlier cycles disagree: a consistency count is above zero; the plan job stops before any model runs
+- `J3_TOO_FEW_RECORDS`: fewer eligible records remain after both earlier cycles' exclusion than the draw needs; no further fresh draw is pre-registered
 
 Latency test L001's labels, where `{l_one}` is L1 and `{stop}` a stop's code: the label, then the headline and
 comparator notes above the per-model tables and the time note above the time tables; a model without a headline says
@@ -793,7 +895,7 @@ synthetic worlds describe synthetic worlds.
 | average precision | average precision of the channel's alert ranking against the planted labels | precision on real data |
 | alerts | alerts the channel raised in the evaluation weeks | a count of real problems |
 | false alarms | alerts that matched no planted pattern window | alerts that are wrong on real data |
-| lift | which lift: the difference between two channels' finds, or between two J2 arms (B minus A, C minus A, D minus A, D minus B, D minus C) | n/a: not a number |
+| lift | which lift: the difference between two channels' finds, between two J2 arms (B minus A, C minus A, D minus A, D minus B, D minus C), between two J3 arms (the ten lifts of A002's rule 10, named by their letters) or between a J3 composite arm and one of its ablations | n/a: not a number |
 | estimate | the bootstrapped mean of a lift or ratio | an estimate when patterns are few |
 | interval low | the low end of the bootstrap interval | a guarantee |
 | interval high | the high end of the bootstrap interval | a guarantee |
@@ -918,14 +1020,14 @@ synthetic worlds describe synthetic worlds.
 | why no headline | why a J1 model has no headline: incomplete, not a model measurement, or withheld | a model result |
 | questions | J1's and J2's questions: one positive and one negative per record | n/a: not a number |
 | parts | the parts J1's or J2's records are cut into, one unit per model and part | n/a: not a number |
-| arm | a J2 arm: `shipped` (the product's judge unchanged), `shipped_mapped` (its replies through the mapping), `negation` (the lab-side instruction) or `negation_mapped` (that instruction with the mapping) | a product behaviour: the product runs the shipped arm |
+| arm | a J2 arm: `shipped` (the product's judge unchanged), `shipped_mapped` (its replies through the mapping), `negation` (the lab-side instruction) or `negation_mapped` (that instruction with the mapping); or a J3 arm: `negation` and `negation_mapped` (A001's controls), `evidence` (the evidence task's answers as answered), `evidence_grounded` (a yes read as no when the citation is not in the record), `evidence_grounded_mapped` (that and the mapping), `rationale` and `rationale_mapped` (the rationale task's answers, as answered and mapped), `composite` and `composite_mapped` (confirm where the lexical judge confirms, else the grounded arm's verdict) | a product behaviour: the product runs the shipped arm |
 | mapped | whether the arm reads the replies through the mapping (an unclear component answer as a no) before the verdict rule | a change to the product's verdict rule |
 | verdict word | rule 10's word for the (model, arm) pair, in the order incomplete, pass_provisional, partial, failure: computed from the figures beside it | a result for any pair but the primary: a secondary's word is a hypothesis for the next cycle |
 | pass test | whether the pair met every clause of the pass test: balanced accuracy at or above the target, the paired difference to the lexical judge with its low end above zero, the balanced accuracy's low end above the predicate-only bound on the same records, and the unknown share reported | a confirmed success: a first pass is provisional until the next cycle's fresh draw |
 | primary pair | whether the pair is the rule's one primary pair P, the only pair the verdict is read on | the best pair of the run |
 | gap to the target | the target balanced accuracy minus the pair's balanced accuracy; below zero, the target is reached | a distance on real failures: the key is the filed codes |
 | target balanced accuracy | the pinned target the loop runs toward: balanced accuracy 0.860 against the filed-category key | a threshold any pair but the primary is judged on |
-| lever | which lever a J2 lift reads: `unclear_mapping` (B minus A, D minus C), `negation_instruction` (C minus A, D minus B) or `both` (D minus A) | n/a: not a number |
+| lever | which lever a J2 lift reads: `unclear_mapping` (B minus A, D minus C), `negation_instruction` (C minus A, D minus B) or `both` (D minus A); which a J3 lift reads: `evidence_field`, `grounding_check`, `evidence_field_and_check`, `unclear_mapping`, `rationale_field` or `lexical_disjunction`; for a J3 ablation difference, the ablation (`lexical_or_no`, `lexical_or_record_blind`) | n/a: not a number |
 | reading | a lift's reading: `helps` when its interval's low end is above zero, `hurts` when its high end is below zero, else `not_told_apart` | a decision toward the target: the lifts decide nothing |
 | minus the lexical judge, paired by record | the arm's balanced accuracy minus the lexical judge's, record by record over the records both score, with its paired percentile-bootstrap interval | a difference against checked labels |
 | eligible records | the complaint file's records eligible for the draw before any exclusion: the makes, the window and the eligibility rule of `lab.goldlabels` | records the models judged |
@@ -937,6 +1039,28 @@ synthetic worlds describe synthetic worlds.
 | excluded refs file sha | the first twelve hex digits of the sha256 of `prereg/j2/excluded.jsonl`, the refs the next cycle excludes | n/a: an identifier |
 | complaint file sha | the first twelve hex digits of the sha256 of the complaint archive the plan job read | n/a: an identifier |
 | comparisons since the loop began | the running count of (model, arm, cycle) comparisons the loop has made, this cycle's included: the multiplicity the verdict rule prints | a correction applied to any interval |
+| minus ablation A, paired by record | a J3 composite arm's balanced accuracy minus ablation A's (confirm where the lexical judge confirms, else refute), record by record over the records both score, with its paired interval; on a draw where the lexical judge never answers unknown it equals the difference to the lexical judge | a difference for any arm but the two composite arms |
+| minus ablation B, paired by record | a J3 composite arm's balanced accuracy minus ablation B's (confirm where the lexical judge confirms, else the record-blind control's verdict), record by record, with its paired interval | a difference for any arm but the two composite arms |
+| ablation A, every record | ablation A's scores on every question of the fresh draw, computed in the plan job | a model result |
+| ablation B, every record | ablation B's scores on every question of the fresh draw, computed in the plan job | a model result |
+| lexical judge unknown verdicts | how many questions of the fresh draw the lexical judge answered unknown; at zero, ablation A is the lexical judge line for line and the ablation-A clause repeats the pass test's lexical clause | a model figure |
+| arm letter | the letter the rule names a J3 arm by (N, D, E, Eg, Egm, R, Rm, C, Cm), the lifts' names being differences of letters | n/a: a label |
+| headline secondary | whether the arm is the rule's headline secondary (`evidence_grounded`), whose verdict word is printed beside the primary's as the primary under the other reading of the standing default | a primary pair: its word is a hypothesis, never a result |
+| replies | task E replies the model answered (a model failure after the repair counts, a transport failure does not), over the finished parts | questions planned |
+| grounded share of yes answers on positives | of task E's yes answers on positive questions, the share whose citation is a verbatim substring of the record text (the count of grounded of the count of yes beside it) | a measure of evidence quality: a substring of the record is not a reading of it |
+| grounded share of yes answers on negatives | the same share on negative questions: a check that removes yes answers here and keeps them on positives is the lever working | a measure of evidence quality |
+| empty citation share | the share of task E replies whose citation is the empty string | a refusal rate: an empty citation with a no is the instruction followed |
+| citation length median | the median length in characters of task E citations after the declared normalisation | a quality |
+| citation length ninety-fifth percentile | the ninety-fifth percentile of that length | a quality |
+| first key is the new field | the share of a task's replies whose first key, as the model wrote it, is the task's new field (citation or analysis); n/a for task N | a result: the share decides nothing |
+| attempts | model calls made for the task over the finished parts, repairs included | questions |
+| tokens out median | the median output tokens of those calls, from the ledgers | a cost on site hardware |
+| tokens out ninety-fifth percentile | the ninety-fifth percentile of output tokens | a cost on site hardware |
+| replies cut at the cap | calls whose reply the server cut at the task's token cap (finish reason length); each gets the runtime's one repair | a model failure count: a repaired reply is scored |
+| sources | the five sources of the two earlier cycles' records, each with its outcome and the refs it gave: `J1` and `A1` (the earlier plan artifacts), `R1` and `R2` (the rebuilds from today's complaint file), `K` (the first accuracy test's chain file) | records the models judged |
+| cycles established by | how each earlier cycle's record set was established: `artifact`, `rebuild` or `chain` (the chain less the other cycle's set), with the refs | a model result |
+| consistency counts | the four counts that must be zero before the draw: `j1_r1` and `a1_r2` (the artifact against the rebuild, when both verified), `outside_chain` (verified refs the chain lacks), `chain_union` (the chain against the union of the two sets); n/a when a side did not verify | a model figure |
+| chain file lines | the lines of `prereg/j3/excluded.jsonl`: every excluded ref and the draw's, for the next cycle | records the models judged |
 | questions finished | an L1 model's question units that finished (status ok, a complete run of this preregistration, every routed mine's verdict, whole timing and records), of the slots planned | questions that ran: a unit that did not finish, failed a check or was a re-run after a model call is left out |
 | minus the lexical judge | D_lex: the model's balanced accuracy over the scored site answers minus the lexical judge's, with its paired percentile-bootstrap interval over mines (K3) | a per-record difference: the per-record measures are in report.json |
 | minus the route-role baseline | D_route: the model's balanced accuracy minus the route-role baseline's, on the same draws (K3) | a reader of records: the baseline reads none |
@@ -1012,7 +1136,7 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Simulation pushdown verification | the simulation's pushdown candidates, raw text and fallback share |
 | Simulation sizing for the next request | per sim unit, the measured medians and the suggested minutes |
 | Baselines blind to narrative-only patterns by construction | per sim or X1 row, S and R_mf on the plant's narrative_only patterns, with the harness's label |
-| Preregistration, fixed before any model runs | E1's labels, X1's and E2's prereg hashes, E2's rehearsal, J1's labels and questions, the lexical judge's and the record-blind control's scores on every record and the predicate-only bound; J2's labels, questions, exclusion counts and mechanisms, primary pair, target and comparators on every record |
+| Preregistration, fixed before any model runs | E1's labels, X1's and E2's prereg hashes, E2's rehearsal, J1's labels and questions, the lexical judge's and the record-blind control's scores on every record and the predicate-only bound; J2's labels, questions, exclusion counts and mechanisms, primary pair, target and comparators on every record; J3's labels, questions, exclusion counts with the five sources, the cycles and the consistency counts, primary pair, headline secondary, target, comparators and both ablations on every record |
 | Extraction compared across models | E1's label, labels, reference and thresholds |
 | Extraction per model, pooled over repeats | E1's per-model scores and zero-claim share |
 | Extraction drops by reason, pooled over repeats | E1's post-processing counts per model and reason (`drops` of each endpoint in report.json), after the sentence that reattached reasons are not losses |
@@ -1023,6 +1147,11 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Accuracy test: the verifier's narrow question on a fresh draw, four declared arms, one primary pair | J2's label, the labels and questions, the exclusion's counts, mechanisms and hashes (and the stand-in note in a dry run), the lexical judge, the record-blind control and the predicate-only bound on every record, the comparison count, the exclusion, lexical, control, arms and verdict notes, and the primary pair's sentence with its figures (the report's `j2` block, which also holds each arm's answer counts before and after the mapping, verdict counts and confirms per predicate) |
 | Accuracy test: every (model, arm) pair beside the comparators on the same records | per J2 model and arm: task, mapped, class, parts finished of planned, balanced accuracy and its interval, the lexical judge's balanced accuracy and the paired difference with its interval on the same records, the control's balanced accuracy and the bound, sensitivity, specificity, the unknown share, the records left out, the verdict word, the pass test, whether the pair is the primary, and for the headline arm J001's headline and why there is none |
 | Accuracy test: the lifts between arms, paired by record | per J2 model and lift: the lever, the paired records, the difference with its interval and its reading |
+| Accuracy test, second cycle: the verifier's narrow question on a fresh draw, nine declared arms on one model, one primary pair | J3's label, the labels and questions, the exclusion's counts, sources, cycles, consistency counts and hashes (and the stand-in note in a dry run), the comparators and both ablations on every record with the lexical judge's unknown count, the comparison count, the exclusion, lexical, control, arms, verdict and evidence notes, and the primary pair's sentence with its figures and the headline secondary's word (the report's `j3` block, which also holds each arm's answer counts and confirms per predicate) |
+| Accuracy test, second cycle: every arm beside the comparators and the ablations on the same records | per J3 model and arm: letter, task, reading, class, parts finished of planned, balanced accuracy and its interval, the lexical judge's balanced accuracy and the paired difference with its interval on the same records, the paired differences to both ablations for the composite arms, the control's balanced accuracy and the bound, sensitivity, specificity, the unknown share, the records left out, the verdict word, the pass test, whether the pair is the primary or the headline secondary, and for those two the headline and why there is none |
+| Accuracy test, second cycle: the lifts between arms and the ablation differences, paired by record | per J3 model: each lift of rule 10 and each ablation difference with the lever or ablation, the paired records, the difference with its interval and its reading |
+| Accuracy test, second cycle: the grounding check's readings on the evidence task | per J3 model: task E's replies, the grounded share of yes answers on positives and on negatives, the empty citation share and the citation lengths |
+| Accuracy test, second cycle: per task, the first key, the output tokens and the replies cut at the cap | per J3 model and task: the first-key share, the attempts, the calls and their latency, the output tokens and the replies cut at the cap |
 | Latency test: alert to answer on CPU, per model, beside the comparators | L1's label, the operator, the file and the audit, the alert, the questions (routes by role and stratum, records, the key's gate status), the headline and comparator notes, the comparators on every scored site answer and the predicate-only bound and empty draws, then per model: questions finished, class, balanced accuracy and its interval beside the lexical judge's, the route-role baseline's and the record-blind control's on the same answers, sensitivity, specificity, the unknown share and the answers left out; and D_lex, D_route, the headline and the gate's agreement beside a constant status (the report's `l1` block, which also holds the strata, the per-record measures and each question's verdicts and mines) |
 | Latency test: where the time goes | the time note, then per model and scope (the alert, all questions) the CPU models, the time to answer and its ninety-fifth percentile (questions without a contended mine), the question build, the gate, a mine's and a judge call's median and ninety-fifth percentile, the model calls, the contended questions and their time to answer, and the questions not finished; then each question not finished with its elapsed time as a lower bound and its model calls (only when there is one), and each finished question's status, time and derived times |
 | Latency test: the alert, the questions and the comparators, fixed before any model runs | (plan summary) L1's file, audit, alert, questions, the comparators' scores, the predicate-only bound, the empty draws share and the constant status agreement |
@@ -1046,7 +1175,7 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 
 | artifact | holds |
 | --- | --- |
-| `lab-plan-<run id>-<attempt>` | the plan, its preregistration and the plan summary; for a J2 plan the preregistration holds the fresh draw's labels and questions files (public complaint text and refs; the artifact, never the repository) and `prereg/j2/excluded.jsonl`, the refs the next cycle excludes |
+| `lab-plan-<run id>-<attempt>` | the plan, its preregistration and the plan summary; for a J2 plan the preregistration holds the fresh draw's labels and questions files (public complaint text and refs; the artifact, never the repository) and `prereg/j2/excluded.jsonl`, the refs the next cycle excludes; for a J3 plan the same under `prereg/j3/` with the two ablation files and `prereg/j3/excluded.jsonl` |
 | `lab-prov-<run id>-<attempt>-<entry>` | one provision record (`server` or `gguf-<key>`) and its lock candidate |
 | `lab-run-<run id>-<attempt>-<shard>` | one sealed shard root |
 | `lab-report-<class>-<run id>-<attempt>` | `report.json`, `report.md`, `report.sources.json`, `plan.json`, `lock-candidate.json` and E1's comparison files |
@@ -1073,7 +1202,10 @@ step's `j2_exclude_run_id` and `j2_exclude_artifact` outputs, `github-token: ${{
 workflow's `permissions: {actions: read, contents: read}`, into `${{ runner.temp }}/lab-earlier/<run id>`: never
 under `lab-plan`, so it is not uploaded with this run's plan artifact, not scanned by `lab.msha guard` and not read
 by `lab.summary`. The step runs only when the run id output is not empty and continues on error, so a missing or
-expired artifact reaches `lab.j2labels` as an absent directory and one fixed message. Nothing read from the
+expired artifact reaches `lab.j2labels` as an absent directory and one fixed message. For a plan with J3 units a
+second step, `earlier-2`, downloads the second excluded run's artifact the same way (`j3_exclude_run_id_2` and
+`j3_exclude_artifact_2`, under the same directory by its own run id, B2 of `CHOICE-A002.md`), and
+`lab.j3labels` reads both. Nothing read from the
 downloaded directory is printed or written anywhere but into the exclusion set on the runner.
 
 Artifacts are kept for the request's `retention_days`. Caches (`actions/cache`): `lab-server-<tag>-<sha16>` holds the

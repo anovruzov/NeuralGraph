@@ -15,6 +15,13 @@ Each JSON file here asks for one run of the Mycelic cloud lab: one request file 
   (read-only `actions: read`) and checks it before anything runs; an expired artifact stops the plan job unless the
   rebuild of the first judge test's draw still verifies (REFERENCE.md, Request format). Each cycle's own artifact
   holds `prereg/j2/excluded.jsonl` for the next cycle to name.
+- A `j3` request (accuracy test A002, template `lab/templates/accuracy-002.json`) names in its `exclude` list the
+  two earlier cycles in seed order: each with the run id, its plan artifact, the file in it that lists the records,
+  that file's sha256 prefix, the rebuild seed and the prefix the rebuilt labels must hash to; the second entry
+  also names that cycle's chain file and its prefix. The plan job downloads both artifacts (read-only
+  `actions: read`) and establishes each cycle's records from its artifact, its rebuild or the chain before anything
+  runs (REFERENCE.md, Request format). Each cycle's own artifact holds `prereg/j3/excluded.jsonl` for the next
+  cycle to name.
 
 Check a request locally before pushing it:
 

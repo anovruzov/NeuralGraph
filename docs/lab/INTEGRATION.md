@@ -269,3 +269,32 @@ Every one of these files is in J2's code hash (`lab.j2.CODE_FILES`: J001's files
 wanted upstream: an exclusion parameter on `goldlabels.nhtsa_lines`, so `lab.j2labels` would not re-implement its
 eligible build; and a verifier function that judges one record under a given `TaskSpec` and returns the reply and the
 verdict, which would serve J1's and J2's runners alike.
+
+## 10. The second accuracy test's three tasks
+
+`lab/j3.py` and `lab/j3labels.py` (accuracy test A002, `docs/collective/A002/CHOICE-A002.md` with its amendments B1
+to B25; the build note is `BUILD-A002.md` beside it) run J001's question three times on a fresh draw with two earlier
+cycles' records excluded, and change nothing under `mycelic/`; `lab/j1.py`, `lab/goldlabels.py`, `lab/j2.py` and
+`lab/j2labels.py`, pinned by the rule, are imported read-only (task N, the mapping, the pass test, the verdict word,
+the lift readings, the artifact check, the rebuild, the eligible list, the draw and the labels record are A001's code
+called unchanged, so A001's run re-aggregates the same at any later commit). Beyond section 9's list they use these
+read-only:
+
+- `inference/tasks.py`: `TaskSpec` for the two variant tasks (`judge_record_evidence` and `judge_record_rationale`,
+  data class `raw`, 512 output tokens, the shipped schema with one string property declared first; neither schema uses
+  a keyword of `schemacheck.STRICT_KEYWORDS`, so the bytes are the same under the `full` and the `reduced` transport);
+  `inference/runtime.py`: `Runtime.run`, whose parsed reply keeps the document's key order, which is where the line's
+  `first_key` comes from (B19); `schemacheck.compile` for each task's schema;
+- `edge/verify.py`: `ANSWERS` (the enum of both answers) and `judge_schema` (task N's), with `decide` through `lab.j1`
+  applied to the two answers of every reply under each reading (as answered, mapped, grounded, grounded then mapped);
+  `edge/records.py`: `WindowRecord`;
+- `packs/loader.py`: `load_pack`, in the aggregate job, so that `lab.j1.payload` can rebuild each drawn record's text
+  from the plan artifact's labels for the grounding check's recomputation (B23); the text never leaves that job;
+- `stats.percentile` for the citation lengths, the output tokens and the latency figures.
+
+Every one of these files is in J3's code hash (`lab.j3.CODE_FILES`: A001's files plus `lab/j3.py` and
+`lab/j3labels.py`). The lab's fake server answers the two variant tasks as the shipped judge behind an empty field
+(`lab.responder.with_field`), so a dry run satisfies both schemas and the grounded arms refute whatever the lexical
+judge confirmed; nothing in a dry run measures the instructions, the check or the composite. One more hook wanted
+upstream: a verifier reply type that carries the parsed reply's key order explicitly, so the lab would not rely on
+`dict` insertion order through `jsonparse.extract_object`.
