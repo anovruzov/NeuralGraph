@@ -269,3 +269,17 @@ Every one of these files is in J2's code hash (`lab.j2.CODE_FILES`: J001's files
 wanted upstream: an exclusion parameter on `goldlabels.nhtsa_lines`, so `lab.j2labels` would not re-implement its
 eligible build; and a verifier function that judges one record under a given `TaskSpec` and returns the reply and the
 verdict, which would serve J1's and J2's runners alike.
+
+## 10. The end-to-end ingestion run (the CI record)
+
+`research/e2e_ingest/` (brief `docs/collective/E2E-INGEST.md`, build note `BUILD-E2E.md`) is not the lab: it runs
+EMERGENCE's generated world through the site graphs, the Tesseract routing of the coordination package, NATS and the
+keyed fabric, with the collective's pipeline, packs and verdict path read-only (`mycelic/` unchanged). Its CI workflow
+`.github/workflows/e2e-ingest.yml` gates both end-to-end jobs on three suite jobs; the lab's own suite, `tests/lab`,
+is one of them (`suites-lab`, about 20 min on the hosted runner), so a red lab test stops an end-to-end run.
+
+First run, 2026-10-13, run 38425113336 on 56cfad4: the three suite jobs green with junit evidence per suite; the
+e2e job green (`pass` true, nine checks, 595 s at `target_users` 200, seed 0); the measure job green (`pass` true,
+c5 and c10, 21 min). Everything in it is synthetic and stamped `measurement: false`. The figures and the open item
+(the reports themselves, artifacts 11830620985 and 11831910113, are not yet committed under
+`docs/collective/e2e_ingest/`) are in `E2E-INGEST.md`, "Runs".

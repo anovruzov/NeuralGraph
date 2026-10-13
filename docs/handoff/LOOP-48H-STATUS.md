@@ -153,9 +153,23 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   prereg the units pin; and a sandbox disk shortage failing 70 provision and server tests the build does not touch);
   the fix stage on wf/a002-fix is running the whole tests/lab suite before its final commit. The sandbox has about
   540 MiB free, which the provision tests refuse; clean-up of old worktrees and run directories next.
+- 2026-10-13 16:50 First e2e-ingest.yml run (38425113336, on 56cfad4) green in every job: suites-core 25 min,
+  suites-lab 21 min, suites-e2e 8.5 min, the e2e job 10 min (harness 595 s, pass true, checks c0-c4, c7-c10 ok, c5
+  and c6 belong to the measure job and the workflow test), the measure job 21 min (pass true, c5 and c10). Recorded
+  in E2E-INGEST.md "Runs" and INTEGRATION.md section 10 from the job logs. Not done: the reports are CI artifacts
+  on a host outside this session's network and longer than the readable log tail, so they are not committed under
+  docs/collective/e2e_ingest/ and their digests are not recorded (open ask below). A manual workflow that would
+  have printed the artifacts into a job log was drafted and withdrawn as a route around the network policy. Disk:
+  the sandbox was at 552 MiB free (70 lab provision tests refused to run); stale scratch directories and clean
+  worktrees of finished workflows were removed, 15 GiB free now. A002: the fix stage on wf/a002-fix is in its
+  full tests/lab run.
 
 ## Open asks (date asked)
 
+- NEEDS FOUNDER (2026-10-13): download the two e2e-ingest artifacts of run 38425113336 (e2e-ingest-report.json
+  11830620985 and e2e-ingest-measure.json 11831910113, before 2027-01-11) and commit them under
+  docs/collective/e2e_ingest/38425113336/, or paste the two jobs' step summaries (they carry each report's sha256);
+  the session's network cannot reach the artifact store. Until then S9's "reports committed" clause is open.
 - NEEDS FOUNDER (2026-10-11): confirm that 86 is read as in section 2.1-2.5, or name one of section 2.7. Default: 2.
 - NEEDS FOUNDER (2026-10-11): may the loop open a PR or push to `main`? Default: no. Four open PRs to `main` (#11, #4
   clean; #6, #1 conflicting) are left alone.

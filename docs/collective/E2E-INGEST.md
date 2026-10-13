@@ -1106,4 +1106,72 @@ the measure job's bound of 45 stands.
 
 ## Runs
 
-None yet.
+### Run 1, 2026-10-13, e2e-ingest.yml run 38425113336 on 56cfad4 (synthetic, `measurement: false`)
+
+The first run of the workflow, started by the push of the merge 56cfad4 (wf/e2e-fix2 at 48fc211 merged with `--no-ff`
+after a green local gate: tests/e2e_ingest 157 passed with the real nats-server, the guards 83, packaging and onboard
+99, flake8 clean). The same push started mycelic.yml run 19 (38425113475), green. Every figure below is read from the
+jobs' logs through the API; the world is EMERGENCE's generator at `target_users` 200, seed 0 (309 users, 7 sites, 35
+teams, 12,964 records, 40 real patterns, 40 gold discoverable, 18 rare, 50 decoys), so nothing here is a measurement
+of a real company.
+
+**Suite jobs (criterion 10's gate), all green with junit evidence per suite, verified by the job's last step.**
+
+| Job | Id | Wall | Suites |
+|---|---|---|---|
+| suites-core | 115392344484 | 25 min | NeuralGraph/tests 1.5 min; tests/mycelic 18 min; tests/onboard 3 min; tests/routing_spike 2 min |
+| suites-lab | 115392344079 | 21 min | tests/lab 20 min; the research simulator's 30 tests 21 s |
+| suites-e2e | 115392344573 | 8.5 min | tests/e2e_ingest (its live run of the harness is most of it) |
+
+Artifacts: e2e-suites-core 11830386550, e2e-suites-lab 11829686567, e2e-suites-e2e 11828578965.
+
+**e2e job 115404706053 (criteria 0 to 4, 7, 8, 9 and 10), green.** `python -m research.e2e_ingest run --size 200
+--mode process --out e2e-out --suites suites --run-id gh-38425113336`; started 16:13:21 UTC, finished 16:23:16 UTC,
+`run.seconds` 595.2 (the 20-minute bound of section 11 holds; no amendment is due); runner 4 vCPU (AMD EPYC 9V74),
+Python 3.11.17, nats-server v2.10.29; `code_commit` 56cfad4, `code_dirty` false at start and end;
+`suites_evidence` junit. Verdict: `pass` true, `checks_pass` true, `suites_green` true; checks run c0, c1, c2, c3, c4,
+c7, c8, c9, c10; failed none; not run c5 (the measure job's) and c6 (the workflow test's), so `complete` is false for
+this job by construction.
+
+- Routing (c1): 55 candidates detected and 55 asked, 7 HQ-eligible; coordinator and router are the coordination
+  package's `TesseractCoordinator` and `Router`, m 3, route label R, `route_selected_first_all` true,
+  `per_question_route_ok` true, `routes_equal_arm_order` true. Probe: masked site r00-site-00, unmasked route r03,
+  r04, r00 became r03, r04, r02, one failure injected, one intervention, verdict sources site only. Tesseract: 166
+  rankings over site graphs of 1,458 to 2,574 nodes (median 1,805), p50 0.75 s, p95 1.17 s; 163 read verdicts, each
+  with exactly one diagnostics row, 0 rows outside the asked pairs, 0 duplicated. Verdicts: 148 confirm, 15 refute,
+  2 unknown, 0 budget unknowns, 0 HQ errors; statuses 47 supported, 7 hypothesis, 1 stale. Question to verdict: per
+  question p50 2.48 s, p95 3.38 s (n 55); per site p50 0.79 s, p95 1.20 s (n 168).
+- Signatures (c1): 275 API event ids in the stream, 0 duplicated; the three forgeries sit at stream sequences 280 to
+  282, each terminated, each with its own `event.rejected` audit row, the forged memory absent; 0 failures before
+  the forgeries, 3 after.
+- Recovery (c4): broker killed at k 110 of N 220, broker down 1.26 s, 138 in the outbox during the outage, status
+  degraded and transport disconnected during it, 1 reconnect after; applied deltas 220 `agent.event` and 55
+  `memory.observed`, applied exactly once, 0 ignored, 0 stream duplicates, 55 active notes. Service rebuild 1.52 s:
+  55 active memory ids before and after, identical; 55 conclusions verified; verify digest identical; replay saw 282
+  and rejected 3; ready after the rebuild. Site restart (r00-site-00, killed): 2,574 nodes before and after, 0 added,
+  16 questions before and 15 after, answer matrix identical, verdict bytes identical.
+- Timings: world 5.8 s; reference pass 153.8 s; main pass 144.9 s; publish 31.7 s; re-ingest 116.0 s; the fixed
+  queries 116.6 s before and 115.8 s after; restart witness 19.2 s; rebuild 1.7 s; bridge rerun 1.7 s; crossing
+  scan 1.0 s; lineage 0.3 s; forgery 0.2 s; discovery 0.6 s.
+- Artifact `e2e-ingest-report.json` 11830620985 (48,128 bytes zipped; the upload step's digest of the zip
+  211cfc6956158dc1683486a027d8f532a5935d0dc1f299ffd5488ac1ff0f56b9; expires 2027-01-11).
+
+**measure job 115404706216 (criterion 5 and the scaling table), green.** `python -m research.e2e_ingest measure
+--sizes 200,600,2000 --out measure-out`; started 16:13:04 UTC, completed 16:34 UTC (about 21 min of the 45-minute
+timeout, inside M14's 42-minute sum). Verdict: `pass` true, `checks_pass` true, `suites_green` true,
+`sizes_are_the_briefs` true; checks run c5_measured and c10_suites_green; failed none; not run c0, c7, c8 and c9
+(per size, in each size's own report, which c5 asserts ok), c1 to c4 (the e2e job's) and c6. Artifact
+`e2e-ingest-measure.json` 11831910113 (the upload step's digest of the zip
+aee751db3d50e7236cfb8a6d2a228f6571ce4aec3e452acbf74c5bc92625136c; expires 2027-01-11).
+
+**What this record does not hold, and why.** The two report files are not yet committed under
+`docs/collective/e2e_ingest/`, and `check REPORT --recorded` has not been run on them: the artifact store is on a
+host outside this session's network, and the API returns at most the last 5,000 lines of a job log while each
+pretty-printed report is longer than that, so the report blocks' BEGIN lines (`lines=N sha256=...`, M12) and the
+measure job's per-size figures and scaling table were not read. The step summary of each job carries the sha256 of
+its report (and, for the measure job, of each size report); both are visible on the run page. A manual workflow that
+would have printed the artifacts into a job log was drafted and withdrawn: it would have routed around the session's
+network policy. Open ask to the founder (also in the handoff status): download the two artifacts (ids above, before
+2027-01-11) and commit them under `docs/collective/e2e_ingest/38425113336/`, after which the digests are recorded
+here and `check` is run on the recorded reports. S9's first clause (both jobs green on the same sha) is met; its
+second (reports committed) waits on that ask.
