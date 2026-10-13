@@ -524,3 +524,101 @@ test_collective_guards.py -k NoModelNames` reports the brief's own two hits and 
   `tests/mycelic/test_collective_guards.py` hits the brief's own declaration twice. Run on this tree, that scan
   reports those two hits and nothing else — every file of this build is clean — so c10 turns green with the
   brief's own amendment, not with a change here.
+
+### Fixes
+
+- The section above was written by the stage the account's usage limit interrupted; its WIP commit (`0154242`)
+  was neither reviewed nor run to the end before the interruption. The next section (`wf/e2e-harness2`) reviewed
+  it against the brief, changed what the table there lists, and recorded a run of the finished harness; the
+  figures above are superseded by that run's. Under M2 the `verdict.pass` of any run without the suites' junit
+  evidence is false (`reason: suites_not_green`); what the section above calls "`verdict.pass` true" is the
+  report's `checks_pass` now.
+
+## S5 and S6, continued: the harness finished (branch `wf/e2e-harness2`)
+
+The interrupted stage's WIP, reviewed against the brief and finished: `harness.py`, `hq_tesseract.py`,
+`report.py`, the drills' additions and `test_harness.py` as `0154242` left them, plus `measure.py` (new, the
+simulator's columns of section 10 only). This branch starts from `0154242`. The command is unchanged:
+
+    python -m research.e2e_ingest.harness run --world 200 --seed 0 --out DIR [--skip-drills] [--queries N]
+    python -m research.e2e_ingest.harness check REPORT [--recorded]
+
+Declaration. Everything here is synthetic and stamped `measurement: false`. In the sandbox (Intel Xeon 2.10 GHz,
+4 vCPU, nats-server v2.10.22 at `/root/.local/bin`) this stage ran: the whole `tests/e2e_ingest` suite (with
+its one real run of the harness), two full runs of the harness on the 200-user world (one of the WIP as left, one
+of the finished code; the second is the one recorded below), the simulator's two architectures alone at size 200
+(under a second), and `flake8 --max-line-length 120` over `research/e2e_ingest` and `tests/e2e_ingest`. No model
+ran. No record text or record ref appears in this note, in a log, in a test message or in a report.
+
+### What changed against the WIP (the brief wins)
+
+| Where | What | Why |
+|---|---|---|
+| `routing.questions` | the per-question list `{question_id, hq_eligible, route, route_size, status, trace}`; the count is `routing.questions_asked` | M4 says `routing.questions[]`; section 5's int is text the amendment overrides |
+| `routing.per_question_route_ok`; c1 `every_question_eligible_and_routed` | every question of the main pass had every site eligible and a route of `min(3, eligible)` | M4 check 2 is per question, not only in the suite |
+| `routing.tesseract.{read_verdicts, rows_for_read_verdicts, rows_outside_asked_pairs, rows_duplicated, asked_pairs, rows_equal_read_verdicts}`; c1 `tesseract_row_per_read_verdict` | the site diagnostics reconciled with the verdicts they produced: every confirm or refute of the main pass has exactly one row at its site, no row names a (question, site) pair HQ did not ask (the probe's pairs included), no pair has two | section 4, item 2 ("both are required and checked") |
+| `publish.created_to_applied` | one sample per POST: a verdict's `agent.event`, a conclusion's `memory.observed` (the note's apply); the conclusions' own `agent.event`s beside it as `created_to_applied_conclusion_agent_events` | M18 |
+| `discovery.*` | computed from the fabric's notes as drill 5 read them back (`metadata.entity_id`, `.predicate`, `.snapshot_week`, `.value`, the lineage check) and Gold's labels, never from HQ's store; `found_patterns` needs the lineage check; a decoy counts by its facet-0 (anchor, chain) key inside its window, with `decoy_acceptance_by_type` (accepted over the class's count) beside the counts; the oracle rows carry the fabric's status (what c1 compares) with `hq_status` beside it; `gold_discoverable_patterns` and `fabric_conclusions` so c9 and `check` work from the report alone | section 10; c1 ("fabric status"); c9 ("computed by the scorer from the fabric and Gold") |
+| `discovery.simulator` | `measure.py` (new): `H_mycelic_full` and `A2_chunked_ctx` on the same world (`runner.build_world`, `run_arch`, `allocation("back-loaded")`, `evalm.evaluate`; never `run_matrix`), the five metric fields, `simulated: true`, under the 10-minute budget, else null with `reason: budget` | section 10, M14, M24; the WIP left the columns to S7 |
+| `c9_benchmark` | run by the end-to-end job: every discovery field present, `found_patterns` ⊆ Gold's discoverable set, `recall_all` the ratio, criterion 5's per-hop numbers at this size numeric, the simulator columns present (null with `reason: budget` at the 2,000-user size only), the synthetic and measurement stamps | section 9; section 2.3, criterion 6 ("8 and 9's discovery score in under 20 minutes") |
+| `verdict` | `pass` only when every check that ran is `ok` **and** the suites' junit evidence of M2 is in the report and green; otherwise `pass: false`, `reason: suites_not_green`, with `checks_pass` and `suites_green` beside it; the CLI exits 1 on `pass: false` | M2; criterion 10 ("a run on a tree whose suites are not green is not a result") |
+| `check REPORT` | the report re-read: every percentile recomputed from its samples (`routing.tesseract`, `routing.question_to_verdict` per question and per site, `publish.created_to_applied`), the lineage counts from `lineage.rows`, the recall from `found_patterns`; the checks run again and compared with the stored ones; `--recorded` requires `run.github_run_id` and `run.command`; exit 0 only when everything agrees and the verdict passes | M12 |
+| `routing.question_to_verdict.per_site_samples` | the per-(question, site) wire timings, so the per-site percentiles are recomputable | M12 |
+| `ProbeResult.received` | the probe's per-site `{site, source, verdict}` (no body, no ref) | section 4, item 2 reconciles the probe's pairs too |
+| M24 in the suite | the tier labels are read from the simulator's own `ALLOCATIONS` (none is written in the test) and must be absent from the report; the allocation name must be present | M24 records the allocation name; the WIP's test forbade it |
+| Style | `flake8 --max-line-length 120` clean over both directories (two continuation lines in S2b's and S2's files, two in the WIP's test) | the stage's gate |
+
+No pinned module was changed; `research/e2e_ingest/drills.py` is as the WIP left it. `hq_tesseract`'s store contract
+with the bridge (the earlier section "The contract with S5") is unchanged.
+
+### Found in the brief while finishing (nothing lowered)
+
+1. **Section 5 and M4 disagree on `routing.questions`** (an int; a list of per-question records). The amendment
+   wins: the list is `routing.questions`, the count `routing.questions_asked`.
+2. **Section 4, item 2's "unknown with a record read".** A site writes its diagnostics row inside its retrieval
+   (`site_process.py:330-335`), which runs for every fresh question on an entity in its master data — every entity
+   is, here (section 3.3) — so an `unknown` after a retrieval that read nothing also has a row, and a question the
+   site had already answered (its stored verdict is returned, `site_process.py:362-364`) has none. The check
+   reconciles what the two sides can both see: every confirm or refute has one row, no row lies outside the pairs
+   HQ asked (the probe's included), no pair has two; the unknowns' rows stay in the samples with their `read`.
+3. **M4's probe with a re-asked candidate** (the 200-user world has no spare candidate, item 4 of the section
+   above) runs a fresh retrieval at the replacement site only; the two sites that had answered the question return
+   their stored verdict. The exclusion is still the Router's (the masked site is in the unmasked arm-R route and
+   absent from the route chosen) and the probe's received pairs are in the report.
+4. **M24 records the allocation name** (`back-loaded`) and forbids the tier labels; the WIP's test forbade both.
+5. **M2 leaves no local run passing before S8.** `verdict.pass` is false without the suites' junit evidence, so
+   the trial run below is `checks_pass` true, `pass` false, `reason: suites_not_green`, until the suites CLI of M2
+   exists and `run --suites DIR` reads its files (S8). The checks themselves are the stage's result.
+6. **Section 10's `found_patterns` and the oracle read the fabric, not HQ's store.** The WIP scored both from
+   `pd_conclusions`; the brief says "recovered at HQ as `supported` conclusions in the fabric" and c1 says "fabric
+   status". The service stores a note's `value` as `metadata.value` (canonical, lower case; the earlier section's
+   item 4), which is what both read now; `hq_status` is reported beside it.
+
+### Tests (`tests/e2e_ingest/test_harness.py`, as the stage left it)
+
+| Test class | What it proves |
+|---|---|
+| `OracleTests` (6) | section 3.5 and M20, as the section above says |
+| `ScanTests` (3) | drill 5's three patterns and M24's needle scan |
+| `CheckTests` (6) | a green report passes every check the end-to-end job runs (c0 to c4, c7, c8 **and c9**); one mutation per assertion (109 of them, a removed field among them) each makes its own check fail and names itself; every assertion has a mutation; the verdict fails when a check that ran is not ok; a run without the suites' junit evidence does not count (M2); c9 accepts null simulator columns with `reason: budget` at the 2,000-user size only; M12's recomputation agrees with a report whose aggregates are its samples' and disagrees with a typed-in percentile, lineage count or recall |
+| `GuardTests` (5) | criterion 7 for real, as the section above says |
+| `LiveRunTests` (10) | one real run as the section above says, plus: `routing.questions[]` per M4 and `per_question_route_ok`; the diagnostics reconciled with the verdicts (section 4, item 2) and the probe's received pairs; the discovery score from the fabric's notes with the simulator's two columns present, labelled and numeric; the oracle's fabric status equal to HQ's; M2's `pass: false, reason: suites_not_green` with `checks_pass` beside it; the written report recomputes to itself and `check REPORT` reproduces its checks, exits as the stored verdict says, refuses `--recorded` without a CI run id, and catches a typed-in verdict; no tier label of the simulator in the report and the allocation name present |
+
+Run: `python -m pytest tests/e2e_ingest -q -p no:cacheprovider` with `MYCELIC_NATS_SERVER_BIN` set (a missing
+binary fails, M11). The sandbox record is under "What the recorded local run showed".
+
+### Not done here
+
+- `measure.py` holds the simulator's columns only. Criterion 5 (the per-hop numbers at 600, 5,882 and 20,000
+  nodes from the 2,000-user world, the rate sweep in its own organisations, the scaling table at 200, 600 and
+  2,000 with per-phase reports) is the measure job's and is not built: `c5_measured` stays `not_run`.
+- `.github/workflows/e2e-ingest.yml`, `tests/e2e_ingest/test_workflow.py` and criterion 6 (S8); the suites CLI
+  of M2 (`python -m research.e2e_ingest suites --out DIR`), `run --suites DIR` and with them criterion 10's junit
+  evidence (S8); `__main__.py` (`python -m research.e2e_ingest run|measure|check|suites`); the section-6 settings
+  test. Until the suites CLI exists every local run reads `pass: false, reason: suites_not_green`, by M2.
+- S9's recorded CI runs and the committed reports under `docs/collective/e2e_ingest/`.
+- Criterion 10 stays blocked on this base for the reason the bridge section's item 5 gives (the brief's own two
+  hits in the model-name scan); on this tree the guards suite is 82 passed, that one test failed on the brief's
+  file alone, and nothing of this stage is hit.
+- The local reports of the two trial runs are sandbox artifacts and are not committed; their figures are above and
+  they hold no record text, which the suite asserts of its own run's report.
