@@ -291,7 +291,8 @@ and changes nothing of the rule:
 
 ## Tests
 
-`tests/lab/test_lab_j3.py`, offline (64 tests, every rule clause of the build plan's declared list pinned): the
+`tests/lab/test_lab_j3.py`, offline (65 tests after the fix stage, every rule clause of the build plan's declared list
+pinned): the
 synthetic archive and both earlier artifacts (`tests/lab/j3_data.py`), the lab's fake server with the vehicle pack's
 responder, no network host. Three fixtures are made once: a plan of two fake models (40 records in 2 parts)
 preregistered against the synthetic artifacts with the real runs' rebuild prefixes, a small dry run of two gguf
@@ -320,6 +321,14 @@ tests/lab/test_lab_j2.py -q -p no:cacheprovider` gave `56 passed, 204 subtests p
 block above; `git diff --stat 720b0d6..HEAD` over the five pinned lab files printed nothing. The whole `tests/lab`,
 the onboard and guard suites and a re-run of the whole `test_lab_j3.py` were started in the background and had not
 finished when the stage's limit closed it; the merge gate runs them before any merge.
+
+Run in the fix stage (`wf/a002-fix`, "Fixes after review"): `python -m pytest tests/lab/test_lab_j3.py
+tests/lab/test_lab_j2.py -q -p no:cacheprovider` gave `121 passed, 624 subtests passed` (65 and 56 tests; every new pin
+fails with its fix removed: the four file cases, the eight manifest cases, the endpoint case under the review's E1+E2
+mutation and the hash case under E2 alone); the template dry run gave the block below again (the complaint-file prefix
+of its own generation); `git diff --stat 720b0d6..HEAD` over the five pinned lab files printed nothing, and the only
+hunks in `lab/aggregate.py` and `lab/summary.py` since `720b0d6` are insertions after `j2_block` and `_j2_tables` end.
+SUITES_SENTENCE
 
 ## The dry run
 
