@@ -25,6 +25,7 @@ from mycelic.models import content_hash
 from mycelic.sdk import MycelicClient
 from research.e2e_ingest import drills
 from research.e2e_ingest.publish_api import AGENT_ID, ORG_ID
+from research.e2e_ingest.suites import SUITES
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCAL_NATS = Path("/root/.local/bin/nats-server")
@@ -51,6 +52,14 @@ def nats_binary_version(nats_bin: str) -> str:
 
     out = subprocess.run([nats_bin, "--version"], capture_output=True, text=True, timeout=20, check=True).stdout
     return out.strip().split()[-1].lstrip("v")
+
+
+def suite_rows(sha: str) -> list[dict[str, Any]]:
+    """M2: one green, junit-bound row per suite at its floor, naming ``sha`` (what ``run --suites DIR`` embeds)."""
+    return [{"suite": s.name, "slug": s.slug, "group": s.group, "floor": s.floor, "sha": sha, "tests": s.floor,
+             "failures": 0, "errors": 0, "skipped": 0, "skipped_in_scope": 0 if s.zero_skip_scope is not None else None,
+             "duration_s": 1.0, "junit_sha256": "0" * 64, "junit_file": f"{s.slug}.xml", "junit_present": True,
+             "junit_bound": True, "exit_code": 0} for s in SUITES]
 
 
 def expected_event_id(idempotency_key: str, agent_id: str = AGENT_ID) -> str:

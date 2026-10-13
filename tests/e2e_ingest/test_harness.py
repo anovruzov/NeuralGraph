@@ -30,6 +30,8 @@ from typing import Any
 from research.e2e_ingest import emergence_world as ew
 from research.e2e_ingest import harness as H
 from research.e2e_ingest import report as rp
+from research.e2e_ingest import suites as su
+from tests.e2e_ingest.helpers import suite_rows
 
 #: What the short-world run of :class:`LiveRunTests` cannot reach, and why. Every other assertion of every check
 #: must hold. ``one_unambiguous_supported`` is a floor over the whole candidate list (section 2.3: at least one
@@ -139,7 +141,10 @@ def green_report() -> dict[str, Any]:
                                        "seconds": 0.4} for a in rp.SIMULATOR_ARCHITECTURES}}
     return {
         "kind": rp.KIND, "schema_version": rp.SCHEMA_VERSION, "synthetic": True, "measurement": False,
-        "run": {"spike_code_hash": rp.SPIKE_CODE_HASH, "spike_code_files": rp.SPIKE_CODE_FILES},
+        "run": {"spike_code_hash": rp.SPIKE_CODE_HASH, "spike_code_files": rp.SPIKE_CODE_FILES,
+                "code_commit": "a" * 40, "code_dirty_start": False, "code_dirty_end": False,
+                "suites": suite_rows("a" * 40), "suites_evidence": su.EVIDENCE, "needs_results": None,
+                "github_run_id": None},
         "fabric": {"driver_is_process_driver": True, "nats_bin": "/usr/local/bin/nats-server",
                    "keyring": {"harness_key_set": True, "key_id": "k1", "key_id_in_service_db": True},
                    "transport": "nats-jetstream", "broker_version": "2.10.22",
@@ -217,11 +222,12 @@ def put(doc: dict[str, Any], path: str, value: Any) -> dict[str, Any]:
     node = out
     parts = path.split(".")
     for part in parts[:-1]:
-        node = node[part]
+        node = node[int(part)] if isinstance(node, list) else node[part]
+    last: Any = int(parts[-1]) if isinstance(node, list) else parts[-1]
     if value is DROP:
-        del node[parts[-1]]
+        del node[last]
     else:
-        node[parts[-1]] = value
+        node[last] = value
     return out
 
 
@@ -235,6 +241,7 @@ class CheckTests(unittest.TestCase):
     def checks(self, doc: dict[str, Any]) -> dict[str, Any]:
         out = dict(rp.run_checks(doc))
         out["c0_real_fabric_keyed"] = rp.c0_real_fabric_keyed(doc, in_ci=False)
+        out["c10_suites_green"] = rp.c10_suites_green(doc, in_ci=False)
         return out
 
     def test_a_green_report_passes_every_check_that_the_e2e_job_runs(self) -> None:
@@ -385,6 +392,18 @@ class CheckTests(unittest.TestCase):
             ("c9_benchmark", "per_hop_numbers_numeric", "routing.tesseract.seconds_p50", None),
             ("c9_benchmark", "simulator_columns_present", "discovery.simulator", None),
             ("c9_benchmark", "stamps_synthetic_not_measured", "discovery.measurement", True),
+            ("c10_suites_green", "evidence_is_junit", "run.suites_evidence", None),
+            ("c10_suites_green", "code_clean_at_start", "run.code_dirty_start", True),
+            ("c10_suites_green", "code_clean_at_end", "run.code_dirty_end", True),
+            *[m for i, s in enumerate(su.SUITES) for m in (
+                ("c10_suites_green", f"{s.slug}:present", f"run.suites.{i}.suite", "another"),
+                ("c10_suites_green", f"{s.slug}:sha_is_the_commit", f"run.suites.{i}.sha", "c" * 40),
+                ("c10_suites_green", f"{s.slug}:no_failures", f"run.suites.{i}.failures", 1),
+                ("c10_suites_green", f"{s.slug}:no_errors", f"run.suites.{i}.errors", 1),
+                ("c10_suites_green", f"{s.slug}:tests_at_or_above_floor", f"run.suites.{i}.tests", s.floor - 1),
+                ("c10_suites_green", f"{s.slug}:junit_bound", f"run.suites.{i}.junit_bound", False),
+                *([("c10_suites_green", f"{s.slug}:no_skips_in_scope", f"run.suites.{i}.skipped_in_scope", 1)]
+                  if s.zero_skip_scope is not None else []))],
         ]
 
     def test_c9_accepts_null_simulator_columns_only_at_the_largest_size_with_the_budget_reason(self) -> None:
@@ -511,8 +530,10 @@ class LiveRunTests(unittest.TestCase):
             with self.subTest(check=name):
                 self.assertLessEqual(set(check["failed"]), SHORT_SCALE.get(name, set()),
                                      f"{name} failed assertions this scale should reach")
-        self.assertEqual(sorted(self.doc["checks"]), sorted(rp.E2E_CHECKS))
+        self.assertEqual(sorted(self.doc["checks"]), sorted(n for n in rp.E2E_CHECKS if n != "c10_suites_green"))
         self.assertEqual(sorted(self.doc["verdict"]["not_run"]), ["c10_suites_green", "c5_measured", "c6_ci"])
+        self.assertEqual(self.doc["run"]["suites_evidence"], None)
+        self.assertEqual(self.doc["run"]["suites_problems"], ["no suites directory"])
         self.assertFalse(self.doc["verdict"]["complete"])
         # M2: no junit evidence of the suites was given to this run, so it does not count whatever its checks say
         self.assertEqual((self.doc["verdict"]["pass"], self.doc["verdict"]["reason"]),

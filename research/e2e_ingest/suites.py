@@ -154,22 +154,24 @@ def run_suite(suite: Suite, out: str | Path, *, sha: str | None = None, python: 
 
 
 def green(row: Mapping[str, Any]) -> bool:
-    return (row.get("junit_present") is True and row.get("failures") == 0 and row.get("errors") == 0
-            and row.get("exit_code") == 0)
+    """A junit file, at least one test, no failure, no error, exit 0 (a suite that collected nothing is not green)."""
+    return (row.get("junit_present") is True and int(row.get("tests") or 0) > 0 and row.get("failures") == 0
+            and row.get("errors") == 0 and row.get("exit_code") == 0)
 
 
 # --------------------------------------------------------------------------------------------------- reading
 
-def read_evidence(out: str | Path | None) -> dict[str, Any]:
-    """Every suite's row from ``DIR``, each re-bound to its junit file (``junit_bound``: the file is beside it and
-    hashes to the row's ``junit_sha256``); ``evidence`` is ``"junit"`` only when all seven rows are present and
-    bound, and ``problems`` names what is not."""
+def read_evidence(out: str | Path | None, group: str | None = None) -> dict[str, Any]:
+    """Every suite's row from ``DIR`` (one job's with ``group``), each re-bound to its junit file (``junit_bound``:
+    the file is beside it and hashes to the row's ``junit_sha256``); ``evidence`` is ``"junit"`` only when every
+    expected row is present and bound, and ``problems`` names what is not."""
     rows: list[dict[str, Any]] = []
     problems: list[str] = []
+    expected = [s for s in SUITES if group is None or s.group == group]
     if out is None:
         return {"rows": rows, "evidence": None, "problems": ["no suites directory"], "dir": None}
     out = Path(out)
-    for suite in SUITES:
+    for suite in expected:
         path = out / f"{suite.slug}.json"
         if not path.is_file():
             problems.append(f"{suite.name}: no {path.name}")
@@ -188,7 +190,7 @@ def read_evidence(out: str | Path | None) -> dict[str, Any]:
         if not bound:
             problems.append(f"{suite.name}: junit file missing or not the one the row hashed")
         rows.append({**row, "junit_bound": bool(bound)})
-    evidence = EVIDENCE if len(rows) == len(SUITES) and not problems else None
+    evidence = EVIDENCE if len(rows) == len(expected) and not problems else None
     return {"rows": rows, "evidence": evidence, "problems": problems, "dir": str(out)}
 
 
@@ -222,11 +224,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--group", choices=GROUPS, default=None, help="only this job's suites (section 11)")
     parser.add_argument("--suite", action="append", default=None, help="only this suite (repeatable)")
     parser.add_argument("--sha", default=None, help="the commit the rows name (default: GITHUB_SHA or the tree's)")
-    parser.add_argument("--verify", action="store_true", help="read DIR and print what a report would embed")
+    parser.add_argument("--verify", action="store_true",
+                        help="read DIR (one job's suites with --group) and print what a report would embed")
     args = parser.parse_args(list(argv) if argv is not None else None)
     out = Path(args.out)
     if args.verify:
-        found = read_evidence(out)
+        found = read_evidence(out, args.group)
         for row in found["rows"]:
             print(summary_line(row))
         for problem in found["problems"]:
