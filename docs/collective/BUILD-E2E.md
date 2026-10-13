@@ -1000,4 +1000,65 @@ changed; no test was weakened, skipped or quarantined; no floor was lowered (`te
 | The simulator's columns are nested under `architectures` | stated under "Found in the brief" of the S5-continued section (item 7); layout only |
 | `SHORT_SCALE`'s exemption did not say whose floor it is | the comment, the `LiveRunTests` docstring and the Tests table say the floor holds at 55 candidates (the e2e job) and the first 20 by score need not hold one |
 
-### What this branch ran
+### What this branch ran (Intel Xeon 2.80 GHz, 4 vCPU, nats-server v2.10.22; sandbox figures, synthetic, `measurement: false`)
+
+The whole `tests/e2e_ingest` suite and the harness at size 200 ran at the same time on the four cores, so every
+timing below is under a shared load; nothing here is a timing result.
+
+- `python -m research.e2e_ingest suites --out DIR --suite tests/e2e_ingest` (M2's own command, the real broker):
+  **157 passed, 816 subtests, 0 skipped, 1,107.6 s**; the row reads `tests=973 distinct=157 failures=0 errors=0
+  skipped=0 skipped_in_scope=0 exit=0`, bound to its junit file, and `suites --verify --group e2e` exits 0
+  (`evidence=junit`). The junit `tests` attribute (973) against the collected count (157) is the inflation c10 no
+  longer reads. Before it, the live-run class alone: 13 passed in 512.5 s; the pure tests of the suites, measure,
+  workflow and harness files: 82 passed, 391 subtests.
+- `python -m research.e2e_ingest run --size 200 --mode process --out DIR --run-id fix2-200` (the e2e job's
+  command, every drill), 1,362 s under the shared load: **every check the job runs ok** (c0 9 assertions, c1 34,
+  c2 19, c3 12, c4 27, c7 6, c8 6, c9 6; c5, c6 and c10 not run), `verdict.checks_pass` true, `verdict.pass` false
+  with reason `suites_not_green` (no `--suites` directory, M2), `phase: finished`, `completed: true`; exit 1 as the
+  stored verdict says. `check REPORT`: aggregates agree (0 problems, the oracle rows and the routing flags among
+  them), every check reproduced assertion for assertion, exit 1 as the stored verdict says.
+  - c1: 55 questions, 7 eligible each, routes of 3 equal to arm R's first three, `route_selected` before every
+    `retrieval_selected`; 166 rankings (p50 1.73 s, p95 2.90 s under the load) over 1,458 to 2,574 nodes; the
+    probe (`r00-site-00` masked after its 16th of 31 questions): unmasked route `r03 / r04 / r00`, the Router's
+    `r03 / r04 / r02`, 7 eligible, route size 3, sources `["site"]`, 1 failure injected, 1 intervention ended; the
+    stream read's bounds 1..282 equal `/admin/status`'s; the three forgeries at sequences 280, 281, 282 terminated
+    and audited by those sequences (3 of 3 `event.rejected` rows), the counter 1, 2, 3, the memory ids 404; 8
+    unambiguous planted candidates, 7 expected `supported`, 0 mismatches.
+  - c2: 55 conclusions reconstructable; 165 site-sourced verdict events, each with the fabric's `sha256` equal to
+    HQ's row and the five witnesses on the fabric's value (165 in `pd_verdicts`, the wire log, the intake log, the
+    sites' egress logs and the sites' stores; the payloads read from the admin view, 275 rows); 163 joined to
+    their records, 0 after `as_of`, 0 unknown refs; the scan 0/0/0 over 396,084 database bytes and 282 stream
+    messages (1,312 prefixes); the spike's checks: main pass leakage 0 overlap bytes and 0 canary hits over 191
+    items (795,654 bytes), shapes ok (168 question frames, 7 describes, 166 verdicts received, 14 descriptor rows,
+    0 intake refusals, 0 problems), pipeline leakage 0 over 7 items (724,813 bytes); 2.2 s.
+  - c3: re-ingest 12,964 duplicates, 0 ingested, 0 rejected, 20 queries per site measured at every site (140
+    rankings), node ids, counts, top 10 and full orders unchanged; the bridge rerun 220 publishes, 0 created, 0
+    new ids, the stream at 285 before and after, HQ's store unchanged.
+  - c4: `run.mode` process, the site process SIGKILLed (`killed` true), 16 questions before and 15 after, bytes
+    identical, 0 nodes added, the answer matrix equal to the reference; the broker killed after publish 110 of
+    220, down 1.9 s, 138 in the outbox during the outage, applied exactly once, 0 stream duplicates; the service
+    rebuilt in 3.5 s, replay 282 seen, 3 rejected, not blocked, `/ready` 200. `created_to_applied` p50 1.0 s and
+    p95 2.0 s over 220, `created_to_applied_before_kill` p50 0.0 s and p95 2.0 s over the first 110 (whole-second
+    stamps under the shared load; criterion 5's figures are the measure job's).
+  - c8: 309 users, 7 sites, 12,964 records, loss 0, 1.32 s per 1,000 records under the load. c9: 15 true / 35
+    decoy / 5 background candidates, 13 of 40 patterns found (`recall_all` 0.325, `recall_common` 0.591,
+    `recall_rare` 0), decoys accepted by class 2: 5, 4: 9, 5: 3, 0 background keys, the simulator's columns present.
+  - Phases (seconds): world 19.9, reference pass 391.8, main pass 330.5, fixed queries before 262.2, restart
+    witness 41.8, crossing 2.2, fabric start 0.8, publish 5.9, forgeries 0.5, lineage 0.8, discovery 1.7, rebuild
+    4.2, re-ingest 295.5 (the second ranking pass inside it), bridge rerun 2.5.
+- `python -m pytest tests/mycelic/test_collective_guards.py -q -p no:cacheprovider`: **83 passed, 735 subtests,
+  120.6 s**; `-k NoModelNames`: 4 passed, 28 subtests (the tree has no hit; this note included).
+- `python -m pytest tests/mycelic/test_packaging.py tests/onboard/test_onboard_demo.py -q -p no:cacheprovider`:
+  **99 passed, 76 subtests, 348.4 s** (they read the workflow files).
+- `flake8 --max-line-length 120 research/e2e_ingest tests/e2e_ingest`: clean.
+- The brief's no-model-names guard scans `docs/collective`; nothing in this note names a model or the deployment
+  branch's first path segment. The local reports are sandbox artifacts and are not committed.
+
+### Not done here
+
+- S9's recorded CI runs (the first run of this workflow on the deployment branch, now five jobs), the committed
+  reports under `docs/collective/e2e_ingest/` and the `## Runs` entries; the 20-minute bound of the e2e job and
+  the 45 of the measure job are neither met nor missed by a sandbox figure under a shared load.
+- The measure job did not run again here (its sizes, sweep and graphs are unchanged but for the budgets, the
+  proven bound and c5's two new assertions, which `test_measure` covers); the first recorded CI run says whether
+  M14's amended budgets hold on a GitHub runner.
