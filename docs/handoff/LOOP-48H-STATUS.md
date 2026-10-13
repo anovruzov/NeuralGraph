@@ -65,6 +65,14 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   mycelic.yml run 38114522105 (S0 put `lab/**` in the paths filter); the fix (`!lab/requests/**`) waits until the
   shards finish, since a workflow push would start CI again. Check-ins 05:37 and 05:52 armed. EMERGENCE: harness
   stage still building (harness module written 05:21, its test file added, a trial run at size 200 under way).
+- 06:00 A001 run 1 (lab run 38114522160) complete: created 05:21:31, 15 shards 05:23:00 to 05:46:28, aggregate job
+  114400537232 05:46:30 to 05:48:05, run success at 05:48:06; report sha cfd7749b3719 (155 lines) recomputed from the
+  log and matching. Primary pair (a-4b, negation): failure by rule 10, balanced accuracy 0.577 [0.530, 0.623] against
+  the lexical judge's 0.663 [0.627, 0.703] on the same records (paired -0.087 [-0.140, -0.033]), gap to 0.860 of
+  0.283, bound 0.577; the per-model headline is worse for all three models; the best secondary, a-4b with the shipped
+  instruction read through the unclear-to-no mapping, 0.667 [0.620, 0.710], paired 0.003 [-0.047, 0.050] to the
+  lexical judge, not told apart, a hypothesis for the next cycle only. 12 comparisons this cycle, 12 since the loop
+  began; recorded in CHOICE-A001 Run 1, RESULTS run 11 and the YC brief (branch wf/record-a001).
 
 ## Open asks (date asked)
 
@@ -87,4 +95,4 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
 
 ## Comparisons made toward 86 (running count of (model, arm, cycle) pairs)
 
-- 0 J-cycles recorded under the pinned rule. (J001 and L001 run 2 predate the rule and are not counted.)
+- 12 (model, arm, cycle) comparisons in 1 J-cycle: A001 run 1 (lab run 38114522160); 12 since the loop began. Primary (a-4b, negation): failure, 0.577 [0.530, 0.623] against the target 0.860 and the lexical judge 0.663.
