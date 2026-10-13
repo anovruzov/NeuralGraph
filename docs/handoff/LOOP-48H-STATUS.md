@@ -95,6 +95,14 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   fresh draw with seed 3 and both earlier draws excluded; primary pair P = (a-4b, evidence_grounded)); the fakeability
   and statistics reviews are in (no blocking finding from statistics), the feasibility review runs; the amendment
   follows in its own commit. No usage-limit message since the resume.
+- 2026-10-13 03:15 A002 rule merged and pushed (720b0d6: b0f12bd committed alone; three adversarial reviews, 3
+  blocking and 33 minor findings; amended 284b375 with B1 to B25, three findings declined in part). Under the
+  standing section 7 default the primary pair is P = (a-4b, evidence): task E answers as answered, with the
+  grounded reading Eg as the headline secondary; nine arms on a-4b alone (N, D, E, Eg, Egm, R, Rm, C, Cm), two
+  ablation comparators for the composite arms, a fresh draw with seed 3 and both earlier draws excluded by five
+  sources with stop rules; 9 comparisons this cycle, 21 since the loop began. Two asks posted above. The build
+  (a new lab kind j3, importing A001's j2 unchanged) is launched: build, two reviews, fix. EMERGENCE harness
+  builder still working on wf/e2e-harness2.
 
 ## Open asks (date asked)
 
@@ -108,6 +116,12 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   Default if silent: the shipped `decide` is primary; declared reply mappings are secondaries.
 - NEEDS CHIEF SCIENTIST (2026-10-11): the replacement for the corrected chance null (plan 1.1); detector settings per
   site count (1.4, 1.5); decisions 1, 2, 7 for Tesseract placement, routing and embedder.
+- NEEDS FOUNDER (2026-10-13): section 2.3's stop rule is read as stop when no mechanism verifies a cycle, not stop
+  unless the rebuilt sha matches; a verified artifact's refs are the records that cycle judged (CHOICE-A001 A2;
+  CHOICE-A002, The data and the draw, item 5). A strict ruling received before the run is adopted by a dated amendment.
+- NEEDS CHIEF SCIENTIST (2026-10-13): may lever 3's verbatim-substring check (G: a yes read as no when the citation
+  is not a substring of the record's text, applied before `decide`) be A002's primary arm? Default if silent: no;
+  P = (a-4b, evidence), Eg the headline secondary.
 
 ## Decisions received
 
