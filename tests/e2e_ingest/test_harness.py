@@ -625,8 +625,8 @@ class LiveRunTests(unittest.TestCase):
     def test_the_partial_report_is_written_after_every_phase(self) -> None:
         """A job stopped at its bound leaves a report: the phases named by ``checkpoint`` are the run's, in order,
         and the file on disk after the run is the finished one."""
-        names = [c.strip().strip('"') for c in re.findall(r'self\.checkpoint\(("[a-z_]+")\)',
-                                                           inspect.getsource(H.E2ERun.run))]
+        source = inspect.getsource(H.E2ERun.run)
+        names = re.findall(r'self\.checkpoint\("([a-z_]+)"\)', source)
         self.assertEqual(names, ["world", "reference_pass", "main_pass", "fixed_queries", "restart_witness",
                                  "crossing", "publish", "forgeries", "lineage", "discovery", "rebuild", "reingest",
                                  "bridge_rerun"])

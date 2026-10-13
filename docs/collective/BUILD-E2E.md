@@ -281,7 +281,8 @@ on the same tree for the record: `NeuralGraph/tests` 264 passed, 1 skipped, 76.3
   and c7 for the two bridge modules, on a hand-built store, not on the EMERGENCE world, and none of it is a run.
 - The local end-to-end run at the 200-user world (criteria 0 to 4, 7 and 8 before a commit) belongs to S5 and
   later; it has not run and could not: the world, the sites and HQ do not exist yet.
-- Criterion 10 is blocked on this tree by item 5 of "Found in the brief" until the brief is amended.
+- Criterion 10 was blocked on this tree by item 5 of "Found in the brief" until the brief was amended; the
+  deployment branch amended it at `65428d9` (merged into the build at `3c850d8`).
 - Nothing is pushed.
 
 ## S5 and S6: `hq_tesseract.py`, `harness.py`, `report.py`, the drills (branch `wf/e2e-harness`)
@@ -520,10 +521,10 @@ test_collective_guards.py -k NoModelNames` reports the brief's own two hits and 
 - S9's recorded CI runs and the committed reports under `docs/collective/e2e_ingest/`.
 - The local report of the recorded run is not committed (it is a sandbox artifact, and S9 commits the CI ones);
   its figures are above and it holds no record text, which a test asserts.
-- Criterion 10 stays blocked on this base for the reason the bridge section's item 5 gives: the model-name scan of
-  `tests/mycelic/test_collective_guards.py` hits the brief's own declaration twice. Run on this tree, that scan
-  reports those two hits and nothing else — every file of this build is clean — so c10 turns green with the
-  brief's own amendment, not with a change here.
+- Criterion 10's guard hit was cleared upstream: the deployment branch amended the brief at `65428d9` (the
+  declaration and section 11 name the deployment branch without its literal ref), and that commit is in this
+  build since the merge `3c850d8`. The settings test (`tests/e2e_ingest/test_workflow.py`) reads the deployment
+  branch's name from `mycelic.yml`, never from the brief.
 
 ### Fixes
 
@@ -593,6 +594,10 @@ with the bridge (the earlier section "The contract with S5") is unchanged.
    `pd_conclusions`; the brief says "recovered at HQ as `supported` conclusions in the fabric" and c1 says "fabric
    status". The service stores a note's `value` as `metadata.value` (canonical, lower case; the earlier section's
    item 4), which is what both read now; `hq_status` is reported beside it.
+7. **The simulator's columns are nested.** Section 10 names them `simulator.H_mycelic_full` and
+   `simulator.A2_chunked_ctx`; the report carries them as `discovery.simulator.architectures.<name>`, beside the
+   allocation name, the world's counts, the metric list and the seconds (`measure.simulator_columns`), and c9 reads
+   that path. Layout only: every field section 10 requires is present under the architecture's name.
 
 ### What the recorded local run showed (Intel Xeon 2.10 GHz, 4 vCPU, nats-server v2.10.22; sandbox figures, synthetic, `measurement: false`)
 
@@ -689,7 +694,7 @@ every aggregate recomputed to itself (0 disagreements), every check reproduced, 
 | `ScanTests` (3) | drill 5's three patterns and M24's needle scan |
 | `CheckTests` (7) | a green report passes every check the end-to-end job runs (c0 to c4, c7, c8 **and c9**); one mutation per assertion (106 of them, a removed field among them) each makes its own check fail and names itself; every assertion has a mutation; the verdict fails when a check that ran is not ok; a run without the suites' junit evidence does not count (M2); c9 accepts null simulator columns with `reason: budget` at the 2,000-user size only; M12's recomputation agrees with a report whose aggregates are its samples' and disagrees with a typed-in percentile, lineage count or recall |
 | `GuardTests` (5) | criterion 7 for real, as the section above says |
-| `LiveRunTests` (12) | one real run as the section above says, plus: `routing.questions[]` per M4 and `per_question_route_ok`; the diagnostics reconciled with the verdicts (section 4, item 2) and the probe's received pairs; the discovery score from the fabric's notes with the simulator's two columns present, labelled and numeric; the oracle's fabric status equal to HQ's; M2's `pass: false, reason: suites_not_green` with `checks_pass` beside it; the written report recomputes to itself and `check REPORT` reproduces its checks, exits as the stored verdict says, refuses `--recorded` without a CI run id, and catches a typed-in verdict; no tier label of the simulator in the report and the allocation name present |
+| `LiveRunTests` (12) | one real run as the section above says, plus: `routing.questions[]` per M4 and `per_question_route_ok`; the diagnostics reconciled with the verdicts (section 4, item 2) and the probe's received pairs; the discovery score from the fabric's notes with the simulator's two columns present, labelled and numeric; the oracle's fabric status equal to HQ's; M2's `pass: false, reason: suites_not_green` with `checks_pass` beside it; the written report recomputes to itself and `check REPORT` reproduces its checks, exits as the stored verdict says, refuses `--recorded` without a CI run id, and catches a typed-in verdict; no tier label of the simulator in the report and the allocation name present. The run asks the first 20 candidates, so c1's `one_unambiguous_supported` may fail here (`SHORT_SCALE`): section 2.3's floor of one unambiguous planted candidate with expected `supported` holds at 55 candidates (the e2e job; the review's run had 7 expected supported and 0 mismatches), and the first 20 by score need not hold one, so that floor is the e2e job's |
 
 Run: `python -m pytest tests/e2e_ingest -q -p no:cacheprovider` with `MYCELIC_NATS_SERVER_BIN` set (a missing
 binary fails, M11). Sandbox record of the whole suite (the world, pack, site-graph, publisher, bridge and harness
@@ -714,9 +719,9 @@ bridge section's item 5), none in a file of this stage.
   evidence (S8); `__main__.py` (`python -m research.e2e_ingest run|measure|check|suites`); the section-6 settings
   test. Until the suites CLI exists every local run reads `pass: false, reason: suites_not_green`, by M2.
 - S9's recorded CI runs and the committed reports under `docs/collective/e2e_ingest/`.
-- Criterion 10 stays blocked on this base for the reason the bridge section's item 5 gives (the brief's own two
-  hits in the model-name scan); on this tree the guards suite is 82 passed, that one test failed on the brief's
-  file alone, and nothing of this stage is hit.
+- Criterion 10's guard hit (the bridge section's item 5) was cleared upstream at `65428d9`, merged into this
+  build at `3c850d8`; nothing of this stage is hit. The settings test reads the deployment branch's name from
+  `mycelic.yml`, never from the brief.
 - The local reports of the two trial runs are sandbox artifacts and are not committed; their figures are above and
   they hold no record text, which the suite asserts of its own run's report.
 ## S7 and S8: `measure.py`, `suites.py`, `__main__.py`, the workflow (branch `wf/e2e-measure`)
@@ -938,6 +943,7 @@ others (the bridge section's item 5): nothing of this stage is hit, this section
 - S9's recorded CI runs (the first run of this workflow on the deployment branch), the committed reports under
   `docs/collective/e2e_ingest/` and the `## Runs` entries. The 20-minute bound of the e2e job and the 45 of the
   measure job are neither met nor missed by a sandbox figure.
-- Criterion 10 is blocked on this base by the brief's own two hits in the model-name scan (the bridge section's
-  item 5), as before; nothing of this stage is hit.
+- Criterion 10's guard hit (the bridge section's item 5) was cleared upstream at `65428d9`, merged into this
+  build at `3c850d8`; nothing of this stage is hit. The settings test reads the deployment branch's name from
+  `mycelic.yml`, never from the brief (see "Fixes after review").
 - The local reports are sandbox artifacts and are not committed; their figures are above.

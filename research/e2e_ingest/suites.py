@@ -55,8 +55,9 @@ GROUPS = ("core", "lab", "e2e")
 NEEDS_JOBS = {"core": "suites-core", "lab": "suites-lab", "e2e": "suites-e2e"}
 NEEDS_ENV = {"suites-core": "E2E_NEEDS_SUITES_CORE", "suites-lab": "E2E_NEEDS_SUITES_LAB",
              "suites-e2e": "E2E_NEEDS_SUITES_E2E"}
-#: ``tests/e2e_ingest`` at this build's merge (M2: written into the settings test, may only rise).
-E2E_INGEST_FLOOR = 151
+#: ``tests/e2e_ingest`` at this build's merge (M2: written into the settings test as a literal, may only rise;
+#: 151 at the first build, 157 after the review's fixes).
+E2E_INGEST_FLOOR = 157
 #: The row's counts the reader re-parses from the junit file and requires equal (``junit_bound``).
 JUNIT_COUNTS = ("tests", "tests_distinct", "failures", "errors", "skipped", "skipped_in_scope")
 JETSTREAM_CLASSNAME = "tests.mycelic.test_jetstream"

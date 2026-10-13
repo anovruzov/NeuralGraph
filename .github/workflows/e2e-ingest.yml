@@ -57,33 +57,6 @@ jobs:
         if: ${{ !cancelled() }}
         run: python -m research.e2e_ingest suites --out suites --verify --group core
 
-  suites-e2e:
-    name: unit suite, e2e_ingest (its live run of the harness is most of it), junit evidence
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-      - run: pip install --require-hashes -r requirements.txt     # the image's exact runtime set (requirements-lock.txt)
-      - name: install nats-server
-        run: |
-          curl -sSL -o nats.tgz "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz"
-          tar xzf nats.tgz && sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
-          nats-server --version
-      - name: tests/e2e_ingest
-        run: python -m research.e2e_ingest suites --out suites --suite tests/e2e_ingest
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-suites-e2e
-          path: suites/
-      - name: every suite of this job green, its junit file beside its row
-        if: ${{ !cancelled() }}
-        run: python -m research.e2e_ingest suites --out suites --verify --group e2e
-
   suites-lab:
     name: unit suites, lab (tests/lab, the EMERGENCE simulator's own tests), junit evidence per suite
     runs-on: ubuntu-latest
@@ -113,6 +86,33 @@ jobs:
       - name: every suite of this job green, its junit file beside its row
         if: ${{ !cancelled() }}
         run: python -m research.e2e_ingest suites --out suites --verify --group lab
+
+  suites-e2e:
+    name: unit suite, e2e_ingest (its live run of the harness is most of it), junit evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install --require-hashes -r requirements.txt     # the image's exact runtime set (requirements-lock.txt)
+      - name: install nats-server
+        run: |
+          curl -sSL -o nats.tgz "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz"
+          tar xzf nats.tgz && sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+      - name: tests/e2e_ingest
+        run: python -m research.e2e_ingest suites --out suites --suite tests/e2e_ingest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-suites-e2e
+          path: suites/
+      - name: every suite of this job green, its junit file beside its row
+        if: ${{ !cancelled() }}
+        run: python -m research.e2e_ingest suites --out suites --verify --group e2e
 
   e2e:
     name: criteria 0-4, 7, 8, 9 and 10 end to end (EMERGENCE 200 users, 7 site graphs, Tesseract routing, keyed JetStream)

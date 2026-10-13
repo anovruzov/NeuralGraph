@@ -124,7 +124,11 @@ class RunSuiteTests(unittest.TestCase):
             out = Path(tmp)
             for suite in su.SUITES:
                 shutil.copy(self.out / "tiny.xml", out / f"{suite.slug}.xml")
-                row = {**self.row, "suite": suite.name, "slug": suite.slug, "junit_file": f"{suite.slug}.xml"}
+                # the reader re-parses the file under the suite's own zero-skip scope, so the row carries the
+                # count that scope gives (the tiny suite's one skip is in scope "" and outside the jetstream one)
+                scoped = su.junit_summary(self.out / "tiny.xml", suite.zero_skip_scope)["skipped_in_scope"]
+                row = {**self.row, "suite": suite.name, "slug": suite.slug, "junit_file": f"{suite.slug}.xml",
+                       "skipped_in_scope": scoped}
                 write_json_atomic(out / f"{suite.slug}.json", row)
             found = su.read_evidence(out)
             self.assertEqual((found["evidence"], found["problems"], len(found["rows"])), (su.EVIDENCE, [], 7))
@@ -133,8 +137,8 @@ class RunSuiteTests(unittest.TestCase):
             self.assertEqual(su.read_evidence(out, "e2e")["rows"][0]["suite"], "tests/e2e_ingest")
             # a row typed beside a real junit file, hashing to it but not counting it, is not bound: the reader
             # re-parses the file and requires the row's counts
-            typed = {**self.row, "suite": "tests/onboard", "slug": "tests-onboard", "junit_file": "tests-onboard.xml",
-                     "tests": 99}
+            onboard = json.loads((out / "tests-onboard.json").read_text(encoding="utf-8"))
+            typed = {**onboard, "tests": 99}
             write_json_atomic(out / "tests-onboard.json", typed)
             found = su.read_evidence(out)
             self.assertIsNone(found["evidence"])
@@ -142,11 +146,11 @@ class RunSuiteTests(unittest.TestCase):
             self.assertTrue(any("tests/onboard" in p and "counts" in p for p in found["problems"]))
             for key in su.JUNIT_COUNTS:
                 with self.subTest(count=key):
-                    bad = {**typed, "tests": self.row["tests"], key: (self.row[key] or 0) + 1}
+                    bad = {**onboard, key: (onboard[key] or 0) + 1}
                     write_json_atomic(out / "tests-onboard.json", bad)
                     self.assertEqual([r["junit_bound"] for r in su.read_evidence(out)["rows"]
                                       if r["suite"] == "tests/onboard"], [False])
-            write_json_atomic(out / "tests-onboard.json", {**typed, "tests": self.row["tests"]})
+            write_json_atomic(out / "tests-onboard.json", onboard)
             self.assertEqual(su.read_evidence(out)["evidence"], su.EVIDENCE)
             # a tampered junit file unbinds its row; a missing row is a problem; neither is evidence
             (out / "tests-lab.xml").write_text(JUNIT, encoding="utf-8")
