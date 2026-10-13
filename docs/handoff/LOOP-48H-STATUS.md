@@ -143,6 +143,16 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   the fixer on wf/e2e-fix2 (WIP da5af45, f0ded12, dd55f5c) finished a size-200 harness run on the fixed code and is
   writing the build note's "What this branch ran" section; lint and the no-model-names guard re-run after the edit.
   No new limit errors. Next: fix stage for A002 (wf/a002-fix), then the merge gates for both.
+- 2026-10-13 16:20 EMERGENCE part 3 merged and pushed: wf/e2e-fix2 48fc211 (every blocking and minor review finding
+  applied; the e2e test floor rose to 157) merged as 56cfad4 after a green local gate (tests/e2e_ingest 157 passed
+  with the real nats-server, guards 83, packaging and onboard 99, flake8 clean, the five-job workflow parses).
+  mycelic run 19 (38425113475) green. First e2e-ingest.yml run (38425113336): the three suite jobs green with junit
+  evidence verified per job (core 25 min, lab 21 min, e2e_ingest 8 min); the e2e job and the measure job started at
+  16:13 and are running. A002: the rule review returned 0 blocking and 3 minor (the per-entry exclusion file not
+  pinned to its source; the aggregate's primary and headline lines read from the plan's prereg rather than the j3
+  prereg the units pin; and a sandbox disk shortage failing 70 provision and server tests the build does not touch);
+  the fix stage on wf/a002-fix is running the whole tests/lab suite before its final commit. The sandbox has about
+  540 MiB free, which the provision tests refuse; clean-up of old worktrees and run directories next.
 
 ## Open asks (date asked)
 
