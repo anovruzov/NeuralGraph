@@ -73,6 +73,18 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   instruction read through the unclear-to-no mapping, 0.667 [0.620, 0.710], paired 0.003 [-0.047, 0.050] to the
   lexical judge, not told apart, a hypothesis for the next cycle only. 12 comparisons this cycle, 12 since the loop
   began; recorded in CHOICE-A001 Run 1, RESULTS run 11 and the YC brief (branch wf/record-a001).
+- 2026-10-13 01:50 Outage. From about 06:10 UTC on 2026-10-11 the account's weekly usage limit stopped every agent
+  ("You've hit your weekly limit, resets Oct 12, 9pm UTC"): the recording workflow died with its four documents
+  written but uncommitted, and the EMERGENCE harness builder died after 1 h 25 min of unsaved work. The session
+  resumed at 01:43 UTC on 2026-10-13: about 43 h 30 min of the 48 h passed with no agent work. Recovered without
+  loss: the recorder's worktree (figures re-checked against the report block, sha cfd7749b3719 recomputed by the
+  recorder, doc and guard tests 120 passed) committed as ec1ad9d, merged 4e55949, pushed; the harness builder's
+  working tree saved as WIP commit 0154242 on wf/e2e-harness (harness.py, hq_tesseract.py, report.py, drills.py,
+  test_harness.py; not reviewed, not known to pass). CI run 38116558394 on 521d8a7 green on all three jobs. Relaunched:
+  the EMERGENCE build from the WIP (harness and drills, then measurement and the CI workflow with the suite gate, two
+  reviews, fix; WIP committed every 45 minutes from now on) and the A002 rule design (levers 3 and 4). The founder's
+  two messages during the outage, "Keep building" and "Continue with loop and goal while I sleep", are read as:
+  continue on the defaults; nothing else changed.
 
 ## Open asks (date asked)
 
@@ -96,3 +108,84 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
 ## Comparisons made toward 86 (running count of (model, arm, cycle) pairs)
 
 - 12 (model, arm, cycle) comparisons in 1 J-cycle: A001 run 1 (lab run 38114522160); 12 since the loop began. Primary (a-4b, negation): failure, 0.577 [0.530, 0.623] against the target 0.860 and the lexical judge 0.663.
+
+## 48-hour loop report, 2026-10-11 01:45 UTC to 2026-10-13 01:45 UTC, HEAD 4e55949
+
+Written 2026-10-13 01:55 UTC. About 43 h 30 min of the window passed with no agent work (the account's usage limit,
+see the 01:50 line); the loop continues past the window as section 0 of the prompt says.
+
+| Goal | Pinned definition | Measured result (point [95% interval]) | Comparators on the same records | Verdict | Source |
+|---|---|---|---|---|---|
+| A: 86 accuracy | BA of the site verifier's verdicts vs the filed-category key, record level, codes hidden, fresh real NHTSA draw of 150 records, J001's scoring (LOOP-48H.md section 2); one primary (model, arm) pair per cycle; interval low end above the lexical judge and the predicate-only bound; confirmation on the next cycle's fresh draw; comparisons made so far: 12 | Primary pair (a-4b, negation instruction) 0.577 [0.530, 0.623]. Secondaries, never results: a-4b shipped read through the unclear-to-no mapping 0.667 [0.620, 0.710]; a-4b negation mapped 0.653 [0.610, 0.697]; a-4b shipped 0.307 [0.263, 0.350]; a-1p5b 0.467 [0.440, 0.493] shipped and mapped, 0.497 [0.480, 0.513] negation and mapped; a-0p5b 0.493 [0.480, 0.507] shipped and mapped, 0.483 [0.447, 0.520] negation and mapped | Lexical judge 0.663 [0.627, 0.703]; predicate-only bound 0.577; record-blind control 0.520 [0.463, 0.577]; the primary pair minus the lexical judge, paired by record, -0.087 [-0.140, -0.033] | failure (rule 10 of CHOICE-A001) | lab run 38114522160; `docs/collective/A001/CHOICE-A001.md` "## Runs" Run 1; `docs/lab/RESULTS.md` Run 11; aggregate job 114400537232, report sha cfd7749b3719 |
+| B: ingestion | criteria 0 to 10 of `docs/collective/E2E-INGEST.md` section 2 (criteria 0 to 7 verbatim from LOOP-48H.md section 3.1; 8 to 10 added; Tesseract routing mandatory, section 4) | No criterion passes on the deployment branch: nothing of the build is merged. On the local branches: the bridge (wf/e2e-bridge 1915aac) and the site graph with the EMERGENCE adapter and pack (wf/e2e-site 63af47d) are built and their 28 + site tests pass with a real nats-server; the harness stage is a saved WIP (wf/e2e-harness 0154242), not reviewed, not known to pass; measurement, the CI workflow and the suite gate are not built. The five measured numbers of criterion 5: none measured. | none | incomplete | the workflow result of wf_0bc005e2-4cb (`docs/collective/BUILD-E2E.md` on wf/e2e-harness, local); `docs/collective/E2E-INGEST.md` 315a087 and 65428d9 |
+
+Row note for Goal A: the key's noise ceiling is unmeasured and the models may have seen these public complaints in
+training. 86 was not reached, so the public-text caveat applies to the failure, not to a pass.
+
+**Goal A, first line.** Not reached. Best measured BA 0.577 [0.530, 0.623] on primary pair P = (a-4b, negation
+instruction); gap to 0.860 is 0.283. The best secondary, a-4b with the shipped instruction read through the declared
+unclear-to-no mapping, is 0.667 [0.620, 0.710], a paired difference of 0.003 [-0.047, 0.050] to the lexical judge:
+not told apart, and a hypothesis for the next cycle only.
+
+### Done (merged, pushed): commits, branches, runs
+- Pushed on the deployment branch, abbf2e4 to 4e55949 (16 first-parent commits): the loop prompt and the pinned
+  definition (cccadaf); this status log (d65bed5); L001 run 2 recorded (3e3defc: RESULTS run 10, CHOICE-L001 Run 2,
+  the YC brief); S0, `mycelic.yml` on this branch with the routing spike's tests (08764f7); the EMERGENCE brief,
+  committed alone, reviewed twice, amended M1 to M25 before any build (d8a7ba5), and its wording amendment for the
+  no-model-names guard (65428d9); the compose smoke job on the classic builder (3e078d9); the A001 rule (90d2084),
+  its amendment (146431c), the lab kind j2 (689e138), its review fix (c573f44) and the merge (f45fd2f); the request
+  (3361910); the CI paths fix so a request push no longer starts `mycelic.yml` (521d8a7); the record of A001 run 1
+  (ec1ad9d, 4e55949).
+- Lab runs: 38102412415 (L001 run 2, 2026-10-11 01:36 to 01:44 UTC, success, recorded as RESULTS run 10);
+  38114522160 (A001 run 1, 05:21 to 05:48 UTC, success, recorded as RESULTS run 11).
+- CI runs of `mycelic.yml` on this branch: 38107786068 (compose job red: buildx bake entitlement; fixed 3e078d9),
+  38109670867 (tests job red: the no-model-names guard on the brief; fixed 65428d9), 38113330825 green,
+  38114522105 green, 38116558394 green.
+- Local, unmerged, unpushed (workflow branches are not pushed; the harness rule allows only the deployment branch):
+  wf/e2e-bridge 1915aac, wf/e2e-site 63af47d, wf/e2e-harness 624eea8 + WIP 0154242; wf/record-a001 ec1ad9d (merged).
+
+### Failed or not reached
+- Goal A: 0.577 [0.530, 0.623] on the primary pair against 0.860; gap 0.283; the interval's upper end 0.623 is
+  below the lexical judge's point 0.663 and the paired difference to it is wholly below zero, so the model judged
+  worse than word matching on this draw under the negation instruction; the reason as measured: sensitivity 0.833
+  with specificity 0.320 and an unknown share of 0.137 (CHOICE-A001 Run 1). Under the shipped instruction the same
+  model abstains on 0.560 of questions (BA 0.307); reading those as refutations gives 0.667, level with the lexical
+  judge (0.663), not above it. The two smaller models answer yes to nearly everything (specificity 0.020 to 0.053
+  except a-0p5b under negation, 0.413 with sensitivity 0.553).
+- Goal B: incomplete; no criterion passed; see the table. The build lost 1 h 25 min of unsaved harness work to the
+  usage limit; the saved WIP is the restart point.
+- Time: about 43 h 30 min of the window with no agent work (the usage limit); 4 h 25 min of agent work in total.
+
+### Stopped before any model ran
+- None in this window. (L001 run 1, 38090725021, stopped at the plan job's guard on 2026-10-10, before the window;
+  recorded in CHOICE-L001.)
+
+### Open asks and decisions received
+- Open since 2026-10-11 (section "Open asks" above): the founder's confirmation of the 86 reading (default section
+  2); PR or push to `main` (default no); the STRATEGY 9.1 ruling and the docs-honesty text (prepared, not
+  published); a hosted-model key (optional); the chief scientist's decision 9 (default applied: shipped `decide`
+  primary, the declared mapping a secondary, as A001 ran it), the chance-null replacement, the per-site-count
+  detector settings, decisions 1, 2 and 7.
+- Received: 2026-10-11 ~02:05 "No, I'll be asleep, you handle it"; ~02:08 the EMERGENCE end-to-end instruction (Goal
+  B redefined, Tesseract mandatory); ~02:20 unit tests before any EMERGENCE run; during the outage, "Keep building"
+  and "Continue with loop and goal while I sleep". No answer to any open ask.
+
+### Next pre-registered lever, and the next ingestion step
+- A002 (levers 3 and 4 of LOOP-48H.md section 2.6): schema variants (an evidence-span field with a verbatim-substring
+  check, a rationale before the answer, predicate descriptions, a lab TaskSpec's own max tokens) and the lexical
+  ensemble (a composite calling the pinned lexical judge, with the declared ablation comparator and the extra pass
+  clause against it). Draw: seed 3, n 150, 300 questions in 5 parts, J001's and A001's 150 records each excluded by
+  both mechanisms (artifacts lab-plan-37996675559-1 and lab-plan-38114522160-1). Primary pair and arms: named by the
+  rule being written on wf/a002-design (rule alone, three adversarial reviews, amendment), before any build; the
+  comparison count continues from 12.
+- Ingestion: finish S5 and S6 from WIP 0154242 (harness, Tesseract HQ, drills), then S7 and S8 (measurement at 200,
+  600 and 2,000 users; `e2e-ingest.yml` with the unit-suite gate first), two reviews, fix, merge, the first CI run,
+  record in E2E-INGEST.md "## Runs" and docs/lab/INTEGRATION.md with measurement false.
+
+### Not found
+- Any founder or chief-scientist answer to the open asks; a hosted-model key.
+- A passing criterion of Goal B on the deployment branch.
+- A way to read a job log or download an artifact from this sandbox other than the GitHub MCP (the blob host is
+  refused); the recorder reconstructed the report block from the log and matched its sha256.
+- A small model that beats word matching on real text: four for four now (R001/R002 predicate F1, J001 record-level
+  BA, L001 run 2 site-level BA, A001 run 1 on a fresh draw).
