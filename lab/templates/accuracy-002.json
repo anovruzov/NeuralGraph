@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "purpose": "Accuracy test A002 (docs/collective/A002/CHOICE-A002.md, amended before any build), the second cycle toward the pinned target: one model judges a fresh draw of NHTSA complaints (the first judge test's and the first accuracy test's records excluded, codes hidden) three times, under the lab-side negation instruction and under its evidence and rationale variants, each read by the shipped verdict rule, the verbatim-substring grounding check, the unclear-to-no mapping and a lexical composite with its ablations; primary pair the model with the evidence arm. Public data; the first run is the result. Copy to lab/requests/accuracy-002.json to start the run.",
+  "purpose": "Accuracy test A002 (docs/collective/A002/CHOICE-A002.md, amended before any build), the second cycle toward the pinned target: a-4b judges a fresh NHTSA draw (J001's and A001's records excluded, codes hidden) under the negation instruction and its evidence and rationale variants, read by the shipped rule, the grounding check, the unclear-to-no mapping and a lexical composite with its ablations; primary pair a-4b, evidence arm. Public data; the first run is the result. Copy to lab/requests.",
   "provider": "llama-server",
   "models": [
     "a-4b"
