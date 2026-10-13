@@ -8,10 +8,12 @@ sites' stores and graphs, HQ's store and Gold; nothing is typed in. This module 
 * :func:`stat_block`: ``{p50, p95, n, samples}`` from one list of samples, ``percentile`` as
   ``mycelic.collective.stats`` computes it (M12: every aggregate is recomputable from the samples the report
   carries);
-* one function per criterion (:func:`c0_real_fabric_keyed` to :func:`c8_emergence_load`), each returning
+* one function per criterion (:func:`c0_real_fabric_keyed` to :func:`c9_benchmark`), each returning
   ``{"ok": bool, "failed": [...], ...}`` where ``failed`` names every assertion of section 9 that did not hold, and
   :func:`verdict`, which is ``pass`` only when every check that ran is ``ok`` and names the checks that did not run.
   A check is code, never prose: each assertion below is one line of this module reading one field of the report.
+* :func:`recompute`: M12, every aggregate the report carries recomputed from the per-item arrays beside it
+  (``check REPORT`` runs it);
 * :func:`scan_hits`: drill 5's three patterns over one text (the record-ref pattern, the narrative marker and the
   first 24 characters of every narrative), and :func:`forbidden_strings`, M24's scan for tier labels.
 
@@ -19,6 +21,7 @@ Nothing here reads a record: it reads the report, which holds ids, counts, statu
 """
 from __future__ import annotations
 
+import math
 import os
 import platform
 import re
@@ -205,11 +208,13 @@ def c1_signed(doc: Mapping[str, Any]) -> dict[str, Any]:
         ("no_budget_unknown", _get(doc, "routing.verdicts.budget_unknown") == 0),
         ("route_selected_before_retrieval", r.get("route_selected_first_all") is True),
         ("routes_are_the_arms_order", r.get("routes_equal_arm_order") is True),
+        ("every_question_eligible_and_routed", r.get("per_question_route_ok") is True),
         ("coordinator_is_tesseracts", r.get("coordinator_class") == "NeuralGraph.research.coordination.core."
          "TesseractCoordinator"),
         ("router_is_the_routers", r.get("router_class") == "NeuralGraph.research.coordination.core.Router"),
         ("router_excluded_the_masked_site", r.get("router_excluded_masked") == 1),
         ("one_intervention_record", r.get("intervention_records") == 1),
+        ("tesseract_row_per_read_verdict", _get(r, "tesseract.rows_equal_read_verdicts") is True),
         ("planted_statuses_equal_the_oracle", not mismatched),
         ("one_unambiguous_supported", bool(supported)),
     ]
@@ -350,17 +355,122 @@ def c8_emergence_load(doc: Mapping[str, Any]) -> dict[str, Any]:
                            "total_ingested": ing.get("total_ingested"), "records": w.get("records")})
 
 
+#: Section 10's ``discovery`` fields, every one of which c9 requires present.
+DISCOVERY_FIELDS = ("gold_discoverable", "gold_rare", "gold_common", "decoys_by_type", "candidates_true",
+                    "candidates_decoy", "candidates_background", "found_patterns", "recall_all", "recall_common",
+                    "recall_rare", "decoy_accepted_by_type", "background_supported", "simulator")
+#: Criterion 5's per-hop numbers at the run's size (section 10, "both jobs"), which c9 requires numeric.
+PER_HOP_FIELDS = ("ingest.seconds_per_1k_records", "routing.tesseract.seconds_p50", "routing.tesseract.seconds_p95",
+                  "routing.question_to_verdict.per_site_p50", "routing.question_to_verdict.per_site_p95",
+                  "routing.question_to_verdict.per_question_p50", "routing.question_to_verdict.per_question_p95",
+                  "publish.created_to_applied.p50", "publish.created_to_applied.p95")
+SIMULATOR_ARCHITECTURES = ("H_mycelic_full", "A2_chunked_ctx")
+SIMULATOR_METRICS = ("discovery_recall", "rare_signal_recall", "decoy_acceptance_all", "recall_at_100",
+                     "compute_units")
+SIMULATOR_BUDGET_SIZE = 2000
+
+
+def _number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value))
+
+
+def c9_benchmark(doc: Mapping[str, Any]) -> dict[str, Any]:
+    """Criterion 9: every discovery field present and computed from the fabric and Gold (the found patterns are
+    Gold-discoverable ones, the recall is their ratio), the per-hop numbers of criterion 5 at this size numeric,
+    the simulator's two columns present (or null with ``reason: budget`` at the 2,000-user size only), and the
+    synthetic and measurement stamps on the header and on the block."""
+    d = _get(doc, "discovery", {}) or {}
+    gold = d.get("gold_discoverable_patterns") or []
+    found = d.get("found_patterns")
+    found_list = found if isinstance(found, list) else []
+    discoverable = d.get("gold_discoverable")
+    sim = d.get("simulator")
+    size = _get(doc, "world.target_users")
+    sim_ok = (isinstance(sim, Mapping) and sim.get("simulated") is True
+              and all(isinstance((sim.get("architectures") or {}).get(a), Mapping)
+                      and all(_number(sim["architectures"][a].get(m)) for m in SIMULATOR_METRICS)
+                      for a in SIMULATOR_ARCHITECTURES))
+    sim_budget = sim is None and d.get("simulator_reason") == "budget" and size == SIMULATOR_BUDGET_SIZE
+    missing = [f for f in DISCOVERY_FIELDS if f not in d]
+    not_numeric = [p for p in PER_HOP_FIELDS if not _number(_get(doc, p))]
+    recall = (len(found_list) / discoverable) if isinstance(discoverable, int) and discoverable else None
+    items = [
+        ("every_discovery_field_present", not missing),
+        ("found_patterns_are_gold_discoverable", isinstance(found, list) and set(found_list) <= set(gold)
+         and len(gold) == discoverable),
+        ("recall_all_is_found_over_gold", recall is not None and d.get("recall_all") == recall),
+        ("per_hop_numbers_numeric", not not_numeric),
+        ("simulator_columns_present", sim_ok or sim_budget),
+        ("stamps_synthetic_not_measured", doc.get("synthetic") is True and doc.get("measurement") is False
+         and d.get("synthetic") is True and d.get("measurement") is False),
+    ]
+    return _result(items, {"missing_fields": missing, "per_hop_not_numeric": not_numeric, "found": len(found_list),
+                           "gold_discoverable": discoverable, "recall_all": d.get("recall_all"),
+                           "simulator_reason": d.get("simulator_reason")})
+
+
 CHECKS = {"c0_real_fabric_keyed": c0_real_fabric_keyed, "c1_signed": c1_signed, "c2_lineage": c2_lineage,
           "c3_idempotent": c3_idempotent, "c4_recovery": c4_recovery, "c7_guards": c7_guards,
-          "c8_emergence_load": c8_emergence_load}
-#: The checks the end-to-end job runs; c5 and c6 belong to the measure job and the workflow, c9's simulator columns
-#: and c10's junit evidence to the measure job and the suites CLI.
+          "c8_emergence_load": c8_emergence_load, "c9_benchmark": c9_benchmark}
+#: The checks the end-to-end job runs (criteria 0-4, 7, 8 and 9, section 2.3); c5 belongs to the measure job, c6 to
+#: the workflow and c10's junit evidence to the suites CLI.
 E2E_CHECKS = ("c0_real_fabric_keyed", "c1_signed", "c2_lineage", "c3_idempotent", "c4_recovery", "c7_guards",
-              "c8_emergence_load")
+              "c8_emergence_load", "c9_benchmark")
 
 
 def run_checks(doc: Mapping[str, Any], names: Sequence[str] = E2E_CHECKS) -> dict[str, Any]:
     return {name: CHECKS[name](doc) for name in names}
+
+
+# --------------------------------------------------------------------------------------------------- M12
+
+#: The aggregates a report carries beside the per-item arrays they come from: ``(block, samples key, {field: (key,
+#: percentile)})``.
+RECOMPUTE = (
+    ("routing.tesseract", "samples", {"seconds_p50": ("seconds", 50), "seconds_p95": ("seconds", 95)}),
+    ("routing.question_to_verdict", "samples", {"per_question_p50": ("seconds", 50),
+                                                "per_question_p95": ("seconds", 95)}),
+    ("routing.question_to_verdict", "per_site_samples", {"per_site_p50": ("seconds", 50),
+                                                         "per_site_p95": ("seconds", 95)}),
+    ("publish.created_to_applied", "samples", {"p50": ("seconds", 50), "p95": ("seconds", 95)}),
+)
+
+
+def recompute(doc: Mapping[str, Any]) -> list[str]:
+    """M12: every percentile of :data:`RECOMPUTE` recomputed from the samples the report carries, the lineage
+    counts from ``lineage.rows`` and the discovery recall from ``found_patterns``; returns the disagreements (an
+    empty list when the report's aggregates are its samples')."""
+    problems: list[str] = []
+    for block, key, fields in RECOMPUTE:
+        node = _get(doc, block)
+        if not isinstance(node, Mapping):
+            problems.append(f"{block}: missing")
+            continue
+        samples = node.get(key)
+        if not isinstance(samples, list):
+            problems.append(f"{block}.{key}: no samples")
+            continue
+        for name, (sample_key, pct) in fields.items():
+            values = [float(s[sample_key]) for s in samples if isinstance(s, Mapping) and _number(s.get(sample_key))]
+            expected = stats.percentile(values, pct)
+            got = node.get(name)
+            if not (_number(got) and _number(expected) and abs(float(got) - float(expected)) <= 1e-9) \
+                    and not (got is None and expected is None):
+                problems.append(f"{block}.{name}: report {got}, recomputed {expected} from {len(values)} samples")
+    ln = _get(doc, "lineage")
+    if isinstance(ln, Mapping) and isinstance(ln.get("rows"), list):
+        rows = [r for r in ln["rows"] if isinstance(r, Mapping)]
+        derived = {"conclusions": len(rows), "reconstructable": sum(1 for r in rows if r.get("reconstructable")),
+                   "source_events_complete": sum(1 for r in rows if r.get("source_events_complete"))}
+        for name, value in derived.items():
+            if ln.get(name) != value:
+                problems.append(f"lineage.{name}: report {ln.get(name)}, recomputed {value} from the rows")
+    d = _get(doc, "discovery")
+    if isinstance(d, Mapping) and isinstance(d.get("found_patterns"), list) and _number(d.get("gold_discoverable")):
+        expected = len(d["found_patterns"]) / d["gold_discoverable"] if d["gold_discoverable"] else None
+        if d.get("recall_all") != expected:
+            problems.append(f"discovery.recall_all: report {d.get('recall_all')}, recomputed {expected}")
+    return problems
 
 
 def verdict(checks: Mapping[str, Mapping[str, Any]], *, not_run: Mapping[str, str] | None = None) -> dict[str, Any]:

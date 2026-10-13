@@ -60,6 +60,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from mycelic.collective.detect.detectors import detect
+from mycelic.collective.detect.rules import series_key
 from mycelic.collective.edge.egress import read_log
 from mycelic.collective.edge.records import RecordStore
 from mycelic.collective.edge.site import EdgeSite
@@ -77,10 +78,11 @@ from research.routing_spike.world import backup_sqlite, candidate_label, restore
 from . import drills
 from . import emergence_world as ew
 from . import hq_tesseract as hqt
+from . import measure as ms
 from . import report as rp
 from . import site_graph as sg
 from .hq_bridge import HqBridge, HqStoreReader
-from .publish_api import AGENT_ID, ORG_ID, Publisher, event_ids
+from .publish_api import AGENT_ID, ORG_ID, VERDICT_EVENT, Publisher, event_ids
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCAL_NATS = Path("/root/.local/bin/nats-server")
@@ -562,17 +564,23 @@ class E2ERun:
 
     def collect_routing(self, *, probe: Any, restart: Mapping[str, Any]) -> None:
         """Section 5's ``routing`` block: the coordinator's and router's live classes, the per-question route and
-        trace, the Tesseract samples from the site diagnostics, the wire timings and the verdict tally."""
+        trace (M4's ``routing.questions[]``), the Tesseract samples from the site diagnostics reconciled with the
+        verdicts they produced (section 4, item 2), the wire timings and the verdict tally."""
         world = self.world
         questions: list[dict[str, Any]] = []
         verdicts = {"confirm": 0, "refute": 0, "unknown": 0, "hq_error": 0, "budget_unknown": 0}
         route_first = True
         routes_equal = True
+        per_question_ok = True
+        asked_pairs: set[tuple[str, str]] = set()         # (question, site) answered by the site itself
+        read_pairs: set[tuple[str, str]] = set()          # ... with a verdict that came from a record read
         for qid, result in self.results_by_id.items():
             asked = self.asked_by_id[qid]
             planned = self.planned_routes[qid]
             route_first = route_first and result.route_selected_first
             routes_equal = routes_equal and tuple(result.route) == planned
+            per_question_ok = per_question_ok and (len(asked.eligible) == len(world.site_ids)
+                                                   and len(result.route) == min(ew.M, len(asked.eligible)))
             for received in result.received:
                 if received.source == "hq":
                     verdicts["hq_error"] += 1
@@ -581,10 +589,18 @@ class E2ERun:
                 verdicts[verdict] = verdicts.get(verdict, 0) + 1
                 if verdict == "unknown" and received.body.get("reason") == "budget":
                     verdicts["budget_unknown"] += 1
+                asked_pairs.add((qid, received.site))
+                if verdict in ("confirm", "refute"):
+                    read_pairs.add((qid, received.site))
             questions.append({"question_id": qid, "hq_eligible": len(asked.eligible), "route": list(result.route),
                               "route_size": len(result.route), "status": result.status,
                               "trace": list(result.trace)})
+        if probe is not None:                              # the probe's sites answered too (M4; outside the matrix)
+            for r in probe.received:
+                if r["source"] == "site":
+                    asked_pairs.add((probe.question_id, r["site"]))
         samples = []
+        rows_by_pair: dict[tuple[str, str], int] = {}
         for sid in world.site_ids:
             path = self.main_edge / f"site-{sid}.tesseract.jsonl"
             for line in path.read_bytes().split(b"\n") if path.exists() else []:
@@ -594,15 +610,23 @@ class E2ERun:
                 samples.append({"question_id": row["question_id"], "site": sid, "seconds": row["seconds"],
                                 "nodes": row["nodes"], "nodes_as_of": row["nodes_as_of"],
                                 "returned": row["returned"], "read": row["read"]})
+                rows_by_pair[(row["question_id"], sid)] = rows_by_pair.get((row["question_id"], sid), 0) + 1
+        # section 4, item 2: one diagnostics row per (question, site) whose verdict came from a record read; a row
+        # is written only by a site that ran its retrieval for the question (``site_process.py:330-335``), so every
+        # confirm or refute has one, no pair has two, and no row names a pair HQ did not ask
+        rows_for_read = sum(1 for pair in read_pairs if rows_by_pair.get(pair, 0) == 1)
+        rows_outside = sum(n for pair, n in rows_by_pair.items() if pair not in asked_pairs)
+        rows_duplicated = sum(1 for n in rows_by_pair.values() if n > 1)
         nodes = sorted(s["nodes"] for s in samples)
         per_site = [s for s in self.wire_times if s["kind"] == "question"]
         self.doc["routing"] = {
             "candidates_detected": world.detected, "candidates_asked": len(self.candidates), "m": ew.M,
-            "route_label": hqt.ROUTE_LABEL, "questions": len(questions), "eval_window": None,
+            "route_label": hqt.ROUTE_LABEL, "questions_asked": len(questions), "eval_window": None,
             "tie_salt": world.tie_salt, "run_channel": ew.RUN_CHANNEL,
             "coordinator_class": class_name(self.hq.coordinator),
             "router_class": class_name(self.hq.coordinator.router),
             "route_selected_first_all": route_first, "routes_equal_arm_order": routes_equal,
+            "per_question_route_ok": per_question_ok, "hq_eligible_expected": len(world.site_ids),
             "router_excluded_masked": int(bool(probe is not None and probe.excluded)),
             "intervention_records": int(probe.intervention_records) if probe is not None else 0,
             "probe": (probe.to_dict() | {"candidate_source": getattr(self, "probe_source", None),
@@ -612,13 +636,19 @@ class E2ERun:
                           "nodes_median": nodes[len(nodes) // 2] if nodes else None,
                           "nodes_max": nodes[-1] if nodes else None,
                           **{f"seconds_{k}": v for k, v in rp.stat_block(samples).items() if k in ("p50", "p95")},
+                          "read_verdicts": len(read_pairs), "rows_for_read_verdicts": rows_for_read,
+                          "rows_outside_asked_pairs": rows_outside, "rows_duplicated": rows_duplicated,
+                          "asked_pairs": len(asked_pairs),
+                          "rows_equal_read_verdicts": (rows_for_read == len(read_pairs) and rows_outside == 0
+                                                       and rows_duplicated == 0),
                           "samples": samples},
             "question_to_verdict": {
                 "per_site_p50": rp.stat_block(per_site)["p50"], "per_site_p95": rp.stat_block(per_site)["p95"],
                 "per_question_p50": rp.stat_block(self.question_times)["p50"],
                 "per_question_p95": rp.stat_block(self.question_times)["p95"],
-                "n": len(self.question_times), "samples": self.question_times},
-            "verdicts": verdicts, "questions_detail": questions,
+                "n": len(self.question_times), "per_site_n": len(per_site), "samples": self.question_times,
+                "per_site_samples": per_site},
+            "verdicts": verdicts, "questions": questions,
             "statuses": {s: sum(1 for q in self.stored if q.status == s) for s in sorted({q.status for q in
                                                                                           self.stored})},
         }
@@ -737,10 +767,26 @@ class E2ERun:
         api_ids = self.api_ids["agent.event"] + self.api_ids["memory.observed"]
         applied = [i for i in api_ids if events.get(i, {}).get("status") == "applied"
                    and events[i].get("applied_at")]
-        samples = [{"event_id": i, "kind": events[i]["kind"], "created_at": events[i]["created_at"],
-                    "applied_at": events[i]["applied_at"],
-                    "seconds": seconds_between(events[i]["created_at"], events[i]["applied_at"])}
-                   for i in api_ids if i in events and events[i].get("applied_at")]
+
+        def sample(event_id: str | None, role: str) -> dict[str, Any] | None:
+            row = events.get(event_id or "")
+            if not row or not row.get("applied_at"):
+                return None
+            return {"event_id": event_id, "kind": row["kind"], "role": role, "created_at": row["created_at"],
+                    "applied_at": row["applied_at"], "seconds": seconds_between(row["created_at"], row["applied_at"])}
+
+        # M18: a verdict POST's latency is its ``agent.event``'s; a conclusion POST's is the ``memory.observed``
+        # event's (the note's apply), with the conclusion's own ``agent.event`` reported beside it
+        samples: list[dict[str, Any]] = []
+        beside: list[dict[str, Any]] = []
+        for result in publisher.results:
+            if result.type == VERDICT_EVENT:
+                samples.append(sample(result.event_id, "verdict"))
+            else:
+                samples.append(sample(result.memory_event_id, "conclusion"))
+                beside.append(sample(result.event_id, "conclusion_agent_event"))
+        samples = [s for s in samples if s is not None]
+        beside = [s for s in beside if s is not None]
         notes = self.admin.list_memories(scope=ORG_ID, limit=1000)
         r = self.bridge_report
         self.doc["publish"] = {
@@ -748,7 +794,8 @@ class E2ERun:
             "events_created": r.created, "events_duplicate": r.duplicate, "events_ambiguous": r.ambiguous,
             "conclusions": r.conclusions, "memory_ids": len(r.memory_ids),
             "memory_ids_created": len(r.memory_ids_created), "store_unchanged": r.store_unchanged,
-            "created_to_applied": {k2: v for k2, v in rp.stat_block(samples).items()}}
+            "created_to_applied": rp.stat_block(samples),
+            "created_to_applied_conclusion_agent_events": rp.stat_block(beside)}
         self.doc.setdefault("recovery", {})["broker_kill"] = {
             "N": r.publishes, "k": state["killed_at"] or 0,
             "applied_exactly_once": len(applied) == len(api_ids) and len(set(api_ids)) == len(api_ids),
@@ -1101,22 +1148,35 @@ class E2ERun:
         done()
 
     # ------------------------------------------------------------------ the discovery score (c9's path side)
+    def fabric_conclusions(self) -> list[dict[str, Any]]:
+        """What the fabric holds per conclusion, as drill 5 read it back (``GET /memory``): the note's metadata
+        (entity id, predicate, snapshot week; ``publish_api.conclusion_memory``), its ``metadata.value`` (the
+        status, stored canonical by the service) and whether its lineage check held. The discovery score of
+        section 10 is computed from these, never from HQ's store."""
+        return [{"question_id": qid, "memory_id": row["memory_id"], "entity_id": row["entity_id"],
+                 "predicate": row["predicate"], "snapshot_week": row["snapshot_week"], "status": row["value"],
+                 "lineage_ok": bool(self.lineage_ok.get(qid))} for qid, row in self.notes_by_question.items()]
+
     def discovery(self) -> None:
+        """Section 10's ``discovery``: the path's score against Gold, from the fabric's own notes and the labels
+        doc (the planted patterns' keys and windows, every decoy's facet-0 key and window), the oracle rows of
+        section 3.5 (M12, M20) with the fabric's status beside HQ's, and the simulator's two columns (M14, M24)."""
         done = self._phase("discovery_seconds")
-        world = self.world
+        world, o = self.world, self.options
         corpus, gold = world.corpus, world.gold
         user_site: dict[int, str] = {}
         for record, row in zip(world.records, corpus.recs):
             user_site[int(row["uid"])] = record["site"]
         patterns = {p["id"]: p for p in world.labels["patterns"]}
-        decoys = world.labels["decoys"]
         labels = {}
         counts = {"true": 0, "decoy": 0, "background": 0}
-        oracle_rows: list[dict[str, Any]] = []
         for cand in self.candidates:
             lab = candidate_label(cand.key, cand.week, world.labels)
             labels[cand.key] = lab
             counts[lab["label"]] += 1
+        fabric = self.fabric_conclusions()
+        fabric_status = {c["question_id"]: c["status"] for c in fabric}
+        oracle_rows: list[dict[str, Any]] = []
         for q in self.stored:
             cand = self.asked_by_id[q.question_id].candidate
             lab = labels[cand.key]
@@ -1129,43 +1189,73 @@ class E2ERun:
             oracle_rows.append({"question_id": q.question_id, "anchor": pattern["anchor"],
                                 "chain": pattern["chain"], "pattern": pattern["id"], "as_of": cand.as_of,
                                 "snapshot_week": cand.week, "route": list(q.route), "expected": expected,
-                                "ambiguous": ambiguous, "reason": reason, "status": q.status,
+                                "ambiguous": ambiguous, "reason": reason,
+                                "status": fabric_status.get(q.question_id), "hq_status": q.status,
                                 "per_site_facet_counts": {s: f.to_dict() for s, f in facts.items()},
                                 "lineage_ok": self.lineage_ok.get(q.question_id)})
-        found = sorted({row["pattern"] for row in oracle_rows
-                        if row["status"] == "supported" and row["lineage_ok"]})
+        # found: Gold-discoverable patterns with an active ``supported`` note in the fabric whose metadata key and
+        # snapshot week are the pattern's, and whose lineage check of drill 5 held (section 10)
+        supported = [c for c in fabric if c["status"] == "supported" and c["lineage_ok"]]
+        found: set[str] = set()
+        for c in supported:
+            key = series_key(ew.ENTITY_TYPE, str(c["entity_id"]), str(c["predicate"]))
+            lab = candidate_label(key, str(c["snapshot_week"]), world.labels)
+            if lab["label"] == "true":
+                found.add(lab["pattern"])
         rare = {p["id"] for p in world.labels["patterns"] if p["rare"]}
+        # decoys: a decoy of type t is accepted when a supported note sits on its (facet-0 anchor, chain) key with
+        # a snapshot week inside its window; the acceptance of type t is the accepted over the count of type t
         by_type: dict[str, int] = {}
-        accepted: dict[str, int] = {}
-        for decoy in decoys:
+        accepted_decoys: dict[str, set[int]] = {}
+        decoy_keys: dict[int, tuple[str, str, str]] = {}
+        for decoy in world.labels["decoys"]:
+            pid = int(decoy["pattern"])
+            p = corpus.patterns[pid]
+            first = int(p.facet_records[0][0]) if p.facet_records and p.facet_records[0] else None
+            if first is None:
+                continue
+            anchor = ew.canonical_entity_id(corpus.entities[int(corpus.recs[first]["anchor"])])
+            decoy_keys[pid] = (series_key(ew.ENTITY_TYPE, anchor, ew.CHAIN_PREDICATES[int(p.chain)]),
+                               decoy["found_from"], decoy["found_to"])
             by_type[str(decoy["class"])] = by_type.get(str(decoy["class"]), 0) + 1
-        for q in self.stored:
-            cand = self.asked_by_id[q.question_id].candidate
-            lab = labels[cand.key]
-            if lab["label"] == "decoy" and q.status == "supported":
-                key = str(lab["decoy_class"])
-                accepted[key] = accepted.get(key, 0) + 1
-        background = sum(1 for q in self.stored
-                         if labels[self.asked_by_id[q.question_id].candidate.key]["label"] == "background"
-                         and q.status == "supported")
+        classes = {int(d["pattern"]): str(d["class"]) for d in world.labels["decoys"]}
+        for c in supported:
+            key = series_key(ew.ENTITY_TYPE, str(c["entity_id"]), str(c["predicate"]))
+            week = str(c["snapshot_week"])
+            for pid, (key0, first, last) in decoy_keys.items():
+                if key == key0 and first <= week <= last:
+                    accepted_decoys.setdefault(classes[pid], set()).add(pid)
+        accepted = {t: len(v) for t, v in accepted_decoys.items()}
+        acceptance = {t: (accepted.get(t, 0) / by_type[t]) for t in by_type}
+        background = 0
+        for c in supported:
+            key = series_key(ew.ENTITY_TYPE, str(c["entity_id"]), str(c["predicate"]))
+            if candidate_label(key, str(c["snapshot_week"]), world.labels)["label"] == "background":
+                background += 1
         discoverable = len(gold.discoverable)
+        simulator, reason = ms.simulator_columns(o.world, o.seed)
+        found_ids = sorted(found)
         self.doc["discovery"] = {
             "synthetic": True, "measurement": False, "gold_discoverable": discoverable,
             "gold_rare": len(gold.rare), "gold_common": discoverable - len(gold.rare),
+            "gold_discoverable_patterns": sorted(patterns), "gold_rare_patterns": sorted(rare),
             "decoys_by_type": dict(sorted(by_type.items())),
             "candidates_true": counts["true"], "candidates_decoy": counts["decoy"],
             "candidates_background": counts["background"],
-            "found_patterns": found, "found": len(found),
-            "recall_all": len(found) / discoverable if discoverable else None,
-            "recall_rare": len([p for p in found if p in rare]) / len(gold.rare) if gold.rare else None,
-            "recall_common": (len([p for p in found if p not in rare])
+            "found_patterns": found_ids, "found": len(found_ids),
+            "recall_all": len(found_ids) / discoverable if discoverable else None,
+            "recall_rare": len([p for p in found_ids if p in rare]) / len(gold.rare) if gold.rare else None,
+            "recall_common": (len([p for p in found_ids if p not in rare])
                               / (discoverable - len(gold.rare)) if discoverable - len(gold.rare) else None),
-            "decoy_accepted_by_type": dict(sorted(accepted.items())), "background_supported": background,
-            "oracle_rows": oracle_rows,
-            "simulator": None, "simulator_reason": "the measure job (S7) runs the simulator's columns"}
+            "decoy_accepted_by_type": dict(sorted(accepted.items())),
+            "decoy_acceptance_by_type": dict(sorted(acceptance.items())), "background_supported": background,
+            "supported_conclusions": len(supported), "fabric_conclusions": fabric, "oracle_rows": oracle_rows,
+            "granularity": "(anchor, chain predicate); no temporal-order check; the lexical judge",
+            "simulator": simulator, "simulator_reason": reason}
         unambiguous = [r for r in oracle_rows if not r["ambiguous"]]
         self.log(f"discovery: {counts['true']} true / {counts['decoy']} decoy / {counts['background']} background "
-                 f"candidates; {len(unambiguous)} unambiguous planted, {len(found)} patterns found")
+                 f"candidates; {len(unambiguous)} unambiguous planted, {len(found_ids)} patterns found; the "
+                 f"simulator's columns in {simulator['seconds'] if simulator else reason}")
         done()
 
     # ------------------------------------------------------------------ the whole run
@@ -1219,8 +1309,8 @@ class E2ERun:
         self.doc["timings"] = dict(sorted(self.timings.items()))
         self.doc["run"].update({"finished_at": utc_clock(), "seconds": time.perf_counter() - t0,
                                 "code_dirty_end": code_dirty(list(rp.DIRTY_PATHS))})
-        not_run = {"c5_measured": "the measure job (S7)", "c6_ci": "the workflow test (S8)",
-                   "c9_benchmark": "the simulator's columns are the measure job's (S7)",
+        not_run = {"c5_measured": "the measure job (S7): the rate sweep and the three node counts",
+                   "c6_ci": "the workflow test (S8)",
                    "c10_suites_green": "the suites CLI's junit evidence (M2, S8)"}
         if o.skip_drills:
             not_run.update({name: "--skip-drills" for name in ("c1_signed", "c2_lineage", "c3_idempotent",
@@ -1264,6 +1354,34 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0 if doc["verdict"]["pass"] else 1
 
 
+def cmd_check(args: argparse.Namespace) -> int:
+    """M12: a written report re-read; every aggregate recomputed from the per-item arrays it carries and every check
+    run again over it. Exit 0 only when the recomputation agrees, the checks reproduce the stored ones and the
+    stored verdict passes; ``--recorded`` also requires ``run.github_run_id`` and ``run.command``."""
+    path = Path(args.report)
+    doc = strict_load(path.read_bytes())
+    problems = rp.recompute(doc)
+    stored = doc.get("checks") or {}
+    again = rp.run_checks(doc, [n for n in stored if n in rp.CHECKS])
+    for name, check in again.items():
+        if check["ok"] != stored[name].get("ok") or check["failed"] != stored[name].get("failed"):
+            problems.append(f"checks.{name}: the report says ok={stored[name].get('ok')} "
+                            f"failed={stored[name].get('failed')}, re-run gives ok={check['ok']} "
+                            f"failed={check['failed']}")
+    if args.recorded:
+        run = doc.get("run") or {}
+        if not run.get("github_run_id"):
+            problems.append("run.github_run_id: a recorded run names its CI run")
+        if not run.get("command"):
+            problems.append("run.command: a recorded run names its command")
+    print(summary(doc))
+    for problem in problems:
+        print(f"  recompute: {problem}")
+    print(f"check: {path} aggregates {'agree' if not problems else 'DISAGREE'} ({len(problems)} problems); "
+          f"verdict pass={doc.get('verdict', {}).get('pass')}")
+    return 0 if not problems and bool(doc.get("verdict", {}).get("pass")) else 1
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m research.e2e_ingest.harness",
                                      description="The EMERGENCE end-to-end ingestion run (synthetic).")
@@ -1278,8 +1396,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     r.add_argument("--jobs", type=int, default=4, help="threads for the reference pass and the fixed queries")
     r.add_argument("--queries", type=int, default=FIXED_QUERIES, help="fixed queries per site (the brief: 20)")
     r.add_argument("--run-id", default="local")
+    c = sub.add_parser("check", help="re-read a report: recompute its aggregates and re-run its checks (M12)")
+    c.add_argument("report")
+    c.add_argument("--recorded", action="store_true", help="require the CI run id and the command of a recorded run")
     args = parser.parse_args(list(argv) if argv is not None else None)
-    return {"run": cmd_run}[args.command](args)
+    return {"run": cmd_run, "check": cmd_check}[args.command](args)
 
 
 if __name__ == "__main__":

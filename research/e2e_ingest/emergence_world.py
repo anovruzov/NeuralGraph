@@ -48,7 +48,8 @@ from mycelic.collective.jsonio import sha256_hex
 from mycelic.collective.packs.connector import RECORD_KEYS
 from mycelic.collective.packs.loader import ALIAS_ONLY_ID_RE, FrozenPack, load_pack_dir
 from mycelic.collective.pushdown.questions import build_question, question_window
-from research.mycelic.corpus import CAUSAL_CHAINS, CHAIN_OF_PRED, PRED_ID, PREDICATES, Corpus, Gold, build_corpus, make_gold
+from research.mycelic.corpus import (CAUSAL_CHAINS, CHAIN_OF_PRED, PRED_ID, PREDICATES, Corpus, Gold, build_corpus,
+                                     make_gold)
 from research.mycelic.org import SITE, Org, build_org
 from research.routing_spike.hq import Candidate
 from research.routing_spike.site_process import SiteConfig

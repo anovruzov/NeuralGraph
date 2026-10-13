@@ -24,7 +24,7 @@ modules, nor the retrieval package, nor numpy, nor ``mycelic.collective.edge.rec
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
@@ -98,7 +98,9 @@ class E2EHq(Hq):
                            eligible=len(asked.eligible), trace=list(result.trace),
                            sources=sorted({r.source for r in result.received}),
                            failure_injected=self.failure_injected() - before_injected,
-                           intervention_records=len(self.failure.records), interventions_ended=len(ended))
+                           intervention_records=len(self.failure.records), interventions_ended=len(ended),
+                           received=[{"site": r.site, "source": r.source, "verdict": r.body["verdict"]}
+                                     for r in result.received])
 
 
 @dataclass(frozen=True)
@@ -114,6 +116,9 @@ class ProbeResult:
     failure_injected: int
     intervention_records: int
     interventions_ended: int
+    #: per routed site: ``{site, source, verdict}`` (the site diagnostics of section 4, item 2, are reconciled
+    #: against these pairs; no body and no ref)
+    received: list[dict[str, str]] = field(default_factory=list)
 
     @property
     def excluded(self) -> bool:
@@ -124,7 +129,7 @@ class ProbeResult:
                 "hq_eligible": self.eligible, "route_size": len(self.route), "excluded": self.excluded,
                 "trace": list(self.trace), "verdict_sources": list(self.sources),
                 "failure_injected": self.failure_injected, "intervention_records": self.intervention_records,
-                "interventions_ended": self.interventions_ended}
+                "interventions_ended": self.interventions_ended, "received": [dict(r) for r in self.received]}
 
 
 # --------------------------------------------------------------------------------------------------- the store

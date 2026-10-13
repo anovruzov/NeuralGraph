@@ -144,9 +144,10 @@ def _mapping() -> dict[str, Any]:
 
 
 def _rules() -> dict[str, Any]:
-    return {"rules": {f"{p}_multi_site": {"label": f"{predicate_label(p)} at several sites", "entity_type": ENTITY_TYPE,
-                                         "predicate": p, "min_sites": 2, "min_count_per_site": 1, "window_weeks": 8}
-                      for p in CHAIN_PREDICATES}}
+    rules = {f"{p}_multi_site": {"label": f"{predicate_label(p)} at several sites", "entity_type": ENTITY_TYPE,
+                                 "predicate": p, "min_sites": 2, "min_count_per_site": 1, "window_weeks": 8}
+             for p in CHAIN_PREDICATES}
+    return {"rules": rules}
 
 
 def _questions() -> dict[str, Any]:

@@ -132,6 +132,11 @@ def green_report() -> dict[str, Any]:
     sites = {f"r0{i}-site-00": {"expected_records": 100, "ingested": 100, "duplicates": 0, "rejected": 0,
                                 "graph_nodes": 100, "graph_nodes_db": 100, "node_ids_sha256": f"d{i}",
                                 "record_refs_sha256": f"d{i}"} for i in range(7)}
+    gold_patterns = [f"p{i:03d}" for i in range(40)]
+    simulator = {"simulated": True, "synthetic": True, "measurement": False, "allocation": "back-loaded",
+                 "architectures": {a: {"discovery_recall": 0.5, "rare_signal_recall": 0.1,
+                                       "decoy_acceptance_all": 0.2, "recall_at_100": 0.5, "compute_units": 1.0e5,
+                                       "seconds": 0.4} for a in rp.SIMULATOR_ARCHITECTURES}}
     return {
         "kind": rp.KIND, "schema_version": rp.SCHEMA_VERSION, "synthetic": True, "measurement": False,
         "run": {"spike_code_hash": rp.SPIKE_CODE_HASH, "spike_code_files": rp.SPIKE_CODE_FILES},
@@ -140,15 +145,20 @@ def green_report() -> dict[str, Any]:
                    "transport": "nats-jetstream", "broker_version": "2.10.22",
                    "broker_binary_version": "2.10.22", "integrity_mode": "keyed",
                    "stream_messages": stream + 3},
-        "world": {"sites": 7, "records": 700, "users": 309,
+        "world": {"sites": 7, "records": 700, "users": 309, "target_users": 200,
                   "expected_counts": {"users": 309, "sites": 7, "records": 700}},
         "ingest": {"per_site": sites, "total_expected": 700, "total_ingested": 700, "loss": 0,
-                   "pipeline_raised": False},
+                   "pipeline_raised": False, "seconds_per_1k_records": 0.3},
         "routing": {"candidates_asked": 20, "verdicts": {"budget_unknown": 0}, "route_selected_first_all": True,
-                    "routes_equal_arm_order": True, "router_excluded_masked": 1, "intervention_records": 1,
+                    "routes_equal_arm_order": True, "per_question_route_ok": True,
+                    "router_excluded_masked": 1, "intervention_records": 1,
                     "coordinator_class": "NeuralGraph.research.coordination.core.TesseractCoordinator",
-                    "router_class": "NeuralGraph.research.coordination.core.Router"},
-        "publish": {"publishes": publishes, "verdict_events": verdict_events, "conclusion_events": conclusions},
+                    "router_class": "NeuralGraph.research.coordination.core.Router",
+                    "tesseract": {"rows_equal_read_verdicts": True, "seconds_p50": 0.7, "seconds_p95": 1.2},
+                    "question_to_verdict": {"per_site_p50": 0.7, "per_site_p95": 1.3, "per_question_p50": 2.2,
+                                            "per_question_p95": 3.4}},
+        "publish": {"publishes": publishes, "verdict_events": verdict_events, "conclusion_events": conclusions,
+                    "created_to_applied": {"p50": 0.5, "p95": 1.5}},
         "signatures": {"failed_before_forgery": 0, "failed_after_forgery": 3, "forged_memory_absent": True,
                        "forged_event_terminated": True, "stream_before": before, "stream_after": after,
                        "forgeries": [{"counter": 1}, {"counter": 2}, {"counter": 3}]},
@@ -180,7 +190,14 @@ def green_report() -> dict[str, Any]:
                      "site_restart": {"site": "r00-site-00", "questions_before": 5, "questions_after": 5,
                                       "verdict_bytes_identical": True, "nodes_added_after_restart": 0,
                                       "answer_matrix_identical": True}},
-        "discovery": {"oracle_rows": [{"question_id": "q1", "ambiguous": False, "expected": "supported",
+        "discovery": {"synthetic": True, "measurement": False, "gold_discoverable": 40, "gold_rare": 18,
+                      "gold_common": 22, "gold_discoverable_patterns": gold_patterns,
+                      "decoys_by_type": {"1": 10, "2": 10, "3": 10, "4": 10, "5": 10},
+                      "candidates_true": 5, "candidates_decoy": 12, "candidates_background": 3,
+                      "found_patterns": ["p001", "p007"], "recall_all": 2 / 40, "recall_common": 2 / 22,
+                      "recall_rare": 0.0, "decoy_accepted_by_type": {"2": 1}, "background_supported": 0,
+                      "simulator": simulator, "simulator_reason": None,
+                      "oracle_rows": [{"question_id": "q1", "ambiguous": False, "expected": "supported",
                                        "status": "supported"},
                                       {"question_id": "q2", "ambiguous": True, "expected": None,
                                        "status": "hypothesis"}]},
@@ -190,14 +207,21 @@ def green_report() -> dict[str, Any]:
     }
 
 
+DROP = object()      # the mutation that removes a field instead of replacing it
+
+
 def put(doc: dict[str, Any], path: str, value: Any) -> dict[str, Any]:
-    """A copy of ``doc`` with one field replaced (the mutation a check must catch)."""
+    """A copy of ``doc`` with one field replaced, or removed when ``value`` is :data:`DROP` (the mutation a check
+    must catch)."""
     out = json.loads(json.dumps(doc))
     node = out
     parts = path.split(".")
     for part in parts[:-1]:
         node = node[part]
-    node[parts[-1]] = value
+    if value is DROP:
+        del node[parts[-1]]
+    else:
+        node[parts[-1]] = value
     return out
 
 
@@ -265,10 +289,12 @@ class CheckTests(unittest.TestCase):
             ("c1_signed", "no_budget_unknown", "routing.verdicts.budget_unknown", 1),
             ("c1_signed", "route_selected_before_retrieval", "routing.route_selected_first_all", False),
             ("c1_signed", "routes_are_the_arms_order", "routing.routes_equal_arm_order", False),
+            ("c1_signed", "every_question_eligible_and_routed", "routing.per_question_route_ok", False),
             ("c1_signed", "coordinator_is_tesseracts", "routing.coordinator_class", "tests.stub.Coordinator"),
             ("c1_signed", "router_is_the_routers", "routing.router_class", "tests.stub.Router"),
             ("c1_signed", "router_excluded_the_masked_site", "routing.router_excluded_masked", 0),
             ("c1_signed", "one_intervention_record", "routing.intervention_records", 0),
+            ("c1_signed", "tesseract_row_per_read_verdict", "routing.tesseract.rows_equal_read_verdicts", False),
             ("c1_signed", "planted_statuses_equal_the_oracle", "discovery.oracle_rows",
              [{"question_id": "q1", "ambiguous": False, "expected": "supported", "status": "hypothesis"}]),
             ("c1_signed", "one_unambiguous_supported", "discovery.oracle_rows",
@@ -346,7 +372,38 @@ class CheckTests(unittest.TestCase):
             ("c8_emergence_load", "no_loss", "ingest.loss", 1),
             ("c8_emergence_load", "pipeline_raised_nothing", "ingest.pipeline_raised", True),
             ("c8_emergence_load", "world_is_section_3_1", "world.users", 310),
+            ("c9_benchmark", "every_discovery_field_present", "discovery.decoy_accepted_by_type", DROP),
+            ("c9_benchmark", "found_patterns_are_gold_discoverable", "discovery.found_patterns", ["p001", "x999"]),
+            ("c9_benchmark", "recall_all_is_found_over_gold", "discovery.recall_all", 0.5),
+            ("c9_benchmark", "per_hop_numbers_numeric", "routing.tesseract.seconds_p50", None),
+            ("c9_benchmark", "simulator_columns_present", "discovery.simulator", None),
+            ("c9_benchmark", "stamps_synthetic_not_measured", "discovery.measurement", True),
         ]
+
+    def test_c9_accepts_null_simulator_columns_only_at_the_largest_size_with_the_budget_reason(self) -> None:
+        """Section 10: the simulator's columns may be null with ``reason: budget`` at the 2,000-user size only."""
+        null = put(put(self.doc, "discovery.simulator", None), "discovery.simulator_reason", "budget")
+        self.assertIn("simulator_columns_present", rp.c9_benchmark(null)["failed"])
+        at_2000 = put(null, "world.target_users", rp.SIMULATOR_BUDGET_SIZE)
+        self.assertNotIn("simulator_columns_present", rp.c9_benchmark(at_2000)["failed"])
+        half = put(self.doc, "discovery.simulator.architectures.A2_chunked_ctx.compute_units", None)
+        self.assertIn("simulator_columns_present", rp.c9_benchmark(half)["failed"])
+
+    def test_the_recomputation_of_m12_agrees_with_a_report_whose_aggregates_are_its_samples(self) -> None:
+        doc = green_report()
+        doc["routing"]["tesseract"]["samples"] = [{"seconds": s} for s in (0.5, 0.7, 1.2)]
+        doc["routing"]["question_to_verdict"]["samples"] = [{"seconds": s} for s in (2.2, 3.4)]
+        doc["routing"]["question_to_verdict"]["per_site_samples"] = [{"seconds": s} for s in (0.7, 1.3)]
+        doc["publish"]["created_to_applied"]["samples"] = [{"seconds": s} for s in (0.5, 1.5)]
+        for block, key, fields in rp.RECOMPUTE:
+            node = rp._get(doc, block)
+            for name, (sample_key, pct) in fields.items():
+                node[name] = rp.stats.percentile([s[sample_key] for s in node[key]], pct)
+        doc["lineage"]["rows"] = [{"reconstructable": True, "source_events_complete": True}] * 20
+        self.assertEqual(rp.recompute(doc), [])
+        self.assertTrue(any("seconds_p50" in p for p in rp.recompute(put(doc, "routing.tesseract.seconds_p50", 9))))
+        self.assertTrue(any("lineage.conclusions" in p for p in rp.recompute(put(doc, "lineage.conclusions", 19))))
+        self.assertTrue(any("recall_all" in p for p in rp.recompute(put(doc, "discovery.recall_all", 0.9))))
 
     def test_every_assertion_of_every_check_catches_its_own_mutation(self) -> None:
         for check, assertion, path, value in self.mutations():
@@ -448,8 +505,7 @@ class LiveRunTests(unittest.TestCase):
                 self.assertLessEqual(set(check["failed"]), SHORT_SCALE.get(name, set()),
                                      f"{name} failed assertions this scale should reach")
         self.assertEqual(sorted(self.doc["checks"]), sorted(rp.E2E_CHECKS))
-        self.assertEqual(sorted(self.doc["verdict"]["not_run"]),
-                         ["c10_suites_green", "c5_measured", "c6_ci", "c9_benchmark"])
+        self.assertEqual(sorted(self.doc["verdict"]["not_run"]), ["c10_suites_green", "c5_measured", "c6_ci"])
         self.assertFalse(self.doc["verdict"]["complete"])
 
     def test_c0_the_fabric_is_real_and_keyed(self) -> None:
@@ -491,7 +547,9 @@ class LiveRunTests(unittest.TestCase):
         self.assertIsNone(r["eval_window"])                            # M21
         self.assertTrue(r["route_selected_first_all"])
         self.assertTrue(r["routes_equal_arm_order"])
-        for q in r["questions_detail"]:
+        self.assertTrue(r["per_question_route_ok"])
+        self.assertEqual(len(r["questions"]), r["questions_asked"])           # M4: ``routing.questions[]``
+        for q in r["questions"]:
             with self.subTest(question=q["question_id"][:12]):
                 self.assertEqual(q["hq_eligible"], self.doc["world"]["sites"])
                 self.assertEqual(q["route_size"], min(3, q["hq_eligible"]))
@@ -499,7 +557,15 @@ class LiveRunTests(unittest.TestCase):
                 self.assertIn("route_selected", trace)
                 self.assertIn("retrieval_selected", trace)
                 self.assertLess(trace.index("route_selected"), trace.index("retrieval_selected"))
+        # section 4, item 2: one site diagnostics row per (question, site) whose verdict came from a record read
+        t = r["tesseract"]
+        self.assertTrue(t["rows_equal_read_verdicts"])
+        self.assertEqual(t["rows_for_read_verdicts"], t["read_verdicts"])
+        self.assertEqual((t["rows_outside_asked_pairs"], t["rows_duplicated"]), (0, 0))
+        self.assertEqual(t["read_verdicts"], r["verdicts"]["confirm"] + r["verdicts"]["refute"])
+        self.assertEqual(t["rankings"], len(t["samples"]))
         probe = r["probe"]
+        self.assertEqual(sorted(x["site"] for x in probe["received"]), sorted(probe["route"]))
         self.assertIn(probe["masked_site"], probe["unmasked_route"])
         self.assertNotIn(probe["masked_site"], probe["route"])
         self.assertEqual((probe["route_size"], probe["hq_eligible"]), (3, self.doc["world"]["sites"]))
@@ -576,16 +642,48 @@ class LiveRunTests(unittest.TestCase):
     def test_the_discovery_score_is_computed_from_the_fabric_and_gold(self) -> None:
         d = self.doc["discovery"]
         self.assertEqual(d["gold_discoverable"], 40)
+        self.assertEqual(len(d["gold_discoverable_patterns"]), 40)
         self.assertEqual(d["candidates_true"] + d["candidates_decoy"] + d["candidates_background"],
                          SHORT_CANDIDATES)
-        self.assertIsNone(d["simulator"])
         self.assertTrue(d["measurement"] is False and d["synthetic"] is True)
+        self.assertLessEqual(set(d["found_patterns"]), set(d["gold_discoverable_patterns"]))
+        self.assertEqual(d["recall_all"], len(d["found_patterns"]) / 40)
+        self.assertEqual(len(d["fabric_conclusions"]), self.doc["publish"]["conclusion_events"])
+        for c in d["fabric_conclusions"]:
+            self.assertIn(c["status"], ("supported", "hypothesis", "stale", "contested", "rejected"))
+        # the simulator's two columns on the same world (section 10, M14), simulated and labelled so
+        sim = d["simulator"]
+        self.assertIsNone(d["simulator_reason"])
+        self.assertEqual((sim["simulated"], sim["synthetic"], sim["measurement"]), (True, True, False))
+        self.assertEqual((sim["users"], sim["records"]), (self.doc["world"]["users"], self.doc["world"]["records"]))
+        self.assertEqual(sorted(sim["architectures"]), sorted(rp.SIMULATOR_ARCHITECTURES))
+        for name, row in sim["architectures"].items():
+            with self.subTest(architecture=name):
+                for metric in rp.SIMULATOR_METRICS:
+                    self.assertIsInstance(row[metric], float)
         for row in d["oracle_rows"]:
             with self.subTest(question=row["question_id"][:12]):
                 self.assertEqual(sorted(row["per_site_facet_counts"]), sorted(row["route"]))
                 self.assertIn(row["status"], ("supported", "hypothesis", "stale", "contested", "rejected"))
+                self.assertEqual(row["status"], row["hq_status"])         # the fabric holds what HQ concluded
                 if not row["ambiguous"]:
                     self.assertEqual(row["status"], row["expected"])
+
+    def test_the_report_re_read_recomputes_to_itself_and_the_check_command_reads_it(self) -> None:
+        """M12: every aggregate recomputed from the arrays the report carries; ``check REPORT`` re-runs the checks
+        and exits 1 while the stored verdict does not pass (the short scale's floors) and 0 when it does."""
+        doc = json.loads(self.path.read_text(encoding="utf-8"))
+        self.assertEqual(rp.recompute(doc), [])
+        self.assertEqual(rp.run_checks(doc, list(doc["checks"])), doc["checks"])
+        self.assertEqual(H.main(["check", str(self.path)]), 0 if doc["verdict"]["pass"] else 1)
+        self.assertEqual(H.main(["check", str(self.path), "--recorded"]), 1)      # no CI run id locally
+        green = Path(self.tmp.name) / "green.json"
+        passing = json.loads(json.dumps(doc))
+        for name, check in passing["checks"].items():
+            check["ok"], check["failed"] = True, []
+        passing["verdict"]["pass"], passing["verdict"]["failed"] = True, []
+        rp.write(green, passing)
+        self.assertEqual(H.main(["check", str(green)]), 0 if doc["verdict"]["pass"] else 1)   # a typed-in verdict
 
     # ---- the report
     def test_the_report_carries_the_schema_the_runner_and_the_stamps(self) -> None:
@@ -608,10 +706,14 @@ class LiveRunTests(unittest.TestCase):
         found = rp.scan_hits(text, record_ref=ew.RECORD_REF_RE, narrative_marker=ew.NARRATIVE_MARKER_RE,
                              narrative_prefixes=self.harness.prefixes, prefix_length=ew.NARRATIVE_PREFIX)
         self.assertEqual(found, {"record_ref_hits": 0, "narrative_marker_hits": 0, "narrative_prefix_hits": 0})
-        # M24: no tier label of the simulator's allocations is in the report (the simulator's own columns are the
-        # measure job's, and the checkpoint name of ``models.py:8`` may not be written into code at all)
-        self.assertEqual(rp.forbidden_strings(text, ["small-7b", "mid-14b", "mid-32b", "large-70b", "edge-3b",
-                                                      "frontier", "back-loaded"]), [])
+        # M24: the report records the allocation name and the five metric fields of the simulator's columns only,
+        # never a tier label (every label of every allocation of ``models.py``, read from the module so none is
+        # written here; the checkpoint name of ``models.py:8`` may not be written into code at all)
+        from research.mycelic.models import ALLOCATIONS
+        tiers = sorted({tier for alloc in ALLOCATIONS.values() for tier in alloc})
+        self.assertGreater(len(tiers), 3)
+        self.assertEqual(rp.forbidden_strings(text, tiers), [])
+        self.assertIn('"allocation": "back-loaded"', text)
         # the pack's ``never_fields`` are ``narrative`` and ``reporter``: the only "narrative" in the report is the
         # name of drill 5's own two counters, and "reporter" appears only as a bucket name
         rest = text.replace("narrative_marker_hits", "").replace("narrative_prefix_hits", "")

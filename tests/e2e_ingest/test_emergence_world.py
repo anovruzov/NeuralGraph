@@ -411,8 +411,8 @@ class PipelineTests(unittest.TestCase):
         w = self.world
         prefixes = ew.narrative_prefixes(w.corpus)
         scanned = 0
-        paths = [w.workdir / "hq" / "receive.jsonl"] + [w.workdir / "edge" / f"site-{s}.egress.jsonl"
-                                                       for s in w.site_ids]
+        paths = [w.workdir / "hq" / "receive.jsonl"]
+        paths += [w.workdir / "edge" / f"site-{s}.egress.jsonl" for s in w.site_ids]
         for path in paths:
             self.assertTrue(path.exists(), path.name)
             text = path.read_text(encoding="utf-8")
