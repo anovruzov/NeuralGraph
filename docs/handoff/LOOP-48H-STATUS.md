@@ -133,6 +133,16 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   as left) saved on wf/a002; the suites, dry run, pinned-file check and final commit remain. Both workflows resumed
   with their scripts patched to continue from these branches (wf/e2e-fix2, wf/a002-b). The founder's "Continue"
   (14:26) is read as: carry on.
+- 2026-10-13 15:30 Both resumed workflows alive. A002: the builder finished on wf/a002-b at 6be0b0b (lab kind j3:
+  lab/j3.py, lab/j3labels.py, wiring, the second download-artifact step, tests, template, BUILD-A002.md; test_lab_j3
+  61 passed with 369 subtests on the builder's count, 64 collected after three wiring pins; test_lab_j2 56 passed; the
+  five pinned lab files byte-identical to 720b0d6 on the builder's diff). The tests review returned 0 blocking and 4
+  minor (two unpinned run.json identity checks in the aggregate, a commit message saying 63 tests where 64 are
+  collected, the pre-existing timing test test_lab_sim.py::test_wall_time failing on this sandbox at the deployment
+  tip too, and two self-referential assertions); the rule review is still running its full-suite check. EMERGENCE:
+  the fixer on wf/e2e-fix2 (WIP da5af45, f0ded12, dd55f5c) finished a size-200 harness run on the fixed code and is
+  writing the build note's "What this branch ran" section; lint and the no-model-names guard re-run after the edit.
+  No new limit errors. Next: fix stage for A002 (wf/a002-fix), then the merge gates for both.
 
 ## Open asks (date asked)
 
