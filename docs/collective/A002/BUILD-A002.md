@@ -4,7 +4,9 @@ What was built so the lab can run accuracy test A002 (`CHOICE-A002.md`, with its
 2026-10-13", B1 to B25). The choice file is the rule; this note says how the build carries it out, where the rule left
 a choice to the build, what deviates (nothing of the rule's substance), what the tests pin and what the dry run showed.
 The rule was committed alone and amended before any code (`720b0d6`, the amended rule merged); this build starts from
-`720b0d6` on branch `wf/a002`, copying A001's `j2` precedent (`BUILD-A001.md`) and changing no pinned file: `lab/j1.py`,
+`720b0d6` on branch `wf/a002` (the first builder's WIP commits, stopped by the account's session limit after the docs
+were written) and ends on `wf/a002-b`, which verified every WIP item against the code, added two test pins, ran the
+suites, the dry run and the pinned-file check; it copies A001's `j2` precedent (`BUILD-A001.md`) and changes no pinned file: `lab/j1.py`,
 `lab/goldlabels.py`, `lab/j2.py` and `lab/j2labels.py` are imported unchanged (`git diff --stat 720b0d6..HEAD` over the
 five pinned lab files, `lab/shard.py` included, prints nothing), `lab.aggregate.j2_block` and `lab.summary._j2_tables`
 are not edited, and nothing under `mycelic/collective/`, `mycelic/*.py`, `connectors/openfda.py`, the vehicle pack,
@@ -220,11 +222,18 @@ None of the rule's substance. Where the build plan's names and the lab's pins di
   next rule names its files.
 - The plan job's 20-minute `prereg` step must hold the complaint-file download, two rebuilds and the draw; on the
   synthetic archive the whole preregistration takes about a second.
-- `actionlint` is not installed here; the workflow is checked by `tests/lab/test_lab_workflow.py` only.
+- `actionlint` is not installed here; the workflow is checked by `tests/lab/test_lab_workflow.py` and
+  `tests/lab/test_lab_j3.py` (`WiringTests`) only.
+- Rule 13's reading of N and D beside A001 run 1's arms C and D (a between-draw difference) is written by hand in
+  the Runs entry from A001's recorded figures: the aggregate holds no figure of another run, as A001's held none of
+  J001's.
+- The budget timer is pinned as A001's tests pin it: the runner's clock is the test's and `setitimer` is mocked, so
+  the test reads the stop in each pass without arming a real alarm; the real timer is J001's `_Signals`, called
+  unchanged and tested in J001's suite.
 
 ## Tests
 
-`tests/lab/test_lab_j3.py`, offline (61 tests, every rule clause of the build plan's declared list pinned): the
+`tests/lab/test_lab_j3.py`, offline (63 tests, every rule clause of the build plan's declared list pinned): the
 synthetic archive and both earlier artifacts (`tests/lab/j3_data.py`), the lab's fake server with the vehicle pack's
 responder, no network host. Three fixtures are made once: a plan of two fake models (40 records in 2 parts)
 preregistered against the synthetic artifacts with the real runs' rebuild prefixes, a small dry run of two gguf
@@ -239,7 +248,7 @@ models on the fake provider with `--j3-data`, and the template's dry run with `-
 | `RequestTests` | the defaults; every block error, the j3 file list and the two entries' rules included (B3); the template's 5 units in 5 shards and its outputs; `plan_outputs` and `exclude_entries` on a j3, a j2 and another plan (B2) |
 | `PreregTests` | every preregistered file and pin; the draw disjoint from both earlier draws, the chain file (340 lines), the record and the fixed console lines without a ref; the plan summary with every number traced; the stop rules through the CLI (no source verifying, verified sources disagreeing, too few records); the stand-in recorded; a stand-in that cannot be read or is the other kind's |
 | `RunTests` | three passes, task E first, each task's schema, cap and instructions, the same payload, the fake's answers behind the empty field; grounded, invented, late and short citations as written (B19); a model failure and a transport failure in each pass; a stop in the second, the third and the first pass; the server staying down; every pin refused before any call (the three tasks, the mapping, the grounding, the composite, the arms, the lifts, the three routes and escalations, the files, the code hash); the unit adapter; the status reading; participation |
-| `WiringTests` | both fake handlers in both branches; the warm-up's three tasks with the probe task E (B4); the plan's four outputs |
+| `WiringTests` | both fake handlers in both branches; the warm-up's three tasks with the probe task E (B4); the plan's four outputs; the workflow's `earlier-2` step of the `earlier` step's shape (the same pinned action, the workflow's own token, `continue-on-error`, the same directory by its own run id) between `earlier` and `prereg`, under the workflow's read-only `actions: read`, `contents: read` that no job widens (B2); every J3 note, heading and column of `lab/notes.py` free of ASCII digits, the primary line's placeholders the ones the summary fills |
 | `SmallDryRunTests` | every unit on the fake provider; the report block (sets, nine arms with the ablation clauses, lifts, ablation differences, evidence readings, first keys, tokens, `primary_result` with the headline secondary); the summaries with every number traced and no ref or narrative anywhere |
 | `AggregateTests` | every arm `pass_provisional` with grounded quotes and the ablation clauses; the grounding check removing false confirms only, the composite's ablation-A difference equal to its lexical difference (B8); `partial` and the mapping's lift; what is not a finished part (`grounded` against the text, the grounded verdict, a first key outside the schema, a citation on an N line, a fourth task, another preregistration, a line twice); a stop in the second pass sparing task E and a dropped record withholding E's arms; without the preregistration |
 | `TemplateDryRunTests` | 5 units in 5 shards; every source verified; 240 eligible after exclusion, overlap 0; 21 comparisons; every word `incomplete`; the chain file of 450 lines; no ref anywhere |
@@ -255,16 +264,20 @@ The other lab suites run unchanged but for the pins above; `tests/lab/test_lab_j
 ```
 plan: 5 units in 5 shards (real)
 j3 exclusion: j001=artifact a001=artifact consistency j1_r1=0 a1_r2=0 outside_chain=0 chain_union=0 excluded 300
-j3 draw: available 540 excluded 300 eligible_after_exclusion 240 overlap 0 sources J1=verified R1=verified A1=verified R2=verified K=verified j001=artifact a001=artifact consistency j1_r1=0 a1_r2=0 outside_chain=0 chain_union=0 labels_sha256 f95b4ed9db9c questions_sha256 f5583449deab excluded_sha256 c1e1a63cee69 excluded_lines 450 complaint_file_sha256 1f16059350c7
+j3 draw: available 540 excluded 300 eligible_after_exclusion 240 overlap 0 sources J1=verified R1=verified A1=verified R2=verified K=verified j001=artifact a001=artifact consistency j1_r1=0 a1_r2=0 outside_chain=0 chain_union=0 labels_sha256 f95b4ed9db9c questions_sha256 f5583449deab excluded_sha256 c1e1a63cee69 excluded_lines 450 complaint_file_sha256 2c07cbd47bd3
 j3 comparators: lexical balanced_accuracy 0.700 [0.660, 0.740] record_blind 0.503 [0.447, 0.560] predicate_only_bound 0.577 ablation_a 0.700 [0.660, 0.740] ablation_b 0.610 [0.553, 0.667] lexical_unknown 0
 prereg: e1 no x1 no e2 no j1 no j3 yes
-lab: unit j3-a-4b-p1 status ok class plumbing exit 0 wall_s 0.8
-lab: unit j3-a-4b-p2 status ok class plumbing exit 0 wall_s 0.7
-lab: unit j3-a-4b-p3 status ok class plumbing exit 0 wall_s 0.9
-lab: unit j3-a-4b-p4 status ok class plumbing exit 0 wall_s 0.7
+lab: unit j3-a-4b-p1 status ok class plumbing exit 0 wall_s 1.1
+lab: unit j3-a-4b-p2 status ok class plumbing exit 0 wall_s 0.9
+lab: unit j3-a-4b-p3 status ok class plumbing exit 0 wall_s 0.5
+lab: unit j3-a-4b-p4 status ok class plumbing exit 0 wall_s 0.6
 lab: unit j3-a-4b-p5 status ok class plumbing exit 0 wall_s 0.6
 lab: aggregate units 5 shards 5 class real measurements false lock unchanged
 ```
+
+The synthetic archive is a zip whose one entry carries its generation time, so `complaint_file_sha256` differs from
+one generation of the test data to the next while the labels', the questions' and the chain file's hashes are fixed
+by the seed (the same three prefixes on every run of the dry run and in `TemplateDryRunTests`).
 
 Every source verified on the stand-in, eligible after exclusion 240 (at least 150, B21), overlap 0, every unit `ok`
 and `plumbing`, every verdict word `incomplete` (nothing measured a model), the comparisons 21 (9 this cycle, 12
