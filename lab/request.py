@@ -309,10 +309,10 @@ J3_KINDS_PROBLEM = "J3 runs only gguf or fake models"
 J3_EXCLUDE_LIST_PROBLEM = "must be a list of exactly two entries: the earlier cycles, in seed order"
 J3_FILE_PROBLEM = ("must be the file listing the excluded records: prereg/j1/labels.jsonl, prereg/j2/labels.jsonl or "
                    "prereg/j2/excluded.jsonl")
-J3_FIRST_FILE_PROBLEM = ("must be prereg/j1/labels.jsonl: the first entry is the first judge test's run, excluded by its "
-                         "labels file")
-J3_SECOND_FILE_PROBLEM = ("must be prereg/j2/labels.jsonl: the second entry is the first accuracy test's run, excluded by "
-                          "its labels file (its chain file is named by the chain keys)")
+J3_FIRST_FILE_PROBLEM = ("must be prereg/j1/labels.jsonl: the first entry is the first judge test's run, excluded by "
+                         "its labels file")
+J3_SECOND_FILE_PROBLEM = ("must be prereg/j2/labels.jsonl: the second entry is the first accuracy test's run, excluded "
+                          "by its labels file (its chain file is named by the chain keys)")
 J3_CHAIN_FILE_PROBLEM = "must be the chain file prereg/j2/excluded.jsonl"
 J3_CHAIN_FIRST_PROBLEM = "the chain keys belong to the second entry only"
 J3_CHAIN_REQUIRED = "required on the second entry: the earlier cycle's chain file and its sha256 prefix"
