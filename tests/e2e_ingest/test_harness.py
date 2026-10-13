@@ -725,7 +725,8 @@ class LiveRunTests(unittest.TestCase):
         tiers = sorted(set(ALLOCATIONS[ALLOCATION]))
         self.assertGreater(len(tiers), 3)
         self.assertEqual(rp.forbidden_strings(text, tiers), [])
-        self.assertIn(f'"allocation": "{ALLOCATION}"', text)
+        self.assertIn(ALLOCATION, text)
+        self.assertEqual(json.loads(text)["discovery"]["simulator"]["allocation"], ALLOCATION)
         # the pack's ``never_fields`` are ``narrative`` and ``reporter``: the only "narrative" in the report is the
         # name of drill 5's own two counters, and "reporter" appears only as a bucket name
         rest = text.replace("narrative_marker_hits", "").replace("narrative_prefix_hits", "")

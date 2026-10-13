@@ -594,6 +594,93 @@ with the bridge (the earlier section "The contract with S5") is unchanged.
    status". The service stores a note's `value` as `metadata.value` (canonical, lower case; the earlier section's
    item 4), which is what both read now; `hq_status` is reported beside it.
 
+### What the recorded local run showed (Intel Xeon 2.10 GHz, 4 vCPU, nats-server v2.10.22; sandbox figures, synthetic, `measurement: false`)
+
+`python -m research.e2e_ingest.harness run --world 200 --seed 0 --out DIR` on the finished code, 55 candidates,
+every drill of section 8, 1,181 s of wall time (its first nine minutes shared the four cores with the suite's own
+live run, so the ranking phases are slower than the section above measured; nothing here is a timing result).
+`verdict.checks_pass` true over the eight checks the end-to-end job runs; `verdict.pass` false with reason
+`suites_not_green` (M2, item 5 above); `complete` false (c5, c6, c10). `check REPORT` re-read the written report:
+every aggregate recomputed to itself (0 disagreements), every check reproduced, exit 1 as the stored verdict says.
+
+| Check | Assertions | Result |
+|---|---|---|
+| `c0_real_fabric_keyed` | 9 | ok |
+| `c1_signed` | 27 | ok |
+| `c2_lineage` | 15 | ok |
+| `c3_idempotent` | 12 | ok |
+| `c4_recovery` | 25 | ok |
+| `c7_guards` | 6 | ok |
+| `c8_emergence_load` | 6 | ok |
+| `c9_benchmark` | 6 | ok |
+| `c5_measured`, `c6_ci`, `c10_suites_green` | | not run (S7, S8, S8) |
+
+- **c0.** `E2EProcessDriver` (a `ProcessDriver`) with the binary set; the harness key set and its id in the
+  service's `meta.known_key_ids`; transport `nats-jetstream`; broker `2.10.22` from the live broker, equal to the
+  binary's; `integrity_mode` `keyed`; 282 stream messages at the sample.
+- **c8.** 309 users, 7 sites, 35 teams, 12,964 records, 150 entities, 40 real patterns, 40 Gold discoverable
+  (18 rare), 50 decoys (section 3.1's row, asserted); per site 2,574 / 1,620 / 1,789 / 1,876 / 1,805 / 1,842 /
+  1,458 records ingested (`forwarded_in = 0`, `mode=ro`), each graph holding exactly that many MESSAGE nodes
+  whose ids digest to the record refs; loss 0; `pipeline_raised` false; 0.73 to 0.94 s per 1,000 records to build,
+  0.82 over the world (the pipeline and detection 8.2 s).
+- **Tesseract routing (c1).** The live `TesseractCoordinator` and `Router` of the coordination package; 55
+  questions, each with 7 eligible sites, a route of 3 equal to the first three of arm R's order, and
+  `route_selected` before every `retrieval_selected`; 166 rankings over graphs of 1,458 to 2,574 nodes (median
+  1,805), 1.37 s p50 and 2.34 s p95 under the shared load; question to verdict 1.40 / 2.43 s per site (168
+  requests) and 4.39 / 6.44 s per question. The diagnostics reconciled (section 4, item 2): 163 verdicts from a
+  record read (148 confirm, 15 refute), 163 rows for them, 0 rows outside the 166 (question, site) pairs asked, 0
+  duplicated; the 166th row is the probe's fresh retrieval at its replacement site.
+- **The eligibility probe (M4).** `r00-site-00` (31 of the 55 routes, the most) killed after its 16th question,
+  2,574 nodes before and after; the probe re-asked a candidate whose unmasked arm-R route was `r03 / r04 / r00`
+  and the Router chose `r03 / r04 / r02`, 7 still eligible, route size 3, one `failure_injected`, one intervention
+  record ended, all three answers `site`-sourced (two stored verdicts replayed by the sites that had answered,
+  one fresh `unknown` at `r02`).
+- **The gate.** 47 supported, 7 hypothesis, 1 stale; 148 confirm, 15 refute, 2 unknown, 0 HQ error records,
+  0 `budget` unknowns.
+- **The oracle (c1).** 15 planted candidates; 8 unambiguous, 7 expected `supported` and 1 `hypothesis`, and the
+  fabric's `metadata.value` equals each (and HQ's status); 7 ambiguous (one strong site, or a contradicted
+  pattern), reported, not asserted.
+- **Publishing (c1, c4).** 220 publishes (165 verdict events, 55 conclusions), 220 created, 0 duplicate, 0
+  ambiguous, 275 API ids; nats-server killed after publish 110 and down 1.7 s; during the outage the outbox held
+  138, `connected` false, `status` `degraded`; after the restart 1 reconnect, outbox 0, consumer 0, applied deltas
+  220 `agent.event` and 55 `memory.observed` over `result="applied"`, 0 ignored, 55 active notes, 0 stream
+  duplicates. `created_to_applied` (M18: 165 verdict `agent.event`s and 55 `memory.observed`s) p50 1.0 s and
+  p95 2.0 s at the service's one-second stamps; the conclusions' own `agent.event`s the same.
+- **Signatures (c1).** Before any forgery 279 fetched, 279 verified, 0 foreign, every API id exactly once, kinds
+  `agent.event` 220, `memory.observed` 55, `rule.upserted` 3, `agent.registered` 1; after the three forgeries 282
+  fetched, 279 verified, 3 foreign, the counter 1, 2, 3, the three memory ids 404, 3 `event.rejected` audit rows.
+- **Lineage (c2).** 55 conclusions reconstructable with their verdict events among the sources; 165 site-sourced
+  verdict events with all five witnesses (165 each in `pd_verdicts`, HQ's wire log, HQ's intake log, the sites'
+  egress logs, the sites' stores); 163 joined site-side through `verdict_for_ref` to their records, 0 received
+  after `as_of`. The scan read 396,084 bytes of the fabric's database (279 events, 55 memories, 228 audit rows,
+  the rest) and 282 stream messages (264,647 bytes): 0 record refs, 0 narrative markers, 0 of the 1,312 narrative
+  prefixes.
+- **Recovery (c4).** 16 questions before the SIGKILL, 15 after, every post-restart answer byte-identical to a
+  fresh `E2ESiteProcess` built from nothing, the whole answer matrix byte-identical to the reference pass (0
+  mismatches). The service rebuilt in 2.6 s: the same 55 active memory ids, the same 55 verification digests, the
+  replay seeing 282 deliveries and rejecting the 3 forgeries, not blocked, no `ready_block`, `/ready` 200.
+- **Idempotency (c3).** Re-ingest: 12,964 duplicates, 0 ingested, 0 rejected, 0 nodes added at any site, the 140
+  fixed rankings (20 per site) identical on the top 10 and on the full order. The bridge rerun: 220 publishes, 0
+  created, 0 new memory ids, 0 new event ids, the stream unchanged at 285 (the rebuilt service's three
+  `rule.upserted`, item 5 of the section above), the notes identical, HQ's store file unchanged.
+- **Discovery (c9).** 15 true, 35 decoy, 5 background candidates; 47 supported notes in the fabric with their
+  lineage check; 13 Gold-discoverable patterns found at (anchor, chain) granularity: `recall_all` 0.325 (13 / 40),
+  `recall_common` 0.591 (13 / 22), `recall_rare` 0 (0 / 18, k-suppression by construction, section 3.4);
+  decoys accepted by class 2: 5 of 10, class 4: 9 of 10, class 5: 3 of 10, classes 1 and 3: 0 (class 4 is
+  duplicate inflation on a genuine chain and class 2 the temporal scramble the chain-level key cannot see, section
+  3.4); 0 background keys supported. The simulator's columns on the same world (`simulated: true`, allocation
+  `back-loaded`, 0.9 s): `H_mycelic_full` discovery recall 0.475, rare 0.056, decoy acceptance 0.175, recall at
+  100 0.475, 156,338 compute units; `A2_chunked_ctx` 0.925, 0.944, 0.300, 0.925, 167,746. The two are not the
+  same metric and the report says so (`granularity`, the simulator's `note`).
+- **Guards (c7).** `hq_tesseract`, `hq_bridge`, `publish_api` import nothing forbidden, statically or in a fresh
+  interpreter; the drills load no site or service module; the spike's code hash is M13's over 142 files and its
+  paths are clean; `code_dirty` false at start and end.
+- **Phases (seconds).** world 8.2; reference pass 324.4; main pass 261.7; fixed queries before 258.9; restart
+  witness 33.8; fabric start 0.8; publish 4.9; forgeries 0.4; lineage and the scan 0.7; discovery 0.9; rebuild
+  3.2; re-ingest 279.9 (the second ranking pass inside it); bridge rerun 2.0. The brief's 20-minute bound for
+  the end-to-end job is neither met nor missed by a sandbox figure under a shared load; the first recorded CI run
+  decides (section 11).
+
 ### Tests (`tests/e2e_ingest/test_harness.py`, as the stage left it)
 
 | Test class | What it proves |
