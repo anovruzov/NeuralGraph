@@ -47,7 +47,7 @@ GROUPS = ("core", "lab")
 NEEDS_JOBS = {"core": "suites-core", "lab": "suites-lab"}
 NEEDS_ENV = {"suites-core": "E2E_NEEDS_SUITES_CORE", "suites-lab": "E2E_NEEDS_SUITES_LAB"}
 #: ``tests/e2e_ingest`` at this build's merge (M2: written into the settings test, may only rise).
-E2E_INGEST_FLOOR = 140
+E2E_INGEST_FLOOR = 150
 JETSTREAM_CLASSNAME = "tests.mycelic.test_jetstream"
 PYTEST_FLAGS = ("-q", "-p", "no:warnings")
 

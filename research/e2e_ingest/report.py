@@ -503,10 +503,14 @@ def c5_measured(doc: Mapping[str, Any]) -> dict[str, Any]:
         entry = sizes.get(size) or {}
         row = entry.get("row") or {}
         checks = entry.get("checks") or {}
+        # the size asks the first min(cap, detected) candidates (the 200-user world detects 55, under the cap of
+        # 60: the cap is a bound, not a count the world owes) and never fewer than section 2.3's floor
+        cap, detected = MEASURE_CANDIDATES.get(int(size)), row.get("candidates_detected")
+        expected = min(cap, detected) if isinstance(cap, int) and isinstance(detected, int) else None
         items += [
             (f"size_{size}_row_numeric", all(_number(row.get(f)) for f in MEASURE_ROW_FIELDS)),
-            (f"size_{size}_candidates", row.get("candidates") == MEASURE_CANDIDATES.get(int(size))
-             or (row.get("candidates") or 0) >= MEASURE_CANDIDATES.get(int(size), 0)),
+            (f"size_{size}_candidates", expected is not None and row.get("candidates") == expected
+             and expected >= FLOOR_CANDIDATES),
             (f"size_{size}_checks_ok", bool(checks) and all(c.get("ok") is True for c in checks.values())),
         ]
     for n in MEASURE_NODE_COUNTS:

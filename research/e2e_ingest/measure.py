@@ -72,7 +72,7 @@ from .hq_bridge import HqBridge
 from .publish_api import AGENT_ID, CONCLUSION_EVENT, ORG_ID, VERDICT_EVENT
 
 __all__ = ["ALLOCATION", "ARCHITECTURES", "METRICS", "SIMULATOR_BUDGET_SECONDS", "MeasureError", "MeasureOptions",
-           "MeasureRun", "main", "phase_plan", "rekey", "simulator_columns", "sweep_org"]
+           "MeasureRun", "main", "phase_plan", "rekey", "simulator_columns", "sweep_agent", "sweep_org"]
 
 ROOT = Path(__file__).resolve().parents[2]
 ALLOCATION = "back-loaded"
@@ -140,6 +140,12 @@ def budget_seconds(phase: str) -> float:
 def sweep_org(rate: int) -> str:
     """Section 3.6: one organisation per rate step (``emergence-rate-02``, ``-04``, ...)."""
     return f"{ORG_ID}-rate-{int(rate):02d}"
+
+
+def sweep_agent(rate: int) -> str:
+    """The step's HQ agent (``hq-rate-02``, ...): agent ids are one namespace across organisations in the service
+    (a second ``register_agent`` of ``hq`` is refused), so each step's organisation gets its own."""
+    return f"{AGENT_ID}-rate-{int(rate):02d}"
 
 
 def rekey(event: Mapping[str, Any], step: str, cycle: int) -> dict[str, Any]:
@@ -336,8 +342,8 @@ class MeasureRun:
         """One step: ``rate`` events/s for ``step_seconds`` in the step's own organisation, every POST a new event
         (M7), then idle, then every event's stamps read from the service database (``mode=ro``)."""
         o = self.options
-        org, step_id = sweep_org(rate), f"rate-{rate:02d}"
-        registered = admin.register_agent(agent_id=AGENT_ID, enterprise=org)
+        org, agent, step_id = sweep_org(rate), sweep_agent(rate), f"rate-{rate:02d}"
+        registered = admin.register_agent(agent_id=agent, enterprise=org)
         client = MycelicClient(driver.base_url, registered["api_key"])
         results: list[dict[str, Any]] = []
         state = {"i": 0, "lag": 0.0}
@@ -386,7 +392,7 @@ class MeasureRun:
             rows.get(r["event_id"], {}).get("status") == "applied" for r in results)
         achieved = len(results) / duration if duration > 0 else 0.0
         stat = rp.stat_block(samples)
-        return {"rate": rate, "step": step_id, "org": org, "events": len(results),
+        return {"rate": rate, "step": step_id, "org": org, "agent": agent, "events": len(results),
                 "created": sum(1 for r in results if r["created"]),
                 "duplicate": sum(1 for r in results if not r["created"]),
                 "conclusions": sum(1 for r in results if r["type"] == CONCLUSION_EVENT), "cycles": cycle,

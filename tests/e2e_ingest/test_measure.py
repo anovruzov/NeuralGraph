@@ -34,7 +34,7 @@ def size_doc(size: int) -> dict[str, Any]:
                                         "samples": [{"seconds": s} for s in (0.5, 0.7, 1.2)]})
     doc["routing"]["question_to_verdict"].update({"samples": [{"seconds": s} for s in (2.2, 3.4)],
                                                   "per_site_samples": [{"seconds": s} for s in (0.7, 1.3)]})
-    doc["routing"].update({"candidates_detected": 55, "statuses": {"supported": 47},
+    doc["routing"].update({"candidates_detected": 61, "statuses": {"supported": 47},
                            "candidates_asked": rp.MEASURE_CANDIDATES[size]})
     doc["publish"]["created_to_applied"]["samples"] = [{"seconds": s} for s in (0.5, 1.5)]
     for block, key, fields in rp.RECOMPUTE:
@@ -104,6 +104,8 @@ class PlanTests(unittest.TestCase):
         self.assertEqual([ms.sweep_org(r) for r in rp.MEASURE_RATE_STEPS],
                          ["emergence-rate-02", "emergence-rate-04", "emergence-rate-08", "emergence-rate-16",
                           "emergence-rate-32"])
+        # agent ids are one namespace across organisations in the service, so each step registers its own HQ
+        self.assertEqual([ms.sweep_agent(r) for r in (2, 32)], ["hq-rate-02", "hq-rate-32"])
 
     def test_parse_sizes(self) -> None:
         self.assertEqual(ms.parse_sizes("200,600,2000"), (200, 600, 2000))
@@ -208,6 +210,17 @@ class C5Tests(unittest.TestCase):
 
     def test_every_assertion_has_a_mutation(self) -> None:
         self.assertEqual(len({a for a, _, _ in self.mutations()}), rp.c5_measured(self.doc)["assertions"])
+
+    def test_a_size_asks_the_detected_candidates_when_the_world_holds_fewer_than_the_cap(self) -> None:
+        """The 200-user world detects 55 candidates, under the cap of 60: it asks all 55 and c5 accepts that;
+        fewer than the detected count, or fewer than the floor of 20, it does not."""
+        fewer = put(put(self.doc, "sizes.200.row.candidates_detected", 55), "sizes.200.row.candidates", 55)
+        self.assertNotIn("size_200_candidates", rp.c5_measured(fewer)["failed"])
+        self.assertIn("size_200_candidates", rp.c5_measured(put(fewer, "sizes.200.row.candidates", 54))["failed"])
+        few = put(put(self.doc, "sizes.200.row.candidates_detected", 19), "sizes.200.row.candidates", 19)
+        self.assertIn("size_200_candidates", rp.c5_measured(few)["failed"])
+        self.assertIn("size_2000_candidates",
+                      rp.c5_measured(put(self.doc, "sizes.2000.row.candidates_detected", None))["failed"])
 
     def test_a_removed_block_fails_too(self) -> None:
         for path in ("throughput", "tesseract_nodes", "sizes.2000"):
