@@ -117,14 +117,18 @@ and rationale variants of the negation task, then the negation task), one unit p
      "bootstrap_seed": <seed>,            # default 1
      "exclude": [                         # exactly two entries, the earlier cycles in seed order (B2, B3, B5)
          {"run_id": <a GitHub run id>, "artifact": "lab-plan-<run_id>-<attempt>",
-          "file": "prereg/j1/labels.jsonl" | "prereg/j2/labels.jsonl" | "prereg/j2/excluded.jsonl",
+          "file": "prereg/j1/labels.jsonl",                 # the first entry: the first judge test's labels file
           "sha256_prefix": "<12..64 lower-case hex>",       # what that file's bytes must hash to
           "rebuild_seed": 1,                                # the first entry's rebuild is the pinned seed-one draw
           "rebuild_sha256_prefix": "<12..64 lower-case hex>"},  # what the rebuilt labels must hash to
-         {"run_id": ..., "artifact": ..., "file": ..., "sha256_prefix": ...,
-          "rebuild_seed": <seed above the first's>, "rebuild_sha256_prefix": ...,
+         {"run_id": ..., "artifact": ...,
+          "file": "prereg/j2/labels.jsonl",                 # the second entry: the first accuracy test's labels file
+          "sha256_prefix": ..., "rebuild_seed": <seed above the first's>, "rebuild_sha256_prefix": ...,
           "chain_file": "prereg/j2/excluded.jsonl",         # the second entry only: that cycle's chain file
           "chain_sha256_prefix": "<12..64 lower-case hex>"}],
+                                          # each entry's file is pinned (J3_FIRST_FILE_PROBLEM, J3_SECOND_FILE_PROBLEM):
+                                          # lab.j3labels.EXCLUDE_FILES lists the three files the j3 kind reads, the
+                                          # chain file read through the second entry's chain keys alone
      "primary": {"model": "<one of the j3 models>", "arm": "<one of lab.j3.ARMS>"},   # the primary pair P
      "comparisons_before": 0..1000000}    # default 0
 
@@ -305,6 +309,10 @@ J3_KINDS_PROBLEM = "J3 runs only gguf or fake models"
 J3_EXCLUDE_LIST_PROBLEM = "must be a list of exactly two entries: the earlier cycles, in seed order"
 J3_FILE_PROBLEM = ("must be the file listing the excluded records: prereg/j1/labels.jsonl, prereg/j2/labels.jsonl or "
                    "prereg/j2/excluded.jsonl")
+J3_FIRST_FILE_PROBLEM = ("must be prereg/j1/labels.jsonl: the first entry is the first judge test's run, excluded by its "
+                         "labels file")
+J3_SECOND_FILE_PROBLEM = ("must be prereg/j2/labels.jsonl: the second entry is the first accuracy test's run, excluded by "
+                          "its labels file (its chain file is named by the chain keys)")
 J3_CHAIN_FILE_PROBLEM = "must be the chain file prereg/j2/excluded.jsonl"
 J3_CHAIN_FIRST_PROBLEM = "the chain keys belong to the second entry only"
 J3_CHAIN_REQUIRED = "required on the second entry: the earlier cycle's chain file and its sha256 prefix"
@@ -659,7 +667,10 @@ def _primary(raw: Any, path: str, chosen: list[str], arms: tuple[str, ...] = lab
 
 def _j3_exclude_entry(raw: Any, path: str, second: bool) -> dict[str, Any]:
     """One entry of a ``j3`` block's ``exclude`` list (B3): ``_exclude``'s shape with the j3 file list
-    ``lab.j3labels.EXCLUDE_FILES`` and the rebuild keys; the chain keys on the second entry only."""
+    ``lab.j3labels.EXCLUDE_FILES`` and the rebuild keys; the chain keys on the second entry only. The file is pinned
+    per entry as the rule's "The request" names them: ``prereg/j1/labels.jsonl`` on the first (the first judge test's
+    labels file), ``prereg/j2/labels.jsonl`` on the second (the first accuracy test's); the chain file is read through
+    the second entry's chain keys alone."""
     block = _object(raw, path)
     check_keys(block, _J3_EXCLUDE_KEYS, _J3_EXCLUDE_REQUIRED, path, RequestError)
     out = {"run_id": _int(block["run_id"], f"{path}.run_id", 1, MAX_RUN_ID)}
@@ -671,6 +682,8 @@ def _j3_exclude_entry(raw: Any, path: str, second: bool) -> dict[str, Any]:
     file = _string(block["file"], f"{path}.file", 64)
     if file not in lab_j3labels.EXCLUDE_FILES:
         raise RequestError(f"{path}.file", J3_FILE_PROBLEM) from None
+    if file != (lab_j3labels.J2_LABELS_FILE if second else lab_j2labels.J1_LABELS_FILE):
+        raise RequestError(f"{path}.file", J3_SECOND_FILE_PROBLEM if second else J3_FIRST_FILE_PROBLEM) from None
     out["file"] = file
     for key in ("sha256_prefix", "rebuild_sha256_prefix"):
         prefix = _string(block[key], f"{path}.{key}", 64)

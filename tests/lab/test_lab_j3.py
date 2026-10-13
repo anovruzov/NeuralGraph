@@ -52,8 +52,9 @@ from lab.notes import (J1_NOT_MEASURED, J1_STOPPED, J1_WITHHELD, J3_ARMS_NOTE, J
 from lab.plan import build_plan
 from lab.request import (EXPERIMENTS, J2_ARTIFACT_PROBLEM, J2_PRIMARY_ARM_PROBLEM, J2_SHA_PROBLEM,
                          J3_CHAIN_FILE_PROBLEM, J3_CHAIN_FIRST_PROBLEM, J3_CHAIN_REQUIRED, J3_EXCLUDE_LIST_PROBLEM,
-                         J3_FILE_PROBLEM, J3_FIRST_SEED_PROBLEM, J3_LABELS_PROBLEM, J3_PRIMARY_MODEL_PROBLEM,
-                         J3_SEED_ORDER_PROBLEM, NHTSA_HOSTED, RequestError, load_request, validate)
+                         J3_FILE_PROBLEM, J3_FIRST_FILE_PROBLEM, J3_FIRST_SEED_PROBLEM, J3_LABELS_PROBLEM,
+                         J3_PRIMARY_MODEL_PROBLEM, J3_SECOND_FILE_PROBLEM, J3_SEED_ORDER_PROBLEM, NHTSA_HOSTED,
+                         RequestError, load_request, validate)
 from lab.responder import Responder, ResponderError
 from mycelic.collective.edge.verify import JUDGE_MAX_TOKENS, JUDGE_TASK, decide, judge_schema, judge_task
 from mycelic.collective.inference.fakeserver import FakeOpenAIServer, request_payload
@@ -1301,10 +1302,12 @@ class RequestTests(unittest.TestCase):
         self.assertEqual(lab_request._J3_KEYS, lab_request._J2_KEYS)
         self.assertEqual(lab_request._J3_EXCLUDE_KEYS, ("run_id", "artifact", "file", "sha256_prefix", "rebuild_seed",
                                                         "rebuild_sha256_prefix", "chain_file", "chain_sha256_prefix"))
-        # any of the three files on either entry; the chain keys on the second only
-        self.assertEqual(self.blocks({**base, "exclude": [{**J001_ENTRY, "file": "prereg/j2/excluded.jsonl"},
-                                                          {**A001_ENTRY, "file": "prereg/j1/labels.jsonl"}]})
-                         ["exclude"][1]["file"], "prereg/j1/labels.jsonl")
+        # the file is pinned per entry (the rule's "The request"): the three files of lab.j3labels.EXCLUDE_FILES are
+        # what the j3 kind reads, the chain file through the second entry's chain keys alone
+        self.assertEqual(j3labels.EXCLUDE_FILES, ("prereg/j1/labels.jsonl", "prereg/j2/excluded.jsonl",
+                                                  "prereg/j2/labels.jsonl"))
+        self.assertEqual([(e["file"], e.get("chain_file")) for e in self.blocks(base)["exclude"]],
+                         [("prereg/j1/labels.jsonl", None), ("prereg/j2/labels.jsonl", "prereg/j2/excluded.jsonl")])
 
     def test_every_block_error(self) -> None:
         ex = [J001_ENTRY, A001_ENTRY]
@@ -1352,6 +1355,15 @@ class RequestTests(unittest.TestCase):
              (f"{path}.exclude[0].file", J3_FILE_PROBLEM)),
             ({**base, "exclude": with_second(file="../prereg/j2/labels.jsonl")}, None,
              (f"{path}.exclude[1].file", J3_FILE_PROBLEM)),
+            # the file pinned per entry: a file of the list on the wrong entry is refused (the rule's "The request")
+            ({**base, "exclude": with_first(file="prereg/j2/labels.jsonl")}, None,
+             (f"{path}.exclude[0].file", J3_FIRST_FILE_PROBLEM)),
+            ({**base, "exclude": with_first(file="prereg/j2/excluded.jsonl")}, None,
+             (f"{path}.exclude[0].file", J3_FIRST_FILE_PROBLEM)),
+            ({**base, "exclude": with_second(file="prereg/j1/labels.jsonl")}, None,
+             (f"{path}.exclude[1].file", J3_SECOND_FILE_PROBLEM)),
+            ({**base, "exclude": with_second(file="prereg/j2/excluded.jsonl")}, None,
+             (f"{path}.exclude[1].file", J3_SECOND_FILE_PROBLEM)),
             ({**base, "exclude": with_first(sha256_prefix="ABCDEF123456")}, None,
              (f"{path}.exclude[0].sha256_prefix", J2_SHA_PROBLEM)),
             ({**base, "exclude": with_second(rebuild_sha256_prefix="abcdef12345")}, None,
@@ -2781,6 +2793,13 @@ class AggregateTests(unittest.TestCase):
             paired=c["paired_lexical"], bound=c["prior_bound"], ablation_a=c["paired_ablation_a"],
             ablation_b=c["paired_ablation_b"])
         self.assertEqual((c["verdict_word"], c["pass_test"]), (word, test))
+        # and pinned to a value, not to itself: Eg is right on every question, so the composite errs only where the
+        # lexical judge confirms a negative; its balanced accuracy 1 - false_confirms / 80 is at or above the target
+        # on this draw, and its paired lower ends are above the lexical judge, the bound and both ablations
+        self.assertLessEqual(false_confirms, 11)
+        self.assertEqual((c["verdict_word"], c["pass_test"]["passed"],
+                          c["pass_test"]["ablation_clauses"]["beats_ablation_a"],
+                          c["pass_test"]["ablation_clauses"]["beats_ablation_b"]), ("pass_provisional", True, True, True))
         self.assertEqual(c["pass_test"]["ablation_clauses"]["beats_ablation_a"], c["pass_test"]["clauses"]["beats_lexical"])
         self.assertEqual(block["models"]["a-4b"]["ablation_differences"]["C_minus_ablation_A"]["paired"],
                          c["paired_lexical"])
@@ -2917,6 +2936,43 @@ class AggregateTests(unittest.TestCase):
                          [(1, {E: False, R: False, N: False}), (2, {E: False, R: False, N: False})])
         self.assertEqual((small["arms"]["evidence"]["scores"]["records_scored"], small["arms"]["rationale"]["scores"]),
                          (20, None))
+        # a run.json of another endpoint is not this unit's run, however good its lines: the fourth-task line put
+        # back and the quoted line answered consistently again, part 2 of a-1p5b is refused with endpoint a-4b and
+        # finished with its own endpoint restored
+
+        def mend(ls: list[dict[str, Any]]) -> None:
+            next(x for x in ls if x["task"] == JUDGE_TASK)["task"] = R
+            for x in ls:
+                if x["question_id"] == quoted["question_id"] and x["task"] == E:
+                    self.answer(x, "yes", "yes")
+        self.restamp("a-1p5b", 2, lines=mend, run=lambda doc: doc.update(endpoint="a-4b"))
+        small = self.aggregate()["models"]["a-1p5b"]
+        self.assertEqual(next(p["ok_by_task"] for p in small["parts"] if p["part"] == 2), {E: False, R: False, N: False})
+        self.restamp("a-1p5b", 2, run=lambda doc: doc.update(endpoint="a-1p5b"))
+        small = self.aggregate()["models"]["a-1p5b"]
+        self.assertEqual(next(p["ok_by_task"] for p in small["parts"] if p["part"] == 2), {E: True, R: True, N: True})
+        # a verdicts file replaced under a run.json whose verdicts_sha256 is the old file's, the shard re-sealed so
+        # the seal holds: not a finished part for any task, although every line passes the check; the same lines
+        # under a restamped run.json are
+        shard, unit = self.shard_of("a-1p5b", 2)
+        rel = f"runs/j3/{unit['run_id']}/verdicts.jsonl"
+        lines = read_lines(self.tree.path(shard, rel))
+        for x in lines:
+            if x["task"] == N:
+                self.correct(x)
+        data = jsonl(lines)
+        self.assertNotEqual(data, self.tree.path(shard, rel).read_bytes())
+        self.tree.replace_unit_file(shard, unit["unit"], rel, data)
+        self.tree.reseal(shard)
+        run = self.tree.read(shard, f"runs/j3/{unit['run_id']}/run.json")
+        self.assertNotEqual(run["verdicts_sha256"], hashlib.sha256(data).hexdigest())
+        small = self.aggregate()["models"]["a-1p5b"]
+        self.assertEqual(next(p["ok_by_task"] for p in small["parts"] if p["part"] == 2), {E: False, R: False, N: False})
+        self.restamp("a-1p5b", 2)
+        run = self.tree.read(shard, f"runs/j3/{unit['run_id']}/run.json")
+        self.assertEqual(run["verdicts_sha256"], hashlib.sha256(data).hexdigest())
+        small = self.aggregate()["models"]["a-1p5b"]
+        self.assertEqual(next(p["ok_by_task"] for p in small["parts"] if p["part"] == 2), {E: True, R: True, N: True})
 
     def test_a_stop_in_the_second_pass_and_a_dropped_record(self) -> None:
         """Rule 14 in the aggregate: a part whose rationale pass stopped keeps task E's set complete (P and the
@@ -2987,6 +3043,53 @@ class AggregateTests(unittest.TestCase):
         self.assertIn("| `a-4b` | `rationale` | `R` | `judge_record_rationale` | `shipped` | `model` | 1 of 2 |", md)
         self.assertIn("| `a-4b` | `evidence` | `E` | `judge_record_evidence` | `shipped` | `model` | 2 of 2 |", md)
         self.assertIn(J1_WITHHELD, md)
+
+    def test_a_manifest_that_disagrees_with_the_preregistration(self) -> None:
+        """The manifest ``prereg/prereg.json`` (tied to the plan's sha) must agree with ``prereg/j3/prereg.json``
+        (tied to every run.json) on the primary pair, the headline arm and secondary and the four comparator
+        files: an edited manifest can name neither another primary pair nor other comparator lines than the units
+        verified before judging. Each disagreement refuses the block with PREREG_MISSING; the files put back, the
+        block is read again."""
+        plan_dir = self.tree.root / "plan"
+        manifest_path = plan_dir / "prereg" / "prereg.json"
+        pristine = manifest_path.read_bytes()
+        block = self.aggregate()
+        self.assertEqual((block["reason"], block["primary_result"]["arm"], sorted(block["models"])),
+                         (None, "evidence", ["a-1p5b", "a-4b"]))
+        edits: list[tuple[str, Callable[[dict[str, Any]], None]]] = [
+            ("primary.arm", lambda j3: j3["primary"].update(arm="evidence_grounded")),
+            ("primary.model", lambda j3: j3["primary"].update(model="a-1p5b")),
+            ("headline_arm", lambda j3: j3.update(headline_arm="evidence_grounded")),
+            ("headline_secondary", lambda j3: j3.update(headline_secondary="evidence"))]
+        for name, change in edits:
+            with self.subTest(edit=name):
+                manifest = json.loads(pristine)
+                change(manifest["j3"])
+                manifest_path.write_bytes(canonical_bytes(manifest) + b"\n")
+                block = self.aggregate()
+                self.assertEqual((block["reason"], block["models"], block["primary_result"]),
+                                 (lab_aggregate.PREREG_MISSING, {}, None))
+        manifest_path.write_bytes(pristine)
+        # a comparator file rewritten and restamped in the manifest (its sha256 and size), but not in the document
+        # the units pinned, whose sha256 of that file is the plan job's
+        for name in ("lexical", "prior", "ablation_a", "ablation_b"):
+            with self.subTest(file=name):
+                rel = f"prereg/j3/{name}.jsonl"
+                original = (plan_dir / rel).read_bytes()
+                lines = read_lines(plan_dir / rel)
+                lines[0]["verdict"] = "refute" if lines[0]["verdict"] != "refute" else "confirm"
+                restamp(plan_dir, rel, jsonl(lines))
+                self.assertEqual(lab_prereg.load_prereg(self.tree.plan_path).manifest["files"][rel]["sha256"],
+                                 sha256_hex(jsonl(lines)))
+                block = self.aggregate()
+                self.assertEqual((block["reason"], block["models"], block["primary_result"]),
+                                 (lab_aggregate.PREREG_MISSING, {}, None))
+                restamp(plan_dir, rel, original)
+        self.assertEqual(json.loads(manifest_path.read_bytes()), json.loads(pristine))
+        block = self.aggregate()
+        self.assertEqual((block["reason"], block["primary_result"]["arm"]), (None, "evidence"))
+        md, sources = lab_summary.render_report(self.tmp / "R")
+        check_sources(self, md, sources, self.tmp / "R")
 
     def test_without_the_preregistration(self) -> None:
         (self.tree.root / "plan" / "prereg" / "prereg.json").unlink()

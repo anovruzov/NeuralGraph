@@ -97,8 +97,10 @@ count and the target, the comparators and both ablations on every record and the
 model its parts, its three (model, task) sets, its nine arms (the composite arms with their ablation differences and
 clauses), the lifts, the evidence readings (the grounded share of yes answers by kind, the empty citations, the
 citation lengths), the first-key shares and the token figures per task; and ``primary_result`` with the headline
-secondary's word beside it. The line check rebuilds each drawn record's payload text from the plan artifact's labels
-to recompute ``grounded``, inside this job only; no narrative or citation is copied.
+secondary's word beside it. The manifest's primary pair, headline arm and secondary and the four comparator files are
+checked against ``prereg/j3/prereg.json``, the document each unit's ``run.json`` pins. The line check rebuilds each
+drawn record's payload text from the plan artifact's labels to recompute ``grounded``, inside this job only; no
+narrative or citation is copied.
 
 **L1** (``l1``; null without L1 units), latency test L001 (:func:`l1_block`, ``docs/collective/L001/CHOICE-L001.md``
 with its amendments K1 to K13): from the verified preregistration, the operator (``c1``), the file's sha256 and whether
@@ -1389,7 +1391,10 @@ def _j3_model(model: str, units: list[dict[str, Any]], sources: dict[str, E1Sour
 
 def j3_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]) -> dict[str, Any] | None:
     """The report's ``j3`` block (null without J3 units); ``sources`` maps each J3 unit to (its row, its record, its
-    shard root). It needs the verified preregistration (else its reason is :data:`~lab.notes.PREREG_MISSING`). It
+    shard root). It needs the verified preregistration (else its reason is :data:`~lab.notes.PREREG_MISSING`), whose
+    manifest must agree with ``prereg/j3/prereg.json``, the document every unit pinned, on the primary pair, the
+    headline arm and secondary and the four comparator files' sha256 (else the same reason: the manifest is tied to
+    the plan's sha, the document to every run.json). It
     holds the labels and questions records, the exclusion's counts, outcomes and hashes (B5, B22; a stand-in is
     marked), the settings, the three tasks' pins, the mapping, the grounding, the composite, the arms, the lifts, the
     primary pair, the headline arm and the headline secondary, the comparison count (this cycle's arms times
@@ -1424,8 +1429,9 @@ def j3_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
         prereg_sha = sha256_hex(prereg_bytes)
         doc = strict_load(prereg_bytes)
         questions = lab_j1.read_questions((base / "questions.jsonl").read_bytes())
-        comparators = {name: _j1_lines((base / f"{name}.jsonl").read_bytes())
-                       for name in ("lexical", "prior", "ablation_a", "ablation_b")}
+        comparator_bytes = {name: (base / f"{name}.jsonl").read_bytes()
+                            for name in ("lexical", "prior", "ablation_a", "ablation_b")}
+        comparators = {name: _j1_lines(data) for name, data in comparator_bytes.items()}
         labels = lab_j1.parse_labels((base / "labels.jsonl").read_bytes())
         pack = load_pack(ROOT / doc["pack"]["ref"])
         settings = {k: manifest[k] for k in J3_SETTINGS}
@@ -1436,6 +1442,14 @@ def j3_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
         block["reason"] = PREREG_MISSING
         return block
     if any(lines is None for lines in comparators.values()) or not isinstance(manifest.get("prior"), dict):
+        block["reason"] = PREREG_MISSING
+        return block
+    # the manifest is tied to the plan's sha, the document ``prereg/j3/prereg.json`` to every unit's run.json: the two
+    # must agree on the primary pair, the headline arm and secondary and the four comparator files' sha256, so that
+    # an edited manifest names neither another primary pair nor other comparator lines than the units verified
+    if (doc.get("primary") != primary or doc.get("headline_arm") != headline_arm
+            or doc.get("headline_secondary") != headline_secondary
+            or any(_get(doc, name, "sha256") != sha256_hex(data) for name, data in comparator_bytes.items())):
         block["reason"] = PREREG_MISSING
         return block
     records = {r["record_ref"]: r for r, _ in labels}
