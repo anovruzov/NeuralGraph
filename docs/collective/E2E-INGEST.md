@@ -583,16 +583,17 @@ patterns through its own extraction and chain checks (`evalm.py:27`, `:101-141`)
 `.github/workflows/e2e-ingest.yml`, on `push` to the deployment branch (the branch this document is committed on;
 `mycelic.yml` names it) with paths
 `research/e2e_ingest/**`, `research/routing_spike/**`, `research/mycelic/**`, `mycelic/**`, `NeuralGraph/**`,
-`tests/**`, `requirements*.txt`, `.github/workflows/e2e-ingest.yml`, and on `workflow_dispatch`. Four jobs, all on
+`tests/**`, `requirements*.txt`, `.github/workflows/e2e-ingest.yml`, and on `workflow_dispatch`. Five jobs, all on
 `ubuntu-latest`, Python 3.11, `pip install --require-hashes -r requirements.txt`, nats-server installed by the step
 copied from `mycelic.yml:24-28` with `NATS_VERSION: v2.10.29` (`mycelic.yml:16`):
 
 | Job | `needs` | `timeout-minutes` | Steps |
 |---|---|---|---|
-| `suites-core` | — | 45 | `python -m pytest NeuralGraph/tests -q -p no:warnings`; `tests/mycelic`; `tests/onboard`; `tests/routing_spike`; `tests/e2e_ingest` |
+| `suites-core` | — | 45 | `python -m pytest NeuralGraph/tests -q -p no:warnings`; `tests/mycelic`; `tests/onboard`; `tests/routing_spike` |
 | `suites-lab` | — | 45 | `python -m pytest tests/lab -q -p no:cacheprovider` (about 21 min, `LOOP-48H.md:110`); `python -m unittest research.mycelic.test_mycelic` (30 tests, `research/mycelic/README.md:53`) |
-| `e2e` | `suites-core`, `suites-lab` | 20 | `E2E_SUITES_SHA=${{ github.sha }} python -m research.e2e_ingest run --size 200 --mode process --out e2e-out`; upload `e2e-out/e2e-ingest-report.json` with `if: always()` |
-| `measure` | `suites-core`, `suites-lab` | 45 | `E2E_SUITES_SHA=${{ github.sha }} python -m research.e2e_ingest measure --sizes 200,600,2000 --out measure-out`; upload `measure-out/e2e-ingest-measure.json` with `if: always()` |
+| `suites-e2e` | — | 45 | `python -m pytest tests/e2e_ingest -q -p no:cacheprovider` (its live run of the harness is most of it) |
+| `e2e` | `suites-core`, `suites-lab`, `suites-e2e` | 20 | `E2E_SUITES_SHA=${{ github.sha }} python -m research.e2e_ingest run --size 200 --mode process --out e2e-out`; upload `e2e-out/e2e-ingest-report.json` with `if: always()` |
+| `measure` | `suites-core`, `suites-lab`, `suites-e2e` | 45 | `E2E_SUITES_SHA=${{ github.sha }} python -m research.e2e_ingest measure --sizes 200,600,2000 --out measure-out`; upload `measure-out/e2e-ingest-measure.json` with `if: always()` |
 
 The suite jobs are criterion 10's gate: a red suite stops both end-to-end jobs (`needs`), so no end-to-end run on a
 non-green tree can exist in CI. Criterion 6's last clause (`mycelic.yml` on this branch with `tests/routing_spike`)
@@ -718,11 +719,12 @@ suite jobs; a skip-when-missing module reads green with its tests unrun (`tests/
   `python -m unittest research.mycelic.test_mycelic` becomes `python -m pytest research/mycelic/test_mycelic.py`
   with the same flags (pytest collects the same 30 tests; `research/mycelic/README.md:53`). The suite jobs write
   `suites/<suite>.json` with `{suite, sha, tests, failures, errors, skipped, duration_s, junit_sha256}` (sha =
-  `github.sha`) and upload them as `e2e-suites-core` and `e2e-suites-lab`; the `e2e` and `measure` jobs download both
-  (`actions/download-artifact@v4`) and the harness embeds `run.suites[]`, `run.suites_evidence = "junit"` and
-  `run.needs_results = {"suites-core": "${{ needs.suites-core.result }}", "suites-lab": ...}`. `E2E_SUITES_SHA` is
-  dropped. Locally `python -m research.e2e_ingest suites --out DIR` runs the same seven commands and writes the same
-  files, and `run --suites DIR` reads them, so the loop's pre-merge run produces the same evidence.
+  `github.sha`) and upload them as `e2e-suites-core`, `e2e-suites-lab` and `e2e-suites-e2e`; the `e2e` and `measure`
+  jobs download all three (`actions/download-artifact@v4`) and the harness embeds `run.suites[]`,
+  `run.suites_evidence = "junit"` and `run.needs_results = {"suites-core": "${{ needs.suites-core.result }}",
+  "suites-lab": ..., "suites-e2e": ...}`. `E2E_SUITES_SHA` is dropped. Locally
+  `python -m research.e2e_ingest suites --out DIR` runs the same seven commands and writes the same files, and
+  `run --suites DIR` reads them, so the loop's pre-merge run produces the same evidence.
 - Floors, the `pytest --collect-only` counts at `e3052c0` (sandbox, 2026-10-11):
 
 | Suite | Tests at `e3052c0` (floor) |
@@ -736,8 +738,9 @@ suite jobs; a skip-when-missing module reads green with its tests unrun (`tests/
 | `tests/e2e_ingest` | ≥ 1; its count at the build's merge is written into the settings test and may only rise |
 
 - c10 asserts, for each of the seven suites: `sha == run.code_commit`, `failures == 0`, `errors == 0`,
-  `tests >= floor`; `run.suites_evidence == "junit"`; in CI both `needs_results` are `"success"`; `skipped == 0` for
-  `tests/e2e_ingest` and for `tests/mycelic/test_jetstream.py` (per-testcase `classname` in the junit file, M11);
+  `tests >= floor`; `run.suites_evidence == "junit"`; in CI all three `needs_results` are `"success"`;
+  `skipped == 0` for `tests/e2e_ingest` and for `tests/mycelic/test_jetstream.py` (per-testcase `classname` in the
+  junit file, M11);
   a report with `suites_evidence != "junit"` or any suite missing has `verdict.pass == false`, reason
   `suites_not_green`. The other suites' `skipped` counts are reported, not bounded.
 
@@ -836,9 +839,9 @@ report (`write_json_atomic`) when each phase ends, with `completed` and `phase`,
 | install (pip, nats-server) | 2 | `mycelic.yml:23-28` |
 | size 200 (60 candidates) | 5 | 180 rankings at 0.6-1.1 s; 7 graphs, 12,964 nodes in all, at 0.13-0.18 s per 1k; pipeline and detection under 1 min; about 240 publishes |
 | rate sweep | 7 | 5 steps × 60 s, at most 15 s settle each; it needs only the size-200 events and is criterion 5's pass condition, so it runs before the larger sizes |
-| Tesseract at 600, 5,882, 20,000 nodes | 5 | 20 queries each: 20 × 0.26 s, 20 × 2.5 s, 20 × 8.6 s (about 3 min); the three builds under 10 s |
+| Tesseract at 600, 5,882, 20,000 nodes | 8 | 20 queries each: 20 × 0.26 s, 20 × 2.5 s, 20 × 8.6 s (about 3 min; the build review's sandbox needed about 6); the three builds under 10 s |
 | size 600 (60 candidates) | 8 | 180 rankings at a mean site of 3,209 nodes (about 1.4 s); 22,464 nodes built; about 240 publishes |
-| size 2,000 (20 candidates) | 15 | 60 rankings at 3.3 s (mean site 7,607 nodes) to 8 s (18,633); 68,463 nodes built (under 15 s); pipeline and detection up to 3 min; about 80 publishes; the simulator columns under 1 min |
+| size 2,000 (20 candidates) | 12 | 60 rankings at 3.3 s (mean site 7,607 nodes) to 8 s (18,633); 68,463 nodes built (under 15 s); pipeline and detection up to 3 min; about 80 publishes; the simulator columns under 1 min |
 | total | 42 of 45 | |
 
 Size 2,000 routes the first 20 candidates of the same ordering, not 60: at 60 its rankings alone would be 10 to 24
@@ -1074,6 +1077,32 @@ The declaration and section 11 named the deployment branch literally. The no-mod
 `docs/collective` and matches the first path segment of that name; CI run 38109670867 (the first run of `tests/mycelic`
 since this brief was merged) failed on exactly those two places. Both now say "the deployment branch". No criterion,
 floor, pin, path, module name or question changed; the floors table above stands as written.
+
+### Amendment 2026-10-13, after the build review (section 11: a fifth job)
+
+The build review timed `suites-core` on the sandbox at about 45 minutes, the job's own bound: `tests/mycelic` about
+20 minutes, `tests/e2e_ingest` about 16 (its live run of the harness is most of it), `tests/onboard` about 4,
+`tests/routing_spike` about 2, `NeuralGraph/tests` about 1.5 and the install about 2. A slower runner would never
+reach the job's `--verify` step and the `needs` gate would never open. Section 11 now has five jobs:
+`tests/e2e_ingest` runs in its own job, `suites-e2e` (45 minutes), and `e2e` and `measure` `need` all three suite
+jobs. M2's artifacts are `e2e-suites-core`, `e2e-suites-lab` and `e2e-suites-e2e`, `run.needs_results` carries the
+three jobs' results, and c10 asserts all three `"success"` in CI. The seven suites, their commands, floors and
+zero-skip scopes are unchanged; no criterion, floor, pin, path or module name changed; the bounds of `e2e` (20) and
+`measure` (45) stand, and the one-amendment rule of section 11's last paragraph still concerns the `e2e` job's 20
+minutes only. The settings test (`tests/e2e_ingest/test_workflow.py`) reads the deployment branch's name from
+`mycelic.yml`, never from this document.
+
+### Amendment 2026-10-13, after the build review (M14: two budgets moved, the total unchanged)
+
+The build's local measure run at size 200 (sandbox, Intel Xeon 2.80 GHz, 4 vCPU; a sandbox figure, not a result)
+took 304 s of the Tesseract phase's 300 s: at about 0.6 ms per node per query the three graphs' 60 rankings and
+builds need about 350 s, and the phase was stopped after the 16th query of the 20,000-node graph (`completed: false`,
+reason `budget`), which fails c5 by M14's own table before any runner is slower. M14's table now gives the
+Tesseract phase 8 minutes and the size-2,000 phase 12 (its 60 rankings at 3.3 to 8 s are at most 8 minutes, with
+the pipeline, detection, the builds and the publishes inside the rest); install 2, size 200 5, rate sweep 7 and size
+600 8 are unchanged; the total is still 42 of 45. `MEASURE_PHASE_BUDGET_MINUTES` follows the table and the settings
+test (`test_m14_the_measure_phases_and_their_budgets`) reads it from here. No floor, pin, path or criterion changed;
+the measure job's bound of 45 stands.
 
 ## Runs
 

@@ -1,0 +1,220 @@
+name: e2e-ingest
+
+# docs/collective/E2E-INGEST.md section 11 (with M2, M10, M11, M12, M14, amended 2026-10-13: five jobs): the unit
+# suites first in three jobs, with junit evidence per suite, then the end-to-end job (criteria 0-4, 7, 8, 9 and 10
+# on the EMERGENCE 200-user world against a real nats-server) and the measure job (criterion 5 and the scaling
+# table), both needing all three suite jobs. Everything the jobs produce is synthetic and stamped measurement: false.
+
+on:
+  push:
+    branches: [claude/mycelic-production-deployment-r93cez]
+    paths: ["research/e2e_ingest/**", "research/routing_spike/**", "research/mycelic/**", "mycelic/**",
+            "NeuralGraph/**", "tests/**", "requirements*.txt", ".github/workflows/e2e-ingest.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NATS_VERSION: v2.10.29      # the broker version the compose file and the Kubernetes manifests ship (mycelic.yml)
+  MYCELIC_NATS_SERVER_BIN: /usr/local/bin/nats-server      # where the install step puts it (M11)
+  E2E_REQUIRE_NATS: "1"                                     # tests/e2e_ingest fail instead of skipping (M11)
+
+jobs:
+  suites-core:
+    name: unit suites, core (NeuralGraph, mycelic, onboard, routing spike), junit evidence per suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install --require-hashes -r requirements.txt     # the image's exact runtime set (requirements-lock.txt)
+      - name: install nats-server
+        run: |
+          curl -sSL -o nats.tgz "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz"
+          tar xzf nats.tgz && sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+      - name: NeuralGraph/tests
+        run: python -m research.e2e_ingest suites --out suites --suite NeuralGraph/tests
+      - name: tests/mycelic
+        if: ${{ !cancelled() }}
+        run: python -m research.e2e_ingest suites --out suites --suite tests/mycelic
+      - name: tests/onboard
+        if: ${{ !cancelled() }}
+        run: python -m research.e2e_ingest suites --out suites --suite tests/onboard
+      - name: tests/routing_spike
+        if: ${{ !cancelled() }}
+        run: python -m research.e2e_ingest suites --out suites --suite tests/routing_spike
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-suites-core
+          path: suites/
+      - name: every suite of this job green, its junit file beside its row
+        if: ${{ !cancelled() }}
+        run: python -m research.e2e_ingest suites --out suites --verify --group core
+
+  suites-lab:
+    name: unit suites, lab (tests/lab, the EMERGENCE simulator's own tests), junit evidence per suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install --require-hashes -r requirements.txt     # the image's exact runtime set (requirements-lock.txt)
+      - name: install nats-server
+        run: |
+          curl -sSL -o nats.tgz "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz"
+          tar xzf nats.tgz && sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+      - name: tests/lab
+        run: python -m research.e2e_ingest suites --out suites --suite tests/lab
+      - name: research/mycelic/test_mycelic.py
+        if: ${{ !cancelled() }}
+        run: python -m research.e2e_ingest suites --out suites --suite research/mycelic/test_mycelic.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-suites-lab
+          path: suites/
+      - name: every suite of this job green, its junit file beside its row
+        if: ${{ !cancelled() }}
+        run: python -m research.e2e_ingest suites --out suites --verify --group lab
+
+  suites-e2e:
+    name: unit suite, e2e_ingest (its live run of the harness is most of it), junit evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install --require-hashes -r requirements.txt     # the image's exact runtime set (requirements-lock.txt)
+      - name: install nats-server
+        run: |
+          curl -sSL -o nats.tgz "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz"
+          tar xzf nats.tgz && sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+      - name: tests/e2e_ingest
+        run: python -m research.e2e_ingest suites --out suites --suite tests/e2e_ingest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-suites-e2e
+          path: suites/
+      - name: every suite of this job green, its junit file beside its row
+        if: ${{ !cancelled() }}
+        run: python -m research.e2e_ingest suites --out suites --verify --group e2e
+
+  e2e:
+    name: criteria 0-4, 7, 8, 9 and 10 end to end (EMERGENCE 200 users, 7 site graphs, Tesseract routing, keyed JetStream)
+    needs: [suites-core, suites-lab, suites-e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      E2E_NEEDS_SUITES_CORE: ${{ needs.suites-core.result }}
+      E2E_NEEDS_SUITES_LAB: ${{ needs.suites-lab.result }}
+      E2E_NEEDS_SUITES_E2E: ${{ needs.suites-e2e.result }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install --require-hashes -r requirements.txt     # the image's exact runtime set (requirements-lock.txt)
+      - name: install nats-server
+        run: |
+          curl -sSL -o nats.tgz "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz"
+          tar xzf nats.tgz && sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+      - name: the suite jobs' junit evidence (M2)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: e2e-suites-*
+          path: suites
+          merge-multiple: true
+      - name: the end-to-end run
+        run: python -m research.e2e_ingest run --size 200 --mode process --out e2e-out --suites suites --run-id "gh-${{ github.run_id }}"
+      - name: the report, printed between markers and digested (M12)
+        if: always()
+        run: |
+          f=e2e-out/e2e-ingest-report.json
+          test -f "$f" || { echo "no report at $f"; exit 1; }
+          sha=$(sha256sum "$f" | cut -d' ' -f1)
+          python -m json.tool "$f" > e2e-out/e2e-ingest-report.pretty.json
+          n=$(wc -l < e2e-out/e2e-ingest-report.pretty.json)
+          echo "=== E2E-INGEST $f BEGIN lines=$n sha256=$sha ==="
+          cat e2e-out/e2e-ingest-report.pretty.json
+          echo "=== E2E-INGEST $f END ==="
+          echo "e2e-ingest-report.json sha256=$sha (lines=$n pretty-printed; synthetic, measurement: false)" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-ingest-report.json
+          path: |
+            e2e-out/e2e-ingest-report.json
+            e2e-out/fixed_questions.json
+            suites/*.json
+
+  measure:
+    name: criterion 5 and the scaling table (sizes 200, 600 and 2,000; the rate sweep; Tesseract at 600, 5,882 and 20,000 nodes)
+    needs: [suites-core, suites-lab, suites-e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      E2E_NEEDS_SUITES_CORE: ${{ needs.suites-core.result }}
+      E2E_NEEDS_SUITES_LAB: ${{ needs.suites-lab.result }}
+      E2E_NEEDS_SUITES_E2E: ${{ needs.suites-e2e.result }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install --require-hashes -r requirements.txt     # the image's exact runtime set (requirements-lock.txt)
+      - name: install nats-server
+        run: |
+          curl -sSL -o nats.tgz "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz"
+          tar xzf nats.tgz && sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+      - name: the suite jobs' junit evidence (M2)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: e2e-suites-*
+          path: suites
+          merge-multiple: true
+      - name: the measure run
+        run: python -m research.e2e_ingest measure --sizes 200,600,2000 --out measure-out --suites suites --run-id "gh-${{ github.run_id }}"
+      - name: the report, printed between markers and digested (M12)
+        if: always()
+        run: |
+          f=measure-out/e2e-ingest-measure.json
+          test -f "$f" || { echo "no report at $f"; exit 1; }
+          sha=$(sha256sum "$f" | cut -d' ' -f1)
+          python -m json.tool "$f" > measure-out/e2e-ingest-measure.pretty.json
+          n=$(wc -l < measure-out/e2e-ingest-measure.pretty.json)
+          echo "=== E2E-INGEST $f BEGIN lines=$n sha256=$sha ==="
+          cat measure-out/e2e-ingest-measure.pretty.json
+          echo "=== E2E-INGEST $f END ==="
+          echo "e2e-ingest-measure.json sha256=$sha (lines=$n pretty-printed; synthetic, measurement: false)" >> "$GITHUB_STEP_SUMMARY"
+          for s in measure-out/size-*/e2e-ingest-report.json; do
+            [ -f "$s" ] && echo "$s sha256=$(sha256sum "$s" | cut -d' ' -f1)" >> "$GITHUB_STEP_SUMMARY"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-ingest-measure.json
+          path: |
+            measure-out/e2e-ingest-measure.json
+            measure-out/*.log
+            measure-out/size-*/e2e-ingest-report.json
+            measure-out/size-*/fixed_questions.json
+            suites/*.json

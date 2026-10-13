@@ -1,0 +1,1 @@
+{"pushdown":{"freshness_days":42,"max_sibling_sites":2,"min_confirming_sites":2,"min_independent_reporters":3,"min_independent_roots":3},"templates":{"count_predicate_on_entity":{"entity_types":["entity"],"predicates":null,"text":"In the last {window}, how many of your records describe {predicate_label} for {entity_type_label} {entity_id}?"}}}
