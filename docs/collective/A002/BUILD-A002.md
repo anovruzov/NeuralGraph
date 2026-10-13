@@ -251,11 +251,13 @@ and changes nothing of the rule:
   `pass_provisional` with both ablation clauses true.
 - **The whole `tests/lab` on a full sandbox (environmental, no code change).** The review's run of the rest of
   `tests/lab` failed 70 tests, every one in `lab/provision.py`'s disk preflight (about 440 MiB free, 1024 MiB needed) in
-  files the build does not touch; the fix stage's run is under Tests, and the merge gate must run `tests/lab`, the
-  onboard and the guard suites on a runner with at least about 1.5 GiB free before merging.
+  files the build does not touch; the fix stage's run (under Tests) failed five the same way while the root was full
+  and passed them alone once it had room, and the merge gate must run `tests/lab`, the onboard and the guard suites on
+  a runner with at least about 1.5 GiB free before merging.
 - **`tests/lab/test_lab_sim.py` `test_wall_time` (pre-existing, environment-dependent, no change).** It bounds two
-  sim_small runs against the fake server at 60 s of wall time and fails on this sandbox's speed, on the build commit and
-  on `720b0d6` alike; if the gate trips on it, a re-run on an idle runner is the evidence, not an edited bound.
+  sim_small runs against the fake server at 60 s of wall time and failed in the review's runs on this sandbox's speed,
+  on the build commit and on `720b0d6` alike (it passed in the fix stage's run); if the gate trips on it, a re-run on
+  an idle runner is the evidence, not an edited bound.
 - **The build commit's message said 63 tests** where `pytest --collect-only` reported 64. The branch was never pushed,
   so the record is corrected here: `tests/lab/test_lab_j3.py` holds 65 tests after this stage (the 64 plus the manifest
   test), and the fix stage's commit message quotes 65.
@@ -328,7 +330,14 @@ fails with its fix removed: the four file cases, the eight manifest cases, the e
 mutation and the hash case under E2 alone); the template dry run gave the block below again (the complaint-file prefix
 of its own generation); `git diff --stat 720b0d6..HEAD` over the five pinned lab files printed nothing, and the only
 hunks in `lab/aggregate.py` and `lab/summary.py` since `720b0d6` are insertions after `j2_block` and `_j2_tables` end.
-SUITES_SENTENCE
+`python -m pytest tests/lab -q -p no:cacheprovider`, in the background, gave `5 failed, 841 passed, 28049 subtests
+passed in 2392.66s`; the five (`test_lab_aggregate.py` `LockTests`, two; `test_lab_experiments.py` `E2ServingTests`,
+three; none a file the build touches) each failed in `lab/provision.py`'s disk preflight (`not enough disk: 554 MiB
+free, 1024 MiB needed`) while the sandbox root was 99% full, and gave `5 passed in 36.33s` re-run alone once the root
+had 15 GiB free; `test_lab_sim.py`'s `test_wall_time` passed in this run. `python -m pytest tests/onboard
+tests/mycelic/test_collective_guards.py tests/mycelic/test_collective_x3.py -q -p no:cacheprovider` gave `402 passed,
+1080 subtests passed in 431.92s`. The merge gate runs the whole `tests/lab` and the onboard and guard suites on a
+runner with room before any merge.
 
 ## The dry run
 
