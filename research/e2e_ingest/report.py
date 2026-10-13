@@ -60,8 +60,10 @@ MEASURE_RATE_STEPS = (2, 4, 8, 16, 32)
 MEASURE_STEP_SECONDS = 60.0
 MEASURE_STEP_MIN_EVENTS = 120
 MEASURE_APPLY_P95_BOUND = 1.0
-MEASURE_PHASE_BUDGET_MINUTES = {"install": 2, "size-200": 5, "rate-sweep": 7, "tesseract-nodes": 5, "size-600": 8,
-                                "size-2000": 15}
+MEASURE_PHASE_BUDGET_MINUTES = {"install": 2, "size-200": 5, "rate-sweep": 7, "tesseract-nodes": 8, "size-600": 8,
+                                "size-2000": 12}
+#: The checks every size's own report carries and c5 requires ``ok`` (``harness run --skip-drills``).
+MEASURE_SIZE_CHECKS = ("c0_real_fabric_keyed", "c7_guards", "c8_emergence_load", "c9_benchmark")
 #: The scaling table's numeric columns per size (section 10), which c5 requires numeric.
 MEASURE_ROW_FIELDS = ("graph_build_seconds", "graph_seconds_per_1k_records", "pipeline_seconds", "detection_seconds",
                       "tesseract_p50", "tesseract_p95", "question_to_verdict_per_site_p50",
@@ -174,10 +176,22 @@ def _get(doc: Mapping[str, Any], path: str, default: Any = None) -> Any:
     return node
 
 
+def _in_ci(doc: Mapping[str, Any], in_ci: bool | None) -> bool:
+    """Whether the CI-only assertions apply: as given; else from the report itself (``run.github_run_id``, which
+    the harness takes from ``GITHUB_RUN_ID``), so ``check REPORT`` run locally over a CI artifact keeps them; the
+    environment decides only for a document with no ``run`` block."""
+    if in_ci is not None:
+        return bool(in_ci)
+    run = doc.get("run")
+    if isinstance(run, Mapping):
+        return bool(run.get("github_run_id"))
+    return bool(os.environ.get("GITHUB_ACTIONS"))
+
+
 def c0_real_fabric_keyed(doc: Mapping[str, Any], *, in_ci: bool | None = None) -> dict[str, Any]:
     """Criterion 0: a real keyed fabric, the key the harness holds bound to the stream (M3) and to the service's
     own record of it, the transport and broker named by the live service and broker, the mode keyed (M22)."""
-    in_ci = bool(os.environ.get("GITHUB_ACTIONS")) if in_ci is None else in_ci
+    in_ci = _in_ci(doc, in_ci)
     f = _get(doc, "fabric", {}) or {}
     keyring = f.get("keyring") or {}
     version = str(f.get("broker_version") or "")
@@ -203,19 +217,21 @@ def c0_real_fabric_keyed(doc: Mapping[str, Any], *, in_ci: bool | None = None) -
 
 def c1_signed(doc: Mapping[str, Any]) -> dict[str, Any]:
     """Criterion 1: every event of ours signed and in the stream exactly once (M3), the three forgeries terminated
-    and counted (M8), the floors of section 2.3, and every unambiguous planted candidate's status equal to the
-    oracle's (section 3.5, M20)."""
+    and counted (M8), the floors of section 2.3, the six witnesses of M4's eligibility probe, and every unambiguous
+    planted candidate's status equal to the oracle's (section 3.5, M20)."""
     s = _get(doc, "signatures", {}) or {}
     before = s.get("stream_before") or {}
     after = s.get("stream_after") or {}
     p = _get(doc, "publish", {}) or {}
     r = _get(doc, "routing", {}) or {}
+    pr = r.get("probe") or {}
     d = _get(doc, "discovery", {}) or {}
     oracle = [row for row in (d.get("oracle_rows") or []) if not row.get("ambiguous")]
     mismatched = [row["question_id"] for row in oracle if row.get("status") != row.get("expected")]
     supported = [row for row in oracle if row.get("expected") == "supported"]
     api_ids = int(p.get("publishes") or 0) + int(p.get("conclusion_events") or 0)
     kinds = after.get("kinds") or {}
+    foreign = after.get("foreign")
     items = [
         ("failed_before_forgery_zero", s.get("failed_before_forgery") == 0),
         ("failed_after_forgery_is_three", s.get("failed_after_forgery") == FORGERIES),
@@ -233,8 +249,12 @@ def c1_signed(doc: Mapping[str, Any]) -> dict[str, Any]:
         ("api_ids_not_duplicated", after.get("api_event_ids_duplicated") == 0),
         ("agent_event_kind_count", kinds.get("agent.event") == p.get("publishes")),
         ("memory_observed_kind_count", kinds.get("memory.observed") == p.get("conclusion_events")),
-        ("kinds_and_foreign_are_the_stream", int(after.get("stream_messages") or 0)
-         == sum(int(v) for v in kinds.values()) + int(after.get("foreign") or -1)),
+        ("kinds_and_foreign_are_the_stream", foreign is not None and int(after.get("stream_messages") or 0)
+         == sum(int(v) for v in kinds.values()) + int(foreign)),
+        # the stream read's bounds (``stream_info``) and ``/admin/status``'s ``checks.transport`` agree (M3)
+        ("stream_bounds_agree", after.get("first_seq") is not None and after.get("last_seq") is not None
+         and after.get("first_seq") == after.get("status_first_seq")
+         and after.get("last_seq") == after.get("status_last_seq")),
         ("candidates_asked_floor", int(r.get("candidates_asked") or 0) >= FLOOR_CANDIDATES),
         ("verdict_events_floor", int(p.get("verdict_events") or 0) >= FLOOR_VERDICT_EVENTS),
         ("conclusion_events_floor", int(p.get("conclusion_events") or 0) >= FLOOR_CONCLUSION_EVENTS),
@@ -247,6 +267,17 @@ def c1_signed(doc: Mapping[str, Any]) -> dict[str, Any]:
         ("router_is_the_routers", r.get("router_class") == "NeuralGraph.research.coordination.core.Router"),
         ("router_excluded_the_masked_site", r.get("router_excluded_masked") == 1),
         ("one_intervention_record", r.get("intervention_records") == 1),
+        # M4 check 3's other witnesses of the mask, read from ``routing.probe``: the masked site would have been
+        # routed (it is in the unmasked arm-R route), the route still has m sites out of every site eligible, no
+        # ``hq`` record (nobody asked the dead process), one failure injected, the intervention record ended
+        ("probe_masked_site_in_unmasked_route", bool(pr.get("masked_site"))
+         and pr.get("masked_site") in (pr.get("unmasked_route") or [])),
+        ("probe_route_size_m", pr.get("route_size") is not None and pr.get("route_size") == r.get("m")),
+        ("probe_hq_eligible_all_sites", pr.get("hq_eligible") is not None
+         and pr.get("hq_eligible") == r.get("hq_eligible_expected")),
+        ("probe_no_hq_record", pr.get("verdict_sources") == ["site"]),
+        ("probe_one_failure_injected", pr.get("failure_injected") == 1),
+        ("probe_intervention_ended", pr.get("interventions_ended") == 1),
         ("tesseract_row_per_read_verdict", _get(r, "tesseract.rows_equal_read_verdicts") is True),
         ("planted_statuses_equal_the_oracle", not mismatched),
         ("one_unambiguous_supported", bool(supported)),
@@ -256,31 +287,50 @@ def c1_signed(doc: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def c2_lineage(doc: Mapping[str, Any]) -> dict[str, Any]:
-    """Criterion 2: every conclusion reconstructable to its verdict events, each verdict witnessed five times (M1),
-    the site-side join to the records read on or before ``as_of``, and the three scans at 0."""
+    """Criterion 2: every conclusion reconstructable to its verdict events, each verdict witnessed five times (M1)
+    starting at the fabric's own copy of the event, the site-side join to the records read on or before ``as_of``
+    with every audited ref dated, the three scans at 0, and the spike's leakage scan and closed-shape check over
+    every crossing byte (section 4) clean."""
     ln = _get(doc, "lineage", {}) or {}
     p = _get(doc, "publish", {}) or {}
-    site_sourced = int(ln.get("site_sourced_verdict_events") or -1)
+    site_sourced = ln.get("site_sourced_verdict_events")
+    counted = site_sourced is not None
     scan = ln.get("scan") or {}
+    crossing = ln.get("crossing") or {}
+    leakage = [(b.get("leakage") or {}) for b in crossing.values() if isinstance(b, Mapping)]
+    shapes = _get(crossing, "main.crossing", {}) or {}
     items = [
         ("conclusions_floor", int(ln.get("conclusions") or 0) >= FLOOR_CONCLUSION_EVENTS),
         ("conclusions_are_the_published_ones", ln.get("conclusions") == p.get("conclusion_events")),
         ("all_reconstructable", ln.get("reconstructable") == ln.get("conclusions")),
         ("source_events_complete", ln.get("source_events_complete") == ln.get("conclusions")),
-        ("witness_pd_verdicts", ln.get("sha256_in_pd_verdicts") == site_sourced),
-        ("witness_wire_log", ln.get("sha256_in_wire_log") == site_sourced),
-        ("witness_intake_log", ln.get("sha256_in_intake_log") == site_sourced),
-        ("witness_site_egress", ln.get("sha256_in_site_egress") == site_sourced),
-        ("witness_site_store", ln.get("sha256_in_site_store") == site_sourced),
+        # M1's first link: the ``sha256`` the fabric holds in the ``collective.verdict`` payload equals HQ's row
+        ("witness_fabric_event", counted and ln.get("sha256_in_fabric_event") == site_sourced),
+        ("witness_pd_verdicts", counted and ln.get("sha256_in_pd_verdicts") == site_sourced),
+        ("witness_wire_log", counted and ln.get("sha256_in_wire_log") == site_sourced),
+        ("witness_intake_log", counted and ln.get("sha256_in_intake_log") == site_sourced),
+        ("witness_site_egress", counted and ln.get("sha256_in_site_egress") == site_sourced),
+        ("witness_site_store", counted and ln.get("sha256_in_site_store") == site_sourced),
         ("site_audit_joined", ln.get("site_audit_joined") == ln.get("site_sourced_answered_verdict_events")),
         ("records_on_or_before_as_of", ln.get("records_on_or_before_as_of") is True),
+        ("every_audited_ref_dated", ln.get("unknown_refs") == 0),
         ("scan_record_ref_zero", scan.get("record_ref_hits") == 0),
         ("scan_narrative_marker_zero", scan.get("narrative_marker_hits") == 0),
         ("scan_narrative_prefix_zero", scan.get("narrative_prefix_hits") == 0),
         ("scan_read_the_db_and_the_stream", int(scan.get("db_bytes") or 0) > 0
          and int(scan.get("stream_messages_scanned") or 0) > 0),
+        # section 4: the spike's shingle-overlap scan (``run.py`` ``leakage_check``) over the main pass's crossing
+        # bytes and over the pipeline's, and its closed-shape check (``crossing_check``) over the main pass's frames
+        ("crossing_leakage_zero", sorted(crossing) == ["main", "pipeline"] and all(
+            b.get("overlap_bytes") == 0 and b.get("canary_hits") == 0 and int(b.get("scanned_items") or 0) > 0
+            for b in leakage)),
+        ("crossing_shapes_ok", shapes.get("ok") is True and shapes.get("hq_intake_refusals") == 0),
     ]
-    return _result(items, {"site_sourced_verdict_events": site_sourced, "scan": dict(scan)})
+    return _result(items, {"site_sourced_verdict_events": site_sourced, "unknown_refs": ln.get("unknown_refs"),
+                           "scan": dict(scan),
+                           "crossing": {k: {"leakage": dict((v or {}).get("leakage") or {}),
+                                            "crossing_ok": ((v or {}).get("crossing") or {}).get("ok")}
+                                        for k, v in crossing.items() if isinstance(v, Mapping)}})
 
 
 def c3_idempotent(doc: Mapping[str, Any]) -> dict[str, Any]:
@@ -307,12 +357,14 @@ def c3_idempotent(doc: Mapping[str, Any]) -> dict[str, Any]:
 
 def c4_recovery(doc: Mapping[str, Any]) -> dict[str, Any]:
     """Criterion 4: the broker killed mid-publish (M6), the service's database deleted and rebuilt (M5), and the
-    site process killed mid-pass (drill 2)."""
+    site process killed mid-pass (drill 2: a child process in process mode, SIGKILLed, never a typed-in kill)."""
     bk = _get(doc, "recovery.broker_kill", {}) or {}
     sr = _get(doc, "recovery.service_rebuild", {}) or {}
     st = _get(doc, "recovery.site_restart", {}) or {}
     n, k = int(bk.get("N") or 0), int(bk.get("k") or 0)
     items = [
+        ("main_pass_in_process_mode", _get(doc, "run.mode") == "process"),
+        ("site_process_sigkilled", st.get("killed") is True),
         ("publishes_floor", n >= FLOOR_PUBLISHES),
         ("kill_point_in_range", 1 <= k <= n - 10),
         ("applied_exactly_once", bk.get("applied_exactly_once") is True),
@@ -446,8 +498,10 @@ def c10_suites_green(doc: Mapping[str, Any], *, in_ci: bool | None = None) -> di
     """Criterion 10 with M2's evidence: every one of the seven suites has a junit-bound row naming this commit with
     no failure, no error and at least the floor's tests; no skip in ``tests/e2e_ingest`` nor in
     ``tests/mycelic/test_jetstream.py`` (M11); the tree clean over M10's paths at the start and at the end; and in
-    CI both suite jobs' ``needs`` results ``success`` and the run id set."""
-    in_ci = bool(os.environ.get("GITHUB_ACTIONS")) if in_ci is None else in_ci
+    CI the three suite jobs' ``needs`` results ``success`` and the run id set. The floor is held to
+    ``tests_distinct`` (the collected count; pytest's ``tests`` attribute counts subtests too, so it is reported and
+    not bound)."""
+    in_ci = _in_ci(doc, in_ci)
     run = _get(doc, "run", {}) or {}
     rows = {r.get("suite"): r for r in (run.get("suites") or []) if isinstance(r, Mapping)}
     commit = run.get("code_commit")
@@ -459,7 +513,7 @@ def c10_suites_green(doc: Mapping[str, Any], *, in_ci: bool | None = None) -> di
             (f"{suite.slug}:sha_is_the_commit", bool(commit) and commit != "unknown" and r.get("sha") == commit),
             (f"{suite.slug}:no_failures", r.get("failures") == 0),
             (f"{suite.slug}:no_errors", r.get("errors") == 0),
-            (f"{suite.slug}:tests_at_or_above_floor", int(r.get("tests") or 0) >= suite.floor),
+            (f"{suite.slug}:tests_at_or_above_floor", int(r.get("tests_distinct") or 0) >= suite.floor),
             (f"{suite.slug}:junit_bound", r.get("junit_bound") is True),
         ]
         if suite.zero_skip_scope is not None:
@@ -473,6 +527,8 @@ def c10_suites_green(doc: Mapping[str, Any], *, in_ci: bool | None = None) -> di
         items.append(("github_run_id_set", bool(run.get("github_run_id"))))
     return _result(items, {"in_ci": in_ci, "suites": sorted(rows), "code_commit": commit,
                            "suites_evidence": run.get("suites_evidence"),
+                           "tests": {name: {"tests": r.get("tests"), "tests_distinct": r.get("tests_distinct"),
+                                            "floor": r.get("floor")} for name, r in sorted(rows.items())},
                            "problems": list(run.get("suites_problems") or [])})
 
 
@@ -483,10 +539,13 @@ def suites_green(doc: Mapping[str, Any]) -> bool:
 
 
 def c5_measured(doc: Mapping[str, Any]) -> dict[str, Any]:
-    """Criterion 5 over the measure job's report: every phase completed inside its budget; every requested size's
-    scaling row numeric and its own checks ok; the three measurement graphs at their node counts with 20 queries
-    and numeric percentiles; the sweep's first step at 2 events/s for at least 60 s and 120 events with apply p95
-    at or under 1.0 s, every step's samples its own events; a sustained rate; the runner's CPU named."""
+    """Criterion 5 over the measure job's report: the sizes requested are the brief's three; every phase completed
+    inside its budget; every requested size's scaling row numeric and its own four checks (c0, c7, c8, c9) ok; the
+    three measurement graphs at their node counts with 20 queries and numeric percentiles; the sweep's first step
+    at 2 events/s for at least 60 s and 120 events with apply p95 at or under the bound the stamps can prove
+    (1.0 s less the stamps' resolution: the service stamps whole seconds, so a stamped 1 admits a true p95 anywhere
+    in (0, 2) s and only a stamped 0 proves the brief's bound), every step's samples its own events; a sustained
+    rate; the runner's CPU named."""
     phases = _get(doc, "phases", []) or []
     sizes = _get(doc, "sizes", {}) or {}
     requested = [str(s) for s in (_get(doc, "sizes_requested", []) or [])]
@@ -494,7 +553,10 @@ def c5_measured(doc: Mapping[str, Any]) -> dict[str, Any]:
     th = _get(doc, "throughput", {}) or {}
     steps = [s for s in (th.get("steps") or []) if isinstance(s, Mapping)]
     first = steps[0] if steps else {}
+    resolution = th.get("stamp_resolution_seconds")
+    proven_bound = MEASURE_APPLY_P95_BOUND - (float(resolution) if _number(resolution) else 0.0)
     items: list[tuple[str, bool]] = [
+        ("sizes_are_the_briefs", requested == [str(s) for s in MEASURE_SIZES]),
         ("every_phase_completed", bool(phases) and all(p.get("completed") is True for p in phases)),
         ("every_requested_size_completed", bool(requested)
          and all(isinstance(sizes.get(s), Mapping) and sizes[s].get("completed") is True for s in requested)),
@@ -511,7 +573,8 @@ def c5_measured(doc: Mapping[str, Any]) -> dict[str, Any]:
             (f"size_{size}_row_numeric", all(_number(row.get(f)) for f in MEASURE_ROW_FIELDS)),
             (f"size_{size}_candidates", expected is not None and row.get("candidates") == expected
              and expected >= FLOOR_CANDIDATES),
-            (f"size_{size}_checks_ok", bool(checks) and all(c.get("ok") is True for c in checks.values())),
+            (f"size_{size}_checks_ok", set(MEASURE_SIZE_CHECKS) <= set(checks)
+             and all(isinstance(c, Mapping) and c.get("ok") is True for c in checks.values())),
         ]
     for n in MEASURE_NODE_COUNTS:
         g = graphs.get(str(n)) or {}
@@ -522,7 +585,7 @@ def c5_measured(doc: Mapping[str, Any]) -> dict[str, Any]:
         ("sweep_first_step_events_120", int(first.get("events") or 0) >= MEASURE_STEP_MIN_EVENTS),
         ("sweep_first_step_60s", float(first.get("duration_seconds") or 0) >= MEASURE_STEP_SECONDS),
         ("sweep_first_step_apply_p95_within_bound", _number(first.get("apply_p95"))
-         and float(first.get("apply_p95")) <= MEASURE_APPLY_P95_BOUND),
+         and float(first.get("apply_p95")) <= proven_bound),
         ("sweep_first_step_rate_held", first.get("rate_held") is True),
         ("sweep_samples_are_the_events", bool(steps) and all(
             s.get("n") == s.get("events") and s.get("duplicate") == 0 and s.get("applied_all") is True
@@ -534,6 +597,8 @@ def c5_measured(doc: Mapping[str, Any]) -> dict[str, Any]:
     return _result(items, {"sizes_requested": requested,
                            "phases": [(p.get("name"), p.get("completed")) for p in phases],
                            "sustained_events_per_second": th.get("sustained_events_per_second"),
+                           "apply_p95_bound": MEASURE_APPLY_P95_BOUND, "stamp_resolution_seconds": resolution,
+                           "apply_p95_bound_proven": proven_bound,
                            "first_step": {k: first.get(k) for k in first_keys}})
 
 
@@ -603,7 +668,63 @@ RECOMPUTE = (
     ("routing.question_to_verdict", "per_site_samples", {"per_site_p50": ("seconds", 50),
                                                          "per_site_p95": ("seconds", 95)}),
     ("publish.created_to_applied", "samples", {"p50": ("seconds", 50), "p95": ("seconds", 95)}),
+    ("publish.created_to_applied_before_kill", "samples", {"p50": ("seconds", 50), "p95": ("seconds", 95)}),
 )
+
+
+def _route_selected_first(trace: Sequence[Any]) -> bool:
+    """``hq.py``'s ``route_selected_first`` over a question's trace: a ``route_selected`` event before every
+    ``retrieval_selected`` event."""
+    events = list(trace)
+    if "route_selected" not in events:
+        return False
+    selected = events.index("route_selected")
+    return all(selected < i for i, e in enumerate(events) if e == "retrieval_selected")
+
+
+def recompute_routing(r: Mapping[str, Any], problems: list[str]) -> None:
+    """M4 and M12: ``routing.route_selected_first_all`` and ``routing.per_question_route_ok`` again from
+    ``routing.questions[]`` (each question's trace, eligible count and route size against ``m`` and
+    ``hq_eligible_expected``)."""
+    questions = r.get("questions")
+    if not isinstance(questions, list):
+        problems.append("routing.questions: no per-question records")
+        return
+    rows = [q for q in questions if isinstance(q, Mapping)]
+    first = all(_route_selected_first(q.get("trace") or []) for q in rows)
+    m, expected = r.get("m"), r.get("hq_eligible_expected")
+    per_question = _number(m) and _number(expected) and all(
+        q.get("hq_eligible") == expected and q.get("route_size") == min(int(m), int(expected)) for q in rows)
+    for name, value in (("route_selected_first_all", first), ("per_question_route_ok", per_question)):
+        if r.get(name) is not value:
+            problems.append(f"routing.{name}: report {r.get(name)}, recomputed {value} from {len(rows)} questions")
+
+
+def recompute_oracle(d: Mapping[str, Any], problems: list[str]) -> None:
+    """M12 and M20: every oracle row's ``expected`` and ``ambiguous`` again from its ``per_site_facet_counts`` and
+    ``as_of`` through the oracle itself (``harness.expected_status``; the harness imports this module, so the
+    import is made here, late)."""
+    from .harness import SiteFacts, expected_status
+    rows = d.get("oracle_rows")
+    if not isinstance(rows, list):
+        return
+    for i, row in enumerate(rows):
+        if not isinstance(row, Mapping):
+            continue
+        counts = row.get("per_site_facet_counts")
+        if not isinstance(counts, Mapping) or not isinstance(row.get("as_of"), str):
+            problems.append(f"discovery.oracle_rows[{i}]: no per-site facet counts or as_of to recompute from")
+            continue
+        try:
+            facts = {s: SiteFacts(**{k: v for k, v in f.items() if k != "strong"}) for s, f in counts.items()}
+            expected, ambiguous, _ = expected_status(facts, row["as_of"])
+        except (TypeError, ValueError) as exc:
+            problems.append(f"discovery.oracle_rows[{i}]: facet counts not the oracle's shape "
+                            f"({exc.__class__.__name__})")
+            continue
+        if (row.get("expected"), row.get("ambiguous")) != (expected, ambiguous):
+            problems.append(f"discovery.oracle_rows[{i}]: report ({row.get('expected')}, {row.get('ambiguous')}), "
+                            f"recomputed ({expected}, {ambiguous}) from the facet counts")
 
 
 def _percentiles_agree(node: Mapping[str, Any], key: str, fields: Mapping[str, tuple[str, int]],
@@ -657,8 +778,10 @@ def recompute_measure(doc: Mapping[str, Any], base_dir: Path | None = None) -> l
 
 def recompute(doc: Mapping[str, Any], base_dir: Path | None = None) -> list[str]:
     """M12: every percentile of :data:`RECOMPUTE` recomputed from the samples the report carries, the lineage
-    counts from ``lineage.rows`` and the discovery recall from ``found_patterns``; returns the disagreements (an
-    empty list when the report's aggregates are its samples'). A measure report (``run.job == "measure"``) goes to
+    counts from ``lineage.rows``, the discovery recall from ``found_patterns``, the oracle's ``expected`` and
+    ``ambiguous`` from each row's facet counts (:func:`recompute_oracle`) and the routing flags from
+    ``routing.questions[]`` (:func:`recompute_routing`); returns the disagreements (an empty list when the report's
+    aggregates are its per-item arrays'). A measure report (``run.job == "measure"``) goes to
     :func:`recompute_measure`."""
     if _get(doc, "run.job") == "measure":
         return recompute_measure(doc, base_dir)
@@ -692,6 +815,11 @@ def recompute(doc: Mapping[str, Any], base_dir: Path | None = None) -> list[str]
         expected = len(d["found_patterns"]) / d["gold_discoverable"] if d["gold_discoverable"] else None
         if d.get("recall_all") != expected:
             problems.append(f"discovery.recall_all: report {d.get('recall_all')}, recomputed {expected}")
+    if isinstance(d, Mapping):
+        recompute_oracle(d, problems)
+    r = _get(doc, "routing")
+    if isinstance(r, Mapping):
+        recompute_routing(r, problems)
     return problems
 
 

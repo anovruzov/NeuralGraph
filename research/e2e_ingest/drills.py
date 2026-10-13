@@ -492,6 +492,25 @@ def known_key_ids(driver: ProcessDriver) -> list[str]:
     return [k for k in loaded if isinstance(k, str)] if isinstance(loaded, list) else []
 
 
+def db_event_payloads(driver: ProcessDriver, org_id: str) -> dict[str, Any]:
+    """Every event's stored ``payload`` (JSON text, ``store.py`` ``events.payload``) for one organisation, read
+    ``mode=ro`` and keyed by event id (M7: the admin view caps at 1,000 rows; the lineage audit reads the database
+    past that). A payload that does not parse is kept as None."""
+    conn = _read_only(service_db_path(driver))
+    try:
+        rows = conn.execute("SELECT event_id, payload FROM events WHERE org_id = ? ORDER BY rid",
+                            (org_id,)).fetchall()
+    finally:
+        conn.close()
+    out: dict[str, Any] = {}
+    for event_id, payload in rows:
+        try:
+            out[event_id] = json.loads(payload) if isinstance(payload, (str, bytes)) else None
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            out[event_id] = None
+    return out
+
+
 def fabric_db_text(driver: ProcessDriver) -> tuple[str, int, dict[str, int]]:
     """Every row of every table of the service database as JSON text, ``mode=ro`` (drill 5's scan input):
     ``(text, bytes, rows per table)``. A blob is decoded as UTF-8 with replacement, so no byte of a record could

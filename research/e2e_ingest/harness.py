@@ -31,9 +31,13 @@ What one run does, in the order section 8 fixes:
    outbox, the broker comes back and everything is applied exactly once.
 4. **Signatures** (drill 4): every stream message is read by sequence and checked under the driver's key; then the
    three forgeries of M8 go straight to the broker and are terminated, counted and absent from the database.
-5. **Lineage** (drill 5): every conclusion reconstructable, its verdict events witnessed five times (M1), the
-   site-side join to the records read on or before ``as_of``, and the scan of the fabric's database and stream for
-   record text, record refs and narrative prefixes.
+5. **Lineage** (drill 5): every conclusion reconstructable, its verdict events witnessed five times (M1) starting
+   from the ``sha256`` the fabric itself holds in the event's payload (read back from the service, never from HQ's
+   store), the site-side join to the records read on or before ``as_of`` with every audited ref dated, the scan of
+   the fabric's database and stream for record text, record refs and narrative prefixes, and (section 4) the
+   spike's own leakage scan (``run.py`` ``leakage_check``, narrative shingle overlap) and closed-shape check
+   (``crossing_check``) over every byte that crossed a site boundary in the main pass, plus the leakage scan over
+   the pipeline's crossing bytes.
 6. **Service rebuild** (drill 6): the service SIGKILLed, its database deleted, restarted: the same active memory
    ids, the same verification digests, the three forgeries rejected again by the replay (M5).
 7. **Re-ingest** (drill 7): every site ingests its records again (all duplicates) and re-syncs its graph — the same
@@ -41,7 +45,8 @@ What one run does, in the order section 8 fixes:
    bridge runs again from an empty watermark and creates nothing.
 
 Then the checks of section 9 (``report.py``) and the JSON report of section 5. The harness exits 1 when any check
-that ran is not ``ok``, so a CI job fails on it.
+that ran is not ``ok``, so a CI job fails on it. The partial document is written after every phase (``phase``
+named, ``completed`` false), so a job timeout leaves a report to amend from.
 
 Raw records and graph nodes never cross the Boundary: the fabric receives verdicts and conclusions only, and nothing
 this module prints, logs or reports is a record's text or ref — every value is an id, a count, a status, a digest or
@@ -51,6 +56,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
 import json
 import math
 import os
@@ -78,7 +84,7 @@ from mycelic.sdk import MycelicClient, MycelicError
 from research.routing_spike import wire
 from research.routing_spike.hq import Candidate, HqView, plan as hq_plan
 from research.routing_spike.run import DIRTY_PATHS as SPIKE_DIRTY_PATHS
-from research.routing_spike.run import FORBIDDEN_HQ
+from research.routing_spike.run import FORBIDDEN_HQ, crossing_check, leakage_check
 from research.routing_spike.site_process import query_text, write_config
 from research.routing_spike.world import backup_sqlite, candidate_label, restore_store
 
@@ -543,7 +549,7 @@ class E2ERun:
                 time.sleep(0.05)
             killed = endpoints[site].inner._proc.poll() is not None
         else:
-            killed = True
+            killed = False                               # no process exists to kill: never typed in (c4 reads it)
         endpoints[site].close()
         probe = asyncio.run(hq.probe_masked(probe_cand, site, reason="e2e drill 2: process down"))
         endpoints[site] = self.reopen_site(site)
@@ -796,15 +802,19 @@ class E2ERun:
 
         # M18: a verdict POST's latency is its ``agent.event``'s; a conclusion POST's is the ``memory.observed``
         # event's (the note's apply), with the conclusion's own ``agent.event`` reported beside it
-        samples: list[dict[str, Any]] = []
+        in_order: list[dict[str, Any] | None] = []       # one entry per publish, in publish order
         beside: list[dict[str, Any]] = []
         for result in publisher.results:
             if result.type == VERDICT_EVENT:
-                samples.append(sample(result.event_id, "verdict"))
+                in_order.append(sample(result.event_id, "verdict"))
             else:
-                samples.append(sample(result.memory_event_id, "conclusion"))
+                in_order.append(sample(result.memory_event_id, "conclusion"))
                 beside.append(sample(result.event_id, "conclusion_agent_event"))
-        samples = [s for s in samples if s is not None]
+        samples = [s for s in in_order if s is not None]
+        # the first k publishes were taken by the live broker; k+1..N waited in the outbox through drill 3's
+        # outage, so the full block measures the outage, not apply latency (criterion 5's figures are the measure
+        # job's, whose sizes run without the kill)
+        before_kill = [s for s in in_order[:k] if s is not None] if k else samples
         beside = [s for s in beside if s is not None]
         notes = self.admin.list_memories(scope=ORG_ID, limit=1000)
         r = self.bridge_report
@@ -813,7 +823,13 @@ class E2ERun:
             "events_created": r.created, "events_duplicate": r.duplicate, "events_ambiguous": r.ambiguous,
             "conclusions": r.conclusions, "memory_ids": len(r.memory_ids),
             "memory_ids_created": len(r.memory_ids_created), "store_unchanged": r.store_unchanged,
-            "created_to_applied": rp.stat_block(samples),
+            "created_to_applied": {
+                **rp.stat_block(samples),
+                "note": ("the full block includes drill 3's outage (publishes k+1..N waited in the outbox); "
+                         "created_to_applied_before_kill holds the first k publishes, taken by the live broker; "
+                         "the measure job's sizes run without the kill" if k else
+                         "no broker kill in this run (--skip-drills): every publish was taken by the live broker")},
+            "created_to_applied_before_kill": {**rp.stat_block(before_kill), "k": k},
             "created_to_applied_conclusion_agent_events": rp.stat_block(beside)}
         self.doc.setdefault("recovery", {})["broker_kill"] = {
             "N": r.publishes, "k": state["killed_at"] or 0,
@@ -838,6 +854,9 @@ class E2ERun:
 
     # ------------------------------------------------------------------ 4. signatures
     def stream_block(self) -> dict[str, Any]:
+        """One read of the whole stream (M3) beside ``/admin/status``'s own figures: ``first_seq`` and ``last_seq``
+        are the broker's (``stream_info``), ``status_first_seq`` and ``status_last_seq`` the service's
+        ``checks.transport``, and c1 asserts the two agree."""
         stream = drills.read_stream(self.driver)
         status = drills.fabric_counts(self.admin.status())
         api_ids = self.api_ids["agent.event"] + self.api_ids["memory.observed"]
@@ -845,7 +864,8 @@ class E2ERun:
         return {"fetched": stream.fetched, "verified": stream.verified, "foreign": stream.foreign,
                 "kinds": stream.kinds, "api_event_ids_in_stream": once, "api_event_ids_duplicated": duplicated,
                 "stream_messages": status["stream_messages"], "first_seq": stream.first_seq,
-                "last_seq": stream.last_seq, "broker_version": stream.broker_version,
+                "last_seq": stream.last_seq, "status_first_seq": status["first_seq"],
+                "status_last_seq": status["last_seq"], "broker_version": stream.broker_version,
                 "memory_observed_seqs": [m.seq for m in stream.messages if m.kind == "memory.observed"][:1]}
 
     def forgeries(self) -> None:
@@ -875,12 +895,18 @@ class E2ERun:
                          "counted_within_timeout": ok, "memory_absent": not found})
             self.log(f"drill 4: forgery {i} ({kind}) counted {counter}, memory absent {not found}")
         audit = drills.audit_rows(self.driver.base_url, self.driver.admin_token)
-        rejected = [a for a in audit if a.get("action") == "event.rejected"]
+        rejected_all = [a for a in audit if a.get("action") == "event.rejected"]
+        # the service's audit row of a terminated event names the stream sequence it terminated
+        # (``service.py`` ``event.rejected``: ``{"reason": "invalid signature", "seq", "subject"}``), so the three
+        # forgeries are counted by their own sequences (M8: exactly three), never by any rejection
+        forged_seqs = {r["stream_seq"] for r in rows}
+        rejected = [a for a in rejected_all if (a.get("detail") or {}).get("seq") in forged_seqs]
         stream_after = self.stream_block()
         self.doc["signatures"] = {
             "failed_before_forgery": before, "failed_after_forgery": rows[-1]["counter"] if rows else None,
-            "forged_memory_absent": absent, "forged_event_terminated": len(rejected) >= rp.FORGERIES,
-            "event_rejected_audit_rows": len(rejected), "forgeries": rows,
+            "forged_memory_absent": absent, "forged_event_terminated": len(rejected) == rp.FORGERIES,
+            "event_rejected_audit_rows": len(rejected_all), "forged_seq_rejected_audit_rows": len(rejected),
+            "forged_stream_seqs": sorted(forged_seqs), "forgeries": rows,
             "stream_before": stream_before, "stream_after": stream_after,
             "stream_messages_fetched": stream_after["fetched"],
             "stream_messages_verified": stream_after["verified"],
@@ -914,10 +940,37 @@ class E2ERun:
             "replay_max_reject_ratio": float(drills.REPLAY_MAX_REJECT_RATIO), "status": counts["status"]}
 
     # ------------------------------------------------------------------ 5. lineage and the scan
+    def fabric_event_payloads(self) -> tuple[dict[str, Any], str]:
+        """Each event's ``payload`` as the fabric stores it (``events.payload``: ``{type, occurred_at, agent_id,
+        path, payload: <the POSTed payload>}``), keyed by event id, and where it was read: the admin view's rows
+        when they hold the organisation whole (``/admin/events`` caps at 1,000 rows), else the service database
+        read ``mode=ro`` (M7). M1's first witness is the ``sha256`` inside the POSTed payload."""
+        if len(self.events_rows) < 1000:
+            return {eid: row.get("payload") for eid, row in self.events_rows.items()}, "admin_view"
+        return drills.db_event_payloads(self.driver, ORG_ID), "service_db"
+
+    def crossing_checks(self) -> None:
+        """Section 4: the spike's leakage scan (``run.py`` ``leakage_check``: narrative shingle overlap and canary
+        hits over every byte that crossed a site boundary, HQ's wire, intake, questions and descriptor logs and
+        the received verdicts, the sites' ingress, egress and descriptor logs) and its closed-shape check
+        (``crossing_check``: only questions in, verdicts and the descriptor out, every frame a known kind, every
+        artifact passing ``check_artifact`` on both sides, no intake refusal) over the main pass's directory, which
+        has the spike's layout; and the leakage scan over the pipeline's directory, where the cells crossed."""
+        done = self._phase("crossing_seconds")
+        view = dataclasses.replace(self.world, workdir=self.dirs["main"])
+        main = {"leakage": leakage_check(view), "crossing": crossing_check(view)}
+        pipeline = {"leakage": leakage_check(self.world)}
+        self.crossing = {"main": main, "pipeline": pipeline}
+        done()
+        self.log(f"crossing: main pass leakage overlap {main['leakage']['overlap_bytes']} bytes over "
+                 f"{main['leakage']['scanned_items']} items, shapes ok {main['crossing']['ok']}; pipeline overlap "
+                 f"{pipeline['leakage']['overlap_bytes']} over {pipeline['leakage']['scanned_items']} items")
+
     def lineage(self) -> None:
         done = self._phase("lineage_seconds")
         world = self.world
         reader = HqStoreReader(self.store_path)
+        payloads, payloads_source = self.fabric_event_payloads()
         wire_shas: set[tuple[str, str]] = set()
         for row in wire.read_frames(self.main_hq / "wire.jsonl"):
             if row["direction"] != "response":
@@ -937,9 +990,9 @@ class E2ERun:
         received = {sid: own_records(site_store_path(self.main_edge, sid)) for sid in world.site_ids}
         stores = {sid: RecordStore(site_store_path(self.main_edge, sid), site_id=sid, pack_id=world.pack.id,
                                    config_hash=world.pack.config_hash) for sid in world.site_ids}
-        counters = dict.fromkeys(("pd_verdicts", "wire", "intake", "egress", "store"), 0)
+        counters = dict.fromkeys(("fabric_event", "pd_verdicts", "wire", "intake", "egress", "store"), 0)
         site_sourced = answered = joined = 0
-        late = 0
+        late = unknown = 0
         rows: list[dict[str, Any]] = []
         lineage_ok: dict[str, bool] = {}
         try:
@@ -948,7 +1001,7 @@ class E2ERun:
                 store_rows = reader.verdicts(qid)
                 as_of = self.asked_by_id[qid].candidate.as_of
                 event_ids_by_site: dict[str, str] = {}
-                shas: list[str] = []
+                shas: list[str | None] = []
                 confirming = entity = 0
                 newest = None
                 for row, event_id in zip(store_rows, bridged.verdict_event_ids):
@@ -956,14 +1009,20 @@ class E2ERun:
                         continue
                     site_sourced += 1
                     event_ids_by_site[row.site] = event_id
-                    shas.append(row.sha256)
+                    # M1's chain starts at the fabric: the ``sha256`` the service stored in this event's payload
+                    # (witness 1 is ``event.sha256 == pd_verdicts.sha256``; witnesses 2-5 are compared with the
+                    # fabric's value, so a bridge that published a wrong or null sha256 fails every one)
+                    fabric_sha = ((payloads.get(event_id) or {}).get("payload") or {}).get("sha256")
+                    held = isinstance(fabric_sha, str) and bool(fabric_sha)
+                    shas.append(fabric_sha if held else None)
                     body = strict_load(row.body)
-                    counters["pd_verdicts"] += int(sha256_hex(row.body) == row.sha256)
-                    counters["wire"] += int((row.site, row.sha256) in wire_shas)
-                    counters["intake"] += int((row.site, row.sha256, qid) in intake)
-                    counters["egress"] += int(row.sha256 in egress[row.site])
+                    counters["fabric_event"] += int(held and fabric_sha == row.sha256)
+                    counters["pd_verdicts"] += int(held and sha256_hex(row.body) == row.sha256 == fabric_sha)
+                    counters["wire"] += int(held and (row.site, fabric_sha) in wire_shas)
+                    counters["intake"] += int(held and (row.site, fabric_sha, qid) in intake)
+                    counters["egress"] += int(held and fabric_sha in egress[row.site])
                     stored = stores[row.site].verdict_by_id(body["verdict_id"])
-                    counters["store"] += int(stored is not None and stored.sha256 == row.sha256)
+                    counters["store"] += int(held and stored is not None and stored.sha256 == fabric_sha)
                     if body["verdict"] in ("confirm", "refute"):
                         answered += 1
                         by_ref = (stores[row.site].verdict_for_ref(stored.evidence_ref)
@@ -974,6 +1033,8 @@ class E2ERun:
                             confirming += len(by_ref.confirming_refs)
                             entity += len(by_ref.entity_refs)
                             days = [received[row.site][ref] for ref in refs if ref in received[row.site]]
+                            # a ref the site's own store cannot date is counted, never dropped (c2 holds it at 0)
+                            unknown += sum(1 for ref in refs if ref not in received[row.site])
                             late += sum(1 for day in days if day > as_of)
                             if days:
                                 newest = max([newest or "", *days]) or None
@@ -1004,13 +1065,16 @@ class E2ERun:
             "source_events_complete": sum(1 for r in rows if r["source_events_complete"]),
             "site_sourced_verdict_events": site_sourced,
             "site_sourced_answered_verdict_events": answered,
+            "fabric_events_source": payloads_source,
+            "sha256_in_fabric_event": counters["fabric_event"],
             "sha256_in_pd_verdicts": counters["pd_verdicts"], "sha256_in_wire_log": counters["wire"],
             "sha256_in_intake_log": counters["intake"], "sha256_in_site_egress": counters["egress"],
             "sha256_in_site_store": counters["store"], "site_audit_joined": joined,
-            "records_on_or_before_as_of": late == 0, "records_after_as_of": late, "rows": rows, "scan": scan}
-        self.log(f"drill 5: {len(rows)} conclusions reconstructable, {site_sourced} verdict events with five "
-                 f"witnesses each, scan hits {scan['record_ref_hits']}/{scan['narrative_marker_hits']}/"
-                 f"{scan['narrative_prefix_hits']}")
+            "records_on_or_before_as_of": late == 0, "records_after_as_of": late, "unknown_refs": unknown,
+            "rows": rows, "scan": scan, "crossing": getattr(self, "crossing", None)}
+        self.log(f"drill 5: {len(rows)} conclusions reconstructable, {site_sourced} verdict events, "
+                 f"{counters['fabric_event']} fabric sha256s equal to HQ's rows with five witnesses each, scan hits "
+                 f"{scan['record_ref_hits']}/{scan['narrative_marker_hits']}/{scan['narrative_prefix_hits']}")
         done()
 
     def scan(self) -> dict[str, Any]:
@@ -1084,16 +1148,23 @@ class E2ERun:
             rejected += sum(got.rejected.values())
         after = self.rank_fixed_queries("after")
         before = self.rankings_before
+        expected_queries = len(self.questions_fixed)
+        counts = {sid: int(after[sid]["queries"]) for sid in world.site_ids}
         nodes_same = count_same = top10_same = order_same = True
         for sid in world.site_ids:
             ids_after = sg.graph_node_ids(self.main_configs[sid].graph_path, sid)
             nodes_same = nodes_same and sg.node_ids_digest(ids_after) == self.node_ids_before[sid]
-            count_same = count_same and len(ids_after) == self.node_count_before[sid]
-            top10_same = top10_same and after[sid]["top10"] == before[sid]["top10"]
-            order_same = order_same and after[sid]["order"] == before[sid]["order"]
+            # the same node count at every site, and the same number of rankings before and after, which is the
+            # number of fixed questions asked (measured from the rankings, never the command-line option)
+            count_same = (count_same and len(ids_after) == self.node_count_before[sid]
+                          and counts[sid] == before.get(sid, {}).get("queries") == expected_queries)
+            top10_same = top10_same and after[sid]["top10"] == before.get(sid, {}).get("top10")
+            order_same = order_same and after[sid]["order"] == before.get(sid, {}).get("order")
         self.doc.setdefault("idempotency", {})["site_reingest"] = {
             "ingested": ingested, "duplicates": duplicates, "rejected": rejected,
-            "queries_per_site": self.options.queries, "same_node_ids": nodes_same, "same_count": count_same,
+            "queries_per_site": counts[world.site_ids[0]] if len(set(counts.values())) == 1 else None,
+            "queries_per_site_by_site": counts, "queries_expected": expected_queries,
+            "same_node_ids": nodes_same, "same_count": count_same,
             "same_top10": top10_same, "same_order": order_same,
             "nodes_added_on_resync": {sid: after[sid]["sync"]["nodes_added"] for sid in world.site_ids},
             "returned_per_query": {sid: after[sid]["returned"] for sid in world.site_ids}}
@@ -1278,6 +1349,14 @@ class E2ERun:
         done()
 
     # ------------------------------------------------------------------ the whole run
+    def checkpoint(self, name: str) -> None:
+        """The partial document after one phase, written atomically to the report's own path (``phase`` named,
+        ``completed`` false, the timings so far): a job stopped at its bound leaves a report to amend from
+        (section 11's one-amendment rule needs the artifact), and the measure job's size phases read the same file
+        (a report without ``checks`` is a phase that did not finish)."""
+        rp.write(self.options.out / rp.REPORT_NAME,
+                 {**self.doc, "phase": name, "completed": False, "timings": dict(sorted(self.timings.items()))})
+
     def run(self) -> dict[str, Any]:
         o = self.options
         started = utc_clock()
@@ -1291,35 +1370,52 @@ class E2ERun:
             path.mkdir(parents=True, exist_ok=True)
         self.reference = {}
         self.restart = {}
+        self.crossing = None
         self.doc["recovery"] = {}
         try:
             self.build_world()
             self.pristine_copies()
+            self.checkpoint("world")
             if not o.skip_drills:
                 self.reference_pass()
+                self.checkpoint("reference_pass")
             self.main_pass()
+            self.checkpoint("main_pass")
             self.rankings_before = self.rank_fixed_queries("before") if o.queries > 0 else {}
             self.node_ids_before = {sid: sg.node_ids_digest(sg.graph_node_ids(self.main_configs[sid].graph_path, sid))
                                     for sid in self.world.site_ids}
             self.node_count_before = {sid: len(sg.graph_node_ids(self.main_configs[sid].graph_path, sid))
                                       for sid in self.world.site_ids}
             self.collect_ingest()
+            self.checkpoint("fixed_queries")
             if not o.skip_drills:
                 self.restart_witness()
+                self.checkpoint("restart_witness")
+                # section 4's scans over every crossing byte: the end-to-end job's (c2); the measure job's sizes
+                # (``--skip-drills``) carry c0, c7, c8 and c9 only and stay inside M14's budgets
+                self.crossing_checks()
+                self.checkpoint("crossing")
             self.start_fabric()
             try:
                 self.publish_with_broker_kill()
+                self.checkpoint("publish")
                 if not o.skip_drills:
                     self.forgeries()
+                    self.checkpoint("forgeries")
                 else:
                     self.doc["signatures"] = {"skipped": True}
                 self.collect_fabric()
                 self.lineage()
+                self.checkpoint("lineage")
                 self.discovery()
+                self.checkpoint("discovery")
                 if not o.skip_drills:
                     self.rebuild_service()
+                    self.checkpoint("rebuild")
                     self.reingest()
+                    self.checkpoint("reingest")
                     self.rerun_bridge()
+                    self.checkpoint("bridge_rerun")
             finally:
                 self.driver.down()
         finally:
@@ -1328,6 +1424,7 @@ class E2ERun:
         self.doc["timings"] = dict(sorted(self.timings.items()))
         self.doc["run"].update({"finished_at": utc_clock(), "seconds": time.perf_counter() - t0,
                                 "code_dirty_end": code_dirty(list(rp.DIRTY_PATHS))})
+        self.doc.update({"phase": "finished", "completed": True})
         # M2: the suites' junit evidence is read from the suites CLI's directory (``--suites DIR``) and criterion
         # 10's check runs over it; without it the run's checks are reported but the run does not count
         # (``verdict.pass`` false, reason ``suites_not_green``)
@@ -1390,7 +1487,8 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 def cmd_check(args: argparse.Namespace) -> int:
     """M12: a written report re-read; every aggregate recomputed from the per-item arrays it carries and every check
-    run again over it. Exit 0 only when the recomputation agrees, the checks reproduce the stored ones and the
+    run again over it (the CI-only assertions included when the report names a CI run, wherever ``check`` runs).
+    Exit 0 only when the recomputation agrees, the checks reproduce the stored ones assertion for assertion and the
     stored verdict passes; ``--recorded`` also requires ``run.github_run_id`` and ``run.command``."""
     path = Path(args.report)
     doc = strict_load(path.read_bytes())
@@ -1399,10 +1497,12 @@ def cmd_check(args: argparse.Namespace) -> int:
     stored = doc.get("checks") or {}
     again = rp.run_checks(doc, [n for n in stored if n in rp.CHECKS])
     for name, check in again.items():
-        if check["ok"] != stored[name].get("ok") or check["failed"] != stored[name].get("failed"):
-            problems.append(f"checks.{name}: the report says ok={stored[name].get('ok')} "
-                            f"failed={stored[name].get('failed')}, re-run gives ok={check['ok']} "
-                            f"failed={check['failed']}")
+        was = stored[name]
+        if (check["ok"] != was.get("ok") or check["failed"] != was.get("failed")
+                or check["assertions"] != was.get("assertions")):
+            problems.append(f"checks.{name}: the report says ok={was.get('ok')} failed={was.get('failed')} "
+                            f"assertions={was.get('assertions')}, re-run gives ok={check['ok']} "
+                            f"failed={check['failed']} assertions={check['assertions']}")
     if args.recorded:
         run = doc.get("run") or {}
         if not run.get("github_run_id"):

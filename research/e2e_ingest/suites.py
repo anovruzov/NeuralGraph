@@ -1,25 +1,31 @@
 """Criterion 10's gate with evidence (``docs/collective/E2E-INGEST.md`` M2, M11): the seven unit suites run with
 junit output, one JSON row per suite, and the reader the harness uses to embed them in a report.
 
-    python -m research.e2e_ingest suites --out DIR [--group core|lab] [--suite NAME ...] [--verify]
+    python -m research.e2e_ingest suites --out DIR [--group core|lab|e2e] [--suite NAME ...] [--verify]
 
 Each suite runs as ``python -m pytest <suite> -q -p no:warnings [-p no:cacheprovider] --junitxml=DIR/<slug>.xml``
 (``python -m unittest research.mycelic.test_mycelic`` becomes ``python -m pytest research/mycelic/test_mycelic.py``,
 which collects the same 30 tests). After each, ``DIR/<slug>.json`` holds ``{suite, slug, group, sha, tests,
-failures, errors, skipped, skipped_in_scope, duration_s, junit_sha256, ...}`` where ``sha`` is ``GITHUB_SHA`` in CI
-and the commit of the tree otherwise, and ``junit_sha256`` binds the row to the junit file beside it. Every selected
-suite runs even when an earlier one is red, so the evidence is whole; the exit code is 1 when any suite failed,
-errored or left no junit file. ``--verify`` only reads a directory and prints what the harness would embed.
+tests_distinct, failures, errors, skipped, skipped_in_scope, duration_s, junit_sha256, ...}`` where ``sha`` is
+``GITHUB_SHA`` in CI and the commit of the tree otherwise, and ``junit_sha256`` binds the row to the junit file beside
+it. Every selected suite runs even when an earlier one is red, so the evidence is whole; the exit code is 1 when any
+suite failed, errored or left no junit file. ``--verify`` only reads a directory and prints what the harness would
+embed.
 
 The floors are the ``pytest --collect-only`` counts the brief fixed at ``e3052c0`` (M2's table) and, for
-``tests/e2e_ingest``, the count at this build (:data:`E2E_INGEST_FLOOR`), which may only rise. ``skipped`` is bounded
-at 0 for ``tests/e2e_ingest`` (the whole suite) and for ``tests/mycelic/test_jetstream.py`` (the testcases whose junit
-``classname`` starts with ``tests.mycelic.test_jetstream``), as M11 asks; the other suites' skips are reported.
+``tests/e2e_ingest``, the count at this build (:data:`E2E_INGEST_FLOOR`), which may only rise. pytest's junit
+``tests`` attribute counts every subtest as a testcase (``tests/mycelic`` reports about 27 times its collected count),
+so the count c10 holds to the floor is ``tests_distinct``, the distinct ``(classname, name)`` pairs of the junit
+file: pytest-subtests reports a subtest under its parent's name, so this is the collected count. ``skipped`` is
+bounded at 0 for ``tests/e2e_ingest`` (the whole suite) and for ``tests/mycelic/test_jetstream.py`` (the testcases
+whose junit ``classname`` starts with ``tests.mycelic.test_jetstream``), as M11 asks; the other suites' skips are
+reported.
 
 The harness (``run --suites DIR``, ``measure --suites DIR``) calls :func:`evidence_block`, which re-hashes every
-junit file (``junit_bound``) and reads the ``needs`` results the workflow exports (``E2E_NEEDS_SUITES_CORE``,
-``E2E_NEEDS_SUITES_LAB``), and criterion 10's check (``report.c10_suites_green``) asserts over the rows. Nothing
-here imports the fabric, the sites or the simulator.
+junit file and re-parses it (``junit_bound``: the file beside the row hashes to ``junit_sha256`` and its counts are
+the row's) and reads the ``needs`` results the workflow exports (``E2E_NEEDS_SUITES_CORE``, ``E2E_NEEDS_SUITES_LAB``,
+``E2E_NEEDS_SUITES_E2E``), and criterion 10's check (``report.c10_suites_green``) asserts over the rows. Nothing here
+imports the fabric, the sites or the simulator.
 """
 from __future__ import annotations
 
@@ -37,17 +43,22 @@ from typing import Any, Mapping, Sequence
 from mycelic.collective.experiments.common import code_commit, utc_clock, write_json_atomic
 from mycelic.collective.jsonio import sha256_hex
 
-__all__ = ["E2E_INGEST_FLOOR", "EVIDENCE", "GROUPS", "NEEDS_ENV", "NEEDS_JOBS", "ROOT", "SUITES", "Suite",
-           "by_name", "evidence_block", "junit_summary", "main", "needs_results", "read_evidence", "run_suite"]
+__all__ = ["E2E_INGEST_FLOOR", "EVIDENCE", "GROUPS", "JUNIT_COUNTS", "NEEDS_ENV", "NEEDS_JOBS", "ROOT", "SUITES",
+           "Suite", "by_name", "evidence_block", "junit_summary", "main", "needs_results", "read_evidence",
+           "run_suite"]
 
 ROOT = Path(__file__).resolve().parents[2]
 EVIDENCE = "junit"
-GROUPS = ("core", "lab")
-#: The suite jobs of section 11 and the environment names the workflow exports their ``needs`` results under.
-NEEDS_JOBS = {"core": "suites-core", "lab": "suites-lab"}
-NEEDS_ENV = {"suites-core": "E2E_NEEDS_SUITES_CORE", "suites-lab": "E2E_NEEDS_SUITES_LAB"}
+GROUPS = ("core", "lab", "e2e")
+#: The suite jobs of section 11 (three since the amendment of 2026-10-13: ``tests/e2e_ingest`` runs in its own job)
+#: and the environment names the workflow exports their ``needs`` results under.
+NEEDS_JOBS = {"core": "suites-core", "lab": "suites-lab", "e2e": "suites-e2e"}
+NEEDS_ENV = {"suites-core": "E2E_NEEDS_SUITES_CORE", "suites-lab": "E2E_NEEDS_SUITES_LAB",
+             "suites-e2e": "E2E_NEEDS_SUITES_E2E"}
 #: ``tests/e2e_ingest`` at this build's merge (M2: written into the settings test, may only rise).
 E2E_INGEST_FLOOR = 151
+#: The row's counts the reader re-parses from the junit file and requires equal (``junit_bound``).
+JUNIT_COUNTS = ("tests", "tests_distinct", "failures", "errors", "skipped", "skipped_in_scope")
 JETSTREAM_CLASSNAME = "tests.mycelic.test_jetstream"
 PYTEST_FLAGS = ("-q", "-p", "no:warnings")
 
@@ -75,7 +86,7 @@ SUITES: tuple[Suite, ...] = (
     Suite("tests/mycelic", "tests-mycelic", "core", 1711, zero_skip_scope=JETSTREAM_CLASSNAME),
     Suite("tests/onboard", "tests-onboard", "core", 287),
     Suite("tests/routing_spike", "tests-routing_spike", "core", 61, ("-p", "no:cacheprovider")),
-    Suite("tests/e2e_ingest", "tests-e2e_ingest", "core", E2E_INGEST_FLOOR, ("-p", "no:cacheprovider"),
+    Suite("tests/e2e_ingest", "tests-e2e_ingest", "e2e", E2E_INGEST_FLOOR, ("-p", "no:cacheprovider"),
           zero_skip_scope=""),
     Suite("tests/lab", "tests-lab", "lab", 725, ("-p", "no:cacheprovider")),
     Suite("research/mycelic/test_mycelic.py", "research-mycelic-test_mycelic", "lab", 30),
@@ -96,8 +107,10 @@ def by_name(name: str) -> Suite:
 
 def junit_summary(path: str | Path, zero_skip_scope: str | None = None) -> dict[str, Any]:
     """The counts of a pytest junit file: ``tests``, ``failures``, ``errors``, ``skipped`` and ``duration_s`` summed
-    over its ``testsuite`` elements, and ``skipped_in_scope``, the testcases with a ``skipped`` child whose
-    ``classname`` starts with ``zero_skip_scope`` (``""`` is every testcase; ``None`` gives null)."""
+    over its ``testsuite`` elements; ``tests_distinct``, the distinct ``(classname, name)`` pairs over its testcases
+    (the collected count: a subtest is reported under its parent's name, so it adds a testcase but no pair); and
+    ``skipped_in_scope``, the testcases with a ``skipped`` child whose ``classname`` starts with ``zero_skip_scope``
+    (``""`` is every testcase; ``None`` gives null)."""
     root = ET.parse(str(path)).getroot()
     suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
     out = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0, "duration_s": 0.0}
@@ -113,6 +126,7 @@ def junit_summary(path: str | Path, zero_skip_scope: str | None = None) -> dict[
                 in_scope += 1
     out["skipped_in_scope"] = in_scope
     out["testcases"] = sum(1 for _ in root.iter("testcase"))
+    out["tests_distinct"] = len({(c.get("classname"), c.get("name")) for c in root.iter("testcase")})
     return out
 
 
@@ -139,8 +153,8 @@ def run_suite(suite: Suite, out: str | Path, *, sha: str | None = None, python: 
                            "zero_skip_scope": suite.zero_skip_scope, "sha": sha or _sha(), "command": command,
                            "exit_code": proc.returncode, "started_at": started, "finished_at": utc_clock(),
                            "wall_seconds": seconds, "python": sys.version.split()[0], "junit_file": xml.name,
-                           "log_file": log.name, "tests": 0, "failures": 0, "errors": 0, "skipped": 0,
-                           "skipped_in_scope": None, "duration_s": 0.0, "junit_sha256": None,
+                           "log_file": log.name, "tests": 0, "tests_distinct": 0, "failures": 0, "errors": 0,
+                           "skipped": 0, "skipped_in_scope": None, "duration_s": 0.0, "junit_sha256": None,
                            "junit_present": xml.exists()}
     if xml.exists():
         row.update(junit_summary(xml, suite.zero_skip_scope))
@@ -163,8 +177,9 @@ def green(row: Mapping[str, Any]) -> bool:
 
 def read_evidence(out: str | Path | None, group: str | None = None) -> dict[str, Any]:
     """Every suite's row from ``DIR`` (one job's with ``group``), each re-bound to its junit file (``junit_bound``:
-    the file is beside it and hashes to the row's ``junit_sha256``); ``evidence`` is ``"junit"`` only when every
-    expected row is present and bound, and ``problems`` names what is not."""
+    the file is beside it, hashes to the row's ``junit_sha256`` and re-parses to the row's counts,
+    :data:`JUNIT_COUNTS`, so a row typed beside a real junit file is not evidence); ``evidence`` is ``"junit"`` only
+    when every expected row is present and bound, and ``problems`` names what is not."""
     rows: list[dict[str, Any]] = []
     problems: list[str] = []
     expected = [s for s in SUITES if group is None or s.group == group]
@@ -189,6 +204,14 @@ def read_evidence(out: str | Path | None, group: str | None = None) -> dict[str,
             row.get("junit_sha256")
         if not bound:
             problems.append(f"{suite.name}: junit file missing or not the one the row hashed")
+        else:
+            try:
+                again = junit_summary(xml, suite.zero_skip_scope)
+            except ET.ParseError:
+                again = {}
+            if not all(row.get(k) == again.get(k) for k in JUNIT_COUNTS):
+                bound = False
+                problems.append(f"{suite.name}: the row's counts are not its junit file's")
         rows.append({**row, "junit_bound": bool(bound)})
     evidence = EVIDENCE if len(rows) == len(expected) and not problems else None
     return {"rows": rows, "evidence": evidence, "problems": problems, "dir": str(out)}
@@ -211,7 +234,8 @@ def evidence_block(out: str | Path | None) -> dict[str, Any]:
 # --------------------------------------------------------------------------------------------------- the CLI
 
 def summary_line(row: Mapping[str, Any]) -> str:
-    return (f"  {row['suite']}: tests={row.get('tests')} failures={row.get('failures')} errors={row.get('errors')} "
+    return (f"  {row['suite']}: tests={row.get('tests')} distinct={row.get('tests_distinct')} "
+            f"failures={row.get('failures')} errors={row.get('errors')} "
             f"skipped={row.get('skipped')} skipped_in_scope={row.get('skipped_in_scope')} "
             f"exit={row.get('exit_code')} seconds={float(row.get('wall_seconds') or 0):.0f} "
             f"junit={'yes' if row.get('junit_present') else 'NO'}")
