@@ -156,13 +156,23 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
 - 2026-10-13 16:50 First e2e-ingest.yml run (38425113336, on 56cfad4) green in every job: suites-core 25 min,
   suites-lab 21 min, suites-e2e 8.5 min, the e2e job 10 min (harness 595 s, pass true, checks c0-c4, c7-c10 ok, c5
   and c6 belong to the measure job and the workflow test), the measure job 21 min (pass true, c5 and c10). Recorded
-  in E2E-INGEST.md "Runs" and INTEGRATION.md section 10 from the job logs. Not done: the reports are CI artifacts
+  in E2E-INGEST.md "Runs" and INTEGRATION.md section 11 from the job logs. Not done: the reports are CI artifacts
   on a host outside this session's network and longer than the readable log tail, so they are not committed under
   docs/collective/e2e_ingest/ and their digests are not recorded (open ask below). A manual workflow that would
   have printed the artifacts into a job log was drafted and withdrawn as a route around the network policy. Disk:
   the sandbox was at 552 MiB free (70 lab provision tests refused to run); stale scratch directories and clean
   worktrees of finished workflows were removed, 15 GiB free now. A002: the fix stage on wf/a002-fix is in its
   full tests/lab run.
+- 2026-10-13 17:00 A002 fix stage done: wf/a002-fix 70d269d (the per-entry exclusion file pinned, the aggregate's
+  primary and headline lines cross-checked against the j3 preregistration and the comparator files' digests, the two
+  unpinned run.json identity checks pinned, the composite's word asserted literally; each fix with a test that fails
+  without it; the fixer's own tests/lab run 841 passed with the five disk refusals passing once the disk was freed;
+  onboard, guards and x3 402 passed). Merged as 6c8553d (--no-ff; one conflict in docs/lab/INTEGRATION.md: A002's
+  section 10 kept, the e2e CI record moved to section 11). Gate on the merged tree so far: workflow, docs, guard and
+  e2e workflow tests 101 passed; j3 synthetic data and the template dry run exit 0 (5 units in 5 shards, exclusion
+  of J001's and A001's draws verified by artifact and rebuild, 300 excluded, 240 eligible after exclusion, lexical
+  comparator 0.700 [0.660, 0.740]); onboard, guards and x3 402 passed; the whole tests/lab suite running. Then: push
+  the code, push lab/requests/accuracy-002.json alone to start the run, check-ins.
 
 ## Open asks (date asked)
 
