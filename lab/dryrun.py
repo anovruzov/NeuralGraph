@@ -1,7 +1,7 @@
 """Run a whole request locally, every shard against the fake server: the lab's plumbing check without weights.
 
     python -m lab.dryrun --request PATH --out DIR [--manifest lab/models.json] [--openfda-base-url URL]
-                         [--l1-raw DIR] [--j2-data DIR]
+                         [--l1-raw DIR] [--j2-data DIR | --j3-data DIR]
 
 ``DIR`` must be absent or empty. The steps are the workflow's, in the same order and with the same files:
 
@@ -32,6 +32,12 @@ place of the plan job's downloaded artifact, and its ``stand-in.json`` to ``--ex
 checks run against a synthetic earlier artifact and the preregistration records that a stand-in was used
 (:data:`~lab.notes.J2_STAND_IN`). Without it a J2 plan's preregistration downloads the complaint file and finds no
 earlier artifact, so it stops before any shard (neither freshness mechanism verifies), as the rule says.
+
+With J3 units (accuracy test A002), ``--j3-data`` names a directory made by ``python -m tests.lab.j3_data --out DIR``
+the same way: its ``complaints.zip``, its ``earlier/`` (two synthetic plan artifacts, a J001-shaped and an
+A001-shaped one) and its ``stand-in.json`` (a two-entry exclude list) go to the same three ``lab.prereg`` flags, so
+every one of the five sources verifies on the test data (:data:`~lab.notes.J3_STAND_IN`). The two flags do not go
+together.
 
 Every record says ``plumbing``: a dry run never measures a model. stdout is the plan line, the prereg line, one line
 per unit and the aggregate line. Without ``--openfda-base-url`` an openFDA unit fetches from api.fda.gov itself.
@@ -79,6 +85,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--l1-raw", help="tests only: a directory holding MSHA's Accidents.zip for L1 units")
     p.add_argument("--j2-data", help="tests only: a tests.lab.j2_data directory (complaint archive, earlier plan "
                                      "artifact and the exclusion stand-in) for J2 units")
+    p.add_argument("--j3-data", help="tests only: a tests.lab.j3_data directory (complaint archive, the two earlier "
+                                     "plan artifacts and the two-entry exclusion stand-in) for J3 units")
     return p
 
 
@@ -111,6 +119,9 @@ def main(argv: list[str] | None = None) -> int:
     if out.is_symlink() or (out.exists() and (not out.is_dir() or any(out.iterdir()))):
         print("error: --out must be absent or an empty directory", file=sys.stderr)
         return EXIT_USAGE
+    if args.j2_data is not None and args.j3_data is not None:
+        print("error: --j2-data and --j3-data do not go together", file=sys.stderr)
+        return EXIT_USAGE
     plan_dir = out / "plan"
     plan_path = plan_dir / "plan.json"
     if lab_plan.main(["--request", args.request, "--manifest", args.manifest, "--out", str(plan_dir)]) != EXIT_OK:
@@ -124,8 +135,9 @@ def main(argv: list[str] | None = None) -> int:
         raw.mkdir(parents=True, exist_ok=True)
         shutil.copy(Path(args.l1_raw) / lab_l1.ZIP, raw / lab_l1.ZIP)
     prereg_args = ["--plan", str(plan_path)]
-    if args.j2_data is not None:
-        data = Path(args.j2_data)
+    test_data = args.j2_data if args.j2_data is not None else args.j3_data
+    if test_data is not None:
+        data = Path(test_data)
         prereg_args += ["--nhtsa-archive", str(data / "complaints.zip"), "--earlier-plans", str(data / "earlier"),
                         "--exclude-stand-in", str(data / "stand-in.json")]
     sys.stdout.flush()

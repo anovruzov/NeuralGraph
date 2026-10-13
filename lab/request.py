@@ -11,9 +11,9 @@ are refused at every level::
      "job_minutes": 45..330,                           # the time limit of each shard job
      "max_parallel": 1..16,                            # shard jobs that may run at once
      "retention_days": 1..90,                          # how long the result artifacts are kept
-     "experiments": {                                  # at least one of e1, e2, e3, g0, sim, x1, openfda, j1, l1, j2
-         "e1": {...}, "e2": {...}, "e3": {...}, "g0": {...}, "sim": {...}, "x1": {...}, "openfda": {...},
-         "j1": {...}, "l1": {...}, "j2": {...}},
+     "experiments": {                                  # at least one of e1, e2, e3, g0, sim, x1, openfda, j1, l1,
+         "e1": {...}, "e2": {...}, "e3": {...}, "g0": {...}, "sim": {...}, "x1": {...}, "openfda": {...},   # j2, j3
+         "j1": {...}, "l1": {...}, "j2": {...}, "j3": {...}},
      "hosted": {"<hosted model key>": {"max_calls": 1..1000000}, ...}}   # optional, default {}; see below
 
 ``capacity`` below is ``job_minutes - SHARD_OVERHEAD_MINUTES``; a seed is an int in ``0..2147483647``. The blocks:
@@ -105,6 +105,29 @@ task), one unit per model and part (``lab.j2``)::
      "primary": {"model": "<one of the j2 models>", "arm": "<one of lab.j2.ARMS>"},   # the primary pair P
      "comparisons_before": 0..1000000}    # default 0: the (model, arm, cycle) comparisons made before this cycle
 
+``j3``, accuracy test A002 (``docs/collective/A002/CHOICE-A002.md``, amended B1 to B25 before any build): J001's
+question on a fresh draw with two earlier cycles' records excluded, each part judged three times (the lab's evidence
+and rationale variants of the negation task, then the negation task), one unit per model and part (``lab.j3``)::
+
+    {"models": [...],                     # default $.models; gguf or fake models only (NHTSA_HOSTED, J3_KINDS_PROBLEM)
+     "minutes": 1..capacity,              # per part unit (three passes of its questions)
+     "labels": {"source": "nhtsa", "pack": "docs/collective/replay/vehicles/pack", "n": 40..2000, "seed": <seed>},
+     "parts": 1..30, "seed": <seed>,      # as j1
+     "bootstrap_b": 1000..20000,          # default 10000
+     "bootstrap_seed": <seed>,            # default 1
+     "exclude": [                         # exactly two entries, the earlier cycles in seed order (B2, B3, B5)
+         {"run_id": <a GitHub run id>, "artifact": "lab-plan-<run_id>-<attempt>",
+          "file": "prereg/j1/labels.jsonl" | "prereg/j2/labels.jsonl" | "prereg/j2/excluded.jsonl",
+          "sha256_prefix": "<12..64 lower-case hex>",       # what that file's bytes must hash to
+          "rebuild_seed": 1,                                # the first entry's rebuild is the pinned seed-one draw
+          "rebuild_sha256_prefix": "<12..64 lower-case hex>"},  # what the rebuilt labels must hash to
+         {"run_id": ..., "artifact": ..., "file": ..., "sha256_prefix": ...,
+          "rebuild_seed": <seed above the first's>, "rebuild_sha256_prefix": ...,
+          "chain_file": "prereg/j2/excluded.jsonl",         # the second entry only: that cycle's chain file
+          "chain_sha256_prefix": "<12..64 lower-case hex>"}],
+     "primary": {"model": "<one of the j3 models>", "arm": "<one of lab.j3.ARMS>"},   # the primary pair P
+     "comparisons_before": 0..1000000}    # default 0
+
 ``openfda``, the public replay and the labelling sheets (one unit, no model; it reaches api.fda.gov)::
 
     {"minutes": 1..capacity, "pack": "<a built-in pack, or lab/packs/<id>, with an openFDA mapping>",
@@ -181,6 +204,8 @@ from mycelic.collective.packs import loader
 from . import ROOT, LabError, check_keys, display_path, safe_path
 from . import j2 as lab_j2
 from . import j2labels as lab_j2labels
+from . import j3 as lab_j3
+from . import j3labels as lab_j3labels
 from .goldlabels import NHTSA_PACK, build_labels
 from .hosted import PREFLIGHT_MAX_CALLS, preflight_tasks, unit_bound
 from .manifest import Manifest
@@ -193,7 +218,7 @@ MAX_BYTES = 65536
 SHARD_OVERHEAD_MINUTES = 25
 SEED_MAX = 2147483647
 BAD_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"})
-EXPERIMENTS = ("e1", "e2", "e3", "g0", "sim", "x1", "openfda", "j1", "l1", "j2")
+EXPERIMENTS = ("e1", "e2", "e3", "g0", "sim", "x1", "openfda", "j1", "l1", "j2", "j3")
 SIM_KINDS = ("gguf", "fake")
 MAX_MODELS = 8
 LABEL_SOURCES = ("fixtures", "generator", "nhtsa")
@@ -244,6 +269,12 @@ _J2_KEYS = ("models", "minutes", "labels", "parts", "seed", "bootstrap_b", "boot
 _J2_REQUIRED = ("minutes", "labels", "parts", "seed", "exclude", "primary")
 _EXCLUDE_KEYS = ("run_id", "artifact", "file", "sha256_prefix")
 _PRIMARY_KEYS = ("model", "arm")
+_J3_KEYS = _J2_KEYS
+_J3_REQUIRED = _J2_REQUIRED
+_J3_EXCLUDE_KEYS = (*_EXCLUDE_KEYS, "rebuild_seed", "rebuild_sha256_prefix", "chain_file", "chain_sha256_prefix")
+_J3_EXCLUDE_REQUIRED = (*_EXCLUDE_KEYS, "rebuild_seed", "rebuild_sha256_prefix")
+_J3_CHAIN_KEYS = ("chain_file", "chain_sha256_prefix")
+J3_EXCLUDE_ENTRIES = 2
 MAX_RUN_ID = 10 ** 20
 MAX_COMPARISONS = 1000000
 EXCLUDE_ARTIFACT_RE = re.compile(r"lab-plan-([0-9]{1,20})-[0-9]{1,6}", re.ASCII)
@@ -269,6 +300,17 @@ J2_FILE_PROBLEM = "must be the file listing the excluded records: prereg/j1/labe
 J2_SHA_PROBLEM = "must be 12 to 64 lower-case hex digits: the prefix the excluded file's sha256 must have"
 J2_PRIMARY_MODEL_PROBLEM = "the primary pair's model must be one of the J2 models"
 J2_PRIMARY_ARM_PROBLEM = "the primary pair's arm must be one of the declared arms"
+J3_LABELS_PROBLEM = "J3 reads nhtsa labels only: a fresh draw of real public complaints of the vehicle pack"
+J3_KINDS_PROBLEM = "J3 runs only gguf or fake models"
+J3_EXCLUDE_LIST_PROBLEM = "must be a list of exactly two entries: the earlier cycles, in seed order"
+J3_FILE_PROBLEM = ("must be the file listing the excluded records: prereg/j1/labels.jsonl, prereg/j2/labels.jsonl or "
+                   "prereg/j2/excluded.jsonl")
+J3_CHAIN_FILE_PROBLEM = "must be the chain file prereg/j2/excluded.jsonl"
+J3_CHAIN_FIRST_PROBLEM = "the chain keys belong to the second entry only"
+J3_CHAIN_REQUIRED = "required on the second entry: the earlier cycle's chain file and its sha256 prefix"
+J3_FIRST_SEED_PROBLEM = "must be 1: the first entry's rebuild is the pinned seed-one draw of the first judge test"
+J3_SEED_ORDER_PROBLEM = "must be above the first entry's rebuild seed: the entries are the earlier cycles in seed order"
+J3_PRIMARY_MODEL_PROBLEM = "the primary pair's model must be one of the J3 models"
 MSHA_HOSTED = "L1 reads real MSHA records only with models inside the runner; the lab sends no real narrative to a host"
 L1_KINDS_PROBLEM = "L1 runs only gguf or fake models"
 L1_QUESTIONS_PROBLEM = "must be 5: the alert question and the four control questions (L001, K11)"
@@ -600,17 +642,99 @@ def _exclude(raw: Any, path: str) -> dict[str, Any]:
     return out
 
 
-def _primary(raw: Any, path: str, chosen: list[str]) -> dict[str, str]:
-    """The ``j2`` block's primary pair P (rule 9): one of the block's models and one of the declared arms."""
+def _primary(raw: Any, path: str, chosen: list[str], arms: tuple[str, ...] = lab_j2.ARMS,
+             model_problem: str = J2_PRIMARY_MODEL_PROBLEM) -> dict[str, str]:
+    """A ``j2`` or ``j3`` block's primary pair P: one of the block's models and one of the kind's declared arms
+    (``lab.j2.ARMS`` or ``lab.j3.ARMS``)."""
     block = _object(raw, path)
     check_keys(block, _PRIMARY_KEYS, _PRIMARY_KEYS, path, RequestError)
     model = _string(block["model"], f"{path}.model", 24)
     if model not in chosen:
-        raise RequestError(f"{path}.model", J2_PRIMARY_MODEL_PROBLEM) from None
-    arm = _string(block["arm"], f"{path}.arm", 24)
-    if arm not in lab_j2.ARMS:
+        raise RequestError(f"{path}.model", model_problem) from None
+    arm = _string(block["arm"], f"{path}.arm", 32)
+    if arm not in arms:
         raise RequestError(f"{path}.arm", J2_PRIMARY_ARM_PROBLEM) from None
     return {"model": model, "arm": arm}
+
+
+def _j3_exclude_entry(raw: Any, path: str, second: bool) -> dict[str, Any]:
+    """One entry of a ``j3`` block's ``exclude`` list (B3): ``_exclude``'s shape with the j3 file list
+    ``lab.j3labels.EXCLUDE_FILES`` and the rebuild keys; the chain keys on the second entry only."""
+    block = _object(raw, path)
+    check_keys(block, _J3_EXCLUDE_KEYS, _J3_EXCLUDE_REQUIRED, path, RequestError)
+    out = {"run_id": _int(block["run_id"], f"{path}.run_id", 1, MAX_RUN_ID)}
+    artifact = _string(block["artifact"], f"{path}.artifact", 64)
+    m = EXCLUDE_ARTIFACT_RE.fullmatch(artifact)
+    if m is None or int(m.group(1)) != out["run_id"]:
+        raise RequestError(f"{path}.artifact", J2_ARTIFACT_PROBLEM) from None
+    out["artifact"] = artifact
+    file = _string(block["file"], f"{path}.file", 64)
+    if file not in lab_j3labels.EXCLUDE_FILES:
+        raise RequestError(f"{path}.file", J3_FILE_PROBLEM) from None
+    out["file"] = file
+    for key in ("sha256_prefix", "rebuild_sha256_prefix"):
+        prefix = _string(block[key], f"{path}.{key}", 64)
+        if SHA256_PREFIX_RE.fullmatch(prefix) is None:
+            raise RequestError(f"{path}.{key}", J2_SHA_PROBLEM) from None
+        out[key] = prefix
+    out["rebuild_seed"] = _seed(block["rebuild_seed"], f"{path}.rebuild_seed")
+    present = [k for k in _J3_CHAIN_KEYS if k in block]
+    if not second:
+        if present:
+            raise RequestError(f"{path}.{present[0]}", J3_CHAIN_FIRST_PROBLEM) from None
+        return out
+    for key in _J3_CHAIN_KEYS:
+        if key not in block:
+            raise RequestError(f"{path}.{key}", J3_CHAIN_REQUIRED) from None
+    chain_file = _string(block["chain_file"], f"{path}.chain_file", 64)
+    if chain_file != lab_j2labels.J2_EXCLUDED_FILE:
+        raise RequestError(f"{path}.chain_file", J3_CHAIN_FILE_PROBLEM) from None
+    out["chain_file"] = chain_file
+    prefix = _string(block["chain_sha256_prefix"], f"{path}.chain_sha256_prefix", 64)
+    if SHA256_PREFIX_RE.fullmatch(prefix) is None:
+        raise RequestError(f"{path}.chain_sha256_prefix", J2_SHA_PROBLEM) from None
+    out["chain_sha256_prefix"] = prefix
+    return out
+
+
+def _j3_exclude_list(raw: Any, path: str) -> list[dict[str, Any]]:
+    """The ``j3`` block's ``exclude`` list: exactly two entries in seed order, the first's rebuild seed 1 (the pinned
+    seed-one rebuild), the second's above it, with the chain keys on the second."""
+    _no_hazard(raw, path)
+    if not isinstance(raw, list) or len(raw) != J3_EXCLUDE_ENTRIES:
+        raise RequestError(path, J3_EXCLUDE_LIST_PROBLEM) from None
+    entries = [_j3_exclude_entry(item, f"{path}[{i}]", second=i == 1) for i, item in enumerate(raw)]
+    if entries[0]["rebuild_seed"] != 1:
+        raise RequestError(f"{path}[0].rebuild_seed", J3_FIRST_SEED_PROBLEM) from None
+    if entries[1]["rebuild_seed"] <= entries[0]["rebuild_seed"]:
+        raise RequestError(f"{path}[1].rebuild_seed", J3_SEED_ORDER_PROBLEM) from None
+    return entries
+
+
+def _j3(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[str, Any]:
+    path = "$.experiments.j3"
+    block = _object(raw, path)
+    check_keys(block, _J3_KEYS, _J3_REQUIRED, path, RequestError)
+    chosen = _block_models(block, path, models)
+    for i, key in enumerate(chosen):
+        kind = manifest.models[key]["kind"]
+        if kind == "hosted":
+            raise RequestError(_model_at(block, path, models, key, i), NHTSA_HOSTED) from None
+        if kind not in SIM_KINDS:
+            raise RequestError(_model_at(block, path, models, key, i), J3_KINDS_PROBLEM) from None
+    out: dict[str, Any] = {"models": chosen, "minutes": _minutes(block["minutes"], f"{path}.minutes", capacity),
+                           "labels": _labels(block["labels"], f"{path}.labels")}
+    if out["labels"]["source"] != "nhtsa":
+        raise RequestError(f"{path}.labels.source", J3_LABELS_PROBLEM) from None
+    out["parts"] = _int(block["parts"], f"{path}.parts", 1, J1_MAX_PARTS)
+    out["seed"] = _seed(block["seed"], f"{path}.seed")
+    out["bootstrap_b"] = _bootstrap_b(block, path)
+    out["bootstrap_seed"] = _optional(block, "bootstrap_seed", 1, lambda v: _seed(v, f"{path}.bootstrap_seed"))
+    out["exclude"] = _j3_exclude_list(block["exclude"], f"{path}.exclude")
+    out["primary"] = _primary(block["primary"], f"{path}.primary", chosen, lab_j3.ARMS, J3_PRIMARY_MODEL_PROBLEM)
+    out["comparisons_before"] = _optional(block, "comparisons_before", 0,
+                                          lambda v: _int(v, f"{path}.comparisons_before", 0, MAX_COMPARISONS))
+    return out
 
 
 def _j2(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[str, Any]:
@@ -979,7 +1103,8 @@ def validate(obj: Any, manifest: Manifest, *, openfda_key: bool = False) -> dict
               "openfda": lambda raw: _openfda(raw, capacity, openfda_key),
               "j1": lambda raw: _j1(raw, models, capacity, manifest),
               "l1": lambda raw: _l1(raw, models, capacity, manifest),
-              "j2": lambda raw: _j2(raw, models, capacity, manifest)}
+              "j2": lambda raw: _j2(raw, models, capacity, manifest),
+              "j3": lambda raw: _j3(raw, models, capacity, manifest)}
     out["experiments"] = {name: checks[name](experiments[name]) for name in EXPERIMENTS if name in experiments}
     out["hosted"] = _hosted(top, out["experiments"], manifest)
     return out

@@ -4,7 +4,10 @@
 and ``judge_record`` tasks (not streamed), for E1 units only ``extract_claims``, for J1 units only ``judge_record``
 (whose probe, sent twice, records ``repeat_identical`` for judge test J001), for J2 units ``judge_record`` and the
 lab's ``judge_record_negation`` (``lab.j2.negation_task``; the tasks are sorted by name, so the probe is the shipped
-task's, A11), for E2 units ``judge_record`` and,
+task's, A11), for J3 units the lab's ``judge_record_evidence``, ``judge_record_negation`` and
+``judge_record_rationale`` only (``lab.j3``: each with its own schema and ``max_tokens`` and the judge's generated
+payloads; neither the shipped judge nor the extraction task is registered for them, so the probe of a J3 shard is
+task E's, the first of the three names in sorted order, B4), for E2 units ``judge_record`` and,
 when the central comparator is the model itself (``central: self``), its ``judge_candidate_raw`` and
 ``judge_candidate_allowed`` (a hosted central comparator is never warmed or fitted on this server; ``lab.hosted``'s
 preflight sends it the same payloads), for E3 units each workload's task
@@ -85,6 +88,7 @@ from mycelic.collective.schemacheck import compile as compile_schema
 
 from . import ROOT
 from . import j2 as lab_j2
+from . import j3 as lab_j3
 
 from .notes import (ALIAS_MISMATCH, BUDGET_EXHAUSTED, CONTEXT_TOO_SMALL, MEMORY_AFTER_LOAD, REMEDY_CONTEXT,
                     REMEDY_HTTP, REMEDY_REASONING, WARMUP_HTTP, WARMUP_LENGTH, WARMUP_REASONING)
@@ -198,8 +202,29 @@ def warm_tasks(units: list[Mapping[str, Any]], plan: Mapping[str, Any], prereg: 
             "task": lab_j2.negation_task(), "schema": judge_schema(), "payload": judge["payload"],
             "worst": judge["worst"], "stream": False, "units": []}
 
+    judge_payloads: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
+
+    def j3_tasks(unit: Mapping[str, Any], pack_id: str) -> list[tuple[str, str]]:
+        """A J3 unit's three tasks (B4): each with its own schema and ``max_tokens`` and the judge's generated
+        payloads (the same record ``pack_tasks`` would pick); the shipped judge and the extraction task are not
+        registered for it, so the probe of a J3 shard is task E's."""
+        if pack_id not in judge_payloads:
+            pack = load_pack(pack_id)
+            record = _longest_record(pack, unit["params"]["seed"])
+            judge_payloads[pack_id] = (judge_example(pack, record, record["narrative"]),
+                                       judge_example(pack, record, _worst_text(record["narrative"],
+                                                                               pack.extraction.max_input_chars)))
+        typical, worst = judge_payloads[pack_id]
+        for name in lab_j3.TASKS:
+            if (name, pack_id) not in found:
+                found[(name, pack_id)] = {"task": lab_j3.task_spec(name), "schema": lab_j3.task_schema(name),
+                                          "payload": typical, "worst": worst, "stream": False, "units": []}
+        return [(name, pack_id) for name in lab_j3.TASKS]
+
     for unit in units:
-        if unit["experiment"] in ("g0", "sim", "e1", "e2", "j1", "j2"):
+        if unit["experiment"] == "j3":
+            keys = j3_tasks(unit, unit["params"]["pack"])
+        elif unit["experiment"] in ("g0", "sim", "e1", "e2", "j1", "j2"):
             pack_id = unit["params"]["pack"]
             pack_tasks(unit, pack_id)
             if unit["experiment"] == "j2":

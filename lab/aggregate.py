@@ -89,6 +89,17 @@ preregistration, the comparators on every record; per model its parts, its two (
 scored as a J1 model is, with the verdict word and pass test of the rule) and the lifts between arms; and the primary
 pair's entry read out (``primary_result``). No verdict line, question or narrative is copied.
 
+**J3** (``j3``; null without J3 units), accuracy test A002 (:func:`j3_block`, ``docs/collective/A002/CHOICE-A002.md``
+as amended): J2's block generalised to three tasks and nine arms: the labels and questions records, the exclusion's
+counts, the five sources' outcomes and hashes, the settings, the three tasks' pins, the mapping, the grounding and the
+composite texts, the arms, the lifts, the primary pair, the headline arm and the headline secondary, the comparison
+count and the target, the comparators and both ablations on every record and the lexical judge's unknown count; per
+model its parts, its three (model, task) sets, its nine arms (the composite arms with their ablation differences and
+clauses), the lifts, the evidence readings (the grounded share of yes answers by kind, the empty citations, the
+citation lengths), the first-key shares and the token figures per task; and ``primary_result`` with the headline
+secondary's word beside it. The line check rebuilds each drawn record's payload text from the plan artifact's labels
+to recompute ``grounded``, inside this job only; no narrative or citation is copied.
+
 **L1** (``l1``; null without L1 units), latency test L001 (:func:`l1_block`, ``docs/collective/L001/CHOICE-L001.md``
 with its amendments K1 to K13): from the verified preregistration, the operator (``c1``), the file's sha256 and whether
 it is the demo's, the audit's counts, the alert, each question's slot, kind, predicate, window, routes by role and
@@ -165,11 +176,13 @@ from . import EXIT_OK, EXIT_USAGE, ROOT, LabError, forbidden_root
 from . import hosted as lab_hosted
 from . import j1 as lab_j1
 from . import j2 as lab_j2
+from . import j3 as lab_j3
 from . import l1 as lab_l1
 from . import l1score as l1_score
 from . import provision as lab_provision
 from . import units as lab_units
 from .manifest import ManifestError, load_manifest, lock_path
+from mycelic.collective.packs.loader import load_pack
 from .notes import (ALTERED, AMBIGUOUS_ARTIFACTS, E1_COMPARE_FAILED, E1_NO_REFERENCE, E1_SCORES_REFUSED,
                     E1_SCORES_UNPINNED, FILES_DIFFER, J1_INCOMPLETE, J1_NOT_MEASURED, J1_WITHHELD, L1_INCOMPLETE,
                     L1_LEFT_OUT, L1_NO_REAGGREGATION, L1_NOT_MEASURED, L1_RERUN_AFTER_CALLS, L1_RERUN_CALLS_UNKNOWN,
@@ -1132,6 +1145,344 @@ def j2_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
     return block
 
 
+# --------------------------------------------------------------------------------------------------- J3
+
+J3_SETTINGS = J2_SETTINGS
+J3_PART_PATTERNS = ("ledger.jsonl",)
+
+
+def _j3_lines(data: bytes) -> list[dict[str, Any]] | None:
+    """Verdict lines with exactly ``lab_j3.LINE_KEYS``, or None."""
+    failed = False
+    try:
+        lines = _jsonl(data)
+    except StrictJsonError:
+        failed = True
+    if failed or not all(isinstance(line, dict) and sorted(line) == sorted(lab_j3.LINE_KEYS) for line in lines):
+        return None
+    return lines
+
+
+def _j3_part(unit: dict[str, Any], source: E1Source, prereg_sha: str, questions: list[dict[str, Any]],
+             texts: Mapping[str, str]) -> tuple[list[dict[str, Any]] | None, Any, list[dict[str, Any]]]:
+    """(verdict lines, run.json, ledger rows) of one J3 unit's collected files, as :func:`_j2_part` reads a J2
+    unit's: run.json a J3 run of this preregistration, endpoint and part whose ``verdicts_sha256`` is the file's,
+    and every line the one the runner writes for a preregistered question of the part and one of the three tasks,
+    each (question, task) at most once (:func:`lab.j3.line_problem`: J001's check on the projected line, every
+    reading recomputed with the pinned ``decide`` and ``grounded`` from the stored citation and the record's text
+    ``texts`` rebuilt from the plan artifact's labels, B23; ``first_key`` checked for shape, B19). The ledger rows
+    serve the token and latency figures; an unreadable ledger gives none."""
+    _, record, root = source
+    if record is None or root is None:
+        return None, None, []
+    base = f"runs/j3/{unit['run_id']}/"
+    files = record.get("files") if isinstance(record.get("files"), dict) else {}
+    rows: list[dict[str, Any]] = []
+    if base + "ledger.jsonl" in files:
+        failed = False
+        try:
+            rows = read_ledger(root / (base + "ledger.jsonl"))
+        except (OSError, ValueError):
+            failed = True
+        if failed:
+            rows = []
+    if base + "run.json" not in files or base + "verdicts.jsonl" not in files:
+        return None, None, rows
+    run = _read(root / (base + "run.json"))
+    try:
+        data = (root / (base + "verdicts.jsonl")).read_bytes()
+    except OSError:
+        return None, run, rows
+    if (not isinstance(run, dict) or run.get("kind") != "lab_j3_run" or run.get("prereg_sha256") != prereg_sha
+            or run.get("endpoint") != unit["model"] or run.get("part") != unit["params"]["part"]
+            or run.get("verdicts_sha256") != sha256_hex(data)):
+        return None, run, rows
+    lines = _j3_lines(data)
+    mine = {q["question_id"]: q for q in questions if q["part"] == unit["params"]["part"]}
+    if lines is None or len({(line["question_id"], line["task"]) for line in lines}) != len(lines):
+        return None, run, rows
+    if any(line["question_id"] not in mine
+           or lab_j3.line_problem(mine[line["question_id"]], line, texts.get(line["record_ref"], "")) is not None
+           for line in lines):
+        return None, run, rows
+    return lines, run, rows
+
+
+def _j3_arm(arm: str, task_set: dict[str, Any], view: list[dict[str, Any]], questions: list[dict[str, Any]],
+            comparators: Mapping[str, list[dict[str, Any]]], settings: dict[str, Any], primary: bool,
+            headline_arm: bool, headline_secondary: bool) -> dict[str, Any]:
+    """One arm's entry: the arm's view scored (``lab.j1.score``), the comparators on the same records (the lexical
+    judge, the record-blind control, the bound and, for a composite arm, both ablations), the paired differences to
+    the lexical judge and, for a composite arm, to both ablations, the verdict word with its pass test
+    (``lab.j2.verdict_word``; ``lab.j3.composite_verdict_word`` with the ablation clauses for C and Cm, B8) and,
+    for the headline arm and the headline secondary, J001's headline against the lexical judge (B1)."""
+    b, seed = settings["bootstrap_b"], settings["bootstrap_seed"]
+    composite = lab_j3.ARM_COMPOSITE[arm]
+    entry: dict[str, Any] = {
+        "letter": lab_j3.ARM_LETTERS[arm], "task": lab_j3.ARM_TASK[arm], "reading": lab_j3.ARM_READING[arm],
+        "composite": composite, "set": lab_j3.TASK_LABELS[lab_j3.ARM_TASK[arm]],
+        "complete": task_set["complete"], "partial": task_set["partial"], "parts_finished": task_set["parts_finished"],
+        "parts_planned": settings["parts"], "display_class": task_set["display_class"],
+        "measurement": task_set["measurement"], "scores": None, "lexical": None, "prior": None, "prior_bound": None,
+        "ablation_a": None, "ablation_b": None, "paired_lexical": None, "paired_ablation_a": None,
+        "paired_ablation_b": None, "records_dropped": None, "dropped_share": None, "withheld_reason": None,
+        "verdict_word": None, "pass_test": None, "primary": primary, "headline_arm": headline_arm,
+        "headline_secondary": headline_secondary, "headline": None, "headline_reason": None}
+    if view:
+        scores = lab_j1.score(questions, view, bootstrap_b=b, bootstrap_seed=seed)
+        refs = lab_j1.scored_records(questions, view)
+
+        def on_refs(name: str) -> dict[str, Any] | None:
+            return (lab_j1.score(questions, comparators[name], bootstrap_b=b, bootstrap_seed=seed, records=refs)
+                    if refs else None)
+
+        def against(name: str) -> dict[str, Any] | None:
+            return lab_j1.paired(questions, view, comparators[name], bootstrap_b=b, bootstrap_seed=seed)
+
+        entry.update(scores=scores, records_dropped=scores["records_dropped"], dropped_share=scores["dropped_share"],
+                     lexical=on_refs("lexical"), prior=on_refs("prior"),
+                     prior_bound=lab_j1.prior_bound(questions, refs) if refs else None,
+                     paired_lexical=against("lexical"))
+        if composite:
+            entry.update(ablation_a=on_refs("ablation_a"), ablation_b=on_refs("ablation_b"),
+                         paired_ablation_a=against("ablation_a"), paired_ablation_b=against("ablation_b"))
+    share = entry["dropped_share"]
+    if share is not None and share > settings["withhold_share"]:
+        entry["withheld_reason"] = J1_WITHHELD
+    common = dict(complete=task_set["complete"], display_class=task_set["display_class"],
+                  measurement=task_set["measurement"], dropped_share=share, scores=entry["scores"],
+                  paired=entry["paired_lexical"], bound=entry["prior_bound"])
+    if composite:
+        word, test = lab_j3.composite_verdict_word(**common, ablation_a=entry["paired_ablation_a"],
+                                                   ablation_b=entry["paired_ablation_b"])
+    else:
+        word, test = lab_j3.verdict_word(**common)
+    entry.update(verdict_word=word, pass_test=test)
+    if headline_arm or headline_secondary:
+        headline, why = lab_j1.headline_for(
+            complete=task_set["complete"], display_class=task_set["display_class"],
+            measurement=task_set["measurement"], dropped_share=share,
+            model_ba=_get(entry["scores"], "balanced_accuracy"),
+            lexical_ba=_get(entry["lexical"], "balanced_accuracy", "value"))
+        entry["headline"] = headline
+        entry["headline_reason"] = J1_HEADLINE_REASONS.get(why) if why is not None else None
+    return entry
+
+
+def _share(count: int, total: int) -> float | None:
+    return count / total if total else None
+
+
+def _j3_evidence(lines: list[dict[str, Any]]) -> dict[str, Any]:
+    """Rule 13's readings of task E's lines: per kind, the yes answers and how many were grounded; the share of
+    empty citations; the citation lengths after ``norm`` (median and 95th percentile), over the replies."""
+    replies = [line for line in lines if line["mentions_entity"] is not None]
+    out: dict[str, Any] = {"replies": len(replies), "grounded_yes": {}, "empty_citations": None,
+                           "empty_citation_share": None, "citation_chars_p50": None, "citation_chars_p95": None}
+    for kind in lab_j1.KINDS:
+        yes = [line for line in replies if line["kind"] == kind and line["describes_predicate"] == "yes"]
+        grounded = sum(1 for line in yes if line["grounded"] is True)
+        out["grounded_yes"][kind] = {"yes": len(yes), "grounded": grounded, "share": _share(grounded, len(yes))}
+    if replies:
+        empty = sum(1 for line in replies if line["citation"] == "")
+        lengths = [len(lab_j3.norm(line["citation"])) for line in replies if isinstance(line["citation"], str)]
+        out.update(empty_citations=empty, empty_citation_share=_share(empty, len(replies)),
+                   citation_chars_p50=percentile(lengths, 50), citation_chars_p95=percentile(lengths, 95))
+    return out
+
+
+def _j3_first_keys(lines: list[dict[str, Any]], task: str) -> dict[str, Any]:
+    """The share of a task's replies whose first key is the new field (rule 3; B19), and every first key counted."""
+    replies = [line for line in lines if line["mentions_entity"] is not None]
+    field = lab_j3.TASK_FIELDS[task]
+    counts: dict[str, int] = {}
+    for line in replies:
+        counts[str(line["first_key"])] = counts.get(str(line["first_key"]), 0) + 1
+    first = sum(1 for line in replies if field is not None and line["first_key"] == field)
+    return {"field": field, "replies": len(replies), "field_first": first if field is not None else None,
+            "share": _share(first, len(replies)) if field is not None else None,
+            "first_keys": dict(sorted(counts.items()))}
+
+
+def _j3_tokens(rows: list[dict[str, Any]], task: str) -> dict[str, Any]:
+    """Rule 13's per-task ledger figures pooled over the finished parts: the output tokens and the cut replies
+    (``lab.j3.token_figures``) and the successful calls' latency."""
+    latency = [r["latency_ms"] for r in rows if r["task"] == task and r["ok"] and r["attempt"] >= 1
+               and r.get("latency_ms") is not None]
+    return {**lab_j3.token_figures(rows, task), "calls_ok": len(latency),
+            "latency_ms_p50": percentile(latency, 50), "latency_ms_p95": percentile(latency, 95)}
+
+
+def _j3_model(model: str, units: list[dict[str, Any]], sources: dict[str, E1Source], prereg_sha: str,
+              questions: list[dict[str, Any]], texts: Mapping[str, str],
+              comparators: Mapping[str, list[dict[str, Any]]], settings: dict[str, Any], fallback: str,
+              primary: Mapping[str, str], headline_arm: str, headline_secondary: str) -> dict[str, Any]:
+    """One model's J3 entry (see :func:`j3_block`): its parts, its three (model, task) sets, its nine arms, the
+    lifts of rule 10 and the ablation differences, the evidence readings, the first keys and the token figures."""
+    b, seed = settings["bootstrap_b"], settings["bootstrap_seed"]
+    planned = {k: sum(1 for q in questions if q["part"] == k) for k in range(1, settings["parts"] + 1)}
+    parts: list[dict[str, Any]] = []
+    pooled: dict[str, list[dict[str, Any]]] = {task: [] for task in lab_j3.TASKS}
+    rows_by_task: dict[str, list[dict[str, Any]]] = {task: [] for task in lab_j3.TASKS}
+    measured: dict[str, list[bool]] = {task: [] for task in lab_j3.TASKS}
+    classes: dict[str, list[str]] = {task: [] for task in lab_j3.TASKS}
+    for unit in sorted(units, key=lambda u: u["params"]["part"]):
+        row = sources[unit["unit"]][0]
+        lines, run, rows = _j3_part(unit, sources[unit["unit"]], prereg_sha, questions, texts)
+        part = unit["params"]["part"]
+        by_task = run.get("complete_by_task") if isinstance(run, dict) and isinstance(run.get("complete_by_task"),
+                                                                                       dict) else {}
+        wanted = {q["question_id"] for q in questions if q["part"] == part}
+        ok_by_task: dict[str, bool] = {}
+        for task in lab_j3.TASKS:
+            mine = [line for line in lines if line["task"] == task] if lines is not None else []
+            ok = (row["status"] == "ok" and lines is not None and by_task.get(task) is True
+                  and len(mine) == planned.get(part) and {line["question_id"] for line in mine} == wanted)
+            ok_by_task[task] = ok
+            if ok:
+                pooled[task] += mine
+                rows_by_task[task] += [r for r in rows if r["task"] == task]
+                measured[task].append(run.get("measurement") is True)
+                classes[task].append(row["display_class"])
+        parts.append({"unit": unit["unit"], "part": part, "status": row["status"],
+                      "status_reason": row.get("status_reason"), "display_class": row["display_class"],
+                      "ok_by_task": ok_by_task, "complete_by_task": dict(by_task),
+                      "stopped": run.get("stopped") if isinstance(run, dict) else None,
+                      "stopped_task": run.get("stopped_task") if isinstance(run, dict) else None,
+                      "measurement": run.get("measurement") if isinstance(run, dict) else None,
+                      "latency_ms_by_task": run.get("latency_ms_by_task") if isinstance(run, dict) else None,
+                      "tokens_by_task": run.get("tokens_by_task") if isinstance(run, dict) else None})
+    sets: dict[str, dict[str, Any]] = {}
+    for task in lab_j3.TASKS:
+        parts_ok = [p["part"] for p in parts if p["ok_by_task"][task]]
+        complete = parts_ok == list(range(1, settings["parts"] + 1))
+        sets[lab_j3.TASK_LABELS[task]] = {
+            "task": task, "parts_finished": len(parts_ok), "parts_ok": parts_ok, "complete": complete,
+            "partial": not complete and bool(parts_ok),
+            "display_class": _class_of([c for c in classes[task] if c != "no-result"], fallback),
+            "measurement": all(measured[task]) if measured[task] else None}
+    lexical_by_id = {line["question_id"]: line for line in comparators["lexical"]}
+    arms: dict[str, dict[str, Any]] = {}
+    views: dict[str, list[dict[str, Any]]] = {}
+    for arm in lab_j3.ARMS:
+        views[arm] = lab_j3.arm_lines(pooled[lab_j3.ARM_TASK[arm]], arm, lexical_by_id)
+        arms[arm] = _j3_arm(arm, sets[lab_j3.TASK_LABELS[lab_j3.ARM_TASK[arm]]], views[arm], questions, comparators,
+                            settings, primary=(model == primary["model"] and arm == primary["arm"]),
+                            headline_arm=(arm == headline_arm), headline_secondary=(arm == headline_secondary))
+    lifts: dict[str, dict[str, Any]] = {}
+    for name, arm, minus in lab_j3.LIFTS:
+        paired = (lab_j1.paired(questions, views[arm], views[minus], bootstrap_b=b, bootstrap_seed=seed)
+                  if views[arm] and views[minus] else None)
+        lifts[name] = {"arm": arm, "minus": minus, "lever": lab_j3.LIFT_LEVERS[name], "paired": paired,
+                       "reading": lab_j3.lift_reading(paired),
+                       "complete": arms[arm]["complete"] and arms[minus]["complete"]}
+    differences: dict[str, dict[str, Any]] = {}
+    for name, arm, ablation in lab_j3.ABLATION_DIFFERENCES:
+        paired = arms[arm]["paired_ablation_a" if ablation == lab_j3.ABLATION_A else "paired_ablation_b"]
+        differences[name] = {"arm": arm, "ablation": ablation, "paired": paired,
+                             "reading": lab_j3.lift_reading(paired), "complete": arms[arm]["complete"]}
+    return {"parts": parts, "sets": sets, "arms": arms, "lifts": lifts, "ablation_differences": differences,
+            "evidence": _j3_evidence(pooled[lab_j3.EVIDENCE_TASK]),
+            "first_keys": {task: _j3_first_keys(pooled[task], task) for task in lab_j3.TASKS},
+            "tokens": {task: _j3_tokens(rows_by_task[task], task) for task in lab_j3.TASKS}}
+
+
+def j3_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]) -> dict[str, Any] | None:
+    """The report's ``j3`` block (null without J3 units); ``sources`` maps each J3 unit to (its row, its record, its
+    shard root). It needs the verified preregistration (else its reason is :data:`~lab.notes.PREREG_MISSING`). It
+    holds the labels and questions records, the exclusion's counts, outcomes and hashes (B5, B22; a stand-in is
+    marked), the settings, the three tasks' pins, the mapping, the grounding, the composite, the arms, the lifts, the
+    primary pair, the headline arm and the headline secondary, the comparison count (this cycle's arms times
+    models, the count before, the running count), the target, the comparators and both ablations on every record and
+    the lexical judge's unknown count (B8); per model its parts, its three (model, task) sets (``complete`` when
+    every part finished for that task, rule 14), its nine arms (each scored by ``lab.j1.score`` over its view beside
+    the comparators on the same records, the verdict word and pass test of rule 12 with the ablation clauses for the
+    composite arms, J001's headline for the headline arm and the headline secondary), the lifts and the ablation
+    differences of rule 10, the evidence readings, the first-key shares and the token figures of rule 13; and
+    ``primary_result``, the primary pair's entry read out with the headline secondary's word beside it (B1). The
+    line check reads the drawn narratives through ``lab.j1.payload`` inside this job only (B23); no verdict line,
+    question, narrative or citation is copied."""
+    units = sorted((u for u in plan["units"] if u["experiment"] == "j3"), key=lambda u: u["unit"])
+    if not units:
+        return None
+    fallback = "plumbing" if plan.get("result_class") == "plumbing" else "unverified"
+    shown = [sources[u["unit"]][0]["display_class"] for u in units
+             if sources[u["unit"]][0]["display_class"] != "no-result"]
+    block: dict[str, Any] = {"label": "public_nhtsa", "reason": None, "display_class": _class_of(shown, fallback),
+                             "labels": None, "questions": None, "exclusion": None, "settings": None, "tasks": None,
+                             "mapping": None, "grounding": None, "composite": None, "arms": None, "lifts": None,
+                             "ablation_differences": None, "primary": None, "headline_arm": None,
+                             "headline_secondary": None, "comparisons": None,
+                             "target_balanced_accuracy": lab_j3.TARGET_BA, "stand_in": None, "chain_lines": None,
+                             "lexical": None, "prior": None, "prior_bound": None, "ablation_a": None,
+                             "ablation_b": None, "lexical_unknown": None, "models": {}, "primary_result": None}
+    try:
+        prereg = load_prereg(plan_path)
+        manifest = prereg.manifest["j3"]
+        base = prereg.dir / "prereg" / "j3"
+        prereg_bytes = (prereg.dir / manifest["prereg"]).read_bytes()
+        prereg_sha = sha256_hex(prereg_bytes)
+        doc = strict_load(prereg_bytes)
+        questions = lab_j1.read_questions((base / "questions.jsonl").read_bytes())
+        comparators = {name: _j1_lines((base / f"{name}.jsonl").read_bytes())
+                       for name in ("lexical", "prior", "ablation_a", "ablation_b")}
+        labels = lab_j1.parse_labels((base / "labels.jsonl").read_bytes())
+        pack = load_pack(ROOT / doc["pack"]["ref"])
+        settings = {k: manifest[k] for k in J3_SETTINGS}
+        primary = {k: manifest["primary"][k] for k in ("model", "arm")}
+        headline_arm, headline_secondary = manifest["headline_arm"], manifest["headline_secondary"]
+        exclusion = dict(manifest["exclusion"])
+    except (PreregError, OSError, StrictJsonError, lab_j1.J1Error, KeyError, TypeError, ValueError):
+        block["reason"] = PREREG_MISSING
+        return block
+    if any(lines is None for lines in comparators.values()) or not isinstance(manifest.get("prior"), dict):
+        block["reason"] = PREREG_MISSING
+        return block
+    records = {r["record_ref"]: r for r, _ in labels}
+    texts: dict[str, str] = {}
+    for q in questions:
+        if q["record_ref"] not in texts and q["record_ref"] in records:
+            texts[q["record_ref"]] = lab_j1.payload(pack, q, records[q["record_ref"]])["record"]["text"]
+    settings["withhold_share"] = lab_j1.WITHHOLD_SHARE
+    labels_record, asked = manifest["labels"], manifest["questions"]
+    models = sorted({u["model"] for u in units})
+    this_cycle = len(lab_j3.ARMS) * len(models)
+    block.update(labels={k: labels_record.get(k) for k in ("source", "pack", "n", "seed", "records", "claims",
+                                                            "sha256", "available")},
+                 questions={k: asked.get(k) for k in ("records", "questions", "parts", "part_records", "seed",
+                                                      "negative_draw", "sha256")},
+                 exclusion=exclusion, settings=settings, tasks=manifest["tasks"], mapping=manifest["mapping"],
+                 grounding=manifest["grounding"], composite=manifest["composite"], arms=manifest["arms"],
+                 lifts=manifest["lifts"], ablation_differences=manifest["ablation_differences"], primary=primary,
+                 headline_arm=headline_arm, headline_secondary=headline_secondary,
+                 comparisons={"this_cycle": this_cycle, "before": settings["comparisons_before"],
+                              "since_loop_began": settings["comparisons_before"] + this_cycle},
+                 stand_in=manifest.get("stand_in") is True, chain_lines=manifest.get("excluded_lines"),
+                 lexical=manifest["lexical"], prior=manifest["prior"], prior_bound=lab_j1.prior_bound(questions),
+                 ablation_a=manifest["ablation_a"], ablation_b=manifest["ablation_b"],
+                 lexical_unknown=manifest.get("lexical_unknown"))
+    for model in models:
+        block["models"][model] = _j3_model(model, [u for u in units if u["model"] == model], sources, prereg_sha,
+                                           questions, texts, comparators, settings, fallback, primary, headline_arm,
+                                           headline_secondary)
+    entry = _get(block["models"], primary["model"], "arms", primary["arm"])
+    other = _get(block["models"], primary["model"], "arms", headline_secondary)
+    if isinstance(entry, dict):
+        block["primary_result"] = {"model": primary["model"], "arm": primary["arm"],
+                                   "verdict_word": entry["verdict_word"], "pass_test": entry["pass_test"],
+                                   "lexical_balanced_accuracy": _get(entry["lexical"], "balanced_accuracy", "value"),
+                                   "complete": entry["complete"], "display_class": entry["display_class"],
+                                   "measurement": entry["measurement"], "headline": entry["headline"],
+                                   "headline_reason": entry["headline_reason"],
+                                   "headline_secondary": ({"arm": headline_secondary,
+                                                           "verdict_word": other["verdict_word"],
+                                                           "pass_test": other["pass_test"],
+                                                           "headline": other["headline"],
+                                                           "headline_reason": other["headline_reason"]}
+                                                          if isinstance(other, dict) else None)}
+    return block
+
+
 # --------------------------------------------------------------------------------------------------- L1
 
 def _l1_called(root: Path, unit: dict[str, Any]) -> bool:
@@ -1636,6 +1987,7 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
     e1_sources: dict[str, E1Source] = {}
     j1_sources: dict[str, E1Source] = {}
     j2_sources: dict[str, E1Source] = {}
+    j3_sources: dict[str, E1Source] = {}
     l1_sources: dict[str, E1Source] = {}
     l1_refused = l1_reruns(plan, roots, {s: root for s, (_, root) in states.items()})
     samples: dict[tuple[Any, ...], list[float]] = {}
@@ -1661,6 +2013,8 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
             j1_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
         if unit["experiment"] == "j2":
             j2_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
+        if unit["experiment"] == "j3":
+            j3_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
         if unit["experiment"] == "l1":
             l1_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
         if unit["experiment"] == "e2" and record is not None:
@@ -1716,6 +2070,7 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
     e1 = e1_block(plan, plan_path, e1_sources, out)
     j1 = j1_block(plan, plan_path, j1_sources)
     j2 = j2_block(plan, plan_path, j2_sources)
+    j3 = j3_block(plan, plan_path, j3_sources)
     l1 = l1_block(plan, plan_path, l1_sources, l1_refused, reaggregation is not None)
     sealed_roots = [root for state, root in (states[s["shard"]] for s in plan["shards"])
                     if state == "sealed" and root is not None]
@@ -1732,7 +2087,7 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
         "plan": {"sha256": plan_sha256, **{k: plan.get(k) for k in ("git_sha", "provider", "job_minutes",
                                                                      "max_parallel", "retention_days")}},
         "unit_count": len(units), "shard_count": len(shard_rows), "shards": shard_rows, "units": units,
-        "e3": e3, "g0": g0, "sim": sim, "sim_sizing": sim_sizing, "e1": e1, "j1": j1, "j2": j2, "l1": l1,
+        "e3": e3, "g0": g0, "sim": sim, "sim_sizing": sim_sizing, "e1": e1, "j1": j1, "j2": j2, "j3": j3, "l1": l1,
         "e2": e2, "e2_sizing": e2_sizing, "x1": x1, "openfda": openfda, "latency": latency_rows(samples),
         "provision": provision_rows(records, plan_sha256), "lock": lock,
         "notes": {"cpu_models": cpu_models, "world_digest": world_digest_groups(g0),
