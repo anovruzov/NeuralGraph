@@ -718,13 +718,14 @@ class LiveRunTests(unittest.TestCase):
                              narrative_prefixes=self.harness.prefixes, prefix_length=ew.NARRATIVE_PREFIX)
         self.assertEqual(found, {"record_ref_hits": 0, "narrative_marker_hits": 0, "narrative_prefix_hits": 0})
         # M24: the report records the allocation name and the five metric fields of the simulator's columns only,
-        # never a tier label (every label of every allocation of ``models.py``, read from the module so none is
+        # never the tier labels of the allocation it ran (``models.py:216-217``, read from the module so none is
         # written here; the checkpoint name of ``models.py:8`` may not be written into code at all)
+        from research.e2e_ingest.measure import ALLOCATION
         from research.mycelic.models import ALLOCATIONS
-        tiers = sorted({tier for alloc in ALLOCATIONS.values() for tier in alloc})
+        tiers = sorted(set(ALLOCATIONS[ALLOCATION]))
         self.assertGreater(len(tiers), 3)
         self.assertEqual(rp.forbidden_strings(text, tiers), [])
-        self.assertIn('"allocation": "back-loaded"', text)
+        self.assertIn(f'"allocation": "{ALLOCATION}"', text)
         # the pack's ``never_fields`` are ``narrative`` and ``reporter``: the only "narrative" in the report is the
         # name of drill 5's own two counters, and "reporter" appears only as a bucket name
         rest = text.replace("narrative_marker_hits", "").replace("narrative_prefix_hits", "")
