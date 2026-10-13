@@ -121,6 +121,18 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   written, the wiring across request, plan, prereg, units, warmup, responder, aggregate, summary, notes, dryrun,
   workflow and template committed as WIP (29e0e8b, e9cd3e0, the dry run passes); the tests are being written, then
   docs, suites, the pinned-file check and the final commit; two reviews and a fix follow. No usage-limit message.
+- 2026-10-13 14:30 Second outage: the account's session limit ("resets 6:40am (UTC)") stopped both workflows at
+  about 05:02 UTC; the session resumed at 14:26 UTC (about 9 h 25 min with no agent work). Saved before the stop:
+  EMERGENCE S7 and S8 (254dcf2), both build reviews (4 blocking and 10 minor findings each: the workflow test reading
+  the branch name out of the brief, M1's chain never read from the fabric's verdict payloads, drill 2 under
+  in-process mode, the e2e test floor asserted against itself, the section 4 leakage scan not run over every crossing
+  byte, c10 counting subtests as tests, and the brief's guard hits), and the fixer's first 35 minutes on wf/e2e-fix
+  (3c850d8 merges the deployment branch 7f96442 so the brief's guard fix 65428d9 is in the build; 2ffd773 and
+  5920294 amend the brief after the review: a fifth suite job, and M14's Tesseract phase 8 minutes and size-2,000
+  phase 12 minutes, total still 42 of 45). A002 build: WIP 242228f (tests, pins, lab docs) and 3d8279e (BUILD-A002.md
+  as left) saved on wf/a002; the suites, dry run, pinned-file check and final commit remain. Both workflows resumed
+  with their scripts patched to continue from these branches (wf/e2e-fix2, wf/a002-b). The founder's "Continue"
+  (14:26) is read as: carry on.
 
 ## Open asks (date asked)
 
