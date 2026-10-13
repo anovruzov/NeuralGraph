@@ -324,6 +324,71 @@ J2_EXCLUSION_DISAGREES = ("both freshness mechanisms verified but their record s
                           "any model runs")
 J2_TOO_FEW_RECORDS = ("fewer eligible unexcluded records remain than the draw needs; no further fresh draw is "
                       "pre-registered")
+J3_EVIDENCE_STOPPED = ("the judge run finished its first pass, the evidence task, and stopped in a later pass, the "
+                       "rationale task or the negation task, at its budget or after the server stayed down; the "
+                       "evidence pass's verdicts are complete and kept, and the later passes did not finish for this "
+                       "part")
+J3_LABEL = ("{j_three} here asks one model the site verifier's narrow question about a fresh draw of real public NHTSA "
+            "complaint narratives with two earlier cycles' records excluded, one record at a time with its codes "
+            "hidden, three times: under the lab-side negation instruction, under that instruction with an evidence "
+            "field that asks for a verbatim passage of the record, and under it with an analysis field written before "
+            "the answers; each verdict is scored against the components the complaint was filed under (filed codes, "
+            "not human-checked labels), by the product's own verdict rule on the answers as answered and, as declared "
+            "secondaries, after the grounding check (a yes whose passage is not in the record read as a no), after the "
+            "unclear-to-no mapping, and in a composite that confirms wherever the lexical judge does.")
+J3_ARMS_NOTE = ("Nine arms on one model, declared before the run: negation and negation_mapped are the first accuracy "
+                "test's control arms replicated; evidence reads the evidence task's answers as answered (the primary "
+                "arm); evidence_grounded reads a yes as a no when the cited passage is not a verbatim substring of the "
+                "record's text (the headline secondary); evidence_grounded_mapped adds the unclear-to-no mapping; "
+                "rationale and rationale_mapped read the rationale task's answers as answered and under the mapping; "
+                "composite and composite_mapped confirm wherever the plan job's lexical judge confirms and otherwise "
+                "take the grounded arm's verdict. Model calls are made for the three tasks only: every other arm is "
+                "the same replies read again. The lifts are paired differences between arms, record by record; a lift "
+                "helps when its interval's low end is above zero, hurts when its high end is below zero, and is "
+                "otherwise not told apart. They decide nothing toward the target.")
+J3_VERDICT_NOTE = ("The verdict word is read on the primary pair alone, from the figures, in this order: incomplete "
+                   "(a part did not finish, the set is not a model measurement, transport failures left out more than "
+                   "one record in a hundred, or, for a composite arm, an ablation difference is not a number), "
+                   "pass_provisional (balanced accuracy at or above the target, the paired difference to the lexical "
+                   "judge with its low end above zero, the balanced accuracy's low end above the predicate-only bound "
+                   "on the same records, the unknown share reported and, for a composite arm, the paired differences "
+                   "to both ablations with their low ends above zero), partial (the target reached but an interval "
+                   "clause failed, the lexical judge beaten below the target, or a composite that meets the four "
+                   "clauses but not an ablation clause), else failure. Every other arm is a secondary with the same "
+                   "word, which is a hypothesis for the next cycle, never a result; the headline secondary's word is "
+                   "printed beside the primary's as the primary under the other reading of the standing default; a "
+                   "first pass is provisional until the next cycle's fresh draw confirms it.")
+J3_PRIMARY_LINE = ("Primary pair {model} {arm}: {word}. It scored balanced accuracy {ba} [{lo}, {hi}]; gap to the "
+                   "target {target} is {gap}; lexical judge {lex} on the same records, paired difference {diff} "
+                   "[{dlo}, {dhi}]; predicate-only bound {bound}; unknown share {unknown}. Under the other reading of "
+                   "the standing default the primary would be {other_arm}: {other_word}.")
+J3_EVIDENCE_NOTE = ("The grounding check says that a cited passage came from the record, not that it reports the "
+                    "problem: a yes answer whose citation is not a verbatim substring of the record's text (case and "
+                    "runs of whitespace aside, at least four characters) is read as a no. The grounded share of yes "
+                    "answers is shown for positives and for negatives apart: a check that removes yes answers on "
+                    "negatives and keeps them on positives is the lever working; one that removes them alike is a "
+                    "cost with no reading. The composite arms inherit the lexical judge, which is why their pass test "
+                    "also needs the paired differences to both ablations above zero; on a draw where the lexical judge "
+                    "never answers unknown, ablation A is the lexical judge line for line. The first-key share says "
+                    "whether the model wrote the new field before its answers; the token figures and the replies cut "
+                    "at the cap say how much it wrote. None of these decides anything.")
+J3_EXCLUSION_NOTE = ("The draw excludes two earlier cycles' records, each by its plan artifact and by a rebuild from "
+                     "the complaint file as published on the day: the first judge test's artifact and its seed-one "
+                     "rebuild, the first accuracy test's artifact (its labels file read by a check generalised to its "
+                     "layout) and its rebuild over the eligible list less the first judge test's set, and the first "
+                     "accuracy test's chain file. A cycle's set is established by its own artifact or rebuild, or else "
+                     "from the chain less the other cycle's set; the chain alone establishes neither; every "
+                     "consistency count must be zero; the excluded set is the union of every verified source's refs. "
+                     "Counts and hashes only: no record ref is written anywhere but the plan artifact.")
+J3_STAND_IN = ("Plumbing: test artifacts stood in for both excluded runs (lab.dryrun with test data), so the exclusion "
+               "checks here test the lab, not the excluded runs.")
+J3_FRESHNESS_UNVERIFIED = ("an earlier cycle's set could not be established: neither its artifact nor its rebuild "
+                           "verified and the chain could not give it; the plan job stops before any model runs and "
+                           "the loop asks (the second accuracy test's rule, The data and the draw, as amended)")
+J3_EXCLUSION_DISAGREES = ("the verified sources of the earlier cycles disagree: a consistency count is above zero; the "
+                          "plan job stops before any model runs")
+J3_TOO_FEW_RECORDS = ("fewer eligible records remain after both earlier cycles' exclusion than the draw needs; no "
+                      "further fresh draw is pre-registered")
 L1_LABEL = ("{l_one} here times the product's whole pushdown path on a real alert of MSHA's public accident file: HQ "
             "forms the narrow question, each routed mine's verifier judges its own records with the model inside the "
             "mine, one mine after another, and the commit gate decides. Each mine's verdict is scored against the key "
@@ -531,6 +596,12 @@ HEADINGS = {
     "j2": "Accuracy test: the verifier's narrow question on a fresh draw, four declared arms, one primary pair",
     "j2-arms": "Accuracy test: every (model, arm) pair beside the comparators on the same records",
     "j2-lifts": "Accuracy test: the lifts between arms, paired by record",
+    "j3": "Accuracy test, second cycle: the verifier's narrow question on a fresh draw, nine declared arms on one "
+          "model, one primary pair",
+    "j3-arms": "Accuracy test, second cycle: every arm beside the comparators and the ablations on the same records",
+    "j3-lifts": "Accuracy test, second cycle: the lifts between arms and the ablation differences, paired by record",
+    "j3-evidence": "Accuracy test, second cycle: the grounding check's readings on the evidence task",
+    "j3-tasks": "Accuracy test, second cycle: per task, the first key, the output tokens and the replies cut at the cap",
     "l1": "Latency test: alert to answer on CPU, per model, beside the comparators",
     "l1-time": "Latency test: where the time goes",
     "l1-prereg": "Latency test: the alert, the questions and the comparators, fixed before any model runs",
@@ -807,6 +878,29 @@ COLUMNS = {
     "j2_excluded_sha": "excluded refs file sha",
     "j2_complaints_sha": "complaint file sha",
     "j2_comparisons": "comparisons since the loop began",
+    "j3_reading": "reading",
+    "j3_diff_ablation_a": "minus ablation A, paired by record",
+    "j3_diff_ablation_b": "minus ablation B, paired by record",
+    "j3_ablation_a_all": "ablation A, every record",
+    "j3_ablation_b_all": "ablation B, every record",
+    "j3_lexical_unknown": "lexical judge unknown verdicts",
+    "j3_letter": "arm letter",
+    "j3_secondary": "headline secondary",
+    "j3_replies": "replies",
+    "j3_grounded_positive": "grounded share of yes answers on positives",
+    "j3_grounded_negative": "grounded share of yes answers on negatives",
+    "j3_empty_citation": "empty citation share",
+    "j3_citation_p50": "citation length median",
+    "j3_citation_p95": "citation length ninety-fifth percentile",
+    "j3_first_key_share": "first key is the new field",
+    "j3_attempts": "attempts",
+    "j3_tokens_out_p50": "tokens out median",
+    "j3_tokens_out_p95": "tokens out ninety-fifth percentile",
+    "j3_cut": "replies cut at the cap",
+    "j3_sources": "sources",
+    "j3_cycles": "cycles established by",
+    "j3_consistency": "consistency counts",
+    "j3_chain_lines": "chain file lines",
     "l1_finished": "questions finished",
     "l1_d_lex": "minus the lexical judge",
     "l1_d_route": "minus the route-role baseline",

@@ -17,7 +17,9 @@ model as ``endpoint``, ``part``, ``parts``, ``seed``, ``bootstrap_b`` and ``boot
 ``quality``); an L1 unit is one model and one question slot, ``l1-<model>-q<k>`` (params: the model as ``endpoint``,
 ``slot``, ``slots``, ``bootstrap_b`` and ``bootstrap_seed``; serving class ``quality``; latency test L001); a J2 unit
 is one model and one part, ``j2-<model>-p<k>`` (params: J1's plus ``exclude``, ``primary`` and
-``comparisons_before``; serving class ``quality``; accuracy test A001); an E2 unit is one model, ``e2-<model>`` (params: the block's world and harness settings, the plant's
+``comparisons_before``; serving class ``quality``; accuracy test A001); a J3 unit is one model and one part,
+``j3-<model>-p<k>`` (the same params, ``exclude`` a two-entry list; accuracy test A002); an E2 unit is one model,
+``e2-<model>`` (params: the block's world and harness settings, the plant's
 repository path ``plant_path``, the pack's site count ``sites``, the sorted seeds, the first of them as ``seed`` and
 ``central_context_tokens``, :func:`central_context_tokens`); ``x1`` and ``openfda`` are one model-free unit each
 (model None, kind ``none``; X1 takes E2's params without ``top_n``, ``min_candidates``, ``central`` and
@@ -79,7 +81,9 @@ provision job restores: ``restore_key``, or ``restore_prefix`` plus ``unlocked``
 keys end in 16 hex).
 
 ``--github-output`` appends ``has_provision``, ``has_units``, ``j2_exclude_artifact`` and ``j2_exclude_run_id`` (the
-earlier run's plan artifact a j2 plan excludes, A1; empty otherwise), ``matrix``, ``max_parallel``, ``plan_sha256``,
+earlier run's plan artifact a j2 plan excludes, A1, or the first of the two a j3 plan excludes, B2; empty otherwise),
+``j3_exclude_artifact_2`` and ``j3_exclude_run_id_2`` (the second run a j3 plan excludes; empty otherwise), ``matrix``,
+``max_parallel``, ``plan_sha256``,
 ``provision_matrix`` (``{"include": <provision>}``), ``retention_days`` and ``result_class``, one ``name=value`` line
 each. GitHub caps a job's outputs at 1 MB counted in UTF-16, so the plan refuses (``the job matrix would be too
 large``) when these outputs plus the workflow's ``plan_artifact`` name would exceed :data:`MAX_OUTPUT_BYTES` UTF-16
@@ -124,8 +128,9 @@ SHARD_ID_RE = re.compile(r"s[0-9]{3}-[a-z0-9][a-z0-9-]{0,23}", re.ASCII)
 NO_MODEL = "none"
 HOSTED_GROUP = "hosted"
 CLASS_RANK = {"quality": 0, "e2": 1, "e3": 2}
-OUTPUT_KEYS = ("has_provision", "has_units", "j2_exclude_artifact", "j2_exclude_run_id", "matrix", "max_parallel",
-               "plan_sha256", "provision_matrix", "retention_days", "result_class")
+OUTPUT_KEYS = ("has_provision", "has_units", "j2_exclude_artifact", "j2_exclude_run_id", "j3_exclude_artifact_2",
+               "j3_exclude_run_id_2", "matrix", "max_parallel", "plan_sha256", "provision_matrix", "retention_days",
+               "result_class")
 
 
 class PlanError(LabError):
@@ -238,14 +243,14 @@ def build_units(request: Request, manifest: Manifest, openfda_key: bool = False)
                               **{key: block[key] for key in ("bootstrap_b", "bootstrap_seed")}}
                     units.append(_unit(request, manifest, "l1", model, f"q{k}", block["minutes"], params,
                                        [block["bootstrap_seed"]]))
-        elif experiment == "j2":
+        elif experiment in ("j2", "j3"):
             for model in block["models"]:
                 for k in range(1, block["parts"] + 1):
                     params = {"pack": block["labels"]["pack"], "labels": block["labels"], "endpoint": model,
                               "part": k, **{key: block[key] for key in ("parts", "seed", "bootstrap_b",
                                                                          "bootstrap_seed", "exclude", "primary",
                                                                          "comparisons_before")}}
-                    units.append(_unit(request, manifest, "j2", model, f"p{k}", block["minutes"], params,
+                    units.append(_unit(request, manifest, experiment, model, f"p{k}", block["minutes"], params,
                                        [block["seed"]]))
         else:
             for model in block["models"]:
@@ -442,19 +447,38 @@ def j2_exclude(plan: dict[str, Any] | None) -> dict[str, Any] | None:
     return None
 
 
+def exclude_entries(plan: dict[str, Any] | None) -> list[dict[str, Any]] | None:
+    """The ``exclude`` entries of the plan's j2 units (one) or j3 units (two, in seed order); None for any other plan
+    (B2). A j2 plan's list is ``[j2_exclude(plan)]``."""
+    if plan is None:
+        return None
+    for unit in plan.get("units", []):
+        if unit.get("experiment") == "j2":
+            return [unit["params"]["exclude"]]
+        if unit.get("experiment") == "j3":
+            return list(unit["params"]["exclude"])
+    return None
+
+
 def plan_outputs(plan: dict[str, Any] | None, plan_sha256: str) -> dict[str, str]:
     """The plan step's outputs (:data:`OUTPUT_KEYS`). ``j2_exclude_run_id`` and ``j2_exclude_artifact`` name the
-    earlier run whose plan artifact the plan job downloads for a j2 plan (A1); both are empty otherwise, which
-    skips the download step."""
-    exclude = j2_exclude(plan)
+    earlier run whose plan artifact the plan job downloads for a j2 plan (A1) or the first of the two for a j3 plan
+    (B2: the workflow's ``earlier`` step keys on them); ``j3_exclude_run_id_2`` and ``j3_exclude_artifact_2`` the
+    second run of a j3 plan (the ``earlier-2`` step). Each pair is empty otherwise, which skips its download step."""
+    entries = exclude_entries(plan) or []
+    first = entries[0] if entries else None
+    second = entries[1] if len(entries) > 1 else None
     if plan is None:
         return {"has_provision": "false", "has_units": "false", "j2_exclude_artifact": "", "j2_exclude_run_id": "",
+                "j3_exclude_artifact_2": "", "j3_exclude_run_id_2": "",
                 "matrix": canonical_dumps({"include": []}), "max_parallel": "1", "plan_sha256": "",
                 "provision_matrix": canonical_dumps({"include": []}), "retention_days": "1", "result_class": "none"}
     return {"has_provision": "true" if plan["provision"] else "false",
             "has_units": "true" if plan["units"] else "false",
-            "j2_exclude_artifact": exclude["artifact"] if exclude is not None else "",
-            "j2_exclude_run_id": str(exclude["run_id"]) if exclude is not None else "",
+            "j2_exclude_artifact": first["artifact"] if first is not None else "",
+            "j2_exclude_run_id": str(first["run_id"]) if first is not None else "",
+            "j3_exclude_artifact_2": second["artifact"] if second is not None else "",
+            "j3_exclude_run_id_2": str(second["run_id"]) if second is not None else "",
             "matrix": canonical_dumps(plan["matrix"]),
             "max_parallel": str(max(1, min(plan["max_parallel"], len(plan["shards"])))), "plan_sha256": plan_sha256,
             "provision_matrix": canonical_dumps({"include": plan["provision"]}),

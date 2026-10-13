@@ -11,6 +11,10 @@ sends (``response_format.json_schema.name``, which is the task name):
 * ``judge_record_negation`` (accuracy test A001's variant task, ``lab.j2.NEGATION_TASK``): the same handler as
   ``judge_record`` in both branches (A10), so a dry run never measures the instruction: its arms C and D equal A and B
   there (the lexical judge never answers unclear, so the mapping changes nothing);
+* ``judge_record_evidence`` and ``judge_record_rationale`` (accuracy test A002's variant tasks, ``lab.j3``): the
+  same handler's two answers plus an empty ``citation`` or ``analysis`` (first in the reply), in both branches, so a
+  dry run's replies satisfy S_E and S_R and never measure the instructions, the grounding check or the composite:
+  an empty citation is not grounded, so the grounded arms refute every question the fake would have confirmed;
 * ``e3_extraction_like`` and ``e3_short_answer``: a fixed reply that satisfies the E3 workload schema;
 * ``judge_candidate_raw`` and ``judge_candidate_allowed`` (E2's central comparator): ``{"score": <the payload's
   canonical sha256 as an integer, mod 101>}``, deterministic and pack-free (a plumbing answer, not a judgement).
@@ -34,6 +38,7 @@ from mycelic.collective.packs.canonical import Canonicaliser, folded
 from mycelic.collective.packs.loader import FrozenPack
 
 from .j2 import NEGATION_TASK
+from .j3 import EVIDENCE_TASK, RATIONALE_TASK, TASK_FIELDS
 
 E3_REPLIES = {
     WORKLOADS["extraction"][0].name: {"facts": ["the text lists routine equipment checks"]},
@@ -53,6 +58,12 @@ def pack_free_judge(payload: Mapping[str, Any]) -> dict[str, Any]:
     return {"mentions_entity": "yes", "describes_predicate": "yes" if words & text else "no"}
 
 
+def with_field(handler: Callable[[Mapping[str, Any]], dict[str, Any]],
+               field: str) -> Callable[[Mapping[str, Any]], dict[str, Any]]:
+    """A judge handler's two answers behind an empty ``field`` (A002's evidence and rationale tasks)."""
+    return lambda payload: {field: "", **handler(payload)}
+
+
 class Responder:
     def __init__(self, pack: FrozenPack | None, *, pack_free_judge: bool = False) -> None:
         self.pack = pack
@@ -61,10 +72,12 @@ class Responder:
             canonicaliser = Canonicaliser(pack)
             self._handlers[TASK_NAME] = lexical_handler(pack, canonicaliser)
             self._handlers[JUDGE_TASK] = lexical_judge(pack, canonicaliser)
-            self._handlers[NEGATION_TASK] = self._handlers[JUDGE_TASK]
         elif pack_free_judge:
             self._handlers[JUDGE_TASK] = globals()["pack_free_judge"]
+        if JUDGE_TASK in self._handlers:
             self._handlers[NEGATION_TASK] = self._handlers[JUDGE_TASK]
+            for name in (EVIDENCE_TASK, RATIONALE_TASK):
+                self._handlers[name] = with_field(self._handlers[JUDGE_TASK], TASK_FIELDS[name])
 
     def __call__(self, request_json: Any) -> dict[str, Any]:
         fmt = request_json.get("response_format") if isinstance(request_json, dict) else None

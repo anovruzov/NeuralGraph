@@ -11,7 +11,7 @@ write a request (a small JSON file naming experiments, models, seeds, sizes and 
 `mycelic-lab` workflow then:
 
 1. plans the run: validates the request, splits it into units (one experiment on one model) and shards (the units one
-   runner job executes), and preregisters what E1, J1, J2, L1, X1 and E2 will be judged against before any model
+   runner job executes), and preregisters what E1, J1, J2, J3, L1, X1 and E2 will be judged against before any model
    runs;
 2. downloads and verifies the pinned model server and model files once per run, and caches them;
 3. runs each shard on its own runner: starts the model server on the runner's loopback address, warms it up and runs
@@ -42,6 +42,14 @@ model. The experiments:
   defines negation and absence, each read by the product's verdict rule and through a declared reply mapping; four
   arms, one primary pair, and the verdict word of the pinned rule computed by the aggregate. Its template is
   `lab/templates/accuracy.json` (copy it to `lab/requests/accuracy-001.json`).
+- J3: accuracy test A002, J001's question asked of one model about a fresh draw of real public complaints with two
+  earlier cycles' records excluded (the plan job downloads both runs' plan artifacts and rebuilds both draws, and
+  establishes each cycle's set from five sources), three times: under A001's negation instruction and under two
+  schema variants of it that ask for a verbatim passage of the record or an analysis before the answers, each
+  read by the product's verdict rule, a grounding check that reads a yes without a passage of the record as a no,
+  the unclear-to-no mapping and a lexical composite with its two ablations; nine arms, one primary pair, and the
+  verdict word of the pinned rule computed by the aggregate. Its template is `lab/templates/accuracy-002.json`
+  (copy it to `lab/requests/accuracy-002.json`).
 
 ## What a run costs
 
@@ -291,6 +299,15 @@ What each experiment's numbers mean and do not mean. Each label below is printed
   other (model, arm) pair, from the figures alone; a dry run uses a test artifact and says so:
 - `J2_LABEL`: {j_two} here asks each model the site verifier's narrow question about a fresh draw of real public NHTSA complaint narratives with an earlier run's records excluded, one record at a time with its codes hidden, twice: once with the product's judge instruction and once with a lab-side instruction that defines negation and absence; each verdict is scored against the components the complaint was filed under (filed codes, not human-checked labels), by the product's own verdict rule and, as a declared secondary, after a reply mapping that reads an unclear component answer as a no.
 - `J2_STAND_IN`: Plumbing: a test artifact stood in for the excluded run (lab.dryrun with test data), so the exclusion checks here test the lab, not the excluded run.
+- J3 asks the same question about a fresh draw with two earlier cycles' records excluded, three times under A001's
+  negation instruction and its evidence and rationale variants, read by the shipped rule, the grounding check, the
+  mapping and a lexical composite; `{j_three}` stands for J3. The plan job establishes each earlier cycle's set
+  from its artifact, its rebuild and the chain (one source per cycle suffices, verifying sources must agree),
+  draws the records, and runs J1's comparators and the two ablations before any model runs. The aggregate
+  computes rule 12's verdict word for the primary pair and, labelled exploratory, for every other arm, with the
+  headline secondary's word beside the primary's; a dry run uses test artifacts and says so:
+- `J3_LABEL`: {j_three} here asks one model the site verifier's narrow question about a fresh draw of real public NHTSA complaint narratives with two earlier cycles' records excluded, one record at a time with its codes hidden, three times: under the lab-side negation instruction, under that instruction with an evidence field that asks for a verbatim passage of the record, and under it with an analysis field written before the answers; each verdict is scored against the components the complaint was filed under (filed codes, not human-checked labels), by the product's own verdict rule on the answers as answered and, as declared secondaries, after the grounding check (a yes whose passage is not in the record read as a no), after the unclear-to-no mapping, and in a composite that confirms wherever the lexical judge does.
+- `J3_STAND_IN`: Plumbing: test artifacts stood in for both excluded runs (lab.dryrun with test data), so the exclusion checks here test the lab, not the excluded runs.
 
 Every column and its meaning is in [REFERENCE.md](REFERENCE.md#columns), and every label in
 [REFERENCE.md](REFERENCE.md#labels). The columns `found net of chance`, `chance finds` and `model path problems`
@@ -417,6 +434,10 @@ the message fills in.
 | `neither freshness mechanism verified: the earlier run's plan artifact could not be read as that run's, and the rebuilt seed-one draw does not hash to the pinned prefix; the plan job stops before any model runs (the accuracy test's rule, The data and the draw, as amended)` | Nothing ran. Check the request's `exclude` entry against the earlier run (its id, artifact name, file and sha256 prefix) and that the artifact has not expired; the plan job's log says which mechanism failed and how (`j2 exclusion:` lines). The rule asks the founder before any other change. |
 | `both freshness mechanisms verified but their record sets differ; the plan job stops before any model runs` | Nothing ran. The earlier artifact's records are not the rebuilt seed-one draw's: the request names the wrong run or file. Fix the `exclude` entry; the plan job's log prints the symmetric difference count. |
 | `fewer eligible unexcluded records remain than the draw needs; no further fresh draw is pre-registered` | Nothing ran, and the rule says no further fresh draw of this size exists: a new choice file decides what comes next. |
+| `the judge run finished its first pass, the evidence task, and stopped in a later pass, the rationale task or the negation task, at its budget or after the server stayed down; the evidence pass's verdicts are complete and kept, and the later passes did not finish for this part` | The unit is `ok`: the primary pair's set keeps this part; the rationale or negation arms and the lifts that need them are incomplete for that model and decide nothing. Read the unit's `run.json` (`stopped_task`, `questions_done_by_task`). |
+| `an earlier cycle's set could not be established: neither its artifact nor its rebuild verified and the chain could not give it; the plan job stops before any model runs and the loop asks (the second accuracy test's rule, The data and the draw, as amended)` | Nothing ran. The plan job's log names the source that did not verify (`j3 exclusion: source ...`) and how each cycle was or was not established; check that entry of the request's `exclude` list against the earlier run (its id, artifact name, file, sha256 prefix, rebuild seed and prefix, and for the second entry the chain file and its prefix), or whether the artifact has expired; the rule's amendment says what the loop asks. |
+| `the verified sources of the earlier cycles disagree: a consistency count is above zero; the plan job stops before any model runs` | Nothing ran. Two verified sources of the earlier cycles name different records: the request names the wrong run or file, or the complaint file changed under a rebuild. The plan job's log prints the four consistency counts; fix the `exclude` entry. |
+| `fewer eligible records remain after both earlier cycles' exclusion than the draw needs; no further fresh draw is pre-registered` | Nothing ran, and the rule says no further fresh draw of this size exists after both earlier cycles' exclusion: a new choice file decides what comes next. |
 | `the canary scan found no leak, but its model path had problems, so it did not test the model in the loop` | Read the listed problems and the unit's ledgers; run again against a healthy server. |
 | `openFDA stayed unreachable from this runner after the connector's retries` | Run again later. |
 | `openFDA kept refusing requests as too many after the connector's retries: add the MYCELIC_LAB_OPENFDA_API_KEY repository secret, lower max_records_per_code or product_codes, or run again later` | Follow the message. |

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "purpose": "Accuracy test A002 (docs/collective/A002/CHOICE-A002.md, amended before any build), cycle two toward the target: a-4b judges a fresh NHTSA draw (J001's and A001's records excluded, codes hidden) under the negation instruction and its evidence and rationale variants, read by the shipped rule, the grounding check, the unclear-to-no mapping and a lexical composite with its ablations; primary pair a-4b, evidence arm. Public data; the first run is the result. Copy to lab/requests/accuracy-002.json.",
+  "provider": "llama-server",
+  "models": [
+    "a-4b"
+  ],
+  "job_minutes": 330,
+  "max_parallel": 5,
+  "retention_days": 30,
+  "experiments": {
+    "j3": {
+      "minutes": 300,
+      "labels": {
+        "source": "nhtsa",
+        "pack": "docs/collective/replay/vehicles/pack",
+        "n": 150,
+        "seed": 3
+      },
+      "parts": 5,
+      "seed": 3,
+      "bootstrap_b": 10000,
+      "bootstrap_seed": 3,
+      "exclude": [
+        {
+          "run_id": 37996675559,
+          "artifact": "lab-plan-37996675559-1",
+          "file": "prereg/j1/labels.jsonl",
+          "sha256_prefix": "bc6d092d8bca",
+          "rebuild_seed": 1,
+          "rebuild_sha256_prefix": "bc6d092d8bca"
+        },
+        {
+          "run_id": 38114522160,
+          "artifact": "lab-plan-38114522160-1",
+          "file": "prereg/j2/labels.jsonl",
+          "sha256_prefix": "623780b8a1de",
+          "rebuild_seed": 2,
+          "rebuild_sha256_prefix": "623780b8a1de",
+          "chain_file": "prereg/j2/excluded.jsonl",
+          "chain_sha256_prefix": "9a948cbf2cd9"
+        }
+      ],
+      "primary": {
+        "model": "a-4b",
+        "arm": "evidence"
+      },
+      "comparisons_before": 12
+    }
+  }
+}
