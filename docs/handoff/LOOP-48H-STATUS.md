@@ -103,6 +103,18 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   sources with stop rules; 9 comparisons this cycle, 21 since the loop began. Two asks posted above. The build
   (a new lab kind j3, importing A001's j2 unchanged) is launched: build, two reviews, fix. EMERGENCE harness
   builder still working on wf/e2e-harness2.
+- 2026-10-13 03:35 EMERGENCE S5 and S6 finished on wf/e2e-harness2 (99a9d0f; the harness reviewed against the
+  brief and run end to end; tests/e2e_ingest 95 passed with a real nats-server, 14 min 38 s; flake8 clean). Trial run
+  at 200 users, seed 0, in the sandbox (4 vCPU, synthetic, measurement false, 1,181 s): criteria 0, 1, 2, 3, 4, 7, 8
+  and 9 ok as the report's checks define them (9 c0 checks, 27 c1, 15 c2, 12 c3, 25 c4, 6 c7, 6 c8, 6 c9): 55
+  candidates asked, 165 verdict events, 55 conclusions through the keyed fabric; Tesseract routing with the M4 probe
+  (1 failure injected, 1 intervention), 163 read verdicts each with one diagnostic row; forgeries counted 1, 2, 3;
+  282 stream messages, 279 verified, 3 foreign; 12,964 records ingested into 7 site graphs with 0 loss; broker killed
+  at k = 110 of N = 220 and all 220 applied once; discovery recall 0.325 (13 of 40) against the simulator's own
+  0.475 on the same world (A2 column 0.925); Tesseract p50 1.37 s, p95 2.34 s over 166 rankings. The verdict reads
+  pass false, reason suites_not_green, by M2 until the suites CLI exists; criteria 5, 6 and 10 not run. The
+  measure + CI stage (S7, S8) is building (WIP e43a2b8 on wf/e2e-measure). A002 build: WIP c4e2181 (lab/j3.py,
+  lab/j3labels.py). No usage-limit message.
 
 ## Open asks (date asked)
 
