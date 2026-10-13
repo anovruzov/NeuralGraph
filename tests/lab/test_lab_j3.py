@@ -2370,6 +2370,20 @@ class WiringTests(unittest.TestCase):
         self.assertNotIn("{", lab_summary.ids(notes.J3_LABEL))
 
 
+    def test_the_dry_run_takes_one_test_data_flag(self) -> None:
+        """``lab.dryrun --j3-data`` hands the test data to the same three ``lab.prereg`` flags as ``--j2-data`` does;
+        the two flags together are a usage error, refused before the plan is written."""
+        tmp = Path(tempfile.mkdtemp(prefix="lab-j3-dryrun-flags-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = lab_dryrun.main(["--request", str(TEMPLATES / "accuracy-002.json"), "--out", str(tmp / "out"),
+                                    "--j2-data", str(tmp / "a"), "--j3-data", str(tmp / "b")])
+        self.assertEqual(code, lab_dryrun.EXIT_USAGE)
+        self.assertIn("--j2-data and --j3-data do not go together", err.getvalue())
+        self.assertFalse((tmp / "out").exists())
+
+
 # --------------------------------------------------------------------------------------------------- dry runs
 
 class SmallDryRunTests(unittest.TestCase):
