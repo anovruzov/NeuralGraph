@@ -2311,6 +2311,65 @@ class WiringTests(unittest.TestCase):
         self.assertEqual({u["params"]["comparisons_before"] for u in p.plan["units"]}, {0})
 
 
+    def test_the_workflow_downloads_the_second_earlier_artifact(self) -> None:
+        """B2: the plan job's ``earlier-2`` step, of the ``earlier`` step's shape (the same pinned action, the
+        workflow's own read-only token, ``continue-on-error``), downloads the second excluded run's plan artifact
+        under the same ``lab-earlier`` directory by its own run id, keyed on the plan's second pair of outputs,
+        after ``earlier`` and before ``prereg``; the workflow's permissions stay ``actions: read``, ``contents: read``
+        and no job widens them."""
+        import yaml
+        text = (ROOT / ".github" / "workflows" / "mycelic-lab.yml").read_text(encoding="utf-8")
+        wf = yaml.safe_load(text)
+        self.assertEqual(wf["permissions"], {"actions": "read", "contents": "read"})
+        self.assertFalse(any("permissions" in job for job in wf["jobs"].values()))
+        steps = wf["jobs"]["plan"]["steps"]
+        ids = [s.get("id") for s in steps]
+        at = ids.index("prereg")
+        self.assertEqual(ids[at - 3:at], ["plan", "earlier", "earlier-2"])
+        earlier, second = steps[at - 2], steps[at - 1]
+        self.assertTrue(earlier["uses"].startswith("actions/download-artifact@"))
+        self.assertEqual(second["uses"], earlier["uses"])
+        self.assertIs(second["continue-on-error"], True)
+        self.assertEqual(second["if"], "steps.plan.outputs.j3_exclude_run_id_2 != ''")
+        self.assertEqual(second["with"], {
+            "name": "${{ steps.plan.outputs.j3_exclude_artifact_2 }}",
+            "run-id": "${{ steps.plan.outputs.j3_exclude_run_id_2 }}",
+            "github-token": "${{ github.token }}",
+            "path": "${{ runner.temp }}/lab-earlier/${{ steps.plan.outputs.j3_exclude_run_id_2 }}"})
+        self.assertEqual(earlier["if"], "steps.plan.outputs.j2_exclude_run_id != ''")
+        self.assertEqual(earlier["with"]["path"],
+                         "${{ runner.temp }}/lab-earlier/${{ steps.plan.outputs.j2_exclude_run_id }}")
+        self.assertEqual(text.count("github.token"), 3)
+        for key in ("j2_exclude_artifact", "j2_exclude_run_id", "j3_exclude_artifact_2", "j3_exclude_run_id_2"):
+            self.assertIn(key, lab_plan.OUTPUT_KEYS)
+        self.assertNotIn("lab-plan", second["with"]["path"])
+
+    def test_the_notes_hold_no_digit(self) -> None:
+        """The lab's guard over every fixed sentence, read for J3's: no ASCII digit in any J3 note, heading or
+        column of ``lab.notes``, so no figure can ride in a fixed sentence and every number a summary prints is
+        traced to a run file; the primary line's placeholders are the ones the summary fills."""
+        names = sorted(n for n in dir(notes) if n.startswith("J3_"))
+        self.assertEqual(names, ["J3_ARMS_NOTE", "J3_EVIDENCE_NOTE", "J3_EVIDENCE_STOPPED", "J3_EXCLUSION_DISAGREES",
+                                 "J3_EXCLUSION_NOTE", "J3_FRESHNESS_UNVERIFIED", "J3_LABEL", "J3_PRIMARY_LINE",
+                                 "J3_STAND_IN", "J3_TOO_FEW_RECORDS", "J3_VERDICT_NOTE"])
+        texts = {n: getattr(notes, n) for n in names}
+        headings = {k: v for k, v in notes.HEADINGS.items() if k == "j3" or k.startswith("j3-")}
+        columns = {k: v for k, v in notes.COLUMNS.items() if k.startswith("j3_")}
+        self.assertEqual(sorted(headings), ["j3", "j3-arms", "j3-evidence", "j3-lifts", "j3-tasks"])
+        self.assertGreater(len(columns), 20)
+        texts.update({f"HEADINGS.{k}": v for k, v in headings.items()})
+        texts.update({f"COLUMNS.{k}": v for k, v in columns.items()})
+        for name, value in texts.items():
+            with self.subTest(name=name):
+                self.assertIsInstance(value, str)
+                self.assertIsNone(re.search(r"[0-9]", value))
+        self.assertEqual(sorted(set(re.findall(r"\{([a-z_]+)\}", notes.J3_PRIMARY_LINE))),
+                         ["arm", "ba", "bound", "dhi", "diff", "dlo", "gap", "hi", "lex", "lo", "model", "other_arm",
+                          "other_word", "target", "unknown", "word"])
+        self.assertIn("J3", lab_summary.ids(notes.J3_LABEL))
+        self.assertNotIn("{", lab_summary.ids(notes.J3_LABEL))
+
+
 # --------------------------------------------------------------------------------------------------- dry runs
 
 class SmallDryRunTests(unittest.TestCase):
