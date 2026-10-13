@@ -2,7 +2,9 @@
 
 :func:`warm_tasks` lists what a serving class will ask the server: for G0 and sim units the pack's ``extract_claims``
 and ``judge_record`` tasks (not streamed), for E1 units only ``extract_claims``, for J1 units only ``judge_record``
-(whose probe, sent twice, records ``repeat_identical`` for judge test J001), for E2 units ``judge_record`` and,
+(whose probe, sent twice, records ``repeat_identical`` for judge test J001), for J2 units ``judge_record`` and the
+lab's ``judge_record_negation`` (``lab.j2.negation_task``; the tasks are sorted by name, so the probe is the shipped
+task's, A11), for E2 units ``judge_record`` and,
 when the central comparator is the model itself (``central: self``), its ``judge_candidate_raw`` and
 ``judge_candidate_allowed`` (a hosted central comparator is never warmed or fitted on this server; ``lab.hosted``'s
 preflight sends it the same payloads), for E3 units each workload's task
@@ -82,6 +84,7 @@ from mycelic.collective.schemacheck import Schema
 from mycelic.collective.schemacheck import compile as compile_schema
 
 from . import ROOT
+from . import j2 as lab_j2
 
 from .notes import (ALIAS_MISMATCH, BUDGET_EXHAUSTED, CONTEXT_TOO_SMALL, MEMORY_AFTER_LOAD, REMEDY_CONTEXT,
                     REMEDY_HTTP, REMEDY_REASONING, WARMUP_HTTP, WARMUP_LENGTH, WARMUP_REASONING)
@@ -186,12 +189,24 @@ def warm_tasks(units: list[Mapping[str, Any]], plan: Mapping[str, Any], prereg: 
             "task": judge, "schema": judge_schema(), "payload": judge_example(pack, record, record["narrative"]),
             "worst": judge_example(pack, record, worst_text), "stream": False, "units": []}
 
+    def negation_task(pack_id: str) -> None:
+        """A J2 unit's second task: the lab's negation instruction with the shipped judge's payloads (A11)."""
+        if (lab_j2.NEGATION_TASK, pack_id) in found:
+            return
+        judge = found[(judge_task().name, pack_id)]
+        found[(lab_j2.NEGATION_TASK, pack_id)] = {
+            "task": lab_j2.negation_task(), "schema": judge_schema(), "payload": judge["payload"],
+            "worst": judge["worst"], "stream": False, "units": []}
+
     for unit in units:
-        if unit["experiment"] in ("g0", "sim", "e1", "e2", "j1"):
+        if unit["experiment"] in ("g0", "sim", "e1", "e2", "j1", "j2"):
             pack_id = unit["params"]["pack"]
             pack_tasks(unit, pack_id)
+            if unit["experiment"] == "j2":
+                negation_task(pack_id)
             keys = {"e1": [(TASK_NAME, pack_id)], "e2": [(judge_task().name, pack_id)],
-                    "j1": [(judge_task().name, pack_id)]}.get(
+                    "j1": [(judge_task().name, pack_id)],
+                    "j2": [(judge_task().name, pack_id), (lab_j2.NEGATION_TASK, pack_id)]}.get(
                 unit["experiment"], [(TASK_NAME, pack_id), (judge_task().name, pack_id)])
             if (unit["experiment"] == "e2" and unit["params"]["central"] == "self" and prereg is not None
                     and prereg.manifest.get("e2") is not None):

@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, claude/mycelic-production-deployment-r93cez]
     paths: ["mycelic/**", "tests/**", "deploy/mycelic/**", "NeuralGraph/**", "requirements*.txt", ".github/workflows/mycelic.yml",
-            "demo/onboard/**", "tools/onboard/**", "research/**", "lab/**", ".github/workflows/**"]
+            "demo/onboard/**", "tools/onboard/**", "research/**", "lab/**", "!lab/requests/**", ".github/workflows/**"]
   pull_request:
   workflow_dispatch:
 
@@ -47,6 +47,10 @@ jobs:
     name: docker compose deployment smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # Compose on current runners delegates `up --build` to buildx bake, which refuses the bake definition it reads
+      # from stdin ("additional privileges requested: pass --allow=fs.read=/dev/null"); the classic builder is used.
+      COMPOSE_BAKE: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

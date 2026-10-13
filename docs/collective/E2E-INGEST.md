@@ -28,7 +28,7 @@ its file and line.
 ## The declaration
 
 - This brief was written by the AI system that wrote the repository's code, on 2026-10-11, on branch
-  `wf/e2e-ingest-design` from `claude/mycelic-production-deployment-r93cez` at `5d646a9`.
+  `wf/e2e-ingest-design` from the deployment branch (the branch this document is committed on) at `5d646a9`.
 - It has read: `LOOP-48H.md` section 3 (`:154-182`); the routing spike (`research/routing_spike/{world,publish,run,
   hq,site_process,wire,score}.py`; `docs/collective/ROUTING-SPIKE.md`); `NeuralGraph/research/retrieval/tesseract.py`
   and its tests; the EMERGENCE generator (`research/mycelic/{org,corpus,runner,experiments,evalm,test_mycelic}.py`,
@@ -580,7 +580,8 @@ patterns through its own extraction and chain checks (`evalm.py:27`, `:101-141`)
 
 ## 11. The CI workflow
 
-`.github/workflows/e2e-ingest.yml`, on `push` to `claude/mycelic-production-deployment-r93cez` with paths
+`.github/workflows/e2e-ingest.yml`, on `push` to the deployment branch (the branch this document is committed on;
+`mycelic.yml` names it) with paths
 `research/e2e_ingest/**`, `research/routing_spike/**`, `research/mycelic/**`, `mycelic/**`, `NeuralGraph/**`,
 `tests/**`, `requirements*.txt`, `.github/workflows/e2e-ingest.yml`, and on `workflow_dispatch`. Four jobs, all on
 `ubuntu-latest`, Python 3.11, `pip install --require-hashes -r requirements.txt`, nats-server installed by the step
@@ -1065,6 +1066,14 @@ Questions 4 and 6 are answered by M15 and by M3 with M22. One question is added:
 7. M4's probe question costs one question's budget at three sites and leaves rows in their verdict logs and in HQ's
    wire, intake and receive logs, outside the answer matrix and the publish set. Is that acceptable, or should the
    eligibility exercise be a separate world of two sites in `tests/e2e_ingest` only?
+
+### Amendment 2026-10-11, after the build began (wording only)
+
+The declaration and section 11 named the deployment branch literally. The no-model-names guard
+(`tests/mycelic/test_collective_guards.py`, `NoModelNamesTests.test_repository_scan_has_no_hits`) scans
+`docs/collective` and matches the first path segment of that name; CI run 38109670867 (the first run of `tests/mycelic`
+since this brief was merged) failed on exactly those two places. Both now say "the deployment branch". No criterion,
+floor, pin, path, module name or question changed; the floors table above stands as written.
 
 ## Runs
 

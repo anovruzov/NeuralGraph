@@ -1,6 +1,6 @@
-"""Preregister a plan's E1, J1, X1 and E2 units in the plan job, before any model runs.
+"""Preregister a plan's E1, J1, J2, L1, X1 and E2 units in the plan job, before any model runs.
 
-    python -m lab.prereg --plan PLAN
+    python -m lab.prereg --plan PLAN [--earlier-plans DIR] [--nhtsa-archive FILE] [--exclude-stand-in FILE]
 
 ``D`` is the plan's directory. Each step runs only when the plan holds units that need it:
 
@@ -20,6 +20,26 @@
   at :data:`PLACEHOLDER_BASE_URL`); and ``prereg.json`` (``lab.j1.prereg_doc``:
   the hashes, the judge task's instructions, schema and ``max_tokens``, the code hash and files, the endpoints' pins,
   the boundary, the data label, the seeds, ``parts``, the twins, the excluded predicate and the bootstrap settings);
+* J2 (accuracy test A001, ``lab.j2`` and ``lab.j2labels``; ``docs/collective/A001/CHOICE-A001.md`` as amended), in
+  this process, under ``D/prereg/j2/``: the fresh draw's ``labels.jsonl`` and ``labels.json`` (``lab.j2labels``: the
+  eligible records less the excluded refs, ``random.Random("nhtsa:<seed>").sample``), after the two freshness
+  mechanisms ran: mechanism 1 reads the earlier run's plan artifact under ``--earlier-plans`` (default ``lab-earlier``
+  beside ``D``, where the workflow's download step puts ``<run id>/``; the request's ``exclude`` entry names the run,
+  the artifact, the file and the sha256 prefix) and mechanism 2 rebuilds J001's seed-1 draw from the complaint file
+  (``lab.j2labels.rebuild_refs``). Neither verifying refuses the plan (:data:`~lab.notes.J2_FRESHNESS_UNVERIFIED`);
+  both verifying with different ref sets refuses it (:data:`~lab.notes.J2_EXCLUSION_DISAGREES`); fewer eligible
+  unexcluded records than the draw needs refuses it (:data:`~lab.notes.J2_TOO_FEW_RECORDS`). Then J001's code,
+  unchanged: ``questions.jsonl`` and ``questions.json`` (``lab.j1.build_questions``), ``lexical.jsonl`` and
+  ``lexical.json``, ``prior.jsonl`` and ``prior.json``; ``excluded.jsonl`` (A3: every excluded ref plus the draw's,
+  refs only, for the next cycle to exclude); ``routing.json`` (``lab.j2.routing_doc``); and ``prereg.json``
+  (``lab.j2.prereg_doc``: J001's pins plus both tasks' pins, the mapping, the arms, the primary pair, the exclusion
+  counts and hashes, ``comparisons_before`` and the target). stdout gets the fixed draw line (the ``available`` count,
+  the excluded count, the eligible count after exclusion, the overlap, the mechanisms' outcomes and the hashes), a
+  mechanism-2 line when its sha256 differs, and the comparators' figures: counts, scores and hashes, never a ref.
+  ``--nhtsa-archive FILE`` (tests only) is the complaint archive in place of its download; ``--exclude-stand-in
+  FILE`` (tests only, ``lab.dryrun --j2-data``) replaces the request's ``exclude`` entry for the checks with a test
+  artifact's and marks the preregistration ``stand_in`` (:data:`~lab.notes.J2_STAND_IN`), so a dry run can pass the
+  checks in a sandbox that holds no real artifact; the workflow's prereg command passes neither;
 * L1 (latency test L001, ``lab.l1``), in a subprocess whose stdout and stderr go to ``D/prereg-logs`` (K9: the step
   reads MSHA's file, so nothing of it reaches the console): ``lab.l1 prereg`` downloads the file into ``lab-msha``
   beside ``D`` (:func:`lab.l1.raw_dir`, the workflow's cache path) unless it is there, rebuilds the drafter demo's
@@ -49,8 +69,9 @@ as its directory, and :data:`STEP_TIMEOUT_S` (:data:`REHEARSAL_TIMEOUT_S` for th
 The NHTSA complaint archive (``nhtsa`` labels, E1's or J1's) is downloaded at most once per preregistration;
 :func:`preregister` takes a keyword-only ``nhtsa_fetch`` in its place, which only tests pass.
 
-stdout is one line, ``prereg: e1 yes|no x1 yes|no e2 yes|no j1 yes|no``, with `` l1 yes`` appended for a plan with L1
-units. A plan that cannot be read, or a
+stdout ends with one line, ``prereg: e1 yes|no x1 yes|no e2 yes|no j1 yes|no``, with `` l1 yes`` appended for a plan
+with L1 units and `` j2 yes`` for one with J2 units (whose fixed draw and comparator lines come before it). A plan
+that cannot be read, or a
 ``D/prereg`` that exists already, is a usage error (exit 2, nothing written). A refused step writes
 ``D/plan-error.json`` (source
 ``prereg``), prints ``error: <path>: <problem>`` first on stderr and an ``::error`` workflow command, and exits 2; the
@@ -76,11 +97,14 @@ from mycelic.collective.packs import loader
 from . import EXIT_OK, EXIT_USAGE, ROOT, shown_path
 from . import hosted as lab_hosted
 from . import j1 as lab_j1
+from . import j2 as lab_j2
+from . import j2labels as lab_j2labels
 from . import l1 as lab_l1
 from . import units as lab_units
 from .goldlabels import GoldLabelsError, build_labels, nhtsa_export
-from .notes import L1_FETCH_FAILED, L1_STOPPED
+from .notes import J2_EXCLUSION_DISAGREES, J2_FRESHNESS_UNVERIFIED, J2_TOO_FEW_RECORDS, L1_FETCH_FAILED, L1_STOPPED
 from .plan import write_plan_error
+from .request import RequestError, _exclude as validate_exclude, SHA256_PREFIX_RE
 
 PLACEHOLDER_BASE_URL = "http://127.0.0.1:9/v1"
 E1_BOUNDARY = "site:lab"
@@ -93,6 +117,7 @@ E1_MODULE = "mycelic.collective.experiments.e1_extract"
 X1_MODULE = "mycelic.collective.evaluate.harness"
 E2_MODULE = "mycelic.collective.experiments.e2_pushdown"
 MANIFEST = "prereg/prereg.json"
+EARLIER_DIRNAME = "lab-earlier"     # the workflow's download path for an earlier run's plan artifact (A1)
 CENTRAL_TASKS = ("judge_candidate_raw", "judge_candidate_allowed")
 E1_REFUSED = "E1 preregistration refused these settings; its log is in the plan artifact under prereg-logs"
 X1_REFUSED = "the evaluation harness refused these settings; its log is in the plan artifact under prereg-logs"
@@ -352,6 +377,125 @@ def _j1(plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path,
             "bootstrap_b": p["bootstrap_b"], "bootstrap_seed": p["bootstrap_seed"]}
 
 
+def earlier_dir(plan_dir: Path) -> Path:
+    """Where the plan job's download step puts an earlier run's plan artifact: ``lab-earlier/<run id>/`` beside the
+    plan's directory (never under it: everything under the plan's directory is uploaded)."""
+    return Path(plan_dir).parent / EARLIER_DIRNAME
+
+
+def load_stand_in(path: str | Path) -> dict[str, Any]:
+    """A tests-only exclusion stand-in (``lab.dryrun --j2-data``): the request's ``exclude`` keys, validated as the
+    request validates them, plus an optional ``rebuild_sha256_prefix`` for mechanism 2."""
+    doc = strict_load(Path(path).read_bytes())
+    if not isinstance(doc, dict):
+        raise RequestError("exclude_stand_in", "must be an object")
+    rebuild = doc.pop("rebuild_sha256_prefix", None)
+    out = validate_exclude(doc, "$.exclude_stand_in")
+    if rebuild is not None:
+        if not isinstance(rebuild, str) or SHA256_PREFIX_RE.fullmatch(rebuild) is None:
+            raise RequestError("$.exclude_stand_in.rebuild_sha256_prefix", "must be 12 to 64 lower-case hex digits")
+        out["rebuild_sha256_prefix"] = rebuild
+    return out
+
+
+def _sha12(value: Any) -> str:
+    return value[:12] if isinstance(value, str) else "none"
+
+
+def _j2(plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path, nhtsa_fetch: Callable[[], bytes],
+        earlier_plans: Path | None, stand_in: Mapping[str, Any] | None) -> dict[str, Any]:
+    """J2's preregistration (see the module docstring), all in this process; the manifest's ``j2`` block."""
+    p = units[0]["params"]
+    labels = p["labels"]
+    requested = dict(p["exclude"])
+    used = dict(stand_in) if stand_in is not None else requested
+    rebuild_prefix = used.pop("rebuild_sha256_prefix", lab_j2labels.J001_LABELS_SHA256_PREFIX)
+    refs1, outcome1 = lab_j2labels.earlier_refs(earlier_plans, used)
+    refs2, outcome2, rebuilt_sha = lab_j2labels.rebuild_refs(nhtsa_fetch, rebuild_prefix)
+    mechanisms = {"artifact": outcome1, "rebuild": outcome2}
+    if outcome2 != lab_j2labels.VERIFIED:
+        print(f"j2 exclusion: mechanism rebuild {outcome2}: rebuilt seed-one labels sha256 {_sha12(rebuilt_sha)} "
+              f"against the pinned prefix {rebuild_prefix[:12]}", flush=True)
+    if outcome1 != lab_j2labels.VERIFIED:
+        print(f"j2 exclusion: mechanism artifact {outcome1}", flush=True)
+    verifying = [r for r in (refs1, refs2) if r is not None]
+    if not verifying:
+        raise _StepFailed("$.experiments.j2.exclude", J2_FRESHNESS_UNVERIFIED)
+    difference = len(refs1 ^ refs2) if refs1 is not None and refs2 is not None else None
+    if difference is not None:
+        print(f"j2 exclusion: both mechanisms verified; symmetric difference {difference}", flush=True)
+        if difference:
+            raise _StepFailed("$.experiments.j2.exclude", J2_EXCLUSION_DISAGREES)
+    excluded: set[str] = set().union(*verifying)
+    excluded_runs = [{"run_id": used["run_id"], "artifact": used["artifact"], "file": used["file"],
+                      "sha256_prefix": used["sha256_prefix"], "refs": len(refs1) if refs1 is not None else 0,
+                      "outcome": outcome1, "stand_in": stand_in is not None,
+                      "requested": {k: requested[k] for k in ("run_id", "artifact", "file", "sha256_prefix")}}]
+    try:
+        data, record = lab_j2labels.build_labels(labels["pack"], labels["n"], labels["seed"], fetch=nhtsa_fetch,
+                                                 excluded=excluded, mechanisms=mechanisms,
+                                                 excluded_runs=excluded_runs)
+    except lab_j2labels.J2LabelsError as err:
+        print(f"j2 draw: {err.problem}", flush=True)
+        raise _StepFailed("$.experiments.j2.labels.n", J2_TOO_FEW_RECORDS) from None
+    exclusion = record["exclusion"]
+    exclusion.update(rebuilt_sha256=rebuilt_sha or None, rebuild_expected_prefix=rebuild_prefix,
+                     symmetric_difference=difference, stand_in=stand_in is not None)
+    pack = loader.load_pack(ROOT / labels["pack"])
+    try:
+        questions_bytes, questions = lab_j1.build_questions(pack, data, seed=p["seed"], parts=p["parts"])
+        lines = lab_j1.read_questions(questions_bytes)
+        lexical_lines = lab_j1.lexical_verdicts(pack, data, lines)
+    except lab_j1.J1Error as err:
+        raise _StepFailed("$.experiments.j2", err.problem) from None
+    prior_lines = lab_j1.prior_verdicts(lines)
+    lexical_bytes, prior_bytes = lab_j1.jsonl_bytes(lexical_lines), lab_j1.jsonl_bytes(prior_lines)
+    lexical = lab_j1.score(lines, lexical_lines, bootstrap_b=p["bootstrap_b"], bootstrap_seed=p["bootstrap_seed"])
+    prior = lab_j1.score(lines, prior_lines, bootstrap_b=p["bootstrap_b"], bootstrap_seed=p["bootstrap_seed"])
+    bound = lab_j1.prior_bound(lines)
+    endpoints = sorted({u["model"] for u in units})
+    routing = lab_j2.routing_doc(plan["models"], endpoints, PLACEHOLDER_BASE_URL)
+    drawn = {r["record_ref"] for r, _ in lab_j1.parse_labels(data)}
+    excluded_bytes = lab_j2labels.excluded_jsonl(excluded | drawn)
+    j2 = root / "prereg" / "j2"
+    j2.mkdir(parents=True)
+    (j2 / "labels.jsonl").write_bytes(data)
+    write_json_atomic(j2 / "labels.json", record)
+    (j2 / "questions.jsonl").write_bytes(questions_bytes)
+    write_json_atomic(j2 / "questions.json", questions)
+    (j2 / "lexical.jsonl").write_bytes(lexical_bytes)
+    write_json_atomic(j2 / "lexical.json", lexical)
+    (j2 / "prior.jsonl").write_bytes(prior_bytes)
+    write_json_atomic(j2 / "prior.json", prior)
+    (j2 / "excluded.jsonl").write_bytes(excluded_bytes)
+    write_json_atomic(j2 / "routing.json", routing)
+    write_json_atomic(j2 / "prereg.json", lab_j2.prereg_doc(
+        pack=pack, pack_ref=labels["pack"], labels=record, questions=questions,
+        lexical_sha256=sha256_hex(lexical_bytes), prior_sha256=sha256_hex(prior_bytes), routing=routing,
+        seed=p["seed"], parts=p["parts"], bootstrap_b=p["bootstrap_b"], bootstrap_seed=p["bootstrap_seed"],
+        primary=p["primary"], comparisons_before=p["comparisons_before"]))
+    print(f"j2 draw: available {record['available']} excluded {exclusion['excluded']} eligible_after_exclusion "
+          f"{exclusion['eligible_after_exclusion']} overlap {exclusion['overlap']} mechanisms "
+          f"artifact={outcome1} rebuild={outcome2} labels_sha256 {record['sha256'][:12]} excluded_sha256 "
+          f"{sha256_hex(excluded_bytes)[:12]} complaint_file_sha256 {exclusion['complaint_file_sha256'][:12]}",
+          flush=True)
+
+    def interval(score: Mapping[str, Any]) -> str:
+        ba = score["balanced_accuracy"]
+        return f"{ba['value']:.3f} [{ba['ci_low']:.3f}, {ba['ci_high']:.3f}]"
+
+    print(f"j2 comparators: lexical balanced_accuracy {interval(lexical)} record_blind {interval(prior)} "
+          f"predicate_only_bound {bound['value']:.3f}", flush=True)
+    return {"labels": record, "questions": questions, "lexical": lexical, "prior": prior, "prior_bound": bound,
+            "endpoints": endpoints, "prereg": "prereg/j2/prereg.json", "parts": p["parts"], "seed": p["seed"],
+            "bootstrap_b": p["bootstrap_b"], "bootstrap_seed": p["bootstrap_seed"], "exclusion": exclusion,
+            "excluded_runs": excluded_runs, "stand_in": stand_in is not None,
+            "excluded_sha256": sha256_hex(excluded_bytes), "primary": dict(p["primary"]),
+            "headline_arm": p["primary"]["arm"], "comparisons_before": p["comparisons_before"],
+            "tasks": lab_j2.task_pins(), "mapping": lab_j2.mapping_pin(), "arms": lab_j2.arms_doc(),
+            "target_balanced_accuracy": lab_j2.TARGET_BA}
+
+
 def l1_cache_key(sha256: str) -> str:
     """K10: the workflow cache key of the MSHA file, ``lab-msha-<16 hex of its sha256>``."""
     return f"lab-msha-{sha256[:16]}"
@@ -418,20 +562,23 @@ def _file_map(root: Path) -> dict[str, dict[str, Any]]:
 
 
 def preregister(plan_path: Path, *, nhtsa_fetch: Callable[[], bytes] | None = None,
-                l1_raw: Path | None = None) -> dict[str, Any]:
+                l1_raw: Path | None = None, earlier_plans: Path | None = None,
+                exclude_stand_in: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Every step the plan's units need, then the manifest; raises :class:`_StepFailed` for a refused step.
     ``nhtsa_fetch`` (tests only) returns the NHTSA complaint archive in place of its download; ``l1_raw`` names the
-    directory of MSHA's file for L1 (default :func:`lab.l1.raw_dir`)."""
+    directory of MSHA's file for L1 (default :func:`lab.l1.raw_dir`); ``earlier_plans`` the directory of the earlier
+    plan artifacts for J2 (default :func:`earlier_dir`) and ``exclude_stand_in`` (tests only) a stand-in for the
+    request's ``exclude`` entry (:func:`load_stand_in`)."""
     plan_bytes = plan_path.read_bytes()
     plan = strict_load(plan_bytes)
     root = plan_path.parent
     (root / "prereg").mkdir()
     steps = _Steps(root)
-    e1_units, x1_units, e2_units, j1_units, l1_units = (_units(plan, name)
-                                                        for name in ("e1", "x1", "e2", "j1", "l1"))
+    e1_units, x1_units, e2_units, j1_units, l1_units, j2_units = (_units(plan, name)
+                                                                  for name in ("e1", "x1", "e2", "j1", "l1", "j2"))
     fetch = _once(nhtsa_fetch)
     manifest: dict[str, Any] = {"schema_version": 1, "kind": "lab_prereg", "plan_sha256": sha256_hex(plan_bytes),
-                                "files": {}, "e1": None, "x1": None, "e2": None, "j1": None, "l1": None}
+                                "files": {}, "e1": None, "x1": None, "e2": None, "j1": None, "l1": None, "j2": None}
     if e1_units:
         manifest["e1"] = _e1(steps, plan, e1_units, root, fetch)
     if x1_units:
@@ -442,6 +589,9 @@ def preregister(plan_path: Path, *, nhtsa_fetch: Callable[[], bytes] | None = No
         manifest["j1"] = _j1(plan, j1_units, root, fetch)
     if l1_units:
         manifest["l1"] = _l1(steps, plan, l1_units, root, l1_raw)
+    if j2_units:
+        manifest["j2"] = _j2(plan, j2_units, root, fetch,
+                             earlier_plans if earlier_plans is not None else earlier_dir(root), exclude_stand_in)
     manifest["files"] = _file_map(root)
     write_json_atomic(root / MANIFEST, manifest)
     return manifest
@@ -451,8 +601,13 @@ def preregister(plan_path: Path, *, nhtsa_fetch: Callable[[], bytes] | None = No
 
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="python -m lab.prereg",
-                                description="Preregister a plan's E1, X1 and E2 units before any model runs.")
+                                description="Preregister a plan's E1, J1, J2, L1, X1 and E2 units before any model "
+                                            "runs.")
     p.add_argument("--plan", required=True)
+    p.add_argument("--earlier-plans", help="the earlier plan artifacts for J2's exclusion, <DIR>/<run id>/ "
+                                           "(default: lab-earlier beside the plan's directory)")
+    p.add_argument("--nhtsa-archive", help="tests only: the NHTSA complaint archive in place of its download")
+    p.add_argument("--exclude-stand-in", help="tests only: a stand-in for the J2 request's exclude entry")
     return p
 
 
@@ -473,11 +628,29 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_USAGE
     request = plan.get("request")
     request_path = shown_path(request.get("path")) if isinstance(request, dict) else None
+    stand_in = None
+    archive = Path(args.nhtsa_archive) if args.nhtsa_archive else None
     try:
-        manifest = preregister(plan_path)
+        if args.exclude_stand_in:
+            stand_in = load_stand_in(args.exclude_stand_in)
+    except (OSError, StrictJsonError, RequestError):
+        print("error: the exclusion stand-in cannot be read", file=sys.stderr)
+        return EXIT_USAGE
+    # only the options given are passed, so a caller's own keywords (a test's ``functools.partial`` of
+    # :func:`preregister` with ``nhtsa_fetch``) are not overridden by an explicit None
+    options: dict[str, Any] = {}
+    if archive is not None:
+        options["nhtsa_fetch"] = archive.read_bytes
+    if args.earlier_plans:
+        options["earlier_plans"] = Path(args.earlier_plans)
+    if stand_in is not None:
+        options["exclude_stand_in"] = stand_in
+    try:
+        manifest = preregister(plan_path, **options)
     except _StepFailed as err:
         return write_plan_error(plan_path.parent, "prereg", request_path, err.path, err.problem)
-    shown = ("e1", "x1", "e2", "j1", *(("l1",) if manifest["l1"] is not None else ()))
+    shown = ("e1", "x1", "e2", "j1", *(("l1",) if manifest["l1"] is not None else ()),
+             *(("j2",) if manifest["j2"] is not None else ()))
     print(" ".join(["prereg:", *(f"{name} {'yes' if manifest[name] is not None else 'no'}" for name in shown)]),
           flush=True)
     return EXIT_OK

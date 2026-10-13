@@ -2,8 +2,8 @@
 
 Every number below is copied from a lab report printed in a GitHub Actions job log (between
 `=== MYCELIC-LAB … BEGIN/END ===` markers), from a shard's own summary or, for the vehicle replay, from its audit
-printed between `VEHICLE-AUDIT` markers. Each row names its run. **Synthetic data, except runs 3, 4, 6, 7, 9 and 10
-and the vehicle replay**: their records are public FDA reports, NHTSA complaints and MSHA accident records; every other
+printed between `VEHICLE-AUDIT` markers. Each row names its run. **Synthetic data, except runs 3, 4, 6, 7, 9, 10 and
+11 and the vehicle replay**: their records are public FDA reports, NHTSA complaints and MSHA accident records; every other
 record and narrative was generated from a seed. **Runner hardware only**: one shared 4-vCPU GitHub-hosted runner per
 shard, whose CPU model varies between shards; compare timings only between rows of the same CPU model, and never read
 them as site hardware. A unit without a result is listed with its reason, not left out.
@@ -404,6 +404,96 @@ time goes, the judge calls are. The at-once times are derived, not run; the a-1p
 model from the other two, so the three alert times are not one comparison. The rule budgeted up to 1,033 calls a
 question; the alert made 36, and every shard finished within 199.4 s of wall time. One alert, one operator, codes
 hidden, runner hardware, no outcome: nothing here measures early warning.
+
+## Run 11: accuracy-001 (the first cycle toward 86, a fresh draw of real complaints, two levers): failure on the primary pair; the best secondary is level with word matching
+
+The first pre-registered cycle of the accuracy loop: three small models answer the site verifier's narrow question
+about 150 fresh public NHTSA complaints (J001's 150 excluded, codes hidden), each twice, with the product's shipped
+instruction and with a lab-side negation instruction, each read by the shipped verdict rule and through a declared
+mapping that reads an unclear component answer as no. The primary pair, a-4b with the negation instruction, scored
+balanced accuracy 0.577 [0.530, 0.623] against 0.663 for the lexical judge on the same records (paired difference
+-0.087 [-0.140, -0.033]); the gap to the 0.860 target is 0.283, and by the rule the verdict is **failure**. The best
+secondary, a-4b with the shipped instruction read through the mapping, scored 0.667 [0.620, 0.710], a paired
+difference of 0.003 [-0.047, 0.050] to the lexical judge: not told apart, a hypothesis for the next cycle, never a
+result. [Run 38114522160](https://github.com/anovruzov/NeuralGraph/actions/runs/38114522160), request
+`lab/requests/accuracy-001.json` (sha `b623ec781075`), commit `3361910`, 2026-10-11 05:21 to 05:48 UTC (plan job
+05:21:34 to 05:22:18; 15 shards 05:23:00 to 05:46:28; aggregate 05:46:30 to 05:48:05); rule
+`docs/collective/A001/CHOICE-A001.md`, committed in `90d2084` and amended once before any run (A1 to A12, `146431c`).
+Report from the `aggregate` job (114400537232): `report.md` sha256 `cfd7749b3719…`, matching. All 15 units `ok`, every
+(model, task) set 5 of 5 parts, no call failed, 0 records left out; 12 (model, arm, cycle) comparisons this cycle, 12
+since the loop began.
+
+Public data: real NHTSA complaint narratives, read with each complaint's codes hidden and scored against the components
+it was filed under (filed codes, not checked labels). The draw is fresh: the plan job excluded J001's 150 records by
+both pre-registered mechanisms (its plan artifact downloaded and read, and J001's seed-1 draw rebuilt from the
+complaint file as published on the day; both `verified`, symmetric difference 0), from 58,319 eligible records (58,169
+after exclusion, overlap 0), and drew 150 with seed 2 (labels sha `623780b8a1de`, excluded refs file sha
+`9a948cbf2cd9`, complaint file sha `a5a5de2d31f3`). J001's code built 300 questions in 5 parts (sha `2ba18ea89bb7`,
+prereg sha `fb8f06442693`): one about a filed component and one about a component the record was not filed under, per
+record. The comparators ran in the plan job before any model: the lexical judge (the verifier's judge when no model
+runs) 0.663 [0.627, 0.703] with sensitivity 0.333 and specificity 0.993, the record-blind control 0.520 [0.463, 0.577],
+the predicate-only bound 0.577. Model calls were made for the two instructions only (1,800 calls, 600 a model); the
+mapped arms read the same replies again.
+
+| Judge | Arm | Balanced accuracy [95% interval] | Minus the lexical judge [interval] | Sensitivity | Specificity | Unknown share | Bound on the same records | Pass test | Verdict word |
+|---|---|---|---|---|---|---|---|---|---|
+| Lexical judge | | 0.663 [0.627, 0.703] | | 0.333 | 0.993 | 0.000 | | | |
+| Record-blind control (decides nothing) | | 0.520 [0.463, 0.577] | | | | | | | |
+| Predicate-only bound (decides nothing) | | 0.577 | | | | | | | |
+| a-0p5b | shipped | 0.493 [0.480, 0.507] | -0.170 [-0.210, -0.133] | 0.933 | 0.053 | 0.000 | 0.577 | no | failure |
+| a-0p5b | shipped, unclear read as no | 0.493 [0.480, 0.507] | -0.170 [-0.210, -0.133] | 0.933 | 0.053 | 0.000 | 0.577 | no | failure |
+| a-0p5b | negation | 0.483 [0.447, 0.520] | -0.180 [-0.233, -0.127] | 0.553 | 0.413 | 0.000 | 0.577 | no | failure |
+| a-0p5b | negation, unclear read as no | 0.483 [0.447, 0.520] | -0.180 [-0.233, -0.127] | 0.553 | 0.413 | 0.000 | 0.577 | no | failure |
+| a-1p5b | shipped | 0.467 [0.440, 0.493] | -0.197 [-0.243, -0.150] | 0.880 | 0.053 | 0.073 | 0.577 | no | failure |
+| a-1p5b | shipped, unclear read as no | 0.467 [0.440, 0.493] | -0.197 [-0.243, -0.150] | 0.880 | 0.053 | 0.073 | 0.577 | no | failure |
+| a-1p5b | negation | 0.497 [0.480, 0.513] | -0.167 [-0.207, -0.127] | 0.973 | 0.020 | 0.010 | 0.577 | no | failure |
+| a-1p5b | negation, unclear read as no | 0.497 [0.480, 0.513] | -0.167 [-0.207, -0.127] | 0.973 | 0.020 | 0.010 | 0.577 | no | failure |
+| a-4b | shipped | 0.307 [0.263, 0.350] | -0.357 [-0.403, -0.310] | 0.560 | 0.053 | 0.560 | 0.577 | no | failure |
+| a-4b | shipped, unclear read as no | 0.667 [0.620, 0.710] | 0.003 [-0.047, 0.050] | 0.560 | 0.773 | 0.000 | 0.577 | no | failure |
+| **a-4b** | **negation (the primary pair)** | **0.577 [0.530, 0.623]** | **-0.087 [-0.140, -0.033]** | 0.833 | 0.320 | 0.137 | 0.577 | **no** | **failure** |
+| a-4b | negation, unclear read as no | 0.653 [0.610, 0.697] | -0.010 [-0.063, 0.043] | 0.833 | 0.473 | 0.017 | 0.577 | no | failure |
+
+**By the pre-registered rule, the primary pair fails:** "P scored BA 0.577 [0.530, 0.623]; gap to 0.860 is 0.283;
+lexical 0.663 [0.627, 0.703]; bound 0.577." Its balanced accuracy equals the predicate-only bound's point value, and
+its interval against the lexical judge lies below zero. The per-model headline for the negation instruction is
+**worse** than the lexical judge for all three models (upper ends 0.520, 0.513 and 0.623 against 0.663). On the
+shipped path (arm A, J001's path on a fresh draw) the figures sit beside run 9's: a-0p5b 0.493 against 0.500, a-1p5b
+0.467 against 0.477, a-4b 0.307 against 0.387 (its unknown share 0.560 against 0.483); the lexical judge 0.663 against
+0.670. The lifts between arms, paired by record over 150 records (a lift helps when its lower end is above 0, hurts
+when its upper end is below 0, else not told apart; they decide nothing toward the target):
+
+| Model | Mapping under the shipped instruction (B − A) | Negation instruction under the shipped reading (C − A) | Both (D − A) | Negation instruction under the mapping (D − B) | Mapping under the negation instruction (D − C) |
+|---|---|---|---|---|---|
+| a-0p5b | 0.000 [0.000, 0.000], not told apart | -0.010 [-0.047, 0.030], not told apart | -0.010 [-0.047, 0.030], not told apart | -0.010 [-0.047, 0.030], not told apart | 0.000 [0.000, 0.000], not told apart |
+| a-1p5b | 0.000 [0.000, 0.000], not told apart | 0.030 [0.000, 0.060], not told apart | 0.030 [0.000, 0.060], not told apart | 0.030 [0.000, 0.060], not told apart | 0.000 [0.000, 0.000], not told apart |
+| a-4b | 0.360 [0.323, 0.393], helps | 0.270 [0.217, 0.327], helps | 0.347 [0.290, 0.407], helps | -0.013 [-0.063, 0.037], not told apart | 0.077 [0.047, 0.107], helps |
+
+Both levers help a-4b and neither moves the two smaller models, whose mapped arms equal their unmapped arms on every
+record (they did not answer unclear). On a-4b the mapping turns abstention into refutation (unknown share 0.560 to
+0.000, specificity 0.053 to 0.773, sensitivity unchanged at 0.560), which is what lifts arm B to the lexical judge's
+level; the negation instruction raises both sensitivity (0.560 to 0.833) and specificity (0.053 to 0.320) and leaves
+an unknown share of 0.137. Neither mapped arm of a-4b is told apart from the lexical judge, and they are not told
+apart from each other.
+
+**Latency (a measurement, not a test; one shared runner per shard; medians and 95th percentiles of the judge calls
+from the ledgers, per task):**
+
+| Model | Runner CPU | Calls per task | Median ms, shipped / negation | 95th percentile ms, shipped / negation |
+|---|---|---|---|---|
+| a-0p5b | AMD EPYC 7763 | 120 | 1521.8 / 1561.0 | 2721.4 / 2754.1 |
+| a-0p5b | AMD EPYC 9V74 | 120 | 955.9 / 986.0 | 1386.3 / 1399.7 |
+| a-0p5b | Intel Xeon Platinum 8573C | 60 | 1093.8 / 1135.7 | 1803.0 / 1812.0 |
+| a-1p5b | AMD EPYC 7763 | 120 | 3140.4 / 3179.3 | 4787.3 / 4858.5 |
+| a-1p5b | AMD EPYC 9V45 | 120 | 1428.2 / 1349.8 | 2223.3 / 2231.5 |
+| a-1p5b | Intel Xeon 6973P-C | 60 | 1613.0 / 1597.2 | 2622.9 / 2736.4 |
+| a-4b | AMD EPYC 7763 | 180 | 9275.1 / 9431.5 | 16209.7 / 16427.0 |
+| a-4b | Intel Xeon Platinum 8370C | 120 | 8211.6 / 8637.7 | 11754.1 / 12020.0 |
+
+Notes. The 15 shards ran on six CPU models: compare timings only within a CPU model, where the two tasks' medians
+differ by less than 0.5 s; the longest shard (`s011-a-4b`) took 1377.2 s of wall time against a 300-minute budget.
+Runner hardware, not site hardware. Public data: the records are real public complaints the models may have seen in
+training; the answer key is the filed component codes, not checked labels. The first run is the result; the
+secondaries are hypotheses for the next cycle's rule, not results.
 
 ## Outside the lab: D001 and D002 (a pack drafted from an export alone, real data): passed on the second rule
 

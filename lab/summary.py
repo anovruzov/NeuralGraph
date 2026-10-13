@@ -50,7 +50,11 @@ field F1, the zero-claim and transport failure shares and the drops and re-attac
 comes once, in the class section of its display class (:func:`_j1_tables`): its label, the labels, questions and the
 lexical judge's and the record-blind control's balanced accuracy and the predicate-only bound on every record, the
 lexical, control and headline notes, one row per model and the paired table; a plan's preregistration adds J1's labels,
-questions, the lexical judge's and the control's scores and the bound. L1 (latency test L001) comes once too, in the class
+questions, the lexical judge's and the control's scores and the bound. J2 (accuracy test A001) comes once, in the
+class section of its display class (:func:`_j2_tables`): its label, the labels, questions and the exclusion's counts
+and hashes, the comparators on every record, the comparison count, the exclusion, lexical, control, arms and verdict
+notes, the primary pair's sentence (rule 10 as read by A5) and the arms and lifts tables; a plan's preregistration adds
+J2's labels, exclusion, primary pair and comparators. L1 (latency test L001) comes once too, in the class
 section of its display class (:func:`_l1_tables`): its label, the operator, the file and the audit, the alert, the
 questions, the headline and comparator notes, the comparators' scores, one row per model with its scores and one with its
 headline and gate agreement, then the time note and the time table (the alert and all questions apart, per model, with
@@ -125,7 +129,8 @@ from .notes import (BRANCH_DELETED, BY_CONSTRUCTION_LABEL, BY_CONSTRUCTION_NOTE,
                     E1_SCORES_REFUSED, E1_SCORES_UNPINNED, E1_VERDICTS_WITHHELD, E1_WITHOUT_HOSTED,
                     E2_CENTRAL_HOSTED_SKIPPED, E2_LABELS, E2_SIZING_NOTE, G0_BELOW_PROTOCOL, HEADINGS,
                     HOSTED_COST_NOTE, HOSTED_SECRETS_MISSING, J1_HEADLINE_NOTE, J1_INCOMPLETE, J1_LABEL,
-                    J1_LEXICAL_NOTE, J1_NOT_MEASURED, J1_PRIOR_NOTE, J1_WITHHELD, L1_COMPARATORS_NOTE,
+                    J1_LEXICAL_NOTE, J1_NOT_MEASURED, J1_PRIOR_NOTE, J1_WITHHELD, J2_ARMS_NOTE, J2_EXCLUSION_NOTE,
+                    J2_LABEL, J2_PRIMARY_LINE, J2_STAND_IN, J2_VERDICT_NOTE, L1_COMPARATORS_NOTE,
                     L1_HEADLINE_NOTE, L1_INCOMPLETE, L1_LABEL, L1_LEFT_OUT, L1_NO_REAGGREGATION, L1_NOT_MEASURED,
                     L1_TIME_NOTE, L1_WITHHELD, LOCK_CONFLICT_NOTE, LOCK_NEW,
                     LOCK_NOT_COMPUTED, LOCK_UNCHANGED, MERGE_SEVERAL, NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT,
@@ -169,6 +174,8 @@ LEXICAL_PREDICATE_F1 = ("e1", "labels", "public", "lexical", "predicate_f1", "va
 PREREG_FILE = "prereg/prereg.json"
 J1_HEADLINE_REASONS = (J1_INCOMPLETE, J1_NOT_MEASURED, J1_WITHHELD)
 J1_METRICS = ("balanced_accuracy", "sensitivity", "specificity", "unknown_share")
+J2_ARMS = ("shipped", "shipped_mapped", "negation", "negation_mapped")
+J2_LIFTS = ("B_minus_A", "C_minus_A", "D_minus_A", "D_minus_B", "D_minus_C")
 L1_HEADLINE_REASONS = (L1_INCOMPLETE, L1_NOT_MEASURED, L1_LEFT_OUT, L1_WITHHELD)
 L1_COMPARATORS = ("lexical", "route_role", "record_blind", "key")
 
@@ -176,7 +183,7 @@ L1_COMPARATORS = ("lexical", "route_role", "record_blind", "key")
 def ids(sentence: str) -> str:
     """A notes sentence with its experiment-id placeholders filled with code spans."""
     return sentence.format(e_one=code("E1"), e_two=code("E2"), x_one=code("X1"), n_one=code("N1"), j_one=code("J1"),
-                           l_one=code("L1"))
+                           l_one=code("L1"), j_two=code("J2"))
 _INDEX_RE = re.compile(r"0|[1-9][0-9]*", re.ASCII)
 _BACKTICKS_RE = re.compile(r"`+")
 
@@ -515,8 +522,58 @@ def _prereg_section(doc: _Doc, src: Sources) -> None:
                 f"{src.num(f, pointer(*at, 'specificity', 'value'), 'f3')}")
         doc.add(f"- {code('J1')} {COLUMNS['prior_bound_all']}: {src.num(f, '/j1/prior_bound/value', 'f3')}")
         doc.add("\n" + J1_PRIOR_NOTE)
+    if isinstance(_get(manifest, "j2"), dict):
+        _j2_prereg_lines(doc, src, f, _get(manifest, "j2"))
     if isinstance(_get(manifest, "l1"), dict):
         _l1_prereg_lines(doc, src, f)
+
+
+def _j2_exclusion_lines(doc: _Doc, src: Sources, f: str, base: tuple[Any, ...], block: dict[str, Any]) -> None:
+    """The fresh draw's exclusion, as counts and hashes (A1 to A4): the eligible records, the excluded, the eligible
+    after exclusion, the overlap, the two mechanisms' outcomes, the carried-forward file's sha and the complaint
+    file's sha; then the stand-in note when a test artifact stood in (plumbing)."""
+    exclusion = _get(block, "exclusion")
+    at = (*base, "exclusion")
+    doc.add(f"- {COLUMNS['j2_available']} {src.num(f, pointer(*base, 'labels', 'available'), 'int')}; "
+            f"{COLUMNS['j2_excluded']} {src.num(f, pointer(*at, 'excluded'), 'int')}; "
+            f"{COLUMNS['j2_eligible_after']} {src.num(f, pointer(*at, 'eligible_after_exclusion'), 'int')}; "
+            f"{COLUMNS['j2_overlap']} {src.num(f, pointer(*at, 'overlap'), 'int')}; "
+            f"{COLUMNS['j2_mechanism_artifact']} {code(_get(exclusion, 'mechanisms', 'artifact'))}; "
+            f"{COLUMNS['j2_mechanism_rebuild']} {code(_get(exclusion, 'mechanisms', 'rebuild'))}; "
+            f"{COLUMNS['j2_excluded_sha']} {code(short(_get(exclusion, 'excluded_sha256')))}; "
+            f"{COLUMNS['j2_complaints_sha']} {code(short(_get(exclusion, 'complaint_file_sha256')))}")
+    if _get(exclusion, "stand_in") is True or _get(block, "stand_in") is True:
+        doc.add("\n" + J2_STAND_IN)
+
+
+def _j2_prereg_lines(doc: _Doc, src: Sources, f: str, j2: dict[str, Any]) -> None:
+    """The plan summary's J2 lines: the labels and questions, the exclusion, the comparators on every record."""
+    files = _get(src.doc(f), "files")
+    at = ("j2", "lexical")
+    doc.add(f"\n- {code('J2')} {COLUMNS['labels']}: {COLUMNS['label_source']} {code(_get(j2, 'labels', 'source'))}, "
+            f"{COLUMNS['records']} {src.num(f, '/j2/labels/records', 'int')}, {COLUMNS['sha']} "
+            f"{code(short(_get(j2, 'labels', 'sha256')))}; {COLUMNS['questions']} "
+            f"{src.num(f, '/j2/questions/questions', 'int')}, {COLUMNS['parts']} "
+            f"{src.num(f, '/j2/questions/parts', 'int')}, {COLUMNS['sha']} "
+            f"{code(short(_get(j2, 'questions', 'sha256')))}; {COLUMNS['prereg']} "
+            f"{code(short(_get(files, str(_get(j2, 'prereg')), 'sha256')))}")
+    _j2_exclusion_lines(doc, src, f, ("j2",), j2)
+    doc.add(f"- {code('J2')} {COLUMNS['j2_primary']}: {code(_get(j2, 'primary', 'model'))} "
+            f"{code(_get(j2, 'primary', 'arm'))}; {COLUMNS['j2_target']} "
+            f"{src.num(f, '/j2/target_balanced_accuracy', 'f3')}")
+    doc.add(f"- {code('J2')} {COLUMNS['lexical_all']}: {COLUMNS['balanced_accuracy']} "
+            f"{src.num(f, pointer(*at, 'balanced_accuracy', 'value'), 'f3')} ({COLUMNS['ci_low']} "
+            f"{src.num(f, pointer(*at, 'balanced_accuracy', 'ci_low'), 'f3')}, {COLUMNS['ci_high']} "
+            f"{src.num(f, pointer(*at, 'balanced_accuracy', 'ci_high'), 'f3')}); {COLUMNS['sensitivity']} "
+            f"{src.num(f, pointer(*at, 'sensitivity', 'value'), 'f3')}; {COLUMNS['specificity']} "
+            f"{src.num(f, pointer(*at, 'specificity', 'value'), 'f3')}")
+    at = ("j2", "prior")
+    doc.add(f"- {code('J2')} {COLUMNS['prior_all']}: {COLUMNS['balanced_accuracy']} "
+            f"{src.num(f, pointer(*at, 'balanced_accuracy', 'value'), 'f3')} ({COLUMNS['ci_low']} "
+            f"{src.num(f, pointer(*at, 'balanced_accuracy', 'ci_low'), 'f3')}, {COLUMNS['ci_high']} "
+            f"{src.num(f, pointer(*at, 'balanced_accuracy', 'ci_high'), 'f3')})")
+    doc.add(f"- {code('J2')} {COLUMNS['prior_bound_all']}: {src.num(f, '/j2/prior_bound/value', 'f3')}")
+    doc.add("\n" + J2_EXCLUSION_NOTE)
 
 
 def _l1_question_table(doc: _Doc, src: Sources, f: str, base: tuple[Any, ...], questions: Any,
@@ -716,12 +773,14 @@ def render_report(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[d
                                                         for _, u in no_result))
     e1 = report.get("e1") if isinstance(report.get("e1"), dict) else None
     j1 = report.get("j1") if isinstance(report.get("j1"), dict) else None
+    j2 = report.get("j2") if isinstance(report.get("j2"), dict) else None
     l1 = report.get("l1") if isinstance(report.get("l1"), dict) else None
     for cls in CLASS_ORDER:
         if (any(u.get("display_class") == cls for _, u in units) or (e1 is not None and e1.get("display_class") == cls)
                 or (j1 is not None and j1.get("display_class") == cls)
+                or (j2 is not None and j2.get("display_class") == cls)
                 or (l1 is not None and l1.get("display_class") == cls)):
-            _class_section(doc, src, cls, units, rows, e1, j1, l1)
+            _class_section(doc, src, cls, units, rows, e1, j1, l1, j2)
     sizing = rows("sim_sizing")
     if sizing:
         _sizing_section(doc, src, sizing)
@@ -762,7 +821,8 @@ def render_report(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[d
 
 def _class_section(doc: _Doc, src: Sources, cls: str, units: list[tuple[int, dict[str, Any]]],
                    rows: Callable[[str], list[tuple[int, dict[str, Any]]]], e1: dict[str, Any] | None = None,
-                   j1: dict[str, Any] | None = None, l1: dict[str, Any] | None = None) -> None:
+                   j1: dict[str, Any] | None = None, l1: dict[str, Any] | None = None,
+                   j2: dict[str, Any] | None = None) -> None:
     f = "report.json"
     _heading(doc, cls, 3)
     mine = [(i, u) for i, u in units if u.get("display_class") == cls]
@@ -831,6 +891,8 @@ def _class_section(doc: _Doc, src: Sources, cls: str, units: list[tuple[int, dic
         _e1_tables(doc, src, e1)
     if j1 is not None and j1.get("display_class") == cls:
         _j1_tables(doc, src, j1)
+    if j2 is not None and j2.get("display_class") == cls:
+        _j2_tables(doc, src, j2)
     if l1 is not None and l1.get("display_class") == cls:
         _l1_tables(doc, src, l1)
     latency = [(i, r) for i, r in rows("latency") if r.get("display_class") == cls]
@@ -1260,6 +1322,122 @@ def _j1_tables(doc: _Doc, src: Sources, j1: dict[str, Any]) -> None:
                                        for key, style in (("n", "int"), ("mean_diff", "f3"), ("ci_low", "f3"),
                                                           ("ci_high", "f3")))]
             for name in paired))
+
+
+def _j2_tables(doc: _Doc, src: Sources, j2: dict[str, Any]) -> None:
+    """J2's label, then (once the preregistration verified) the labels, the questions and the exclusion, the lexical
+    judge, the record-blind control and the predicate-only bound on every record, the exclusion, lexical, control,
+    arms and verdict notes, the primary pair's sentence with its figures (rule 10, A5) and the comparison count, the
+    arms table (one row per (model, arm): class, parts finished of planned, balanced accuracy and its interval, the
+    lexical judge's balanced accuracy and the paired difference with its interval on the same records, the control's
+    balanced accuracy and the bound, sensitivity, specificity, the unknown share, the records left out, the verdict
+    word, whether the pass test held, whether the pair is the primary, and for the headline arm J001's headline and
+    why there is none) and the lifts table (per model and lift: the lever, the pairs, the difference with its interval
+    and its reading). Each predicate's confirms and every answer count stay in ``report.json``."""
+    f = "report.json"
+    _heading(doc, "j2", 4)
+    doc.add("\n" + ids(J2_LABEL))
+    if j2.get("reason") is not None:
+        reason = j2["reason"]
+        doc.add("\n" + (reason if reason == PREREG_MISSING else f"{COLUMNS['reason']}: {code(reason)}"))
+        return
+    doc.add(f"\n- {COLUMNS['labels']}: {COLUMNS['label_source']} {code(_get(j2, 'labels', 'source'))}, "
+            f"{COLUMNS['records']} {src.num(f, '/j2/labels/records', 'int')}, {COLUMNS['sha']} "
+            f"{code(short(_get(j2, 'labels', 'sha256')))}; {COLUMNS['questions']} "
+            f"{src.num(f, '/j2/questions/questions', 'int')}, {COLUMNS['parts']} "
+            f"{src.num(f, '/j2/questions/parts', 'int')}")
+    _j2_exclusion_lines(doc, src, f, ("j2",), j2)
+    at = ("j2", "lexical", "balanced_accuracy")
+    doc.add(f"- {COLUMNS['lexical_all']}: {COLUMNS['balanced_accuracy']} {src.num(f, pointer(*at, 'value'), 'f3')} "
+            f"({COLUMNS['ci_low']} {src.num(f, pointer(*at, 'ci_low'), 'f3')}, {COLUMNS['ci_high']} "
+            f"{src.num(f, pointer(*at, 'ci_high'), 'f3')})")
+    at = ("j2", "prior", "balanced_accuracy")
+    doc.add(f"- {COLUMNS['prior_all']}: {COLUMNS['balanced_accuracy']} {src.num(f, pointer(*at, 'value'), 'f3')} "
+            f"({COLUMNS['ci_low']} {src.num(f, pointer(*at, 'ci_low'), 'f3')}, {COLUMNS['ci_high']} "
+            f"{src.num(f, pointer(*at, 'ci_high'), 'f3')})")
+    doc.add(f"- {COLUMNS['prior_bound_all']}: {src.num(f, '/j2/prior_bound/value', 'f3')}")
+    doc.add(f"- {COLUMNS['j2_comparisons']}: {src.num(f, '/j2/comparisons/since_loop_began', 'int')} "
+            f"({src.num(f, '/j2/comparisons/this_cycle', 'int')} this cycle, "
+            f"{src.num(f, '/j2/comparisons/before', 'int')} before)")
+    doc.add("\n" + J2_EXCLUSION_NOTE)
+    doc.add("\n" + J1_LEXICAL_NOTE)
+    doc.add("\n" + J1_PRIOR_NOTE)
+    doc.add("\n" + J2_ARMS_NOTE)
+    doc.add("\n" + J2_VERDICT_NOTE)
+    primary = j2.get("primary_result") if isinstance(j2.get("primary_result"), dict) else None
+    if primary is not None:
+        at = ("j2", "primary_result", "pass_test")
+        doc.add("\n" + J2_PRIMARY_LINE.format(
+            model=code(primary.get("model")), arm=code(primary.get("arm")), word=code(primary.get("verdict_word")),
+            ba=src.num(f, pointer(*at, "balanced_accuracy"), "f3"), lo=src.num(f, pointer(*at, "ci_low"), "f3"),
+            hi=src.num(f, pointer(*at, "ci_high"), "f3"), target=src.num(f, pointer(*at, "target"), "f3"),
+            gap=src.num(f, pointer(*at, "gap_to_target"), "f3"),
+            lex=src.num(f, pointer("j2", "primary_result", "lexical_balanced_accuracy"), "f3"),
+            diff=src.num(f, pointer(*at, "diff_lexical"), "f3"), dlo=src.num(f, pointer(*at, "diff_lexical_ci_low"), "f3"),
+            dhi=src.num(f, pointer(*at, "diff_lexical_ci_high"), "f3"), bound=src.num(f, pointer(*at, "bound"), "f3"),
+            unknown=src.num(f, pointer(*at, "unknown_share"), "f3")))
+    models = j2.get("models") if isinstance(j2.get("models"), dict) else {}
+    named = sorted(name for name in models if isinstance(models[name], dict))
+    reasons = any(_get(models[name], "arms", arm, "headline_arm") is True and _get(models[name], "arms", arm, "headline")
+                  is None for name in named for arm in J2_ARMS)
+
+    def arm_rows() -> Any:
+        for name in named:
+            arms = _get(models[name], "arms")
+            if not isinstance(arms, dict):
+                continue
+            for arm in J2_ARMS:
+                entry = arms.get(arm)
+                if not isinstance(entry, dict):
+                    continue
+                at = ("j2", "models", name, "arms", arm)
+                row = [code(name, table=True), code(arm, table=True), code(entry.get("task"), table=True),
+                       yes_no(entry.get("mapped")), code(entry.get("display_class"), table=True),
+                       f"{src.num(f, pointer(*at, 'parts_finished'), 'int')} of "
+                       f"{src.num(f, pointer(*at, 'parts_planned'), 'int')}"]
+                row += [src.num(f, pointer(*at, "scores", "balanced_accuracy", key), "f3")
+                        for key in ("value", "ci_low", "ci_high")]
+                row.append(src.num(f, pointer(*at, "lexical", "balanced_accuracy", "value"), "f3"))
+                row.append(f"{src.num(f, pointer(*at, 'paired_lexical', 'mean_diff'), 'f3')} "
+                           f"({src.num(f, pointer(*at, 'paired_lexical', 'ci_low'), 'f3')}, "
+                           f"{src.num(f, pointer(*at, 'paired_lexical', 'ci_high'), 'f3')})")
+                row.append(src.num(f, pointer(*at, "prior", "balanced_accuracy", "value"), "f3"))
+                row.append(src.num(f, pointer(*at, "prior_bound", "value"), "f3"))
+                row += [src.num(f, pointer(*at, "scores", metric, "value"), "f3") for metric in J1_METRICS[1:]]
+                row.append(src.num(f, pointer(*at, "records_dropped"), "int"))
+                row.append(code(entry.get("verdict_word"), table=True))
+                row.append(yes_no(_get(entry, "pass_test", "passed")))
+                row.append(yes_no(entry.get("primary")))
+                row.append(code(entry.get("headline"), table=True) if entry.get("headline_arm") is True else "n/a")
+                if reasons:
+                    reason = entry.get("headline_reason")
+                    row.append(reason if reason in J1_HEADLINE_REASONS
+                               else code(reason, table=True) if entry.get("headline_arm") is True else "n/a")
+                yield row
+
+    _heading(doc, "j2-arms", 4)
+    doc.table(["model", "j2_arm", "j2_task", "j2_mapped", "class", "parts_ok", "balanced_accuracy", "ci_low",
+               "ci_high", "lexical_balanced_accuracy", "j2_diff_lexical", "prior_balanced_accuracy", "prior_bound",
+               "sensitivity", "specificity", "unknown_share", "records_dropped", "j2_verdict_word", "j2_pass_test",
+               "j2_primary", "headline", *(["headline_reason"] if reasons else [])], arm_rows)
+
+    def lift_rows() -> Any:
+        for name in named:
+            lifts = _get(models[name], "lifts")
+            if not isinstance(lifts, dict):
+                continue
+            for lift in J2_LIFTS:
+                entry = lifts.get(lift)
+                if not isinstance(entry, dict):
+                    continue
+                at = ("j2", "models", name, "lifts", lift, "paired")
+                yield [code(name, table=True), code(lift, table=True), code(entry.get("lever"), table=True),
+                       src.num(f, pointer(*at, "n"), "int"), src.num(f, pointer(*at, "mean_diff"), "f3"),
+                       src.num(f, pointer(*at, "ci_low"), "f3"), src.num(f, pointer(*at, "ci_high"), "f3"),
+                       code(entry.get("reading"), table=True)]
+
+    _heading(doc, "j2-lifts", 4)
+    doc.table(["model", "j2_lift", "j2_lever", "pairs", "diff", "ci_low", "ci_high", "j2_reading"], lift_rows)
 
 
 def _l1_tables(doc: _Doc, src: Sources, l1: dict[str, Any]) -> None:

@@ -11,7 +11,8 @@ write a request (a small JSON file naming experiments, models, seeds, sizes and 
 `mycelic-lab` workflow then:
 
 1. plans the run: validates the request, splits it into units (one experiment on one model) and shards (the units one
-   runner job executes), and preregisters what E1, J1, X1 and E2 will be judged against before any model runs;
+   runner job executes), and preregisters what E1, J1, J2, L1, X1 and E2 will be judged against before any model
+   runs;
 2. downloads and verifies the pinned model server and model files once per run, and caches them;
 3. runs each shard on its own runner: starts the model server on the runner's loopback address, warms it up and runs
    the units against it;
@@ -34,7 +35,13 @@ model. The experiments:
   CPU on the drafter demo's alert of MSHA's public accident file, each mine's verifier judging with the model, and its
   site answers scored against the filed categories beside the lexical judge and the route-role baseline. Its template
   is `lab/templates/latency.json` (copy it to `lab/requests/latency-001.json`); every file a run writes is scanned for
-  MSHA's values before any summary reads it and before upload (REFERENCE.md, Shard root).
+  MSHA's values before any summary reads it and before upload (REFERENCE.md, Shard root);
+- J2: accuracy test A001, J001's question asked of each model about a fresh draw of real public complaints with an
+  earlier run's records excluded (the plan job downloads that run's plan artifact and rebuilds the first judge test's
+  draw to verify the exclusion), twice: under the product's judge instruction and under a lab-side instruction that
+  defines negation and absence, each read by the product's verdict rule and through a declared reply mapping; four
+  arms, one primary pair, and the verdict word of the pinned rule computed by the aggregate. Its template is
+  `lab/templates/accuracy.json` (copy it to `lab/requests/accuracy-001.json`).
 
 ## What a run costs
 
@@ -276,6 +283,14 @@ What each experiment's numbers mean and do not mean. Each label below is printed
   predicate could score, so optimistic; it decides nothing). A model gets a headline only when all its parts finished
   as model measurements; otherwise its finished parts are a partial reading:
 - `J1_LABEL`: {j_one} here asks each model the site verifier's narrow question about real public NHTSA complaint narratives, one record at a time with its codes hidden, and scores each verdict against the components the complaint was filed under: filed codes, not human-checked labels.
+- J2 asks the same question about a fresh draw with an earlier run's records excluded, under two instructions and
+  with a declared reply mapping; `{j_two}` stands for J2. The plan job verifies the exclusion (an earlier run's plan
+  artifact, downloaded under the workflow's read-only `actions: read`, and a rebuild of the first judge test's draw;
+  one verifying suffices, neither stops the plan), draws the records, and runs the same comparators as J1 before any
+  model runs. The aggregate computes rule 10's verdict word for the primary pair and, labelled exploratory, for every
+  other (model, arm) pair, from the figures alone; a dry run uses a test artifact and says so:
+- `J2_LABEL`: {j_two} here asks each model the site verifier's narrow question about a fresh draw of real public NHTSA complaint narratives with an earlier run's records excluded, one record at a time with its codes hidden, twice: once with the product's judge instruction and once with a lab-side instruction that defines negation and absence; each verdict is scored against the components the complaint was filed under (filed codes, not human-checked labels), by the product's own verdict rule and, as a declared secondary, after a reply mapping that reads an unclear component answer as a no.
+- `J2_STAND_IN`: Plumbing: a test artifact stood in for the excluded run (lab.dryrun with test data), so the exclusion checks here test the lab, not the excluded run.
 
 Every column and its meaning is in [REFERENCE.md](REFERENCE.md#columns), and every label in
 [REFERENCE.md](REFERENCE.md#labels). The columns `found net of chance`, `chance finds` and `model path problems`
@@ -397,7 +412,11 @@ the message fills in.
 | `model participation below threshold` | The simulation fell back to the lexical extractor too often; read its ledgers. |
 | `the pushdown harness stopped with an uncaught error, often a central or site call that failed after its retries; the files it kept are partial` | Run again; if it persists, read the unit's logs. |
 | `the preregistration is missing or differs from the plan's` | The plan job's preregistration failed; read its log and push again. |
-| `the judge run stopped before its last question, at its budget or after the server stayed down; the verdicts it wrote are kept, and the part did not finish` | That model gets no J1 verdict from this run. Read the unit's `run.json` (`stopped`) and the latency table; judging it again needs a new choice file. |
+| `the judge run stopped before its last question, at its budget or after the server stayed down; the verdicts it wrote are kept, and the part did not finish` | That model gets no J1 verdict from this run (for a J2 unit, the stop fell in its first pass, so neither of its sets is complete). Read the unit's `run.json` (`stopped`) and the latency table; judging it again needs a new choice file. |
+| `the judge run finished its first pass, the negation task, and stopped in its second, the shipped task, at its budget or after the server stayed down; the first pass's verdicts are complete and kept, and the shipped pass did not finish for this part` | The unit is `ok`: the primary pair's set keeps this part; the shipped arms and the lifts of that model are incomplete and decide nothing. Read the unit's `run.json` (`stopped_task`, `questions_done_by_task`); a longer `minutes` is a new choice file. |
+| `neither freshness mechanism verified: the earlier run's plan artifact could not be read as that run's, and the rebuilt seed-one draw does not hash to the pinned prefix; the plan job stops before any model runs (the accuracy test's rule, The data and the draw, as amended)` | Nothing ran. Check the request's `exclude` entry against the earlier run (its id, artifact name, file and sha256 prefix) and that the artifact has not expired; the plan job's log says which mechanism failed and how (`j2 exclusion:` lines). The rule asks the founder before any other change. |
+| `both freshness mechanisms verified but their record sets differ; the plan job stops before any model runs` | Nothing ran. The earlier artifact's records are not the rebuilt seed-one draw's: the request names the wrong run or file. Fix the `exclude` entry; the plan job's log prints the symmetric difference count. |
+| `fewer eligible unexcluded records remain than the draw needs; no further fresh draw is pre-registered` | Nothing ran, and the rule says no further fresh draw of this size exists: a new choice file decides what comes next. |
 | `the canary scan found no leak, but its model path had problems, so it did not test the model in the loop` | Read the listed problems and the unit's ledgers; run again against a healthy server. |
 | `openFDA stayed unreachable from this runner after the connector's retries` | Run again later. |
 | `openFDA kept refusing requests as too many after the connector's retries: add the MYCELIC_LAB_OPENFDA_API_KEY repository secret, lower max_records_per_code or product_codes, or run again later` | Follow the message. |

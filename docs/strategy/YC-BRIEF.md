@@ -25,7 +25,7 @@ cross-unit detection would have flagged those issues earlier than chance (`docs/
 | Packs: the same code in four fields with data-only configuration | Device complaints, insurance claims, IT incidents, vehicle complaints. The IT-incidents pack was added with 0 lines of code changed: 13 data files, loaded 11 minutes after the start (AI agent wall clock, same author as the code; internal, not a buyer claim). The vehicle pack was built by rule from public NHTSA data | `docs/collective/PACKS.md`, `docs/collective/x3/effort.json` |
 | Pack drafter: a pack drafted from any export (CSV, pipe, tab or JSON lines) by the same code for every field, learning its vocabulary from the export's own filed categories, with a privacy floor on what it learns | Built and tested; passed its pre-registered real-data test D002 on its second rule. D003 on FDA device reports failed: it beat every control (C1) but was not shown to beat the hand-built device pack (C2) | `mycelic/collective/onboard/`, `docs/collective/onboard/CHOICE-D002.md`, `CHOICE-D003.md` |
 | Signal audit (the pilot) with a chance baseline and a power check before any replay | Built and tested | `docs/collective/PILOT.md`, `docs/collective/POWER.md` |
-| Cloud lab: pre-registered runs of small models on shared CPU runners | Ten runs recorded | `docs/lab/RESULTS.md` |
+| Cloud lab: pre-registered runs of small models on shared CPU runners | Eleven runs recorded | `docs/lab/RESULTS.md` |
 | Routing layer: per-site NeuralGraph and Tesseract behind the Boundary, routing HQ's questions | Research spike, not in the product path | `docs/collective/ROUTING-SPIKE.md` |
 
 ## 3. What the evidence says
@@ -37,6 +37,7 @@ cross-unit detection would have flagged those issues earlier than chance (`docs/
 | Do small models read real complaints better than a word list? | No. On 150 public vehicle complaints, predicate F1 was 0.03, 0.18 and 0.22 for the three models, against 0.43 for word matching | RESULTS run 7; `CHOICE-R002.md` |
 | Can small models answer HQ's narrow question at a site (does this complaint describe this component)? | No. On the same 150 complaints, balanced accuracy 0.50, 0.48 and 0.39 against 0.67 for the word-matching judge; 0.5 is a judge that always answers the same. The two smaller models say yes to nearly everything; the largest tells filed from unfiled components but answers "unclear" instead of "no" | RESULTS run 9; `CHOICE-J001.md` |
 | Can small models answer HQ's narrow question through the whole path on real records (alert, each mine's verifier, the gate)? | No. On one mine operator's public MSHA accident records, with the filed categories hidden, balanced accuracy 0.500, 0.417 and 0.417 against 0.641 for the word-matching judge and 0.808 for a baseline that reads no record and follows HQ's routing. No model refuted anything (specificity 0.000), and the smallest model's gate opened "supported" on every question, two of which the key rated hypothesis | RESULTS run 10; `docs/collective/L001/CHOICE-L001.md` |
+| Does reading an unclear answer as no, or a negation instruction, get a small model past word matching on a fresh draw of real complaints? | No. On 150 fresh public vehicle complaints (the earlier 150 excluded, codes hidden), the pre-registered primary pair, a-4b with the negation instruction, scored balanced accuracy 0.577 [0.530, 0.623] against 0.663 for the word-matching judge on the same records; the gap to the 0.860 target is 0.283, and by the rule that is a failure. The best secondary, a-4b with the shipped instruction read through the unclear-to-no mapping, scored 0.667 [0.620, 0.710], a paired difference of 0.003 [-0.047, 0.050] to the word-matching judge: not told apart, and a hypothesis for the next cycle, not a result. The two smaller models scored 0.47 to 0.50 on every arm | RESULTS run 11; `CHOICE-A001.md` |
 | On synthetic worlds built to reward reading, do they help? | Partly: the two larger models found 9 and 10 of 20 planted patterns, the codes alone 5, word matching 19 | RESULTS run 5 |
 | On public data, does cross-unit counting warn earlier than chance? | No, in five replays over two fields. With the baseline corrected for complaints that react to recalls, the finds sit at chance (recalls 14 against 16.4 expected; investigations 6 against 5.6) | `docs/collective/replay/vehicles/DIAG-E002.md`; `docs/strategy/MARKET.md` 5.1 |
 | Could the detectors have seen a signal of that size at all? | No. At the replays' settings they found 0 of 30 planted ramps. A pooled national channel caught 36 of 60 planted sextuplings, against 8 to 10 for state-split channels | `docs/collective/POWER.md` |
@@ -69,6 +70,14 @@ What this means for the pitch:
   two). Derived, not run: asking every mine at once would take 5.3, 9.2 and 34.6 s. The no-model path took 0.04 s.
   Runner hardware; no transport between machines was timed; and the answers were no better than the word list
   (RESULTS run 10).
+- **The narrow question on a fresh draw, with two declared levers, is measured once:** 150 fresh public vehicle
+  complaints, 1,800 judge calls (600 a model, 300 per instruction) on shared 4-vCPU runners: median 1.0 to 1.6 s a
+  call for a-0p5b, 1.3 to 3.2 s for a-1p5b and 8.2 to 9.4 s for a-4b, each range across CPU models. Reading a-4b's
+  unclear answers as no lifted its balanced accuracy by 0.360 [0.323, 0.393], to 0.667 against the word-matching
+  judge's 0.663 on the same records (paired difference 0.003 [-0.047, 0.050], not told apart); the negation
+  instruction lifted it by 0.270 [0.217, 0.327], to 0.577, below the word list. Neither lever was told apart from
+  zero on the two smaller models. Runner hardware; public text the models may have seen in training; filed codes,
+  not checked labels (RESULTS run 11).
 - **Retrieval is fast:** Tesseract answers a query in about 0.24 s over a 419-message conversation
   (`docs/BENCHMARKS.md`), and a site ranked its records for a routed question in a median 0.46 s in the spike's first run, four worlds at once.
 - **No GPU and no egress of text:** every number above ran on CPU, with the model file verified by hash.
