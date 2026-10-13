@@ -12,8 +12,15 @@ sites' stores and graphs, HQ's store and Gold; nothing is typed in. This module 
   ``{"ok": bool, "failed": [...], ...}`` where ``failed`` names every assertion of section 9 that did not hold, and
   :func:`verdict`, which is ``pass`` only when every check that ran is ``ok`` and names the checks that did not run.
   A check is code, never prose: each assertion below is one line of this module reading one field of the report.
+* :func:`c10_suites_green` (M2: the seven suites' junit rows, the floors, the zero-skip scopes of M11, the ``needs``
+  results in CI, ``code_dirty`` at start and end, M10) and :func:`c5_measured` (criterion 5 over the measure job's
+  report: every size's per-hop numbers, the three node counts, the rate sweep's first step at 2 events/s);
+* the measure job's constants (section 10, M14): the sizes, the candidates per size, the node counts, the rate
+  steps, the step length, the apply bound, the phase budgets and the jobs' bounds of section 11, which the
+  settings test compares with the brief's tables;
 * :func:`recompute`: M12, every aggregate the report carries recomputed from the per-item arrays beside it
-  (``check REPORT`` runs it);
+  (``check REPORT`` runs it; a measure report's node-count and sweep percentiles, and its scaling rows against the
+  size reports beside it);
 * :func:`scan_hits`: drill 5's three patterns over one text (the record-ref pattern, the narrative marker and the
   first 24 characters of every narrative), and :func:`forbidden_strings`, M24's scan for tier labels.
 
@@ -31,10 +38,36 @@ from typing import Any, Iterable, Mapping, Sequence
 
 from mycelic.collective import stats
 from mycelic.collective.experiments.common import code_commit, code_dirty, write_json_atomic
+from mycelic.collective.jsonio import strict_load
+
+from .suites import EVIDENCE as SUITES_EVIDENCE
+from .suites import NEEDS_JOBS, SUITES
 
 KIND = "e2e_ingest_report"
 SCHEMA_VERSION = 1
 REPORT_NAME = "e2e-ingest-report.json"
+MEASURE_REPORT_NAME = "e2e-ingest-measure.json"
+#: Section 11: the jobs' ``timeout-minutes``.
+SUITES_TIMEOUT_MINUTES = 45
+E2E_TIMEOUT_MINUTES = 20
+MEASURE_TIMEOUT_MINUTES = 45
+#: Section 10 and M14: the measure job's sizes (seed 0, smallest first), the candidates each asks, the three node
+#: counts of the measurement graphs, the rate steps, the step length, the apply bound and the per-phase budgets.
+MEASURE_SIZES = (200, 600, 2000)
+MEASURE_CANDIDATES = {200: 60, 600: 60, 2000: 20}
+MEASURE_NODE_COUNTS = (600, 5882, 20000)
+MEASURE_RATE_STEPS = (2, 4, 8, 16, 32)
+MEASURE_STEP_SECONDS = 60.0
+MEASURE_STEP_MIN_EVENTS = 120
+MEASURE_APPLY_P95_BOUND = 1.0
+MEASURE_PHASE_BUDGET_MINUTES = {"install": 2, "size-200": 5, "rate-sweep": 7, "tesseract-nodes": 5, "size-600": 8,
+                                "size-2000": 15}
+#: The scaling table's numeric columns per size (section 10), which c5 requires numeric.
+MEASURE_ROW_FIELDS = ("graph_build_seconds", "graph_seconds_per_1k_records", "pipeline_seconds", "detection_seconds",
+                      "tesseract_p50", "tesseract_p95", "question_to_verdict_per_site_p50",
+                      "question_to_verdict_per_site_p95", "question_to_verdict_per_question_p50",
+                      "question_to_verdict_per_question_p95", "created_to_applied_p50", "created_to_applied_p95",
+                      "wall_seconds")
 BROKER_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+")
 CI_BROKER_VERSION = "2.10.29"
 #: M13: ``run.spike_code_hash`` at ``e3052c0`` over ``spike_code_files()``; a different value means a pinned file
@@ -409,17 +442,150 @@ def c9_benchmark(doc: Mapping[str, Any]) -> dict[str, Any]:
                            "simulator_reason": d.get("simulator_reason")})
 
 
+def c10_suites_green(doc: Mapping[str, Any], *, in_ci: bool | None = None) -> dict[str, Any]:
+    """Criterion 10 with M2's evidence: every one of the seven suites has a junit-bound row naming this commit with
+    no failure, no error and at least the floor's tests; no skip in ``tests/e2e_ingest`` nor in
+    ``tests/mycelic/test_jetstream.py`` (M11); the tree clean over M10's paths at the start and at the end; and in
+    CI both suite jobs' ``needs`` results ``success`` and the run id set."""
+    in_ci = bool(os.environ.get("GITHUB_ACTIONS")) if in_ci is None else in_ci
+    run = _get(doc, "run", {}) or {}
+    rows = {r.get("suite"): r for r in (run.get("suites") or []) if isinstance(r, Mapping)}
+    commit = run.get("code_commit")
+    items: list[tuple[str, bool]] = [("evidence_is_junit", run.get("suites_evidence") == SUITES_EVIDENCE)]
+    for suite in SUITES:
+        r = rows.get(suite.name) or {}
+        items += [
+            (f"{suite.slug}:present", bool(r)),
+            (f"{suite.slug}:sha_is_the_commit", bool(commit) and commit != "unknown" and r.get("sha") == commit),
+            (f"{suite.slug}:no_failures", r.get("failures") == 0),
+            (f"{suite.slug}:no_errors", r.get("errors") == 0),
+            (f"{suite.slug}:tests_at_or_above_floor", int(r.get("tests") or 0) >= suite.floor),
+            (f"{suite.slug}:junit_bound", r.get("junit_bound") is True),
+        ]
+        if suite.zero_skip_scope is not None:
+            items.append((f"{suite.slug}:no_skips_in_scope", r.get("skipped_in_scope") == 0))
+    items += [("code_clean_at_start", run.get("code_dirty_start") is False),
+              ("code_clean_at_end", run.get("code_dirty_end") is False)]
+    if in_ci:
+        needs = run.get("needs_results") or {}
+        for job in NEEDS_JOBS.values():
+            items.append((f"needs_{job}_success", needs.get(job) == "success"))
+        items.append(("github_run_id_set", bool(run.get("github_run_id"))))
+    return _result(items, {"in_ci": in_ci, "suites": sorted(rows), "code_commit": commit,
+                           "suites_evidence": run.get("suites_evidence"),
+                           "problems": list(run.get("suites_problems") or [])})
+
+
+def suites_green(doc: Mapping[str, Any]) -> bool:
+    """M2: the suites' junit evidence is in the report and criterion 10's check over it is ``ok``."""
+    return (_get(doc, "run.suites_evidence") == SUITES_EVIDENCE
+            and (_get(doc, "checks.c10_suites_green") or {}).get("ok") is True)
+
+
+def c5_measured(doc: Mapping[str, Any]) -> dict[str, Any]:
+    """Criterion 5 over the measure job's report: every phase completed inside its budget; every requested size's
+    scaling row numeric and its own checks ok; the three measurement graphs at their node counts with 20 queries
+    and numeric percentiles; the sweep's first step at 2 events/s for at least 60 s and 120 events with apply p95
+    at or under 1.0 s, every step's samples its own events; a sustained rate; the runner's CPU named."""
+    phases = _get(doc, "phases", []) or []
+    sizes = _get(doc, "sizes", {}) or {}
+    requested = [str(s) for s in (_get(doc, "sizes_requested", []) or [])]
+    graphs = _get(doc, "tesseract_nodes.graphs", {}) or {}
+    th = _get(doc, "throughput", {}) or {}
+    steps = [s for s in (th.get("steps") or []) if isinstance(s, Mapping)]
+    first = steps[0] if steps else {}
+    items: list[tuple[str, bool]] = [
+        ("every_phase_completed", bool(phases) and all(p.get("completed") is True for p in phases)),
+        ("every_requested_size_completed", bool(requested)
+         and all(isinstance(sizes.get(s), Mapping) and sizes[s].get("completed") is True for s in requested)),
+    ]
+    for size in requested:
+        entry = sizes.get(size) or {}
+        row = entry.get("row") or {}
+        checks = entry.get("checks") or {}
+        items += [
+            (f"size_{size}_row_numeric", all(_number(row.get(f)) for f in MEASURE_ROW_FIELDS)),
+            (f"size_{size}_candidates", row.get("candidates") == MEASURE_CANDIDATES.get(int(size))
+             or (row.get("candidates") or 0) >= MEASURE_CANDIDATES.get(int(size), 0)),
+            (f"size_{size}_checks_ok", bool(checks) and all(c.get("ok") is True for c in checks.values())),
+        ]
+    for n in MEASURE_NODE_COUNTS:
+        g = graphs.get(str(n)) or {}
+        items.append((f"tesseract_{n}_nodes", g.get("nodes") == n and g.get("queries") == FIXED_QUERIES
+                      and _number(g.get("p50")) and _number(g.get("p95"))))
+    items += [
+        ("sweep_first_step_rate_2", first.get("rate") == MEASURE_RATE_STEPS[0]),
+        ("sweep_first_step_events_120", int(first.get("events") or 0) >= MEASURE_STEP_MIN_EVENTS),
+        ("sweep_first_step_60s", float(first.get("duration_seconds") or 0) >= MEASURE_STEP_SECONDS),
+        ("sweep_first_step_apply_p95_within_bound", _number(first.get("apply_p95"))
+         and float(first.get("apply_p95")) <= MEASURE_APPLY_P95_BOUND),
+        ("sweep_first_step_rate_held", first.get("rate_held") is True),
+        ("sweep_samples_are_the_events", bool(steps) and all(
+            s.get("n") == s.get("events") and s.get("duplicate") == 0 and s.get("applied_all") is True
+            for s in steps)),
+        ("sustained_rate_numeric", _number(th.get("sustained_events_per_second"))),
+        ("runner_cpu_named", bool(_get(doc, "runner.cpu_model"))),
+    ]
+    first_keys = ("rate", "events", "duration_seconds", "apply_p95", "rate_held")
+    return _result(items, {"sizes_requested": requested,
+                           "phases": [(p.get("name"), p.get("completed")) for p in phases],
+                           "sustained_events_per_second": th.get("sustained_events_per_second"),
+                           "first_step": {k: first.get(k) for k in first_keys}})
+
+
 CHECKS = {"c0_real_fabric_keyed": c0_real_fabric_keyed, "c1_signed": c1_signed, "c2_lineage": c2_lineage,
-          "c3_idempotent": c3_idempotent, "c4_recovery": c4_recovery, "c7_guards": c7_guards,
-          "c8_emergence_load": c8_emergence_load, "c9_benchmark": c9_benchmark}
-#: The checks the end-to-end job runs (criteria 0-4, 7, 8 and 9, section 2.3); c5 belongs to the measure job, c6 to
-#: the workflow and c10's junit evidence to the suites CLI.
+          "c3_idempotent": c3_idempotent, "c4_recovery": c4_recovery, "c5_measured": c5_measured,
+          "c7_guards": c7_guards, "c8_emergence_load": c8_emergence_load, "c9_benchmark": c9_benchmark,
+          "c10_suites_green": c10_suites_green}
+#: The checks the end-to-end job runs (criteria 0-4, 7, 8, 9 and, over the suites' junit evidence, 10; section
+#: 2.3); c5 belongs to the measure job and c6 to the workflow test.
 E2E_CHECKS = ("c0_real_fabric_keyed", "c1_signed", "c2_lineage", "c3_idempotent", "c4_recovery", "c7_guards",
-              "c8_emergence_load", "c9_benchmark")
+              "c8_emergence_load", "c9_benchmark", "c10_suites_green")
+#: The checks the measure job runs over its own report (each size's report carries c0, c7, c8 and c9 of its own).
+MEASURE_CHECKS = ("c5_measured", "c10_suites_green")
 
 
 def run_checks(doc: Mapping[str, Any], names: Sequence[str] = E2E_CHECKS) -> dict[str, Any]:
     return {name: CHECKS[name](doc) for name in names}
+
+
+# --------------------------------------------------------------------------------------------------- the scaling row
+
+def scaling_row(doc: Mapping[str, Any]) -> dict[str, Any]:
+    """One row of section 10's scaling table from one size's end-to-end report: users, sites, records, nodes per
+    site (min, median, max), graph build seconds and per 1k, pipeline and detection seconds, candidates, rankings,
+    Tesseract p50/p95, question to verdict p50/p95, publishes, created to applied p50/p95, wall total."""
+    w = _get(doc, "world", {}) or {}
+    per_site = _get(doc, "ingest.per_site", {}) or {}
+    nodes = sorted(int(v.get("graph_nodes_db") or 0) for v in per_site.values())
+    t = _get(doc, "timings", {}) or {}
+    r = _get(doc, "routing", {}) or {}
+    q2v = r.get("question_to_verdict") or {}
+    p = _get(doc, "publish", {}) or {}
+    return {
+        "target_users": w.get("target_users"), "seed": w.get("seed"), "users": w.get("users"),
+        "sites": w.get("sites"), "records": w.get("records"),
+        "nodes_per_site": {"min": nodes[0] if nodes else None, "median": nodes[len(nodes) // 2] if nodes else None,
+                           "max": nodes[-1] if nodes else None},
+        "graph_build_seconds": sum(float(v.get("graph_build_seconds") or 0.0) for v in per_site.values()),
+        "graph_seconds_per_1k_records": _get(doc, "ingest.seconds_per_1k_records"),
+        "pipeline_seconds": t.get("world_pipeline_seconds"), "detection_seconds": t.get("world_detection_seconds"),
+        "candidates_detected": r.get("candidates_detected"), "candidates": r.get("candidates_asked"),
+        "rankings": _get(r, "tesseract.rankings"), "tesseract_p50": _get(r, "tesseract.seconds_p50"),
+        "tesseract_p95": _get(r, "tesseract.seconds_p95"),
+        "nodes_ranked": {"min": _get(r, "tesseract.nodes_min"), "median": _get(r, "tesseract.nodes_median"),
+                         "max": _get(r, "tesseract.nodes_max")},
+        "question_to_verdict_per_site_p50": q2v.get("per_site_p50"),
+        "question_to_verdict_per_site_p95": q2v.get("per_site_p95"),
+        "question_to_verdict_per_question_p50": q2v.get("per_question_p50"),
+        "question_to_verdict_per_question_p95": q2v.get("per_question_p95"),
+        "publishes": p.get("publishes"), "verdict_events": p.get("verdict_events"),
+        "conclusion_events": p.get("conclusion_events"),
+        "created_to_applied_p50": _get(p, "created_to_applied.p50"),
+        "created_to_applied_p95": _get(p, "created_to_applied.p95"),
+        "main_pass_seconds": t.get("main_pass_seconds"), "wall_seconds": _get(doc, "run.seconds"),
+        "statuses": r.get("statuses"),
+    }
 
 
 # --------------------------------------------------------------------------------------------------- M12
@@ -436,10 +602,62 @@ RECOMPUTE = (
 )
 
 
-def recompute(doc: Mapping[str, Any]) -> list[str]:
+def _percentiles_agree(node: Mapping[str, Any], key: str, fields: Mapping[str, tuple[str, int]],
+                       where: str, problems: list[str]) -> None:
+    samples = node.get(key)
+    if not isinstance(samples, list):
+        problems.append(f"{where}.{key}: no samples")
+        return
+    for name, (sample_key, pct) in fields.items():
+        values = [float(s[sample_key]) for s in samples if isinstance(s, Mapping) and _number(s.get(sample_key))]
+        expected = stats.percentile(values, pct)
+        got = node.get(name)
+        if not (_number(got) and _number(expected) and abs(float(got) - float(expected)) <= 1e-9) \
+                and not (got is None and expected is None):
+            problems.append(f"{where}.{name}: report {got}, recomputed {expected} from {len(values)} samples")
+
+
+def recompute_measure(doc: Mapping[str, Any], base_dir: Path | None = None) -> list[str]:
+    """M12 over a measure report: each measurement graph's and each sweep step's percentiles from their samples,
+    and each size's scaling row against the size's own report beside the measure report (``base_dir``), which is
+    itself recomputed."""
+    problems: list[str] = []
+    for n, g in sorted((_get(doc, "tesseract_nodes.graphs", {}) or {}).items()):
+        if isinstance(g, Mapping):
+            _percentiles_agree(g, "samples", {"p50": ("seconds", 50), "p95": ("seconds", 95)},
+                               f"tesseract_nodes.graphs.{n}", problems)
+    for i, step in enumerate(_get(doc, "throughput.steps", []) or []):
+        if isinstance(step, Mapping):
+            _percentiles_agree(step, "samples", {"apply_p50": ("seconds", 50), "apply_p95": ("seconds", 95)},
+                               f"throughput.steps[{i}]", problems)
+    for size, entry in sorted((_get(doc, "sizes", {}) or {}).items()):
+        if not isinstance(entry, Mapping) or entry.get("completed") is not True:
+            continue
+        rel = entry.get("report")
+        if base_dir is None or not isinstance(rel, str):
+            problems.append(f"sizes.{size}: no size report to recompute the row from")
+            continue
+        path = Path(base_dir) / rel
+        if not path.is_file():
+            problems.append(f"sizes.{size}: size report {rel} is not beside the measure report")
+            continue
+        size_doc = strict_load(path.read_bytes())
+        problems += [f"sizes.{size}: {p}" for p in recompute(size_doc)]
+        if scaling_row(size_doc) != entry.get("row"):
+            problems.append(f"sizes.{size}.row: not the row of {rel}")
+        if run_checks(size_doc, [n for n in (size_doc.get("checks") or {}) if n in CHECKS]) \
+                != size_doc.get("checks"):
+            problems.append(f"sizes.{size}: the size report's checks do not reproduce")
+    return problems
+
+
+def recompute(doc: Mapping[str, Any], base_dir: Path | None = None) -> list[str]:
     """M12: every percentile of :data:`RECOMPUTE` recomputed from the samples the report carries, the lineage
     counts from ``lineage.rows`` and the discovery recall from ``found_patterns``; returns the disagreements (an
-    empty list when the report's aggregates are its samples')."""
+    empty list when the report's aggregates are its samples'). A measure report (``run.job == "measure"``) goes to
+    :func:`recompute_measure`."""
+    if _get(doc, "run.job") == "measure":
+        return recompute_measure(doc, base_dir)
     problems: list[str] = []
     for block, key, fields in RECOMPUTE:
         node = _get(doc, block)

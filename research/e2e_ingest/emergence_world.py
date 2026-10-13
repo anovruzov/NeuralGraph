@@ -35,6 +35,7 @@ to the pipeline and to the pack's fixtures only.
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
@@ -324,10 +325,13 @@ class EmergenceWorld(World):
 
 def build_emergence_world(target_users: int = 200, seed: int = 0, workdir: str | Path = "e2e-world", *,
                           pack_dir: str | Path = PACK_DIR, top_n: int | None = TOP_N, tie_salt: str = TIE_SALT,
-                          enterprise: str = PACK_ID) -> EmergenceWorld:
+                          enterprise: str = PACK_ID, timings: dict[str, float] | None = None) -> EmergenceWorld:
     """Generate the world, check its counts, run the shipped pipeline (ingest, lexical extraction, weekly cells
     through every site's Boundary, HQ's store) and detection, and take the candidates. The caller owns
-    ``world.pipeline`` (``pipeline.close()``)."""
+    ``world.pipeline`` (``pipeline.close()``). ``timings``, when given, receives the wall seconds of the generator
+    (``generate_seconds``), of the pipeline (``pipeline_seconds``) and of detection (``detection_seconds``): the
+    scaling table of section 10 reports the pipeline's and detection's seconds apart."""
+    t0 = time.perf_counter()
     org, corpus, gold = generate(target_users, seed)
     counts = world_counts(org, corpus, gold)
     check_world_counts(counts, target_users)
@@ -341,17 +345,22 @@ def build_emergence_world(target_users: int = 200, seed: int = 0, workdir: str |
     records = build_records(corpus, seed=seed)
     master = master_data(corpus)
     weeks = world_weeks(START, N_WEEKS)
+    t1 = time.perf_counter()
     pipeline = run_pipeline(pack, records, site_ids=sites, master_data=master, weeks=weeks, workdir=workdir,
                             enterprise=enterprise)
+    t2 = time.perf_counter()
     try:
         if pipeline.as_of != closing_date(pack, weeks[-1]):
             raise WorldError("the pipeline's as_of is not the closing date of the last week") from None
         result = detect(pipeline.store, as_of=pipeline.as_of, run_channel=RUN_CHANNEL, tie_salt=tie_salt)
+        t3 = time.perf_counter()
         candidates, detected = ordered_candidates(result, tie_salt=tie_salt, top_n=top_n)
         labels = gold_labels(corpus, gold)
     except BaseException:
         pipeline.close()
         raise
+    if timings is not None:
+        timings.update({"generate_seconds": t1 - t0, "pipeline_seconds": t2 - t1, "detection_seconds": t3 - t2})
     return EmergenceWorld(seed=seed, planted=True, workdir=Path(workdir), pack=pack, pipeline=pipeline,
                           records=records, master_data=master, site_ids=sites, weeks=list(weeks),
                           candidates=candidates, detected=detected, labels=labels, target_users=target_users, org=org,

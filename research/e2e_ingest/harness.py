@@ -1,7 +1,14 @@
 """The end-to-end run: the EMERGENCE world through NeuralGraph, Tesseract, the API, the outbox, JetStream and apply
 (``docs/collective/E2E-INGEST.md`` sections 1, 4, 8 and 9; S5 and S6).
 
-    python -m research.e2e_ingest.harness run --world 200 --seed 0 --out DIR [--skip-drills]
+    python -m research.e2e_ingest.harness run --world 200 --seed 0 --out DIR [--skip-drills] [--suites DIR]
+                                               [--top-n 60] [--queries 20]
+
+(``python -m research.e2e_ingest run --size 200 --mode process --out DIR`` is the same command, section 6.)
+``--suites DIR`` reads the suites' junit evidence of M2 (``python -m research.e2e_ingest suites --out DIR``)
+and runs criterion 10's check over it; without it the run's checks are reported and ``verdict.pass`` is false
+with reason ``suites_not_green``. ``--queries 0`` asks no fixed query (the measure job, whose sizes do not drill
+criterion 3) and ``--top-n`` bounds the candidate list (the measure job asks 20 at the 2,000-user size, M14).
 
 What one run does, in the order section 8 fixes:
 
@@ -65,7 +72,7 @@ from mycelic.collective.edge.egress import read_log
 from mycelic.collective.edge.records import RecordStore
 from mycelic.collective.edge.site import EdgeSite
 from mycelic.collective.edge.weeks import iso_week, week_sunday
-from mycelic.collective.experiments.common import code_dirty, utc_clock
+from mycelic.collective.experiments.common import code_dirty, utc_clock, write_json_atomic
 from mycelic.collective.jsonio import canonical_bytes, sha256_hex, strict_load
 from mycelic.sdk import MycelicClient, MycelicError
 from research.routing_spike import wire
@@ -81,6 +88,7 @@ from . import hq_tesseract as hqt
 from . import measure as ms
 from . import report as rp
 from . import site_graph as sg
+from . import suites as su
 from .hq_bridge import HqBridge, HqStoreReader
 from .publish_api import AGENT_ID, ORG_ID, VERDICT_EVENT, Publisher, event_ids
 
@@ -93,6 +101,7 @@ ORACLE_MIN_RECORDS = 3
 ORACLE_MIN_USERS = 3
 ORACLE_MIN_EVENTS = 3
 FORGED_IDS = ("mem_forged_e2e_1", "mem_forged_e2e_2", "mem_forged_e2e_3")
+FIXED_QUESTIONS_NAME = "fixed_questions.json"
 #: ``MYCELIC_ENTERPRISE.md:579-581``: the published 10,000- and 50,000-user worlds, the denominators of
 #: ``world.fraction_of_benchmark``.
 BENCHMARK_10K = (9999, 329730)
@@ -335,6 +344,7 @@ class Options:
     queries: int = FIXED_QUERIES
     run_id: str = "local"
     idle_timeout: float = 300.0
+    suites: Path | None = None
 
 
 @dataclass
@@ -361,7 +371,10 @@ class E2ERun:
         done = self._phase("world_seconds")
         o = self.options
         self.log(f"world: EMERGENCE target_users={o.world} seed={o.seed}")
-        self.world = ew.build_emergence_world(o.world, o.seed, self.dirs["world"], top_n=o.top_n)
+        world_timings: dict[str, float] = {}
+        self.world = ew.build_emergence_world(o.world, o.seed, self.dirs["world"], top_n=o.top_n,
+                                              timings=world_timings)
+        self.timings.update({f"world_{k}": v for k, v in world_timings.items()})
         world = self.world
         result = detect(world.pipeline.store, as_of=world.as_of, run_channel=ew.RUN_CHANNEL,
                         tie_salt=world.tie_salt)
@@ -374,6 +387,10 @@ class E2ERun:
         self.candidates = [Candidate.from_detector(c) for c in world.candidates]
         self.candidates.sort(key=lambda c: (c.as_of, c.key))
         self.questions_fixed = ew.fixed_questions(world, o.queries)
+        # section 3.5's 20 fixed questions, written beside the report (entity id, predicate, window, as_of: no
+        # record, no ref); the measure job's Tesseract phase ranks the same 20 over its measurement graphs
+        self.fixed_questions_path = o.out / FIXED_QUESTIONS_NAME
+        write_json_atomic(self.fixed_questions_path, ew.fixed_questions(world, FIXED_QUERIES))
         self.prefixes = ew.narrative_prefixes(world.corpus)
         counts = dict(world.counts)
         self.doc["world"] = {
@@ -732,6 +749,8 @@ class E2ERun:
     def publish_with_broker_kill(self) -> None:
         done = self._phase("publish_seconds")
         self.store_path = Path(self.world.pipeline.store.path)       # HQ's own store (``store.py:347``)
+        self.doc["run"]["paths"] = {"hq_store": str(self.store_path), "fixed_questions": str(self.fixed_questions_path),
+                                    "out": str(self.options.out)}
         reader = HqStoreReader(self.store_path)
         counts = reader.counts()
         n = counts["pd_verdicts"] + counts["pd_conclusions"]
@@ -1279,7 +1298,7 @@ class E2ERun:
             if not o.skip_drills:
                 self.reference_pass()
             self.main_pass()
-            self.rankings_before = self.rank_fixed_queries("before")
+            self.rankings_before = self.rank_fixed_queries("before") if o.queries > 0 else {}
             self.node_ids_before = {sid: sg.node_ids_digest(sg.graph_node_ids(self.main_configs[sid].graph_path, sid))
                                     for sid in self.world.site_ids}
             self.node_count_before = {sid: len(sg.graph_node_ids(self.main_configs[sid].graph_path, sid))
@@ -1309,19 +1328,21 @@ class E2ERun:
         self.doc["timings"] = dict(sorted(self.timings.items()))
         self.doc["run"].update({"finished_at": utc_clock(), "seconds": time.perf_counter() - t0,
                                 "code_dirty_end": code_dirty(list(rp.DIRTY_PATHS))})
+        # M2: the suites' junit evidence is read from the suites CLI's directory (``--suites DIR``) and criterion
+        # 10's check runs over it; without it the run's checks are reported but the run does not count
+        # (``verdict.pass`` false, reason ``suites_not_green``)
+        self.doc["run"].update(su.evidence_block(o.suites))
         not_run = {"c5_measured": "the measure job (S7): the rate sweep and the three node counts",
-                   "c6_ci": "the workflow test (S8)",
-                   "c10_suites_green": "the suites CLI's junit evidence (M2, S8)"}
+                   "c6_ci": "the workflow test (S8)"}
+        if self.doc["run"]["suites_evidence"] != su.EVIDENCE:
+            not_run["c10_suites_green"] = "no suites directory was given (--suites DIR; M2)"
         if o.skip_drills:
             not_run.update({name: "--skip-drills" for name in ("c1_signed", "c2_lineage", "c3_idempotent",
                                                                "c4_recovery")})
         names = [n for n in rp.E2E_CHECKS if n not in not_run]
         self.doc["checks"] = rp.run_checks(self.doc, names)
-        # M2: the suites' junit evidence is read from the suites CLI's directory (S8); without it the run's checks
-        # are reported but the run does not count (``verdict.pass`` false, reason ``suites_not_green``)
-        suites_green = (self.doc["run"].get("suites_evidence") == "junit"
-                        and bool((self.doc["checks"].get("c10_suites_green") or {}).get("ok")))
-        self.doc["verdict"] = rp.verdict(self.doc["checks"], not_run=not_run, suites_green=suites_green)
+        self.doc["verdict"] = rp.verdict(self.doc["checks"], not_run=not_run,
+                                         suites_green=rp.suites_green(self.doc))
         return self.doc
 
 
@@ -1349,8 +1370,15 @@ def cmd_run(args: argparse.Namespace) -> int:
     if args.mode not in MODES:
         print(f"error: --mode is one of {', '.join(MODES)}", file=sys.stderr)
         return 2
+    if args.queries < 0 or (args.top_n is not None and args.top_n < 1):
+        print("error: --queries is 0 or more and --top-n is 1 or more", file=sys.stderr)
+        return 2
+    suites = Path(args.suites) if args.suites else None
+    if suites is not None and not suites.is_dir():
+        print(f"error: --suites {suites} is not a directory", file=sys.stderr)
+        return 2
     options = Options(out=out, world=args.world, seed=args.seed, mode=args.mode, skip_drills=bool(args.skip_drills),
-                      jobs=args.jobs, run_id=args.run_id, queries=args.queries)
+                      jobs=args.jobs, run_id=args.run_id, queries=args.queries, top_n=args.top_n, suites=suites)
     run = E2ERun(options=options)
     doc = run.run()
     path = out / rp.REPORT_NAME
@@ -1366,7 +1394,8 @@ def cmd_check(args: argparse.Namespace) -> int:
     stored verdict passes; ``--recorded`` also requires ``run.github_run_id`` and ``run.command``."""
     path = Path(args.report)
     doc = strict_load(path.read_bytes())
-    problems = rp.recompute(doc)
+    measure = (doc.get("run") or {}).get("job") == "measure"
+    problems = rp.recompute(doc, base_dir=path.parent)
     stored = doc.get("checks") or {}
     again = rp.run_checks(doc, [n for n in stored if n in rp.CHECKS])
     for name, check in again.items():
@@ -1380,7 +1409,11 @@ def cmd_check(args: argparse.Namespace) -> int:
             problems.append("run.github_run_id: a recorded run names its CI run")
         if not run.get("command"):
             problems.append("run.command: a recorded run names its command")
-    print(summary(doc))
+    if measure:
+        from .measure import summary as measure_summary
+        print(measure_summary(doc))
+    else:
+        print(summary(doc))
     for problem in problems:
         print(f"  recompute: {problem}")
     print(f"check: {path} aggregates {'agree' if not problems else 'DISAGREE'} ({len(problems)} problems); "
@@ -1393,15 +1426,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                                      description="The EMERGENCE end-to-end ingestion run (synthetic).")
     sub = parser.add_subparsers(dest="command", required=True)
     r = sub.add_parser("run", help="one end-to-end run and its report")
-    r.add_argument("--world", type=int, default=200, choices=sorted(ew.WORLD_TABLE))
+    r.add_argument("--world", "--size", dest="world", type=int, default=200, choices=sorted(ew.WORLD_TABLE),
+                   help="target_users of the EMERGENCE world (section 3.1); --size is the brief's spelling")
     r.add_argument("--seed", type=int, default=0)
     r.add_argument("--out", required=True)
     r.add_argument("--mode", default="process", choices=MODES)
     r.add_argument("--skip-drills", action="store_true",
                    help="the world, the main pass and the publish only; the drilled criteria are then not run")
     r.add_argument("--jobs", type=int, default=4, help="threads for the reference pass and the fixed queries")
-    r.add_argument("--queries", type=int, default=FIXED_QUERIES, help="fixed queries per site (the brief: 20)")
+    r.add_argument("--queries", type=int, default=FIXED_QUERIES,
+                   help="fixed queries per site (the brief: 20; 0 asks none, the measure job's sizes)")
+    r.add_argument("--top-n", type=int, default=ew.TOP_N,
+                   help="the candidate list's bound (the brief: 60; the measure job asks 20 at 2,000 users)")
     r.add_argument("--run-id", default="local")
+    r.add_argument("--suites", default=None,
+                   help="the directory the suites CLI wrote (M2's junit evidence); criterion 10 runs over it")
     c = sub.add_parser("check", help="re-read a report: recompute its aggregates and re-run its checks (M12)")
     c.add_argument("report")
     c.add_argument("--recorded", action="store_true", help="require the CI run id and the command of a recorded run")
