@@ -256,6 +256,13 @@ models on the fake provider with `--j3-data`, and the template's dry run with `-
 The other lab suites run unchanged but for the pins above; `tests/lab/test_lab_j2.py` passes on the unchanged
 `lab/j2.py` and `lab/j2labels.py`.
 
+Run in the build's last stage (`wf/a002-b`): `python -m pytest tests/lab/test_lab_j3.py -q` gave `61 passed, 369
+subtests passed` before the three pins of `WiringTests` were added, each of which then passed alone; `python -m pytest
+tests/lab/test_lab_j2.py -q -p no:cacheprovider` gave `56 passed, 204 subtests passed`; the template dry run gave the
+block above; `git diff --stat 720b0d6..HEAD` over the five pinned lab files printed nothing. The whole `tests/lab`,
+the onboard and guard suites and a re-run of the whole `test_lab_j3.py` were started in the background and had not
+finished when the stage's limit closed it; the merge gate runs them before any merge.
+
 ## The dry run
 
 `python -m tests.lab.j3_data --out DIR` then `python -m lab.dryrun --request lab/templates/accuracy-002.json --out OUT
