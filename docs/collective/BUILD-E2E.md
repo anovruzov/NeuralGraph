@@ -534,6 +534,13 @@ test_collective_guards.py -k NoModelNames` reports the brief's own two hits and 
   figures above are superseded by that run's. Under M2 the `verdict.pass` of any run without the suites' junit
   evidence is false (`reason: suites_not_green`); what the section above calls "`verdict.pass` true" is the
   report's `checks_pass` now.
+- After the build review ("Fixes after review" at the end of this note): the five lineage witnesses of M1 start
+  from the `sha256` the fabric itself holds in each verdict event's payload (`lineage.sha256_in_fabric_event`,
+  c2 `witness_fabric_event`), not from HQ's `pd_verdicts.sha256`; section 4's leakage scan and closed-shape check
+  of the spike (`run.py` `leakage_check`, `crossing_check`) run over every crossing byte of the main pass and over
+  the pipeline's directory (`lineage.crossing`, c2 `crossing_leakage_zero` and `crossing_shapes_ok`), which the
+  "Privacy" item above did not have; M4 check 3's six witnesses are c1's; the site kill is never typed in (c4
+  `main_pass_in_process_mode`, `site_process_sigkilled`); the forgeries are counted by their own stream sequences.
 
 ## S5 and S6, continued: the harness finished (branch `wf/e2e-harness2`)
 
