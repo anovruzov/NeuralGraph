@@ -26,7 +26,7 @@ cross-unit detection would have flagged those issues earlier than chance (`docs/
 | Pack drafter: a pack drafted from any export (CSV, pipe, tab or JSON lines) by the same code for every field, learning its vocabulary from the export's own filed categories, with a privacy floor on what it learns | Built and tested; passed its pre-registered real-data test D002 on its second rule. D003 on FDA device reports failed: it beat every control (C1) but was not shown to beat the hand-built device pack (C2) | `mycelic/collective/onboard/`, `docs/collective/onboard/CHOICE-D002.md`, `CHOICE-D003.md` |
 | Signal audit (the pilot) with a chance baseline and a power check before any replay | Built and tested | `docs/collective/PILOT.md`, `docs/collective/POWER.md` |
 | Cloud lab: pre-registered runs of small models on shared CPU runners | Eleven runs recorded | `docs/lab/RESULTS.md` |
-| Routing layer: per-site NeuralGraph and Tesseract behind the Boundary, routing HQ's questions | Research spike, not in the product path | `docs/collective/ROUTING-SPIKE.md` |
+| Routing layer: per-site NeuralGraph and Tesseract behind the Boundary, routing HQ's questions | Research spike, not in the product path; since 2026-10-13 it runs end to end in CI on the EMERGENCE generated world (NeuralGraph site graphs, Tesseract routing, NATS, keyed fabric), gated by the unit suites: first run green in every job, synthetic, no company data | `docs/collective/ROUTING-SPIKE.md`, `docs/collective/E2E-INGEST.md` (Runs) |
 
 ## 3. What the evidence says
 
