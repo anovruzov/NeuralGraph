@@ -283,3 +283,244 @@ on the same tree for the record: `NeuralGraph/tests` 264 passed, 1 skipped, 76.3
   later; it has not run and could not: the world, the sites and HQ do not exist yet.
 - Criterion 10 is blocked on this tree by item 5 of "Found in the brief" until the brief is amended.
 - Nothing is pushed.
+
+## S5 and S6: `hq_tesseract.py`, `harness.py`, `report.py`, the drills (branch `wf/e2e-harness`)
+
+The end-to-end run itself: the world of S2b through the seven site graphs of S2, HQ with Tesseract routing, the
+bridge of S3 and S4 into a real keyed fabric, the seven drills of section 8, the checks of section 9 and the report
+of section 5. This branch starts from the bridge branch with the site branch merged into it (the merge resolved two
+add/add conflicts, the package docstring and this note, by keeping both sides whole).
+
+    python -m research.e2e_ingest.harness run --world 200 --seed 0 --out DIR [--skip-drills]
+
+### The shape
+
+| Piece | Where | What |
+|---|---|---|
+| HQ | `research/e2e_ingest/hq_tesseract.py` | `E2EHq(Hq)`: the spike's HQ with the `FailureInjector` kept and the coordinator rebuilt with it (M4 check 3), the six constructor arguments in the spike's order; `replace_endpoint` (drill 2 reopens a killed child process); `probe_masked` (the eligibility probe); `record_question` (`pd_questions` + `pd_routes` + `pd_verdicts` + `pd_conclusions`, the orchestrator's shape); `save_detection_run` (the candidates' rows carry the snapshot week the bridge reads); `route_of` (the route the Router will choose, used to plan the run) |
+| The run | `research/e2e_ingest/harness.py` | `E2ERun`: the world, the reference pass (drill 1, three threads per question, M15), the main pass in process mode with the site kill and the probe (drill 2), the publish with the broker kill (drill 3), the forgeries (drill 4), the lineage witnesses and the scan (drill 5), the service rebuild (drill 6), the re-ingest and the bridge rerun (drill 7); the oracle of section 3.5 and M20 (`pattern_facts`, `expected_status`); criterion 7's import guards (`static_imports`, `imports_loaded`, `guard_report`); the CLI |
+| The report | `research/e2e_ingest/report.py` | the header of section 5 with the runner's CPU and the code stamps (M10, M13), `stat_block` (p50/p95 with the samples beside them, M12), the scans of drill 5 and M24, and one function per criterion (`c0_real_fabric_keyed` to `c8_emergence_load`) returning `{ok, assertions, failed, ...}`, plus `verdict` |
+| The broker-side drills | `research/e2e_ingest/drills.py` (added to) | `metric_sum` and `event_counters` (the applied counter carries `kind` **and** `result`, so only `result="applied"` counts an event once), `audit_rows`, `ready`, `service_meta` / `known_key_ids` (M3's `key_id_in_service_db`), `fabric_db_text` and `stream_payloads` (drill 5's scan inputs) |
+| Tests | `tests/e2e_ingest/test_harness.py` | the oracle, the scans, every assertion of every check with one mutation each (a check that stopped checking fails), criterion 7 for real (including a probe module that does import numpy and the service, so the guard can fail), and one real run of the harness on the 200-user world with every drill |
+
+No pinned module was changed: nothing under `mycelic/`, `research/routing_spike/`, `research/mycelic/`,
+`NeuralGraph/`, `lab/`; every one of them is imported. `research/e2e_ingest/drills.py` gained functions and lost
+none.
+
+### How the brief's rules are carried out
+
+- **Tesseract routing (section 4, M4).** The main pass asks through `TesseractCoordinator.execute` with arm R's
+  order as `preferred_node_ids` and `budget.max_nodes = 3`; the report carries the live `routing.coordinator_class`
+  and `routing.router_class` (the check asserts the coordination package's own classes), per question the eligible
+  count, the route, the route size and the `TraceEventType` sequence (`route_selected` before every
+  `retrieval_selected`), and `routes_equal_arm_order` (the route the Router chose equals the first three eligible
+  sites of arm R's order). The eligibility filter is exercised once: with the restarted site's process down the
+  harness applies `failure.apply(InterventionTarget.ROUTE, site)`, asks one probe question through `hq.ask` alone
+  (nothing written to HQ's store, nothing published), then clears the mask. The probe candidate is chosen so that
+  the masked site **is** in its unmasked arm-R route, and the report carries both routes: a mask that excluded a
+  site the route would not have held anyway proves nothing. `router_excluded_masked` and `intervention_records`
+  are both 1, and the probe's verdict sources hold no `hq` record (a Router that ignored the mask would have asked
+  the dead process and got `wire:closed`).
+- **The five lineage witnesses (M1).** For every site-sourced verdict event: `pd_verdicts.sha256` recomputed from
+  the stored bytes, a response frame of that site in `hq/wire.jsonl` whose decoded body has that sha256, a row of
+  `hq/intake.jsonl` with that sha256 and question id and `source == "site"`, a verdict row of that site's
+  `site-<id>.egress.jsonl`, and `RecordStore.verdict_by_id(body["verdict_id"]).sha256`. Then the join as drilled:
+  `verdict_for_ref(evidence_ref)` back to the same verdict id, its `confirming_refs` and `entity_refs`, and every
+  such record's `received_date` on or before the question's `as_of` (`records_after_as_of` is reported and must be
+  0). c2 asserts each witness count equals the site-sourced verdict events.
+- **The stream binding (M3).** Every message of stream `MYCELIC` is read by sequence and checked under
+  `Keyring(driver.signing_key)`; the key id the harness holds is looked up in the service's own
+  `meta.known_key_ids`, read `mode=ro`. The report keeps two stream reads, `signatures.stream_before` (before any
+  forgery: verified == fetched, foreign 0) and `signatures.stream_after` (foreign 3, verified == fetched − 3), and
+  the flat fields of section 5 mirror the second. `stream_kinds` counts every kind the service puts on the stream,
+  which is more than M3's five (the bridge branch's note, item 1); the totals equation holds as written.
+- **The forgeries (M8, M25).** Three publishes straight to the broker over a harness nats-py connection, each with
+  its own `Nats-Msg-Id`; after forgery *i* the counter `mycelic_events_failed_total{stage="signature"}` is exactly
+  *i*, `GET /memory/<forged>` is 404 for all three, and the audit holds at least three `event.rejected` rows.
+- **The broker kill (drill 3, M6).** One `POST /events` per event through `publish_api`; the publisher's
+  `on_publish` hook kills nats-server after publish k = N // 2; the rest is taken by the outbox. The outage is
+  sampled **after the last POST and before the broker comes back**, which is when the outbox holds what the broker
+  could not take (`outbox_pending_during_outage >= 1`, `connected` false, `status` `degraded`); then the broker is
+  restarted and the fabric brought to idle.
+- **The applied deltas (M6).** `mycelic_events_applied_total` carries `kind` and `result`
+  (`applied`/`duplicate`/`ignored`), and a broker restart re-delivers what was in flight, so the per-kind delta is
+  read over `result="applied"` only; the deliveries of every result are reported beside it. See "Found in the
+  brief", item 1.
+- **The service rebuild (drill 6, M5).** The active memory ids and every conclusion's `report_digest` are recorded,
+  the service is SIGKILLed, its database deleted and the service restarted; after idle the ids and digests must be
+  identical, and the replay's own audit row `recovery.signature_rejections` must show the three forgeries rejected
+  with `blocked` false, no `ready_block` and `/ready` 200.
+- **Re-ingest and the bridge rerun (drill 7, criterion 3).** Every site ingests its records again (all duplicates),
+  every graph re-syncs (0 nodes added), and the 20 fixed queries are compared per site before and after on the top
+  10 and on the full returned order, as digests. Then a second bridge with an empty watermark re-POSTs every event:
+  0 created, 0 new memory ids, 0 new event ids, the stream unchanged, HQ's store file unchanged.
+- **Criterion 8 (M9, M16).** `ingested` is the count of the site store's own records (`forwarded_in = 0`) read
+  `mode=ro`; `duplicates` and `rejected` are 0 because `run_pipeline` returned, which the report records as
+  `ingest.pipeline_raised: false`; the graph's node ids are read from the graph file `mode=ro` after the site
+  processes have exited and their digest is compared with the record refs computed from `corpus.recs` and
+  `org.ancestor_at` alone.
+- **Criterion 7.** `static_imports` is re-implemented here because the spike's own version resolves relative
+  imports in `research.routing_spike`; `imports_loaded` runs a fresh interpreter per module. The three modules
+  (`hq_tesseract`, `hq_bridge`, `publish_api`) are checked against `FORBIDDEN_HQ` plus `research.e2e_ingest.
+  site_graph` (and `mycelic.service` for `publish_api`), the drills against the site and service modules, and
+  `run.spike_code_hash` against M13's pinned value over 142 files.
+- **The oracle (section 3.5, M20).** Per routed site, the pattern's facet records inside the question window: how
+  many, from how many distinct users and events, whether one of them is a polarity −1 record, and the newest week —
+  read from the generator's own rows, harness side. `supported` when at least two routed sites are strong and the
+  newest strong week is within 42 days of `as_of`, `stale` when it is older, `hypothesis` when no routed site is
+  strong; one strong site, or a contradiction at any routed site, is ambiguous and is reported with its reason,
+  never asserted. c1 asserts every unambiguous planted candidate's fabric status equals the oracle's.
+- **Privacy.** No record, narrative or node id is an argument to anything HQ, the bridge or the report touches; the
+  report holds ids, counts, statuses, digests and seconds. Drill 5's scan reads every row of the fabric's database
+  and every message of the stream (both decoded with replacement, so no byte can hide behind an encoding) and counts
+  the record-ref pattern, the narrative marker and the first 24 characters of every narrative of the world; a test
+  runs the same three scans over the written report.
+
+### What the report does not claim
+
+The end-to-end job's checks are c0 to c4, c7 and c8. `verdict.pass` is true only when every check that **ran** is
+`ok`, and `verdict.not_run` names the ones this build cannot make, with the reason: `c5_measured` and the scaling
+table are the measure job's (S7), `c6_ci` is the workflow's (S8), `c9_benchmark` needs the simulator's columns
+(S7) although `discovery` already carries the path's own score, and `c10_suites_green` needs the junit evidence of
+M2 from the suites CLI (S8). `verdict.complete` is false while any is missing, so no reader can mistake this report
+for the brief's whole gate.
+
+### What the recorded local run showed (Intel Xeon 2.10 GHz, 4 vCPU, nats-server v2.10.22; sandbox figures)
+
+`python -m research.e2e_ingest.harness run --world 200 --seed 0 --out DIR`, 55 candidates, every drill, 701 s of
+wall time. `verdict.pass` true over the seven checks the end-to-end job runs; `complete` false, since c5, c6, c9's
+simulator columns and c10's junit evidence belong to S7 and S8.
+
+| Check | Assertions | Result |
+|---|---|---|
+| `c0_real_fabric_keyed` | 9 | ok |
+| `c1_signed` | 25 | ok |
+| `c2_lineage` | 15 | ok |
+| `c3_idempotent` | 12 | ok |
+| `c4_recovery` | 25 | ok |
+| `c7_guards` | 6 | ok |
+| `c8_emergence_load` | 6 | ok |
+
+- **The world and the load.** 309 users, 7 sites, 35 teams, 12,964 records, 150 entities, 40 real patterns, 40 Gold
+  discoverable (18 rare), 50 decoys; `as_of` 2024-07-14; pipeline and detection 5.0 s; 55 snapshot candidates on
+  channel X, all 55 asked (fewer than the brief's `top_n` 60, so the candidate list is the whole detected set).
+  Per site 2,574 / 1,620 / 1,789 / 1,876 / 1,805 / 1,842 / 1,458 records ingested, each site's graph holding exactly
+  that many MESSAGE nodes whose ids digest to the record refs; 0.26 to 0.39 s per 1,000 records to build, 0.33 s per
+  1,000 over the world; loss 0.
+- **Tesseract routing.** The live coordinator and router are the coordination package's own
+  `TesseractCoordinator` and `Router`; every one of the 55 questions had 7 eligible sites, a route of 3, and
+  `route_selected` before every `retrieval_selected`; every route equalled the first three of arm R's order. 166
+  rankings (165 of the main pass and one of the probe) over graphs of 1,458 to 2,574 nodes, 0.76 s p50 and 1.31 s
+  p95; question to verdict 0.79 s p50 and 1.34 s p95 per site, 2.40 s and 3.54 s per question.
+- **The eligibility probe (M4).** The masked site was in the probe question's unmasked arm-R route and absent from
+  the route the Router chose; 7 sites still eligible, route size 3, one `failure_injected`, one intervention record
+  ended, no `hq` verdict record. The 200-user world detects 55 candidates and all 55 are asked, so the probe
+  re-asked one of them (`candidate_source: "reused"`) rather than taking a spare; its result is a separate `Asked`
+  and is neither written to HQ's store nor published, so the answer matrix is untouched.
+- **The gate's statuses.** 47 supported, 7 hypothesis, 1 stale over 55 conclusions; 148 confirm, 15 refute, 2
+  unknown, 0 HQ error records, 0 `budget` unknowns.
+- **The oracle (c1's hardest assertion).** 8 of the 15 planted candidates were unambiguous: 7 expected `supported`
+  and the fabric says `supported`, 1 expected `hypothesis` and the fabric says `hypothesis`. The other 7 are
+  ambiguous (one strong site, or a contradiction at a routed site) and are reported with their reason, not asserted.
+- **Publishing.** 220 publishes (165 verdict events, 55 conclusions), all created, 0 duplicates, 0 ambiguous; 275
+  API ids (220 `agent.event` plus 55 `memory.observed`), every one applied exactly once.
+- **The broker kill.** nats-server killed after publish 110 of 220; during the outage the outbox held 138 and the
+  service read `connected: false`, `status: degraded`; after the restart one reconnect, `outbox_pending` 0,
+  `consumer_pending` 0, applied deltas exactly 220 `agent.event` and 55 `memory.observed`, 0 ignored, 55 active
+  notes, 0 stream duplicates. `created_to_applied` p50 28 s and p95 29 s are the outage's own waiting time, not a
+  latency measurement; criterion 5's figures are the measure job's.
+- **Signatures.** Before any forgery 279 stream messages fetched, 279 verified, 0 foreign, every API id exactly
+  once, kinds `agent.event` 220, `memory.observed` 55, `rule.upserted` 3, `agent.registered` 1 (M3's "registration
+  writes none" is false; the totals equation holds as written). After the three forgeries 282 fetched, 279
+  verified, 3 foreign; the counter read exactly 1, 2, 3; all three forged memory ids 404; three `event.rejected`
+  audit rows.
+- **Lineage.** 55 conclusions, all reconstructable with their verdict events among the memory's sources; 165
+  site-sourced verdict events, each with all five witnesses (165 in `pd_verdicts`, 165 in HQ's wire log, 165 in
+  HQ's intake log, 165 in the sites' egress logs, 165 in the sites' own stores); 163 of them (the confirms and
+  refutes) joined site-side through `verdict_for_ref` to their confirming and entity records, every one received on
+  or before the question's `as_of`; 0 records after it. The scan read 396,084 bytes of the fabric's database and
+  282 stream messages (264,647 bytes) and found 0 record refs, 0 narrative markers and 0 narrative prefixes. The
+  narrative-prefix set of this world holds 1,312 distinct 24-character prefixes (the first 24 characters of an
+  EMERGENCE narrative are its day stamp and user node name, so many records share one); the marker pattern covers
+  the same ground more sharply and both are 0.
+- **Recovery.** The restarted site: 16 questions before the SIGKILL, 15 after, 2,574 nodes before and after (0
+  added), every post-restart answer byte-identical to a fresh `E2ESiteProcess` whose graph was built from nothing,
+  and the whole answer matrix byte-identical to the reference pass (0 mismatches). The service rebuild: database
+  deleted and rebuilt in 1.8 s, the same 55 active memory ids, the same 55 verification digests, the replay seeing
+  282 deliveries and rejecting the 3 forgeries (ratio 0.011, under the 0.05 the driver sets), `replay_blocked`
+  false, no `ready_block`, `/ready` 200.
+- **Idempotency.** Re-ingest: 12,964 duplicates, 0 ingested, 0 rejected, 0 nodes added at any site, and all 140
+  fixed-query rankings (20 per site) identical on the top 10 and on the full returned order. The bridge rerun from
+  an empty watermark: 220 publishes, 0 created, 0 new memory ids, 0 new event ids, the stream unchanged at 285
+  messages, the notes identical, HQ's store file unchanged. (285, not 282: the rebuilt service re-emitted its three
+  `rule.upserted` events at start. The checks compare like with like — c1 against the sample taken with the stream
+  read, c4's replay against the stream as it was when the replay ran, c3 before against after.)
+- **Phases (seconds).** world 5.0; reference pass 177.8; main pass 146.5; fixed queries before 154.6; restart
+  witness 19.3; fabric start 0.6; publish 30.9 (including the outage); forgeries 0.3; lineage and the scan 0.5;
+  discovery 0.01; rebuild 2.2; re-ingest 160.7 (which contains the 160.6 s of the second ranking pass); bridge
+  rerun 1.4. Total 701 s. A CI runner is not this sandbox, and the brief's 20-minute bound for the end-to-end job
+  is neither met nor missed by a local figure; the first recorded CI run decides (section 11).
+
+### Found in the brief while building (nothing lowered)
+
+1. **M6's `applied_delta_*` needs the `result` label.** `mycelic_events_applied_total` carries `kind` **and**
+   `result` (`applied`, `duplicate`, `ignored`; `service.py:1407`, `:1442`, `:1467`, `:1484`), and a broker restart
+   re-delivers what was in flight, so the per-kind total over every result exceeds N (a probe run at 12 publishes
+   read 18 `agent.event` deliveries). The deltas are therefore read over `result="applied"`, which is what "applied
+   exactly once" means; the deliveries of every result are reported beside them.
+2. **M5's ratio arithmetic needs the floors.** Three forgeries over the floors (80 publishes + 20 conclusions + 3)
+   give 0.029, under the 0.05 the driver sets; the recorded run's 3 over 282 is 0.011. Below the floors the ratio
+   passes 0.05 and the rebuilt service keeps `/ready` at 503 — which is M5's own arithmetic, not a defect: a run
+   that does not reach the brief's N cannot drill the rebuild. The suite's live run therefore asks 20 candidates
+   (N = 80, the floor), not a handful.
+3. **M4's probe needs a candidate the masked site would have answered.** The brief says "the next candidate in
+   order"; a mask on a site that the probe's route would not have held anyway excludes nothing and proves nothing.
+   The harness picks the first candidate whose unmasked arm-R route holds the masked site, prefers one beyond the
+   asked list, and reports both routes and which it used.
+4. **The 200-user world detects fewer candidates than `top_n`.** 55 with a snapshot at seed 0, so "the first 60"
+   is all of them and there is no spare for the probe (item 3). The floor of 20 asked candidates (section 2.3) is
+   met with room; the brief's 60 is an upper bound, not a count the world owes.
+5. **The stream grows at a service restart.** The rebuilt service re-emits its rules file's `rule.upserted` events,
+   so the stream after drill 6 holds three more messages than before it. Every check compares samples taken at the
+   same moment, and the report keeps each sample where it was taken.
+6. **The narrative-prefix scan is weak at 24 characters on this world** (1,312 distinct prefixes for 12,964
+   records, because an EMERGENCE narrative starts with a day stamp and the user's node name). It stays as the brief
+   fixes it; the record-ref pattern and the marker pattern are the sharp ones, and all three are 0.
+
+### Tests (`tests/e2e_ingest/test_harness.py`)
+
+| Test class | What it proves |
+|---|---|
+| `OracleTests` | section 3.5 and M20: two strong sites inside the freshness window expect `supported`, older expect `stale`, no strong site expects `hypothesis`, one strong site or a contradiction at any routed site is ambiguous, and a site holding a polarity −1 record of the pattern is not strong |
+| `ScanTests` | drill 5's three patterns find a planted ref, marker and narrative prefix and count 0 over a verdict-shaped payload; M24's scan names a tier label when one is present |
+| `CheckTests` | a green report passes every check the end-to-end job runs; **one mutation per assertion** (98 of them) each makes its own check fail and names itself in `failed`; every assertion of every check has a mutation (the counts are compared); the verdict fails when any check that ran is not ok, and `complete` is false while a check did not run |
+| `GuardTests` | criterion 7 for real: the three modules import nothing forbidden, statically and in fresh interpreters; the drills load no site or service module; the static scan resolves this package's relative imports; a probe module that **does** import numpy and the service is caught by both halves; the spike's code hash and file count are M13's pinned values and its paths are clean |
+| `LiveRunTests` | one real run on the 200-user world with a real nats-server and service and every drill of section 8: only the floors the short scale cannot reach may fail, the fabric is real and keyed, every event is signed and in the stream exactly once and the three forgeries are terminated, Tesseract routed every question and the Router excluded the masked site, every conclusion has five witnesses per verdict and the scans are 0, the drills of c3 and c4, the world loaded whole at every site, the discovery score computed from the fabric and Gold, the report's schema and runner, and no record ref, narrative or tier label anywhere in the report |
+
+The live run asks the first 20 candidates (N = 80 publishes, the floor of section 2.3, so the broker kill and the
+service rebuild are drilled at the brief's own scale) and 2 fixed queries per site instead of 20, which is what
+`SHORT_SCALE` allows to fail and the only thing it allows. Run: `python -m pytest tests/e2e_ingest -q
+-p no:cacheprovider`. Nothing skips: a missing nats-server fails (M11).
+
+Sandbox record for this step: the whole new suite (this file plus the world, pack, site-graph, publisher and bridge
+files of S2 to S4) is **91 passed, 532 subtests, 494 s**, 0 skipped, on the commit this note belongs to; the
+recorded end-to-end run above is `verdict.pass` true over c0 to c4, c7 and c8; `tests/mycelic/
+test_collective_guards.py -k NoModelNames` reports the brief's own two hits and no others.
+
+### Not done here
+
+- `measure.py` and criterion 5 (the per-hop numbers at the three node counts, the rate sweep, the scaling table)
+  and the simulator's columns of criterion 9: S7. The report carries `discovery` with the path's own score and
+  `simulator: null` with its reason.
+- `.github/workflows/e2e-ingest.yml`, `tests/e2e_ingest/test_workflow.py` and criterion 6: S8. The suites CLI of
+  M2 (`python -m research.e2e_ingest suites --out DIR`) and with it criterion 10's junit evidence: S8.
+- The section-6 settings test comparing the harness constants with the brief's tables: S8's settings test.
+- `__main__.py` (`python -m research.e2e_ingest run|measure|check|suites`): the harness's own CLI is
+  `python -m research.e2e_ingest.harness run ...` until then.
+- S9's recorded CI runs and the committed reports under `docs/collective/e2e_ingest/`.
+- The local report of the recorded run is not committed (it is a sandbox artifact, and S9 commits the CI ones);
+  its figures are above and it holds no record text, which a test asserts.
+- Criterion 10 stays blocked on this base for the reason the bridge section's item 5 gives: the model-name scan of
+  `tests/mycelic/test_collective_guards.py` hits the brief's own declaration twice. Run on this tree, that scan
+  reports those two hits and nothing else — every file of this build is clean — so c10 turns green with the
+  brief's own amendment, not with a change here.

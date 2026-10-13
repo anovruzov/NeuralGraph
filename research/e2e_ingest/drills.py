@@ -27,9 +27,12 @@ import hashlib
 import json
 import re
 import secrets
+import sqlite3
 import time
+import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 import nats
@@ -218,6 +221,33 @@ def fetch_raw(driver: ProcessDriver, seq: int) -> tuple[bytes, dict[str, str], s
     return _run(_fetch_raw(driver, seq))
 
 
+async def _stream_payloads(driver: ProcessDriver) -> tuple[str, int]:
+    nc = await _connect(driver)
+    try:
+        js = nc.jetstream()
+        info = await js.stream_info(STREAM)
+        first, last = int(info.state.first_seq), int(info.state.last_seq)
+        parts: list[str] = []
+        for seq in range(first, last + 1):
+            try:
+                raw = await js.get_msg(STREAM, seq)
+            except Exception as exc:
+                if type(exc).__name__ == "NotFoundError":
+                    continue
+                raise
+            parts.append((raw.data or b"").decode("utf-8", "replace"))
+        return "\n".join(parts), len(parts)
+    finally:
+        await nc.close()
+
+
+def stream_payloads(driver: ProcessDriver) -> tuple[str, int]:
+    """Every stream message's bytes as text, and how many there were: drill 5's scan reads the stream itself, not
+    only the fabric's database. Decoded with replacement, so no byte could hide behind an encoding. The caller
+    scans it for record refs and narratives and keeps counts only."""
+    return _run(_stream_payloads(driver))
+
+
 def broker_version(driver: ProcessDriver) -> str:
     async def go() -> str:
         nc = await _connect(driver)
@@ -364,3 +394,121 @@ def fabric_counts(status: Mapping[str, Any]) -> dict[str, Any]:
             "last_seq": transport.get("last_seq"), "consumer_pending": transport.get("consumer_pending"),
             "outbox_pending": publisher.get("outbox_pending"), "replaying_to_seq": consumer.get("replaying_to_seq"),
             "ready_block": consumer.get("ready_block")}
+
+
+# --------------------------------------------------------------------------------------------------- counters
+
+def metric_sum(text: str, name: str, labels: Mapping[str, str] | None = None) -> float:
+    """The sum of every sample of ``name`` whose labels include ``labels``: ``mycelic_events_applied_total`` carries
+    ``kind`` and ``result`` (``metrics.py:34``), so a per-kind figure sums over the results."""
+    wanted = dict(labels or {})
+    total = 0.0
+    for line in text.splitlines():
+        if not line or line.startswith("#"):
+            continue
+        m = _METRIC_LINE.match(line)
+        if m is None or m.group("name") != name:
+            continue
+        found = {k: v.encode("utf-8").decode("unicode_escape") for k, v in _LABEL.findall(m.group("labels") or "")}
+        if all(found.get(k) == v for k, v in wanted.items()):
+            total += float(m.group("value"))
+    return total
+
+
+def event_counters(base_url: str, token: str) -> dict[str, float]:
+    """From one ``/metrics`` read: ``mycelic_events_applied_total`` per kind, the deliveries of each kind whatever
+    their result, the ignored total (``metrics.py:39``) and the signature failures (M6, M8).
+
+    The counter carries ``kind`` and ``result`` (``applied``, ``duplicate``, ``ignored``;
+    ``service.py:1407-1484``), and a broker restart re-delivers what was in flight, so only the samples with
+    ``result="applied"`` count one event once — which is what M6's ``applied_delta_*`` means."""
+    text = metrics_text(base_url, token)
+    kinds = ("agent.event", "memory.observed", "memory.derived", "memory.attested", "memory.retracted")
+    out = {f"applied_{kind.replace('.', '_')}": metric_sum(text, "mycelic_events_applied_total",
+                                                           {"kind": kind, "result": "applied"}) for kind in kinds}
+    out.update({f"delivered_{kind.replace('.', '_')}": metric_sum(text, "mycelic_events_applied_total",
+                                                                  {"kind": kind}) for kind in kinds})
+    out["applied_total"] = metric_sum(text, "mycelic_events_applied_total", {"result": "applied"})
+    out["delivered_total"] = metric_sum(text, "mycelic_events_applied_total")
+    out["ignored_total"] = metric_sum(text, "mycelic_events_ignored_total")
+    out["signature_failures"] = metric_sum(text, SIGNATURE_METRIC, SIGNATURE_LABELS)
+    return out
+
+
+def audit_rows(base_url: str, token: str, limit: int = 500) -> list[dict[str, Any]]:
+    """``GET /admin/audit`` (``api.py:459``), newest first; drill 6 reads ``recovery.signature_rejections``."""
+    req = urllib.request.Request(f"{base_url.rstrip('/')}/admin/audit?limit={int(limit)}",
+                                 headers={"Authorization": f"Bearer {token}"})
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return list(json.loads(resp.read().decode("utf-8")).get("audit") or [])
+
+
+def ready(base_url: str, timeout: float = 5.0) -> tuple[int, dict[str, Any]]:
+    """``GET /ready``: the status code and the body (503 while a readiness block stands, ``service.py:596-612``)."""
+    req = urllib.request.Request(f"{base_url.rstrip('/')}/ready")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read().decode("utf-8")
+            return resp.status, (json.loads(body) if body else {})
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", "replace")
+        try:
+            return exc.code, (json.loads(body) if body else {})
+        except json.JSONDecodeError:
+            return exc.code, {}
+
+
+# --------------------------------------------------------------------------------------------------- service DB
+
+def service_db_path(driver: ProcessDriver) -> Path:
+    """Where ``ProcessDriver`` puts the service's database (its ``env``: ``MYCELIC_DB_PATH``)."""
+    return Path(driver.workdir) / "mycelic.db"
+
+
+def _read_only(path: Path) -> sqlite3.Connection:
+    return sqlite3.connect(f"file:{path}?mode=ro", uri=True, isolation_level=None)
+
+
+def service_meta(driver: ProcessDriver, key: str) -> str | None:
+    """One ``meta`` row of the service database, read ``mode=ro`` (``store.py:49-52``)."""
+    conn = _read_only(service_db_path(driver))
+    try:
+        row = conn.execute("SELECT value FROM meta WHERE key = ? ORDER BY key", (key,)).fetchone()
+        return row[0] if row is not None else None
+    finally:
+        conn.close()
+
+
+def known_key_ids(driver: ProcessDriver) -> list[str]:
+    """``meta.known_key_ids``: every signing key id the service has started under (``service.py:467-478``), which
+    is how M3 binds the stream to the key the harness holds."""
+    raw = service_meta(driver, "known_key_ids")
+    if not raw:
+        return []
+    try:
+        loaded = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    return [k for k in loaded if isinstance(k, str)] if isinstance(loaded, list) else []
+
+
+def fabric_db_text(driver: ProcessDriver) -> tuple[str, int, dict[str, int]]:
+    """Every row of every table of the service database as JSON text, ``mode=ro`` (drill 5's scan input):
+    ``(text, bytes, rows per table)``. A blob is decoded as UTF-8 with replacement, so no byte of a record could
+    hide from the scan behind an encoding."""
+    conn = _read_only(service_db_path(driver))
+    try:
+        tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' "
+                                             "ORDER BY name").fetchall()]
+        parts: list[str] = []
+        counts: dict[str, int] = {}
+        for table in tables:
+            rows = conn.execute(f'SELECT * FROM "{table}"').fetchall()
+            counts[table] = len(rows)
+            for row in rows:
+                parts.append(json.dumps([v.decode("utf-8", "replace") if isinstance(v, bytes) else v for v in row],
+                                        ensure_ascii=False, default=str))
+        text = "\n".join(parts)
+        return text, len(text.encode("utf-8")), counts
+    finally:
+        conn.close()
