@@ -7,8 +7,9 @@ The rule was committed alone and amended before any code (`720b0d6`, the amended
 `720b0d6` on branch `wf/a002` (the first builder's WIP commits, stopped by the account's session limit after the docs
 were written) and ends on `wf/a002-b`, which verified every WIP item against the code, added two test pins, ran the
 suites, the dry run and the pinned-file check; `wf/a002-fix` then applies the review's findings on the build commit
-(`6be0b0b`; "Fixes after review"). It copies A001's `j2` precedent (`BUILD-A001.md`) and changes no pinned file: `lab/j1.py`,
-`lab/goldlabels.py`, `lab/j2.py` and `lab/j2labels.py` are imported unchanged (`git diff --stat 720b0d6..HEAD` over the
+(`6be0b0b`; "Fixes after review"). It copies A001's `j2` precedent (`BUILD-A001.md`) and changes no pinned file:
+`lab/j1.py`, `lab/goldlabels.py`, `lab/j2.py` and `lab/j2labels.py` are imported unchanged (`git diff --stat
+720b0d6..HEAD` over the
 five pinned lab files, `lab/shard.py` included, prints nothing), `lab.aggregate.j2_block` and `lab.summary._j2_tables`
 are not edited, and nothing under `mycelic/collective/`, `mycelic/*.py`, `connectors/openfda.py`, the vehicle pack,
 any earlier `CHOICE-*.md`, `run-*.json`, `*-settings.json` or `research/` changed. While building, no NHTSA record was
@@ -146,8 +147,8 @@ added under `lab/requests/`: pushing a file there starts a run, and the caller s
   `rebuild_sha256_prefix`; the file is pinned per entry as the rule's "The request" names them, `prereg/j1/labels.jsonl`
   on the first and `prereg/j2/labels.jsonl` on the second, the chain file read through the second entry's chain keys
   alone ("Fixes after review"); the first entry's `rebuild_seed` must be 1 (the pinned seed-one rebuild) and the
-  second's above it; the chain keys are required on the second entry and refused on the first. The plan echoes the list into
-  every j3 unit's params and the four plan outputs; the labels record's `excluded_runs` holds both entries as
+  second's above it; the chain keys are required on the second entry and refused on the first. The plan echoes the
+  list into every j3 unit's params and the four plan outputs; the labels record's `excluded_runs` holds both entries as
   requested beside the ones used.
 - **Where the second artifact goes (B2).** The same `lab-earlier` directory, under its own run id, so
   `lab.prereg --earlier-plans` takes one directory for both; `lab.j3labels` reads each by `<directory>/<run id>/`.
