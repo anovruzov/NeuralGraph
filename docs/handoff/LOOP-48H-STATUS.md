@@ -115,6 +115,12 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   pass false, reason suites_not_green, by M2 until the suites CLI exists; criteria 5, 6 and 10 not run. The
   measure + CI stage (S7, S8) is building (WIP e43a2b8 on wf/e2e-measure). A002 build: WIP c4e2181 (lab/j3.py,
   lab/j3labels.py). No usage-limit message.
+- 2026-10-13 04:27 EMERGENCE S7 and S8 built on wf/e2e-measure (254dcf2: the measure job, criterion 10's junit gate,
+  the package CLI run/measure/check/suites, the CI workflow e2e-ingest.yml); the two adversarial reviews
+  (fakeability, correctness) are running, the fix follows. A002 build on wf/a002: lab/j3.py and lab/j3labels.py
+  written, the wiring across request, plan, prereg, units, warmup, responder, aggregate, summary, notes, dryrun,
+  workflow and template committed as WIP (29e0e8b, e9cd3e0, the dry run passes); the tests are being written, then
+  docs, suites, the pinned-file check and the final commit; two reviews and a fix follow. No usage-limit message.
 
 ## Open asks (date asked)
 
