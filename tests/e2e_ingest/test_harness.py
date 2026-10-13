@@ -245,15 +245,22 @@ class CheckTests(unittest.TestCase):
                 self.assertEqual(check["failed"], [], name)
                 self.assertTrue(check["ok"])
                 self.assertGreater(check["assertions"], 0)
-        verdict = rp.verdict(checks, not_run={"c5_measured": "the measure job"})
+        verdict = rp.verdict(checks, not_run={"c5_measured": "the measure job"}, suites_green=True)
         self.assertEqual((verdict["pass"], verdict["complete"], verdict["failed"]), (True, False, []))
         self.assertEqual(sorted(verdict["not_run"]), ["c5_measured"])
 
     def test_the_verdict_fails_when_any_check_that_ran_is_not_ok(self) -> None:
         broken = put(self.doc, "fabric.transport", "in-process")
-        verdict = rp.verdict(self.checks(broken))
-        self.assertEqual((verdict["pass"], verdict["failed"], verdict["complete"]),
-                         (False, ["c0_real_fabric_keyed"], True))
+        verdict = rp.verdict(self.checks(broken), suites_green=True)
+        self.assertEqual((verdict["pass"], verdict["checks_pass"], verdict["failed"], verdict["complete"]),
+                         (False, False, ["c0_real_fabric_keyed"], True))
+
+    def test_a_run_without_the_suites_junit_evidence_does_not_count(self) -> None:
+        """M2: green checks with no junit evidence of the suites is ``pass`` false, reason ``suites_not_green``."""
+        verdict = rp.verdict(self.checks(self.doc))
+        self.assertEqual((verdict["pass"], verdict["checks_pass"], verdict["reason"], verdict["suites_green"]),
+                         (False, True, rp.SUITES_NOT_GREEN, False))
+        self.assertEqual(rp.verdict(self.checks(self.doc), suites_green=True)["reason"], None)
 
     def mutations(self) -> list[tuple[str, str, str, Any]]:
         """``(check, assertion, path, value)``: one field per assertion of section 9."""
@@ -358,8 +365,8 @@ class CheckTests(unittest.TestCase):
              "recovery.site_restart.nodes_added_after_restart", 1),
             ("c4_recovery", "answer_matrix_equals_the_reference",
              "recovery.site_restart.answer_matrix_identical", False),
-            ("c7_guards", "three_modules_checked", "guards.modules", {"hq_bridge": {"static": [],
-                                                                                   "fresh_interpreter": []}}),
+            ("c7_guards", "three_modules_checked", "guards.modules",
+             {"hq_bridge": {"static": [], "fresh_interpreter": []}}),
             ("c7_guards", "no_forbidden_import", "guards.modules.hq_bridge",
              {"static": ["numpy"], "fresh_interpreter": []}),
             ("c7_guards", "spike_code_hash_is_the_pinned_one", "run.spike_code_hash", "0" * 64),
@@ -507,6 +514,10 @@ class LiveRunTests(unittest.TestCase):
         self.assertEqual(sorted(self.doc["checks"]), sorted(rp.E2E_CHECKS))
         self.assertEqual(sorted(self.doc["verdict"]["not_run"]), ["c10_suites_green", "c5_measured", "c6_ci"])
         self.assertFalse(self.doc["verdict"]["complete"])
+        # M2: no junit evidence of the suites was given to this run, so it does not count whatever its checks say
+        self.assertEqual((self.doc["verdict"]["pass"], self.doc["verdict"]["reason"]),
+                         (False, rp.SUITES_NOT_GREEN))
+        self.assertEqual(self.doc["verdict"]["checks_pass"], not self.doc["verdict"]["failed"])
 
     def test_c0_the_fabric_is_real_and_keyed(self) -> None:
         fabric = self.doc["fabric"]

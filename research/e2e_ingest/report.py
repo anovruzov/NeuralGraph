@@ -473,10 +473,19 @@ def recompute(doc: Mapping[str, Any]) -> list[str]:
     return problems
 
 
-def verdict(checks: Mapping[str, Mapping[str, Any]], *, not_run: Mapping[str, str] | None = None) -> dict[str, Any]:
-    """``pass`` only when every check that ran is ``ok``. ``not_run`` names the checks this job did not run and why,
-    and ``complete`` is false while any is missing: a report never claims a check it did not make."""
+SUITES_NOT_GREEN = "suites_not_green"
+
+
+def verdict(checks: Mapping[str, Mapping[str, Any]], *, not_run: Mapping[str, str] | None = None,
+            suites_green: bool = False) -> dict[str, Any]:
+    """``checks_pass`` when every check that ran is ``ok``; ``pass`` only when, besides, the suites' junit evidence
+    of M2 is in the report and green (``suites_green``), else ``reason`` is ``suites_not_green`` (criterion 10: a
+    run on a tree whose suites are not shown green is not a result). ``not_run`` names the checks this job did not
+    run and why, and ``complete`` is false while any is missing: a report never claims a check it did not make."""
     failed = sorted(name for name, c in checks.items() if not c.get("ok"))
     missing = dict(not_run or {})
-    return {"pass": not failed, "failed": failed, "checks_run": sorted(checks),
-            "not_run": dict(sorted(missing.items())), "complete": not missing}
+    checks_pass = not failed
+    return {"pass": checks_pass and bool(suites_green), "checks_pass": checks_pass,
+            "reason": None if suites_green else SUITES_NOT_GREEN, "suites_green": bool(suites_green),
+            "failed": failed, "checks_run": sorted(checks), "not_run": dict(sorted(missing.items())),
+            "complete": not missing}

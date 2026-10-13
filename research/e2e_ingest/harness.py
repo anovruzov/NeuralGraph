@@ -1317,14 +1317,20 @@ class E2ERun:
                                                                "c4_recovery")})
         names = [n for n in rp.E2E_CHECKS if n not in not_run]
         self.doc["checks"] = rp.run_checks(self.doc, names)
-        self.doc["verdict"] = rp.verdict(self.doc["checks"], not_run=not_run)
+        # M2: the suites' junit evidence is read from the suites CLI's directory (S8); without it the run's checks
+        # are reported but the run does not count (``verdict.pass`` false, reason ``suites_not_green``)
+        suites_green = (self.doc["run"].get("suites_evidence") == "junit"
+                        and bool((self.doc["checks"].get("c10_suites_green") or {}).get("ok")))
+        self.doc["verdict"] = rp.verdict(self.doc["checks"], not_run=not_run, suites_green=suites_green)
         return self.doc
 
 
 # --------------------------------------------------------------------------------------------------- the CLI
 
 def summary(doc: Mapping[str, Any]) -> str:
-    lines = [f"e2e-ingest: verdict pass={doc['verdict']['pass']} complete={doc['verdict']['complete']} "
+    v = doc["verdict"]
+    lines = [f"e2e-ingest: verdict pass={v['pass']} checks_pass={v.get('checks_pass')} "
+             f"reason={v.get('reason')} complete={v['complete']} "
              f"world={doc['world']['target_users']} seed={doc['world']['seed']} "
              f"seconds={doc['run']['seconds']:.0f} (synthetic, measurement: false)"]
     for name, check in doc["checks"].items():
