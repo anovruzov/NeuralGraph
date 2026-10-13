@@ -19,6 +19,7 @@ record's text or ref.
 """
 from __future__ import annotations
 
+import inspect
 import json
 import re
 import shutil
@@ -35,8 +36,10 @@ from tests.e2e_ingest.helpers import suite_rows
 
 #: What the short-world run of :class:`LiveRunTests` cannot reach, and why. Every other assertion of every check
 #: must hold. ``one_unambiguous_supported`` is a floor over the whole candidate list (section 2.3: at least one
-#: unambiguous planted candidate with expected ``supported`` among the 60 asked); the first 20 by score need not
-#: hold one. ``twenty_queries_per_site`` is the 20 fixed queries, of which this run asks 2.
+#: unambiguous planted candidate with expected ``supported`` among the 60 asked): the floor holds at 55 candidates
+#: (the e2e job, which asks every candidate the 200-user world detects; the build review's run had 7 expected
+#: supported and 0 mismatches); the first 20 by score need not hold one, so the full floor is the e2e job's.
+#: ``twenty_queries_per_site`` is the 20 fixed queries, of which this run asks 2.
 SHORT_SCALE: dict[str, set[str]] = {
     "c1_signed": {"one_unambiguous_supported"},
     "c3_idempotent": {"twenty_queries_per_site"},
@@ -129,8 +132,10 @@ def green_report() -> dict[str, Any]:
     stream = api_ids + 4                                   # the service's own kinds (M3: registration writes some)
     kinds = {"agent.event": publishes, "memory.observed": conclusions, "rule.upserted": 3, "agent.registered": 1}
     before = {"fetched": stream, "verified": stream, "foreign": 0, "stream_messages": stream, "kinds": kinds,
-              "api_event_ids_in_stream": api_ids, "api_event_ids_duplicated": 0}
-    after = {**before, "fetched": stream + 3, "verified": stream, "foreign": 3, "stream_messages": stream + 3}
+              "api_event_ids_in_stream": api_ids, "api_event_ids_duplicated": 0, "first_seq": 1,
+              "last_seq": stream, "status_first_seq": 1, "status_last_seq": stream}
+    after = {**before, "fetched": stream + 3, "verified": stream, "foreign": 3, "stream_messages": stream + 3,
+             "last_seq": stream + 3, "status_last_seq": stream + 3}
     sites = {f"r0{i}-site-00": {"expected_records": 100, "ingested": 100, "duplicates": 0, "rejected": 0,
                                 "graph_nodes": 100, "graph_nodes_db": 100, "node_ids_sha256": f"d{i}",
                                 "record_refs_sha256": f"d{i}"} for i in range(7)}
@@ -139,10 +144,25 @@ def green_report() -> dict[str, Any]:
                  "architectures": {a: {"discovery_recall": 0.5, "rare_signal_recall": 0.1,
                                        "decoy_acceptance_all": 0.2, "recall_at_100": 0.5, "compute_units": 1.0e5,
                                        "seconds": 0.4} for a in rp.SIMULATOR_ARCHITECTURES}}
+    route = ["r00-site-00", "r01-site-00", "r02-site-00"]
+    # M4 check 3's witnesses of the mask: the masked site is in the unmasked arm-R route and not in the chosen one
+    probe = {"question_id": "qp", "masked_site": "r00-site-00", "unmasked_route": route,
+             "route": ["r01-site-00", "r02-site-00", "r03-site-00"], "route_size": 3, "hq_eligible": 7,
+             "excluded": True, "verdict_sources": ["site"], "failure_injected": 1, "intervention_records": 1,
+             "interventions_ended": 1, "candidate_source": "reused"}
+    # the oracle's inputs (M12: ``expected`` and ``ambiguous`` are recomputable): two strong sites inside the
+    # freshness window expect supported; one strong site is ambiguous
+    strong = {"records": 3, "users": 3, "events": 3, "contradicted": False, "newest_week": "2024-W26",
+              "strong": True}
+    weak = {"records": 1, "users": 1, "events": 1, "contradicted": False, "newest_week": "2024-W26",
+            "strong": False}
+    empty = {"records": 0, "users": 0, "events": 0, "contradicted": False, "newest_week": None, "strong": False}
+    trace = ["route_selected", "retrieval_selected", "retrieval_selected", "retrieval_selected"]
+    clean = {"ok": True, "overlap_bytes": 0, "canary_hits": 0, "scanned_bytes": 4096, "scanned_items": 9}
     return {
         "kind": rp.KIND, "schema_version": rp.SCHEMA_VERSION, "synthetic": True, "measurement": False,
         "run": {"spike_code_hash": rp.SPIKE_CODE_HASH, "spike_code_files": rp.SPIKE_CODE_FILES,
-                "code_commit": "a" * 40, "code_dirty_start": False, "code_dirty_end": False,
+                "code_commit": "a" * 40, "code_dirty_start": False, "code_dirty_end": False, "mode": "process",
                 "suites": suite_rows("a" * 40), "suites_evidence": su.EVIDENCE, "needs_results": None,
                 "github_run_id": None},
         "fabric": {"driver_is_process_driver": True, "nats_bin": "/usr/local/bin/nats-server",
@@ -155,25 +175,38 @@ def green_report() -> dict[str, Any]:
         "ingest": {"per_site": sites, "total_expected": 700, "total_ingested": 700, "loss": 0,
                    "pipeline_raised": False, "seconds_per_1k_records": 0.3},
         "routing": {"candidates_asked": 20, "verdicts": {"budget_unknown": 0}, "route_selected_first_all": True,
-                    "routes_equal_arm_order": True, "per_question_route_ok": True,
-                    "router_excluded_masked": 1, "intervention_records": 1,
+                    "routes_equal_arm_order": True, "per_question_route_ok": True, "m": 3,
+                    "hq_eligible_expected": 7, "questions_asked": 2,
+                    "questions": [{"question_id": "q1", "hq_eligible": 7, "route": route, "route_size": 3,
+                                   "status": "supported", "trace": trace},
+                                  {"question_id": "q2", "hq_eligible": 7, "route": route, "route_size": 3,
+                                   "status": "hypothesis", "trace": trace}],
+                    "router_excluded_masked": 1, "intervention_records": 1, "probe": probe,
                     "coordinator_class": "NeuralGraph.research.coordination.core.TesseractCoordinator",
                     "router_class": "NeuralGraph.research.coordination.core.Router",
                     "tesseract": {"rows_equal_read_verdicts": True, "seconds_p50": 0.7, "seconds_p95": 1.2},
                     "question_to_verdict": {"per_site_p50": 0.7, "per_site_p95": 1.3, "per_question_p50": 2.2,
                                             "per_question_p95": 3.4}},
         "publish": {"publishes": publishes, "verdict_events": verdict_events, "conclusion_events": conclusions,
-                    "created_to_applied": {"p50": 0.5, "p95": 1.5}},
+                    "created_to_applied": {"p50": 0.5, "p95": 1.5},
+                    "created_to_applied_before_kill": {"p50": 0.5, "p95": 1.5, "k": publishes // 2}},
         "signatures": {"failed_before_forgery": 0, "failed_after_forgery": 3, "forged_memory_absent": True,
                        "forged_event_terminated": True, "stream_before": before, "stream_after": after,
                        "forgeries": [{"counter": 1}, {"counter": 2}, {"counter": 3}]},
         "lineage": {"conclusions": conclusions, "reconstructable": conclusions,
                     "source_events_complete": conclusions, "site_sourced_verdict_events": 55,
-                    "site_sourced_answered_verdict_events": 50, "sha256_in_pd_verdicts": 55,
+                    "site_sourced_answered_verdict_events": 50, "sha256_in_fabric_event": 55,
+                    "sha256_in_pd_verdicts": 55,
                     "sha256_in_wire_log": 55, "sha256_in_intake_log": 55, "sha256_in_site_egress": 55,
                     "sha256_in_site_store": 55, "site_audit_joined": 50, "records_on_or_before_as_of": True,
+                    "unknown_refs": 0,
                     "scan": {"record_ref_hits": 0, "narrative_marker_hits": 0, "narrative_prefix_hits": 0,
-                             "db_bytes": 4096, "stream_messages_scanned": stream + 3}},
+                             "db_bytes": 4096, "stream_messages_scanned": stream + 3},
+                    "crossing": {"main": {"leakage": dict(clean),
+                                          "crossing": {"ok": True, "problems": [], "hq_intake_refusals": 0,
+                                                       "request_kinds": {"describe": 7, "question": 60},
+                                                       "receive_types": {"verdict": 60}, "descriptor_rows": 14}},
+                                 "pipeline": {"leakage": dict(clean)}}},
         "idempotency": {"site_reingest": {"same_node_ids": True, "same_count": True, "queries_per_site": 20,
                                           "same_top10": True, "same_order": True, "ingested": 0,
                                           "duplicates": 700, "rejected": 0},
@@ -194,7 +227,7 @@ def green_report() -> dict[str, Any]:
                                          "ready_block": None, "ready_after_rebuild": True},
                      "site_restart": {"site": "r00-site-00", "questions_before": 5, "questions_after": 5,
                                       "verdict_bytes_identical": True, "nodes_added_after_restart": 0,
-                                      "answer_matrix_identical": True}},
+                                      "answer_matrix_identical": True, "killed": True}},
         "discovery": {"synthetic": True, "measurement": False, "gold_discoverable": 40, "gold_rare": 18,
                       "gold_common": 22, "gold_discoverable_patterns": gold_patterns,
                       "decoys_by_type": {"1": 10, "2": 10, "3": 10, "4": 10, "5": 10},
@@ -203,9 +236,13 @@ def green_report() -> dict[str, Any]:
                       "recall_rare": 0.0, "decoy_accepted_by_type": {"2": 1}, "background_supported": 0,
                       "simulator": simulator, "simulator_reason": None,
                       "oracle_rows": [{"question_id": "q1", "ambiguous": False, "expected": "supported",
-                                       "status": "supported"},
+                                       "status": "supported", "as_of": "2024-07-14", "route": route,
+                                       "per_site_facet_counts": {route[0]: dict(strong), route[1]: dict(strong),
+                                                                 route[2]: dict(empty)}},
                                       {"question_id": "q2", "ambiguous": True, "expected": None,
-                                       "status": "hypothesis"}]},
+                                       "status": "hypothesis", "as_of": "2024-07-14", "route": route,
+                                       "per_site_facet_counts": {route[0]: dict(strong), route[1]: dict(weak),
+                                                                 route[2]: dict(empty)}}]},
         "guards": {"modules": {name: {"static": [], "fresh_interpreter": []}
                                for name in ("hq_bridge", "hq_tesseract", "publish_api")},
                    "drills": [], "spike_code_dirty": False},
@@ -297,6 +334,7 @@ class CheckTests(unittest.TestCase):
             ("c1_signed", "memory_observed_kind_count", "signatures.stream_after.kinds",
              {"agent.event": 80, "memory.observed": 1}),
             ("c1_signed", "kinds_and_foreign_are_the_stream", "signatures.stream_after.stream_messages", 999),
+            ("c1_signed", "stream_bounds_agree", "signatures.stream_after.status_last_seq", 1),
             ("c1_signed", "candidates_asked_floor", "routing.candidates_asked", 19),
             ("c1_signed", "verdict_events_floor", "publish.verdict_events", 59),
             ("c1_signed", "conclusion_events_floor", "publish.conclusion_events", 19),
@@ -308,6 +346,13 @@ class CheckTests(unittest.TestCase):
             ("c1_signed", "router_is_the_routers", "routing.router_class", "tests.stub.Router"),
             ("c1_signed", "router_excluded_the_masked_site", "routing.router_excluded_masked", 0),
             ("c1_signed", "one_intervention_record", "routing.intervention_records", 0),
+            ("c1_signed", "probe_masked_site_in_unmasked_route", "routing.probe.unmasked_route",
+             ["r01-site-00", "r02-site-00", "r03-site-00"]),
+            ("c1_signed", "probe_route_size_m", "routing.probe.route_size", 2),
+            ("c1_signed", "probe_hq_eligible_all_sites", "routing.probe.hq_eligible", 6),
+            ("c1_signed", "probe_no_hq_record", "routing.probe.verdict_sources", ["hq", "site"]),
+            ("c1_signed", "probe_one_failure_injected", "routing.probe.failure_injected", 0),
+            ("c1_signed", "probe_intervention_ended", "routing.probe.interventions_ended", 0),
             ("c1_signed", "tesseract_row_per_read_verdict", "routing.tesseract.rows_equal_read_verdicts", False),
             ("c1_signed", "planted_statuses_equal_the_oracle", "discovery.oracle_rows",
              [{"question_id": "q1", "ambiguous": False, "expected": "supported", "status": "hypothesis"}]),
@@ -317,6 +362,7 @@ class CheckTests(unittest.TestCase):
             ("c2_lineage", "conclusions_are_the_published_ones", "publish.conclusion_events", 21),
             ("c2_lineage", "all_reconstructable", "lineage.reconstructable", 19),
             ("c2_lineage", "source_events_complete", "lineage.source_events_complete", 19),
+            ("c2_lineage", "witness_fabric_event", "lineage.sha256_in_fabric_event", 54),
             ("c2_lineage", "witness_pd_verdicts", "lineage.sha256_in_pd_verdicts", 54),
             ("c2_lineage", "witness_wire_log", "lineage.sha256_in_wire_log", 54),
             ("c2_lineage", "witness_intake_log", "lineage.sha256_in_intake_log", 54),
@@ -324,10 +370,17 @@ class CheckTests(unittest.TestCase):
             ("c2_lineage", "witness_site_store", "lineage.sha256_in_site_store", 54),
             ("c2_lineage", "site_audit_joined", "lineage.site_audit_joined", 49),
             ("c2_lineage", "records_on_or_before_as_of", "lineage.records_on_or_before_as_of", False),
+            ("c2_lineage", "every_audited_ref_dated", "lineage.unknown_refs", 1),
             ("c2_lineage", "scan_record_ref_zero", "lineage.scan.record_ref_hits", 1),
             ("c2_lineage", "scan_narrative_marker_zero", "lineage.scan.narrative_marker_hits", 1),
             ("c2_lineage", "scan_narrative_prefix_zero", "lineage.scan.narrative_prefix_hits", 1),
             ("c2_lineage", "scan_read_the_db_and_the_stream", "lineage.scan.db_bytes", 0),
+            ("c2_lineage", "crossing_leakage_zero", "lineage.crossing.pipeline.leakage.overlap_bytes", 24),
+            ("c2_lineage", "crossing_leakage_zero", "lineage.crossing.main.leakage.canary_hits", 1),
+            ("c2_lineage", "crossing_leakage_zero", "lineage.crossing.main.leakage.scanned_items", 0),
+            ("c2_lineage", "crossing_leakage_zero", "lineage.crossing.pipeline", DROP),
+            ("c2_lineage", "crossing_shapes_ok", "lineage.crossing.main.crossing.ok", False),
+            ("c2_lineage", "crossing_shapes_ok", "lineage.crossing.main.crossing.hq_intake_refusals", 1),
             ("c3_idempotent", "same_node_ids", "idempotency.site_reingest.same_node_ids", False),
             ("c3_idempotent", "same_count", "idempotency.site_reingest.same_count", False),
             ("c3_idempotent", "twenty_queries_per_site", "idempotency.site_reingest.queries_per_site", 19),
@@ -340,6 +393,8 @@ class CheckTests(unittest.TestCase):
             ("c3_idempotent", "no_new_event_ids", "idempotency.bridge_rerun.new_event_ids", 1),
             ("c3_idempotent", "every_post_a_duplicate", "idempotency.bridge_rerun.created", 1),
             ("c3_idempotent", "hq_store_unchanged", "idempotency.bridge_rerun.store_unchanged", False),
+            ("c4_recovery", "main_pass_in_process_mode", "run.mode", "in_process"),
+            ("c4_recovery", "site_process_sigkilled", "recovery.site_restart.killed", False),
             ("c4_recovery", "publishes_floor", "recovery.broker_kill.N", 79),
             ("c4_recovery", "kill_point_in_range", "recovery.broker_kill.k", 75),
             ("c4_recovery", "applied_exactly_once", "recovery.broker_kill.applied_exactly_once", False),
@@ -400,7 +455,8 @@ class CheckTests(unittest.TestCase):
                 ("c10_suites_green", f"{s.slug}:sha_is_the_commit", f"run.suites.{i}.sha", "c" * 40),
                 ("c10_suites_green", f"{s.slug}:no_failures", f"run.suites.{i}.failures", 1),
                 ("c10_suites_green", f"{s.slug}:no_errors", f"run.suites.{i}.errors", 1),
-                ("c10_suites_green", f"{s.slug}:tests_at_or_above_floor", f"run.suites.{i}.tests", s.floor - 1),
+                ("c10_suites_green", f"{s.slug}:tests_at_or_above_floor", f"run.suites.{i}.tests_distinct",
+                 s.floor - 1),
                 ("c10_suites_green", f"{s.slug}:junit_bound", f"run.suites.{i}.junit_bound", False),
                 *([("c10_suites_green", f"{s.slug}:no_skips_in_scope", f"run.suites.{i}.skipped_in_scope", 1)]
                   if s.zero_skip_scope is not None else []))],
@@ -421,6 +477,7 @@ class CheckTests(unittest.TestCase):
         doc["routing"]["question_to_verdict"]["samples"] = [{"seconds": s} for s in (2.2, 3.4)]
         doc["routing"]["question_to_verdict"]["per_site_samples"] = [{"seconds": s} for s in (0.7, 1.3)]
         doc["publish"]["created_to_applied"]["samples"] = [{"seconds": s} for s in (0.5, 1.5)]
+        doc["publish"]["created_to_applied_before_kill"]["samples"] = [{"seconds": s} for s in (0.5, 0.5)]
         for block, key, fields in rp.RECOMPUTE:
             node = rp._get(doc, block)
             for name, (sample_key, pct) in fields.items():
@@ -428,8 +485,29 @@ class CheckTests(unittest.TestCase):
         doc["lineage"]["rows"] = [{"reconstructable": True, "source_events_complete": True}] * 20
         self.assertEqual(rp.recompute(doc), [])
         self.assertTrue(any("seconds_p50" in p for p in rp.recompute(put(doc, "routing.tesseract.seconds_p50", 9))))
+        self.assertTrue(any("before_kill.p95" in p
+                            for p in rp.recompute(put(doc, "publish.created_to_applied_before_kill.p95", 9))))
         self.assertTrue(any("lineage.conclusions" in p for p in rp.recompute(put(doc, "lineage.conclusions", 19))))
         self.assertTrue(any("recall_all" in p for p in rp.recompute(put(doc, "discovery.recall_all", 0.9))))
+        # M12 and M20: a typed-in oracle verdict disagrees with the facet counts the row carries
+        for path, value in (("discovery.oracle_rows.0.expected", "hypothesis"),
+                            ("discovery.oracle_rows.0.ambiguous", True),
+                            ("discovery.oracle_rows.1.ambiguous", False),
+                            ("discovery.oracle_rows.0.per_site_facet_counts.r01-site-00.records", 1),
+                            ("discovery.oracle_rows.0.per_site_facet_counts", DROP)):
+            with self.subTest(path=path):
+                self.assertTrue(any("oracle_rows[0]" in p or "oracle_rows[1]" in p
+                                    for p in rp.recompute(put(doc, path, value))))
+        # M4: a typed-in routing flag disagrees with the per-question traces, eligible counts and route sizes
+        for path, value in (("routing.questions.1.trace", ["retrieval_selected", "route_selected"]),
+                            ("routing.questions.0.trace", ["retrieval_selected"]),
+                            ("routing.questions.0.hq_eligible", 6), ("routing.questions.1.route_size", 2),
+                            ("routing.questions", DROP)):
+            with self.subTest(path=path):
+                self.assertTrue(any(p.startswith("routing.") for p in rp.recompute(put(doc, path, value))))
+        flipped = put(put(doc, "routing.route_selected_first_all", False), "routing.per_question_route_ok", False)
+        self.assertEqual(sorted(p.split(":")[0] for p in rp.recompute(flipped)),
+                         ["routing.per_question_route_ok", "routing.route_selected_first_all"])
 
     def test_every_assertion_of_every_check_catches_its_own_mutation(self) -> None:
         for check, assertion, path, value in self.mutations():
@@ -507,7 +585,9 @@ class GuardTests(unittest.TestCase):
 class LiveRunTests(unittest.TestCase):
     """One real run: the EMERGENCE 200-user world, seven site processes, Tesseract routing, a real nats-server and
     a real service, every drill of section 8. The first 20 candidates and 2 fixed queries per site keep it inside
-    the suite's budget; :data:`SHORT_SCALE` names what that scale cannot reach."""
+    the suite's budget; :data:`SHORT_SCALE` names what that scale cannot reach: section 2.3's floor of one
+    unambiguous planted candidate with expected ``supported`` holds at 55 candidates (the e2e job); the first 20
+    by score need not hold one, so that floor is the e2e job's."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -539,6 +619,20 @@ class LiveRunTests(unittest.TestCase):
         self.assertEqual((self.doc["verdict"]["pass"], self.doc["verdict"]["reason"]),
                          (False, rp.SUITES_NOT_GREEN))
         self.assertEqual(self.doc["verdict"]["checks_pass"], not self.doc["verdict"]["failed"])
+        self.assertEqual((self.doc["run"]["mode"], self.doc["phase"], self.doc["completed"]),
+                         ("process", "finished", True))
+
+    def test_the_partial_report_is_written_after_every_phase(self) -> None:
+        """A job stopped at its bound leaves a report: the phases named by ``checkpoint`` are the run's, in order,
+        and the file on disk after the run is the finished one."""
+        names = [c.strip().strip('"') for c in re.findall(r'self\.checkpoint\(("[a-z_]+")\)',
+                                                           inspect.getsource(H.E2ERun.run))]
+        self.assertEqual(names, ["world", "reference_pass", "main_pass", "fixed_queries", "restart_witness",
+                                 "crossing", "publish", "forgeries", "lineage", "discovery", "rebuild", "reingest",
+                                 "bridge_rerun"])
+        written = json.loads(self.path.read_text(encoding="utf-8"))
+        self.assertEqual((written["phase"], written["completed"]), ("finished", True))
+        self.assertIn("checks", written)
 
     def test_c0_the_fabric_is_real_and_keyed(self) -> None:
         fabric = self.doc["fabric"]
@@ -569,6 +663,20 @@ class LiveRunTests(unittest.TestCase):
         self.assertEqual(after["kinds"]["agent.event"], p["publishes"])
         self.assertEqual(after["kinds"]["memory.observed"], p["conclusion_events"])
         self.assertEqual(after["stream_messages"], sum(after["kinds"].values()) + after["foreign"])
+        # the stream read's bounds are /admin/status's (M3)
+        for block in (before, after):
+            self.assertEqual((block["first_seq"], block["last_seq"]),
+                             (block["status_first_seq"], block["status_last_seq"]))
+        # M8: exactly the three forgeries' own stream sequences were terminated and audited
+        self.assertEqual(len(s["forged_stream_seqs"]), 3)
+        self.assertEqual(s["forged_seq_rejected_audit_rows"], 3)
+        self.assertTrue(s["forged_event_terminated"])
+        self.assertEqual(sorted(f["stream_seq"] for f in s["forgeries"]), s["forged_stream_seqs"])
+        # M18 beside drill 3: the first k publishes were taken by the live broker, and the full block says so
+        bk = self.doc["recovery"]["broker_kill"]
+        before_kill = p["created_to_applied_before_kill"]
+        self.assertEqual((before_kill["k"], before_kill["n"]), (bk["k"], bk["k"]))
+        self.assertIn("outage", p["created_to_applied"]["note"])
 
     def test_tesseract_routed_every_question_and_the_router_excluded_the_masked_site(self) -> None:
         r = self.doc["routing"]
@@ -613,13 +721,35 @@ class LiveRunTests(unittest.TestCase):
         self.assertEqual(ln["conclusions"], self.doc["publish"]["conclusion_events"])
         self.assertEqual(ln["reconstructable"], ln["conclusions"])
         self.assertEqual(ln["source_events_complete"], ln["conclusions"])
-        for witness in ("sha256_in_pd_verdicts", "sha256_in_wire_log", "sha256_in_intake_log",
-                        "sha256_in_site_egress", "sha256_in_site_store"):
+        for witness in ("sha256_in_fabric_event", "sha256_in_pd_verdicts", "sha256_in_wire_log",
+                        "sha256_in_intake_log", "sha256_in_site_egress", "sha256_in_site_store"):
             with self.subTest(witness=witness):
                 self.assertEqual(ln[witness], ln["site_sourced_verdict_events"])
+        self.assertGreater(ln["site_sourced_verdict_events"], 0)
+        self.assertEqual(ln["fabric_events_source"], "admin_view")
+        # every row's sha256s are the fabric's own values, and they are HQ's rows' (M1's first link)
+        for row in ln["rows"]:
+            self.assertTrue(all(isinstance(s, str) and len(s) == 64 for s in row["sha256s"]), row["question_id"])
         self.assertEqual(ln["site_audit_joined"], ln["site_sourced_answered_verdict_events"])
         self.assertTrue(ln["records_on_or_before_as_of"])
-        self.assertEqual(ln["records_after_as_of"], 0)
+        self.assertEqual((ln["records_after_as_of"], ln["unknown_refs"]), (0, 0))
+        # section 4: the spike's leakage scan and closed-shape check over every crossing byte, both halves clean
+        crossing = ln["crossing"]
+        self.assertEqual(sorted(crossing), ["main", "pipeline"])
+        for name in ("main", "pipeline"):
+            with self.subTest(crossing=name):
+                leak = crossing[name]["leakage"]
+                self.assertTrue(leak["ok"])
+                self.assertEqual((leak["overlap_bytes"], leak["canary_hits"]), (0, 0))
+                self.assertGreater(leak["scanned_items"], 0)
+                self.assertGreater(leak["scanned_bytes"], 0)
+        shapes = crossing["main"]["crossing"]
+        self.assertTrue(shapes["ok"])
+        self.assertEqual((shapes["problems"], shapes["hq_intake_refusals"]), ([], 0))
+        self.assertGreater(shapes["request_kinds"].get("question", 0), 0)
+        self.assertGreater(shapes["descriptor_rows"], 0)
+        self.assertNotIn("crossing_leakage_zero", self.doc["checks"]["c2_lineage"]["failed"])
+        self.assertNotIn("crossing_shapes_ok", self.doc["checks"]["c2_lineage"]["failed"])
         self.assertEqual((ln["scan"]["record_ref_hits"], ln["scan"]["narrative_marker_hits"],
                           ln["scan"]["narrative_prefix_hits"]), (0, 0, 0))
         self.assertGreater(ln["scan"]["stream_messages_scanned"], 0)
@@ -635,6 +765,9 @@ class LiveRunTests(unittest.TestCase):
         self.assertEqual((si["ingested"], si["rejected"]), (0, 0))
         self.assertEqual(si["duplicates"], self.doc["world"]["records"])
         self.assertTrue(si["same_node_ids"] and si["same_count"] and si["same_top10"] and si["same_order"])
+        # the queries per site are measured from the rankings (every site ranked the fixed questions asked)
+        self.assertEqual((si["queries_per_site"], si["queries_expected"]), (SHORT_QUERIES, SHORT_QUERIES))
+        self.assertEqual(sorted(si["queries_per_site_by_site"].values()), [SHORT_QUERIES] * self.doc["world"]["sites"])
         self.assertEqual(sorted(si["nodes_added_on_resync"].values()), [0] * self.doc["world"]["sites"])
         self.assertEqual((br["created"], br["new_memory_ids"], br["new_event_ids"]), (0, 0, 0))
         self.assertEqual(br["stream_messages_after"], br["stream_messages_before"])

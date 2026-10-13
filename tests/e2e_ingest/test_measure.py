@@ -37,6 +37,7 @@ def size_doc(size: int) -> dict[str, Any]:
     doc["routing"].update({"candidates_detected": 61, "statuses": {"supported": 47},
                            "candidates_asked": rp.MEASURE_CANDIDATES[size]})
     doc["publish"]["created_to_applied"]["samples"] = [{"seconds": s} for s in (0.5, 1.5)]
+    doc["publish"]["created_to_applied_before_kill"]["samples"] = [{"seconds": s} for s in (0.5, 1.5)]
     for block, key, fields in rp.RECOMPUTE:
         node = rp._get(doc, block)
         for name, (sample_key, pct) in fields.items():
@@ -62,8 +63,10 @@ def green_measure() -> dict[str, Any]:
         graphs[str(n)] = {"nodes": n, "queries": rp.FIXED_QUERIES, "samples": samples, "build_seconds": 0.001 * n,
                           "p50": rp.stats.percentile([s["seconds"] for s in samples], 50),
                           "p95": rp.stats.percentile([s["seconds"] for s in samples], 95), "completed": True}
-    step_samples = [{"seconds": s} for s in (0.0, 1.0, 1.0, 0.0)]
-    steps = [{"rate": 2, "events": 121, "duration_seconds": 60.3, "apply_p50": 0.5, "apply_p95": 1.0, "n": 121,
+    # the service stamps whole seconds (``stamp_resolution_seconds`` 1), so only a stamped 0 proves the brief's
+    # p95 bound of 1.0 s: the green step's samples are all 0
+    step_samples = [{"seconds": s} for s in (0.0, 0.0, 0.0, 0.0)]
+    steps = [{"rate": 2, "events": 121, "duration_seconds": 60.3, "apply_p50": 0.0, "apply_p95": 0.0, "n": 121,
               "duplicate": 0, "applied_all": True, "rate_held": True, "samples": step_samples,
               "achieved_events_per_second": 2.0}]
     steps[0]["apply_p50"] = rp.stats.percentile([s["seconds"] for s in step_samples], 50)
@@ -73,7 +76,10 @@ def green_measure() -> dict[str, Any]:
                     "suites_evidence": EVIDENCE}, "runner": {"cpu_model": "a cpu", "cpu_count": 4},
             "phases": phases, "sizes_requested": [int(s) for s in SIZES], "sizes": sizes,
             "tesseract_nodes": {"graphs": graphs, "completed": True},
-            "throughput": {"steps": steps, "sustained_events_per_second": 2, "stopped": "last_step"}}
+            "throughput": {"steps": steps, "sustained_events_per_second": 2, "stopped": "last_step",
+                           "stamp_resolution_seconds": ms.STAMP_RESOLUTION_SECONDS,
+                           "bound_seconds": rp.MEASURE_APPLY_P95_BOUND,
+                           "bound_proven_seconds": rp.MEASURE_APPLY_P95_BOUND - ms.STAMP_RESOLUTION_SECONDS}}
 
 
 class PlanTests(unittest.TestCase):
@@ -92,7 +98,8 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(sum(options.budgets.values()), 42 * 60.0)
         for name in ms.phase_plan(rp.MEASURE_SIZES):
             self.assertIn(name, options.budgets)
-        self.assertEqual(ms.budget_seconds("size-2000"), 15 * 60.0)
+        self.assertEqual(ms.budget_seconds("size-2000"), 12 * 60.0)        # M14, amended 2026-10-13
+        self.assertEqual(ms.budget_seconds("tesseract-nodes"), 8 * 60.0)
         self.assertEqual(rp.MEASURE_CANDIDATES, {200: 60, 600: 60, 2000: 20})
 
     def test_rekey_and_the_step_organisations(self) -> None:
@@ -181,8 +188,13 @@ class C5Tests(unittest.TestCase):
 
     def mutations(self) -> list[tuple[str, str, Any]]:
         out = [
+            ("sizes_are_the_briefs", "sizes_requested", [200]),
             ("every_phase_completed", "phases.1.completed", False),
             ("every_requested_size_completed", "sizes.600.completed", False),
+            # a size report carrying only c0 (no c7, c8, c9) is not a size whose checks are ok
+            ("size_200_checks_ok", "sizes.200.checks", {"c0_real_fabric_keyed": {"ok": True, "failed": []}}),
+            # a stamped 1 at one-second stamps admits a true p95 anywhere in (0, 2) s: not within the proven bound
+            ("sweep_first_step_apply_p95_within_bound", "throughput.steps.0.apply_p95", 1.0),
             ("tesseract_600_nodes", "tesseract_nodes.graphs.600.nodes", 599),
             ("tesseract_5882_nodes", "tesseract_nodes.graphs.5882.queries", 19),
             ("tesseract_20000_nodes", "tesseract_nodes.graphs.20000.p95", None),
@@ -210,6 +222,23 @@ class C5Tests(unittest.TestCase):
 
     def test_every_assertion_has_a_mutation(self) -> None:
         self.assertEqual(len({a for a, _, _ in self.mutations()}), rp.c5_measured(self.doc)["assertions"])
+
+    def test_the_proven_bound_is_the_briefs_less_the_stamps_resolution(self) -> None:
+        check = rp.c5_measured(self.doc)
+        self.assertEqual((check["apply_p95_bound"], check["stamp_resolution_seconds"], check["apply_p95_bound_proven"]),
+                         (1.0, 1, 0.0))
+        self.assertIn("sweep_first_step_apply_p95_within_bound",
+                      rp.c5_measured(put(self.doc, "throughput.steps.0.apply_p95", 0.5))["failed"])
+        # stamps with sub-second resolution would prove the brief's bound as written
+        fine = put(self.doc, "throughput.stamp_resolution_seconds", 0)
+        self.assertEqual(rp.c5_measured(fine)["apply_p95_bound_proven"], 1.0)
+        self.assertNotIn("sweep_first_step_apply_p95_within_bound",
+                         rp.c5_measured(put(fine, "throughput.steps.0.apply_p95", 1.0))["failed"])
+
+    def test_a_measure_run_of_fewer_sizes_than_the_briefs_fails_c5(self) -> None:
+        for sizes in ([200], [200, 600], [600, 2000]):
+            with self.subTest(sizes=sizes):
+                self.assertIn("sizes_are_the_briefs", rp.c5_measured(put(self.doc, "sizes_requested", sizes))["failed"])
 
     def test_a_size_asks_the_detected_candidates_when_the_world_holds_fewer_than_the_cap(self) -> None:
         """The 200-user world detects 55 candidates, under the cap of 60: it asks all 55 and c5 accepts that;
@@ -244,7 +273,7 @@ class RecomputeTests(unittest.TestCase):
             typed = put(doc, "tesseract_nodes.graphs.600.p50", 9.0)
             self.assertTrue(any("graphs.600.p50" in p for p in rp.recompute(typed, base_dir=base)))
             self.assertTrue(any("steps[0].apply_p95" in p
-                                for p in rp.recompute(put(doc, "throughput.steps.0.apply_p95", 0.0), base_dir=base)))
+                                for p in rp.recompute(put(doc, "throughput.steps.0.apply_p95", 1.0), base_dir=base)))
             self.assertTrue(any("sizes.600.row" in p
                                 for p in rp.recompute(put(doc, "sizes.600.row.wall_seconds", 1.0), base_dir=base)))
             (base / "size-2000" / rp.REPORT_NAME).unlink()

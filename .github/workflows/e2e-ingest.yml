@@ -1,9 +1,9 @@
 name: e2e-ingest
 
-# docs/collective/E2E-INGEST.md section 11 (with M2, M10, M11, M12, M14): the unit suites first, with junit evidence
-# per suite, then the end-to-end job (criteria 0-4, 7, 8, 9 and 10 on the EMERGENCE 200-user world against a real
-# nats-server) and the measure job (criterion 5 and the scaling table), both needing the suite jobs. Everything the
-# jobs produce is synthetic and stamped measurement: false.
+# docs/collective/E2E-INGEST.md section 11 (with M2, M10, M11, M12, M14, amended 2026-10-13: five jobs): the unit
+# suites first in three jobs, with junit evidence per suite, then the end-to-end job (criteria 0-4, 7, 8, 9 and 10
+# on the EMERGENCE 200-user world against a real nats-server) and the measure job (criterion 5 and the scaling
+# table), both needing all three suite jobs. Everything the jobs produce is synthetic and stamped measurement: false.
 
 on:
   push:
@@ -22,7 +22,7 @@ env:
 
 jobs:
   suites-core:
-    name: unit suites, core (NeuralGraph, mycelic, onboard, routing spike, e2e_ingest), junit evidence per suite
+    name: unit suites, core (NeuralGraph, mycelic, onboard, routing spike), junit evidence per suite
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -48,9 +48,6 @@ jobs:
       - name: tests/routing_spike
         if: ${{ !cancelled() }}
         run: python -m research.e2e_ingest suites --out suites --suite tests/routing_spike
-      - name: tests/e2e_ingest
-        if: ${{ !cancelled() }}
-        run: python -m research.e2e_ingest suites --out suites --suite tests/e2e_ingest
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -59,6 +56,33 @@ jobs:
       - name: every suite of this job green, its junit file beside its row
         if: ${{ !cancelled() }}
         run: python -m research.e2e_ingest suites --out suites --verify --group core
+
+  suites-e2e:
+    name: unit suite, e2e_ingest (its live run of the harness is most of it), junit evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install --require-hashes -r requirements.txt     # the image's exact runtime set (requirements-lock.txt)
+      - name: install nats-server
+        run: |
+          curl -sSL -o nats.tgz "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz"
+          tar xzf nats.tgz && sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+      - name: tests/e2e_ingest
+        run: python -m research.e2e_ingest suites --out suites --suite tests/e2e_ingest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-suites-e2e
+          path: suites/
+      - name: every suite of this job green, its junit file beside its row
+        if: ${{ !cancelled() }}
+        run: python -m research.e2e_ingest suites --out suites --verify --group e2e
 
   suites-lab:
     name: unit suites, lab (tests/lab, the EMERGENCE simulator's own tests), junit evidence per suite
@@ -92,12 +116,13 @@ jobs:
 
   e2e:
     name: criteria 0-4, 7, 8, 9 and 10 end to end (EMERGENCE 200 users, 7 site graphs, Tesseract routing, keyed JetStream)
-    needs: [suites-core, suites-lab]
+    needs: [suites-core, suites-lab, suites-e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       E2E_NEEDS_SUITES_CORE: ${{ needs.suites-core.result }}
       E2E_NEEDS_SUITES_LAB: ${{ needs.suites-lab.result }}
+      E2E_NEEDS_SUITES_E2E: ${{ needs.suites-e2e.result }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -141,12 +166,13 @@ jobs:
 
   measure:
     name: criterion 5 and the scaling table (sizes 200, 600 and 2,000; the rate sweep; Tesseract at 600, 5,882 and 20,000 nodes)
-    needs: [suites-core, suites-lab]
+    needs: [suites-core, suites-lab, suites-e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
       E2E_NEEDS_SUITES_CORE: ${{ needs.suites-core.result }}
       E2E_NEEDS_SUITES_LAB: ${{ needs.suites-lab.result }}
+      E2E_NEEDS_SUITES_E2E: ${{ needs.suites-e2e.result }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

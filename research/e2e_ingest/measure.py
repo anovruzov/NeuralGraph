@@ -299,6 +299,7 @@ class MeasureRun:
         block: dict[str, Any] = {
             "completed": False, "reason": None, "steps": steps, "rates": list(o.rates),
             "step_seconds": o.step_seconds, "bound_seconds": rp.MEASURE_APPLY_P95_BOUND,
+            "bound_proven_seconds": rp.MEASURE_APPLY_P95_BOUND - STAMP_RESOLUTION_SECONDS,
             "rate_held_share": RATE_HELD_SHARE, "stamp_resolution_seconds": STAMP_RESOLUTION_SECONDS,
             "events_source": {"size": source["target_users"], "conclusions": len(plans),
                               "events_per_cycle": sum(len(p.verdicts) + 1 for p in plans)},
@@ -542,7 +543,11 @@ class MeasureRun:
             "created_to_applied": {str(r["target_users"]): {"p50": r["created_to_applied_p50"],
                                                             "p95": r["created_to_applied_p95"]} for r in rows},
             "sustained_events_per_second": th.get("sustained_events_per_second"),
-            "stamp_resolution_seconds": STAMP_RESOLUTION_SECONDS}
+            "stamp_resolution_seconds": STAMP_RESOLUTION_SECONDS,
+            # the service stamps whole seconds, so a stamped p95 of 1 admits a true p95 anywhere in (0, 2) s: the
+            # bound a stamped value proves is the brief's less the resolution, and c5 holds the first step to it
+            "apply_p95_bound": rp.MEASURE_APPLY_P95_BOUND,
+            "apply_p95_bound_proven": rp.MEASURE_APPLY_P95_BOUND - STAMP_RESOLUTION_SECONDS}
         doc["discovery"] = {str(s): (doc["sizes"].get(str(s)) or {}).get("discovery") for s in doc["sizes_requested"]}
         doc["largest_size_completed"] = max((r["target_users"] for r in rows), default=None)
         doc["run"].update({"finished_at": utc_clock(), "seconds": time.perf_counter() - t0,

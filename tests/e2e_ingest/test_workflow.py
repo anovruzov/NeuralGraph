@@ -3,7 +3,7 @@ section 6: the harness's constants against the brief's own tables, parsed from `
 
 ``c6_ci`` is "asserted by the workflow itself" (section 9): this file is that assertion. PyYAML reads the ``on:`` key
 as the boolean True, so the triggers are ``wf.get("on", wf.get(True))``. The deployment branch's name is read from
-the brief, never written here.
+``mycelic.yml`` (the brief's section 11 names it there, never literally), never written here.
 """
 from __future__ import annotations
 
@@ -34,9 +34,12 @@ WF = yaml.safe_load(TEXT)
 JOBS = WF["jobs"]
 BRIEF_TEXT = BRIEF.read_text(encoding="utf-8")
 ON = WF.get("on", WF.get(True))
-SUITE_JOBS = ("suites-core", "suites-lab")
+SUITE_JOBS = ("suites-core", "suites-lab", "suites-e2e")
 E2E_JOBS = ("e2e", "measure")
 CLI = "python -m research.e2e_ingest"
+#: ``pytest --collect-only tests/e2e_ingest`` at this build (M2): a literal, never derived from ``suites.py``, so
+#: lowering ``E2E_INGEST_FLOOR`` fails here; a later build raises it together with the floor when tests are added.
+E2E_INGEST_TESTS_AT_THIS_BUILD = 151
 
 
 def section(start: str, end: str) -> str:
@@ -73,14 +76,20 @@ def step_named(job: str, prefix: str) -> dict[str, Any]:
 # =================================================================================================== the workflow
 
 class TriggerTests(unittest.TestCase):
-    """Section 11: on push to the deployment branch with the brief's paths, and on workflow_dispatch."""
+    """Section 11: on push to the deployment branch (named by ``mycelic.yml``, never by the brief) with the brief's
+    paths, and on workflow_dispatch."""
 
     def test_push_to_the_deployment_branch_with_the_briefs_paths_and_dispatch(self) -> None:
         s11 = section("## 11. The CI workflow", "## 12.")
-        m = re.search(r"on `push` to `([^`]+)` with paths\n?(.*?)and on `workflow_dispatch`", s11, re.S)
+        self.assertIn("on `push` to the deployment branch", s11)
+        mycelic = yaml.safe_load(MYCELIC_WORKFLOW.read_text(encoding="utf-8"))
+        mon = mycelic.get("on", mycelic.get(True))
+        branches = [b for b in mon["push"]["branches"] if b != "main"]
+        self.assertEqual(len(branches), 1)
+        self.assertEqual(ON["push"]["branches"], branches)
+        m = re.search(r"with paths\n?(.*?)and on `workflow_dispatch`", s11, re.S)
         self.assertIsNotNone(m)
-        branch, paths = m.group(1), backticked(m.group(2))
-        self.assertEqual(ON["push"]["branches"], [branch])
+        paths = backticked(m.group(1))
         self.assertEqual(ON["push"]["paths"], paths)
         self.assertEqual(len(paths), 8)
         self.assertIn("workflow_dispatch", ON)
@@ -93,10 +102,12 @@ class TriggerTests(unittest.TestCase):
 
 
 class JobTests(unittest.TestCase):
-    """Section 11's table: four jobs, the suite jobs first, the end-to-end jobs needing both, the bounds."""
+    """Section 11's table (amended 2026-10-13): five jobs, the three suite jobs first, the end-to-end jobs needing
+    all three, the bounds."""
 
-    def test_four_jobs_in_the_briefs_order_with_its_needs_and_bounds(self) -> None:
+    def test_five_jobs_in_the_briefs_order_with_its_needs_and_bounds(self) -> None:
         self.assertEqual(list(JOBS), [*SUITE_JOBS, *E2E_JOBS])
+        self.assertEqual(len(JOBS), 5)
         s11 = section("## 11. The CI workflow", "## 12.")
         rows = {}
         for line in s11.splitlines():
@@ -111,9 +122,12 @@ class JobTests(unittest.TestCase):
                 self.assertEqual(JOBS[job]["timeout-minutes"], number(cells[2]))
         self.assertEqual({j: JOBS[j]["timeout-minutes"] for j in JOBS},
                          {"suites-core": rp.SUITES_TIMEOUT_MINUTES, "suites-lab": rp.SUITES_TIMEOUT_MINUTES,
-                          "e2e": rp.E2E_TIMEOUT_MINUTES, "measure": rp.MEASURE_TIMEOUT_MINUTES})
+                          "suites-e2e": rp.SUITES_TIMEOUT_MINUTES, "e2e": rp.E2E_TIMEOUT_MINUTES,
+                          "measure": rp.MEASURE_TIMEOUT_MINUTES})
         for job in E2E_JOBS:
             self.assertEqual(JOBS[job]["needs"], list(SUITE_JOBS))
+        self.assertEqual(sorted(su.NEEDS_JOBS.values()), sorted(SUITE_JOBS))
+        self.assertEqual(sorted(su.NEEDS_ENV), sorted(SUITE_JOBS))
 
     def test_every_job_runs_on_ubuntu_with_python_3_11_and_the_hashed_requirements(self) -> None:
         for job in JOBS:
@@ -146,7 +160,8 @@ class JobTests(unittest.TestCase):
 
 class SuiteJobTests(unittest.TestCase):
     """M2: every one of the seven suites runs through the suites CLI in its job, each step kept even when an earlier
-    one is red, the rows uploaded as e2e-suites-core and e2e-suites-lab, and the job's own verification last."""
+    one is red, the rows uploaded as e2e-suites-core, e2e-suites-lab and e2e-suites-e2e, and the job's own
+    verification last."""
 
     def suite_steps(self, job: str) -> list[dict[str, Any]]:
         return [s for s in steps(job) if "run" in s and f"{CLI} suites --out suites --suite " in s["run"]]
@@ -169,7 +184,9 @@ class SuiteJobTests(unittest.TestCase):
     def test_the_steps_after_the_first_run_even_when_an_earlier_suite_is_red(self) -> None:
         for job in SUITE_JOBS:
             suite_steps = self.suite_steps(job)
-            self.assertGreaterEqual(len(suite_steps), 2)
+            # suites-e2e runs the one suite of its group (section 11, amended); the other two run several
+            self.assertEqual(len(suite_steps), len([s for s in su.SUITES if su.NEEDS_JOBS[s.group] == job]))
+            self.assertGreaterEqual(len(suite_steps), 2 if job != "suites-e2e" else 1)
             self.assertNotIn("if", suite_steps[0])
             for step in suite_steps[1:]:
                 with self.subTest(job=job, step=step["name"]):
@@ -195,10 +212,11 @@ class SuiteJobTests(unittest.TestCase):
                 self.assertEqual(command[6], "no:warnings")
                 self.assertEqual(command[-1], f"--junitxml=suites/{suite.slug}.xml")
         self.assertEqual([s.name for s in su.SUITES if s.group == "core"],
-                         ["NeuralGraph/tests", "tests/mycelic", "tests/onboard", "tests/routing_spike",
-                          "tests/e2e_ingest"])
+                         ["NeuralGraph/tests", "tests/mycelic", "tests/onboard", "tests/routing_spike"])
+        self.assertEqual([s.name for s in su.SUITES if s.group == "e2e"], ["tests/e2e_ingest"])
         self.assertEqual([s.name for s in su.SUITES if s.group == "lab"],
                          ["tests/lab", "research/mycelic/test_mycelic.py"])
+        self.assertEqual(su.GROUPS, ("core", "lab", "e2e"))
 
 
 class EndToEndJobTests(unittest.TestCase):
@@ -356,15 +374,18 @@ class SettingsTests(unittest.TestCase):
                          [su.JETSTREAM_CLASSNAME, ""])
 
     def test_the_e2e_ingest_floor_is_this_suites_collected_count_and_may_only_rise(self) -> None:
-        """M2: ``tests/e2e_ingest``'s count at the build's merge is written here; a later build may raise it."""
+        """M2: ``tests/e2e_ingest``'s count at the build's merge is written here as a literal
+        (:data:`E2E_INGEST_TESTS_AT_THIS_BUILD`); the floor in ``suites.py`` may only rise from it, and the suite
+        collected here must reach the floor."""
         proc = subprocess.run([sys.executable, "-m", "pytest", "tests/e2e_ingest", "--collect-only", "-q",
                                "-p", "no:cacheprovider"], cwd=str(ROOT), capture_output=True, text=True, timeout=600)
         self.assertEqual(proc.returncode, 0, proc.stdout[-2000:] + proc.stderr[-2000:])
         m = re.search(r"(\d+) tests? collected", proc.stdout)
         self.assertIsNotNone(m, proc.stdout[-500:])
         collected = int(m.group(1))
+        self.assertGreaterEqual(su.E2E_INGEST_FLOOR, E2E_INGEST_TESTS_AT_THIS_BUILD)
         self.assertGreaterEqual(collected, su.E2E_INGEST_FLOOR)
-        self.assertEqual(su.E2E_INGEST_FLOOR, E2E_INGEST_TESTS_AT_THIS_BUILD)
+        self.assertEqual(collected, E2E_INGEST_TESTS_AT_THIS_BUILD)      # raise the literal with the floor
 
     def test_m14_the_measure_phases_and_their_budgets(self) -> None:
         m14 = section("**M14.", "**M15.")
@@ -417,9 +438,15 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(ms.ALLOCATION, "back-loaded")
         self.assertIn('`"back-loaded"`', section("**M24.", "**M25."))
 
-
-#: ``pytest --collect-only tests/e2e_ingest`` at this build (M2); may only rise.
-E2E_INGEST_TESTS_AT_THIS_BUILD = su.E2E_INGEST_FLOOR
+    def test_the_amendments_of_the_build_review_are_in_the_brief_and_in_the_code(self) -> None:
+        """The two amendments of 2026-10-13: section 11's fifth job (``suites-e2e``) and M14's budgets (Tesseract
+        8, size 2,000 12, the total still 42 of 45)."""
+        self.assertIn("### Amendment 2026-10-13, after the build review (section 11: a fifth job)", BRIEF_TEXT)
+        self.assertIn("### Amendment 2026-10-13, after the build review (M14: two budgets moved", BRIEF_TEXT)
+        self.assertEqual((rp.MEASURE_PHASE_BUDGET_MINUTES["tesseract-nodes"],
+                          rp.MEASURE_PHASE_BUDGET_MINUTES["size-2000"]), (8, 12))
+        self.assertIn("`suites-e2e`", section("## 11. The CI workflow", "## 12."))
+        self.assertIn("suites-e2e", JOBS)
 
 
 if __name__ == "__main__":

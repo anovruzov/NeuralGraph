@@ -38,12 +38,16 @@ ENTERPRISE = "t"
 
 
 def nats_server_bin() -> str:
-    """``MYCELIC_NATS_SERVER_BIN``, then PATH, then the sandbox's local install; a miss is a failure, never a skip."""
+    """``MYCELIC_NATS_SERVER_BIN``, then PATH, then the sandbox's local install; a miss is a failure, never a skip.
+    ``E2E_REQUIRE_NATS`` (the workflow exports ``1``) changes nothing but the message: this suite never skips for a
+    missing broker whether or not it is set (M11)."""
     for candidate in (os.environ.get("MYCELIC_NATS_SERVER_BIN"), shutil.which("nats-server"), str(LOCAL_NATS)):
         if candidate and Path(candidate).is_file() and os.access(candidate, os.X_OK):
             return candidate
-    raise AssertionError("nats-server not found: set MYCELIC_NATS_SERVER_BIN or install it; tests/e2e_ingest never "
-                         "skip for a missing broker (E2E-INGEST.md M11)")
+    required = os.environ.get("E2E_REQUIRE_NATS")
+    where = f" (E2E_REQUIRE_NATS={required})" if required is not None else ""
+    raise AssertionError(f"nats-server not found{where}: set MYCELIC_NATS_SERVER_BIN or install it; "
+                         "tests/e2e_ingest never skip for a missing broker (E2E-INGEST.md M11)")
 
 
 def nats_binary_version(nats_bin: str) -> str:
@@ -55,9 +59,12 @@ def nats_binary_version(nats_bin: str) -> str:
 
 
 def suite_rows(sha: str) -> list[dict[str, Any]]:
-    """M2: one green, junit-bound row per suite at its floor, naming ``sha`` (what ``run --suites DIR`` embeds)."""
-    return [{"suite": s.name, "slug": s.slug, "group": s.group, "floor": s.floor, "sha": sha, "tests": s.floor,
-             "failures": 0, "errors": 0, "skipped": 0, "skipped_in_scope": 0 if s.zero_skip_scope is not None else None,
+    """M2: one green, junit-bound row per suite at its floor, naming ``sha`` (what ``run --suites DIR`` embeds);
+    ``tests`` is what pytest's junit attribute counts (subtests included), ``tests_distinct`` the collected count
+    c10 holds to the floor."""
+    return [{"suite": s.name, "slug": s.slug, "group": s.group, "floor": s.floor, "sha": sha, "tests": s.floor * 3,
+             "tests_distinct": s.floor, "failures": 0, "errors": 0, "skipped": 0,
+             "skipped_in_scope": 0 if s.zero_skip_scope is not None else None,
              "duration_s": 1.0, "junit_sha256": "0" * 64, "junit_file": f"{s.slug}.xml", "junit_present": True,
              "junit_bound": True, "exit_code": 0} for s in SUITES]
 

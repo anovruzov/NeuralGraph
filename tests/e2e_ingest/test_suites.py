@@ -59,6 +59,14 @@ class JunitTests(unittest.TestCase):
             whole = su.junit_summary(path, "")
             self.assertEqual((whole["tests"], whole["failures"], whole["errors"], whole["skipped"]), (10, 2, 1, 3))
             self.assertEqual((whole["duration_s"], whole["skipped_in_scope"], whole["testcases"]), (12.5, 3, 4))
+            # the distinct (classname, name) pairs: the collected count, not pytest's subtest-inflated ``tests``
+            self.assertEqual(whole["tests_distinct"], 4)
+            twice = JUNIT.replace('name="test_d" time="0.1"/>',
+                                  'name="test_d" time="0.1"/><testcase classname="tests.mycelic.test_api.ApiTests" '
+                                  'name="test_d" time="0.1"/>')
+            path.write_text(twice, encoding="utf-8")
+            again = su.junit_summary(path, "")
+            self.assertEqual((again["testcases"], again["tests_distinct"]), (5, 4))
             scoped = su.junit_summary(path, su.JETSTREAM_CLASSNAME)
             self.assertEqual(scoped["skipped_in_scope"], 2)
             self.assertIsNone(su.junit_summary(path, None)["skipped_in_scope"])
@@ -87,6 +95,7 @@ class RunSuiteTests(unittest.TestCase):
                          ("test_tiny.py", "tiny", "core", 2, "b" * 40))
         self.assertEqual((row["tests"], row["failures"], row["errors"], row["skipped"], row["skipped_in_scope"]),
                          (3, 0, 0, 1, 1))
+        self.assertEqual(row["tests_distinct"], 3)
         self.assertEqual((row["exit_code"], row["junit_present"], row["junit_file"]), (0, True, "tiny.xml"))
         self.assertEqual(row["junit_sha256"], sha256_hex((self.out / "tiny.xml").read_bytes()))
         self.assertTrue(su.green(row))
@@ -121,6 +130,24 @@ class RunSuiteTests(unittest.TestCase):
             self.assertEqual((found["evidence"], found["problems"], len(found["rows"])), (su.EVIDENCE, [], 7))
             self.assertTrue(all(r["junit_bound"] for r in found["rows"]))
             self.assertEqual(su.read_evidence(out, "lab")["rows"][0]["suite"], "tests/lab")
+            self.assertEqual(su.read_evidence(out, "e2e")["rows"][0]["suite"], "tests/e2e_ingest")
+            # a row typed beside a real junit file, hashing to it but not counting it, is not bound: the reader
+            # re-parses the file and requires the row's counts
+            typed = {**self.row, "suite": "tests/onboard", "slug": "tests-onboard", "junit_file": "tests-onboard.xml",
+                     "tests": 99}
+            write_json_atomic(out / "tests-onboard.json", typed)
+            found = su.read_evidence(out)
+            self.assertIsNone(found["evidence"])
+            self.assertEqual([r["junit_bound"] for r in found["rows"] if r["suite"] == "tests/onboard"], [False])
+            self.assertTrue(any("tests/onboard" in p and "counts" in p for p in found["problems"]))
+            for key in su.JUNIT_COUNTS:
+                with self.subTest(count=key):
+                    bad = {**typed, "tests": self.row["tests"], key: (self.row[key] or 0) + 1}
+                    write_json_atomic(out / "tests-onboard.json", bad)
+                    self.assertEqual([r["junit_bound"] for r in su.read_evidence(out)["rows"]
+                                      if r["suite"] == "tests/onboard"], [False])
+            write_json_atomic(out / "tests-onboard.json", {**typed, "tests": self.row["tests"]})
+            self.assertEqual(su.read_evidence(out)["evidence"], su.EVIDENCE)
             # a tampered junit file unbinds its row; a missing row is a problem; neither is evidence
             (out / "tests-lab.xml").write_text(JUNIT, encoding="utf-8")
             found = su.read_evidence(out)
@@ -147,7 +174,8 @@ class RunSuiteTests(unittest.TestCase):
                 os.environ.pop(name, None)
             self.assertIsNone(su.needs_results())
             os.environ[su.NEEDS_ENV["suites-core"]] = "success"
-            self.assertEqual(su.needs_results(), {"suites-core": "success", "suites-lab": None})
+            self.assertEqual(su.needs_results(), {"suites-core": "success", "suites-lab": None, "suites-e2e": None})
+            self.assertEqual(su.NEEDS_ENV["suites-e2e"], "E2E_NEEDS_SUITES_E2E")
 
 
 class C10Tests(unittest.TestCase):
@@ -157,7 +185,8 @@ class C10Tests(unittest.TestCase):
         self.doc: dict[str, Any] = {"run": {"code_commit": "a" * 40, "code_dirty_start": False,
                                             "code_dirty_end": False, "suites": suite_rows("a" * 40),
                                             "suites_evidence": su.EVIDENCE,
-                                            "needs_results": {"suites-core": "success", "suites-lab": "success"},
+                                            "needs_results": {"suites-core": "success", "suites-lab": "success",
+                                                              "suites-e2e": "success"},
                                             "github_run_id": "123"}}
 
     def test_a_green_run_block_passes_locally_and_in_ci(self) -> None:
@@ -167,7 +196,32 @@ class C10Tests(unittest.TestCase):
                 self.assertEqual(check["failed"], [])
                 self.assertTrue(check["ok"])
         self.assertEqual(rp.c10_suites_green(self.doc, in_ci=True)["assertions"],
-                         rp.c10_suites_green(self.doc, in_ci=False)["assertions"] + 3)
+                         rp.c10_suites_green(self.doc, in_ci=False)["assertions"] + 4)
+
+    def test_in_ci_is_read_from_the_report_not_the_environment(self) -> None:
+        """``check REPORT`` run locally over a CI artifact keeps the CI-only assertions: ``in_ci`` comes from
+        ``run.github_run_id`` when the caller does not say."""
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}, clear=False):
+            self.assertTrue(rp.c10_suites_green(self.doc)["in_ci"])
+            self.assertEqual(rp.c10_suites_green(self.doc)["assertions"],
+                             rp.c10_suites_green(self.doc, in_ci=True)["assertions"])
+            self.assertFalse(rp.c10_suites_green(put(self.doc, "run.github_run_id", None))["in_ci"])
+            self.assertTrue(rp.c0_real_fabric_keyed(self.doc)["in_ci"])
+            self.assertFalse(rp.c0_real_fabric_keyed(put(self.doc, "run.github_run_id", None))["in_ci"])
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}, clear=False):
+            self.assertFalse(rp.c10_suites_green(put(self.doc, "run.github_run_id", None))["in_ci"])
+            self.assertTrue(rp.c10_suites_green({})["in_ci"])             # no run block: the environment decides
+
+    def test_the_floor_is_held_to_the_distinct_count_and_the_subtest_inflated_count_is_only_reported(self) -> None:
+        """M2's floors are ``--collect-only`` counts; pytest's junit ``tests`` counts every subtest, so a suite that
+        lost most of its tests but kept many subtests must still fail the floor."""
+        i = [s.name for s in su.SUITES].index("tests/mycelic")
+        floor = su.SUITES[i].floor
+        inflated = put(put(self.doc, f"run.suites.{i}.tests", floor * 27), f"run.suites.{i}.tests_distinct",
+                       floor // 2)
+        self.assertIn("tests-mycelic:tests_at_or_above_floor", rp.c10_suites_green(inflated, in_ci=False)["failed"])
+        exact = put(put(self.doc, f"run.suites.{i}.tests", floor), f"run.suites.{i}.tests_distinct", floor)
+        self.assertNotIn("tests-mycelic:tests_at_or_above_floor", rp.c10_suites_green(exact, in_ci=False)["failed"])
 
     def mutations(self) -> list[tuple[str, str, Any]]:
         out = [("evidence_is_junit", "run.suites_evidence", None),
@@ -178,7 +232,7 @@ class C10Tests(unittest.TestCase):
                     (f"{suite.slug}:sha_is_the_commit", f"run.suites.{i}.sha", "c" * 40),
                     (f"{suite.slug}:no_failures", f"run.suites.{i}.failures", 1),
                     (f"{suite.slug}:no_errors", f"run.suites.{i}.errors", 1),
-                    (f"{suite.slug}:tests_at_or_above_floor", f"run.suites.{i}.tests", suite.floor - 1),
+                    (f"{suite.slug}:tests_at_or_above_floor", f"run.suites.{i}.tests_distinct", suite.floor - 1),
                     (f"{suite.slug}:junit_bound", f"run.suites.{i}.junit_bound", False)]
             if suite.zero_skip_scope is not None:
                 out.append((f"{suite.slug}:no_skips_in_scope", f"run.suites.{i}.skipped_in_scope", 1))
@@ -198,6 +252,7 @@ class C10Tests(unittest.TestCase):
     def test_the_ci_only_assertions(self) -> None:
         for assertion, path, value in (("needs_suites-core_success", "run.needs_results.suites-core", "failure"),
                                        ("needs_suites-lab_success", "run.needs_results.suites-lab", None),
+                                       ("needs_suites-e2e_success", "run.needs_results.suites-e2e", "skipped"),
                                        ("github_run_id_set", "run.github_run_id", None)):
             with self.subTest(assertion=assertion):
                 check = rp.c10_suites_green(put(self.doc, path, value), in_ci=True)
