@@ -383,9 +383,9 @@ class MeasureRun:
                 sample = _sample(rows, r["event_id"], "verdict")
             else:
                 sample = _sample(rows, r["memory_event_id"], "conclusion")
-                agent = _sample(rows, r["event_id"], "conclusion_agent_event")
-                if agent is not None:
-                    beside.append(agent)
+                agent_event = _sample(rows, r["event_id"], "conclusion_agent_event")
+                if agent_event is not None:
+                    beside.append(agent_event)
             if sample is not None:
                 samples.append(sample)
         applied_all = len(samples) == len(results) and all(

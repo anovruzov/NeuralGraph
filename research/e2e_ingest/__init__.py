@@ -23,7 +23,14 @@ Modules, by side (``E2E-INGEST.md`` section 6):
   keyring check, the forged publishes, the broker version, the metrics counters, and the ``ProcessDriver`` subclass
   of sections 3.6 and M5;
 * ``harness`` (harness): the run itself — the world, the seven site processes, HQ with Tesseract routing, the
-  bridge into the keyed fabric, the drills of section 8, the checks of section 9 and the JSON report of section 5.
+  bridge into the keyed fabric, the drills of section 8, the checks of section 9 and the JSON report of section 5;
+* ``report`` (harness): the report's header, the checks of section 9 (c0 to c5, c7 to c10), the scaling row of
+  section 10 and M12's recomputation of every aggregate from the samples a report carries;
+* ``measure`` (harness): the measure job of section 10 and M14 (the sizes in child processes, the rate sweep, the
+  three measurement graphs, the scaling table) and the simulator's two columns the end-to-end job reads (M24);
+* ``suites`` (CLI): the seven unit suites run with junit evidence, one row per suite, and the reader that embeds
+  them in a report for criterion 10 (M2, M11);
+* ``__main__`` (CLI): ``python -m research.e2e_ingest run|measure|check|suites``.
 
 Every pinned module of the routing spike, of ``mycelic/collective`` and of ``research/mycelic`` is imported, never
 edited. Everything here is synthetic and stamped ``measurement: false``. No record text and no record ref is ever

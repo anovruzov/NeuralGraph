@@ -719,3 +719,225 @@ bridge section's item 5), none in a file of this stage.
   file alone, and nothing of this stage is hit.
 - The local reports of the two trial runs are sandbox artifacts and are not committed; their figures are above and
   they hold no record text, which the suite asserts of its own run's report.
+## S7 and S8: `measure.py`, `suites.py`, `__main__.py`, the workflow (branch `wf/e2e-measure`)
+
+The measure job of section 10 (criterion 5 and the scaling table), criterion 10's gate with evidence (M2), the
+package's command line of section 6, and the CI workflow of section 11 with its test. This branch starts from the
+harness stage's final commit (`99a9d0f`). The commands:
+
+    python -m research.e2e_ingest run --size 200 --mode process --out DIR [--suites DIR]
+    python -m research.e2e_ingest measure --sizes 200,600,2000 --out DIR [--suites DIR]
+    python -m research.e2e_ingest check REPORT [--recorded]
+    python -m research.e2e_ingest suites --out DIR [--group core|lab] [--suite NAME ...] [--verify]
+
+Declaration. Everything here is synthetic and stamped `measurement: false`. In the sandbox (Intel Xeon 2.80 GHz,
+4 vCPU, nats-server v2.10.22 at `/root/.local/bin`) this stage ran: one reduced measure job (20 candidates, two
+8-second sweep steps, graphs of 600 and 1,200 nodes) to exercise every phase; one measure job at size 200
+(`--sizes 200`: the size-200 phase at 60 candidates, the rate sweep and the three measurement graphs; recorded
+below); the whole `tests/e2e_ingest` suite; `tests/mycelic/test_packaging.py` and `tests/onboard/test_onboard_demo.py`
+(they read workflow files); `actionlint` 1.7.12 over the workflow; `flake8 --max-line-length 120`. Sizes 600 and
+2,000 did not run locally. No model ran. No record text or record ref appears in this note, in a log, in a test
+message or in a report.
+
+### The shape
+
+| Piece | Where | What |
+|---|---|---|
+| The measure job | `research/e2e_ingest/measure.py` | `MeasureRun`: M14's phases in order, each under its own budget, the report (`e2e-ingest-measure.json`, `write_json_atomic`) written when each phase ends with `completed` and `phase`; the size phases run the harness as a child process (`harness run --world N --skip-drills --queries 0 --top-n 60|20`), the scaling row taken from the size's own report (`report.scaling_row`); the rate sweep (M7, M19) in a fresh fabric, one organisation and one HQ agent per step, the size-200 events re-keyed `{step}:{cycle}:{original key}`, every event's stamps read from the service database `mode=ro`; the three measurement graphs at 600, 5,882 and 20,000 nodes from the first N records of the 2,000-user world, ranked with the 20 fixed queries; then the scaling table, criterion 5's per-hop block, `c5_measured`, `c10_suites_green` with `--suites`, the verdict. `simulator_columns` (the end-to-end job's, M24) is unchanged |
+| The suites CLI | `research/e2e_ingest/suites.py` | M2: the seven suites, each `python -m pytest <suite> -q -p no:warnings [-p no:cacheprovider] --junitxml=DIR/<slug>.xml`; one row per suite (`DIR/<slug>.json`: `{suite, slug, group, sha, tests, failures, errors, skipped, skipped_in_scope, duration_s, junit_sha256, ...}`, `sha` = `GITHUB_SHA` or the tree's commit); every selected suite runs even after a red one; `read_evidence` re-hashes every junit file (`junit_bound`); `--verify [--group]` reads a directory; the floors of M2's table and `E2E_INGEST_FLOOR` (151 at this build) |
+| Criterion 10 | `report.py` `c10_suites_green`, `suites_green` | per suite: present, `sha == run.code_commit`, no failure, no error, `tests >= floor`, junit-bound; no skip in `tests/e2e_ingest` nor under `tests.mycelic.test_jetstream` (M11); `code_dirty` false at start and end (M10); in CI both `needs` results `success` and the run id set. `verdict.pass` needs it (`suites_green`) |
+| Criterion 5 | `report.py` `c5_measured`, the measure constants | every phase completed; every requested size's row numeric and its own checks ok; the three graphs at their node counts with 20 queries; the sweep's first step at 2 events/s, >= 60 s, >= 120 events, apply p95 <= 1.0 s, the rate held, every step's samples its own events; a sustained rate; the runner's CPU named |
+| M12 for the measure report | `report.py` `recompute_measure` | each graph's and each step's percentiles from their samples; each size's row against the size report beside the measure report, itself recomputed and its checks reproduced; `check REPORT` dispatches on `run.job` |
+| The harness | `harness.py` | `--suites DIR` (the evidence embedded as `run.suites[]`, `run.suites_evidence`, `run.needs_results`; c10 run), `--top-n`, `--queries 0` (no fixed queries), `--size` as the brief spells it; `fixed_questions.json` written beside the report; `run.paths` (the HQ store, the fixed questions); `timings.world_pipeline_seconds` and `world_detection_seconds` (the timing hook in `emergence_world.build_emergence_world`) |
+| The CLI | `research/e2e_ingest/__main__.py` | `run`, `measure`, `check`, `suites`; `suites` loads none of the fabric, the sites or the simulator |
+| The workflow | `.github/workflows/e2e-ingest.yml` | section 11: on push to the deployment branch with the brief's eight paths and on `workflow_dispatch`; `suites-core` and `suites-lab` (45 min, one step per suite through the CLI, the later steps `if: ${{ !cancelled() }}`, the rows uploaded `if: always()` as `e2e-suites-core` / `e2e-suites-lab`, the job's own `--verify --group` last), `e2e` (needs both, 20 min) and `measure` (needs both, 45 min) download both artifacts into `suites/` and export the `needs` results (`E2E_NEEDS_SUITES_CORE`, `E2E_NEEDS_SUITES_LAB`); the install step is `mycelic.yml`'s with `NATS_VERSION: v2.10.29`; `MYCELIC_NATS_SERVER_BIN` and `E2E_REQUIRE_NATS=1` for every job (M11); each report printed between `=== E2E-INGEST <path> BEGIN lines=N sha256=... ===` and `=== E2E-INGEST <path> END ===` with its sha256 in the step summary (M12); the artifacts `e2e-ingest-report.json` and `e2e-ingest-measure.json` `if: always()` |
+| Tests | `tests/e2e_ingest/test_workflow.py`, `test_measure.py`, `test_suites.py`; `test_harness.py` and `helpers.py` updated | below |
+
+No pinned module was changed: nothing under `mycelic/`, `research/routing_spike/`, `research/mycelic/`,
+`NeuralGraph/`, `lab/`; every one is imported. `tests/mycelic/test_collective_guards.py` is untouched.
+
+### How the brief's rules are carried out
+
+- **M14's phases and budgets.** `size-200` (5 min, 60 candidates), `rate-sweep` (7), `tesseract-nodes` (5),
+  `size-600` (8, 60 candidates), `size-2000` (15, 20 candidates): 40 of the job's 45 minutes with the install's 2.
+  A size phase is the harness in a child process with `start_new_session`; past its budget the group gets SIGINT
+  (the harness's `finally` blocks close its site processes and bring its fabric down), then SIGKILL after 60 s, and
+  the phase is `completed: false, reason: budget`; the later phases still run and the job exits 1. The sweep and
+  the graphs check their budget between steps and between queries. The report is written after every phase, and
+  after every sweep step and every graph, so a job timeout leaves a partial report with `phase` named.
+- **The sizes run the main pass, not the drills.** `--skip-drills --queries 0`: the reference pass, the restart
+  witness, the broker kill, the forgeries, the rebuild, the re-ingest and the bridge rerun are the end-to-end
+  job's; the 280 fixed queries of criterion 3 are not measurement. What runs per size: the world, the seven (or
+  nine) site graphs, the main pass through Tesseract routing with the site kill and M4's probe (one code path), the
+  publish into a real keyed fabric, the lineage read-back, the discovery score and the simulator's columns; its
+  report carries c0, c7, c8 and c9 of its own, which c5 requires ok.
+- **The rate sweep (M7, M19).** The size-200 run's HQ store, read through the bridge's own planner (`HqBridge.plan`,
+  `events_for`; nothing is published through it); per step a new organisation `emergence-rate-NN` and its own HQ
+  agent `hq-rate-NN`; one thread pacing one POST per event at `t0 + i / rate` through the SDK, no ledger; a
+  conclusion cites the verdict event ids the API returned for its cycle; the step ends at the first conclusion
+  boundary after 60 s; then idle (`wait_idle`), then `SELECT event_id, kind, status, created_at, applied_at FROM
+  events WHERE org_id = ?` from the service database `mode=ro`; a verdict's latency is its `agent.event`'s, a
+  conclusion's its `memory.observed` event's (M18), the conclusions' `agent.event`s beside; `n == events` and
+  `duplicate == 0` per step. The sweep stops at the first step whose p95 exceeds 1.0 s, whose rate the publisher
+  could not hold (below 90 % of the target), or after 32 events/s; `sustained_events_per_second` is the highest held
+  rate whose p95 stayed at or under 1.0 s.
+- **Tesseract at 600, 5,882 and 20,000 nodes.** `ew.generate(2000, 0)` and `build_records`; for each N a scratch
+  site `measure-NNNNN` whose store takes the first N records in record order (each record's `site` set to the
+  measurement site, nothing else changed; `EdgeSite.ingest` reports `ingested == N`), the graph synced from that
+  store by `site_graph` (`E2ESiteProcess`, the persistent retrieval: `nodes == N`, `build_seconds`), and
+  `PersistentTesseractRetrieval.rank` of the 20 fixed queries of the size-200 run (`fixed_questions.json` beside its
+  report; a scratch 200-user world otherwise) at their `as_of`; p50 and p95 per N, the samples beside. The graphs
+  are never asked a question and no HQ exists for them.
+- **M2's evidence.** `suites --out DIR` runs the seven commands and writes the rows; `run --suites DIR` and `measure
+  --suites DIR` embed them (`run.suites[]`, `run.suites_evidence = "junit"` only when all seven rows are present
+  and bound to their junit files, `run.suites_problems` otherwise) and run c10; `verdict.pass` is `checks_pass and
+  suites_green`. In CI the suite jobs run one step per suite through the same CLI, upload `suites/` whole, and the
+  `e2e` and `measure` jobs download both artifacts merged into `suites/`. `E2E_SUITES_SHA` is gone; the rows carry
+  `GITHUB_SHA`.
+- **M11.** The workflow exports `MYCELIC_NATS_SERVER_BIN=/usr/local/bin/nats-server` and `E2E_REQUIRE_NATS=1` for
+  every job; `tests/e2e_ingest` never skips for a missing broker (`helpers.nats_server_bin` fails); c10 bounds
+  `skipped` at 0 for `tests/e2e_ingest` and for `tests/mycelic/test_jetstream.py` by junit `classname`.
+- **M12.** The job log holds each report pretty-printed between the markers, `lines=N` the printed lines and
+  `sha256` the artifact file's digest (canonical JSON, one line); the step summary carries the digests of the
+  measure report and of each size report. `check REPORT` recomputes a measure report's percentiles from its
+  samples and each scaling row from the size report beside it.
+- **Section 6's settings test** (`test_workflow.SettingsTests`) parses the brief: the 3.1 table against
+  `WORLD_TABLE`; `top_n`, the tie salt, `m`, the 20 fixed queries, the cap and the replay ratio; the floors of 2.3;
+  the oracle's thresholds and the forged ids; M21's null window; M13's hash and file count; M10's fourteen paths;
+  M2's floors and the `tests/e2e_ingest` count (151, collected in the test; may only rise); M14's phases, budgets,
+  candidates and node counts; section 10's rate steps, step length, bound; the report names of section 5.
+
+### Found in the brief while building (nothing lowered)
+
+1. **Agent ids are one namespace across organisations.** Section 3.6 names one organisation per rate step with the
+   agent `hq`; the service refuses a second `register_agent` of `hq` (`agent 'hq' already exists`, HTTP 400), so
+   each step's organisation registers its own HQ agent, `hq-rate-NN`. The events' ids differ per step anyway (they
+   hash the agent and the re-keyed key).
+2. **The service's stamps have one-second resolution** (`mycelic/models.py` `now_iso`, `isoformat(timespec=
+   "seconds")`), so every `created_at → applied_at` latency is a whole number of seconds and the sweep's p95 is
+   read at that resolution; the report says so (`stamp_resolution_seconds: 1`). Criterion 5's bar, p95 <= 1.0 s,
+   stands as written.
+3. **A rate the publisher could not hold is not sustained.** Section 10's stop rule names the p95 bound and the last
+   step; a step whose achieved rate fell under 90 % of its target also ends the sweep (`rate_held`, `stopped:
+   rate_not_held`), and `sustained_events_per_second` counts held steps only. The publisher is one thread; the
+   achieved rate and the largest pacing lag are in every step.
+4. **A site store takes its own records only** (`EdgeSite.ingest` rejects `wrong_site`), so the measurement graph's
+   records carry the measurement site's id. The record refs, dates, text and entities are the 2,000-user world's.
+5. **The fixed queries of the measurement graphs are the size-200 run's.** Section 3.5's 20 are per world and the
+   Tesseract phase runs before the 2,000 size (M14's order); the entities and predicates are the same at every size,
+   so the queries are comparable across graphs. The report names the source (`queries_from`).
+6. **M2's `suites/<suite>.json` needs a file name.** The suite paths hold slashes; the rows are named by a slug
+   (`tests-mycelic.json`, `research-mycelic-test_mycelic.json`), the `suite` field inside is the brief's path.
+7. **pytest's junit `tests` counts subtests as testcases** (a probe of 9 tests with 3 subtests reports 12), so a
+   row's `tests` is at or above the collected count; the floors are minimums and `--collect-only` is what the
+   settings test compares.
+8. **Section 11's table lists pytest commands as steps; M2 asks the same commands locally.** The steps call the CLI
+   (`suites --out suites --suite NAME`), one step per suite, so the commands exist once (`suites.py`) and the
+   local run is the CI run; `test_workflow` asserts each step's command and each suite's pytest line.
+9. **The measure job runs on push.** Section 11's table gives it no condition, and criterion 6 allows either; it
+   runs with the other three on every push to the deployment branch that touches the brief's paths, and on
+   dispatch.
+
+### What the local measure run at size 200 showed (Intel Xeon 2.80 GHz, 4 vCPU, nats-server v2.10.22; sandbox figures, synthetic, `measurement: false`)
+
+`python -m research.e2e_ingest measure --sizes 200 --out DIR --run-id local-200` on the code of WIP `f52bfe0` (the
+final commit differs from it by a renamed local in `sweep_step`, see below, and by this note), 888 s of wall time,
+nothing else running on the four cores. `measure exit 1`: `verdict.pass` false with reason `suites_not_green` (no
+`--suites` directory, M2), `checks_pass` false because `c5_measured` failed two of its 16 assertions
+(`every_phase_completed`, `tesseract_20000_nodes`): the third phase ran out of its budget, below. `check REPORT`
+re-read the written report and the size report beside it: every aggregate recomputed to itself, the scaling row is
+the size report's, the size report's checks reproduce (0 problems), exit 1 as the stored verdict says.
+
+| Phase | Budget | Took | Completed |
+|---|---|---|---|
+| `size-200` (55 candidates) | 300 s | 270 s | yes |
+| `rate-sweep` (5 steps) | 420 s | 313 s | yes |
+| `tesseract-nodes` (600, 5,882, 20,000) | 300 s | 304 s | **no** (`budget`: the 20,000-node graph had ranked 16 of its 20 queries) |
+
+- **The size-200 phase** (the harness in a child process, `--skip-drills --queries 0 --top-n 60`, exit 1 for
+  `suites_not_green`, its own checks c0, c7, c8 and c9 all ok): 309 users, 7 sites, 12,964 records; generation
+  0.4 s, pipeline 5.7 s, detection 0.7 s; 55 snapshot candidates, all 55 asked (the cap of 60 is a bound; c5 asks
+  `min(cap, detected)`); seven graphs of 1,458 / 1,805 / 2,574 nodes (min / median / max), built in 7.3 s in all,
+  0.56 s per 1,000 records; the main pass 254.8 s: 166 rankings (165 of the pass, one of M4's probe) at 1.32 s p50
+  and 2.18 s p95; question to verdict 1.37 / 2.24 s per site and 4.35 / 5.85 s per question; 47 supported, 7
+  hypothesis, 1 stale; 148 confirm, 15 refute, 2 unknown, 0 HQ records, 0 budget unknowns; 220 publishes (165
+  verdict events, 55 conclusions), 220 created, 279 stream messages; created to applied 0.0 s p50 and p95 at the
+  service's one-second stamps; wall 269 s. The size's discovery score and simulator columns are the harness
+  stage's figures again (15 true / 35 decoy / 5 background candidates; 13 of 40 Gold-discoverable patterns found,
+  `recall_all` 0.325, `recall_common` 0.591, `recall_rare` 0; decoys accepted by class 2: 5, 4: 9, 5: 3; 0
+  background keys; the simulator's `H_mycelic_full` 0.475 / 0.056 / 0.175 / 0.475 / 156,338 and `A2_chunked_ctx`
+  0.925 / 0.944 / 0.300 / 0.925 / 167,746 in 0.9 s, `simulated: true`). 270 of the 300 s budget: a runner 1.2× slower
+  than this sandbox would miss it.
+- **The rate sweep** (a fresh fabric, nats-server 2.10.22, `E2EProcessDriver`; the size run's 55 conclusions, 220
+  events per cycle, re-keyed per step and cycle; one organisation and one HQ agent per step):
+
+| Rate | Events | Created / duplicate | Cycles | Duration | Achieved | Held | Max pacing lag | Settle | Apply p50 / p95 (s) | n | Applied |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2 /s | 124 | 124 / 0 | 1 | 61.5 s | 2.02 /s | yes | 0.05 s | 1.0 s | 0 / 0 | 124 | all |
+| 4 /s | 244 | 244 / 0 | 2 | 60.8 s | 4.02 /s | yes | 0.03 s | 1.0 s | 0 / 0 | 244 | all |
+| 8 /s | 484 | 484 / 0 | 3 | 60.4 s | 8.02 /s | yes | 0.00 s | 1.1 s | 0 / 0 | 484 | all |
+| 16 /s | 964 | 964 / 0 | 5 | 60.2 s | 16.02 /s | yes | 0.03 s | 1.1 s | 0 / 0 | 964 | all |
+| 32 /s | 1,864 | 1,864 / 0 | 9 | 60.1 s | 30.99 /s | yes (97 %) | 1.95 s | 4.8 s | 0 / 3 | 1,864 | all |
+
+  Every POST a new event, every event applied, every step's samples its own events (`n == events`); the first
+  step at 2 events/s for 61.5 s and 124 events with apply p95 0 s is criterion 5's pass condition on this sandbox;
+  the sweep stopped at 32 events/s (`apply_p95_over_bound`, 3 s at the one-second stamps), so
+  `throughput.sustained_events_per_second` is 16. The conclusions' own `agent.event`s read the same percentiles.
+- **Tesseract at the three node counts** (the 2,000-user world: 1,999 users, 9 sites, 68,463 records, generated and
+  mapped in 2.1 s; the size-200 run's 20 fixed questions; a scratch site store per graph, `ingested == N`):
+
+| Nodes | Store ingest | Graph build | Per 1k records | Queries | p50 | p95 | Returned per query |
+|---|---|---|---|---|---|---|---|
+| 600 | 0.0 s | 0.32 s | 0.53 s | 20 | 0.35 s | 0.45 s | 64 to 66 |
+| 5,882 | 0.5 s | 2.23 s | 0.38 s | 20 | 3.67 s | 3.91 s | 74 to 82 |
+| 20,000 | 1.9 s | 8.96 s | 0.45 s | 16 of 20 | 12.91 s | 13.97 s | 86 to 94 |
+
+  About 0.6 to 0.65 ms per node per query on this sandbox at every size, 1.5× the 0.42 to 0.44 ms the brief measured
+  for M15 on its 2.10 GHz sandbox, inside the 1.5 to 3× the brief gives for runner CPUs. At that cost the phase
+  (20 × 0.35 + 20 × 3.7 + 20 × 12.9 s of ranking plus the builds) needs about 350 s, and M14's budget of 5 minutes
+  stopped it after the 16th query of the largest graph: `completed: false, reason: budget`, the 16 samples kept,
+  `c5_measured` failed, the job's exit 1. The budget is the brief's (M14's table, pinned by the settings test) and
+  is not changed here; the first recorded CI run says whether a GitHub runner holds it. The size-200 phase is in
+  the same position at 270 of 300 s.
+- **The report.** 678,785 bytes (the samples of every ranking, every step's events and every graph query), the
+  size report 202,072 bytes beside it; `run.code_dirty_start` false and `code_dirty_end` true (a renamed local in
+  `measure.py` made during the run, below); the runner named; `synthetic: true`, `measurement: false`. The sweep
+  steps' `agent` field in this report holds a sample instead of the agent id: the loop that reads the conclusions'
+  `agent.event` samples shadowed the id's variable, found in the self-review after the run and renamed in the
+  final commit (`agent_event`); no figure above depends on it.
+
+### Tests
+
+| Test file | What it proves |
+|---|---|
+| `test_workflow.py` (`TriggerTests`, `JobTests`, `SuiteJobTests`, `EndToEndJobTests`: 14) | c6: the triggers and the eight paths from the brief; the four jobs in the brief's order with its `needs` and bounds; ubuntu, Python 3.11, the hashed requirements; the install step equal to `mycelic.yml`'s with its `NATS_VERSION`; M11's environment; each suite one step of its job through the CLI, the later steps kept when an earlier one is red, the rows uploaded always and verified last; the CLI's pytest line per suite; the evidence downloaded and the `needs` results exported; the brief's commands; the markers and the digest; the artifact names uploaded always; no expression in a run block but the run id |
+| `test_workflow.py` (`SettingsTests`: 13) | section 6's settings test, as above |
+| `test_measure.py` (24) | the plan, the budgets (42 of 45), `rekey`, the organisations and agents per step, `parse_sizes`; the phase bookkeeping (completed, overrun, exception); the scaling row; c5 with one mutation per assertion (22) and removed blocks; M12's measure recomputation with the size reports beside; the simulator's columns at 200 users without a tier label; the summary |
+| `test_suites.py` (12) | the junit counts and the scoped skips; the CLI on a tiny suite (the row, the binding, a silent interpreter, a suite pytest cannot find); the reader's binding, a tampered junit file, a missing row, `--group`; `--verify`; the `needs` results from the environment; c10 with one mutation per assertion (47) and the three CI-only ones; `suites_green` |
+| `test_harness.py` (updated) | the green report carries the suites' rows (M2) and the clean tree (M10); c10's 47 mutations join the per-assertion set; `put` takes list indices; the live run without `--suites` runs every end-to-end check but c10 and reports why |
+
+Run: `python -m pytest tests/e2e_ingest -q -p no:cacheprovider` with `MYCELIC_NATS_SERVER_BIN` set. Sandbox record
+of the whole suite on this stage's code, alone on the four cores: **151 passed, 767 subtests, 0 skipped, 888.1 s** (the live run of `test_harness.LiveRunTests` is most of it); `pytest --collect-only` gives 151,
+the floor the suites CLI and the settings test carry. `tests/mycelic/test_packaging.py` and
+`tests/onboard/test_onboard_demo.py` (they read workflow files): 99 passed, 76 subtests, 121.7 s. `actionlint`
+1.7.12 (installed from PyPI's `actionlint-py` into the sandbox's scratch directory, not into the tree) passes the
+workflow. `flake8 --max-line-length 120` is clean over `research/e2e_ingest` and `tests/e2e_ingest`.
+`tests/mycelic/test_collective_guards.py -k NoModelNames` on this tree reports the brief's own two hits and no
+others (the bridge section's item 5): nothing of this stage is hit, this section included.
+
+### Not done here
+
+- Sizes 600 and 2,000 did not run locally (the sandbox's four cores and the task's scope: the size-200 phase, the
+  sweep and the graphs); their phases are built and run in CI's measure job. The size-2,000 world's generation and
+  the 20,000-record store were exercised by the Tesseract phase.
+- The seven suites were not all run through the CLI locally (`tests/lab` alone is about 21 minutes); the CLI was
+  run on a tiny suite in its tests and on `research/mycelic/test_mycelic.py` through
+  `suites --out DIR --suite research/mycelic/test_mycelic.py` (30 tests, 0 failures, 0 errors, 0 skipped, 35 s, the
+  row bound to its junit file, exit 0). Until a run is given a `--suites` directory with all seven
+  rows, `verdict.pass` reads false with reason `suites_not_green`, by M2; the local measure run below is such a run.
+- S9's recorded CI runs (the first run of this workflow on the deployment branch), the committed reports under
+  `docs/collective/e2e_ingest/` and the `## Runs` entries. The 20-minute bound of the e2e job and the 45 of the
+  measure job are neither met nor missed by a sandbox figure.
+- Criterion 10 is blocked on this base by the brief's own two hits in the model-name scan (the bridge section's
+  item 5), as before; nothing of this stage is hit.
+- The local reports are sandbox artifacts and are not committed; their figures are above.
