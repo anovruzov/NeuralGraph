@@ -6,7 +6,8 @@ a choice to the build, what deviates (nothing of the rule's substance), what the
 The rule was committed alone and amended before any code (`720b0d6`, the amended rule merged); this build starts from
 `720b0d6` on branch `wf/a002` (the first builder's WIP commits, stopped by the account's session limit after the docs
 were written) and ends on `wf/a002-b`, which verified every WIP item against the code, added two test pins, ran the
-suites, the dry run and the pinned-file check; it copies A001's `j2` precedent (`BUILD-A001.md`) and changes no pinned file: `lab/j1.py`,
+suites, the dry run and the pinned-file check; `wf/a002-fix` then applies the review's findings on the build commit
+(`6be0b0b`; "Fixes after review"). It copies A001's `j2` precedent (`BUILD-A001.md`) and changes no pinned file: `lab/j1.py`,
 `lab/goldlabels.py`, `lab/j2.py` and `lab/j2labels.py` are imported unchanged (`git diff --stat 720b0d6..HEAD` over the
 five pinned lab files, `lab/shard.py` included, prints nothing), `lab.aggregate.j2_block` and `lab.summary._j2_tables`
 are not edited, and nothing under `mycelic/collective/`, `mycelic/*.py`, `connectors/openfda.py`, the vehicle pack,
@@ -22,14 +23,14 @@ the composite.
 
 | Step | Where | What |
 |---|---|---|
-| Request | `lab/request.py` | an `experiments.j3` block: `j2`'s keys with `exclude` a list of exactly two entries in seed order, each `j2`'s four keys plus `rebuild_seed` and `rebuild_sha256_prefix`, the second alone with `chain_file` and `chain_sha256_prefix` (B2, B3, B5); `primary` over `lab.j3.ARMS` (`_primary` takes the arms tuple); `comparisons_before` |
+| Request | `lab/request.py` | an `experiments.j3` block: `j2`'s keys with `exclude` a list of exactly two entries in seed order, each `j2`'s four keys plus `rebuild_seed` and `rebuild_sha256_prefix`, the second alone with `chain_file` and `chain_sha256_prefix` (B2, B3, B5), each entry's `file` pinned (`prereg/j1/labels.jsonl` on the first, `prereg/j2/labels.jsonl` on the second; "Fixes after review"); `primary` over `lab.j3.ARMS` (`_primary` takes the arms tuple); `comparisons_before` |
 | Plan | `lab/plan.py` | one unit per model and part, `j3-<model>-p<k>`; `exclude_entries(plan)` beside `j2_exclude` (which stays); `--github-output` fills `j2_exclude_run_id` and `j2_exclude_artifact` from the first entry and `j3_exclude_run_id_2` and `j3_exclude_artifact_2` from the second, empty for every other plan (B2) |
 | Download | `.github/workflows/mycelic-lab.yml` | a second plan-job step `earlier-2` after `earlier`, before `prereg`: `actions/download-artifact` of the second excluded run's plan artifact into `${{ runner.temp }}/lab-earlier/<its run id>` with `github-token: ${{ github.token }}`, `if` on `j3_exclude_run_id_2`, `continue-on-error` (B2) |
 | Preregistration | `lab/prereg.py` (in process) over `lab/j3labels.py` | the five sources and the stop rules (B5), the fresh draw by the pinned `build_labels` less the union, J001's questions and comparators on it, the two ablations, `prereg/j3/excluded.jsonl`, the pins; the labels record extended with every source (B22) |
 | Unit | `lab/units.py` runs `python -m lab.j3 run` | one model on one part, task E first, then R, then N (rule 14); the three routed to the one endpoint at `site:lab`; exit 1 with task E finished is `ok` with `J3_EVIDENCE_STOPPED` |
 | Warm-up | `lab/warmup.py` | the three tasks on the judge's generated payloads with their own schemas and caps; the shipped judge and the extraction task are not registered for a j3 unit, so the probe is task E's (B4) |
 | Fake provider | `lab/responder.py` | `judge_record_evidence` and `judge_record_rationale` answered by the shipped judge's handler behind an empty `citation` or `analysis` (`with_field`), in the pack branch and the pack-free one |
-| Aggregate | `lab/aggregate.py` | a `j3` block: per model its parts, its three (model, task) sets, its nine arms with the comparators and the ablations on the same records and the verdict word, the lifts and the ablation differences, the evidence readings, the first-key shares, the token figures, and `primary_result` with the headline secondary's word (B1, B8, B19, B23) |
+| Aggregate | `lab/aggregate.py` | a `j3` block: per model its parts, its three (model, task) sets, its nine arms with the comparators and the ablations on the same records and the verdict word, the lifts and the ablation differences, the evidence readings, the first-key shares, the token figures, and `primary_result` with the headline secondary's word (B1, B8, B19, B23); the manifest's primary pair, headline arm and secondary and the four comparator files cross-checked against `prereg/j3/prereg.json`, the document every unit pinned ("Fixes after review") |
 | Summary | `lab/summary.py` | the J3 lines of the plan summary (exclusion with sources, cycles and consistency counts; the ablations) and the five J3 sections of the report |
 | Notes | `lab/notes.py` | the fixed sentences, columns and headings (no ASCII digit in any sentence: `test_notes_hold_no_digits` holds) |
 | Dry run | `lab/dryrun.py` | `--j3-data DIR`, refused together with `--j2-data` |
@@ -142,8 +143,10 @@ added under `lab/requests/`: pushing a file there starts a run, and the caller s
 
 - **The request's `exclude` list (B3).** Each entry carries `j2`'s four keys with the j3 file list
   (`prereg/j1/labels.jsonl`, `prereg/j2/labels.jsonl`, `prereg/j2/excluded.jsonl`), `rebuild_seed` and
-  `rebuild_sha256_prefix`; the first entry's `rebuild_seed` must be 1 (the pinned seed-one rebuild) and the second's
-  above it; the chain keys are required on the second entry and refused on the first. The plan echoes the list into
+  `rebuild_sha256_prefix`; the file is pinned per entry as the rule's "The request" names them, `prereg/j1/labels.jsonl`
+  on the first and `prereg/j2/labels.jsonl` on the second, the chain file read through the second entry's chain keys
+  alone ("Fixes after review"); the first entry's `rebuild_seed` must be 1 (the pinned seed-one rebuild) and the
+  second's above it; the chain keys are required on the second entry and refused on the first. The plan echoes the list into
   every j3 unit's params and the four plan outputs; the labels record's `excluded_runs` holds both entries as
   requested beside the ones used.
 - **Where the second artifact goes (B2).** The same `lab-earlier` directory, under its own run id, so
@@ -202,6 +205,60 @@ None of the rule's substance. Where the build plan's names and the lab's pins di
 - The template's `purpose` carries the identifiers A002, `CHOICE-A002.md` and `accuracy-002.json` and no other digit,
   and ends with the copy target, inside the request validator's 500-character cap.
 
+## Fixes after review
+
+The review of the build commit `6be0b0b` found no blocking and seven minor findings. `wf/a002-fix` applies each one
+that asks for a change, with a test that fails without it (checked by mutation: each test run with its fix removed),
+and changes nothing of the rule:
+
+- **The per-entry file was not pinned (`lab/request.py`, `_j3_exclude_entry`).** Either entry accepted any of the
+  three `lab.j3labels.EXCLUDE_FILES` (the chain file as the first entry's `file`, J001's labels file as the second's),
+  while "The request" names `prereg/j1/labels.jsonl` for J001 and `prereg/j2/labels.jsonl` for A001; not fakeable (a
+  wrong file loses a source or trips a consistency stop, never widens a draw) and the template was right. The validator
+  now requires the first entry's `file` to be `prereg/j1/labels.jsonl` (`J3_FIRST_FILE_PROBLEM`) and the second's
+  `prereg/j2/labels.jsonl` (`J3_SECOND_FILE_PROBLEM`), raised at `<entry>.file` after the list check, so the chain
+  file is read through the second entry's chain keys alone. `RequestTests.test_every_block_error` gains the four
+  cases (the first entry with `prereg/j2/labels.jsonl` and with the chain file, the second with `prereg/j1/labels.jsonl`
+  and with the chain file), `test_defaults` pins the accepted pair, and the docstring block of `lab/request.py` and the
+  `exclude` row of `docs/lab/REFERENCE.md` say so; without the pin the four cases fail. The finding's optional second
+  check, that an entry's `rebuild_sha256_prefix` equal its `sha256_prefix`, is not applied: the rule's validation list
+  does not name it, a differing rebuild prefix can only lose a source (`sha256 mismatch`), and the test fixture
+  `_Prereg` carries the real runs' rebuild prefixes beside the synthetic files' labels prefixes on purpose, so that the
+  rebuilds fail and the by-artifact path with one source per cycle is exercised ("Choices the rule left to the build").
+- **The aggregate read the primary pair, the headline arm and secondary and the comparator lines from the manifest
+  alone (`lab/aggregate.py`, `j3_block`).** `load_prereg` ties `prereg/prereg.json` to the plan's sha, while the units
+  pin `prereg/j3/prereg.json` (`_j3_part` checks its sha against each run.json), and that document carries the same
+  `primary`, `headline_arm`, `headline_secondary` and the four comparator files' sha256; it was loaded and never
+  cross-checked (A001's `j2_block` has the same shape and is left as it is). `j3_block` now refuses the block with
+  `PREREG_MISSING` unless the document's `primary`, `headline_arm` and `headline_secondary` equal the manifest's and
+  each of `lexical.jsonl`, `prior.jsonl`, `ablation_a.jsonl` and `ablation_b.jsonl` hashes to the document's sha256 for
+  it, so an edited manifest can name neither another primary pair nor other comparator lines than the units verified
+  before judging. `AggregateTests.test_a_manifest_that_disagrees_with_the_preregistration` edits the manifest's
+  `primary.arm`, `primary.model`, `headline_arm` and `headline_secondary` in turn and rewrites each comparator file
+  restamped in the manifest, expecting the block refused each time and read again once the files are put back; without
+  the cross-check every one of its eight cases computes a block.
+- **Two of `_j3_part`'s run.json identity checks were unpinned (`endpoint` and `verdicts_sha256`).**
+  `AggregateTests.test_what_is_not_a_finished_part` now pins a run.json of another endpoint (part 2 of a-1p5b refused
+  with endpoint a-4b and finished again with its own) and a verdicts file replaced under a run.json whose
+  `verdicts_sha256` is the old file's, the shard re-sealed (refused for every task although every line passes the check;
+  finished once run.json is restamped). The review's mutation, both checks dropped, fails at the endpoint case; the hash
+  check dropped alone fails at the hash case.
+- **The composite's word was pinned to its own re-derivation.**
+  `AggregateTests.test_the_grounding_check_and_the_composite_s_words` keeps the re-derivation and asserts the word
+  literally: Eg is right on every question of the fixture, so the composite errs only where the lexical judge confirms
+  a negative (at most 11 of 40 on this draw, balanced accuracy at or above the target), and its word is
+  `pass_provisional` with both ablation clauses true.
+- **The whole `tests/lab` on a full sandbox (environmental, no code change).** The review's run of the rest of
+  `tests/lab` failed 70 tests, every one in `lab/provision.py`'s disk preflight (about 440 MiB free, 1024 MiB needed) in
+  files the build does not touch; the fix stage's run is under Tests, and the merge gate must run `tests/lab`, the
+  onboard and the guard suites on a runner with at least about 1.5 GiB free before merging.
+- **`tests/lab/test_lab_sim.py` `test_wall_time` (pre-existing, environment-dependent, no change).** It bounds two
+  sim_small runs against the fake server at 60 s of wall time and fails on this sandbox's speed, on the build commit and
+  on `720b0d6` alike; if the gate trips on it, a re-run on an idle runner is the evidence, not an edited bound.
+- **The build commit's message said 63 tests** where `pytest --collect-only` reported 64. The branch was never pushed,
+  so the record is corrected here: `tests/lab/test_lab_j3.py` holds 65 tests after this stage (the 64 plus the manifest
+  test), and the fix stage's commit message quotes 65.
+
 ## Known limits of the build
 
 - The fake server answers tasks E and R as the lexical judge behind an empty field: in a dry run Eg and Egm refute
@@ -245,12 +302,12 @@ models on the fake provider with `--j3-data`, and the template's dry run with `-
 | `LineTests` | the nine arms' views through `lab.j1.score` and `lab.j1.paired`; the line check's every outcome (keys, task, question, answers, each reading, `grounded` recomputed against the text, `first_key` for shape only, the fields of the other tasks) |
 | `VerdictWordTests` | the words in A5's order with the ablation clauses; `incomplete` for a missing ablation figure; `partial` for an ablation clause failed; equality fails the strict clauses (B17); the non-composite word is A001's |
 | `ExclusionTests` | the archive fits three draws (B21); the A001 artifact check on a consistent artifact and its every fixed outcome (a changed byte, a manifest that disagrees, a record of another seed, n, source or kind, a questions file of other refs, an absent directory, an absent file, a malformed line); its agreement with A001's check on the j1-shaped artifact case for case; the A001 rebuild; every source verifying and each cycle by artifact alone, rebuild alone and both agreeing; each cycle by chain with the other established; K alone; neither verifying; R2 `not attempted`; every consistency count stopping; the labels record's sources, cycles, counts and `excluded_runs` (B22); the draw over the eligible list less the 300 |
-| `RequestTests` | the defaults; every block error, the j3 file list and the two entries' rules included (B3); the template's 5 units in 5 shards and its outputs; `plan_outputs` and `exclude_entries` on a j3, a j2 and another plan (B2) |
+| `RequestTests` | the defaults with the file accepted on each entry; every block error, the j3 file list, the file pinned per entry (a file of the list on the wrong entry refused, four cases) and the two entries' rules included (B3); the template's 5 units in 5 shards and its outputs; `plan_outputs` and `exclude_entries` on a j3, a j2 and another plan (B2) |
 | `PreregTests` | every preregistered file and pin; the draw disjoint from both earlier draws, the chain file (340 lines), the record and the fixed console lines without a ref; the plan summary with every number traced; the stop rules through the CLI (no source verifying, verified sources disagreeing, too few records); the stand-in recorded; a stand-in that cannot be read or is the other kind's |
 | `RunTests` | three passes, task E first, each task's schema, cap and instructions, the same payload, the fake's answers behind the empty field; grounded, invented, late and short citations as written (B19); a model failure and a transport failure in each pass; a stop in the second, the third and the first pass; the server staying down; every pin refused before any call (the three tasks, the mapping, the grounding, the composite, the arms, the lifts, the three routes and escalations, the files, the code hash); the unit adapter; the status reading; participation |
 | `WiringTests` | both fake handlers in both branches; the warm-up's three tasks with the probe task E (B4); the plan's four outputs; the workflow's `earlier-2` step of the `earlier` step's shape (the same pinned action, the workflow's own token, `continue-on-error`, the same directory by its own run id) between `earlier` and `prereg`, under the workflow's read-only `actions: read`, `contents: read` that no job widens (B2); every J3 note, heading and column of `lab/notes.py` free of ASCII digits, the primary line's placeholders the ones the summary fills; `lab.dryrun` refusing `--j2-data` and `--j3-data` together before any plan is written |
 | `SmallDryRunTests` | every unit on the fake provider; the report block (sets, nine arms with the ablation clauses, lifts, ablation differences, evidence readings, first keys, tokens, `primary_result` with the headline secondary); the summaries with every number traced and no ref or narrative anywhere |
-| `AggregateTests` | every arm `pass_provisional` with grounded quotes and the ablation clauses; the grounding check removing false confirms only, the composite's ablation-A difference equal to its lexical difference (B8); `partial` and the mapping's lift; what is not a finished part (`grounded` against the text, the grounded verdict, a first key outside the schema, a citation on an N line, a fourth task, another preregistration, a line twice); a stop in the second pass sparing task E and a dropped record withholding E's arms; without the preregistration |
+| `AggregateTests` | every arm `pass_provisional` with grounded quotes and the ablation clauses; the grounding check removing false confirms only, the composite's ablation-A difference equal to its lexical difference (B8) and its word pinned to the value `pass_provisional`; `partial` and the mapping's lift; what is not a finished part (`grounded` against the text, the grounded verdict, a first key outside the schema, a citation on an N line, a fourth task, another preregistration, a line twice, a run.json of another endpoint, a verdicts file under a stale `verdicts_sha256`); a stop in the second pass sparing task E and a dropped record withholding E's arms; a manifest that disagrees with `prereg/j3/prereg.json` on the primary pair, the headline arm or secondary or a comparator file's bytes; without the preregistration |
 | `TemplateDryRunTests` | 5 units in 5 shards; every source verified; 240 eligible after exclusion, overlap 0; 21 comparisons; every word `incomplete`; the chain file of 450 lines; no ref anywhere |
 
 The other lab suites run unchanged but for the pins above; `tests/lab/test_lab_j2.py` passes on the unchanged
