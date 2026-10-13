@@ -692,7 +692,17 @@ every aggregate recomputed to itself (0 disagreements), every check reproduced, 
 | `LiveRunTests` (12) | one real run as the section above says, plus: `routing.questions[]` per M4 and `per_question_route_ok`; the diagnostics reconciled with the verdicts (section 4, item 2) and the probe's received pairs; the discovery score from the fabric's notes with the simulator's two columns present, labelled and numeric; the oracle's fabric status equal to HQ's; M2's `pass: false, reason: suites_not_green` with `checks_pass` beside it; the written report recomputes to itself and `check REPORT` reproduces its checks, exits as the stored verdict says, refuses `--recorded` without a CI run id, and catches a typed-in verdict; no tier label of the simulator in the report and the allocation name present |
 
 Run: `python -m pytest tests/e2e_ingest -q -p no:cacheprovider` with `MYCELIC_NATS_SERVER_BIN` set (a missing
-binary fails, M11). The sandbox record is under "What the recorded local run showed".
+binary fails, M11). Sandbox record of the whole suite (the world, pack, site-graph, publisher, bridge and harness
+files; 95 tests) on this stage's code: three full runs. The first two each had one failure in the M24 scan of
+`LiveRunTests` and none elsewhere — the needle set first took every allocation's labels, one of which (`lexical`)
+is a word of the report's own `granularity` text, and then looked for the allocation name with a space after the
+colon that canonical JSON does not write; the scan now reads the labels of the allocation the report ran and the
+allocation from the parsed report (94 passed, 1 failed, 545 subtests, 888 s, the harness run sharing the cores with
+the trial run; 94 passed, 1 failed, 545 subtests, 868 s). The third run, on the final code: **95 passed, 545
+subtests, 0 skipped, 878.6 s**. `flake8 --max-line-length 120` is clean over `research/e2e_ingest` and
+`tests/e2e_ingest`;
+`tests/mycelic/test_collective_guards.py` on this tree is 82 passed, 1 failed on the brief's own two hits (the
+bridge section's item 5), none in a file of this stage.
 
 ### Not done here
 
