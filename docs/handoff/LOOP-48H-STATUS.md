@@ -173,6 +173,17 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   of J001's and A001's draws verified by artifact and rebuild, 300 excluded, 240 eligible after exclusion, lexical
   comparator 0.700 [0.660, 0.740]); onboard, guards and x3 402 passed; the whole tests/lab suite running. Then: push
   the code, push lab/requests/accuracy-002.json alone to start the run, check-ins.
+- 2026-10-13 18:05 A002 running: the gate finished green (tests/lab 846 passed in 34 min 45 s; flake8's only findings
+  are intentional re-exports in lab/j3.py, the pattern of the earlier lab modules, and CI runs no lint); code pushed
+  (cbdd3c7), then lab/requests/accuracy-002.json alone (5a8f980), lab run 38439612256: the plan job verified both
+  earlier plan artifacts, excluded 300 records with every consistency count zero, drew 150 from 58,019 eligible
+  (labels prefix 0a64a62d94a7; plan artifact lab-plan-38439612256-1, id 11833749961), comparators lexical 0.680
+  [0.637, 0.723], record-blind 0.517 [0.460, 0.573], predicate-only bound 0.553, ablation B 0.627 [0.573, 0.680];
+  five a-4b shards running since 17:35 (325-minute timeout each). The code push's mycelic run 20 is green; its
+  e2e-ingest run 2 is in progress. A003 (lever 5, the drafted-terms payload) started while A002 runs, as the loop
+  plan's schedule says: the rule is committed alone on wf/a003-design (efa79fe, 1,232 lines) and its three
+  adversarial reviews are running; the amendment follows, then the merge of the design branch (docs only) and the
+  pre-run term-drafting step. Check-ins: 18:31, then every 50 minutes until the aggregate job ends.
 
 ## Open asks (date asked)
 
