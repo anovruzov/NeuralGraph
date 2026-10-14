@@ -1,4 +1,4 @@
-"""Preregister a plan's E1, J1, J2, L1, X1 and E2 units in the plan job, before any model runs.
+"""Preregister a plan's E1, J1, J2, J3, JT, L1, X1 and E2 units in the plan job, before any model runs.
 
     python -m lab.prereg --plan PLAN [--earlier-plans DIR] [--nhtsa-archive FILE] [--exclude-stand-in FILE]
 
@@ -62,6 +62,17 @@
   plan with :data:`~lab.notes.L1_STOPPED` and the stop's code; a failed download refuses it with
   :data:`~lab.notes.L1_FETCH_FAILED`. The manifest's ``l1`` block holds ``cache_key`` (:func:`l1_cache_key`), which
   ``lab.l1 cache-key`` hands the workflow, so the plan job saves the file in the workflow's cache (K10);
+* JT (accuracy test A003's term run, ``lab.jt``; ``docs/collective/A003/CHOICE-A003.md`` as amended, "The terms"):
+  the complaint archive's one cached fetch, the pooled drafting export of the six makes' complaints received before
+  the cutoff (``lab.jt.pooled_export``, in this process) and its two drafting files; then the draft and the check in a
+  subprocess, ``lab.jt draft``, under this step runner with :data:`lab.jt.DRAFT_TIMEOUT_S` (C11), the export written
+  to a scratch directory beside ``D`` (never under it: everything under ``D`` is uploaded) and removed afterwards. A
+  check that fails refuses the plan with :data:`~lab.notes.JT_FLOOR_FAILED`; a draft the drafter refuses, a timeout,
+  an out-of-memory exit or a missing result with :data:`~lab.notes.JT_DRAFT_FAILED`; either way nothing of the draft
+  is written under ``D``. Otherwise ``D/prereg/jt/`` gets the drafted pack P_draft (``pack/``), ``terms.json`` (the
+  term set, whose sha256 is the term set's), ``drafting_refs.jsonl``, ``drafting_text.jsonl``, ``check.json`` and
+  ``prereg.json`` (what the unit verifies), and stdout the term run's fixed lines (``lab.jt.console_lines``: counts,
+  dates and hashes, never a term), then the step's wall time and the draft's peak resident memory;
 * X1: the evaluation harness's prereg (run id ``x1``, ``D/prereg/x1/x1/prereg.json``) and ``check-plant``;
 * E2: the same with run id ``e2`` (``D/prereg/x1/e2/prereg.json``) and ``check-plant``, then a model-free rehearsal:
   ``e2_pushdown run`` without routing (fake site and central judges) in a scratch directory beside ``D``, removed
@@ -83,8 +94,8 @@ The NHTSA complaint archive (``nhtsa`` labels, E1's or J1's) is downloaded at mo
 :func:`preregister` takes a keyword-only ``nhtsa_fetch`` in its place, which only tests pass.
 
 stdout ends with one line, ``prereg: e1 yes|no x1 yes|no e2 yes|no j1 yes|no``, with `` l1 yes`` appended for a plan
-with L1 units, `` j2 yes`` for one with J2 units and `` j3 yes`` for one with J3 units (whose fixed draw and comparator
-lines come before it). A plan
+with L1 units, `` j2 yes`` for one with J2 units, `` j3 yes`` for one with J3 units (whose fixed draw and comparator
+lines come before it) and `` jt yes`` for one with the term run's unit (whose fixed lines come before it). A plan
 that cannot be read, or a
 ``D/prereg`` that exists already, is a usage error (exit 2, nothing written). A refused step writes
 ``D/plan-error.json`` (source
@@ -95,6 +106,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import stat
 import sys
 import tempfile
@@ -103,7 +115,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-from mycelic.collective.experiments.common import write_json_atomic
+from mycelic.collective.experiments.common import code_commit, code_dirty, write_json_atomic
 from mycelic.collective.inference.ledger import read_ledger
 from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
 from mycelic.collective.packs import loader
@@ -115,11 +127,13 @@ from . import j2 as lab_j2
 from . import j2labels as lab_j2labels
 from . import j3 as lab_j3
 from . import j3labels as lab_j3labels
+from . import jt as lab_jt
 from . import l1 as lab_l1
 from . import units as lab_units
 from .goldlabels import GoldLabelsError, build_labels, nhtsa_export
 from .notes import (J2_EXCLUSION_DISAGREES, J2_FRESHNESS_UNVERIFIED, J2_TOO_FEW_RECORDS, J3_EXCLUSION_DISAGREES,
-                    J3_FRESHNESS_UNVERIFIED, J3_TOO_FEW_RECORDS, L1_FETCH_FAILED, L1_STOPPED)
+                    J3_FRESHNESS_UNVERIFIED, J3_TOO_FEW_RECORDS, JT_DRAFT_FAILED, JT_FLOOR_FAILED, L1_FETCH_FAILED,
+                    L1_STOPPED)
 from .plan import write_plan_error
 from .request import (RequestError, _exclude as validate_exclude, _j3_exclude_list as validate_j3_exclude,
                       SHA256_PREFIX_RE)
@@ -128,6 +142,8 @@ PLACEHOLDER_BASE_URL = "http://127.0.0.1:9/v1"
 E1_BOUNDARY = "site:lab"
 STEP_TIMEOUT_S = 300
 REHEARSAL_TIMEOUT_S = 900
+JT_MODULE = lab_jt.CLI              # the term run's draft step (tests replace the module and the command)
+JT_DRAFT_COMMAND = "draft"
 L1_TIMEOUT_S = 1080                 # the L1 step: the file, the draft, the audit and 25 paths on fresh stores
 REHEARSAL_DEADLINE_S = 3600
 REHEARSAL_BOOTSTRAP_B = 1000
@@ -663,6 +679,72 @@ def _l1(steps: _Steps, plan: Mapping[str, Any], units: list[dict[str, Any]], roo
             "bootstrap_seed": p["bootstrap_seed"]}
 
 
+def _jt(steps: _Steps, root: Path, nhtsa_fetch: Callable[[], bytes]) -> dict[str, Any]:
+    """The term run's preregistration (see the module docstring); the manifest's ``jt`` block."""
+    block = "$.experiments.jt"
+    t0 = time.monotonic()
+    blob = nhtsa_fetch()
+    pooled = lab_jt.pooled_export(blob)
+    refs_bytes = lab_jt.drafting_refs_bytes(pooled.export)
+    text_bytes = lab_jt.drafting_text_bytes(pooled.export)
+    scratch = tempfile.TemporaryDirectory(prefix="lab-jt-", dir=root.parent)
+    try:
+        work = Path(scratch.name)
+        (work / "export.csv").write_bytes(pooled.data)
+        t1 = time.monotonic()
+        try:
+            code = steps.run("jt-draft", block, JT_MODULE, JT_DRAFT_COMMAND,
+                             [("export", work / "export.csv"), ("out", work / "draft")],
+                             timeout_s=lab_jt.DRAFT_TIMEOUT_S)
+        except _StepFailed:
+            raise _StepFailed(block, JT_DRAFT_FAILED) from None
+        draft_wall = time.monotonic() - t1
+        draft: Any = None
+        try:
+            draft = strict_load((work / "draft" / lab_jt.DRAFT_RESULT).read_bytes())
+        except (OSError, StrictJsonError):
+            draft = None
+        good = (isinstance(draft, dict) and draft.get("kind") == lab_jt.DRAFT_KIND
+                and isinstance(draft.get("check"), dict))
+        if code == lab_jt.EXIT_FLOOR and good:
+            checks = lab_jt.check_counts(draft["check"])
+            print("jt check: passed no " + " ".join(
+                f"{name}={'passed' if b.get('passed') else 'failed'}" for name, b in checks["checks"].items()),
+                flush=True)
+            raise _StepFailed(block, JT_FLOOR_FAILED)
+        if code != 0 or not good or draft["check"].get("passed") is not True:
+            raise _StepFailed(block, JT_DRAFT_FAILED)
+        p_d = lab_jt.p_d_hashes(draft["terms"])
+        terms = lab_jt.terms_document(archive=blob, pooled=pooled, refs_bytes=refs_bytes, text_bytes=text_bytes,
+                                      draft=draft, p_d=p_d, hand=lab_jt.hand_pack().hashes())
+        terms_bytes = lab_jt.document_bytes(terms)
+        terms_sha = sha256_hex(terms_bytes)
+        (root / lab_jt.JT_DIR).mkdir(parents=True)
+        shutil.copytree(work / "draft" / "pack", root / lab_jt.PACK_DIR)
+        (root / lab_jt.TERMS_FILE).write_bytes(terms_bytes)
+        (root / lab_jt.DRAFTING_REFS_FILE).write_bytes(refs_bytes)
+        (root / lab_jt.DRAFTING_TEXT_FILE).write_bytes(text_bytes)
+        write_json_atomic(root / lab_jt.CHECK_FILE, draft["check"])
+        write_json_atomic(root / lab_jt.PREREG_FILE, lab_jt.prereg_doc(
+            terms, terms_sha, refs_bytes, text_bytes, code_commit=code_commit(),
+            code_dirty=code_dirty(["lab/jt.py", lab_jt.ONBOARD_DIR])))
+    finally:
+        scratch.cleanup()
+    wall = time.monotonic() - t0
+    for line in lab_jt.console_lines(terms, terms_sha):
+        print(line, flush=True)
+    print(f"jt step: wall_s {wall:.1f} draft_wall_s {draft_wall:.1f} draft_timeout_s {lab_jt.DRAFT_TIMEOUT_S} "
+          f"peak_rss_kib {draft['peak_rss_kib']}", flush=True)
+    return {"prereg": lab_jt.PREREG_FILE, "terms": lab_jt.TERMS_FILE, "terms_sha256": terms_sha,
+            "cutoff": terms["cutoff"], "window": terms["window"], "makes": terms["makes"],
+            "archive": terms["archive"], "export": terms["export"], "drafting": terms["drafting"],
+            "draft": terms["draft"], "term_counts": terms["term_counts"], "check": terms["check"],
+            "p_draft": terms["p_draft"]["hashes"], "p_d": terms["p_d"]["hashes"], "hand": terms["hand"]["hashes"],
+            "code": terms["code"],
+            "step": {"wall_s": round(wall, 3), "draft_wall_s": round(draft_wall, 3),
+                     "draft_timeout_s": lab_jt.DRAFT_TIMEOUT_S, "peak_rss_kib": draft["peak_rss_kib"]}}
+
+
 def _once(fetch: Callable[[], bytes] | None) -> Callable[[], bytes]:
     """``fetch``, or the NHTSA complaint archive's download, called at most once."""
     kept: list[bytes] = []
@@ -703,12 +785,12 @@ def preregister(plan_path: Path, *, nhtsa_fetch: Callable[[], bytes] | None = No
     root = plan_path.parent
     (root / "prereg").mkdir()
     steps = _Steps(root)
-    e1_units, x1_units, e2_units, j1_units, l1_units, j2_units, j3_units = (
-        _units(plan, name) for name in ("e1", "x1", "e2", "j1", "l1", "j2", "j3"))
+    e1_units, x1_units, e2_units, j1_units, l1_units, j2_units, j3_units, jt_units = (
+        _units(plan, name) for name in ("e1", "x1", "e2", "j1", "l1", "j2", "j3", "jt"))
     fetch = _once(nhtsa_fetch)
     manifest: dict[str, Any] = {"schema_version": 1, "kind": "lab_prereg", "plan_sha256": sha256_hex(plan_bytes),
                                 "files": {}, "e1": None, "x1": None, "e2": None, "j1": None, "l1": None, "j2": None,
-                                "j3": None}
+                                "j3": None, "jt": None}
     if e1_units:
         manifest["e1"] = _e1(steps, plan, e1_units, root, fetch)
     if x1_units:
@@ -727,6 +809,8 @@ def preregister(plan_path: Path, *, nhtsa_fetch: Callable[[], bytes] | None = No
         manifest["j3"] = _j3(plan, j3_units, root, fetch,
                              earlier_plans if earlier_plans is not None else earlier_dir(root),
                              exclude_stand_in if isinstance(exclude_stand_in, (list, tuple)) else None)
+    if jt_units:
+        manifest["jt"] = _jt(steps, root, fetch)
     manifest["files"] = _file_map(root)
     write_json_atomic(root / MANIFEST, manifest)
     return manifest
@@ -736,8 +820,8 @@ def preregister(plan_path: Path, *, nhtsa_fetch: Callable[[], bytes] | None = No
 
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="python -m lab.prereg",
-                                description="Preregister a plan's E1, J1, J2, L1, X1 and E2 units before any model "
-                                            "runs.")
+                                description="Preregister a plan's E1, J1, J2, J3, JT, L1, X1 and E2 units before any "
+                                            "model runs.")
     p.add_argument("--plan", required=True)
     p.add_argument("--earlier-plans", help="the earlier plan artifacts for J2's or J3's exclusion, <DIR>/<run id>/ "
                                            "(default: lab-earlier beside the plan's directory)")
@@ -787,7 +871,8 @@ def main(argv: list[str] | None = None) -> int:
         return write_plan_error(plan_path.parent, "prereg", request_path, err.path, err.problem)
     shown = ("e1", "x1", "e2", "j1", *(("l1",) if manifest.get("l1") is not None else ()),
              *(("j2",) if manifest.get("j2") is not None else ()),
-             *(("j3",) if manifest.get("j3") is not None else ()))
+             *(("j3",) if manifest.get("j3") is not None else ()),
+             *(("jt",) if manifest.get("jt") is not None else ()))
     print(" ".join(["prereg:", *(f"{name} {'yes' if manifest.get(name) is not None else 'no'}" for name in shown)]),
           flush=True)
     return EXIT_OK

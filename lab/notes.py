@@ -389,6 +389,24 @@ J3_EXCLUSION_DISAGREES = ("the verified sources of the earlier cycles disagree: 
                           "plan job stops before any model runs")
 J3_TOO_FEW_RECORDS = ("fewer eligible records remain after both earlier cycles' exclusion than the draw needs; no "
                       "further fresh draw is pre-registered")
+JT_LABEL = ("{j_t} here drafts the term set of the third accuracy cycle in the plan job, before any model runs: the "
+            "onboard package's drafter, unchanged, reads the six makes' public NHTSA complaints received before the "
+            "first day of the judged window as one pooled export, its privacy check reads the drafted pack against "
+            "the same export, and the term set is the drafted vocabulary of each of the hand pack's specific "
+            "components. No model runs and nothing is drawn; the one unit only verifies the term set against its "
+            "preregistration.")
+JT_TERMS_NOTE = ("Counts and hashes only: the term set, the drafted pack and the two drafting files live in the plan "
+                 "artifact, never in a summary, a console line or the repository, and no term, category spelling, "
+                 "narrative, record id, state or vehicle is printed. A dated amendment of the rule commits the term "
+                 "set's sha before the judging run, which refuses any other bytes.")
+JT_FLOOR_FAILED = ("the drafted pack failed the privacy check against its export (the loader, the term floor, the "
+                   "value floor, the refused strings or terms, the template rebuild or the n-gram scan); the term run "
+                   "stops before its term set is written, and the loop asks")
+JT_DRAFT_FAILED = ("the draft and its check did not finish: the drafter refused the export, the step ran out of time "
+                   "or memory, or it wrote no result; the term run stops before its term set is written, and the "
+                   "remedy is a reviewed workflow change, never a drafter parameter")
+JT_NOT_VERIFIED = ("the term run's unit did not verify the term set against its preregistration: a hash, the drafted "
+                   "pack rebuilt from the hand pack and the term set, or this module's code hash differs")
 L1_LABEL = ("{l_one} here times the product's whole pushdown path on a real alert of MSHA's public accident file: HQ "
             "forms the narrow question, each routed mine's verifier judges its own records with the model inside the "
             "mine, one mine after another, and the commit gate decides. Each mine's verdict is scored against the key "
@@ -511,6 +529,8 @@ NOTES = {
                                 "hardware.",
     "public_data": "Public data: openFDA records under an artificial partitioning; no model ran, and nothing here is "
                    "confidential or a confidentiality demonstration.",
+    "public_terms": "Public data: real NHTSA vehicle complaints received before the judged window, read by the pack "
+                    "drafter in the plan job; no model ran, and no term, narrative or record id is printed.",
     "hosted_api": "Hosted API: a model on the configured OpenAI-compatible host answered over the network. It is not "
                   "deterministic: temperature and seed are requests, not guarantees on shared batched servers. Its "
                   "latencies include the network and the host's queue and say nothing about this runner.",
@@ -605,6 +625,8 @@ HEADINGS = {
     "l1": "Latency test: alert to answer on CPU, per model, beside the comparators",
     "l1-time": "Latency test: where the time goes",
     "l1-prereg": "Latency test: the alert, the questions and the comparators, fixed before any model runs",
+    "jt": "Term run: the drafted term set, fixed before the judging run",
+    "jt-check": "Term run: the privacy check of the drafted pack, by check",
     "e2": "Pushdown verification against central reading: conditions",
     "e2-ratio": "Pushdown ratio and verdict",
     "e2-candidates": "Pushdown candidates",
@@ -943,4 +965,48 @@ COLUMNS = {
     "l1_mines": "mines",
     "l1_operator": "operator",
     "l1_predicate": "predicate",
+    "jt_terms_sha": "term set sha",
+    "jt_cutoff": "cutoff",
+    "jt_window": "drafting window",
+    "jt_archive_sha": "complaint archive sha",
+    "jt_archive_bytes": "complaint archive bytes",
+    "jt_rows": "drafting export rows",
+    "jt_rows_by_make": "rows per make",
+    "jt_duplicates": "cross-make duplicates dropped",
+    "jt_earliest": "earliest received",
+    "jt_latest": "latest received",
+    "jt_refs_sha": "drafting refs sha",
+    "jt_text_sha": "drafting text sha",
+    "jt_narratives": "distinct narratives",
+    "jt_straddling": "straddling rows",
+    "jt_corpus": "corpus records",
+    "jt_passing_floor": "categories passing the floor",
+    "jt_specific": "specific predicates drafted",
+    "jt_other_share": "other bucket share",
+    "jt_without_specific": "rows without a specific category",
+    "jt_candidates": "candidate terms",
+    "jt_eligible": "eligible terms",
+    "jt_placeholders": "placeholders",
+    "jt_refused_categories": "refused categories",
+    "jt_refused_terms": "refused terms",
+    "jt_assignable": "refused terms that would have been assigned",
+    "jt_within_cap": "refused terms within the cap",
+    "jt_hand_predicates": "hand predicates",
+    "jt_reached": "reached",
+    "jt_empty": "left empty",
+    "jt_terms_min": "terms per reached predicate, min",
+    "jt_terms_median": "median",
+    "jt_terms_max": "max",
+    "jt_terms_total": "total terms",
+    "jt_check_passed": "check passed",
+    "jt_check": "check",
+    "jt_check_failures": "failures",
+    "jt_p_draft": "drafted pack hashes",
+    "jt_p_d": "hand pack with the drafted lexicons, hashes",
+    "jt_hand": "hand pack hashes",
+    "jt_code": "code hashes",
+    "jt_wall_s": "step wall seconds",
+    "jt_draft_wall_s": "draft wall seconds",
+    "jt_peak_rss": "draft peak resident memory KiB",
+    "jt_verified": "verified by the unit",
 }

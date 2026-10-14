@@ -21,9 +21,10 @@ is one model and one part, ``j2-<model>-p<k>`` (params: J1's plus ``exclude``, `
 ``j3-<model>-p<k>`` (the same params, ``exclude`` a two-entry list; accuracy test A002); an E2 unit is one model,
 ``e2-<model>`` (params: the block's world and harness settings, the plant's
 repository path ``plant_path``, the pack's site count ``sites``, the sorted seeds, the first of them as ``seed`` and
-``central_context_tokens``, :func:`central_context_tokens`); ``x1`` and ``openfda`` are one model-free unit each
+``central_context_tokens``, :func:`central_context_tokens`); ``x1``, ``openfda`` and ``jt`` are one model-free unit each
 (model None, kind ``none``; X1 takes E2's params without ``top_n``, ``min_candidates``, ``central`` and
-``central_context_tokens``, openFDA the normalised block plus ``requests_estimate``). A unit's ``kind`` is its model's
+``central_context_tokens``, openFDA the normalised block plus ``requests_estimate``, and the term run ``jt``, accuracy
+test A003's, its block's ``pack``, ``cutoff`` and ``from``: the unit verifies the term set its plan job drafted). A unit's ``kind`` is its model's
 manifest kind (``hosted`` for an E1 unit of a hosted model). A unit that calls the hosted provider
 (``lab.hosted.role``: an E1 unit of a hosted model, an E2 unit whose ``central`` is hosted) has ``needs_secret`` true
 and ``env`` ``["MYCELIC_LAB_HOSTED_API_KEY"]``; every other unit false and ``[]``.
@@ -224,6 +225,9 @@ def build_units(request: Request, manifest: Manifest, openfda_key: bool = False)
         elif experiment == "x1":
             params = {**_world_params(block), **{key: block[key] for key in ("bootstrap_b", "bootstrap_seed")}}
             units.append(_unit(request, manifest, "x1", None, "", block["minutes"], params, list(params["seeds"])))
+        elif experiment == "jt":
+            params = {key: block[key] for key in ("pack", "cutoff", "from")}
+            units.append(_unit(request, manifest, "jt", None, "", block["minutes"], params, []))
         elif experiment == "openfda":
             params = {**block, "requests_estimate": openfda_requests(block["product_codes"],
                                                                       block["max_records_per_code"], openfda_key)}
