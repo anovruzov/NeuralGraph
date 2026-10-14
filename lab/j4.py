@@ -162,6 +162,18 @@ PRESENCE_RULE = ("mentions_entity as the drafted lexical judge answers the quest
                  "term of T[predicate] occurs word-bounded in a folded sentence of the payload's record text "
                  "(onboard.check.term_presence), no otherwise; the verdict by the pinned decide")
 COMPARISONS_THIS_CYCLE = 4                          # rule 12: 4 arms x 1 model x 1 cycle
+# rule 14: the earlier cycle's own figures for the controls B and Br, beside which this draw's are reported as a
+# between-draw difference that decides nothing: A001 run 1's arms C and D under branch N (lab run 38114522160), A002
+# run 1's arms E and Eg under branch E (lab run 38439612256), balanced accuracy with its 95% interval, as
+# CHOICE-A003.md cites them ("What the evidence says"; the amendment before any build)
+EARLIER_ARMS = {
+    "negation": {"cycle": "A001", "run_id": 38114522160,
+                 "B": {"arm": "negation", "balanced_accuracy": 0.577, "ci_low": 0.530, "ci_high": 0.623},
+                 "Br": {"arm": "negation_mapped", "balanced_accuracy": 0.653, "ci_low": 0.610, "ci_high": 0.697}},
+    "evidence": {"cycle": "A002", "run_id": 38439612256,
+                 "B": {"arm": "evidence", "balanced_accuracy": 0.540, "ci_low": 0.503, "ci_high": 0.577},
+                 "Br": {"arm": "evidence_grounded", "balanced_accuracy": 0.553, "ci_low": 0.517, "ci_high": 0.590}},
+}
 WITHHOLD_SHARE = lab_j1.WITHHOLD_SHARE
 BOUNDARY = lab_j1.BOUNDARY
 DATA_LABEL = lab_j1.DATA_LABEL

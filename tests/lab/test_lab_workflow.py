@@ -177,18 +177,19 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(set(step("run", "run")["env"]), {"LAB_DEADLINE", "MYCELIC_LAB_OPENFDA_API_KEY",
                                                           "MYCELIC_LAB_HOSTED_API_KEY", "MYCELIC_LAB_HOSTED_BASE_URL"})
         self.assertNotIn("--openfda-base-url", TEXT)
-        # the token in exactly three places (A1, B2): the provision server step's environment and the plan job's
-        # downloads of the earlier runs' plan artifacts (github-token of actions/download-artifact, twice)
-        self.assertEqual(TEXT.count("github.token"), 3)
+        # the token in exactly five places (A1, B2, C27): the provision server step's environment and the plan job's
+        # downloads of the earlier runs' plan artifacts and of the term run's (github-token of
+        # actions/download-artifact, four times)
+        self.assertEqual(TEXT.count("github.token"), 5)
         self.assertEqual(TEXT.count("GH_TOKEN"), 1)
         self.assertEqual(step("provision", "server")["env"]["GH_TOKEN"], "${{ github.token }}")
         holders = [(job, i) for job, i, s in all_steps() if "GH_TOKEN" in s.get("env", {})]
         self.assertEqual(holders, [("provision", steps("provision").index(step("provision", "server")))])
-        earlier, earlier_2 = step("plan", "earlier"), step("plan", "earlier-2")
-        self.assertEqual(earlier["with"]["github-token"], "${{ github.token }}")
-        self.assertEqual(earlier_2["with"]["github-token"], "${{ github.token }}")
+        downloads = [step("plan", name) for name in ("earlier", "earlier-2", "earlier-3", "terms")]
+        for s in downloads:
+            self.assertEqual(s["with"]["github-token"], "${{ github.token }}")
         tokens = [(job, i) for job, i, s in all_steps() if "github-token" in s.get("with", {})]
-        self.assertEqual(tokens, [("plan", steps("plan").index(earlier)), ("plan", steps("plan").index(earlier_2))])
+        self.assertEqual(tokens, [("plan", steps("plan").index(s)) for s in downloads])
 
     def test_no_provider_override_and_no_model_names(self) -> None:
         for _, s in runs():
@@ -257,8 +258,8 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn(part, report)
         plan_downloads = [s for _, _, s in all_steps() if uses(s) == "actions/download-artifact"
                           and "name" in s["with"]]
-        self.assertEqual(len(plan_downloads), 5)
-        own = [s for s in plan_downloads if s.get("id") not in ("earlier", "earlier-2")]
+        self.assertEqual(len(plan_downloads), 7)
+        own = [s for s in plan_downloads if s.get("id") not in ("earlier", "earlier-2", "earlier-3", "terms")]
         self.assertEqual(len(own), 3)
         for s in own:
             self.assertEqual(s["with"]["name"], "${{ needs.plan.outputs.plan_artifact }}")
@@ -282,6 +283,25 @@ class WorkflowTests(unittest.TestCase):
         self.assertIs(earlier_2["continue-on-error"], True)
         self.assertEqual(uses(earlier_2), uses(earlier))
         self.assertEqual(earlier_2["uses"], earlier["uses"])
+        # the sixth and seventh (C27): the third earlier run a J4 request excludes, under the same directory by its
+        # own run id, and the term run's plan artifact, under lab-terms
+        earlier_3 = step("plan", "earlier-3")
+        self.assertEqual(earlier_3["with"], {
+            "name": "${{ steps.plan.outputs.j4_exclude_artifact_3 }}",
+            "run-id": "${{ steps.plan.outputs.j4_exclude_run_id_3 }}", "github-token": "${{ github.token }}",
+            "path": "${{ runner.temp }}/lab-earlier/${{ steps.plan.outputs.j4_exclude_run_id_3 }}"})
+        self.assertEqual(earlier_3["if"], "steps.plan.outputs.j4_exclude_run_id_3 != ''")
+        terms = step("plan", "terms")
+        self.assertEqual(terms["with"], {
+            "name": "${{ steps.plan.outputs.j4_terms_artifact }}",
+            "run-id": "${{ steps.plan.outputs.j4_terms_run_id }}", "github-token": "${{ github.token }}",
+            "path": "${{ runner.temp }}/lab-terms/${{ steps.plan.outputs.j4_terms_run_id }}"})
+        self.assertEqual(terms["if"], "steps.plan.outputs.j4_terms_run_id != ''")
+        for s in (earlier_3, terms):
+            self.assertIs(s["continue-on-error"], True)
+            self.assertEqual(s["uses"], earlier["uses"])
+            self.assertNotIn("lab-plan", s["with"]["path"])
+            self.assertEqual(set(s), set(earlier))
         patterns = [s["with"]["pattern"] for _, _, s in all_steps() if uses(s) == "actions/download-artifact"
                     and "pattern" in s["with"]]
         self.assertEqual(sorted(patterns), ["lab-prov-${{ github.run_id }}-*", "lab-prov-${{ github.run_id }}-*",
@@ -363,10 +383,10 @@ class WorkflowTests(unittest.TestCase):
                                   "run": 'python -m lab.prereg --plan "$RUNNER_TEMP/lab-plan/plan.json"'})
         order = [s.get("id") or s.get("uses", s.get("run", ""))[:30] for s in plan_steps]
         at = plan_steps.index(prereg)
-        # the earlier runs' artifact downloads (A1, B2) sit between the plan and the preregistration, nothing else
-        self.assertEqual(plan_steps[at - 1].get("id"), "earlier-2")
-        self.assertEqual(plan_steps[at - 2].get("id"), "earlier")
-        self.assertEqual(plan_steps[at - 3].get("id"), "plan")
+        # the earlier runs' and the term run's artifact downloads (A1, B2, C27) sit between the plan and the
+        # preregistration, in this order, nothing else
+        self.assertEqual([s.get("id") for s in plan_steps[at - 5:at + 1]],
+                         ["plan", "earlier", "earlier-2", "earlier-3", "terms", "prereg"])
         later = plan_steps[at + 1:]
         self.assertTrue(any("lab.summary plan" in s.get("run", "") for s in later), order)
         self.assertTrue(any(uses(s) == "actions/upload-artifact" for s in later), order)

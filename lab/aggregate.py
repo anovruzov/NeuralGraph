@@ -1,6 +1,6 @@
 """Merge one run's shard artifacts into one report: which artifact counts for each shard, what each unit gave, the
-E3, G0, sim, sizing, E2, X1, openFDA and latency rows, the E1 comparison, the J1 judge test, the L1 latency test, the
-provision records and the lock candidate.
+E3, G0, sim, sizing, E2, X1, openFDA and latency rows, the E1 comparison, the J1 judge test, the J2, J3 and J4 accuracy
+tests, the JT term run, the L1 latency test, the provision records and the lock candidate.
 
     python -m lab.aggregate --plan FILE --provision DIR --shards DIR --manifest FILE --out DIR [--reaggregation FILE]
 
@@ -111,6 +111,29 @@ and peak memory; and the unit's reading of its ``verify.json`` (``verified`` onl
 sha256 and P_D hashes equal the preregistration's). Counts and hashes only: no term is copied. The key is left out of
 a report whose plan has no term run, so that a report of every other kind keeps its bytes (C30).
 
+**J4** (``j4``; absent from the report without J4 units), accuracy test A003's judging run (:func:`j4_block`,
+``docs/collective/A003/CHOICE-A003.md`` as amended C1 to C32 and T1 to T11): from the verified preregistration, whose
+manifest must agree with ``prereg/j4/prereg.json`` (the document every unit pinned) on the base task, the primary
+pair, the headline arm and secondary, the other reading's arm, the four comparator files' sha256 and the term set's
+sha256, and whose ``prereg/j4/terms.json`` must hash to that pin and rebuild P_D to the pinned hashes (else
+:data:`~lab.notes.PREREG_MISSING`): the labels and questions records, the exclusion's counts, the eight sources'
+outcomes, the cycles and the consistency counts, the split's counts and hashes, the settings, both tasks' pins, the
+reading, the arms, the lifts, the comparators' rule, the primary pair, the headline arm and secondary, the comparison
+count and the target, the term pin with the number of terms each hand predicate carries, the three lexical judges,
+the record-blind control and the bound on every record with each judge's unknown count and the judges paired with each
+other, and the earlier cycle's own figures for the controls; per model its parts, its two (model, task) sets, its four
+arms (each scored by ``lab.j1.score`` over its view beside the three lexical judges, the control and the bound on the
+same records, the paired difference to each lexical judge, the verdict word of C19 with the word under lever 5's text
+alone and its pass test with the added clauses, J001's headline against each lexical judge for the headline arm and
+secondary), the lifts of rule 10, the agreement readings of the primary arm with the drafted lexical judge and the
+term-presence judge per kind (trap 6), the questions whose payload carried an empty list, under branch E the
+citation readings of both tasks (C16), the first-key shares and the token figures per task, and the controls beside
+the earlier cycle's own figures, a between-draw difference; and ``primary_result`` with the headline secondary's and
+the other reading's words beside it. The line check rebuilds each question's payload text from the plan artifact's
+labels and its ``predicate_terms`` from the plan artifact's ``terms.json`` inside this job only; no verdict line,
+question, narrative, citation or term is copied. The key is left out of a report whose plan has no J4 unit, so every
+other report keeps its bytes (C30).
+
 **L1** (``l1``; null without L1 units), latency test L001 (:func:`l1_block`, ``docs/collective/L001/CHOICE-L001.md``
 with its amendments K1 to K13): from the verified preregistration, the operator (``c1``), the file's sha256 and whether
 it is the demo's, the audit's counts, the alert, each question's slot, kind, predicate, window, routes by role and
@@ -188,13 +211,15 @@ from . import hosted as lab_hosted
 from . import j1 as lab_j1
 from . import j2 as lab_j2
 from . import j3 as lab_j3
+from . import j4 as lab_j4
 from . import jt as lab_jt
 from . import l1 as lab_l1
 from . import l1score as l1_score
 from . import provision as lab_provision
 from . import units as lab_units
 from .manifest import ManifestError, load_manifest, lock_path
-from mycelic.collective.packs.loader import load_pack
+from mycelic.collective.packs.canonical import find_bounded
+from mycelic.collective.packs.loader import PackError, load_pack
 from .notes import (ALTERED, AMBIGUOUS_ARTIFACTS, E1_COMPARE_FAILED, E1_NO_REFERENCE, E1_SCORES_REFUSED,
                     E1_SCORES_UNPINNED, FILES_DIFFER, J1_INCOMPLETE, J1_NOT_MEASURED, J1_WITHHELD, L1_INCOMPLETE,
                     L1_LEFT_OUT, L1_NO_REAGGREGATION, L1_NOT_MEASURED, L1_RERUN_AFTER_CALLS, L1_RERUN_CALLS_UNKNOWN,
@@ -1555,6 +1580,412 @@ def jt_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
     return block
 
 
+# --------------------------------------------------------------------------------------------------- J4
+
+J4_SETTINGS = J2_SETTINGS
+J4_MANIFEST_KEYS = ("base_task", "headline_arm", "headline_secondary", "other_reading_arm", "confirmation")
+
+
+def _j4_lines(data: bytes) -> list[dict[str, Any]] | None:
+    """Verdict lines with exactly ``lab_j4.LINE_KEYS``, or None."""
+    failed = False
+    try:
+        lines = _jsonl(data)
+    except StrictJsonError:
+        failed = True
+    if failed or not all(isinstance(line, dict) and sorted(line) == sorted(lab_j4.LINE_KEYS) for line in lines):
+        return None
+    return lines
+
+
+def _j4_part(unit: dict[str, Any], source: E1Source, prereg_sha: str, questions: list[dict[str, Any]],
+             texts: Mapping[str, str], terms: Mapping[str, list[str]],
+             order: tuple[str, ...]) -> tuple[list[dict[str, Any]] | None, Any, list[dict[str, Any]]]:
+    """(verdict lines, run.json, ledger rows) of one J4 unit's collected files, as :func:`_j3_part` reads a J3
+    unit's: run.json a J4 run of this preregistration, endpoint, part and pass order whose ``verdicts_sha256`` is the
+    file's, and every line the one the runner writes for a preregistered question of the part and one of the branch's
+    two tasks, each (question, task) at most once (:func:`lab.j4.line_problem`: J001's check on the projected line,
+    the branch reading recomputed with the pinned ``decide``, ``grounded`` from the stored citation and the record's
+    text ``texts`` rebuilt from the plan artifact's labels, ``first_key`` checked for shape, and task D's term count
+    and sha256 recomputed from ``terms``, T rebuilt from the plan artifact's ``terms.json``). The ledger rows serve the
+    token and latency figures; an unreadable ledger gives none."""
+    _, record, root = source
+    if record is None or root is None:
+        return None, None, []
+    base = f"runs/j4/{unit['run_id']}/"
+    files = record.get("files") if isinstance(record.get("files"), dict) else {}
+    rows: list[dict[str, Any]] = []
+    if base + "ledger.jsonl" in files:
+        failed = False
+        try:
+            rows = read_ledger(root / (base + "ledger.jsonl"))
+        except (OSError, ValueError):
+            failed = True
+        if failed:
+            rows = []
+    if base + "run.json" not in files or base + "verdicts.jsonl" not in files:
+        return None, None, rows
+    run = _read(root / (base + "run.json"))
+    try:
+        data = (root / (base + "verdicts.jsonl")).read_bytes()
+    except OSError:
+        return None, run, rows
+    if (not isinstance(run, dict) or run.get("kind") != "lab_j4_run" or run.get("prereg_sha256") != prereg_sha
+            or run.get("endpoint") != unit["model"] or run.get("part") != unit["params"]["part"]
+            or run.get("pass_order") != list(order) or run.get("verdicts_sha256") != sha256_hex(data)):
+        return None, run, rows
+    lines = _j4_lines(data)
+    mine = {q["question_id"]: q for q in questions if q["part"] == unit["params"]["part"]}
+    if lines is None or len({(line["question_id"], line["task"]) for line in lines}) != len(lines):
+        return None, run, rows
+    if any(line["question_id"] not in mine or line["task"] not in order
+           or lab_j4.line_problem(mine[line["question_id"]], line, texts.get(line["record_ref"], ""), terms) is not None
+           for line in lines):
+        return None, run, rows
+    return lines, run, rows
+
+
+def _j4_arm(arm: str, task_set: dict[str, Any], view: list[dict[str, Any]], questions: list[dict[str, Any]],
+            comparators: Mapping[str, list[dict[str, Any]]], settings: dict[str, Any], primary: bool,
+            headline_arm: bool, headline_secondary: bool) -> dict[str, Any]:
+    """One arm's entry: the arm's view scored (``lab.j1.score``), the three lexical judges, the record-blind control
+    and the bound on the same records (``judges``, ``prior_bound``), the paired difference to each lexical judge
+    (``paired``, rule 10), the verdict word of C19 (``lab.j4.verdict_word``: the drafted judge in the pass test's
+    second clause, the hand clause and the term-presence clause added) with the word under lever 5's text alone
+    (``lever5_word``, C6) and, for the headline arm and the headline secondary, J001's headline against each lexical
+    judge (``headlines``; ``headline`` is the one against the drafted judge, rule 11)."""
+    b, seed = settings["bootstrap_b"], settings["bootstrap_seed"]
+    entry: dict[str, Any] = {
+        "letter": lab_j4.ARM_LETTERS[arm], "task": lab_j4.ARM_TASK[arm], "reading": lab_j4.ARM_READING[arm],
+        "set": lab_j4.ARM_TASK[arm], "complete": task_set["complete"], "partial": task_set["partial"],
+        "parts_finished": task_set["parts_finished"], "parts_planned": settings["parts"],
+        "display_class": task_set["display_class"], "measurement": task_set["measurement"], "scores": None,
+        "judges": dict.fromkeys(lab_j4.COMPARATORS), "prior_bound": None,
+        "paired": dict.fromkeys(lab_j4.LEXICAL_JUDGES), "records_dropped": None, "dropped_share": None,
+        "withheld_reason": None, "verdict_word": None, "lever5_word": None, "pass_test": None, "primary": primary,
+        "headline_arm": headline_arm, "headline_secondary": headline_secondary, "headline": None,
+        "headline_reason": None, "headlines": None}
+    if view:
+        scores = lab_j1.score(questions, view, bootstrap_b=b, bootstrap_seed=seed)
+        refs = lab_j1.scored_records(questions, view)
+        entry.update(scores=scores, records_dropped=scores["records_dropped"], dropped_share=scores["dropped_share"],
+                     judges={name: (lab_j1.score(questions, comparators[name], bootstrap_b=b, bootstrap_seed=seed,
+                                                 records=refs) if refs else None) for name in lab_j4.COMPARATORS},
+                     prior_bound=lab_j1.prior_bound(questions, refs) if refs else None,
+                     paired={name: lab_j1.paired(questions, view, comparators[name], bootstrap_b=b,
+                                                 bootstrap_seed=seed) for name in lab_j4.LEXICAL_JUDGES})
+    share = entry["dropped_share"]
+    if share is not None and share > settings["withhold_share"]:
+        entry["withheld_reason"] = J1_WITHHELD
+    word, test = lab_j4.verdict_word(complete=task_set["complete"], display_class=task_set["display_class"],
+                                     measurement=task_set["measurement"], dropped_share=share, scores=entry["scores"],
+                                     paired=entry["paired"][lab_j4.LEXICAL_DRAFTED], bound=entry["prior_bound"],
+                                     paired_hand=entry["paired"][lab_j4.LEXICAL_HAND],
+                                     paired_presence=entry["paired"][lab_j4.PRESENCE_DRAFTED])
+    entry.update(verdict_word=word, lever5_word=test["lever5_word"], pass_test=test)
+    if headline_arm or headline_secondary:
+        headlines: dict[str, dict[str, Any]] = {}
+        for name in lab_j4.LEXICAL_JUDGES:
+            headline, why = lab_j1.headline_for(
+                complete=task_set["complete"], display_class=task_set["display_class"],
+                measurement=task_set["measurement"], dropped_share=share,
+                model_ba=_get(entry["scores"], "balanced_accuracy"),
+                lexical_ba=_get(entry["judges"][name], "balanced_accuracy", "value"))
+            headlines[name] = {"headline": headline,
+                               "reason": J1_HEADLINE_REASONS.get(why) if why is not None else None}
+        entry.update(headline=headlines[lab_j4.LEXICAL_DRAFTED]["headline"],
+                     headline_reason=headlines[lab_j4.LEXICAL_DRAFTED]["reason"], headlines=headlines)
+    return entry
+
+
+def _j4_agreement(view: list[dict[str, Any]], comparators: Mapping[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    """Rule 14 and trap 6: per lexical judge read by the agreement (the drafted lexical judge and the term-presence
+    judge) and per kind, over the questions the arm scored: how many verdicts equal the judge's, and how often the
+    arm confirms where the judge confirms and where it refutes. Counts and shares only."""
+    out: dict[str, Any] = {}
+    scored = [line for line in view if line["scored"] is True]
+    for name in (lab_j4.LEXICAL_DRAFTED, lab_j4.PRESENCE_DRAFTED):
+        judge = {line["question_id"]: line["verdict"] for line in comparators[name]}
+        by_kind: dict[str, Any] = {}
+        for kind in lab_j1.KINDS:
+            mine = [line for line in scored if line["kind"] == kind and line["question_id"] in judge]
+            equal = sum(1 for line in mine if line["verdict"] == judge[line["question_id"]])
+            confirms = [line for line in mine if judge[line["question_id"]] == "confirm"]
+            refutes = [line for line in mine if judge[line["question_id"]] == "refute"]
+            where_confirms = sum(1 for line in confirms if line["verdict"] == "confirm")
+            where_refutes = sum(1 for line in refutes if line["verdict"] == "confirm")
+            by_kind[kind] = {"questions": len(mine), "equal": equal, "equal_share": _share(equal, len(mine)),
+                             "judge_confirms": len(confirms), "confirms_where_judge_confirms": where_confirms,
+                             "confirm_rate_where_judge_confirms": _share(where_confirms, len(confirms)),
+                             "judge_refutes": len(refutes), "confirms_where_judge_refutes": where_refutes,
+                             "confirm_rate_where_judge_refutes": _share(where_refutes, len(refutes))}
+        out[name] = by_kind
+    return out
+
+
+def _j4_empty_terms(lines: list[dict[str, Any]]) -> dict[str, Any]:
+    """Rule 14 and trap 11: task D's lines whose payload carried an empty list, per kind and in all."""
+    out: dict[str, Any] = {"questions": len(lines), "empty": sum(1 for line in lines if line["terms_count"] == 0)}
+    out["share"] = _share(out["empty"], out["questions"])
+    out["by_kind"] = {kind: {"questions": sum(1 for line in lines if line["kind"] == kind),
+                             "empty": sum(1 for line in lines if line["kind"] == kind and line["terms_count"] == 0)}
+                      for kind in lab_j1.KINDS}
+    return out
+
+
+def _j4_citations(lines: list[dict[str, Any]], terms: Mapping[str, list[str]]) -> dict[str, Any]:
+    """Rule 14 under branch E (C16, trap 4), for one task's lines: the evidence readings A002 reported
+    (:func:`_j3_evidence`, unchanged) and, among the grounded citations, how many equal one of the asked predicate's
+    drafted terms after ``norm`` and how many contain one as a whole word (``packs.canonical.find_bounded``), per
+    kind. Counts and shares only: no citation and no term is copied."""
+    out = _j3_evidence(lines)
+    copies: dict[str, Any] = {}
+    for kind in lab_j1.KINDS:
+        grounded_lines = [line for line in lines if line["kind"] == kind and line["grounded"] is True]
+        equal = holds = 0
+        for line in grounded_lines:
+            cited = lab_j4.norm(line["citation"])
+            mine = [lab_j4.norm(t) for t in lab_j4.predicate_terms(terms, line["predicate"])]
+            equal += int(any(cited == t for t in mine))
+            holds += int(any(find_bounded(t, cited) for t in mine))
+        copies[kind] = {"grounded": len(grounded_lines), "equal_term": equal,
+                        "equal_term_share": _share(equal, len(grounded_lines)), "hold_term": holds,
+                        "hold_term_share": _share(holds, len(grounded_lines))}
+    out["term_copies"] = copies
+    return out
+
+
+def _j4_first_keys(lines: list[dict[str, Any]], task: str) -> dict[str, Any]:
+    """The share of a task's replies whose first key is the base's field (branch E's citation; none under branch N),
+    and every first key counted (rule 14, A002's B19)."""
+    replies = [line for line in lines if line["mentions_entity"] is not None]
+    field = lab_j4.TASK_FIELDS[task]
+    counts: dict[str, int] = {}
+    for line in replies:
+        counts[str(line["first_key"])] = counts.get(str(line["first_key"]), 0) + 1
+    first = sum(1 for line in replies if field is not None and line["first_key"] == field)
+    return {"field": field, "replies": len(replies), "field_first": first if field is not None else None,
+            "share": _share(first, len(replies)) if field is not None else None,
+            "first_keys": dict(sorted(counts.items()))}
+
+
+def _j4_earlier(arms: Mapping[str, Mapping[str, Any]], base: str) -> dict[str, Any]:
+    """Rule 14: the controls B and Br on this draw beside the earlier cycle's own figures for the same arms
+    (``lab.j4.EARLIER_ARMS``), with the difference of the two points: a between-draw difference, no interval, deciding
+    nothing."""
+    earlier = lab_j4.EARLIER_ARMS[base]
+    out: dict[str, Any] = {"cycle": earlier["cycle"], "run_id": earlier["run_id"], "label": "between_draw",
+                           "arms": {}}
+    for letter in ("B", "Br"):
+        arm = lab_j4.arm_of(base, letter)
+        ba = _get(arms.get(arm), "scores", "balanced_accuracy")
+        value = ba.get("value") if isinstance(ba, dict) else None
+        then = earlier[letter]
+        out["arms"][arm] = {"letter": letter, "earlier_arm": then["arm"],
+                            "balanced_accuracy": value, "ci_low": _get(ba, "ci_low"), "ci_high": _get(ba, "ci_high"),
+                            "earlier_balanced_accuracy": then["balanced_accuracy"], "earlier_ci_low": then["ci_low"],
+                            "earlier_ci_high": then["ci_high"],
+                            "difference": (value - then["balanced_accuracy"]
+                                           if isinstance(value, (int, float)) else None)}
+    return out
+
+
+def _j4_model(model: str, units: list[dict[str, Any]], sources: dict[str, E1Source], prereg_sha: str,
+              questions: list[dict[str, Any]], texts: Mapping[str, str], terms: Mapping[str, list[str]],
+              comparators: Mapping[str, list[dict[str, Any]]], settings: dict[str, Any], fallback: str,
+              base: str, primary: Mapping[str, str], headline_arm: str, headline_secondary: str) -> dict[str, Any]:
+    """One model's J4 entry (see :func:`j4_block`): its parts, its two (model, task) sets, its four arms, the lifts
+    of rule 10, the agreement readings, the empty term lists, branch E's citation readings, the first keys and the
+    token figures per task, and the controls beside the earlier cycle's."""
+    b, seed = settings["bootstrap_b"], settings["bootstrap_seed"]
+    order = lab_j4.pass_order(base, primary["arm"])
+    planned = {k: sum(1 for q in questions if q["part"] == k) for k in range(1, settings["parts"] + 1)}
+    parts: list[dict[str, Any]] = []
+    pooled: dict[str, list[dict[str, Any]]] = {task: [] for task in order}
+    rows_by_task: dict[str, list[dict[str, Any]]] = {task: [] for task in order}
+    measured: dict[str, list[bool]] = {task: [] for task in order}
+    classes: dict[str, list[str]] = {task: [] for task in order}
+    for unit in sorted(units, key=lambda u: u["params"]["part"]):
+        row = sources[unit["unit"]][0]
+        lines, run, rows = _j4_part(unit, sources[unit["unit"]], prereg_sha, questions, texts, terms, order)
+        part = unit["params"]["part"]
+        by_task = run.get("complete_by_task") if isinstance(run, dict) and isinstance(run.get("complete_by_task"),
+                                                                                       dict) else {}
+        wanted = {q["question_id"] for q in questions if q["part"] == part}
+        ok_by_task: dict[str, bool] = {}
+        for task in order:
+            mine = [line for line in lines if line["task"] == task] if lines is not None else []
+            ok = (row["status"] == "ok" and lines is not None and by_task.get(task) is True
+                  and len(mine) == planned.get(part) and {line["question_id"] for line in mine} == wanted)
+            ok_by_task[task] = ok
+            if ok:
+                pooled[task] += mine
+                rows_by_task[task] += [r for r in rows if r["task"] == task]
+                measured[task].append(run.get("measurement") is True)
+                classes[task].append(row["display_class"])
+        parts.append({"unit": unit["unit"], "part": part, "status": row["status"],
+                      "status_reason": row.get("status_reason"), "display_class": row["display_class"],
+                      "ok_by_task": ok_by_task, "complete_by_task": dict(by_task),
+                      "stopped": run.get("stopped") if isinstance(run, dict) else None,
+                      "stopped_task": run.get("stopped_task") if isinstance(run, dict) else None,
+                      "measurement": run.get("measurement") if isinstance(run, dict) else None,
+                      "latency_ms_by_task": run.get("latency_ms_by_task") if isinstance(run, dict) else None,
+                      "tokens_by_task": run.get("tokens_by_task") if isinstance(run, dict) else None})
+    sets: dict[str, dict[str, Any]] = {}
+    for task in order:
+        parts_ok = [p["part"] for p in parts if p["ok_by_task"][task]]
+        complete = parts_ok == list(range(1, settings["parts"] + 1))
+        sets[task] = {"task": task, "letter": "D" if lab_j4.TASK_DRAFTED[task] else "B",
+                      "parts_finished": len(parts_ok), "parts_ok": parts_ok, "complete": complete,
+                      "partial": not complete and bool(parts_ok),
+                      "display_class": _class_of([c for c in classes[task] if c != "no-result"], fallback),
+                      "measurement": all(measured[task]) if measured[task] else None}
+    arms: dict[str, dict[str, Any]] = {}
+    views: dict[str, list[dict[str, Any]]] = {}
+    for arm in lab_j4.ARMS[base]:
+        views[arm] = lab_j4.arm_lines(pooled[lab_j4.ARM_TASK[arm]], arm)
+        arms[arm] = _j4_arm(arm, sets[lab_j4.ARM_TASK[arm]], views[arm], questions, comparators, settings,
+                            primary=(model == primary["model"] and arm == primary["arm"]),
+                            headline_arm=(arm == headline_arm), headline_secondary=(arm == headline_secondary))
+    lifts: dict[str, dict[str, Any]] = {}
+    for name, arm, minus in lab_j4.lifts(base):
+        paired = (lab_j1.paired(questions, views[arm], views[minus], bootstrap_b=b, bootstrap_seed=seed)
+                  if views[arm] and views[minus] else None)
+        lifts[name] = {"arm": arm, "minus": minus, "lever": lab_j4.LIFT_LEVERS[base][name], "paired": paired,
+                       "reading": lab_j4.lift_reading(paired),
+                       "complete": arms[arm]["complete"] and arms[minus]["complete"]}
+    d_task, b_task = lab_j4.tasks(base)
+    d_arm = lab_j4.arm_of(base, "D")
+    return {"parts": parts, "sets": sets, "arms": arms, "lifts": lifts,
+            "agreement": {"arm": d_arm, "judges": _j4_agreement(views[d_arm], comparators)},
+            "empty_terms": _j4_empty_terms(pooled[d_task]),
+            "citations": ({task: _j4_citations(pooled[task], terms) for task in (d_task, b_task)}
+                          if base == "evidence" else None),
+            "first_keys": {task: _j4_first_keys(pooled[task], task) for task in order},
+            "tokens": {task: _j3_tokens(rows_by_task[task], task) for task in order},
+            "earlier": _j4_earlier(arms, base)}
+
+
+def j4_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]) -> dict[str, Any] | None:
+    """The report's ``j4`` block (None without J4 units); ``sources`` maps each J4 unit to (its row, its record, its
+    shard root). See the module docstring: it needs the verified preregistration, a manifest that agrees with
+    ``prereg/j4/prereg.json`` on the base task, the primary pair, the headline arm and secondary, the other reading's
+    arm, the confirmation case, the four comparator files' sha256 and the term set's sha256, a ``terms.json`` that
+    hashes to that pin and P_D rebuilt from it with the pinned hashes (else :data:`~lab.notes.PREREG_MISSING`).
+    Counts, scores and hashes only; the line check reads the drawn narratives and the terms inside this job only."""
+    units = sorted((u for u in plan["units"] if u["experiment"] == "j4"), key=lambda u: u["unit"])
+    if not units:
+        return None
+    fallback = "plumbing" if plan.get("result_class") == "plumbing" else "unverified"
+    shown = [sources[u["unit"]][0]["display_class"] for u in units
+             if sources[u["unit"]][0]["display_class"] != "no-result"]
+    block: dict[str, Any] = {"label": "public_nhtsa", "reason": None, "display_class": _class_of(shown, fallback),
+                             "labels": None, "questions": None, "exclusion": None, "split": None, "settings": None,
+                             "base_task": None, "tasks": None, "reading": None, "arms": None, "lifts": None,
+                             "comparators": None, "primary": None, "headline_arm": None, "headline_secondary": None,
+                             "other_reading_arm": None, "confirmation": None, "comparisons": None,
+                             "target_balanced_accuracy": lab_j2.TARGET_BA, "stand_in": None, "terms_stand_in": None,
+                             "chain_lines": None, "terms": None, "judges": None, "unknown": None,
+                             "judge_pairs": None, "prior_bound": None, "earlier": None, "models": {},
+                             "primary_result": None}
+    try:
+        prereg = load_prereg(plan_path)
+        manifest = prereg.manifest["j4"]
+        base_dir = prereg.dir / "prereg" / "j4"
+        prereg_bytes = (prereg.dir / manifest["prereg"]).read_bytes()
+        prereg_sha = sha256_hex(prereg_bytes)
+        doc = strict_load(prereg_bytes)
+        questions = lab_j1.read_questions((base_dir / "questions.jsonl").read_bytes())
+        comparator_bytes = {name: (base_dir / f"{name}.jsonl").read_bytes() for name in lab_j4.COMPARATORS}
+        comparators = {name: _j1_lines(data) for name, data in comparator_bytes.items()}
+        labels = lab_j1.parse_labels((base_dir / "labels.jsonl").read_bytes())
+        terms_bytes = (prereg.dir / lab_j4.TERMS_FILE).read_bytes()
+        terms_doc, terms = lab_j4.read_terms(terms_bytes)
+        pack = load_pack(ROOT / doc["pack"]["ref"])
+        settings = {k: manifest[k] for k in J4_SETTINGS}
+        primary = {k: manifest["primary"][k] for k in ("model", "arm")}
+        exclusion = dict(manifest["exclusion"])
+        mine = {k: manifest[k] for k in J4_MANIFEST_KEYS}
+        pin = manifest["terms"]
+    except (PreregError, OSError, StrictJsonError, lab_j1.J1Error, lab_j4.J4Error, KeyError, TypeError, ValueError):
+        block["reason"] = PREREG_MISSING
+        return block
+    if any(lines is None for lines in comparators.values()) or not isinstance(manifest.get("prior"), dict):
+        block["reason"] = PREREG_MISSING
+        return block
+    # the manifest is tied to the plan's sha, the document prereg/j4/prereg.json to every unit's run.json: the two
+    # must agree on what the verdict reads (the branch, the primary pair, the headline arms, the comparator files and
+    # the term set), and the term set's copy must hash to the pin and rebuild P_D to the pinned hashes
+    terms_sha = sha256_hex(terms_bytes)
+    if (not isinstance(doc, dict) or doc.get("primary") != primary or any(doc.get(k) != v for k, v in mine.items())
+            or any(_get(doc, name, "sha256") != sha256_hex(data) for name, data in comparator_bytes.items())
+            or _get(doc, "terms", "sha256") != terms_sha or _get(pin, "sha256") != terms_sha):
+        block["reason"] = PREREG_MISSING
+        return block
+    try:
+        rebuilt = lab_j4.drafted_pack(terms_doc["terms"]).hashes()
+    except (PackError, lab_jt.JtError, lab_j4.J4Error, OSError, KeyError, TypeError, ValueError):
+        rebuilt = None
+    if rebuilt is None or rebuilt != _get(doc, "drafted_pack", "hashes"):
+        block["reason"] = PREREG_MISSING
+        return block
+    base = mine["base_task"]
+    records = {r["record_ref"]: r for r, _ in labels}
+    texts: dict[str, str] = {}
+    for q in questions:
+        if q["record_ref"] not in texts and q["record_ref"] in records:
+            texts[q["record_ref"]] = lab_j1.payload(pack, q, records[q["record_ref"]])["record"]["text"]
+    settings["withhold_share"] = lab_j1.WITHHOLD_SHARE
+    labels_record, asked = manifest["labels"], manifest["questions"]
+    models = sorted({u["model"] for u in units})
+    this_cycle = len(lab_j4.ARMS[base]) * len(models)
+    block.update(labels={k: labels_record.get(k) for k in ("source", "pack", "n", "seed", "records", "claims",
+                                                            "sha256", "available")},
+                 questions={k: asked.get(k) for k in ("records", "questions", "parts", "part_records", "seed",
+                                                      "negative_draw", "sha256")},
+                 exclusion=exclusion, split=manifest.get("split"), settings=settings, base_task=base,
+                 tasks=manifest["tasks"], reading=manifest["reading"], arms=manifest["arms"], lifts=manifest["lifts"],
+                 comparators=manifest["comparators"], primary=primary, headline_arm=mine["headline_arm"],
+                 headline_secondary=mine["headline_secondary"], other_reading_arm=mine["other_reading_arm"],
+                 confirmation=mine["confirmation"],
+                 comparisons={"this_cycle": this_cycle, "before": settings["comparisons_before"],
+                              "since_loop_began": settings["comparisons_before"] + this_cycle},
+                 stand_in=manifest.get("stand_in") is True, terms_stand_in=manifest.get("terms_stand_in") is True,
+                 chain_lines=manifest.get("excluded_lines"),
+                 terms={**{k: pin.get(k) for k in lab_j4.TERMS_PIN_KEYS}, "verified": True,
+                        "p_d": rebuilt, "terms_by_predicate": {p: len(t) for p, t in sorted(terms.items())},
+                        "term_counts": _get(pin, "check", "term_counts"),
+                        "archive_sha256": _get(pin, "check", "archive_sha256")},
+                 judges={name: manifest[name] for name in lab_j4.COMPARATORS}, unknown=manifest.get("unknown"),
+                 judge_pairs=manifest.get("judge_pairs"), prior_bound=lab_j1.prior_bound(questions),
+                 earlier=lab_j4.EARLIER_ARMS[base])
+    for model in models:
+        block["models"][model] = _j4_model(model, [u for u in units if u["model"] == model], sources, prereg_sha,
+                                           questions, texts, terms, comparators, settings, fallback, base, primary,
+                                           mine["headline_arm"], mine["headline_secondary"])
+
+    def word_of(arm: str) -> dict[str, Any] | None:
+        other = _get(block["models"], primary["model"], "arms", arm)
+        if not isinstance(other, dict):
+            return None
+        return {"arm": arm, "verdict_word": other["verdict_word"], "lever5_word": other["lever5_word"],
+                "pass_test": other["pass_test"], "headline": other["headline"],
+                "headline_reason": other["headline_reason"]}
+
+    entry = _get(block["models"], primary["model"], "arms", primary["arm"])
+    if isinstance(entry, dict):
+        block["primary_result"] = {
+            "model": primary["model"], "arm": primary["arm"], "verdict_word": entry["verdict_word"],
+            "lever5_word": entry["lever5_word"], "pass_test": entry["pass_test"],
+            "judges": {name: _get(entry["judges"][name], "balanced_accuracy") for name in lab_j4.LEXICAL_JUDGES},
+            "complete": entry["complete"], "display_class": entry["display_class"],
+            "measurement": entry["measurement"], "headline": entry["headline"],
+            "headline_reason": entry["headline_reason"], "headlines": entry["headlines"],
+            "headline_secondary": word_of(mine["headline_secondary"]),
+            "other_reading": word_of(mine["other_reading_arm"])}
+    return block
+
+
 # --------------------------------------------------------------------------------------------------- L1
 
 def _l1_called(root: Path, unit: dict[str, Any]) -> bool:
@@ -2061,6 +2492,7 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
     j2_sources: dict[str, E1Source] = {}
     j3_sources: dict[str, E1Source] = {}
     jt_sources: dict[str, E1Source] = {}
+    j4_sources: dict[str, E1Source] = {}
     l1_sources: dict[str, E1Source] = {}
     l1_refused = l1_reruns(plan, roots, {s: root for s, (_, root) in states.items()})
     samples: dict[tuple[Any, ...], list[float]] = {}
@@ -2090,6 +2522,8 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
             j3_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
         if unit["experiment"] == "jt":
             jt_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
+        if unit["experiment"] == "j4":
+            j4_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
         if unit["experiment"] == "l1":
             l1_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
         if unit["experiment"] == "e2" and record is not None:
@@ -2148,6 +2582,7 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
     j3 = j3_block(plan, plan_path, j3_sources)
     l1 = l1_block(plan, plan_path, l1_sources, l1_refused, reaggregation is not None)
     jt = jt_block(plan, plan_path, jt_sources)
+    j4 = j4_block(plan, plan_path, j4_sources)
     sealed_roots = [root for state, root in (states[s["shard"]] for s in plan["shards"])
                     if state == "sealed" and root is not None]
     sealed = [root.path for root in sealed_roots]
@@ -2173,6 +2608,8 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
         "reaggregation": reaggregation_stamp(reaggregation, sealed_roots) if reaggregation is not None else None,
         # the term run's block only when the plan holds its unit, so every other report keeps its bytes (C30)
         **({"jt": jt} if jt is not None else {}),
+        # the judging run's block only when the plan holds its units, likewise (C30)
+        **({"j4": j4} if j4 is not None else {}),
     }
     return report, merged
 
