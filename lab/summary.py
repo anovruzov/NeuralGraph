@@ -69,7 +69,11 @@ the CPU models; contended questions' time to answer apart, and the questions not
 with its elapsed time as a lower bound, and each finished question's times beside the derived ones; a plan's
 preregistration adds L1's file,
 audit, alert, questions, the comparators' scores, the predicate-only bound and the share of empty draws
-(:func:`_l1_prereg_lines`). The class sections
+(:func:`_l1_prereg_lines`). JT (accuracy test A003's term run) comes once, in the class section of its display class
+(:func:`_jt_tables`): its label, the term set's full sha256 (between the log markers, C13), whether the unit verified
+it, the cutoff and the window, the archive, the export, the drafting block, the drafter's counts, the refusal's
+counts, the term counts, the check by check, every hash and the step's wall time and peak memory, then the terms note;
+a plan's preregistration adds the same lines (:func:`_jt_lines`). Counts and hashes only: no term is ever shown. The class sections
 come in the order of :data:`CLASS_ORDER`: ``model``, then ``hosted-api`` (hosted API results, never measured on this
 runner), then the rest. A G0 table gains a protocol records column, after its note, when a scan was below the
 protocol size, and a model path problems column when a row counts them. After the class sections, a sizing table of
@@ -138,7 +142,8 @@ from .notes import (BRANCH_DELETED, BY_CONSTRUCTION_LABEL, BY_CONSTRUCTION_NOTE,
                     HOSTED_COST_NOTE, HOSTED_SECRETS_MISSING, J1_HEADLINE_NOTE, J1_INCOMPLETE, J1_LABEL,
                     J1_LEXICAL_NOTE, J1_NOT_MEASURED, J1_PRIOR_NOTE, J1_WITHHELD, J2_ARMS_NOTE, J2_EXCLUSION_NOTE,
                     J2_LABEL, J2_PRIMARY_LINE, J2_STAND_IN, J2_VERDICT_NOTE, J3_ARMS_NOTE, J3_EVIDENCE_NOTE,
-                    J3_EXCLUSION_NOTE, J3_LABEL, J3_PRIMARY_LINE, J3_STAND_IN, J3_VERDICT_NOTE, L1_COMPARATORS_NOTE,
+                    J3_EXCLUSION_NOTE, J3_LABEL, J3_PRIMARY_LINE, J3_STAND_IN, J3_VERDICT_NOTE, JT_LABEL,
+                    JT_TERMS_NOTE, L1_COMPARATORS_NOTE,
                     L1_HEADLINE_NOTE, L1_INCOMPLETE, L1_LABEL, L1_LEFT_OUT, L1_NO_REAGGREGATION, L1_NOT_MEASURED,
                     L1_TIME_NOTE, L1_WITHHELD, LOCK_CONFLICT_NOTE, LOCK_NEW,
                     LOCK_NOT_COMPUTED, LOCK_UNCHANGED, MERGE_SEVERAL, NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT,
@@ -147,6 +152,7 @@ from .notes import (BRANCH_DELETED, BY_CONSTRUCTION_LABEL, BY_CONSTRUCTION_NOTE,
                     REAGGREGATION_LINE, SHEETS_LABEL, SIM_CHANNEL_LABELS, SIM_LIFT_LABELS, SIM_NOTES,
                     SIM_WORLD_DIFFERS, SIM_WORLD_SAME, SIZING_NOTE, TRUNCATED, UNSEALED, WORLD_DIGEST_DIFFERS,
                     WORLD_DIGEST_SAME, X1_LABEL)
+from .jt import PREREG_FILE as JT_PREREG_FILE
 from .units import display_class
 
 MAX_SUMMARY_BYTES = 900_000
@@ -200,7 +206,7 @@ L1_COMPARATORS = ("lexical", "route_role", "record_blind", "key")
 def ids(sentence: str) -> str:
     """A notes sentence with its experiment-id placeholders filled with code spans."""
     return sentence.format(e_one=code("E1"), e_two=code("E2"), x_one=code("X1"), n_one=code("N1"), j_one=code("J1"),
-                           l_one=code("L1"), j_two=code("J2"), j_three=code("J3"))
+                           l_one=code("L1"), j_two=code("J2"), j_three=code("J3"), j_t=code("JT"))
 _INDEX_RE = re.compile(r"0|[1-9][0-9]*", re.ASCII)
 _BACKTICKS_RE = re.compile(r"`+")
 
@@ -545,6 +551,8 @@ def _prereg_section(doc: _Doc, src: Sources) -> None:
         _j3_prereg_lines(doc, src, f, _get(manifest, "j3"))
     if isinstance(_get(manifest, "l1"), dict):
         _l1_prereg_lines(doc, src, f)
+    if isinstance(_get(manifest, "jt"), dict):
+        _jt_lines(doc, src, f, _get(manifest, "jt"), prereg_sha=_get(manifest, "files", JT_PREREG_FILE, "sha256"))
 
 
 def _j2_exclusion_lines(doc: _Doc, src: Sources, f: str, base: tuple[Any, ...], block: dict[str, Any]) -> None:
@@ -654,6 +662,80 @@ def _j3_prereg_lines(doc: _Doc, src: Sources, f: str, j3: dict[str, Any]) -> Non
             f"{COLUMNS['j2_target']} {src.num(f, '/j3/target_balanced_accuracy', 'f3')}")
     _j3_comparator_lines(doc, src, f, f"{code('J3')} ")
     doc.add("\n" + J3_EXCLUSION_NOTE)
+
+
+JT_HASH_KEYS = ("config_hash", "vocabulary_hash", "detector_hash", "fixtures_hash")
+JT_CODE_KEYS = ("onboard_code_hash", "jt_code_hash")
+
+
+def _jt_lines(doc: _Doc, src: Sources, f: str, jt: dict[str, Any], *, prereg_sha: Any = None,
+              verified: Any = None, report: bool = False) -> None:
+    """The term run's lines, from the plan's preregistration (``prereg/prereg.json``) or the report (``report.json``):
+    both hold the same figures under ``jt``. Counts, dates and hashes only; the term set's sha in full (C13)."""
+    at = ("jt",)
+
+    def n(*keys: Any, style: str = "int") -> str:
+        return src.num(f, pointer(*at, *keys), style)
+
+    head = f"\n- {code('JT')} {COLUMNS['jt_terms_sha']} {code(_get(jt, 'terms_sha256'))}"
+    if report:
+        head += f"; {COLUMNS['jt_verified']} {yes_no(verified)}"
+    else:
+        head += f"; {COLUMNS['prereg']} {code(short(prereg_sha))}"
+    doc.add(head)
+    window = _get(jt, "window") if isinstance(_get(jt, "window"), list) else [None, None]
+    makes = _get(jt, "makes") if isinstance(_get(jt, "makes"), list) else []
+    doc.add(f"- {COLUMNS['jt_cutoff']} {code(_get(jt, 'cutoff'))}; {COLUMNS['jt_window']} {code(_get(window, 0))} "
+            f"{code(_get(window, 1))}; {COLUMNS['jt_archive_sha']} {code(short(_get(jt, 'archive', 'sha256')))}; "
+            f"{COLUMNS['jt_archive_bytes']} {n('archive', 'bytes')}")
+    doc.add(f"- {COLUMNS['jt_rows']} {n('export', 'rows')}; {COLUMNS['jt_rows_by_make']}: "
+            + "; ".join(f"{code(make)} {n('export', 'rows_by_make', make)}" for make in makes)
+            + f"; {COLUMNS['jt_duplicates']} {n('export', 'cross_make_duplicates')}; {COLUMNS['jt_earliest']} "
+              f"{code(_get(jt, 'export', 'earliest_received'))}; {COLUMNS['jt_latest']} "
+              f"{code(_get(jt, 'export', 'latest_received'))}")
+    doc.add(f"- {COLUMNS['jt_refs_sha']} {code(short(_get(jt, 'drafting', 'refs_file_sha256')))}; "
+            f"{COLUMNS['jt_text_sha']} {code(short(_get(jt, 'drafting', 'text_file_sha256')))}; "
+            f"{COLUMNS['jt_narratives']} {n('drafting', 'narratives')}; {COLUMNS['jt_straddling']} "
+            f"{n('drafting', 'straddling')}")
+    doc.add(f"- {COLUMNS['jt_corpus']} {n('draft', 'corpus')}; {COLUMNS['jt_passing_floor']} "
+            f"{n('draft', 'categories_passing_floor')}; {COLUMNS['jt_specific']} {n('draft', 'specific_predicates')}; "
+            f"{COLUMNS['jt_other_share']} {n('draft', 'other_bucket_share', style='f3')}; "
+            f"{COLUMNS['jt_without_specific']} {n('draft', 'rows_without_specific')}; {COLUMNS['jt_candidates']} "
+            f"{n('draft', 'terms_candidates')}; {COLUMNS['jt_eligible']} {n('draft', 'terms_eligible')}; "
+            f"{COLUMNS['jt_placeholders']} {n('draft', 'placeholders')}")
+    doc.add(f"- {COLUMNS['jt_refused_categories']} {n('draft', 'refusal', 'categories')}; "
+            f"{COLUMNS['jt_refused_terms']} {n('draft', 'refusal', 'terms')}; {COLUMNS['jt_assignable']} "
+            f"{n('draft', 'refusal', 'assignable')}; {COLUMNS['jt_within_cap']} {n('draft', 'refusal', 'within_cap')}")
+    doc.add(f"- {COLUMNS['jt_hand_predicates']} {n('term_counts', 'hand_predicates')}; {COLUMNS['jt_reached']} "
+            f"{n('term_counts', 'reached')}; {COLUMNS['jt_empty']} {n('term_counts', 'empty')}; "
+            f"{COLUMNS['jt_terms_min']} {n('term_counts', 'terms_min')}; {COLUMNS['jt_terms_median']} "
+            f"{n('term_counts', 'terms_median')}; {COLUMNS['jt_terms_max']} {n('term_counts', 'terms_max')}; "
+            f"{COLUMNS['jt_terms_total']} {n('term_counts', 'terms_total')}")
+    for key, column in (("p_draft", "jt_p_draft"), ("p_d", "jt_p_d"), ("hand", "jt_hand")):
+        doc.add(f"- {COLUMNS[column]}: " + "; ".join(
+            f"{code(name)} {code(short(_get(jt, key, name)))}" for name in JT_HASH_KEYS))
+    doc.add(f"- {COLUMNS['jt_code']}: " + "; ".join(
+        f"{code(name)} {code(short(_get(jt, 'code', name)))}" for name in JT_CODE_KEYS) + "; " + "; ".join(
+        f"{code(name)} {code(short(_get(jt, 'code', 'data_sha256', name)))}" for name in ("defaults", "lang_en")))
+    doc.add(f"- {COLUMNS['jt_check_passed']} {yes_no(_get(jt, 'check', 'passed'))}; {COLUMNS['jt_wall_s']} "
+            f"{n('step', 'wall_s', style='f1')}; {COLUMNS['jt_draft_wall_s']} {n('step', 'draft_wall_s', style='f1')}; "
+            f"{COLUMNS['jt_peak_rss']} {n('step', 'peak_rss_kib')}")
+    checks = _get(jt, "check", "checks")
+    if isinstance(checks, dict):
+        doc.table(["jt_check", "passed", "jt_check_failures"], lambda: (
+            [code(name, table=True), yes_no(_get(block, "passed")), n("check", "checks", name, "failures")]
+            for name, block in checks.items()))
+    doc.add("\n" + JT_TERMS_NOTE)
+
+
+def _jt_tables(doc: _Doc, src: Sources, jt: dict[str, Any]) -> None:
+    """The report's term run section: its label, its lines (:func:`_jt_lines`) or the reason it has none."""
+    _heading(doc, "jt", 4)
+    doc.add("\n" + ids(JT_LABEL))
+    if jt.get("reason") is not None:
+        doc.add(f"\n- {COLUMNS['reason']}: {code(jt.get('reason'))}")
+        return
+    _jt_lines(doc, src, "report.json", jt, verified=jt.get("verified"), report=True)
 
 
 def _l1_question_table(doc: _Doc, src: Sources, f: str, base: tuple[Any, ...], questions: Any,
@@ -856,13 +938,15 @@ def render_report(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[d
     j2 = report.get("j2") if isinstance(report.get("j2"), dict) else None
     j3 = report.get("j3") if isinstance(report.get("j3"), dict) else None
     l1 = report.get("l1") if isinstance(report.get("l1"), dict) else None
+    jt = report.get("jt") if isinstance(report.get("jt"), dict) else None
     for cls in CLASS_ORDER:
         if (any(u.get("display_class") == cls for _, u in units) or (e1 is not None and e1.get("display_class") == cls)
                 or (j1 is not None and j1.get("display_class") == cls)
                 or (j2 is not None and j2.get("display_class") == cls)
                 or (j3 is not None and j3.get("display_class") == cls)
-                or (l1 is not None and l1.get("display_class") == cls)):
-            _class_section(doc, src, cls, units, rows, e1, j1, l1, j2, j3)
+                or (l1 is not None and l1.get("display_class") == cls)
+                or (jt is not None and jt.get("display_class") == cls)):
+            _class_section(doc, src, cls, units, rows, e1, j1, l1, j2, j3, jt)
     sizing = rows("sim_sizing")
     if sizing:
         _sizing_section(doc, src, sizing)
@@ -904,7 +988,8 @@ def render_report(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[d
 def _class_section(doc: _Doc, src: Sources, cls: str, units: list[tuple[int, dict[str, Any]]],
                    rows: Callable[[str], list[tuple[int, dict[str, Any]]]], e1: dict[str, Any] | None = None,
                    j1: dict[str, Any] | None = None, l1: dict[str, Any] | None = None,
-                   j2: dict[str, Any] | None = None, j3: dict[str, Any] | None = None) -> None:
+                   j2: dict[str, Any] | None = None, j3: dict[str, Any] | None = None,
+                   jt: dict[str, Any] | None = None) -> None:
     f = "report.json"
     _heading(doc, cls, 3)
     mine = [(i, u) for i, u in units if u.get("display_class") == cls]
@@ -979,6 +1064,8 @@ def _class_section(doc: _Doc, src: Sources, cls: str, units: list[tuple[int, dic
         _j3_tables(doc, src, j3)
     if l1 is not None and l1.get("display_class") == cls:
         _l1_tables(doc, src, l1)
+    if jt is not None and jt.get("display_class") == cls:
+        _jt_tables(doc, src, jt)
     latency = [(i, r) for i, r in rows("latency") if r.get("display_class") == cls]
     if latency:
         _heading(doc, "latency", 4)

@@ -102,6 +102,15 @@ checked against ``prereg/j3/prereg.json``, the document each unit's ``run.json``
 drawn record's payload text from the plan artifact's labels to recompute ``grounded``, inside this job only; no
 narrative or citation is copied.
 
+**JT** (``jt``; absent from the report without the term run's unit), accuracy test A003's term run (:func:`jt_block`,
+``docs/collective/A003/CHOICE-A003.md`` as amended, "The terms"): from the verified preregistration, the term set's
+sha256 (cross-checked against ``prereg/jt/prereg.json`` and the bytes of ``prereg/jt/terms.json``), the cutoff, the
+window, the makes, the archive, the export's and the drafting block's counts, the drafter's counts, the term counts,
+the check's result by check, P_draft's, P_D's and the hand pack's hashes, the code hashes and the step's wall time
+and peak memory; and the unit's reading of its ``verify.json`` (``verified`` only when the file says so and its
+sha256 and P_D hashes equal the preregistration's). Counts and hashes only: no term is copied. The key is left out of
+a report whose plan has no term run, so that a report of every other kind keeps its bytes (C30).
+
 **L1** (``l1``; null without L1 units), latency test L001 (:func:`l1_block`, ``docs/collective/L001/CHOICE-L001.md``
 with its amendments K1 to K13): from the verified preregistration, the operator (``c1``), the file's sha256 and whether
 it is the demo's, the audit's counts, the alert, each question's slot, kind, predicate, window, routes by role and
@@ -179,6 +188,7 @@ from . import hosted as lab_hosted
 from . import j1 as lab_j1
 from . import j2 as lab_j2
 from . import j3 as lab_j3
+from . import jt as lab_jt
 from . import l1 as lab_l1
 from . import l1score as l1_score
 from . import provision as lab_provision
@@ -1497,6 +1507,54 @@ def j3_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
     return block
 
 
+# --------------------------------------------------------------------------------------------------- JT
+
+JT_COPIED = ("cutoff", "window", "makes", "archive", "export", "drafting", "draft", "term_counts", "check", "p_draft",
+             "p_d", "hand", "code", "step")
+
+
+def jt_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]) -> dict[str, Any] | None:
+    """The report's ``jt`` block (None without the term run's unit); ``sources`` maps the unit to (its row, its
+    record, its shard root). It needs the verified preregistration whose ``jt`` block, ``prereg/jt/prereg.json`` and
+    the bytes of ``prereg/jt/terms.json`` agree on the term set's sha256 (else :data:`~lab.notes.PREREG_MISSING`).
+    It holds the term set's sha256 and the preregistration's figures (:data:`JT_COPIED`: counts, dates and hashes),
+    the unit's status and whether its ``verify.json`` verified the term set against the same sha256 and P_D's
+    hashes. No term, spelling, narrative or record id is copied."""
+    units = sorted((u for u in plan["units"] if u["experiment"] == "jt"), key=lambda u: u["unit"])
+    if not units:
+        return None
+    fallback = "plumbing" if plan.get("result_class") == "plumbing" else "no-model"
+    row, record, root = sources[units[0]["unit"]]
+    block: dict[str, Any] = {"label": "public_nhtsa_terms", "reason": None,
+                             "display_class": row["display_class"] if row["display_class"] != "no-result" else fallback,
+                             "unit": {k: row.get(k) for k in ("unit", "status", "status_reason")},
+                             "terms_sha256": None, "verified": None, "verify_checks": None,
+                             **dict.fromkeys(JT_COPIED)}
+    try:
+        prereg = load_prereg(plan_path)
+        manifest = prereg.manifest["jt"]
+        doc = strict_load((prereg.dir / manifest["prereg"]).read_bytes())
+        terms_sha = sha256_hex((prereg.dir / manifest["terms"]).read_bytes())
+        copied = {k: manifest[k] for k in JT_COPIED}
+    except (PreregError, OSError, StrictJsonError, KeyError, TypeError):
+        block["reason"] = PREREG_MISSING
+        return block
+    if not isinstance(doc, dict) or doc.get("terms_sha256") != terms_sha or manifest.get("terms_sha256") != terms_sha:
+        block["reason"] = PREREG_MISSING
+        return block
+    block.update(copied, terms_sha256=terms_sha)
+    if record is not None and root is not None and row["display_class"] != "no-result":
+        verify = _read(root / "runs" / "jt" / row["run_id"] / lab_jt.VERIFY_RESULT)
+        if isinstance(verify, dict) and verify.get("kind") == lab_jt.VERIFY_KIND:
+            checks = verify.get("checks") if isinstance(verify.get("checks"), dict) else {}
+            block["verify_checks"] = {k: checks.get(k) is True for k in lab_jt.VERIFY_CHECKS}
+            block["verified"] = (verify.get("verified") is True and verify.get("terms_sha256") == terms_sha
+                                 and verify.get("p_d") == manifest.get("p_d"))
+    if block["verified"] is None:
+        block["verified"] = False
+    return block
+
+
 # --------------------------------------------------------------------------------------------------- L1
 
 def _l1_called(root: Path, unit: dict[str, Any]) -> bool:
@@ -2002,6 +2060,7 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
     j1_sources: dict[str, E1Source] = {}
     j2_sources: dict[str, E1Source] = {}
     j3_sources: dict[str, E1Source] = {}
+    jt_sources: dict[str, E1Source] = {}
     l1_sources: dict[str, E1Source] = {}
     l1_refused = l1_reruns(plan, roots, {s: root for s, (_, root) in states.items()})
     samples: dict[tuple[Any, ...], list[float]] = {}
@@ -2029,6 +2088,8 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
             j2_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
         if unit["experiment"] == "j3":
             j3_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
+        if unit["experiment"] == "jt":
+            jt_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
         if unit["experiment"] == "l1":
             l1_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
         if unit["experiment"] == "e2" and record is not None:
@@ -2086,6 +2147,7 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
     j2 = j2_block(plan, plan_path, j2_sources)
     j3 = j3_block(plan, plan_path, j3_sources)
     l1 = l1_block(plan, plan_path, l1_sources, l1_refused, reaggregation is not None)
+    jt = jt_block(plan, plan_path, jt_sources)
     sealed_roots = [root for state, root in (states[s["shard"]] for s in plan["shards"])
                     if state == "sealed" and root is not None]
     sealed = [root.path for root in sealed_roots]
@@ -2109,6 +2171,8 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
         "skipped": plan.get("skipped", []), "ignored_artifacts": ignored,
         "hosted": hosted,
         "reaggregation": reaggregation_stamp(reaggregation, sealed_roots) if reaggregation is not None else None,
+        # the term run's block only when the plan holds its unit, so every other report keeps its bytes (C30)
+        **({"jt": jt} if jt is not None else {}),
     }
     return report, merged
 
