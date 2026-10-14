@@ -2,8 +2,8 @@
 
 Every number below is copied from a lab report printed in a GitHub Actions job log (between
 `=== MYCELIC-LAB … BEGIN/END ===` markers), from a shard's own summary or, for the vehicle replay, from its audit
-printed between `VEHICLE-AUDIT` markers. Each row names its run. **Synthetic data, except runs 3, 4, 6, 7, 9, 10 and
-11 and the vehicle replay**: their records are public FDA reports, NHTSA complaints and MSHA accident records; every other
+printed between `VEHICLE-AUDIT` markers. Each row names its run. **Synthetic data, except runs 3, 4, 6, 7, 9, 10, 11
+and 12 and the vehicle replay**: their records are public FDA reports, NHTSA complaints and MSHA accident records; every other
 record and narrative was generated from a seed. **Runner hardware only**: one shared 4-vCPU GitHub-hosted runner per
 shard, whose CPU model varies between shards; compare timings only between rows of the same CPU model, and never read
 them as site hardware. A unit without a result is listed with its reason, not left out.
@@ -494,6 +494,126 @@ differ by less than 0.5 s; the longest shard (`s011-a-4b`) took 1377.2 s of wall
 Runner hardware, not site hardware. Public data: the records are real public complaints the models may have seen in
 training; the answer key is the filed component codes, not checked labels. The first run is the result; the
 secondaries are hypotheses for the next cycle's rule, not results.
+
+## Run 12: accuracy-002 (the second cycle toward 86, a fresh draw of real complaints, levers 3 and 4): failure on the primary pair; the evidence field hurts, the best secondary is level with word matching
+
+The second pre-registered cycle of the accuracy loop: a-4b answers the site verifier's narrow question about 150
+fresh public NHTSA complaints (J001's and A001's 300 records excluded, codes hidden), each three times: under A001's
+negation instruction, under that instruction with an evidence field that asks for a verbatim passage of the record,
+and under it with an analysis field written before the answers. Each task's replies are read by the shipped verdict
+rule and, as declared secondaries, through a grounding check (a yes whose passage is not in the record read as a no),
+through the mapping that reads an unclear component answer as no, and in a composite that confirms wherever the
+lexical judge does. The primary pair, a-4b with the evidence field read as answered, scored balanced accuracy 0.540
+[0.503, 0.577] against 0.680 for the lexical judge on the same records (paired difference -0.140 [-0.190, -0.090]);
+the gap to the 0.860 target is 0.320, and by the rule the verdict is **failure**, as it is for the grounded arm, the
+primary under the other reading of the standing default. Asking for the evidence field hurt: -0.093 [-0.137, -0.053]
+against the negation instruction alone. The best secondary, the negation instruction read through the mapping
+(A001's arm D replicated), scored 0.687 [0.643, 0.730], a paired difference of 0.007 [-0.050, 0.063] to the lexical
+judge: not told apart, a hypothesis for the next cycle, never a result.
+[Run 38439612256](https://github.com/anovruzov/NeuralGraph/actions/runs/38439612256), request
+`lab/requests/accuracy-002.json` (sha `77173e537c9f`), commit `5a8f980`, 2026-10-13 17:33 to 18:23 UTC (plan job
+17:33:30 to 17:34:58; 5 shards 17:35:32 to 18:21:50; aggregate 18:21:53 to 18:23:04); rule
+`docs/collective/A002/CHOICE-A002.md`, committed in `b0f12bd` and amended once before any build (B1 to B25,
+`284b375`). Report from the `aggregate` job (115464859031): `report.md` sha256 `58325c34d6bf…` (144 lines), matching;
+`report.json` not verified, since its block begins before the readable tail of the job log. All 5 units `ok`, every
+task set 5 of 5 parts, no reply cut at its cap, 0 records left out; 9 (model, arm, cycle) comparisons this cycle, 21
+since the loop began.
+
+Public data: real NHTSA complaint narratives, read with each complaint's codes hidden and scored against the
+components it was filed under (filed codes, not checked labels). The draw is fresh: the plan job excluded J001's and
+A001's 300 records by five pre-registered sources (each cycle's plan artifact downloaded and read, each cycle's draw
+rebuilt from the complaint file as published on the day, and A001's chain file; all five `verified`, every
+consistency count 0, each cycle's set established by its own artifact), from 58,319 eligible records (58,019 after
+exclusion, overlap 0), and drew 150 with seed 3 (labels sha `0a64a62d94a7`, chain file sha `65d51f0fca51` with 450
+lines, complaint file sha `216ecb36f9f5`, where A001's day had `a5a5de2d31f3`). J001's code built 300 questions in 5
+parts (sha `84486fa38568`, prereg sha `47bba18a0d35`): one about a filed component and one about a component the record
+was not filed under, per record. The comparators ran in the plan job before any model: the lexical judge 0.680 [0.637,
+0.723] with 0 unknown verdicts, so ablation A ("yes wherever the lexical judge says yes, else no") is the lexical judge
+line for line, 0.680 [0.637, 0.723]; ablation B ("yes wherever the lexical judge says yes, else the record-blind
+control") 0.627 [0.573, 0.680]; the record-blind control 0.517 [0.460, 0.573]; the predicate-only bound 0.553. Model
+calls were made for the three tasks only (900 calls, 300 a task); the other six arms are readings of the same replies.
+
+| Judge | Arm | Balanced accuracy [95% interval] | Minus the lexical judge [interval] | Minus ablation A; minus ablation B [intervals] | Sensitivity | Specificity | Unknown share | Bound on the same records | Pass test | Verdict word |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Lexical judge | | 0.680 [0.637, 0.723] | | | | | | | | |
+| Record-blind control (decides nothing) | | 0.517 [0.460, 0.573] | | | | | | | | |
+| Predicate-only bound (decides nothing) | | 0.553 | | | | | | | | |
+| Ablation A (the composites' clause only) | | 0.680 [0.637, 0.723] | | | | | | | | |
+| Ablation B (the composites' clause only) | | 0.627 [0.573, 0.680] | | | | | | | | |
+| a-4b | negation | 0.633 [0.590, 0.677] | -0.047 [-0.103, 0.010] | | 0.907 | 0.360 | 0.090 | 0.553 | no | failure |
+| a-4b | negation, unclear read as no | 0.687 [0.643, 0.730] | 0.007 [-0.050, 0.063] | | 0.907 | 0.467 | 0.017 | 0.553 | no | failure |
+| **a-4b** | **evidence, as answered (the primary pair)** | **0.540 [0.503, 0.577]** | **-0.140 [-0.190, -0.090]** | | 0.900 | 0.180 | 0.130 | 0.553 | **no** | **failure** |
+| a-4b | evidence, grounding check (the headline secondary) | 0.553 [0.517, 0.590] | -0.127 [-0.177, -0.073] | | 0.887 | 0.220 | 0.130 | 0.553 | no | failure |
+| a-4b | evidence, grounding check, unclear read as no | 0.577 [0.543, 0.613] | -0.103 [-0.153, -0.053] | | 0.887 | 0.267 | 0.090 | 0.553 | no | failure |
+| a-4b | rationale | 0.590 [0.557, 0.623] | -0.090 [-0.140, -0.040] | | 0.980 | 0.200 | 0.143 | 0.553 | no | failure |
+| a-4b | rationale, unclear read as no | 0.610 [0.573, 0.647] | -0.070 [-0.123, -0.017] | | 0.980 | 0.240 | 0.120 | 0.553 | no | failure |
+| a-4b | composite: the lexical judge's yes, else the grounding-check arm | 0.570 [0.530, 0.610] | -0.110 [-0.160, -0.060] | -0.110 [-0.160, -0.060]; -0.057 [-0.123, 0.007] | 0.927 | 0.213 | 0.127 | 0.553 | no | failure |
+| a-4b | composite, unclear read as no | 0.593 [0.557, 0.630] | -0.087 [-0.137, -0.040] | -0.087 [-0.137, -0.040]; -0.033 [-0.097, 0.030] | 0.927 | 0.260 | 0.090 | 0.553 | no | failure |
+
+**By the pre-registered rule, the primary pair fails:** "P scored BA 0.540 [0.503, 0.577]; gap to 0.860 is 0.320;
+lexical 0.680 [0.637, 0.723]; bound 0.553." Its balanced accuracy is below the predicate-only bound's point value,
+and its interval against the lexical judge lies below zero. The headline for the evidence field is **worse** than the
+lexical judge, read as answered (upper end 0.577 against 0.680) and through the grounding check (upper end 0.590). The
+control arms sit beside A001's arms C and D on a fresh draw: negation 0.633 against 0.577, negation read through the
+mapping 0.687 against 0.653, both within the about 0.10 that the rule calls sampling between two independent draws;
+the lexical judge 0.680 against 0.663. The lifts between arms, paired by record over 150 records (a lift helps when its
+lower end is above 0, hurts when its upper end is below 0, else not told apart; they decide nothing toward the
+target):
+
+| Lift | Lever | Difference [95% interval] | Reading |
+|---|---|---|---|
+| E − N | the evidence field (with its schema and the 512-token cap) | -0.093 [-0.137, -0.053] | hurts |
+| Eg − E | the grounding check | 0.013 [0.003, 0.027] | helps |
+| Eg − N | the evidence field and the check | -0.080 [-0.123, -0.037] | hurts |
+| Egm − Eg | the mapping under the check | 0.023 [0.007, 0.040] | helps |
+| Egm − D | the evidence field and the check, under the mapping | -0.110 [-0.153, -0.067] | hurts |
+| R − N | the rationale field (with its schema and the 512-token cap) | -0.043 [-0.090, 0.003] | not told apart |
+| Rm − D | the rationale field under the mapping | -0.077 [-0.123, -0.030] | hurts |
+| D − N | the mapping under the negation instruction | 0.053 [0.030, 0.080] | helps |
+| C − Eg | the lexical judge's yes added to the grounded arm | 0.017 [0.000, 0.033] | not told apart |
+| Cm − Egm | the lexical judge's yes added to the mapped grounded arm | 0.017 [0.000, 0.033] | not told apart |
+| C − ablation A | the composite against "yes wherever the lexical judge says yes, else no" | -0.110 [-0.160, -0.060] | hurts |
+| C − ablation B | the composite against "yes wherever the lexical judge says yes, else the record-blind control" | -0.057 [-0.123, 0.007] | not told apart |
+| Cm − ablation A | the mapped composite against ablation A | -0.087 [-0.137, -0.040] | hurts |
+| Cm − ablation B | the mapped composite against ablation B | -0.033 [-0.097, 0.030] | not told apart |
+
+Read with sensitivity and specificity: the evidence field lowered a-4b's specificity from 0.360 to 0.180 at about the
+same sensitivity (0.907 to 0.900): asked for a passage, it refuted fewer negatives. The grounding check helped a
+little (specificity 0.180 to 0.220, sensitivity 0.900 to 0.887), keeping yes answers more often on positives than on
+negatives; the mapping helped under the check and under the negation instruction; the rationale field moved the
+answers toward yes (sensitivity 0.980, specificity 0.200). Both composites scored below ablation A, which here is the
+lexical judge: they inherit the lexical judge's yes and add verdicts that do worse than a no. Continue with the next
+lever.
+
+**The grounding check on the evidence task, and the replies per task (readings, not tests):**
+
+| Replies (evidence task) | Grounded share of yes answers on positives | On negatives | Empty-citation share | Citation length, median | Citation length, 95th percentile |
+|---|---|---|---|---|---|
+| 300 | 0.985 (133 of 135) | 0.933 (84 of 90) | 0.170 | 104.5 | 585.5 |
+
+| Task | First key is the new field (share) | Calls | Output tokens, median | Output tokens, 95th percentile | Replies cut at the cap |
+|---|---|---|---|---|---|
+| evidence | 1.000 | 300 | 38.0 | 143.0 | 0 |
+| rationale | 1.000 | 300 | 87.0 | 115.1 | 0 |
+| negation | n/a | 300 | 16.0 | 17.0 | 0 |
+
+**Latency (a measurement, not a test; one shared runner per shard; medians and 95th percentiles of the judge calls
+from the ledgers, per task; the CPU model as the report quotes it):**
+
+| Model | Runner CPU | Calls per task | Median ms, evidence / rationale / negation | 95th percentile ms, evidence / rationale / negation |
+|---|---|---|---|---|
+| a-4b | `AMD EPYC 7763 64-Core Processor` | 60 | 13646.9 / 18272.5 / 9297.1 | 28610.8 / 26965.2 / 16111.1 |
+| a-4b | `AMD EPYC 9V74 80-Core Processor` | 180 | 9466.4 / 14474.4 / 6645.3 | 25662.2 / 23430.1 / 13960.1 |
+| a-4b | `INTEL(R) XEON(R) PLATINUM 8573C` | 60 | 8381.1 / 16777.5 / 4909.1 | 17745.8 / 22974.3 / 7163.6 |
+
+Notes. The 5 shards ran on three CPU models: compare timings only within a CPU model, where the rationale task's
+median is the highest of the three and the negation task's the lowest; the longest shard (`s004-a-4b`) took 2735.4 s
+of wall time against a 300-minute budget, and every task set finished 5 of 5 parts. Runner hardware, not site
+hardware. Public data: the records are real public complaints the models may have seen in training; the answer key is
+the filed component codes, not checked labels. The first run is the result; the secondaries are hypotheses for the
+next cycle's rule, not results. A003's draft (efa79fe, in review) reads this run by its pre-registered adaptation
+rule: with the primary failed and the evidence field hurting, its base task is the negation instruction, with the
+mapping as its declared reading.
 
 ## Outside the lab: D001 and D002 (a pack drafted from an export alone, real data): passed on the second rule
 
