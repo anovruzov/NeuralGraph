@@ -262,8 +262,9 @@ Run in the build's last stage, on the tree of the build commit:
   `lab/j2labels.py`, `lab/j3.py`, `lab/j3labels.py`, `lab/shard.py`, `mycelic/`, `connectors/openfda.py`,
   `research/`, the vehicle pack, `tools/`, every `CHOICE-*.md`, `run-*.json` and `*-settings.json`) printed nothing;
   the only hunks of `lab/aggregate.py` and `lab/summary.py` since `ed96530` are insertions after `j3_block` and
-  `_j3_prereg_lines`, the docstrings, the imports, `ids`, and the class-section dispatch of `render_report` and
-  `_class_section` (one more argument and one more call);
+  `_j3_prereg_lines`, the docstrings, the imports, `ids`, the class-section dispatch of `render_report` and
+  `_class_section` (one more argument and one more call), `_prereg_section`'s jt call, and `build_report`'s source
+  loop, block call and report key (the sentence as first written left out the last two; corrected after review);
 - `flake8 --max-line-length 120 --select=F,E9,W6` on `lab/jt.py`, `tests/lab/j4_data.py`, `tests/lab/test_lab_jt.py`,
   `tests/lab/a002_golden.py` and `tests/lab/stubs/jt_stub.py` printed nothing (on the changed lab modules it prints
   only `lab/units.py:1204` F841, which `ed96530` already has).
@@ -275,38 +276,48 @@ Run in the build's last stage, on the tree of the build commit:
 
 ```
 plan: 1 units in 1 shards (real)
-jt export: archive_sha256 b4cf3aa79e3d2a3b0b1c33bc71f3272db68d3dcaba92022b1b1d354b5a965fc8 archive_bytes 327983 rows FORD=104 CHEVROLET=102 JEEP=102 HONDA=103 NISSAN=102 DODGE=102 pooled 615 cross_make_duplicates 1 earliest_received 2020-01-02 latest_received 2022-12-31
-jt drafting: rows 615 refs_sha256 8bc8364ce357bff33b120aabf635b91768e3849b035eaefc4193ba0974cf3714 drafting_refs_sha256 8bc8364ce357bff33b120aabf635b91768e3849b035eaefc4193ba0974cf3714 drafting_text_sha256 3e22d56587e94b5c3fef1ed1a38c9131df4cf8409f6d4c8f1dab52e8cbfd6c9f narratives 615 straddling 1
-jt draft: corpus 615 categories_passing_floor 10 specific_predicates 8 other_bucket_share 0.088 rows_without_specific 54 terms_candidates 907 terms_eligible 335 placeholders 0 refused_categories 0 refused_terms 0 assignable 0 within_cap 0
+jt export: archive_sha256 64ceaf17c20964b26487cc37c772b7acd25dcfdf84c961dd6a4a390eeb3e53fb archive_bytes 350681 rows FORD=119 CHEVROLET=118 JEEP=118 HONDA=119 NISSAN=117 DODGE=118 pooled 709 cross_make_duplicates 1 earliest_received 2020-01-01 latest_received 2022-12-31
+jt drafting: rows 709 refs_sha256 871e368496deea733f38ca63bbc3d2b711d0bc18d57a670f3b1cd4dffab119fb drafting_refs_sha256 871e368496deea733f38ca63bbc3d2b711d0bc18d57a670f3b1cd4dffab119fb drafting_text_sha256 8ec76c8661175c6731715e5e85cf0a843d669b8351b17acd12b19c4dd3dcac7c narratives 707 straddling 2
+jt draft: corpus 709 categories_passing_floor 11 specific_predicates 9 other_bucket_share 0.076 rows_without_specific 54 terms_candidates 987 terms_eligible 374 placeholders 1 refused_categories 0 refused_terms 6 assignable 6 within_cap 6
 jt check: passed yes loader=passed ngram=passed refused_strings=passed refused_terms=passed template=passed term_floor=passed value_floor=passed
-jt terms: hand_predicates 26 reached 7 empty 19 terms_min 4 terms_median 4 terms_max 7 terms_total 33 p_draft_config_hash 95521bfd18f58a87a3651a5d82409d0cc1c122bd28bfce05745227971c0e0377 p_draft_vocabulary_hash 14b7c19043a5d80f19b2869110a1a4c160e409475533c79650b699c6780e902c p_draft_detector_hash 39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416 p_draft_fixtures_hash 0be097e49385ef4dfd81f0e51c3cffc37ac2bc11de6ac94aaba2453b2ba532f4 p_d_config_hash e842fee4aa5155243f93a6f6a1c27a6824596010fda78ef10a005343fa1b7354 p_d_vocabulary_hash 924379d16f66bb1b8482fdb2f2c9ab022cdcd5685e1f9c35cb9b3016b5355588 p_d_detector_hash 325b125afa2d8ae473384ed5802b6dd284a93ad3e83c853a065e8c5fb4582779 p_d_fixtures_hash 9d9d8bd6770efc127edbbc7cb79d75524655719f949cb6da4ce83d51cdec1e8f hand_config_hash a588e72d7dbd0307d42234ceb79a85a915f0454d947469a4bfa0a42595f2f7bd hand_vocabulary_hash 867df7fc83c556e267842f219e1087b4bbd6af052ff5d201206d0aa8c789aa96 hand_detector_hash 325b125afa2d8ae473384ed5802b6dd284a93ad3e83c853a065e8c5fb4582779 hand_fixtures_hash 9d9d8bd6770efc127edbbc7cb79d75524655719f949cb6da4ce83d51cdec1e8f onboard_code_hash a1cf1bf6d4202823c4ab11d28d49fc46926319e897379964bc3f89d77b7f9c0b defaults_sha256 9ca66ffc98580f3e2f22da8d702b943db52ba198c79be14e763bd97ad8efc95b lang_en_sha256 9c76178a457bba9d4d9f98460a4d8263f5112b048b978cf651a46162bbd10cdb jt_code_hash ac47010e9ec552ce5cd481d914b7803e4302aea5f290fe89523bc6bfe49e9366 terms_sha256 dd917796dae8be131e5d4b1b4a192843b8aada2c10ec310ec8e6495cf845cdb4
-jt step: wall_s 0.5 draft_wall_s 0.4 draft_timeout_s 900 peak_rss_kib 36284
+jt terms: hand_predicates 26 reached 8 empty 19 terms_min 0 terms_median 5 terms_max 9 terms_total 41 p_draft_config_hash 1c463c3cbce2544ea4c4f8a91b4499c85a1da8e2fdf2733a1ba693ee1154eaae p_draft_vocabulary_hash 7732443a016fc6e0a4f7b2a26fcb64068956531b568833a95e435c97881b4dde p_draft_detector_hash 39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416 p_draft_fixtures_hash f1cc423d0f97042b8b7c9b9c5ca35082307586a30cb4c2c57ee68b8419720e54 p_d_config_hash 22b9079fd68266413d6988185ac7f754590e4c8de4ffc191e8ace9665c3a16cc p_d_vocabulary_hash 6ce58f6393623d82a54dfcde2eb59d25da2c6552bb5e00efa174b6d3ae281420 p_d_detector_hash 325b125afa2d8ae473384ed5802b6dd284a93ad3e83c853a065e8c5fb4582779 p_d_fixtures_hash 9d9d8bd6770efc127edbbc7cb79d75524655719f949cb6da4ce83d51cdec1e8f hand_config_hash a588e72d7dbd0307d42234ceb79a85a915f0454d947469a4bfa0a42595f2f7bd hand_vocabulary_hash 867df7fc83c556e267842f219e1087b4bbd6af052ff5d201206d0aa8c789aa96 hand_detector_hash 325b125afa2d8ae473384ed5802b6dd284a93ad3e83c853a065e8c5fb4582779 hand_fixtures_hash 9d9d8bd6770efc127edbbc7cb79d75524655719f949cb6da4ce83d51cdec1e8f onboard_code_hash a1cf1bf6d4202823c4ab11d28d49fc46926319e897379964bc3f89d77b7f9c0b defaults_sha256 9ca66ffc98580f3e2f22da8d702b943db52ba198c79be14e763bd97ad8efc95b lang_en_sha256 9c76178a457bba9d4d9f98460a4d8263f5112b048b978cf651a46162bbd10cdb jt_code_hash f5743df58d418643ef231db62485219024cbb761cb22f8889e268b589e723d76 terms_sha256 a5841e66d6b9ef564ef012eac3602bc4402ecbb52c03ea3ab9966f231c2d3c65
+jt step: wall_s 0.5 draft_wall_s 0.4 draft_timeout_s 900 peak_rss_kib 36780
 prereg: e1 no x1 no e2 no j1 no jt yes
 lab: unit jt status ok class no-model exit 0 wall_s 0.2
 lab: aggregate units 1 shards 1 class real measurements false lock unchanged
 ```
 
-One unit in one model-free shard, nothing provisioned; the export of 615 rows (the drafting block of six makes and the
-three cases of C4 and C28) with one cross-make duplicate dropped and one straddling complaint; 10 categories passing
-the floor, 8 of them specific predicates (the seven the hand pack maps and one it does not; the other two are the
-non-specific catch-all and one below the 50-record minimum); the check passed by check; 7 of the 26 hand predicates
-reached, 19 left empty; P_D's detector and fixtures hashes equal to the hand pack's; the unit verified the term set (`ok`, measurement class `no-model`; the
-report's display class is `plumbing`, as every dry-run record is). No term, category spelling, drafting record id,
-state or vehicle appears in the console, in either summary, in the report or in any shard file: a scan of the dry
-run's output directory outside `plan/prereg/jt/` and of its stdout for the 33 synthetic terms and the 615 drafting ids
-found none. The synthetic archive's entry carries a fixed timestamp (`j4_data.ZIP_DATE`), so its sha256 and every
-figure above repeat from one generation to the next; `jt_code_hash` and `terms_sha256` change with `lab/jt.py`.
+The figures are the fixed tree's (the fix stage re-ran the dry run on the extended synthetic archive; the build
+commit's run, on the earlier archive, printed 615 rows, `straddling 1`, 7 reached predicates, 0 placeholders and
+`terms_sha256 dd917796…`). One unit in one model-free shard, nothing provisioned; the export of 709 rows (the drafting
+block of six makes, the boundary complaints of 2020-01-01 and 2022-12-31, and the cases of C4 and C28), its earliest
+and latest received dates exactly the window's ends, one cross-make duplicate dropped and two straddling complaints;
+707 distinct narratives (the two straddling complaints share one, and so do the two boundary complaints); 11
+categories passing the floor, 9 of them specific predicates (the eight the hand pack maps and one it does not; the
+other two are the non-specific catch-all and one below the 50-record minimum); one placeholder (the smaller twin,
+reached with no term, its T entry empty); the six make words refused (`refused_terms 6`, all assignable and within the
+cap); the check passed by check; 8 of the 26 hand predicates reached, 19 left empty (the 18 unreached and the smaller
+twin); P_D's detector and fixtures hashes equal to the hand pack's; the unit verified the term set (`ok`, measurement
+class `no-model`; the report's display class is `plumbing`, as every dry-run record is). No term, category spelling,
+drafting record id, state or vehicle appears in the console, in either summary, in the report or in any shard file:
+`DryRunTests.test_no_term_leaves_the_term_files` scans the dry run's output directory outside `plan/prereg/jt/` and
+its stdout for the synthetic terms and the drafting ids and finds none. The synthetic archive's entry carries a fixed
+timestamp (`j4_data.ZIP_DATE`), so its sha256 and every figure above repeat from one generation to the next (two runs
+gave the same `terms_sha256`); `jt_code_hash` and `terms_sha256` change with `lab/jt.py`.
 
 ### Known limits of the build
 
-- No real term run happened: the drafter, the check and the pooled export ran on 615 synthetic rows. On the real
+- No real term run happened: the drafter, the check and the pooled export ran on 709 synthetic rows. On the real
   archive the pooled corpus is the union of D002's six training corpora; the step's time and memory are measured by
   the term run itself (the `jt step:` line) and the amendment records them (C11). If the draft does not fit in 900
   seconds or in the runner's memory, the plan stops with `JT_DRAFT_FAILED` and the remedy is a reviewed workflow
   change, never a drafter parameter.
 - The step's wall time includes the archive's download when the term run is the first reader of the cached fetch (it
   is, in a jt plan).
-- The peak resident memory is the draft subprocess's own; the parent's export in memory is not counted in it.
+- The peak resident memory is the draft subprocess's own; the parent's export in memory is not counted in it. On a
+  stop, the `jt step: stopped` line's `children_peak_rss_kib` is the largest peak of any finished child of the
+  `lab.prereg` process (`RUSAGE_CHILDREN`): in a term-only plan job the draft is the only such child, so it is the
+  killed draft's figure; in a test process it can be another child's.
 - `straddling` reads the raw archive with no product filter (see the choices); the judging run's removal by record id
   (C4, build 2) is what acts on it.
 - The verify unit runs at the shard's commit, which in one run is the plan's: it cannot catch a term artifact read at
