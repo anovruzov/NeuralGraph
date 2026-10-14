@@ -6,6 +6,7 @@ cost-weighted rate limiting over REST and inside MCP batches, and its documentat
 from __future__ import annotations
 
 import asyncio
+import gc
 import itertools
 import json
 import re
@@ -243,6 +244,14 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
             w.principal(f"a{j}")                               # each agent's last-seen touch is written now, not below
         await asyncio.sleep(0.05)
         s.store._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")    # nor the checkpoint of the build's writes
+        # nor the collector's full passes over objects older than the window: a pass stops every thread, the loop's
+        # included, for as long as it takes to scan every tracked object, the 3005-node world above and, in a suite
+        # run, every earlier test's leftovers (passes of 0.15 s that freed nothing were measured inside this window in a
+        # tests/mycelic run). Frozen, those objects are left out of the passes, so a pass in the window costs what the
+        # window's own objects cost; a walk run on the loop would still hold it for a whole walk.
+        gc.collect()
+        gc.freeze()
+        self.addCleanup(gc.unfreeze)
         peers = itertools.count()
 
         def headers(agent_id: str) -> dict[str, str]:
