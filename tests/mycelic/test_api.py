@@ -229,6 +229,18 @@ async def wide_world(test: unittest.IsolatedAsyncioTestCase, notes: int = 100, *
     return w, top
 
 
+def freeze_older_objects(test: unittest.TestCase) -> None:
+    """Leaves every object made so far out of the collector's full passes until ``test`` ends.  A full pass stops every
+    thread, the loop's included, for as long as it takes to scan every tracked object: the 3005-node world and, in a
+    suite run, every earlier test's leftovers (passes of 0.15 s that freed nothing were measured inside a loop timing
+    window in a tests/mycelic run, and CI saw stalls of 0.255 and 0.258 s against bounds of 0.244 and 0.242 s).  Frozen,
+    those objects are not scanned, so a pass in the window costs what the window's own objects cost; a walk run on the
+    loop would still hold it for a whole walk."""
+    gc.collect()
+    gc.freeze()
+    test.addCleanup(gc.unfreeze)
+
+
 class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
     async def test_verification_never_holds_the_event_loop(self) -> None:
         asyncio.get_running_loop().set_debug(False)       # a timing test: without the test runner's debug bookkeeping
@@ -244,14 +256,7 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
             w.principal(f"a{j}")                               # each agent's last-seen touch is written now, not below
         await asyncio.sleep(0.05)
         s.store._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")    # nor the checkpoint of the build's writes
-        # nor the collector's full passes over objects older than the window: a pass stops every thread, the loop's
-        # included, for as long as it takes to scan every tracked object, the 3005-node world above and, in a suite
-        # run, every earlier test's leftovers (passes of 0.15 s that freed nothing were measured inside this window in a
-        # tests/mycelic run). Frozen, those objects are left out of the passes, so a pass in the window costs what the
-        # window's own objects cost; a walk run on the loop would still hold it for a whole walk.
-        gc.collect()
-        gc.freeze()
-        self.addCleanup(gc.unfreeze)
+        freeze_older_objects(self)                                   # nor full passes over objects older than the window
         peers = itertools.count()
 
         def headers(agent_id: str) -> dict[str, str]:
@@ -332,6 +337,7 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
             w.principal(f"a{j}")
         await asyncio.sleep(0.05)
         s.store._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        freeze_older_objects(self)                                   # nor full passes over objects older than the window
         peers = itertools.count()
 
         def headers(agent_id: str) -> dict[str, str]:
