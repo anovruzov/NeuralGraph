@@ -8,13 +8,23 @@ A002's questions prefix (C3), the term artifact's check with every outcome (C29)
 (C4), the draw disjoint from the three synthetic draws with its chain file, ``lab/jt.py``'s frozen code hash (T7), and
 the runner through the repo's fake model server (two passes, task D first; task B first in the confirmation case).
 
+Build 2, stage 2 (the wiring, C27): the request block's errors and the template, ``plan_outputs`` on a j4, a j3, a j2
+and another plan, the template's 5 units in 5 shards, the unit adapter (the status with ``J4_TERMS_STOPPED``, the
+required task, ``--terms``, the routing of the branch's two tasks, a unit run on the fake provider), both fake handlers,
+the warm-up's two tasks with the probe task B and the terms in task D's payloads (C12), the two new workflow steps,
+``lab.prereg``'s J4 step and its fixed lines, the aggregate's verdict words and its manifest cross-check, the notes
+free of digits, the data flags, and the small and the template dry runs with every number traced and no ref or term
+anywhere a reader looks.
+
 Nothing here measures a model: every server is the collective's fake, every archive and artifact is
 ``tests/lab/j4_data.py``'s (every value invented), no earlier run's or term run's artifact is downloaded and no NHTSA
 host is reached. The synthetic terms are compared, never printed.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import io
 import itertools
 import json
 import re
@@ -25,6 +35,8 @@ from pathlib import Path
 from typing import Any, Callable
 from unittest import mock
 
+from lab import aggregate as lab_aggregate
+from lab import dryrun as lab_dryrun
 from lab import j1 as lab_j1
 from lab import j2 as lab_j2
 from lab import j2labels
@@ -35,10 +47,18 @@ from lab import j4labels
 from lab import j4terms
 from lab import jt as lab_jt
 from lab import notes
+from lab import plan as lab_plan
+from lab import prereg as lab_prereg
+from lab import request as lab_request
+from lab import summary as lab_summary
+from lab import units
+from lab import warmup as lab_warmup
 from lab.goldlabels import NHTSA_PACK
+from lab.manifest import load_manifest
 from lab.notes import J4_SPLIT_VIOLATED, J4_TERMS_UNVERIFIED
 from lab.prereg import PLACEHOLDER_BASE_URL
-from lab.responder import Responder
+from lab.request import RequestError
+from lab.responder import Responder, ResponderError
 from mycelic.collective.edge.verify import JUDGE_MAX_TOKENS, JUDGE_TASK, decide, judge_schema, lexical_judge
 from mycelic.collective.experiments.common import code_hash as common_code_hash
 from mycelic.collective.inference.fakeserver import FakeOpenAIServer, request_payload
@@ -49,7 +69,8 @@ from mycelic.collective.onboard.check import term_presence
 from mycelic.collective.packs import loader
 from mycelic.collective.packs.canonical import Canonicaliser, folded
 from tests.lab import j2_data, j3_data, j4_data
-from tests.lab.helpers import MANIFEST_TEST, ROOT, call_main, kill_mentioning, write_json
+from tests.lab.helpers import (LAB_MANIFEST, MANIFEST_TEST, PLUMBING_MIN, ROOT, TEMPLATES, DryTree, call_main,
+                               check_sources, kill_mentioning, run_plan, write_json)
 
 PACK = loader.load_pack(ROOT / NHTSA_PACK)
 CHOICE = ROOT / "docs" / "collective" / "A003" / "CHOICE-A003.md"
@@ -143,7 +164,7 @@ class _Data:
 
 
 def tearDownModule() -> None:
-    for holder in (_Data, _Artifacts, _Plan):
+    for holder in (_Data, _Artifacts, _Plan, _Prereg4, _DryRun4):
         if holder.tmp is not None:
             kill_mentioning(str(holder.tmp))
             shutil.rmtree(holder.tmp, True)
@@ -2155,3 +2176,1087 @@ class RunTests(unittest.TestCase):
         code, _, err, run = self.run_j4(self.argv(plan, good, run_id="pin-good"))
         self.assertEqual((code, run.exists()), (0, True), err)
         self.assertEqual(len(server.chat_requests), 80)
+
+
+# =================================================================================================== stage 2: wiring
+
+LABELS = {"source": "nhtsa", "pack": NHTSA_PACK, "n": 40, "seed": 4}
+TEMPLATE = TEMPLATES / "accuracy-003.json"
+
+
+def template() -> dict[str, Any]:
+    return read_json(TEMPLATE)
+
+
+def j4_block(**changes: Any) -> dict[str, Any]:
+    """A J4 block of 40 records in 2 parts with the template's three exclude entries and term entry (the real runs';
+    the dry runs' stand-ins replace them)."""
+    t = template()["experiments"]["j4"]
+    block = {"minutes": 5, "labels": dict(LABELS), "parts": 2, "seed": 4, "bootstrap_b": 1000, "bootstrap_seed": 4,
+             "base_task": "negation", "exclude": t["exclude"], "terms": t["terms"],
+             "primary": {"model": "fake-b", "arm": "negation_terms"}, "comparisons_before": 21}
+    block.update(changes)
+    return block
+
+
+def small_request(**changes: Any) -> dict[str, Any]:
+    """A J4 request of two gguf models for the dry run on the fake provider (the template's shape, 40 records in 2
+    parts); ``--j4-data`` stands in for its ``exclude`` and ``terms`` entries."""
+    block = j4_block(primary={"model": "a-4b", "arm": "negation_terms"})
+    block.update(changes)
+    return {"schema_version": 1, "purpose": "Accuracy test A003's judging run, plumbing on two models and forty records.",
+            "provider": "llama-server", "models": ["a-1p5b", "a-4b"], "job_minutes": 60, "max_parallel": 4,
+            "retention_days": 30, "experiments": {"j4": block}}
+
+
+def drafting_refs(data_dir: Path) -> set[str]:
+    """The synthetic term run's drafting record ids (its ``drafting_refs.jsonl``)."""
+    path = data_dir / "terms" / str(j4_data.TERMS_RUN_ID) / "prereg" / "jt" / "drafting_refs.jsonl"
+    return {line["record_ref"] for line in read_lines(path)}
+
+
+def payload_texts(directory: Path) -> dict[str, str]:
+    """Each drawn record's payload text (``lab.j1.payload``) by record ref."""
+    records = {r["record_ref"]: r for r, _ in lab_j1.parse_labels((directory / "labels.jsonl").read_bytes())}
+    out: dict[str, str] = {}
+    for q in lab_j1.read_questions((directory / "questions.jsonl").read_bytes()):
+        if q["record_ref"] not in out:
+            out[q["record_ref"]] = lab_j1.payload(PACK, q, records[q["record_ref"]])["record"]["text"]
+    return out
+
+
+class _Prereg4:
+    """A J4 plan of two fake models (40 records in 2 parts) planned with the template's entries and preregistered in
+    this process with the test data standing in for the three earlier runs and the term run, as ``lab.dryrun
+    --j4-data`` hands them to ``lab.prereg``."""
+
+    tmp: Path | None = None
+
+    @classmethod
+    def get(cls) -> "type[_Prereg4]":
+        if cls.tmp is None:
+            d = _Data.get()
+            cls.tmp = Path(tempfile.mkdtemp(prefix="lab-j4-prereg-"))
+            request = json.loads(PLUMBING_MIN.read_text(encoding="utf-8"))
+            request["experiments"] = {"j4": j4_block()}
+            cls.request_path = write_json(cls.tmp / "j4-test.json", request)
+            code, _, err = run_plan(["--request", str(cls.request_path), "--manifest", str(MANIFEST_TEST),
+                                     "--out", str(cls.tmp / "plan")])
+            assert code == 0, err
+            cls.plan_path = cls.tmp / "plan" / "plan.json"
+            cls.plan = read_json(cls.plan_path)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                cls.manifest = lab_prereg.preregister(cls.plan_path, nhtsa_fetch=lambda: ARCHIVE,
+                                                      earlier_plans=d.dir / "earlier", exclude_stand_in=d.entries,
+                                                      terms_plans=d.dir / "terms", terms_stand_in=d.term_entry)
+            cls.stdout = out.getvalue()
+            cls.dir = cls.tmp / "plan" / "prereg" / "j4"
+            cls.prereg = lab_prereg.load_prereg(cls.plan_path)
+        return cls
+
+
+class _DryRun4:
+    """``lab.dryrun`` with ``--j4-data`` (every source and the term set verify on the stand-ins), the shards on the
+    fake provider, made once per request."""
+
+    made: dict[str, "_DryRun4"] = {}
+    tmp: Path | None = None
+
+    def __init__(self, request: Path, name: str) -> None:
+        assert _DryRun4.tmp is not None
+        root = _DryRun4.tmp / name
+        self.data = j4_data.write_data(root / "data")
+        self.out = root / "D"
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            self.code = lab_dryrun.main(["--request", str(request), "--out", str(self.out), "--manifest",
+                                         str(LAB_MANIFEST), "--j4-data", str(self.data)])
+        self.stdout, self.stderr = stdout.getvalue(), stderr.getvalue()
+        self.plan = read_json(self.out / "plan" / "plan.json")
+        self.report = read_json(self.out / "report" / "report.json")
+        self.manifest = read_json(self.out / "plan" / "prereg" / "prereg.json")
+        prereg = self.out / "plan" / "prereg" / "j4"
+        self.drawn = refs_of((prereg / "labels.jsonl").read_bytes())
+        self.excluded = {line["record_ref"] for line in read_lines(prereg / "excluded.jsonl")}
+        self.drafting = drafting_refs(self.data)
+        entry = read_json(self.data / "terms-stand-in.json")
+        self.terms = {t for ts in j4terms.check_terms(self.data / "terms", entry).terms.values() for t in ts}
+
+    @classmethod
+    def get(cls, name: str) -> "_DryRun4":
+        if cls.tmp is None:
+            cls.tmp = Path(tempfile.mkdtemp(prefix="lab-j4-dry-"))
+        if name not in cls.made:
+            if name == "small":
+                request = write_json(cls.tmp / "accuracy-small.json", small_request())
+            else:
+                request = TEMPLATE
+            cls.made[name] = cls(request, name)
+        return cls.made[name]
+
+    def public_texts(self) -> dict[str, str]:
+        """Everything a reader sees: the console, the plan and report summaries and their sources, the report."""
+        out = {"stdout": self.stdout, "stderr": self.stderr}
+        for rel in ("plan/summary.md", "plan/summary.sources.json", "report/report.md", "report/report.json",
+                    "report/report.sources.json"):
+            out[rel] = (self.out / rel).read_text(encoding="utf-8")
+        for path in sorted((self.out / "shards").glob("*/summary.md")):
+            out[path.relative_to(self.out).as_posix()] = path.read_text(encoding="utf-8")
+        return out
+
+
+class RequestTests(unittest.TestCase):
+    """``lab.request``'s j4 block (C23, C1, "The request") and the template."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.manifest = load_manifest(LAB_MANIFEST)
+
+    def error(self, change: Callable[[dict[str, Any]], None]) -> tuple[str, str]:
+        obj = template()
+        change(obj["experiments"]["j4"])
+        with self.assertRaises(RequestError) as caught:
+            lab_request.validate(obj, self.manifest)
+        return caught.exception.path, caught.exception.problem
+
+    def test_the_template(self) -> None:
+        obj = template()
+        out = lab_request.validate(obj, self.manifest)
+        block = obj["experiments"]["j4"]
+        self.assertEqual(out["experiments"], {"j4": {**block, "models": ["a-4b"]}})
+        self.assertEqual((obj["provider"], obj["models"], obj["job_minutes"], obj["max_parallel"],
+                          obj["retention_days"]), ("llama-server", ["a-4b"], 330, 5, 30))
+        self.assertEqual((block["minutes"], block["labels"], block["parts"], block["seed"], block["bootstrap_b"],
+                          block["bootstrap_seed"], block["base_task"], block["primary"], block["comparisons_before"]),
+                         (300, {"source": "nhtsa", "pack": NHTSA_PACK, "n": 150, "seed": 4}, 5, 4, 10000, 4,
+                          "negation", {"model": "a-4b", "arm": "negation_terms"}, 21))
+        self.assertEqual([(e["file"], e["rebuild_seed"], e.get("chain_file")) for e in block["exclude"]],
+                         [("prereg/j1/labels.jsonl", 1, None),
+                          ("prereg/j2/labels.jsonl", 2, "prereg/j2/excluded.jsonl"),
+                          ("prereg/j3/labels.jsonl", 3, "prereg/j3/excluded.jsonl")])
+        terms = block["terms"]
+        self.assertEqual((terms["file"], terms["cutoff"], terms["artifact"]),
+                         ("prereg/jt/terms.json", "2023-01-01", f"lab-plan-{terms['run_id']}-1"))
+        for key in ("sha256", "vocabulary_hash"):
+            self.assertRegex(terms[key], r"\A[0-9a-f]{64}\Z")
+        purpose = obj["purpose"]
+        self.assertLessEqual(len(purpose), 500)
+        for path in ("docs/collective/A003/CHOICE-A003.md", "lab/requests/accuracy-003.json"):
+            self.assertIn(path, purpose)
+            purpose = purpose.replace(path, "")
+        self.assertIsNone(re.search(r"[0-9]", purpose))
+        self.assertEqual(lab_request.EXPERIMENTS[-1], "j4")
+        self.assertEqual(lab_request._J4_KEYS, ("models", "minutes", "labels", "parts", "seed", "bootstrap_b",
+                                                "bootstrap_seed", "base_task", "exclude", "terms", "primary",
+                                                "comparisons_before"))
+        self.assertEqual(lab_request._J4_TERMS_KEYS, ("run_id", "artifact", "file", "sha256", "vocabulary_hash",
+                                                      "cutoff"))
+        self.assertFalse((ROOT / "lab" / "requests" / "accuracy-003.json").exists())
+
+    def test_the_errors(self) -> None:
+        p = "$.experiments.j4"
+
+        def drop(key: str) -> Callable[[dict[str, Any]], None]:
+            return lambda b: b.pop(key)
+
+        def entry(i: int, **changes: Any) -> Callable[[dict[str, Any]], None]:
+            def change(b: dict[str, Any]) -> None:
+                for key, value in changes.items():
+                    if value is None:
+                        b["exclude"][i].pop(key)
+                    else:
+                        b["exclude"][i][key] = value
+            return change
+
+        def terms(**changes: Any) -> Callable[[dict[str, Any]], None]:
+            def change(b: dict[str, Any]) -> None:
+                for key, value in changes.items():
+                    if value is None:
+                        b["terms"].pop(key)
+                    else:
+                        b["terms"][key] = value
+            return change
+
+        chain = {"chain_file": "prereg/j2/excluded.jsonl", "chain_sha256_prefix": "0" * 12}
+        cases = [
+            (lambda b: b.update(base_task="rationale"), f"{p}.base_task", lab_request.J4_BASE_PROBLEM),
+            (drop("base_task"), f"{p}.base_task", None),
+            (drop("terms"), f"{p}.terms", None),
+            (lambda b: b.update(exclude=b["exclude"][:2]), f"{p}.exclude", lab_request.J4_EXCLUDE_LIST_PROBLEM),
+            (lambda b: b.update(exclude=b["exclude"][0]), f"{p}.exclude", lab_request.J4_EXCLUDE_LIST_PROBLEM),
+            (entry(0, file="prereg/j2/labels.jsonl"), f"{p}.exclude[0].file", lab_request.J4_FILE_PROBLEMS[0]),
+            (entry(1, file="prereg/j3/labels.jsonl"), f"{p}.exclude[1].file", lab_request.J4_FILE_PROBLEMS[1]),
+            (entry(2, file="prereg/j2/labels.jsonl"), f"{p}.exclude[2].file", lab_request.J4_FILE_PROBLEMS[2]),
+            (entry(2, file="prereg/j4/labels.jsonl"), f"{p}.exclude[2].file", lab_request.J4_FILE_PROBLEM),
+            (entry(0, rebuild_seed=2), f"{p}.exclude[0].rebuild_seed", lab_request.J4_SEED_PROBLEM),
+            (entry(2, rebuild_seed=4), f"{p}.exclude[2].rebuild_seed", lab_request.J4_SEED_PROBLEM),
+            (entry(0, **chain), f"{p}.exclude[0].chain_file", lab_request.J4_CHAIN_FIRST_PROBLEM),
+            (entry(2, chain_file=None), f"{p}.exclude[2].chain_file", lab_request.J4_CHAIN_REQUIRED),
+            (entry(2, chain_sha256_prefix=None), f"{p}.exclude[2].chain_sha256_prefix", lab_request.J4_CHAIN_REQUIRED),
+            (entry(2, chain_file="prereg/j2/excluded.jsonl"), f"{p}.exclude[2].chain_file",
+             lab_request.J4_CHAIN_FILE_PROBLEMS[2]),
+            (entry(1, chain_file="prereg/j3/excluded.jsonl"), f"{p}.exclude[1].chain_file",
+             lab_request.J4_CHAIN_FILE_PROBLEMS[1]),
+            (entry(2, sha256_prefix="0a64"), f"{p}.exclude[2].sha256_prefix", lab_request.J2_SHA_PROBLEM),
+            (entry(2, artifact="lab-plan-1-1"), f"{p}.exclude[2].artifact", lab_request.J2_ARTIFACT_PROBLEM),
+            (terms(file="prereg/jt/terms.jsonl"), f"{p}.terms.file", lab_request.J4_TERMS_FILE_PROBLEM),
+            (terms(file="prereg/j4/terms.json"), f"{p}.terms.file", lab_request.J4_TERMS_FILE_PROBLEM),
+            (terms(sha256="42c591ccbb66"), f"{p}.terms.sha256", lab_request.J4_HEX_PROBLEM),
+            (terms(sha256="A" * 64), f"{p}.terms.sha256", lab_request.J4_HEX_PROBLEM),
+            (terms(vocabulary_hash="c0260f0edab4"), f"{p}.terms.vocabulary_hash", lab_request.J4_HEX_PROBLEM),
+            (terms(artifact="lab-plan-1-1"), f"{p}.terms.artifact", lab_request.J4_TERMS_ARTIFACT_PROBLEM),
+            (terms(cutoff="2024-01-01"), f"{p}.terms.cutoff", lab_request.JT_CUTOFF_PROBLEM),
+            (terms(cutoff=None), f"{p}.terms.cutoff", None),
+            (terms(extra="x"), f"{p}.terms.extra", None),
+            (lambda b: b["primary"].update(arm="negation"), f"{p}.primary.arm", lab_request.J4_PRIMARY_ARM_PROBLEM),
+            (lambda b: b["primary"].update(arm="negation_terms_mapped"), f"{p}.primary.arm",
+             lab_request.J4_PRIMARY_ARM_PROBLEM),
+            (lambda b: b["primary"].update(arm="evidence_terms"), f"{p}.primary.arm", None),
+            (lambda b: b["primary"].update(model="a-1p5b"), f"{p}.primary.model",
+             lab_request.J4_PRIMARY_MODEL_PROBLEM),
+            (lambda b: b.update(labels={**b["labels"], "source": "generator"}), f"{p}.labels", None),
+            (lambda b: b.update(comparisons_before=-1), f"{p}.comparisons_before", None),
+            (lambda b: b.update(parts=31), f"{p}.parts", None),
+        ]
+        for change, path, problem in cases:
+            with self.subTest(path=path, problem=problem):
+                got_path, got_problem = self.error(change)
+                self.assertTrue(got_path.startswith(path), (got_path, got_problem))
+                if problem is not None:
+                    self.assertEqual(got_problem, problem)
+
+    def test_the_confirmation_case_and_branch_e(self) -> None:
+        """C1: under base ``evidence`` the primary arm is ``evidence_terms`` or, in the confirmation case,
+        ``evidence``; no other arm of the branch, and no arm of the other branch."""
+        for arm in ("evidence_terms", "evidence"):
+            with self.subTest(arm=arm):
+                obj = template()
+                obj["experiments"]["j4"].update(base_task="evidence", primary={"model": "a-4b", "arm": arm})
+                out = lab_request.validate(obj, self.manifest)["experiments"]["j4"]
+                self.assertEqual((out["base_task"], out["primary"]["arm"]), ("evidence", arm))
+        for arm in ("evidence_grounded", "evidence_terms_grounded"):
+            with self.subTest(arm=arm):
+                path, problem = self.error(lambda b: b.update(base_task="evidence",
+                                                              primary={"model": "a-4b", "arm": arm}))
+                self.assertEqual((path, problem), ("$.experiments.j4.primary.arm", lab_request.J4_PRIMARY_ARM_PROBLEM))
+        path, _ = self.error(lambda b: b.update(base_task="evidence", primary={"model": "a-4b", "arm": "negation"}))
+        self.assertEqual(path, "$.experiments.j4.primary.arm")
+
+    def test_a_fake_model_is_accepted_and_a_hosted_one_refused(self) -> None:
+        manifest = load_manifest(MANIFEST_TEST)
+        obj = json.loads(PLUMBING_MIN.read_text(encoding="utf-8"))
+        obj["experiments"] = {"j4": j4_block()}
+        out = lab_request.validate(obj, manifest)["experiments"]["j4"]
+        self.assertEqual((out["models"], out["primary"]), (["fake-a", "fake-b"], {"model": "fake-b",
+                                                                                   "arm": "negation_terms"}))
+        obj["models"] = ["fake-a", "fake-b", "h-a"]
+        obj["hosted"] = {"h-a": {"max_calls": 10}}
+        obj["experiments"]["j4"]["models"] = ["fake-b", "h-a"]
+        with self.assertRaises(RequestError) as caught:
+            lab_request.validate(obj, manifest)
+        self.assertEqual(caught.exception.path, "$.experiments.j4.models[1]")
+
+
+class PlanWiringTests(unittest.TestCase):
+    """``lab.plan`` (C27): the template's units and shards, and the plan step's outputs on a j4, a j3, a j2 and
+    another plan."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tmp = Path(tempfile.mkdtemp(prefix="lab-j4-plans-"))
+        cls.plans: dict[str, dict[str, Any]] = {}
+        for name in ("accuracy-003.json", "accuracy-002.json", "accuracy.json", "check.json"):
+            out = cls.tmp / name
+            code, _, err = run_plan(["--request", str(TEMPLATES / name), "--manifest", str(LAB_MANIFEST),
+                                     "--out", str(out), "--github-output", str(cls.tmp / f"{name}.out")])
+            assert code == 0, (name, err)
+            cls.plans[name] = read_json(out / "plan.json")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        shutil.rmtree(cls.tmp, True)
+
+    def test_the_template_gives_five_units_in_five_shards(self) -> None:
+        plan = self.plans["accuracy-003.json"]
+        block = template()["experiments"]["j4"]
+        self.assertEqual([(u["unit"], u["experiment"], u["model"], u["minutes"]) for u in plan["units"]],
+                         [(f"j4-a-4b-p{k}", "j4", "a-4b", 300) for k in range(1, 6)])
+        self.assertEqual([(s["kind"], s["model"], s["units"], s["planned_minutes"]) for s in plan["shards"]],
+                         [("gguf", "a-4b", [f"j4-a-4b-p{k}"], 300) for k in range(1, 6)])
+        for k, unit in enumerate(plan["units"], 1):
+            params = unit["params"]
+            self.assertEqual((params["part"], params["parts"], params["base_task"], params["terms"],
+                              params["exclude"], params["primary"], params["comparisons_before"]),
+                             (k, 5, "negation", block["terms"], block["exclude"], block["primary"], 21))
+        self.assertEqual(lab_plan.exclude_entries(plan), block["exclude"])
+        self.assertEqual(lab_plan.terms_entry(plan), block["terms"])
+
+    def test_the_plan_outputs(self) -> None:
+        j4 = template()["experiments"]["j4"]
+        j3 = read_json(TEMPLATES / "accuracy-002.json")["experiments"]["j3"]
+        j2 = read_json(TEMPLATES / "accuracy.json")["experiments"]["j2"]
+        keys = ("j2_exclude_artifact", "j2_exclude_run_id", "j3_exclude_artifact_2", "j3_exclude_run_id_2",
+                "j4_exclude_artifact_3", "j4_exclude_run_id_3", "j4_terms_artifact", "j4_terms_run_id")
+        self.assertEqual([k for k in lab_plan.OUTPUT_KEYS if k.startswith(("j2_", "j3_", "j4_"))], list(keys))
+
+        def pairs(*entries: dict[str, Any] | None) -> tuple[str, ...]:
+            out: list[str] = []
+            for e in entries:
+                out += [e["artifact"], str(e["run_id"])] if e is not None else ["", ""]
+            return tuple(out)
+
+        expected = {
+            "accuracy-003.json": pairs(j4["exclude"][0], j4["exclude"][1], j4["exclude"][2], j4["terms"]),
+            "accuracy-002.json": pairs(j3["exclude"][0], j3["exclude"][1], None, None),
+            "accuracy.json": pairs(j2["exclude"], None, None, None),
+            "check.json": pairs(None, None, None, None),
+        }
+        for name, want in expected.items():
+            with self.subTest(plan=name):
+                outputs = lab_plan.plan_outputs(self.plans[name], "0" * 64)
+                self.assertEqual(sorted(outputs), sorted(lab_plan.OUTPUT_KEYS))
+                self.assertEqual(tuple(outputs[k] for k in keys), want)
+                written = (self.tmp / f"{name}.out").read_text(encoding="utf-8").splitlines()
+                for key, value in zip(keys, want):
+                    self.assertIn(f"{key}={value}", written)
+        self.assertEqual(tuple(lab_plan.plan_outputs(None, "")[k] for k in keys), pairs(None, None, None, None))
+
+
+class UnitWiringTests(unittest.TestCase):
+    """``lab.units`` (C27): the adapter, the status reading with J4_TERMS_STOPPED, the required task, the argv with
+    ``--terms``, the routing of the branch's two tasks, and a unit run through the fake provider."""
+
+    def setUp(self) -> None:
+        self.p = _Prereg4.get()
+        self.tmp = Path(tempfile.mkdtemp(prefix="lab-j4-unit-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def test_the_adapter_and_the_lists(self) -> None:
+        adapter = units.ADAPTERS["j4"]
+        self.assertEqual((adapter.module, adapter.routed_tasks, adapter.boundary, adapter.result_file,
+                          adapter.subcommand, adapter.deadline_s),
+                         ("lab.j4", lab_j4.ALL_TASKS, "site:lab", "run.json", "run", lab_j1.DEADLINE_S))
+        self.assertEqual(sorted(adapter.collect), ["ledger.jsonl", "run.json", "verdicts.jsonl"])
+        for name in ("PREREG_EXPERIMENTS", "REPLY_PARTICIPATION", "PASS_EXPERIMENTS"):
+            self.assertIn("j4", getattr(units, name), name)
+        unit = {"experiment": "j4", "params": {"base_task": "negation", "primary": {"arm": "negation_terms"}}}
+        self.assertEqual(units.required_tasks(unit), [ND])
+        confirmation = {"experiment": "j4", "params": {"base_task": "evidence", "primary": {"arm": "evidence"}}}
+        self.assertEqual(units.required_tasks(confirmation), [E])
+        branch_e = {"experiment": "j4", "params": {"base_task": "evidence", "primary": {"arm": "evidence_terms"}}}
+        self.assertEqual(units.required_tasks(branch_e), [ED])
+        self.assertTrue(units.public_text({"experiment": "j4", "params": {}}))
+        self.assertEqual(units.unit_notes("j4", "model", public_text=True),
+                         ["model_measurement_public", "public_narratives", "runner_hardware"])
+        self.assertEqual(units.harness_measurement("j4", {"measurement": True}), True)
+        self.assertIs(units.harness_verdict("j4", {"measurement": False}), False)
+
+    def test_the_status_reading(self) -> None:
+        def result(complete: bool, d: bool, b: bool, order: tuple[str, str] = (ND, N),
+                   kind: str = "lab_j4_run") -> dict[str, Any]:
+            return {"kind": kind, "complete": complete, "pass_order": list(order),
+                    "complete_by_task": {order[0]: d, order[1]: b}}
+
+        status = units.harness_status
+        self.assertEqual(status("j4", 0, False, result(True, True, True)), ("ok", None))
+        self.assertEqual(status("j4", 1, False, result(False, True, False)), ("ok", notes.J4_TERMS_STOPPED))
+        self.assertEqual(status("j4", 1, False, result(False, True, False, (E, ED))), ("ok", notes.J4_TERMS_STOPPED))
+        self.assertEqual(status("j4", 1, False, result(False, False, False)), ("failed", notes.J1_STOPPED))
+        self.assertEqual(status("j4", 1, False, result(False, False, True)), ("failed", notes.J1_STOPPED))
+        self.assertEqual(status("j4", 1, False, result(False, True, True)), ("failed", notes.J1_STOPPED))
+        self.assertEqual(status("j4", 0, False, result(False, True, False)), ("failed", notes.RESULT_CONTRADICTS_EXIT))
+        self.assertEqual(status("j4", 1, False, result(True, True, True)), ("failed", notes.RESULT_CONTRADICTS_EXIT))
+        self.assertEqual(status("j4", 0, False, result(True, True, True, kind="lab_j3_run")),
+                         ("failed", notes.RESULT_MISSING))
+        self.assertEqual(status("j4", 0, False, result(True, True, True, order=(N, N))),
+                         ("failed", notes.RESULT_MISSING))
+        self.assertEqual(status("j4", 0, False, {"kind": "lab_j4_run", "complete": True,
+                                                 "complete_by_task": {ND: True, N: True}}),
+                         ("failed", notes.RESULT_MISSING))
+        self.assertEqual(status("j4", 0, False, None), ("failed", notes.RESULT_MISSING))
+        self.assertEqual(status("j4", 3, False, result(True, True, True)), ("failed", notes.UNEXPECTED_EXIT))
+        self.assertEqual(status("j4", 0, True, result(True, True, True))[0], "timed_out")
+        self.assertIsNone(re.search(r"[0-9]", notes.J4_TERMS_STOPPED))
+
+    def test_participation_judges_the_second_pass_only_when_it_finished(self) -> None:
+        def row(task: str, ref: str, ok: bool) -> dict[str, Any]:
+            return {"task": task, "ref": ref, "attempt": 1, "ok": ok, "error_kind": None if ok else "network",
+                    "boundary": "site:lab"}
+
+        good_d = [row(ND, f"d{i}", True) for i in range(10)]
+        bad_b = [row(N, f"b{i}", i == 0) for i in range(10)]
+        stopped = {"kind": "lab_j4_run", "complete": False, "pass_order": [ND, N],
+                   "complete_by_task": {ND: True, N: False}}
+        finished = {"kind": "lab_j4_run", "complete": True, "pass_order": [ND, N],
+                    "complete_by_task": {ND: True, N: True}}
+        _, problem = units.participation("j4", good_d + bad_b, [ND], stopped)
+        self.assertIsNone(problem)
+        _, problem = units.participation("j4", good_d + bad_b, [ND], finished)
+        self.assertTrue(problem is not None and problem.startswith(notes.LOW_PARTICIPATION) and N in problem)
+
+    def test_the_unit_adapter_runs_it(self) -> None:
+        unit = next(u for u in self.p.plan["units"] if u["unit"] == "j4-fake-b-p2")
+        out = self.tmp / "shard"
+        record = units.run_unit(dict(unit, shard="s002-fake-b"), self.p.plan, out, timeout_s=300,
+                                provider_override="fake", prereg=self.p.prereg)
+        self.assertEqual((record["status"], record["measurement_class"], record["exit_code"]),
+                         ("ok", "plumbing", 0), record["status_reason"])
+        self.assertEqual(record["notes"], ["plumbing", "public_narratives", "runner_hardware"])
+        base = f"runs/j4/{unit['run_id']}/"
+        self.assertEqual(sorted(record["files"]), [base + "ledger.jsonl", base + "run.json", base + "verdicts.jsonl"])
+        argv = record["argv"]
+        self.assertEqual(argv[2:4], ["lab.j4", "run"])
+        for arg in ("--part=2", "--endpoint=fake-b", f"--budget-seconds={300 - units.SIM_BUDGET_MARGIN_S}"):
+            self.assertIn(arg, argv)
+        self.assertEqual([a for a in argv if a.startswith("--terms=")],
+                         [f"--terms={self.p.prereg.dir / lab_j4.TERMS_FILE}"])
+        self.assertTrue(any(a.endswith("prereg/j4/prereg.json") for a in argv))
+        routing = read_json(out / "routing" / f"{unit['unit']}.json")
+        self.assertEqual((sorted(routing["endpoints"]), routing["routes"]),
+                         (["fake-b"], {ND: {"endpoint": "fake-b"}, N: {"endpoint": "fake-b"}}))
+        self.assertEqual((record["participation"]["required"],
+                          {t: record["participation"]["tasks"][t]["attempted"] for t in (ND, N)}),
+                         ([ND], {ND: 40, N: 40}))
+        self.assertEqual(record["harness_measurement"], False)
+        doc = read_json(out / (base + "run.json"))
+        self.assertEqual((doc["kind"], doc["complete"], doc["complete_by_task"], doc["pass_order"]),
+                         ("lab_j4_run", True, {ND: True, N: True}, [ND, N]))
+        lines = read_lines(out / (base + "verdicts.jsonl"))
+        self.assertEqual([line["task"] for line in lines], [ND] * 40 + [N] * 40)
+        self.assertTrue(all(line["terms_count"] is not None for line in lines[:40]))
+        self.assertTrue(all(line["terms_count"] is None and line["terms_sha256"] is None for line in lines[40:]))
+
+
+class WiringTests(unittest.TestCase):
+    def test_both_fake_handlers(self) -> None:
+        """The lab's fake answers each ``_terms`` task as it answers the base task (task D as task B, so nothing in a
+        dry run measures the terms), behind an empty citation under branch E, in the pack branch and the pack-free
+        one; an unknown name is still refused."""
+        p = _Prereg4.get()
+        d = _Data.get()
+        qs = lab_j1.read_questions((p.dir / "questions.jsonl").read_bytes())
+        recs = {r["record_ref"]: r for r, _ in lab_j1.parse_labels((p.dir / "labels.jsonl").read_bytes())}
+
+        def request(name: str, payload: dict[str, Any]) -> dict[str, Any]:
+            from mycelic.collective.inference.fakeserver import _DATA_CLOSE, _DATA_OPEN
+            return {"messages": [{"role": "system", "content": "x"},
+                                 {"role": "user", "content": f"{_DATA_OPEN}{canonical_dumps(payload)}{_DATA_CLOSE}"}],
+                    "response_format": {"type": "json_schema", "json_schema": {"name": name, "schema": {}}}}
+
+        for responder in (Responder(PACK), Responder(None, pack_free_judge=True)):
+            for q in qs[:6]:
+                record = recs[q["record_ref"]]
+                base = lab_j1.payload(PACK, q, record)
+                drafted = lab_j4.payload(PACK, q, record, d.T)
+                shipped = responder(request(JUDGE_TASK, base))
+                with self.subTest(responder=responder.pack is not None, question=q["question_id"]):
+                    self.assertEqual(responder(request(ND, drafted)), responder(request(N, base)))
+                    self.assertEqual(responder(request(N, base)), shipped)
+                    self.assertEqual(responder(request(ED, drafted)), {"citation": "", **shipped})
+                    self.assertEqual(responder(request(E, base)), {"citation": "", **shipped})
+                    self.assertEqual(list(responder(request(ED, drafted)))[0], "citation")
+                    with self.assertRaises(ResponderError):
+                        responder(request("judge_record_other_terms", drafted))
+        self.assertEqual(set(lab_j4.DRAFTED_TASK.values()), {ND, ED})
+
+    def test_the_warm_up_sends_two_tasks_the_probe_b(self) -> None:
+        """Rule 16, C12: a J4 unit warms task B with the judge's generated payloads and, with the preregistration's
+        term set, task D with the same payloads plus ``predicate_terms`` (the typical one its asked predicate's list,
+        the worst case asked about the predicate with the longest list, by characters, and carrying it); sorted by
+        name task B comes first, so the probe is task B's. Without the preregistration task D is not warmed. The
+        warm-up's record carries the lists' counts and predicates, never a term."""
+        p = _Prereg4.get()
+        d = _Data.get()
+        units_ = [u for u in p.plan["units"] if u["model"] == "fake-a"]
+        tasks = [t for t in lab_warmup.warm_tasks(units_, p.plan, p.prereg) if t.units]
+        self.assertEqual([t.task.name for t in tasks], [N, ND])
+        b, dt = tasks
+        self.assertEqual((b.task, dt.task), (lab_j2.negation_task(), lab_j4.drafted_task("negation")))
+        self.assertEqual((b.schema, dt.schema), (judge_schema(), judge_schema()))
+        self.assertEqual((b.stream, dt.stream, b.pack, dt.pack, b.terms), (False, False, NHTSA_PACK, NHTSA_PACK, None))
+        self.assertEqual(sorted(b.units), sorted(u["unit"] for u in units_))
+        self.assertEqual(dt.units, b.units)
+        typical, worst = dt.payload, dt.worst
+        self.assertEqual({k: v for k, v in typical.items() if k != "question"},
+                         {k: v for k, v in b.payload.items() if k != "question"})
+        self.assertEqual({k: v for k, v in typical["question"].items() if k != lab_j4.TERMS_KEY}, b.payload["question"])
+        self.assertEqual(typical["question"][lab_j4.TERMS_KEY],
+                         lab_j4.predicate_terms(d.T, typical["question"]["predicate"]))
+        longest = lab_j4.longest_terms(d.T)
+        self.assertIsNotNone(longest)
+        self.assertEqual(worst["question"]["predicate"], longest)
+        self.assertEqual(worst["question"][lab_j4.TERMS_KEY], d.T[longest])
+        self.assertEqual(len("".join(worst["question"][lab_j4.TERMS_KEY])),
+                         max(len("".join(terms)) for terms in d.T.values()))
+        self.assertEqual(dt.terms, {"typical_terms": len(typical["question"][lab_j4.TERMS_KEY]),
+                                    "typical_predicate": typical["question"]["predicate"],
+                                    "worst_terms": len(d.T[longest]), "worst_predicate": longest})
+        self.assertEqual([t.task.name for t in lab_warmup.warm_tasks(units_, p.plan) if t.units], [N])
+        self.assertNotIn(b.payload["record"]["text"], "".join(
+            r["narrative"] for r, _ in lab_j1.parse_labels((p.dir / "labels.jsonl").read_bytes())))
+
+    def test_the_workflow_downloads_the_third_earlier_artifact_and_the_term_artifact(self) -> None:
+        """C27: the plan job's ``earlier-3`` and ``terms`` steps, of the ``earlier`` steps' shape (the same pinned
+        action, the workflow's own read-only token, ``continue-on-error``), after ``earlier-2`` and before ``prereg``;
+        the third excluded run under ``lab-earlier`` by its own run id, the term run's artifact under ``lab-terms``,
+        which ``lab.prereg`` reads by default beside the plan directory; the workflow's permissions stay
+        ``actions: read``, ``contents: read`` and no job widens them."""
+        import yaml
+        text = (ROOT / ".github" / "workflows" / "mycelic-lab.yml").read_text(encoding="utf-8")
+        wf = yaml.safe_load(text)
+        self.assertEqual(wf["permissions"], {"actions": "read", "contents": "read"})
+        self.assertFalse(any("permissions" in job for job in wf["jobs"].values()))
+        steps = wf["jobs"]["plan"]["steps"]
+        ids = [s.get("id") for s in steps]
+        at = ids.index("prereg")
+        self.assertEqual(ids[at - 5:at], ["plan", "earlier", "earlier-2", "earlier-3", "terms"])
+        earlier, third, terms = steps[at - 4], steps[at - 2], steps[at - 1]
+        for step, run_key, artifact_key, root in ((third, "j4_exclude_run_id_3", "j4_exclude_artifact_3",
+                                                   "lab-earlier"),
+                                                  (terms, "j4_terms_run_id", "j4_terms_artifact", "lab-terms")):
+            with self.subTest(step=step["id"]):
+                self.assertEqual(step["uses"], earlier["uses"])
+                self.assertIs(step["continue-on-error"], True)
+                self.assertEqual(step["if"], f"steps.plan.outputs.{run_key} != ''")
+                self.assertEqual(step["with"], {
+                    "name": f"${{{{ steps.plan.outputs.{artifact_key} }}}}",
+                    "run-id": f"${{{{ steps.plan.outputs.{run_key} }}}}",
+                    "github-token": "${{ github.token }}",
+                    "path": f"${{{{ runner.temp }}}}/{root}/${{{{ steps.plan.outputs.{run_key} }}}}"})
+                self.assertIn(run_key, lab_plan.OUTPUT_KEYS)
+                self.assertIn(artifact_key, lab_plan.OUTPUT_KEYS)
+        self.assertEqual(text.count("github.token"), 5)
+        self.assertEqual(lab_prereg.terms_dir(Path("/x/lab-plan")), Path("/x/lab-terms"))
+        self.assertEqual(lab_prereg.TERMS_DIRNAME, "lab-terms")
+
+    def test_the_notes_hold_no_digit(self) -> None:
+        """No ASCII digit in any J4 note, heading or column of ``lab.notes``, so no figure can ride in a fixed
+        sentence and every number a summary prints is traced to a run file; the primary line's placeholders are the
+        ones the summary fills."""
+        names = sorted(n for n in dir(notes) if n.startswith("J4_"))
+        self.assertEqual(names, ["J4_ARMS_NOTE", "J4_EXCLUSION_DISAGREES", "J4_EXCLUSION_NOTE",
+                                 "J4_FRESHNESS_UNVERIFIED", "J4_LABEL", "J4_PRIMARY_LINE", "J4_SPLIT_VIOLATED",
+                                 "J4_STAND_IN", "J4_TERMS_NOTE", "J4_TERMS_STOPPED", "J4_TERMS_UNVERIFIED",
+                                 "J4_TOO_FEW_RECORDS", "J4_VERDICT_NOTE"])
+        texts = {n: getattr(notes, n) for n in names}
+        headings = {k: v for k, v in notes.HEADINGS.items() if k == "j4" or k.startswith("j4-")}
+        columns = {k: v for k, v in notes.COLUMNS.items() if k.startswith("j4_")}
+        self.assertEqual(sorted(headings), ["j4", "j4-agreement", "j4-arms", "j4-citations", "j4-earlier",
+                                            "j4-judges", "j4-lifts", "j4-tasks", "j4-terms"])
+        self.assertGreater(len(columns), 40)
+        texts.update({f"HEADINGS.{k}": v for k, v in headings.items()})
+        texts.update({f"COLUMNS.{k}": v for k, v in columns.items()})
+        for name, value in texts.items():
+            with self.subTest(name=name):
+                self.assertIsInstance(value, str)
+                self.assertIsNone(re.search(r"[0-9]", value))
+        self.assertEqual(sorted(set(re.findall(r"\{([a-z_]+)\}", notes.J4_PRIMARY_LINE))),
+                         ["arm", "ba", "bound", "dhi", "diff", "dlo", "gap", "hdiff", "hhi", "hi", "hlo", "lex_d",
+                          "lex_d_hi", "lex_d_lo", "lex_h", "lex_h_hi", "lex_h_lo", "lex_p", "lex_p_hi", "lex_p_lo",
+                          "lo", "model", "other_arm", "other_word", "pdiff", "target", "thi", "tlo", "unknown",
+                          "word", "word_five"])
+        self.assertIn("J4", lab_summary.ids(notes.J4_LABEL))
+        self.assertNotIn("{", lab_summary.ids(notes.J4_LABEL))
+        self.assertEqual(lab_summary.J4_ARMS, {base: lab_j4.ARMS[base] for base in lab_j4.BASES})
+        self.assertEqual(lab_summary.J4_LIFTS, tuple(name for name, _, _ in lab_j4.LIFTS))
+
+    def test_the_dry_run_takes_one_test_data_flag(self) -> None:
+        """``--j4-data`` does not go with ``--j2-data``, ``--j3-data`` or ``--jt-data``: a usage error, refused
+        before the plan is written."""
+        tmp = Path(tempfile.mkdtemp(prefix="lab-j4-dryrun-flags-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        for other in ("--j2-data", "--j3-data", "--jt-data"):
+            with self.subTest(other=other):
+                err = io.StringIO()
+                with contextlib.redirect_stderr(err):
+                    code = lab_dryrun.main(["--request", str(TEMPLATE), "--out", str(tmp / "out"),
+                                            "--j4-data", str(tmp / "a"), other, str(tmp / "b")])
+                self.assertEqual(code, lab_dryrun.EXIT_USAGE)
+                self.assertIn("error: --j4-data does not go with --j2-data, --j3-data or --jt-data", err.getvalue())
+                self.assertFalse((tmp / "out").exists())
+
+
+class PreregWiringTests(unittest.TestCase):
+    """``lab.prereg``'s J4 step in this process (rule order: the term check, the eight sources, the split and the
+    draw, the comparators), its files, its manifest block and its fixed lines."""
+
+    def test_the_files_and_the_manifest(self) -> None:
+        p = _Prereg4.get()
+        d = _Data.get()
+        self.assertEqual(sorted(x.name for x in p.dir.iterdir()),
+                         sorted(["labels.jsonl", "labels.json", "questions.jsonl", "questions.json", "excluded.jsonl",
+                                 "terms.json", "routing.json", "prereg.json",
+                                 *(f"{name}.{ext}" for name in lab_j4.COMPARATORS for ext in ("jsonl", "json"))]))
+        self.assertEqual((p.dir / "terms.json").read_bytes(), d.terms.data)
+        j4 = p.manifest["j4"]
+        doc = read_json(p.dir / "prereg.json")
+        self.assertEqual((j4["base_task"], j4["primary"], j4["headline_arm"], j4["headline_secondary"],
+                          j4["other_reading_arm"], j4["confirmation"]),
+                         ("negation", {"model": "fake-b", "arm": "negation_terms"}, doc["headline_arm"],
+                          "negation_terms_mapped", "negation_terms_mapped", False))
+        self.assertEqual((j4["labels"]["records"], j4["questions"]["questions"], j4["parts"], j4["stand_in"],
+                          j4["terms_stand_in"]), (40, 80, 2, True, True))
+        self.assertEqual((j4["exclusion"]["excluded"], j4["exclusion"]["overlap"], j4["split"]["by_record_id"],
+                          j4["split"]["by_text"], j4["split"]["tripwires"]),
+                         (451, 0, 0, 1, {"before_cutoff": 0, "in_drafting": 0}))
+        self.assertEqual(j4["excluded_lines"], 451 + 40)
+        terms = j4["terms"]
+        self.assertEqual((terms["sha256"], terms["check"]["outcome"], terms["requested"]),
+                         (d.terms.summary["sha256"], "verified", template()["experiments"]["j4"]["terms"]))
+        self.assertEqual(sum(terms["terms_by_predicate"].values()), len(d.all_terms))
+        self.assertEqual(doc["terms"]["sha256"], d.terms.summary["sha256"])
+        for name in lab_j4.COMPARATORS:
+            self.assertEqual(j4[name], read_json(p.dir / f"{name}.json"), name)
+        self.assertEqual(p.manifest["j3"], None)
+        manifest_text = (p.tmp / "plan" / "prereg" / "prereg.json").read_text(encoding="utf-8")
+        assert_no_term(self, manifest_text, d.all_terms)
+
+    def test_the_fixed_lines(self) -> None:
+        p = _Prereg4.get()
+        d = _Data.get()
+        lines = p.stdout.splitlines()
+        heads = [line.split(":")[0] for line in lines]
+        self.assertEqual(heads, ["j4 exclusion", "j4 draw", "j4 split", "j4 terms", "j4 comparators",
+                                 "j4 comparators"])
+        self.assertEqual(lines[0], "j4 exclusion: j001=artifact a001=artifact a002=artifact consistency j1_r1=0 "
+                                   "a1_r2=0 b1_r3=0 outside_k2=0 outside_k3=0 k2_union=0 k3_union=0 excluded 450")
+        self.assertIn("available 724 excluded 451 (earlier 450 split_by_record_id 0 split_by_text 1) "
+                      "eligible_after_exclusion 273 overlap 0 sources J1=verified R1=verified A1=verified R2=verified "
+                      "K2=verified B1=verified R3=verified K3=verified", lines[1])
+        self.assertTrue(lines[2].endswith("by_record_id 0 by_text 1 already_excluded 3 before_cutoff 0 in_drafting 0"),
+                        lines[2])
+        self.assertIn("archives_equal yes", lines[2])
+        self.assertTrue(lines[3].startswith("j4 terms: outcome verified failed none run_id "
+                                            f"{j4_data.TERMS_RUN_ID} terms_sha256 {d.terms.summary['sha256']}"),
+                        lines[3])
+        self.assertTrue(lines[3].endswith("stand_in yes"))
+        self.assertEqual([part.split(" ")[0] for part in lines[4][len("j4 comparators: "):].split("; ")],
+                         ["lexical_drafted", "lexical", "presence_drafted"])
+        self.assertTrue(lines[5].startswith("j4 comparators: record_blind balanced_accuracy "))
+        for name, _, _ in lab_j4.JUDGE_PAIRS:
+            self.assertIn(f" {name} ", lines[5] + " ")
+        refs = refs_of((p.dir / "labels.jsonl").read_bytes()) | {
+            line["record_ref"] for line in read_lines(p.dir / "excluded.jsonl")} | d.terms.drafting.refs
+        assert_no_ref(self, p.stdout, refs)
+        assert_no_term(self, p.stdout, d.all_terms)
+
+    def test_a_term_artifact_that_does_not_verify_stops_before_any_draw(self) -> None:
+        """Item 10: the term check is the first step; its failure prints the term line and refuses the plan with
+        J4_TERMS_UNVERIFIED before the sources are read or anything is drawn."""
+        d = _Data.get()
+        tmp = Path(tempfile.mkdtemp(prefix="lab-j4-unverified-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        request = json.loads(PLUMBING_MIN.read_text(encoding="utf-8"))
+        request["experiments"] = {"j4": j4_block()}
+        path = write_json(tmp / "j4-test.json", request)
+        code, _, err = run_plan(["--request", str(path), "--manifest", str(MANIFEST_TEST), "--out", str(tmp / "plan")])
+        self.assertEqual(code, 0, err)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), self.assertRaises(lab_prereg._StepFailed) as caught:
+            lab_prereg.preregister(tmp / "plan" / "plan.json", nhtsa_fetch=lambda: ARCHIVE,
+                                   earlier_plans=d.dir / "earlier", exclude_stand_in=d.entries,
+                                   terms_plans=d.dir / "terms", terms_stand_in={**d.term_entry, "sha256": "0" * 64})
+        self.assertEqual((caught.exception.path, caught.exception.problem), ("$.experiments.j4.terms",
+                                                                              notes.J4_TERMS_UNVERIFIED))
+        self.assertEqual(len(out.getvalue().splitlines()), 1)
+        self.assertTrue(out.getvalue().startswith("j4 terms: outcome sha256 mismatch failed terms_sha256 "))
+        self.assertFalse((tmp / "plan" / "prereg" / "j4").exists())
+
+
+class AggregateWiringTests(unittest.TestCase):
+    """DryTree copies of the small dry run, changed and re-sealed as a real run would have left them: the verdict
+    words of C19 with the word under lever 5's text alone (C6), the lifts, the stop that spares the first pass, and
+    the manifest cross-checked against ``prereg/j4/prereg.json`` and the term set's pin."""
+
+    def setUp(self) -> None:
+        self.dry = _DryRun4.get("small")
+        self.tmp = Path(tempfile.mkdtemp(prefix="lab-j4-agg-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.tree = DryTree(self.dry.out, self.tmp / "T", manifest=LAB_MANIFEST)
+        self.prereg_dir = self.dry.out / "plan" / "prereg" / "j4"
+        self.questions = lab_j1.read_questions((self.prereg_dir / "questions.jsonl").read_bytes())
+        self.texts = payload_texts(self.prereg_dir)
+        self.T = lab_j4.read_terms((self.prereg_dir / "terms.json").read_bytes())[1]
+
+    def shard_of(self, model: str, part: int) -> tuple[str, dict[str, Any]]:
+        unit = next(u for u in self.tree.plan["units"] if u["unit"] == f"j4-{model}-p{part}")
+        return next(s["shard"] for s in self.tree.plan["shards"] if unit["unit"] in s["units"]), unit
+
+    def make_measured(self, *models: str) -> None:
+        for model in models:
+            shards: dict[str, list[str]] = {}
+            for part in (1, 2):
+                shard, unit = self.shard_of(model, part)
+                rel = f"runs/j4/{unit['run_id']}/run.json"
+                doc = self.tree.read(shard, rel)
+                doc["measurement"] = True
+                self.tree.replace_unit_file(shard, unit["unit"], rel, canonical_bytes(doc) + b"\n")
+                shards.setdefault(shard, []).append(unit["unit"])
+            for shard, unit_ids in shards.items():
+                self.tree.make_real(shard, model_units=tuple(unit_ids))
+
+    def restamp(self, model: str, part: int, *, lines: Callable[[list[dict[str, Any]]], None] | None = None,
+                run: Callable[[dict[str, Any]], None] | None = None,
+                unit_record: Callable[[dict[str, Any]], None] | None = None) -> None:
+        shard, unit = self.shard_of(model, part)
+        rel = f"runs/j4/{unit['run_id']}/verdicts.jsonl"
+        got = read_lines(self.tree.path(shard, rel))
+        if lines is not None:
+            lines(got)
+        data = jsonl(got)
+        self.tree.replace_unit_file(shard, unit["unit"], rel, data)
+        run_rel = f"runs/j4/{unit['run_id']}/run.json"
+        doc = self.tree.read(shard, run_rel)
+        doc["verdicts_sha256"] = hashlib.sha256(data).hexdigest()
+        if run is not None:
+            run(doc)
+        self.tree.replace_unit_file(shard, unit["unit"], run_rel, canonical_bytes(doc) + b"\n")
+        if unit_record is not None:
+            self.tree.edit(shard, f"units/{unit['unit']}/unit.json", unit_record)
+        self.tree.reseal(shard)
+
+    def correct(self, line: dict[str, Any]) -> None:
+        """Rewrite a line as the runner would have written a right answer (both answers yes on a positive, the
+        entity yes and the predicate no on a negative), with the list its payload carried for task D."""
+        q = next(q for q in self.questions if q["question_id"] == line["question_id"])
+        reply = {"mentions_entity": "yes", "describes_predicate": "yes" if line["kind"] == "positive" else "no"}
+        terms = lab_j4.predicate_terms(self.T, q["predicate"]) if line["task"] == ND else None
+        fresh = lab_j4.verdict_line(q, lab_j1.stand_in(q["record_ref"]), reply, None, line["task"],
+                                    self.texts[q["record_ref"]], terms)
+        line.clear()
+        line.update(fresh)
+
+    def aggregate(self) -> dict[str, Any]:
+        shutil.rmtree(self.tmp / "R", True)
+        code, _, err, report = self.tree.aggregate(self.tmp / "R")
+        self.assertEqual(code, 0, err)
+        return report["j4"]
+
+    def test_the_verdict_words_the_added_clauses_and_the_lifts(self) -> None:
+        """a-4b, measured, answers task D right on every question and task B as the hand lexical judge: D and Dr pass
+        provisionally (above the target, the bound and all three lexical judges), B and Br equal the hand judge, so
+        the hand clause fails for them and their word is not a pass whatever lever 5's text alone says, and the drafted
+        terms' lift helps."""
+        self.make_measured("a-4b")
+        for part in (1, 2):
+            self.restamp("a-4b", part, lines=lambda ls: [self.correct(x) for x in ls if x["task"] == ND])
+        block = self.aggregate()
+        arms = block["models"]["a-4b"]["arms"]
+        for arm in ("negation_terms", "negation_terms_mapped"):
+            a = arms[arm]
+            self.assertEqual((a["display_class"], a["verdict_word"], a["lever5_word"], a["pass_test"]["passed"]),
+                             ("model", "pass_provisional", "pass_provisional", True), arm)
+            self.assertEqual(a["scores"]["balanced_accuracy"]["value"], 1.0)
+            self.assertEqual(set(a["pass_test"]["clauses"].values()), {True})
+        for arm in ("negation", "negation_mapped"):
+            a = arms[arm]
+            self.assertEqual(a["paired"]["lexical"]["mean_diff"], 0.0)
+            self.assertIs(a["pass_test"]["clauses"]["beats_hand_lexical"], False)
+            self.assertNotEqual(a["verdict_word"], "pass_provisional")
+            self.assertIn(a["verdict_word"], ("partial", "failure"))
+        primary = block["primary_result"]
+        self.assertEqual((primary["arm"], primary["verdict_word"], primary["lever5_word"],
+                          primary["other_reading"]["arm"], primary["other_reading"]["verdict_word"]),
+                         ("negation_terms", "pass_provisional", "pass_provisional", "negation_terms_mapped",
+                          "pass_provisional"))
+        lifts = block["models"]["a-4b"]["lifts"]
+        self.assertEqual((lifts["D_minus_B"]["reading"], lifts["Dr_minus_Br"]["reading"],
+                          lifts["D_minus_B"]["paired"]["n"]), ("helps", "helps", 40))
+        small = block["models"]["a-1p5b"]["arms"]
+        self.assertEqual({arm: a["verdict_word"] for arm, a in small.items()},
+                         dict.fromkeys(lab_j4.ARMS["negation"], "incomplete"))
+        md, sources = lab_summary.render_report(self.tmp / "R")
+        check_sources(self, md, sources, self.tmp / "R")
+        self.assertIn("Primary pair `a-4b` `negation_terms`: `pass_provisional`; under lever five's text alone: "
+                      "`pass_provisional`.", md)
+
+    def test_a_stop_in_the_second_pass(self) -> None:
+        """Rule 15 in the aggregate: a part whose task B pass stopped keeps task D's set complete (P gets its word)
+        and leaves B's incomplete, with the controls and the lifts that need B."""
+        self.make_measured("a-4b")
+
+        def drop_b(lines: list[dict[str, Any]]) -> None:
+            lines[:] = [line for line in lines if line["task"] == ND]
+
+        self.restamp("a-4b", 2, lines=drop_b,
+                     run=lambda doc: doc.update(complete=False, stopped="budget", stopped_task=N,
+                                                complete_by_task={ND: True, N: False}, questions_done=40,
+                                                questions_done_by_task={ND: 40, N: 0}),
+                     unit_record=lambda r: r.update(status="ok", status_reason=notes.J4_TERMS_STOPPED, exit_code=1))
+        block = self.aggregate()
+        big = block["models"]["a-4b"]
+        part = next(p for p in big["parts"] if p["part"] == 2)
+        self.assertEqual((part["status"], part["status_reason"], part["ok_by_task"], part["stopped_task"]),
+                         ("ok", notes.J4_TERMS_STOPPED, {ND: True, N: False}, N))
+        self.assertEqual((big["sets"][ND]["complete"], big["sets"][N]["complete"], big["sets"][N]["parts_ok"]),
+                         (True, False, [1]))
+        self.assertEqual((big["arms"]["negation_terms"]["complete"], big["arms"]["negation"]["complete"],
+                          big["arms"]["negation"]["verdict_word"]), (True, False, "incomplete"))
+        self.assertEqual(big["arms"]["negation_terms"]["verdict_word"], "failure")
+        self.assertEqual({name: entry["complete"] for name, entry in big["lifts"].items()},
+                         {"D_minus_B": False, "Dr_minus_Br": False, "Dr_minus_D": True, "Br_minus_B": False})
+        md, sources = lab_summary.render_report(self.tmp / "R")
+        check_sources(self, md, sources, self.tmp / "R")
+
+    def test_a_manifest_that_disagrees_with_the_preregistration(self) -> None:
+        """The manifest ``prereg/prereg.json`` must agree with ``prereg/j4/prereg.json`` on the base task, the
+        primary pair, the headline arm and secondary, the other reading's arm and the term set's pin, and the term
+        set's bytes must hash to that pin: each disagreement refuses the block with PREREG_MISSING; the files put
+        back, the block is read again."""
+        plan_dir = self.tree.root / "plan"
+        manifest_path = plan_dir / "prereg" / "prereg.json"
+        pristine = manifest_path.read_bytes()
+        block = self.aggregate()
+        self.assertEqual((block["reason"], block["primary_result"]["arm"], sorted(block["models"])),
+                         (None, "negation_terms", ["a-1p5b", "a-4b"]))
+        edits: list[tuple[str, Callable[[dict[str, Any]], None]]] = [
+            ("primary.arm", lambda j4: j4["primary"].update(arm="negation_terms_mapped")),
+            ("primary.model", lambda j4: j4["primary"].update(model="a-1p5b")),
+            ("base_task", lambda j4: j4.update(base_task="evidence")),
+            ("headline_secondary", lambda j4: j4.update(headline_secondary="negation")),
+            ("other_reading_arm", lambda j4: j4.update(other_reading_arm="negation")),
+            ("terms.sha256", lambda j4: j4["terms"].update(sha256="0" * 64))]
+        for name, change in edits:
+            with self.subTest(edit=name):
+                manifest = json.loads(pristine)
+                change(manifest["j4"])
+                manifest_path.write_bytes(canonical_bytes(manifest) + b"\n")
+                block = self.aggregate()
+                self.assertEqual((block["reason"], block["models"], block["primary_result"]),
+                                 (lab_aggregate.PREREG_MISSING, {}, None))
+        manifest_path.write_bytes(pristine)
+        for rel, mutate in (("prereg/j4/lexical_drafted.jsonl", "line"), ("prereg/j4/terms.json", "bytes")):
+            with self.subTest(file=rel):
+                original = (plan_dir / rel).read_bytes()
+                if mutate == "line":
+                    lines = read_lines(plan_dir / rel)
+                    lines[0]["verdict"] = "refute" if lines[0]["verdict"] != "refute" else "confirm"
+                    data = jsonl(lines)
+                else:
+                    data = original + b"\n"
+                restamp(plan_dir, rel, data)
+                self.assertEqual(lab_prereg.load_prereg(self.tree.plan_path).manifest["files"][rel]["sha256"],
+                                 sha256_hex(data))
+                block = self.aggregate()
+                self.assertEqual((block["reason"], block["models"], block["primary_result"]),
+                                 (lab_aggregate.PREREG_MISSING, {}, None))
+                restamp(plan_dir, rel, original)
+        block = self.aggregate()
+        self.assertEqual((block["reason"], block["primary_result"]["arm"]), (None, "negation_terms"))
+        md, sources = lab_summary.render_report(self.tmp / "R")
+        check_sources(self, md, sources, self.tmp / "R")
+
+    def test_without_the_preregistration(self) -> None:
+        (self.tree.root / "plan" / "prereg" / "prereg.json").unlink()
+        block = self.aggregate()
+        self.assertEqual((block["reason"], block["models"], block["primary_result"]),
+                         (lab_aggregate.PREREG_MISSING, {}, None))
+        md, sources = lab_summary.render_report(self.tmp / "R")
+        self.assertIn(lab_aggregate.PREREG_MISSING, md)
+        check_sources(self, md, sources, self.tmp / "R")
+
+
+class _DryRunChecks:
+    """The checks both dry runs share: every unit ran on the fake provider, the report's ``j4`` block, every number of
+    both summaries traced to a run file, and no ref and no term in anything a reader sees."""
+
+    name = ""
+    units: list[str] = []
+    n = 0
+    parts = 0
+    models: list[str] = []
+    before = 21
+
+    def dry(self) -> _DryRun4:
+        return _DryRun4.get(self.name)
+
+    def test_the_console(self: Any) -> None:
+        dry = self.dry()
+        self.assertEqual(dry.code, 0, dry.stdout + dry.stderr)
+        lines = dry.stdout.splitlines()
+        self.assertIn(f"plan: {len(self.units)} units in {len(dry.plan['shards'])} shards (real)", lines)
+        self.assertIn("j4 exclusion: j001=artifact a001=artifact a002=artifact consistency j1_r1=0 a1_r2=0 b1_r3=0 "
+                      "outside_k2=0 outside_k3=0 k2_union=0 k3_union=0 excluded 450", lines)
+        self.assertIn("prereg: e1 no x1 no e2 no j1 no j4 yes", lines)
+        draw = next(line for line in lines if line.startswith("j4 draw: "))
+        self.assertIn("eligible_after_exclusion 273 overlap 0 sources J1=verified R1=verified A1=verified "
+                      "R2=verified K2=verified B1=verified R3=verified K3=verified", draw)
+        split = next(line for line in lines if line.startswith("j4 split: "))
+        self.assertTrue(split.endswith("by_record_id 0 by_text 1 already_excluded 3 before_cutoff 0 in_drafting 0"))
+        terms = next(line for line in lines if line.startswith("j4 terms: "))
+        self.assertTrue(terms.startswith("j4 terms: outcome verified failed none "), terms)
+        comparators = [line for line in lines if line.startswith("j4 comparators: ")]
+        self.assertEqual(len(comparators), 2)
+        self.assertEqual([part.split(" ")[0] for part in comparators[0][len("j4 comparators: "):].split("; ")],
+                         ["lexical_drafted", "lexical", "presence_drafted"])
+        # the shards' own lines ("lab: unit ... status ok class plumbing") come from their subprocesses; the report
+        # holds the same statuses
+        self.assertEqual({u["unit"]: (u["status"], u["display_class"]) for u in dry.report["units"]},
+                         {unit: ("ok", "plumbing") for unit in self.units})
+        self.assertEqual(sorted(u["unit"] for u in dry.plan["units"]), self.units)
+
+    def test_the_report_block(self: Any) -> None:
+        dry = self.dry()
+        j4 = dry.report["j4"]
+        manifest = dry.manifest["j4"]
+        self.assertEqual((j4["label"], j4["reason"], j4["display_class"], j4["stand_in"], j4["terms_stand_in"],
+                          sorted(j4["models"]), j4["base_task"], j4["confirmation"]),
+                         ("public_nhtsa", None, "plumbing", True, True, self.models, "negation", False))
+        self.assertEqual((j4["labels"]["records"], j4["labels"]["available"], j4["questions"]["questions"],
+                          j4["questions"]["parts"]), (self.n, 724, 2 * self.n, self.parts))
+        this_cycle = len(lab_j4.ARMS["negation"]) * len(self.models)
+        self.assertEqual(j4["comparisons"], {"this_cycle": this_cycle, "before": self.before,
+                                             "since_loop_began": self.before + this_cycle})
+        self.assertEqual((j4["primary"], j4["headline_arm"], j4["headline_secondary"], j4["other_reading_arm"],
+                          j4["target_balanced_accuracy"]),
+                         ({"model": "a-4b", "arm": "negation_terms"}, "negation_terms", "negation_terms_mapped",
+                          "negation_terms_mapped", 0.86))
+        ex = j4["exclusion"]
+        self.assertEqual((ex["excluded"], ex["eligible_after_exclusion"], ex["overlap"]), (451, 273, 0))
+        self.assertEqual({s: ex["sources"][s]["outcome"] for s in j4labels.SOURCES},
+                         dict.fromkeys(j4labels.SOURCES, "verified"))
+        self.assertEqual(set(ex["consistency"].values()), {0})
+        self.assertEqual((j4["split"]["by_record_id"], j4["split"]["by_text"], j4["split"]["tripwires"]),
+                         (0, 1, {"before_cutoff": 0, "in_drafting": 0}))
+        self.assertEqual(j4["chain_lines"], 451 + self.n)
+        self.assertEqual(len(dry.excluded), 451 + self.n)
+        self.assertEqual((j4["terms"]["verified"], j4["terms"]["sha256"], j4["terms"]["jt_code_hash"]),
+                         (True, manifest["terms"]["sha256"], JT_CODE_HASH))
+        self.assertEqual(sum(j4["terms"]["terms_by_predicate"].values()), len(dry.terms))
+        for name in lab_j4.COMPARATORS:
+            self.assertEqual(j4["judges"][name], manifest[name], name)
+        self.assertEqual((j4["unknown"], j4["judge_pairs"], j4["prior_bound"]),
+                         (manifest["unknown"], manifest["judge_pairs"], manifest["prior_bound"]))
+        hand = manifest["lexical"]
+        for name, entry in j4["models"].items():
+            with self.subTest(model=name):
+                self.assertEqual(sorted(entry["sets"]), sorted(lab_j4.tasks("negation")))
+                for arm in lab_j4.ARMS["negation"]:
+                    a = entry["arms"][arm]
+                    self.assertEqual((a["letter"], a["task"], a["reading"], a["complete"], a["parts_finished"],
+                                      a["parts_planned"], a["display_class"], a["verdict_word"], a["lever5_word"],
+                                      a["records_dropped"]),
+                                     (lab_j4.ARM_LETTERS[arm], lab_j4.ARM_TASK[arm], lab_j4.ARM_READING[arm], True,
+                                      self.parts, self.parts, "plumbing", "incomplete", "incomplete", 0), arm)
+                    # the fake answers both tasks as the hand lexical judge: every arm is that judge, line for line
+                    for metric in lab_j1.METRICS:
+                        self.assertEqual(a["scores"][metric], hand[metric], (arm, metric))
+                    self.assertEqual((a["paired"]["lexical"]["mean_diff"], a["paired"]["lexical"]["n"]),
+                                     (0.0, self.n))
+                    self.assertEqual(a["primary"], name == "a-4b" and arm == "negation_terms")
+                    self.assertFalse(a["pass_test"]["passed"])
+                self.assertEqual({lift: (e["reading"], e["paired"]["n"], e["paired"]["mean_diff"])
+                                  for lift, e in entry["lifts"].items()},
+                                 {lift: ("not_told_apart", self.n, 0.0) for lift in lab_summary.J4_LIFTS})
+                self.assertEqual((entry["empty_terms"]["questions"], entry["citations"]), (2 * self.n, None))
+                self.assertEqual(entry["earlier"]["cycle"], "A001")
+                for task in lab_j4.tasks("negation"):
+                    self.assertEqual((entry["tokens"][task]["attempts"], entry["tokens"][task]["calls_ok"]),
+                                     (2 * self.n, 2 * self.n))
+        primary = j4["primary_result"]
+        self.assertEqual((primary["model"], primary["arm"], primary["verdict_word"], primary["lever5_word"],
+                          primary["display_class"], primary["headline"], primary["other_reading"]["arm"],
+                          primary["other_reading"]["verdict_word"]),
+                         ("a-4b", "negation_terms", "incomplete", "incomplete", "plumbing", None,
+                          "negation_terms_mapped", "incomplete"))
+
+    def test_the_summaries(self: Any) -> None:
+        dry = self.dry()
+        root = dry.out / "report"
+        md = (root / "report.md").read_text(encoding="utf-8")
+        self.assertEqual(md.splitlines()[0], notes.NO_MEASUREMENT_LINE)
+        for heading in ("j4", "j4-arms", "j4-lifts", "j4-judges", "j4-agreement", "j4-terms", "j4-tasks",
+                        "j4-earlier"):
+            self.assertIn(f"#### {notes.HEADINGS[heading]}", md)
+        self.assertNotIn(notes.HEADINGS["j4-citations"], md)
+        for note in (notes.J4_STAND_IN, notes.J4_ARMS_NOTE, notes.J4_VERDICT_NOTE, notes.J4_EXCLUSION_NOTE,
+                     notes.J4_TERMS_NOTE):
+            self.assertIn(note, md)
+        self.assertIn("J4 here asks one model", md.replace("`", ""))
+        self.assertIn("Primary pair `a-4b` `negation_terms`: `incomplete`; under lever five's text alone: "
+                      "`incomplete`. It scored balanced accuracy", md)
+        self.assertIn("Under the other reading of the standing default the primary would be `negation_terms_mapped`: "
+                      "`incomplete`.", md)
+        this_cycle = 4 * len(self.models)
+        self.assertIn(f"- comparisons since the loop began: {self.before + this_cycle} ({this_cycle} this cycle, "
+                      f"{self.before} before)", md)
+        self.assertIn(f"| `a-4b` | `negation_terms` | `D` | `{ND}` | `shipped` | `plumbing` | {self.parts} of "
+                      f"{self.parts} |", md)
+        self.assertIn(f"| `a-4b` | `D_minus_B` | `drafted_terms` | {self.n} | 0.000 |", md)
+        self.assertIn("- eligible records 724; excluded records 451; eligible after exclusion 273; overlap with the "
+                      "excluded set 0", md)
+        self.assertIn("- sources: `J1` `verified` (150 refs); `R1` `verified` (150 refs); `A1` `verified` (150 refs); "
+                      "`R2` `verified` (150 refs); `K2` `verified` (300 refs); `B1` `verified` (150 refs); `R3` "
+                      "`verified` (150 refs); `K3` `verified` (450 refs)", md)
+        self.assertIn("- removed by record id 0; removed by text 1; drafting records already excluded 3; drawn records "
+                      "received before the cutoff 0; drawn drafting records 0", md)
+        self.assertIn(f"chain file lines {451 + self.n}", md)
+        self.assertIn("| `a-4b` | `negation` | `B` |", md)
+        sources = read_json(root / "report.sources.json")["sources"]
+        check_sources(self, md, sources, root)
+        plan_md = (dry.out / "plan" / "summary.md").read_text(encoding="utf-8")
+        plan_sources = read_json(dry.out / "plan" / "summary.sources.json")
+        check_sources(self, plan_md, plan_sources["sources"], dry.out / "plan")
+        self.assertIn(f"`J4` labels: source `nhtsa`, records {self.n}", plan_md)
+        self.assertIn("`J4` term set sha `" + dry.manifest["j4"]["terms"]["sha256"] + "`", plan_md)
+        for note in (notes.J4_STAND_IN, notes.J4_EXCLUSION_NOTE, notes.J4_TERMS_NOTE):
+            self.assertIn(note, plan_md)
+
+    def test_no_ref_and_no_term_anywhere_a_reader_looks(self: Any) -> None:
+        """No drawn, excluded or drafting record id and no drafted term in the console, the summaries, their
+        sources or the report; and, over the whole output tree, refs and terms only in the plan artifact's data files
+        that hold them by design and the shards' verdict lines (refs only)."""
+        dry = self.dry()
+        refs = dry.drawn | dry.excluded | dry.drafting
+        self.assertGreater(len(refs), 451)
+        self.assertGreater(len(dry.terms), 20)
+        for name, text in dry.public_texts().items():
+            with self.subTest(file=name):
+                assert_no_ref(self, text, refs)
+                assert_no_term(self, text, dry.terms)
+        holders = set()
+        for path in sorted(p for p in dry.out.rglob("*") if p.is_file()):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            low = text.lower()
+            has_ref = any(re.search(r"(?<![0-9A-Za-z])" + re.escape(r) + r"(?![0-9A-Za-z])", text)
+                          for r in refs if r in text)
+            has_term = any(re.search(r"(?<![a-z])" + re.escape(t.lower()) + r"(?![a-z])", low)
+                           for t in dry.terms if t.lower() in low)
+            if has_ref or has_term:
+                rel = path.relative_to(dry.out).as_posix()
+                holders.add(re.sub(r"\Ashards/[^/]+/runs/j4/[^/]+/", "shards/*/runs/j4/*/", rel))
+        allowed = {f"plan/prereg/j4/{name}" for name in (
+            "labels.jsonl", "questions.jsonl", "excluded.jsonl", "terms.json",
+            *(f"{c}.jsonl" for c in lab_j4.COMPARATORS))} | {"shards/*/runs/j4/*/verdicts.jsonl"}
+        self.assertLessEqual(holders, allowed)
+
+
+class SmallDryRunTests(_DryRunChecks, unittest.TestCase):
+    """The small dry run: two gguf models on the fake provider, 40 records in 2 parts, the test data standing in for
+    the three excluded runs and the term run."""
+
+    name = "small"
+    units = ["j4-a-1p5b-p1", "j4-a-1p5b-p2", "j4-a-4b-p1", "j4-a-4b-p2"]
+    n = 40
+    parts = 2
+    models = ["a-1p5b", "a-4b"]
+
+
+class TemplateDryRunTests(_DryRunChecks, unittest.TestCase):
+    """``lab.dryrun`` of the template the run copies to ``lab/requests/accuracy-003.json``: 5 units in 5 shards, the
+    term stand-in verified, every one of the eight sources verified on the stand-in, the split's line with its two
+    removal counts and its tripwires at 0, 273 eligible after exclusion, overlap 0, the three lexical judges, every
+    unit ok and plumbing, every word incomplete, 25 comparisons, and no ref and no term anywhere a reader looks."""
+
+    name = "template"
+    units = [f"j4-a-4b-p{k}" for k in range(1, 6)]
+    n = 150
+    parts = 5
+    models = ["a-4b"]
+
+    def test_the_plan(self) -> None:
+        dry = self.dry()
+        self.assertEqual([(s["model"], s["units"]) for s in dry.plan["shards"]],
+                         [("a-4b", [f"j4-a-4b-p{k}"]) for k in range(1, 6)])
+        self.assertEqual(dry.report["j4"]["comparisons"], {"this_cycle": 4, "before": 21, "since_loop_began": 25})
