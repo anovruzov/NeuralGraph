@@ -12,6 +12,7 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -25,6 +26,7 @@ from typing import Any
 from unittest import mock
 
 from lab import dryrun as lab_dryrun
+from lab import hostinfo as lab_hostinfo
 from lab import j1 as lab_j1
 from lab import j2labels as lab_j2labels
 from lab import jt as lab_jt
@@ -73,6 +75,43 @@ def word_hits(text: str, words: set[str]) -> list[str]:
     """The words (each a term: letters and spaces) found in ``text`` as whole words, ignoring case."""
     low = text.lower()
     return sorted(w for w in words if re.search(r"(?<![a-z])" + re.escape(w.lower()) + r"(?![a-z])", low))
+
+
+def without_runner_values(text: str) -> str:
+    """``text`` without the runner's own values that :mod:`lab.hostinfo` records verbatim in every provenance file
+    (its ``ENV_NAMES``, as this process's environment holds them, which the dry run inherits): names the runner gives,
+    such as the branch in ``GITHUB_REF``, never text drawn from a record. A synthetic term can be a word of a branch
+    name (CI's run of 2026-10-14 found the term ``deployment`` in the deployment branch's ``GITHUB_REF``); only the
+    exact recorded values are left out, longest first, and every other byte is still scanned."""
+    for value in sorted({os.environ[n] for n in lab_hostinfo.ENV_NAMES if os.environ.get(n)}, key=len, reverse=True):
+        text = text.replace(value, "")
+    return text
+
+
+def json_differences(got: Any, want: Any, path: str = "$", limit: int = 6) -> list[str]:
+    """The first ``limit`` paths at which two JSON documents differ, each with both values cut to 80 characters (the
+    golden test's message: its outputs are the synthetic dry run's)."""
+    found: list[str] = []
+
+    def walk(a: Any, b: Any, at: str) -> None:
+        if len(found) >= limit:
+            return
+        if isinstance(a, dict) and isinstance(b, dict):
+            for key in sorted(set(a) | set(b)):
+                if key not in a or key not in b:
+                    found.append(f"{at}.{key} {'missing' if key not in a else 'extra'}")
+                else:
+                    walk(a[key], b[key], f"{at}.{key}")
+                if len(found) >= limit:
+                    return
+        elif isinstance(a, list) and isinstance(b, list) and len(a) == len(b):
+            for i, (x, y) in enumerate(zip(a, b)):
+                walk(x, y, f"{at}[{i}]")
+        elif a != b:
+            found.append(f"{at} got {json.dumps(a)[:80]} want {json.dumps(b)[:80]}")
+
+    walk(got, want, path)
+    return found
 
 
 def ref_hits(text: str, refs: set[str]) -> list[str]:
@@ -1318,6 +1357,25 @@ class ImportTests(unittest.TestCase):
 
 # --------------------------------------------------------------------------------------------------- the dry run
 
+class RunnerValuesTests(unittest.TestCase):
+    """:func:`without_runner_values` leaves out exactly the runner's recorded values and nothing else."""
+
+    def test_only_the_recorded_values_are_left_out(self) -> None:
+        ref = "refs/heads/team/production-deployment-x1"
+        env = {name: "" for name in lab_hostinfo.ENV_NAMES}
+        env.update({"GITHUB_REF": ref, "GITHUB_REPOSITORY": "owner/repo"})
+        with mock.patch.dict(os.environ, env):
+            text = f'"GITHUB_REF": "{ref}", "GITHUB_REPOSITORY": "owner/repo"'
+            self.assertEqual(word_hits(without_runner_values(text), {"deployment"}), [])
+            self.assertEqual(word_hits(text, {"deployment"}), ["deployment"])
+            # the same word anywhere else is still found
+            self.assertEqual(word_hits(without_runner_values(text + " a deployment failed"), {"deployment"}),
+                             ["deployment"])
+            # a variable outside ENV_NAMES is never left out
+            with mock.patch.dict(os.environ, {"OTHER_VALUE": "deployment"}):
+                self.assertEqual(word_hits(without_runner_values("deployment"), {"deployment"}), ["deployment"])
+
+
 class DryRunTests(unittest.TestCase):
     """``lab.dryrun`` of the template the run copies to ``lab/requests/terms-003.json`` with ``--jt-data``: one
     model-free unit, the check passed, the unit verified, no term printed or written outside ``prereg/jt/``."""
@@ -1449,6 +1507,7 @@ class DryRunTests(unittest.TestCase):
             if path.is_file() and not rel.startswith(f"plan/{lab_jt.JT_DIR}/"):
                 texts[rel] = path.read_text(encoding="utf-8", errors="replace")
         for name, text in texts.items():
+            text = without_runner_values(text)
             with self.subTest(file=name):
                 self.assertEqual(word_hits(text, words), [])
                 self.assertEqual([s for s in spellings if s in text], [])
@@ -1509,7 +1568,13 @@ class A002GoldenTests(unittest.TestCase):
                 if data != expected:
                     got, want = data.decode("utf-8").split("\n"), expected.decode("utf-8").split("\n")
                     first = next((i for i, (a, b) in enumerate(zip(got, want)) if a != b), min(len(got), len(want)))
-                    self.fail(f"{name} differs from the recording at line {first + 1}")
+                    if name.endswith(".json"):
+                        where = "; ".join(json_differences(json.loads(data), json.loads(expected)))
+                    else:
+                        line = (lambda lines: lines[first] if first < len(lines) else "<no line>")
+                        where = f"got {line(got)[:160]!r} want {line(want)[:160]!r}"
+                    # one line, so that CI's step that prints each failure's first line shows where
+                    self.fail(f"{name} differs from the recording at line {first + 1}: {where}")
 
     def test_the_recording_holds_only_the_named_tokens(self) -> None:
         summary = (a002_golden.GOLDEN / "summary.md").read_text(encoding="utf-8")
