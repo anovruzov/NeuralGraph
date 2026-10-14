@@ -1454,8 +1454,9 @@ class RequestTests(unittest.TestCase):
                                             "j3_exclude_run_id_2")], ["", "", "", ""])
         self.assertEqual(lab_plan.OUTPUT_KEYS, ("has_provision", "has_units", "j2_exclude_artifact",
                                                 "j2_exclude_run_id", "j3_exclude_artifact_2", "j3_exclude_run_id_2",
-                                                "matrix", "max_parallel", "plan_sha256", "provision_matrix",
-                                                "retention_days", "result_class"))
+                                                "j4_exclude_artifact_3", "j4_exclude_run_id_3", "j4_terms_artifact",
+                                                "j4_terms_run_id", "matrix", "max_parallel", "plan_sha256",
+                                                "provision_matrix", "retention_days", "result_class"))
 
 
 # --------------------------------------------------------------------------------------------------- preregistration
@@ -2337,8 +2338,9 @@ class WiringTests(unittest.TestCase):
         steps = wf["jobs"]["plan"]["steps"]
         ids = [s.get("id") for s in steps]
         at = ids.index("prereg")
-        self.assertEqual(ids[at - 3:at], ["plan", "earlier", "earlier-2"])
-        earlier, second = steps[at - 2], steps[at - 1]
+        # A003 build 2 (C27) adds earlier-3 and terms after earlier-2, before prereg
+        self.assertEqual(ids[at - 5:at], ["plan", "earlier", "earlier-2", "earlier-3", "terms"])
+        earlier, second = steps[at - 4], steps[at - 3]
         self.assertTrue(earlier["uses"].startswith("actions/download-artifact@"))
         self.assertEqual(second["uses"], earlier["uses"])
         self.assertIs(second["continue-on-error"], True)
@@ -2351,7 +2353,7 @@ class WiringTests(unittest.TestCase):
         self.assertEqual(earlier["if"], "steps.plan.outputs.j2_exclude_run_id != ''")
         self.assertEqual(earlier["with"]["path"],
                          "${{ runner.temp }}/lab-earlier/${{ steps.plan.outputs.j2_exclude_run_id }}")
-        self.assertEqual(text.count("github.token"), 3)
+        self.assertEqual(text.count("github.token"), 5)
         for key in ("j2_exclude_artifact", "j2_exclude_run_id", "j3_exclude_artifact_2", "j3_exclude_run_id_2"):
             self.assertIn(key, lab_plan.OUTPUT_KEYS)
         self.assertNotIn("lab-plan", second["with"]["path"])

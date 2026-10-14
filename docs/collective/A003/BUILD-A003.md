@@ -619,7 +619,9 @@ The other lab suites run unchanged but for the pins the build plan names: `tests
 `earlier-3`, `terms`, `prereg`; the two new steps' shape), `tests/lab/test_lab_plan.py` (the four output keys, in two
 places), `tests/lab/test_lab_docs.py` (the thirteen J4 labels, six troubleshooting rows, the template, `_J4_KEYS` and
 `_J4_TERMS_KEYS`), `tests/lab/test_lab_sim.py` (the experiments message), `tests/lab/test_lab_shipped.py` (the template
-list) and `tests/lab/helpers.py` (`PREREG_EXPERIMENTS`).
+list) and `tests/lab/helpers.py` (`PREREG_EXPERIMENTS`); and two pins of `tests/lab/test_lab_j3.py` that read the
+same workflow and outputs (`lab.plan.OUTPUT_KEYS` with the four new keys; `earlier` and `earlier-2` found before
+`earlier-3` and `terms`, and `github.token` five times).
 
 VERIFICATION_PLACEHOLDER
 

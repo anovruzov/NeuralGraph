@@ -57,9 +57,9 @@ model. The experiments:
   and never appear in a summary, a log line or the repository. Its template is `lab/templates/terms-003.json` (copy
   it to `lab/requests/terms-003.json`).
 - J4: accuracy test A003's judging run, J001's question asked of one model about a fresh draw of real public
-  complaints with three earlier cycles' records and the term run's drafting set excluded (the plan job first checks
-  the term run's artifact against the term set's committed sha256, then downloads the three earlier runs' plan
-  artifacts, establishes each cycle's set from eight sources, and removes the drafting records from the draw by
+  complaints with three earlier cycles' records and the term run's drafting set excluded (the plan job downloads the
+  three earlier runs' and the term run's plan artifacts, checks the term set against its committed sha256 before
+  anything else, establishes each cycle's set from eight sources, and removes the drafting records from the draw by
   record id and by narrative), twice: under the earlier cycle's base task with the drafted terms of the asked
   component in the payload, and under the base task alone, each read by the product's verdict rule and through the
   branch's reading, beside three lexical judges (the drafted terms', the hand pack's and a term-presence judge); four
