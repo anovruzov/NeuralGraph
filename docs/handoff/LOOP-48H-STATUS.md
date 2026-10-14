@@ -206,6 +206,13 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   Merged as ed96530 (docs only, the name guard passed) and pushed. Build 1, the term-drafting kind jt, started on
   wf/a003-terms with step 0 first (A002's dry-run outputs pinned byte for byte, C30); then two adversarial reviews
   and a fix stage; then the term run, an amendment with the term set's sha256, and build 2 (the judging kind j4).
+- 2026-10-14 16:00 A003 build 1 committed on wf/a003-terms at 31cee9d (the term-drafting kind jt: lab/jt.py, its
+  wiring, tests/lab/test_lab_jt.py, synthetic data, the terms-003 template, BUILD-A003.md; step 0 pinned A002's dry-run
+  outputs at b8966c2). The builder's checks: test_lab_jt 52 passed; test_lab_j3 and j2 121 passed; tests/lab 898
+  passed in 28 min 31 s; onboard, guards and x3 402 passed; A002's dry-run summary, report.json and report.md equal
+  to the recording byte for byte; every pinned path byte-identical to ed96530. The terms-003 dry run on synthetic data
+  drafted 33 terms for 7 of the 26 hand predicates with the privacy check passed and printed no term (synthetic,
+  measurement false). Two adversarial reviews are running (rule and leakage; tests and mutations), then the fix stage.
 
 ## Open asks (date asked)
 
