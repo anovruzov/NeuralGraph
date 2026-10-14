@@ -356,6 +356,9 @@ template is `lab/templates/accuracy-003.json`, to copy to `lab/requests/accuracy
 | `primary` | the primary pair P: `model` (one of the block's models) and `arm`, `<base_task>_terms`, or `evidence` with `base_task` `evidence` (the confirmation case, C1, whose pass order puts task B first) | |
 | `comparisons_before` | 0 to 1000000: the (model, arm, cycle) comparisons made since the loop began before this cycle | 0 |
 
+A `j4` block runs beside no `j2` or `j3` block (`J4_BESIDE_PROBLEM` at `$.experiments`): the plan's exclusion outputs
+and downloads name one excluding kind's earlier runs, and the judging run reads three.
+
 `lab.plan --github-output` echoes the three excluded runs as `j2_exclude_run_id` and `j2_exclude_artifact` (the
 workflow's `earlier` step), `j3_exclude_run_id_2` and `j3_exclude_artifact_2` (`earlier-2`) and
 `j4_exclude_run_id_3` and `j4_exclude_artifact_3` (`earlier-3`), each downloaded under
@@ -367,11 +370,16 @@ artifact under `--terms-plans` (default `lab-terms` beside the plan directory): 
 drafting files, the document a term set, its cutoff, window, makes and hand pack hashes the rule's and the code hash
 of `lab/jt.py` at this commit the one it records, the drafting files matching it, and P_D rebuilt from it with the
 four hashes it records and the request's `vocabulary_hash`; anything else refuses the plan with `J4_TERMS_UNVERIFIED`
-before any draw, after a `j4 terms:` line naming the outcome and the check that failed. Then the eight sources of the
+before any draw, after a `j4 terms:` line naming the outcome and the check that failed. P_D is then rebuilt by this
+kind's own builder (`lab.j4.drafted_pack`) and must have the four hashes the check verified (`J4_TERMS_UNVERIFIED`
+otherwise, the term line alone printed), still before any source is read. Then the eight sources of the
 three earlier cycles (`lab.j4labels.establish`, item 4, C20): J1, R1, A1, R2 and K2 as A002's sources J1, R1, A1, R2
 and K; B1, the second accuracy test's artifact (`prereg/j3/labels.jsonl` hashing to the third entry's prefix,
-`prereg/j3/labels.json` a record of nhtsa, 150, seed 3, its questions' refs the labels' and its questions file A002's,
-C3, every file cross-checked against the artifact's manifest); R3, that cycle's rebuild, `lab.j2labels.draw` of 150 at
+`prereg/j3/labels.json` a record of nhtsa, 150, seed 3, its questions' refs the labels' and its questions file A002's
+by the questions prefix `lab.j4labels.A002_QUESTIONS_SHA256_PREFIX`, C3, every file cross-checked against the
+artifact's manifest; the prefix B1 was checked against, A002's or a dry run stand-in's, is kept with B1's outcome in
+the labels record, printed as `B1_questions_sha256` after `B1=<outcome>` in the `j4 draw:` line and shown beside B1
+in both summaries); R3, that cycle's rebuild, `lab.j2labels.draw` of 150 at
 seed 3 over the eligible list less J001's and A001's sets, attempted only once both are established; and K3, its chain
 file `prereg/j3/excluded.jsonl` through the same check. A cycle's set is its artifact's or its rebuild's, or else a
 chain's less the sets of the other cycles that chain covers (`by` `chain`); a chain alone establishes nothing, and two
@@ -385,8 +393,10 @@ the archives are equal; every eligible record not already excluded whose record 
 before the draw (`by_record_id`), and every other one whose folded narrative hashes to a drafting narrative's
 (`by_text`); the removals join the excluded set. After the draw of `n` at the seed over the eligible records less the
 excluded set, two tripwires count drawn records received before the cutoff and drawn drafting records. A rebuild that
-differs or a tripwire above 0 refuses the plan with `J4_SPLIT_VIOLATED`, and fewer eligible records than `n` with
-`J4_TOO_FEW_RECORDS`. Then J001's questions, the three lexical judges (`lab.j4.comparator_lines`: J001's lexical judge
+differs or a tripwire above 0 refuses the plan with `J4_SPLIT_VIOLATED`, fewer eligible records than `n` with
+`J4_TOO_FEW_RECORDS`, and a draw that holds an excluded record (an overlap above 0, `lab.j4labels.DrawOverlap`) with
+`J4_EXCLUSION_DISAGREES`. Every stop after the term check verified prints the `j4 terms:` line last, so a stopped
+plan job's log still records that the term set, P_D and `lab/jt.py`'s code hash verified (rule 17). Then J001's questions, the three lexical judges (`lab.j4.comparator_lines`: J001's lexical judge
 over P_D and over the hand pack, and the term-presence judge, `mentions_entity` as the drafted judge answers it and
 `describes_predicate` yes when a term of the asked component occurs word-bounded in a folded sentence of the record,
 C5), the record-blind control, the predicate-only bound and the three judges paired with each other
@@ -397,10 +407,18 @@ C5), the record-blind control, the predicate-only bound and the three judges pai
 class, instructions sha256, schema sha256 and `max_tokens`; task D's instructions are the base's with the terms
 sentence before its last sentence, its schema and cap the base's, C32), the pass order (D, then B; B first in the
 confirmation case), the reading, the four arms, the lifts, the comparators, the primary pair, the headline secondary
-(Dr), the other reading's arm, the term pin, the exclusion's counts and hashes and the target balanced accuracy. The
+(Dr), the other reading's arm, the term pin, the exclusion's counts and hashes, the comparisons this cycle (the
+branch's four arms times the models, which the aggregate recounts: `PREREG_MISSING` when the document or the manifest
+says otherwise) and the target balanced accuracy. Only a plan with J4 units has a `j4` key in its manifest
+`prereg/prereg.json`, so every other plan's manifest is byte for byte what it was before the kind existed. The
 plan job prints counts, scores and hashes only, in fixed lines that start `j4 exclusion:` (a source that did not
-verify, then the cycles' line), `j4 draw:`, `j4 split:`, `j4 terms:` and `j4 comparators:` (twice: the three lexical
-judges with their unknown counts, then the control, the bound and the judges' pairs); no line holds a ref or a term.
+verify, then the cycles' line), `j4 draw:`, `j4 split:`, `j4 terms:` (the outcome, the term set's sha256 and the
+expected one, P_D's four hashes by name, `lab/jt.py`'s code hash and the document's) and `j4 comparators:` (twice:
+the three lexical judges with their unknown counts, then the control, the bound and the judges' pairs); no line holds
+a ref or a term. The warm-up of a J4 shard prints one line for task D, `lab: warmup <task D> typical_terms N
+typical_predicate P worst_terms M worst_predicate Q worst_prompt_tokens T max_tokens K slot S fits yes|no`: the two
+payloads' term counts and asked predicates (hand predicate ids), the worst case's counted prompt and whether it fits
+the slot (C12; `none` when the server did not count it), never a term.
 Each unit (`lab.j4 run`) checks every pin before any call (J001's, the hand pack's hashes, `--terms` hashing to the pin
 and P_D rebuilt from it with the pinned hashes, both tasks, the reading, the arms, the lifts and the routing of both
 tasks to its one endpoint without escalation) and judges its part's questions with task D, then task B, through the
@@ -422,8 +440,10 @@ empty, under branch E the citation readings (C16), the first-key shares, the out
 and the controls B and Br beside the earlier cycle's own figures (`lab.j4.EARLIER_ARMS`: A001's under branch N,
 A002's under E). A dry run needs `lab.dryrun --j4-data DIR` (a `tests.lab.j4_data` directory: a synthetic complaint
 archive, three synthetic earlier artifacts and a three-entry exclusion stand-in, a synthetic term run's artifact
-drafted by the real drafter and its stand-in entry), which does not go with `--j2-data`, `--j3-data` or `--jt-data`;
-its fake answers task D as it answers task B, so nothing in a dry run measures the terms, and its preregistration says
+drafted by the real drafter and its stand-in entry; `python -m tests.lab.j4_data --out DIR --negated` makes the
+variant the judging kind's dry runs use, whose window narratives state a drafted cue word as negated on some rows, so
+the drafted lexical judge and the term-presence judge answer apart), which does not go with `--j2-data`, `--j3-data`
+or `--jt-data`; its fake answers task D as it answers task B, so nothing in a dry run measures the terms, and its preregistration says
 so (`J4_STAND_IN`).
 
 The fetch makes up to `product_codes` x 2 x ceil(`max_records_per_code` / page) requests, where a page is 100 records

@@ -558,12 +558,26 @@ no test, console line, summary, report or note prints one.
   [0.503, 0.577] and 0.553 [0.517, 0.590]), as their recorded runs give them; the between-draw difference is printed
   beside them and decides nothing.
 - **The fixed lines' order**: exclusion, draw, split, terms, comparators after a good preregistration; the term line
-  first and alone when the term check fails (nothing else ran), the split line alone before a split stop.
+  first and alone when the term check fails or P_D does not rebuild (nothing else ran); after a later stop the lines
+  printed so far (the sources' and the exclusion lines, the draw's sentence, the split line) and then the term line
+  last (fix stage).
+- **The warm-up's term counts are a console line** (C12, fix stage): `lab.warmup.warm_up` prints, for each warmed
+  task D, `lab: warmup <task D> typical_terms N typical_predicate P worst_terms M worst_predicate Q
+  worst_prompt_tokens T max_tokens K slot S fits yes|no`, the counts and hand predicate ids of the two payloads, the
+  worst case's counted prompt and whether it fits the slot (`none` when the server did not count it); the row of the
+  warm-up record keeps the same counts. Counts and ids only: a term is never printed. The shard summary and the report
+  do not repeat them (the console log is the shard's own record of its warm-up).
+- **The negated variant of the synthetic archive** (fix stage): the judging kind's dry runs read
+  `j4_data.archive(negated=True)`, in which every other window row holding the engine narrative negates its drafted
+  cue word, so that the drafted lexical judge (with the pack's negation cues) and the term-presence judge (without
+  them) answer apart; the default archive, the term run's dry run's, is byte for byte build 1's.
 - **The stand-in's third entry may carry `questions_sha256_prefix`**, the synthetic A002 artifact's questions file
   prefix, popped before the request's entry shape is validated and handed to `establish` in place of A002's pinned
   prefix (C3); the real request has no such key.
 - **The comparisons this cycle are four per model**, the arms of the branch, as A001 and A002 count theirs; the
-  template's one model gives 4 and 25 since the loop began.
+  template's one model gives 4 and 25 since the loop began. The preregistration and the manifest record the branch's
+  arms times the models (`lab.j4.comparisons_this_cycle`), and the aggregate refuses a block whose count differs
+  (fix stage: build 2 recorded 4 whatever the model count).
 - **The agreement readings are per kind** (positive and negative questions apart) for the primary arm against the
   drafted lexical judge and the term-presence judge, with the equal share and both confirm rates (trap 6).
 - **The stand-in note comes after the J4 lists**, not between the exclusion and the term pin, in both summaries.
@@ -597,7 +611,8 @@ arm of the other branch with `_primary`'s own problem.
 ### Tests
 
 `tests/lab/test_lab_j4.py`, offline: the synthetic archive and artifacts of `tests/lab/j4_data.py`, the collective's
-fake server, no network host. 76 tests: 45 from stage 1, 31 from stage 2.
+fake server, no network host. 92 tests: 45 from stage 1, 31 from stage 2 and 16 from the fix stage (the table names
+what the fix stage added; "Fixes after review" says which finding each answers).
 
 | Class | Pins |
 |---|---|
@@ -608,10 +623,16 @@ fake server, no network host. 76 tests: 45 from stage 1, 31 from stage 2.
 | `RequestTests` | the template validating to its block, its top level and a purpose with no digit outside the two paths; every block error and its problem (base task, the list's length, each entry's file, seed and chain keys, the term entry's file, hexes, artifact and cutoff, the primary arm and model, the labels, the counts); the confirmation case and branch E's arms; fake models accepted and a hosted one refused |
 | `PlanWiringTests` | the template's 5 units in 5 shards with their params; `plan_outputs` (and the written `--github-output`) on a j4, a j3, a j2 and another plan |
 | `UnitWiringTests` | the adapter and the lists; `_j4_status` on every pairing, `J4_TERMS_STOPPED` under both pass orders; the floor judging the second pass only when it finished; a unit run on the fake provider: `ok`, `plumbing`, the files, `--terms`, the routing of D and B only, 40 attempts per task, D's lines first with their term counts and B's without |
-| `WiringTests` | both fake handlers (D as B, behind an empty citation under E, both branches of the responder); the warm-up's two tasks, the probe B, D's typical and worst payloads (the longest list by characters), no D without the preregistration; the two workflow steps; no digit in any J4 note, heading or column and the primary line's placeholders; `--j4-data` refused with each other data flag |
-| `PreregWiringTests` | `lab.prereg`'s J4 step in process: the files, `terms.json` byte for byte, the manifest block; the six fixed lines in order with their figures, no ref and no term in them; a term set that does not verify stopping after one line, before any draw |
-| `AggregateWiringTests` | DryTree copies of the small dry run: a-4b answering D right and B as the hand judge gets `pass_provisional` (both words) for D and Dr and a word short of a pass for B and Br (the hand clause fails), `D_minus_B` helps; a stop in the second pass keeps D's set and P's word; every manifest disagreement (primary arm or model, base task, headline secondary, other reading's arm, term sha) and a restamped comparator or term file give `PREREG_MISSING`; no preregistration |
-| `SmallDryRunTests`, `TemplateDryRunTests` | the dry runs of a two-model request of 40 records in 2 parts and of the template: the console lines, every unit `ok` and `plumbing`, the report block against the manifest (every arm the hand judge line for line, every word `incomplete`, the lifts 0 and not told apart, the comparisons), both summaries with every number traced to its file, the headings and notes, no ref and no term in anything a reader sees and refs or terms only in the data files that hold them by design; the template's 5 shards and 25 comparisons |
+| `WiringTests` | both fake handlers (D as B, behind an empty citation under E, both branches of the responder); the warm-up's two tasks, the probe B, D's typical and worst payloads (the longest list by characters), no D without the preregistration; the warm-up on the stub server (fix stage): task D's row and its one `lab: warmup` line with the term counts, predicates, counted prompt and `fits`, no term; the two workflow steps; no digit in any J4 note, heading or column and the primary line's placeholders; `--j4-data` refused with each other data flag |
+| `PreregWiringTests` | `lab.prereg`'s J4 step in process: the files, `terms.json` byte for byte, the manifest block, the draw, questions and comparator scores recomputed (fix stage), the comparisons for two models, another kind's manifest without `j4`; each seed feeding its own step (fix stage); the six fixed lines in order with their figures (B1's questions prefix, P_D's four hashes), no ref and no term in them; a term set that does not verify, or a P_D that does not rebuild, stopping after one line, before any draw; every later stop (fix stage: no cycle established, a consistency count, too few records, a tripwire, a drafting set that does not rebuild, an overlap) with its path, note and lines, the term line last; the request's own entries checking B1 against A002's prefix; a removal by record id on an archive with one more straddling complaint |
+| `AggregateWiringTests` | DryTree copies of the small dry run: a-4b answering D right and B as the hand judge gets `pass_provisional` (both words) for D and Dr and (`failure`, `partial`) for B and Br, every arm's paired figures, pass-test differences and both words recomputed (fix stage), `D_minus_B` helps; the primary pair's two words apart and printed each in its place (fix stage); a stop in the second pass keeps D's set and P's word; lines and a run.json the runner could not have written (fix stage); the agreement, the empty lists, the three headlines and a transport failure (fix stage); every manifest disagreement (primary arm or model, base task, headline secondary, other reading's arm, term sha, the confirmation flag, the comparisons), the document's term pin and comparisons, P_D rebuilt otherwise, and a restamped comparator or term file give `PREREG_MISSING`; no preregistration |
+| `SmallDryRunTests`, `TemplateDryRunTests` | the dry runs (on the negated variant, fix stage) of a two-model request of 40 records in 2 parts and of the template: the console lines (B1's questions prefix, P_D's four hashes), every unit `ok` and `plumbing`, the report block against the manifest (every arm the hand judge line for line, every word `incomplete`, the lifts 0 and not told apart, the comparisons in the report, the manifest and the document, A001's own figures and the between-draw difference's sign, `presence_minus_drafted` not 0), both summaries with every number traced to its file, the headings and notes, B1's questions prefix, the primary line's three judges each from its own figures, no ref (every complaint id of the archive) and no term in anything a reader sees and refs or terms only in the data files that hold them by design; the template's 5 shards and 25 comparisons and its draw and questions recomputed |
+
+Some of the term check's checks are redundant with the file hashes, and the tests cannot tell them apart (equivalent
+survivors of the build reviews' mutation run): C11 and C12, `refs_file_sha256` and `refs_sha256`, are equal by
+construction (T4), so either check alone would do; C15 and C16, the narratives count and the line count, are
+redundant while `text_file_sha256` is checked (the fix stage pins that check); C20, a non-string term, fails later
+anyway as malformed in `p_d_hashes`. A later edit must not drop a hash check and keep only the counts.
 
 The other lab suites run unchanged but for the pins the build plan names: `tests/lab/test_lab_workflow.py`
 (`github.token` in exactly five places; `github-token` on `earlier`, `earlier-2`, `earlier-3` and `terms`; seven

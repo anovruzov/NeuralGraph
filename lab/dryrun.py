@@ -44,8 +44,10 @@ handed to ``lab.prereg --nhtsa-archive`` in place of the download, so the plan j
 from invented complaints.
 
 With J4 units (accuracy test A003's judging run, build 2), ``--j4-data`` names a directory made by ``python -m
-tests.lab.j4_data --out DIR``: its ``complaints.zip`` goes to ``lab.prereg --nhtsa-archive``, its ``earlier/`` (three
-synthetic plan artifacts, J001-, A001- and A002-shaped) to ``--earlier-plans``, its ``stand-in.json`` (a three-entry
+tests.lab.j4_data --out DIR`` (with ``--negated`` for the variant the judging kind's dry runs use, on which the drafted
+lexical judge and the term-presence judge answer apart): its ``complaints.zip`` goes to ``lab.prereg
+--nhtsa-archive``, its ``earlier/`` (three synthetic plan artifacts, J001-, A001- and A002-shaped) to
+``--earlier-plans``, its ``stand-in.json`` (a three-entry
 exclude list) to ``--exclude-stand-in``, its ``terms/`` (a synthetic term run's plan artifact, drafted from the
 archive's pre-cutoff rows by the real drafter) to ``--terms-plans`` and its ``terms-stand-in.json`` to
 ``--terms-stand-in``, so the term check, every one of the eight sources, the split and the draw verify on the test data

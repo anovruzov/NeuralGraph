@@ -419,7 +419,8 @@ class RuleTests(unittest.TestCase):
                                 "ci_high": 0.590}}})
         text = " ".join(CHOICE.read_text(encoding="utf-8").split())         # the rule's lines, re-wrapped
         for figure in ("0.577 [0.530, 0.623]", "0.653 [0.610, 0.697]", "0.540 [0.503, 0.577]", "0.553 [0.517, 0.590]",
-                       "38114522160", "38439612256", "(arm C read as answered, 0.577; arm D through the mapping, 0.653)"):
+                       "38114522160", "38439612256",
+                       "(arm C read as answered, 0.577; arm D through the mapping, 0.653)"):
             with self.subTest(figure=figure):
                 self.assertIn(figure, text)
         for base in lab_j4.BASES:
@@ -2858,6 +2859,72 @@ class WiringTests(unittest.TestCase):
         self.assertNotIn(b.payload["record"]["text"], "".join(
             r["narrative"] for r, _ in lab_j1.parse_labels((p.dir / "labels.jsonl").read_bytes())))
 
+    def test_the_warm_up_prints_task_d_s_term_counts_on_a_server(self) -> None:
+        """Rule 16, C12, on the stub server: task D's warm-up row holds both payloads' term counts and asked
+        predicates, and its console line ``lab: warmup <task D> ...`` prints them with the worst case's counted prompt,
+        ``max_tokens``, the slot and whether it fits; counts and predicate ids only, never a term. Task B prints no
+        such line, and its probe is task B's."""
+        from lab.server import ModelServer, ServerSpec
+        from mycelic.collective.inference.tasks import render_messages
+        from mycelic.collective.schemacheck import compile as compile_schema
+        from tests.lab.stubs.fake_server_stub import write_launcher
+
+        p = _Prereg4.get()
+        d = _Data.get()
+        tmp = Path(tempfile.mkdtemp(prefix="lab-j4-warm-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        self.addCleanup(kill_mentioning, str(tmp))
+        launcher = write_launcher(tmp / "bin" / "server-stub", {"record_dir": str(tmp / "records"), "tag": "b7",
+                                                                 "pack": str(ROOT / NHTSA_PACK)})
+        model = tmp / "models" / "model.gguf"
+        model.parent.mkdir(parents=True)
+        model.write_bytes(b"GGUF")
+        ctx = 16384
+        instance = ModelServer(ServerSpec(binary=launcher, model_path=model, alias="stub-alias", tag="b7", slots=1,
+                                          ctx_per_slot=ctx, seed=7, threads=2, threads_batch=2, cache_ram_mib=256,
+                                          extra_args=()), out=tmp / "OUT", key="k", index=0, health_deadline_s=30)
+        self.addCleanup(instance.stop)
+        instance.start()
+        units_ = [u for u in p.plan["units"] if u["model"] == "fake-a"]
+        tasks = [t for t in lab_warmup.warm_tasks(units_, p.plan, p.prereg) if t.units]
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            record, skips, stop_all = lab_warmup.warm_up(
+                instance, {"response_format": "json_schema", "transport_schema": "full"}, tasks, ctx_per_slot=ctx,
+                out=tmp / "OUT", start_index=0, meminfo=lambda: 8 << 30)
+        self.assertEqual((skips, stop_all), ({}, None))
+        _, dt = tasks
+
+        def counted(payload: dict[str, Any]) -> int:
+            """The stub's count: its template's prompt, one token per four characters, plus one."""
+            messages = render_messages(dt.task, payload, compile_schema(dt.schema))
+            prompt = "".join(f"<|{m.get('role')}|>\n{m.get('content')}\n" for m in messages) + "<|assistant|>\n"
+            return len(prompt) // 4 + 1
+
+        longest = lab_j4.longest_terms(d.T)
+        worst = counted(dt.worst)
+        self.assertGreater(worst, counted(dt.payload))
+        expected = (f"lab: warmup {ND} typical_terms {len(d.T.get(dt.terms['typical_predicate'], []))} "
+                    f"typical_predicate {dt.payload['question']['predicate']} worst_terms {len(d.T[longest])} "
+                    f"worst_predicate {longest} worst_prompt_tokens {worst} max_tokens {dt.task.max_tokens} slot "
+                    f"{ctx} fits yes")
+        self.assertEqual([line for line in out.getvalue().splitlines() if line.startswith("lab: warmup ")],
+                         [expected])
+        rows = {row["task"]: row for row in record["tasks"]}
+        self.assertEqual(sorted(rows), [N, ND])
+        self.assertNotIn("terms", rows[N])
+        self.assertEqual(rows[ND]["terms"], dt.terms)
+        self.assertEqual((rows[ND]["prompt_tokens_counted"], rows[ND]["worst_prompt_tokens"], rows[ND]["fits"]),
+                         (counted(dt.payload), worst, True))
+        self.assertEqual(record["probe"]["task"], N)
+        assert_no_term(self, out.getvalue() + canonical_dumps(record), d.all_terms)
+        # an uncounted worst case, and a slot one token too small
+        self.assertTrue(lab_warmup.terms_line(dt, None, ctx).endswith(
+            f"worst_prompt_tokens none max_tokens {dt.task.max_tokens} slot {ctx} fits none"))
+        small = worst + dt.task.max_tokens - 1
+        self.assertTrue(lab_warmup.terms_line(dt, worst, small).endswith(f"slot {small} fits no"))
+        self.assertTrue(lab_warmup.terms_line(dt, worst, small + 1).endswith(f"slot {small + 1} fits yes"))
+
     def test_the_workflow_downloads_the_third_earlier_artifact_and_the_term_artifact(self) -> None:
         """C27: the plan job's ``earlier-3`` and ``terms`` steps, of the ``earlier`` steps' shape (the same pinned
         action, the workflow's own read-only token, ``continue-on-error``), after ``earlier-2`` and before ``prereg``;
@@ -3097,23 +3164,25 @@ class PreregWiringTests(unittest.TestCase):
         self.assert_term_line_last(lines)
 
     def test_a_consistency_count_above_zero_stops_before_any_draw(self) -> None:
-        """Item 4 (b): K3 one ref wider than the three cycles' sets: ``k3_union`` 1 stops the plan job with
-        J4_EXCLUSION_DISAGREES before the draw."""
-        directory, e, prefix = _Artifacts.fresh(self)
-        refs = (j4_data.refs_in(directory, j4_data.J001_RUN_ID, "prereg/j1/labels.jsonl")
-                | j4_data.refs_in(directory, j4_data.A001_RUN_ID, "prereg/j2/labels.jsonl")
-                | j4_data.refs_in(directory, j4_data.A002_RUN_ID, j4_data.J3_LABELS_FILE))
-        data = j2labels.excluded_jsonl([*sorted(refs), "999999901"])
-        restamp(directory / str(j4_data.A002_RUN_ID), j4_data.J3_CHAIN_FILE, data)
-        entries = [e[0], e[1], {**e[2], "chain_sha256_prefix": sha256_hex(data)[:12],
-                                "questions_sha256_prefix": prefix}]
-        err, lines = self.stopped(earlier=directory, entries=entries)
-        self.assertEqual((err.path, err.problem), ("$.experiments.j4.exclude", notes.J4_EXCLUSION_DISAGREES))
-        exclusion = [line for line in lines if line.startswith("j4 exclusion: j001=")]
-        self.assertEqual(len(exclusion), 1)
-        self.assertIn(" k3_union=1 excluded 451", exclusion[0])
-        self.assertFalse(any(line.startswith(("j4 draw:", "j4 split:")) for line in lines))
-        self.assert_term_line_last(lines)
+        """Item 4 (b): J001's artifact drawn from another archive (``j1_r1`` above 0), and K3 one ref wider than the
+        three cycles' sets (``k3_union`` 1), each the only count above 0 (``SourcesTests.alone``): the plan job stops
+        with J4_EXCLUSION_DISAGREES before the draw, the count printed on the exclusion line."""
+        for key in ("j1_r1", "k3_union"):
+            with self.subTest(count=key):
+                used, prefix, want = SourcesTests.alone(self, key)     # type: ignore[arg-type]
+                directory = used.pop()
+                entries = [used[0], used[1], {**used[2], "questions_sha256_prefix": prefix}]
+                err, lines = self.stopped(earlier=directory, entries=entries)
+                self.assertEqual((err.path, err.problem), ("$.experiments.j4.exclude", notes.J4_EXCLUSION_DISAGREES))
+                exclusion = [line for line in lines if line.startswith("j4 exclusion: j001=")]
+                self.assertEqual(len(exclusion), 1)
+                self.assertGreater(want, 0)
+                self.assertIn(f" {key}={want} ", exclusion[0])
+                others = [part for part in exclusion[0].split(" ") if "=" in part and part.split("=")[0]
+                          in j4labels.CONSISTENCY and part.split("=")[0] != key]
+                self.assertTrue(all(part.split("=")[1] in ("0", "none") for part in others), others)
+                self.assertFalse(any(line.startswith(("j4 draw:", "j4 split:")) for line in lines))
+                self.assert_term_line_last(lines)
 
     def test_too_few_records_left_stops_after_the_split(self) -> None:
         """Items 5 and 6 (c): one record more than the 273 the exclusion and the split leave: J4_TOO_FEW_RECORDS at
@@ -3176,23 +3245,24 @@ class PreregWiringTests(unittest.TestCase):
         self.assertTrue(lines[0].startswith("j4 terms: outcome verified failed none "), lines[0])
 
     def test_a_straddling_complaint_no_earlier_draw_holds_is_removed_by_record_id(self) -> None:
-        """C4 on the console: an archive with one more complaint straddling the cutoff, whose later row no earlier
-        draw holds: the split's line prints one removal by record id, the draw line 452 excluded. The archives
-        differ from the term run's, so both drafting sets are used together and nothing stops."""
+        """C4 on the console: an archive with two more complaints straddling the cutoff, whose later rows no earlier
+        draw holds: the split's line prints two removals by record id beside the one by text, the draw line 453
+        excluded. The archives differ from the term run's, so both drafting sets are used together and nothing
+        stops."""
         export = lab_goldlabels.nhtsa_export()
-        ref = "7900099"
-        text = "The hood latch rattled loose twice on the gravel road near the farm."
+        new = {"7900098": "The hood latch rattled loose twice on the gravel road near the farm.",
+               "7900099": "The rear hatch strut gave way and the lid dropped onto the loading bay."}
         with zipfile.ZipFile(io.BytesIO(ARCHIVE)) as z:
             rows = z.read("CMPL.txt").decode("latin-1")
         extra = [j4_data._row(export, ref, "FORD", "ENGINE", "OH", day, text, "MODEL Y", "2021")
-                 for day in (datetime.date(2022, 5, 5), datetime.date(2023, 5, 5))]
+                 for ref, text in new.items() for day in (datetime.date(2022, 5, 5), datetime.date(2023, 5, 5))]
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as z:
             z.writestr(zipfile.ZipInfo("CMPL.txt", date_time=j4_data.ZIP_DATE),
                        (rows + "\n".join(extra) + "\n").encode("latin-1"))
         variant = buf.getvalue()
         d = _Data.get()
-        self.assertNotIn(ref, d.est.excluded)
+        self.assertFalse(set(new) & (d.est.excluded | SPECIAL))
         tmp = Path(tempfile.mkdtemp(prefix="lab-j4-straddling-"))
         self.addCleanup(shutil.rmtree, tmp, True)
         request = json.loads(PLUMBING_MIN.read_text(encoding="utf-8"))
@@ -3208,18 +3278,18 @@ class PreregWiringTests(unittest.TestCase):
         lines = out.getvalue().splitlines()
         split = next(line for line in lines if line.startswith("j4 split:"))
         self.assertIn("archives_equal no ", split)
-        self.assertTrue(split.endswith("by_record_id 1 by_text 1 already_excluded 3 before_cutoff 0 in_drafting 0"),
+        self.assertTrue(split.endswith("by_record_id 2 by_text 1 already_excluded 3 before_cutoff 0 in_drafting 0"),
                         split)
         draw = next(line for line in lines if line.startswith("j4 draw:"))
-        self.assertIn("available 725 excluded 452 (earlier 450 split_by_record_id 1 split_by_text 1) "
+        self.assertIn("available 726 excluded 453 (earlier 450 split_by_record_id 2 split_by_text 1) "
                       "eligible_after_exclusion 273 overlap 0 ", draw)
         j4 = manifest["j4"]
         self.assertEqual((j4["split"]["by_record_id"], j4["split"]["by_text"], j4["exclusion"]["excluded"]),
-                         (1, 1, 452))
+                         (2, 1, 453))
         chain = {line["record_ref"] for line in read_lines(tmp / "plan" / "prereg" / "j4" / "excluded.jsonl")}
-        self.assertIn(ref, chain)
-        self.assertNotIn(ref, refs_of((tmp / "plan" / "prereg" / "j4" / "labels.jsonl").read_bytes()))
-        assert_no_ref(self, out.getvalue(), chain | {ref})
+        self.assertLessEqual(set(new), chain)
+        self.assertFalse(set(new) & refs_of((tmp / "plan" / "prereg" / "j4" / "labels.jsonl").read_bytes()))
+        assert_no_ref(self, out.getvalue(), chain | set(new))
 
     def test_the_fixed_lines(self) -> None:
         p = _Prereg4.get()
@@ -3342,6 +3412,43 @@ class AggregateWiringTests(unittest.TestCase):
         line.clear()
         line.update(fresh)
 
+    def lines_of(self, model: str) -> list[dict[str, Any]]:
+        """Every verdict line of the model's two parts, as the tree holds them now."""
+        out: list[dict[str, Any]] = []
+        for part in (1, 2):
+            shard, unit = self.shard_of(model, part)
+            out += read_lines(self.tree.path(shard, f"runs/j4/{unit['run_id']}/verdicts.jsonl"))
+        return out
+
+    def comparators(self) -> dict[str, list[dict[str, Any]]]:
+        return {name: read_lines(self.prereg_dir / f"{name}.jsonl") for name in lab_j4.COMPARATORS}
+
+    def assert_recomputed(self, arm: str, a: dict[str, Any], lines: list[dict[str, Any]]) -> None:
+        """Rule 13, C6 and C19 recomputed from the arm's own lines: each paired difference to a lexical judge, the
+        pass test's figures (the drafted judge in the second clause, the hand and term-presence judges in the added
+        ones), the word and the word under lever 5's text alone."""
+        view = lab_j4.arm_lines(lines, arm)
+        comparators = self.comparators()
+        for name in lab_j4.LEXICAL_JUDGES:
+            self.assertEqual(a["paired"][name], lab_j1.paired(self.questions, view, comparators[name], bootstrap_b=1000,
+                                                              bootstrap_seed=4), (arm, name))
+        test = a["pass_test"]
+        self.assertEqual((test["diff_lexical"], test["diff_hand_lexical"], test["diff_term_presence"]),
+                         (a["paired"][lab_j4.LEXICAL_DRAFTED]["mean_diff"],
+                          a["paired"][lab_j4.LEXICAL_HAND]["mean_diff"],
+                          a["paired"][lab_j4.PRESENCE_DRAFTED]["mean_diff"]), arm)
+        common = {"complete": a["complete"], "display_class": a["display_class"], "measurement": a["measurement"],
+                  "dropped_share": a["dropped_share"], "scores": a["scores"], "bound": a["prior_bound"],
+                  "paired": a["paired"][lab_j4.LEXICAL_DRAFTED]}
+        self.assertEqual(a["verdict_word"], lab_j4.verdict_word(
+            **common, paired_hand=a["paired"][lab_j4.LEXICAL_HAND],
+            paired_presence=a["paired"][lab_j4.PRESENCE_DRAFTED])[0], arm)
+        self.assertEqual(a["lever5_word"], lab_j2.verdict_word(**common)[0], arm)
+
+    def arms_row(self, md: str, arm: str) -> str:
+        letter = lab_j4.ARM_LETTERS[arm]
+        return next(line for line in md.splitlines() if line.startswith(f"| `a-4b` | `{arm}` | `{letter}` |"))
+
     def aggregate(self) -> dict[str, Any]:
         shutil.rmtree(self.tmp / "R", True)
         code, _, err, report = self.tree.aggregate(self.tmp / "R")
@@ -3358,6 +3465,9 @@ class AggregateWiringTests(unittest.TestCase):
             self.restamp("a-4b", part, lines=lambda ls: [self.correct(x) for x in ls if x["task"] == ND])
         block = self.aggregate()
         arms = block["models"]["a-4b"]["arms"]
+        lines = self.lines_of("a-4b")
+        for arm, a in arms.items():
+            self.assert_recomputed(arm, a, lines)
         for arm in ("negation_terms", "negation_terms_mapped"):
             a = arms[arm]
             self.assertEqual((a["display_class"], a["verdict_word"], a["lever5_word"], a["pass_test"]["passed"]),
@@ -3366,10 +3476,13 @@ class AggregateWiringTests(unittest.TestCase):
             self.assertEqual(set(a["pass_test"]["clauses"].values()), {True})
         for arm in ("negation", "negation_mapped"):
             a = arms[arm]
+            # B and Br answer as the hand judge: they beat the drafted judge below the target, not the hand judge
             self.assertEqual(a["paired"]["lexical"]["mean_diff"], 0.0)
             self.assertIs(a["pass_test"]["clauses"]["beats_hand_lexical"], False)
-            self.assertNotEqual(a["verdict_word"], "pass_provisional")
-            self.assertIn(a["verdict_word"], ("partial", "failure"))
+            self.assertIs(a["pass_test"]["clauses"]["beats_lexical"], True)
+            self.assertNotEqual(a["paired"][lab_j4.PRESENCE_DRAFTED]["mean_diff"],
+                                a["paired"][lab_j4.LEXICAL_DRAFTED]["mean_diff"])
+            self.assertEqual((a["verdict_word"], a["lever5_word"]), ("failure", "partial"), arm)
         primary = block["primary_result"]
         self.assertEqual((primary["arm"], primary["verdict_word"], primary["lever5_word"],
                           primary["other_reading"]["arm"], primary["other_reading"]["verdict_word"]),
@@ -3385,6 +3498,155 @@ class AggregateWiringTests(unittest.TestCase):
         check_sources(self, md, sources, self.tmp / "R")
         self.assertIn("Primary pair `a-4b` `negation_terms`: `pass_provisional`; under lever five's text alone: "
                       "`pass_provisional`.", md)
+        for arm in ("negation", "negation_mapped"):
+            self.assertIn("| `failure` | `partial` |", self.arms_row(md, arm))
+
+    def test_the_primary_pair_s_two_words_apart(self) -> None:
+        """C6 and C19: a-4b measured and answering task D as the hand lexical judge: the primary arm beats the
+        drafted judge below the target but not the hand judge, so its word is ``failure`` while the word under lever
+        5's text alone is ``partial``; the primary line and the arms table print each word in its own place, and the
+        primary line each judge's figures from that judge."""
+        self.make_measured("a-4b")
+        block = self.aggregate()
+        a = block["models"]["a-4b"]["arms"]["negation_terms"]
+        self.assert_recomputed("negation_terms", a, self.lines_of("a-4b"))
+        self.assertEqual((a["verdict_word"], a["lever5_word"]), ("failure", "partial"))
+        result = block["primary_result"]
+        self.assertEqual((result["verdict_word"], result["lever5_word"]), ("failure", "partial"))
+        md, sources = lab_summary.render_report(self.tmp / "R")
+        check_sources(self, md, sources, self.tmp / "R")
+        self.assertIn("Primary pair `a-4b` `negation_terms`: `failure`; under lever five's text alone: `partial`.", md)
+        row = self.arms_row(md, "negation_terms")
+        self.assertIn("| `failure` | `partial` |", row)
+        # rule 11: the headline against the drafted judge, with the same words against the hand and term-presence
+        # judges beside it
+        heads = [a["headlines"][name]["headline"] for name in (lab_j4.LEXICAL_DRAFTED, lab_j4.LEXICAL_HAND,
+                                                                lab_j4.PRESENCE_DRAFTED)]
+        self.assertTrue(all(isinstance(h, str) for h in heads), heads)
+        self.assertNotEqual(heads[0], heads[1])
+        self.assertIn(" | ".join(f"`{h}`" for h in heads) + " | n/a |", row)
+
+        def interval(x: dict[str, Any], key: str = "value") -> str:
+            return f"{x[key]:.3f} [{x['ci_low']:.3f}, {x['ci_high']:.3f}]"
+
+        judges, paired = result["judges"], a["paired"]
+        self.assertEqual(judges, {name: a["judges"][name]["balanced_accuracy"] for name in lab_j4.LEXICAL_JUDGES})
+        self.assertEqual(len({judges[name]["value"] for name in lab_j4.LEXICAL_JUDGES}), 3)
+        self.assertIn(f"drafted lexical judge {interval(judges['lexical_drafted'])} on the same records, paired "
+                      f"difference {interval(paired['lexical_drafted'], 'mean_diff')}; hand lexical judge "
+                      f"{interval(judges['lexical'])}, paired difference {interval(paired['lexical'], 'mean_diff')}; "
+                      f"term presence {interval(judges['presence_drafted'])}, paired difference "
+                      f"{interval(paired['presence_drafted'], 'mean_diff')}; ", md)
+
+    def test_a_line_the_runner_could_not_have_written(self) -> None:
+        """Rule 16: the aggregate refuses a part whose lines or run.json the runner could not have written: a task D
+        line whose term count or term sha256 is not its asked predicate's list in terms.json, a task B line whose
+        mapped verdict is not the reading recomputed, a run.json with the passes in the other order. That part is then
+        ok for neither task, both sets hold part 2 alone and every word is incomplete; the files put back, the part
+        reads ok again."""
+        self.make_measured("a-4b")
+        shard, unit = self.shard_of("a-4b", 1)
+        original = read_lines(self.tree.path(shard, f"runs/j4/{unit['run_id']}/verdicts.jsonl"))
+        pass_order = self.tree.read(shard, f"runs/j4/{unit['run_id']}/run.json")["pass_order"]
+        self.assertEqual(pass_order, [ND, N])
+
+        def first(lines: list[dict[str, Any]], task: str) -> dict[str, Any]:
+            return next(line for line in lines if line["task"] == task)
+
+        def another_list(line: dict[str, Any]) -> list[str]:
+            carried = list(lab_j4.predicate_terms(self.T, line["predicate"]))
+            return next(list(ts) for _, ts in sorted(self.T.items()) if ts and list(ts) != carried)
+
+        def flip(line: dict[str, Any]) -> None:
+            line["mapped_verdict"] = "refute" if line["mapped_verdict"] != "refute" else "confirm"
+
+        cases: dict[str, tuple[Callable[[list[dict[str, Any]]], None] | None,
+                               Callable[[dict[str, Any]], None] | None]] = {
+            "terms_count": (lambda ls: first(ls, ND).update(terms_count=first(ls, ND)["terms_count"] + 1), None),
+            "terms_sha256": (lambda ls: first(ls, ND).update(
+                terms_sha256=lab_j4.terms_sha256(another_list(first(ls, ND)))), None),
+            "mapped_verdict": (lambda ls: flip(first(ls, N)), None),
+            "pass_order": (None, lambda doc: doc.update(pass_order=[N, ND])),
+        }
+        for name, (lines, run) in cases.items():
+            with self.subTest(change=name):
+                self.restamp("a-4b", 1, lines=lines, run=run)
+                big = self.aggregate()["models"]["a-4b"]
+                part = next(p for p in big["parts"] if p["part"] == 1)
+                self.assertEqual(part["ok_by_task"], {ND: False, N: False})
+                self.assertEqual((big["sets"][ND]["parts_ok"], big["sets"][N]["parts_ok"]), ([2], [2]))
+                self.assertEqual({arm: (a["verdict_word"], a["parts_finished"]) for arm, a in big["arms"].items()},
+                                 dict.fromkeys(lab_j4.ARMS["negation"], ("incomplete", 1)))
+                self.restamp("a-4b", 1, lines=lambda ls: ls.__setitem__(slice(None), [dict(x) for x in original]),
+                             run=lambda doc: doc.update(pass_order=list(pass_order)))
+                big = self.aggregate()["models"]["a-4b"]
+                part = next(p for p in big["parts"] if p["part"] == 1)
+                self.assertEqual(part["ok_by_task"], {ND: True, N: True})
+                self.assertEqual((big["arms"]["negation_terms"]["verdict_word"],
+                                  big["arms"]["negation_terms"]["parts_finished"]), ("failure", 2))
+
+    def test_the_readings_beside_the_verdict(self) -> None:
+        """Rule 14 and traps 6 and 11: the agreement counts are the primary arm's verdicts against the drafted
+        lexical judge's and the term-presence judge's, per kind; the empty-list count is the questions whose asked
+        predicate has no drafted term; the headline is J001's against the drafted judge, the hand and term-presence
+        judges' beside it. Rule 9: one record's two task D lines lost to transport failures leave that record out of
+        every comparator and the bound (the same records), and withhold the word (one record in forty)."""
+        self.make_measured("a-4b")
+        big = self.aggregate()["models"]["a-4b"]
+        comparators = self.comparators()
+        view = lab_j4.arm_lines(self.lines_of("a-4b"), "negation_terms")
+        self.assertEqual(big["agreement"]["arm"], "negation_terms")
+        for name in (lab_j4.LEXICAL_DRAFTED, lab_j4.PRESENCE_DRAFTED):
+            judge = {line["question_id"]: line["verdict"] for line in comparators[name]}
+            for kind in lab_j1.KINDS:
+                mine = [line for line in view if line["kind"] == kind and line["scored"] is True]
+                got = big["agreement"]["judges"][name][kind]
+                self.assertEqual((got["questions"], got["equal"]),
+                                 (len(mine), sum(1 for line in mine if line["verdict"] == judge[line["question_id"]])),
+                                 (name, kind))
+        drafted = big["agreement"]["judges"][lab_j4.LEXICAL_DRAFTED]
+        self.assertLess(sum(drafted[kind]["equal"] for kind in lab_j1.KINDS),
+                        sum(drafted[kind]["questions"] for kind in lab_j1.KINDS))
+        empty = sum(1 for q in self.questions if not self.T.get(q["predicate"]))
+        self.assertEqual((big["empty_terms"]["questions"], big["empty_terms"]["empty"]), (len(self.questions), empty))
+        self.assertTrue(0 < empty < len(self.questions))
+        a = big["arms"]["negation_terms"]
+        self.assertEqual(sorted(a["headlines"]), sorted(lab_j4.LEXICAL_JUDGES))
+        for name in lab_j4.LEXICAL_JUDGES:
+            self.assertEqual(a["headlines"][name]["headline"], lab_j1.headline_for(
+                complete=True, display_class="model", measurement=True, dropped_share=a["dropped_share"],
+                model_ba=a["scores"]["balanced_accuracy"],
+                lexical_ba=a["judges"][name]["balanced_accuracy"]["value"])[0], name)
+        self.assertEqual(a["headline"], a["headlines"][lab_j4.LEXICAL_DRAFTED]["headline"])
+        self.assertNotEqual(a["headline"], a["headlines"][lab_j4.LEXICAL_HAND]["headline"])
+        # transport failures: one record of part 1 whose loss moves the bound
+        everyone = sorted({q["record_ref"] for q in self.questions})
+        ref = next(r for r in sorted({q["record_ref"] for q in self.questions if q["part"] == 1})
+                   if lab_j1.prior_bound(self.questions, [x for x in everyone if x != r])
+                   != lab_j1.prior_bound(self.questions))
+        kept = [x for x in everyone if x != ref]
+
+        def fail(lines: list[dict[str, Any]]) -> None:
+            for i, line in enumerate(lines):
+                if line["record_ref"] == ref and line["task"] == ND:
+                    q = next(q for q in self.questions if q["question_id"] == line["question_id"])
+                    lines[i] = lab_j4.verdict_line(q, lab_j1.stand_in(ref), None, "network", ND, self.texts[ref],
+                                                   lab_j4.predicate_terms(self.T, q["predicate"]))
+
+        self.restamp("a-4b", 1, lines=fail)
+        big = self.aggregate()["models"]["a-4b"]
+        part = next(p for p in big["parts"] if p["part"] == 1)
+        self.assertEqual(part["ok_by_task"], {ND: True, N: True})
+        a = big["arms"]["negation_terms"]
+        self.assertEqual((a["records_dropped"], a["withheld_reason"], a["verdict_word"], a["lever5_word"],
+                          a["headline"]), (1, notes.J1_WITHHELD, "incomplete", "incomplete", None))
+        self.assertGreater(a["dropped_share"], lab_j1.WITHHOLD_SHARE)
+        self.assertEqual({name: a["judges"][name]["records_scored"] for name in lab_j4.COMPARATORS},
+                         dict.fromkeys(lab_j4.COMPARATORS, 39))
+        self.assertEqual(a["prior_bound"], lab_j1.prior_bound(self.questions, kept))
+        self.assertEqual(big["arms"]["negation"]["records_dropped"], 0)
+        md, sources = lab_summary.render_report(self.tmp / "R")
+        check_sources(self, md, sources, self.tmp / "R")
 
     def test_a_stop_in_the_second_pass(self) -> None:
         """Rule 15 in the aggregate: a part whose task B pass stopped keeps task D's set complete (P gets its word)
@@ -3431,7 +3693,9 @@ class AggregateWiringTests(unittest.TestCase):
             ("base_task", lambda j4: j4.update(base_task="evidence")),
             ("headline_secondary", lambda j4: j4.update(headline_secondary="negation")),
             ("other_reading_arm", lambda j4: j4.update(other_reading_arm="negation")),
-            ("terms.sha256", lambda j4: j4["terms"].update(sha256="0" * 64))]
+            ("terms.sha256", lambda j4: j4["terms"].update(sha256="0" * 64)),
+            ("confirmation", lambda j4: j4.update(confirmation=True)),
+            ("comparisons_this_cycle", lambda j4: j4.update(comparisons_this_cycle=4))]
         for name, change in edits:
             with self.subTest(edit=name):
                 manifest = json.loads(pristine)
@@ -3441,6 +3705,53 @@ class AggregateWiringTests(unittest.TestCase):
                 self.assertEqual((block["reason"], block["models"], block["primary_result"]),
                                  (lab_aggregate.PREREG_MISSING, {}, None))
         manifest_path.write_bytes(pristine)
+        # P_D rebuilt from terms.json must have the four hashes preregistered (rule 16, item 9)
+        hand = loader.load_pack(ROOT / NHTSA_PACK)
+        with mock.patch.object(lab_j4, "drafted_pack", lambda entries, hand_dir=None: hand):
+            block = self.aggregate()
+        self.assertEqual((block["reason"], block["models"], block["primary_result"]),
+                         (lab_aggregate.PREREG_MISSING, {}, None))
+        doc_rel = "prereg/j4/prereg.json"
+        doc_pristine = (plan_dir / doc_rel).read_bytes()
+        terms_rel = lab_j4.TERMS_FILE
+        terms_pristine = (plan_dir / terms_rel).read_bytes()
+
+        def with_doc(change: Callable[[dict[str, Any]], None]) -> None:
+            doc = json.loads(doc_pristine)
+            change(doc)
+            restamp(plan_dir, doc_rel, canonical_bytes(doc) + b"\n")
+
+        def with_manifest(change: Callable[[dict[str, Any]], None]) -> None:
+            manifest = json.loads(manifest_path.read_bytes())
+            change(manifest)
+            manifest_path.write_bytes(canonical_bytes(manifest) + b"\n")
+
+        other_terms = terms_pristine + b"\n"
+
+        def terms_and_pin() -> None:
+            # terms.json one byte longer, its file entry and the manifest's pin restamped; the document untouched
+            restamp(plan_dir, terms_rel, other_terms)
+            with_manifest(lambda m: m["j4"]["terms"].update(sha256=sha256_hex(other_terms)))
+
+        def both_counts() -> None:
+            # the document and the manifest agree on 4 comparisons, but the plan has two models of four arms
+            with_doc(lambda doc: doc.update(comparisons_this_cycle=4))
+            with_manifest(lambda m: m["j4"].update(comparisons_this_cycle=4))
+
+        for name, change in (("the document's term pin", lambda: with_doc(lambda doc: doc["terms"].update(
+                                 sha256="0" * 64))),
+                             ("the document's comparisons", lambda: with_doc(lambda doc: doc.update(
+                                 comparisons_this_cycle=4))),
+                             ("terms.json and the manifest's pin", terms_and_pin),
+                             ("both counts", both_counts)):
+            with self.subTest(change=name):
+                change()
+                block = self.aggregate()
+                self.assertEqual((block["reason"], block["models"], block["primary_result"]),
+                                 (lab_aggregate.PREREG_MISSING, {}, None))
+                (plan_dir / doc_rel).write_bytes(doc_pristine)
+                (plan_dir / terms_rel).write_bytes(terms_pristine)
+                manifest_path.write_bytes(pristine)
         for rel, mutate in (("prereg/j4/lexical_drafted.jsonl", "line"), ("prereg/j4/terms.json", "bytes")):
             with self.subTest(file=rel):
                 original = (plan_dir / rel).read_bytes()

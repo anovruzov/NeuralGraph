@@ -78,10 +78,10 @@
   checked against, C3), the cycles' line, the fixed draw line (B1's outcome with that prefix), the split's line, the
   term check's line (P_D's four hashes) and the comparators' lines, the three lexical judges first: counts, scores
   and hashes, never a ref and never a term. The manifest gets a ``j4`` key only for a plan with J4 units, so every
-  other plan's manifest is the one it was before this kind existed. ``--exclude-stand-in FILE`` is then a three-entry list (``lab.dryrun
-  --j4-data``) whose third entry may carry ``questions_sha256_prefix``, the stand-in A002 questions file's prefix in
-  place of A002's pinned one; ``--terms-stand-in FILE`` (tests only) replaces the request's ``terms`` entry with a test
-  term artifact's (:data:`~lab.notes.J4_STAND_IN`);
+  other plan's manifest is the one it was before this kind existed. ``--exclude-stand-in FILE`` is then a
+  three-entry list (``lab.dryrun --j4-data``) whose third entry may carry ``questions_sha256_prefix``, the
+  stand-in A002 questions file's prefix in place of A002's pinned one; ``--terms-stand-in FILE`` (tests only)
+  replaces the request's ``terms`` entry with a test term artifact's (:data:`~lab.notes.J4_STAND_IN`);
 * L1 (latency test L001, ``lab.l1``), in a subprocess whose stdout and stderr go to ``D/prereg-logs`` (K9: the step
   reads MSHA's file, so nothing of it reaches the console): ``lab.l1 prereg`` downloads the file into ``lab-msha``
   beside ``D`` (:func:`lab.l1.raw_dir`, the workflow's cache path) unless it is there, rebuilds the drafter demo's
