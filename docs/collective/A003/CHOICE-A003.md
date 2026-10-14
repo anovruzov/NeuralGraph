@@ -164,8 +164,8 @@ and the disagreement is a defect of this file.
 
 ## The terms: what they are, where they come from, how they are pinned
 
-This section answers the brief's item (1). Every setting here is fixed now; the figures the term run prints (counts,
-hashes) are placeholders until the amendment that records them.
+This section answers the brief's item (1). Every setting here is fixed now; the figures the term run printed (counts,
+hashes) are recorded by the amendment after the term run ("Amended after the term run, before build 2, 2026-10-14").
 
 1. **The cutoff date is 2023-01-01, the first day of the pinned window.** `NHTSA_WINDOW` is `("20230101",
    "20241231")` (`lab/goldlabels.py:50`), so every eligible record of every J-cycle draw was received on or after
@@ -360,6 +360,10 @@ hashes) are placeholders until the amendment that records them.
     (`J4_TERMS_UNVERIFIED`, a stop before any draw and any model, "stopped before any model ran";
     the loop asks); it never drafts, whatever the archive of its day holds (trap 7). An expired or absent term
     artifact is the same stop; a new term run is then a new amendment with the new sha256, recorded as such.
+    **Recorded** (the amendment after the term run, T1): the term set is term run 1's, lab run 38612800578, artifact
+    `lab-plan-38612800578-1` (artifact id 11918947585, expiring 2027-01-12T18:09:48Z); its sha256 is `42c591ccbb66b81455ca19840a54e18cbb69b5613dd2eab8f3f8c70f9cea39cc`;
+    P_D's `vocabulary_hash` is `c0260f0edab4638915b1fd0065e236ca20b497c0b217495c77adf018800fe579` and its `config_hash`
+    `6219eb0993b5668ecea91cc0811a6e446971d62001fe85e54662dc0a2b56698a`.
 11. **What the term run reads and prints.** It reads the archive, the hand pack and the onboard package's data; it
     reads no earlier run's artifact and no record received on or after the cutoff. It prints: the archive's sha256
     and size; the row counts per make and pooled; the corpus size; the categories passing the floor and the
@@ -854,8 +858,8 @@ the rebuild mechanism, eight sources in all:
 | Population | NHTSA complaints, pack `docs/collective/replay/vehicles/pack`, `NHTSA_MAKES` and `NHTSA_WINDOW` verbatim, j1 eligibility |
 | Cutoff and drafting set | cutoff 2023-01-01 (`NHTSA_WINDOW[0]`); the six makes' complaints received 2020-01-01 to 2022-12-31, one pooled export of D002's seven columns, every row received before the cutoff, a complaint under two makes kept once (C28); the drafting set's record ids and narratives removed from the eligible list before the draw, with tripwires after it (C4) |
 | The drafter | `mycelic.collective.onboard.draft.draft_export`, D002's NHTSA roles (`vehicle` and `reporter` forbidden), `data/defaults.json` (N 10, S 3, R 50, K 50, df 10, p 0.6, 3 letters, 64 characters, 8-gram), `lang/en.json`; the check `check_pack`; code hash over the onboard package and the three download modules, recorded by amendment |
-| The term set T | one entry per hand specific predicate (26), the drafted predicate's `en` lexicon through the hand value map's spelling, placeholders left out, empty when unreached; `prereg/jt/terms.json`, from the first term run whose check passes (C10); sha256 placeholder, by amendment after the term run |
-| The drafted packs | P_draft, the drafter's own pack, uploaded under `prereg/jt/pack/`; P_D, the hand pack with each specific predicate's `en` lexicon replaced by T's list or `draft.placeholder(<id>, ids)`, rebuilt and never uploaded (C21); P_D's `vocabulary_hash` and `config_hash` placeholders, by amendment |
+| The term set T | one entry per hand specific predicate (26), the drafted predicate's `en` lexicon through the hand value map's spelling, placeholders left out, empty when unreached; `prereg/jt/terms.json`, from the first term run whose check passes (C10): term run 1, lab run 38612800578, sha256 `42c591ccbb66b81455ca19840a54e18cbb69b5613dd2eab8f3f8c70f9cea39cc` (T1) |
+| The drafted packs | P_draft, the drafter's own pack, uploaded under `prereg/jt/pack/`; P_D, the hand pack with each specific predicate's `en` lexicon replaced by T's list or `draft.placeholder(<id>, ids)`, rebuilt and never uploaded (C21); P_D's `vocabulary_hash` `c0260f0edab4…` and `config_hash` `6219eb0993b5…`, in full under T2 |
 | Excluded | J001's 150: run 37996675559, artifact `lab-plan-37996675559-1`, `prereg/j1/labels.jsonl` `bc6d092d8bca…`, rebuild seed 1; A001's 150: run 38114522160, `lab-plan-38114522160-1`, `prereg/j2/labels.jsonl` `623780b8a1de…`, chain `prereg/j2/excluded.jsonl` `9a948cbf2cd9…`, rebuild seed 2 over the eligible list less J001's set; A002's 150, from A002 run 1, lab run 38439612256 (C3): run 38439612256, attempt 1, `lab-plan-38439612256-1` (artifact id 11833749961, expiring 2026-11-12T17:34:56Z), `prereg/j3/labels.jsonl` `0a64a62d94a7…`, `prereg/j3/questions.jsonl` `84486fa38568…`, chain `prereg/j3/excluded.jsonl` `65d51f0fca51…` (450 lines), rebuild seed 3 over the eligible list less J001's and A001's sets; 450 refs expected; eight sources, the stop rules of item 4; and the split's removals by record id and by text (C4) |
 | Labels | n 150, seed 4 (`random.Random("nhtsa:4")` over the eligible records less the 450 excluded and the split's removals, C4), codes removed |
 | Questions | `lab.j1.build_questions`, seed 4, parts 5; `NEGATIVE_DRAW`, `EXCLUDED`, `TWINS` unchanged |
@@ -1255,7 +1259,9 @@ vehicle pack).
   `84486fa38568` is a code constant of `lab/j4labels.py`, as A001's is of `lab/j3labels.py:56`);
 - `experiments.j4.terms`: `run_id` and `artifact` (`lab-plan-<run id>-<attempt>`) of the term run, `file`
   `prereg/jt/terms.json`, `sha256` the full 64 hex of the committed term set, `vocabulary_hash` P_D's full 64 hex,
-  `cutoff` `2023-01-01`; all by amendment.
+  `cutoff` `2023-01-01`; filled by the amendment after the term run (T1, T2): `run_id` 38612800578, `artifact`
+  `lab-plan-38612800578-1`, `file` `prereg/jt/terms.json`, `sha256` `42c591ccbb66b81455ca19840a54e18cbb69b5613dd2eab8f3f8c70f9cea39cc`,
+  `vocabulary_hash` `c0260f0edab4638915b1fd0065e236ca20b497c0b217495c77adf018800fe579`, `cutoff` `2023-01-01`.
 
 `lab.request` validates every field (integers in range, artifact names of the lab's shape, lower-case hex prefixes
 of 12 to 64 characters for the exclusions (`SHA256_PREFIX_RE`, `lab/request.py:285`) and exactly 64 for the term set
@@ -1473,7 +1479,7 @@ date is recorded in Runs beside that timestamp, and a push after it is refused b
 
 ## Runs
 
-None yet. The first entries will be two.
+One so far: term run 1, below the two templates. The judging run's entry follows it.
 
 **The term run's entry** will hold: the lab run id, the request file and its sha256, the commits of the rule and the
 request; the archive's sha256 and size; the fixed line (the rows per make and pooled, the cross-make duplicates
@@ -1510,6 +1516,55 @@ the token figures per task; B and Br beside the earlier cycle's arms as a betwee
 finished per task and `records left out` per arm; anything that stopped before a model ran; the model-call latency
 per task with the runner CPU; the comparison count ("4 this cycle, 25 since the loop began"); and the public-text
 sentence.
+
+### Term run 1 (lab run 38612800578, 2026-10-14)
+
+**The run.** Lab run [38612800578](https://github.com/anovruzov/NeuralGraph/actions/runs/38612800578) (workflow
+`mycelic-lab`), created 18:09:47 UTC, completed `success` at 18:11:49 UTC. Request `lab/requests/terms-003.json`,
+sha256 `f3c3e4237c2f65d2027ad4dfc226789c62cc38bf935744b10e6f281a0a0ac851`, pushed alone as commit `5d2c1d3`, after
+A002's lab run had ended and with no other lab run in flight (C31). Before the run, in this order: the rule `efa79fe`,
+amended `7daab37` (C1 to C32) before any build; build 1 `31cee9d` (the lab kind `jt`), its two reviews, the fix
+`a4e717f` and the merge `d270bd3`. Plan job 116020175039 (18:09:51 to 18:11:14, success): the self-test ran 79 tests,
+OK; plan sha256 `871d83a19ea67bef71b2908d8e08a99e67931770fa3624552c38d893f0d4a839`; the `prereg` step ran from
+18:10:07 to 18:11:08; it uploaded `lab-plan-38612800578-1` (artifact id 11918947585, 23 files, 3,007,683 bytes, digest
+`a33c9ff30756…`); its plan summary block is 58 lines with sha256 `c866098933c7…`. The provision job was skipped (no
+shard serves a model). One shard, `s001-none` (job 116020868513, 18:11:17 to 18:11:31), attempt 1, `sealed`, exit
+code 0; its download step verified the plan artifact's digest; the runner's line for the unit reads `lab: unit jt
+status ok class no-model exit 0 wall_s 0.2`. Aggregate job 116021013553 (18:11:34 to 18:11:48, success): its log
+prints `report/report.md` between the `MYCELIC-LAB` markers as 64 lines with sha256 `ef68e3e122dd…`, matching
+(recomputed from the log's lines with the timestamp prefix stripped and a trailing newline, as `lab/summary.py`
+computes it); its INDEX line reads `report/report.json=290 report/report.md=64 report/lock-candidate.json=42`; lock
+status `unchanged`, 0 new entries. The `report/report.json` block begins before the readable tail of the log, so its
+sha256 is not verified here, and no figure below is taken from it alone. Every figure below is copied from the plan
+job's `jt` lines; the report block repeats them (hashes as 12-hex prefixes; the draft timeout aside) and says `verified by the unit
+yes`.
+
+**The plan job's fixed lines**, printed before the unit ran, in the log's own words:
+
+```
+jt export: archive_sha256 4e5ae79183c489a385dac63d5d716995e6e053bdac26b9dbc91d6ce63244a4e7 archive_bytes 75874030 rows FORD=26919 CHEVROLET=15649 JEEP=10284 HONDA=10485 NISSAN=7969 DODGE=6284 pooled 77590 cross_make_duplicates 0 earliest_received 2020-01-01 latest_received 2022-12-31
+jt drafting: rows 77590 refs_sha256 6072b844d878d2783f02603b5ac303e56745a40e623201158d3dee0e4c4c2be9 drafting_refs_sha256 6072b844d878d2783f02603b5ac303e56745a40e623201158d3dee0e4c4c2be9 drafting_text_sha256 4e92180e66e6fe71470a4437b378c4aa4b913bab137d53b13558636a82174823 narratives 77346 straddling 0
+jt draft: corpus 77590 categories_passing_floor 36 specific_predicates 30 other_bucket_share 0.143 rows_without_specific 5934 terms_candidates 319171 terms_eligible 21173 placeholders 7 refused_categories 0 refused_terms 678 assignable 35 within_cap 8
+jt check: passed yes loader=passed ngram=passed refused_strings=passed refused_terms=passed template=passed term_floor=passed value_floor=passed
+jt terms: hand_predicates 26 reached 25 empty 3 terms_min 0 terms_median 43 terms_max 50 terms_total 753 p_draft_config_hash f6bdf3c65b31972d2bb73a1e89ff70c9d4a41b734dc27ac9cb95008e49d70420 p_draft_vocabulary_hash 09069d9f19d775208ffac44f20c195605955d010cf1f6d5a037b0f39d23527da p_draft_detector_hash 39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416 p_draft_fixtures_hash 693cf303644a33d2ea1087d8eafc4403ba9256b49178959d7bc96177ff81229a p_d_config_hash 6219eb0993b5668ecea91cc0811a6e446971d62001fe85e54662dc0a2b56698a p_d_vocabulary_hash c0260f0edab4638915b1fd0065e236ca20b497c0b217495c77adf018800fe579 p_d_detector_hash 325b125afa2d8ae473384ed5802b6dd284a93ad3e83c853a065e8c5fb4582779 p_d_fixtures_hash 9d9d8bd6770efc127edbbc7cb79d75524655719f949cb6da4ce83d51cdec1e8f hand_config_hash a588e72d7dbd0307d42234ceb79a85a915f0454d947469a4bfa0a42595f2f7bd hand_vocabulary_hash 867df7fc83c556e267842f219e1087b4bbd6af052ff5d201206d0aa8c789aa96 hand_detector_hash 325b125afa2d8ae473384ed5802b6dd284a93ad3e83c853a065e8c5fb4582779 hand_fixtures_hash 9d9d8bd6770efc127edbbc7cb79d75524655719f949cb6da4ce83d51cdec1e8f onboard_code_hash a1cf1bf6d4202823c4ab11d28d49fc46926319e897379964bc3f89d77b7f9c0b defaults_sha256 9ca66ffc98580f3e2f22da8d702b943db52ba198c79be14e763bd97ad8efc95b lang_en_sha256 9c76178a457bba9d4d9f98460a4d8263f5112b048b978cf651a46162bbd10cdb jt_code_hash f5743df58d418643ef231db62485219024cbb761cb22f8889e268b589e723d76 terms_sha256 42c591ccbb66b81455ca19840a54e18cbb69b5613dd2eab8f3f8c70f9cea39cc
+jt step: wall_s 61.2 draft_wall_s 36.6 draft_timeout_s 900 peak_rss_kib 456148
+```
+
+**What it shows.** The check passed by every one of its seven checks, so the plan was written, and this run is the
+first term run: its output is the term set (C10), sha256
+`42c591ccbb66b81455ca19840a54e18cbb69b5613dd2eab8f3f8c70f9cea39cc`. Of the 26 hand specific predicates, 25 are
+reached by a drafted predicate holding their spelling; 3 entries are empty (the one unreached predicate and two
+reached ones whose drafted predicate kept no term: the minimum over reached predicates is 0); the reached lists hold
+43 terms at the median and 50, the cap K, at most, 753 terms in all. The drafting export holds 77,590 rows received
+2020-01-01 to 2022-12-31; no complaint of it has a row received on or after the cutoff in the same archive
+(`straddling` 0), and no complaint was filed under two of the six makes in it (cross-make duplicates 0). The work fit
+with room: the `prereg` step took 61 s of its 20 minutes, the draft and the check 36.6 s of the subprocess's 900 s,
+at a peak resident memory of 456,148 KiB on a runner with 15.6 GiB. No model ran and nothing was drawn. No term,
+category spelling, narrative, record id, state or vehicle is in the lines read here or in this entry. Every term
+run so far, in order: term run 1, lab run 38612800578, sha256 `42c591ccbb66…`; no later term run.
+
+The figures are copied into the rule by the amendment after the term run ("Amended after the term run, before build
+2, 2026-10-14").
 
 ## Amended before any build, 2026-10-14
 
@@ -2243,27 +2298,134 @@ Filled by this amendment, from A002 run 1, lab run 38439612256 (C3), or read und
 6. The resolved base task: branch N, task N, P = (a-4b, `negation_terms`). Not filled as a change of the rule: read
    from the committed rule under "The base task, read from A002 run 1".
 
-Still open, each filled by one dated amendment from the first term run whose check passes (C10), after that run and
-before build 2:
+Filled by the amendment after the term run, 2026-10-14, from term run 1, lab run 38612800578, the first term run and
+one whose check passed (C10); each figure is under T1 to T9 there:
 
-7. The term run's lab run id, attempt and artifact name `lab-plan-<run id>-<attempt>`.
-8. **The term set's sha256**: the full 64 hex of `prereg/jt/terms.json`.
+7. The term run's lab run id, attempt and artifact name `lab-plan-<run id>-<attempt>`: 38612800578, attempt 1,
+   `lab-plan-38612800578-1` (T1).
+8. **The term set's sha256**: the full 64 hex of `prereg/jt/terms.json`: `42c591ccbb66b81455ca19840a54e18cbb69b5613dd2eab8f3f8c70f9cea39cc` (T1).
 9. P_D's `vocabulary_hash` and `config_hash` (64 hex each) and its `detector_hash` and `fixtures_hash` (expected
-   equal to the hand pack's); P_draft's four hashes and its files' sha256 (C21).
-10. The complaint archive's sha256 and size on the term run's day.
+   equal to the hand pack's); P_draft's four hashes and its files' sha256 (C21): T2; the files' sha256 are held in
+   `terms.json` and pinned by its sha256, and no console line prints them (T10).
+10. The complaint archive's sha256 and size on the term run's day: T3.
 11. The drafting export's row count, the sha256 of its sorted record ids, the sha256 of
     `prereg/jt/drafting_refs.jsonl` and of `prereg/jt/drafting_text.jsonl`, the `straddling` count and the
-    cross-make duplicates dropped (C4, C28).
+    cross-make duplicates dropped (C4, C28): T4.
 12. The counts of "The terms", items 7 and 11: the rows per make and pooled, the corpus size, the categories passing
     the floor, the specific predicates drafted, the hand predicates reached of 26, the terms per reached predicate,
     the empty entries, the refusal's counts, `rows_without_specific`, the candidate and eligible term counts, P_draft's
-    placeholders, and the earliest and latest received date (C14, C22).
-13. The check's result by check.
+    placeholders, and the earliest and latest received date (C14, C22): T5.
+13. The check's result by check: T6.
 14. The onboard code hash, the sha256 of `data/defaults.json` and of `data/lang/en.json`, and `lab/jt.py`'s code hash
-    (C29).
-15. The term artifact's `expires_at` as the Actions API lists it (C15).
-16. The term run's wall time and peak resident memory (C11).
+    (C29): T7.
+15. The term artifact's `expires_at` as the Actions API lists it (C15): 2027-01-12T18:09:48Z (T8).
+16. The term run's wall time and peak resident memory (C11): T9.
 
 Conditional, and not a placeholder of this rule's figures: a chief-scientist call on decision 9 or on the
 verbatim-substring check, if one arrives before the judging request is pushed, is adopted by a dated amendment (the
 declaration); none is recorded under "Decisions received" in the status log at `5c9544e`.
+
+## Amended after the term run, before build 2, 2026-10-14
+
+This amendment records term run 1, lab run 38612800578 (Runs, "Term run 1"), the first term run and one whose check
+passed, so its output is the term set (C10). It fills placeholders 7 to 16 ("Placeholders to be filled by later
+amendments before the run") and copies the term set's sha256 and P_D's two pinned hashes into "The terms" (item 10),
+the settings (rows "The term set T" and "The drafted packs") and "The request" (`experiments.j4.terms`). It changes
+no setting, no floor, no arm, no task and no reading. It is written after the term run and before build 2 (the
+judging kind `j4`): no judging code exists, no draw of this cycle exists, and no model has judged any record of it.
+Its sources are the plan job's `jt` lines (job 116020175039), the aggregate job's report block (64 lines, sha256
+verified, Runs) and the Actions API's artifact listing for the run.
+
+### T1. The term set
+
+- Lab run 38612800578, attempt 1, at commit `5d2c1d3` (the request alone on the merge `d270bd3`).
+- Artifact `lab-plan-38612800578-1`, artifact id 11918947585, 23 files, 3,007,683 bytes, digest
+  `a33c9ff30756e708c99e2a96771424934b05b48135d130d7c975353f26ec6eab`; the file `prereg/jt/terms.json` in it.
+- **The term set's sha256: `42c591ccbb66b81455ca19840a54e18cbb69b5613dd2eab8f3f8c70f9cea39cc`.** The judging plan
+  job refuses any other bytes (`J4_TERMS_UNVERIFIED`, "The terms", item 10).
+
+### T2. The packs' hashes
+
+| Pack | `config_hash` | `vocabulary_hash` | `detector_hash` | `fixtures_hash` |
+|---|---|---|---|---|
+| P_D (the hand pack with T's lexicons) | `6219eb0993b5668ecea91cc0811a6e446971d62001fe85e54662dc0a2b56698a` | `c0260f0edab4638915b1fd0065e236ca20b497c0b217495c77adf018800fe579` | `325b125afa2d8ae473384ed5802b6dd284a93ad3e83c853a065e8c5fb4582779` | `9d9d8bd6770efc127edbbc7cb79d75524655719f949cb6da4ce83d51cdec1e8f` |
+| P_draft (the drafter's own pack) | `f6bdf3c65b31972d2bb73a1e89ff70c9d4a41b734dc27ac9cb95008e49d70420` | `09069d9f19d775208ffac44f20c195605955d010cf1f6d5a037b0f39d23527da` | `39499e9cc0a09942239d42dacba991b02db401624f201af85b975e5a92f08416` | `693cf303644a33d2ea1087d8eafc4403ba9256b49178959d7bc96177ff81229a` |
+| The hand pack | `a588e72d7dbd0307d42234ceb79a85a915f0454d947469a4bfa0a42595f2f7bd` | `867df7fc83c556e267842f219e1087b4bbd6af052ff5d201206d0aa8c789aa96` | `325b125afa2d8ae473384ed5802b6dd284a93ad3e83c853a065e8c5fb4582779` | `9d9d8bd6770efc127edbbc7cb79d75524655719f949cb6da4ce83d51cdec1e8f` |
+
+P_D's `detector_hash` and `fixtures_hash` equal the hand pack's, the pin that says its detectors, fixtures and
+generator narratives were not touched (C21); its `config_hash` and `vocabulary_hash` differ from the hand pack's, as
+a changed `vocabulary.json` makes them. The request pins P_D's `vocabulary_hash`; the judging plan job and the
+aggregate rebuild P_D from `terms.json` and refuse any difference.
+
+### T3. The complaint archive on the term run's day
+
+sha256 `4e5ae79183c489a385dac63d5d716995e6e053bdac26b9dbc91d6ce63244a4e7`, 75,874,030 bytes. The judging plan job
+prints its own day's archive sha256 beside this one (C4).
+
+### T4. The drafting block (C4, C28)
+
+The drafting export's rows 77,590; the sha256 of its sorted record ids
+`6072b844d878d2783f02603b5ac303e56745a40e623201158d3dee0e4c4c2be9`, equal to the sha256 of
+`prereg/jt/drafting_refs.jsonl` (by construction: `lab/jt.py`, `drafting_block`, hashes the file's bytes for both);
+the sha256 of `prereg/jt/drafting_text.jsonl` `4e92180e66e6fe71470a4437b378c4aa4b913bab137d53b13558636a82174823`,
+77,346 distinct non-empty folded narratives; `straddling` 0; cross-make duplicates dropped 0.
+
+### T5. The counts of "The terms", items 7 and 11 (C14, C22)
+
+- Rows per make: `FORD` 26,919; `CHEVROLET` 15,649; `JEEP` 10,284; `HONDA` 10,485; `NISSAN` 7,969; `DODGE` 6,284;
+  pooled 77,590; earliest received 2020-01-01, latest 2022-12-31.
+- The drafter: corpus 77,590 records; categories passing the floor 36; specific predicates drafted 30; other-bucket
+  share 0.143; `rows_without_specific` 5,934; candidate terms 319,171; eligible terms 21,173; P_draft's placeholders
+  7.
+- The refusal: refused categories 0; refused terms 678; refused terms that would have been assigned 35; refused terms
+  within the cap 8.
+- The term set: hand predicates 26; reached 25; empty entries 3; terms per reached predicate min 0, median 43, max
+  50; total 753.
+
+### T6. The check, by check
+
+Passed. `loader` passed; `ngram` passed, 0 failures; `refused_strings` passed, 0; `refused_terms` passed, 0;
+`template` passed; `term_floor` passed, 0; `value_floor` passed, 0.
+
+### T7. The code hashes (C29)
+
+- The onboard code hash: `a1cf1bf6d4202823c4ab11d28d49fc46926319e897379964bc3f89d77b7f9c0b`.
+- `mycelic/collective/onboard/data/defaults.json`: `9ca66ffc98580f3e2f22da8d702b943db52ba198c79be14e763bd97ad8efc95b`.
+- `mycelic/collective/onboard/data/lang/en.json`: `9c76178a457bba9d4d9f98460a4d8263f5112b048b978cf651a46162bbd10cdb`.
+- `lab/jt.py`'s code hash: `f5743df58d418643ef231db62485219024cbb761cb22f8889e268b589e723d76`.
+
+From this amendment `lab/jt.py` is frozen: the judging plan job refuses when `lab/jt.py` at the judging commit hashes
+to anything else (C29), so build 2 does not edit it, and a test of build 2 pins its code hash to this value. A change
+to it would need a new term run and a new amendment.
+
+### T8. The term artifact's expiry (C15)
+
+`expires_at` 2027-01-12T18:09:48Z, as the Actions API lists it for artifact 11918947585 (created
+2026-10-14T18:11:10Z, `expired` false). The judging request is pushed before that instant, and its push date is
+recorded in Runs beside it.
+
+### T9. Time and memory (C11)
+
+The `prereg` step ran from 18:10:07 to 18:11:08 UTC (its timeout 20 minutes, inside the plan job's 30); the step's
+wall time 61.2 s; the draft and the check, in their subprocess, 36.6 s under a 900 s timeout; the subprocess's peak
+resident memory 456,148 KiB. The runner had 15.6 GiB and 4 CPUs (`AMD EPYC 7763 64-Core Processor`).
+
+### T10. What this amendment does not copy, and why
+
+- **P_draft's files' sha256** (placeholder 9, C21). `terms.json` holds them and its sha256 pins them byte for byte;
+  as built, no console line prints them, and the sandbox that writes this file cannot download the artifact (its
+  storage host is outside the network policy, and no other route is taken). They are not copied here; nothing in the
+  judging run reads them except through `terms.json`.
+- **The unit's own verify line.** `python -m lab.jt verify` writes its line to the unit's log inside the shard
+  artifact, not to the job's console. The console shows the runner's unit line (Runs), and the report block shows the
+  aggregate's reading of the unit's result: `verified by the unit yes`.
+- **The `report/report.json` block's sha256**, which begins before the log's readable tail (Runs).
+
+### T11. Readings that change nothing
+
+- Three empty entries and the thinner lists are no reason for a second term run (C10; trap 17); trap 11 reads them in
+  the judging run's report, beside the per-predicate figures.
+- `straddling` 0 says that in this archive no drafting complaint has a row received in the judged window. The
+  judging plan job still rebuilds the drafting set from its own download, compares it with T4, and removes from the
+  eligible list by record id and by text before the draw (C4); its counts are its own day's.
+- The comparison count is unchanged: 4 this cycle, 25 since the loop began.
