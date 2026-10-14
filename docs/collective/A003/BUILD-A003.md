@@ -216,7 +216,7 @@ differ, and the JSON normaliser refuses a document that is not canonical.
 
 ### Tests
 
-`tests/lab/test_lab_jt.py`, offline (52 tests at the build commit, 75 after the fixes below; the table is as fixed):
+`tests/lab/test_lab_jt.py`, offline (52 tests at the build commit, 71 after the fixes below; the table is as fixed):
 the synthetic archive of `tests/lab/j4_data.py`, the lab's fake server
 for the dry runs' shards (no model is served: the unit is model-free), no network host. Four fixtures are made once:
 the archive with its pooled export and one draft in process, two preregistrations of the term request in two plan
@@ -327,4 +327,145 @@ gave the same `terms_sha256`); `jt_code_hash` and `terms_sha256` change with `la
 
 ### Fixes after review
 
-(Left for the fix stage.)
+Built on branch `wf/a003-terms-fix` from the build commit `31cee9d`. The reviews of build 1 sent fifteen blocking
+findings (several of them the same gap seen by two reviewers, each with its surviving mutants) and seventeen smaller
+ones. Every one was applied; none was judged wrong, so none is recorded here as declined. Three were applied in a form
+other than the one a finding offered first, each said below. Every code change has a test that fails without it
+(the mutation run at the end of this section). The rule is unchanged: no finding needed a change of
+`CHOICE-A003.md`, and none of the fixes touches a pinned path.
+
+- **The drafting window's two ends** (blocking; mutants `first, last = _ymd(FROM), CUTOFF`, `first = "20190101"`,
+  `first = "20200102"`). The synthetic archive had no complaint on 2019-12-31, 2020-01-01 or 2023-01-01, so the
+  bounds `pooled_export` uses were unpinned. `tests/lab/j4_data.py` now holds one complaint received on each of
+  2019-12-31, 2020-01-01, 2022-12-31 and 2023-01-01 (`BOUNDARY_ODINOS`, fresh record ids, six-make makes);
+  `ExportTests.test_no_row_on_or_after_the_cutoff` computes from the archive's own lines the complaints of the six
+  makes received from 2020-01-01 to 2022-12-31 and finds the export's ids equal to them, names the four boundary
+  complaints in or out, pins the export's earliest and latest received dates to `2020-01-01` and `2022-12-31` and the
+  exact row count (`facts.json` carries the two dates and `straddling`).
+- **`straddling` at the cutoff day and across makes** (blocking, two findings; mutants `day > CUTOFF` and the
+  six-make filter removed; smaller finding E). The straddling complaint's later row moved from 2023-02-01 to
+  2023-01-01, a second straddling complaint was added (its later row 2023-02-01), and a drafting complaint whose later
+  row is filed under a seventh make (`OTHER_MAKE`). `straddling` is 2 in `ExportTests.test_straddling` (computed from
+  the archive's lines too), in `test_the_drafting_files`, `terms.json` and the fixed line; the straddling
+  complaint's 2023-01-01 row is shown absent from the export.
+- **The placeholder left out and the twin split** (blocking, two findings; mutants `d.lexicon[pid]` and a
+  placeholder for an empty learned list; the smaller finding on the twins' cue words). `SERVICE BRAKES` (18 per make)
+  and `SERVICE BRAKES, HYDRAULIC` (9 per make, 54 records) now share their four cue words: each goes to the larger
+  twin, and the smaller one is a specific drafted predicate that learns no term (`placeholders` 1). New tests: the
+  placeholder left out (`drafted_id` set, at least 50 corpus records, the empty list, P_draft's lexicon holding the
+  drafter's placeholder, no T term with the template's placeholder prefix, P_D giving it `draft.placeholder(<hand
+  id>, ids)`) and the twin split (every shared cue word in the larger twin's list only, the two lists disjoint, no
+  other entry holding one). Applied in another form: the smaller finding asked for shared cue words on the `ENGINE`
+  pair; they are on the `SERVICE BRAKES` pair, which also gives the placeholder case, and the `ENGINE` pair keeps
+  disjoint cue words, so the data still holds twins that are both reached with their own terms.
+- **The draft's timeout pinned** (blocking, two findings; mutants dropping `timeout_s` and `timeout_s=3600`; the
+  smaller finding on the 900 s figure). The `sleep` stub now sleeps an hour and then runs the real draft, which
+  would pass, so only the timeout can refuse it. `test_a_timeout` patches `DRAFT_TIMEOUT_S` to 3, spies on
+  `_Steps.run` (the `jt-draft` call gets `timeout_s` 3 and raises "jt-draft did not finish in time"; any other
+  timeout fails the test at once instead of waiting), and times the run under 60 s;
+  `test_the_real_timeout_is_handed_to_the_step` pins the real draft's call to `DRAFT_TIMEOUT_S`; `SettingsTests` pins
+  900, and `tests/lab/test_lab_docs.py` pins this note's and the reference's sentence to the constant.
+- **A crash is never a failed check** (blocking; mutant `code == EXIT_FLOOR` without `and good`; the smaller finding
+  on uncaught exceptions). `EXIT_FLOOR` is 5, not 1 (Python's own exit for an uncaught exception); any other error in
+  the draft is caught and exits `EXIT_CRASH`, 6, with one stderr line naming the exception's class and never its
+  message (the message could quote the export). New stub commands: `crash` (the draft raises, exit 6), `uncaught`
+  (an exception before the draft, exit 1), `floorless` (the check's exit code with no `draft.json`) and `unchecked`
+  (exit 0 with a check that did not pass, smaller finding G): each gives `JT_DRAFT_FAILED`, nothing under
+  `prereg/jt/` and no scratch directory left; the exit-code test pins 0, 2, 3, 4, 5 and 6 and that none is 1.
+- **The peak memory** (blocking; mutant `peak = 0`). `DraftTests` pins the draft's `peak_rss_kib` above 10,000 KiB;
+  `PreregTests` pins the manifest's `jt.step.peak_rss_kib` above it too and equal to the number at the end of the
+  `jt step:` line.
+- **The parameters, roles and window handed to the drafter** (blocking; mutants changing `token_min_letters` and
+  dropping `vehicle` from the forbidden roles). The test compares the whole parameter set handed to the draft with
+  `load_params()`, `defaults.json` and `D002-settings.json`'s `params` (equal key for key), checks the check gets the
+  same object, and the roles and window handed to both equal `lab.jt.roles()` (forbidden `reporter` and `vehicle`)
+  and `lab.jt.window()`. The narratives of the synthetic `TIRES` complaints now carry their row's make in lower case:
+  the refusal removes the six make words (`refused_terms 6`), no T term holds one, and the same export drafted with
+  `vehicle` not forbidden gives them to that category, so the vehicle refusal is shown in effect.
+- **The code hash is `lab/jt.py`'s** (blocking; mutant hashing `lab/j1.py`). `test_the_code_hash_is_lab_jt_s` pins
+  `code_hash()` to `common.code_hash([ROOT / "lab/jt.py"], ROOT)`, and with `ROOT` patched to a scratch tree shows a
+  byte-equal copy keeps the hash and one changed byte changes it.
+- **The drafter's counts are `draft.summarise`'s** (blocking; mutant swapping the candidate and eligible counts).
+  `test_the_counts_are_draft_summarise_s` drafts the same export and compares every key of `draft_counts` with its
+  `draft.summarise` path.
+- **The unit's own checks** (blocking, and the smaller findings F, R and M). New `VerifyTests`: a changed
+  `drafting_text.jsonl` (only `drafting_files` fails), other hand pack hashes in `terms.json` pinned again and in the
+  preregistration (only `hand_hashes` fails), other P_D hashes in the preregistration (only `p_d_hashes` fails).
+- **The report's `verified` and its sha cross-check** (blocking, and the smaller findings H and N).
+  `DryRunTests.test_the_report_block_reads_verify_json_and_the_preregistration` calls `aggregate.jt_block` on copies
+  of the dry run's plan: `verified` false when `verify.json` says false, names another sha256 or other P_D hashes, or
+  is of another kind; `PREREG_MISSING` with no sha (and `verified` null) when `prereg/jt/prereg.json`, re-pinned in
+  the manifest so that the manifest check passes, or the manifest's own `jt` block names another sha256 than
+  `terms.json`'s bytes. `lab/aggregate.py` is unchanged.
+- **`check.json`** (smaller). Applied in the first form the finding offered: `prereg/jt/check.json` is now
+  `check_counts(draft["check"])`, the same booleans and counts by check as `terms.json`'s `check`, never the check's
+  own document (its pack id, the loader's error text, the n-gram scan's file names); a test finds no string in it.
+  The reading under "Ambiguities" and `REFERENCE.md` say so.
+- **The stop lines** (smaller). A failed check's `jt check: passed no ...` line ends with each failing check's
+  `failures` count (`ngram_failures 1`); every stop of the step prints `jt step: stopped wall_s ... draft_wall_s ...
+  draft_timeout_s ... children_peak_rss_kib ...`, the last the parent's `RUSAGE_CHILDREN` peak, which covers a
+  killed draft (C11: the amendment records the attempt).
+- **Failures in the plan job's own process** (two smaller findings). A download that fails or an archive that is not
+  a readable zip (absent, not a zip, truncated) now stops the plan with a new note, `JT_FETCH_FAILED` ("the plan job
+  could not fetch or read NHTSA's complaint archive; nothing was drafted, and the same request may run again", as
+  L1's `L1_FETCH_FAILED`); an export the parser refuses, a P_D rebuild the loader refuses, or a `draft.json` without
+  the fields `terms.json` needs, with `JT_DRAFT_FAILED`, whose sentence now also names an error and an unreadable
+  result. Each was a traceback with no `plan-error.json` before. The note, its troubleshooting row and its reference
+  line are added, and the docs tests' lists gain it.
+- **The parsed export holds every pooled row** (smaller). Applied in the second form the finding offered, a refusal:
+  `pooled_export` raises `JtError` (so `JT_DRAFT_FAILED`) when `parse_export` rejects a row or holds another number of
+  rows than `nhtsa_export.complaints` gave, so the drafting files, read from the parsed export, are always the
+  complaints' rows, as build 2's rebuild will read them. Computing the files from the pooled rows instead would let
+  the drafter read fewer rows than the files name; D002's NHTSA drafts read 40,000 rows per make with no rejected row
+  (`BUILD-D002.md`), so the refusal is not expected to fire on the real archive. A test with a parse that drops a row
+  and one that rejects a row pins it.
+- **The term request alone, 90 days** (smaller). `lab.request.validate` refuses `$.experiments` when `jt` sits
+  beside another block (`JT_ALONE_PROBLEM`, item 10: "a request whose only block is `experiments.jt`") and
+  `$.retention_days` other than 90 with a `jt` block (`JT_RETENTION_PROBLEM`, C15); `RequestTests` covers both.
+- **No bare download module left behind** (smaller). `_fetch_module` drops `nhtsa_export` and `vehicle_pack` from
+  `sys.modules` after the load unless they were there before; `ImportTests.test_the_export_leaves_no_bare_module`
+  finds neither in `sys.modules` nor importable after `pooled_export` in a fresh interpreter.
+- **The golden normaliser in a checkout without git metadata** (smaller). Both commit patterns accept `unknown`; the
+  module docstring says so, and `A002GoldenTests` pins that a commit printed as `unknown` normalises to the same token.
+  The recording is unchanged.
+- **The hand label refuted on a reached predicate** (smaller). `test_the_drafted_lexical_judge` adds the case: a
+  narrative holding only the hand label of a reached predicate whose drafted list lacks it gives the drafted judge
+  `no` and the hand judge `yes` (more than five such questions).
+- **This note** (two smaller findings). The sentence on the hunks of `lab/aggregate.py` and `lab/summary.py` now
+  names `_prereg_section`'s jt call and `build_report`'s source loop, block call and report key; the Tests table,
+  the item 3 bullet and the dry run name what the tests now pin, and this section records the mutation run.
+
+The workflow is unchanged: the draft's timeout, 900 s, sits inside the `prereg` step's 20 minutes, and nothing in C11
+asks build 1 for another step or timeout.
+
+**The mutation run.** Each mutant was applied alone to the fixed tree, `tests/lab/test_lab_jt.py` was run with `-x`
+(without the golden class, but for the normaliser's mutant, run against the golden class), and the file was put back.
+All 37 were killed: the reviewers' `first, last = _ymd(FROM), CUTOFF`, `first = "20190101"`, `first = "20200102"`,
+`day > CUTOFF`, the six-make filter removed, `d.lexicon[pid]`, a placeholder for an empty learned list, `peak = 0`,
+`token_min_letters` 4, `vehicle` not forbidden, the code hash of `lab/j1.py`, the candidate and eligible counts
+swapped, `hand_hashes` forced true, the drafting text clause removed, `verify` ignoring the preregistration's P_D
+hashes, the `timeout_s` argument removed, `timeout_s=3600`, `code == EXIT_FLOOR` without `and good`, the `passed`
+gate removed, `jt_block` ignoring `verify.json`'s `verified`, its sha256 and its P_D hashes, and the sha
+cross-check removed; and the fix stage's own: `EXIT_FLOOR` back to 1, the draft's catch-all removed, the parsed-row
+refusal removed, the `sys.modules` clean-up removed, `check.json` the check's whole document, no failure counts, a
+failed download uncaught, an unreadable archive reported as a draft failure, a P_D failure uncaught, no stop line, a
+`jt` block allowed beside others, any `retention_days`, and the normaliser without `unknown`.
+
+Run on the fixed tree:
+
+- `python -m pytest tests/lab/test_lab_jt.py -q -p no:cacheprovider`: `71 passed, 271 subtests passed in 101.03s
+  (0:01:41)`;
+- `python -m pytest tests/lab/test_lab_j3.py tests/lab/test_lab_j2.py -q -p no:cacheprovider`: `121 passed, 624
+  subtests passed in 271.23s (0:04:31)`;
+- `python -m pytest tests/onboard tests/mycelic/test_collective_guards.py tests/mycelic/test_collective_x3.py -q -p
+  no:cacheprovider`: `402 passed, 1080 subtests passed in 279.34s (0:04:39)` (run again after this section was written:
+  the collective guards scan it);
+- `python -m pytest tests/lab -q -p no:cacheprovider`, in the background: `918 passed, 29673 subtests passed in 1659.12s (0:27:39)`, no test failed;
+- the terms-003 dry run above: exit 0, one unit in one shard, the check passed, the unit `ok`, `terms_sha256
+  a5841e66…` twice from two generations of the data;
+- the j3 template dry run: exit 0 with `BUILD-A002.md`'s console lines, and its plan summary, `report.json` and
+  `report.md`, normalised, equal the recording byte for byte (4161, 116487 and 15701 bytes);
+- `git diff --stat ed96530` over every pinned path (and `.github/workflows/mycelic-lab.yml`) printed nothing, and
+  `lab/aggregate.py`, `lab/summary.py`, `lab/units.py`, `lab/plan.py` and `lab/dryrun.py` are unchanged since
+  `31cee9d`;
+- `flake8 --max-line-length 120 --select=F,E9,W6` on the changed files printed nothing.
