@@ -1602,6 +1602,7 @@ class A002GoldenTests(unittest.TestCase):
         doc = json.loads(raw)
         doc["units"][0]["wall_s"] = 99.0
         doc["j3"]["exclusion"]["complaint_file_sha256"] = "0" * 64
+        doc["notes"]["cpu_models"] = ["another runner's processor"]       # CI's runners are not this sandbox
         timed = (canonical_dumps(doc) + "\n").encode("utf-8")
         self.assertEqual(a002_golden.normalise_json(timed), a002_golden.normalise_json(raw))
         md = (self.dry.out / "report" / "report.md").read_text(encoding="utf-8")

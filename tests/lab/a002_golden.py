@@ -26,10 +26,11 @@ else is excluded, and the test fails on any other difference.
   construction, as D003's pin left out ``code_commit``. A checkout without git metadata (a ``git archive`` copy)
   prints ``unknown`` for the commit in the summaries' ``Commit:`` lines, and the same token replaces it.
 * **What the machine and the clock give** (``<host>``, ``<time>``): every ``wall_s``, every latency figure
-  (``p50_ms``, ``p95_ms``, ``latency_ms_p50``, ``latency_ms_p95``, ``latency_ms_by_task``), every ``host`` block and
-  ``cpu_model``; in the markdown, every table cell under a header ``wall seconds``, ``CPU``, ``median ms`` or
-  ``ninety-fifth percentile ms``, and the ``- CPU models:`` line. They are measurements of the sandbox, not of the
-  code: two dry runs on one commit differ in them.
+  (``p50_ms``, ``p95_ms``, ``latency_ms_p50``, ``latency_ms_p95``, ``latency_ms_by_task``), every ``host`` block,
+  ``cpu_model`` and the notes' ``cpu_models`` list; in the markdown, every table cell under a header
+  ``wall seconds``, ``CPU``, ``median ms`` or ``ninety-fifth percentile ms``, and the ``- CPU models:`` line. They
+  are measurements of the sandbox, not of the code: two dry runs on one commit differ in them (the notes' list, left
+  out of the first recording's normalisation, named this sandbox's processor, and CI's runner printed another).
 
 One substitution is not an exclusion: the plan summary's models table prints each model's repository and file name
 from ``lab/models.json``, which hold a model-family name that no file under ``tests/lab/`` may hold
@@ -44,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -61,7 +63,7 @@ OUTPUTS = {"summary.md": "plan/summary.md", "report.json": "report/report.json",
 RECORDED_AT = "ed96530"
 ARCHIVE, COMMIT, PLAN, PREREG, HOST, TIME = "<archive>", "<commit>", "<plan>", "<prereg>", "<host>", "<time>"
 JSON_TIME_KEYS = frozenset({"wall_s", "p50_ms", "p95_ms", "latency_ms_p50", "latency_ms_p95", "latency_ms_by_task"})
-JSON_HOST_KEYS = frozenset({"host", "cpu_model"})
+JSON_HOST_KEYS = frozenset({"host", "cpu_model", "cpu_models"})
 MD_COLUMNS = {"wall seconds": TIME, "CPU": HOST, "median ms": TIME, "ninety-fifth percentile ms": TIME}
 MD_LINES = (
     (re.compile(r"^(- Commit: `)(?:[0-9a-f]{40}|unknown)(`)$"), rf"\g<1>{COMMIT}\g<2>"),
@@ -161,15 +163,18 @@ def normalise(name: str, data: bytes) -> bytes:
 
 def dry_run(work: Path) -> tuple[subprocess.CompletedProcess[str], Path]:
     """The rule's two commands in ``work``: the j3 test data, then the template's dry run; the dry run's process and
-    its ``--out`` directory."""
+    its ``--out`` directory.  The dry run's shards record the job's attempt from ``GITHUB_RUN_ATTEMPT``
+    (``lab/provision.py``'s ``run_attempt``, 1 when unset, as on the base commit), so a re-run of a CI job would print
+    attempt 2 in every shard row: the commands run without it, as they did when the outputs were recorded."""
     data, out = work / "j3-data", work / "dry"
-    made = subprocess.run([sys.executable, "-m", "tests.lab.j3_data", "--out", str(data)], cwd=ROOT,
+    env = {name: value for name, value in os.environ.items() if name != "GITHUB_RUN_ATTEMPT"}
+    made = subprocess.run([sys.executable, "-m", "tests.lab.j3_data", "--out", str(data)], cwd=ROOT, env=env,
                           capture_output=True, text=True, timeout=600, stdin=subprocess.DEVNULL)
     if made.returncode != 0:
         raise GoldenError(f"tests.lab.j3_data failed: {made.stderr[-2000:]}")
     proc = subprocess.run([sys.executable, "-m", "lab.dryrun", "--request", TEMPLATE, "--out", str(out),
-                           "--j3-data", str(data)], cwd=ROOT, capture_output=True, text=True, timeout=1800,
-                          stdin=subprocess.DEVNULL)
+                           "--j3-data", str(data)], cwd=ROOT, env=env, capture_output=True, text=True,
+                          timeout=1800, stdin=subprocess.DEVNULL)
     return proc, out
 
 

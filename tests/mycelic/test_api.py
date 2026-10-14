@@ -10,9 +10,11 @@ import gc
 import itertools
 import json
 import re
+import sys
 import tempfile
 import threading
 import time
+import traceback
 import unittest
 from datetime import timedelta
 from pathlib import Path
@@ -241,6 +243,76 @@ def freeze_older_objects(test: unittest.TestCase) -> None:
     test.addCleanup(gc.unfreeze)
 
 
+class LoopStallWatch:
+    """What held the loop in a timing window, for the failure message only (never for the assertion): a thread samples
+    the loop thread's stack each time the window's ticker has gone ``after`` seconds more without a tick (``after``
+    into a stall, then ``after`` after each sample; at most ``keep`` samples), and the collector's passes in the window are
+    timed with the thread that ran them.  A stall the loop spends in a call that lets go of the interpreter (a disk
+    sync, a database wait, a sleep) is sampled where it waits; one that holds the interpreter (a collector pass, one
+    long C call) is sampled once it lets go, and the passes give the collector's share.  CI saw stalls of 0.2545 s twice
+    (the lineage test) and 0.258 s once (the verification test).  Here the lineage test stalled 0.04 to 0.09 s alone,
+    after the 46 tests before it, or pinned to one or two cores; on a loaded machine (load 3.5 on 4 cores) the two
+    tests reached 0.20 and 0.09 s, and every sample put the loop in its own work, not a walk's: the lineage test's
+    searches (``retrieval.py``, the BM25 statistics over the caller's whole view, built on the loop for each query)
+    and the verification test's ``get_memory``.  The message is how a red CI run says which."""
+
+    def __init__(self, after: float = 0.08, keep: int = 8) -> None:
+        self.after, self.keep = after, keep
+        self.last = time.perf_counter()
+        self.samples: list[tuple[float, str]] = []
+        self.passes: list[tuple[int, float, str]] = []
+        self._loop_thread = threading.get_ident()
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._watch, name="loop-stall-watch", daemon=True)
+        self._pass_start = 0.0
+
+    def tick(self, now: float) -> None:
+        self.last = now
+
+    def _collector(self, phase: str, info: dict[str, Any]) -> None:
+        if phase == "start":
+            self._pass_start = time.perf_counter()
+        else:
+            self.passes.append((info["generation"], time.perf_counter() - self._pass_start,
+                                threading.current_thread().name))
+
+    def _watch(self) -> None:
+        stall, next_at = self.last, self.after
+        while not self._stop.wait(0.005) and len(self.samples) < self.keep:
+            if self.last != stall:
+                stall, next_at = self.last, self.after
+            stalled = time.perf_counter() - stall
+            if stalled > next_at:
+                next_at = stalled + self.after         # this thread may itself get the interpreter late
+                frame = sys._current_frames().get(self._loop_thread)
+                if frame is not None:
+                    frames = traceback.extract_stack(frame)[-6:]
+                    self.samples.append((stalled, " <- ".join(f"{Path(f.filename).name}:{f.lineno} {f.name}"
+                                                              for f in reversed(frames))))
+
+    def start(self, test: unittest.TestCase) -> "LoopStallWatch":
+        gc.callbacks.append(self._collector)
+        self._thread.start()
+        test.addCleanup(self.stop)                     # a window that raises still stops the thread and the callback
+        return self
+
+    def stop(self) -> None:
+        if not self._stop.is_set():
+            self._stop.set()
+            self._thread.join()
+            gc.callbacks.remove(self._collector)
+
+    def report(self) -> str:
+        """One line: the window's collector passes, the three longest named, then each stack sample."""
+        passes = sorted(self.passes, key=lambda p: -p[1])
+        out = [f"{len(passes)} collector passes, longest "
+               + (", ".join(f"gen{g} {d:.3f}s in {t}" for g, d, t in passes[:3]) or "none")]
+        out += [f"stalled {stalled:.3f}s at {where}" for stalled, where in self.samples]
+        if not self.samples:
+            out.append(f"no stall past {self.after:.2f}s was sampled")
+        return "; ".join(out)
+
+
 class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
     async def test_verification_never_holds_the_event_loop(self) -> None:
         asyncio.get_running_loop().set_debug(False)       # a timing test: without the test runner's debug bookkeeping
@@ -276,6 +348,8 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
         gaps: list[float] = []
         done = asyncio.Event()
 
+        watch = LoopStallWatch().start(self)
+
         async def ticker() -> None:
             last = time.perf_counter()
             while not done.is_set():
@@ -283,6 +357,7 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
                 now = time.perf_counter()
                 gaps.append(now - last)
                 last = now
+                watch.tick(now)
 
         tick = asyncio.ensure_future(ticker())
         health: list[float] = []
@@ -305,6 +380,7 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
             *[client.get(f"/verify/{top.memory_id}", headers=headers(f"a{j}")) for j in range(1, 6)])
         elapsed = time.perf_counter() - t0
         done.set()
+        watch.stop()                                   # the window ends with the ticker
         await asyncio.gather(tick, probing)
         results = [m["result"] for m in await responses[0].json()]
         walked = sum(not x["isError"] for x in results)
@@ -316,7 +392,8 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(verify_audits(s)) - audits, walked + 5)
         # the walks ran in worker threads: the loop kept turning and /health kept answering throughout
         self.assertGreater(len(health), 0)
-        self.assertLess(max(gaps), walk_seconds / 2, f"the loop stalled {max(gaps):.3f}s (one walk takes {walk_seconds:.3f}s)")
+        self.assertLess(max(gaps), walk_seconds / 2,
+                        f"the loop stalled {max(gaps):.3f}s (one walk takes {walk_seconds:.3f}s): {watch.report()}")
         self.assertLess(max(health), walk_seconds / 2 + 0.05)
         self.assertLess(elapsed, 20 * walk_seconds + 5)
 
@@ -369,6 +446,8 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
         gaps: list[float] = []
         done = asyncio.Event()
 
+        watch = LoopStallWatch().start(self)
+
         async def ticker() -> None:
             last = time.perf_counter()
             while not done.is_set():
@@ -376,6 +455,7 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
                 now = time.perf_counter()
                 gaps.append(now - last)
                 last = now
+                watch.tick(now)
 
         tick = asyncio.ensure_future(ticker())
         health: list[float] = []
@@ -413,9 +493,11 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
 
         await asyncio.gather(*[agent(j) for j in range(1, 6)])
         done.set()
+        watch.stop()                                   # the window ends with the ticker
         await asyncio.gather(tick, probing)
         self.assertGreater(len(health), 0)
-        self.assertLess(max(gaps), walk_seconds / 2, f"the loop stalled {max(gaps):.3f}s (one walk takes {walk_seconds:.3f}s)")
+        self.assertLess(max(gaps), walk_seconds / 2,
+                        f"the loop stalled {max(gaps):.3f}s (one walk takes {walk_seconds:.3f}s): {watch.report()}")
         self.assertLess(max(health), walk_seconds / 2 + 0.05)
         for j, raw in bodies:
             body = json.loads(raw)
