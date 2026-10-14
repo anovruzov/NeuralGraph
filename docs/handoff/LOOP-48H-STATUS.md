@@ -230,6 +230,17 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   tests), committed at c1d4fec on wf/a003; stage 2, the wiring, is running. A004's rule (lever 6, a-4b with
   reasoning on) drafted alone at e6b9a45 on wf/a004-design while build 2 runs, as A003's was during A002; three
   reviews, then an amendment; it fixes now how it adapts to every A003 outcome.
+- 2026-10-14 20:15 CI: the mycelic timing failure was the garbage collector, not a walk on the loop. A probe inside the
+  test's window, in a full tests/mycelic run, measured full passes of 0.164, 0.164 and 0.150 s that freed nothing; the
+  test now freezes the objects older than its window (a2a1bbe): with 6,000,000 extra objects on the heap every pass in
+  the window took under 0.04 s, the bound is unchanged, and a mutation that runs every walk on the loop still fails it
+  (2.803 s against 0.215 s). The 2 tests/lab failures do not reproduce here: CI's own suite command on a fresh shallow
+  clone ran all 918 green (30,611 subtests against CI's 30,591), as did the jt tests with CI's GITHUB_ and RUNNER_
+  variables set and package versions equal to requirements.txt. e2e-ingest now prints each failing test's id from the
+  junit files when a suite is red (55914e3); CI is re-running on 55914e3. A004's rule amended before any build (E1 to
+  E38, e54eb6d; three reviews, 13 blocking and 39 minor findings), merged as f557ce0 and pushed: cases C, H, T and N
+  read from A003's result, the reasoning-on and reasoning-off arms on the same records, a timing check before the
+  judging run, and every setting frozen from the amendment's commit. A003 build 2: wiring stage at fbab1fc (WIP).
 
 ## Open asks (date asked)
 
