@@ -16,8 +16,9 @@ the drafting window is :data:`FROM` (2020-01-01, D002's training window's first 
 window with every top-level component name as filed (``fetch_nhtsa._Every``) and the ``reporter`` column holding each
 row's own complaint number (``fetch_nhtsa.REPORTER``), drops a row whose ``odino`` an earlier make already gave (a
 complaint filed under two makes, C28; the count is kept), writes the rows as one CSV of D002's seven columns
-(:data:`COLUMNS`, ``fetch_nhtsa.rows_csv``) and parses it with ``onboard.exports.parse_export``. No row received on or
-after the cutoff is in it. The drafting block (C4, C14): the rows, the sha256 of their sorted record ids (the bytes
+(:data:`COLUMNS`, ``fetch_nhtsa.rows_csv``) and parses it with ``onboard.exports.parse_export``, which must read back
+every pooled row (none rejected), else :class:`JtError`. No row received on or after the cutoff is in it. The drafting
+block (C4, C14): the rows, the sha256 of their sorted record ids (the bytes
 ``lab.j2labels.excluded_jsonl`` writes for them, which are ``prereg/jt/drafting_refs.jsonl``), the narratives' file
 ``prereg/jt/drafting_text.jsonl`` (one ``{"sha256"}`` line per distinct non-empty folded narrative, sorted: hashes, no
 text), ``straddling`` (the drafting rows whose ``odino`` has a row of the six makes received on or after the cutoff in
@@ -27,8 +28,10 @@ the same archive) and the earliest and latest received date.
 under its step runner with :data:`DRAFT_TIMEOUT_S`: ``draft_export`` with the roles of :data:`ROLES` (D002's NHTSA
 roles), the window and ``load_params()``; the drafted pack P_draft written by ``write_pack``; ``check_pack`` against
 the same export; the term set T (:func:`term_set`); its own peak resident memory (``resource.getrusage``). Exit 0 when
-the check passed, :data:`EXIT_FLOOR` when it failed, :data:`EXIT_REFUSED` when the drafter refused the export and
-:data:`EXIT_MEMORY` on a ``MemoryError``; everything is written to a scratch directory, never under the plan's.
+the check passed, :data:`EXIT_FLOOR` when it failed, :data:`EXIT_REFUSED` when the drafter refused the export,
+:data:`EXIT_MEMORY` on a ``MemoryError`` and :data:`EXIT_CRASH` on any other error (its class name on stderr, never its
+message, which could quote the export). No code the draft returns is 1, Python's own exit for an uncaught exception,
+so a crash is never read as a failed check. Everything is written to a scratch directory, never under the plan's.
 
 **The term set** (items 6 and 7, C18, C21, C22). T has one entry per specific predicate of the hand pack (26), in
 predicate id order: the NHTSA spelling the hand value map sends to its code, the drafted predicate whose value map
@@ -127,10 +130,12 @@ DRAFT_RESULT = "draft.json"
 VERIFY_RESULT = "verify.json"
 VERIFY_CHECKS = ("terms_sha256", "jt_code_hash", "hand_hashes", "drafting_files", "p_d_hashes")
 EXIT_OK = 0
-EXIT_FLOOR = 1                  # the check failed: JT_FLOOR_FAILED
+EXIT_NOT_VERIFIED = 1           # the unit: the term set did not verify
 EXIT_USAGE = 2
 EXIT_REFUSED = 3                # the drafter refused the export: JT_DRAFT_FAILED
 EXIT_MEMORY = 4                 # a MemoryError: JT_DRAFT_FAILED
+EXIT_FLOOR = 5                  # the check failed: JT_FLOOR_FAILED (never 1, Python's exit for an uncaught exception)
+EXIT_CRASH = 6                  # any other error in the draft: JT_DRAFT_FAILED
 _DATE = re.compile(r"[0-9]{8}", re.ASCII)
 
 
@@ -188,10 +193,16 @@ def data_sha256() -> dict[str, str]:
 
 # --------------------------------------------------------------------------------------------------- the export
 
+IMPORTED_BY_FETCH = ("nhtsa_export", "vehicle_pack")     # what fetch_nhtsa imports by bare name through sys.path
+
+
 def _fetch_module() -> ModuleType:
     """``tools/onboard/fetch_nhtsa.py``, loaded by path (``tools`` is not a package). Loading it imports the vehicle
-    replays' exporter through ``sys.path``; the path is put back after the load (C29)."""
+    replays' exporter through ``sys.path``; the path is put back after the load, and the modules it imported by bare
+    name (:data:`IMPORTED_BY_FETCH`) leave ``sys.modules`` again unless they were there before (C29): the loaded
+    module keeps its own references, and no later bare ``import nhtsa_export`` in the process finds them."""
     saved = list(sys.path)
+    before = {name for name in IMPORTED_BY_FETCH if name in sys.modules}
     try:
         spec = importlib.util.spec_from_file_location("lab_jt_fetch_nhtsa", ROOT / FETCH_SCRIPT)
         if spec is None or spec.loader is None:
@@ -200,6 +211,9 @@ def _fetch_module() -> ModuleType:
         spec.loader.exec_module(module)
     finally:
         sys.path[:] = saved
+        for name in IMPORTED_BY_FETCH:
+            if name not in before:
+                sys.modules.pop(name, None)
     return module
 
 
@@ -247,8 +261,13 @@ def pooled_export(blob: bytes) -> Pooled:
                 and day >= CUTOFF):
             later.add(exporter._field(row, exporter.C_ODINO))
     data = fetch.rows_csv(rows, list(COLUMNS))
+    export = parse_export(data)
+    if any(export.rejected.values()) or len(export) != len(rows):
+        # the drafting files and the row count are read from the parsed export, so it must hold every pooled row:
+        # then they are the rows nhtsa_export.complaints built, as the judging run's rebuild reads them (C4)
+        raise JtError("the parsed export does not hold every pooled row")
     received = sorted(row["received"] for row in rows)
-    return Pooled(export=parse_export(data), data=data, rows_by_make=kept, counts_by_make=counts, duplicates=dropped,
+    return Pooled(export=export, data=data, rows_by_make=kept, counts_by_make=counts, duplicates=dropped,
                   straddling=sum(1 for odino in seen if odino in later),
                   earliest=_iso(received[0]) if received else None, latest=_iso(received[-1]) if received else None)
 
@@ -510,6 +529,9 @@ def _draft_main(args: argparse.Namespace) -> int:
     except MemoryError:
         print("error: out of memory", file=sys.stderr)
         return EXIT_MEMORY
+    except Exception as exc:        # noqa: BLE001 (any other error: a fixed line, never the message)
+        print(f"error: the draft stopped ({type(exc).__name__})", file=sys.stderr)
+        return EXIT_CRASH
 
 
 # --------------------------------------------------------------------------------------------------- the unit
@@ -562,7 +584,7 @@ def _verify_main(args: argparse.Namespace) -> int:
     write_json_atomic(run / VERIFY_RESULT, result)
     print(f"jt verify: verified {'yes' if result['verified'] else 'no'} "
           + " ".join(f"{k}={'yes' if v else 'no'}" for k, v in result["checks"].items()), flush=True)
-    return EXIT_OK if result["verified"] else EXIT_FLOOR
+    return EXIT_OK if result["verified"] else EXIT_NOT_VERIFIED
 
 
 # --------------------------------------------------------------------------------------------------- CLI

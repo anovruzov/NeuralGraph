@@ -67,12 +67,16 @@
   the cutoff (``lab.jt.pooled_export``, in this process) and its two drafting files; then the draft and the check in a
   subprocess, ``lab.jt draft``, under this step runner with :data:`lab.jt.DRAFT_TIMEOUT_S` (C11), the export written
   to a scratch directory beside ``D`` (never under it: everything under ``D`` is uploaded) and removed afterwards. A
-  check that fails refuses the plan with :data:`~lab.notes.JT_FLOOR_FAILED`; a draft the drafter refuses, a timeout,
-  an out-of-memory exit or a missing result with :data:`~lab.notes.JT_DRAFT_FAILED`; either way nothing of the draft
-  is written under ``D``. Otherwise ``D/prereg/jt/`` gets the drafted pack P_draft (``pack/``), ``terms.json`` (the
-  term set, whose sha256 is the term set's), ``drafting_refs.jsonl``, ``drafting_text.jsonl``, ``check.json`` and
-  ``prereg.json`` (what the unit verifies), and stdout the term run's fixed lines (``lab.jt.console_lines``: counts,
-  dates and hashes, never a term), then the step's wall time and the draft's peak resident memory;
+  download or an archive that cannot be read refuses the plan with :data:`~lab.notes.JT_FETCH_FAILED`; a check that
+  fails with :data:`~lab.notes.JT_FLOOR_FAILED` (after a ``jt check: passed no`` line with each failing check's
+  count); a draft the drafter refuses, a timeout, an out-of-memory exit, a crash, a missing or malformed result, or an
+  export or a P_D rebuild that fails in this process with :data:`~lab.notes.JT_DRAFT_FAILED`; each stop prints a ``jt
+  step: stopped`` line (wall seconds, the draft's, the largest resident memory of a finished child) and nothing of
+  the draft is written under ``D``. Otherwise ``D/prereg/jt/`` gets the drafted pack P_draft (``pack/``),
+  ``terms.json`` (the term set, whose sha256 is the term set's), ``drafting_refs.jsonl``, ``drafting_text.jsonl``,
+  ``check.json`` (the check's counts and booleans by check, ``lab.jt.check_counts``) and ``prereg.json`` (what the
+  unit verifies), and stdout the term run's fixed lines (``lab.jt.console_lines``: counts, dates and hashes, never a
+  term), then the step's wall time and the draft's peak resident memory;
 * X1: the evaluation harness's prereg (run id ``x1``, ``D/prereg/x1/x1/prereg.json``) and ``check-plant``;
 * E2: the same with run id ``e2`` (``D/prereg/x1/e2/prereg.json``) and ``check-plant``, then a model-free rehearsal:
   ``e2_pushdown run`` without routing (fake site and central judges) in a scratch directory beside ``D``, removed
@@ -105,12 +109,16 @@ manifest is then never written, so no shard can use a partial preregistration.
 from __future__ import annotations
 
 import argparse
+import http.client
 import os
+import resource
 import shutil
 import stat
 import sys
 import tempfile
 import time
+import zipfile
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -132,8 +140,8 @@ from . import l1 as lab_l1
 from . import units as lab_units
 from .goldlabels import GoldLabelsError, build_labels, nhtsa_export
 from .notes import (J2_EXCLUSION_DISAGREES, J2_FRESHNESS_UNVERIFIED, J2_TOO_FEW_RECORDS, J3_EXCLUSION_DISAGREES,
-                    J3_FRESHNESS_UNVERIFIED, J3_TOO_FEW_RECORDS, JT_DRAFT_FAILED, JT_FLOOR_FAILED, L1_FETCH_FAILED,
-                    L1_STOPPED)
+                    J3_FRESHNESS_UNVERIFIED, J3_TOO_FEW_RECORDS, JT_DRAFT_FAILED, JT_FETCH_FAILED, JT_FLOOR_FAILED,
+                    L1_FETCH_FAILED, L1_STOPPED)
 from .plan import write_plan_error
 from .request import (RequestError, _exclude as validate_exclude, _j3_exclude_list as validate_j3_exclude,
                       SHA256_PREFIX_RE)
@@ -679,14 +687,38 @@ def _l1(steps: _Steps, plan: Mapping[str, Any], units: list[dict[str, Any]], roo
             "bootstrap_seed": p["bootstrap_seed"]}
 
 
+ARCHIVE_UNREADABLE = (zipfile.BadZipFile, zlib.error, EOFError)    # an archive that is not a readable zip
+
+
 def _jt(steps: _Steps, root: Path, nhtsa_fetch: Callable[[], bytes]) -> dict[str, Any]:
-    """The term run's preregistration (see the module docstring); the manifest's ``jt`` block."""
+    """The term run's preregistration (see the module docstring); the manifest's ``jt`` block. Every stop is a fixed
+    note: a download or an archive that cannot be read is :data:`~lab.notes.JT_FETCH_FAILED`; a failed check
+    :data:`~lab.notes.JT_FLOOR_FAILED`; every other failure, in this process or in the draft's, is
+    :data:`~lab.notes.JT_DRAFT_FAILED`; each prints a ``jt step: stopped ...`` line (wall seconds, the draft's wall
+    seconds and the largest resident memory of a finished child of this process, which covers a killed draft)."""
     block = "$.experiments.jt"
     t0 = time.monotonic()
-    blob = nhtsa_fetch()
-    pooled = lab_jt.pooled_export(blob)
-    refs_bytes = lab_jt.drafting_refs_bytes(pooled.export)
-    text_bytes = lab_jt.drafting_text_bytes(pooled.export)
+    timing: dict[str, float] = {}
+
+    def stop(problem: str) -> _StepFailed:
+        children = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+        draft_wall = f"{timing['draft']:.1f}" if "draft" in timing else "none"
+        print(f"jt step: stopped wall_s {time.monotonic() - t0:.1f} draft_wall_s {draft_wall} draft_timeout_s "
+              f"{lab_jt.DRAFT_TIMEOUT_S} children_peak_rss_kib {children}", flush=True)
+        return _StepFailed(block, problem)
+
+    try:
+        blob = nhtsa_fetch()
+    except (OSError, ValueError, http.client.HTTPException):
+        raise stop(JT_FETCH_FAILED) from None
+    try:
+        pooled = lab_jt.pooled_export(blob)
+        refs_bytes = lab_jt.drafting_refs_bytes(pooled.export)
+        text_bytes = lab_jt.drafting_text_bytes(pooled.export)
+    except ARCHIVE_UNREADABLE:
+        raise stop(JT_FETCH_FAILED) from None
+    except (ValueError, KeyError, OSError):         # ExportError and JtError are ValueErrors
+        raise stop(JT_DRAFT_FAILED) from None
     scratch = tempfile.TemporaryDirectory(prefix="lab-jt-", dir=root.parent)
     try:
         work = Path(scratch.name)
@@ -697,8 +729,9 @@ def _jt(steps: _Steps, root: Path, nhtsa_fetch: Callable[[], bytes]) -> dict[str
                              [("export", work / "export.csv"), ("out", work / "draft")],
                              timeout_s=lab_jt.DRAFT_TIMEOUT_S)
         except _StepFailed:
-            raise _StepFailed(block, JT_DRAFT_FAILED) from None
-        draft_wall = time.monotonic() - t1
+            timing["draft"] = time.monotonic() - t1
+            raise stop(JT_DRAFT_FAILED) from None
+        draft_wall = timing["draft"] = time.monotonic() - t1
         draft: Any = None
         try:
             draft = strict_load((work / "draft" / lab_jt.DRAFT_RESULT).read_bytes())
@@ -707,24 +740,33 @@ def _jt(steps: _Steps, root: Path, nhtsa_fetch: Callable[[], bytes]) -> dict[str
         good = (isinstance(draft, dict) and draft.get("kind") == lab_jt.DRAFT_KIND
                 and isinstance(draft.get("check"), dict))
         if code == lab_jt.EXIT_FLOOR and good:
-            checks = lab_jt.check_counts(draft["check"])
+            checks = lab_jt.check_counts(draft["check"])["checks"]
+            failures = {name: b["failures"] for name, b in checks.items()
+                        if not b.get("passed") and isinstance(b.get("failures"), int)}
             print("jt check: passed no " + " ".join(
-                f"{name}={'passed' if b.get('passed') else 'failed'}" for name, b in checks["checks"].items()),
-                flush=True)
-            raise _StepFailed(block, JT_FLOOR_FAILED)
+                f"{name}={'passed' if b.get('passed') else 'failed'}" for name, b in checks.items())
+                + "".join(f" {name}_failures {n}" for name, n in failures.items()), flush=True)
+            raise stop(JT_FLOOR_FAILED)
         if code != 0 or not good or draft["check"].get("passed") is not True:
-            raise _StepFailed(block, JT_DRAFT_FAILED)
-        p_d = lab_jt.p_d_hashes(draft["terms"])
-        terms = lab_jt.terms_document(archive=blob, pooled=pooled, refs_bytes=refs_bytes, text_bytes=text_bytes,
-                                      draft=draft, p_d=p_d, hand=lab_jt.hand_pack().hashes())
-        terms_bytes = lab_jt.document_bytes(terms)
+            raise stop(JT_DRAFT_FAILED)
+        try:
+            p_d = lab_jt.p_d_hashes(draft["terms"])
+            terms = lab_jt.terms_document(archive=blob, pooled=pooled, refs_bytes=refs_bytes, text_bytes=text_bytes,
+                                          draft=draft, p_d=p_d, hand=lab_jt.hand_pack().hashes())
+            terms_bytes = lab_jt.document_bytes(terms)
+            check = lab_jt.check_counts(draft["check"])
+            peak = draft["peak_rss_kib"]
+            if not isinstance(peak, int) or isinstance(peak, bool):
+                raise TypeError("the draft's peak memory is not a count")
+        except (loader.PackError, ValueError, KeyError, TypeError, AttributeError, OSError):
+            raise stop(JT_DRAFT_FAILED) from None
         terms_sha = sha256_hex(terms_bytes)
         (root / lab_jt.JT_DIR).mkdir(parents=True)
         shutil.copytree(work / "draft" / "pack", root / lab_jt.PACK_DIR)
         (root / lab_jt.TERMS_FILE).write_bytes(terms_bytes)
         (root / lab_jt.DRAFTING_REFS_FILE).write_bytes(refs_bytes)
         (root / lab_jt.DRAFTING_TEXT_FILE).write_bytes(text_bytes)
-        write_json_atomic(root / lab_jt.CHECK_FILE, draft["check"])
+        write_json_atomic(root / lab_jt.CHECK_FILE, check)
         write_json_atomic(root / lab_jt.PREREG_FILE, lab_jt.prereg_doc(
             terms, terms_sha, refs_bytes, text_bytes, code_commit=code_commit(),
             code_dirty=code_dirty(["lab/jt.py", lab_jt.ONBOARD_DIR])))
@@ -734,7 +776,7 @@ def _jt(steps: _Steps, root: Path, nhtsa_fetch: Callable[[], bytes]) -> dict[str
     for line in lab_jt.console_lines(terms, terms_sha):
         print(line, flush=True)
     print(f"jt step: wall_s {wall:.1f} draft_wall_s {draft_wall:.1f} draft_timeout_s {lab_jt.DRAFT_TIMEOUT_S} "
-          f"peak_rss_kib {draft['peak_rss_kib']}", flush=True)
+          f"peak_rss_kib {peak}", flush=True)
     return {"prereg": lab_jt.PREREG_FILE, "terms": lab_jt.TERMS_FILE, "terms_sha256": terms_sha,
             "cutoff": terms["cutoff"], "window": terms["window"], "makes": terms["makes"],
             "archive": terms["archive"], "export": terms["export"], "drafting": terms["drafting"],
@@ -742,7 +784,7 @@ def _jt(steps: _Steps, root: Path, nhtsa_fetch: Callable[[], bytes]) -> dict[str
             "p_draft": terms["p_draft"]["hashes"], "p_d": terms["p_d"]["hashes"], "hand": terms["hand"]["hashes"],
             "code": terms["code"],
             "step": {"wall_s": round(wall, 3), "draft_wall_s": round(draft_wall, 3),
-                     "draft_timeout_s": lab_jt.DRAFT_TIMEOUT_S, "peak_rss_kib": draft["peak_rss_kib"]}}
+                     "draft_timeout_s": lab_jt.DRAFT_TIMEOUT_S, "peak_rss_kib": peak}}
 
 
 def _once(fetch: Callable[[], bytes] | None) -> Callable[[], bytes]:

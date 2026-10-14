@@ -23,7 +23,8 @@ else is excluded, and the test fails on any other difference.
   ``Commit:`` lines; the plan's sha256 (``report.json``'s ``plan.sha256``, the report's ``Plan:``), since the plan
   holds ``git_sha``; and the ``prereg sha`` of ``prereg/j3/prereg.json`` printed by the plan summary, which holds
   ``code_commit`` and ``code_dirty`` and the labels record with the archive's sha256. They differ at every commit by
-  construction, as D003's pin left out ``code_commit``.
+  construction, as D003's pin left out ``code_commit``. A checkout without git metadata (a ``git archive`` copy)
+  prints ``unknown`` for the commit in the summaries' ``Commit:`` lines, and the same token replaces it.
 * **What the machine and the clock give** (``<host>``, ``<time>``): every ``wall_s``, every latency figure
   (``p50_ms``, ``p95_ms``, ``latency_ms_p50``, ``latency_ms_p95``, ``latency_ms_by_task``), every ``host`` block and
   ``cpu_model``; in the markdown, every table cell under a header ``wall seconds``, ``CPU``, ``median ms`` or
@@ -63,8 +64,9 @@ JSON_TIME_KEYS = frozenset({"wall_s", "p50_ms", "p95_ms", "latency_ms_p50", "lat
 JSON_HOST_KEYS = frozenset({"host", "cpu_model"})
 MD_COLUMNS = {"wall seconds": TIME, "CPU": HOST, "median ms": TIME, "ninety-fifth percentile ms": TIME}
 MD_LINES = (
-    (re.compile(r"^(- Commit: `)[0-9a-f]{40}(`)$"), rf"\g<1>{COMMIT}\g<2>"),
-    (re.compile(r"^(- Plan: `)[0-9a-f]{12}(`; Commit: `)[0-9a-f]{40}(`; )"), rf"\g<1>{PLAN}\g<2>{COMMIT}\g<3>"),
+    (re.compile(r"^(- Commit: `)(?:[0-9a-f]{40}|unknown)(`)$"), rf"\g<1>{COMMIT}\g<2>"),
+    (re.compile(r"^(- Plan: `)[0-9a-f]{12}(`; Commit: `)(?:[0-9a-f]{40}|unknown)(`; )"),
+     rf"\g<1>{PLAN}\g<2>{COMMIT}\g<3>"),
     (re.compile(r"^- CPU models: .*$"), f"- CPU models: {HOST}"),
 )
 MD_SPANS = (

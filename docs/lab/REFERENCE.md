@@ -283,7 +283,9 @@ only, HTTP deadline 600 s, 1 retry, no escalation), sites one after another with
 build note is `BUILD-A003.md` beside it): the term set the judging run will read, drafted in the plan job from the six
 makes' public NHTSA complaints received before the judged window by the onboard package's drafter, unchanged; one
 model-free unit `jt` (shard kind `none`, as `x1`) that verifies it (`lab/jt.py`; the template is
-`lab/templates/terms-003.json`, to copy to `lab/requests/terms-003.json`; its `retention_days` is 90, C15):
+`lab/templates/terms-003.json`, to copy to `lab/requests/terms-003.json`). A request with a `jt` block holds no other
+block (`$.experiments`, the term run is a request of its own: "The terms", item 10) and its `retention_days` is 90
+(`$.retention_days`, C15):
 
 | key | values | default |
 | --- | --- | --- |
@@ -297,17 +299,24 @@ The makes (`NHTSA_MAKES`), the roles, the columns, the language and the drafter'
 (`lab.prereg`) downloads the complaint archive once (the J-cycles' fetch) and builds the pooled export in memory: each
 make's rows received from 2020-01-01 to 2022-12-31 (`nhtsa_export.complaints` with every component name as filed and
 the `reporter` column, as D002's split), in make order, a complaint already given by an earlier make dropped and
-counted (C28), as one CSV of D002's seven columns; no row received on or after the cutoff is in it. It then runs
-`python -m lab.jt draft` in a subprocess under its step runner with its own timeout of 900 seconds (C11):
-`draft_export` with `load_params()` and no argument, the drafted pack P_draft, `check_pack` against the same export,
-and the term set T: for each of the hand pack's 26 specific predicates, the drafted lexicon of the drafted category
-that holds its NHTSA spelling, placeholders left out, or the empty list. A failed check refuses the plan with
-`JT_FLOOR_FAILED`; an export the drafter refuses, a timeout, an out-of-memory exit or a missing result with
-`JT_DRAFT_FAILED`; nothing is written under `prereg/jt/` then. Otherwise the step writes `prereg/jt/terms.json`
+counted (C28), as one CSV of D002's seven columns, which the parser must read back whole; no row received on or after
+the cutoff is in it. It then runs `python -m lab.jt draft` in a subprocess under its step runner with its own timeout
+of 900 seconds (C11): `draft_export` with `load_params()` and no argument, the drafted pack P_draft, `check_pack`
+against the same export, and the term set T: for each of the hand pack's 26 specific predicates, the drafted lexicon
+of the drafted category that holds its NHTSA spelling, placeholders left out, or the empty list. The draft exits 0
+when the check passed, 5 when it failed, 3 when the drafter refused the export, 4 on a `MemoryError` and 6 on any other
+error (its class name on stderr, never its message), never 1, Python's own exit for an uncaught exception. A download
+or an archive that cannot be read refuses the plan with `JT_FETCH_FAILED`; a failed check with `JT_FLOOR_FAILED`
+(after a `jt check: passed no` line with each failing check's count); an export the drafter refuses, a timeout, an
+out-of-memory exit, an error, a missing or malformed result, or an export or a P_D rebuild that fails in the plan
+job's own process with `JT_DRAFT_FAILED`; each prints a `jt step: stopped` line (wall seconds, the draft's wall
+seconds and the largest resident memory of a finished child of the step) and nothing is written under `prereg/jt/`
+then. Otherwise the step writes `prereg/jt/terms.json`
 (canonical JSON; its sha256 is the term set's: the cutoff, the window, the makes, the archive, the export's and the
 drafting block's counts, the drafter's summary counts, P_draft's, P_D's and the hand pack's hashes, the check by
 check, the onboard code hash, the two data files' sha256, the code hash of `lab/jt.py` (C29) and T),
-`prereg/jt/pack/` (P_draft), `prereg/jt/check.json` (the check's counts), `prereg/jt/drafting_refs.jsonl` (the
+`prereg/jt/pack/` (P_draft), `prereg/jt/check.json` (the check's result by check, booleans and counts only:
+`lab.jt.check_counts`, the same block as `terms.json`'s `check`), `prereg/jt/drafting_refs.jsonl` (the
 drafting rows' record ids, sorted), `prereg/jt/drafting_text.jsonl` (the sha256 of each distinct folded narrative:
 hashes, no text) and `prereg/jt/prereg.json` (what the unit verifies against), and prints counts, dates and hashes
 only, in fixed lines that start `jt export:`, `jt drafting:`, `jt draft:`, `jt check:`, `jt terms:` (ending
@@ -700,7 +709,8 @@ others:
 - `JT_LABEL`: {j_t} here drafts the term set of the third accuracy cycle in the plan job, before any model runs: the onboard package's drafter, unchanged, reads the six makes' public NHTSA complaints received before the first day of the judged window as one pooled export, its privacy check reads the drafted pack against the same export, and the term set is the drafted vocabulary of each of the hand pack's specific components. No model runs and nothing is drawn; the one unit only verifies the term set against its preregistration.
 - `JT_TERMS_NOTE`: Counts and hashes only: the term set, the drafted pack and the two drafting files live in the plan artifact, never in a summary, a console line or the repository, and no term, category spelling, narrative, record id, state or vehicle is printed. A dated amendment of the rule commits the term set's sha before the judging run, which refuses any other bytes.
 - `JT_FLOOR_FAILED`: the drafted pack failed the privacy check against its export (the loader, the term floor, the value floor, the refused strings or terms, the template rebuild or the n-gram scan); the term run stops before its term set is written, and the loop asks
-- `JT_DRAFT_FAILED`: the draft and its check did not finish: the drafter refused the export, the step ran out of time or memory, or it wrote no result; the term run stops before its term set is written, and the remedy is a reviewed workflow change, never a drafter parameter
+- `JT_DRAFT_FAILED`: the draft and its check did not finish: the drafter refused the export, the step ran out of time or memory, stopped on an error, or wrote no result the step can read; the term run stops before its term set is written, and the remedy is a reviewed change of the workflow or the lab, never a drafter parameter
+- `JT_FETCH_FAILED`: the plan job could not fetch or read NHTSA's complaint archive; nothing was drafted, and the same request may run again
 - `JT_NOT_VERIFIED`: the term run's unit did not verify the term set against its preregistration: a hash, the drafted pack rebuilt from the hand pack and the term set, or this module's code hash differs
 
 Latency test L001's labels, where `{l_one}` is L1 and `{stop}` a stop's code: the label, then the headline and

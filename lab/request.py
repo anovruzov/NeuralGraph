@@ -143,7 +143,9 @@ drafts the term set from the six makes' public complaints received before the cu
                                           # (JT_FROM_PROBLEM, C23)
 
 The makes, the roles, the columns, the drafter's parameters and the language are code constants of ``lab.jt``, not
-request fields, so that no request can draft from another window or another make set.
+request fields, so that no request can draft from another window or another make set. A request with a ``jt`` block
+holds no other block ("a request whose only block is ``experiments.jt``", item 10; ``JT_ALONE_PROBLEM`` at
+``$.experiments``) and its ``retention_days`` is :data:`JT_RETENTION_DAYS`, 90 (C15; ``JT_RETENTION_PROBLEM``).
 
 ``openfda``, the public replay and the labelling sheets (one unit, no model; it reaches api.fda.gov)::
 
@@ -337,6 +339,11 @@ J3_PRIMARY_MODEL_PROBLEM = "the primary pair's model must be one of the J3 model
 JT_PACK_PROBLEM = f"must be {NHTSA_PACK}: the term run's hand pack is the vehicle pack"
 JT_CUTOFF_PROBLEM = (f"must be {lab_jt.CUTOFF_ISO}: the first day of the pinned NHTSA window, the cutoff the term run "
                      "drafts before")
+JT_RETENTION_DAYS = 90             # C15: the term artifact is kept as long as the lab allows
+JT_ALONE_PROBLEM = ("the term run is a request whose only block is jt: it drafts in the plan job and nothing else may "
+                    "run beside it")
+JT_RETENTION_PROBLEM = (f"must be {JT_RETENTION_DAYS} with a jt block: the term artifact is kept until the judging run "
+                        "reads it")
 JT_FROM_PROBLEM = (f"must be {lab_jt.FROM}: the first day of the drafting window, D002's NHTSA training window's first "
                    "day")
 MSHA_HOSTED = "L1 reads real MSHA records only with models inside the runner; the lab sends no real narrative to a host"
@@ -1144,6 +1151,11 @@ def validate(obj: Any, manifest: Manifest, *, openfda_key: bool = False) -> dict
     check_keys(experiments, EXPERIMENTS, (), "$.experiments", RequestError, unknown="unknown experiment")
     if not experiments:
         raise RequestError("$.experiments", f"needs at least one of {', '.join(EXPERIMENTS)}") from None
+    if "jt" in experiments:
+        if len(experiments) > 1:
+            raise RequestError("$.experiments", JT_ALONE_PROBLEM) from None
+        if out["retention_days"] != JT_RETENTION_DAYS:
+            raise RequestError("$.retention_days", JT_RETENTION_PROBLEM) from None
     capacity = out["job_minutes"] - SHARD_OVERHEAD_MINUTES
     checks = {"e1": lambda raw: _e1(raw, models, capacity, manifest),
               "e2": lambda raw: _e2(raw, models, capacity, manifest),

@@ -403,8 +403,11 @@ JT_FLOOR_FAILED = ("the drafted pack failed the privacy check against its export
                    "value floor, the refused strings or terms, the template rebuild or the n-gram scan); the term run "
                    "stops before its term set is written, and the loop asks")
 JT_DRAFT_FAILED = ("the draft and its check did not finish: the drafter refused the export, the step ran out of time "
-                   "or memory, or it wrote no result; the term run stops before its term set is written, and the "
-                   "remedy is a reviewed workflow change, never a drafter parameter")
+                   "or memory, stopped on an error, or wrote no result the step can read; the term run stops before "
+                   "its term set is written, and the remedy is a reviewed change of the workflow or the lab, never a "
+                   "drafter parameter")
+JT_FETCH_FAILED = ("the plan job could not fetch or read NHTSA's complaint archive; nothing was drafted, and the same "
+                   "request may run again")
 JT_NOT_VERIFIED = ("the term run's unit did not verify the term set against its preregistration: a hash, the drafted "
                    "pack rebuilt from the hand pack and the term set, or this module's code hash differs")
 L1_LABEL = ("{l_one} here times the product's whole pushdown path on a real alert of MSHA's public accident file: HQ "
