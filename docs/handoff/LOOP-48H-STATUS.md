@@ -252,6 +252,18 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   specification and seed policy are committed alone at 5eb2e28 (docs/collective/EMERGENCE-80/SPEC.md), and the
   diagnosis (the 40-pattern decomposition and the rare patterns' A/B/C census on development seeds 0 to 5) is
   running. A003 build 2 still in review.
+- 2026-10-14 22:20 CI on 5eb2e28 green: every unit suite in both workflows (the lab suite with the golden fix, the
+  mycelic job with both loop timing tests passing), and e2e-ingest's end-to-end job (criteria 0-4, 7-10, 200 users,
+  seed 0) passed with no failed check. Its full report is in the job log (11,692 lines) and artifact 11931284874; the
+  per-pattern figures wait on the artifact. The scaling job (criterion 5) is running. EMERGENCE 80% diagnosis: the
+  witness census on development seeds 0 to 5 is in. Class C is empty at 200 users (all 103 rare patterns reach 3
+  records across sites in one 6-week window). The shipped gate's two-site rule (at least 3 records at each of 2
+  sites) caps recall_all at a mean of 0.633 even with perfect detection and routing, and no seed reaches 32 of 40. A
+  single-site gate (each disclosing site still at or above k = 3) gives a mean ceiling of 0.846; cross-site
+  aggregation of sub-threshold counts (class B, needs approval) gives 40 of 40. The largest loss in the real
+  pipeline is rule-only candidates dropped without a snapshot week (20 to 27 of 40 keys per seed). The run job's
+  world-count check refuses seeds other than 0, a blocker for the seed policy. The synthesis and its critics are
+  running; A003 build 2 is in its reviews.
 
 ## Open asks (date asked)
 
