@@ -645,5 +645,20 @@ class RequestsReadmeTests(unittest.TestCase):
         self.assertEqual(found.errors[0], f"event: {notes.NO_REQUEST_CHANGE}")
 
 
+class TermRunTimeoutTests(unittest.TestCase):
+    """C11: the draft's timeout is the build's choice, recorded in ``BUILD-A003.md`` and the reference; the code's
+    constant is the figure both state."""
+
+    def test_the_build_note_and_the_reference_state_the_code_s_timeout(self) -> None:
+        from lab import jt
+
+        build = _text(ROOT / "docs" / "collective" / "A003" / "BUILD-A003.md")
+        self.assertIn(f"- **The draft's timeout** (C11: \"the build fixes the timeout\"): {jt.DRAFT_TIMEOUT_S} "
+                      "seconds,", build)
+        self.assertIn(f"with a {jt.DRAFT_TIMEOUT_S}-second timeout", " ".join(build.split()))
+        self.assertIn(f"its own timeout of {jt.DRAFT_TIMEOUT_S} seconds (C11)", " ".join(_text(REFERENCE).split()))
+        self.assertEqual(jt.DRAFT_TIMEOUT_S, 900)
+
+
 if __name__ == "__main__":
     unittest.main()

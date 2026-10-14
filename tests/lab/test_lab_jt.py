@@ -869,6 +869,9 @@ class StepFailureTests(unittest.TestCase):
 
         def spy(steps: Any, step: str, *args: Any, **kwargs: Any) -> int:
             calls.append((step, kwargs.get("timeout_s")))
+            if kwargs.get("timeout_s") != 3:
+                # another timeout would let the stub sleep its hour: fail now instead of waiting
+                raise AssertionError(f"the draft step got timeout_s {kwargs.get('timeout_s')!r}, not three")
             try:
                 return real(steps, step, *args, **kwargs)
             except lab_prereg._StepFailed as failed:
@@ -1538,6 +1541,15 @@ class A002GoldenTests(unittest.TestCase):
         self.assertEqual(a002_golden.normalise_json(timed), a002_golden.normalise_json(raw))
         md = (self.dry.out / "report" / "report.md").read_text(encoding="utf-8")
         self.assertNotEqual(a002_golden.normalise_md(md.replace("0.700", "0.701")), a002_golden.normalise_md(md))
+        # a checkout without git metadata prints the commit as unknown: the same token, nothing else changes
+        commit = re.search(r"Commit: `([0-9a-f]{40})`", md)
+        if commit is not None:
+            self.assertEqual(a002_golden.normalise_md(md.replace(commit.group(1), "unknown")),
+                             a002_golden.normalise_md(md))
+        self.assertEqual(a002_golden.normalise_md("- Commit: `unknown`"), f"- Commit: `{a002_golden.COMMIT}`")
+        self.assertEqual(a002_golden.normalise_md("- Plan: `0123456789ab`; Commit: `unknown`; x"),
+                         f"- Plan: `{a002_golden.PLAN}`; Commit: `{a002_golden.COMMIT}`; x")
+        self.assertEqual(a002_golden.normalise_md("- Commit: `unknowns`"), "- Commit: `unknowns`")
         with self.assertRaises(a002_golden.GoldenError):
             a002_golden.normalise_json(json.dumps(json.loads(raw), indent=1).encode("utf-8"))
 

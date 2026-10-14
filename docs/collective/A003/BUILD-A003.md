@@ -24,13 +24,13 @@ exists yet; the synthetic draft's terms are `j4_data`'s invented cue words, and 
 
 | Step | Where | What |
 |---|---|---|
-| Request | `lab/request.py` | an `experiments.jt` block of four keys (`_JT_KEYS`): `minutes`; `pack` exactly `docs/collective/replay/vehicles/pack` (`JT_PACK_PROBLEM`); `cutoff` exactly `2023-01-01`, `NHTSA_WINDOW[0]` in ISO form (`JT_CUTOFF_PROBLEM`); `from` exactly `2020-01-01` (`JT_FROM_PROBLEM`) (C23). The makes, roles, columns, language and drafter parameters are code constants of `lab/jt.py` |
+| Request | `lab/request.py` | an `experiments.jt` block of four keys (`_JT_KEYS`): `minutes`; `pack` exactly `docs/collective/replay/vehicles/pack` (`JT_PACK_PROBLEM`); `cutoff` exactly `2023-01-01`, `NHTSA_WINDOW[0]` in ISO form (`JT_CUTOFF_PROBLEM`); `from` exactly `2020-01-01` (`JT_FROM_PROBLEM`) (C23). The makes, roles, columns, language and drafter parameters are code constants of `lab/jt.py`. A request with a `jt` block holds no other block (`JT_ALONE_PROBLEM`, item 10) and its `retention_days` is 90 (`JT_RETENTION_PROBLEM`, C15) |
 | Plan | `lab/plan.py` | one model-free unit `jt` (kind `none`, as `x1`), params `pack`, `cutoff` and `from` copied from the block (C27); the shard is `s001-none`; nothing is provisioned (C17) |
-| Preregistration | `lab/prereg.py` (`_jt`) over `lab/jt.py` | the archive's one cached fetch (`_once`); the pooled export in process; the draft and the check in a subprocess, `python -m lab.jt draft`, under `_Steps.run` with `lab.jt.DRAFT_TIMEOUT_S` (900 s) and capped logs (C11); `prereg/jt/terms.json`, `pack/` (P_draft), `check.json`, `drafting_refs.jsonl`, `drafting_text.jsonl`, `prereg.json`; the fixed console lines; `JT_FLOOR_FAILED` and `JT_DRAFT_FAILED`; the manifest's `jt` block; `main()`'s `prereg:` line gains ` jt yes` (C27) |
+| Preregistration | `lab/prereg.py` (`_jt`) over `lab/jt.py` | the archive's one cached fetch (`_once`); the pooled export in process; the draft and the check in a subprocess, `python -m lab.jt draft`, under `_Steps.run` with `lab.jt.DRAFT_TIMEOUT_S` (900 s) and capped logs (C11); `prereg/jt/terms.json`, `pack/` (P_draft), `check.json` (the check's counts by check), `drafting_refs.jsonl`, `drafting_text.jsonl`, `prereg.json`; the fixed console lines; `JT_FETCH_FAILED`, `JT_FLOOR_FAILED` and `JT_DRAFT_FAILED`, each after a `jt step: stopped` line; the manifest's `jt` block; `main()`'s `prereg:` line gains ` jt yes` (C27) |
 | Unit | `lab/units.py` runs `python -m lab.jt verify` | `ADAPTERS["jt"]` (no tasks, no routing, result `verify.json`, subcommand `verify`); `--prereg`, `--run-id`, `--runs-dir`; `PREREG_EXPERIMENTS` gains `jt`; `_jt_status`; `unit_notes` gives the jt unit `public_terms`, never `synthetic` (C27) |
 | Aggregate | `lab/aggregate.py` (`jt_block`) | the term set's sha256 cross-checked against the manifest, `prereg/jt/prereg.json` and the bytes of `prereg/jt/terms.json`; the preregistration's counts and hashes; the unit's `verify.json`; the `jt` key only in a report whose plan has the unit (C30) |
 | Summary | `lab/summary.py` | the term run's lines under two headings in the report's class section and in the plan summary's preregistration, the full sha256 in the report the log prints between the `MYCELIC-LAB` markers (C13) |
-| Notes | `lab/notes.py` | `JT_LABEL`, `JT_TERMS_NOTE`, `JT_FLOOR_FAILED`, `JT_DRAFT_FAILED`, `JT_NOT_VERIFIED`, `NOTES["public_terms"]`, two headings and the jt columns; no ASCII digit in any sentence (`test_notes_hold_no_digits` holds) |
+| Notes | `lab/notes.py` | `JT_LABEL`, `JT_TERMS_NOTE`, `JT_FLOOR_FAILED`, `JT_DRAFT_FAILED`, `JT_FETCH_FAILED`, `JT_NOT_VERIFIED`, `NOTES["public_terms"]`, two headings and the jt columns; no ASCII digit in any sentence (`test_notes_hold_no_digits` holds) |
 | Dry run | `lab/dryrun.py` | `--jt-data DIR` (a `tests.lab.j4_data` directory) hands `DIR/complaints.zip` to `lab.prereg --nhtsa-archive`; refused together with `--j2-data` or `--j3-data` (C27) |
 | Template | `lab/templates/terms-003.json` | the rule's term request, `retention_days` 90 (C15), to copy to `lab/requests/terms-003.json` |
 | Workflow | `.github/workflows/mycelic-lab.yml` | unchanged: the term run is the existing `prereg` step's work (20 minutes inside the plan job's 30) and uploads with the plan artifact; nothing in the rule asks for a new step in build 1 |
@@ -51,31 +51,46 @@ added under `lab/requests/`: pushing a file there starts a run, and the caller s
   function (C29), calls `nhtsa_export.complaints` once per make of `NHTSA_MAKES` over the drafting window with
   `fetch_nhtsa._Every()` and `fetch_nhtsa.REPORTER`, concatenates the rows in make order, drops a row whose `odino` an
   earlier make gave and counts it, writes one CSV through `fetch_nhtsa.rows_csv` with D002's seven columns and parses
-  it with `onboard.exports.parse_export`. No row received on or after the cutoff is in it (a test checks every row's
-  date and the straddling complaint's later row).
+  it with `onboard.exports.parse_export`, which must read back every pooled row (a rejected or lost row refuses the
+  export, `JtError`, so that the drafting files are the rows `complaints` built). No row received on or after the
+  cutoff is in it: a test computes, from the synthetic archive's own lines, the complaints of the six makes received
+  from 2020-01-01 to 2022-12-31 and finds the export's record ids equal to them, with boundary complaints received
+  on 2019-12-31 (out), 2020-01-01 (in), 2022-12-31 (in) and 2023-01-01 (out) named one by one, and the export's
+  earliest and latest received dates exactly the window's two ends.
 - **C4, the drafting block.** `prereg/jt/drafting_refs.jsonl` is one `{"record_ref"}` line per drafting row, sorted:
   the bytes `lab.j2labels.excluded_jsonl` writes for the same ids (written out in `lab/jt.py`, so that the term module
   imports no judging module; a test pins the two equal). `prereg/jt/drafting_text.jsonl` is one `{"sha256"}` line per
   distinct non-empty folded narrative (`packs.canonical.folded`), sorted. `terms.json`'s `drafting` block holds the
   rows, the sha256 of the sorted record ids (equal to the refs file's sha256, by construction), both files' sha256,
   the distinct narratives and `straddling`: the drafting rows whose `odino` has a row of the six makes received on or
-  after the cutoff anywhere in the same archive. The earliest and latest received dates of the export are in its
+  after the cutoff anywhere in the same archive (the synthetic archive holds two such complaints, one whose later row
+  is received on the cutoff day itself, and one drafting complaint whose later row is filed under a seventh make,
+  which does not count: `straddling` is 2). The earliest and latest received dates of the export are in its
   `export` block (C14).
 - **Item 4, the drafter.** `run_draft` calls `draft_export(export, roles(), window(), "nhtsa_pooled",
   params=load_params())`: the roles of `ROLES` through the onboard package's own `roles_from_json` (D002's NHTSA
   roles, `vehicle` and `reporter` forbidden), `load_params()` with no argument, read once and handed to the draft and
-  the check alike. The code hash is `common.code_hash` over every file of `mycelic/collective/onboard/` (code and data,
+  the check alike (a test pins the whole parameter set handed to both equal to `defaults.json` and to
+  `D002-settings.json`'s `params`, key for key, and the roles and window handed to both equal to the module's; the
+  synthetic narratives of one category carry their row's make, which the `vehicle` refusal must remove: a test finds
+  none in T and shows that the same export with `vehicle` not forbidden would give them to that category). The code hash is `common.code_hash` over every file of `mycelic/collective/onboard/` (code and data,
   `__pycache__` aside) and the three download files of item 4; the two data files' sha256 are printed and kept.
 - **Item 5, the check.** `check_pack(out/pack, export, roles, window, params=params)` on the same parsed export the
-  drafter read. `check.json` is the check's own document; `terms.json` and the console carry only its counts and
-  booleans by check (`check_counts`: a string a failing pack might hold, such as the loader's error, is left out). A
-  failed check exits 1 (`EXIT_FLOOR`); `lab.prereg` prints `jt check: passed no ...` with each check's outcome and
-  refuses the plan with `JT_FLOOR_FAILED` before anything is written under `prereg/jt/`.
+  drafter read. `check.json`, `terms.json` and the console carry only its counts and booleans by check
+  (`check_counts`: the check's pack id, the loader's error text and the n-gram scan's file names are left out, so no
+  string a failing pack might hold reaches the artifact). A failed check exits 5 (`EXIT_FLOOR`, never 1, Python's own
+  exit for an uncaught exception); `lab.prereg` prints `jt check: passed no ...` with each check's outcome and each
+  failing check's `failures` count, then the `jt step: stopped` line, and refuses the plan with `JT_FLOOR_FAILED`
+  before anything is written under `prereg/jt/`.
 - **Items 6 and C18, T.** `term_set(draft, hand)`: for each specific predicate of the hand pack, in id order, the
   spelling the hand value map sends to its code, the drafted predicate whose value map holds that spelling and is a
   specific drafted code (`draft.plan.codes`), its corpus records and its learned lexicon (`draft.learned`, which never
   holds a placeholder) in the drafter's order; the empty list and `drafted_id` null when the drafter left the
-  spelling out. 26 entries or `JtError`.
+  spelling out. 26 entries or `JtError`. The synthetic data reaches both of item 6's harder cases: the twins
+  `service_brakes` and `service_brakes_hydraulic` share every cue word, so each shared word goes to the twin with more
+  records (the larger p(c | t)) and the smaller twin, a specific drafted predicate of 54 records, learns none: its
+  entry has a `drafted_id` and the empty list (the placeholder left out of T, P_draft's lexicon holding it), and P_D
+  gives it `draft.placeholder(<hand id>, ids)`.
 - **Item 7, C21, C22 and C29, `terms.json`.** Canonical JSON (`jsonio.canonical_dumps`) and a final newline; the keys
   of item 7: `kind` `lab_jt_terms`, `schema_version` 1, the cutoff, the window, the makes, the language, the roles,
   the archive's sha256 and bytes, the `export` block (rows per make and pooled, each make's complaint count, the
@@ -102,19 +117,27 @@ added under `lab/requests/`: pushing a file there starts a run, and the caller s
   of the draft, the timeout, the peak resident memory in KiB). Counts, dates and hashes only.
 - **C11, time and memory.** The draft runs as a subprocess under `_Steps.run` with a 900-second timeout, below the
   `prereg` step's 20 minutes; a timeout (`_StepFailed`), a kill (a negative exit code, as the kernel's out-of-memory
-  killer gives), a `MemoryError` (exit 4), a refused export (`DraftError`, exit 3), a usage problem or a missing or
-  malformed `draft.json` refuse the plan with `JT_DRAFT_FAILED`. The export goes to a scratch directory beside the
-  plan's (`lab-jt-*`, never under it: everything under it is uploaded) and is removed whatever the outcome; the
-  subprocess's peak resident memory is its own `resource.getrusage(RUSAGE_SELF).ru_maxrss`.
+  killer gives), a `MemoryError` (exit 4), a refused export (`DraftError`, exit 3), any other error in the draft
+  (exit 6, its class name on stderr and never its message), an uncaught exception before the draft (Python's exit 1,
+  which is no code of the draft's), a usage problem, a missing or malformed `draft.json`, a check that exits 0 without
+  passing, or a P_D rebuild or a `terms.json` that fails in the plan job's own process refuse the plan with
+  `JT_DRAFT_FAILED`; a download or an archive that is not a readable zip with `JT_FETCH_FAILED` (a new note, as L1's
+  `L1_FETCH_FAILED`: the same request may run again). Every stop prints `jt step: stopped wall_s ... draft_wall_s ...
+  draft_timeout_s ... children_peak_rss_kib ...` (the parent's `RUSAGE_CHILDREN` peak, which covers a killed draft),
+  so the amendment can record the attempt. The export goes to a scratch directory beside the plan's (`lab-jt-*`,
+  never under it: everything under it is uploaded) and is removed whatever the outcome; the subprocess's peak
+  resident memory is its own `resource.getrusage(RUSAGE_SELF).ru_maxrss`.
 - **C15, retention.** The template's `retention_days` is 90.
 - **C27, the wiring touch points of build 1.** Each is named in the shape table; `lab/units.py`'s budget list and
   routed tasks are untouched (the jt unit has no budget and no tasks).
 - **C29, the import rule.** `lab/jt.py` imports nothing from `tools/`; `_fetch_module` loads `fetch_nhtsa.py` with
   `importlib.util.spec_from_file_location` inside `pooled_export` only and puts `sys.path` back after the load (the
-  download module inserts `tools/market` while it imports). A test in a fresh interpreter imports `lab.jt`,
+  download module inserts `tools/market` while it imports), and drops the modules it imported by bare name
+  (`nhtsa_export`, `vehicle_pack`) from `sys.modules` unless they were there before, so that no later bare import in
+  the plan job's process finds them. A test in a fresh interpreter imports `lab.jt`,
   `lab.prereg`, `lab.units`, `lab.aggregate`, `lab.summary`, `lab.request` and `lab.dryrun` and finds no `tools`
-  directory on `sys.path` and no download module loaded, and another finds `sys.path` unchanged after
-  `pooled_export`.
+  directory on `sys.path` and no download module loaded, and two more find `sys.path` unchanged and no bare
+  `nhtsa_export` or `vehicle_pack` importable after `pooled_export`.
 - **C30, the golden outputs.** Below, "Step (0)".
 
 ### Choices the rule left to the build
@@ -153,9 +176,9 @@ added under `lab/requests/`: pushing a file there starts a run, and the caller s
 - **"the code hash over `mycelic/collective/onboard/**` (code and data)"** is read as every regular file under the
   package directory except compiled caches, plus the three download files item 4 lists; the file count is kept beside
   the hash.
-- **"the check's result (counts by check, never a string)"**: `check.json` in the artifact is the check's whole
-  document, which on a passing pack holds only booleans, counts and empty lists; `terms.json`, the manifest, the
-  summaries and the console carry the counts alone.
+- **"the check's result (counts by check, never a string)"**: `check.json` in the artifact, `terms.json`, the
+  manifest, the summaries and the console all carry `check_counts`, the booleans and counts by check, never the
+  check's own document (which names the pack and can hold the loader's error text and the n-gram scan's file names).
 - **The `--j4-data` exclusivity** of C27 belongs to build 2 (no `j4` kind exists yet); build 1 refuses `--jt-data`
   with `--j2-data` or `--j3-data`.
 - **"prints ... the categories passing the floor and the specific predicates"** (item 11) is read as their counts;
@@ -193,27 +216,29 @@ differ, and the JSON normaliser refuses a document that is not canonical.
 
 ### Tests
 
-`tests/lab/test_lab_jt.py`, offline (52 tests): the synthetic archive of `tests/lab/j4_data.py`, the lab's fake server
+`tests/lab/test_lab_jt.py`, offline (52 tests at the build commit, 75 after the fixes below; the table is as fixed):
+the synthetic archive of `tests/lab/j4_data.py`, the lab's fake server
 for the dry runs' shards (no model is served: the unit is model-free), no network host. Four fixtures are made once:
 the archive with its pooled export and one draft in process, two preregistrations of the term request in two plan
 directories, the template's dry run with `--jt-data`, and the j3 template's dry run for the golden outputs.
 
 | Class | Pins |
 |---|---|
-| `SettingsTests` | the cutoff equal to `NHTSA_WINDOW[0]` and the window to `D002-settings.json`'s `train`; the roles, columns, makes, download files and hand pack equal to `D002-settings.json`'s `arms.nhtsa` (with `vehicle` forbidden); the drafter called with `load_params()` and no argument, the draft and the check with the defaults' values; the data files' sha256; the hashed file list and `lab/jt.py`'s own hash; the draft's timeout below the step's |
-| `ExportTests` | no row received on or after the cutoff (the straddling complaint's later row and the repeated narrative's later complaint left out); a complaint under two makes kept once under the first make, one duplicate counted; D002's seven columns and the reporter column; the refs file equal to `excluded_jsonl`'s bytes, the text file hashes only, one per distinct folded narrative, the drafting block's figures with `straddling` 1 |
-| `DraftTests` | the check passing with every check's counts and no string; the check reading the pack the draft wrote against the same export object, roles and window; T's 26 entries in id order with the hand spellings, the seven reached predicates of the synthetic data, the term counts; T equal to P_draft's lexicons through the value maps; the drafter's counts |
-| `DraftedPackTests` | every P_D file but `vocabulary.json` the hand pack's bytes; the lexicons (T or the placeholder, `unknown_or_other` and every other key untouched); P_D's hashes (fixtures and detector the hand pack's, vocabulary and config not, all four apart from P_draft's; the term order counts); no placeholder folds equal to any term, any hand term or any synthetic narrative; the drafted lexical judge confirming from a drafted term the hand lexicon lacks and never from an empty predicate's hand term, the hand judge the opposite, on the same shipped payload |
-| `PreregTests` | the files under `prereg/jt/` and their manifest entries, no export kept and no scratch directory left; `terms.json` canonical with item 7's keys and values; its sha256 stable across two preregistrations (and the drafting files and the check); `prereg/jt/prereg.json` and the manifest's `jt` block; the console's six fixed lines, the sha256 at the end of `jt terms:`, and no term, category spelling, record id, state, vehicle or narrative word in stdout, stderr or the step's logs; the console lines a function of `terms.json` |
-| `StepFailureTests` | `JT_DRAFT_FAILED` for a timeout (the step's limit lowered to three seconds), a SIGKILL, a `MemoryError`, a refused export, no result and a malformed result; `JT_FLOOR_FAILED` with the `jt check: passed no` line for a failed n-gram check; in each, `plan-error.json`, nothing under `prereg/jt/` and no scratch directory left; the draft command's exit codes |
-| `VerifyTests` | the CLI verifying a copy of the preregistration, its one line and `verify.json`; a changed `terms.json`; a term set changed and pinned again (only `p_d_hashes` fails); a changed drafting file; another code hash; no preregistration; the adapter's argv, `_jt_status` on every pairing, `unit_notes` and `public_text` |
-| `RequestTests` | the template validating to the four keys, its top level (`retention_days` 90) and a purpose with no digit outside the rule's path and the copy's name; every block error and its problem; the plan's one unit in one `none` shard with nothing provisioned |
-| `ImportTests` | in a fresh interpreter, no `tools` directory on `sys.path` and no download module loaded after importing the lab modules; `sys.path` unchanged after `pooled_export` |
-| `DryRunTests` | the template's dry run: one unit, the jt lines, the unit `ok`, `no-model` measurement; the report block equal to the manifest's figures, verified, every check true; both summaries with every number traced to its file, the full sha256, both headings, the label, the note; no term, spelling, drafting record id or vehicle in any file outside `prereg/jt/` or in stdout; `--jt-data` refused with either other data flag |
-| `A002GoldenTests` | step (0): the j3 template dry run's three outputs equal the recording after normalisation; the recording holds each token where expected and no `jt` key; a changed figure stays visible through the normaliser |
+| `SettingsTests` | the cutoff equal to `NHTSA_WINDOW[0]` and the window to `D002-settings.json`'s `train`; the roles, columns, makes, download files and hand pack equal to `D002-settings.json`'s `arms.nhtsa` (with `vehicle` forbidden); the drafter called with `load_params()` and no argument, the draft and the check handed the same whole parameter set, equal to `defaults.json` and to `D002-settings.json`'s `params`, and the module's roles and window; the data files' sha256; the hashed file list; `lab/jt.py`'s code hash equal to `common.code_hash` over that file, kept by a byte-equal copy and changed by one changed byte; the draft's timeout 900 seconds, below the step's |
+| `ExportTests` | the export's record ids exactly the archive's complaints of the six makes received from 2020-01-01 to 2022-12-31, computed from the archive's lines, with the boundary complaints of 2020-01-01 and 2022-12-31 in and of 2019-12-31 and 2023-01-01 out, the earliest and latest received dates the window's ends, and the exact row count; the straddling complaint's 2023-01-01 row and the repeated narrative's later complaint left out; a parse that rejects or loses a pooled row refused (`JtError`); a complaint under two makes kept once under the first make, one duplicate counted; D002's seven columns and the reporter column; the refs file equal to `excluded_jsonl`'s bytes, the text file hashes only, one per distinct folded narrative, the drafting block's figures; `straddling` 2, the two complaints with a later row of the six makes (one on the cutoff day), not the one whose later row is a seventh make's |
+| `DraftTests` | the check passing with every check's counts and no string; the check reading the pack the draft wrote against the same export object, roles and window; T's 26 entries in id order with the hand spellings, the eight reached predicates of the synthetic data, the term counts; the placeholder left out (a reached predicate of 54 records with `drafted_id` set, the empty list, P_draft's placeholder, no T term with the placeholder prefix); the twin split (every shared cue word in the larger twin's list only); the make words refused (none in T, the refusal's counts, and the drafter learning them with `vehicle` not forbidden); T equal to P_draft's lexicons through the value maps; the drafter's counts equal to `draft.summarise`'s key for key; the draft's own peak memory above 10,000 KiB |
+| `DraftedPackTests` | every P_D file but `vocabulary.json` the hand pack's bytes; the lexicons (T or the placeholder, the reached-but-empty predicate's placeholder, `unknown_or_other` and every other key untouched); P_D's hashes (fixtures and detector the hand pack's, vocabulary and config not, all four apart from P_draft's; the term order counts); no placeholder folds equal to any term, any hand term or any synthetic narrative; the drafted lexical judge confirming from a drafted term the hand lexicon lacks, refuting the hand label alone on a reached predicate whose list lacks it, and never confirming from an empty predicate's hand term, the hand judge the opposite, on the same shipped payload |
+| `PreregTests` | the files under `prereg/jt/` and their manifest entries, no export kept and no scratch directory left; `check.json` the counts by check, no string, equal to `terms.json`'s `check`; `terms.json` canonical with item 7's keys and values; its sha256 stable across two preregistrations (and the drafting files and the check); `prereg/jt/prereg.json` and the manifest's `jt` block; the console's six fixed lines, the sha256 at the end of `jt terms:`, and no term, category spelling, record id, state, vehicle or narrative word in stdout, stderr or the step's logs; the console lines a function of `terms.json`; the draft's peak memory in the manifest and the `jt step:` line, the same number |
+| `StepFailureTests` | `JT_DRAFT_FAILED` for a timeout (the step's limit lowered to three seconds, a stub that would pass after an hour, refused in under a minute, the step runner handed `timeout_s` 3 and raising "did not finish in time"), a SIGKILL, a `MemoryError`, a refused export, an error in the draft (exit 6, its class name only), an uncaught exception (exit 1), no result, a malformed result, the check's exit code with no result, exit 0 with a check that did not pass, an export the parser does not read back whole and a P_D rebuild the loader refuses; `JT_FETCH_FAILED` for an absent archive, a file that is not a zip and a truncated zip; `JT_FLOOR_FAILED` with the `jt check: passed no` line and the failing check's count; in each, `plan-error.json`, the `jt step: stopped` line, nothing under `prereg/jt/` and no scratch directory left; the real draft's step handed `DRAFT_TIMEOUT_S`; the draft command's exit codes, none of them 1 |
+| `VerifyTests` | the CLI verifying a copy of the preregistration, its one line and `verify.json`; a changed `terms.json`; a term set changed and pinned again (only `p_d_hashes` fails); a changed refs file; a changed text file (only `drafting_files` fails); other hand pack hashes in `terms.json` pinned again or in the preregistration (only `hand_hashes` fails); other P_D hashes in the preregistration (only `p_d_hashes` fails); another code hash; no preregistration; the adapter's argv, `_jt_status` on every pairing, `unit_notes` and `public_text` |
+| `RequestTests` | the template validating to the four keys, its top level (`retention_days` 90) and a purpose with no digit outside the rule's path and the copy's name; every block error and its problem; a `jt` block beside another block refused (`JT_ALONE_PROBLEM`), and any `retention_days` but 90 (`JT_RETENTION_PROBLEM`); the plan's one unit in one `none` shard with nothing provisioned |
+| `ImportTests` | in a fresh interpreter, no `tools` directory on `sys.path` and no download module loaded after importing the lab modules; `sys.path` unchanged after `pooled_export`, and no bare `nhtsa_export` or `vehicle_pack` left in `sys.modules` or importable |
+| `DryRunTests` | the template's dry run: one unit, the jt lines, the unit `ok`, `no-model` measurement; the report block equal to the manifest's figures, verified, every check true; `aggregate.jt_block` on copies of the plan: not verified when `verify.json` says false, names another sha256 or other P_D hashes, or is of another kind; `PREREG_MISSING` and no sha when `prereg/jt/prereg.json` (re-pinned in the manifest) or the manifest's `jt` block names another sha256 than `terms.json`'s bytes; both summaries with every number traced to its file, the full sha256, both headings, the label, the note; no term, spelling, drafting record id or vehicle in any file outside `prereg/jt/` or in stdout; `--jt-data` refused with either other data flag |
+| `A002GoldenTests` | step (0): the j3 template dry run's three outputs equal the recording after normalisation; the recording holds each token where expected and no `jt` key; a changed figure stays visible through the normaliser; a commit printed as `unknown` (a checkout without git metadata) normalises to the same token |
 
-The other lab suites run unchanged but for these pins: `tests/lab/test_lab_docs.py` (the five JT labels, the three
-troubleshooting rows, the new template, `request._JT_KEYS`), `tests/lab/test_lab_shipped.py` (the template list),
+The other lab suites run unchanged but for these pins: `tests/lab/test_lab_docs.py` (the six JT labels, the four
+troubleshooting rows, the new template, `request._JT_KEYS`, and the draft's timeout as this note and the reference
+state it), `tests/lab/test_lab_shipped.py` (the template list),
 `tests/lab/test_lab_guards.py` (the stub list of the name scan) and `tests/lab/test_lab_sim.py` (the experiments
 message). `tests/lab/helpers.py`'s `PREREG_EXPERIMENTS` is not changed:
 it lists the kinds `make_plan` preregisters without an archive, and a jt plan needs one.
