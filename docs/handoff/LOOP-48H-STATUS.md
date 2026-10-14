@@ -252,7 +252,7 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   specification and seed policy are committed alone at 5eb2e28 (docs/collective/EMERGENCE-80/SPEC.md), and the
   diagnosis (the 40-pattern decomposition and the rare patterns' A/B/C census on development seeds 0 to 5) is
   running. A003 build 2 still in review.
-- 2026-10-14 22:20 CI on 5eb2e28 green: every unit suite in both workflows (the lab suite with the golden fix, the
+- 2026-10-14 22:16 CI on 5eb2e28 green: every unit suite in both workflows (the lab suite with the golden fix, the
   mycelic job with both loop timing tests passing), and e2e-ingest's end-to-end job (criteria 0-4, 7-10, 200 users,
   seed 0) passed with no failed check. Its full report is in the job log (11,692 lines) and artifact 11931284874; the
   per-pattern figures wait on the artifact. The scaling job (criterion 5) is running. EMERGENCE 80% diagnosis: the
@@ -264,6 +264,16 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   pipeline is rule-only candidates dropped without a snapshot week (20 to 27 of 40 keys per seed). The run job's
   world-count check refuses seeds other than 0, a blocker for the seed policy. The synthesis and its critics are
   running; A003 build 2 is in its reviews.
+- 2026-10-14 23:12 The 22:16 line above was first written as 22:20; corrected. e2e-ingest run 2 (38639771210 on
+  5eb2e28) is recorded in E2E-INGEST.md at verdict level: every job green, including the measure job (criterion 5
+  and the scaling table); its per-pattern figures wait on its artifacts. The founder's instructions: A003 first,
+  recorded and frozen, before any change to mycelic/retrieval.py (the stall is not on A003's path: lab imports only
+  mycelic.collective, mycelic.hierarchy and mycelic.version), then the stall fix with regression tests and a
+  before/after run. The founder's EMERGENCE root-cause directive is under way: an instrumented reproduction and three
+  independent reviewers (distributed systems, retrieval and graph, benchmark integrity) who then challenge each
+  other; the corrected diagnosis (W12+, fixed 6-week grid, decoys under each rule, formal disclosure) runs beside it.
+  No system change until the founder approves the proposed fixes. A003 build 2: the fix stage is applying the three
+  reviews' findings.
 
 ## Open asks (date asked)
 

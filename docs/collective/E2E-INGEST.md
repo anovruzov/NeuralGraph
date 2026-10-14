@@ -1175,3 +1175,50 @@ network policy. Open ask to the founder (also in the handoff status): download t
 2027-01-11) and commit them under `docs/collective/e2e_ingest/38425113336/`, after which the digests are recorded
 here and `check` is run on the recorded reports. S9's first clause (both jobs green on the same sha) is met; its
 second (reports committed) waits on that ask.
+
+### Run 2, 2026-10-14, e2e-ingest.yml run 38639771210 on 5eb2e28 (synthetic, `measurement: false`)
+
+Started by the push of 5eb2e28: the CI fix 24fe3ce and the EMERGENCE 80% specification. Every job was green. The
+world is the generator's at `target_users` 200, seed 0, as in run 1. Unlike run 1, this record is at the verdict level
+only: the report is printed in full in the e2e job's log (11,692 lines), which is too long to read through the API
+from this sandbox, and the artifact host is refused by the session's network policy. The per-pattern figures wait on
+the artifacts below.
+
+**Suite jobs (criterion 10's gate), all green.**
+
+| Job | Id | Started | Finished |
+|---|---|---|---|
+| suites-core | 116112020906 | 21:22:39 UTC | 21:48:26 UTC |
+| suites-lab | 116112021501 | 21:22:39 UTC | 21:51:18 UTC |
+| suites-e2e | 116112021247 | 21:22:39 UTC | 21:29:42 UTC |
+
+**e2e job 116124311106 (criteria 0 to 4, 7, 8, 9 and 10), green.** Started 21:51:21 UTC, finished 22:02:08 UTC.
+
+What the tail of its log shows:
+- The verdict: `pass` true, `failed` empty, `suites_green` true, `complete` false.
+- Not run: c5 (the measure job's) and c6 (the workflow test's), as in run 1.
+- The world: 309 users, 7 sites, 35 teams, 12,964 records, 150 entities, 40 real patterns, 40 Gold discoverable,
+  18 rare, 50 decoys, 26 weeks, as of 2024-07-14.
+- Pack hashes:
+  - config `7783d26569c2…`
+  - detector `5a05f1bd96f1…`
+  - fixtures `acff8a7ad322…`
+  - vocabulary `53630bdbabfb…`
+
+**Measure job 116124311388 (criterion 5 and the scaling table at 200, 600 and 2,000 users), green.** Started 21:51:22
+UTC, finished 22:16:20 UTC.
+
+**Artifacts:**
+- e2e-ingest-report.json 11931284874
+- e2e-ingest-measure.json 11933036780
+- e2e-suites-core 11930333910
+- e2e-suites-lab 11930209636
+- e2e-suites-e2e 11928934919
+
+A local run of the same job (`run --size 200 --mode process`, seed 0) at ec72e22 reproduces run 1's discovery
+figures exactly: 13 of 40 found, decoys accepted 5 in class 2, 9 in class 4 and 3 in class 5. ec72e22's code is
+5eb2e28's; only a status file differs. Every check the local run executed passed; its verdict is `pass` false, reason
+`suites_not_green`, because it was given no suite evidence (c10 not run). It is a local run, not this CI run's report,
+and its report digest is `159cc6ebdf93…`. The open ask
+to the founder now covers these artifacts too: download them and commit them, so that their digests and `check` can
+be recorded here.
