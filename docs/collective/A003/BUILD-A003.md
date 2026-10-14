@@ -509,8 +509,8 @@ no test, console line, summary, report or note prints one.
 
 - **"The request" and C23.** The template is the rule's request as amended after the term run: one model, `a-4b`;
   `labels` nhtsa, the vehicle pack, 150 records at seed 4; 5 parts at seed 4; 300 minutes per part in jobs of 330
-  minutes, five at once; `bootstrap_b` 10000 at seed 4; `base_task` `negation` (branch N, in force: A002's primary
-  failed, so the trigger did not fire); the three exclude entries as recorded (J001 run 37996675559, A001 run
+  minutes, five at once; `bootstrap_b` 10000 at seed 4; `base_task` `negation` (branch N, in force: A002 run 1's P was
+  `failure` and `E_minus_N`'s lower end below zero, so branch E's trigger did not fire); the three exclude entries as recorded (J001 run 37996675559, A001 run
   38114522160, A002 run 38439612256, with their prefixes); the term entry of T1 (run 38612800578, its plan artifact,
   the term set's sha256 `42c591cc…39cc`, P_D's vocabulary hash `c0260f0e…e579`, the cutoff); the primary pair
   (`a-4b`, `negation_terms`); `comparisons_before` 21. Its purpose names the rule's path and the copy's name and
@@ -623,7 +623,34 @@ list) and `tests/lab/helpers.py` (`PREREG_EXPERIMENTS`); and two pins of `tests/
 same workflow and outputs (`lab.plan.OUTPUT_KEYS` with the four new keys; `earlier` and `earlier-2` found before
 `earlier-3` and `terms`, and `github.token` five times).
 
-VERIFICATION_PLACEHOLDER
+Run in stage 2's last step, on the tree of the build commit:
+
+- `python -m pytest tests/lab/test_lab_j4.py tests/lab/test_lab_jt.py tests/lab/test_lab_j3.py tests/lab/test_lab_j2.py
+  tests/lab/test_lab_workflow.py tests/lab/test_lab_plan.py tests/lab/test_lab_docs.py tests/lab/test_lab_guards.py
+  -q -p no:cacheprovider`: `382 passed, 4789 subtests passed in 548.73s (0:09:08)` (the first run found the two
+  `test_lab_j3.py` pins above, fixed before this run);
+- `python -m pytest tests/lab -q -p no:cacheprovider`, in the background: `994 passed, 34687 subtests passed in 1806.82s (0:30:06)`, no test
+  failed;
+- `python -m pytest tests/onboard tests/mycelic/test_collective_guards.py tests/mycelic/test_collective_x3.py -q -p
+  no:cacheprovider`: `402 passed, 1080 subtests passed in 286.22s (0:04:46)`;
+- the template dry run below: exit 0, every line the build plan asks for;
+- the terms-003 dry run (`python -m lab.dryrun --request lab/templates/terms-003.json --out OUT --jt-data DIR`): exit
+  0, its ten console lines equal to build 1's above but for the machine's figures (`wall_s`, `draft_wall_s`,
+  `peak_rss_kib`);
+- the j3 template dry run, re-recorded by `python -m tests.lab.a002_golden record` into a scratch directory: its plan
+  summary, `report.json` and `report.md`, normalised, equal the recording byte for byte (4161, 116487 and 15701
+  bytes), and `A002GoldenTests` passes;
+- `git diff --stat 831f424 HEAD` over every pinned path (`lab/j1.py`, `lab/goldlabels.py`, `lab/j2.py`,
+  `lab/j2labels.py`, `lab/j3.py`, `lab/j3labels.py`, `lab/shard.py`, `lab/jt.py`, `mycelic/`,
+  `connectors/openfda.py`, `research/`, the vehicle pack, `tools/`, every `CHOICE-*.md`, every `run-*.json` and
+  `*-settings.json`, `lab/templates/terms-003.json` and `lab/requests/terms-003.json`) printed nothing; the only
+  hunks of `lab/aggregate.py` and `lab/summary.py` since `831f424` are the docstrings, the imports, `ids`, insertions
+  after `jt_block` and `_jt_tables`, `_prereg_section`'s j4 call, the class-section dispatch (one more argument and one
+  more call) and `build_report`'s source loop, block call and report key; `lab/requests/accuracy-003.json` does not
+  exist;
+- `flake8 --max-line-length 120 --select=F,E9,W6` on every Python file changed since `831f424` prints only
+  `lab/units.py:1255` F841 (`adapter` assigned and not used), which `831f424` already has at line 1204;
+- `actionlint` is not installed here.
 
 ### The dry runs
 
