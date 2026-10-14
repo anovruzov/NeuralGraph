@@ -241,6 +241,17 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   E38, e54eb6d; three reviews, 13 blocking and 39 minor findings), merged as f557ce0 and pushed: cases C, H, T and N
   read from A003's result, the reasoning-on and reasoning-off arms on the same records, a timing check before the
   judging run, and every setting frozen from the amendment's commit. A003 build 2: wiring stage at fbab1fc (WIP).
+- 2026-10-14 21:25 CI on fd0966e: the lab suite's one failure named itself through the new diff message. The A002
+  golden report.json held the sandbox's processor in notes.cpu_models, which the normalisation had left out (its
+  markdown twin was already normalised). Fixed at 24fe3ce: the key is normalised, the recording re-normalised (that
+  value only), and the dry run drops GITHUB_RUN_ATTEMPT so a re-run cannot differ either. The mycelic job failed
+  only the lineage loop timing test, 0.254 s against 0.248 s; locally 0.04 to 0.09 s, so both loop timing tests now
+  carry a stall watcher whose samples go into the failure message. Under load, the samples put the loop in its own
+  per-query BM25 build over the caller's whole view (mycelic/retrieval.py), a product cost, not a walk; it is
+  frozen with mycelic/*.py while A003 runs. The founder's EMERGENCE 80% directive arrived; its frozen benchmark
+  specification and seed policy are committed alone at 5eb2e28 (docs/collective/EMERGENCE-80/SPEC.md), and the
+  diagnosis (the 40-pattern decomposition and the rare patterns' A/B/C census on development seeds 0 to 5) is
+  running. A003 build 2 still in review.
 
 ## Open asks (date asked)
 
