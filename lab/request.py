@@ -13,7 +13,7 @@ are refused at every level::
      "retention_days": 1..90,                          # how long the result artifacts are kept
      "experiments": {                                  # at least one of e1, e2, e3, g0, sim, x1, openfda, j1, l1,
          "e1": {...}, "e2": {...}, "e3": {...}, "g0": {...}, "sim": {...}, "x1": {...}, "openfda": {...},   # j2, j3,
-         "j1": {...}, "l1": {...}, "j2": {...}, "j3": {...}, "jt": {...}},                                  # jt
+         "j1": {...}, "l1": {...}, "j2": {...}, "j3": {...}, "jt": {...}, "j4": {...}},                     # jt, j4
      "hosted": {"<hosted model key>": {"max_calls": 1..1000000}, ...}}   # optional, default {}; see below
 
 ``capacity`` below is ``job_minutes - SHARD_OVERHEAD_MINUTES``; a seed is an int in ``0..2147483647``. The blocks:
@@ -147,6 +147,41 @@ request fields, so that no request can draft from another window or another make
 holds no other block ("a request whose only block is ``experiments.jt``", item 10; ``JT_ALONE_PROBLEM`` at
 ``$.experiments``) and its ``retention_days`` is :data:`JT_RETENTION_DAYS`, 90 (C15; ``JT_RETENTION_PROBLEM``).
 
+``j4``, accuracy test A003's judging run (``docs/collective/A003/CHOICE-A003.md``, amended C1 to C32 before any build
+and T1 to T11 after the term run, "The request"): J001's question on a fresh draw with three earlier cycles' records
+and the term run's drafting set excluded, each part judged twice (the base task with the drafted terms in the payload,
+then the base task alone; the base task first in the confirmation case, C1), one unit per model and part
+(``lab.j4``)::
+
+    {"models": [...],                     # default $.models; gguf or fake models only (NHTSA_HOSTED, J4_KINDS_PROBLEM)
+     "minutes": 1..capacity,              # per part unit (two passes of its questions)
+     "labels": {"source": "nhtsa", "pack": "docs/collective/replay/vehicles/pack", "n": 40..2000, "seed": <seed>},
+     "parts": 1..30, "seed": <seed>,      # as j1
+     "bootstrap_b": 1000..20000,          # default 10000
+     "bootstrap_seed": <seed>,            # default 1
+     "base_task": "negation" | "evidence",   # the adaptation rule's branch (lab.j4.BASES; J4_BASE_PROBLEM)
+     "exclude": [                         # exactly three entries, the earlier cycles in seed order
+         {<j3's first entry: file prereg/j1/labels.jsonl, rebuild_seed 1, no chain keys>},
+         {<j3's second entry: file prereg/j2/labels.jsonl, rebuild_seed 2, chain prereg/j2/excluded.jsonl>},
+         {"run_id": ..., "artifact": ...,
+          "file": "prereg/j3/labels.jsonl",                 # the third entry: the second accuracy test's labels file
+          "sha256_prefix": ..., "rebuild_seed": 3, "rebuild_sha256_prefix": ...,
+          "chain_file": "prereg/j3/excluded.jsonl",         # that cycle's chain file
+          "chain_sha256_prefix": "<12..64 lower-case hex>"}],
+                                          # each entry's file and rebuild seed are pinned (J4_FILE_PROBLEMS,
+                                          # J4_SEED_PROBLEM); the chain keys on the second and third entries only
+     "terms": {"run_id": <the term run's GitHub run id>,   # the term run (C23; T1)
+               "artifact": "lab-plan-<run_id>-<attempt>",  # its plan artifact (J4_TERMS_ARTIFACT_PROBLEM)
+               "file": "prereg/jt/terms.json",             # exactly (J4_TERMS_FILE_PROBLEM)
+               "sha256": "<64 lower-case hex>",            # the committed term set's full sha256 (J4_HEX_PROBLEM)
+               "vocabulary_hash": "<64 lower-case hex>",   # P_D's vocabulary hash, in full
+               "cutoff": "2023-01-01"},                    # exactly lab.jt.CUTOFF_ISO (JT_CUTOFF_PROBLEM)
+     "primary": {"model": "<one of the j4 models>",       # one of the branch's four arms (J2_PRIMARY_ARM_PROBLEM)
+                 "arm": "<base_task>_terms"},              # that is <base_task>_terms, or evidence with base_task
+                                                           # evidence (the confirmation case, C1;
+                                                           # J4_PRIMARY_ARM_PROBLEM)
+     "comparisons_before": 0..1000000}    # default 0
+
 ``openfda``, the public replay and the labelling sheets (one unit, no model; it reaches api.fda.gov)::
 
     {"minutes": 1..capacity, "pack": "<a built-in pack, or lab/packs/<id>, with an openFDA mapping>",
@@ -225,6 +260,8 @@ from . import j2 as lab_j2
 from . import j2labels as lab_j2labels
 from . import j3 as lab_j3
 from . import j3labels as lab_j3labels
+from . import j4 as lab_j4
+from . import j4labels as lab_j4labels
 from . import jt as lab_jt
 from .goldlabels import NHTSA_PACK, build_labels
 from .hosted import PREFLIGHT_MAX_CALLS, preflight_tasks, unit_bound
@@ -238,7 +275,7 @@ MAX_BYTES = 65536
 SHARD_OVERHEAD_MINUTES = 25
 SEED_MAX = 2147483647
 BAD_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"})
-EXPERIMENTS = ("e1", "e2", "e3", "g0", "sim", "x1", "openfda", "j1", "l1", "j2", "j3", "jt")
+EXPERIMENTS = ("e1", "e2", "e3", "g0", "sim", "x1", "openfda", "j1", "l1", "j2", "j3", "jt", "j4")
 SIM_KINDS = ("gguf", "fake")
 MAX_MODELS = 8
 LABEL_SOURCES = ("fixtures", "generator", "nhtsa")
@@ -296,10 +333,20 @@ _J3_EXCLUDE_REQUIRED = (*_EXCLUDE_KEYS, "rebuild_seed", "rebuild_sha256_prefix")
 _J3_CHAIN_KEYS = ("chain_file", "chain_sha256_prefix")
 J3_EXCLUDE_ENTRIES = 2
 _JT_KEYS = ("minutes", "pack", "cutoff", "from")
+_J4_KEYS = ("models", "minutes", "labels", "parts", "seed", "bootstrap_b", "bootstrap_seed", "base_task", "exclude",
+            "terms", "primary", "comparisons_before")
+_J4_REQUIRED = ("minutes", "labels", "parts", "seed", "base_task", "exclude", "terms", "primary")
+_J4_TERMS_KEYS = ("run_id", "artifact", "file", "sha256", "vocabulary_hash", "cutoff")
+J4_EXCLUDE_ENTRIES = 3
+# the j4 exclude list, entry by entry in seed order: (the labels file, the chain file or None, the rebuild seed)
+J4_EXCLUDE_ROWS = ((lab_j2labels.J1_LABELS_FILE, None, 1),
+                   (lab_j3labels.J2_LABELS_FILE, lab_j2labels.J2_EXCLUDED_FILE, 2),
+                   (lab_j4labels.J3_LABELS_FILE, lab_j4labels.J3_CHAIN_FILE, 3))
 MAX_RUN_ID = 10 ** 20
 MAX_COMPARISONS = 1000000
 EXCLUDE_ARTIFACT_RE = re.compile(r"lab-plan-([0-9]{1,20})-[0-9]{1,6}", re.ASCII)
 SHA256_PREFIX_RE = re.compile(r"[0-9a-f]{12,64}", re.ASCII)
+SHA256_FULL_RE = re.compile(r"[0-9a-f]{64}", re.ASCII)
 PACK_PROBLEM = "must be a built-in pack id"
 PLANT_PROBLEM = "must name a plant fixture of the pack"
 OPENFDA_PACK_PROBLEM = "must be a built-in pack or a replay pack lab/packs/<id>, with an openFDA mapping"
@@ -346,6 +393,31 @@ JT_RETENTION_PROBLEM = (f"must be {JT_RETENTION_DAYS} with a jt block: the term 
                         "reads it")
 JT_FROM_PROBLEM = (f"must be {lab_jt.FROM}: the first day of the drafting window, D002's NHTSA training window's first "
                    "day")
+J4_LABELS_PROBLEM = "J4 reads nhtsa labels only: a fresh draw of real public complaints of the vehicle pack"
+J4_KINDS_PROBLEM = "J4 runs only gguf or fake models"
+J4_BASE_PROBLEM = "must be negation or evidence: the base task the adaptation rule's branch names"
+J4_EXCLUDE_LIST_PROBLEM = "must be a list of exactly three entries: the earlier cycles, in seed order"
+J4_FILE_PROBLEM = ("must be the file listing the excluded records: prereg/j1/labels.jsonl, prereg/j2/labels.jsonl, "
+                   "prereg/j3/labels.jsonl, prereg/j2/excluded.jsonl or prereg/j3/excluded.jsonl")
+J4_FILE_PROBLEMS = (
+    "must be prereg/j1/labels.jsonl: the first entry is the first judge test's run, excluded by its labels file",
+    "must be prereg/j2/labels.jsonl: the second entry is the first accuracy test's run, excluded by its labels file "
+    "(its chain file is named by the chain keys)",
+    "must be prereg/j3/labels.jsonl: the third entry is the second accuracy test's run, excluded by its labels file "
+    "(its chain file is named by the chain keys)")
+J4_CHAIN_FILE_PROBLEMS = (None, "must be the chain file prereg/j2/excluded.jsonl",
+                          "must be the chain file prereg/j3/excluded.jsonl")
+J4_CHAIN_FIRST_PROBLEM = "the chain keys belong to the second and third entries only"
+J4_CHAIN_REQUIRED = ("required on the second and third entries: the earlier cycle's chain file and its sha256 "
+                     "prefix")
+J4_SEED_PROBLEM = ("must be the earlier cycle's own draw seed, 1, 2 and 3 in order: the entries are the earlier "
+                   "cycles in seed order")
+J4_PRIMARY_MODEL_PROBLEM = "the primary pair's model must be one of the J4 models"
+J4_PRIMARY_ARM_PROBLEM = ("the primary pair's arm must be the base task's drafted-terms arm, or evidence with "
+                          "base_task evidence (the confirmation case)")
+J4_HEX_PROBLEM = "must be 64 lower-case hex digits: the full sha256 the amendment after the term run committed"
+J4_TERMS_FILE_PROBLEM = f"must be {lab_jt.TERMS_FILE}: the term set's file in the term run's plan artifact"
+J4_TERMS_ARTIFACT_PROBLEM = "must be the term run's plan artifact, lab-plan-<run_id>-<attempt>"
 MSHA_HOSTED = "L1 reads real MSHA records only with models inside the runner; the lab sends no real narrative to a host"
 L1_KINDS_PROBLEM = "L1 runs only gguf or fake models"
 L1_QUESTIONS_PROBLEM = "must be 5: the alert question and the four control questions (L001, K11)"
@@ -679,8 +751,8 @@ def _exclude(raw: Any, path: str) -> dict[str, Any]:
 
 def _primary(raw: Any, path: str, chosen: list[str], arms: tuple[str, ...] = lab_j2.ARMS,
              model_problem: str = J2_PRIMARY_MODEL_PROBLEM) -> dict[str, str]:
-    """A ``j2`` or ``j3`` block's primary pair P: one of the block's models and one of the kind's declared arms
-    (``lab.j2.ARMS`` or ``lab.j3.ARMS``)."""
+    """A ``j2``, ``j3`` or ``j4`` block's primary pair P: one of the block's models and one of the kind's declared
+    arms (``lab.j2.ARMS``, ``lab.j3.ARMS`` or the branch's ``lab.j4.ARMS[base_task]``)."""
     block = _object(raw, path)
     check_keys(block, _PRIMARY_KEYS, _PRIMARY_KEYS, path, RequestError)
     model = _string(block["model"], f"{path}.model", 24)
@@ -835,6 +907,127 @@ def _jt(raw: Any, capacity: int) -> dict[str, Any]:
         if value != expected:
             raise RequestError(f"{path}.{key}", problem) from None
         out[key] = value
+    return out
+
+
+def _j4_exclude_entry(raw: Any, path: str, index: int) -> dict[str, Any]:
+    """One entry of a ``j4`` block's ``exclude`` list: the j3 entry's shape over the five files
+    ``lab.j4labels.EXCLUDE_FILES``, the file and the rebuild seed pinned per entry (:data:`J4_EXCLUDE_ROWS`: J001's
+    labels file and seed 1, A001's and seed 2, A002's and seed 3), the chain keys on the second and third entries
+    only, each naming its own cycle's chain file."""
+    labels_file, chain_file, rebuild_seed = J4_EXCLUDE_ROWS[index]
+    block = _object(raw, path)
+    check_keys(block, _J3_EXCLUDE_KEYS, _J3_EXCLUDE_REQUIRED, path, RequestError)
+    out = {"run_id": _int(block["run_id"], f"{path}.run_id", 1, MAX_RUN_ID)}
+    artifact = _string(block["artifact"], f"{path}.artifact", 64)
+    m = EXCLUDE_ARTIFACT_RE.fullmatch(artifact)
+    if m is None or int(m.group(1)) != out["run_id"]:
+        raise RequestError(f"{path}.artifact", J2_ARTIFACT_PROBLEM) from None
+    out["artifact"] = artifact
+    file = _string(block["file"], f"{path}.file", 64)
+    if file not in lab_j4labels.EXCLUDE_FILES:
+        raise RequestError(f"{path}.file", J4_FILE_PROBLEM) from None
+    if file != labels_file:
+        raise RequestError(f"{path}.file", J4_FILE_PROBLEMS[index]) from None
+    out["file"] = file
+    for key in ("sha256_prefix", "rebuild_sha256_prefix"):
+        prefix = _string(block[key], f"{path}.{key}", 64)
+        if SHA256_PREFIX_RE.fullmatch(prefix) is None:
+            raise RequestError(f"{path}.{key}", J2_SHA_PROBLEM) from None
+        out[key] = prefix
+    out["rebuild_seed"] = _seed(block["rebuild_seed"], f"{path}.rebuild_seed")
+    if out["rebuild_seed"] != rebuild_seed:
+        raise RequestError(f"{path}.rebuild_seed", J4_SEED_PROBLEM) from None
+    present = [k for k in _J3_CHAIN_KEYS if k in block]
+    if chain_file is None:
+        if present:
+            raise RequestError(f"{path}.{present[0]}", J4_CHAIN_FIRST_PROBLEM) from None
+        return out
+    for key in _J3_CHAIN_KEYS:
+        if key not in block:
+            raise RequestError(f"{path}.{key}", J4_CHAIN_REQUIRED) from None
+    chain = _string(block["chain_file"], f"{path}.chain_file", 64)
+    if chain != chain_file:
+        raise RequestError(f"{path}.chain_file", J4_CHAIN_FILE_PROBLEMS[index]) from None
+    out["chain_file"] = chain
+    prefix = _string(block["chain_sha256_prefix"], f"{path}.chain_sha256_prefix", 64)
+    if SHA256_PREFIX_RE.fullmatch(prefix) is None:
+        raise RequestError(f"{path}.chain_sha256_prefix", J2_SHA_PROBLEM) from None
+    out["chain_sha256_prefix"] = prefix
+    return out
+
+
+def _j4_exclude_list(raw: Any, path: str) -> list[dict[str, Any]]:
+    """The ``j4`` block's ``exclude`` list: exactly three entries in seed order (J001, A001, A002), each checked by
+    :func:`_j4_exclude_entry`."""
+    _no_hazard(raw, path)
+    if not isinstance(raw, list) or len(raw) != J4_EXCLUDE_ENTRIES:
+        raise RequestError(path, J4_EXCLUDE_LIST_PROBLEM) from None
+    return [_j4_exclude_entry(item, f"{path}[{i}]", i) for i, item in enumerate(raw)]
+
+
+def _j4_terms(raw: Any, path: str) -> dict[str, Any]:
+    """The ``j4`` block's ``terms`` entry (C23): the term run's run id, its plan artifact of the lab's shape, the file
+    exactly ``prereg/jt/terms.json``, the term set's full sha256 and P_D's ``vocabulary_hash`` (64 lower-case hex
+    each, :data:`SHA256_FULL_RE`) and the cutoff exactly ``NHTSA_WINDOW[0]`` in ISO form."""
+    block = _object(raw, path)
+    check_keys(block, _J4_TERMS_KEYS, _J4_TERMS_KEYS, path, RequestError)
+    out: dict[str, Any] = {"run_id": _int(block["run_id"], f"{path}.run_id", 1, MAX_RUN_ID)}
+    artifact = _string(block["artifact"], f"{path}.artifact", 64)
+    m = EXCLUDE_ARTIFACT_RE.fullmatch(artifact)
+    if m is None or int(m.group(1)) != out["run_id"]:
+        raise RequestError(f"{path}.artifact", J4_TERMS_ARTIFACT_PROBLEM) from None
+    out["artifact"] = artifact
+    file = _string(block["file"], f"{path}.file", 64)
+    if file != lab_jt.TERMS_FILE:
+        raise RequestError(f"{path}.file", J4_TERMS_FILE_PROBLEM) from None
+    out["file"] = file
+    for key in ("sha256", "vocabulary_hash"):
+        value = _string(block[key], f"{path}.{key}", 64)
+        if SHA256_FULL_RE.fullmatch(value) is None:
+            raise RequestError(f"{path}.{key}", J4_HEX_PROBLEM) from None
+        out[key] = value
+    cutoff = _string(block["cutoff"], f"{path}.cutoff", 10)
+    if cutoff != lab_jt.CUTOFF_ISO:
+        raise RequestError(f"{path}.cutoff", JT_CUTOFF_PROBLEM) from None
+    out["cutoff"] = cutoff
+    return out
+
+
+def _j4(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[str, Any]:
+    """The judging run's block (see the module docstring): j3's keys with ``base_task`` and ``terms``, the exclude
+    list of three entries, and the primary pair: one of the branch's four arms (``_primary`` with
+    ``lab.j4.ARMS[base_task]``) that is ``<base_task>_terms``, or ``evidence`` with base ``evidence`` (C1)."""
+    path = "$.experiments.j4"
+    block = _object(raw, path)
+    check_keys(block, _J4_KEYS, _J4_REQUIRED, path, RequestError)
+    chosen = _block_models(block, path, models)
+    for i, key in enumerate(chosen):
+        kind = manifest.models[key]["kind"]
+        if kind == "hosted":
+            raise RequestError(_model_at(block, path, models, key, i), NHTSA_HOSTED) from None
+        if kind not in SIM_KINDS:
+            raise RequestError(_model_at(block, path, models, key, i), J4_KINDS_PROBLEM) from None
+    out: dict[str, Any] = {"models": chosen, "minutes": _minutes(block["minutes"], f"{path}.minutes", capacity),
+                           "labels": _labels(block["labels"], f"{path}.labels")}
+    if out["labels"]["source"] != "nhtsa":
+        raise RequestError(f"{path}.labels.source", J4_LABELS_PROBLEM) from None
+    out["parts"] = _int(block["parts"], f"{path}.parts", 1, J1_MAX_PARTS)
+    out["seed"] = _seed(block["seed"], f"{path}.seed")
+    out["bootstrap_b"] = _bootstrap_b(block, path)
+    out["bootstrap_seed"] = _optional(block, "bootstrap_seed", 1, lambda v: _seed(v, f"{path}.bootstrap_seed"))
+    base = _string(block["base_task"], f"{path}.base_task", 16)
+    if base not in lab_j4.BASES:
+        raise RequestError(f"{path}.base_task", J4_BASE_PROBLEM) from None
+    out["base_task"] = base
+    out["exclude"] = _j4_exclude_list(block["exclude"], f"{path}.exclude")
+    out["terms"] = _j4_terms(block["terms"], f"{path}.terms")
+    out["primary"] = _primary(block["primary"], f"{path}.primary", chosen, lab_j4.ARMS[base],
+                              J4_PRIMARY_MODEL_PROBLEM)
+    if out["primary"]["arm"] not in lab_j4.primary_arms(base):
+        raise RequestError(f"{path}.primary.arm", J4_PRIMARY_ARM_PROBLEM) from None
+    out["comparisons_before"] = _optional(block, "comparisons_before", 0,
+                                          lambda v: _int(v, f"{path}.comparisons_before", 0, MAX_COMPARISONS))
     return out
 
 
@@ -1166,7 +1359,8 @@ def validate(obj: Any, manifest: Manifest, *, openfda_key: bool = False) -> dict
               "j1": lambda raw: _j1(raw, models, capacity, manifest),
               "l1": lambda raw: _l1(raw, models, capacity, manifest),
               "j2": lambda raw: _j2(raw, models, capacity, manifest),
-              "j3": lambda raw: _j3(raw, models, capacity, manifest), "jt": lambda raw: _jt(raw, capacity)}
+              "j3": lambda raw: _j3(raw, models, capacity, manifest), "jt": lambda raw: _jt(raw, capacity),
+              "j4": lambda raw: _j4(raw, models, capacity, manifest)}
     out["experiments"] = {name: checks[name](experiments[name]) for name in EXPERIMENTS if name in experiments}
     out["hosted"] = _hosted(top, out["experiments"], manifest)
     return out

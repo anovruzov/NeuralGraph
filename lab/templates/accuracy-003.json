@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "purpose": "The judging run of docs/collective/A003/CHOICE-A003.md (amended before any build and after the term run), cycle three toward the target: the primary model judges a fresh NHTSA draw (three earlier cycles' records and the term run's drafting set excluded, codes hidden) under the negation task with and without the drafted terms in its payload, beside three lexical judges; primary arm negation_terms. Public data; the first run is the result. Copy to lab/requests/accuracy-003.json.",
+  "provider": "llama-server",
+  "models": [
+    "a-4b"
+  ],
+  "job_minutes": 330,
+  "max_parallel": 5,
+  "retention_days": 30,
+  "experiments": {
+    "j4": {
+      "minutes": 300,
+      "labels": {
+        "source": "nhtsa",
+        "pack": "docs/collective/replay/vehicles/pack",
+        "n": 150,
+        "seed": 4
+      },
+      "parts": 5,
+      "seed": 4,
+      "bootstrap_b": 10000,
+      "bootstrap_seed": 4,
+      "base_task": "negation",
+      "exclude": [
+        {
+          "run_id": 37996675559,
+          "artifact": "lab-plan-37996675559-1",
+          "file": "prereg/j1/labels.jsonl",
+          "sha256_prefix": "bc6d092d8bca",
+          "rebuild_seed": 1,
+          "rebuild_sha256_prefix": "bc6d092d8bca"
+        },
+        {
+          "run_id": 38114522160,
+          "artifact": "lab-plan-38114522160-1",
+          "file": "prereg/j2/labels.jsonl",
+          "sha256_prefix": "623780b8a1de",
+          "rebuild_seed": 2,
+          "rebuild_sha256_prefix": "623780b8a1de",
+          "chain_file": "prereg/j2/excluded.jsonl",
+          "chain_sha256_prefix": "9a948cbf2cd9"
+        },
+        {
+          "run_id": 38439612256,
+          "artifact": "lab-plan-38439612256-1",
+          "file": "prereg/j3/labels.jsonl",
+          "sha256_prefix": "0a64a62d94a7",
+          "rebuild_seed": 3,
+          "rebuild_sha256_prefix": "0a64a62d94a7",
+          "chain_file": "prereg/j3/excluded.jsonl",
+          "chain_sha256_prefix": "65d51f0fca51"
+        }
+      ],
+      "terms": {
+        "run_id": 38612800578,
+        "artifact": "lab-plan-38612800578-1",
+        "file": "prereg/jt/terms.json",
+        "sha256": "42c591ccbb66b81455ca19840a54e18cbb69b5613dd2eab8f3f8c70f9cea39cc",
+        "vocabulary_hash": "c0260f0edab4638915b1fd0065e236ca20b497c0b217495c77adf018800fe579",
+        "cutoff": "2023-01-01"
+      },
+      "primary": {
+        "model": "a-4b",
+        "arm": "negation_terms"
+      },
+      "comparisons_before": 21
+    }
+  }
+}

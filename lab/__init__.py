@@ -21,7 +21,7 @@ Modules: ``notes`` (every fixed sentence), ``request``, ``manifest``, ``discover
 generator or fixture labels), ``prereg``, ``download``, ``provision``, ``server``, ``warmup``, ``responder`` (the
 fake server's reply function), ``hostinfo``, ``hosted`` (the optional OpenAI-compatible hosted provider: its two
 secrets, routing, preflight and call shares), ``units`` (the harness adapters: E1, E2, E3, G0, sim, X1, openFDA, J1,
-L1),
+L1, J2, J3, JT, J4),
 ``openfda`` (the openFDA unit's fetch, replay and sheet steps), ``shard``, ``sim`` (the multi-site simulation harness
 the lab adds to the collective's), ``j1`` (judge test J001: the site verifier's narrow question on real public
 complaints, its questions, runner and scoring), ``j2`` with ``j2labels`` (accuracy test A001: J001's question on a
@@ -31,7 +31,10 @@ variants of it on a fresh draw with two earlier cycles' records excluded, a verb
 mapping, a lexical composite with its ablations, nine arms and the verdict word of the pinned rule), ``jt``
 (accuracy test A003's term run: the six makes' public complaints received before the judged window drafted into a
 term set by the onboard package's drafter in the plan job, checked, pinned by its sha256 and verified by the one
-model-free unit; no term is printed), ``l1`` with
+model-free unit; no term is printed), ``j4`` with ``j4labels`` and ``j4terms`` (accuracy test A003's judging run:
+the earlier cycle's base task with and without the drafted terms in its payload on a fresh draw with three earlier
+cycles' records and the term run's drafting set excluded, the term artifact's check, three lexical judges, four arms
+and the verdict word of the pinned rule with its added clauses), ``l1`` with
 ``l1path``, ``l1score`` and ``l1guard`` (latency test
 L001: the product's pushdown path timed and scored on the drafter demo's MSHA alert, and the guard over every file a
 run uploads), ``msha`` (the workflow's L1 steps: the file's cache key and the guard), ``aggregate``, ``summary``,

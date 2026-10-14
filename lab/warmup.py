@@ -7,7 +7,14 @@ lab's ``judge_record_negation`` (``lab.j2.negation_task``; the tasks are sorted 
 task's, A11), for J3 units the lab's ``judge_record_evidence``, ``judge_record_negation`` and
 ``judge_record_rationale`` only (``lab.j3``: each with its own schema and ``max_tokens`` and the judge's generated
 payloads; neither the shipped judge nor the extraction task is registered for them, so the probe of a J3 shard is
-task E's, the first of the three names in sorted order, B4), for E2 units ``judge_record`` and,
+task E's, the first of the three names in sorted order, B4), for J4 units the branch's two tasks only (``lab.j4``,
+the branch read from the unit's ``params.base_task``: task B, the base task with its own schema and ``max_tokens``
+and the judge's generated payloads, and task D, the same payloads with ``predicate_terms`` added: the typical one
+carries the term list of its asked predicate, the pack's first sorted predicate, and the worst case, asked about the
+predicate whose list in the term set is the longest by characters, carries that list, C12; both read from the
+preregistration's ``prereg/j4/terms.json``, so without the preregistration only task B is warmed; the row of task D
+records the two payloads' term counts, never a term; the probe of a J4 shard is task B's, its name sorting before
+task D's, rule 16), for E2 units ``judge_record`` and,
 when the central comparator is the model itself (``central: self``), its ``judge_candidate_raw`` and
 ``judge_candidate_allowed`` (a hosted central comparator is never warmed or fitted on this server; ``lab.hosted``'s
 preflight sends it the same payloads), for E3 units each workload's task
@@ -89,6 +96,7 @@ from mycelic.collective.schemacheck import compile as compile_schema
 from . import ROOT
 from . import j2 as lab_j2
 from . import j3 as lab_j3
+from . import j4 as lab_j4
 
 from .notes import (ALIAS_MISMATCH, BUDGET_EXHAUSTED, CONTEXT_TOO_SMALL, MEMORY_AFTER_LOAD, REMEDY_CONTEXT,
                     REMEDY_HTTP, REMEDY_REASONING, WARMUP_HTTP, WARMUP_LENGTH, WARMUP_REASONING)
@@ -113,6 +121,7 @@ class WarmTask:
     units: tuple[str, ...]
     pack: str = ""
     deadline_s: float = DEADLINE_S
+    terms: dict[str, Any] | None = None         # J4's task D: the payloads' term counts and predicates, never a term
 
 
 # --------------------------------------------------------------------------------------------------- payloads
@@ -128,17 +137,19 @@ def _worst_text(narrative: str, cap: int) -> str:
     return truncate(repeated, cap)[0]
 
 
-def judge_example(pack: FrozenPack, record: Mapping[str, Any], narrative: str) -> dict[str, Any]:
+def judge_example(pack: FrozenPack, record: Mapping[str, Any], narrative: str,
+                  predicate: str | None = None) -> dict[str, Any]:
     """A judge payload for a generated record: asked about its first entity (the first sorted entity type with a
-    value, that type's first value; else the first sorted type and ``unknown``) and the pack's first sorted predicate,
-    with ``narrative`` as the record's text. ``lab.sim`` warms its judge up with it."""
+    value, that type's first value; else the first sorted type and ``unknown``) and the pack's first sorted predicate
+    (or ``predicate``), with ``narrative`` as the record's text. ``lab.sim`` warms its judge up with it."""
     entities = record["entities"]
     entity_type = next((t for t in sorted(entities) if entities[t] and t in pack.entity_types), None)
     if entity_type is None:
         entity_type, entity_id = sorted(pack.entity_types)[0], "unknown"
     else:
         entity_id = entities[entity_type][0]
-    params = {"entity_type": entity_type, "entity_id": entity_id, "predicate": sorted(pack.predicates)[0]}
+    params = {"entity_type": entity_type, "entity_id": entity_id,
+              "predicate": predicate if predicate is not None else sorted(pack.predicates)[0]}
     window = WindowRecord(record_ref=record["record_ref"], iso_week="", root_ref=record["record_ref"],
                           reporter_id=None, language=record["language"], codes=list(record["codes"]),
                           structured={k: list(v) for k, v in entities.items()}, narrative=narrative)
@@ -221,9 +232,52 @@ def warm_tasks(units: list[Mapping[str, Any]], plan: Mapping[str, Any], prereg: 
                                           "payload": typical, "worst": worst, "stream": False, "units": []}
         return [(name, pack_id) for name in lab_j3.TASKS]
 
+    j4_terms: list[dict[str, list[str]] | None] = []
+
+    def j4_tasks(unit: Mapping[str, Any], pack_id: str) -> list[tuple[str, str]]:
+        """A J4 unit's two tasks (rule 16, C12): task B with the judge's generated payloads (the same record
+        ``pack_tasks`` would pick), and, with the preregistration's term set, task D with the same payloads plus
+        ``predicate_terms``: the typical one carries its asked predicate's list, the worst case is asked about the
+        predicate whose list is the longest by characters and carries that list. The probe is task B's."""
+        d_name, b_name = lab_j4.tasks(unit["params"]["base_task"])
+        pack = load_pack(pack_id)
+        record = _longest_record(pack, unit["params"]["seed"])
+        worst_text = _worst_text(record["narrative"], pack.extraction.max_input_chars)
+        typical, worst = judge_example(pack, record, record["narrative"]), judge_example(pack, record, worst_text)
+        keys = [(b_name, pack_id)]
+        if (b_name, pack_id) not in found:
+            found[(b_name, pack_id)] = {"task": lab_j4.task_spec(b_name), "schema": lab_j4.task_schema(b_name),
+                                        "payload": typical, "worst": worst, "stream": False, "units": []}
+        if not j4_terms:
+            terms = None
+            if prereg is not None and prereg.manifest.get("j4") is not None:
+                terms = lab_j4.read_terms((prereg.dir / lab_j4.TERMS_FILE).read_bytes())[1]
+            j4_terms.append(terms)
+        terms = j4_terms[0]
+        if terms is None:
+            return keys
+        if (d_name, pack_id) not in found:
+            longest = lab_j4.longest_terms(terms)
+            d_typical = {**typical, "question": {**typical["question"], lab_j4.TERMS_KEY: lab_j4.predicate_terms(
+                terms, typical["question"]["predicate"])}}
+            asked = judge_example(pack, record, worst_text, longest) if longest is not None else worst
+            d_worst = {**asked, "question": {**asked["question"], lab_j4.TERMS_KEY: lab_j4.predicate_terms(
+                terms, asked["question"]["predicate"])}}
+            found[(d_name, pack_id)] = {
+                "task": lab_j4.task_spec(d_name), "schema": lab_j4.task_schema(d_name), "payload": d_typical,
+                "worst": d_worst, "stream": False, "units": [],
+                "terms": {"typical_terms": len(d_typical["question"][lab_j4.TERMS_KEY]),
+                          "typical_predicate": d_typical["question"]["predicate"],
+                          "worst_terms": len(d_worst["question"][lab_j4.TERMS_KEY]),
+                          "worst_predicate": d_worst["question"]["predicate"]}}
+        keys.append((d_name, pack_id))
+        return keys
+
     for unit in units:
         if unit["experiment"] == "j3":
             keys = j3_tasks(unit, unit["params"]["pack"])
+        elif unit["experiment"] == "j4":
+            keys = j4_tasks(unit, unit["params"]["pack"])
         elif unit["experiment"] in ("g0", "sim", "e1", "e2", "j1", "j2"):
             pack_id = unit["params"]["pack"]
             pack_tasks(unit, pack_id)
@@ -265,7 +319,8 @@ def warm_tasks(units: list[Mapping[str, Any]], plan: Mapping[str, Any], prereg: 
             if unit["unit"] not in found[key]["units"]:
                 found[key]["units"].append(unit["unit"])
     return [WarmTask(task=v["task"], schema=v["schema"], payload=v["payload"], worst=v["worst"], stream=v["stream"],
-                     units=tuple(v["units"]), pack=key[1], deadline_s=v.get("deadline_s", DEADLINE_S))
+                     units=tuple(v["units"]), pack=key[1], deadline_s=v.get("deadline_s", DEADLINE_S),
+                     terms=v.get("terms"))
             for key, v in sorted(found.items())]
 
 
@@ -357,6 +412,8 @@ def warm_up(server: Any, entry: Mapping[str, Any], tasks: list[WarmTask], *, ctx
                                "http_status": None, "ok": None, "error_kind": None, "finish_reason": None,
                                "tokens_in": None, "prompt_tokens_counted": None, "worst_prompt_tokens": None,
                                "max_tokens": t.task.max_tokens, "fits": None, "stream_usage": None}
+        if t.terms is not None:
+            row["terms"] = dict(t.terms)            # J4's task D: term counts and predicates, never a term (C12)
         rows.append(row)
         status, typical = _count(server.port, render_messages(t.task, t.payload, compiled), timeout)
         worst_status, worst = _count(server.port, render_messages(t.task, t.worst, compiled), timeout)

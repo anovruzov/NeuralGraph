@@ -421,7 +421,79 @@ J4_SPLIT_VIOLATED = ("the received-date split did not hold: the drafting set reb
                      "before the cutoff or is a drafting record by its id or its narrative; the plan job stops before "
                      "any model runs, and the loop asks (the third accuracy test's rule, The data and the draw, item "
                      "eight)")
-L1_LABEL = ("{l_one} here times the product's whole pushdown path on a real alert of MSHA's public accident file: HQ "
+J4_FRESHNESS_UNVERIFIED = ("an earlier cycle's set could not be established: neither its artifact nor its rebuild "
+                           "verified and no chain could give it; the plan job stops before any draw and any model, "
+                           "and the loop asks (the third accuracy test's rule, The data and the draw, item four)")
+J4_EXCLUSION_DISAGREES = ("the verified sources of the three earlier cycles disagree: a consistency count is above "
+                          "zero; the plan job stops before any draw and any model, and the loop asks")
+J4_TOO_FEW_RECORDS = ("fewer eligible records remain after the three earlier cycles' exclusion and the split's "
+                      "removals than the draw needs; no further fresh draw is pre-registered")
+J4_TERMS_STOPPED = ("the judge run finished its first pass, the primary pair's task (the drafted-terms task, or the "
+                    "base task in the confirmation case), and stopped in its second at its budget or after the server "
+                    "stayed down; the first pass's verdicts are complete and kept, and the second pass did not finish "
+                    "for this part")
+J4_LABEL = ("{j_four} here asks one model the site verifier's narrow question about a fresh draw of real public NHTSA "
+            "complaint narratives with three earlier cycles' records and the term run's drafting set excluded, one "
+            "record at a time with its codes hidden, twice: under the earlier cycle's base task with the drafted "
+            "terms of the asked component added to the payload, and under the base task alone; each verdict is "
+            "scored against the components the complaint was filed under (filed codes, not human-checked labels), by "
+            "the product's own verdict rule on the answers as answered and, as a declared secondary, after the "
+            "branch's reading (the unclear-to-no mapping under the negation base, the grounding check under the "
+            "evidence base), beside three lexical judges: the lexical judge with the drafted terms, the hand pack's "
+            "lexical judge and the drafted term-presence judge.")
+J4_ARMS_NOTE = ("Four arms on one model, declared before the run and named for the base task in force: the base "
+                "task's name with the terms suffix reads the drafted-terms task's answers as answered (the primary "
+                "arm, letter D); the same with the reading's name reads them through the branch's reading (letter "
+                "Dr, the headline secondary); the base task's name alone, and with the reading's name, are the "
+                "earlier cycle's arm and its reading replicated on this draw (letters B and Br, the controls, shown "
+                "beside the earlier cycle's own figures as a between-draw difference that decides nothing). Model "
+                "calls are made for the two tasks only: the reading arms are the same replies read again. The lifts "
+                "are paired differences between arms, record by record: D minus B reads the lever, Dr minus Br the "
+                "lever under the reading, Dr minus D and Br minus B the reading; a lift helps when its interval's low "
+                "end is above zero, hurts when its high end is below zero, and is otherwise not told apart. They "
+                "decide nothing toward the target.")
+J4_VERDICT_NOTE = ("The verdict word is read on the primary pair alone, from the figures, in this order: incomplete "
+                   "(a part did not finish, the set is not a model measurement, transport failures left out more than "
+                   "one record in a hundred, or a paired difference to a lexical judge is not a number), "
+                   "pass_provisional (balanced accuracy at or above the target, the paired difference to the lexical "
+                   "judge with the drafted terms with its low end above zero, the balanced accuracy's low end above "
+                   "the predicate-only bound on the same records, the unknown share reported, and the paired "
+                   "differences to the hand pack's lexical judge and to the drafted term-presence judge with their low "
+                   "ends above zero), partial (the target reached but an interval clause or an added clause failed, "
+                   "or every lexical judge beaten below the target), else failure. The word under lever five's text "
+                   "alone (the first four clauses with the drafted judge) is printed beside it. Every other arm is a "
+                   "secondary with the same word, which is a hypothesis for the next cycle, never a result; the "
+                   "headline secondary's word is printed beside the primary's as the primary under the other reading "
+                   "of the standing default; a first pass is provisional until the next cycle's fresh draw confirms "
+                   "it.")
+J4_PRIMARY_LINE = ("Primary pair {model} {arm}: {word}; under lever five's text alone: {word_five}. It scored balanced "
+                   "accuracy {ba} [{lo}, {hi}]; gap to the target {target} is {gap}; drafted lexical judge {lex_d} "
+                   "[{lex_d_lo}, {lex_d_hi}] on the same records, paired difference {diff} [{dlo}, {dhi}]; hand "
+                   "lexical judge {lex_h} [{lex_h_lo}, {lex_h_hi}], paired difference {hdiff} [{hlo}, {hhi}]; term "
+                   "presence {lex_p} [{lex_p_lo}, {lex_p_hi}], paired difference {pdiff} [{plo}, {phi}]; "
+                   "predicate-only bound {bound}; unknown share {unknown}. Under the other reading of the standing "
+                   "default the primary would be {other_arm}: {other_word}.")
+J4_TERMS_NOTE = ("Counts and hashes only: the term set lives in the term run's plan artifact, this run's plan "
+                 "artifact holds a copy pinned by its full sha, and no term is printed in a summary, a console line, "
+                 "a report or a commit. Each question of the drafted-terms task carries the drafted terms of its own "
+                 "asked component, positive or negative alike; a component the drafter did not reach carries an "
+                 "empty list. The agreement shares say on how many questions the primary arm's verdict equals a "
+                 "lexical judge's, and the confirm rates how often it confirms where that judge confirms and where "
+                 "it refutes: a primary arm that follows a judge line for line adds nothing to it. In a dry run the "
+                 "fake answers the drafted-terms task as it answers the base task, so nothing in a dry run measures "
+                 "the terms.")
+J4_EXCLUSION_NOTE = ("The draw excludes three earlier cycles' records, each by its plan artifact and by a rebuild "
+                     "from the complaint file as published on the day, and the two later cycles' chain files: a "
+                     "cycle's set is established by its own artifact or rebuild, or else from a chain less the other "
+                     "cycles' sets that chain covers; a chain alone establishes nothing; every consistency count must "
+                     "be zero; the excluded set is the union of every verified source's refs. Before the draw the "
+                     "term run's drafting set is removed from the eligible records by record id and by narrative, and "
+                     "after it two tripwires check that no drawn record was received before the cutoff or is a "
+                     "drafting record. Counts and hashes only: no record ref is written anywhere but the plan "
+                     "artifact.")
+J4_STAND_IN = ("Plumbing: test artifacts stood in for the three excluded runs and for the term run (lab.dryrun with "
+               "test data), so the exclusion, split and term checks here test the lab, not those runs.")
+L1_LABEL =("{l_one} here times the product's whole pushdown path on a real alert of MSHA's public accident file: HQ "
             "forms the narrow question, each routed mine's verifier judges its own records with the model inside the "
             "mine, one mine after another, and the commit gate decides. Each mine's verdict is scored against the key "
             "judge's, which reads the categories the records were filed under: filed categories, not checked labels.")
@@ -641,6 +713,20 @@ HEADINGS = {
     "l1-prereg": "Latency test: the alert, the questions and the comparators, fixed before any model runs",
     "jt": "Term run: the drafted term set, fixed before the judging run",
     "jt-check": "Term run: the privacy check of the drafted pack, by check",
+    "j4": "Accuracy test, third cycle: the verifier's narrow question on a fresh draw with the drafted terms in the "
+          "payload, four declared arms on one model, one primary pair",
+    "j4-judges": "Accuracy test, third cycle: the three lexical judges paired with each other, record by record",
+    "j4-arms": "Accuracy test, third cycle: every arm beside the three lexical judges, the control and the bound on the "
+               "same records",
+    "j4-lifts": "Accuracy test, third cycle: the lifts between arms, paired by record",
+    "j4-agreement": "Accuracy test, third cycle: the primary arm beside the drafted lexical judge and the term-presence "
+                    "judge, per kind",
+    "j4-terms": "Accuracy test, third cycle: the drafted terms each component's questions carried",
+    "j4-citations": "Accuracy test, third cycle: the grounding check's readings and the citations that hold a drafted "
+                    "term",
+    "j4-tasks": "Accuracy test, third cycle: per task, the first key, the output tokens and the replies cut at the cap",
+    "j4-earlier": "Accuracy test, third cycle: the controls beside the earlier cycle's own figures, a between-draw "
+                  "difference that decides nothing",
     "e2": "Pushdown verification against central reading: conditions",
     "e2-ratio": "Pushdown ratio and verdict",
     "e2-candidates": "Pushdown candidates",
