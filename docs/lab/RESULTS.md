@@ -495,7 +495,7 @@ Runner hardware, not site hardware. Public data: the records are real public com
 training; the answer key is the filed component codes, not checked labels. The first run is the result; the
 secondaries are hypotheses for the next cycle's rule, not results.
 
-## Run 12: accuracy-002 (the second cycle toward 86, a fresh draw of real complaints, levers 3 and 4): failure on the primary pair; the evidence field hurts, the best arm is level with word matching
+## Run 12: accuracy-002 (the second cycle toward 86, a fresh draw of real complaints, levers 3 and 4): failure on the primary pair; the evidence field hurts, the best secondary is level with word matching
 
 The second pre-registered cycle of the accuracy loop: a-4b answers the site verifier's narrow question about 150
 fresh public NHTSA complaints (J001's and A001's 300 records excluded, codes hidden), each three times: under A001's
@@ -507,9 +507,9 @@ lexical judge does. The primary pair, a-4b with the evidence field read as answe
 [0.503, 0.577] against 0.680 for the lexical judge on the same records (paired difference -0.140 [-0.190, -0.090]);
 the gap to the 0.860 target is 0.320, and by the rule the verdict is **failure**, as it is for the grounded arm, the
 primary under the other reading of the standing default. Asking for the evidence field hurt: -0.093 [-0.137, -0.053]
-against the negation instruction alone. The best arm, the negation instruction read through the mapping (A001's arm D
-replicated), scored 0.687 [0.643, 0.730], a paired difference of 0.007 [-0.050, 0.063] to the lexical judge: not told
-apart, a hypothesis for the next cycle, never a result.
+against the negation instruction alone. The best secondary, the negation instruction read through the mapping
+(A001's arm D replicated), scored 0.687 [0.643, 0.730], a paired difference of 0.007 [-0.050, 0.063] to the lexical
+judge: not told apart, a hypothesis for the next cycle, never a result.
 [Run 38439612256](https://github.com/anovruzov/NeuralGraph/actions/runs/38439612256), request
 `lab/requests/accuracy-002.json` (sha `77173e537c9f`), commit `5a8f980`, 2026-10-13 17:33 to 18:23 UTC (plan job
 17:33:30 to 17:34:58; 5 shards 17:35:32 to 18:21:50; aggregate 18:21:53 to 18:23:04); rule
@@ -611,9 +611,9 @@ median is the highest of the three and the negation task's the lowest; the longe
 of wall time against a 300-minute budget, and every task set finished 5 of 5 parts. Runner hardware, not site
 hardware. Public data: the records are real public complaints the models may have seen in training; the answer key is
 the filed component codes, not checked labels. The first run is the result; the secondaries are hypotheses for the
-next cycle's rule, not results. A003's draft (in review) reads this run by its pre-registered adaptation rule: with the
-primary failed and the evidence field hurting, its base task is the negation instruction, with the mapping as its
-declared reading.
+next cycle's rule, not results. A003's draft (efa79fe, in review) reads this run by its pre-registered adaptation
+rule: with the primary failed and the evidence field hurting, its base task is the negation instruction, with the
+mapping as its declared reading.
 
 ## Outside the lab: D001 and D002 (a pack drafted from an export alone, real data): passed on the second rule
 

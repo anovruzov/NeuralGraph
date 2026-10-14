@@ -1065,11 +1065,13 @@ counts `j1_r1` 0, `a1_r2` 0, `outside_chain` 0 and `chain_union` 0, all computed
 `0a64a62d94a7…` (150 records, seed 3); questions sha256 `84486fa38568…` (300 questions in 5 parts); prereg sha256
 `47bba18a0d35…` (the plan summary block); the chain file `prereg/j3/excluded.jsonl` sha256 `65d51f0fca51…` with 450
 lines; complaint file sha256 `216ecb36f9f5…` beside A001's `a5a5de2d31f3…`. The two complaint-file prefixes differ,
-which by trap 17 reports a file changed since A001's day; the exclusion works on refs, and here both artifacts and
-both rebuilds verified, so the plan job's exclusion verified both earlier draws against the file as published on the
-day. There was one plan job and no re-run, so B13's case of two plan jobs' lines does not arise. Cycles established, as the plan
-summary printed them: `j001` by `artifact` (150 refs), `a001` by `artifact` (150 refs). Every task set finished 5 of
-5 parts, and `records left out` is 0 in every arm.
+which by trap 17 reports a file changed since A001's day. Both rebuilds verified, so the records they rebuild are
+unchanged and the file's change lies outside them; the eligible count, 58319, equals A001's day's (item 8: 58,319).
+Trap 17's case of both rebuilds failing together did not arise. The exclusion works on refs, and here both artifacts
+and both rebuilds verified, so the plan job's exclusion verified both earlier draws against the file as published on
+the day. There was one plan job and no re-run, so B13's case of two plan jobs' lines does not arise. Cycles
+established, as the plan summary printed them: `j001` by `artifact` (150 refs), `a001` by `artifact` (150 refs).
+Every task set finished 5 of 5 parts, and `records left out` is 0 in every arm.
 
 **The comparators and both ablations on the fresh draw** (plan job, every record: the same 150 records and 300
 questions every arm scored, since no record was left out):
@@ -1144,8 +1146,9 @@ Read with sensitivity and specificity, as "How it is read" asks: the evidence fi
 where it was (0.907 to 0.900) and lowered specificity from 0.360 to 0.180, with the unknown share from 0.090 to 0.130:
 asking for a passage made a-4b refute fewer negatives, the opposite of what the lever was aimed at. The grounding check
 (Eg − E) moved sensitivity from 0.900 to 0.887 and specificity from 0.180 to 0.220; the grounded share of yes answers
-was higher on positives (0.985, 133 of 135) than on negatives (0.933, 84 of 90), the direction "How it is read" calls
-the lever working, at the size of a lift of 0.013. The mapping under the check (Egm − Eg) moved specificity from 0.220
+was 133 of 135 on positives (0.985) and 84 of 90 on negatives (0.933): the check removed yes answers on both kinds,
+more often on negatives, which leans toward the lever working but at a cost on positives (sensitivity 0.900 to
+0.887); the lift is 0.013. The mapping under the check (Egm − Eg) moved specificity from 0.220
 to 0.267 at the same sensitivity, 0.887, and the unknown share from 0.130 to 0.090; under N (D − N) it moved
 specificity from 0.360 to 0.467 at the same sensitivity, 0.907, and the unknown share from 0.090 to 0.017 (A001's
 D − C was 0.077 [0.047, 0.107]). The rationale field (R − N) raised sensitivity from 0.907 to 0.980 and lowered
@@ -1225,9 +1228,9 @@ would have been a pass on such text; this failure is a failure on it.
 base task from this entry by its own pre-registered adaptation rule, whose text is that draft's and is not changed
 here. A002's figures for it: task E's set is complete; P = (a-4b, E) is `failure`; `E_minus_N` is -0.093 [-0.137,
 -0.053], hurts. So under that draft's rule the base task of A003 is A001's negation task N, with the unclear-to-no
-mapping M as its declared reading. The best arm this cycle, D `negation_mapped` (that task read through that mapping),
-scored 0.687 [0.643, 0.730], paired 0.007 [-0.050, 0.063] to the lexical judge: not told apart from word matching, a
-hypothesis, never a result.
+mapping M as its declared reading. The best secondary this cycle, D `negation_mapped` (that task read through that
+mapping), scored 0.687 [0.643, 0.730], paired 0.007 [-0.050, 0.063] to the lexical judge: not told apart from word
+matching, a hypothesis, never a result.
 
 ## Amended before any build, 2026-10-13
 
