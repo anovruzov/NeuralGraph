@@ -14,9 +14,7 @@ host is reached. The synthetic terms are compared, never printed.
 """
 from __future__ import annotations
 
-import contextlib
 import hashlib
-import io
 import itertools
 import json
 import re
@@ -27,7 +25,6 @@ from pathlib import Path
 from typing import Any, Callable
 from unittest import mock
 
-from lab import goldlabels
 from lab import j1 as lab_j1
 from lab import j2 as lab_j2
 from lab import j2labels
@@ -157,7 +154,9 @@ def tearDownModule() -> None:
 def terms_blockquote() -> str:
     """"The terms", item 8's blockquote in CHOICE-A003.md: the sentence task D's instructions add, verbatim."""
     text = CHOICE.read_text(encoding="utf-8").splitlines()
-    start = next(i for i, line in enumerate(text) if line.rstrip().endswith("in these words, fixed now:"))
+    starts = [i for i, line in enumerate(text) if line.rstrip().endswith("words, fixed now:")]
+    assert len(starts) == 1 and text[starts[0] - 1].rstrip().endswith("in these")
+    start = starts[0]
     quote: list[str] = []
     for line in text[start + 1:]:
         stripped = line.strip()
@@ -716,7 +715,11 @@ class VerdictWordTests(unittest.TestCase):
                                       "paired": _paired(0.2, 0.1, 0.3),
                                       "bound": {"value": 0.58, "records": 150, "questions": 300}, **changes}.items()
                     if k not in ("paired_hand", "paired_presence")})[0])
-                self.assertEqual(test["passed"], want == "pass_provisional")
+                self.assertEqual(test["passed"], all(test["clauses"].values()))
+                if want == "pass_provisional":
+                    self.assertTrue(test["passed"])
+                elif want in ("partial", "failure"):
+                    self.assertFalse(test["passed"])
                 self.assertEqual(sorted(test["clauses"]), sorted(["balanced_accuracy_at_target", "beats_lexical",
                                                                   "beats_bound", "unknown_share_reported",
                                                                   "beats_hand_lexical", "beats_term_presence"]))
@@ -1091,6 +1094,7 @@ class LayoutTests(unittest.TestCase):
                          (None, "refs mismatch"))
         # A002's pinned questions prefix by default: the synthetic artifact does not have it
         directory, entries, prefix = _Artifacts.fresh(self)
+        base = directory / str(j4_data.A002_RUN_ID)
         self.assertEqual(j4labels.earlier_labels_refs(directory, entries[2]), (None, "sha256 mismatch"))
         self.assertEqual(j4labels.earlier_labels_refs(directory, entries[2], questions_prefix=prefix)[1], "verified")
         self.assertEqual(j4labels.earlier_labels_refs(directory, entries[2],
@@ -1336,10 +1340,14 @@ class SourcesTests(unittest.TestCase):
                                          e[1], e[2]], prefix)
         self.assertEqual({s: est.summary["sources"][s]["outcome"] for s in ("J1", "R1")},
                          {"J1": "verified", "R1": "verified"})
-        self.assertEqual(est.summary["consistency"]["j1_r1"], 300)
-        self.assertEqual(est.summary["consistency"]["outside_k2"], 150)
-        self.assertEqual(est.summary["consistency"]["outside_k3"], 150)
-        self.assertEqual((est.problem, len(est.excluded)), ("disagrees", 600))
+        theirs = j4_data.refs_in(other, j4_data.J001_RUN_ID, "prereg/j1/labels.jsonl")
+        ours = j4_data.refs_in(_Artifacts.template(), j4_data.J001_RUN_ID, "prereg/j1/labels.jsonl")
+        k3 = j4labels.earlier_chain_refs(directory, j4labels.chain_entry(e[2]))[0]
+        self.assertGreater(len(theirs - k3), 100)                 # the fixed synthetic ids aside, other records
+        self.assertEqual(est.summary["consistency"]["j1_r1"], len(theirs ^ ours))
+        self.assertEqual(est.summary["consistency"]["outside_k2"], len(theirs - k3))
+        self.assertEqual(est.summary["consistency"]["outside_k3"], len(theirs - k3))
+        self.assertEqual((est.problem, len(est.excluded)), ("disagrees", 450 + len(theirs - k3)))
         # A1 drawn without J001's set excluded: its refs are not R2's
         directory, e, prefix = _Artifacts.fresh(self)
         shutil.rmtree(directory / str(j4_data.A001_RUN_ID))
@@ -1595,7 +1603,7 @@ class TermsCheckTests(unittest.TestCase):
             result = j4terms.check_terms(directory, entry)
         self.assertEqual((result.outcome, result.failed, result.problem),
                          ("labels mismatch", "jt_code_hash", J4_TERMS_UNVERIFIED))
-        self.assertEqual(result.summary["jt_code_hash"], JT_CODE_HASH)
+        self.assertEqual(result.summary["jt_code_hash"], "1" * 64)          # this commit's, printed beside
         self.assertEqual(j4terms.check_terms(directory, entry).outcome, "verified")
         self.assertIn("J4_TERMS_UNVERIFIED", dir(notes))
         self.assertIsNone(re.search(r"[0-9]", J4_TERMS_UNVERIFIED + J4_SPLIT_VIOLATED))

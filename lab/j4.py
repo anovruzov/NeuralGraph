@@ -127,8 +127,10 @@ READING_VERDICT = {"shipped": "verdict", "mapped": "mapped_verdict", "grounded":
 ALL_TASKS = (DRAFTED_TASK["negation"], NEGATION_TASK, DRAFTED_TASK["evidence"], EVIDENCE_TASK)
 TASK_BASE = {**{BASE_TASK[b]: b for b in BASES}, **{DRAFTED_TASK[b]: b for b in BASES}}
 TASK_DRAFTED = {task: task in DRAFTED_TASK.values() for task in ALL_TASKS}
-TASK_FIELDS: dict[str, str | None] = {task: ("citation" if TASK_BASE[task] == "evidence" else None) for task in ALL_TASKS}
-TASK_MAX_TOKENS = {task: (FIELD_MAX_TOKENS if TASK_BASE[task] == "evidence" else JUDGE_MAX_TOKENS) for task in ALL_TASKS}
+TASK_FIELDS: dict[str, str | None] = {task: ("citation" if TASK_BASE[task] == "evidence" else None)
+                                      for task in ALL_TASKS}
+TASK_MAX_TOKENS = {task: (FIELD_MAX_TOKENS if TASK_BASE[task] == "evidence" else JUDGE_MAX_TOKENS)
+                   for task in ALL_TASKS}
 # rule 5: the four arms per branch, in the rule's table order D, Dr, B, Br
 LETTERS = ("D", "Dr", "B", "Br")
 ARMS = {"negation": ("negation_terms", "negation_terms_mapped", "negation", "negation_mapped"),
@@ -926,7 +928,8 @@ def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="python -m lab.j4",
                                 description="Accuracy test A003: one part of one model, the two judge tasks.")
     sub = p.add_subparsers(dest="command", required=True)
-    run = sub.add_parser("run", help="judge one part's questions with one endpoint, task D first, then task B")
+    run = sub.add_parser("run", help="judge one part's questions with one endpoint, both tasks, in the pass order "
+                                     "the preregistration pins")
     run.add_argument("--prereg", required=True)
     run.add_argument("--labels", required=True)
     run.add_argument("--questions", required=True)

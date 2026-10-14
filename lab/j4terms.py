@@ -156,7 +156,8 @@ def _check(directory: Path, entry: Mapping[str, Any], found: dict[str, Any]) -> 
         raise _Failed("drafting_files") from None
     block = doc.get("drafting")
     if (not isinstance(block, dict) or sha256_hex(refs_bytes) != block.get("refs_file_sha256")
-            or sha256_hex(refs_bytes) != block.get("refs_sha256") or sha256_hex(text_bytes) != block.get("text_file_sha256")
+            or sha256_hex(refs_bytes) != block.get("refs_sha256")
+            or sha256_hex(text_bytes) != block.get("text_file_sha256")
             or found_drafting.rows != block.get("rows") or len(found_drafting.text) != block.get("narratives")
             or len(text_bytes.splitlines()) != len(found_drafting.text)):
         raise _Failed("drafting_files")
@@ -167,7 +168,8 @@ def _check(directory: Path, entry: Mapping[str, Any], found: dict[str, Any]) -> 
     found.update(document_jt_code_hash=_get(doc, "code", "jt_code_hash"), vocabulary_hash=p_d["vocabulary_hash"],
                  p_d=dict(p_d), archive_sha256=_get(doc, "archive", "sha256"), drafting_rows=found_drafting.rows,
                  drafting_refs_sha256=found_drafting.refs_sha256, drafting_text_sha256=found_drafting.text_sha256,
-                 term_counts={k: v for k, v in sorted(counts.items()) if isinstance(v, int) and not isinstance(v, bool)})
+                 term_counts={k: v for k, v in sorted(counts.items())
+                              if isinstance(v, int) and not isinstance(v, bool)})
     return TermsCheck(outcome=VERIFIED, failed=None, summary={}, data=data, document=doc, terms=terms,
                       drafting=found_drafting, p_d=dict(p_d))
 
