@@ -218,7 +218,30 @@ troubleshooting rows, the new template, `request._JT_KEYS`), `tests/lab/test_lab
 message). `tests/lab/helpers.py`'s `PREREG_EXPERIMENTS` is not changed:
 it lists the kinds `make_plan` preregisters without an archive, and a jt plan needs one.
 
-RESULTS_PLACEHOLDER
+Run in the build's last stage, on the tree of the build commit:
+
+- `python -m pytest tests/lab/test_lab_jt.py -q -p no:cacheprovider`: `52 passed, 199 subtests passed in 93.42s
+  (0:01:33)`;
+- `python -m pytest tests/lab/test_lab_j3.py tests/lab/test_lab_j2.py -q -p no:cacheprovider`: `121 passed, 624
+  subtests passed in 269.95s (0:04:29)` (65 and 56 tests, as at A002's fix stage: `lab/j2.py`, `lab/j2labels.py`,
+  `lab/j3.py` and `lab/j3labels.py` unchanged);
+- `python -m pytest tests/lab -q -p no:cacheprovider`, in the background: `898 passed, 29515 subtests passed in
+  1711.18s (0:28:31)`;
+- `python -m pytest tests/onboard tests/mycelic/test_collective_guards.py tests/mycelic/test_collective_x3.py -q -p
+  no:cacheprovider`: `402 passed, 1080 subtests passed in 291.09s (0:04:51)`;
+- the j3 template dry run (`python -m tests.lab.j3_data --out DIR`, `python -m lab.dryrun --request
+  lab/templates/accuracy-002.json --out OUT --j3-data DIR`) exited 0 with the console lines `BUILD-A002.md` records,
+  and its plan summary, `report.json` and `report.md`, normalised, equal the recording byte for byte (4161, 116487
+  and 15701 bytes);
+- `git diff --stat ed96530 HEAD` over every pinned path (`lab/j1.py`, `lab/goldlabels.py`, `lab/j2.py`,
+  `lab/j2labels.py`, `lab/j3.py`, `lab/j3labels.py`, `lab/shard.py`, `mycelic/`, `connectors/openfda.py`,
+  `research/`, the vehicle pack, `tools/`, every `CHOICE-*.md`, `run-*.json` and `*-settings.json`) printed nothing;
+  the only hunks of `lab/aggregate.py` and `lab/summary.py` since `ed96530` are insertions after `j3_block` and
+  `_j3_prereg_lines`, the docstrings, the imports, `ids`, and the class-section dispatch of `render_report` and
+  `_class_section` (one more argument and one more call);
+- `flake8 --max-line-length 120 --select=F,E9,W6` on `lab/jt.py`, `tests/lab/j4_data.py`, `tests/lab/test_lab_jt.py`,
+  `tests/lab/a002_golden.py` and `tests/lab/stubs/jt_stub.py` printed nothing (on the changed lab modules it prints
+  only `lab/units.py:1204` F841, which `ed96530` already has).
 
 ### The dry run
 
