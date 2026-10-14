@@ -65,7 +65,8 @@ SINGLE_LABELS = ("PLUMBING_BANNER", "PLUMBING_HOSTED_BANNER", "PLUMBING_CHECK_LI
                  "J2_STAND_IN", "J2_SHIPPED_STOPPED", "J2_FRESHNESS_UNVERIFIED", "J2_EXCLUSION_DISAGREES",
                  "J2_TOO_FEW_RECORDS", "J3_LABEL", "J3_ARMS_NOTE", "J3_VERDICT_NOTE", "J3_PRIMARY_LINE",
                  "J3_EVIDENCE_NOTE", "J3_EXCLUSION_NOTE", "J3_STAND_IN", "J3_EVIDENCE_STOPPED",
-                 "J3_FRESHNESS_UNVERIFIED", "J3_EXCLUSION_DISAGREES", "J3_TOO_FEW_RECORDS")
+                 "J3_FRESHNESS_UNVERIFIED", "J3_EXCLUSION_DISAGREES", "J3_TOO_FEW_RECORDS", "JT_LABEL", "JT_TERMS_NOTE",
+                 "JT_FLOOR_FAILED", "JT_DRAFT_FAILED", "JT_FETCH_FAILED", "JT_NOT_VERIFIED")
 DICT_LABELS = ("NOTES", "SIM_NOTES", "SIM_CHANNEL_LABELS", "SIM_LIFT_LABELS", "SIM_MEASUREMENT_REASONS", "E1_LABELS",
                "E2_LABELS", "CLASS_REASONS")
 REQUIRED_LABELS = (*SINGLE_LABELS, *(f"{d}.{k}" for d in DICT_LABELS for k in getattr(notes, d)))
@@ -90,7 +91,8 @@ TROUBLESHOOTING = (
     "BUDGET_EXHAUSTED", "LOW_PARTICIPATION", "NO_MODEL_CALLS", "E3_FAILURES", "TIMED_OUT", "SIM_PROJECTED",
     "SIM_LOW_PARTICIPATION", "E2_ABORTED", "PREREG_MISSING", "G0_MODEL_PATH", "J1_STOPPED", "J2_SHIPPED_STOPPED",
     "J2_FRESHNESS_UNVERIFIED", "J2_EXCLUSION_DISAGREES", "J2_TOO_FEW_RECORDS", "J3_EVIDENCE_STOPPED",
-    "J3_FRESHNESS_UNVERIFIED", "J3_EXCLUSION_DISAGREES", "J3_TOO_FEW_RECORDS",
+    "J3_FRESHNESS_UNVERIFIED", "J3_EXCLUSION_DISAGREES", "J3_TOO_FEW_RECORDS", "JT_FLOOR_FAILED", "JT_DRAFT_FAILED",
+    "JT_FETCH_FAILED", "JT_NOT_VERIFIED",
     # openFDA
     "OPENFDA_UNREACHABLE", "OPENFDA_RATE_LIMITED", "OPENFDA_FETCH_REFUSED",
     # the hosted provider
@@ -106,7 +108,7 @@ PLACEHOLDER_RE = re.compile(r"<[^<>]*>")
 COMMAND_PREFIXES = ("python -m lab.", "python -m mycelic.collective.")
 ARTIFACT_PREFIXES = ("lab-plan-", "lab-prov-", "lab-run-", "lab-report-")
 TEMPLATE_NAMES = ["accuracy-002.json", "accuracy.json", "check.json", "hosted-comparison.json", "latency.json",
-                  "main.json", "openfda-replay.json", "smoke.json"]
+                  "main.json", "openfda-replay.json", "smoke.json", "terms-003.json"]
 
 
 def _text(path: Path) -> str:
@@ -290,7 +292,7 @@ class ReferenceCompletenessTests(unittest.TestCase):
                 *request._E2_KEYS, *request._X1_KEYS, *request._E3_KEYS, *request._G0_KEYS, *request._SIM_KEYS,
                 *request._OPENFDA_KEYS, *request._SHEET_KEYS, *request._J1_KEYS, *request._L1_KEYS,
                 *request._J2_KEYS, *request._EXCLUDE_KEYS, *request._PRIMARY_KEYS, *request._J3_KEYS,
-                *request._J3_EXCLUDE_KEYS]
+                *request._J3_EXCLUDE_KEYS, *request._JT_KEYS]
         spans = self.spans("Request format")
         self.assertEqual(sorted({k for k in keys if k not in spans}), [])
 
@@ -486,7 +488,8 @@ class TemplateTests(unittest.TestCase):
         for name in TEMPLATE_NAMES:
             purpose = json.loads((TEMPLATES / name).read_text(encoding="utf-8"))["purpose"]
             stem = name.removesuffix(".json")
-            # a template named for one cycle (accuracy-002) is copied under its own name; the others gain -001
+            # a template named for one cycle (accuracy-002, terms-003) is copied under its own name; the others
+            # gain -001
             target = f"lab/requests/{stem}.json" if re.search(r"-[0-9]{3}$", stem) else f"lab/requests/{stem}-001.json"
             with self.subTest(template=name):
                 self.assertIn(target, purpose)
@@ -640,6 +643,21 @@ class RequestsReadmeTests(unittest.TestCase):
         found = discover.discover(w.push_event(before=before, after=after, branch="lab"), "push", w.clone(after))
         self.assertEqual((found.outcome, found.exit_code), ("error", 2))
         self.assertEqual(found.errors[0], f"event: {notes.NO_REQUEST_CHANGE}")
+
+
+class TermRunTimeoutTests(unittest.TestCase):
+    """C11: the draft's timeout is the build's choice, recorded in ``BUILD-A003.md`` and the reference; the code's
+    constant is the figure both state."""
+
+    def test_the_build_note_and_the_reference_state_the_code_s_timeout(self) -> None:
+        from lab import jt
+
+        build = _text(ROOT / "docs" / "collective" / "A003" / "BUILD-A003.md")
+        self.assertIn(f"- **The draft's timeout** (C11: \"the build fixes the timeout\"): {jt.DRAFT_TIMEOUT_S} "
+                      "seconds,", build)
+        self.assertIn(f"with a {jt.DRAFT_TIMEOUT_S}-second timeout", " ".join(build.split()))
+        self.assertIn(f"its own timeout of {jt.DRAFT_TIMEOUT_S} seconds (C11)", " ".join(_text(REFERENCE).split()))
+        self.assertEqual(jt.DRAFT_TIMEOUT_S, 900)
 
 
 if __name__ == "__main__":

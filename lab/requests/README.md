@@ -22,6 +22,12 @@ Each JSON file here asks for one run of the Mycelic cloud lab: one request file 
   `actions: read`) and establishes each cycle's records from its artifact, its rebuild or the chain before anything
   runs (REFERENCE.md, Request format). Each cycle's own artifact holds `prereg/j3/excluded.jsonl` for the next
   cycle to name.
+- A `jt` request (accuracy test A003's term run, template `lab/templates/terms-003.json`) has one block, and no
+  other block beside it, whose four keys are fixed by the rule: `minutes`, `pack` (the vehicle pack), `cutoff`
+  (`2023-01-01`) and `from` (`2020-01-01`); any other value is refused. It runs no model and draws nothing: the plan
+  job drafts the term set from the public complaints received before the cutoff and keeps it in its plan artifact for
+  90 days (`retention_days`, which must be 90), and a dated amendment of the rule commits its sha256 (REFERENCE.md,
+  Request format). Push it only when no other lab run is in flight.
 
 Check a request locally before pushing it:
 

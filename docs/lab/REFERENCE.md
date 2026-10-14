@@ -19,7 +19,7 @@ capacity of a shard is `job_minutes` less the shard overhead of 25 minutes; ever
 | `job_minutes` | 45 to 330: each shard job's limit | |
 | `max_parallel` | 1 to 16: shard jobs at once | |
 | `retention_days` | 1 to 90: how long artifacts are kept | |
-| `experiments` | at least one of `e1`, `e2`, `e3`, `g0`, `sim`, `x1`, `openfda`, `j1`, `l1`, `j2`, `j3` | |
+| `experiments` | at least one of `e1`, `e2`, `e3`, `g0`, `sim`, `x1`, `openfda`, `j1`, `l1`, `j2`, `j3`, `jt` | |
 | `hosted` | per hosted model key, `{"max_calls": 1..1000000}` | `{}` |
 
 A fake model needs provider `fake`, a gguf model the server provider; a hosted model goes with either. Provider
@@ -279,6 +279,57 @@ its first model call, and runs the timed path with one runtime per mine at bound
 only, HTTP deadline 600 s, 1 retry, no escalation), sites one after another with the orchestrator's deadline of
 3600 s; then the unit check, the per-record replies and the lexical rerun, which must give the preregistered verdicts.
 
+`jt`, accuracy test A003's term run (`docs/collective/A003/CHOICE-A003.md`, amended C1 to C32 before any build; the
+build note is `BUILD-A003.md` beside it): the term set the judging run will read, drafted in the plan job from the six
+makes' public NHTSA complaints received before the judged window by the onboard package's drafter, unchanged; one
+model-free unit `jt` (shard kind `none`, as `x1`) that verifies it (`lab/jt.py`; the template is
+`lab/templates/terms-003.json`, to copy to `lab/requests/terms-003.json`). A request with a `jt` block holds no other
+block (`$.experiments`, the term run is a request of its own: "The terms", item 10) and its `retention_days` is 90
+(`$.retention_days`, C15):
+
+| key | values | default |
+| --- | --- | --- |
+| `minutes` | the unit's minutes (it only verifies the term set) | |
+| `pack` | exactly `docs/collective/replay/vehicles/pack`: the hand pack | |
+| `cutoff` | exactly `2023-01-01`: `NHTSA_WINDOW`'s first day in ISO form, the day the drafting set ends before (C23) | |
+| `from` | exactly `2020-01-01`: the first day of D002's NHTSA training window, where the drafting set starts | |
+
+The makes (`NHTSA_MAKES`), the roles, the columns, the language and the drafter's parameters are code constants of
+`lab/jt.py`, not request keys, so that no request can draft from another window or another make set. The plan job
+(`lab.prereg`) downloads the complaint archive once (the J-cycles' fetch) and builds the pooled export in memory: each
+make's rows received from 2020-01-01 to 2022-12-31 (`nhtsa_export.complaints` with every component name as filed and
+the `reporter` column, as D002's split), in make order, a complaint already given by an earlier make dropped and
+counted (C28), as one CSV of D002's seven columns, which the parser must read back whole; no row received on or after
+the cutoff is in it. It then runs `python -m lab.jt draft` in a subprocess under its step runner with its own timeout
+of 900 seconds (C11): `draft_export` with `load_params()` and no argument, the drafted pack P_draft, `check_pack`
+against the same export, and the term set T: for each of the hand pack's 26 specific predicates, the drafted lexicon
+of the drafted category that holds its NHTSA spelling, placeholders left out, or the empty list. The draft exits 0
+when the check passed, 5 when it failed, 3 when the drafter refused the export, 4 on a `MemoryError` and 6 on any other
+error (its class name on stderr, never its message), never 1, Python's own exit for an uncaught exception. A download
+or an archive that cannot be read refuses the plan with `JT_FETCH_FAILED`; a failed check with `JT_FLOOR_FAILED`
+(after a `jt check: passed no` line with each failing check's count); an export the drafter refuses, a timeout, an
+out-of-memory exit, an error, a missing or malformed result, or an export or a P_D rebuild that fails in the plan
+job's own process with `JT_DRAFT_FAILED`; each prints a `jt step: stopped` line (wall seconds, the draft's wall
+seconds and the largest resident memory of a finished child of the step) and nothing is written under `prereg/jt/`
+then. Otherwise the step writes `prereg/jt/terms.json`
+(canonical JSON; its sha256 is the term set's: the cutoff, the window, the makes, the archive, the export's and the
+drafting block's counts, the drafter's summary counts, P_draft's, P_D's and the hand pack's hashes, the check by
+check, the onboard code hash, the two data files' sha256, the code hash of `lab/jt.py` (C29) and T),
+`prereg/jt/pack/` (P_draft), `prereg/jt/check.json` (the check's result by check, booleans and counts only:
+`lab.jt.check_counts`, the same block as `terms.json`'s `check`), `prereg/jt/drafting_refs.jsonl` (the
+drafting rows' record ids, sorted), `prereg/jt/drafting_text.jsonl` (the sha256 of each distinct folded narrative:
+hashes, no text) and `prereg/jt/prereg.json` (what the unit verifies against), and prints counts, dates and hashes
+only, in fixed lines that start `jt export:`, `jt drafting:`, `jt draft:`, `jt check:`, `jt terms:` (ending
+`terms_sha256 <64 hex>`) and `jt step:` (wall seconds, the draft's wall seconds and its peak resident memory); no
+line holds a term, a category spelling, a narrative, a record id, a state or a vehicle. The unit
+(`python -m lab.jt verify`) re-hashes `terms.json` against the preregistration, checks the code hash of `lab/jt.py`,
+the hand pack's hashes and the two drafting files, rebuilds P_D (the hand pack with each specific predicate's `en`
+lexicon replaced by T's list, or by the drafter's placeholder when the list is empty; every other file the hand pack's
+bytes) and checks its four hashes; a unit that does not verify is `failed` with `JT_NOT_VERIFIED`. The term set is
+never committed to the repository: a dated amendment of the rule commits its sha256. A dry run needs
+`lab.dryrun --jt-data DIR` (a `tests.lab.j4_data` directory: a synthetic complaint archive with a drafting block
+before the cutoff), which does not go with `--j2-data` or `--j3-data`.
+
 The fetch makes up to `product_codes` x 2 x ceil(`max_records_per_code` / page) requests, where a page is 100 records
 without the `MYCELIC_LAB_OPENFDA_API_KEY` secret (openFDA refuses larger pages without a key) and 1000 with it; at most
 800 requests without the secret and 1000 with it.
@@ -338,7 +389,8 @@ cached as `lab-server-<tag>-<sha16>` under `server/<tag>`, a model file as `lab-
 - A unit id is `<experiment>-<model>` (E2, E3, G0), `e1-<model>-r<k>` (one E1 repeat), `j1-<model>-p<k>` (one J1
   part), `j2-<model>-p<k>` (one J2 part, judged under both tasks), `j3-<model>-p<k>` (one J3 part, judged
   under the three tasks), `l1-<model>-q<k>` (one L1 question slot, 1 the
-  alert question), `sim-<model>-s<seed>` (one simulation seed), `x1` or `openfda`; at most 55 characters.
+  alert question), `sim-<model>-s<seed>` (one simulation seed), `x1`, `openfda` or `jt` (the term run's one
+  unit); at most 55 characters.
 - A run id is the unit id, a hyphen and the first 8 hex digits of sha256(request sha256 `|` unit id); the harness
   writes under it.
 - A shard id is `s<NNN>-<label>`: a three-digit number in creation order and the shard's model key, `none` for
@@ -406,6 +458,12 @@ A J3 unit (`lab.j3 run`) keeps the same three files under `runs/j3/<run id>/`, w
   `complete_by_task` saying task E finished and a later task did not is a unit `ok` with `J3_EVIDENCE_STOPPED` (rule
   14: the primary's set is complete for that part, the later sets are not); a stop in the first pass is `J1_STOPPED`.
   The participation floor judges task E always and a later task only when its pass finished.
+
+A JT unit (`lab.jt verify`) keeps one file under `runs/jt/<run id>/`, `verify.json` (`kind: lab_jt_verify`):
+`verified`, `checks` (`terms_sha256`, `jt_code_hash`, `hand_hashes`, `drafting_files` and `p_d_hashes`, each true or
+false), the term set's sha256 as read, P_D's rebuilt hashes, the code hash of `lab/jt.py` at the unit's commit and the
+term counts; never a term. It exits 0 when every check holds and 1 otherwise; the aggregate reads it as verified only
+when its sha256 and P_D's hashes are also the preregistration's.
 
 An L1 unit (`lab.l1 run`) keeps under `runs/l1/<run id>/` (no record id, mine id, name or narrative; mines are
 `m01` onwards, records their index in their mine's retrieved list; every number in seconds with at most three
@@ -526,7 +584,7 @@ A unit's status (`lab.units.STATUSES`):
 | `ok` | the harness ran to a valid result and the model answered enough; a J2 unit whose first pass finished and whose shipped pass stopped is `ok` with `J2_SHIPPED_STOPPED`; a J3 unit whose evidence pass finished and whose later pass stopped is `ok` with `J3_EVIDENCE_STOPPED` |
 | `result_fail` | a valid FAIL verdict: G0's canary scan or the simulation's raw-text scan did not pass (something crossed, or the scan's positive control found nothing) |
 | `invalid` | it ran, but the model answered too few calls, the server died, or G0's model path had problems |
-| `failed` | the harness failed, refused its configuration or wrote no readable result, a J1 run or a J2 or J3 run's first pass stopped before its last question (`J1_STOPPED`), or an L1 unit did not finish (`L1_NOT_FINISHED`), failed a check after its model ran (`L1_CHECK_FAILED`) or could not get its file before any model call (`L1_INFRA`) |
+| `failed` | the harness failed, refused its configuration or wrote no readable result, a J1 run or a J2 or J3 run's first pass stopped before its last question (`J1_STOPPED`), or an L1 unit did not finish (`L1_NOT_FINISHED`), failed a check after its model ran (`L1_CHECK_FAILED`) or could not get its file before any model call (`L1_INFRA`), or a JT unit did not verify its term set (`JT_NOT_VERIFIED`) |
 | `timed_out` | the unit ran out of its minutes |
 | `interrupted` | a signal stopped it |
 | `skipped` | it did not start: the shard's budget, the server, the warm-up, a projection or the hosted gate |
@@ -566,8 +624,8 @@ The same for every lab command (`lab/__init__.py`):
 ## Labels
 
 Every fixed sentence the summaries print comes from `lab/notes.py`. Braces stand for values the summary fills in:
-`{e_one}`, `{e_two}`, `{x_one}`, `{n_one}`, `{j_one}`, `{j_two}`, `{j_three}` and `{l_one}` are E1, E2, X1, N1,
-J1, J2, J3 and L1,
+`{e_one}`, `{e_two}`, `{x_one}`, `{n_one}`, `{j_one}`, `{j_two}`, `{j_three}`, `{l_one}` and `{j_t}` are E1, E2,
+X1, N1, J1, J2, J3, L1 and JT,
 and `{run}` and `{commit}` a run id and a commit.
 
 The first lines and the plumbing banner:
@@ -644,6 +702,17 @@ stopped after task E finished says `J3_EVIDENCE_STOPPED`; the plan's refusals an
 - `J3_EXCLUSION_DISAGREES`: the verified sources of the earlier cycles disagree: a consistency count is above zero; the plan job stops before any model runs
 - `J3_TOO_FEW_RECORDS`: fewer eligible records remain after both earlier cycles' exclusion than the draw needs; no further fresh draw is pre-registered
 
+Accuracy test A003's term run, where `{j_t}` is JT: the label and the terms note in the term run's section of the
+report and of the plan summary's preregistration; the plan's two refusals and a unit that did not verify use the
+others:
+
+- `JT_LABEL`: {j_t} here drafts the term set of the third accuracy cycle in the plan job, before any model runs: the onboard package's drafter, unchanged, reads the six makes' public NHTSA complaints received before the first day of the judged window as one pooled export, its privacy check reads the drafted pack against the same export, and the term set is the drafted vocabulary of each of the hand pack's specific components. No model runs and nothing is drawn; the one unit only verifies the term set against its preregistration.
+- `JT_TERMS_NOTE`: Counts and hashes only: the term set, the drafted pack and the two drafting files live in the plan artifact, never in a summary, a console line or the repository, and no term, category spelling, narrative, record id, state or vehicle is printed. A dated amendment of the rule commits the term set's sha before the judging run, which refuses any other bytes.
+- `JT_FLOOR_FAILED`: the drafted pack failed the privacy check against its export (the loader, the term floor, the value floor, the refused strings or terms, the template rebuild or the n-gram scan); the term run stops before its term set is written, and the loop asks
+- `JT_DRAFT_FAILED`: the draft and its check did not finish: the drafter refused the export, the step ran out of time or memory, stopped on an error, or wrote no result the step can read; the term run stops before its term set is written, and the remedy is a reviewed change of the workflow or the lab, never a drafter parameter
+- `JT_FETCH_FAILED`: the plan job could not fetch or read NHTSA's complaint archive; nothing was drafted, and the same request may run again
+- `JT_NOT_VERIFIED`: the term run's unit did not verify the term set against its preregistration: a hash, the drafted pack rebuilt from the hand pack and the term set, or this module's code hash differs
+
 Latency test L001's labels, where `{l_one}` is L1 and `{stop}` a stop's code: the label, then the headline and
 comparator notes above the per-model tables and the time note above the time tables; a model without a headline says
 why in its row; a unit's status reason and the plan's refusal use the others:
@@ -701,6 +770,7 @@ A unit's notes, printed once under the report's notes:
 - `NOTES.text_only_scan`: The canary scan covers text only: it reads the bytes that crossed a boundary, not timing, sizes or other side channels.
 - `NOTES.model_measurement`: Model measurement: a verified model file answered through a verified server on one shared GitHub-hosted runner; quality numbers describe this model on synthetic data, and timings describe this runner, not site hardware.
 - `NOTES.public_data`: Public data: openFDA records under an artificial partitioning; no model ran, and nothing here is confidential or a confidentiality demonstration.
+- `NOTES.public_terms`: Public data: real NHTSA vehicle complaints received before the judged window, read by the pack drafter in the plan job; no model ran, and no term, narrative or record id is printed.
 - `NOTES.public_narratives`: Public data: real NHTSA vehicle complaint narratives, read with each complaint's codes hidden and scored against them. The codes are the components the complaint was filed under, not checked labels, and the models may have seen public complaints in training.
 - `NOTES.model_measurement_public`: Model measurement: a verified model file answered through a verified server on one shared GitHub-hosted runner; quality numbers describe this model on public complaint narratives against their filed codes, and timings describe this runner, not site hardware.
 - `NOTES.public_msha`: Public data: real MSHA mine accident narratives of one operator, read inside each mine with the filed categories hidden and scored against them. The categories are what the records were filed under, not checked labels, and the models may have seen public narratives in training. No record id, mine id, name or narrative is written.
@@ -1103,6 +1173,50 @@ synthetic worlds describe synthetic worlds.
 | mines | the mines of the audited operator, each a site | n/a: a count of sites, not records |
 | operator | the audited operator's label (`c1`) | a name or an id: none is written |
 | predicate | the question's predicate, a filed category of the drafted pack | n/a: not a number |
+| term set sha | the sha256 of `prereg/jt/terms.json`'s bytes, in full: the term set's sha the amendment commits | a term or anything that shows one |
+| cutoff | the cutoff, `NHTSA_WINDOW`'s first day: the drafting set holds only complaints received before it | a setting of the request: it is the rule's |
+| drafting window | the drafting window's first and last day (D002's NHTSA training window) | the judged window |
+| complaint archive sha | the first twelve hex digits of the complaint archive's sha256 on the day of the term run | n/a: an identifier, not a number |
+| complaint archive bytes | the complaint archive's size in bytes | the export's size |
+| drafting export rows | the pooled drafting export's rows, after the cross-make drop | complaints with a narrative |
+| rows per make | each make's rows in the pooled export, in make order, after the cross-make drop | the make's share of anything judged |
+| cross-make duplicates dropped | rows dropped because an earlier make already gave their complaint number (C28) | duplicate narratives |
+| earliest received | the earliest received date of the pooled export (a date, never a ref) | the drafting window's first day |
+| latest received | the latest received date of the pooled export | the cutoff |
+| drafting refs sha | the first twelve hex digits of `prereg/jt/drafting_refs.jsonl`'s sha256 (the sorted record ids) | n/a: an identifier, not a number |
+| drafting text sha | the first twelve hex digits of `prereg/jt/drafting_text.jsonl`'s sha256 (the narratives' hashes) | n/a: an identifier, not a number |
+| distinct narratives | distinct non-empty folded narratives of the drafting export | the drafter's corpus |
+| straddling rows | drafting rows whose complaint also has a row received on or after the cutoff (C4) | records removed from the draw: the judging run removes them |
+| corpus records | the drafter's corpus: training rows with a narrative | the export's rows |
+| categories passing the floor | filed categories that pass the privacy floor (ten records at three states) | specific predicates |
+| specific predicates drafted | the drafted pack's specific predicates | hand predicates reached |
+| other bucket share | the share of corpus rows the drafter put in its other bucket | an error rate |
+| rows without a specific category | corpus rows with no specific drafted category | rows without a narrative |
+| candidate terms | the drafter's candidate terms | terms in the term set |
+| eligible terms | candidate terms that pass the drafter's floor and thresholds | terms in the term set |
+| placeholders | P_draft's predicates that learned no term and got the placeholder | hand predicates left empty |
+| refused categories | categories the drafter's refusal removed | categories below the floor |
+| refused terms | terms the drafter's refusal removed (record ids, states and vehicle words) | terms below the thresholds |
+| refused terms that would have been assigned | refused terms that would have been assigned to a predicate | terms in the term set |
+| refused terms within the cap | refused terms that would also have been within the per-predicate cap | terms in the term set |
+| hand predicates | the hand pack's specific predicates: the term set's entries (26) | predicates reached |
+| reached | hand predicates whose NHTSA spelling a specific drafted category holds | predicates with terms: a reached one can have none |
+| left empty | hand predicates whose term list is empty (the judging run gives them the placeholder) | predicates the drafter refused |
+| terms per reached predicate, min | the fewest terms of a reached hand predicate | a quality of the terms |
+| median | the median terms of a reached hand predicate (the upper middle, as the drafter's summary) | a quality of the terms |
+| max | the most terms of a reached hand predicate (at most fifty) | a quality of the terms |
+| total terms | every term of the term set | distinct words |
+| check passed | whether every check of `check_pack` passed on the drafted pack against its export | that no name can pass: the floor is mechanical |
+| check | one check of `check_pack`: the loader, the term floor, the value floor, the refused strings and terms, the template rebuild or the n-gram scan | n/a: not a number |
+| failures | the check's failure count (n/a for the loader and the template rebuild, which have none) | the strings that failed: none is printed |
+| drafted pack hashes | the first twelve hex digits of the drafted pack's four loader hashes | n/a: identifiers, not numbers |
+| hand pack with the drafted lexicons, hashes | the first twelve hex digits of P_D's four loader hashes: the hand pack with the term set as its lexicons | n/a: identifiers, not numbers |
+| hand pack hashes | the first twelve hex digits of the hand pack's four loader hashes | n/a: identifiers, not numbers |
+| code hashes | the first twelve hex digits of the onboard code hash, `lab/jt.py`'s code hash and the two data files' sha256 | n/a: identifiers, not numbers |
+| step wall seconds | the plan job's term step in wall seconds, the export and the draft included | a time on site hardware |
+| draft wall seconds | the draft subprocess's own wall seconds | the step's whole time |
+| draft peak resident memory KiB | the draft subprocess's peak resident memory in KiB | the plan job's memory |
+| verified by the unit | whether the unit verified the term set against its preregistration (its sha256, P_D's hashes, the code hash, the hand pack's hashes and the drafting files) | that the terms are good terms |
 
 ## Summary sections
 
@@ -1127,7 +1241,7 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Hosted API results: not measured on this runner | units of display class hosted-api |
 | Unverified: not measurements | units of a real run whose provenance did not verify |
 | Plumbing checks (fake provider): not model measurements | units a fake answered, or units of a plumbing run (a hosted unit's calls go to the configured host) |
-| Units without a model | model-free units (X1, openFDA) |
+| Units without a model | model-free units (X1, openFDA, JT) |
 | Latency and throughput cells | E3's cells |
 | Canary leakage scans | G0's scans |
 | Model call latency from the ledgers | per task, the successful calls' median and ninety-fifth percentile |
@@ -1136,7 +1250,7 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Simulation pushdown verification | the simulation's pushdown candidates, raw text and fallback share |
 | Simulation sizing for the next request | per sim unit, the measured medians and the suggested minutes |
 | Baselines blind to narrative-only patterns by construction | per sim or X1 row, S and R_mf on the plant's narrative_only patterns, with the harness's label |
-| Preregistration, fixed before any model runs | E1's labels, X1's and E2's prereg hashes, E2's rehearsal, J1's labels and questions, the lexical judge's and the record-blind control's scores on every record and the predicate-only bound; J2's labels, questions, exclusion counts and mechanisms, primary pair, target and comparators on every record; J3's labels, questions, exclusion counts with the five sources, the cycles and the consistency counts, primary pair, headline secondary, target, comparators and both ablations on every record |
+| Preregistration, fixed before any model runs | E1's labels, X1's and E2's prereg hashes, E2's rehearsal, J1's labels and questions, the lexical judge's and the record-blind control's scores on every record and the predicate-only bound; J2's labels, questions, exclusion counts and mechanisms, primary pair, target and comparators on every record; J3's labels, questions, exclusion counts with the five sources, the cycles and the consistency counts, primary pair, headline secondary, target, comparators and both ablations on every record; JT's term set under the term run's two headings |
 | Extraction compared across models | E1's label, labels, reference and thresholds |
 | Extraction per model, pooled over repeats | E1's per-model scores and zero-claim share |
 | Extraction drops by reason, pooled over repeats | E1's post-processing counts per model and reason (`drops` of each endpoint in report.json), after the sentence that reattached reasons are not losses |
@@ -1155,6 +1269,8 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Latency test: alert to answer on CPU, per model, beside the comparators | L1's label, the operator, the file and the audit, the alert, the questions (routes by role and stratum, records, the key's gate status), the headline and comparator notes, the comparators on every scored site answer and the predicate-only bound and empty draws, then per model: questions finished, class, balanced accuracy and its interval beside the lexical judge's, the route-role baseline's and the record-blind control's on the same answers, sensitivity, specificity, the unknown share and the answers left out; and D_lex, D_route, the headline and the gate's agreement beside a constant status (the report's `l1` block, which also holds the strata, the per-record measures and each question's verdicts and mines) |
 | Latency test: where the time goes | the time note, then per model and scope (the alert, all questions) the CPU models, the time to answer and its ninety-fifth percentile (questions without a contended mine), the question build, the gate, a mine's and a judge call's median and ninety-fifth percentile, the model calls, the contended questions and their time to answer, and the questions not finished; then each question not finished with its elapsed time as a lower bound and its model calls (only when there is one), and each finished question's status, time and derived times |
 | Latency test: the alert, the questions and the comparators, fixed before any model runs | (plan summary) L1's file, audit, alert, questions, the comparators' scores, the predicate-only bound, the empty draws share and the constant status agreement |
+| Term run: the drafted term set, fixed before the judging run | JT's label, the term set's full sha256 (in the report, whether the unit verified it; in the plan summary, the sha of `prereg/jt/prereg.json`), the cutoff and the drafting window, the archive, the export's rows per make and pooled with the cross-make duplicates and the received dates, the drafting block, the drafter's and the refusal's counts, the term counts, P_draft's, P_D's and the hand pack's hashes, the code hashes, whether the check passed and the step's wall time and peak memory (the report's `jt` block); counts and hashes only, never a term |
+| Term run: the privacy check of the drafted pack, by check | per check of `check_pack`: passed and its failure count, then the terms note |
 | Pushdown verification against central reading: conditions | E2's labels and conditions |
 | Pushdown ratio and verdict | E2's ratio and, for a hosted central, the bar verdict |
 | Pushdown candidates | E2's candidates by label |
@@ -1175,7 +1291,7 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 
 | artifact | holds |
 | --- | --- |
-| `lab-plan-<run id>-<attempt>` | the plan, its preregistration and the plan summary; for a J2 plan the preregistration holds the fresh draw's labels and questions files (public complaint text and refs; the artifact, never the repository) and `prereg/j2/excluded.jsonl`, the refs the next cycle excludes; for a J3 plan the same under `prereg/j3/` with the two ablation files and `prereg/j3/excluded.jsonl` |
+| `lab-plan-<run id>-<attempt>` | the plan, its preregistration and the plan summary; for a J2 plan the preregistration holds the fresh draw's labels and questions files (public complaint text and refs; the artifact, never the repository) and `prereg/j2/excluded.jsonl`, the refs the next cycle excludes; for a J3 plan the same under `prereg/j3/` with the two ablation files and `prereg/j3/excluded.jsonl`; for a JT plan `prereg/jt/`: the term set `terms.json`, P_draft (`pack/`), `check.json`, the two drafting files (record ids and narrative hashes) and `prereg.json`, never the export or a narrative |
 | `lab-prov-<run id>-<attempt>-<entry>` | one provision record (`server` or `gguf-<key>`) and its lock candidate |
 | `lab-run-<run id>-<attempt>-<shard>` | one sealed shard root |
 | `lab-report-<class>-<run id>-<attempt>` | `report.json`, `report.md`, `report.sources.json`, `plan.json`, `lock-candidate.json` and E1's comparison files |

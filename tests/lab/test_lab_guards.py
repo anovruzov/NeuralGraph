@@ -128,7 +128,7 @@ class LabGuardTests(unittest.TestCase):
         files = name_scan_files()
         stubs = sorted(p.name for p in files if p.parent == ROOT / "tests" / "lab" / "stubs")
         self.assertEqual(stubs, ["__init__.py", "fake_server_stub.py", "hosted_stub.py", "http_stub.py",
-                                 "openfda_stub.py"])
+                                 "jt_stub.py", "openfda_stub.py"])
 
     def test_no_dirty_override(self) -> None:
         for path in lab_python():

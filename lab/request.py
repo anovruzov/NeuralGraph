@@ -12,8 +12,8 @@ are refused at every level::
      "max_parallel": 1..16,                            # shard jobs that may run at once
      "retention_days": 1..90,                          # how long the result artifacts are kept
      "experiments": {                                  # at least one of e1, e2, e3, g0, sim, x1, openfda, j1, l1,
-         "e1": {...}, "e2": {...}, "e3": {...}, "g0": {...}, "sim": {...}, "x1": {...}, "openfda": {...},   # j2, j3
-         "j1": {...}, "l1": {...}, "j2": {...}, "j3": {...}},
+         "e1": {...}, "e2": {...}, "e3": {...}, "g0": {...}, "sim": {...}, "x1": {...}, "openfda": {...},   # j2, j3,
+         "j1": {...}, "l1": {...}, "j2": {...}, "j3": {...}, "jt": {...}},                                  # jt
      "hosted": {"<hosted model key>": {"max_calls": 1..1000000}, ...}}   # optional, default {}; see below
 
 ``capacity`` below is ``job_minutes - SHARD_OVERHEAD_MINUTES``; a seed is an int in ``0..2147483647``. The blocks:
@@ -132,6 +132,21 @@ and rationale variants of the negation task, then the negation task), one unit p
      "primary": {"model": "<one of the j3 models>", "arm": "<one of lab.j3.ARMS>"},   # the primary pair P
      "comparisons_before": 0..1000000}    # default 0
 
+``jt``, accuracy test A003's term run (``docs/collective/A003/CHOICE-A003.md``, amended C1 to C32 before any build,
+"The terms" and "The request"): one model-free unit ``jt`` whose work is the plan job's preregistration step, which
+drafts the term set from the six makes' public complaints received before the cutoff (``lab.jt``)::
+
+    {"minutes": 1..capacity,              # the unit's minutes (it only verifies the term set)
+     "pack": "docs/collective/replay/vehicles/pack",   # exactly the vehicle pack (JT_PACK_PROBLEM)
+     "cutoff": "2023-01-01",              # exactly NHTSA_WINDOW[0] in ISO form, lab.jt.CUTOFF_ISO (JT_CUTOFF_PROBLEM)
+     "from": "2020-01-01"}                # exactly lab.jt.FROM, D002-settings.json arms.nhtsa.train's first day
+                                          # (JT_FROM_PROBLEM, C23)
+
+The makes, the roles, the columns, the drafter's parameters and the language are code constants of ``lab.jt``, not
+request fields, so that no request can draft from another window or another make set. A request with a ``jt`` block
+holds no other block ("a request whose only block is ``experiments.jt``", item 10; ``JT_ALONE_PROBLEM`` at
+``$.experiments``) and its ``retention_days`` is :data:`JT_RETENTION_DAYS`, 90 (C15; ``JT_RETENTION_PROBLEM``).
+
 ``openfda``, the public replay and the labelling sheets (one unit, no model; it reaches api.fda.gov)::
 
     {"minutes": 1..capacity, "pack": "<a built-in pack, or lab/packs/<id>, with an openFDA mapping>",
@@ -210,6 +225,7 @@ from . import j2 as lab_j2
 from . import j2labels as lab_j2labels
 from . import j3 as lab_j3
 from . import j3labels as lab_j3labels
+from . import jt as lab_jt
 from .goldlabels import NHTSA_PACK, build_labels
 from .hosted import PREFLIGHT_MAX_CALLS, preflight_tasks, unit_bound
 from .manifest import Manifest
@@ -222,7 +238,7 @@ MAX_BYTES = 65536
 SHARD_OVERHEAD_MINUTES = 25
 SEED_MAX = 2147483647
 BAD_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"})
-EXPERIMENTS = ("e1", "e2", "e3", "g0", "sim", "x1", "openfda", "j1", "l1", "j2", "j3")
+EXPERIMENTS = ("e1", "e2", "e3", "g0", "sim", "x1", "openfda", "j1", "l1", "j2", "j3", "jt")
 SIM_KINDS = ("gguf", "fake")
 MAX_MODELS = 8
 LABEL_SOURCES = ("fixtures", "generator", "nhtsa")
@@ -279,6 +295,7 @@ _J3_EXCLUDE_KEYS = (*_EXCLUDE_KEYS, "rebuild_seed", "rebuild_sha256_prefix", "ch
 _J3_EXCLUDE_REQUIRED = (*_EXCLUDE_KEYS, "rebuild_seed", "rebuild_sha256_prefix")
 _J3_CHAIN_KEYS = ("chain_file", "chain_sha256_prefix")
 J3_EXCLUDE_ENTRIES = 2
+_JT_KEYS = ("minutes", "pack", "cutoff", "from")
 MAX_RUN_ID = 10 ** 20
 MAX_COMPARISONS = 1000000
 EXCLUDE_ARTIFACT_RE = re.compile(r"lab-plan-([0-9]{1,20})-[0-9]{1,6}", re.ASCII)
@@ -319,6 +336,16 @@ J3_CHAIN_REQUIRED = "required on the second entry: the earlier cycle's chain fil
 J3_FIRST_SEED_PROBLEM = "must be 1: the first entry's rebuild is the pinned seed-one draw of the first judge test"
 J3_SEED_ORDER_PROBLEM = "must be above the first entry's rebuild seed: the entries are the earlier cycles in seed order"
 J3_PRIMARY_MODEL_PROBLEM = "the primary pair's model must be one of the J3 models"
+JT_PACK_PROBLEM = f"must be {NHTSA_PACK}: the term run's hand pack is the vehicle pack"
+JT_CUTOFF_PROBLEM = (f"must be {lab_jt.CUTOFF_ISO}: the first day of the pinned NHTSA window, the cutoff the term run "
+                     "drafts before")
+JT_RETENTION_DAYS = 90             # C15: the term artifact is kept as long as the lab allows
+JT_ALONE_PROBLEM = ("the term run is a request whose only block is jt: it drafts in the plan job and nothing else may "
+                    "run beside it")
+JT_RETENTION_PROBLEM = (f"must be {JT_RETENTION_DAYS} with a jt block: the term artifact is kept until the judging run "
+                        "reads it")
+JT_FROM_PROBLEM = (f"must be {lab_jt.FROM}: the first day of the drafting window, D002's NHTSA training window's first "
+                   "day")
 MSHA_HOSTED = "L1 reads real MSHA records only with models inside the runner; the lab sends no real narrative to a host"
 L1_KINDS_PROBLEM = "L1 runs only gguf or fake models"
 L1_QUESTIONS_PROBLEM = "must be 5: the alert question and the four control questions (L001, K11)"
@@ -794,6 +821,23 @@ def _l1(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[
     return out
 
 
+def _jt(raw: Any, capacity: int) -> dict[str, Any]:
+    """The term run's block (C23): the unit's minutes, and the pack, the cutoff and the window's first day, each
+    exactly the rule's."""
+    path = "$.experiments.jt"
+    block = _object(raw, path)
+    check_keys(block, _JT_KEYS, _JT_KEYS, path, RequestError)
+    out: dict[str, Any] = {"minutes": _minutes(block["minutes"], f"{path}.minutes", capacity)}
+    for key, cap, expected, problem in (("pack", MAX_FIELD_PATH, NHTSA_PACK, JT_PACK_PROBLEM),
+                                        ("cutoff", 10, lab_jt.CUTOFF_ISO, JT_CUTOFF_PROBLEM),
+                                        ("from", 10, lab_jt.FROM, JT_FROM_PROBLEM)):
+        value = _string(block[key], f"{path}.{key}", cap)
+        if value != expected:
+            raise RequestError(f"{path}.{key}", problem) from None
+        out[key] = value
+    return out
+
+
 def _plant(value: Any, path: str, pack: str) -> str:
     name = _string(value, path, 64)
     fixture = loader.BUILTIN_ROOT / pack / "fixtures" / f"{name}.json"
@@ -1107,6 +1151,11 @@ def validate(obj: Any, manifest: Manifest, *, openfda_key: bool = False) -> dict
     check_keys(experiments, EXPERIMENTS, (), "$.experiments", RequestError, unknown="unknown experiment")
     if not experiments:
         raise RequestError("$.experiments", f"needs at least one of {', '.join(EXPERIMENTS)}") from None
+    if "jt" in experiments:
+        if len(experiments) > 1:
+            raise RequestError("$.experiments", JT_ALONE_PROBLEM) from None
+        if out["retention_days"] != JT_RETENTION_DAYS:
+            raise RequestError("$.retention_days", JT_RETENTION_PROBLEM) from None
     capacity = out["job_minutes"] - SHARD_OVERHEAD_MINUTES
     checks = {"e1": lambda raw: _e1(raw, models, capacity, manifest),
               "e2": lambda raw: _e2(raw, models, capacity, manifest),
@@ -1117,7 +1166,7 @@ def validate(obj: Any, manifest: Manifest, *, openfda_key: bool = False) -> dict
               "j1": lambda raw: _j1(raw, models, capacity, manifest),
               "l1": lambda raw: _l1(raw, models, capacity, manifest),
               "j2": lambda raw: _j2(raw, models, capacity, manifest),
-              "j3": lambda raw: _j3(raw, models, capacity, manifest)}
+              "j3": lambda raw: _j3(raw, models, capacity, manifest), "jt": lambda raw: _jt(raw, capacity)}
     out["experiments"] = {name: checks[name](experiments[name]) for name in EXPERIMENTS if name in experiments}
     out["hosted"] = _hosted(top, out["experiments"], manifest)
     return out

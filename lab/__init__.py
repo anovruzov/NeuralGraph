@@ -28,7 +28,10 @@ complaints, its questions, runner and scoring), ``j2`` with ``j2labels`` (accura
 fresh draw with an earlier run's records excluded, two judge instructions, a declared reply mapping and the verdict
 word of the pinned rule), ``j3`` with ``j3labels`` (accuracy test A002: the negation instruction and two schema
 variants of it on a fresh draw with two earlier cycles' records excluded, a verbatim-substring grounding check, the
-mapping, a lexical composite with its ablations, nine arms and the verdict word of the pinned rule), ``l1`` with
+mapping, a lexical composite with its ablations, nine arms and the verdict word of the pinned rule), ``jt``
+(accuracy test A003's term run: the six makes' public complaints received before the judged window drafted into a
+term set by the onboard package's drafter in the plan job, checked, pinned by its sha256 and verified by the one
+model-free unit; no term is printed), ``l1`` with
 ``l1path``, ``l1score`` and ``l1guard`` (latency test
 L001: the product's pushdown path timed and scored on the drafter demo's MSHA alert, and the guard over every file a
 run uploads), ``msha`` (the workflow's L1 steps: the file's cache key and the guard), ``aggregate``, ``summary``,

@@ -1,7 +1,7 @@
 """Run a whole request locally, every shard against the fake server: the lab's plumbing check without weights.
 
     python -m lab.dryrun --request PATH --out DIR [--manifest lab/models.json] [--openfda-base-url URL]
-                         [--l1-raw DIR] [--j2-data DIR | --j3-data DIR]
+                         [--l1-raw DIR] [--j2-data DIR | --j3-data DIR | --jt-data DIR]
 
 ``DIR`` must be absent or empty. The steps are the workflow's, in the same order and with the same files:
 
@@ -36,8 +36,12 @@ earlier artifact, so it stops before any shard (neither freshness mechanism veri
 With J3 units (accuracy test A002), ``--j3-data`` names a directory made by ``python -m tests.lab.j3_data --out DIR``
 the same way: its ``complaints.zip``, its ``earlier/`` (two synthetic plan artifacts, a J001-shaped and an
 A001-shaped one) and its ``stand-in.json`` (a two-entry exclude list) go to the same three ``lab.prereg`` flags, so
-every one of the five sources verifies on the test data (:data:`~lab.notes.J3_STAND_IN`). The two flags do not go
-together.
+every one of the five sources verifies on the test data (:data:`~lab.notes.J3_STAND_IN`).
+
+With the term run's unit (accuracy test A003, build 1), ``--jt-data`` names a directory made by ``python -m
+tests.lab.j4_data --out DIR``: its ``complaints.zip`` (a synthetic archive with a drafting block before the cutoff) is
+handed to ``lab.prereg --nhtsa-archive`` in place of the download, so the plan job drafts, checks and pins a term set
+from invented complaints. The three data flags do not go together.
 
 Every record says ``plumbing``: a dry run never measures a model. stdout is the plan line, the prereg line, one line
 per unit and the aggregate line. Without ``--openfda-base-url`` an openFDA unit fetches from api.fda.gov itself.
@@ -87,6 +91,8 @@ def _parser() -> argparse.ArgumentParser:
                                      "artifact and the exclusion stand-in) for J2 units")
     p.add_argument("--j3-data", help="tests only: a tests.lab.j3_data directory (complaint archive, the two earlier "
                                      "plan artifacts and the two-entry exclusion stand-in) for J3 units")
+    p.add_argument("--jt-data", help="tests only: a tests.lab.j4_data directory (a complaint archive with a drafting "
+                                     "block) for the term run's unit")
     return p
 
 
@@ -122,6 +128,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.j2_data is not None and args.j3_data is not None:
         print("error: --j2-data and --j3-data do not go together", file=sys.stderr)
         return EXIT_USAGE
+    if args.jt_data is not None and (args.j2_data is not None or args.j3_data is not None):
+        print("error: --jt-data does not go with --j2-data or --j3-data", file=sys.stderr)
+        return EXIT_USAGE
     plan_dir = out / "plan"
     plan_path = plan_dir / "plan.json"
     if lab_plan.main(["--request", args.request, "--manifest", args.manifest, "--out", str(plan_dir)]) != EXIT_OK:
@@ -140,6 +149,8 @@ def main(argv: list[str] | None = None) -> int:
         data = Path(test_data)
         prereg_args += ["--nhtsa-archive", str(data / "complaints.zip"), "--earlier-plans", str(data / "earlier"),
                         "--exclude-stand-in", str(data / "stand-in.json")]
+    if args.jt_data is not None:
+        prereg_args += ["--nhtsa-archive", str(Path(args.jt_data) / "complaints.zip")]
     sys.stdout.flush()
     if lab_prereg.main(prereg_args) != EXIT_OK:
         if l1:

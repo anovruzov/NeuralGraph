@@ -49,7 +49,10 @@ signals and score, and the sheets). Nothing else is collected: no ``private/``, 
 file in ``lab-msha`` beside the plan's directory, one question slot of one model, one routing file per mine from
 ``lab.l1.routing_doc`` at boundary ``site:<mine>``, ``--budget-seconds`` as the sim's) and keeps ``run.json``,
 ``records.jsonl`` (each judged record's answers by index, no record id or narrative) and ``ledger-<mine>.jsonl``.
-E1, E2, X1, J1 and L1 need the preregistration (:mod:`lab.prereg`):
+``jt`` (accuracy test A003's term run, model-free) runs ``lab.jt verify`` (the preregistered ``prereg/jt/prereg.json``)
+and keeps ``verify.json``: whether the term set, the drafting files, the hand pack and ``lab/jt.py`` hash as
+preregistered and the hand pack with the drafted lexicons rebuilds to the pinned hashes; no term is written there.
+E1, E2, X1, J1, L1, J2, J3 and JT need the preregistration (:mod:`lab.prereg`):
 without it they fail with :data:`~lab.notes.PREREG_MISSING` and nothing starts. An E2 unit behind a model server is
 first projected
 (:func:`e2_projection`): the rehearsal's call counts times the warm-up's latencies, against
@@ -86,6 +89,9 @@ Status, from :func:`harness_status`, then the participation check, then G0's mod
   ``complete_by_task`` says the evidence pass finished and the stop fell in a later pass (rule 14: the primary
   pair's set stays complete), else ``failed`` with :data:`~lab.notes.J1_STOPPED`; any other pairing is ``failed``.
   Its required task is the evidence task; a later pass is judged by the participation floor only when it finished;
+* JT: exit 0 with a ``verify.json`` of kind ``lab_jt_verify`` that says ``verified: true`` is ``ok``; exit 1 with
+  one that says ``verified: false`` is ``failed`` with :data:`~lab.notes.JT_NOT_VERIFIED`; any other pairing is
+  ``failed``;
 * G0: exit 0 with ``passed: true`` is ``ok``, exit 1 with ``passed: false`` is ``result_fail`` (a valid FAIL
   verdict), any other pairing of exit 0/1 and ``leakage.json`` (missing, unreadable, contradicting) is ``failed``;
 * sim: exit 0 or 1 with a ``scorecard.json`` of kind ``lab_sim_scorecard``, else ``failed``. A ``skipped_projection``
@@ -176,10 +182,12 @@ from . import hosted as lab_hosted
 from . import j1 as lab_j1
 from . import j2 as lab_j2
 from . import j3 as lab_j3
+from . import jt as lab_jt
 from . import l1 as lab_l1
 from . import prereg as lab_prereg
 from .notes import (E2_ABORTED, E3_FAILURES, FAKE_SERVER_NOTE, G0_MODEL_PATH, HARNESS_INTERRUPTED, HARNESS_USAGE,
-                    J1_STOPPED, J2_SHIPPED_STOPPED, J3_EVIDENCE_STOPPED, KILLED_BY_SIGNAL, L1_CHECK_FAILED, L1_INFRA,
+                    J1_STOPPED, J2_SHIPPED_STOPPED, J3_EVIDENCE_STOPPED, JT_NOT_VERIFIED, KILLED_BY_SIGNAL,
+                    L1_CHECK_FAILED, L1_INFRA,
                     L1_NOT_FINISHED, LAB_ROUTING,
                     LOW_PARTICIPATION, NO_MODEL_CALLS, PREREG_MISSING,
                     RESULT_CONTRADICTS_EXIT, RESULT_MISSING, SHARD_INTERRUPTED, SIM_LOW_PARTICIPATION, SIM_PROJECTED,
@@ -201,7 +209,7 @@ ENDPOINT = "lab"
 CENTRAL_ENDPOINT = "lab-central"
 CENTRAL_DEADLINE_S = 3600
 E2_DEADLINE_SECONDS = 3600
-PREREG_EXPERIMENTS = ("e1", "e2", "x1", "j1", "l1", "j2", "j3")
+PREREG_EXPERIMENTS = ("e1", "e2", "x1", "j1", "l1", "j2", "j3", "jt")
 REPLY_PARTICIPATION = ("j1", "l1", "j2", "j3")  # ok counts calls the model answered, an invalid reply after its repair
 PASS_EXPERIMENTS = ("j2", "j3")             # several passes: a pass that did not finish is not judged by the floor
 WARMUP_LEDGER = "server/warmup.ledger.jsonl"
@@ -302,6 +310,7 @@ ADAPTERS = {
                   ("run.json", "verdicts.jsonl", "ledger.jsonl"), ("ledger.jsonl",), "run"),
     "j3": Adapter("j3", "lab.j3", lab_j3.TASKS, lab_j3.BOUNDARY, lab_j1.DEADLINE_S, "run.json",
                   ("run.json", "verdicts.jsonl", "ledger.jsonl"), ("ledger.jsonl",), "run"),
+    "jt": Adapter("jt", lab_jt.CLI, (), "", 0, lab_jt.VERIFY_RESULT, (lab_jt.VERIFY_RESULT,), (), "verify"),
 }
 
 
@@ -338,7 +347,7 @@ def build_argv(unit: Mapping[str, Any], out: Path, routing_path: Path, server_no
                central_routing: Path | None = None) -> list[str]:
     """``[python, -m, <module>, (<subcommand>,) --flag=value ...]``: every option in one element, never a bare value,
     and never the harness option that accepts a dirty tree. A sim, J1, J2 or J3 unit needs ``budget_s`` (its
-    ``--budget-seconds``); E1, E2, X1, J1, L1, J2 and J3 need ``prereg``, the directory holding the plan and its
+    ``--budget-seconds``); E1, E2, X1, J1, L1, J2, J3 and JT need ``prereg``, the directory holding the plan and its
     ``prereg/``.
     ``central_routing`` replaces E2's ``routing/<unit>/central.json`` (the scratch routing of a hosted central
     comparator)."""
@@ -346,7 +355,7 @@ def build_argv(unit: Mapping[str, Any], out: Path, routing_path: Path, server_no
     runs_dir = Path(out) / "work" / unit["unit"]
     adapter = ADAPTERS[unit["experiment"]]
     if unit["experiment"] in PREREG_EXPERIMENTS and prereg is None:
-        raise ValueError("E1, E2, X1, J1, L1, J2 and J3 units need the preregistration directory") from None
+        raise ValueError("E1, E2, X1, J1, L1, J2, J3 and JT units need the preregistration directory") from None
     if unit["experiment"] == "l1":
         if budget_s is None:
             raise ValueError("an L1 unit needs its budget in seconds") from None
@@ -377,6 +386,8 @@ def build_argv(unit: Mapping[str, Any], out: Path, routing_path: Path, server_no
                  ("bootstrap-seed", p["bootstrap_seed"]), ("runs-dir", runs_dir)]
         if E2_CENTRAL_CONTEXT:
             flags.append(("central-context-tokens", p["central_context_tokens"]))
+    elif unit["experiment"] == "jt":
+        flags = [("prereg", prereg / lab_jt.PREREG_FILE), ("run-id", unit["run_id"]), ("runs-dir", runs_dir)]
     elif unit["experiment"] == "x1":
         flags = [("prereg", prereg / "prereg" / "x1" / "x1" / "prereg.json"), ("plant", ROOT / p["plant_path"]),
                  ("seeds", ",".join(str(s) for s in sorted(p["seeds"]))), ("run-id", unit["run_id"]),
@@ -526,6 +537,8 @@ def harness_status(experiment: str, exit_code: int | None, timed_out: bool,
         return _j3_status(exit_code, result)
     if experiment == "l1":
         return _l1_status(exit_code, result)
+    if experiment == "jt":
+        return _jt_status(exit_code, result)
     if experiment == "e2" and exit_code == 1:
         return "failed", E2_ABORTED
     if experiment in ("e1", "e2", "x1"):
@@ -605,6 +618,22 @@ def _j3_status(exit_code: int, result: Any) -> tuple[str, str | None]:
         if by_task[lab_j3.EVIDENCE_TASK] is True and not all(by_task[task] for task in lab_j3.TASKS):
             return "ok", J3_EVIDENCE_STOPPED
         return "failed", J1_STOPPED
+    return "failed", RESULT_CONTRADICTS_EXIT
+
+
+def _jt_status(exit_code: int, result: Any) -> tuple[str, str | None]:
+    """The term run's unit: exit 0 with a ``verify.json`` saying ``verified: true`` is ``ok``; exit 1 with one
+    saying ``verified: false`` is ``failed`` with :data:`~lab.notes.JT_NOT_VERIFIED`; any other pairing is
+    ``failed``."""
+    if exit_code not in (0, 1):
+        return "failed", UNEXPECTED_EXIT
+    if not isinstance(result, dict) or result.get("kind") != lab_jt.VERIFY_KIND \
+            or not isinstance(result.get("verified"), bool):
+        return "failed", RESULT_MISSING
+    if exit_code == 0 and result["verified"] is True:
+        return "ok", None
+    if exit_code == 1 and result["verified"] is False:
+        return "failed", JT_NOT_VERIFIED
     return "failed", RESULT_CONTRADICTS_EXIT
 
 
@@ -869,7 +898,8 @@ def display_class(record: Mapping[str, Any], provenance: Mapping[str, Any] | Non
 def unit_notes(experiment: str, measurement: str, hosted_role: str | None = None,
                public_text: bool = False, msha: bool = False) -> list[str]:
     """The note keys (``notes.NOTES``) of a unit. ``public_text`` (an E1 unit with ``nhtsa`` labels, a J1 unit) swaps
-    ``synthetic`` and ``model_measurement`` for ``public_narratives`` and ``model_measurement_public``. A hosted E1
+    ``synthetic`` and ``model_measurement`` for ``public_narratives`` and ``model_measurement_public``. The term run's
+    unit (``jt``, model-free) gets the public-data note ``public_terms`` (C27), never ``synthetic``. A hosted E1
     endpoint (``hosted_role`` ``endpoint``) drops
     ``runner_hardware`` and adds ``hosted_api`` (unless plumbing) and ``hosted_raw``; a hosted central comparator
     (``central``) adds ``central_hosted`` and ``hosted_raw``. A plumbing unit with a hosted role gets
@@ -879,6 +909,8 @@ def unit_notes(experiment: str, measurement: str, hosted_role: str | None = None
     notes = [plumbing] if measurement == "plumbing" else [model] if measurement == "model" else []
     if experiment == "openfda":
         return [*notes, "public_data"]
+    if experiment == "jt":
+        return [*notes, "public_terms"]
     notes.append("public_msha" if msha else "public_narratives" if public_text else "synthetic")
     if experiment in ("e1", "e2", "e3", "sim", "j1", "l1", "j2", "j3") and hosted_role != "endpoint":
         notes.append("runner_hardware")
