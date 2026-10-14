@@ -70,12 +70,13 @@ with its elapsed time as a lower bound, and each finished question's times besid
 preregistration adds L1's file,
 audit, alert, questions, the comparators' scores, the predicate-only bound and the share of empty draws
 (:func:`_l1_prereg_lines`). JT (accuracy test A003's term run) comes once, in the class section of its display class
-(:func:`_jt_tables`): its label, the term set's full sha256 (between the log markers, C13), whether the unit verified
-it, the cutoff and the window, the archive, the export, the drafting block, the drafter's counts, the refusal's
-counts, the term counts, the check by check, every hash and the step's wall time and peak memory, then the terms note;
-a plan's preregistration adds the same lines (:func:`_jt_lines`). Counts and hashes only: no term is ever shown. The class sections
-come in the order of :data:`CLASS_ORDER`: ``model``, then ``hosted-api`` (hosted API results, never measured on this
-runner), then the rest. A G0 table gains a protocol records column, after its note, when a scan was below the
+(:func:`_jt_tables`): its label, the term set's full sha256 (in the report the log prints between the markers, C13),
+whether the unit verified it, the cutoff and the window, the archive, the export, the drafting block, the drafter's
+counts, the refusal's counts, the term counts, every hash and the step's wall time and peak memory, the check by
+check under its own heading, then the terms note; a plan's preregistration adds the same lines under the same two
+headings (:func:`_jt_prereg_lines`). Counts and hashes only: no term is ever shown. The class sections come in the
+order of :data:`CLASS_ORDER`: ``model``, then ``hosted-api`` (hosted API results, never measured on this runner), then
+the rest. A G0 table gains a protocol records column, after its note, when a scan was below the
 protocol size, and a model path problems column when a row counts them. After the class sections, a sizing table of
 every sim unit (whatever its result) with what it measured and the minutes it suggests for the next request, then the
 E2 sizing table, then (with hosted keys) the hosted calls and estimated cost table followed by its note; the notes add
@@ -552,7 +553,7 @@ def _prereg_section(doc: _Doc, src: Sources) -> None:
     if isinstance(_get(manifest, "l1"), dict):
         _l1_prereg_lines(doc, src, f)
     if isinstance(_get(manifest, "jt"), dict):
-        _jt_lines(doc, src, f, _get(manifest, "jt"), prereg_sha=_get(manifest, "files", JT_PREREG_FILE, "sha256"))
+        _jt_prereg_lines(doc, src, f, _get(manifest, "jt"), _get(manifest, "files", JT_PREREG_FILE, "sha256"))
 
 
 def _j2_exclusion_lines(doc: _Doc, src: Sources, f: str, base: tuple[Any, ...], block: dict[str, Any]) -> None:
@@ -721,11 +722,20 @@ def _jt_lines(doc: _Doc, src: Sources, f: str, jt: dict[str, Any], *, prereg_sha
             f"{n('step', 'wall_s', style='f1')}; {COLUMNS['jt_draft_wall_s']} {n('step', 'draft_wall_s', style='f1')}; "
             f"{COLUMNS['jt_peak_rss']} {n('step', 'peak_rss_kib')}")
     checks = _get(jt, "check", "checks")
+    _heading(doc, "jt-check", 4)
     if isinstance(checks, dict):
         doc.table(["jt_check", "passed", "jt_check_failures"], lambda: (
             [code(name, table=True), yes_no(_get(block, "passed")), n("check", "checks", name, "failures")]
             for name, block in checks.items()))
     doc.add("\n" + JT_TERMS_NOTE)
+
+
+def _jt_prereg_lines(doc: _Doc, src: Sources, f: str, jt: dict[str, Any], prereg_sha: Any) -> None:
+    """A plan's term run preregistration (``prereg/prereg.json``'s ``jt`` block): the label, then :func:`_jt_lines`
+    with the sha of ``prereg/jt/prereg.json``."""
+    _heading(doc, "jt", 4)
+    doc.add("\n" + ids(JT_LABEL))
+    _jt_lines(doc, src, f, jt, prereg_sha=prereg_sha)
 
 
 def _jt_tables(doc: _Doc, src: Sources, jt: dict[str, Any]) -> None:

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "purpose": "Accuracy test A003's term run (docs/collective/A003/CHOICE-A003.md, amended before any build): the plan job drafts the term set from the six makes' public NHTSA complaints received before the judged window's first day with the onboard drafter unchanged, checks its privacy floor and pins its sha for a dated amendment; no model runs and nothing is drawn, so the one listed model is never served. Copy to lab/requests/terms-003.json.",
+  "purpose": "The term run of docs/collective/A003/CHOICE-A003.md (amended before any build): the plan job drafts the term set from the six makes' public NHTSA complaints received before the judged window's first day with the onboard drafter unchanged, checks its privacy floor and pins its sha for a dated amendment; no model runs and nothing is drawn, so the one listed model is never served. Copy to lab/requests/terms-003.json.",
   "provider": "llama-server",
   "models": [
     "a-4b"

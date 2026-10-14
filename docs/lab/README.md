@@ -50,6 +50,12 @@ model. The experiments:
   the unclear-to-no mapping and a lexical composite with its two ablations; nine arms, one primary pair, and the
   verdict word of the pinned rule computed by the aggregate. Its template is `lab/templates/accuracy-002.json`
   (copy it to `lab/requests/accuracy-002.json`).
+- JT: accuracy test A003's term run, which runs no model and draws nothing: the plan job drafts the term set the
+  judging run will read, with the onboard package's drafter, unchanged, from the six makes' public complaints
+  received before the judged window, checks the drafted pack's privacy floor against the same complaints, and pins
+  the term set's sha256; its one unit verifies the term set against that pin. The terms stay in the plan artifact
+  and never appear in a summary, a log line or the repository. Its template is `lab/templates/terms-003.json` (copy
+  it to `lab/requests/terms-003.json`).
 
 ## What a run costs
 
@@ -308,6 +314,11 @@ What each experiment's numbers mean and do not mean. Each label below is printed
   headline secondary's word beside the primary's; a dry run uses test artifacts and says so:
 - `J3_LABEL`: {j_three} here asks one model the site verifier's narrow question about a fresh draw of real public NHTSA complaint narratives with two earlier cycles' records excluded, one record at a time with its codes hidden, three times: under the lab-side negation instruction, under that instruction with an evidence field that asks for a verbatim passage of the record, and under it with an analysis field written before the answers; each verdict is scored against the components the complaint was filed under (filed codes, not human-checked labels), by the product's own verdict rule on the answers as answered and, as declared secondaries, after the grounding check (a yes whose passage is not in the record read as a no), after the unclear-to-no mapping, and in a composite that confirms wherever the lexical judge does.
 - `J3_STAND_IN`: Plumbing: test artifacts stood in for both excluded runs (lab.dryrun with test data), so the exclusion checks here test the lab, not the excluded runs.
+- JT, the term run, drafts the term set in the plan job and prints counts, dates and hashes only, never a term;
+  `{j_t}` stands for JT. A failed privacy check or a draft that did not finish stops the plan before the term set is
+  written; the report gives the term set's full sha256, which a dated amendment of the rule commits before the
+  judging run:
+- `JT_LABEL`: {j_t} here drafts the term set of the third accuracy cycle in the plan job, before any model runs: the onboard package's drafter, unchanged, reads the six makes' public NHTSA complaints received before the first day of the judged window as one pooled export, its privacy check reads the drafted pack against the same export, and the term set is the drafted vocabulary of each of the hand pack's specific components. No model runs and nothing is drawn; the one unit only verifies the term set against its preregistration.
 
 Every column and its meaning is in [REFERENCE.md](REFERENCE.md#columns), and every label in
 [REFERENCE.md](REFERENCE.md#labels). The columns `found net of chance`, `chance finds` and `model path problems`
@@ -438,6 +449,9 @@ the message fills in.
 | `an earlier cycle's set could not be established: neither its artifact nor its rebuild verified and the chain could not give it; the plan job stops before any model runs and the loop asks (the second accuracy test's rule, The data and the draw, as amended)` | Nothing ran. The plan job's log names the source that did not verify (`j3 exclusion: source ...`) and how each cycle was or was not established; check that entry of the request's `exclude` list against the earlier run (its id, artifact name, file, sha256 prefix, rebuild seed and prefix, and for the second entry the chain file and its prefix), or whether the artifact has expired; the rule's amendment says what the loop asks. |
 | `the verified sources of the earlier cycles disagree: a consistency count is above zero; the plan job stops before any model runs` | Nothing ran. Two verified sources of the earlier cycles name different records: the request names the wrong run or file, or the complaint file changed under a rebuild. The plan job's log prints the four consistency counts; fix the `exclude` entry. |
 | `fewer eligible records remain after both earlier cycles' exclusion than the draw needs; no further fresh draw is pre-registered` | Nothing ran, and the rule says no further fresh draw of this size exists after both earlier cycles' exclusion: a new choice file decides what comes next. |
+| `the drafted pack failed the privacy check against its export (the loader, the term floor, the value floor, the refused strings or terms, the template rebuild or the n-gram scan); the term run stops before its term set is written, and the loop asks` | Nothing ran and no term set was written. The drafted pack failed the check: the loop asks; the drafter's parameters are the rule's and are not changed for a run. |
+| `the draft and its check did not finish: the drafter refused the export, the step ran out of time or memory, or it wrote no result; the term run stops before its term set is written, and the remedy is a reviewed workflow change, never a drafter parameter` | Nothing ran and no term set was written. Read the plan job's log for the step's exit: a timeout or an out-of-memory exit needs a reviewed workflow change, never a drafter parameter. |
+| `the term run's unit did not verify the term set against its preregistration: a hash, the drafted pack rebuilt from the hand pack and the term set, or this module's code hash differs` | Do not record the term set's sha256: within one run the plan job and the unit read the same commit, so a difference is a lab fault to fix through a reviewed change before the term request runs again. |
 | `the canary scan found no leak, but its model path had problems, so it did not test the model in the loop` | Read the listed problems and the unit's ledgers; run again against a healthy server. |
 | `openFDA stayed unreachable from this runner after the connector's retries` | Run again later. |
 | `openFDA kept refusing requests as too many after the connector's retries: add the MYCELIC_LAB_OPENFDA_API_KEY repository secret, lower max_records_per_code or product_codes, or run again later` | Follow the message. |
