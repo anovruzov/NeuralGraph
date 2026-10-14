@@ -410,6 +410,17 @@ JT_FETCH_FAILED = ("the plan job could not fetch or read NHTSA's complaint archi
                    "request may run again")
 JT_NOT_VERIFIED = ("the term run's unit did not verify the term set against its preregistration: a hash, the drafted "
                    "pack rebuilt from the hand pack and the term set, or this module's code hash differs")
+J4_TERMS_UNVERIFIED = ("the term run's artifact did not verify: it is absent or expired, its term set does not hash to "
+                       "the committed sha, its cutoff, window, makes or hand pack hashes are not the rule's, its "
+                       "drafting files do not match it, the term module at this commit has another code hash than the "
+                       "term set records, or the drafted pack rebuilt from it has another vocabulary hash; the plan "
+                       "job stops before any draw and any model, and the loop asks (the third accuracy test's rule, "
+                       "The terms, item ten)")
+J4_SPLIT_VIOLATED = ("the received-date split did not hold: the drafting set rebuilt from this day's archive differs "
+                     "from the term run's on the same archive or cannot be rebuilt, or a drawn record was received "
+                     "before the cutoff or is a drafting record by its id or its narrative; the plan job stops before "
+                     "any model runs, and the loop asks (the third accuracy test's rule, The data and the draw, item "
+                     "eight)")
 L1_LABEL = ("{l_one} here times the product's whole pushdown path on a real alert of MSHA's public accident file: HQ "
             "forms the narrow question, each routed mine's verifier judges its own records with the model inside the "
             "mine, one mine after another, and the commit gate decides. Each mine's verdict is scored against the key "

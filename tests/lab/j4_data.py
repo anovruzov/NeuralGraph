@@ -31,6 +31,28 @@ writes ``DIR/complaints.zip``, a complaint archive in NHTSA's flat layout, every
 
 The archive's one entry carries a fixed timestamp (:data:`ZIP_DATE`), so equal arguments give equal bytes and an
 equal sha256. ``lab.dryrun --jt-data DIR`` hands ``DIR/complaints.zip`` to ``lab.prereg --nhtsa-archive``.
+
+For the judging kind ``j4`` (build 2), :func:`write_data` also writes, from the same archive and every value invented:
+
+* ``DIR/earlier/<run id>/prereg/...``, three synthetic earlier artifacts built by the pinned code: the J001-shaped one
+  (``j2_data.earlier_artifact``: ``goldlabels.build_labels`` of 150 at seed 1), the A001-shaped one
+  (``j3_data.a001_artifact``: ``lab.j2labels.build_labels`` of 150 at seed 2 less J001's refs, its questions and the
+  chain of both draws) and the A002-shaped one (:func:`a002_artifact`: ``lab.j2labels.build_labels`` of 150 at seed 3
+  less both sets, ``lab.j1.build_questions`` at seed 3 in five parts, ``prereg/j3/`` files and the chain of the three
+  draws, 450 lines), each with its manifest ``prereg/prereg.json``;
+* ``DIR/stand-in.json``, the three-entry exclude list (:func:`stand_in`) whose prefixes are the synthetic files', so
+  every one of the eight sources verifies on this archive; the third entry also carries
+  ``questions_sha256_prefix``, the synthetic A002 questions file's prefix, which a stand-in (never a request) hands
+  to the check in place of A002's pinned one (C3);
+* ``DIR/terms/<run id>/prereg/...``, a synthetic term artifact (:func:`term_artifact`): the term run's files written as
+  ``lab.prereg``'s term step writes them, drafted from the archive's pre-cutoff rows by the real drafter through
+  ``lab/jt.py`` (``pooled_export``, ``run_draft``, ``p_d_hashes``, ``terms_document``), with its manifest;
+* ``DIR/terms-stand-in.json``, the term entry that names it (:func:`term_artifact`'s return: the run, the artifact,
+  the file, the term set's full sha256, P_D's ``vocabulary_hash`` and the cutoff).
+
+The synthetic J001 draw holds the two straddling complaints and the A001 draw the repeated narrative's 2023
+complaint; the boundary complaint received on 2023-01-01 (:data:`BOUNDARY_ODINOS`) is in no earlier draw and repeats
+the narrative of the drafting window's two boundary complaints, so the split removes it by text (C4).
 """
 from __future__ import annotations
 
@@ -39,14 +61,24 @@ import functools
 import io
 import json
 import random
+import shutil
 import sys
+import tempfile
 import zipfile
 from datetime import date, timedelta
 from pathlib import Path
+from typing import Any
+
+from mycelic.collective.jsonio import canonical_dumps, sha256_hex
+from mycelic.collective.packs import loader
 
 from lab import goldlabels
-from lab.goldlabels import NHTSA_MAKES
-from tests.lab import j2_data
+from lab import j1 as lab_j1
+from lab import j2labels
+from lab import jt as lab_jt
+from lab.goldlabels import NHTSA_MAKES, NHTSA_PACK
+from tests.lab import j2_data, j3_data
+from tests.lab.j2_data import _write
 
 PER_MAKE = 120
 ZIP_DATE = (2024, 1, 1, 0, 0, 0)
@@ -161,15 +193,122 @@ def archive(per_make: int = PER_MAKE, seed: int = 1) -> bytes:
     return buf.getvalue()
 
 
+# --------------------------------------------------------------------------------------------------- build 2 (j4)
+
+J001_RUN_ID = j3_data.J001_RUN_ID
+A001_RUN_ID = j3_data.A001_RUN_ID
+A002_RUN_ID = j2_data.RUN_ID + 2           # synthetic run ids: no GitHub run has them
+TERMS_RUN_ID = j2_data.RUN_ID + 3
+A002_ARTIFACT = f"lab-plan-{A002_RUN_ID}-1"
+TERMS_ARTIFACT = f"lab-plan-{TERMS_RUN_ID}-1"
+J3_LABELS_FILE = "prereg/j3/labels.jsonl"
+J3_CHAIN_FILE = "prereg/j3/excluded.jsonl"
+SPLIT_BY_TEXT = (BOUNDARY_ODINOS["2023-01-01"],)    # removed by text from the eligible list less the 450 (C4)
+
+
+def _manifest(base: Path, files: dict[str, dict[str, Any]], **blocks: Any) -> None:
+    manifest = {"schema_version": 1, "kind": "lab_prereg", "plan_sha256": "0" * 64,
+                "files": dict(sorted(files.items())), "e1": None, "x1": None, "e2": None, "j1": None, "l1": None,
+                "j2": None, **blocks}
+    _write(base / "prereg" / "prereg.json", (canonical_dumps(manifest) + "\n").encode("utf-8"))
+
+
+def a002_artifact(directory: Path, blob: bytes, excluded: set[str], run_id: int = A002_RUN_ID, *, n: int = 150,
+                  seed: int = 3, parts: int = 5) -> dict[str, Any]:
+    """A stand-in for A002's plan artifact under ``directory/<run id>/`` (see the module docstring), built by the
+    pinned code: ``lab.j2labels.build_labels`` of ``n`` at ``seed`` less ``excluded`` (J001's and A001's refs),
+    ``lab.j1.build_questions`` at ``seed`` in ``parts`` parts and the chain of the three draws; returns the third
+    exclude entry, with the synthetic questions file's prefix as ``questions_sha256_prefix``."""
+    pack = loader.load_pack(j2_data.ROOT / NHTSA_PACK)
+    data, record = j2labels.build_labels(NHTSA_PACK, n, seed, fetch=lambda: blob, excluded=excluded,
+                                         mechanisms={"artifact": "verified", "rebuild": "verified"})
+    questions_bytes, questions = lab_j1.build_questions(pack, data, seed=seed, parts=parts)
+    drawn = {r["record_ref"] for r, _ in lab_j1.parse_labels(data)}
+    chain = j2labels.excluded_jsonl(set(excluded) | drawn)
+    base = directory / str(run_id)
+    files = {
+        J3_LABELS_FILE: _write(base / "prereg" / "j3" / "labels.jsonl", data),
+        "prereg/j3/labels.json": _write(base / "prereg" / "j3" / "labels.json",
+                                        (canonical_dumps(record) + "\n").encode("utf-8")),
+        "prereg/j3/questions.jsonl": _write(base / "prereg" / "j3" / "questions.jsonl", questions_bytes),
+        "prereg/j3/questions.json": _write(base / "prereg" / "j3" / "questions.json",
+                                           (canonical_dumps(questions) + "\n").encode("utf-8")),
+        J3_CHAIN_FILE: _write(base / "prereg" / "j3" / "excluded.jsonl", chain),
+    }
+    _manifest(base, files, j3={"prereg": "prereg/j3/prereg.json"})
+    sha = files[J3_LABELS_FILE]["sha256"]
+    return {"run_id": run_id, "artifact": f"lab-plan-{run_id}-1", "file": J3_LABELS_FILE, "sha256_prefix": sha[:12],
+            "rebuild_seed": seed, "rebuild_sha256_prefix": sha[:12], "chain_file": J3_CHAIN_FILE,
+            "chain_sha256_prefix": sha256_hex(chain)[:12],
+            "questions_sha256_prefix": files["prereg/j3/questions.jsonl"]["sha256"][:12]}
+
+
+def refs_in(directory: Path, run_id: int, rel: str) -> set[str]:
+    """The refs of a synthetic artifact's labels file."""
+    return {r["record_ref"] for r, _ in lab_j1.parse_labels((directory / str(run_id) / rel).read_bytes())}
+
+
+def stand_in(directory: Path, blob: bytes) -> list[dict[str, Any]]:
+    """The three synthetic earlier artifacts under ``directory`` and the three-entry exclude list that names them
+    (J001's and A001's as ``j3_data.stand_in`` makes them, then A002's)."""
+    first, second = j3_data.stand_in(directory, blob)
+    j001 = refs_in(directory, J001_RUN_ID, j2_data.LABELS_FILE)
+    a001 = refs_in(directory, A001_RUN_ID, j3_data.J2_LABELS_FILE)
+    return [first, second, a002_artifact(directory, blob, j001 | a001)]
+
+
+def term_artifact(directory: Path, blob: bytes, run_id: int = TERMS_RUN_ID) -> dict[str, Any]:
+    """A synthetic term artifact under ``directory/<run id>/`` (see the module docstring): the term run's files as
+    ``lab.prereg``'s term step writes them, the draft and its check run in this process by ``lab.jt.run_draft`` (the
+    real drafter); returns the term entry that names it."""
+    base = directory / str(run_id)
+    work = Path(tempfile.mkdtemp(prefix="j4-data-terms-"))
+    try:
+        pooled = lab_jt.pooled_export(blob)
+        refs_bytes = lab_jt.drafting_refs_bytes(pooled.export)
+        text_bytes = lab_jt.drafting_text_bytes(pooled.export)
+        (work / "export.csv").write_bytes(pooled.data)
+        if lab_jt.run_draft(work / "export.csv", work / "draft") != lab_jt.EXIT_OK:
+            raise AssertionError("the synthetic draft did not pass its check")
+        draft = json.loads((work / "draft" / lab_jt.DRAFT_RESULT).read_text(encoding="utf-8"))
+        p_d = lab_jt.p_d_hashes(draft["terms"])
+        terms = lab_jt.terms_document(archive=blob, pooled=pooled, refs_bytes=refs_bytes, text_bytes=text_bytes,
+                                      draft=draft, p_d=p_d, hand=lab_jt.hand_pack().hashes())
+        terms_bytes = lab_jt.document_bytes(terms)
+        terms_sha = sha256_hex(terms_bytes)
+        shutil.copytree(work / "draft" / "pack", base / lab_jt.PACK_DIR)
+    finally:
+        shutil.rmtree(work, True)
+    _write(base / lab_jt.TERMS_FILE, terms_bytes)
+    _write(base / lab_jt.DRAFTING_REFS_FILE, refs_bytes)
+    _write(base / lab_jt.DRAFTING_TEXT_FILE, text_bytes)
+    _write(base / lab_jt.CHECK_FILE, (canonical_dumps(lab_jt.check_counts(draft["check"])) + "\n").encode("utf-8"))
+    prereg = lab_jt.prereg_doc(terms, terms_sha, refs_bytes, text_bytes, code_commit="synthetic", code_dirty=None)
+    _write(base / lab_jt.PREREG_FILE, (canonical_dumps(prereg) + "\n").encode("utf-8"))
+    files = {path.relative_to(base).as_posix(): {"sha256": sha256_hex(path.read_bytes()),
+                                                 "bytes": len(path.read_bytes())}
+             for path in sorted((base / "prereg").rglob("*")) if path.is_file()}
+    _manifest(base, files, jt={"prereg": lab_jt.PREREG_FILE, "terms_sha256": terms_sha})
+    return {"run_id": run_id, "artifact": f"lab-plan-{run_id}-1", "file": lab_jt.TERMS_FILE, "sha256": terms_sha,
+            "vocabulary_hash": p_d["vocabulary_hash"], "cutoff": lab_jt.CUTOFF_ISO}
+
+
 def write_data(out: Path, *, seed: int = 1, per_make: int = PER_MAKE) -> Path:
-    """``DIR/complaints.zip`` and ``DIR/facts.json`` (the cases' counts the tests read); returns ``out``."""
+    """``DIR/complaints.zip`` and ``DIR/facts.json`` (the cases' counts the tests read), and for the judging kind the
+    three earlier artifacts under ``DIR/earlier/``, ``DIR/stand-in.json``, the term artifact under ``DIR/terms/`` and
+    ``DIR/terms-stand-in.json``; returns ``out``."""
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "complaints.zip").write_bytes(archive(per_make, seed))
+    blob = archive(per_make, seed)
+    (out / "complaints.zip").write_bytes(blob)
     facts = {"per_make": per_make, "seed": seed, "reached": list(REACHED), "straddling": len(STRADDLING_ODINOS),
              "cross_make_duplicates": 1, "earliest_received": FROM_DAY, "latest_received": LAST_DAY,
              "placeholder_predicate": PLACEHOLDER_PREDICATE}
     (out / "facts.json").write_text(json.dumps(facts, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    entries = stand_in(out / "earlier", blob)
+    (out / "stand-in.json").write_text(json.dumps(entries, indent=1) + "\n", encoding="utf-8")
+    term = term_artifact(out / "terms", blob)
+    (out / "terms-stand-in.json").write_text(json.dumps(term, indent=1) + "\n", encoding="utf-8")
     return out
 
 
@@ -180,7 +319,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--per-make", type=int, default=PER_MAKE)
     args = p.parse_args(argv)
     out = write_data(Path(args.out), seed=args.seed, per_make=args.per_make)
-    print(f"wrote {out} (synthetic: every value invented)")
+    print(f"wrote {out} (synthetic: every value invented; the earlier and term artifacts stand in for no real run)")
     return 0
 
 
