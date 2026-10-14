@@ -1379,6 +1379,9 @@ synthetic worlds describe synthetic worlds.
 | term-presence judge balanced accuracy | the drafted term-presence judge's balanced accuracy on the arm's records | a model result |
 | minus the term-presence judge, paired by record | the arm's balanced accuracy minus the term-presence judge's, record by record, with its paired interval: the other added clause of C6 | a difference on another set of records |
 | word under lever five's text alone | the verdict word under lever 5's text alone: A001's word with the drafted lexical judge, without the added clauses (C6) | the verdict word, which is the one beside it |
+| headline against the hand lexical judge | J1's headline for the headline arm and the headline secondary read against the hand pack's lexical judge instead of the drafted one (rule 11), beside the headline | the headline, which is read against the drafted lexical judge |
+| headline against the term-presence judge | J1's headline for the headline arm and the headline secondary read against the drafted term-presence judge (rule 11), beside the headline | the headline, which is read against the drafted lexical judge |
+| questions sha | the first twelve hex digits of the questions file's sha256 that B1 (the second accuracy test's artifact) was checked against: A002's pinned prefix, or a dry run stand-in's (C3) | n/a: not a number |
 | verdicts equal to the judge's | the share of the kind's questions on which the primary arm's verdict equals the judge's, with the count | agreement with the truth |
 | confirms where the judge confirms | how often the primary arm confirms where the judge confirms, with the counts | a sensitivity |
 | confirms where the judge refutes | how often the primary arm confirms where the judge refutes, with the counts | a false positive rate |
