@@ -48,6 +48,18 @@ jobs:
       - name: tests/routing_spike
         if: ${{ !cancelled() }}
         run: python -m research.e2e_ingest suites --out suites --suite tests/routing_spike
+      - name: the failing tests by id, when a suite is red (the junit files hold them; this prints their ids)
+        if: failure()
+        run: |
+          python - <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          for path in sorted(glob.glob("suites/*.xml")):
+              for case in ET.parse(path).iter("testcase"):
+                  for bad in case:
+                      if bad.tag in ("failure", "error"):
+                          first = (bad.get("message") or "").splitlines()[:1]
+                          print(f"{bad.tag.upper()} {case.get('classname')}::{case.get('name')}: {first[0][:200] if first else ''}")
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -78,6 +90,18 @@ jobs:
       - name: research/mycelic/test_mycelic.py
         if: ${{ !cancelled() }}
         run: python -m research.e2e_ingest suites --out suites --suite research/mycelic/test_mycelic.py
+      - name: the failing tests by id, when a suite is red (the junit files hold them; this prints their ids)
+        if: failure()
+        run: |
+          python - <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          for path in sorted(glob.glob("suites/*.xml")):
+              for case in ET.parse(path).iter("testcase"):
+                  for bad in case:
+                      if bad.tag in ("failure", "error"):
+                          first = (bad.get("message") or "").splitlines()[:1]
+                          print(f"{bad.tag.upper()} {case.get('classname')}::{case.get('name')}: {first[0][:200] if first else ''}")
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -105,6 +129,18 @@ jobs:
           nats-server --version
       - name: tests/e2e_ingest
         run: python -m research.e2e_ingest suites --out suites --suite tests/e2e_ingest
+      - name: the failing tests by id, when a suite is red (the junit files hold them; this prints their ids)
+        if: failure()
+        run: |
+          python - <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          for path in sorted(glob.glob("suites/*.xml")):
+              for case in ET.parse(path).iter("testcase"):
+                  for bad in case:
+                      if bad.tag in ("failure", "error"):
+                          first = (bad.get("message") or "").splitlines()[:1]
+                          print(f"{bad.tag.upper()} {case.get('classname')}::{case.get('name')}: {first[0][:200] if first else ''}")
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
