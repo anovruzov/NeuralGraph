@@ -220,6 +220,16 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   block's sha256 matched on recomputation. The rule is amended after the term run (3d73f93): the term set's sha256
   42c591ccbb66…, P_D's hashes, the counts, lab/jt.py frozen; the term artifact expires 2027-01-12T18:09:48Z. Next:
   build 2 (the judging kind j4), two reviews, the fix stage; then the judging request accuracy-003 alone.
+- 2026-10-14 19:27 CI on d270bd3 (the build 1 merge) is red in two places, both being diagnosed, neither fixed yet:
+  mycelic run 38612799645 failed one timing test, tests/mycelic/test_api.py
+  test_verification_never_holds_the_event_loop (the loop stalled 0.258 s against a bound of half a walk, 0.242 s; the
+  same test passed in the e2e-ingest core job on the same commit), and e2e-ingest run 38612799316 failed 2 of 918
+  tests/lab tests, named only in its junit artifact, which this sandbox cannot download. The 191 tests that build 1
+  added or changed pass in a fresh shallow clone; the whole tests/lab is re-running there with CI's suite command,
+  which writes the junit locally. A003 build 2: stage 1, the core (lab/j4.py, lab/j4labels.py, lab/j4terms.py,
+  tests), committed at c1d4fec on wf/a003; stage 2, the wiring, is running. A004's rule (lever 6, a-4b with
+  reasoning on) drafted alone at e6b9a45 on wf/a004-design while build 2 runs, as A003's was during A002; three
+  reviews, then an amendment; it fixes now how it adapts to every A003 outcome.
 
 ## Open asks (date asked)
 
