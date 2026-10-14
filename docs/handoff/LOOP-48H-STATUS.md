@@ -197,6 +197,15 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   comparisons this cycle, 21 since the loop began. Recorded in CHOICE-A002 Run 1, RESULTS run 12 and the YC brief
   (branch wf/record-a002). A003 inherits: under its draft's adaptation rule (wf/a003-design, efa79fe, in review) the
   base task is A001's negation task, with the unclear-to-no mapping as its declared reading.
+- 2026-10-14 14:00 A002's record merged (71d1993: the record c50b76e after an adversarial check, 0 blocking and 8
+  minor findings applied; guards and lab docs tests 132 passed, the rule's reference tests 10 passed; pushed). A003's
+  rule amended before any build: the feasibility review re-ran after the outage, then 32 amendments (C1 to C32,
+  7daab37) answered 11 blocking and 44 smaller findings from the three reviews; A002's result was known when they were
+  written and is quoted in the amendment's preamble, no amendment changed which branch A002's figures select, and
+  "The base task, read from A002 run 1" records branch N (A001's negation task; the unclear-to-no reading secondary).
+  Merged as ed96530 (docs only, the name guard passed) and pushed. Build 1, the term-drafting kind jt, started on
+  wf/a003-terms with step 0 first (A002's dry-run outputs pinned byte for byte, C30); then two adversarial reviews
+  and a fix stage; then the term run, an amendment with the term set's sha256, and build 2 (the judging kind j4).
 
 ## Open asks (date asked)
 
