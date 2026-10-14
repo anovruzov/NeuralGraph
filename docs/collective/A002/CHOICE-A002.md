@@ -1029,23 +1029,205 @@ The build starts only after this rule's review and any amendment are committed. 
 
 ## Runs
 
-None yet. The first run's entry will hold: the lab run id, the request file and its sha256, the commits of the rule,
-its amendments and the request; the plan job's fixed line (`available`, excluded 300, eligible after exclusion,
-overlap 0, the outcome of each of the five sources with any by-chain reading named and the consistency counts
-computed (B5), the labels' sha256 prefix, the questions' prefix, the prereg prefix, the chain file's prefix with its
-line count, the complaint file's prefix beside `a5a5de2d31f3…`; on a re-run after a plan job printed, both plan
-jobs' lines and both comparator prints, B13); the comparators and both ablations on the fresh draw with intervals,
-and the lexical judge's unknown count on this draw with which ablation-A case held (B8); the nine arms' table
-(balanced accuracy with interval, sensitivity, specificity, unknown share, the paired difference to the lexical
-judge, the bound on the same records, the pass test, the verdict word; for C and Cm the two ablation differences);
-the verdict on P = (a-4b, E) in rule 12's words with its figures, and Eg's verdict word beside it labelled "the
-primary under the other reading of the section 7 default" (B1); the headline for E with Eg's line beside it; the
-lifts of rule 10 with their readings;
-the grounded shares by kind, the empty-citation share, the citation lengths, the task R token figures and cut counts,
-the first-key shares per task; N and D beside A001 run 1's arms C and D as a between-draw difference; the parts
-finished per task and `records left out` per arm; anything that stopped before a model ran; the model-call latency
-per task with the runner CPU; the comparison count ("9 this cycle, 21 since the loop began"); and the public-text
-sentence.
+### Run 1 (lab run 38439612256, 2026-10-13)
+
+**The run.** Lab run [38439612256](https://github.com/anovruzov/NeuralGraph/actions/runs/38439612256) (workflow
+`mycelic-lab`), created 17:33:27 UTC, completed `success` at 18:23:04 UTC. Request `lab/requests/accuracy-002.json`,
+sha256 `77173e537c9f25550e322dcda2743ea9f61fba92d3928f45cda928b129447ee9`, pushed alone as commit `5a8f980` at
+17:33:21 UTC. Before the run, in this order: the rule `b0f12bd`, amended `284b375` (B1 to B25) before any build; the
+build `6be0b0b` (the lab kind `j3`), its reviews, the fix `70d269d` and the merge `6c8553d`; the code push `cbdd3c7`.
+The standing section 7 default held (no chief-scientist call arrived before the request push), so P = (a-4b, E
+`evidence`) and Eg is the headline secondary, as B1 says. Plan job 115442458382 (17:33:30 to 17:34:58, success),
+plan sha256 `b949c7204f270ef37e184892285f618faef0b820d836f823c17ea655b5a1727a`: it downloaded J001's plan artifact
+`lab-plan-37996675559-1` (artifact id 11647645214) and A001's `lab-plan-38114522160-1` (artifact id 11693535286),
+both digests verified by the download step, and uploaded this run's `lab-plan-38439612256-1` (artifact id
+11833749961, 19 files, 74,062 bytes); its plan summary block is 58 lines with sha256 `24c4593090e1…`. Provision jobs
+115443156784 (the server, 17:35:02 to 17:35:17) and 115443156973 (the a-4b model file, 17:35:02 to 17:35:29): both
+files from the cache, verified by the lock (server `2cda5ff93639`, a-4b `7485fe6f11af`), lock status `unchanged`,
+0 new entries. Five shards, `s001-a-4b` to `s005-a-4b` (jobs 115443387591, 115443387490, 115443387481,
+115443387596 and 115443387585), all started at 17:35:32, attempt 1, all `sealed` with exit code 0; they finished at
+18:09:13, 18:21:19, 18:09:15, 18:21:50 and 18:06:53. Aggregate job 115464859031 (18:21:53 to 18:23:04, success); its
+log prints `report/report.md` between the `MYCELIC-LAB` markers as 144 lines with sha256 `58325c34d6bf…`, matching
+(recomputed from the log's lines with the timestamp prefix stripped and a trailing newline, as `lab/summary.py`
+computes it), and `report/lock-candidate.json` as 42 lines with sha256 `a153a34a1a5d…`, matching on the same
+recomputation; its INDEX line reads `report/report.json=13422 report/report.md=144 report/lock-candidate.json=42`.
+The `report/report.json` block begins before the readable tail of the log, so its sha256 is not verified here, and
+no figure below is taken from it. Every figure below is copied from the report block or from the plan job's log.
+
+**The plan job's fixed line**, printed before any model ran, in the log's own words: `j3 draw: available 58319
+excluded 300 eligible_after_exclusion 58019 overlap 0 sources J1=verified R1=verified A1=verified R2=verified
+K=verified j001=artifact a001=artifact consistency j1_r1=0 a1_r2=0 outside_chain=0 chain_union=0 labels_sha256
+0a64a62d94a7 questions_sha256 84486fa38568 excluded_sha256 65d51f0fca51 excluded_lines 450 complaint_file_sha256
+216ecb36f9f5`. That is: `available` 58319; excluded 300; eligible after exclusion 58019; overlap with the excluded set
+0; all five sources `verified`, J1, R1, A1 and R2 with 150 refs each and K with 300 (the plan summary's counts);
+J001's set established by its artifact and A001's set by its artifact, with no by-chain reading used; the consistency
+counts `j1_r1` 0, `a1_r2` 0, `outside_chain` 0 and `chain_union` 0, all computed (B5); labels sha256
+`0a64a62d94a7…` (150 records, seed 3); questions sha256 `84486fa38568…` (300 questions in 5 parts); prereg sha256
+`47bba18a0d35…` (the plan summary block); the chain file `prereg/j3/excluded.jsonl` sha256 `65d51f0fca51…` with 450
+lines; complaint file sha256 `216ecb36f9f5…` beside A001's `a5a5de2d31f3…`. The two complaint-file prefixes differ,
+which by trap 17 reports a file changed since A001's day; the exclusion works on refs, and here both artifacts and
+both rebuilds verified, so the plan job's exclusion verified both earlier draws against the file as published on the
+day. There was one plan job and no re-run, so B13's case of two plan jobs' lines does not arise. Cycles established, as the plan
+summary printed them: `j001` by `artifact` (150 refs), `a001` by `artifact` (150 refs). Every task set finished 5 of
+5 parts, and `records left out` is 0 in every arm.
+
+**The comparators and both ablations on the fresh draw** (plan job, every record: the same 150 records and 300
+questions every arm scored, since no record was left out):
+
+| Comparator | Balanced accuracy [95% interval] |
+|---|---|
+| Lexical judge | 0.680 [0.637, 0.723] |
+| Record-blind control (decides nothing) | 0.517 [0.460, 0.573] |
+| Predicate-only bound (a fitted point value, decides nothing) | 0.553 |
+| Ablation A, `lexical_or_no` (the composite arms' extra clause only) | 0.680 [0.637, 0.723] |
+| Ablation B, `lexical_or_record_blind` (the composite arms' extra clause only) | 0.627 [0.573, 0.680] |
+
+The lexical judge's unknown count on this draw is 0 (the plan job: `lexical_unknown 0`), so B8's case without a
+lexical `unknown` held: ablation A is the lexical judge's verdicts line for line, its balanced accuracy and interval
+are the lexical judge's, and `C_minus_ablation_A` equals C minus the lexical judge to the record (-0.110 [-0.160,
+-0.060] both; for Cm -0.087 [-0.137, -0.040] both). The ablation-A clause repeated the pass test's lexical clause, and
+the clause that added a test was ablation B's.
+
+**The nine arms** on a-4b, on the same records (cluster bootstrap over records, B 10,000; the paired differences are
+the arm minus the lexical judge, ablation A or ablation B, record by record; the lexical judge scored 0.680 on every
+arm's records; the pass test is rule 12's, the verdict word rule 12's in the order `incomplete`, `pass_provisional`,
+`partial`, `failure`; P in bold):
+
+| Arm | Task, reading | Balanced accuracy [95% interval] | Sensitivity | Specificity | Unknown share | Minus the lexical judge [interval] | Minus ablation A [interval] | Minus ablation B [interval] | Bound on the same records | Parts finished | Records left out | Pass test | Verdict word |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| N `negation` | N, as answered | 0.633 [0.590, 0.677] | 0.907 | 0.360 | 0.090 | -0.047 [-0.103, 0.010] | | | 0.553 | 5 of 5 | 0 | no | `failure` |
+| D `negation_mapped` | N, M | 0.687 [0.643, 0.730] | 0.907 | 0.467 | 0.017 | 0.007 [-0.050, 0.063] | | | 0.553 | 5 of 5 | 0 | no | `failure` |
+| **E `evidence` (P)** | **E, as answered** | **0.540 [0.503, 0.577]** | 0.900 | 0.180 | 0.130 | **-0.140 [-0.190, -0.090]** | | | 0.553 | 5 of 5 | 0 | **no** | **`failure`** |
+| Eg `evidence_grounded` (headline secondary) | E, G | 0.553 [0.517, 0.590] | 0.887 | 0.220 | 0.130 | -0.127 [-0.177, -0.073] | | | 0.553 | 5 of 5 | 0 | no | `failure` |
+| Egm `evidence_grounded_mapped` | E, G then M | 0.577 [0.543, 0.613] | 0.887 | 0.267 | 0.090 | -0.103 [-0.153, -0.053] | | | 0.553 | 5 of 5 | 0 | no | `failure` |
+| R `rationale` | R, as answered | 0.590 [0.557, 0.623] | 0.980 | 0.200 | 0.143 | -0.090 [-0.140, -0.040] | | | 0.553 | 5 of 5 | 0 | no | `failure` |
+| Rm `rationale_mapped` | R, M | 0.610 [0.573, 0.647] | 0.980 | 0.240 | 0.120 | -0.070 [-0.123, -0.017] | | | 0.553 | 5 of 5 | 0 | no | `failure` |
+| C `composite` | E, the lexical judge's confirm, else Eg | 0.570 [0.530, 0.610] | 0.927 | 0.213 | 0.127 | -0.110 [-0.160, -0.060] | -0.110 [-0.160, -0.060] | -0.057 [-0.123, 0.007] | 0.553 | 5 of 5 | 0 | no | `failure` |
+| Cm `composite_mapped` | E, the lexical judge's confirm, else Egm | 0.593 [0.557, 0.630] | 0.927 | 0.260 | 0.090 | -0.087 [-0.137, -0.040] | -0.087 [-0.137, -0.040] | -0.033 [-0.097, 0.030] | 0.553 | 5 of 5 | 0 | no | `failure` |
+
+**The verdict on P = (a-4b, E `evidence`), by rule 12: failure.** P scored BA 0.540 [0.503, 0.577]; gap to 0.860 is
+0.320; lexical 0.680 [0.637, 0.723]; bound 0.553. In the order of rule 12: task E's set is complete (5 of 5 parts,
+class `model`, the report's "Model measurement" note, 0 records left out), so not `incomplete`; the point estimate is
+below 0.860, so not `pass_provisional`; the lexical judge was not beaten (the paired difference -0.140 [-0.190, -0.090]
+has its whole interval below zero), so not `partial`; `failure` holds. P's balanced accuracy is below the
+predicate-only bound's point value 0.553, and so is its lower end 0.503; its unknown share is 0.130. **The primary
+under the other reading of the section 7 default**, (a-4b, Eg `evidence_grounded`): `failure` (0.553 [0.517, 0.590],
+paired -0.127 [-0.177, -0.073]). Success in the sense of the rule could not be reached in this cycle, and was not.
+Section 2.5: continue with the next lever. The first run is the result (rule 16).
+
+**The headline** (rule 11: E, P's arm, against the lexical judge's 0.680 on the same records): **worse** (0.540
+[0.503, 0.577], upper end below 0.680). The headline secondary, Eg: **worse** (0.553 [0.517, 0.590], upper end below
+0.680). With the evidence field, a-4b judges worse than word matching on this draw, read as answered and through the
+grounding check alike.
+
+**The lifts of rule 10**, paired by record over 150 records ("helps" when the lower end is above 0, "hurts" when the
+upper end is below 0, else "not told apart"; they decide nothing toward 86):
+
+| Lift | Lever | Difference [95% interval] | Reading |
+|---|---|---|---|
+| `E_minus_N` | the evidence field, with S_E and the 512-token cap (B18) | -0.093 [-0.137, -0.053] | hurts |
+| `Eg_minus_E` | the grounding check | 0.013 [0.003, 0.027] | helps |
+| `Eg_minus_N` | the evidence field and the check | -0.080 [-0.123, -0.037] | hurts |
+| `Egm_minus_Eg` | the unclear-to-no mapping under the check | 0.023 [0.007, 0.040] | helps |
+| `Egm_minus_D` | the evidence field and the check under the mapping | -0.110 [-0.153, -0.067] | hurts |
+| `R_minus_N` | the rationale field, with S_R and the 512-token cap (B18) | -0.043 [-0.090, 0.003] | not told apart |
+| `Rm_minus_D` | the rationale field under the mapping | -0.077 [-0.123, -0.030] | hurts |
+| `D_minus_N` | the unclear-to-no mapping under N (A001's D − C, replicated) | 0.053 [0.030, 0.080] | helps |
+| `C_minus_Eg` | the lexical disjunction over Eg | 0.017 [0.000, 0.033] | not told apart |
+| `Cm_minus_Egm` | the lexical disjunction over Egm | 0.017 [0.000, 0.033] | not told apart |
+| `C_minus_ablation_A` | the composite against `lexical_or_no` | -0.110 [-0.160, -0.060] | hurts |
+| `C_minus_ablation_B` | the composite against `lexical_or_record_blind` | -0.057 [-0.123, 0.007] | not told apart |
+| `Cm_minus_ablation_A` | the mapped composite against `lexical_or_no` | -0.087 [-0.137, -0.040] | hurts |
+| `Cm_minus_ablation_B` | the mapped composite against `lexical_or_record_blind` | -0.033 [-0.097, 0.030] | not told apart |
+
+Read with sensitivity and specificity, as "How it is read" asks: the evidence field (E − N) left sensitivity near
+where it was (0.907 to 0.900) and lowered specificity from 0.360 to 0.180, with the unknown share from 0.090 to 0.130:
+asking for a passage made a-4b refute fewer negatives, the opposite of what the lever was aimed at. The grounding check
+(Eg − E) moved sensitivity from 0.900 to 0.887 and specificity from 0.180 to 0.220; the grounded share of yes answers
+was higher on positives (0.985, 133 of 135) than on negatives (0.933, 84 of 90), the direction "How it is read" calls
+the lever working, at the size of a lift of 0.013. The mapping under the check (Egm − Eg) moved specificity from 0.220
+to 0.267 at the same sensitivity, 0.887, and the unknown share from 0.130 to 0.090; under N (D − N) it moved
+specificity from 0.360 to 0.467 at the same sensitivity, 0.907, and the unknown share from 0.090 to 0.017 (A001's
+D − C was 0.077 [0.047, 0.107]). The rationale field (R − N) raised sensitivity from 0.907 to 0.980 and lowered
+specificity from 0.360 to 0.200, a move toward yes. The lexical disjunction (C − Eg, Cm − Egm) raised sensitivity from
+0.887 to 0.927 and lowered specificity a little (0.220 to 0.213; 0.267 to 0.260); both lifts have a lower end of
+exactly 0.000, which is not above 0 (B17). Where the lexical judge does not confirm, a composite takes the grounded
+arm's verdict and ablation A answers no; both composites scored below ablation A, so on those questions the model's
+verdicts did worse than a no, and neither composite is told apart from ablation B. Every arm other than E is a
+secondary, a hypothesis for the next cycle's rule and never a result; none met its pass test; and no reading other
+than the nine arms was made of the replies (rule 16).
+
+**The grounding check's readings on task E, and the replies per task** (rule 13; they decide nothing):
+
+| Replies (task E) | Grounded share of yes answers on positives | On negatives | Empty-citation share | Citation length, median | Citation length, 95th percentile |
+|---|---|---|---|---|---|
+| 300 | 0.985 (133 of 135) | 0.933 (84 of 90) | 0.170 | 104.5 | 585.5 |
+
+The citation lengths are in characters after `norm` (rule 13).
+
+| Task | First key is the new field (share) | Attempts | Calls | Output tokens, median | Output tokens, 95th percentile | Replies cut at the cap |
+|---|---|---|---|---|---|---|
+| E `judge_record_evidence` | 1.000 | 300 | 300 | 38.0 | 143.0 | 0 |
+| R `judge_record_rationale` | 1.000 | 300 | 300 | 87.0 | 115.1 | 0 |
+| N `judge_record_negation` | n/a (no new field) | 300 | 300 | 16.0 | 17.0 | 0 |
+
+Task R wrote a median of 87.0 output tokens (95th percentile 115.1) and no reply of any task was cut at its cap.
+Every reply of tasks E and R began with the new field, so the reply order trap 6 names was not seen.
+
+**N and D beside A001 run 1's arms C and D** (`docs/collective/A001/CHOICE-A001.md`, Run 1, cited as written there).
+A between-draw difference, reported, not tested:
+
+| Arm | A001 run 1 (150 records, labels `623780b8a1de…`): balanced accuracy [interval], sensitivity, specificity, unknown share | A002 run 1 (150 fresh records, labels `0a64a62d94a7…`): the same | Difference of the two point values |
+|---|---|---|---|
+| N `negation` (A001's arm C) | 0.577 [0.530, 0.623], 0.833, 0.320, 0.137 | 0.633 [0.590, 0.677], 0.907, 0.360, 0.090 | 0.633 − 0.577 = 0.056 |
+| D `negation_mapped` (A001's arm D) | 0.653 [0.610, 0.697], 0.833, 0.473, 0.017 | 0.687 [0.643, 0.730], 0.907, 0.467, 0.017 | 0.687 − 0.653 = 0.034 |
+
+The two draws are independent, so the difference of two point values has a standard error of about 0.05 (the square
+root of 2 times 0.035); differences within about 0.10 are sampling; a larger one says the draws differ, and both are
+reported (B14). Both differences, 0.056 and 0.034, are within about 0.10. The comparators on the two draws, for the
+reader: the lexical judge 0.680 [0.637, 0.723] here and 0.663 [0.627, 0.703] on A001's; the record-blind control
+0.517 [0.460, 0.573] and 0.520 [0.463, 0.577]; the predicate-only bound 0.553 and 0.577.
+
+**Parts and records.** Every task set finished 5 of 5 parts for each of the three tasks (E, R and N), and every arm
+built on them shows 5 of 5; `records left out` is 0 in every arm. 900 model calls were made, 300 per task; the six
+other arms are readings of the same replies (the composites joined with the plan job's lexical lines).
+
+**Nothing stopped before a model ran.** The plan job's guard (`l1 guard: no l1 units`), the five sources, the stop
+rules and the draw passed; both provision jobs took their files from the cache, verified by the lock; no shard failed
+(each `sealed`, attempt 1, exit code 0); no warm-up cut skipped a unit (trap 20); and no unit stopped at its budget:
+every task set finished 5 of 5 parts, task N last in every unit, the longest shard (`s004-a-4b`) in 2735.4 s of wall
+time and the longest unit (`j3-a-4b-p4`) in 2665.8 s, against a 300-minute budget.
+
+**Model-call latency, from the ledgers** (one shared GitHub-hosted runner per shard, a runner number and not site
+hardware; compare only within a CPU model; the CPU model as the report quotes it; a unit's three tasks ran on the same
+server, in the order E, R, N):
+
+| Runner CPU | Shards | Calls per task | Median ms, evidence / rationale / negation | 95th percentile ms, evidence / rationale / negation |
+|---|---|---|---|---|
+| `AMD EPYC 7763 64-Core Processor` | `s004-a-4b` | 60 | 13646.9 / 18272.5 / 9297.1 | 28610.8 / 26965.2 / 16111.1 |
+| `AMD EPYC 9V74 80-Core Processor` | `s002-a-4b`, `s003-a-4b`, `s005-a-4b` | 180 | 9466.4 / 14474.4 / 6645.3 | 25662.2 / 23430.1 / 13960.1 |
+| `INTEL(R) XEON(R) PLATINUM 8573C` | `s001-a-4b` | 60 | 8381.1 / 16777.5 / 4909.1 | 17745.8 / 22974.3 / 7163.6 |
+
+Over all five shards, per task (across CPU models, so not one comparison): evidence median 10095.5 ms and 95th
+percentile 26211.6 ms; rationale 15836.2 and 24885.6 ms; negation 6502.3 and 14282.0 ms. Within each CPU model the
+rationale task's median is the highest of the three and the negation task's the lowest. The shards ran on three CPU
+models; the figures of different rows are not one comparison.
+
+**The comparison count.** 9 (model, arm, cycle) comparisons this cycle (9 arms × 1 model × 1 cycle); 21 since the
+loop began (12 before this cycle, A001 run 1's). The aggregate printed "comparisons since the loop began: 21 (9 this
+cycle, 12 before)".
+
+**Public text.** This result is on public text the models may have seen in training: real NHTSA complaint
+narratives, read with their codes hidden and scored against the filed codes, which are not checked labels. A pass here
+would have been a pass on such text; this failure is a failure on it.
+
+**What the next cycle inherits.** The A003 draft on wf/a003-design (`efa79fe`, committed alone, in review) picks its
+base task from this entry by its own pre-registered adaptation rule, whose text is that draft's and is not changed
+here. A002's figures for it: task E's set is complete; P = (a-4b, E) is `failure`; `E_minus_N` is -0.093 [-0.137,
+-0.053], hurts. So under that draft's rule the base task of A003 is A001's negation task N, with the unclear-to-no
+mapping M as its declared reading. The best arm this cycle, D `negation_mapped` (that task read through that mapping),
+scored 0.687 [0.643, 0.730], paired 0.007 [-0.050, 0.063] to the lexical judge: not told apart from word matching, a
+hypothesis, never a result.
 
 ## Amended before any build, 2026-10-13
 

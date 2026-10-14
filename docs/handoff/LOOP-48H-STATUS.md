@@ -184,6 +184,19 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   plan's schedule says: the rule is committed alone on wf/a003-design (efa79fe, 1,232 lines) and its three
   adversarial reviews are running; the amendment follows, then the merge of the design branch (docs only) and the
   pre-run term-drafting step. Check-ins: 18:31, then every 50 minutes until the aggregate job ends.
+- 2026-10-14 13:28 Third outage: the account's usage limit stopped every agent of this loop from about 18:38 UTC on
+  2026-10-13 until the session resumed at 13:15 UTC on 2026-10-14 (about 18 h 37 min with no agent work). A002 run 1
+  had finished before it: lab run 38439612256, created 17:33:27, plan job 115442458382 17:33:30 to 17:34:58, five
+  a-4b shards 17:35:32 to 18:21:50 (all sealed, exit 0), aggregate job 115464859031 18:21:53 to 18:23:04, run success
+  at 18:23:04; report sha 58325c34d6bf (144 lines) recomputed from the log and matching (report.json's block precedes
+  the readable log tail, not verified). Primary pair (a-4b, evidence): failure by rule 12: "P scored BA 0.540 [0.503,
+  0.577]; gap to 0.860 is 0.320; lexical 0.680 [0.637, 0.723]; bound 0.553." (paired -0.140 [-0.190, -0.090]); the
+  primary under the other reading of the section 7 default (evidence_grounded) is failure too; the evidence field
+  hurts (E minus N -0.093 [-0.137, -0.053]); the best arm, negation read through the unclear-to-no mapping, 0.687
+  [0.643, 0.730], paired 0.007 [-0.050, 0.063] to the lexical judge, not told apart, a hypothesis only. 9 comparisons
+  this cycle, 21 since the loop began. Recorded in CHOICE-A002 Run 1, RESULTS run 12 and the YC brief (branch
+  wf/record-a002). A003 inherits: under its draft's adaptation rule (wf/a003-design, efa79fe, in review) the base task
+  is A001's negation task, with the unclear-to-no mapping as its declared reading.
 
 ## Open asks (date asked)
 
@@ -217,6 +230,7 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
 ## Comparisons made toward 86 (running count of (model, arm, cycle) pairs)
 
 - 12 (model, arm, cycle) comparisons in 1 J-cycle: A001 run 1 (lab run 38114522160); 12 since the loop began. Primary (a-4b, negation): failure, 0.577 [0.530, 0.623] against the target 0.860 and the lexical judge 0.663.
+- 9 (model, arm, cycle) comparisons in the second J-cycle: A002 run 1 (lab run 38439612256); 21 since the loop began. Primary (a-4b, evidence): failure, 0.540 [0.503, 0.577] against the target 0.860 and the lexical judge 0.680.
 
 ## 48-hour loop report, 2026-10-11 01:50 UTC to 2026-10-13 01:50 UTC, HEAD 4e55949
 
@@ -286,13 +300,10 @@ not told apart, and a hypothesis for the next cycle only.
   and "Continue with loop and goal while I sleep". No answer to any open ask.
 
 ### Next pre-registered lever (name, draw, primary pair, arms), and the next ingestion step
-- A002 (levers 3 and 4 of LOOP-48H.md section 2.6): schema variants (an evidence-span field with a verbatim-substring
-  check, a rationale before the answer, predicate descriptions, a lab TaskSpec's own max tokens) and the lexical
-  ensemble (a composite calling the pinned lexical judge, with the declared ablation comparator and the extra pass
-  clause against it). Draw: seed 3, n 150, 300 questions in 5 parts, J001's and A001's 150 records each excluded by
-  both mechanisms (artifacts lab-plan-37996675559-1 and lab-plan-38114522160-1). Primary pair and arms: not yet named; this
-  report therefore lacks them. CHOICE-A002, being written on wf/a002-design (rule alone, three adversarial reviews,
-  amendment), fixes them before any build; the comparison count continues from 12.
+- Updated 2026-10-14, after A002 run 1 (RESULTS run 12, CHOICE-A002 Run 1: failure on (a-4b, evidence)): lever 5
+  of LOOP-48H.md section 2.6, the drafted-terms payload, as A003. Its rule is drafted on wf/a003-design (efa79fe,
+  committed alone) and in review; its base task follows from A002 run 1 by the draft's pre-registered adaptation rule
+  (the negation task, with the unclear-to-no mapping as its declared reading); the comparison count continues from 21.
 - Ingestion: finish S5 and S6 from WIP 0154242 (harness, Tesseract HQ, drills), then S7 and S8 (measurement: the
   scaling table at 200, 600 and 2,000 users and Tesseract per-question p50/p95 at 600, 5,882 and 20,000 nodes;
   `e2e-ingest.yml` with the unit-suite gate first), two reviews, fix, merge, the first CI run,
