@@ -213,6 +213,13 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   to the recording byte for byte; every pinned path byte-identical to ed96530. The terms-003 dry run on synthetic data
   drafted 33 terms for 7 of the 26 hand predicates with the privacy check passed and printed no term (synthetic,
   measurement false). Two adversarial reviews are running (rule and leakage; tests and mutations), then the fix stage.
+- 2026-10-14 18:20 A003 build 1 reviewed and fixed (15 blocking and 17 minor findings, all applied at a4e717f, 37
+  mutants killed), merged as d270bd3 and gated (tests/lab 918 passed; onboard, guards and x3 402 passed); the term
+  request pushed alone as 5d2c1d3. The term run, lab run 38612800578, passed: model-free, 2 min 2 s, the check passed
+  by all seven checks, 25 of the 26 hand predicates reached, 3 entries empty, 753 terms; no term printed. Its report
+  block's sha256 matched on recomputation. The rule is amended after the term run (3d73f93): the term set's sha256
+  42c591ccbb66…, P_D's hashes, the counts, lab/jt.py frozen; the term artifact expires 2027-01-12T18:09:48Z. Next:
+  build 2 (the judging kind j4), two reviews, the fix stage; then the judging request accuracy-003 alone.
 
 ## Open asks (date asked)
 
