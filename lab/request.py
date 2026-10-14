@@ -182,6 +182,9 @@ then the base task alone; the base task first in the confirmation case, C1), one
                                                            # J4_PRIMARY_ARM_PROBLEM)
      "comparisons_before": 0..1000000}    # default 0
 
+A request with a ``j4`` block holds no ``j2`` or ``j3`` block (``J4_BESIDE_PROBLEM`` at ``$.experiments``): the plan's
+exclusion outputs and the plan job's downloads name one excluding kind's earlier runs, and a ``j4`` plan names three.
+
 ``openfda``, the public replay and the labelling sheets (one unit, no model; it reaches api.fda.gov)::
 
     {"minutes": 1..capacity, "pack": "<a built-in pack, or lab/packs/<id>, with an openFDA mapping>",
@@ -413,6 +416,8 @@ J4_CHAIN_REQUIRED = ("required on the second and third entries: the earlier cycl
 J4_SEED_PROBLEM = ("must be the earlier cycle's own draw seed, 1, 2 and 3 in order: the entries are the earlier "
                    "cycles in seed order")
 J4_PRIMARY_MODEL_PROBLEM = "the primary pair's model must be one of the J4 models"
+J4_BESIDE_PROBLEM = ("a j4 block runs beside no j2 or j3 block: the plan's exclusion outputs and downloads name one "
+                     "excluding kind's earlier runs, and the judging run reads three")
 J4_PRIMARY_ARM_PROBLEM = ("the primary pair's arm must be the base task's drafted-terms arm, or evidence with "
                           "base_task evidence (the confirmation case)")
 J4_HEX_PROBLEM = "must be 64 lower-case hex digits: the full sha256 the amendment after the term run committed"
@@ -1349,6 +1354,8 @@ def validate(obj: Any, manifest: Manifest, *, openfda_key: bool = False) -> dict
             raise RequestError("$.experiments", JT_ALONE_PROBLEM) from None
         if out["retention_days"] != JT_RETENTION_DAYS:
             raise RequestError("$.retention_days", JT_RETENTION_PROBLEM) from None
+    if "j4" in experiments and ("j2" in experiments or "j3" in experiments):
+        raise RequestError("$.experiments", J4_BESIDE_PROBLEM) from None
     capacity = out["job_minutes"] - SHARD_OVERHEAD_MINUTES
     checks = {"e1": lambda raw: _e1(raw, models, capacity, manifest),
               "e2": lambda raw: _e2(raw, models, capacity, manifest),

@@ -324,6 +324,12 @@ def lifts(base: str) -> tuple[tuple[str, str, str], ...]:
     return tuple((name, arm_of(base, a), arm_of(base, b)) for name, a, b in LIFTS)
 
 
+def comparisons_this_cycle(base: str, models: int) -> int:
+    """Rule 12: the (model, arm, cycle) comparisons this cycle makes, the branch's arms times the models
+    (:data:`COMPARISONS_THIS_CYCLE`, 4, with the one model the rule names), as the aggregate counts them."""
+    return len(ARMS[_base(base)]) * models
+
+
 def comparators_doc() -> dict[str, Any]:
     return {"order": list(COMPARATORS), "clauses": dict(JUDGE_CLAUSES),
             "pairs": {name: {"judge": a, "minus": b} for name, a, b in JUDGE_PAIRS}, "presence_rule": PRESENCE_RULE}
@@ -680,7 +686,8 @@ def prereg_doc(*, pack: FrozenPack, pack_ref: str, p_d: FrozenPack, terms: Mappi
             "headline_arm": arm, "headline_secondary": headline_secondary(base, arm),
             "other_reading_arm": other_reading_arm(base, arm),
             "exclusion": {k: exclusion[k] for k in EXCLUSION_KEYS},
-            "comparisons_before": comparisons_before, "comparisons_this_cycle": COMPARISONS_THIS_CYCLE,
+            "comparisons_before": comparisons_before,
+            "comparisons_this_cycle": comparisons_this_cycle(base, len(routing["endpoints"])),
             "target_balanced_accuracy": TARGET_BA,
             "code_hash": code_hash(), "code_files": code_files_list(), "code_commit": code_commit(),
             "code_dirty": code_dirty(["mycelic/collective", "lab"]), "endpoints": lab_j1.endpoint_pins(routing),

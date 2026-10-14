@@ -786,7 +786,8 @@ def _j4_interval(src: Sources, f: str, at: tuple[Any, ...], diff: str = "value")
 def _j4_exclusion_lines(doc: _Doc, src: Sources, f: str, block: dict[str, Any], lines_key: str) -> None:
     """The fresh draw's exclusion over three earlier cycles and the term run's drafting set (items 4 to 8, C4, C20),
     as counts, outcomes and hashes: the eligible records, the excluded (the split's removals among them), the
-    eligible after exclusion, the overlap; the eight sources' outcomes with their ref counts; how each cycle's set
+    eligible after exclusion, the overlap; the eight sources' outcomes with their ref counts (B1's with the questions
+    prefix it was checked against, C3); how each cycle's set
     was established (a by-chain reading names its chain); the seven consistency counts; the split's removals by
     record id and by text, the drafting records already excluded, the two tripwires and both archives' sha; the chain
     file's sha and line count (``lines_key``: the manifest's ``excluded_lines``, the report's ``chain_lines``) and the
@@ -798,9 +799,17 @@ def _j4_exclusion_lines(doc: _Doc, src: Sources, f: str, block: dict[str, Any], 
             f"{COLUMNS['j2_excluded']} {src.num(f, pointer(*at, 'excluded'), 'int')}; "
             f"{COLUMNS['j2_eligible_after']} {src.num(f, pointer(*at, 'eligible_after_exclusion'), 'int')}; "
             f"{COLUMNS['j2_overlap']} {src.num(f, pointer(*at, 'overlap'), 'int')}")
+
+    def questions_pin(name: str) -> str:
+        """C3: B1's outcome with the questions prefix it was checked against."""
+        if name != "B1":
+            return ""
+        return f"; {COLUMNS['j4_questions_sha']} {code(_get(exclusion, 'sources', name, 'questions_sha256_prefix'))}"
+
     doc.add(f"- {COLUMNS['j3_sources']}: " + "; ".join(
         f"{code(name)} {code(_get(exclusion, 'sources', name, 'outcome'))} "
-        f"({src.num(f, pointer(*at, 'sources', name, 'refs'), 'int')} refs)" for name in J4_SOURCES))
+        f"({src.num(f, pointer(*at, 'sources', name, 'refs'), 'int')} refs{questions_pin(name)})"
+        for name in J4_SOURCES))
     doc.add(f"- {COLUMNS['j3_cycles']}: " + "; ".join(
         f"{code(cycle)} {code(_get(exclusion, 'cycles', cycle, 'by'))}"
         + (f" {code(_get(exclusion, 'cycles', cycle, 'chain'))}" if _get(exclusion, 'cycles', cycle, 'by') == "chain"
@@ -887,7 +896,8 @@ def _j4_tables(doc: _Doc, src: Sources, j4: dict[str, Any]) -> None:
     parts finished of planned, balanced accuracy and its interval, each lexical judge's balanced accuracy on the same
     records and the paired difference to it, the control and the bound, sensitivity, specificity, the unknown share,
     the records left out, both words, the pass test, whether the arm is the primary or the headline secondary, and
-    J001's headline against the drafted judge), the lifts table, the judges' pairs, the agreement table (trap 6), the
+    J001's headline against the drafted judge with the same words against the hand lexical judge and the
+    term-presence judge beside it, rule 11), the lifts table, the judges' pairs, the agreement table (trap 6), the
     terms table (the drafted terms each hand predicate carried, then the questions of task D whose payload carried an
     empty list), under branch E the citations table (C16), the tasks table and the controls beside the earlier
     cycle's figures. Each predicate's confirms and every answer count stay in ``report.json``."""
@@ -981,6 +991,10 @@ def _j4_tables(doc: _Doc, src: Sources, j4: dict[str, Any]) -> None:
                 row.append(yes_no(entry.get("primary")))
                 row.append(yes_no(entry.get("headline_secondary")))
                 row.append(code(entry.get("headline"), table=True) if shown(entry) else "n/a")
+                # rule 11: the same words against the hand lexical judge and the term-presence judge beside it
+                for judge in ("lexical", "presence_drafted"):
+                    row.append(code(_get(entry, "headlines", judge, "headline"), table=True) if shown(entry)
+                               else "n/a")
                 if reasons:
                     reason = entry.get("headline_reason")
                     row.append(reason if reason in J1_HEADLINE_REASONS
@@ -992,7 +1006,8 @@ def _j4_tables(doc: _Doc, src: Sources, j4: dict[str, Any]) -> None:
                "ci_low", "ci_high", "j4_drafted_ba", "j4_diff_drafted", "j4_hand_ba", "j4_diff_hand",
                "j4_presence_ba", "j4_diff_presence", "prior_balanced_accuracy", "prior_bound", "sensitivity",
                "specificity", "unknown_share", "records_dropped", "j2_verdict_word", "j4_lever5_word", "j2_pass_test",
-               "j2_primary", "j3_secondary", "headline", *(["headline_reason"] if reasons else [])], arm_rows)
+               "j2_primary", "j3_secondary", "headline", "j4_headline_hand", "j4_headline_presence",
+               *(["headline_reason"] if reasons else [])], arm_rows)
 
     def lift_rows() -> Any:
         for name in named:

@@ -115,8 +115,9 @@ a report whose plan has no term run, so that a report of every other kind keeps 
 ``docs/collective/A003/CHOICE-A003.md`` as amended C1 to C32 and T1 to T11): from the verified preregistration, whose
 manifest must agree with ``prereg/j4/prereg.json`` (the document every unit pinned) on the base task, the primary
 pair, the headline arm and secondary, the other reading's arm, the four comparator files' sha256 and the term set's
-sha256, and whose ``prereg/j4/terms.json`` must hash to that pin and rebuild P_D to the pinned hashes (else
-:data:`~lab.notes.PREREG_MISSING`): the labels and questions records, the exclusion's counts, the eight sources'
+sha256, and whose ``prereg/j4/terms.json`` must hash to that pin and rebuild P_D to the pinned hashes, both naming the
+comparisons this cycle as the branch's arms times the plan's models (else :data:`~lab.notes.PREREG_MISSING`): the
+labels and questions records, the exclusion's counts, the eight sources'
 outcomes, the cycles and the consistency counts, the split's counts and hashes, the settings, both tasks' pins, the
 reading, the arms, the lifts, the comparators' rule, the primary pair, the headline arm and secondary, the comparison
 count and the target, the term pin with the number of terms each hand predicate carries, the three lexical judges,
@@ -1871,7 +1872,8 @@ def j4_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
     shard root). See the module docstring: it needs the verified preregistration, a manifest that agrees with
     ``prereg/j4/prereg.json`` on the base task, the primary pair, the headline arm and secondary, the other reading's
     arm, the confirmation case, the four comparator files' sha256 and the term set's sha256, a ``terms.json`` that
-    hashes to that pin and P_D rebuilt from it with the pinned hashes (else :data:`~lab.notes.PREREG_MISSING`).
+    hashes to that pin, P_D rebuilt from it with the pinned hashes, and the comparisons this cycle the branch's arms
+    times the plan's models in both (else :data:`~lab.notes.PREREG_MISSING`).
     Counts, scores and hashes only; the line check reads the drawn narratives and the terms inside this job only."""
     units = sorted((u for u in plan["units"] if u["experiment"] == "j4"), key=lambda u: u["unit"])
     if not units:
@@ -1930,6 +1932,13 @@ def j4_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
         block["reason"] = PREREG_MISSING
         return block
     base = mine["base_task"]
+    models = sorted({u["model"] for u in units})
+    # rule 12: the comparisons this cycle preregistered (the branch's arms times the models) are the ones counted here
+    this_cycle = len(lab_j4.ARMS[base]) * len(models) if base in lab_j4.ARMS else None
+    if (this_cycle is None or doc.get("comparisons_this_cycle") != this_cycle
+            or manifest.get("comparisons_this_cycle") != this_cycle):
+        block["reason"] = PREREG_MISSING
+        return block
     records = {r["record_ref"]: r for r, _ in labels}
     texts: dict[str, str] = {}
     for q in questions:
@@ -1937,8 +1946,6 @@ def j4_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
             texts[q["record_ref"]] = lab_j1.payload(pack, q, records[q["record_ref"]])["record"]["text"]
     settings["withhold_share"] = lab_j1.WITHHOLD_SHARE
     labels_record, asked = manifest["labels"], manifest["questions"]
-    models = sorted({u["model"] for u in units})
-    this_cycle = len(lab_j4.ARMS[base]) * len(models)
     block.update(labels={k: labels_record.get(k) for k in ("source", "pack", "n", "seed", "records", "claims",
                                                             "sha256", "available")},
                  questions={k: asked.get(k) for k in ("records", "questions", "parts", "part_records", "seed",

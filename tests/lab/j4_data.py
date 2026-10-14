@@ -1,7 +1,7 @@
 """Synthetic data for accuracy test A003's tests and the lab's dry run (no NHTSA record is read, no artifact is
 downloaded): a complaint archive with a drafting-window block before the cutoff.
 
-    python -m tests.lab.j4_data --out DIR [--seed 1] [--per-make 120]
+    python -m tests.lab.j4_data --out DIR [--seed 1] [--per-make 120] [--negated]
 
 writes ``DIR/complaints.zip``, a complaint archive in NHTSA's flat layout, every value invented:
 
@@ -31,6 +31,13 @@ writes ``DIR/complaints.zip``, a complaint archive in NHTSA's flat layout, every
 
 The archive's one entry carries a fixed timestamp (:data:`ZIP_DATE`), so equal arguments give equal bytes and an
 equal sha256. ``lab.dryrun --jt-data DIR`` hands ``DIR/complaints.zip`` to ``lab.prereg --nhtsa-archive``.
+
+``--negated`` writes the judging kind's dry-run variant (:data:`NEGATED_NARRATIVE`): the same rows, but the judged
+window's engine narrative says the engine "never stalled" on every other window row that holds it, so on those
+records the drafted lexical judge (which applies the pack's negation cues) refutes where the drafted term-presence
+judge (which does not) confirms, and the two judges' paired difference is not zero (C5). The default archive is the
+term run's dry run's and stays byte for byte as it was; the drafting block, and so the drafted terms, are the same in
+both.
 
 For the judging kind ``j4`` (build 2), :func:`write_data` also writes, from the same archive and every value invented:
 
@@ -117,6 +124,10 @@ OTHER_MAKE = "TOYOTA"                         # not one of the six makes
 OTHER_MAKE_ODINO = "7900010"                  # a drafting complaint whose later row is filed under OTHER_MAKE
 FROM_DAY, LAST_DAY = "2020-01-01", "2022-12-31"   # the drafting window's two ends, each held by a boundary row
 ODINO_FIELD = 1
+# the negated variant (:func:`archive` with ``negated``, the judging kind's dry runs): the judged window's engine
+# narrative, on every other row that holds it, states its drafted cue word only as negated, so the drafted
+# lexical judge (the pack's negation cues) and the drafted term-presence judge (no negation handling) answer apart
+NEGATED_NARRATIVE = ("The engine stalled on the highway at speed.", "The engine never stalled on the highway at speed.")
 
 
 def _row(export, odino: str, make: str, comp: str, state: str, day: date, text: str, model: str, year: str) -> str:
@@ -180,12 +191,30 @@ def drafting_lines(seed: int = 1) -> list[str]:
     return lines
 
 
+def _negated(window: list[str]) -> list[str]:
+    """The window's rows with :data:`NEGATED_NARRATIVE`'s rewrite on every other row that holds the engine narrative
+    (the first, the third, ...), so the variant holds both the plain and the negated narrative."""
+    out: list[str] = []
+    seen = 0
+    for line in window:
+        if NEGATED_NARRATIVE[0] in line:
+            seen += 1
+            if seen % 2 == 1:
+                line = line.replace(*NEGATED_NARRATIVE)
+        out.append(line)
+    return out
+
+
 @functools.lru_cache(maxsize=None)
-def archive(per_make: int = PER_MAKE, seed: int = 1) -> bytes:
+def archive(per_make: int = PER_MAKE, seed: int = 1, negated: bool = False) -> bytes:
     """The archive of the module docstring: the window rows of ``j2_data.archive`` and the drafting block, one entry
-    with a fixed timestamp."""
+    with a fixed timestamp. With ``negated`` (the judging kind's dry runs; the default archive, the term run's dry
+    run's, is unchanged), the window's engine narrative states its drafted cue word as negated on every other row
+    that holds it (:data:`NEGATED_NARRATIVE`): the same records, eligible and drawn alike, only that text differs."""
     with zipfile.ZipFile(io.BytesIO(j2_data.archive(per_make, seed))) as z:
         window = z.read("CMPL.txt").decode("latin-1").splitlines()
+    if negated:
+        window = _negated(window)
     text = "\n".join([*window, *drafting_lines(seed)]) + "\n"
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
@@ -293,13 +322,13 @@ def term_artifact(directory: Path, blob: bytes, run_id: int = TERMS_RUN_ID) -> d
             "vocabulary_hash": p_d["vocabulary_hash"], "cutoff": lab_jt.CUTOFF_ISO}
 
 
-def write_data(out: Path, *, seed: int = 1, per_make: int = PER_MAKE) -> Path:
+def write_data(out: Path, *, seed: int = 1, per_make: int = PER_MAKE, negated: bool = False) -> Path:
     """``DIR/complaints.zip`` and ``DIR/facts.json`` (the cases' counts the tests read), and for the judging kind the
     three earlier artifacts under ``DIR/earlier/``, ``DIR/stand-in.json``, the term artifact under ``DIR/terms/`` and
-    ``DIR/terms-stand-in.json``; returns ``out``."""
+    ``DIR/terms-stand-in.json``, all from :func:`archive` (its negated variant with ``negated``); returns ``out``."""
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    blob = archive(per_make, seed)
+    blob = archive(per_make, seed, negated)
     (out / "complaints.zip").write_bytes(blob)
     facts = {"per_make": per_make, "seed": seed, "reached": list(REACHED), "straddling": len(STRADDLING_ODINOS),
              "cross_make_duplicates": 1, "earliest_received": FROM_DAY, "latest_received": LAST_DAY,
@@ -317,8 +346,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", required=True)
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--per-make", type=int, default=PER_MAKE)
+    p.add_argument("--negated", action="store_true",
+                   help="the judging kind's dry-run variant: the window's engine narrative negates its drafted cue "
+                        "word on every other row that holds it (the default archive, the term run's dry run's, is "
+                        "unchanged)")
     args = p.parse_args(argv)
-    out = write_data(Path(args.out), seed=args.seed, per_make=args.per_make)
+    out = write_data(Path(args.out), seed=args.seed, per_make=args.per_make, negated=args.negated)
     print(f"wrote {out} (synthetic: every value invented; the earlier and term artifacts stand in for no real run)")
     return 0
 

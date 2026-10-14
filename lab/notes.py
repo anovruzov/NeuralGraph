@@ -425,7 +425,8 @@ J4_FRESHNESS_UNVERIFIED = ("an earlier cycle's set could not be established: nei
                            "verified and no chain could give it; the plan job stops before any draw and any model, "
                            "and the loop asks (the third accuracy test's rule, The data and the draw, item four)")
 J4_EXCLUSION_DISAGREES = ("the verified sources of the three earlier cycles disagree: a consistency count is above "
-                          "zero; the plan job stops before any draw and any model, and the loop asks")
+                          "zero, and the plan job stops before any draw; or the draw holds an excluded record, and "
+                          "it stops after the draw; either way before any model, and the loop asks")
 J4_TOO_FEW_RECORDS = ("fewer eligible records remain after the three earlier cycles' exclusion and the split's "
                       "removals than the draw needs; no further fresh draw is pre-registered")
 J4_TERMS_STOPPED = ("the judge run finished its first pass, the primary pair's task (the drafted-terms task, or the "
@@ -493,7 +494,7 @@ J4_EXCLUSION_NOTE = ("The draw excludes three earlier cycles' records, each by i
                      "artifact.")
 J4_STAND_IN = ("Plumbing: test artifacts stood in for the three excluded runs and for the term run (lab.dryrun with "
                "test data), so the exclusion, split and term checks here test the lab, not those runs.")
-L1_LABEL =("{l_one} here times the product's whole pushdown path on a real alert of MSHA's public accident file: HQ "
+L1_LABEL = ("{l_one} here times the product's whole pushdown path on a real alert of MSHA's public accident file: HQ "
             "forms the narrow question, each routed mine's verifier judges its own records with the model inside the "
             "mine, one mine after another, and the commit gate decides. Each mine's verdict is scored against the key "
             "judge's, which reads the categories the records were filed under: filed categories, not checked labels.")
@@ -1121,6 +1122,9 @@ COLUMNS = {
     "j4_presence_ba": "term-presence judge balanced accuracy",
     "j4_diff_presence": "minus the term-presence judge, paired by record",
     "j4_lever5_word": "word under lever five's text alone",
+    "j4_headline_hand": "headline against the hand lexical judge",
+    "j4_headline_presence": "headline against the term-presence judge",
+    "j4_questions_sha": "questions sha",
     "j4_judge": "judge",
     "j4_kind": "kind",
     "j4_questions": "questions",

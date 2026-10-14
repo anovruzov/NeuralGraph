@@ -58,13 +58,15 @@
   ``docs/collective/A003/CHOICE-A003.md`` as amended C1 to C32 and T1 to T11), in this process, under
   ``D/prereg/j4/``, in the rule's order: first the term artifact's check (``lab.j4terms.check_terms`` over the term
   run's plan artifact under ``--terms-plans``, default ``lab-terms`` beside ``D``, where the workflow's ``terms`` step
-  puts ``<run id>/``; anything but ``verified`` refuses the plan with :data:`~lab.notes.J4_TERMS_UNVERIFIED` before
-  any draw); then the eight sources of the three earlier cycles and the stop rules (``lab.j4labels.establish``, under
-  one ``--earlier-plans`` directory; :data:`~lab.notes.J4_FRESHNESS_UNVERIFIED`,
-  :data:`~lab.notes.J4_EXCLUSION_DISAGREES`); then the split and the draw (``lab.j4labels.draw``: the drafting set
-  rebuilt from the day's archive and compared with the term run's, the removals by record id and by text, the draw
-  of ``n`` at the seed over the eligible records less the excluded refs, the two tripwires;
-  :data:`~lab.notes.J4_SPLIT_VIOLATED`, :data:`~lab.notes.J4_TOO_FEW_RECORDS`); then J001's questions, the three
+  puts ``<run id>/``; anything but ``verified``, or P_D rebuilt by ``lab.j4.drafted_pack`` with other hashes than the
+  check's, refuses the plan with :data:`~lab.notes.J4_TERMS_UNVERIFIED` before any draw); then the eight sources of
+  the three earlier cycles and the stop rules (``lab.j4labels.establish``, under one ``--earlier-plans`` directory;
+  :data:`~lab.notes.J4_FRESHNESS_UNVERIFIED`, :data:`~lab.notes.J4_EXCLUSION_DISAGREES`); then the split and the draw
+  (``lab.j4labels.draw``: the drafting set rebuilt from the day's archive and compared with the term run's, the
+  removals by record id and by text, the draw of ``n`` at the seed over the eligible records less the excluded refs,
+  the two tripwires; :data:`~lab.notes.J4_SPLIT_VIOLATED`, :data:`~lab.notes.J4_TOO_FEW_RECORDS`, and
+  :data:`~lab.notes.J4_EXCLUSION_DISAGREES` when the draw holds an excluded record); every stop after the term check
+  verified prints the term check's line before it refuses the plan; then J001's questions, the three
   lexical judges (``lab.j4.comparator_lines``: the lexical judge over P_D rebuilt from the term set, over the hand
   pack, and the drafted term-presence judge), the record-blind control, the predicate-only bound, the three judges
   paired with each other (``lab.j4.judge_pairs``), the chain file and the pins. It writes ``labels.jsonl`` and
@@ -72,9 +74,11 @@
   (``lexical_drafted``, ``lexical``, ``presence_drafted``, ``prior``), ``excluded.jsonl`` (the chain: every
   excluded ref, the split's removals included, and the draw's), ``terms.json`` (the term run's ``terms.json``, byte
   for byte), ``routing.json`` (``lab.j4.routing_doc`` with the request's ``base_task``) and ``prereg.json``
-  (``lab.j4.prereg_doc``). stdout gets one line per source that did not verify, the cycles' line, the fixed draw
-  line, the split's line, the term check's line and the comparators' lines, the three lexical judges first: counts,
-  scores and hashes, never a ref and never a term. ``--exclude-stand-in FILE`` is then a three-entry list (``lab.dryrun
+  (``lab.j4.prereg_doc``). stdout gets one line per source that did not verify (B1's with the questions prefix it was
+  checked against, C3), the cycles' line, the fixed draw line (B1's outcome with that prefix), the split's line, the
+  term check's line (P_D's four hashes) and the comparators' lines, the three lexical judges first: counts, scores
+  and hashes, never a ref and never a term. The manifest gets a ``j4`` key only for a plan with J4 units, so every
+  other plan's manifest is the one it was before this kind existed. ``--exclude-stand-in FILE`` is then a three-entry list (``lab.dryrun
   --j4-data``) whose third entry may carry ``questions_sha256_prefix``, the stand-in A002 questions file's prefix in
   place of A002's pinned one; ``--terms-stand-in FILE`` (tests only) replaces the request's ``terms`` entry with a test
   term artifact's (:data:`~lab.notes.J4_STAND_IN`);
@@ -192,6 +196,9 @@ MANIFEST = "prereg/prereg.json"
 EARLIER_DIRNAME = "lab-earlier"     # the workflow's download path for an earlier run's plan artifact (A1)
 TERMS_DIRNAME = "lab-terms"         # the workflow's download path for the term run's plan artifact (A003, item 10)
 J4_EXCLUDE_ENTRIES = 3              # a J4 stand-in is a three-entry list, a J3 one a two-entry list
+# the four loader hashes of P_D the term line prints (item 7: "P_D's hashes"; C21 and T2 pin all four), in the jt
+# line's order
+P_D_HASH_KEYS = ("config_hash", "vocabulary_hash", "detector_hash", "fixtures_hash")
 CENTRAL_TASKS = ("judge_candidate_raw", "judge_candidate_allowed")
 E1_REFUSED = "E1 preregistration refused these settings; its log is in the plan artifact under prereg-logs"
 X1_REFUSED = "the evaluation harness refused these settings; its log is in the plan artifact under prereg-logs"
@@ -729,15 +736,28 @@ def _j4(plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path, nhtsa_
     used_terms = dict(terms_stand_in) if terms_stand_in is not None else requested_terms
     tc = lab_j4terms.check_terms(terms_plans, used_terms)
     terms = tc.summary
+    p_d_hashes = terms.get("p_d") or {}
     term_line = (f"j4 terms: outcome {terms['outcome']} failed {terms['failed'] or 'none'} run_id {terms['run_id']} "
                  f"terms_sha256 {terms['sha256'] or 'none'} expected_sha256 {terms['expected_sha256']} "
-                 f"p_d_vocabulary_hash {_get_hash(terms, 'vocabulary_hash')} p_d_config_hash "
-                 f"{_get_hash(terms.get('p_d') or {}, 'config_hash')} jt_code_hash {terms['jt_code_hash']} "
+                 + " ".join(f"p_d_{key} {_get_hash(p_d_hashes, key)}" for key in P_D_HASH_KEYS)
+                 + f" jt_code_hash {terms['jt_code_hash']} "
                  f"document_jt_code_hash {terms['document_jt_code_hash'] or 'none'} stand_in "
                  f"{'yes' if terms_stand_in is not None else 'no'}")
     if tc.problem is not None:
         print(term_line, flush=True)
         raise _StepFailed("$.experiments.j4.terms", J4_TERMS_UNVERIFIED)
+    # P_D rebuilt from the verified term set by this kind's own builder, before any draw (item 10): its hashes must be
+    # the four the term check compared with the document and the request
+    p_d = lab_j4.drafted_pack(tc.document["terms"])
+    if p_d.hashes() != tc.p_d:
+        print(term_line, flush=True)
+        raise _StepFailed("$.experiments.j4.terms", J4_TERMS_UNVERIFIED)
+
+    def stop(path: str, problem: str) -> _StepFailed:
+        """A stop after the term check verified: the term line is printed first, so that a stopped run's log still
+        records that the committed term set, P_D and ``lab/jt.py``'s code hash verified (rule 17)."""
+        print(term_line, flush=True)
+        return _StepFailed(path, problem)
     # 2. the eight sources and the stop rules (item 4, C20)
     requested = [dict(e) for e in p["exclude"]]
     used = [dict(e) for e in stand_in] if stand_in is not None else [dict(e) for e in requested]
@@ -745,6 +765,8 @@ def _j4(plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path, nhtsa_
     options = {"a002_questions_prefix": questions_prefix} if questions_prefix is not None else {}
     est = lab_j4labels.establish(earlier_plans, used[0], used[1], used[2], nhtsa_fetch, **options)
     sources = est.summary["sources"]
+    # C3: the questions prefix B1 is checked against, printed with B1's outcome
+    b1_questions = f"B1_questions_sha256 {sources['B1']['questions_sha256_prefix']}"
     for name, word, entry in (("R1", "one", used[0]), ("R2", "two", used[1]), ("R3", "three", used[2])):
         outcome = sources[name]["outcome"]
         if outcome != lab_j2labels.VERIFIED:
@@ -753,7 +775,8 @@ def _j4(plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path, nhtsa_
             print(f"j4 exclusion: source {name} {outcome}{tail}", flush=True)
     for name in ("J1", "A1", "K2", "B1", "K3"):
         if sources[name]["outcome"] != lab_j2labels.VERIFIED:
-            print(f"j4 exclusion: source {name} {sources[name]['outcome']}", flush=True)
+            tail = f" {b1_questions}" if name == "B1" else ""
+            print(f"j4 exclusion: source {name} {sources[name]['outcome']}{tail}", flush=True)
     cycles = est.summary["cycles"]
 
     def cycle_word(c: str) -> str:
@@ -764,17 +787,20 @@ def _j4(plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path, nhtsa_
     readings = " ".join(cycle_word(c) for c in lab_j4labels.CYCLES)
     print(f"j4 exclusion: {readings} consistency {consistency} excluded {est.summary['excluded']}", flush=True)
     if est.problem == "unverified":
-        raise _StepFailed("$.experiments.j4.exclude", J4_FRESHNESS_UNVERIFIED)
+        raise stop("$.experiments.j4.exclude", J4_FRESHNESS_UNVERIFIED)
     if est.problem is not None:
-        raise _StepFailed("$.experiments.j4.exclude", J4_EXCLUSION_DISAGREES)
+        raise stop("$.experiments.j4.exclude", J4_EXCLUSION_DISAGREES)
     # 3. the split and the draw (items 5 to 8, C4)
     try:
         dr = lab_j4labels.draw(pack_id=labels["pack"], n=labels["n"], seed=labels["seed"], fetch=nhtsa_fetch,
                                est=est, term=tc.drafting, term_archive_sha256=terms["archive_sha256"], used=used,
                                requested=requested, stand_in=stand_in is not None)
+    except lab_j4labels.DrawOverlap as err:          # item 5: the draw holds an excluded record (an overlap above 0)
+        print(f"j4 draw: {err.problem}", flush=True)
+        raise stop("$.experiments.j4.labels", J4_EXCLUSION_DISAGREES) from None
     except lab_j2labels.J2LabelsError as err:
         print(f"j4 draw: {err.problem}", flush=True)
-        raise _StepFailed("$.experiments.j4.labels.n", J4_TOO_FEW_RECORDS) from None
+        raise stop("$.experiments.j4.labels.n", J4_TOO_FEW_RECORDS) from None
     split = dr.split
 
     def count(value: Any) -> str:
@@ -790,7 +816,7 @@ def _j4(plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path, nhtsa_
                   f"{count(trip.get('in_drafting'))}")
     if dr.problem is not None:
         print(split_line, flush=True)
-        raise _StepFailed("$.experiments.j4.labels", J4_SPLIT_VIOLATED)
+        raise stop("$.experiments.j4.labels", J4_SPLIT_VIOLATED)
     data, record = dr.data, dr.record
     exclusion = record["exclusion"]
     exclusion.update(rebuilt_sha256={"j001": est.shas["R1"] or None, "a001": est.shas["R2"] or None,
@@ -801,9 +827,6 @@ def _j4(plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path, nhtsa_
                      stand_in=stand_in is not None, terms_stand_in=terms_stand_in is not None)
     # 4. J001's questions, the three lexical judges, the control, the bound (rules 2 and 8, C5)
     pack = loader.load_pack(ROOT / labels["pack"])
-    p_d = lab_j4.drafted_pack(tc.document["terms"])
-    if p_d.hashes() != tc.p_d:
-        raise _StepFailed("$.experiments.j4.terms", J4_TERMS_UNVERIFIED)
     try:
         questions_bytes, questions = lab_j1.build_questions(pack, data, seed=p["seed"], parts=p["parts"])
         lines = lab_j1.read_questions(questions_bytes)
@@ -846,7 +869,8 @@ def _j4(plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path, nhtsa_
     print(f"j4 draw: available {record['available']} excluded {exclusion['excluded']} (earlier "
           f"{est.summary['excluded']} split_by_record_id {split['by_record_id']} split_by_text {split['by_text']}) "
           f"eligible_after_exclusion {exclusion['eligible_after_exclusion']} overlap {exclusion['overlap']} sources "
-          + " ".join(f"{s}={sources[s]['outcome']}" for s in lab_j4labels.SOURCES) + f" {readings} consistency "
+          + " ".join(f"{s}={sources[s]['outcome']}" + (f" {b1_questions}" if s == "B1" else "")
+                     for s in lab_j4labels.SOURCES) + f" {readings} consistency "
           f"{consistency} labels_sha256 {record['sha256'][:12]} questions_sha256 {questions['sha256'][:12]} "
           f"prereg_sha256 {prereg_sha[:12]} excluded_sha256 {sha256_hex(chain)[:12]} excluded_lines {chain_lines} "
           f"complaint_file_sha256 {exclusion['complaint_file_sha256'][:12]} "
@@ -868,7 +892,7 @@ def _j4(plan: Mapping[str, Any], units: list[dict[str, Any]], root: Path, nhtsa_
             "excluded_sha256": sha256_hex(chain), "excluded_lines": chain_lines, "primary": primary,
             "headline_arm": doc["headline_arm"], "headline_secondary": doc["headline_secondary"],
             "other_reading_arm": doc["other_reading_arm"], "confirmation": doc["confirmation"],
-            "comparisons_before": p["comparisons_before"], "comparisons_this_cycle": lab_j4.COMPARISONS_THIS_CYCLE,
+            "comparisons_before": p["comparisons_before"], "comparisons_this_cycle": doc["comparisons_this_cycle"],
             "tasks": doc["tasks"], "reading": doc["reading"], "arms": doc["arms"], "lifts": doc["lifts"],
             "comparators": doc["comparators"], "drafted_pack": doc["drafted_pack"],
             "terms": {**pin, "check": dict(terms), "requested": requested_terms,
@@ -1065,9 +1089,11 @@ def preregister(plan_path: Path, *, nhtsa_fetch: Callable[[], bytes] | None = No
     e1_units, x1_units, e2_units, j1_units, l1_units, j2_units, j3_units, jt_units, j4_units = (
         _units(plan, name) for name in ("e1", "x1", "e2", "j1", "l1", "j2", "j3", "jt", "j4"))
     fetch = _once(nhtsa_fetch)
+    # the j4 key only for a plan with J4 units, so that every other plan's manifest is byte for byte the one it was
+    # before the judging kind existed (the term run's dry run and A002's recording, C30)
     manifest: dict[str, Any] = {"schema_version": 1, "kind": "lab_prereg", "plan_sha256": sha256_hex(plan_bytes),
                                 "files": {}, "e1": None, "x1": None, "e2": None, "j1": None, "l1": None, "j2": None,
-                                "j3": None, "jt": None, "j4": None}
+                                "j3": None, "jt": None}
     if e1_units:
         manifest["e1"] = _e1(steps, plan, e1_units, root, fetch)
     if x1_units:

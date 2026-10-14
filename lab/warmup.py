@@ -13,8 +13,10 @@ and the judge's generated payloads, and task D, the same payloads with ``predica
 carries the term list of its asked predicate, the pack's first sorted predicate, and the worst case, asked about the
 predicate whose list in the term set is the longest by characters, carries that list, C12; both read from the
 preregistration's ``prereg/j4/terms.json``, so without the preregistration only task B is warmed; the row of task D
-records the two payloads' term counts, never a term; the probe of a J4 shard is task B's, its name sorting before
-task D's, rule 16), for E2 units ``judge_record`` and,
+records the two payloads' term counts and asked predicates, never a term, and :func:`warm_up` prints them on one
+console line, ``lab: warmup <task D> ...`` (:func:`terms_line`), with the worst case's counted prompt and whether it
+fits the slot; the probe of a J4 shard is task B's, its name sorting before task D's, rule 16), for E2 units
+``judge_record`` and,
 when the central comparator is the model itself (``central: self``), its ``judge_candidate_raw`` and
 ``judge_candidate_allowed`` (a hosted central comparator is never warmed or fitted on this server; ``lab.hosted``'s
 preflight sends it the same payloads), for E3 units each workload's task
@@ -345,6 +347,20 @@ def routing_doc(base_url: str, alias: str, entry: Mapping[str, Any], tasks: list
 
 # --------------------------------------------------------------------------------------------------- warm-up
 
+def terms_line(task: WarmTask, worst_prompt_tokens: int | None, ctx_per_slot: int) -> str:
+    """Rule 16 and C12: the console line of a J4 task D's warm-up, its two payloads' term counts and asked predicates
+    (hand predicate ids), the worst case's counted prompt and whether it fits the slot with ``max_tokens``; counts and
+    ids only, never a term."""
+    terms = task.terms or {}
+    fits = (None if worst_prompt_tokens is None
+            else "yes" if worst_prompt_tokens + task.task.max_tokens <= ctx_per_slot else "no")
+    return (f"lab: warmup {task.task.name} typical_terms {terms.get('typical_terms')} typical_predicate "
+            f"{terms.get('typical_predicate')} worst_terms {terms.get('worst_terms')} worst_predicate "
+            f"{terms.get('worst_predicate')} worst_prompt_tokens "
+            f"{'none' if worst_prompt_tokens is None else worst_prompt_tokens} max_tokens {task.task.max_tokens} "
+            f"slot {ctx_per_slot} fits {fits or 'none'}")
+
+
 def _count(port: int, messages: list[dict[str, str]], timeout: Callable[[float], float]
            ) -> tuple[int | None, int | None]:
     """(status, prompt tokens): ``/apply-template`` then ``/tokenize``; the first non-200 status ends it."""
@@ -417,6 +433,9 @@ def warm_up(server: Any, entry: Mapping[str, Any], tasks: list[WarmTask], *, ctx
         rows.append(row)
         status, typical = _count(server.port, render_messages(t.task, t.payload, compiled), timeout)
         worst_status, worst = _count(server.port, render_messages(t.task, t.worst, compiled), timeout)
+        if t.terms is not None:
+            counted = status == 200 and worst_status == 200
+            print(terms_line(t, worst if counted else None, ctx_per_slot), flush=True)
         if status != 200 or worst_status != 200:
             bad = status if status != 200 else worst_status
             unanswered = unanswered or bad is None

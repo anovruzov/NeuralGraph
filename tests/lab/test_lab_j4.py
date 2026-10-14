@@ -23,6 +23,8 @@ host is reached. The synthetic terms are compared, never printed.
 from __future__ import annotations
 
 import contextlib
+import dataclasses
+import datetime
 import hashlib
 import io
 import itertools
@@ -31,12 +33,14 @@ import re
 import shutil
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from typing import Any, Callable
 from unittest import mock
 
 from lab import aggregate as lab_aggregate
 from lab import dryrun as lab_dryrun
+from lab import goldlabels as lab_goldlabels
 from lab import j1 as lab_j1
 from lab import j2 as lab_j2
 from lab import j2labels
@@ -371,6 +375,11 @@ class RuleTests(unittest.TestCase):
                           or k == "Dr_minus_Br"}, {"drafted_terms", "unclear_mapping"})
         self.assertEqual(lab_j4.COMPARISONS_THIS_CYCLE, 4)
         self.assertEqual(lab_j4.COMPARISONS_THIS_CYCLE, len(lab_j4.ARMS["negation"]))
+        # rule 12: the branch's arms times the models (4 with the rule's one model; 8 with a dry run's two)
+        self.assertEqual([lab_j4.comparisons_this_cycle(base, k) for base in lab_j4.BASES for k in (1, 2)],
+                         [4, 8, 4, 8])
+        with self.assertRaises(lab_j4.J4Error):
+            lab_j4.comparisons_this_cycle("rationale", 1)
         self.assertEqual((lab_j4.TARGET_BA, lab_j4.VERDICT_WORDS, lab_j4.LIFT_READINGS),
                          (0.86, ("incomplete", "pass_provisional", "partial", "failure"),
                           ("helps", "hurts", "not_told_apart")))
@@ -394,6 +403,29 @@ class RuleTests(unittest.TestCase):
                                                 "presence_drafted": "beats_term_presence"})
         self.assertEqual([name for name, _, _ in lab_j4.JUDGE_PAIRS],
                          ["drafted_minus_hand", "presence_minus_hand", "presence_minus_drafted"])
+
+    def test_the_earlier_cycle_s_own_figures(self) -> None:
+        """Rule 14: B and Br are reported beside the earlier cycle's own figures for the same arms, as CHOICE-A003.md
+        cites them ("What the evidence says" and the amendment before any build): A001 run 1's arms C and D (lab run
+        38114522160) under branch N, A002 run 1's arms E and Eg (lab run 38439612256) under branch E."""
+        self.assertEqual(lab_j4.EARLIER_ARMS, {
+            "negation": {"cycle": "A001", "run_id": 38114522160,
+                         "B": {"arm": "negation", "balanced_accuracy": 0.577, "ci_low": 0.530, "ci_high": 0.623},
+                         "Br": {"arm": "negation_mapped", "balanced_accuracy": 0.653, "ci_low": 0.610,
+                                "ci_high": 0.697}},
+            "evidence": {"cycle": "A002", "run_id": 38439612256,
+                         "B": {"arm": "evidence", "balanced_accuracy": 0.540, "ci_low": 0.503, "ci_high": 0.577},
+                         "Br": {"arm": "evidence_grounded", "balanced_accuracy": 0.553, "ci_low": 0.517,
+                                "ci_high": 0.590}}})
+        text = " ".join(CHOICE.read_text(encoding="utf-8").split())         # the rule's lines, re-wrapped
+        for figure in ("0.577 [0.530, 0.623]", "0.653 [0.610, 0.697]", "0.540 [0.503, 0.577]", "0.553 [0.517, 0.590]",
+                       "38114522160", "38439612256", "(arm C read as answered, 0.577; arm D through the mapping, 0.653)"):
+            with self.subTest(figure=figure):
+                self.assertIn(figure, text)
+        for base in lab_j4.BASES:
+            earlier = lab_j4.EARLIER_ARMS[base]
+            self.assertEqual((earlier["B"]["arm"], earlier["Br"]["arm"]),
+                             (lab_j4.arm_of(base, "B"), lab_j4.arm_of(base, "Br")))
 
     def test_the_primary_pair_and_the_confirmation_case(self) -> None:
         """Rules 5, 11 and 15, C1: P = (a-4b, D) and the pass order D, B; in the confirmation case (base evidence,
@@ -1210,8 +1242,16 @@ class SourcesTests(unittest.TestCase):
     def test_every_source_verifying(self) -> None:
         directory, entries, prefix = _Artifacts.fresh(self)
         est = self.establish(directory, entries, prefix)
-        self.assertEqual(est.summary["sources"], {s: {"outcome": "verified", "refs": n} for s, n in (
-            ("J1", 150), ("R1", 150), ("A1", 150), ("R2", 150), ("K2", 300), ("B1", 150), ("R3", 150), ("K3", 450))})
+        # C3: B1's outcome is kept with the questions prefix it was checked against (the stand-in's here)
+        self.assertEqual(est.summary["sources"], {s: {"outcome": "verified", "refs": n,
+                                                      **({"questions_sha256_prefix": prefix} if s == "B1" else {})}
+                                                  for s, n in (("J1", 150), ("R1", 150), ("A1", 150), ("R2", 150),
+                                                               ("K2", 300), ("B1", 150), ("R3", 150), ("K3", 450))})
+        self.assertNotEqual(prefix, j4labels.A002_QUESTIONS_SHA256_PREFIX)
+        # without a stand-in's prefix B1 is checked against A002's pinned one, and the summary says so
+        pinned = j4labels.establish(directory, entries[0], entries[1], entries[2], lambda: ARCHIVE)
+        self.assertEqual(pinned.summary["sources"]["B1"], {"outcome": "sha256 mismatch", "refs": None,
+                                                           "questions_sha256_prefix": "84486fa38568"})
         self.assertEqual(est.summary["cycles"], {c: {"established": True, "by": "artifact", "chain": None, "refs": 150}
                                                  for c in j4labels.CYCLES})
         self.assertEqual(est.summary["consistency"], dict.fromkeys(j4labels.CONSISTENCY, 0))
@@ -1414,6 +1454,71 @@ class SourcesTests(unittest.TestCase):
                 self.assertEqual(est.summary["consistency"]["outside_k3"], 2 if key == "k2" else 0)
                 self.assertEqual(est.summary["consistency"]["outside_k2"], 0)
                 self.assertEqual((est.problem, len(est.excluded)), ("disagrees", 452))
+        # each count alone above 0 stops the plan job: every other count is 0 or not computed
+        for key in j4labels.CONSISTENCY:
+            used, prefix, want = self.alone(key)
+            directory = used.pop()
+            est = self.establish(directory, used, prefix)
+            with self.subTest(alone=key):
+                self.assertEqual({k: v for k, v in est.summary["consistency"].items() if v}, {key: want})
+                self.assertEqual((est.problem, est.summary["problem"]), ("disagrees", "disagrees"))
+                self.assertTrue(all(c["established"] for c in est.summary["cycles"].values()))
+
+    def alone(self, key: str) -> tuple[list[Any], str, int]:
+        """Artifacts and entries under which the consistency count ``key`` is the only one above 0: (the three
+        entries followed by the artifacts' directory, the A002 questions prefix, the count expected)."""
+        directory, e, prefix = _Artifacts.fresh(self)
+        no_chain = {"chain_sha256_prefix": "0" * 12}
+        j001 = j4_data.refs_in(directory, j4_data.J001_RUN_ID, "prereg/j1/labels.jsonl")
+        a001 = j4_data.refs_in(directory, j4_data.A001_RUN_ID, "prereg/j2/labels.jsonl")
+        a002 = j4_data.refs_in(directory, j4_data.A002_RUN_ID, j4_data.J3_LABELS_FILE)
+
+        def chain(run_id: int, rel: str, refs: list[str], index: int) -> dict[str, Any]:
+            data = j2labels.excluded_jsonl(refs)
+            restamp(directory / str(run_id), rel, data)
+            return {**e[index], "chain_sha256_prefix": sha256_hex(data)[:12]}
+
+        if key == "j1_r1":                     # J001's artifact from another archive; neither chain verifies
+            other = Path(tempfile.mkdtemp(prefix="lab-j4-other-"))
+            self.addCleanup(shutil.rmtree, other, True)
+            theirs = j4_data.stand_in(other, OTHER_ARCHIVE)[0]
+            shutil.rmtree(directory / str(j4_data.J001_RUN_ID))
+            shutil.copytree(other / str(j4_data.J001_RUN_ID), directory / str(j4_data.J001_RUN_ID))
+            refs = j4_data.refs_in(other, j4_data.J001_RUN_ID, "prereg/j1/labels.jsonl")
+            used = [{**theirs, "rebuild_sha256_prefix": e[0]["rebuild_sha256_prefix"]}, {**e[1], **no_chain},
+                    {**e[2], **no_chain}]
+            return [*used, directory], prefix, len(refs ^ j001)
+        if key == "a1_r2":                     # A001's artifact drawn without J001's set; neither chain verifies
+            shutil.rmtree(directory / str(j4_data.A001_RUN_ID))
+            loose = j3_data.a001_artifact(directory, ARCHIVE, set())
+            refs = j4_data.refs_in(directory, j4_data.A001_RUN_ID, "prereg/j2/labels.jsonl")
+            used = [e[0], {**loose, "rebuild_sha256_prefix": e[1]["rebuild_sha256_prefix"], **no_chain},
+                    {**e[2], **no_chain}]
+            return [*used, directory], prefix, len(refs ^ a001)
+        if key == "b1_r3":                     # A002's artifact drawn with J001's set alone excluded; K3 broken
+            shutil.rmtree(directory / str(j4_data.A002_RUN_ID))
+            loose3 = j4_data.a002_artifact(directory, ARCHIVE, j001)
+            refs = j4_data.refs_in(directory, j4_data.A002_RUN_ID, j4_data.J3_LABELS_FILE)
+            third = {k: v for k, v in loose3.items() if k != "questions_sha256_prefix"}
+            used = [e[0], e[1], {**third, "rebuild_sha256_prefix": e[2]["rebuild_sha256_prefix"], **no_chain}]
+            return [*used, directory], loose3["questions_sha256_prefix"], len(refs ^ a002)
+        no_j001 = broken(e[0], "sha256_prefix", "rebuild_sha256_prefix")
+        short_of_a001 = sorted(j001 | a001)
+        five = sorted(a001)[:5]
+        if key == "outside_k2":                # J001 by K2, which lacks five of A001's refs; K3 broken
+            k2 = chain(j4_data.A001_RUN_ID, "prereg/j2/excluded.jsonl",
+                       [r for r in short_of_a001 if r not in five], 1)
+            return [no_j001, k2, {**e[2], **no_chain}, directory], prefix, 5
+        if key == "outside_k3":                # J001 by K3, which lacks five of A001's refs; K2 broken
+            k3 = chain(j4_data.A002_RUN_ID, j4_data.J3_CHAIN_FILE,
+                       [r for r in sorted(j001 | a001 | a002) if r not in five], 2)
+            return [no_j001, {**e[1], **no_chain}, k3, directory], prefix, 5
+        if key == "k2_union":                  # K2 two refs wider than J001's and A001's sets; K3 broken
+            k2 = chain(j4_data.A001_RUN_ID, "prereg/j2/excluded.jsonl", [*short_of_a001, "999999901", "999999902"], 1)
+            return [e[0], k2, {**e[2], **no_chain}, directory], prefix, 2
+        assert key == "k3_union", key          # K3 one ref wider than the three sets, K2 consistent with them
+        k3 = chain(j4_data.A002_RUN_ID, j4_data.J3_CHAIN_FILE, [*sorted(j001 | a001 | a002), "999999901"], 2)
+        return [e[0], e[1], k3, directory], prefix, 1
 
     def test_the_labels_record_names_every_source(self) -> None:
         """B22's shape with a third entry, and an entry of kind split with the two counts (C4); counts and hashes
@@ -1572,6 +1677,13 @@ class TermsCheckTests(unittest.TestCase):
             "a drafting text file that is not hashes": (
                 file_change(lab_jt.DRAFTING_TEXT_FILE, lambda b: b'{"text": "x"}\n'), "refs mismatch",
                 "drafting_files"),
+            # C4: the same number of lines and distinct hashes, one hash replaced, the manifest restamped: only the
+            # file's sha256 against the document's text_file_sha256 tells it apart
+            "a drafting text file with one hash replaced": (
+                file_change(lab_jt.DRAFTING_TEXT_FILE,
+                            lambda b: b.replace(json.loads(b.splitlines()[0])["sha256"].encode(),
+                                                hashlib.sha256(b"x").hexdigest().encode(), 1)),
+                "refs mismatch", "drafting_files"),
             "another drafting row count": (doc_change(set_key(("drafting", "rows"), 1)), "refs mismatch",
                                            "drafting_files"),
             "another cutoff in the document": (doc_change(set_key(("cutoff",), "2023-02-01")), "labels mismatch",
@@ -1599,6 +1711,8 @@ class TermsCheckTests(unittest.TestCase):
                                             "document"),
         }
         d = _Data.get()
+        # the replaced hash is no drafting narrative's, so the text file keeps its line count and distinct hashes
+        self.assertNotIn(hashlib.sha256(b"x").hexdigest(), d.terms.drafting.text)
         for label, (change, outcome, failed) in cases.items():
             directory, entry, base = self.fresh()
             asked = change(base, entry)
@@ -1891,8 +2005,9 @@ class PreregDocTests(unittest.TestCase):
                           doc["other_reading_arm"]),
                          ({"model": "fake-b", "arm": "negation_terms"}, False, "negation_terms",
                           "negation_terms_mapped", "negation_terms_mapped"))
+        # rule 12: the branch's four arms times the routing's two models (the template's one model gives 4)
         self.assertEqual((doc["comparisons_before"], doc["comparisons_this_cycle"], doc["target_balanced_accuracy"]),
-                         (21, 4, 0.86))
+                         (21, 8, 0.86))
         self.assertEqual(doc["pack"], lab_j1.pack_pins(PACK, NHTSA_PACK))
         self.assertEqual(doc["drafted_pack"], {"hashes": d.p_d.hashes()})
         self.assertEqual(doc["terms"], {"file": "prereg/j4/terms.json", "sha256": d.terms.summary["sha256"],
@@ -2266,7 +2381,9 @@ class _DryRun4:
     def __init__(self, request: Path, name: str) -> None:
         assert _DryRun4.tmp is not None
         root = _DryRun4.tmp / name
-        self.data = j4_data.write_data(root / "data")
+        # the negated variant (the judging kind's dry runs): the drafted lexical judge and the term-presence judge
+        # answer apart on it, so a figure of one shown as the other's shows
+        self.data = j4_data.write_data(root / "data", negated=True)
         self.out = root / "D"
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
@@ -2280,8 +2397,16 @@ class _DryRun4:
         self.drawn = refs_of((prereg / "labels.jsonl").read_bytes())
         self.excluded = {line["record_ref"] for line in read_lines(prereg / "excluded.jsonl")}
         self.drafting = drafting_refs(self.data)
+        # every complaint id of the archive, drawn or not: none may reach anything a reader sees
+        export = lab_goldlabels.nhtsa_export()
+        with zipfile.ZipFile(self.data / "complaints.zip") as z:
+            rows = z.read("CMPL.txt").decode("latin-1").splitlines()
+        self.archive_refs = {row.split("\t")[export.C_ODINO] for row in rows if row}
+        self.entries = read_json(self.data / "stand-in.json")
+        self.questions_prefix = self.entries[2]["questions_sha256_prefix"]
         entry = read_json(self.data / "terms-stand-in.json")
-        self.terms = {t for ts in j4terms.check_terms(self.data / "terms", entry).terms.values() for t in ts}
+        self.term_check = j4terms.check_terms(self.data / "terms", entry)
+        self.terms = {t for ts in self.term_check.terms.values() for t in ts}
 
     @classmethod
     def get(cls, name: str) -> "_DryRun4":
@@ -2340,6 +2465,30 @@ class RequestTests(unittest.TestCase):
                          ("prereg/jt/terms.json", "2023-01-01", f"lab-plan-{terms['run_id']}-1"))
         for key in ("sha256", "vocabulary_hash"):
             self.assertRegex(terms[key], r"\A[0-9a-f]{64}\Z")
+        # every recorded fact the run depends on, as "The request", C3, T1 and T2 of CHOICE-A003.md fix them: a typo
+        # in a chain or labels prefix would only leave a source unverified, a typo in the term pin would stop the run
+        j001 = {"run_id": 37996675559, "artifact": "lab-plan-37996675559-1", "file": "prereg/j1/labels.jsonl",
+                "sha256_prefix": "bc6d092d8bca", "rebuild_seed": 1, "rebuild_sha256_prefix": "bc6d092d8bca"}
+        a001 = {"run_id": 38114522160, "artifact": "lab-plan-38114522160-1", "file": "prereg/j2/labels.jsonl",
+                "sha256_prefix": "623780b8a1de", "rebuild_seed": 2, "rebuild_sha256_prefix": "623780b8a1de",
+                "chain_file": "prereg/j2/excluded.jsonl", "chain_sha256_prefix": "9a948cbf2cd9"}
+        a002 = {"run_id": 38439612256, "artifact": "lab-plan-38439612256-1", "file": "prereg/j3/labels.jsonl",
+                "sha256_prefix": "0a64a62d94a7", "rebuild_seed": 3, "rebuild_sha256_prefix": "0a64a62d94a7",
+                "chain_file": "prereg/j3/excluded.jsonl", "chain_sha256_prefix": "65d51f0fca51"}
+        term_run = {"run_id": 38612800578, "artifact": "lab-plan-38612800578-1", "file": "prereg/jt/terms.json",
+                    "sha256": "42c591ccbb66b81455ca19840a54e18cbb69b5613dd2eab8f3f8c70f9cea39cc",
+                    "vocabulary_hash": "c0260f0edab4638915b1fd0065e236ca20b497c0b217495c77adf018800fe579",
+                    "cutoff": "2023-01-01"}
+        self.assertEqual(block["exclude"], [j001, a001, a002])
+        self.assertEqual(block["terms"], term_run)
+        choice = CHOICE.read_text(encoding="utf-8")
+        for entry in (j001, a001, a002, term_run):
+            for key, value in entry.items():
+                if key not in ("rebuild_seed", "file", "chain_file"):
+                    with self.subTest(key=key, value=value):
+                        self.assertIn(str(value), choice)
+        self.assertEqual((j4labels.A002_LABELS_SHA256_PREFIX, j4labels.A002_CHAIN_SHA256_PREFIX),
+                         (a002["sha256_prefix"], a002["chain_sha256_prefix"]))
         purpose = obj["purpose"]
         self.assertLessEqual(len(purpose), 500)
         for path in ("docs/collective/A003/CHOICE-A003.md", "lab/requests/accuracy-003.json"):
@@ -2425,6 +2574,19 @@ class RequestTests(unittest.TestCase):
                 self.assertTrue(got_path.startswith(path), (got_path, got_problem))
                 if problem is not None:
                     self.assertEqual(got_problem, problem)
+
+    def test_a_j4_block_beside_a_j2_or_a_j3_block_is_refused(self) -> None:
+        """The plan's exclusion outputs and the plan job's downloads name one excluding kind's earlier runs: a j4 block
+        beside a j2 or a j3 block (whose plan would hand the j4 step the other kind's entries) is refused."""
+        for name, template_name in (("j3", "accuracy-002.json"), ("j2", "accuracy.json")):
+            with self.subTest(beside=name):
+                obj = template()
+                obj["experiments"][name] = read_json(TEMPLATES / template_name)["experiments"][name]
+                with self.assertRaises(RequestError) as caught:
+                    lab_request.validate(obj, self.manifest)
+                self.assertEqual((caught.exception.path, caught.exception.problem),
+                                 ("$.experiments", lab_request.J4_BESIDE_PROBLEM))
+        self.assertEqual(sorted(lab_request.validate(template(), self.manifest)["experiments"]), ["j4"])
 
     def test_the_confirmation_case_and_branch_e(self) -> None:
         """C1: under base ``evidence`` the primary arm is ``evidence_terms`` or, in the confirmation case,
@@ -2808,9 +2970,256 @@ class PreregWiringTests(unittest.TestCase):
         self.assertEqual(doc["terms"]["sha256"], d.terms.summary["sha256"])
         for name in lab_j4.COMPARATORS:
             self.assertEqual(j4[name], read_json(p.dir / f"{name}.json"), name)
+        # the draw, the questions and every comparator's score recomputed from the request's own figures (C5)
+        draw = d.make_draw(d.est, n=40)
+        self.assertEqual((p.dir / "labels.jsonl").read_bytes(), draw.data)
+        questions_bytes, _ = lab_j1.build_questions(PACK, draw.data, seed=4, parts=2)
+        self.assertEqual((p.dir / "questions.jsonl").read_bytes(), questions_bytes)
+        questions = lab_j1.read_questions(questions_bytes)
+        for name in lab_j4.COMPARATORS:
+            self.assertEqual(j4[name], lab_j1.score(questions, read_lines(p.dir / f"{name}.jsonl"), bootstrap_b=1000,
+                                                    bootstrap_seed=4), name)
+        # C11: two models, four arms each
+        self.assertEqual((j4["comparisons_before"], j4["comparisons_this_cycle"], doc["comparisons_this_cycle"]),
+                         (21, 8, 8))
+        self.assertNotIn("j4", self.other_kinds_manifest())
         self.assertEqual(p.manifest["j3"], None)
         manifest_text = (p.tmp / "plan" / "prereg" / "prereg.json").read_text(encoding="utf-8")
         assert_no_term(self, manifest_text, d.all_terms)
+
+    def other_kinds_manifest(self) -> dict[str, Any]:
+        """A plan of another kind's preregistration manifest: it has no ``j4`` key (only a J4 plan writes one)."""
+        tmp = Path(tempfile.mkdtemp(prefix="lab-j4-other-kind-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        request = json.loads(PLUMBING_MIN.read_text(encoding="utf-8"))
+        request["experiments"] = {"j1": {"minutes": 5, "labels": {**LABELS, "seed": 1}, "parts": 2, "seed": 1,
+                                         "bootstrap_b": 1000}}
+        path = write_json(tmp / "j1-test.json", request)
+        code, _, err = run_plan(["--request", str(path), "--manifest", str(MANIFEST_TEST), "--out", str(tmp / "plan")])
+        self.assertEqual(code, 0, err)
+        with contextlib.redirect_stdout(io.StringIO()):
+            manifest = lab_prereg.preregister(tmp / "plan" / "plan.json", nhtsa_fetch=lambda: ARCHIVE)
+        self.assertEqual(list(manifest), ["schema_version", "kind", "plan_sha256", "files", "e1", "x1", "e2", "j1",
+                                          "l1", "j2", "j3", "jt"])
+        return manifest
+
+    def test_each_seed_feeds_its_own_step(self) -> None:
+        """C5: the labels' seed draws the records, the block's seed orders the questions and splits them into parts,
+        and the bootstrap's seed and size score every comparator and pair the judges; three different seeds, so a
+        step fed another's seed shows."""
+        d = _Data.get()
+        tmp = Path(tempfile.mkdtemp(prefix="lab-j4-seeds-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        request = json.loads(PLUMBING_MIN.read_text(encoding="utf-8"))
+        request["experiments"] = {"j4": j4_block(labels={**LABELS, "seed": 5}, seed=6, bootstrap_b=1001,
+                                                 bootstrap_seed=7)}
+        path = write_json(tmp / "j4-test.json", request)
+        code, _, err = run_plan(["--request", str(path), "--manifest", str(MANIFEST_TEST), "--out", str(tmp / "plan")])
+        self.assertEqual(code, 0, err)
+        with contextlib.redirect_stdout(io.StringIO()):
+            manifest = lab_prereg.preregister(tmp / "plan" / "plan.json", nhtsa_fetch=lambda: ARCHIVE,
+                                              earlier_plans=d.dir / "earlier", exclude_stand_in=d.entries,
+                                              terms_plans=d.dir / "terms", terms_stand_in=d.term_entry)
+        j4 = manifest["j4"]
+        directory = tmp / "plan" / "prereg" / "j4"
+        draw = j4labels.draw(pack_id=NHTSA_PACK, n=40, seed=5, fetch=lambda: ARCHIVE, est=d.est,
+                             term=d.terms.drafting, term_archive_sha256=d.terms.summary["archive_sha256"],
+                             used=d.used, requested=d.used, stand_in=True)
+        self.assertEqual((directory / "labels.jsonl").read_bytes(), draw.data)
+        self.assertNotEqual(draw.data, d.make_draw(d.est, n=40).data)
+        questions_bytes, _ = lab_j1.build_questions(PACK, draw.data, seed=6, parts=2)
+        self.assertEqual((directory / "questions.jsonl").read_bytes(), questions_bytes)
+        self.assertNotEqual(questions_bytes, lab_j1.build_questions(PACK, draw.data, seed=5, parts=2)[0])
+        questions = lab_j1.read_questions(questions_bytes)
+        files = {name: read_lines(directory / f"{name}.jsonl") for name in lab_j4.COMPARATORS}
+        self.assertEqual(files, lab_j4.comparator_lines(PACK, d.p_d, draw.data, questions, d.T))
+        for name in lab_j4.COMPARATORS:
+            self.assertEqual(j4[name], lab_j1.score(questions, files[name], bootstrap_b=1001, bootstrap_seed=7), name)
+        self.assertEqual(j4["judge_pairs"], lab_j4.judge_pairs(questions, files, bootstrap_b=1001, bootstrap_seed=7))
+        self.assertNotEqual(j4["judge_pairs"], lab_j4.judge_pairs(questions, files, bootstrap_b=1000, bootstrap_seed=7))
+        self.assertEqual((j4["seed"], j4["bootstrap_b"], j4["bootstrap_seed"], j4["labels"]["seed"]), (6, 1001, 7, 5))
+
+    # ------------------------------------------------------------------ the stops (item 4, items 5 to 8, item 10)
+
+    def stopped(self, *, n: int = 40, fetch: Callable[[], bytes] = lambda: ARCHIVE, earlier: Path | None = None,
+                entries: list[dict[str, Any]] | None = None, stand_in: bool = True
+                ) -> tuple[lab_prereg._StepFailed, list[str]]:
+        """A J4 plan of two fake models (``n`` records in 2 parts) preregistered in this process with the test data's
+        stand-ins (or the ones given; ``stand_in`` False reads the request's own entries): the stop and the lines
+        printed. Nothing is written under ``prereg/j4``."""
+        d = _Data.get()
+        tmp = Path(tempfile.mkdtemp(prefix="lab-j4-stop-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        request = json.loads(PLUMBING_MIN.read_text(encoding="utf-8"))
+        request["experiments"] = {"j4": j4_block(labels={**LABELS, "n": n})}
+        path = write_json(tmp / "j4-test.json", request)
+        code, _, err = run_plan(["--request", str(path), "--manifest", str(MANIFEST_TEST), "--out", str(tmp / "plan")])
+        self.assertEqual(code, 0, err)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), self.assertRaises(lab_prereg._StepFailed) as caught:
+            lab_prereg.preregister(tmp / "plan" / "plan.json", nhtsa_fetch=fetch,
+                                   earlier_plans=earlier if earlier is not None else d.dir / "earlier",
+                                   exclude_stand_in=(entries if entries is not None else d.entries) if stand_in
+                                   else None, terms_plans=d.dir / "terms", terms_stand_in=d.term_entry)
+        self.assertFalse((tmp / "plan" / "prereg" / "j4").exists())
+        return caught.exception, out.getvalue().splitlines()
+
+    def assert_term_line_last(self, lines: list[str]) -> None:
+        """Rule 17: a stop after the term check verified prints the term line last, with P_D's four hashes."""
+        d = _Data.get()
+        self.assertTrue(lines[-1].startswith("j4 terms: outcome verified failed none "), lines[-1])
+        self.assertIn(" ".join(f"p_d_{key} {d.terms.p_d[key]}" for key in lab_prereg.P_D_HASH_KEYS), lines[-1])
+        self.assertEqual(sum(1 for line in lines if line.startswith("j4 terms:")), 1)
+        self.assertFalse(any(line.startswith("j4 comparators:") for line in lines))
+
+    def test_a_cycle_not_established_stops_before_any_draw(self) -> None:
+        """Item 4 (a): no earlier artifact and J001's rebuild broken: no cycle is established; the sources' lines,
+        B1's with the questions prefix it was checked against, the exclusion line, then the term line."""
+        d = _Data.get()
+        empty = Path(tempfile.mkdtemp(prefix="lab-j4-empty-"))
+        self.addCleanup(shutil.rmtree, empty, True)
+        entries = [broken(d.entries[0], "rebuild_sha256_prefix"), d.entries[1], d.entries[2]]
+        err, lines = self.stopped(earlier=empty, entries=entries)
+        self.assertEqual((err.path, err.problem), ("$.experiments.j4.exclude", notes.J4_FRESHNESS_UNVERIFIED))
+        self.assertIn("j4 exclusion: source J1 artifact absent", lines)
+        self.assertIn(f"j4 exclusion: source B1 artifact absent B1_questions_sha256 {d.questions_prefix}", lines)
+        self.assertTrue(any(line.startswith("j4 exclusion: j001=not_established a001=not_established "
+                                            "a002=not_established consistency ") for line in lines), lines)
+        self.assertFalse(any(line.startswith(("j4 draw:", "j4 split:")) for line in lines))
+        self.assert_term_line_last(lines)
+
+    def test_the_request_s_own_entries_check_b1_against_a002_s_pinned_questions_prefix(self) -> None:
+        """C3: without a stand-in the request's own entries are read (no such artifact here) and B1 is checked
+        against A002's pinned questions prefix, which its line prints."""
+        err, lines = self.stopped(stand_in=False)
+        self.assertEqual((err.path, err.problem), ("$.experiments.j4.exclude", notes.J4_FRESHNESS_UNVERIFIED))
+        self.assertIn("j4 exclusion: source B1 artifact absent B1_questions_sha256 84486fa38568", lines)
+        self.assert_term_line_last(lines)
+
+    def test_a_consistency_count_above_zero_stops_before_any_draw(self) -> None:
+        """Item 4 (b): K3 one ref wider than the three cycles' sets: ``k3_union`` 1 stops the plan job with
+        J4_EXCLUSION_DISAGREES before the draw."""
+        directory, e, prefix = _Artifacts.fresh(self)
+        refs = (j4_data.refs_in(directory, j4_data.J001_RUN_ID, "prereg/j1/labels.jsonl")
+                | j4_data.refs_in(directory, j4_data.A001_RUN_ID, "prereg/j2/labels.jsonl")
+                | j4_data.refs_in(directory, j4_data.A002_RUN_ID, j4_data.J3_LABELS_FILE))
+        data = j2labels.excluded_jsonl([*sorted(refs), "999999901"])
+        restamp(directory / str(j4_data.A002_RUN_ID), j4_data.J3_CHAIN_FILE, data)
+        entries = [e[0], e[1], {**e[2], "chain_sha256_prefix": sha256_hex(data)[:12],
+                                "questions_sha256_prefix": prefix}]
+        err, lines = self.stopped(earlier=directory, entries=entries)
+        self.assertEqual((err.path, err.problem), ("$.experiments.j4.exclude", notes.J4_EXCLUSION_DISAGREES))
+        exclusion = [line for line in lines if line.startswith("j4 exclusion: j001=")]
+        self.assertEqual(len(exclusion), 1)
+        self.assertIn(" k3_union=1 excluded 451", exclusion[0])
+        self.assertFalse(any(line.startswith(("j4 draw:", "j4 split:")) for line in lines))
+        self.assert_term_line_last(lines)
+
+    def test_too_few_records_left_stops_after_the_split(self) -> None:
+        """Items 5 and 6 (c): one record more than the 273 the exclusion and the split leave: J4_TOO_FEW_RECORDS at
+        the labels' ``n``, the draw's own sentence printed, then the term line."""
+        err, lines = self.stopped(n=274)
+        self.assertEqual((err.path, err.problem), ("$.experiments.j4.labels.n", notes.J4_TOO_FEW_RECORDS))
+        self.assertIn("j4 draw: only 273 eligible unexcluded public records remain: no further fresh draw of 274 "
+                      "records is pre-registered", " ".join(lines))
+        self.assert_term_line_last(lines)
+
+    def test_a_tripwire_stops_after_the_draw(self) -> None:
+        """Item 8 (d): the removals skipped (``split_removals`` finding nothing), a draw of every one of the 274
+        records holds the repeated-narrative complaint: ``in_drafting`` 1, J4_SPLIT_VIOLATED, the split line printed
+        before the term line and no draw line."""
+        with mock.patch.object(j4labels, "split_removals", return_value=(set(), set(), 3)):
+            err, lines = self.stopped(n=274)
+        self.assertEqual((err.path, err.problem), ("$.experiments.j4.labels", J4_SPLIT_VIOLATED))
+        split = [line for line in lines if line.startswith("j4 split:")]
+        self.assertEqual(len(split), 1)
+        self.assertTrue(split[0].endswith("by_record_id 0 by_text 0 already_excluded 3 before_cutoff 0 in_drafting 1"),
+                        split[0])
+        self.assertEqual(lines[-2], split[0])
+        self.assertFalse(any(line.startswith("j4 draw:") for line in lines))
+        self.assert_term_line_last(lines)
+
+    def test_a_drafting_set_that_does_not_rebuild_stops_before_the_draw(self) -> None:
+        """Item 8 (e): the same archive as the term run's, a rebuilt drafting set of one row fewer: J4_SPLIT_VIOLATED
+        before the removals; the split line shows both figures and no count."""
+        d = _Data.get()
+        short = dataclasses.replace(d.terms.drafting, rows=d.terms.drafting.rows - 1)
+        with mock.patch.object(j4labels, "rebuild_drafting", return_value=short):
+            err, lines = self.stopped()
+        self.assertEqual((err.path, err.problem), ("$.experiments.j4.labels", J4_SPLIT_VIOLATED))
+        split = [line for line in lines if line.startswith("j4 split:")]
+        self.assertEqual(len(split), 1)
+        self.assertIn(f"archives_equal yes term_rows {d.terms.drafting.rows} ", split[0])
+        self.assertIn(f"rebuilt_rows {d.terms.drafting.rows - 1} ", split[0])
+        self.assertTrue(split[0].endswith("by_record_id none by_text none already_excluded none before_cutoff none "
+                                          "in_drafting none"), split[0])
+        self.assertFalse(any(line.startswith("j4 draw:") for line in lines))
+        self.assert_term_line_last(lines)
+
+    def test_a_draw_that_holds_an_excluded_record_stops_with_the_exclusion_note(self) -> None:
+        """Item 5 (f): ``lab.j2labels.build_labels`` refusing a draw that holds an excluded record (an overlap above
+        0) with enough records left is J4_EXCLUSION_DISAGREES at the labels, not J4_TOO_FEW_RECORDS."""
+        refusal = j2labels.J2LabelsError("the draw holds 1 excluded records")
+        with mock.patch.object(j2labels, "build_labels", side_effect=refusal):
+            err, lines = self.stopped()
+        self.assertEqual((err.path, err.problem), ("$.experiments.j4.labels", notes.J4_EXCLUSION_DISAGREES))
+        self.assertIn("j4 draw: the draw holds 1 excluded records", lines)
+        self.assert_term_line_last(lines)
+
+    def test_a_drafted_pack_that_does_not_rebuild_stops_before_the_sources(self) -> None:
+        """Item 10 (g): P_D rebuilt by this kind's builder must have the four hashes the term check verified; another
+        pack's stops the plan job with J4_TERMS_UNVERIFIED, the term line its only line."""
+        with mock.patch.object(lab_j4, "drafted_pack", return_value=PACK):
+            err, lines = self.stopped()
+        self.assertEqual((err.path, err.problem), ("$.experiments.j4.terms", J4_TERMS_UNVERIFIED))
+        self.assertEqual(len(lines), 1)
+        self.assertTrue(lines[0].startswith("j4 terms: outcome verified failed none "), lines[0])
+
+    def test_a_straddling_complaint_no_earlier_draw_holds_is_removed_by_record_id(self) -> None:
+        """C4 on the console: an archive with one more complaint straddling the cutoff, whose later row no earlier
+        draw holds: the split's line prints one removal by record id, the draw line 452 excluded. The archives
+        differ from the term run's, so both drafting sets are used together and nothing stops."""
+        export = lab_goldlabels.nhtsa_export()
+        ref = "7900099"
+        text = "The hood latch rattled loose twice on the gravel road near the farm."
+        with zipfile.ZipFile(io.BytesIO(ARCHIVE)) as z:
+            rows = z.read("CMPL.txt").decode("latin-1")
+        extra = [j4_data._row(export, ref, "FORD", "ENGINE", "OH", day, text, "MODEL Y", "2021")
+                 for day in (datetime.date(2022, 5, 5), datetime.date(2023, 5, 5))]
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr(zipfile.ZipInfo("CMPL.txt", date_time=j4_data.ZIP_DATE),
+                       (rows + "\n".join(extra) + "\n").encode("latin-1"))
+        variant = buf.getvalue()
+        d = _Data.get()
+        self.assertNotIn(ref, d.est.excluded)
+        tmp = Path(tempfile.mkdtemp(prefix="lab-j4-straddling-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        request = json.loads(PLUMBING_MIN.read_text(encoding="utf-8"))
+        request["experiments"] = {"j4": j4_block()}
+        path = write_json(tmp / "j4-test.json", request)
+        code, _, err = run_plan(["--request", str(path), "--manifest", str(MANIFEST_TEST), "--out", str(tmp / "plan")])
+        self.assertEqual(code, 0, err)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            manifest = lab_prereg.preregister(tmp / "plan" / "plan.json", nhtsa_fetch=lambda: variant,
+                                              earlier_plans=d.dir / "earlier", exclude_stand_in=d.entries,
+                                              terms_plans=d.dir / "terms", terms_stand_in=d.term_entry)
+        lines = out.getvalue().splitlines()
+        split = next(line for line in lines if line.startswith("j4 split:"))
+        self.assertIn("archives_equal no ", split)
+        self.assertTrue(split.endswith("by_record_id 1 by_text 1 already_excluded 3 before_cutoff 0 in_drafting 0"),
+                        split)
+        draw = next(line for line in lines if line.startswith("j4 draw:"))
+        self.assertIn("available 725 excluded 452 (earlier 450 split_by_record_id 1 split_by_text 1) "
+                      "eligible_after_exclusion 273 overlap 0 ", draw)
+        j4 = manifest["j4"]
+        self.assertEqual((j4["split"]["by_record_id"], j4["split"]["by_text"], j4["exclusion"]["excluded"]),
+                         (1, 1, 452))
+        chain = {line["record_ref"] for line in read_lines(tmp / "plan" / "prereg" / "j4" / "excluded.jsonl")}
+        self.assertIn(ref, chain)
+        self.assertNotIn(ref, refs_of((tmp / "plan" / "prereg" / "j4" / "labels.jsonl").read_bytes()))
+        assert_no_ref(self, out.getvalue(), chain | {ref})
 
     def test_the_fixed_lines(self) -> None:
         p = _Prereg4.get()
@@ -2823,13 +3232,19 @@ class PreregWiringTests(unittest.TestCase):
                                    "a1_r2=0 b1_r3=0 outside_k2=0 outside_k3=0 k2_union=0 k3_union=0 excluded 450")
         self.assertIn("available 724 excluded 451 (earlier 450 split_by_record_id 0 split_by_text 1) "
                       "eligible_after_exclusion 273 overlap 0 sources J1=verified R1=verified A1=verified R2=verified "
-                      "K2=verified B1=verified R3=verified K3=verified", lines[1])
+                      f"K2=verified B1=verified B1_questions_sha256 {d.questions_prefix} R3=verified K3=verified",
+                      lines[1])
         self.assertTrue(lines[2].endswith("by_record_id 0 by_text 1 already_excluded 3 before_cutoff 0 in_drafting 0"),
                         lines[2])
         self.assertIn("archives_equal yes", lines[2])
         self.assertTrue(lines[3].startswith("j4 terms: outcome verified failed none run_id "
                                             f"{j4_data.TERMS_RUN_ID} terms_sha256 {d.terms.summary['sha256']}"),
                         lines[3])
+        # item 10: the four hashes of P_D the term check verified, each by its name
+        self.assertIn(f"expected_sha256 {d.term_entry['sha256']} " + " ".join(
+            f"p_d_{key} {d.terms.p_d[key]}" for key in ("config_hash", "vocabulary_hash", "detector_hash",
+                                                        "fixtures_hash")) + f" jt_code_hash {JT_CODE_HASH} ", lines[3])
+        self.assertEqual(sorted(d.terms.p_d), sorted(lab_prereg.P_D_HASH_KEYS))
         self.assertTrue(lines[3].endswith("stand_in yes"))
         self.assertEqual([part.split(" ")[0] for part in lines[4][len("j4 comparators: "):].split("; ")],
                          ["lexical_drafted", "lexical", "presence_drafted"])
@@ -3081,11 +3496,13 @@ class _DryRunChecks:
         self.assertIn("prereg: e1 no x1 no e2 no j1 no j4 yes", lines)
         draw = next(line for line in lines if line.startswith("j4 draw: "))
         self.assertIn("eligible_after_exclusion 273 overlap 0 sources J1=verified R1=verified A1=verified "
-                      "R2=verified K2=verified B1=verified R3=verified K3=verified", draw)
+                      f"R2=verified K2=verified B1=verified B1_questions_sha256 {dry.questions_prefix} R3=verified "
+                      "K3=verified", draw)
         split = next(line for line in lines if line.startswith("j4 split: "))
         self.assertTrue(split.endswith("by_record_id 0 by_text 1 already_excluded 3 before_cutoff 0 in_drafting 0"))
         terms = next(line for line in lines if line.startswith("j4 terms: "))
         self.assertTrue(terms.startswith("j4 terms: outcome verified failed none "), terms)
+        self.assertIn(" ".join(f"p_d_{key} {dry.term_check.p_d[key]}" for key in lab_prereg.P_D_HASH_KEYS), terms)
         comparators = [line for line in lines if line.startswith("j4 comparators: ")]
         self.assertEqual(len(comparators), 2)
         self.assertEqual([part.split(" ")[0] for part in comparators[0][len("j4 comparators: "):].split("; ")],
@@ -3108,6 +3525,16 @@ class _DryRunChecks:
         this_cycle = len(lab_j4.ARMS["negation"]) * len(self.models)
         self.assertEqual(j4["comparisons"], {"this_cycle": this_cycle, "before": self.before,
                                              "since_loop_began": self.before + this_cycle})
+        prereg_doc = read_json(dry.out / "plan" / "prereg" / "j4" / "prereg.json")
+        self.assertEqual((dry.manifest["j4"]["comparisons_this_cycle"], prereg_doc["comparisons_this_cycle"]),
+                         (this_cycle, this_cycle))
+        # rule 14: A001's own figures for the controls, as its record holds them
+        self.assertEqual(j4["earlier"], {
+            "cycle": "A001", "run_id": 38114522160,
+            "B": {"arm": "negation", "balanced_accuracy": 0.577, "ci_low": 0.530, "ci_high": 0.623},
+            "Br": {"arm": "negation_mapped", "balanced_accuracy": 0.653, "ci_low": 0.610, "ci_high": 0.697}})
+        # the negated variant: the drafted lexical judge and the drafted term-presence judge answer apart
+        self.assertNotEqual(j4["judge_pairs"]["presence_minus_drafted"]["mean_diff"], 0)
         self.assertEqual((j4["primary"], j4["headline_arm"], j4["headline_secondary"], j4["other_reading_arm"],
                           j4["target_balanced_accuracy"]),
                          ({"model": "a-4b", "arm": "negation_terms"}, "negation_terms", "negation_terms_mapped",
@@ -3150,7 +3577,17 @@ class _DryRunChecks:
                                   for lift, e in entry["lifts"].items()},
                                  {lift: ("not_told_apart", self.n, 0.0) for lift in lab_summary.J4_LIFTS})
                 self.assertEqual((entry["empty_terms"]["questions"], entry["citations"]), (2 * self.n, None))
-                self.assertEqual(entry["earlier"]["cycle"], "A001")
+                earlier = entry["earlier"]
+                self.assertEqual((earlier["cycle"], earlier["run_id"], earlier["label"]),
+                                 ("A001", 38114522160, "between_draw"))
+                for arm, letter, then in (("negation", "B", (0.577, 0.530, 0.623)),
+                                          ("negation_mapped", "Br", (0.653, 0.610, 0.697))):
+                    e = earlier["arms"][arm]
+                    now = entry["arms"][arm]["scores"]["balanced_accuracy"]["value"]
+                    self.assertEqual((e["letter"], e["earlier_arm"], e["earlier_balanced_accuracy"],
+                                      e["earlier_ci_low"], e["earlier_ci_high"], e["balanced_accuracy"]),
+                                     (letter, arm, *then, now))
+                    self.assertEqual(e["difference"], now - then[0])      # this draw less the earlier one
                 for task in lab_j4.tasks("negation"):
                     self.assertEqual((entry["tokens"][task]["attempts"], entry["tokens"][task]["calls_ok"]),
                                      (2 * self.n, 2 * self.n))
@@ -3186,9 +3623,26 @@ class _DryRunChecks:
         self.assertIn(f"| `a-4b` | `D_minus_B` | `drafted_terms` | {self.n} | 0.000 |", md)
         self.assertIn("- eligible records 724; excluded records 451; eligible after exclusion 273; overlap with the "
                       "excluded set 0", md)
-        self.assertIn("- sources: `J1` `verified` (150 refs); `R1` `verified` (150 refs); `A1` `verified` (150 refs); "
-                      "`R2` `verified` (150 refs); `K2` `verified` (300 refs); `B1` `verified` (150 refs); `R3` "
-                      "`verified` (150 refs); `K3` `verified` (450 refs)", md)
+        sources_line = ("- sources: `J1` `verified` (150 refs); `R1` `verified` (150 refs); `A1` `verified` (150 "
+                        "refs); `R2` `verified` (150 refs); `K2` `verified` (300 refs); `B1` `verified` (150 refs; "
+                        f"questions sha `{dry.questions_prefix}`); `R3` `verified` (150 refs); `K3` `verified` (450 "
+                        "refs)")
+        self.assertIn(sources_line, md)
+        # the primary line's figures, each judge's from its own entry: the drafted lexical judge's and the
+        # term-presence judge's differ on the negated variant
+        result = dry.report["j4"]["primary_result"]
+        paired = dry.report["j4"]["models"]["a-4b"]["arms"]["negation_terms"]["paired"]
+
+        def interval(x: dict[str, Any], key: str = "value") -> str:
+            return f"{x[key]:.3f} [{x['ci_low']:.3f}, {x['ci_high']:.3f}]"
+
+        judges = result["judges"]
+        self.assertNotEqual(judges["lexical_drafted"]["value"], judges["presence_drafted"]["value"])
+        self.assertIn(f"drafted lexical judge {interval(judges['lexical_drafted'])} on the same records, paired "
+                      f"difference {interval(paired['lexical_drafted'], 'mean_diff')}; hand lexical judge "
+                      f"{interval(judges['lexical'])}, paired difference {interval(paired['lexical'], 'mean_diff')}; "
+                      f"term presence {interval(judges['presence_drafted'])}, paired difference "
+                      f"{interval(paired['presence_drafted'], 'mean_diff')}; ", md)
         self.assertIn("- removed by record id 0; removed by text 1; drafting records already excluded 3; drawn records "
                       "received before the cutoff 0; drawn drafting records 0", md)
         self.assertIn(f"chain file lines {451 + self.n}", md)
@@ -3199,6 +3653,7 @@ class _DryRunChecks:
         plan_sources = read_json(dry.out / "plan" / "summary.sources.json")
         check_sources(self, plan_md, plan_sources["sources"], dry.out / "plan")
         self.assertIn(f"`J4` labels: source `nhtsa`, records {self.n}", plan_md)
+        self.assertIn(sources_line, plan_md)
         self.assertIn("`J4` term set sha `" + dry.manifest["j4"]["terms"]["sha256"] + "`", plan_md)
         for note in (notes.J4_STAND_IN, notes.J4_EXCLUSION_NOTE, notes.J4_TERMS_NOTE):
             self.assertIn(note, plan_md)
@@ -3208,8 +3663,9 @@ class _DryRunChecks:
         sources or the report; and, over the whole output tree, refs and terms only in the plan artifact's data files
         that hold them by design and the shards' verdict lines (refs only)."""
         dry = self.dry()
-        refs = dry.drawn | dry.excluded | dry.drafting
+        refs = dry.drawn | dry.excluded | dry.drafting | dry.archive_refs
         self.assertGreater(len(refs), 451)
+        self.assertLessEqual(dry.drawn | dry.excluded | dry.drafting, dry.archive_refs)
         self.assertGreater(len(dry.terms), 20)
         for name, text in dry.public_texts().items():
             with self.subTest(file=name):
@@ -3260,3 +3716,17 @@ class TemplateDryRunTests(_DryRunChecks, unittest.TestCase):
         self.assertEqual([(s["model"], s["units"]) for s in dry.plan["shards"]],
                          [("a-4b", [f"j4-a-4b-p{k}"]) for k in range(1, 6)])
         self.assertEqual(dry.report["j4"]["comparisons"], {"this_cycle": 4, "before": 21, "since_loop_began": 25})
+        # the template's own draw and questions (C5: labels seed 4, 150 records, block seed 4, 5 parts), recomputed
+        # from the dry data
+        blob = (dry.data / "complaints.zip").read_bytes()
+        used = [{k: v for k, v in e.items() if k != "questions_sha256_prefix"} for e in dry.entries]
+        est = j4labels.establish(dry.data / "earlier", used[0], used[1], used[2], lambda: blob,
+                                 a002_questions_prefix=dry.questions_prefix)
+        draw = j4labels.draw(pack_id=NHTSA_PACK, n=150, seed=4, fetch=lambda: blob, est=est,
+                             term=dry.term_check.drafting,
+                             term_archive_sha256=dry.term_check.summary["archive_sha256"], used=used,
+                             requested=used, stand_in=True)
+        prereg = dry.out / "plan" / "prereg" / "j4"
+        self.assertEqual((prereg / "labels.jsonl").read_bytes(), draw.data)
+        self.assertEqual((prereg / "questions.jsonl").read_bytes(),
+                         lab_j1.build_questions(PACK, draw.data, seed=4, parts=5)[0])

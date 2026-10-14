@@ -17,7 +17,9 @@ refs.
 A1, R2 and K2 (A001's artifact by ``lab.j3labels.earlier_labels_refs``, its rebuild by
 ``lab.j3labels.rebuild_a001_refs`` and its chain by ``lab.j2labels.earlier_refs``, unchanged), B1, R3 and K3 (A002's
 artifact by :func:`earlier_labels_refs`, its rebuild by :func:`rebuild_a002_refs`: ``lab.j2labels.draw`` of 150 at seed
-3 over the eligible list less J001's and A001's sets, and its chain by :func:`earlier_chain_refs`).
+3 over the eligible list less J001's and A001's sets, and its chain by :func:`earlier_chain_refs`). The summary
+keeps, beside B1's outcome, the questions prefix B1 was checked against (``questions_sha256_prefix``: A002's pinned
+one, or a dry run's stand-in's), so that the plan job prints it with B1's outcome (C3).
 
 **The stop rules** (item 4, C20). A cycle's set is established by its own sources (J1 or R1; A1 or R2; B1 or R3), the
 union when both verified, ``by`` ``artifact`` when its artifact verified, else ``rebuild``. A cycle with no verifying
@@ -112,6 +114,12 @@ class J4LabelsError(ValueError):
     def __init__(self, problem: str) -> None:
         super().__init__(problem)
         self.problem = problem
+
+
+class DrawOverlap(J4LabelsError):
+    """Item 5's overlap stop: ``lab.j2labels.build_labels`` refused the draw although enough eligible unexcluded
+    records remained, so its refusal is not a shortage (``the draw holds N excluded records``); ``problem`` is its
+    sentence. The plan job reads it as the exclusion not holding, never as too few records."""
 
 
 # --------------------------------------------------------------------------------------------------- the artifacts
@@ -266,6 +274,10 @@ def establish(earlier_plans: str | Path | None, j001: Mapping[str, Any], a001: M
             return
         for chain in CHAINS:
             others = [c for c in CHAIN_COVERS[chain] if c != cycle]
+            # ``chain not in used.values()`` and ``used.get(c) != chain`` are guards the others-established condition
+            # already implies (a chain reads a cycle only when every other cycle it covers is established, and a
+            # chain that established a cycle has that cycle among the others it covers), so no test can tell either
+            # one apart; they are kept so that the at-most-one-cycle rule (item 4, C20) reads here as written
             if (cycle in CHAIN_COVERS[chain] and sets[chain] is not None and chain not in used.values()
                     and all(cycle_sets[c] is not None and used.get(c) != chain for c in others)):
                 cycle_sets[cycle] = sets[chain] - set().union(*(cycle_sets[c] for c in others))
@@ -299,6 +311,9 @@ def establish(earlier_plans: str | Path | None, j001: Mapping[str, Any], a001: M
                            for s in SOURCES},
                "cycles": cycles, "consistency": consistency, "excluded": len(excluded),
                "expected_excluded": EXPECTED_EXCLUDED, "problem": problem}
+    # C3: the questions prefix B1 was checked against, printed with B1's outcome (A002's pinned one, or a dry run's
+    # stand-in's)
+    summary["sources"]["B1"]["questions_sha256_prefix"] = a002_questions_prefix
     return Established(sets=sets, shas=shas, summary=summary, excluded=excluded, cycle_sets=cycle_sets,
                        problem=problem)
 
@@ -513,7 +528,8 @@ def draw(*, pack_id: str, n: int, seed: int, fetch: Callable[[], bytes], est: Es
     """Item 8 and the draw of items 5 and 6 (see the module docstring): the drafting set rebuilt and compared with the
     term run's (``term``, from its verified files, and ``term_archive_sha256``, its day's archive), the removals,
     ``lab.j2labels.build_labels`` unchanged over the excluded set, the tripwires and the chain file. Raises
-    ``lab.j2labels.J2LabelsError`` when fewer than ``n`` records remain. ``est`` must have no problem."""
+    ``lab.j2labels.J2LabelsError`` when fewer than ``n`` records remain, and :class:`DrawOverlap` when
+    ``build_labels`` refuses the draw otherwise (the draw holds an excluded record). ``est`` must have no problem."""
     if est.problem is not None:
         raise J4LabelsError("the earlier cycles' sets are not established")
     blob = fetch()
@@ -541,8 +557,13 @@ def draw(*, pack_id: str, n: int, seed: int, fetch: Callable[[], bytes], est: Es
     split.update(by_record_id=len(by_ref), by_text=len(by_text), already_excluded=already)
     excluded = est.excluded | by_ref | by_text
     runs = excluded_runs(est, used, requested, stand_in, (len(by_ref), len(by_text)))
-    data, record = lab_j2labels.build_labels(pack_id, n, seed, fetch=fetch, excluded=excluded,
-                                             mechanisms=mechanisms(est), excluded_runs=runs)
+    try:
+        data, record = lab_j2labels.build_labels(pack_id, n, seed, fetch=fetch, excluded=excluded,
+                                                 mechanisms=mechanisms(est), excluded_runs=runs)
+    except J2LabelsError as err:
+        if sum(1 for r, _ in eligible if r["record_ref"] not in excluded) < n:
+            raise                              # too few eligible unexcluded records: the shortage stop
+        raise DrawOverlap(err.problem) from None
     drawn = {r["record_ref"] for r, _ in lab_j1.parse_labels(data)}
     split["tripwires"] = tripwires(data, sets)
     extend_exclusion(record, est, split)
