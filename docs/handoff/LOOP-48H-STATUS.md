@@ -361,6 +361,7 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   jobs were green, but that e2e-ingest run's criteria and measure jobs completed after the push (01:49:24, 02:05:24
   UTC); corrected there with a note. The second 48-hour report repeats the phrase (its lines on the judging run's
   start, "No second J-cycle result" and the request's presence); as a dated report it is left as written.
+- 2026-10-15 05:30 The EMERGENCE root-cause report is committed at ba32428 as `docs/research/EMERGENCE_ROOT_CAUSE_REPORT.md` (diagnosis only; its last fix round applied 4 blocking and 26 minor findings as exact edits, then a verifier's residual wording notes). A note added at commit records the founder's delegated decision of ~04:37 (720af1a): from this commit, ranks labelled W in section 8 are covered; S and N ranks wait for the founder's explicit yes; zone conditions (dec. 14, dec. 15 for A004) and the no-push rule still apply. No EMERGENCE system change yet. A plain-language system map was published for the founder (private page). A design study of a fully local, gossip-based Mycelic was started at the founder's request (code map, literature, two offline simulations on the six seeds' pristine site stores, a design, three attack reviews); it changes no code and no rule. The stall measurement and A004 build 1 are still running.
 
 ## Open asks (date asked)
 
