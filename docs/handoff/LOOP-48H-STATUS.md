@@ -425,6 +425,23 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
      exposure and the query budget; and, beside it, rank 7's candidate source with the same measurements. The founder
      decides on those numbers, not on bounds.
   7. Rank 20: diagnosing assertions yes; no looser bound. A004 continues exactly as pre-registered.
+- 2026-10-15 ~05:44 UTC, founder: the system "never relied on real intelligence"; the intended design is small models
+  at the edge writing memories with lineage from any source, larger edge models summarising those and then summarising
+  the summaries, continuously, so that key facts rise through durable transport with lineage; no question-driven
+  counting. The founder names the environment (CPU runners, models of at most 4B parameters) as the bottleneck.
+  Recorded by the review session as the direction from this time:
+  1. Item 6 of the ~05:37 entry is withdrawn: no secure-sum or other count-geometry study. Items 1 to 5 and 7 stand;
+     ranks 1 to 6 are measurement fixes the new direction needs as much as the old one.
+  2. New work: the summary hierarchy, built as a new arm in a new package outside every frozen and pinned path,
+     scored by EMERGENCE's frozen generator and scorer unchanged (recall_all, decoys on every facet key, privacy), on
+     development seeds only, behind one model interface with three backends: a deterministic fixture for tests, the
+     lab's own models (a-0p5b to a-4b-r) through llama-server, and a self-hosted GPU endpoint written but switched off.
+  3. Privacy default until the founder confirms it: a summary leaves its site only when it is abstract (no name, id,
+     identifier or quotation of a record) and carries its source count and lineage; the top layer, not the site,
+     decides when evidence is enough. A guard enforces it and a test fails on each violation. It runs in the offline
+     harness on synthetic worlds only; the shipped system's invariants are unchanged.
+  4. No externally hosted model and no rented GPU without the founder's explicit approval; a written GPU proposal
+     (self-hosted open-weights models, costs cited, throughput from measured figures) waits for it.
 
 ## Comparisons made toward 86 (running count of (model, arm, cycle) pairs)
 
