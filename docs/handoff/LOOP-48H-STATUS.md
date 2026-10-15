@@ -442,6 +442,21 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
      harness on synthetic worlds only; the shipped system's invariants are unchanged.
   4. No externally hosted model and no rented GPU without the founder's explicit approval; a written GPU proposal
      (self-hosted open-weights models, costs cited, throughput from measured figures) waits for it.
+- 2026-10-15 ~05:53 UTC, founder: use a small hosted model as the simulation's intelligence (named in the message;
+  called `h-sim` here, as the naming rule asks). Recorded by the review session as the founder's
+  approval of one externally hosted model, scoped:
+  1. Use: the summary hierarchy's backend (c) on EMERGENCE's synthetic worlds, as a stand-in that simulates capable
+     edge models. Nothing else: never an NHTSA record, ref, term or any real record; never the accuracy loop (A004 and
+     every J-cycle stay on their pre-registered local models); never production data.
+  2. Names: code, docs and commits call it by an alias (`h-sim`); the model id comes from the run's environment, never
+     from a committed file (the naming guards hold). Results are labelled "hosted stand-in" and `measurement: false`.
+  3. Key: a repository secret of its own, `MYCELIC_HIER_API_KEY`, read only by the hierarchy's own workflow; the lab's
+     `MYCELIC_LAB_HOSTED_*` secrets are not used, so no lab plan changes. The founder adds the secret; until then the
+     backend stays off.
+  4. Spend: a cap enforced in code from counted tokens, 20 US dollars a day unless the founder sets another; each call's
+     prompt kept under 100,000 tokens (the price tier above it is five times the rate, as published for this model);
+     seed 0 first, its measured tokens and cost reported before seeds 1 to 19.
+  5. The GPU proposal is still written; a rented GPU still waits for the founder's yes.
 
 ## Comparisons made toward 86 (running count of (model, arm, cycle) pairs)
 
