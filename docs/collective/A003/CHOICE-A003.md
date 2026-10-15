@@ -1479,7 +1479,7 @@ date is recorded in Runs beside that timestamp, and a push after it is refused b
 
 ## Runs
 
-One so far: term run 1, below the two templates. The judging run's entry follows it.
+Two so far: term run 1 and, after it, run 1, the judging run (lab run 38667030739), both below the two templates.
 
 **The term run's entry** will hold: the lab run id, the request file and its sha256, the commits of the rule and the
 request; the archive's sha256 and size; the fixed line (the rows per make and pooled, the cross-make duplicates
@@ -1565,6 +1565,333 @@ run so far, in order: term run 1, lab run 38612800578, sha256 `42c591ccbb66…`;
 
 The figures are copied into the rule by the amendment after the term run ("Amended after the term run, before build
 2, 2026-10-14").
+
+### Run 1 (lab run 38667030739, 2026-10-15)
+
+**The run.** Lab run [38667030739](https://github.com/anovruzov/NeuralGraph/actions/runs/38667030739) (workflow
+`mycelic-lab`, run number 17), created 01:41:42 UTC on 2026-10-15, attempt 1, completed `success` at 02:13:35 UTC (the
+Actions API). Request `lab/requests/accuracy-003.json`, an exact copy of `lab/templates/accuracy-003.json`, sha256
+`4a851dd853658c549871a5e4a9e640357722678458b01b839783f0fa24fe2e24` (both files at HEAD; the report prints
+`4a851dd85365`), pushed alone as commit `c5dad9a` (committed 01:41:35 UTC, pushed 01:41:41 UTC) after CI went green on
+`7639bec` (e2e-ingest run 38664599267, its lab suite `tests/lab` 1,011 passed; mycelic run 38664599279, all three jobs;
+`docs/handoff/LOOP-48H-STATUS.md`). Before the run, in this order: the rule `efa79fe`, amended `7daab37` (C1 to C32)
+before any build; build 1 `31cee9d` (the lab kind `jt`), its two reviews, the fix `a4e717f` and the merge `d270bd3`;
+term run 1 (`5d2c1d3`, the entry above); the amendment `3d73f93` after the term run; build 2, the core `c1d4fec` and the
+wiring `11bf9c4` (the lab kind `j4`), its three reviews, the fix `9e06b36` and the merge `a465752`, whose local gate
+passed its dry runs and the onboard, guard and x3 suites (402 passed; the status log); the CI fix `5fecc8b`. The branch
+in force is N, read from A002 run 1 under "The base task, read from A002 run 1": task E's and task N's sets complete (5
+of 5 parts, 0 records left out), P's word `failure`, `E_minus_N` -0.093 [-0.137, -0.053], hurts. So the base task is
+`judge_record_negation`, task D is `judge_record_negation_terms`, P = (a-4b, `negation_terms`) and the pass order is D,
+then B (the request: `base_task` `negation`, `primary` `{model: a-4b, arm: negation_terms}`, `comparisons_before` 21,
+`retention_days` 30). No call on decision 9 arrived before the request push (the status log's "Decisions received" holds
+only its 2026-10-11 entries), so the standing section 7 default held and Dr `negation_terms_mapped` is the headline
+secondary. The request was pushed on 2026-10-15, before the term artifact's `expires_at`, 2027-01-12T18:09:48Z (T8;
+C15). Plan job 116201220496 (its log 01:41:46 to 01:44:28): the self-test ran 79 tests, OK; `plan: 5 units in 5 shards
+(real)`; plan sha256 `e1b7d371b9f3aee767d4fb2d25218455e5864a966b466468d95dc9e6a1f1ee37` (the plan job prints it only in
+the env of its two `lab.msha guard` steps, as `LAB_PLAN_SHA256`, log lines 402 and 497; each shard's provenance block
+records it in full, and the report prints its prefix `e1b7d371b9f3`); it downloaded J001's `lab-plan-37996675559-1`
+(artifact id 11647645214), A001's `lab-plan-38114522160-1` (11693535286), A002's `lab-plan-38439612256-1` (11833749961)
+and the term artifact `lab-plan-38612800578-1` (11918947585, digest `a33c9ff30756…`, T1's), each digest verified by the
+download step; the `prereg` step ran from 01:42:07 to 01:44:26; it uploaded `lab-plan-38667030739-1` (artifact id
+11942755522, 20 files, 85,992 bytes, digest `90708cc89614…`); its plan summary block is 64 lines with sha256
+`0f853dc1bab9…`, matching. Provision jobs 116201990364 (the server, its log 01:44:34 to 01:44:51) and 116201990457 (the
+a-4b model file, its log 01:44:33 to 01:44:57): both files from the cache, verified by the lock (`verified true by
+lock`; server `2cda5ff93639`, a-4b `7485fe6f11af`, as the report's provision table prints them), lock status
+`unchanged`, 0 new entries. Five shards, `s001-a-4b` to `s005-a-4b` (jobs 116202122915, 116202122856, 116202122806,
+116202122864 and 116202122845; their logs run from 01:45:02 or 01:45:03 to 02:12:21, 02:12:09, 02:12:23, 02:02:34 and
+02:02:50, in that order), attempt 1, all `sealed` with exit code 0 (the report's shard table: a shard's own log never
+prints `sealed`, and each shard's summary block says `Provenance complete: yes; Interrupted: no`). Aggregate job
+116209851508 (02:12:30 to 02:13:35, success, the Actions API); its log prints `report/report.md` between the
+`MYCELIC-LAB` markers as 178 lines with sha256 `c7ee523a751a…`, matching (recomputed from the log's lines with the
+timestamp prefix stripped, joined with newlines and a trailing newline, as `lab/summary.py` hashes a block), and
+`report/lock-candidate.json` as 42 lines with sha256 `a153a34a1a5d…`, matching on the same recomputation and equal to
+the sha256 of `lab/models.lock.json` and to every shard provenance's `lock_sha256`; each shard's summary block and
+provenance block matched its marker (a provenance block through its canonical JSON, which the marker hashes); its INDEX
+line reads `report/report.json=9645 report/report.md=178 report/lock-candidate.json=42`. The aggregate's log is 10,256
+lines and the log tool returned its last 5,000: the `report/report.json` block begins before that tail, so its sha256 is
+not verified here and no figure below is taken from it alone, and the aggregate job's times are the Actions API's. Every
+figure below is copied from the report block or from a job's log, or cited from the file it names, except the times and
+expiry dates marked as the Actions API's.
+
+**The plan job's fixed lines**, printed before any model ran, in the log's own words (the plan job's log, lines 371 to
+376, the timestamp prefix stripped):
+
+```
+j4 exclusion: j001=artifact a001=artifact a002=artifact consistency j1_r1=0 a1_r2=0 b1_r3=0 outside_k2=0 outside_k3=0 k2_union=0 k3_union=0 excluded 450
+j4 draw: available 58319 excluded 571 (earlier 450 split_by_record_id 0 split_by_text 121) eligible_after_exclusion 57748 overlap 0 sources J1=verified R1=verified A1=verified R2=verified K2=verified B1=verified B1_questions_sha256 84486fa38568 R3=verified K3=verified j001=artifact a001=artifact a002=artifact consistency j1_r1=0 a1_r2=0 b1_r3=0 outside_k2=0 outside_k3=0 k2_union=0 k3_union=0 labels_sha256 cca4cdf749b0 questions_sha256 dfccb81bd61f prereg_sha256 375185ad7832 excluded_sha256 8f7b246328e1 excluded_lines 721 complaint_file_sha256 4e5ae79183c4 a001_complaint_file_sha256 a5a5de2d31f3 a002_complaint_file_sha256 216ecb36f9f5
+j4 split: archive_sha256 4e5ae79183c4 term_archive_sha256 4e5ae79183c4 archives_equal yes term_rows 77590 term_refs_sha256 6072b844d878 rebuilt_rows 77590 rebuilt_refs_sha256 6072b844d878 by_record_id 0 by_text 121 already_excluded 0 before_cutoff 0 in_drafting 0
+j4 terms: outcome verified failed none run_id 38612800578 terms_sha256 42c591ccbb66b81455ca19840a54e18cbb69b5613dd2eab8f3f8c70f9cea39cc expected_sha256 42c591ccbb66b81455ca19840a54e18cbb69b5613dd2eab8f3f8c70f9cea39cc p_d_config_hash 6219eb0993b5668ecea91cc0811a6e446971d62001fe85e54662dc0a2b56698a p_d_vocabulary_hash c0260f0edab4638915b1fd0065e236ca20b497c0b217495c77adf018800fe579 p_d_detector_hash 325b125afa2d8ae473384ed5802b6dd284a93ad3e83c853a065e8c5fb4582779 p_d_fixtures_hash 9d9d8bd6770efc127edbbc7cb79d75524655719f949cb6da4ce83d51cdec1e8f jt_code_hash f5743df58d418643ef231db62485219024cbb761cb22f8889e268b589e723d76 document_jt_code_hash f5743df58d418643ef231db62485219024cbb761cb22f8889e268b589e723d76 stand_in no
+j4 comparators: lexical_drafted balanced_accuracy 0.773 [0.730, 0.817] sensitivity 0.580 specificity 0.967 unknown 0; lexical balanced_accuracy 0.657 [0.617, 0.697] sensitivity 0.340 specificity 0.973 unknown 0; presence_drafted balanced_accuracy 0.767 [0.723, 0.810] sensitivity 0.580 specificity 0.953 unknown 0
+j4 comparators: record_blind balanced_accuracy 0.497 [0.440, 0.553] predicate_only_bound 0.560 drafted_minus_hand 0.117 [0.070, 0.163] presence_minus_hand 0.110 [0.063, 0.157] presence_minus_drafted -0.007 [-0.017, 0.000]
+```
+
+That is, in the order this file's Runs list asks for. **The term line:** term run 1's artifact (lab run 38612800578)
+verified, no check failed; `terms_sha256` equal to the request's (`expected_sha256`), which is the committed term set's
+sha256 (T1); P_D rebuilt with its four hashes equal to T2's; `lab/jt.py`'s code hash `f5743df58d41…` equal to the one
+`terms.json` records and to T7's; `stand_in no`. **The draw line:** `available` 58319; excluded 571: the 450 earlier
+refs, 0 removed by record id and 121 removed by text (C4); eligible after exclusion 57748; overlap 0; all eight sources
+`verified`, J1, R1, A1, R2, B1 and R3 with 150 refs each, K2 with 300 and K3 with 450 (the plan summary's counts), B1's
+questions file at A002's prefix `84486fa38568`; each cycle established by its own artifact (`j001`, `a001` and `a002` by
+`artifact`, 150 refs each), with no by-chain reading used; the seven consistency counts `j1_r1`, `a1_r2`, `b1_r3`,
+`outside_k2`, `outside_k3`, `k2_union` and `k3_union` all 0, all computed; labels sha256 `cca4cdf749b0…` (150 records,
+seed 4); questions sha256 `dfccb81bd61f…` (300 questions in 5 parts); prereg sha256 `375185ad7832…`; the chain file
+`prereg/j4/excluded.jsonl` sha256 `8f7b246328e1…` with 721 lines (the 450 earlier refs, the split's 121 removals and
+this draw's 150, derived here); complaint file sha256 `4e5ae79183c4…` beside A001's `a5a5de2d31f3…` and A002's
+`216ecb36f9f5…`. The prefix differs from both, which by trap 19 reports a file changed since A002's day; all three
+rebuilds verified, so the records they rebuild are unchanged, and `available`, 58319, equals A001's and A002's days'
+(58,319; CHOICE-A002 Run 1). Trap 19's case of the three rebuilds failing together did not arise. **The split's line**
+(item 8): the day's archive is the term run's (`4e5ae79183c4…`, T3's `4e5ae79183c489a3…`, `archives_equal yes`); the
+rebuilt drafting set has 77590 rows and record-id sha256 `6072b844d878…`, both equal to the term run's (T4); removed
+before the draw by record id 0 and by text 121, drafting records already excluded 0; the two tripwires after the draw,
+drawn records received before the cutoff 0 and drawn drafting records 0. The 0 by record id agrees with term run 1's
+`straddling` 0 (T4, T11); the 121 removed by text are eligible records whose folded narrative is a drafting narrative,
+and they change the population by exactly that count (trap 3). There was one plan job and no re-run, so rule 17's case
+of two plan jobs' lines does not arise.
+
+The lexical judges paired with each other, record by record (plan job): drafted minus hand 0.117 [0.070, 0.163]; term
+presence minus hand 0.110 [0.063, 0.157]; term presence minus drafted -0.007 [-0.017, 0.000]. **The drafted lexical
+judge against the hand lexical judge** ("How it is read"): above it, the lower end 0.070 above 0, so lever 5's
+vocabulary raised the bar as expected: with the drafted terms, word matching found more filed components (sensitivity
+0.340 to 0.580) at about the same specificity (0.973 to 0.967). The bar P had to clear rose from the hand judge's 0.657
+on this draw (0.670, 0.663 and 0.680 on J001's, A001's and A002's draws) to 0.773. The term-presence judge, the same
+terms read without the lexical judge's negation handling (C5), scored 0.767 with the same sensitivity and a specificity
+of 0.953, and is not told apart from the drafted judge (-0.007 [-0.017, 0.000]: its upper end is not below 0): on this
+draw the negation handling moved word matching little.
+
+**The comparators on the fresh draw** (plan job, every record: the same 150 records and 300 questions every arm scored,
+since no record was left out):
+
+| Comparator | Balanced accuracy [95% interval] | Sensitivity | Specificity | Unknown verdicts |
+|---|---|---|---|---|
+| Drafted lexical judge (the pass test's lexical judge, lever 5) | 0.773 [0.730, 0.817] | 0.580 | 0.967 | 0 |
+| Hand-pack lexical judge (beside; the hand clause) | 0.657 [0.617, 0.697] | 0.340 | 0.973 | 0 |
+| Drafted term-presence judge (beside; the term-presence clause, C5) | 0.767 [0.723, 0.810] | 0.580 | 0.953 | 0 |
+| Record-blind control (decides nothing) | 0.497 [0.440, 0.553] | | | |
+| Predicate-only bound (a fitted point value, decides nothing) | 0.560 | | | |
+
+**The four arms** on a-4b, on the same records (cluster bootstrap over records, B 10,000, seed `j1:4`; the paired
+differences are the arm minus each judge, record by record; the drafted lexical judge scored 0.773, the hand judge 0.657
+and the term-presence judge 0.767 on every arm's records; the pass test is rule 13's with the added clauses, the verdict
+word rule 13's (`lab.j4.verdict_word`, C19) in the order `incomplete`, `pass_provisional`, `partial`, `failure`; P in
+bold):
+
+| Arm | Task, reading | Balanced accuracy [95% interval] | Sensitivity | Specificity | Unknown share | Minus the drafted lexical judge [interval] | Minus the hand lexical judge [interval] | Minus the term-presence judge [interval] | Bound on the same records | Parts finished | Records left out | Pass test | Verdict word | Word under lever 5's text alone |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **D `negation_terms` (P)** | **D, as answered** | **0.780 [0.733, 0.823]** | 0.827 | 0.733 | 0.047 | **0.007 [-0.047, 0.057]** | **0.123 [0.070, 0.173]** | **0.013 [-0.037, 0.063]** | 0.560 | 5 of 5 | 0 | **no** | **`failure`** | `failure` |
+| Dr `negation_terms_mapped` (headline secondary) | D, M | 0.793 [0.750, 0.833] | 0.827 | 0.760 | 0.013 | 0.020 [-0.033, 0.070] | 0.137 [0.087, 0.187] | 0.027 [-0.023, 0.077] | 0.560 | 5 of 5 | 0 | no | `failure` | `failure` |
+| B `negation` (the control) | B, as answered | 0.627 [0.587, 0.667] | 0.893 | 0.360 | 0.090 | -0.147 [-0.200, -0.093] | -0.030 [-0.083, 0.027] | -0.140 [-0.193, -0.083] | 0.560 | 5 of 5 | 0 | no | `failure` | `failure` |
+| Br `negation_mapped` | B, M | 0.667 [0.627, 0.707] | 0.893 | 0.440 | 0.027 | -0.107 [-0.163, -0.050] | 0.010 [-0.043, 0.063] | -0.100 [-0.157, -0.043] | 0.560 | 5 of 5 | 0 | no | `failure` | `failure` |
+
+The pass test's six clauses (rule 13; `lab.j4.pass_test`, C19), arm by arm: the balanced accuracy at or above 0.860
+fails on every arm; the drafted-judge clause fails on every arm; the bound clause holds on every arm (lower ends 0.733,
+0.750, 0.587 and 0.627 against 0.560); the unknown share is reported on every arm; the hand clause holds on D and Dr
+(lower ends 0.070 and 0.087) and fails on B and Br; the term-presence clause fails on every arm.
+
+**The verdict on P = (a-4b, D `negation_terms`), by rule 13: failure.** In the rule's words, with every lexical figure
+(C6): P scored BA 0.780 [0.733, 0.823]; gap to 0.860 is 0.080; drafted lexical 0.773 [0.730, 0.817]; hand lexical 0.657
+[0.617, 0.697]; term presence 0.767 [0.723, 0.810]; bound 0.560. The rule's text, applied here to the figures in its
+order: task D's set is complete (5 of 5 parts, class `model`, 0 records left out, every figure a number), so not
+`incomplete`; the point estimate is below 0.860, so not `pass_provisional`, and `partial` by its first route cannot
+hold; `partial` by its second route needs the paired lower end above 0 against all three lexical judges, and only the
+hand clause holds (0.123 [0.070, 0.173]), while the drafted clause (0.007 [-0.047, 0.057]) and the term-presence clause
+(0.013 [-0.037, 0.063]) have lower ends below 0; so `failure`, which the block's Failure line names too: the interval to
+the drafted lexical judge includes 0. **P's word under lever 5's text alone: `failure`** (the block's four clauses with
+the drafted judge: BA below 0.860 and the drafted judge not beaten, so neither `pass_provisional` nor `partial`). Both
+words are the aggregate's (the report's primary line: "`failure`; under lever five's text alone: `failure`"), and this
+reading of the rule's text against the figures, made here, gives the same two words. P's lower end, 0.733, is above the
+predicate-only bound's 0.560; its unknown share is 0.047. **The primary under the other reading of the section 7
+default**, (a-4b, Dr `negation_terms_mapped`): `failure` (0.793 [0.750, 0.833], paired to the drafted judge 0.020
+[-0.033, 0.070], to the hand judge 0.137 [0.087, 0.187], to the term-presence judge 0.027 [-0.023, 0.077]; `failure`
+under lever 5's text alone too). Success in the sense of the rule could not be reached in this cycle, and was not.
+Section 2.5: continue with the next lever. The first run is the result (rule 17).
+
+**The headline** (rule 11: D, P's arm, against each judge's balanced accuracy on the same records): against the drafted
+lexical judge's 0.773, **not told apart** (0.780 [0.733, 0.823], the interval holding 0.773); against the hand lexical
+judge's 0.657, **better** (lower end 0.733 above 0.657); against the term-presence judge's 0.767, **not told apart**.
+The headline secondary, Dr (0.793 [0.750, 0.833]): not told apart from the drafted judge, better than the hand judge,
+not told apart from the term-presence judge (lower end 0.750, below 0.767). The headline and the paired clauses agree
+for both arms. With the drafted terms, a-4b judges better than word matching with the hand pack's lexicon on this draw,
+and is not told apart from word matching with the same terms.
+
+**The lifts of rule 10**, paired by record over 150 records ("helps" when the lower end is above 0, "hurts" when the
+upper end is below 0, else "not told apart"; they decide nothing toward 86):
+
+| Lift | Lever | Difference [95% interval] | Reading |
+|---|---|---|---|
+| `D_minus_B` | the drafted terms: one payload key and one sentence, answers as answered | 0.153 [0.103, 0.203] | helps |
+| `Dr_minus_Br` | the drafted terms under the mapping | 0.127 [0.080, 0.173] | helps |
+| `Dr_minus_D` | the unclear-to-no mapping under the terms | 0.013 [0.003, 0.027] | helps |
+| `Br_minus_B` | the unclear-to-no mapping without the terms (A001's D − C and A002's `D_minus_N`, replicated) | 0.040 [0.020, 0.063] | helps |
+
+Read with sensitivity and specificity, as "How it is read" asks: the terms (D − B) lowered sensitivity from 0.893 to
+0.827 and raised specificity from 0.360 to 0.733, with the unknown share from 0.090 to 0.047: told the usual words of
+the asked component, a-4b refuted far more negatives, the yes on a negative every cycle has named, at a cost on
+positives, the direction the rule names for terms that let it refute a component whose usual words are absent. Under the
+mapping (Dr − Br) the same: sensitivity 0.893 to 0.827, specificity 0.440 to 0.760. The mapping under the terms (Dr − D)
+moved specificity from 0.733 to 0.760 at the same sensitivity, 0.827, and the unknown share from 0.047 to 0.013; without
+them (Br − B) from 0.360 to 0.440 at the same sensitivity, 0.893, and the unknown share from 0.090 to 0.027 (the same
+lift was 0.077 [0.047, 0.107] in A001 run 1, its D − C, and 0.053 [0.030, 0.080] in A002 run 1, its `D_minus_N`;
+CHOICE-A001 and CHOICE-A002, Run 1). The terms moved the model (0.153) and word matching (the drafted judge minus the
+hand judge, 0.117 [0.070, 0.163]) in the same direction, and the model's margin over the terms it was given (D minus the
+drafted judge, 0.007 [-0.047, 0.057]) is not told apart from 0: D is within about 0.05 of the drafted judge, the case
+"How it is read" calls `failure` for want of power (C25), while `D_minus_B`, which helps, carries the lever's reading.
+Every arm other than D is a secondary, a hypothesis for the next cycle's rule and never a result; none met its pass
+test; and no reading other than the four arms was made of the replies (rule 17).
+
+**The agreement readings** (rule 14, trap 6; C5): D's verdicts beside the drafted lexical judge's and the term-presence
+judge's, per kind, on the same 300 questions:
+
+| Judge | Kind | Questions | D's verdict equal to the judge's (share, count) | D confirms where the judge confirms | D confirms where the judge refutes |
+|---|---|---|---|---|---|
+| Drafted lexical judge | positive | 150 | 0.647 (97) | 0.931 (81 of 87) | 0.683 (43 of 63) |
+| Drafted lexical judge | negative | 150 | 0.747 (112) | 0.600 (3 of 5) | 0.200 (29 of 145) |
+| Term-presence judge | positive | 150 | 0.647 (97) | 0.931 (81 of 87) | 0.683 (43 of 63) |
+| Term-presence judge | negative | 150 | 0.747 (112) | 0.571 (4 of 7) | 0.196 (28 of 143) |
+
+D is not word matching with a model in the loop: its verdict equals the drafted judge's on 97 of 150 positives and 112
+of 150 negatives. Nor is it the other case "How it is read" names, a D that confirms where the judges refute and refutes
+where they confirm: where the drafted judge confirms, D mostly confirms too (81 of 87 positives and 3 of 5 negatives).
+What it adds runs one way, confirms where the judge refutes: 43 of the 63 positives the judge refuted (the components
+the terms missed: sensitivity 0.827 against the judge's 0.580) and 29 of the 145 negatives it refuted (specificity 0.733
+against the judge's 0.967). The sensitivity gained and the specificity lost net to the paired difference 0.007 [-0.047,
+0.057]: not told apart. The term-presence judge's figures equal the drafted judge's on positives; on negatives it
+confirms 7 questions where the drafted judge confirms 5.
+
+**The drafted terms each question carried** (rule 14, trap 11; counts only, never a term): the number of terms T holds
+for each hand specific predicate, as the report prints it:
+
+| Predicate | Terms | Predicate | Terms |
+|---|---|---|---|
+| `air_bags` | 50 | `latches_locks_linkages` | 11 |
+| `back_over_prevention` | 9 | `power_train` | 50 |
+| `child_seat` | 0 | `seat_belts` | 28 |
+| `electrical_system` | 50 | `seats` | 48 |
+| `electronic_stability_control_esc` | 0 | `service_brakes` | 50 |
+| `engine` | 50 | `service_brakes_hydraulic` | 2 |
+| `engine_and_engine_cooling` | 1 | `steering` | 50 |
+| `equipment` | 0 | `structure` | 47 |
+| `exterior_lighting` | 50 | `suspension` | 50 |
+| `forward_collision_avoidance` | 50 | `tires` | 20 |
+| `fuel_propulsion_system` | 50 | `vehicle_speed_control` | 8 |
+| `fuel_system_gasoline` | 3 | `visibility_wiper` | 32 |
+| `lane_departure` | 1 | `wheels` | 43 |
+
+The 26 counts sum to 753, ten lists are at the cap K = 50 and three are empty (`child_seat`,
+`electronic_stability_control_esc` and `equipment`), as term run 1's `terms_total 753` and `empty 3` said (T5).
+Questions of task D whose payload carried an empty list: **0 of 300 (0.000)**. A question carries its own predicate's
+list, the empty list when T has none ("The terms", item 8), so no question of this draw asked about any of the three
+empty predicates (derived here), and trap 11's case of an empty list did not arise. In each old-and-new name pair
+(`TWINS`, `lab/j1.py:120-121`; traps 9 and 11) one twin holds 50 terms and the other 1 to 3: `engine` 50 and
+`engine_and_engine_cooling` 1, `fuel_propulsion_system` 50 and `fuel_system_gasoline` 3, `service_brakes` 50 and
+`service_brakes_hydraulic` 2, the split by filing history trap 9 describes.
+
+**The first key and the tokens, per task** (from the ledgers):
+
+| Task | First key is the new field (share) | Attempts | Calls | Output tokens, median | Output tokens, 95th percentile | Replies cut at the cap |
+|---|---|---|---|---|---|---|
+| D `judge_record_negation_terms` | n/a (no new field under branch N) | 300 | 300 | 13.0 | 16.0 | 0 |
+| B `judge_record_negation` | n/a (no new field under branch N) | 300 | 300 | 16.0 | 17.0 | 0 |
+
+No reply of either task was cut at its 256-token cap. Task D's replies were the shorter (median 13.0 output tokens
+against 16.0): the terms are input, and the reply did not grow ("The terms", item 8). Branch E is not in force, so there
+are no citation readings (rule 14, C16) and no first-key share to read.
+
+**B and Br beside A001 run 1's arms C and D** (`docs/collective/A001/CHOICE-A001.md`, Run 1, cited as written there). A
+between-draw difference, reported, not tested:
+
+| Arm | A001 run 1 (150 records, labels `623780b8a1de…`): balanced accuracy [interval], sensitivity, specificity, unknown share | A003 run 1 (150 fresh records, labels `cca4cdf749b0…`): the same | Difference of the two point values |
+|---|---|---|---|
+| B `negation` (A001's arm C) | 0.577 [0.530, 0.623], 0.833, 0.320, 0.137 | 0.627 [0.587, 0.667], 0.893, 0.360, 0.090 | 0.627 − 0.577 = 0.050 |
+| Br `negation_mapped` (A001's arm D) | 0.653 [0.610, 0.697], 0.833, 0.473, 0.017 | 0.667 [0.627, 0.707], 0.893, 0.440, 0.027 | 0.667 − 0.653 = 0.014 |
+
+The aggregate printed both differences (0.050 and 0.014). The two draws are independent, so the difference of two point
+values has a standard error of about 0.05 (the square root of 2 times 0.035); differences within about 0.10 are
+sampling, and both are within it (A002's B14). For the reader, deciding nothing: the same two arms on A002's draw
+(labels `0a64a62d94a7…`; CHOICE-A002 Run 1, the nine arms' table, as written there) were N `negation` 0.633 [0.590,
+0.677], 0.907, 0.360, 0.090 and D `negation_mapped` 0.687 [0.643, 0.730], 0.907, 0.467, 0.017; this draw's B and Br are
+0.006 and 0.020 below them (derived here). The comparators on the three draws: the hand lexical judge 0.657 [0.617,
+0.697] here, 0.663 [0.627, 0.703] on A001's and 0.680 [0.637, 0.723] on A002's; the record-blind control 0.497 [0.440,
+0.553], 0.520 [0.463, 0.577] and 0.517 [0.460, 0.573]; the predicate-only bound 0.560, 0.577 and 0.553.
+
+**Parts and records.** Every task set finished 5 of 5 parts for each of the two tasks (D and B), and every arm built on
+them shows 5 of 5; `records left out` is 0 in every arm. 600 model calls were made, 300 per task; Dr and Br are readings
+of the same replies.
+
+**Nothing stopped before a model ran.** The plan job's guard (`l1 guard: no l1 units`), the term check, the eight
+sources, the stop rules, the split's removals and tripwires and the draw passed; both provision jobs took their files
+from the cache, verified by the lock; in every shard the warm-up called both tasks with `finish_reason` `stop` and
+`fits` true, with no skip and no stop, so no warm-up reply was cut at the cap (trap 22); its probe was task B's
+(`judge_record_negation`), with `repeat_identical` true, as rule 16 declares; and its line, the same in all five shards,
+reads `lab: warmup judge_record_negation_terms typical_terms 50 typical_predicate air_bags worst_terms 50
+worst_predicate forward_collision_avoidance worst_prompt_tokens 2190 max_tokens 256 slot 16384 fits yes` (C12); no shard
+failed (each `sealed`, attempt 1, exit code 0); and no unit stopped at its budget (no log line says one did, and every
+task set finished 5 of 5 parts): the longest shard (`s001-a-4b`) took 1612.6 s of wall time and the longest unit
+(`j4-a-4b-p1`) 1561.4 s, against a 300-minute budget and within the 1,698 s this rule assumed at most for a unit under
+branch N (C7).
+
+**Model-call latency, from the ledgers** (one shared GitHub-hosted runner per shard, 4 CPUs and 15.6 GiB, a runner
+number and not site hardware; compare only within a CPU model; the CPU model as the report quotes it; a unit's two tasks
+ran on the same server, in the declared order D, then B):
+
+| Runner CPU | Shards | Calls per task | Median ms, task D / task B | 95th percentile ms, task D / task B | Unit wall seconds |
+|---|---|---|---|---|---|
+| `AMD EPYC 7763 64-Core Processor` | `s001-a-4b`, `s002-a-4b`, `s003-a-4b` | 180 | 15562.9 / 9071.4 | 26090.0 / 18897.8 | 1561.4, 1551.1, 1549.2 |
+| `AMD EPYC 9V74 80-Core Processor` | `s004-a-4b`, `s005-a-4b` | 120 | 9714.1 / 6337.9 | 15275.1 / 10528.1 | 988.7, 1003.2 |
+
+Over all five shards, per task (across CPU models, so not one comparison): task D median 13349.5 ms and 95th percentile
+21862.5 ms; task B 8211.8 and 15788.2 ms. Within each CPU model task D's median is the higher, 1.72 times task B's on
+the AMD EPYC 7763 and 1.53 times on the AMD EPYC 9V74 (derived here). Task B is the negation task A001 and A002 timed:
+on the AMD EPYC 7763 its a-4b median was 9431.5 ms in A001 run 1 and 9297.1 ms in A002 run 1 (CHOICE-A001 and
+CHOICE-A002, Run 1), and 9071.4 ms here. The factor of two this rule assumed, without a figure, for task D's longer
+prompt was against an A001 call (C7), and 9431.5 ms is the slowest a-4b negation median A001 recorded: task D's median
+on the same CPU here, 15562.9 ms, is 1.65 times it (derived here); A001 timed no a-4b call on the AMD EPYC 9V74
+(CHOICE-A001 Run 1, the latency table). All three ratios are below two, and these figures replace that assumption for
+the next rule. The shards ran on two CPU models; the figures of different rows are not one comparison.
+
+**The comparison count.** 4 this cycle, 25 since the loop began: 4 arms × 1 model × 1 cycle make 4 (model, arm, cycle)
+comparisons this cycle, and 21 were made before it (A001 run 1's 12 and A002 run 1's 9). The aggregate printed
+"comparisons since the loop began: 25 (4 this cycle, 21 before)".
+
+**Public text.** This result is on public text the models may have seen in training: real NHTSA complaint narratives,
+read with their codes hidden and scored against the filed codes, which are not checked labels; the drafted terms were
+learned from earlier complaints of the same public field. A pass here would have been a pass on such text; this failure
+is a failure on it.
+
+**What the next cycle inherits.** A004 (`docs/collective/A004/CHOICE-A004.md`, amended before any build, E1 to E38)
+picks its base task and its primary pair from this entry by its own pre-registered adaptation rule ("The base task and
+the arms"), whose text is that file's and is not changed here; the amendment of A004 that reads the branch is a separate
+step. The cells that rule reads, as this entry prints them, from the result run's first aggregate (job 116209851508;
+A004's E21): D's rule-13 verdict word `failure`; B's rule-13 verdict word `failure`; the lifts table's row `D_minus_B`,
+0.153 [0.103, 0.203], helps. Neither word is `incomplete`, so both of this cycle's sets are complete in A004's sense
+(E4). Under that text, in its order: the confirmation case (C) needs D's word `pass_provisional`, and it is `failure`;
+the hypothesis case (H) needs B's word `pass_provisional`, and it is `failure`; branch T needs both sets complete and
+`D_minus_B`'s printed lower end above 0, and it is 0.103: **branch T** holds, and branch N, the case for every other
+outcome, is not reached. So under A004's text its base task is this cycle's task D, `judge_record_negation_terms`,
+imported unchanged with term run 1's terms in the payload; its P is (a-4b, `negation_terms_reasoning`), R1 on `a-4b-r`
+read as answered, with R1 through the mapping the headline secondary, and its control R0 is task D on a-4b
+(`negation_terms`); a chief-scientist call on decision 9 that counts unclear as no, if received before A004's judging
+request is pushed, would make its P (a-4b, `negation_terms_reasoning_mapped`) by A004's E2. No arm's word under lever 5's text alone is `pass_provisional` (all four are `failure`), so A004's
+E5 case does not arise, and no mapped arm (Dr or Br) met its pass test, so no mapped hypothesis is recorded. The control
+task's timing on this draw, which A004's placeholder 7 names under branch T, is task D's in the latency and token tables
+above. Under branch T, A004's judging request must be pushed before the term artifact's `expires_at`,
+2027-01-12T18:09:48Z (A004's trap 19; T8 here). The best secondary this cycle, Dr `negation_terms_mapped` (task D read
+through the mapping), scored 0.793 [0.750, 0.833], paired 0.020 [-0.033, 0.070] to the drafted lexical judge: not told
+apart from word matching with the same terms, a secondary, never a result.
+
+**The run's artifacts.** Two artifacts hold the run. The report artifact `lab-report-real-38667030739-1`: artifact id
+11942489769, 5 files, 22,274 bytes, digest `ccdda41e702d88296e82d8eb689d6c0913a0af5caa15021b4e1bc532b08423cd` (the
+aggregate's upload step), retention 30 days from 2026-10-15 (`expires_at` 2026-11-14T02:13:30Z, as the Actions API lists
+it). The plan artifact `lab-plan-38667030739-1`: artifact id 11942755522, 20 files, 85,992 bytes, digest
+`90708cc89614cd7c0f71d87685d21c50ac3bca785ee4e5e41e83d7d9bf24733d` (the plan job's upload step; the provision and shard
+jobs' downloads verified the same digest), `expires_at` 2026-11-14T01:44:27Z. The shard artifacts
+(`lab-run-38667030739-1-s001-a-4b` to `-s005-a-4b`, artifact ids 11944185016, 11943610178, 11941994863, 11943108434 and
+11942743632 in shard order) and the two provision artifacts (ids 11943065530 and 11943265473) expire on 2026-11-14 too.
+The artifact host cannot be reached from the agent's sandbox, so no artifact was downloaded here and no figure above
+comes from one; the founder can download them from the run page. The report block was read from the aggregate job's log,
+not from an artifact: 178 lines, sha256 `c7ee523a751a353411112acf36b9f5a4a756e129a28874377a39eef21d81a067`, the
+marker's, recomputed from the log's lines and matching. Its exact bytes are committed beside this file as
+`docs/collective/A003/run-1-report.md`, which hashes to the same sha256; it holds counts and hashes only, as the kind
+prints them, and no term or record ref.
 
 ## Amended before any build, 2026-10-14
 

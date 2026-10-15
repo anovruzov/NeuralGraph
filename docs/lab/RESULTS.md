@@ -2,8 +2,8 @@
 
 Every number below is copied from a lab report printed in a GitHub Actions job log (between
 `=== MYCELIC-LAB … BEGIN/END ===` markers), from a shard's own summary or, for the vehicle replay, from its audit
-printed between `VEHICLE-AUDIT` markers. Each row names its run. **Synthetic data, except runs 3, 4, 6, 7, 9, 10, 11
-and 12 and the vehicle replay**: their records are public FDA reports, NHTSA complaints and MSHA accident records; every other
+printed between `VEHICLE-AUDIT` markers. Each row names its run. **Synthetic data, except runs 3, 4, 6, 7, 9, 10, 11,
+12 and 13 and the vehicle replay**: their records are public FDA reports, NHTSA complaints and MSHA accident records; every other
 record and narrative was generated from a seed. **Runner hardware only**: one shared 4-vCPU GitHub-hosted runner per
 shard, whose CPU model varies between shards; compare timings only between rows of the same CPU model, and never read
 them as site hardware. A unit without a result is listed with its reason, not left out.
@@ -614,6 +614,143 @@ the filed component codes, not checked labels. The first run is the result; the 
 next cycle's rule, not results. A003's draft (efa79fe, in review) reads this run by its pre-registered adaptation
 rule: with the primary failed and the evidence field hurting, its base task is the negation instruction, with the
 mapping as its declared reading.
+
+## Run 13: accuracy-003 (the third cycle toward 86, a fresh draw of real complaints, lever 5): failure on the primary pair; the drafted terms lift a-4b by 0.153 over the negation task alone, but the primary arm is level with the drafted-terms word list
+
+The third pre-registered cycle of the accuracy loop: a-4b answers the site verifier's narrow question about 150 fresh
+public NHTSA complaints (J001's, A001's and A002's 450 records and the term run's drafting set excluded, codes hidden),
+each twice: under A001's negation instruction with the drafted terms of the asked component added to its payload, and
+under that instruction alone (the base task A003's adaptation rule read from A002's result, branch N). The terms are
+lever 5's: drafted before the run by the onboard package's drafter (D002's, unchanged) in term run 1 (lab run
+38612800578) from 77,590 rows of the same six makes' complaints received 2020-01-01 to 2022-12-31, before every drawn
+record, at most 50 per component, their sha256 committed in the rule before the run; no term is printed in a summary, a
+console line, a report or a commit. Each task's replies are read by the shipped verdict rule and, as a declared
+secondary, through the mapping that reads an unclear component answer as no. Under lever 5 the lexical comparator is
+the lexical judge with the same drafted terms, with the hand pack's lexical judge and a term-presence judge beside it.
+The primary pair, a-4b with the drafted terms read as answered, scored balanced accuracy 0.780 [0.733, 0.823] against
+0.773 for the drafted lexical judge on the same records (paired difference 0.007 [-0.047, 0.057]); the gap to the 0.860
+target is 0.080, and by the rule the verdict is **failure**, as it is under lever 5's text alone and for the mapped
+arm, the primary under the other reading of the standing default. The drafted terms helped: 0.153 [0.103, 0.203] over
+the negation instruction alone, and the primary pair beat the hand pack's lexical judge by 0.123 [0.070, 0.173]; but it
+was not told apart from the word list with the same terms, which scored 0.773 without a model: on 150 records, in the
+rule's words, a failure for want of power, not evidence that the lever does nothing; nor is it evidence that the model
+adds anything beyond that word list. The best secondary, the drafted terms read through
+the mapping, scored 0.793 [0.750, 0.833], a paired difference of 0.020 [-0.033, 0.070] to the drafted lexical judge:
+not told apart, a hypothesis for the next cycle, never a result.
+[Run 38667030739](https://github.com/anovruzov/NeuralGraph/actions/runs/38667030739), request
+`lab/requests/accuracy-003.json` (sha `4a851dd85365`), commit `c5dad9a`, 2026-10-15 01:41 to 02:13 UTC (plan job's log
+01:41:46 to 01:44:28; the 5 shards' logs 01:45:02 to 02:12:23; aggregate 02:12:30 to 02:13:35, the Actions API); rule
+`docs/collective/A003/CHOICE-A003.md`, committed in `efa79fe`, amended before any build (C1 to C32, `7daab37`) and once
+after the term run, before build 2 (T1 to T11, `3d73f93`). Report from the `aggregate` job (116209851508): `report.md`
+sha256 `c7ee523a751a…` (178 lines), matching; `report.json` not verified, since its block begins before the readable
+tail of the job log. All 5 units `ok`, every task set 5 of 5 parts, no reply cut at its cap, 0 records left out; 4
+(model, arm, cycle) comparisons this cycle, 25 since the loop began.
+
+Public data: real NHTSA complaint narratives, read with each complaint's codes hidden and scored against the components
+it was filed under (filed codes, not checked labels). The draw is fresh and outside the terms' drafting set: the plan
+job excluded J001's, A001's and A002's 450 records by eight pre-registered sources (each cycle's plan artifact
+downloaded and read, each cycle's draw rebuilt from the complaint file as published on the day, and A001's and A002's
+chain files; all eight `verified`, every consistency count 0, each cycle's set established by its own artifact), then
+removed the term run's drafting set from the eligible records, 0 records by record id and 121 by narrative text (the
+day's complaint file equal to the term run's archive, sha `4e5ae79183c4`, its 77,590 drafting rows rebuilt as 77,590
+with the same refs sha `6072b844d878`), from 58,319 eligible records (571 excluded, 57,748 after exclusion, overlap 0),
+and drew 150 with seed 4 (labels sha `cca4cdf749b0`, chain file sha `8f7b246328e1` with 721 lines, complaint file sha
+`4e5ae79183c4`, where A001's day had `a5a5de2d31f3` and A002's `216ecb36f9f5`); both tripwires read 0 (no drawn record
+received before the cutoff, none a drafting record). The term set was verified against the request before any model ran
+(sha256 `42c591ccbb66…`, term run 1's, not a stand-in). J001's code built 300 questions in 5 parts (sha `dfccb81bd61f`,
+prereg sha `375185ad7832`): one about a filed component and one about a component the record was not filed under, per
+record. The comparators ran in the plan job before any model: the lexical judge with the drafted terms 0.773 [0.730,
+0.817], the hand pack's lexical judge (the lexical judge of runs 11 and 12) 0.657 [0.617, 0.697] and the drafted
+term-presence judge (the same terms without the lexical judge's negation handling) 0.767 [0.723, 0.810], each with 0
+unknown verdicts; the record-blind control 0.497 [0.440, 0.553]; the predicate-only bound 0.560. Before any model ran,
+the drafted terms lifted word matching itself: the drafted lexical judge minus the hand judge, paired by record, 0.117
+[0.070, 0.163]; the term-presence judge minus the hand judge 0.110 [0.063, 0.157] and minus the drafted judge -0.007
+[-0.017, 0.000]. Model calls were made for the two tasks only (600 calls, 300 a task); the other two arms are readings
+of the same replies.
+
+| Judge | Arm | Balanced accuracy [95% interval] | Minus the drafted lexical judge [interval] | Minus the hand lexical judge; minus the term-presence judge [intervals] | Sensitivity | Specificity | Unknown share | Bound on the same records | Pass test | Verdict word |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Lexical judge with the drafted terms | | 0.773 [0.730, 0.817] | | | 0.580 | 0.967 | | | | |
+| Hand lexical judge | | 0.657 [0.617, 0.697] | | | 0.340 | 0.973 | | | | |
+| Term-presence judge (the drafted terms, no negation handling) | | 0.767 [0.723, 0.810] | | | 0.580 | 0.953 | | | | |
+| Record-blind control (decides nothing) | | 0.497 [0.440, 0.553] | | | | | | | | |
+| Predicate-only bound (decides nothing) | | 0.560 | | | | | | | | |
+| a-4b | negation | 0.627 [0.587, 0.667] | -0.147 [-0.200, -0.093] | -0.030 [-0.083, 0.027]; -0.140 [-0.193, -0.083] | 0.893 | 0.360 | 0.090 | 0.560 | no | failure |
+| a-4b | negation, unclear read as no | 0.667 [0.627, 0.707] | -0.107 [-0.163, -0.050] | 0.010 [-0.043, 0.063]; -0.100 [-0.157, -0.043] | 0.893 | 0.440 | 0.027 | 0.560 | no | failure |
+| **a-4b** | **negation with the drafted terms, as answered (the primary pair)** | **0.780 [0.733, 0.823]** | **0.007 [-0.047, 0.057]** | 0.123 [0.070, 0.173]; 0.013 [-0.037, 0.063] | 0.827 | 0.733 | 0.047 | 0.560 | **no** | **failure** |
+| a-4b | negation with the drafted terms, unclear read as no (the headline secondary) | 0.793 [0.750, 0.833] | 0.020 [-0.033, 0.070] | 0.137 [0.087, 0.187]; 0.027 [-0.023, 0.077] | 0.827 | 0.760 | 0.013 | 0.560 | no | failure |
+
+**By the pre-registered rule, the primary pair fails:** "It scored balanced accuracy 0.780 [0.733, 0.823]; gap to the
+target 0.860 is 0.080; drafted lexical judge 0.773 [0.730, 0.817] on the same records, paired difference 0.007 [-0.047,
+0.057]; hand lexical judge 0.657 [0.617, 0.697], paired difference 0.123 [0.070, 0.173]; term presence 0.767 [0.723,
+0.810], paired difference 0.013 [-0.037, 0.063]; predicate-only bound 0.560; unknown share 0.047." Its balanced
+accuracy is below the target and its interval's lower end above the predicate-only bound (0.733 against 0.560), but its
+interval against the drafted lexical judge spans zero, so it beats neither that judge nor the term-presence judge; it
+is the highest a primary pair has scored in the loop (0.577 in run 11, 0.540 in run 12; other arms on other draws, each
+read against its own cycle's comparators: a between-draw difference that decides nothing), and the word list it was
+handed scores 0.773 alone. The headline for the drafted terms is **not told apart** from the drafted lexical judge and
+from the term-presence judge (its interval holds 0.773 and 0.767), and **better** than the hand lexical judge (lower
+end 0.733 against 0.657); the mapped arm reads the same against all three (0.793 [0.750, 0.833]). The control arms sit
+beside A001's arms C and D on a fresh draw: negation 0.627 against 0.577, negation read through the mapping 0.667
+against 0.653, between-draw differences of 0.050 and 0.014 that decide nothing (A002's same arms scored 0.633 and
+0.687, run 12); the hand lexical judge 0.657 against 0.663 in run 11 and 0.680 in run 12. The lifts between arms,
+paired by record over 150 records (a lift helps when its lower end is above 0, hurts when its upper end is below 0,
+else not told apart; they decide nothing toward the target):
+
+| Lift | Lever | Difference [95% interval] | Reading |
+|---|---|---|---|
+| D − B | the drafted terms in the payload, read as answered | 0.153 [0.103, 0.203] | helps |
+| Dr − Br | the drafted terms, under the mapping | 0.127 [0.080, 0.173] | helps |
+| Dr − D | the mapping under the drafted terms | 0.013 [0.003, 0.027] | helps |
+| Br − B | the mapping under the negation instruction alone | 0.040 [0.020, 0.063] | helps |
+
+Read with sensitivity and specificity: the drafted terms raised a-4b's specificity from 0.360 to 0.733 and lowered its
+sensitivity from 0.893 to 0.827 and its unknown share from 0.090 to 0.047: with the terms in its payload it refuted far
+more negatives and confirmed a few fewer positives, the direction the rule reads as terms that let it refute a
+component whose usual words are absent. The mapping helped a little under both tasks, as it did in runs 11 and 12. Read
+against the word lists (the first table below), the primary arm is not word matching with a model in the loop: on
+positives it confirms 81 of the 87 the drafted lexical judge confirms and 43 of the 63 it refutes, and on negatives 29
+of the 145 it refutes. It finds positives the word list misses and confirms negatives the word list refutes, and on
+this draw the two leave it level with the word list. Continue with the next lever.
+
+**The primary arm beside the word lists, the terms carried and the replies per task (readings, not tests):**
+
+| Judge | Kind | Questions | Verdicts equal to the judge's | Confirms where the judge confirms | Confirms where the judge refutes |
+|---|---|---|---|---|---|
+| Lexical judge with the drafted terms | positive | 150 | 0.647 (97) | 0.931 (81 of 87) | 0.683 (43 of 63) |
+| Lexical judge with the drafted terms | negative | 150 | 0.747 (112) | 0.600 (3 of 5) | 0.200 (29 of 145) |
+| Term-presence judge | positive | 150 | 0.647 (97) | 0.931 (81 of 87) | 0.683 (43 of 63) |
+| Term-presence judge | negative | 150 | 0.747 (112) | 0.571 (4 of 7) | 0.196 (28 of 143) |
+
+The drafted-terms payload carried each asked component's own list: of the 26 components, 10 carry 50 terms (the cap),
+13 carry 1 to 48 and 3 carry none, and no question of this draw asked about one of those 3 (0 of 300 questions carried
+an empty list).
+
+| Task | First key is the new field (share) | Calls | Output tokens, median | Output tokens, 95th percentile | Replies cut at the cap |
+|---|---|---|---|---|---|
+| negation with the drafted terms | n/a | 300 | 13.0 | 16.0 | 0 |
+| negation | n/a | 300 | 16.0 | 17.0 | 0 |
+
+**Latency (a measurement, not a test; one shared runner per shard; medians and 95th percentiles of the judge calls from
+the ledgers, per task; the CPU model as the report quotes it):**
+
+| Model | Runner CPU | Calls per task | Median ms, drafted terms / negation | 95th percentile ms, drafted terms / negation |
+|---|---|---|---|---|
+| a-4b | `AMD EPYC 7763 64-Core Processor` | 180 | 15562.9 / 9071.4 | 26090.0 / 18897.8 |
+| a-4b | `AMD EPYC 9V74 80-Core Processor` | 120 | 9714.1 / 6337.9 | 15275.1 / 10528.1 |
+
+Notes. The 5 shards ran on two CPU models: compare timings only within a CPU model, where the drafted-terms task's
+median is the higher of the two (its payload carries the list; the warm-up's longest drafted-terms prompt, 2190 tokens
+with a 256-token reply cap, fit the 16384-token slot on every shard); the longest shard (`s001-a-4b`) took 1612.6 s of
+wall time against a 300-minute budget, and every task set finished 5 of 5 parts. The plan job's and the shards' times
+are the first and last line timestamps of their logs; the aggregate job's start and end are the Actions API's, since
+the readable tail of its log is the last 5,000 of 10,256 lines. Runner hardware, not site hardware. Public data: the
+records are real public complaints the models may have seen in training; the answer key is the filed component codes,
+not checked labels. The first run is the result; the secondaries are hypotheses for the next cycle's rule, not results.
+A004's rule (`e6b9a45`, amended before any build in `e54eb6d`) reads this run by its pre-registered adaptation rule:
+with both sets complete, neither word `pass_provisional` and the lower end of `D_minus_B` above 0, its cells select
+branch T, the drafted-terms task as the base with reasoning on as the lever; the amendment that records the branch is
+not yet written.
 
 ## Outside the lab: D001 and D002 (a pack drafted from an export alone, real data): passed on the second rule
 

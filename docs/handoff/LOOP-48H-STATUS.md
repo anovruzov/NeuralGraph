@@ -307,7 +307,7 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   critique round with 4 blocking findings open (the 48-hour report below lists them); the root-cause report's
   synthesis started at 01:24 UTC. No system change. The second 48-hour report (2026-10-13 01:50 to 2026-10-15 01:50
   UTC) follows the first, at the end of this file.
-- 2026-10-15 02:43 A003's judging run ended: lab run 38667030739 completed `success` at 02:13:41 UTC (plan, both
+- 2026-10-15 02:43 A003's judging run ended: lab run 38667030739 completed `success` at 02:13:35 UTC (plan, both
   provision jobs, all five shards `sealed` with exit code 0, aggregate 116209851508 02:12:30 to 02:13:35 UTC). Read from
   the aggregate log's report block (178 lines, marker sha256 `c7ee523a751a…`; the rebuild and its sha256 check are part
   of the record, which follows): primary pair (a-4b, `negation_terms`) `failure`, and `failure` under lever five's text
@@ -323,9 +323,31 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   root-cause report: assembled in ten sections; its first critique round found 8 blocking problems (numbers, missing
   items, overclaims), now being revised. The stall fix: the code map and the load measurements are done, the test
   survey is running; the design follows, then the build. No code change yet; no lab run in flight.
+- 2026-10-15 03:55 The 02:43 line above was first written with 02:13:41 UTC as the run's completion; corrected to
+  02:13:35, the Actions API's run updated_at and aggregate job completed_at. A003 run 1 is recorded in CHOICE-A003 Run
+  1, RESULTS run 13 and the YC brief, from the report block as printed in aggregate job 116209851508's log (178 lines,
+  sha256 `c7ee523a751a…`, recomputed from the log and matching; report.json's block precedes the readable log tail and
+  is not verified); its exact bytes are committed as docs/collective/A003/run-1-report.md, which hashes to the same
+  sha256. A004's adaptation rule reads branch T from the entry (D's and
+  B's rule-13 words `failure`, D minus B's lower end 0.103 above 0); the amendment that reads the branch is a separate
+  step, and A004's judging request must be pushed before the term artifact expires (2027-01-12T18:09:48Z). None of the
+  run's artifacts was downloaded (the artifact host is refused; open ask below): the report artifact
+  lab-report-real-38667030739-1 (11942489769), the plan artifact lab-plan-38667030739-1 (11942755522), five shard and
+  two provision artifacts, all expiring 2026-11-14. On mycelic/retrieval.py, this record meets the handoff's "until
+  A003's run is recorded" (HANDOFF-PROMPT-2026-10-15.md:74; "nor during any active benchmark" still applies) and the
+  founder's "recorded and frozen" (the 23:12 line): the commit, the request's sha256, the settings, the run and job
+  ids, the report block and the artifacts' ids are fixed here and in the entry. The founder approved the fixes after
+  02:13 UTC; the stall work is being designed from measurements first.
 
 ## Open asks (date asked)
 
+- NEEDS FOUNDER (2026-10-15): download A003 run 1's report artifact lab-report-real-38667030739-1 (11942489769) and
+  plan artifact lab-plan-38667030739-1 (11942755522) before they expire on 2026-11-14, and keep them outside the
+  repository (the plan artifact holds a copy of the term set, and no term may be in a commit); the session's network
+  cannot reach the artifact store. Without them the record rests on the report block rebuilt from the log;
+  report.json's block was not verified (it precedes the readable log tail). The three earlier cycles' plan artifacts
+  expire before these, J001's first (2026-11-08T22:00:03Z); after each expiry A004's exclusion of that cycle's records
+  rests on its rebuild and the chains (CHOICE-A004 trap 19).
 - NEEDS FOUNDER (2026-10-13): download the two e2e-ingest artifacts of run 38425113336 (e2e-ingest-report.json
   11830620985 and e2e-ingest-measure.json 11831910113, before 2027-01-11) and commit them under
   docs/collective/e2e_ingest/38425113336/, or paste the two jobs' step summaries (they carry each report's sha256);
@@ -357,6 +379,7 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
 
 - 12 (model, arm, cycle) comparisons in 1 J-cycle: A001 run 1 (lab run 38114522160); 12 since the loop began. Primary (a-4b, negation): failure, 0.577 [0.530, 0.623] against the target 0.860 and the lexical judge 0.663.
 - 9 (model, arm, cycle) comparisons in 1 J-cycle: A002 run 1 (lab run 38439612256); 21 since the loop began. Primary (a-4b, evidence): failure, 0.540 [0.503, 0.577] against the target 0.860 and the lexical judge 0.680.
+- 4 (model, arm, cycle) comparisons in 1 J-cycle: A003 run 1 (lab run 38667030739); 25 since the loop began. Primary (a-4b, negation_terms): failure, 0.780 [0.733, 0.823] against the target 0.860 and the drafted lexical judge 0.773 (the hand lexical judge 0.657).
 
 ## 48-hour loop report, 2026-10-11 01:50 UTC to 2026-10-13 01:50 UTC, HEAD 4e55949
 
