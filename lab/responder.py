@@ -15,6 +15,11 @@ sends (``response_format.json_schema.name``, which is the task name):
   same handler's two answers plus an empty ``citation`` or ``analysis`` (first in the reply), in both branches, so a
   dry run's replies satisfy S_E and S_R and never measure the instructions, the grounding check or the composite:
   an empty citation is not grounded, so the grounded arms refute every question the fake would have confirmed;
+* ``judge_record_negation_terms`` and ``judge_record_evidence_terms`` (accuracy test A003's drafted-terms tasks,
+  ``lab.j4.DRAFTED_TASK``): the same handler as their base task (the shipped judge's answer, behind an empty
+  ``citation`` for the evidence base), in both branches: the shipped judge reads the question by its entity type,
+  entity id and predicate and ignores ``predicate_terms``, so the fake answers task D as it answers task B and a dry
+  run never measures the terms;
 * ``e3_extraction_like`` and ``e3_short_answer``: a fixed reply that satisfies the E3 workload schema;
 * ``judge_candidate_raw`` and ``judge_candidate_allowed`` (E2's central comparator): ``{"score": <the payload's
   canonical sha256 as an integer, mod 101>}``, deterministic and pack-free (a plumbing answer, not a judgement).
@@ -39,6 +44,7 @@ from mycelic.collective.packs.loader import FrozenPack
 
 from .j2 import NEGATION_TASK
 from .j3 import EVIDENCE_TASK, RATIONALE_TASK, TASK_FIELDS
+from .j4 import DRAFTED_TASK
 
 E3_REPLIES = {
     WORKLOADS["extraction"][0].name: {"facts": ["the text lists routine equipment checks"]},
@@ -78,6 +84,9 @@ class Responder:
             self._handlers[NEGATION_TASK] = self._handlers[JUDGE_TASK]
             for name in (EVIDENCE_TASK, RATIONALE_TASK):
                 self._handlers[name] = with_field(self._handlers[JUDGE_TASK], TASK_FIELDS[name])
+            # A003's task D: its base task's handler, so a dry run answers D as it answers B
+            self._handlers[DRAFTED_TASK["negation"]] = self._handlers[NEGATION_TASK]
+            self._handlers[DRAFTED_TASK["evidence"]] = self._handlers[EVIDENCE_TASK]
 
     def __call__(self, request_json: Any) -> dict[str, Any]:
         fmt = request_json.get("response_format") if isinstance(request_json, dict) else None

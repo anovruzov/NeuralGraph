@@ -675,7 +675,8 @@ class EventCliTests(TempDirTest):
         self.assertFalse((self.tmp / "out" / "plan.json").exists())
         self.assertEqual(gho.read_text().splitlines(),
                          ["has_provision=false", "has_units=false", "j2_exclude_artifact=", "j2_exclude_run_id=",
-                          "j3_exclude_artifact_2=", "j3_exclude_run_id_2=",
+                          "j3_exclude_artifact_2=", "j3_exclude_run_id_2=", "j4_exclude_artifact_3=",
+                          "j4_exclude_run_id_3=", "j4_terms_artifact=", "j4_terms_run_id=",
                           'matrix={"include":[]}', "max_parallel=1", "plan_sha256=", 'provision_matrix={"include":[]}',
                           "retention_days=1", "result_class=none"])
 
@@ -694,7 +695,8 @@ class EventCliTests(TempDirTest):
                                                             "notice": DELETE_ONLY, "requests": []})
         self.assertEqual(gho.read_text().splitlines(),
                          ["has_provision=false", "has_units=false", "j2_exclude_artifact=", "j2_exclude_run_id=",
-                          "j3_exclude_artifact_2=", "j3_exclude_run_id_2=",
+                          "j3_exclude_artifact_2=", "j3_exclude_run_id_2=", "j4_exclude_artifact_3=",
+                          "j4_exclude_run_id_3=", "j4_terms_artifact=", "j4_terms_run_id=",
                           'matrix={"include":[]}', "max_parallel=1", "plan_sha256=", 'provision_matrix={"include":[]}',
                           "retention_days=1", "result_class=none"])
 

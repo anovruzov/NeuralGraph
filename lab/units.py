@@ -52,7 +52,7 @@ file in ``lab-msha`` beside the plan's directory, one question slot of one model
 ``jt`` (accuracy test A003's term run, model-free) runs ``lab.jt verify`` (the preregistered ``prereg/jt/prereg.json``)
 and keeps ``verify.json``: whether the term set, the drafting files, the hand pack and ``lab/jt.py`` hash as
 preregistered and the hand pack with the drafted lexicons rebuilds to the pinned hashes; no term is written there.
-E1, E2, X1, J1, L1, J2, J3 and JT need the preregistration (:mod:`lab.prereg`):
+E1, E2, X1, J1, L1, J2, J3, JT and J4 need the preregistration (:mod:`lab.prereg`):
 without it they fail with :data:`~lab.notes.PREREG_MISSING` and nothing starts. An E2 unit behind a model server is
 first projected
 (:func:`e2_projection`): the rehearsal's call counts times the warm-up's latencies, against
@@ -89,6 +89,15 @@ Status, from :func:`harness_status`, then the participation check, then G0's mod
   ``complete_by_task`` says the evidence pass finished and the stop fell in a later pass (rule 14: the primary
   pair's set stays complete), else ``failed`` with :data:`~lab.notes.J1_STOPPED`; any other pairing is ``failed``.
   Its required task is the evidence task; a later pass is judged by the participation floor only when it finished;
+* J4 (accuracy test A003's judging run, ``lab.j4 run``: the preregistered ``prereg/j4`` files and ``--terms
+  prereg/j4/terms.json``, one part of one model judged twice in the preregistered pass order, task D first and task B
+  second (task B first in the confirmation case, C1), routing from ``lab.j4.routing_doc`` for the branch's two tasks
+  at ``site:lab``, the branch read from the unit's ``params.base_task``, the same files kept as J1's): exit 0 with a
+  ``run.json`` of kind ``lab_j4_run`` that says ``complete: true`` is ``ok``; exit 1 with ``complete: false`` is
+  ``ok`` with :data:`~lab.notes.J4_TERMS_STOPPED` when ``complete_by_task`` says the first pass of its
+  ``pass_order`` (the primary pair's set) finished and the stop fell in the second, else ``failed`` with
+  :data:`~lab.notes.J1_STOPPED`; any other pairing is ``failed``. Its required task is the first pass's; the second
+  pass is judged by the participation floor only when it finished;
 * JT: exit 0 with a ``verify.json`` of kind ``lab_jt_verify`` that says ``verified: true`` is ``ok``; exit 1 with
   one that says ``verified: false`` is ``failed`` with :data:`~lab.notes.JT_NOT_VERIFIED`; any other pairing is
   ``failed``;
@@ -182,11 +191,13 @@ from . import hosted as lab_hosted
 from . import j1 as lab_j1
 from . import j2 as lab_j2
 from . import j3 as lab_j3
+from . import j4 as lab_j4
 from . import jt as lab_jt
 from . import l1 as lab_l1
 from . import prereg as lab_prereg
 from .notes import (E2_ABORTED, E3_FAILURES, FAKE_SERVER_NOTE, G0_MODEL_PATH, HARNESS_INTERRUPTED, HARNESS_USAGE,
-                    J1_STOPPED, J2_SHIPPED_STOPPED, J3_EVIDENCE_STOPPED, JT_NOT_VERIFIED, KILLED_BY_SIGNAL,
+                    J1_STOPPED, J2_SHIPPED_STOPPED, J3_EVIDENCE_STOPPED, J4_TERMS_STOPPED, JT_NOT_VERIFIED,
+                    KILLED_BY_SIGNAL,
                     L1_CHECK_FAILED, L1_INFRA,
                     L1_NOT_FINISHED, LAB_ROUTING,
                     LOW_PARTICIPATION, NO_MODEL_CALLS, PREREG_MISSING,
@@ -209,9 +220,10 @@ ENDPOINT = "lab"
 CENTRAL_ENDPOINT = "lab-central"
 CENTRAL_DEADLINE_S = 3600
 E2_DEADLINE_SECONDS = 3600
-PREREG_EXPERIMENTS = ("e1", "e2", "x1", "j1", "l1", "j2", "j3", "jt")
-REPLY_PARTICIPATION = ("j1", "l1", "j2", "j3")  # ok counts calls the model answered, an invalid reply after its repair
-PASS_EXPERIMENTS = ("j2", "j3")             # several passes: a pass that did not finish is not judged by the floor
+PREREG_EXPERIMENTS = ("e1", "e2", "x1", "j1", "l1", "j2", "j3", "jt", "j4")
+# ok counts calls the model answered, an invalid reply after its repair included
+REPLY_PARTICIPATION = ("j1", "l1", "j2", "j3", "j4")
+PASS_EXPERIMENTS = ("j2", "j3", "j4")       # several passes: a pass that did not finish is not judged by the floor
 WARMUP_LEDGER = "server/warmup.ledger.jsonl"
 FLAG_NAME_RE = re.compile(r"[a-z][a-z0-9-]*", re.ASCII)
 CHECK_KEYS = ("model_verified", "server_verified", "download_hosts", "model_path", "ledger_host", "model_served",
@@ -311,6 +323,10 @@ ADAPTERS = {
     "j3": Adapter("j3", "lab.j3", lab_j3.TASKS, lab_j3.BOUNDARY, lab_j1.DEADLINE_S, "run.json",
                   ("run.json", "verdicts.jsonl", "ledger.jsonl"), ("ledger.jsonl",), "run"),
     "jt": Adapter("jt", lab_jt.CLI, (), "", 0, lab_jt.VERIFY_RESULT, (lab_jt.VERIFY_RESULT,), (), "verify"),
+    # the static tuple lists both branches' two tasks, each pair in pass order (D, B); a unit's own routing and
+    # required task read its params.base_task (C27)
+    "j4": Adapter("j4", lab_j4.CLI, lab_j4.ALL_TASKS, lab_j4.BOUNDARY, lab_j1.DEADLINE_S, "run.json",
+                  ("run.json", "verdicts.jsonl", "ledger.jsonl"), ("ledger.jsonl",), "run"),
 }
 
 
@@ -327,6 +343,10 @@ def required_tasks(unit: Mapping[str, Any]) -> list[str]:
         return [lab_j2.NEGATION_TASK]       # the first pass (A9); the shipped pass is judged when it finished
     if unit["experiment"] == "j3":
         return [lab_j3.EVIDENCE_TASK]       # the first pass (rule 14); a later pass is judged when it finished
+    if unit["experiment"] == "j4":
+        # the first pass of the branch's pass order: task D, task B in the confirmation case (rule 15, C1, C27)
+        p = unit["params"]
+        return [lab_j4.pass_order(p["base_task"], p["primary"]["arm"])[0]]
     return [TASK_NAME]
 
 
@@ -346,16 +366,16 @@ def build_argv(unit: Mapping[str, Any], out: Path, routing_path: Path, server_no
                budget_s: int | None = None, prereg: Path | None = None,
                central_routing: Path | None = None) -> list[str]:
     """``[python, -m, <module>, (<subcommand>,) --flag=value ...]``: every option in one element, never a bare value,
-    and never the harness option that accepts a dirty tree. A sim, J1, J2 or J3 unit needs ``budget_s`` (its
-    ``--budget-seconds``); E1, E2, X1, J1, L1, J2, J3 and JT need ``prereg``, the directory holding the plan and its
-    ``prereg/``.
+    and never the harness option that accepts a dirty tree. A sim, J1, J2, J3 or J4 unit needs ``budget_s`` (its
+    ``--budget-seconds``); E1, E2, X1, J1, L1, J2, J3, JT and J4 need ``prereg``, the directory holding the plan and
+    its ``prereg/``; a J4 unit also gets ``--terms``, the plan artifact's copy of the term set.
     ``central_routing`` replaces E2's ``routing/<unit>/central.json`` (the scratch routing of a hosted central
     comparator)."""
     p = unit["params"]
     runs_dir = Path(out) / "work" / unit["unit"]
     adapter = ADAPTERS[unit["experiment"]]
     if unit["experiment"] in PREREG_EXPERIMENTS and prereg is None:
-        raise ValueError("E1, E2, X1, J1, L1, J2, J3 and JT units need the preregistration directory") from None
+        raise ValueError("E1, E2, X1, J1, L1, J2, J3, JT and J4 units need the preregistration directory") from None
     if unit["experiment"] == "l1":
         if budget_s is None:
             raise ValueError("an L1 unit needs its budget in seconds") from None
@@ -363,13 +383,14 @@ def build_argv(unit: Mapping[str, Any], out: Path, routing_path: Path, server_no
                  ("routing-dir", Path(out) / "routing" / unit["unit"] / "sites"), ("endpoint", unit["model"]),
                  ("slot", p["slot"]), ("run-id", unit["run_id"]), ("runs-dir", runs_dir),
                  ("budget-seconds", budget_s)]
-    elif unit["experiment"] in ("j1", "j2", "j3"):
+    elif unit["experiment"] in ("j1", "j2", "j3", "j4"):
         if budget_s is None:
-            raise ValueError("a J1, J2 or J3 unit needs its budget in seconds") from None
+            raise ValueError("a J1, J2, J3 or J4 unit needs its budget in seconds") from None
         base = prereg / "prereg" / unit["experiment"]
+        terms = [("terms", prereg / lab_j4.TERMS_FILE)] if unit["experiment"] == "j4" else []
         flags = [("prereg", base / "prereg.json"), ("labels", base / "labels.jsonl"),
-                 ("questions", base / "questions.jsonl"), ("routing", routing_path), ("endpoint", unit["model"]),
-                 ("part", p["part"]), ("run-id", unit["run_id"]), ("runs-dir", runs_dir),
+                 ("questions", base / "questions.jsonl"), *terms, ("routing", routing_path),
+                 ("endpoint", unit["model"]), ("part", p["part"]), ("run-id", unit["run_id"]), ("runs-dir", runs_dir),
                  ("budget-seconds", budget_s)]
     elif unit["experiment"] == "e1":
         flags = [("prereg", prereg / "prereg" / "e1" / "prereg" / "prereg.json"),
@@ -467,6 +488,11 @@ def write_routing(unit: Mapping[str, Any], plan: Mapping[str, Any], entry: Mappi
     elif unit["experiment"] == "j3":
         files.append((out / "routing" / f"{unit['unit']}.json",
                       lab_j3.routing_doc(plan["models"], [unit["model"]], base_url), lab_j3.TASKS, "routing"))
+    elif unit["experiment"] == "j4":
+        base_task = unit["params"]["base_task"]         # the branch's two task names (C27)
+        files.append((out / "routing" / f"{unit['unit']}.json",
+                      lab_j4.routing_doc(plan["models"], [unit["model"]], base_url, base_task),
+                      lab_j4.tasks(base_task), "routing"))
     elif unit["experiment"] == "e1":
         files.append((out / "routing" / f"{unit['unit']}.json",
                       lab_prereg.e1_routing_doc(plan["models"], [unit["model"]],
@@ -535,6 +561,8 @@ def harness_status(experiment: str, exit_code: int | None, timed_out: bool,
         return _j2_status(exit_code, result)
     if experiment == "j3":
         return _j3_status(exit_code, result)
+    if experiment == "j4":
+        return _j4_status(exit_code, result)
     if experiment == "l1":
         return _l1_status(exit_code, result)
     if experiment == "jt":
@@ -617,6 +645,29 @@ def _j3_status(exit_code: int, result: Any) -> tuple[str, str | None]:
     if exit_code == 1 and result["complete"] is False:
         if by_task[lab_j3.EVIDENCE_TASK] is True and not all(by_task[task] for task in lab_j3.TASKS):
             return "ok", J3_EVIDENCE_STOPPED
+        return "failed", J1_STOPPED
+    return "failed", RESULT_CONTRADICTS_EXIT
+
+
+def _j4_status(exit_code: int, result: Any) -> tuple[str, str | None]:
+    """J4's reading of its exit code and ``run.json``: exit 0 with ``complete`` is ``ok``; exit 1 with ``complete``
+    false is ``ok`` with :data:`~lab.notes.J4_TERMS_STOPPED` when the first pass of its ``pass_order`` (the primary
+    pair's set: task D, or task B in the confirmation case) finished and the second did not, else ``failed`` with
+    :data:`~lab.notes.J1_STOPPED`; any other pairing is ``failed``."""
+    if exit_code not in (0, 1):
+        return "failed", UNEXPECTED_EXIT
+    by_task = result.get("complete_by_task") if isinstance(result, dict) else None
+    order = result.get("pass_order") if isinstance(result, dict) else None
+    if (not isinstance(result, dict) or result.get("kind") != "lab_j4_run"
+            or not isinstance(result.get("complete"), bool) or not isinstance(by_task, dict)
+            or not isinstance(order, list) or len(order) != 2 or not all(task in lab_j4.ALL_TASKS for task in order)
+            or len(set(order)) != 2 or not all(isinstance(by_task.get(task), bool) for task in order)):
+        return "failed", RESULT_MISSING
+    if exit_code == 0 and result["complete"] is True and all(by_task[task] for task in order):
+        return "ok", None
+    if exit_code == 1 and result["complete"] is False:
+        if by_task[order[0]] is True and by_task[order[1]] is False:
+            return "ok", J4_TERMS_STOPPED
         return "failed", J1_STOPPED
     return "failed", RESULT_CONTRADICTS_EXIT
 
@@ -762,7 +813,7 @@ def harness_measurement(experiment: str, result: Any) -> Any:
     the sim's, E2's and X1's ``stamps.measurement``; None for G0, openFDA or a result that is not an object."""
     if not isinstance(result, dict):
         return None
-    if experiment in ("e1", "e3", "j1", "l1", "j2", "j3"):
+    if experiment in ("e1", "e3", "j1", "l1", "j2", "j3", "j4"):
         return result.get("measurement")
     if experiment in ("sim", "e2", "x1"):
         stamps = result.get("stamps")
@@ -774,7 +825,7 @@ def harness_verdict(experiment: str, result: Any) -> bool | None:
     """E1's, E2's, E3's, J1's and the sim's own verdict that the run was a measurement, for :func:`model_checks`: only
     ``measurement: true`` counts (a missing key or result does not); None for a harness that gives no such verdict
     (G0, X1, openFDA)."""
-    if experiment not in ("e1", "e2", "e3", "sim", "j1", "l1", "j2", "j3"):
+    if experiment not in ("e1", "e2", "e3", "sim", "j1", "l1", "j2", "j3", "j4"):
         return None
     return harness_measurement(experiment, result) is True
 
@@ -912,7 +963,7 @@ def unit_notes(experiment: str, measurement: str, hosted_role: str | None = None
     if experiment == "jt":
         return [*notes, "public_terms"]
     notes.append("public_msha" if msha else "public_narratives" if public_text else "synthetic")
-    if experiment in ("e1", "e2", "e3", "sim", "j1", "l1", "j2", "j3") and hosted_role != "endpoint":
+    if experiment in ("e1", "e2", "e3", "sim", "j1", "l1", "j2", "j3", "j4") and hosted_role != "endpoint":
         notes.append("runner_hardware")
     if experiment in ("e2", "g0", "sim"):
         notes.append("text_only_scan")
@@ -924,9 +975,9 @@ def unit_notes(experiment: str, measurement: str, hosted_role: str | None = None
 
 
 def public_text(unit: Mapping[str, Any]) -> bool:
-    """Whether the unit reads real public narratives: an E1 unit with ``nhtsa`` labels, a J1, J2 or J3 unit, or an L1
-    unit (MSHA's, :func:`msha_text`)."""
-    if unit["experiment"] in ("j1", "l1", "j2", "j3"):
+    """Whether the unit reads real public narratives: an E1 unit with ``nhtsa`` labels, a J1, J2, J3 or J4 unit, or an
+    L1 unit (MSHA's, :func:`msha_text`)."""
+    if unit["experiment"] in ("j1", "l1", "j2", "j3", "j4"):
         return True
     return unit["experiment"] == "e1" and unit["params"].get("labels", {}).get("source") == "nhtsa"
 
@@ -1226,7 +1277,7 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
             if endpoint_role:
                 base_url = hosted.base_url
             elif serving is None:
-                with_pack = experiment in ("e1", "e2", "g0", "sim", "j1", "j2", "j3")
+                with_pack = experiment in ("e1", "e2", "g0", "sim", "j1", "j2", "j3", "j4")
                 server = FakeServer(persona, load_pack(unit["params"]["pack"]) if with_pack else None,
                                     pack_free_judge=experiment == "l1")
                 server.start()
@@ -1248,7 +1299,7 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
                                               budget=f"{projection['share'] * projection['budget_s'] / 60:.1f}")
         if status is None:
             budget_s = (max(1, math.floor(timeout_s) - SIM_BUDGET_MARGIN_S)
-                        if experiment in ("sim", "j1", "l1", "j2", "j3") else None)
+                        if experiment in ("sim", "j1", "l1", "j2", "j3", "j4") else None)
             argv = build_argv(unit, out, harness_paths.get("routing", routing_path), server_note, budget_s=budget_s,
                               prereg=prereg.dir if prereg is not None else None,
                               central_routing=harness_paths.get("central_routing"))

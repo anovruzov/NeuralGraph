@@ -1,7 +1,7 @@
 """Run a whole request locally, every shard against the fake server: the lab's plumbing check without weights.
 
     python -m lab.dryrun --request PATH --out DIR [--manifest lab/models.json] [--openfda-base-url URL]
-                         [--l1-raw DIR] [--j2-data DIR | --j3-data DIR | --jt-data DIR]
+                         [--l1-raw DIR] [--j2-data DIR | --j3-data DIR | --jt-data DIR | --j4-data DIR]
 
 ``DIR`` must be absent or empty. The steps are the workflow's, in the same order and with the same files:
 
@@ -41,7 +41,17 @@ every one of the five sources verifies on the test data (:data:`~lab.notes.J3_ST
 With the term run's unit (accuracy test A003, build 1), ``--jt-data`` names a directory made by ``python -m
 tests.lab.j4_data --out DIR``: its ``complaints.zip`` (a synthetic archive with a drafting block before the cutoff) is
 handed to ``lab.prereg --nhtsa-archive`` in place of the download, so the plan job drafts, checks and pins a term set
-from invented complaints. The three data flags do not go together.
+from invented complaints.
+
+With J4 units (accuracy test A003's judging run, build 2), ``--j4-data`` names a directory made by ``python -m
+tests.lab.j4_data --out DIR`` (with ``--negated`` for the variant the judging kind's dry runs use, on which the drafted
+lexical judge and the term-presence judge answer apart): its ``complaints.zip`` goes to ``lab.prereg
+--nhtsa-archive``, its ``earlier/`` (three synthetic plan artifacts, J001-, A001- and A002-shaped) to
+``--earlier-plans``, its ``stand-in.json`` (a three-entry
+exclude list) to ``--exclude-stand-in``, its ``terms/`` (a synthetic term run's plan artifact, drafted from the
+archive's pre-cutoff rows by the real drafter) to ``--terms-plans`` and its ``terms-stand-in.json`` to
+``--terms-stand-in``, so the term check, every one of the eight sources, the split and the draw verify on the test data
+(:data:`~lab.notes.J4_STAND_IN`). The four data flags do not go together.
 
 Every record says ``plumbing``: a dry run never measures a model. stdout is the plan line, the prereg line, one line
 per unit and the aggregate line. Without ``--openfda-base-url`` an openFDA unit fetches from api.fda.gov itself.
@@ -93,6 +103,8 @@ def _parser() -> argparse.ArgumentParser:
                                      "plan artifacts and the two-entry exclusion stand-in) for J3 units")
     p.add_argument("--jt-data", help="tests only: a tests.lab.j4_data directory (a complaint archive with a drafting "
                                      "block) for the term run's unit")
+    p.add_argument("--j4-data", help="tests only: a tests.lab.j4_data directory (complaint archive, the three earlier "
+                                     "plan artifacts, the term run's artifact and both stand-ins) for J4 units")
     return p
 
 
@@ -131,6 +143,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.jt_data is not None and (args.j2_data is not None or args.j3_data is not None):
         print("error: --jt-data does not go with --j2-data or --j3-data", file=sys.stderr)
         return EXIT_USAGE
+    if args.j4_data is not None and (args.j2_data is not None or args.j3_data is not None
+                                     or args.jt_data is not None):
+        print("error: --j4-data does not go with --j2-data, --j3-data or --jt-data", file=sys.stderr)
+        return EXIT_USAGE
     plan_dir = out / "plan"
     plan_path = plan_dir / "plan.json"
     if lab_plan.main(["--request", args.request, "--manifest", args.manifest, "--out", str(plan_dir)]) != EXIT_OK:
@@ -151,6 +167,11 @@ def main(argv: list[str] | None = None) -> int:
                         "--exclude-stand-in", str(data / "stand-in.json")]
     if args.jt_data is not None:
         prereg_args += ["--nhtsa-archive", str(Path(args.jt_data) / "complaints.zip")]
+    if args.j4_data is not None:
+        data = Path(args.j4_data)
+        prereg_args += ["--nhtsa-archive", str(data / "complaints.zip"), "--earlier-plans", str(data / "earlier"),
+                        "--exclude-stand-in", str(data / "stand-in.json"), "--terms-plans", str(data / "terms"),
+                        "--terms-stand-in", str(data / "terms-stand-in.json")]
     sys.stdout.flush()
     if lab_prereg.main(prereg_args) != EXIT_OK:
         if l1:

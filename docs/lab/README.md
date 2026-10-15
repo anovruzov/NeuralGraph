@@ -11,8 +11,8 @@ write a request (a small JSON file naming experiments, models, seeds, sizes and 
 `mycelic-lab` workflow then:
 
 1. plans the run: validates the request, splits it into units (one experiment on one model) and shards (the units one
-   runner job executes), and preregisters what E1, J1, J2, J3, L1, X1 and E2 will be judged against before any model
-   runs;
+   runner job executes), and preregisters what E1, J1, J2, J3, J4, L1, X1 and E2 will be judged against before any
+   model runs;
 2. downloads and verifies the pinned model server and model files once per run, and caches them;
 3. runs each shard on its own runner: starts the model server on the runner's loopback address, warms it up and runs
    the units against it;
@@ -56,6 +56,15 @@ model. The experiments:
   the term set's sha256; its one unit verifies the term set against that pin. The terms stay in the plan artifact
   and never appear in a summary, a log line or the repository. Its template is `lab/templates/terms-003.json` (copy
   it to `lab/requests/terms-003.json`).
+- J4: accuracy test A003's judging run, J001's question asked of one model about a fresh draw of real public
+  complaints with three earlier cycles' records and the term run's drafting set excluded (the plan job downloads the
+  three earlier runs' and the term run's plan artifacts, checks the term set against its committed sha256 before
+  anything else, establishes each cycle's set from eight sources, and removes the drafting records from the draw by
+  record id and by narrative), twice: under the earlier cycle's base task with the drafted terms of the asked
+  component in the payload, and under the base task alone, each read by the product's verdict rule and through the
+  branch's reading, beside three lexical judges (the drafted terms', the hand pack's and a term-presence judge); four
+  arms, one primary pair, and the verdict word of the pinned rule computed by the aggregate. Its template is
+  `lab/templates/accuracy-003.json` (copy it to `lab/requests/accuracy-003.json`).
 
 ## What a run costs
 
@@ -319,6 +328,14 @@ What each experiment's numbers mean and do not mean. Each label below is printed
   written; the report gives the term set's full sha256, which a dated amendment of the rule commits before the
   judging run:
 - `JT_LABEL`: {j_t} here drafts the term set of the third accuracy cycle in the plan job, before any model runs: the onboard package's drafter, unchanged, reads the six makes' public NHTSA complaints received before the first day of the judged window as one pooled export, its privacy check reads the drafted pack against the same export, and the term set is the drafted vocabulary of each of the hand pack's specific components. No model runs and nothing is drawn; the one unit only verifies the term set against its preregistration.
+- J4, the judging run, asks the same question about a fresh draw with three earlier cycles' records and the term
+  run's drafting set excluded, under the base task with and without the drafted terms in the payload; `{j_four}`
+  stands for J4. The plan job verifies the term set against its committed sha256 before anything else, establishes
+  each earlier cycle's set, removes the drafting records and checks two tripwires after the draw, and runs the three
+  lexical judges, the control and the bound before any model runs; no summary or log line prints a term. A dry run
+  uses test artifacts and says so:
+- `J4_LABEL`: {j_four} here asks one model the site verifier's narrow question about a fresh draw of real public NHTSA complaint narratives with three earlier cycles' records and the term run's drafting set excluded, one record at a time with its codes hidden, twice: under the earlier cycle's base task with the drafted terms of the asked component added to the payload, and under the base task alone; each verdict is scored against the components the complaint was filed under (filed codes, not human-checked labels), by the product's own verdict rule on the answers as answered and, as a declared secondary, after the branch's reading (the unclear-to-no mapping under the negation base, the grounding check under the evidence base), beside three lexical judges: the lexical judge with the drafted terms, the hand pack's lexical judge and the drafted term-presence judge.
+- `J4_STAND_IN`: Plumbing: test artifacts stood in for the three excluded runs and for the term run (lab.dryrun with test data), so the exclusion, split and term checks here test the lab, not those runs.
 
 Every column and its meaning is in [REFERENCE.md](REFERENCE.md#columns), and every label in
 [REFERENCE.md](REFERENCE.md#labels). The columns `found net of chance`, `chance finds` and `model path problems`
@@ -453,6 +470,12 @@ the message fills in.
 | `the draft and its check did not finish: the drafter refused the export, the step ran out of time or memory, stopped on an error, or wrote no result the step can read; the term run stops before its term set is written, and the remedy is a reviewed change of the workflow or the lab, never a drafter parameter` | Nothing ran and no term set was written. Read the plan job's log: the `jt step: stopped` line gives the step's and the draft's wall seconds and the largest resident memory of a finished child, and `prereg-logs/jt-draft.stderr.log` the draft's one error line. A timeout or an out-of-memory exit needs a reviewed workflow change, an error a reviewed fix of the lab; never a drafter parameter. |
 | `the plan job could not fetch or read NHTSA's complaint archive; nothing was drafted, and the same request may run again` | Nothing ran and no term set was written. Run the same request again once NHTSA's file is reachable; the term set is still the first term run's whose check passes. |
 | `the term run's unit did not verify the term set against its preregistration: a hash, the drafted pack rebuilt from the hand pack and the term set, or this module's code hash differs` | Do not record the term set's sha256: within one run the plan job and the unit read the same commit, so a difference is a lab fault to fix through a reviewed change before the term request runs again. |
+| `the judge run finished its first pass, the primary pair's task (the drafted-terms task, or the base task in the confirmation case), and stopped in its second at its budget or after the server stayed down; the first pass's verdicts are complete and kept, and the second pass did not finish for this part` | The unit is `ok`: the primary pair's set keeps this part; the other task's arms and the lifts that need them are incomplete for that model and decide nothing. Read the unit's `run.json` (`stopped`, `stopped_task`) and the latency table. |
+| `the term run's artifact did not verify: it is absent or expired, its term set does not hash to the committed sha, its cutoff, window, makes or hand pack hashes are not the rule's, its drafting files do not match it, the term module at this commit has another code hash than the term set records, or the drafted pack rebuilt from it has another vocabulary hash; the plan job stops before any draw and any model, and the loop asks (the third accuracy test's rule, The terms, item ten)` | Nothing ran. The plan job's log prints the `j4 terms:` line with the outcome and the check that failed. Check the request's `terms` entry against the amendment that committed the term set (run id, artifact name, sha256, vocabulary hash); an expired or deleted artifact cannot be replaced, and the loop asks. |
+| `an earlier cycle's set could not be established: neither its artifact nor its rebuild verified and no chain could give it; the plan job stops before any draw and any model, and the loop asks (the third accuracy test's rule, The data and the draw, item four)` | Nothing ran. The plan job's log names the source that did not verify (`j4 exclusion: source ...`) and how each cycle was or was not established; check the request's `exclude` entries against the three earlier runs. |
+| `the verified sources of the three earlier cycles disagree: a consistency count is above zero, and the plan job stops before any draw; or the draw holds an excluded record, and it stops after the draw; either way before any model, and the loop asks` | No model ran. Two verified sources of the earlier cycles name different records: the request names the wrong run or file, or the complaint file changed under a rebuild; the plan job's log prints the seven consistency counts; fix the `exclude` entries. Or, after a `j4 draw:` line naming the overlap, the draw itself held an excluded record, which the draw code should never allow: report it, and push nothing until it is understood. |
+| `fewer eligible records remain after the three earlier cycles' exclusion and the split's removals than the draw needs; no further fresh draw is pre-registered` | Nothing ran, and the rule says no further fresh draw of this size exists after the exclusion and the split: a new choice file decides what comes next. |
+| `the received-date split did not hold: the drafting set rebuilt from this day's archive differs from the term run's on the same archive or cannot be rebuilt, or a drawn record was received before the cutoff or is a drafting record by its id or its narrative; the plan job stops before any model runs, and the loop asks (the third accuracy test's rule, The data and the draw, item eight)` | Nothing ran. The plan job's log prints the `j4 split:` line: either the drafting set rebuilt from the day's archive differs from the term run's on equal archives, or a tripwire counted a drawn record received before the cutoff or one of the drafting set. The loop asks. |
 | `the canary scan found no leak, but its model path had problems, so it did not test the model in the loop` | Read the listed problems and the unit's ledgers; run again against a healthy server. |
 | `openFDA stayed unreachable from this runner after the connector's retries` | Run again later. |
 | `openFDA kept refusing requests as too many after the connector's retries: add the MYCELIC_LAB_OPENFDA_API_KEY repository secret, lower max_records_per_code or product_codes, or run again later` | Follow the message. |

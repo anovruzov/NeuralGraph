@@ -312,3 +312,41 @@ e2e job green (`pass` true, nine checks, 595 s at `target_users` 200, seed 0); t
 c5 and c10, 21 min). Everything in it is synthetic and stamped `measurement: false`. The figures and the open item
 (the reports themselves, artifacts 11830620985 and 11831910113, are not yet committed under
 `docs/collective/e2e_ingest/`) are in `E2E-INGEST.md`, "Runs".
+
+## 12. The third accuracy cycle's term run and judging run
+
+`lab/jt.py` (accuracy test A003's term run, `docs/collective/A003/CHOICE-A003.md` with its amendments C1 to C32; the
+build note is `BUILD-A003.md` beside it, "Build 1") drafts the term set in the plan job with the onboard package
+read-only: `onboard/draft.py` (`draft_export` with `load_params()`, the drafter's defaults and its language files),
+`onboard/check.py` (`check_pack` against the same export), `onboard/exports.py` (`parse_export`, which must read the
+pooled export back whole) and `onboard/roles.py`; `packs/loader.py` (`load_pack_dir`, for P_draft and for P_D, the
+hand pack with the term set as its lexicons) and `packs/canonical.py` (`folded`, for the drafting narratives' hashes).
+The complaint archive is fetched and exported by `tools/onboard/fetch_nhtsa.py`, loaded by path as
+`lab.goldlabels.nhtsa_export` loads it; the three download files join the onboard package's files in the onboard
+code hash the term set records (item 4), and `lab/jt.py`'s own code hash is recorded beside it (C29).
+
+`lab/j4.py`, `lab/j4labels.py` and `lab/j4terms.py` (the judging run; "Build 2" of the same note) change nothing under
+`mycelic/`; `lab/j1.py`, `lab/goldlabels.py`, `lab/j2.py`, `lab/j2labels.py`, `lab/j3.py`, `lab/j3labels.py` and
+`lab/jt.py`, pinned by the rule, are imported read-only (the questions, the payload, the comparators, the scoring,
+task N, the mapping, the verdict word under lever 5's text alone, task E, the grounding check, the artifact checks,
+the rebuilds, the draw, the drafting set's export and P_D are earlier cycles' code called unchanged, so A001's and
+A002's runs re-aggregate the same at any later commit). Beyond sections 9 and 10's lists they use these read-only:
+
+- `onboard/check.py`: `term_presence`, the drafted term-presence judge's reading of a record (a term of the asked
+  component occurring word-bounded in a folded sentence of the record), with the verdict by the pinned `decide`
+  (C5); `packs/canonical.py`: `folded`, for the split's removal by narrative and its tripwire (C4);
+- `inference/tasks.py`: `TaskSpec` for task D (the base task's name with `_terms`, its data class, schema and output
+  cap, its instructions the base's with the terms sentence before the last sentence, C32); the payload is the shipped
+  payload with one key, `predicate_terms`, added to its question block;
+- `edge/verify.py`: `judge_schema` and `JUDGE_MAX_TOKENS` (task N's) and, through `lab.j3`, task E's schema and the
+  grounding check; `edge/records.py`: `WindowRecord`; `edge/extract.py`: `server_down` and `BREAKER_AFTER` for the
+  stop after the server stayed down;
+- `packs/loader.py`: `load_pack`, in the plan and aggregate jobs, so the record text can be rebuilt from the plan
+  artifact's labels for the line checks; the text never leaves those jobs.
+
+Every one of these files is in J4's code hash (`lab.j4.CODE_FILES`: A002's files plus `lab/jt.py`, `lab/j4.py`,
+`lab/j4labels.py`, `lab/j4terms.py` and `mycelic/collective/onboard/check.py`). The lab's fake server answers task D
+as it answers task B (`lab.responder`'s handlers for the two `_terms` names, in the pack branch and the pack-free one),
+so nothing in a dry run measures the terms. One more hook wanted upstream: a `TaskSpec` builder that inserts a
+sentence into a base task's instructions, so the lab would not rebuild task D's text by splitting the base's last
+sentence off.

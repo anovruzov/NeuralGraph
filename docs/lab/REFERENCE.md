@@ -19,7 +19,7 @@ capacity of a shard is `job_minutes` less the shard overhead of 25 minutes; ever
 | `job_minutes` | 45 to 330: each shard job's limit | |
 | `max_parallel` | 1 to 16: shard jobs at once | |
 | `retention_days` | 1 to 90: how long artifacts are kept | |
-| `experiments` | at least one of `e1`, `e2`, `e3`, `g0`, `sim`, `x1`, `openfda`, `j1`, `l1`, `j2`, `j3`, `jt` | |
+| `experiments` | at least one of `e1`, `e2`, `e3`, `g0`, `sim`, `x1`, `openfda`, `j1`, `l1`, `j2`, `j3`, `jt`, `j4` | |
 | `hosted` | per hosted model key, `{"max_calls": 1..1000000}` | `{}` |
 
 A fake model needs provider `fake`, a gguf model the server provider; a hosted model goes with either. Provider
@@ -330,6 +330,122 @@ never committed to the repository: a dated amendment of the rule commits its sha
 `lab.dryrun --jt-data DIR` (a `tests.lab.j4_data` directory: a synthetic complaint archive with a drafting block
 before the cutoff), which does not go with `--j2-data` or `--j3-data`.
 
+`j4`, accuracy test A003's judging run (`docs/collective/A003/CHOICE-A003.md`, amended C1 to C32 before any build and
+T1 to T11 after the term run; the build note is `BUILD-A003.md` beside it, its "Build 2"): J001's question on a fresh
+draw of real public complaints with three earlier cycles' records and the term run's drafting set excluded, asked
+twice of one model: under the base task the adaptation rule's branch names (`negation`, A001's task N, branch N, in
+force; or `evidence`, A002's task E, branch E) with the drafted terms of the asked component added to the payload
+(task D, named `<base>_terms`), and under the base task alone (task B); each read as answered and through the branch's
+reading (the unclear-to-no mapping under N, the grounding check under E): four arms, one primary pair, beside three
+lexical judges (the lexical judge over P_D, the hand pack with the term set as its lexicons; the hand pack's own; and
+the drafted term-presence judge); one unit per model and part (`lab/j4.py`, `lab/j4labels.py`, `lab/j4terms.py`; the
+template is `lab/templates/accuracy-003.json`, to copy to `lab/requests/accuracy-003.json`):
+
+| key | values | default |
+| --- | --- | --- |
+| `models` | gguf or fake models of `models`; a hosted model is refused (`NHTSA_HOSTED`) | `models` |
+| `minutes` | per part unit; a unit judges its part's questions twice | |
+| `labels` | as `j3`'s: `source` `nhtsa` only, `pack` exactly `docs/collective/replay/vehicles/pack`, `n` (40 to 2000) and `seed` (the fresh draw's) | |
+| `parts` | 1 to 30 | |
+| `seed` | the questions' seed | |
+| `bootstrap_b` | 1000 to 20000 | 10000 |
+| `bootstrap_seed` | a seed | 1 |
+| `base_task` | `negation` or `evidence`: the branch the adaptation rule names (`lab.j4.BASES`) | |
+| `exclude` | a list of exactly three entries, the earlier cycles in seed order (item 4, C3): each with `j3`'s keys, its `file` and `rebuild_seed` pinned per entry (`prereg/j1/labels.jsonl` and 1, the first judge test's; `prereg/j2/labels.jsonl` and 2, the first accuracy test's; `prereg/j3/labels.jsonl` and 3, the second accuracy test's; `lab.j4labels.EXCLUDE_FILES` lists the five files the kind reads); the second and third entries alone carry `chain_file` (`prereg/j2/excluded.jsonl` and `prereg/j3/excluded.jsonl`) and `chain_sha256_prefix` | |
+| `terms` | the term run (C23): `run_id`, `artifact` (its plan artifact, `lab-plan-<run_id>-<attempt>`), `file` (exactly `prereg/jt/terms.json`), `sha256` (the term set's sha256 in full, 64 lower-case hex digits, as the amendment after the term run committed it), `vocabulary_hash` (P_D's, in full) and `cutoff` (exactly `2023-01-01`) | |
+| `primary` | the primary pair P: `model` (one of the block's models) and `arm`, `<base_task>_terms`, or `evidence` with `base_task` `evidence` (the confirmation case, C1, whose pass order puts task B first) | |
+| `comparisons_before` | 0 to 1000000: the (model, arm, cycle) comparisons made since the loop began before this cycle | 0 |
+
+A `j4` block runs beside no `j2` or `j3` block (`J4_BESIDE_PROBLEM` at `$.experiments`): the plan's exclusion outputs
+and downloads name one excluding kind's earlier runs, and the judging run reads three.
+
+`lab.plan --github-output` echoes the three excluded runs as `j2_exclude_run_id` and `j2_exclude_artifact` (the
+workflow's `earlier` step), `j3_exclude_run_id_2` and `j3_exclude_artifact_2` (`earlier-2`) and
+`j4_exclude_run_id_3` and `j4_exclude_artifact_3` (`earlier-3`), each downloaded under
+`${{ runner.temp }}/lab-earlier/<run id>`, and the term run as `j4_terms_run_id` and `j4_terms_artifact` (the `terms`
+step, into `${{ runner.temp }}/lab-terms/<run id>`); the four j4 outputs are empty for every other plan. `lab.prereg`
+then works in the rule's order. First the term check (`lab.j4terms.check_terms`, item 10, C29) over the term run's
+artifact under `--terms-plans` (default `lab-terms` beside the plan directory): the artifact present and holding
+`prereg/jt/terms.json`, its bytes hashing to the request's `sha256`, the artifact's manifest listing it and the two
+drafting files, the document a term set, its cutoff, window, makes and hand pack hashes the rule's and the code hash
+of `lab/jt.py` at this commit the one it records, the drafting files matching it, and P_D rebuilt from it with the
+four hashes it records and the request's `vocabulary_hash`; anything else refuses the plan with `J4_TERMS_UNVERIFIED`
+before any draw, after a `j4 terms:` line naming the outcome and the check that failed. P_D is then rebuilt by this
+kind's own builder (`lab.j4.drafted_pack`) and must have the four hashes the check verified (`J4_TERMS_UNVERIFIED`
+otherwise, the term line alone printed), still before any source is read. Then the eight sources of the
+three earlier cycles (`lab.j4labels.establish`, item 4, C20): J1, R1, A1, R2 and K2 as A002's sources J1, R1, A1, R2
+and K; B1, the second accuracy test's artifact (`prereg/j3/labels.jsonl` hashing to the third entry's prefix,
+`prereg/j3/labels.json` a record of nhtsa, 150, seed 3, its questions' refs the labels' and its questions file A002's
+by the questions prefix `lab.j4labels.A002_QUESTIONS_SHA256_PREFIX`, C3, every file cross-checked against the
+artifact's manifest; the prefix B1 was checked against, A002's or a dry run stand-in's, is kept with B1's outcome in
+the labels record, printed as `B1_questions_sha256` after `B1=<outcome>` in the `j4 draw:` line and shown beside B1
+in both summaries); R3, that cycle's rebuild, `lab.j2labels.draw` of 150 at
+seed 3 over the eligible list less J001's and A001's sets, attempted only once both are established; and K3, its chain
+file `prereg/j3/excluded.jsonl` through the same check. A cycle's set is its artifact's or its rebuild's, or else a
+chain's less the sets of the other cycles that chain covers (`by` `chain`); a chain alone establishes nothing, and two
+chains may each establish one cycle. Seven consistency counts must be 0: J1 against R1, A1 against R2, B1 against R3,
+every verified source of the cycles a chain covers outside that chain (K2, then K3), and each chain against the union
+of the sets it covers when those came from their own sources. A cycle not established refuses the plan with
+`J4_FRESHNESS_UNVERIFIED` and a count above 0 with `J4_EXCLUSION_DISAGREES`; the excluded set is the union of every
+verified source's refs (450 expected). Then the split (items 5 to 8, C4): the drafting set rebuilt from the day's
+archive by the term run's own export code must equal the term run's (rows and the sha256 of the sorted record ids) when
+the archives are equal; every eligible record not already excluded whose record id is a drafting record id is removed
+before the draw (`by_record_id`), and every other one whose folded narrative hashes to a drafting narrative's
+(`by_text`); the removals join the excluded set. After the draw of `n` at the seed over the eligible records less the
+excluded set, two tripwires count drawn records received before the cutoff and drawn drafting records. A rebuild that
+differs or a tripwire above 0 refuses the plan with `J4_SPLIT_VIOLATED`, fewer eligible records than `n` with
+`J4_TOO_FEW_RECORDS`, and a draw that holds an excluded record (an overlap above 0, `lab.j4labels.DrawOverlap`) with
+`J4_EXCLUSION_DISAGREES`. Every stop after the term check verified prints the `j4 terms:` line last, so a stopped
+plan job's log still records that the term set, P_D and `lab/jt.py`'s code hash verified (rule 17). Then J001's questions, the three lexical judges (`lab.j4.comparator_lines`: J001's lexical judge
+over P_D and over the hand pack, and the term-presence judge, `mentions_entity` as the drafted judge answers it and
+`describes_predicate` yes when a term of the asked component occurs word-bounded in a folded sentence of the record,
+C5), the record-blind control, the predicate-only bound and the three judges paired with each other
+(`lab.j4.judge_pairs`), all under `prereg/j4/`: `labels.jsonl` and `labels.json`, `questions.jsonl` and
+`questions.json`, `lexical_drafted`, `lexical`, `presence_drafted` and `prior` (each `.jsonl` and `.json`),
+`excluded.jsonl` (every excluded ref, the split's removals included, and the draw's: 600 lines plus the removals),
+`terms.json` (the term run's, byte for byte), `routing.json` and `prereg.json`, which pins both tasks (name, data
+class, instructions sha256, schema sha256 and `max_tokens`; task D's instructions are the base's with the terms
+sentence before its last sentence, its schema and cap the base's, C32), the pass order (D, then B; B first in the
+confirmation case), the reading, the four arms, the lifts, the comparators, the primary pair, the headline secondary
+(Dr), the other reading's arm, the term pin, the exclusion's counts and hashes, the comparisons this cycle (the
+branch's four arms times the models, which the aggregate recounts: `PREREG_MISSING` when the document or the manifest
+says otherwise) and the target balanced accuracy. Only a plan with J4 units has a `j4` key in its manifest
+`prereg/prereg.json`, so every other plan's manifest is byte for byte what it was before the kind existed. The
+plan job prints counts, scores and hashes only, in fixed lines that start `j4 exclusion:` (a source that did not
+verify, then the cycles' line), `j4 draw:`, `j4 split:`, `j4 terms:` (the outcome, the term set's sha256 and the
+expected one, P_D's four hashes by name, `lab/jt.py`'s code hash and the document's) and `j4 comparators:` (twice:
+the three lexical judges with their unknown counts, then the control, the bound and the judges' pairs); no line holds
+a ref or a term. The warm-up of a J4 shard prints one line for task D, `lab: warmup <task D> typical_terms N
+typical_predicate P worst_terms M worst_predicate Q worst_prompt_tokens T max_tokens K slot S fits yes|no`: the two
+payloads' term counts and asked predicates (hand predicate ids), the worst case's counted prompt and whether it fits
+the slot (C12; `none` when the server did not count it), never a term.
+Each unit (`lab.j4 run`) checks every pin before any call (J001's, the hand pack's hashes, `--terms` hashing to the pin
+and P_D rebuilt from it with the pinned hashes, both tasks, the reading, the arms, the lifts and the routing of both
+tasks to its one endpoint without escalation) and judges its part's questions with task D, then task B, through the
+runtime at boundary `site:lab`; task D's payload is the shipped payload with one key added to its question block,
+`predicate_terms`, the asked component's list in the drafter's order (the empty list when the drafter reached none).
+The aggregate reads a (model, task) set as complete when every part finished for that task, builds the reading arms
+as views of the same lines, recomputes every reading, `grounded` and each task D line's terms count and sha256 from the
+stored reply, the record text rebuilt from the plan artifact's labels and the term set (the report holds no narrative,
+citation, ref or term), cross-checks the manifest's `j4` block against `prereg/j4/prereg.json` and the term set's
+bytes against the pin (`PREREG_MISSING` otherwise), scores each arm with J001's code beside the three lexical judges,
+the control and the bound on the same records, pairs each arm with each lexical judge and the arms with each other
+(the lifts), and computes the verdict word of C19 for every arm, the primary first (`incomplete`, `pass_provisional`,
+`partial`, `failure`; `pass_provisional` also needs the paired differences to the hand pack's lexical judge and to
+the term-presence judge with their low ends above zero, and a missing figure of either is `incomplete`), with the word
+under lever 5's text alone (A001's word with the drafted judge, C6) and the headline secondary's word printed beside
+the primary's. It also reports, deciding nothing, the primary arm's agreement with the drafted lexical judge and the
+term-presence judge per kind, the terms each component's questions carried and the task D questions whose list was
+empty, under branch E the citation readings (C16), the first-key shares, the output tokens and cut replies per task,
+and the controls B and Br beside the earlier cycle's own figures (`lab.j4.EARLIER_ARMS`: A001's under branch N,
+A002's under E). A dry run needs `lab.dryrun --j4-data DIR` (a `tests.lab.j4_data` directory: a synthetic complaint
+archive, three synthetic earlier artifacts and a three-entry exclusion stand-in, a synthetic term run's artifact
+drafted by the real drafter and its stand-in entry; `python -m tests.lab.j4_data --out DIR --negated` makes the
+variant the judging kind's dry runs use, whose window narratives state a drafted cue word as negated on some rows, so
+the drafted lexical judge and the term-presence judge answer apart), which does not go with `--j2-data`, `--j3-data`
+or `--jt-data`; its fake answers task D as it answers task B, so nothing in a dry run measures the terms, and its preregistration says
+so (`J4_STAND_IN`).
+
 The fetch makes up to `product_codes` x 2 x ceil(`max_records_per_code` / page) requests, where a page is 100 records
 without the `MYCELIC_LAB_OPENFDA_API_KEY` secret (openFDA refuses larger pages without a key) and 1000 with it; at most
 800 requests without the secret and 1000 with it.
@@ -388,7 +504,7 @@ cached as `lab-server-<tag>-<sha16>` under `server/<tag>`, a model file as `lab-
 
 - A unit id is `<experiment>-<model>` (E2, E3, G0), `e1-<model>-r<k>` (one E1 repeat), `j1-<model>-p<k>` (one J1
   part), `j2-<model>-p<k>` (one J2 part, judged under both tasks), `j3-<model>-p<k>` (one J3 part, judged
-  under the three tasks), `l1-<model>-q<k>` (one L1 question slot, 1 the
+  under the three tasks), `j4-<model>-p<k>` (one J4 part, judged under both tasks), `l1-<model>-q<k>` (one L1 question slot, 1 the
   alert question), `sim-<model>-s<seed>` (one simulation seed), `x1`, `openfda` or `jt` (the term run's one
   unit); at most 55 characters.
 - A run id is the unit id, a hyphen and the first 8 hex digits of sha256(request sha256 `|` unit id); the harness
@@ -464,6 +580,20 @@ A JT unit (`lab.jt verify`) keeps one file under `runs/jt/<run id>/`, `verify.js
 false), the term set's sha256 as read, P_D's rebuilt hashes, the code hash of `lab/jt.py` at the unit's commit and the
 term counts; never a term. It exits 0 when every check holds and 1 otherwise; the aggregate reads it as verified only
 when its sha256 and P_D's hashes are also the preregistration's.
+
+A J4 unit (`lab.j4 run`) keeps the same three files under `runs/j4/<run id>/`, with these differences:
+
+- `verdicts.jsonl`: J001's line plus `task` (task D, `<base>_terms`, or task B, the base task), `citation` (branch E,
+  else null), `grounded` (branch E), `first_key` (the reply's first key as written), the branch reading's verdict
+  (`mapped_verdict` under N, `grounded_verdict` under E, the other null) and, for task D, `terms_count` and
+  `terms_sha256` (the count and the sha256 of the canonical JSON of the list the payload carried; null for task B):
+  never a term; every question of the part appears once per task, the first pass's lines first;
+- `run.json` (`kind: lab_j4_run`): A001's fields with the two tasks, plus `base_task`, `primary_arm`, `pass_order`
+  and `tokens_by_task`; `pinned` adds both tasks' pins, the reading's, the term set's sha256 and P_D's hashes. A stop ends the pass it falls in and the pass
+  after it: exit 1 with `complete_by_task` saying the first pass finished and the second did not is a unit `ok` with
+  `J4_TERMS_STOPPED` (the primary's set is complete for that part, the other's is not); a stop in the first pass is
+  `J1_STOPPED`. The participation floor judges the first pass's task always and the second's only when its pass
+  finished.
 
 An L1 unit (`lab.l1 run`) keeps under `runs/l1/<run id>/` (no record id, mine id, name or narrative; mines are
 `m01` onwards, records their index in their mine's retrieved list; every number in seconds with at most three
@@ -581,10 +711,10 @@ A unit's status (`lab.units.STATUSES`):
 
 | status | means |
 | --- | --- |
-| `ok` | the harness ran to a valid result and the model answered enough; a J2 unit whose first pass finished and whose shipped pass stopped is `ok` with `J2_SHIPPED_STOPPED`; a J3 unit whose evidence pass finished and whose later pass stopped is `ok` with `J3_EVIDENCE_STOPPED` |
+| `ok` | the harness ran to a valid result and the model answered enough; a J2 unit whose first pass finished and whose shipped pass stopped is `ok` with `J2_SHIPPED_STOPPED`; a J3 unit whose evidence pass finished and whose later pass stopped is `ok` with `J3_EVIDENCE_STOPPED`; a J4 unit whose first pass finished and whose second pass stopped is `ok` with `J4_TERMS_STOPPED` |
 | `result_fail` | a valid FAIL verdict: G0's canary scan or the simulation's raw-text scan did not pass (something crossed, or the scan's positive control found nothing) |
 | `invalid` | it ran, but the model answered too few calls, the server died, or G0's model path had problems |
-| `failed` | the harness failed, refused its configuration or wrote no readable result, a J1 run or a J2 or J3 run's first pass stopped before its last question (`J1_STOPPED`), or an L1 unit did not finish (`L1_NOT_FINISHED`), failed a check after its model ran (`L1_CHECK_FAILED`) or could not get its file before any model call (`L1_INFRA`), or a JT unit did not verify its term set (`JT_NOT_VERIFIED`) |
+| `failed` | the harness failed, refused its configuration or wrote no readable result, a J1 run or a J2, J3 or J4 run's first pass stopped before its last question (`J1_STOPPED`), or an L1 unit did not finish (`L1_NOT_FINISHED`), failed a check after its model ran (`L1_CHECK_FAILED`) or could not get its file before any model call (`L1_INFRA`), or a JT unit did not verify its term set (`JT_NOT_VERIFIED`) |
 | `timed_out` | the unit ran out of its minutes |
 | `interrupted` | a signal stopped it |
 | `skipped` | it did not start: the shard's budget, the server, the warm-up, a projection or the hosted gate |
@@ -624,8 +754,8 @@ The same for every lab command (`lab/__init__.py`):
 ## Labels
 
 Every fixed sentence the summaries print comes from `lab/notes.py`. Braces stand for values the summary fills in:
-`{e_one}`, `{e_two}`, `{x_one}`, `{n_one}`, `{j_one}`, `{j_two}`, `{j_three}`, `{l_one}` and `{j_t}` are E1, E2,
-X1, N1, J1, J2, J3, L1 and JT,
+`{e_one}`, `{e_two}`, `{x_one}`, `{n_one}`, `{j_one}`, `{j_two}`, `{j_three}`, `{l_one}`, `{j_t}` and `{j_four}` are
+E1, E2, X1, N1, J1, J2, J3, L1, JT and J4,
 and `{run}` and `{commit}` a run id and a commit.
 
 The first lines and the plumbing banner:
@@ -712,6 +842,26 @@ others:
 - `JT_DRAFT_FAILED`: the draft and its check did not finish: the drafter refused the export, the step ran out of time or memory, stopped on an error, or wrote no result the step can read; the term run stops before its term set is written, and the remedy is a reviewed change of the workflow or the lab, never a drafter parameter
 - `JT_FETCH_FAILED`: the plan job could not fetch or read NHTSA's complaint archive; nothing was drafted, and the same request may run again
 - `JT_NOT_VERIFIED`: the term run's unit did not verify the term set against its preregistration: a hash, the drafted pack rebuilt from the hand pack and the term set, or this module's code hash differs
+
+Accuracy test A003's judging run, where `{j_four}` is J4 and the braces of the primary line are its figures (the
+word under lever 5's text alone, every lexical judge's figures and, last, the headline secondary's arm and
+word): the label, then the exclusion, lexical, control, arms, verdict and terms notes above the primary pair's
+sentence and the tables; a unit whose second pass stopped after the first finished says `J4_TERMS_STOPPED`;
+the plan's refusals and the stand-in use the others:
+
+- `J4_LABEL`: {j_four} here asks one model the site verifier's narrow question about a fresh draw of real public NHTSA complaint narratives with three earlier cycles' records and the term run's drafting set excluded, one record at a time with its codes hidden, twice: under the earlier cycle's base task with the drafted terms of the asked component added to the payload, and under the base task alone; each verdict is scored against the components the complaint was filed under (filed codes, not human-checked labels), by the product's own verdict rule on the answers as answered and, as a declared secondary, after the branch's reading (the unclear-to-no mapping under the negation base, the grounding check under the evidence base), beside three lexical judges: the lexical judge with the drafted terms, the hand pack's lexical judge and the drafted term-presence judge.
+- `J4_EXCLUSION_NOTE`: The draw excludes three earlier cycles' records, each by its plan artifact and by a rebuild from the complaint file as published on the day, and the two later cycles' chain files: a cycle's set is established by its own artifact or rebuild, or else from a chain less the other cycles' sets that chain covers; a chain alone establishes nothing; every consistency count must be zero; the excluded set is the union of every verified source's refs. Before the draw the term run's drafting set is removed from the eligible records by record id and by narrative, and after it two tripwires check that no drawn record was received before the cutoff or is a drafting record. Counts and hashes only: no record ref is written anywhere but the plan artifact.
+- `J4_ARMS_NOTE`: Four arms on one model, declared before the run and named for the base task in force: the base task's name with the terms suffix reads the drafted-terms task's answers as answered (the primary arm, letter D); the same with the reading's name reads them through the branch's reading (letter Dr, the headline secondary); the base task's name alone, and with the reading's name, are the earlier cycle's arm and its reading replicated on this draw (letters B and Br, the controls, shown beside the earlier cycle's own figures as a between-draw difference that decides nothing). Model calls are made for the two tasks only: the reading arms are the same replies read again. The lifts are paired differences between arms, record by record: D minus B reads the lever, Dr minus Br the lever under the reading, Dr minus D and Br minus B the reading; a lift helps when its interval's low end is above zero, hurts when its high end is below zero, and is otherwise not told apart. They decide nothing toward the target.
+- `J4_VERDICT_NOTE`: The verdict word is read on the primary pair alone, from the figures, in this order: incomplete (a part did not finish, the set is not a model measurement, transport failures left out more than one record in a hundred, or a paired difference to a lexical judge is not a number), pass_provisional (balanced accuracy at or above the target, the paired difference to the lexical judge with the drafted terms with its low end above zero, the balanced accuracy's low end above the predicate-only bound on the same records, the unknown share reported, and the paired differences to the hand pack's lexical judge and to the drafted term-presence judge with their low ends above zero), partial (the target reached but an interval clause or an added clause failed, or every lexical judge beaten below the target), else failure. The word under lever five's text alone (the first four clauses with the drafted judge) is printed beside it. Every other arm is a secondary with the same word, which is a hypothesis for the next cycle, never a result; the headline secondary's word is printed beside the primary's as the primary under the other reading of the standing default; a first pass is provisional until the next cycle's fresh draw confirms it.
+- `J4_TERMS_NOTE`: Counts and hashes only: the term set lives in the term run's plan artifact, this run's plan artifact holds a copy pinned by its full sha, and no term is printed in a summary, a console line, a report or a commit. Each question of the drafted-terms task carries the drafted terms of its own asked component, positive or negative alike; a component the drafter did not reach carries an empty list. The agreement shares say on how many questions the primary arm's verdict equals a lexical judge's, and the confirm rates how often it confirms where that judge confirms and where it refutes: a primary arm that follows a judge line for line adds nothing to it. In a dry run the fake answers the drafted-terms task as it answers the base task, so nothing in a dry run measures the terms.
+- `J4_PRIMARY_LINE`: Primary pair {model} {arm}: {word}; under lever five's text alone: {word_five}. It scored balanced accuracy {ba} [{lo}, {hi}]; gap to the target {target} is {gap}; drafted lexical judge {lex_d} [{lex_d_lo}, {lex_d_hi}] on the same records, paired difference {diff} [{dlo}, {dhi}]; hand lexical judge {lex_h} [{lex_h_lo}, {lex_h_hi}], paired difference {hdiff} [{hlo}, {hhi}]; term presence {lex_p} [{lex_p_lo}, {lex_p_hi}], paired difference {pdiff} [{tlo}, {thi}]; predicate-only bound {bound}; unknown share {unknown}. Under the other reading of the standing default the primary would be {other_arm}: {other_word}.
+- `J4_STAND_IN`: Plumbing: test artifacts stood in for the three excluded runs and for the term run (lab.dryrun with test data), so the exclusion, split and term checks here test the lab, not those runs.
+- `J4_TERMS_STOPPED`: the judge run finished its first pass, the primary pair's task (the drafted-terms task, or the base task in the confirmation case), and stopped in its second at its budget or after the server stayed down; the first pass's verdicts are complete and kept, and the second pass did not finish for this part
+- `J4_TERMS_UNVERIFIED`: the term run's artifact did not verify: it is absent or expired, its term set does not hash to the committed sha, its cutoff, window, makes or hand pack hashes are not the rule's, its drafting files do not match it, the term module at this commit has another code hash than the term set records, or the drafted pack rebuilt from it has another vocabulary hash; the plan job stops before any draw and any model, and the loop asks (the third accuracy test's rule, The terms, item ten)
+- `J4_FRESHNESS_UNVERIFIED`: an earlier cycle's set could not be established: neither its artifact nor its rebuild verified and no chain could give it; the plan job stops before any draw and any model, and the loop asks (the third accuracy test's rule, The data and the draw, item four)
+- `J4_EXCLUSION_DISAGREES`: the verified sources of the three earlier cycles disagree: a consistency count is above zero, and the plan job stops before any draw; or the draw holds an excluded record, and it stops after the draw; either way before any model, and the loop asks
+- `J4_TOO_FEW_RECORDS`: fewer eligible records remain after the three earlier cycles' exclusion and the split's removals than the draw needs; no further fresh draw is pre-registered
+- `J4_SPLIT_VIOLATED`: the received-date split did not hold: the drafting set rebuilt from this day's archive differs from the term run's on the same archive or cannot be rebuilt, or a drawn record was received before the cutoff or is a drafting record by its id or its narrative; the plan job stops before any model runs, and the loop asks (the third accuracy test's rule, The data and the draw, item eight)
 
 Latency test L001's labels, where `{l_one}` is L1 and `{stop}` a stop's code: the label, then the headline and
 comparator notes above the per-model tables and the time note above the time tables; a model without a headline says
@@ -1173,10 +1323,10 @@ synthetic worlds describe synthetic worlds.
 | mines | the mines of the audited operator, each a site | n/a: a count of sites, not records |
 | operator | the audited operator's label (`c1`) | a name or an id: none is written |
 | predicate | the question's predicate, a filed category of the drafted pack | n/a: not a number |
-| term set sha | the sha256 of `prereg/jt/terms.json`'s bytes, in full: the term set's sha the amendment commits | a term or anything that shows one |
+| term set sha | the sha256 of `prereg/jt/terms.json`'s bytes, in full: the term set's sha the amendment commits and the judging run pins (J4 prints the term set it verified and copied) | a term or anything that shows one |
 | cutoff | the cutoff, `NHTSA_WINDOW`'s first day: the drafting set holds only complaints received before it | a setting of the request: it is the rule's |
 | drafting window | the drafting window's first and last day (D002's NHTSA training window) | the judged window |
-| complaint archive sha | the first twelve hex digits of the complaint archive's sha256 on the day of the term run | n/a: an identifier, not a number |
+| complaint archive sha | the first twelve hex digits of the complaint archive's sha256 on the day of the term run (JT) or of the judging run (J4) | n/a: an identifier, not a number |
 | complaint archive bytes | the complaint archive's size in bytes | the export's size |
 | drafting export rows | the pooled drafting export's rows, after the cross-make drop | complaints with a narrative |
 | rows per make | each make's rows in the pooled export, in make order, after the cross-make drop | the make's share of anything judged |
@@ -1217,6 +1367,51 @@ synthetic worlds describe synthetic worlds.
 | draft wall seconds | the draft subprocess's own wall seconds | the step's whole time |
 | draft peak resident memory KiB | the draft subprocess's peak resident memory in KiB | the plan job's memory |
 | verified by the unit | whether the unit verified the term set against its preregistration (its sha256, P_D's hashes, the code hash, the hand pack's hashes and the drafting files) | that the terms are good terms |
+| lexical judge with the drafted terms, every record | J001's lexical judge over P_D, the hand pack with the term set as its lexicons, on every question of the fresh draw, scored before any model ran | a model or a hand-built judge |
+| drafted term-presence judge, every record | the drafted term-presence judge on every question: it confirms when a term of the asked component occurs in the record, without the lexical judge's negation handling (C5) | a judge the product ships |
+| unknown verdicts | the questions a lexical judge answered unknown, of every question | a failure of the judge |
+| the lexical judges paired, record by record | the three lexical judges' balanced accuracies paired record by record: the drafted judge minus the hand pack's, the term-presence judge minus the hand pack's and minus the drafted judge's, each with its paired interval | a model result |
+| pair | which two lexical judges a paired difference compares | n/a: not a number |
+| drafted lexical judge balanced accuracy | the drafted lexical judge's balanced accuracy on the arm's records | a model result |
+| minus the drafted lexical judge, paired by record | the arm's balanced accuracy minus the drafted lexical judge's, record by record over the records both score, with its paired interval: the pass test's lexical clause | a difference on another set of records |
+| hand lexical judge balanced accuracy | the hand pack's lexical judge's balanced accuracy on the arm's records | a model result |
+| minus the hand lexical judge, paired by record | the arm's balanced accuracy minus the hand pack's lexical judge's, record by record, with its paired interval: the added clause of C6 | a difference on another set of records |
+| term-presence judge balanced accuracy | the drafted term-presence judge's balanced accuracy on the arm's records | a model result |
+| minus the term-presence judge, paired by record | the arm's balanced accuracy minus the term-presence judge's, record by record, with its paired interval: the other added clause of C6 | a difference on another set of records |
+| word under lever five's text alone | the verdict word under lever 5's text alone: A001's word with the drafted lexical judge, without the added clauses (C6) | the verdict word, which is the one beside it |
+| headline against the hand lexical judge | J1's headline for the headline arm and the headline secondary read against the hand pack's lexical judge instead of the drafted one (rule 11), beside the headline | the headline, which is read against the drafted lexical judge |
+| headline against the term-presence judge | J1's headline for the headline arm and the headline secondary read against the drafted term-presence judge (rule 11), beside the headline | the headline, which is read against the drafted lexical judge |
+| questions sha | the first twelve hex digits of the questions file's sha256 that B1 (the second accuracy test's artifact) was checked against: A002's pinned prefix, or a dry run stand-in's (C3) | n/a: not a number |
+| verdicts equal to the judge's | the share of the kind's questions on which the primary arm's verdict equals the judge's, with the count | agreement with the truth |
+| confirms where the judge confirms | how often the primary arm confirms where the judge confirms, with the counts | a sensitivity |
+| confirms where the judge refutes | how often the primary arm confirms where the judge refutes, with the counts | a false positive rate |
+| drafted terms carried | how many drafted terms the component's list in task D's payload carried (0: the empty list) | a term: none is shown |
+| questions of the drafted-terms task whose payload carried an empty list | the task D questions whose payload carried an empty list, of the model's task D questions, with the share | questions left out: they were asked |
+| removed by record id | eligible records removed before the draw because their record id is a drafting record id (a complaint that straddles the cutoff, C4) | records of the earlier cycles |
+| removed by text | eligible records removed before the draw because their folded narrative is a drafting narrative's (C4) | records with a similar narrative: the match is exact |
+| drafting records already excluded | drafting records the earlier cycles had already excluded, counted once | records removed twice |
+| drawn records received before the cutoff | drawn records received before the cutoff: a tripwire, the plan stops above zero | records of the drafting window |
+| drawn drafting records | drawn records whose record id or folded narrative is a drafting one: a tripwire, the plan stops above zero | records near the cutoff |
+| the term run's archive sha | the first twelve hex digits of the complaint archive's sha256 the term run read | n/a: an identifier, not a number |
+| same archive as the term run | whether the judging run's archive is the term run's, byte for byte | the same draw |
+| the term run's drafting rows | the term run's drafting rows, as its term set records them | records drawn |
+| drafting rows rebuilt | the drafting rows rebuilt from the day's archive by the term run's export code | records drawn |
+| the term run's drafting refs sha | the first twelve hex digits of the term run's drafting refs sha256 | n/a: an identifier, not a number |
+| rebuilt drafting refs sha | the first twelve hex digits of the rebuilt drafting refs sha256; equal archives need it equal to the term run's | n/a: an identifier, not a number |
+| term run | the term run's GitHub run id, from the request's terms entry | a record id |
+| term artifact | the term run's plan artifact the plan job read the term set from | an artifact of this run |
+| drafted pack vocabulary hash | the first twelve hex digits of P_D's vocabulary hash: the hand pack with the term set as its lexicons | n/a: an identifier, not a number |
+| term module code hash | the first twelve hex digits of `lab/jt.py`'s code hash the term set records, equal to this commit's (C29) | n/a: an identifier, not a number |
+| term set verified | whether the term check verified the term set against the pin before any draw | that the terms are good terms |
+| base task | the base task the adaptation rule's branch names: `negation` (branch N) or `evidence` (branch E) | a setting chosen for this run: the rule's branch decides it |
+| this draw, balanced accuracy | a control arm's balanced accuracy on this draw, with its interval | a lift |
+| earlier cycle | the earlier cycle whose figures the controls replicate (A001 under N, A002 under E) | n/a: not a number |
+| earlier arm | the earlier cycle's arm a control replicates | n/a: not a number |
+| earlier balanced accuracy | the earlier cycle's balanced accuracy of that arm with its interval, from its recorded run | a figure on this draw |
+| between-draw difference | this draw's balanced accuracy minus the earlier cycle's: a between-draw difference | a lift or a decision: it decides nothing |
+| grounded share of yes answers | branch E: the share of task's yes answers whose citation is grounded, per kind, with the counts | a correct yes |
+| grounded citations equal to a drafted term | branch E: grounded citations that equal a drafted term of the asked component, per kind (C16) | a term: none is shown |
+| grounded citations holding a drafted term | branch E: grounded citations that hold a drafted term of the asked component, per kind (C16) | a term: none is shown |
 
 ## Summary sections
 
@@ -1250,7 +1445,7 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Simulation pushdown verification | the simulation's pushdown candidates, raw text and fallback share |
 | Simulation sizing for the next request | per sim unit, the measured medians and the suggested minutes |
 | Baselines blind to narrative-only patterns by construction | per sim or X1 row, S and R_mf on the plant's narrative_only patterns, with the harness's label |
-| Preregistration, fixed before any model runs | E1's labels, X1's and E2's prereg hashes, E2's rehearsal, J1's labels and questions, the lexical judge's and the record-blind control's scores on every record and the predicate-only bound; J2's labels, questions, exclusion counts and mechanisms, primary pair, target and comparators on every record; J3's labels, questions, exclusion counts with the five sources, the cycles and the consistency counts, primary pair, headline secondary, target, comparators and both ablations on every record; JT's term set under the term run's two headings |
+| Preregistration, fixed before any model runs | E1's labels, X1's and E2's prereg hashes, E2's rehearsal, J1's labels and questions, the lexical judge's and the record-blind control's scores on every record and the predicate-only bound; J2's labels, questions, exclusion counts and mechanisms, primary pair, target and comparators on every record; J3's labels, questions, exclusion counts with the five sources, the cycles and the consistency counts, primary pair, headline secondary, target, comparators and both ablations on every record; JT's term set under the term run's two headings; J4's labels and questions, the exclusion with the eight sources, the cycles, the consistency counts and the split, the term pin, the primary pair, headline secondary, target and the three lexical judges, the control and the bound on every record with the judges paired |
 | Extraction compared across models | E1's label, labels, reference and thresholds |
 | Extraction per model, pooled over repeats | E1's per-model scores and zero-claim share |
 | Extraction drops by reason, pooled over repeats | E1's post-processing counts per model and reason (`drops` of each endpoint in report.json), after the sentence that reattached reasons are not losses |
@@ -1271,6 +1466,15 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Latency test: the alert, the questions and the comparators, fixed before any model runs | (plan summary) L1's file, audit, alert, questions, the comparators' scores, the predicate-only bound, the empty draws share and the constant status agreement |
 | Term run: the drafted term set, fixed before the judging run | JT's label, the term set's full sha256 (in the report, whether the unit verified it; in the plan summary, the sha of `prereg/jt/prereg.json`), the cutoff and the drafting window, the archive, the export's rows per make and pooled with the cross-make duplicates and the received dates, the drafting block, the drafter's and the refusal's counts, the term counts, P_draft's, P_D's and the hand pack's hashes, the code hashes, whether the check passed and the step's wall time and peak memory (the report's `jt` block); counts and hashes only, never a term |
 | Term run: the privacy check of the drafted pack, by check | per check of `check_pack`: passed and its failure count, then the terms note |
+| Accuracy test, third cycle: the verifier's narrow question on a fresh draw with the drafted terms in the payload, four declared arms on one model, one primary pair | J4's label, the labels and questions with the base task, the exclusion's counts, eight sources, three cycles, seven consistency counts, the split's removals, tripwires and both archives' hashes, the chain file's hash and lines, the term pin (the term set's full sha256, verified, the term run, its artifact, P_D's vocabulary hash, `lab/jt.py`'s code hash), the three lexical judges on every record with their unknown counts, the control and the bound, the judges paired, the comparison count, the stand-in note in a dry run, the exclusion, lexical, control, arms, verdict and terms notes, and the primary pair's sentence with every lexical figure, the word under lever 5's text alone and the other reading's word (the report's `j4` block, which also holds each arm's answer counts and confirms per predicate) |
+| Accuracy test, third cycle: every arm beside the three lexical judges, the control and the bound on the same records | per J4 model and arm: letter, task, reading, class, parts finished of planned, balanced accuracy and its interval, each lexical judge's balanced accuracy and the paired difference to it on the same records, the control and the bound, sensitivity, specificity, the unknown share, the records left out, the verdict word and the word under lever 5's text alone, the pass test, whether the arm is the primary or the headline secondary, and for those two the headline and why there is none |
+| Accuracy test, third cycle: the lifts between arms, paired by record | per J4 model: each lift of rule 10 with its lever, the paired records, the difference with its interval and its reading |
+| Accuracy test, third cycle: the three lexical judges paired with each other, record by record | the three lexical judges paired with each other: the paired records, the difference and its interval |
+| Accuracy test, third cycle: the primary arm beside the drafted lexical judge and the term-presence judge, per kind | per J4 model, judge (the drafted lexical judge, the term-presence judge) and kind: the primary arm's questions, its verdicts equal to the judge's and its confirm rates where the judge confirms and where it refutes (trap 6) |
+| Accuracy test, third cycle: the drafted terms each component's questions carried | the drafted terms each component's questions carried (counts, never a term), then per model the task D questions whose list was empty |
+| Accuracy test, third cycle: the grounding check's readings and the citations that hold a drafted term | branch E only, per J4 model, task and kind: the grounded share of yes answers and the grounded citations equal to or holding a drafted term (C16), the empty citations and the citation lengths |
+| Accuracy test, third cycle: per task, the first key, the output tokens and the replies cut at the cap | per J4 model and task: the first-key share, the attempts, the calls and their latency, the output tokens and the replies cut at the cap |
+| Accuracy test, third cycle: the controls beside the earlier cycle's own figures, a between-draw difference that decides nothing | per J4 model, the controls B and Br on this draw beside the earlier cycle's own arm and figures and the between-draw difference, which decides nothing |
 | Pushdown verification against central reading: conditions | E2's labels and conditions |
 | Pushdown ratio and verdict | E2's ratio and, for a hosted central, the bar verdict |
 | Pushdown candidates | E2's candidates by label |
@@ -1291,7 +1495,7 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 
 | artifact | holds |
 | --- | --- |
-| `lab-plan-<run id>-<attempt>` | the plan, its preregistration and the plan summary; for a J2 plan the preregistration holds the fresh draw's labels and questions files (public complaint text and refs; the artifact, never the repository) and `prereg/j2/excluded.jsonl`, the refs the next cycle excludes; for a J3 plan the same under `prereg/j3/` with the two ablation files and `prereg/j3/excluded.jsonl`; for a JT plan `prereg/jt/`: the term set `terms.json`, P_draft (`pack/`), `check.json`, the two drafting files (record ids and narrative hashes) and `prereg.json`, never the export or a narrative |
+| `lab-plan-<run id>-<attempt>` | the plan, its preregistration and the plan summary; for a J2 plan the preregistration holds the fresh draw's labels and questions files (public complaint text and refs; the artifact, never the repository) and `prereg/j2/excluded.jsonl`, the refs the next cycle excludes; for a J3 plan the same under `prereg/j3/` with the two ablation files and `prereg/j3/excluded.jsonl`; for a JT plan `prereg/jt/`: the term set `terms.json`, P_draft (`pack/`), `check.json`, the two drafting files (record ids and narrative hashes) and `prereg.json`, never the export or a narrative; for a J4 plan `prereg/j4/`: the fresh draw's labels and questions files, the four comparators' files, `excluded.jsonl` (the refs the next cycle excludes, the split's removals included), `terms.json` (the term run's term set, byte for byte: terms live in artifacts, never in the repository) and `prereg.json` |
 | `lab-prov-<run id>-<attempt>-<entry>` | one provision record (`server` or `gguf-<key>`) and its lock candidate |
 | `lab-run-<run id>-<attempt>-<shard>` | one sealed shard root |
 | `lab-report-<class>-<run id>-<attempt>` | `report.json`, `report.md`, `report.sources.json`, `plan.json`, `lock-candidate.json` and E1's comparison files |
@@ -1321,8 +1525,13 @@ by `lab.summary`. The step runs only when the run id output is not empty and con
 expired artifact reaches `lab.j2labels` as an absent directory and one fixed message. For a plan with J3 units a
 second step, `earlier-2`, downloads the second excluded run's artifact the same way (`j3_exclude_run_id_2` and
 `j3_exclude_artifact_2`, under the same directory by its own run id, B2 of `CHOICE-A002.md`), and
-`lab.j3labels` reads both. Nothing read from the
-downloaded directory is printed or written anywhere but into the exclusion set on the runner.
+`lab.j3labels` reads both. For a plan with J4 units a third step, `earlier-3`, downloads the third excluded
+run's artifact the same way (`j4_exclude_run_id_3` and `j4_exclude_artifact_3`), and a fourth, `terms`, the term run's
+plan artifact (`j4_terms_run_id` and `j4_terms_artifact`) into `${{ runner.temp }}/lab-terms/<run id>`, both with
+`github-token: ${{ github.token }}` and `continue-on-error: true` (C27); `lab.j4labels` reads the three earlier
+artifacts and `lab.j4terms` the term artifact, whose absence is the term check's `artifact absent` and
+`J4_TERMS_UNVERIFIED`. Nothing read from the downloaded directories is printed or written anywhere but into the
+exclusion set on the runner, and the term set only into `prereg/j4/terms.json` of this run's plan artifact.
 
 Artifacts are kept for the request's `retention_days`. Caches (`actions/cache`): `lab-server-<tag>-<sha16>` holds the
 verified server archive and `lab-gguf-<key>-<sha16>` a verified model file; `lab-msha-<sha16>` holds MSHA's accident
