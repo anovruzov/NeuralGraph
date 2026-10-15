@@ -274,6 +274,19 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   other; the corrected diagnosis (W12+, fixed 6-week grid, decoys under each rule, formal disclosure) runs beside it.
   No system change until the founder approves the proposed fixes. A003 build 2: the fix stage is applying the three
   reviews' findings.
+- 2026-10-15 00:03 Root-cause investigation, first findings (reviewers B and C and the cross-challenge still to
+  come; nothing here is final). Reproducer D, on a local real run of seed 0 with outside instrumentation that
+  changed no decision: most Gold patterns never get a detector snapshot and survive only as rule hits, which the
+  candidate list drops; no site is eligible before 2024-W12; duplicate-inflation decoys pass because echoes count
+  as independent roots; temporal scrambles pass because nothing checks temporal order; the decoy-acceptance figure
+  counts only each decoy's facet-0 key; there is no aggregation above sites and no recursive questioning, and the
+  shipped Orchestrator is bypassed; NeuralGraph and Tesseract run at every site but changed no verdict at seed 0.
+  Reviewer A found no transport, concurrency or state loss on the end-to-end path, and contradicts an earlier
+  statement of this log (21:25): the attribution of the CI loop stall to retrieval.py's per-query BM25 build is
+  mostly a sampling artefact, not a CI measurement. A's probable mechanism is the loop thread waiting for the
+  interpreter lock that the test's CPU-bound walk threads hold, with no single blocking operation; the two timing
+  tests' bound (half of one uncontended walk) is load-sensitive by design. To be challenged before any fix is
+  proposed. A003 build 2's fix stage is still running.
 
 ## Open asks (date asked)
 
