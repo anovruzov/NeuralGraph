@@ -338,6 +338,12 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   founder's "recorded and frozen" (the 23:12 line): the commit, the request's sha256, the settings, the run and job
   ids, the report block and the artifacts' ids are fixed here and in the entry. The founder approved the fixes after
   02:13 UTC; the stall work is being designed from measurements first.
+- 2026-10-15 04:27 A003 run 1 is recorded (6c0c322; the report block committed as docs/collective/A003/run-1-report.md,
+  sha256 matching). In progress, nothing else recorded: A004's amendment after A003's result (branch T; placeholders
+  1 to 7) is in its first revision after two critics; the root-cause report is in its second revision; the stall
+  measurement is still running. Two orphaned CPU-bound probe processes left by reviewer A's run of 2026-10-14 23:04
+  were found busy on 2 of the 4 CPUs and killed at 03:57; the stall measurements taken before then ran under that
+  extra load, so they are re-checked on the quiet machine before any fix is built.
 
 ## Open asks (date asked)
 
