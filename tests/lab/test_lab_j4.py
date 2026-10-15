@@ -75,6 +75,7 @@ from mycelic.collective.packs.canonical import Canonicaliser, folded
 from tests.lab import j2_data, j3_data, j4_data
 from tests.lab.helpers import (LAB_MANIFEST, MANIFEST_TEST, PLUMBING_MIN, ROOT, TEMPLATES, DryTree, call_main,
                                check_sources, kill_mentioning, run_plan, write_json)
+from tests.lab.test_lab_jt import without_runner_values
 
 PACK = loader.load_pack(ROOT / NHTSA_PACK)
 CHOICE = ROOT / "docs" / "collective" / "A003" / "CHOICE-A003.md"
@@ -3984,7 +3985,10 @@ class _DryRunChecks:
                 assert_no_term(self, text, dry.terms)
         holders = set()
         for path in sorted(p for p in dry.out.rglob("*") if p.is_file()):
-            text = path.read_text(encoding="utf-8", errors="replace")
+            # the runner's own values (lab.hostinfo's ENV_NAMES, recorded verbatim in every shard's provenance.json)
+            # are names the runner gives, such as the branch in GITHUB_REF, never record text: CI's run of
+            # 2026-10-15 found a synthetic term inside the deployment branch's name, as test_lab_jt's scan did
+            text = without_runner_values(path.read_text(encoding="utf-8", errors="replace"))
             low = text.lower()
             has_ref = any(re.search(r"(?<![0-9A-Za-z])" + re.escape(r) + r"(?![0-9A-Za-z])", text)
                           for r in refs if r in text)
