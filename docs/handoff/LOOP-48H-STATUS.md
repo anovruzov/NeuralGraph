@@ -287,6 +287,18 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   interpreter lock that the test's CPU-bound walk threads hold, with no single blocking operation; the two timing
   tests' bound (half of one uncontended walk) is load-sensitive by design. To be challenged before any fix is
   proposed. A003 build 2's fix stage is still running.
+- 2026-10-15 01:14 CI on a465752 (A003 build 2's merge): `mycelic.yml` 38661107236 green, all three jobs.
+  `e2e-ingest.yml` 38661107138 (run_number 8) red in suites-lab (job 116182296876): 2 of 1,011 distinct tests failed
+  (35,866 with subtests), both `test_lab_j4`'s `test_no_ref_and_no_term_anywhere_a_reader_looks` (the small dry run
+  and the template's); the core and e2e_ingest suite jobs were green, and the suite gate skipped the e2e and measure
+  jobs. Cause: every shard's provenance.json records the runner's own values verbatim (`lab.hostinfo.ENV_NAMES`,
+  `GITHUB_REF` among them), and a synthetic term of the test data occurs inside the deployment branch's name. It is the
+  collision `test_lab_jt`'s scan already strips; j4's whole-tree scan did not. Reproduced locally with the runner's
+  values set (2 failed). Fix 5fecc8b: the j4 scan leaves out only those exact recorded values, as `test_lab_jt`'s does,
+  and still reads every other byte (2 passed under the same values; the whole j4, jt, docs and guards files are
+  running locally without them). Not a defect of the lab code: with the runner's values left out, no record ref or
+  term is in any output of the two dry runs. A003's request push waits on CI green on the fix. The local gate on a465752 passed its dry runs and onboard + guards + x3 (402 passed). The
+  corrected EMERGENCE diagnosis is in its second critique round; no system change.
 
 ## Open asks (date asked)
 
