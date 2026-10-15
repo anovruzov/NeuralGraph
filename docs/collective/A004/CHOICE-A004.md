@@ -2259,3 +2259,276 @@ From the timing check, by the amendment after it (before build 2); that amendmen
 Conditional, and not a placeholder of this rule's figures: a chief-scientist call on decision 9 that counts unclear
 as no, received before the judging request is pushed, is adopted by a dated amendment with no other content and
 installs exactly the pair E2 names; none is recorded under "Decisions received" in the status log at `831f424`.
+
+## Amended after A003's result, 2026-10-15
+
+**A003's result was known when this amendment was written, and this amendment says so.** It was written on
+2026-10-15 by the AI system that wrote the rule, on the rule as amended at `e54eb6d` ("Amended before any build,
+2026-10-14", E1 to E38), after A003's result run had been recorded: CHOICE-A003, "## Runs", "Run 1 (lab run
+38667030739, 2026-10-15)", committed at `6c0c322` beside the run's report block, `docs/collective/A003/run-1-report.md`
+(178 lines, sha256 `c7ee523a751a…`, the marker's; the committed file hashes to it at `6c0c322`). Its author has read
+that entry whole, every arm's figures, the comparators', the lifts and the timings included, and the report block. The
+branch is read from the cells "The base task and the arms" named before A003 ran, and from nothing else. At
+`6c0c322`, the commit it was written on, no A004 code exists (no `lab/jr.py`, no `lab/j5.py`), no A004 request has
+been pushed, the timing check has not run, and no record of this cycle's draw exists.
+
+It does what rule 17 allows an amendment written after A003's result is recorded, and nothing else: it reads the
+branch and fills placeholders 1 to 7 (items 1 to 7 below, each labelled "from A003's result run", each cell quoted as
+CHOICE-A003's Runs entry prints it), and it corrects one citation to its source ("A citation corrected to its
+source"). **The cells select branch T, and this amendment does not change the branch the cells select**, nor anything
+on rule 17's list: the four cases, their order and the cells they read; P under any case; the four arms and their
+keys; the readings; the comparators and the pass test by branch; the seeds, n and parts; the cap, the deadline, the
+planning figures, the timing check's calls and its clauses; the R0-only request of rule 18. No floor moves. The body
+above is not edited: where it holds a placeholder filled here, or the citation corrected here, it is read with this
+section's value, and "Where the body holds these values" lists each place. Where the text above and this section
+disagree, this section wins.
+
+Its sources are CHOICE-A003's Runs entry for run 1 (cited "A003 Run 1", with its paragraph or table), the report block
+committed beside it (cited "the report block", with its table or line) and, for times and expiry dates, the Actions
+API as A003 Run 1 quotes it. Three statements cite something else, each where it is made: the status log for
+decision 9 (item 2), the lab's code for how the split counts reach A003's labels record (item 5), and CHOICE-A002's
+Run 1 for the corrected citation. Figures computed here are labelled derived.
+
+### 1. The branch (placeholder 1), from A003's result run
+
+**A003's result run** is run 1, lab run 38667030739, attempt 1, the first A003 judging run in which a model judged a
+drawn record ("The base task and the arms", first paragraph): one plan job and no re-run, nothing stopped before a
+model ran, and 600 model calls, 300 per task (A003 Run 1, the reading of the draw line, "Nothing stopped before a
+model ran" and "Parts and records").
+
+**Which aggregate's cells (E21):** the result run's first and only aggregate, job 116209851508, completed `success` at
+02:13:35 UTC on 2026-10-15 (the Actions API, as A003 Run 1 quotes it). It printed the four arms' table, so E21's
+second case, a declared re-aggregation, does not arise. A003 Run 1 copies its cells from the report block, whose
+sha256 it recomputed from the aggregate job's log and matched.
+
+**The cells, as A003 Run 1 prints them:**
+
+- D's rule-13 verdict word: **`failure`** (the four arms' table, row "**D `negation_terms` (P)**", column "Verdict
+  word"; the verdict paragraph, "The verdict on P = (a-4b, D `negation_terms`), by rule 13: failure."; "What the next
+  cycle inherits": "D's rule-13 verdict word `failure`"). The report block's primary line: "Primary pair `a-4b`
+  `negation_terms`: `failure`".
+- B's rule-13 verdict word: **`failure`** (the four arms' table, row "B `negation` (the control)", column "Verdict
+  word"; "What the next cycle inherits": "B's rule-13 verdict word `failure`").
+- The lifts table's row `D_minus_B`, first as A003 Run 1 prints it ("The lifts of rule 10"), then as the report
+  block's lifts table prints it:
+
+```
+| `D_minus_B` | the drafted terms: one payload key and one sentence, answers as answered | 0.153 [0.103, 0.203] | helps |
+| `a-4b` | `D_minus_B` | `drafted_terms` | 150 | 0.153 | 0.103 | 0.203 | `helps` |
+```
+
+**The reading, in the rule's order** ("The cells read"; cases 1 to 4; E4, E5, E20):
+
+- **Completeness** (E4): D's word is not `incomplete`, so task D's set is complete; B's word is not `incomplete`, so
+  task B's set is complete. Beside, deciding nothing: every arm shows 5 of 5 parts and 0 records left out (A003 Run 1,
+  the four arms' table, columns "Parts finished" and "Records left out"), and class `model` (the report block, the
+  arms table, column "class", all four rows; A003 Run 1 prints the class for task D's set in its verdict paragraph,
+  "5 of 5 parts, class `model`, 0 records left out").
+- **Case C** needs D's word `pass_provisional`; it is `failure`. Case C does not hold.
+- **Case H** needs B's word `pass_provisional`; it is `failure`. Case H does not hold.
+- **Branch T** needs both sets complete and `D_minus_B` printed with its 95% lower end above 0, read to three
+  decimals as printed (E20): the lower end is 0.103. **Branch T holds**, and branch N is not reached.
+- **E5:** every arm's word under lever 5's text alone is `failure` (the four arms' table, column "Word under lever
+  5's text alone"), so no D or B is recorded as a hypothesis.
+- **The mapped arms:** Dr's and Br's pass test is "no" and their words `failure` (the same table), so no mapped
+  hypothesis is recorded ("The base task and the arms", the paragraph after case 4).
+
+A003 Run 1 states the same branch ("What the next cycle inherits"); this amendment reads the cells by this rule's
+text, not by that paragraph.
+
+**Whether A003's plan job's comparator figures were read: yes.** A003 Run 1 prints them (the plan job's fixed lines,
+its log lines 371 to 376, and the comparators' table), the report block repeats them, and this amendment's author
+read them with the rest of the entry. No case reads them, and they select nothing here. They are figures of A003's
+draw; this cycle's comparators are computed on its own draw (rule 8).
+
+### 2. The base task, P's arm and the headline secondary (placeholder 2), from A003's result run
+
+Read from branch T (case 3 of "The base task and the arms"; rules 3, 5 and 13):
+
+- **The base task: A003's task D, `judge_record_negation_terms`**, imported unchanged from A003's kind, with the terms
+  of term run 1 in the payload (lab run 38612800578, sha256
+  `42c591ccbb66b81455ca19840a54e18cbb69b5613dd2eab8f3f8c70f9cea39cc`, P_D's `vocabulary_hash`
+  `c0260f0edab4638915b1fd0065e236ca20b497c0b217495c77adf018800fe579`; A003's judging plan job verified both, its term
+  line reading `j4 terms: outcome verified failed none`, A003 Run 1, "The plan job's fixed lines"). The requests'
+  `base_task`: **`negation_terms`**, in the check's request and in the judging request.
+- **P = (a-4b, `negation_terms_reasoning`)**: R1, task D with `max_tokens` 2,048 and nothing else changed, on key
+  `a-4b-r`, read as answered. The judging request's `primary`: `{model: a-4b, arm: negation_terms_reasoning}`.
+  `decision_9` stays `default`: the status log's "Decisions received" at `6c0c322` holds no call on decision 9
+  (`docs/handoff/LOOP-48H-STATUS.md`), so E2's pair is not installed. A call that counts unclear as no, received
+  before the judging request is pushed, would be adopted by its own amendment and make P (a-4b,
+  `negation_terms_reasoning_mapped`) (E2).
+- **The headline secondary: R1m, `negation_terms_reasoning_mapped`**, the same replies through M, its word printed
+  beside P's and labelled "the primary under the other reading of the section 7 default" (rule 5).
+- **The control: R0, `negation_terms`**, task D unchanged with its cap of 256, on key `a-4b`, read as answered, and
+  **R0m, `negation_terms_mapped`**, the same replies through M.
+- **What branch T carries, as the rule already fixes it** (nothing is set here): A003's five comparators and its pass
+  test with the added clauses (rules 8 and 13); the timing check on R1's task with term run 1's lists in its payloads
+  ("The timing check", the calls); the planning first token of 100 s (the settings, row "Planning figures"); the
+  `a-4b-r` shards first (rule 15; E19); the received-date split enforced on the day ("The data and the draw", item
+  8). A pass of P would be a first pass, provisional (rule 13).
+- **Rule 18's R0-only request does not apply under branch T.** If any stop clause of the timing check fails, this rule
+  ends: no judging request is pushed, and lever 6 needs a new choice file (rule 18; E3).
+- **The term artifact's expiry governs both requests.** `lab-plan-38612800578-1` (artifact id 11918947585) expires at
+  **2027-01-12T18:09:48Z** (the Actions API; CHOICE-A003, T8; A003 Run 1, "The run"). Under branch T the check's plan
+  job downloads the term artifact and verifies it ("The timing check", the kind), and the judging plan job does the
+  same ("The data and the draw", item 8); trap 19 says the judging request must be pushed before the expiry, else its
+  plan job refuses with the terms unverified, a stop before any model. The judging run's Runs entry records its push
+  date beside that `expires_at` ("## Runs", the judging run's entry).
+
+### 3. A003's result run and its plan artifact (placeholder 3), from A003's result run
+
+- **Lab run 38667030739, attempt 1** (A003 Run 1, "The run").
+- **Its plan artifact: `lab-plan-38667030739-1`, artifact id 11942755522, `expires_at` 2026-11-14T01:44:27Z** as the
+  Actions API lists it (the run's artifact listing, read on 2026-10-15; A003 Run 1, "The run's artifacts", gives the
+  same date).
+
+### 4. A003's prefixes and its chain (placeholder 4), from A003's result run
+
+From the plan job's draw line (its log line 372; A003 Run 1, "The plan job's fixed lines" and the reading after
+them); the report block repeats each but the questions prefix:
+
+| What | Prefix | As the draw line prints it | The report block |
+|---|---|---|---|
+| A003's labels, `prereg/j4/labels.jsonl` (150 records, seed 4) | `cca4cdf749b0` | `labels_sha256 cca4cdf749b0` | "labels: source `nhtsa`, records 150, sha `cca4cdf749b0`" |
+| A003's questions (300 questions in 5 parts) | `dfccb81bd61f` | `questions_sha256 dfccb81bd61f` | not printed |
+| A003's chain, `prereg/j4/excluded.jsonl` | `8f7b246328e1`, 721 lines | `excluded_sha256 8f7b246328e1 excluded_lines 721` | "excluded refs file sha `8f7b246328e1`; chain file lines 721" |
+| The complaint file on A003's day | `4e5ae79183c4` | `complaint_file_sha256 4e5ae79183c4` | "complaint file sha `4e5ae79183c4`" |
+
+A003 Run 1 reads the chain's 721 lines as the 450 earlier refs, the split's 121 removals and the draw's 150 (derived
+there), which is "The data and the draw", item 4's "600 lines plus A003's split removals".
+
+### 5. A003's two split counts (placeholder 5), from A003's result run
+
+**By record id 0, by text 121.** The plan job's draw line prints `excluded 571 (earlier 450 split_by_record_id 0
+split_by_text 121)` and its split line `by_record_id 0 by_text 121 already_excluded 0 before_cutoff 0 in_drafting 0`
+(A003 Run 1, "The plan job's fixed lines"); the report block prints "removed by record id 0; removed by text 121".
+
+The placeholder asks for the counts as A003's labels record carries them. That record is in the plan artifact, which
+was not downloaded ("What this amendment does not copy"); the printed counts are the record's by construction. In
+`lab/j4labels.py` the two lengths of the split's removals go both into the split's counts (`:557`), which
+`lab/prereg.py` prints on the split line (`:814`) and the draw line (`:870`), and into `excluded_runs` (`:559`), which
+writes the entry `{"kind": "split", "by_record_id": ..., "by_text": ...}` (`:482`) that `lab.j2labels.build_labels`
+puts into the record's `exclusion.excluded_runs` (`lab/j2labels.py:250`). No file under `lab/` changed between the
+run's commit `c5dad9a` and `6c0c322`.
+
+### 6. The comparison count (placeholder 6), from A003's result run
+
+A003's aggregate printed "comparisons since the loop began: 25 (4 this cycle, 21 before)" (the report block; A003 Run
+1, "The comparison count"). That is the rules' declared sum, 12 + 9 + 4 = 25 (rule 12), so E23's defect case does not
+arise; the judging request carries `comparisons_before` 25. **This cycle: 4 (model, arm, cycle) comparisons, 29 since
+the loop began**, when the four-arm judging request runs. The 2 and 27 of rule 18's R0-only request belong to the
+confirmation case and the hypothesis case and cannot arise under branch T (item 2).
+
+### 7. The control task's recorded timing on A003's draw (placeholder 7), from A003's result run
+
+Under branch T the control is task D, `judge_record_negation_terms` (E18). Its timing on A003's draw, as A003 Run 1
+prints it ("Model-call latency, from the ledgers"; "The first key and the tokens, per task") and as the report block
+prints it ("Model call latency from the ledgers"; the per-task table of output tokens and replies cut at the cap):
+
+| Runner CPU | Shards | Task D calls | Median ms | 95th percentile ms |
+|---|---|---|---|---|
+| `AMD EPYC 7763 64-Core Processor` | `s001-a-4b`, `s002-a-4b`, `s003-a-4b` | 180 | 15562.9 | 26090.0 |
+| `AMD EPYC 9V74 80-Core Processor` | `s004-a-4b`, `s005-a-4b` | 120 | 9714.1 | 15275.1 |
+
+Output tokens: median 13.0, 95th percentile 16.0. Beside them in the same row: 300 attempts, 300 calls, replies cut at
+the cap 0; over all five shards, across two CPU models and so not one comparison, median 13349.5 ms and 95th
+percentile 21862.5 ms. A003 Run 1 calls each runner "one shared GitHub-hosted runner per shard, 4 CPUs and 15.6 GiB, a
+runner number and not site hardware". A timing, never an accuracy figure; it changes no setting (E1; E18).
+
+### A citation corrected to its source
+
+**"The timing check", call 19 (lines 478 to 479).** The rule gives call 19 `max_tokens` 16 as "no more than the
+control's median answer alone (16.0 output tokens, CHOICE-A002 Run 1)". The cited figure is the negation task's:
+CHOICE-A002 Run 1 prints it in the row "N `judge_record_negation`" of its per-task table of output tokens (median 16.0,
+95th percentile 17.0). The negation task is the control under branch N and the hypothesis case; under branch T, the
+branch in force (item 1), the control is task D (E18), whose median answer on A003's draw is item 7's 13.0. Corrected,
+the citation reads: "no more than the negation task's median answer alone (16.0 output tokens, CHOICE-A002 Run 1)".
+The constant, call 19 and clause S7 are unchanged (E1). E11 (lines 1866 to 1867) and "Declined" (lines 2192 to 2194)
+repeat the label; they are the earlier amendment's record and are not edited, and this correction reads over them.
+
+### What this amendment does not copy, and why
+
+- **The files in A003's plan artifact**: its labels record, with its `excluded_runs` entry of kind `split`, and its
+  labels, questions and chain files. The artifact host cannot be reached from the agent's sandbox, and no artifact of
+  A003's run was downloaded (A003 Run 1, "The run's artifacts"). Items 4 and 5 copy the plan job's printed lines; the
+  j5 plan job verifies the files against these prefixes on its day.
+- **The `report/report.json` block's sha256**, which begins before the aggregate log's readable tail and was not
+  verified (A003 Run 1, "The run"). No figure here comes from it.
+- **A003's figures that fill no placeholder**: the arms' figures beyond the cells of item 1, the comparators, the
+  other three lifts, the agreement readings, task B's timing and the plan job's time. Sentences above that state the
+  record as it stood when they were written are not restated with A003's figures: rule 17 lets this amendment correct
+  a citation to its source, and each of those sentences' cited figures matches its source.
+
+### Where the body holds these values
+
+Line numbers are the file's at `e54eb6d`. Each place below holds a placeholder that items 1 to 7 fill, or the corrected
+citation; it is read as given here, and the body's text is not changed. "What it costs" (lines 1060 to 1062) keeps its
+pointer to placeholder 7, which item 7 fills; no figure there is recomputed.
+
+1. "What the evidence says", the A003 bullet (lines 42 to 43): after "cites CHOICE-A003's Runs entry once it
+   exists" read "(from A003's result run: branch T, read from Run 1, lab run 38667030739, by "Amended after A003's
+   result, 2026-10-15", item 1)". The bullet's other sentences stay as written.
+2. "What reasoning on is", item 4 (lines 241 to 242): "whose output tokens on A003's draw are placeholder 7 (E18)"
+   reads as "whose output tokens on A003's draw were a median of 13.0 and a 95th percentile of 16.0 (placeholder 7,
+   from A003's result run; E18)".
+3. Item 5 (lines 259 to 260): "whose per-call latency on A003's draw is placeholder 7, copied from CHOICE-A003's Runs
+   entry by the amendment that reads the branch" reads as "whose per-call latency on A003's draw was a median of
+   15562.9 ms and a 95th percentile of 26090.0 ms on the `AMD EPYC 7763 64-Core Processor` and 9714.1 ms and 15275.1
+   ms on the `AMD EPYC 9V74 80-Core Processor` (placeholder 7, from A003's result run, copied from CHOICE-A003's Runs
+   entry)". The clause after it, "the negation figures do not apply to it (E18)", stays.
+4. "The base task and the arms", first paragraph (lines 339 to 341): after "quoted as the entry prints them" insert
+   "(from A003's result run: branch T, from Run 1, lab run 38667030739; "Amended after A003's result, 2026-10-15",
+   item 1)".
+5. "The timing check", call 19 (line 478): "no more than the control's median answer alone" reads as "no more than the
+   negation task's median answer alone", followed by "(citation corrected after A003's result)".
+6. "The data and the draw", item 4 (lines 591 to 597): after the list of A003's facts the entry names, read their
+   values, "from A003's result run": run 38667030739, attempt 1; `lab-plan-38667030739-1`, artifact id 11942755522,
+   `expires_at` 2026-11-14T01:44:27Z; labels prefix `cca4cdf749b0`; questions prefix `dfccb81bd61f`; chain prefix
+   `8f7b246328e1`, 721 lines; split counts 0 by record id and 121 by text; complaint file prefix `4e5ae79183c4`.
+7. Item 5 (line 636): "A003's day's prefix (a placeholder)" reads as "A003's day's `4e5ae79183c4…` (from A003's result
+   run)".
+8. Item 7 (line 652): "A003, its result run, labels, seed 4 and chain (placeholders)" reads as "A003, run 38667030739,
+   labels `cca4cdf749b0`, seed 4, chain `8f7b246328e1` (from A003's result run)".
+9. The settings (lines 906, 909 and 913): row "Excluded", "(C1, R4, K4; placeholders)" reads as "(C1, R4, K4; run
+   38667030739, from A003's result run)"; row "Base task", "placeholder until the amendment" reads as "branch T:
+   A003's task D (from A003's result run)"; row "Primary pair", "placeholder until the amendment" reads as "branch T
+   in force: (a-4b, `negation_terms_reasoning`) (from A003's result run)". The rest of each row stays.
+10. Trap 19 (line 1208): "(its `expires_at` a placeholder)" reads as "(`expires_at` 2026-11-14T01:44:27Z, from A003's
+    result run)".
+11. "The request": the check's "`base_task` `negation` or `negation_terms` (placeholder: by the adaptation rule)"
+    (lines 1279 to 1280) reads as "`base_task` `negation_terms` (branch T, from A003's result run)"; the judging
+    request's "`base_task` (placeholder, as the check's)" (line 1295) reads as "`base_task` `negation_terms`", and its
+    "`primary` `{model: a-4b, arm: <the branch's P arm>}` (placeholder: ... only by E2's amendment)" (lines 1295 to
+    1297) reads as "`primary` `{model: a-4b, arm: negation_terms_reasoning}` (branch T, from A003's result run;
+    `negation_terms_reasoning_mapped` only by E2's amendment)"; the A003 entry's "(placeholders: ... A003's questions
+    prefix is a code constant of `lab/j5labels.py`)" (lines 1305 to 1308) reads as "(from A003's result run: `run_id`
+    38667030739, `artifact` `lab-plan-38667030739-1`, `file` `prereg/j4/labels.jsonl`, `sha256_prefix`
+    `cca4cdf749b0`, `chain_file` `prereg/j4/excluded.jsonl`, `chain_sha256_prefix` `8f7b246328e1`, rebuild seed 4
+    with prefix `cca4cdf749b0`; A003's questions prefix, `dfccb81bd61f`, is a code constant of `lab/j5labels.py`)".
+12. "Placeholders to be filled by dated amendments before the run" (lines 1479 to 1480): after "each labelled
+    "from A003's result run"" read "(filled by "Amended after A003's result, 2026-10-15")".
+
+### Placeholders after this amendment
+
+Filled by this amendment, from A003's result run, lab run 38667030739:
+
+1. The branch: **branch T**, read from D's rule-13 word `failure`, B's `failure` and `D_minus_B` 0.153 [0.103,
+   0.203], helps, of the first aggregate (job 116209851508); A003's plan job's comparator figures were read (item 1).
+2. The base task, A003's task D, `judge_record_negation_terms` (`base_task` `negation_terms`); P = (a-4b,
+   `negation_terms_reasoning`); the headline secondary R1m, `negation_terms_reasoning_mapped` (item 2).
+3. Run 38667030739, attempt 1; `lab-plan-38667030739-1`, artifact id 11942755522, `expires_at`
+   2026-11-14T01:44:27Z (item 3).
+4. Labels `cca4cdf749b0`; questions `dfccb81bd61f`; chain `8f7b246328e1`, 721 lines; complaint file `4e5ae79183c4`
+   (item 4).
+5. Split counts: by record id 0, by text 121 (item 5).
+6. A003's aggregate printed 25, the declared sum; this cycle 4, and 29 since the loop began (item 6).
+7. Task D on A003's draw: medians 15562.9 ms (`AMD EPYC 7763 64-Core Processor`) and 9714.1 ms (`AMD EPYC 9V74
+   80-Core Processor`), 95th percentiles 26090.0 and 15275.1 ms; output tokens median 13.0, 95th percentile 16.0
+   (item 7).
+
+Open, for the amendment after the timing check, which may do nothing else (rule 17): placeholders 8 to 13, as
+"Placeholders to be filled by dated amendments before the run" lists them.
+
+Conditional, and not a placeholder of this rule's figures: a chief-scientist call on decision 9 that counts unclear
+as no, received before the judging request is pushed, is adopted by a dated amendment with no other content and
+makes P (a-4b, `negation_terms_reasoning_mapped`) (E2); none is recorded.
