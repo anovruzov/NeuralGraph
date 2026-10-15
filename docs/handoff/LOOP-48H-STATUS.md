@@ -307,6 +307,17 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   critique round with 4 blocking findings open (the 48-hour report below lists them); the root-cause report's
   synthesis started at 01:24 UTC. No system change. The second 48-hour report (2026-10-13 01:50 to 2026-10-15 01:50
   UTC) follows the first, at the end of this file.
+- 2026-10-15 02:43 A003's judging run ended: lab run 38667030739 completed `success` at 02:13:41 UTC (plan, both
+  provision jobs, all five shards `sealed` with exit code 0, aggregate 116209851508 02:12:30 to 02:13:35 UTC). Read from
+  the aggregate log's report block (178 lines, marker sha256 `c7ee523a751a…`; the rebuild and its sha256 check are part
+  of the record, which follows): primary pair (a-4b, `negation_terms`) `failure`, and `failure` under lever five's text
+  alone: balanced accuracy 0.780 [0.733, 0.823], gap to 0.860 0.080; the drafted-terms lexical judge 0.773 on the same
+  records, paired 0.007 [-0.047, 0.057], not told apart; the hand lexical judge 0.657, paired 0.123 [0.070, 0.173];
+  the drafted terms lifted a-4b by 0.153 [0.103, 0.203] over the negation task alone. e2e-ingest 38664599267 on 7639bec:
+  all five jobs green (the measure job 01:40:38 to 02:05:24 UTC). The founder approved the fixes ("I approve", after
+  02:13 UTC): the stall fix is being diagnosed and designed from measurements first (not presumed to be in
+  retrieval.py); the EMERGENCE fixes that stay within the current rules follow the root-cause report, which is being
+  assembled; choices that change an invariant still wait on the founder.
 
 ## Open asks (date asked)
 
