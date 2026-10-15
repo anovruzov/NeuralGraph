@@ -673,6 +673,26 @@ Run in stage 2's last step, on the tree of the build commit:
   `lab/units.py:1255` F841 (`adapter` assigned and not used), which `831f424` already has at line 1204;
 - `actionlint` is not installed here.
 
+Run again at the fix stage ("Fixes after review"), on the fix branch's tree (the last edits before the fix commit are
+text only):
+
+- the same eight files: `398 passed, 4846 subtests passed in 806.48s (0:13:26)` (the first run found
+  `ReferenceCompletenessTests.test_every_column`: the three new columns had no row in the reference's columns table,
+  added before this run);
+- `python -m pytest tests/lab -q -p no:cacheprovider`, in the background: FULL_SUITE_RESULT;
+- the onboard and guard suites: `402 passed, 1080 subtests passed in 484.04s (0:08:04)`;
+- the template dry run below, on the negated variant and on the default data alike: exit 0, every line "Before each
+  merge" asks for, no ref and no term in anything a reader sees;
+- the terms-003 dry run: its ten console lines equal build 1's but for the machine's figures, and its outputs equal
+  `831f424`'s but for them ("The dry runs");
+- the j3 template dry run re-recorded into a scratch directory: equal to A002's recording byte for byte (4161, 116487
+  and 15701 bytes);
+- `git diff --stat 831f424 HEAD` over every pinned path printed nothing; every j2, j3 and jt function of
+  `lab/aggregate.py` and `lab/summary.py` is the same text as at `831f424` (24 functions); `lab/jt.py`'s code hash is
+  `f5743df58d418643ef231db62485219024cbb761cb22f8889e268b589e723d76`; `lab/requests/accuracy-003.json` does not exist;
+- `flake8 --max-line-length 120 --select=F,E9,W6` prints only the same `lab/units.py:1255` F841, and no line the fix
+  stage added is longer than 120 characters.
+
 ### The dry runs
 
 Re-recorded at the fix stage on the negated variant (`tests.lab.j4_data --negated`, "Fixes after review"): `python -m
@@ -767,8 +787,8 @@ fix touches a pinned path, and `lab/jt.py`'s code hash is still `f5743df5…3d76
 - **The template's recorded facts** (blocking, two findings). `RequestTests.test_the_template` compares the
   template's `exclude` list and `terms` entry with literal copies of "The request" and T1/T2 (every run id, artifact,
   file, prefix, rebuild seed, chain file and chain prefix of the three entries; the term run's id, artifact, file,
-  sha256, `vocabulary_hash` and cutoff), finds each literal value in `CHOICE-A003.md`, and checks the entries against
-  `lab.j4labels`' constants.
+  sha256, `vocabulary_hash` and cutoff), finds each run id, artifact, prefix, sha256 and hash in `CHOICE-A003.md`,
+  and checks A002's labels and chain prefixes against `lab.j4labels`' constants.
 - **The drafting text file's sha256** (blocking, two findings). `TermsCheckTests.test_every_outcome` gains "a drafting
   text file with one hash replaced": the first line's sha256 replaced by another 64-hex value, the line count kept,
   the artifact's manifest restamped; the outcome is `refs mismatch` with `drafting_files` failing.
@@ -816,7 +836,10 @@ fix touches a pinned path, and `lab/jt.py`'s code hash is still `f5743df5…3d76
   seed (5), block seed (6), bootstrap size (1001) and bootstrap seed (7) all differ and recomputes the draw, the
   questions, the comparator lines, their scores and the judges' pairs from them (and shows the other seeds would give
   other files). `TemplateDryRunTests.test_the_plan` compares the template dry run's labels and questions with the draw
-  and the questions recomputed from the dry run's own data.
+  and the questions recomputed from the dry run's own data. Applied in another form: the finding compared them with
+  `_Data.get().draw.data`, the default archive's draw; the dry runs now read the negated variant, whose labels file
+  carries the variant's narratives (the same records), so the draw is recomputed from the dry run's own archive and
+  stand-ins.
 - **Which judge feeds which clause, and the word under lever 5's text alone** (blocking; mutants E1, E3, E4, H1 to
   H3). `test_the_verdict_words_the_added_clauses_and_the_lifts` recomputes, for every arm, each paired difference
   with `lab.j1.paired` over the arm's own lines, the pass test's three differences (the drafted judge in the second
