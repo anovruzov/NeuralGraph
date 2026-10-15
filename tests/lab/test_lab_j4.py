@@ -2503,7 +2503,11 @@ class RequestTests(unittest.TestCase):
                                                 "comparisons_before"))
         self.assertEqual(lab_request._J4_TERMS_KEYS, ("run_id", "artifact", "file", "sha256", "vocabulary_hash",
                                                       "cutoff"))
-        self.assertFalse((ROOT / "lab" / "requests" / "accuracy-003.json").exists())
+        # The build left the request out (pushing a file under lab/requests/ starts the run). Since the run's request
+        # was pushed alone (c5dad9a, CHOICE-A003.md Runs, "Run 1"), the file exists; it must be the template, exactly.
+        request = ROOT / "lab" / "requests" / "accuracy-003.json"
+        self.assertTrue(request.exists())
+        self.assertEqual(json.loads(request.read_text(encoding="utf-8")), template())
 
     def test_the_errors(self) -> None:
         p = "$.experiments.j4"

@@ -82,9 +82,11 @@ def without_runner_values(text: str) -> str:
     (its ``ENV_NAMES``, as this process's environment holds them, which the dry run inherits): names the runner gives,
     such as the branch in ``GITHUB_REF``, never text drawn from a record. A synthetic term can be a word of a branch
     name (CI's run of 2026-10-14 found the term ``deployment`` in the deployment branch's ``GITHUB_REF``); only the
-    exact recorded values are left out, longest first, and every other byte is still scanned."""
+    exact recorded values are left out, longest first, each only as a whole token (no letter or digit on either side),
+    and every other byte is still scanned. A short value such as ``GITHUB_RUN_ATTEMPT`` ``1`` is never taken out of the
+    middle of a longer token: a record id holding that digit stays whole and is still found."""
     for value in sorted({os.environ[n] for n in lab_hostinfo.ENV_NAMES if os.environ.get(n)}, key=len, reverse=True):
-        text = text.replace(value, "")
+        text = re.sub(r"(?<![0-9A-Za-z])" + re.escape(value) + r"(?![0-9A-Za-z])", "", text)
     return text
 
 
@@ -1374,6 +1376,21 @@ class RunnerValuesTests(unittest.TestCase):
             # a variable outside ENV_NAMES is never left out
             with mock.patch.dict(os.environ, {"OTHER_VALUE": "deployment"}):
                 self.assertEqual(word_hits(without_runner_values("deployment"), {"deployment"}), ["deployment"])
+
+    def test_a_short_value_never_cuts_into_a_record_id(self) -> None:
+        """On a runner ``GITHUB_RUN_ATTEMPT`` is ``1``: taking that value out of every place it occurs would delete
+        the digit from inside every record id, and the scans would miss each id that holds it. Only whole tokens go."""
+        env = {name: "" for name in lab_hostinfo.ENV_NAMES}
+        env.update({"GITHUB_RUN_ATTEMPT": "1", "RUNNER_OS": "Linux", "GITHUB_RUN_ID": "38667030739"})
+        ref = "7900001"
+        with mock.patch.dict(os.environ, env):
+            text = f'{{"env": {{"GITHUB_RUN_ATTEMPT": "1", "RUNNER_OS": "Linux"}}, "note": "{ref} 11223344"}}'
+            out = without_runner_values(text)
+            for r in (ref, "11223344"):
+                self.assertRegex(out, r"(?<![0-9A-Za-z])" + r + r"(?![0-9A-Za-z])")
+            self.assertNotIn('"1"', out)
+            self.assertNotIn("Linux", out)
+            self.assertIn("38667030739x", without_runner_values("38667030739x"))
 
 
 class DryRunTests(unittest.TestCase):
