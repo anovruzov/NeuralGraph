@@ -95,9 +95,11 @@ benchmarks measure it, and they are reported separately, always:
 
 **EMERGENCE.**
 - **The baseline:** 13 of 40 (`recall_common` 13/22, `recall_rare` 0/18; decoys accepted 5 in class 2, 9 in class 4,
-  3 in class 5). It is verified in two places:
-  - CI run 1 (38425113336), whose figures were read from its logs;
-  - a local real run of seed 0 at ec72e22, which has 5eb2e28's code (report digest `159cc6ebdf93…`).
+  3 in class 5). It comes from local runs of the `run` job at seed 0, not from CI:
+  - the build's measurement (`docs/collective/BUILD-E2E.md`:679-683);
+  - a local real run at ec72e22, which has 5eb2e28's code (report digest `159cc6ebdf93…`).
+
+  No CI run's discovery block has been read (corrected 2026-10-15; this line first credited CI run 1).
 - **Run 2** (38639771210 on 5eb2e28) is all green and recorded at verdict level only. Its report sits in a log of 11,692
   lines that is too long to read through the API, and its artifacts are blocked. The founder has been asked to
   download artifacts 11931284874 and 11933036780, and run 1's.

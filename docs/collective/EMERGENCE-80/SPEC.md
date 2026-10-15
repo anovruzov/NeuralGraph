@@ -126,3 +126,22 @@ exists. A script that prints them is part of the build, and the report prints it
 - **If 80% cannot be reached.** If the diagnosis shows that `recall_all` ≥ 0.80 cannot be reached under these
   invariants (for example, because too few rare patterns have enough witnesses anywhere for any protocol to disclose
   them at k = 3), that is written down with its proof. The invariants are not relaxed.
+
+## Amendment 2026-10-15 (a correction of fact; no bar changes)
+
+Section 3's table attributes the baseline "13 of 40" to CI run 38425113336. That is wrong. Run 1's record
+(`docs/collective/E2E-INGEST.md`, "Run 1") holds no discovery figure. No CI run's discovery block has been read from
+the agent's sandbox: the e2e job prints the report in a log too long to read through the API, and the artifact host is
+refused. The figure comes from local runs of the same job at seed 0:
+- the build's measurement (`docs/collective/BUILD-E2E.md`:679-683);
+- a run at ec72e22 (report digest `159cc6ebdf93…`).
+
+Read the table's cell as: "Seed 0 at 200 users is the recorded baseline (local runs of the `run` job; 13 of 40)". The
+CI attribution waits on the founder's download of artifact 11931284874.
+
+The root-cause investigation of 2026-10-15 found more in this specification that needs changing:
+- `check_world_counts` refuses every seed but 0;
+- the gate thresholds, the pack, `top_n` and the detector settings are not frozen.
+
+Those are proposed in `docs/research/EMERGENCE_ROOT_CAUSE_REPORT.md` and wait on the founder's approval. This
+amendment changes nothing else.

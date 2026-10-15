@@ -1215,8 +1215,10 @@ UTC, finished 22:16:20 UTC.
 - e2e-suites-lab 11930209636
 - e2e-suites-e2e 11928934919
 
-A local run of the same job (`run --size 200 --mode process`, seed 0) at ec72e22 reproduces run 1's discovery
-figures exactly: 13 of 40 found, decoys accepted 5 in class 2, 9 in class 4 and 3 in class 5. ec72e22's code is
+A local run of the same job (`run --size 200 --mode process`, seed 0) at ec72e22 gives 13 of 40 found and decoys
+accepted 5 in class 2, 9 in class 4 and 3 in class 5. These are the local measurement's figures
+(BUILD-E2E.md:679-683), not run 1's: run 1's record above holds no discovery figure, because no CI run's discovery
+block has been read from this sandbox (correction of 2026-10-15; this sentence first said "run 1's"). ec72e22's code is
 5eb2e28's; only a status file differs. Every check the local run executed passed; its verdict is `pass` false, reason
 `suites_not_green`, because it was given no suite evidence (c10 not run). It is a local run, not this CI run's report,
 and its report digest is `159cc6ebdf93…`. The open ask
