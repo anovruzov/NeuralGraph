@@ -405,6 +405,26 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   commit. A fix that changes an invariant (k = 3, the two-site corroboration rule, raw records staying at their site,
   SPEC.md's bars or seed policy) waits for the founder's explicit approval of that fix. The stall work may proceed
   now that A003 is recorded, measurement first, with retrieval semantics unchanged.
+- 2026-10-15 ~05:37 UTC, founder, to the review session: "I am simply the architect, you are the driver ... tell me
+  what you think is the best decision." The review session's decisions on the root-cause report (ba32428, section 8),
+  recorded as the founder's:
+  1. Before any rank: commit the report's evidence (the scripts and the small outputs it cites under its `S/` and `W/`
+     scratch paths, synthetic data only, no NHTSA text, ref or term) under `docs/research/emergence-rc/`, so that
+     every figure in the report can be regenerated from the repository. Docs only.
+  2. Yes to ranks 1, 3, 4, 5a, 6, 11 and 21, in that order after item 1, one lever per commit, test first, each
+     measured by section 10's protocol. Rank 2 (replace the world-count guard) is yes too and goes before rank 3.
+  3. Ranks 2, 3 and 4's reading change SPEC.md: each by a dated amendment committed alone, three reviews, then the
+     build, as every rule here. Rank 4's reading is the stricter one: decoy acceptance counted on every facet key
+     inside the window, pooled over the worlds, against the baseline measured by the same rule at the same commit.
+  4. Dec. 14: yes. A zone 2 or 3a edit updates the c7 pin in the same approved commit, and its message says so.
+  5. Dec. 15: no. `edge/records.py`, `edge/verify.py`, `edge/extract.py` and `packs/loader.py` stay unchanged until
+     A004's judging run is recorded. Ranks 9 and 10 wait for that.
+  6. No N rank is approved (7, 12, 13, 14's N parts, 15, 16, 17). Instead, an offline design study, development seeds
+     only, no system change: cross-site sums of sub-k counts under secure aggregation with calibrated noise (rank 17's
+     family), measured on recall, decoy acceptance by every facet key, the records-field pin attack, membership
+     exposure and the query budget; and, beside it, rank 7's candidate source with the same measurements. The founder
+     decides on those numbers, not on bounds.
+  7. Rank 20: diagnosing assertions yes; no looser bound. A004 continues exactly as pre-registered.
 
 ## Comparisons made toward 86 (running count of (model, arm, cycle) pairs)
 
