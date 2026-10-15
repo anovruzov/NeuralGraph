@@ -679,7 +679,7 @@ text only):
 - the same eight files: `398 passed, 4846 subtests passed in 806.48s (0:13:26)` (the first run found
   `ReferenceCompletenessTests.test_every_column`: the three new columns had no row in the reference's columns table,
   added before this run);
-- `python -m pytest tests/lab -q -p no:cacheprovider`, in the background: FULL_SUITE_RESULT;
+- `python -m pytest tests/lab -q -p no:cacheprovider`, in the background: `1010 passed, 34855 subtests passed in 2695.40s (0:44:55)`, no test failed;
 - the onboard and guard suites: `402 passed, 1080 subtests passed in 484.04s (0:08:04)`;
 - the template dry run below, on the negated variant and on the default data alike: exit 0, every line "Before each
   merge" asks for, no ref and no term in anything a reader sees;
