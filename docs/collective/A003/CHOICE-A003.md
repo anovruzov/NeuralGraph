@@ -1572,10 +1572,13 @@ The figures are copied into the rule by the amendment after the term run ("Amend
 `mycelic-lab`, run number 17), created 01:41:42 UTC on 2026-10-15, attempt 1, completed `success` at 02:13:35 UTC (the
 Actions API). Request `lab/requests/accuracy-003.json`, an exact copy of `lab/templates/accuracy-003.json`, sha256
 `4a851dd853658c549871a5e4a9e640357722678458b01b839783f0fa24fe2e24` (both files at HEAD; the report prints
-`4a851dd85365`), pushed alone as commit `c5dad9a` (committed 01:41:35 UTC, pushed 01:41:41 UTC) after CI went green on
-`7639bec` (e2e-ingest run 38664599267, its lab suite `tests/lab` 1,011 passed; mycelic run 38664599279, all three jobs;
-`docs/handoff/LOOP-48H-STATUS.md`). Before the run, in this order: the rule `efa79fe`, amended `7daab37` (C1 to C32)
-before any build; build 1 `31cee9d` (the lab kind `jt`), its two reviews, the fix `a4e717f` and the merge `d270bd3`;
+`4a851dd85365`), pushed alone as commit `c5dad9a` (committed 01:41:35 UTC, pushed 01:41:41 UTC) after the gate's CI
+jobs on `7639bec` were green (e2e-ingest run 38664599267's lab suite job, `tests/lab` 1,011 passed, completed 01:32:43
+UTC; mycelic run 38664599279, all three jobs, completed 01:40:54 UTC; `docs/handoff/LOOP-48H-STATUS.md`). That
+e2e-ingest run as a whole was still running at the push: its criteria job completed 01:49:24 UTC and its measure job
+02:05:24 UTC, both `success` (the Actions API); neither is in this rule's gate (correction of 2026-10-15: this
+sentence first said the push followed "CI went green on `7639bec`"). Before the run, in this order: the rule
+`efa79fe`, amended `7daab37` (C1 to C32) before any build; build 1 `31cee9d` (the lab kind `jt`), its two reviews, the fix `a4e717f` and the merge `d270bd3`;
 term run 1 (`5d2c1d3`, the entry above); the amendment `3d73f93` after the term run; build 2, the core `c1d4fec` and the
 wiring `11bf9c4` (the lab kind `j4`), its three reviews, the fix `9e06b36` and the merge `a465752`, whose local gate
 passed its dry runs and the onboard, guard and x3 suites (402 passed; the status log); the CI fix `5fecc8b`. The branch

@@ -307,7 +307,8 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   critique round with 4 blocking findings open (the 48-hour report below lists them); the root-cause report's
   synthesis started at 01:24 UTC. No system change. The second 48-hour report (2026-10-13 01:50 to 2026-10-15 01:50
   UTC) follows the first, at the end of this file.
-- 2026-10-15 02:43 A003's judging run ended: lab run 38667030739 completed `success` at 02:13:35 UTC (plan, both
+- 2026-10-15 02:43 A003's judging run ended: lab run 38667030739 completed `success` at 02:13:35 UTC (first written
+  02:13:41, corrected in 6c0c322 to the Actions API's time; this note added 04:45) (plan, both
   provision jobs, all five shards `sealed` with exit code 0, aggregate 116209851508 02:12:30 to 02:13:35 UTC). Read from
   the aggregate log's report block (178 lines, marker sha256 `c7ee523a751a…`; the rebuild and its sha256 check are part
   of the record, which follows): primary pair (a-4b, `negation_terms`) `failure`, and `failure` under lever five's text
@@ -344,6 +345,22 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   measurement is still running. Two orphaned CPU-bound probe processes left by reviewer A's run of 2026-10-14 23:04
   were found busy on 2 of the 4 CPUs and killed at 03:57; the stall measurements taken before then ran under that
   extra load, so they are re-checked on the quiet machine before any fix is built.
+- 2026-10-15 04:45 Independent review (a second, read-only session reviewing every push since 35d1d1f against the
+  handoff's rules). Clean: trailers on every commit, no pinned path changed, the request pushed alone and equal to the
+  template, no CI-triggering push while shards ran, SPEC.md changed only by a dated amendment, A003's record (its
+  committed report block hashes to the marker's `c7ee523a751a…`) and A004's amendment (append-only; branch T, 25
+  comparisons) consistent with A003's figures. Two test defects fixed in this commit, neither weakening a test: (1)
+  `tests/lab/test_lab_j4.py` asserted `lab/requests/accuracy-003.json` absent, true at build time and false since
+  c5dad9a (CI never ran on that push), so the next code push would have turned the lab suite red; it now asserts the
+  request exists and equals the template. (2) `without_runner_values` (`tests/lab/test_lab_jt.py`, used by both
+  whole-tree scans since fd0966e and 5fecc8b) removed each runner value everywhere, so on a runner, with
+  `GITHUB_RUN_ATTEMPT` 1, it deleted that digit from inside every record id and the scans missed every id holding it
+  (a planted synthetic id was missed under runner-like values, caught without them); it now removes a value only as a
+  whole token, and a new test pins that, failing on the old code. Both test files pass under runner-like values (165
+  tests) and without them. Wording: CHOICE-A003 Run 1 said the request followed "CI went green on 7639bec"; the gate's
+  jobs were green, but that e2e-ingest run's criteria and measure jobs completed after the push (01:49:24, 02:05:24
+  UTC); corrected there with a note. The second 48-hour report repeats the phrase (its lines on the judging run's
+  start, "No second J-cycle result" and the request's presence); as a dated report it is left as written.
 
 ## Open asks (date asked)
 
@@ -380,6 +397,13 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
 - 2026-10-11 ~02:05 UTC, founder: "No, I'll be asleep, you handle it." Read as: run on the defaults above; do not wait.
 - 2026-10-11 ~02:08 UTC, founder: the EMERGENCE benchmark must run end to end through NeuralGraph ingestion, Tesseract
   routing, NATS and the fabric, with end-to-end benchmarking; no mistakes. Goal B redefined as above.
+- 2026-10-15 ~04:37 UTC, founder, to the review session asking whether the "I approve" of 02:13 approved fixes not yet
+  presented: "Decide for me." Decided, as the founder's order of 2026-10-14 reads: the approval covers EMERGENCE fixes
+  that stay within the current rules, and only once docs/research/EMERGENCE_ROOT_CAUSE_REPORT.md is committed with
+  each fix listed in it with its benefits, risks and verification test; no EMERGENCE system change before that
+  commit. A fix that changes an invariant (k = 3, the two-site corroboration rule, raw records staying at their site,
+  SPEC.md's bars or seed policy) waits for the founder's explicit approval of that fix. The stall work may proceed
+  now that A003 is recorded, measurement first, with retrieval semantics unchanged.
 
 ## Comparisons made toward 86 (running count of (model, arm, cycle) pairs)
 
