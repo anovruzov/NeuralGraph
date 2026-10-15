@@ -299,6 +299,14 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   running locally without them). Not a defect of the lab code: with the runner's values left out, no record ref or
   term is in any output of the two dry runs. A003's request push waits on CI green on the fix. The local gate on a465752 passed its dry runs and onboard + guards + x3 (402 passed). The
   corrected EMERGENCE diagnosis is in its second critique round; no system change.
+- 2026-10-15 01:50 A003's judging run started: the request (c5dad9a, an exact copy of the template) was pushed alone
+  at 01:41:41 UTC after CI went green on 7639bec (e2e-ingest 38664599267: suites core, lab with 1,011 passed and
+  e2e_ingest green, the e2e job green 01:49:24 UTC, the measure job running; mycelic 38664599279 green, all three
+  jobs). Lab run 38667030739: plan and both provision jobs green by 01:45 UTC, so the term set and the three earlier
+  cycles' exclusions verified; the model shards are running. The corrected EMERGENCE diagnosis finished its last
+  critique round with 4 blocking findings open (the 48-hour report below lists them); the root-cause report's
+  synthesis started at 01:24 UTC. No system change. The second 48-hour report (2026-10-13 01:50 to 2026-10-15 01:50
+  UTC) follows the first, at the end of this file.
 
 ## Open asks (date asked)
 
@@ -427,3 +435,238 @@ not told apart, and a hypothesis for the next cycle only.
   predicate F1 at most 0.218 against 0.434; J001, run 9, lab run 37996675559, BA at most 0.500 against 0.670; L001 run 2,
   run 10, lab run 38102412415, BA at most 0.500 against 0.641, a-0p5b not told apart; A001 run 1, run 11, lab run
   38114522160, P 0.577 against 0.663, the two mapped a-4b secondaries 0.667 and 0.653 not told apart).
+
+## 48-hour loop report, 2026-10-13 01:50 UTC to 2026-10-15 01:50 UTC, HEAD c5dad9a
+
+Drafted on 2026-10-15 from 00:10 UTC at HEAD 35d1d1f, before the window's end. Corrected from 00:58 UTC against HEAD a35324e (pushed 00:49:44 UTC). Completed at 01:50 UTC against HEAD c5dad9a, the pushed tip at the window's end (pushed 01:41:41 UTC; 0 ahead, 0 behind its remote). Five first-parent commits came after the draft's HEAD:
+- a465752, the merge of A003 build 2 (00:36:53 UTC);
+- a35324e, corrections of fact (00:49:39 UTC);
+- 5fecc8b, the fix of CI's lab-suite failure on a465752 (01:14:21 UTC);
+- 7639bec, the 01:14 status line (01:14:46 UTC; pushed with 5fecc8b at 01:14:54 UTC);
+- c5dad9a, A003's judging request, pushed alone (01:41:35 UTC, pushed 01:41:41 UTC).
+
+File:line citations are at a35324e. The window follows the first report's (2026-10-11 01:50 to 2026-10-13 01:50 UTC, above).
+
+28 h 01 min of the window passed with no agent work (9 h 24 min + 18 h 37 min, between the logged endpoints):
+- the session limit, from about 05:02 to 14:26 UTC on 2026-10-13 (9 h 24 min between those endpoints; the 14:30 line, which rounds it to "about 9 h 25 min"; no commit between 5920294 at 04:59:58 and 3d8279e at 14:28:25 UTC);
+- the usage limit, from about 18:38 UTC on 2026-10-13 to 13:15 UTC on 2026-10-14 (about 18 h 37 min; the 2026-10-14 13:28 line).
+
+The loop continues past the window, as section 0 of the prompt says.
+
+| Goal | Pinned definition | Measured result (point [95% interval]) | Comparators on the same records | Verdict (success / provisional / partial / failure / incomplete) | Source (run id, file:line) |
+|---|---|---|---|---|---|
+| A: 86 accuracy | BA of the site verifier's verdicts vs the filed-category key, at record level, codes hidden, on a fresh real NHTSA draw of 150 records (300 questions), scored as J001 (LOOP-48H.md section 2). One primary (model, arm) pair per cycle. Pass test (CHOICE-A002 rule 12, LOOP-48H section 2.5 word for word): BA at or above 0.860; the paired difference to the lexical judge with its 95% lower end above 0; the BA's lower end above the predicate-only bound on the same draw; the unknown share reported. Confirmation on the next cycle's fresh draw. Comparisons made so far: 21 (12 in A001, 9 in A002) | One judging run in the window: A002 run 1 (a-4b alone, seed 3, J001's and A001's 300 records excluded, every arm 5 of 5 parts, 0 records left out). Primary pair (a-4b, evidence field, read as answered): 0.540 [0.503, 0.577]; sensitivity 0.900, specificity 0.180, unknown share 0.130. Secondaries, never results: negation instruction read through the unclear-to-no mapping 0.687 [0.643, 0.730]; negation 0.633 [0.590, 0.677]; rationale mapped 0.610 [0.573, 0.647]; composite mapped 0.593 [0.557, 0.630]; rationale 0.590 [0.557, 0.623]; evidence grounded and mapped 0.577 [0.543, 0.613]; composite 0.570 [0.530, 0.610]; evidence grounded (the headline secondary) 0.553 [0.517, 0.590]. A003: term run recorded (model-free, no BA); judging run 38667030739 started 01:41:42 UTC, no result at the window's end. A004: nothing run | Lexical judge 0.680 [0.637, 0.723]; predicate-only bound 0.553; record-blind control 0.517 [0.460, 0.573]; ablation A (lexical yes, else no) 0.680 [0.637, 0.723]; ablation B (lexical yes, else the record-blind control) 0.627 [0.573, 0.680]; the primary pair minus the lexical judge, paired by record, -0.140 [-0.190, -0.090] | failure (rule 12 of CHOICE-A002). The grounded arm, the primary under the other reading of the section 7 default, is a failure too | lab run 38439612256; `docs/collective/A002/CHOICE-A002.md:1032` (Run 1), `:1098-1108` (arms), `:1110-1117` (verdict); `docs/lab/RESULTS.md:498` (Run 12); aggregate job 115464859031, report sha 58325c34d6bf |
+| B: ingestion | Criteria 0 to 10 of `docs/collective/E2E-INGEST.md` section 2 (0 to 7 word for word from LOOP-48H.md section 3.1; 8 to 10 added; Tesseract routing mandatory, section 4). EMERGENCE world at 200 users, seed 0, synthetic, `measurement: false` | Two recorded `e2e-ingest.yml` runs on this branch, every job green ("run 1" and "run 2" are E2E-INGEST.md's record numbers, not Actions run_numbers). **Recorded run 1** (38425113336, Actions run_number 1, on 56cfad4, 2026-10-13): the three suite jobs (criterion 10's gate) green with junit evidence per suite (suites-core 115392344484, suites-lab 115392344079, suites-e2e 115392344573); e2e job 115404706053 ran c0, c1, c2, c3, c4, c7, c8, c9 and c10, failed none, `pass` true, `run.seconds` 595.2; measure job 115404706216 ran c5 and c10, failed none, `pass` true. **Recorded run 2** (38639771210, Actions run_number 7, on 5eb2e28, 2026-10-14; recorded at verdict level only): suite jobs 116112020906, 116112021501 and 116112021247 green; e2e job 116124311106 ran the same nine checks, failed none, `pass` true (job 21:51:21 to 22:02:08 UTC); measure job 116124311388 ran c5 and c10, failed none, `pass` true (job 21:51:22 to 22:16:20 UTC). Criterion 6 is asserted by `tests/e2e_ingest/test_workflow.py` inside suites-e2e, not by a report check; `mycelic.yml` was green on both commits (38425113475, 38639771190). Criterion 5, sustained events/s: at least 32 in both measure jobs. 32 is the sweep's top step (steps 2, 4, 8, 16 and 32 events/s, each 60 s): both jobs print `"stopped": "last_step"` and `"sustained_events_per_second": 32`, so apply p95 never exceeded 1.0 s and the rate at which it first does was not found. It is a bound, not a measured limit. The pass condition (the 2 events/s step) is met by the c5 check. Of the other four numbers, question to verdict is read from both e2e jobs (below). Site graph build seconds per 1,000 records, Tesseract at 600, 5,882 and 20,000 nodes, created to applied, and the measure jobs' runner CPU are in the reports, which were not read. Runner CPU of the e2e jobs: AMD EPYC 9V74 80-Core Processor, 4 CPUs (run 1); INTEL(R) XEON(R) PLATINUM 8573C, 4 CPUs (run 2). Run 1's e2e job, runner-dependent: Tesseract p50 0.75 s, p95 1.17 s over 166 rankings on site graphs of 1,458 to 2,574 nodes; question to verdict per question p50 2.48 s, p95 3.38 s (n 55; the log tail gives 2.4838 s and 3.3796 s, and per site p50 0.7854 s, p95 1.1974 s, n 168). Run 2's e2e job (log tail): question to verdict per question p50 2.5183 s, p95 3.4005 s (n 55); per site p50 0.7927 s, p95 1.2248 s (n 168). Discovery: 13 of 40 Gold-discoverable patterns found (`recall_all` 0.325; rare 0 of 18), from local runs of the same job (synthetic, `measurement: false`). Run 2's per-pattern figures wait on its artifacts | none | incomplete. Every check run was green by the CI verdict blocks of e2e-ingest runs 38425113336 (56cfad4) and 38639771210 (5eb2e28). Goal B asks for the criteria to pass in recorded CI runs, and the record is not complete: recorded run 2 is at verdict level only; neither run's report is committed and no digest is recorded (S9's second clause); three of criterion 5's five numbers and the measure jobs' runner CPU are unread; the sustained rate is a bound (at least 32 events/s) | `docs/strategy/LOOP-48H.md:74` (Goal B), `:279` (the verdict words); `docs/collective/E2E-INGEST.md:1109` (Run 1), `:1179` (Run 2), `:1167-1177` (S9's second clause open), `:1182-1185` (run 2 at verdict level), `:535-543` (per-hop numbers, both jobs), `:550-555` (the sweep); the four jobs' log tails, read for this draft (115404706053, 115404706216, 116124311106, 116124311388; question to verdict at lines 431-437 of each e2e tail); `docs/collective/BUILD-E2E.md:678-680`; `E2E-INGEST.md:1218-1224`; `docs/handoff/LOOP-48H-STATUS.md:334` (the first report's Goal B verdict, incomplete) |
+
+Row note for Goal A: the key's noise ceiling is unmeasured, and the models may have seen these public complaints in training. 86 was not reached, so the public-text caveat applies to the failure, not to a pass.
+
+Not reached. Best measured BA 0.540 [0.503, 0.577] on primary pair P = (a-4b, evidence); gap to 0.860 is 0.320.
+
+The loop's best primary so far is still A001's 0.577 [0.530, 0.623] (a-4b, negation; previous window). The best secondary of this window is the negation instruction read through the declared unclear-to-no mapping: 0.687 [0.643, 0.730], a paired difference of 0.007 [-0.050, 0.063] to the lexical judge. That is not told apart, and it is a hypothesis only.
+
+Where the next cycles stand:
+- **A003** (lever 5, the drafted-terms payload).
+  - Term run recorded: lab run 38612800578, model-free, 753 terms, term set sha256 42c591ccbb66…; the rule is amended with it (3d73f93).
+  - Judging build (kind j4) merged, not in review. The three reviews' findings were applied on wf/a003-fix (WIP 314e614 at 23:49:00 UTC, WIP fd3c968 at 00:24:56 UTC, fix 9e06b36 at 00:35:15 UTC). Build 2 was merged into the deployment branch as a465752 at 00:36:53 UTC ("Merge A003 build 2: the judging kind j4 (core, wiring, the three build reviews' findings applied)"; 12 commits, add7886 to 9e06b36) and pushed at 00:37:37 UTC.
+  - Its local gate on a465752 passed (00:37:07 to 01:14:54 UTC): both j4 data builds and both dry runs (accuracy-003, terms-003) exited 0; onboard, guards and x3 402 passed; tests/lab 1,011 passed (34,855 subtests).
+  - CI's lab suite on a465752 failed on two j4 scan tests, a collision of a synthetic term with the runner's recorded branch name (below). Fixed in 5fecc8b; CI on 7639bec went green in every suite job (e2e-ingest 38664599267: tests/lab 1,011 passed, 0 failed) and in all three mycelic jobs (38664599279).
+  - Judging run started: the request `lab/requests/accuracy-003.json` (an exact copy of the template, sha256 4a851dd85365…) was pushed alone as c5dad9a after CI went green on 7639bec. Lab run 38667030739 (run_number 17) started at 01:41:42 UTC and was running at the window's end. Its result is the next cycle's record.
+- **A004** (lever 6, a-4b with reasoning on).
+  - Rule committed alone (e6b9a45), amended before any build (E1 to E38, e54eb6d), merged (f557ce0).
+  - It waits on A003: its branch is read from A003's result run, and its first build merges only after that run ends.
+
+### Done (merged, pushed): commits, branches, runs
+
+**Commits.** Pushed on the deployment branch, 4e55949 to c5dad9a (the pushed tip at the window's end, 01:41:41 UTC): 45 first-parent commits and 113 commits in all. The draft's range, 4e55949 to 35d1d1f, held 40 and 96. The five later first-parent commits are a465752 (the merge of A003 build 2, which brings in 12 commits), a35324e (corrections of fact), 5fecc8b (a CI fix), 7639bec (a status line) and c5dad9a (A003's judging request, alone). Four of the 113 were authored before the window and came in with the merge 56cfad4: 1915aac, 63af47d and 624eea8 on 2026-10-11, and the WIP 0154242 at 01:44:44 UTC on 2026-10-13.
+
+**Eight merges:**
+- 720b0d6: the A002 rule (b0f12bd committed alone, amended 284b375 with B1 to B25).
+- 56cfad4: EMERGENCE part 3 (harness and drills 99a9d0f; measurement and the CI workflow 254dcf2; the brief's two amendments after the build review, 2ffd773 and 5920294; every review finding applied, 48fc211).
+- 6c8553d: the A002 build (lab kind j3 6be0b0b, fix 70d269d).
+- 71d1993: A002 run 1 recorded (5c9544e, c50b76e).
+- ed96530: the A003 rule (efa79fe committed alone, amended 7daab37 with C1 to C32).
+- d270bd3: A003 build 1, the term kind jt (step 0 b8966c2, 31cee9d, fix a4e717f).
+- f557ce0: the A004 rule (e6b9a45, amended e54eb6d).
+- a465752: A003 build 2, the judging kind j4 (stage 1, the core, c1d4fec on wf/a003; the wiring 11bf9c4 on wf/a003-wire; the fix 9e06b36 on wf/a003-fix), merged 00:36:53 UTC on 2026-10-15 and pushed. At the draft, wf/a003 and wf/a003-wire were local branches not yet merged.
+
+**Other first-parent commits:**
+- the first window's report (bdf12b7, corrected 06414ad);
+- A002's code push (cbdd3c7) and its request alone (5a8f980);
+- E2E-INGEST run 1 recorded (8b0774c) and its YC brief line (bc0ea5d);
+- A003's term request alone (5d2c1d3) and the amendment after the term run (3d73f93);
+- six CI fixes: a2a1bbe, 55914e3, 14d3a82, fd0966e, 24fe3ce, and 5fecc8b (01:14:21 UTC on 2026-10-15; the j4 scan, below);
+- the handoff to the systems agent engineer (ce79909);
+- the EMERGENCE 80% specification, committed alone (5eb2e28);
+- E2E-INGEST run 2 recorded at verdict level (d481cc4);
+- the handoff prompt (35d1d1f);
+- corrections of fact from the root-cause cross-challenge (a35324e, 00:49:39 UTC on 2026-10-15): SPEC.md's dated amendment, the handoff prompt, E2E-INGEST.md run 2, and a correction note in the handoff to the systems agent engineer;
+- status-log commits f689f9c, 2ab963a, a9de5b4, 7f96442, 2b62323, ae9b449, 23e310f, 1e14f88, f8011b7, 24f36b9, 831f424, 8635f64, 6cfa8d3, ec72e22, c096aec, 16593d1, 7639bec.
+
+**Lab runs:**
+- 38439612256: A002 run 1, 2026-10-13 17:33:27 to 18:23:04 UTC, success; RESULTS run 12, CHOICE-A002 Run 1.
+- 38612800578: A003 term run 1, 2026-10-14 18:09:47 to 18:11:49 UTC, success, model-free; CHOICE-A003 "Term run 1". The check passed all seven checks; 25 of the 26 hand predicates reached; 3 entries empty; 753 terms; no term printed; report block sha256 ef68e3e122dd, matching.
+- 38667030739: A003's judging run (run_number 17, request c5dad9a), started 2026-10-15 01:41:42 UTC, in progress at the window's end.
+
+**CI runs of `e2e-ingest.yml` on this branch:**
+- Actions run_numbers: 38425113336 = 1, 38439554010 = 2, 38612799316 = 3, 38628599679 = 4, 38631925246 = 5, 38633513481 = 6, 38639771210 = 7. "Run 1" and "Run 2" below are E2E-INGEST.md's record numbers.
+- 38425113336 (56cfad4): green, 5 of 5 jobs, recorded as Run 1.
+- 38439554010 (cbdd3c7): green, 5 of 5 jobs, not recorded in E2E-INGEST.md. e2e job 115454247544 (17:59:00 to 18:11:09 UTC) and measure job 115454247224 (17:59:00 to 18:23:43 UTC), both green. Artifacts e2e-ingest-report.json 11838335018 and e2e-ingest-measure.json 11837144951, expiring 2027-01-11T17:33:01Z.
+- 38612799316 (d270bd3), 38628599679 (55914e3), 38631925246 (14d3a82) and 38633513481 (fd0966e): red in suites-lab, so the e2e and measure jobs were skipped. tests/lab in each suites-lab job:
+  - d270bd3 (job 116020171099): 2 of 918 distinct tests failed (30,591 with subtests), named only in the junit artifact;
+  - 55914e3 (job 116074069856) and 14d3a82 (job 116085435995): 2 of 918 failed in each (30,611), the same two: `test_lab_jt` DryRunTests::test_no_term_leaves_the_term_files and A002GoldenTests::test_each_output_equals_the_recorded_bytes;
+  - fd0966e (job 116090788198): 1 of 919 failed (30,612), the same golden test, at `$.notes.cpu_models[0]`: the A002 golden report.json's recorded CPU list, fixed in 24fe3ce.
+  - So 2 failures persisted over three pushes (d270bd3, 55914e3, 14d3a82) before fd0966e left one.
+- 38639771210 (5eb2e28): green, 5 of 5 jobs, recorded as Run 2.
+- After the draft: 38661107138 (a465752, run_number 8), 00:37:40 to 01:05:14 UTC on 2026-10-15: red in suites-lab (job 116182296876, 00:37:43 to 01:05:13 UTC). tests/lab: 2 of 1,011 distinct tests failed (35,866 with subtests), both `test_lab_j4`'s `test_no_ref_and_no_term_anywhere_a_reader_looks`, the small dry run's and the template's. Suites core (116182296653) and e2e_ingest (116182296980) were green; the e2e and measure jobs were skipped.
+  - Cause: every shard's provenance.json records the runner's own values verbatim (`lab.hostinfo.ENV_NAMES`, `GITHUB_REF` among them), and a synthetic term of the test data occurs inside the deployment branch's name. `test_lab_jt`'s scan has stripped those values since fd0966e (20:36:31 UTC on 2026-10-14), after the same collision; j4's scan did not. Reproduced locally with the runner's values set: 2 failed.
+  - Fix 5fecc8b (01:14:21 UTC): the scan leaves out only those exact values and still reads every other byte. Under the same values, 2 passed. Locally, the whole j4, jt, docs and guards test files passed with the fix (214 passed, 4,156 subtests).
+  - After the fix: 38664599267 (7639bec, run_number 9), from 01:14:59 UTC: suites e2e_ingest (116193502613, to 01:23:27 UTC), lab (116193502637, to 01:32:43 UTC; tests/lab 1,011 distinct passed, 0 failed, 35,866 with subtests) and core (116193502410, to 01:40:35 UTC) green. Its e2e job (116200904429, criteria 0-4, 7, 8, 9 and 10) ran 01:40:38 to 01:49:24 UTC: success. Its measure job (116200904464) started at 01:40:38 UTC and was running at the window's end.
+
+**CI runs of `mycelic.yml`:**
+- 38425113475 (56cfad4) and 38439553800 (cbdd3c7): green.
+- 38612799645 (d270bd3): red, one timing test (`test_verification_never_holds_the_event_loop`, 0.258 s against 0.242 s); fixed in a2a1bbe.
+- 38628599664 (55914e3): red in the unit job (116074070389) on `tests/mycelic/test_api.py::VerifyLimitTests::test_lineage_walks_never_hold_the_event_loop_and_are_priced`: "the loop stalled 0.255s (one walk takes 0.489s)", 0.25450 s against a bound of 0.24432 s (`test_api.py:412`); 1 failed, 1,709 passed, 1 xfailed, 45,608 subtests passed. This is the lineage twin of the verification test that a2a1bbe fixed, and 55914e3 already contains a2a1bbe. 14d3a82 (20:25:17 UTC) freezes the lineage test's older objects too.
+- 38631925525 (14d3a82): green.
+- 38633513470 (fd0966e): red, the lineage loop timing test again (0.254 s against 0.248 s).
+- 38639771190 (5eb2e28): green, both loop timing tests passing.
+- Loop timing tests were red in 3 of these 7 runs (d270bd3, 55914e3, fd0966e). Their cause is not settled (reviewer A, the 00:03 line; see the CI loop stall below).
+- The compose smoke and manifest jobs were green in all seven.
+- After the draft: 38661107236 (a465752), started 00:37:40 UTC on 2026-10-15: green, all three jobs (the unit job 116182297295 ran 00:37:44 to 00:55:57 UTC).
+- 38664599279 (7639bec, run_number 27), 01:14:59 to 01:40:53 UTC: green, all three jobs (unit job 116193502944).
+
+### Failed or not reached: the number, the gap to 0.860, what the interval says, the reason as measured
+
+**Goal A: not reached.** Best measured BA 0.540 [0.503, 0.577] on primary pair P = (a-4b, evidence); gap to 0.860 is 0.320.
+- What the interval says: the paired difference to the lexical judge, -0.140 [-0.190, -0.090], lies wholly below zero. P's point and lower end are both below the predicate-only bound of 0.553. Asked for an evidence passage, a-4b judged worse than word matching on this draw.
+- The reason as measured:
+  - The evidence field lowered specificity from 0.360 to 0.180 at about the same sensitivity (0.907 to 0.900): E minus N -0.093 [-0.137, -0.053], "hurts".
+  - The grounding check lifted BA by 0.013 [0.003, 0.027].
+  - No arm met its pass test, and both composites scored below ablation A.
+  - The negation arms replicated A001's within the roughly 0.10 that the rule calls sampling (0.633 against 0.577; mapped, 0.687 against 0.653).
+- No second J-cycle result in the window. A003 build 2 was fixed (9e06b36, 00:35:15 UTC), merged (a465752, 00:36:53 UTC) and pushed (00:37:37 UTC). Its local gate passed; CI's lab suite failed on the j4 scan's runner-value collision, fixed in 5fecc8b. CI went green on 7639bec, and the request was pushed alone (c5dad9a). The judging run, lab run 38667030739, started at 01:41:42 UTC and had no result at the window's end.
+
+**Goal B: incomplete.** Every check run is green by the CI verdict blocks, but the record is not closed. Recorded run 2 is at verdict level only. The reports are not committed and no digest is recorded (S9's second clause). Three of criterion 5's five numbers are unread. The sustained rate is a bound: at least 32 events/s, because the sweep never went above 1.0 s.
+
+**EMERGENCE 80%: not reached; nothing evaluated yet.** This is the founder's directive of 2026-10-14. The target is `recall_all`, with the mean and the 95% t lower end both at least 0.80 over 20 held-out worlds. The baseline is 13 of 40 (0.325) on development seed 0, from local runs of the `run` job, not from CI (SPEC.md:130-140, the amendment of 2026-10-15).
+- Diagnosis so far (development seeds 0 to 5; the 22:16 line):
+  - class C is empty at 200 users;
+  - the shipped gate's two-site rule caps `recall_all` at a mean of 0.633 even with perfect detection and routing, and no seed reaches 32 of 40;
+  - a single-site gate gives a mean ceiling of 0.846;
+  - cross-site aggregation of sub-threshold counts (class B, needs approval) gives 40 of 40;
+  - the largest loss is rule-only candidates dropped without a snapshot week (20 to 27 of 40 keys per seed).
+- The diagnosis's critics found these first ceilings optimistic (snapshot weeks before W12, sliding windows), and a corrected round is running (HANDOFF-PROMPT-2026-10-15.md:107-109). That round's second revision (scratch DIAGNOSIS-r2-v2.md) finished its last critique round by 01:24 UTC. The numbers critic re-derived every figure in its tables from the cited outputs. Four blocking findings stayed open at the workflow's two-round limit:
+  - a non-adaptive sweep does not reach the perfect-detection recall under the per-entity question budget;
+  - the W12 cut limits only detector-driven candidates, so the verdicts that rest on it are not settled;
+  - there is no plain verdict on whether 80% is impossible under the rules, and the exact cross-site sum R3 needs below-k shares to leave a site, which the current Boundary does not permit;
+  - T2k needs a count artifact whose exposure is unmeasured.
+
+  Its six-seed table uses a fixed aligned 6-week grid, snapshots from W12, perfect detection and routing, and the lexical judge (r2/ceiling.out:114-123). It gives these all-key ceiling means, against 0.388 for the real runs: 0.421 for the shipped gate R0, 0.575 for a single-site gate R1 and 0.771 for R3. No rule reaches a 0.80 mean on that table. The second finding above contests that verdict. The root-cause report's synthesis started at 01:24 UTC; nothing of it is committed at c5dad9a.
+- The handoff's ceiling of 0.55 (22 of 40) and its claim that the rare patterns are invisible by construction are withdrawn as false (finding C13; the correction of 2026-10-15, HANDOFF-SYSTEMS-ENGINEER-2026-10-14.md:11-19, a35324e). With the shipped two-site gate and perfect detection, the development-seed ceilings range from 0.550 to 0.775 if snapshots may fall in any week. They are lower with the detector's real warm-up (no candidate before 2024-W12). The census figures 0.633 and 0.846 above are the first round's, which its critics found optimistic. The corrected figures are in the root-cause report, which is not committed at a35324e.
+- First root-cause findings (00:03 line; preliminary, with two reviewers and the cross-challenge still to come):
+  - most Gold patterns never get a detector snapshot and survive only as rule hits, which the candidate list drops;
+  - no site is eligible before 2024-W12;
+  - duplicate-inflation decoys pass because echoes count as independent roots;
+  - temporal scrambles pass because nothing checks temporal order;
+  - the decoy-acceptance figure counts only each decoy's facet-0 key;
+  - there is no aggregation above sites and no recursive questioning, and the shipped Orchestrator is bypassed;
+  - the site graphs and Tesseract run at every site but changed no verdict at seed 0.
+- The run job's world-count check refuses seeds other than 0, which blocks the seed policy.
+
+**The CI loop stall: not settled; no fix made.** The 21:25 line attributed it to `mycelic/retrieval.py`'s per-query BM25 build. Reviewer A (00:03 line) contradicts that as mostly a sampling artefact. A's probable mechanism is the loop thread waiting for the interpreter lock held by the test's CPU-bound walk threads, under a bound that is load-sensitive by design.
+
+**Time.** 28 h 01 min of the window had no agent work (the two outages above). Agent work was 19 h 59 min: 01:50 to 05:02 (3 h 12 min) and 14:26 to 18:38 UTC (4 h 12 min) on 2026-10-13, then 13:15 UTC on 2026-10-14 to the window's end at 01:50 UTC on 2026-10-15 (12 h 35 min). The parts sum to 48 h 00 min.
+
+### Stopped before any model ran: run ids and causes
+- None in this window.
+- The term run 38612800578 runs no model by design (its kind drafts terms), and it finished.
+- Nothing in A002 run 1 stopped (CHOICE-A002 Run 1).
+- The four red e2e-ingest runs skipped their end-to-end jobs because a unit suite was red (criterion 10's gate); no model run was involved.
+
+### Open asks (founder / chief scientist), with the date each was asked, and decisions received
+
+**Open since 2026-10-11** (status log, "Open asks"):
+- Founder: confirm the reading of 86 (default: section 2).
+- Founder: PR or push to `main` (default no; four open PRs left alone).
+- Founder: the STRATEGY 9.1 ruling and the docs-honesty text (prepared, not published).
+- Founder: a hosted-model key (optional).
+- Chief scientist: decision 9 (default: the shipped `decide` is primary and declared mappings are secondary, as A001, A002 and A003 apply it).
+- Chief scientist: the chance-null replacement, the per-site-count detector settings, and decisions 1, 2 and 7.
+
+**Open since 2026-10-13:**
+- Founder: a ruling on the reading of section 2.3's stop rule (one verifying mechanism per cycle suffices).
+- Chief scientist: the verbatim-substring check as a primary arm. A002 ran on the default (no). In A003, a call received before the judging request would promote Dr by a dated amendment.
+- Founder: download the CI artifacts and commit them under `docs/collective/e2e_ingest/<run id>/` so their digests and `check` can be recorded. Each part carries its own date:
+  - 38425113336 (recorded run 1), asked 2026-10-13 (status log, Open asks): e2e-ingest-report.json 11830620985 and e2e-ingest-measure.json 11831910113, expiring 2027-01-11T15:47:50Z;
+  - 38639771210 (recorded run 2), added 2026-10-14 when run 2 was recorded (d481cc4, 23:10:38 UTC): e2e-ingest-report.json 11931284874, e2e-ingest-measure.json 11933036780, and suites 11930333910, 11930209636 and 11928934919, expiring 2027-01-12T21:22:35Z;
+  - 38439554010 (cbdd3c7, green, not recorded), added in this report (2026-10-15): e2e-ingest-report.json 11838335018 and e2e-ingest-measure.json 11837144951, expiring 2027-01-11T17:33:01Z, before run 2's. No earlier ask named this run.
+
+**Raised 2026-10-14:**
+- The order of the retrieval stall fix. Answered by the founder: after A003 is recorded and frozen. Closed.
+- The naming of the after-fix run. Default: A004 stays the reasoning-on cycle of CHOICE-A004, and the after-fix rerun is "end-to-end run 3", unless the founder says otherwise. Not yet in the status log's "Open asks".
+- The EMERGENCE decisions to come:
+  - approval of the fixes the root-cause report will propose (no system change before it);
+  - whether the two-site corroboration rule is an invariant (default yes);
+  - whether a cross-site protocol over encrypted below-k inputs is approved (default: not permitted);
+  - the world-count check that blocks seeds 1 to 19 (default: a dated amendment to SPEC.md, proposed with the report);
+  - the questions in the handoff to the systems agent engineer (section 4, Q1 to Q14) that the directive and SPEC.md did not settle.
+
+**Raised 2026-10-15** (SPEC.md, "Amendment 2026-10-15", a35324e):
+- Founder: approval of the SPEC.md changes the root-cause report will propose: the gate thresholds, the pack, `top_n` and the detector settings, which are not frozen, and `check_world_counts`, which refuses every seed but 0. Not yet in the status log's "Open asks".
+- The CI attribution of the 13-of-40 baseline waits on the founder's download of artifact 11931284874 (in the download ask above).
+
+**Decisions received in the window, in order.** The status log's "Decisions received" section still lists only the 2026-10-11 entries; these come from its hourly lines and the handoff files.
+1. 2026-10-13, ~14:26 UTC: "Continue" (read as: carry on).
+2. 2026-10-14, before 20:43 UTC: "Emergence. 80%. We need it.", with the request to hand the state of the work and the agent's questions to the systems agent engineer, who writes the next prompt (ce79909).
+3. 2026-10-14, by 21:22 UTC: the "EMERGENCE 80% architectural directive". Its frozen benchmark specification and seed policy were committed alone at 5eb2e28: metric `recall_all`; mean and 95% t lower end at least 0.80 over 20 held-out worlds; k = 3 never lowered; no externally hosted model.
+4. 2026-10-14, recorded in the 23:12 line: A003 first, recorded and frozen, before any change to `mycelic/retrieval.py`, and not during any active benchmark (the founder's orders of 2026-10-14, HANDOFF-PROMPT-2026-10-15.md:73-76); then the stall fix with regression tests and a before/after run.
+5. 2026-10-14, recorded in the same line: the EMERGENCE root-cause directive. It asks for an instrumented reproduction, three independent reviewers who then challenge each other, a report in ten sections, and no system change until the founder approves the proposed fixes.
+
+No answer has arrived to the asks of 2026-10-11 and 2026-10-13.
+
+### Next pre-registered lever (name, draw, primary pair, arms), and the next ingestion step
+
+**A003's judging run** (lever 5, the drafted-terms payload):
+- Kind j4, merged at a465752. Request `lab/requests/accuracy-003.json`, made from `lab/templates/accuracy-003.json`, pushed alone. The template is absent at 35d1d1f and present from a465752 (00:36:53 UTC) on; the request is absent at 35d1d1f, a465752, a35324e and 7639bec, and present from c5dad9a (pushed alone at 01:41:41 UTC). Build 2's fix, merge and code push are done (9e06b36, a465752, pushed 00:37:37 UTC). Its local gate passed; CI's lab-suite failure on a465752 is fixed in 5fecc8b, and CI was green on 7639bec before the request push. The run is lab run 38667030739, started 01:41:42 UTC, in progress at the window's end.
+- It must be pushed before 2027-01-12T18:09:48Z, the term artifact's expiry. A later push is refused as `J4_TERMS_UNVERIFIED` and needs a new term run.
+- Draw: `random.Random("nhtsa:4")`, 150 records, 300 questions in 5 parts. J001's, A001's and A002's 450 records are excluded by eight sources, and the drafting set is removed by record id and by text.
+- Term set: term run 38612800578, sha256 42c591ccbb66….
+- Primary pair P = (a-4b, `negation_terms`), read as answered.
+- Arms: D `negation_terms` (P), Dr `negation_terms_mapped` (the headline secondary), B `negation`, Br `negation_mapped`.
+- Comparators: the drafted lexical judge (the pass test's), the hand lexical judge and the drafted term-presence judge (added clauses), the record-blind control, the predicate-only bound.
+- 4 comparisons this cycle, 25 since the loop began.
+- After it: the record and the freeze, then, in the founder's order, the retrieval stall fix with regression tests and its before/after run.
+
+**A004** (lever 6, a-4b with reasoning on, key a-4b-r):
+- After A003's result run, an amendment reads the case from A003's recorded verdict words for D and B and from the `D_minus_B` lift. The cases, in order, with their P:
+  - C, the confirmation case: P = (a-4b, `negation_terms`);
+  - H: P = (a-4b, `negation`);
+  - T: P = (a-4b, `negation_terms_reasoning`);
+  - N: P = (a-4b, `negation_reasoning`).
+- Build 1 merges only after A003's result run ends. Then the timing check (kind jr, `lab/requests/reasoning-check-004.json` alone), build 2 (kind j5), and `lab/requests/accuracy-004.json` alone.
+- Draw: `random.Random("nhtsa:5")`, 150 records, 300 questions in 30 parts.
+- Arms: R1, R1m, R0, R0m, on a-4b alone.
+- 4 comparisons this cycle, 29 since the loop began (2 and 27 under rule 18's control-only request).
+
+**Ingestion:**
+1. The EMERGENCE root-cause report: the instrumented reproduction, reviewers A, B and C and their cross-challenge, and the corrected diagnosis.
+2. The fixes it proposes, presented with their benefits, risks and tests, and built only after the founder's approval.
+3. Then SPEC.md section 5's process: architecture proposal, three adversarial reviews, amended design, build, development-seed ablations, frozen candidate, preliminary validation, final freeze, one held-out evaluation.
+4. Once the founder downloads them: commit run 1's and run 2's reports (and 38439554010's, if downloaded), record their digests and run `check` on them.
+
+### Not found: anything you looked for and could not find
+- Any founder or chief-scientist answer to the asks of 2026-10-11 and 2026-10-13; a hosted-model key.
+- A `docs/lab/RESULTS.md` section for the term run 38612800578. RESULTS.md ends at Run 12 (`:498`); the run is recorded only in CHOICE-A003 (`:1520`).
+- A record in E2E-INGEST.md "## Runs" of e2e-ingest run 38439554010 on cbdd3c7 (5 of 5 jobs green by the Actions API), or of the four red runs. Only 38612799316 is named, in the status log.
+- The discovery block of any CI run: none has been read.
+  - Run 1's record holds no discovery figure (E2E-INGEST.md:1167-1171), and the readable tail of its e2e job's log (the last 4,999 of 11,692 lines, read for this draft) holds none.
+  - The draft found the sources in disagreement. a35324e (00:49:39 UTC) corrected the attribution of "13 of 40" to CI run 38425113336 (SPEC.md:80). SPEC.md's "Amendment 2026-10-15" (SPEC.md:130-147) says the figure comes from local runs of the `run` job (BUILD-E2E.md:679-683; ec72e22, report 159cc6ebdf93…). It adds that the CI attribution waits on the download of artifact 11931284874.
+  - The handoff prompt no longer credits CI run 1 (HANDOFF-PROMPT-2026-10-15.md:97-102). E2E-INGEST.md's run 2 paragraph no longer says "reproduces run 1's" (:1218-1224). The handoff of 2026-10-14 carries a correction note (HANDOFF-SYSTEMS-ENGINEER-2026-10-14.md:11-19) and still says the figures "were never read" (:64).
+  - As recorded, 13 of 40 rests on local sandbox runs (BUILD-E2E.md:678-680; E2E-INGEST.md:1218-1224).
+- Three of criterion 5's five numbers, in either run: site graph build seconds per 1,000 records; Tesseract p50/p95 at 600, 5,882 and 20,000 nodes; created to applied p50/p95. The measure jobs' runner CPU is also unread.
+  - Question to verdict is read from both e2e jobs' log tails (`routing.question_to_verdict`, lines 431-437 of each). Run 1 (job 115404706053): per question p50 2.4838 s, p95 3.3796 s, n 55; per site p50 0.7854 s, p95 1.1974 s, n 168. Run 2 (job 116124311106): per question p50 2.5183 s, p95 3.4005 s, n 55; per site p50 0.7927 s, p95 1.2248 s, n 168. The measure jobs' per-size values of it are unread.
+  - The sustained events/s at which apply p95 first exceeds 1.0 s: not reached by the sweep in either measure job (at least 32 events/s).
+- A consistent end time for run 1's measure job: E2E-INGEST.md:1160 says 16:34 UTC and about 21 min, while the Actions API gives the job 16:13:04 to 16:32:34 UTC.
+- The founder's directive texts of 2026-10-14 in the repository. Only the summaries in SPEC.md, the handoff files and the status log exist.
+- The EMERGENCE root-cause report: not committed at a35324e (`docs/research/` is absent), although SPEC.md's amendment and the handoff's correction note already cite it.
+- A way to read the artifacts or a full job log from this sandbox: the artifact host is refused, and the API returns at most the last 5,000 lines of a log.
+- A small model that beats word matching on real text. There is none in five tests: R002, J001, L001 run 2, A001 run 1, and now A002 run 1 (P 0.540 against 0.680; the best secondary 0.687, paired 0.007 [-0.050, 0.063], not told apart).
