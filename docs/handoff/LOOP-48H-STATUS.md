@@ -318,6 +318,11 @@ runs on the prompt's defaults: the pinned reading of 86; no push to `main` and n
   02:13 UTC): the stall fix is being diagnosed and designed from measurements first (not presumed to be in
   retrieval.py); the EMERGENCE fixes that stay within the current rules follow the root-cause report, which is being
   assembled; choices that change an invariant still wait on the founder.
+- 2026-10-15 03:34 Work in progress, nothing new recorded. A003 run 1's record: the four drafts (CHOICE-A003 Run 1,
+  RESULTS run 13, the YC brief, this log) are in their second critique round against the saved job logs. The
+  root-cause report: assembled in ten sections; its first critique round found 8 blocking problems (numbers, missing
+  items, overclaims), now being revised. The stall fix: the code map and the load measurements are done, the test
+  survey is running; the design follows, then the build. No code change yet; no lab run in flight.
 
 ## Open asks (date asked)
 
