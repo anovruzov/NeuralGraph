@@ -1,0 +1,24 @@
+name: rollup checks
+
+on:
+  push:
+    branches: [claude/mycelic-production-deployment-r93cez]
+    paths: ["rollup/**", "tests/rollup/**", ".github/workflows/rollup.yml"]
+  pull_request:
+    paths: ["rollup/**", "tests/rollup/**", ".github/workflows/rollup.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install --require-hashes -r requirements.txt
+      - run: python -m unittest discover -s tests/rollup -v
+      - run: python -m unittest tests.mycelic.test_collective_guards.NoModelNamesTests -v
