@@ -66,3 +66,14 @@ is claimed until those audit and capacity inputs exist. No stand-in model has ru
 
 All benchmark settings remain those of `PLAN-ROLLUP-001.md` with amendment `ff4dd84`; this note changes none.
 The frozen accuracy loop remains separate. No code from `rollup/` is copied into a deployment image.
+
+## Preflight correction, 2026-10-16 22:24 UTC
+
+The first ten-thousand-user gossip command on `bd6872b` stopped in the summary validator, before transport:
+the pack's small entity whitelist does not include every generated alias in the larger world. Its failure is
+retained in `runs/recovery-gossip-001/report.json`. The validator now checks the generator's exact alias
+formula, including numbered aliases and digit-bearing suffixes. A regression test accepts generated names and
+refuses invented or mismatched names. This changes no benchmark setting and uses no scoring outcome.
+The focused suite now has 27 passing tests. A separately named diagnostic follows the correction.
+Before the fixture run, the reporting path is also made explicit that the two-hundred-user baseline is not a
+comparator for the larger world; no paired comparison is claimed at ten thousand users.

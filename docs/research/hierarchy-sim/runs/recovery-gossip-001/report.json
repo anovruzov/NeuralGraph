@@ -1,0 +1,1 @@
+{"cause":"small-pack entity whitelist does not cover the generator namespace at ten thousand users","commit":"bd6872b72d93c8c4058a1237405c2effc2aa2784","completed_gossip":false,"error":"ValueError: entity","measurement":false,"model_calls":0,"status":"stopped before transport","synthetic":true,"users_target":10000,"world_seed":0}

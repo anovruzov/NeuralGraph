@@ -206,6 +206,11 @@ def fixture_run(users, out, perfect=False):
               "limitations": ["Fixture rulings determine re-debate history; this is an attainable ceiling for that history only, "
                               "not a proof of the maximum over every possible judge trajectory.",
                               "No model intelligence is measured."]}
+    if users != 200:
+        report["scores"]["baseline_as_recorded"] = "no recorded comparator at this world size"
+        report["scores"]["paired_baseline"] = "not applicable: recorded baseline is the two-hundred-user world"
+        for row in report["scores"]["contradiction_split"].values():
+            row["baseline_found"] = None
     save(out / "report.json", report)
     return report
 

@@ -7,7 +7,7 @@ from unittest.mock import patch
 from rollup.backends import Fixture, LocalEndpoint, SessionExchange
 from rollup.edge import emulate
 from rollup.gossip import Node, envelope
-from rollup.protocol import (CHAINS, ENTITIES, ROLES, candidates, canonical, digest, handle, make_prompt,
+from rollup.protocol import (CHAINS, ENTITIES, ROLES, candidates, canonical, digest, entity_allowed, handle, make_prompt,
                              scan, validate_reply, validate_summary)
 
 
@@ -18,6 +18,12 @@ def summary(site="r00-site-00", week=1, kinds=("cert_rotation", "auth_failure", 
 
 
 class PrivacyTests(unittest.TestCase):
+    def test_large_world_generated_aliases_are_recognized_exactly(self):
+        for good in ("E-NIMBUS", "E-NIMBUS420", "E-VERIDIAN421", "E-COBALT-MK3"):
+            self.assertTrue(entity_allowed(good), good)
+        for bad in ("E-NIMBUS421", "E-UNKNOWN420", "E-NIMBUS1", "E-NIMBUS0420", "E-NIMBUS-PAY420"):
+            self.assertFalse(entity_allowed(bad), bad)
+
     def test_closed_schema_refuses_each_private_field(self):
         for field in ("record_ref", "uid", "reporter", "narrative", "quote", "text", "persons"):
             for top in (True, False):

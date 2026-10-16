@@ -8,6 +8,8 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
+from research.mycelic.corpus import ENTITY_STEMS, ENTITY_SUFFIX
+
 CHAINS = {
     "chain_supply": ["supplier_substitution", "component_defect", "yield_drop", "shipment_delay",
                      "customer_escalation", "revenue_miss"],
@@ -24,6 +26,27 @@ ROLES = ("advocate", "skeptic", "rebuttal", "judge")
 CAP = 8
 VOCABULARY = Path(__file__).resolve().parents[1] / "research/e2e_ingest/pack/emergence/vocabulary.json"
 ENTITIES = frozenset(json.loads(VOCABULARY.read_text())["entity_types"]["entity"]["ids"])
+ALIAS_BASES = frozenset(stem + suffix for stem in ENTITY_STEMS for suffix in ENTITY_SUFFIX)
+
+
+def entity_allowed(value):
+    """Exact generator namespace, including numbered aliases beyond the small pack's table."""
+    if not isinstance(value, str) or not value.startswith("E-") or value != value.upper():
+        return False
+    name = value[2:].lower()
+    width = len(ENTITY_STEMS) * len(ENTITY_SUFFIX)
+    if name in ALIAS_BASES:
+        return True
+    match = re.fullmatch(r"([a-z-]+)(\d+)", name)
+    if match is None:
+        return False
+    # A suffix may itself end in a digit; check each possible boundary against the generator formula.
+    for offset in range(len(match[2])):
+        index = int(match[2][offset:])
+        expected = ENTITY_STEMS[index % len(ENTITY_STEMS)] + ENTITY_SUFFIX[(index // len(ENTITY_STEMS)) % len(ENTITY_SUFFIX)]
+        if index >= width and name == expected + str(index):
+            return True
+    return False
 
 
 def canonical(value):
@@ -52,7 +75,7 @@ def validate_summary(summary, forbidden=()):
     for row in summary["entries"]:
         if set(row) != {"entity", "kind", "negated", "distinct", "copies", "handles"}:
             raise ValueError("entry fields")
-        if not isinstance(row["entity"], str) or row["entity"] not in ENTITIES:
+        if not entity_allowed(row["entity"]):
             raise ValueError("entity")
         if row["kind"] not in KINDS or type(row["negated"]) is not bool:
             raise ValueError("kind or polarity")
