@@ -1,0 +1,239 @@
+{
+ "measurement": false,
+ "synthetic": true,
+ "world": "EMERGENCE, 200 users, development seed 0",
+ "edge_model": "h-sim (hosted stand-in, approved 2026-10-15 ~05:53 UTC, status log)",
+ "method": "each site's records read in full by one edge model per period, with no list of chains given; truth for a record = the pack lexicon phrase it contains (research/e2e_ingest/pack/emergence/vocabulary.json)",
+ "periods": {
+  "1": "2024-W01..W07",
+  "2": "2024-W08..W13"
+ },
+ "per_site_period": [
+  {
+   "site": "r00-site-00",
+   "period": 1,
+   "records": 808,
+   "lexicon_events": 302,
+   "kept": 290,
+   "false_memories": 0,
+   "marked_copy": 113,
+   "marked_negated": 0,
+   "privacy_leak_tokens": 0,
+   "entities_sent_up": 57
+  },
+  {
+   "site": "r00-site-00",
+   "period": 2,
+   "records": 670,
+   "lexicon_events": 299,
+   "kept": 274,
+   "false_memories": 0,
+   "marked_copy": 122,
+   "marked_negated": 0,
+   "privacy_leak_tokens": 0,
+   "entities_sent_up": 53
+  },
+  {
+   "site": "r01-site-00",
+   "period": 1,
+   "records": 490,
+   "lexicon_events": 153,
+   "kept": 136,
+   "false_memories": 0,
+   "marked_copy": 18,
+   "marked_negated": 0,
+   "privacy_leak_tokens": 0,
+   "entities_sent_up": 42
+  },
+  {
+   "site": "r01-site-00",
+   "period": 2,
+   "records": 424,
+   "lexicon_events": 208,
+   "kept": 201,
+   "false_memories": 0,
+   "marked_copy": 94,
+   "marked_negated": 2,
+   "privacy_leak_tokens": 0,
+   "entities_sent_up": 46
+  },
+  {
+   "site": "r02-site-00",
+   "period": 1,
+   "records": 601,
+   "lexicon_events": 275,
+   "kept": 267,
+   "false_memories": 0,
+   "marked_copy": 131,
+   "marked_negated": 1,
+   "privacy_leak_tokens": 0,
+   "entities_sent_up": 53
+  },
+  {
+   "site": "r02-site-00",
+   "period": 2,
+   "records": 462,
+   "lexicon_events": 212,
+   "kept": 207,
+   "false_memories": 0,
+   "marked_copy": 97,
+   "marked_negated": 1,
+   "privacy_leak_tokens": 0,
+   "entities_sent_up": 52
+  },
+  {
+   "site": "r03-site-00",
+   "period": 1,
+   "records": 551,
+   "lexicon_events": 214,
+   "kept": 197,
+   "false_memories": 0,
+   "marked_copy": 90,
+   "marked_negated": 0,
+   "privacy_leak_tokens": 0,
+   "entities_sent_up": 45
+  },
+  {
+   "site": "r03-site-00",
+   "period": 2,
+   "records": 542,
+   "lexicon_events": 262,
+   "kept": 243,
+   "false_memories": 0,
+   "marked_copy": 134,
+   "marked_negated": 0,
+   "privacy_leak_tokens": 0,
+   "entities_sent_up": 42
+  },
+  {
+   "site": "r04-site-00",
+   "period": 1,
+   "records": 545,
+   "lexicon_events": 226,
+   "kept": 217,
+   "false_memories": 0,
+   "marked_copy": 94,
+   "marked_negated": 0,
+   "privacy_leak_tokens": 0,
+   "entities_sent_up": 45
+  },
+  {
+   "site": "r04-site-00",
+   "period": 2,
+   "records": 516,
+   "lexicon_events": 267,
+   "kept": 259,
+   "false_memories": 0,
+   "marked_copy": 146,
+   "marked_negated": 1,
+   "privacy_leak_tokens": 0,
+   "entities_sent_up": 48
+  },
+  {
+   "site": "r05-site-00",
+   "period": 1,
+   "records": 531,
+   "lexicon_events": 200,
+   "kept": 192,
+   "false_memories": 0,
+   "marked_copy": 74,
+   "marked_negated": 9,
+   "privacy_leak_tokens": 0,
+   "entities_sent_up": 39
+  },
+  {
+   "site": "r05-site-00",
+   "period": 2,
+   "records": 536,
+   "lexicon_events": 257,
+   "kept": 233,
+   "false_memories": 0,
+   "marked_copy": 115,
+   "marked_negated": 27,
+   "privacy_leak_tokens": 0,
+   "entities_sent_up": 49
+  },
+  {
+   "site": "r06-site-00",
+   "period": 1,
+   "records": 430,
+   "lexicon_events": 185,
+   "kept": 176,
+   "false_memories": 0,
+   "marked_copy": 69,
+   "marked_negated": 1,
+   "privacy_leak_tokens": 0,
+   "entities_sent_up": 43
+  },
+  {
+   "site": "r06-site-00",
+   "period": 2,
+   "records": 439,
+   "lexicon_events": 218,
+   "kept": 200,
+   "false_memories": 0,
+   "marked_copy": 88,
+   "marked_negated": 0,
+   "privacy_leak_tokens": 0,
+   "entities_sent_up": 50
+  }
+ ],
+ "totals": {
+  "records": 7545,
+  "lexicon_events": 3278,
+  "kept": 3092,
+  "false_memories": 0,
+  "marked_copy": 1385,
+  "marked_negated": 42,
+  "privacy_leak_tokens": 0
+ },
+ "recall_by_chain": {
+  "chain_attrition": {
+   "kept": 443,
+   "events": 444,
+   "recall": 0.9977
+  },
+  "chain_auth": {
+   "kept": 172,
+   "events": 223,
+   "recall": 0.7713
+  },
+  "chain_firmware": {
+   "kept": 471,
+   "events": 588,
+   "recall": 0.801
+  },
+  "chain_network": {
+   "kept": 556,
+   "events": 563,
+   "recall": 0.9876
+  },
+  "chain_policy": {
+   "kept": 359,
+   "events": 367,
+   "recall": 0.9782
+  },
+  "chain_pricing": {
+   "kept": 425,
+   "events": 426,
+   "recall": 0.9977
+  },
+  "chain_supply": {
+   "kept": 629,
+   "events": 629,
+   "recall": 1.0
+  },
+  "revenue_miss": {
+   "kept": 37,
+   "events": 38,
+   "recall": 0.9737
+  }
+ },
+ "company_period1": {
+  "weeks": "2024-W01..W07",
+  "supported": 12,
+  "gold_anchor_in_window": 2,
+  "on_decoy_anchor": 9,
+  "note": "anchor-level check only; chains are labelled in the final period, which has not run"
+ }
+}
