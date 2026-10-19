@@ -45,7 +45,8 @@ Optional Prometheus (`--profile observability`) scrapes `/metrics` with `MYCELIC
 (set it in `.env`; it is passed as a compose secret) and listens on `127.0.0.1:9090`.
 
 Building behind a TLS-inspecting corporate proxy: set `CA_BUNDLE_FILE=/path/to/corporate-ca.pem` in `.env`;
-the Dockerfile mounts it as a build secret for `pip` only. Leave it at `/dev/null` otherwise.
+the Dockerfile mounts it as a build secret for `pip` only. Leave it at `./no-ca.pem` (an empty file shipped in
+`deploy/mycelic/`) otherwise; a path outside the build context such as `/dev/null` is refused by current Docker.
 
 ### Register the first agent and connect it
 
