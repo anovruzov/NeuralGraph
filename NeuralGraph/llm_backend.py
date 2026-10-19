@@ -11,6 +11,7 @@ All settings can be overridden with env vars:
     EMBED_MODEL    (default text-embedding-nomic-embed-text-v1.5)
     LLM_BACKEND    ("openai" | "ollama", default inferred)
     LLM_REASONING_EFFORT (default "none"; disables thinking on Gemma-4/Qwen-3 in LM Studio)
+    LLM_NO_THINK_PREFILL (default off; "1" prefills an empty <think> block for Qwen builds that ignore the above)
 """
 from __future__ import annotations
 
@@ -23,6 +24,8 @@ LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://127.0.0.1:1234").rstrip("/
 LLM_MODEL = os.environ.get("LLM_MODEL", "google/gemma-4-e4b")
 EMBED_MODEL = os.environ.get("EMBED_MODEL", "text-embedding-nomic-embed-text-v1.5")
 REASONING_EFFORT = os.environ.get("LLM_REASONING_EFFORT", "none")
+# Some Qwen builds ignore reasoning_effort; an assistant prefill with an empty think block skips thinking.
+NO_THINK_PREFILL = os.environ.get("LLM_NO_THINK_PREFILL", "") not in ("", "0", "false")
 
 _THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 
@@ -72,7 +75,8 @@ async def llm_generate(
         f"{base_url}/v1/chat/completions",
         json={
             "model": model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": ([{"role": "user", "content": prompt}]
+                         + ([{"role": "assistant", "content": "<think>\n\n</think>\n\n"}] if NO_THINK_PREFILL else [])),
             "temperature": temperature,
             "max_tokens": max_tokens,
             "stream": False,

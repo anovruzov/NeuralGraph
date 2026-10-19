@@ -145,7 +145,7 @@ def create_app(cm: ChatMemory, *, mcp_token: str | None = None, api_token: str |
         if not q:
             return _bad("q is required")
         try:
-            k = max(1, min(50, int(request.query.get("k", "10"))))
+            k = max(1, min(50, int(request.query.get("k", "15"))))
         except ValueError:
             return _bad("k must be an integer")
         kinds = [x for x in (request.query.get("kinds") or "").split(",") if x] or None
@@ -159,8 +159,8 @@ def create_app(cm: ChatMemory, *, mcp_token: str | None = None, api_token: str |
         if not q:
             return _bad("q is required")
         try:
-            k = max(1, min(30, int(request.query.get("k", "10"))))
-            max_chars = max(200, min(20000, int(request.query.get("max_chars", "2400"))))
+            k = max(1, min(30, int(request.query.get("k", "15"))))
+            max_chars = max(200, min(20000, int(request.query.get("max_chars", "3600"))))
         except ValueError:
             return _bad("k/max_chars must be integers")
         block = await cm.context_for(q, k=k, max_chars=max_chars, subject=request.query.get("subject") or None)

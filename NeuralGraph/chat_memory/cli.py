@@ -58,7 +58,7 @@ def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--embed-model", default=None, help="embedding model (default: EMBED_MODEL env)")
     p.add_argument("--parallel", type=int, default=4, help="max concurrent LLM calls (match OLLAMA_NUM_PARALLEL)")
     p.add_argument("--workers", type=int, default=0, help="chats processed concurrently (default min(parallel,4))")
-    p.add_argument("--batch-size", type=int, default=6, help="messages per extraction pass")
+    p.add_argument("--batch-size", type=int, default=2, help="messages per extraction pass (2 measured best; 6 is faster but loses recall)")
     p.add_argument("--debounce", type=float, default=1.0, help="seconds to wait so a turn and its reply batch together")
     p.add_argument("--user-name", default=None, help="display name for speaker 'user' (e.g. your name)")
     p.add_argument("--extract-assistant", action="store_true", help="also extract memories from assistant turns")
@@ -87,7 +87,11 @@ def _locomo_messages(path: Path, only: set[int] | None = None):
         while f"session_{i}" in c:
             dt = parse_datetime_flexible(c.get(f"session_{i}_date_time", ""))
             for m in c[f"session_{i}"]:
-                yield f"locomo-{ci}", {"speaker": m.get("speaker", "Unknown"), "text": m.get("text", ""),
+                # LoCoMo turns may carry a shared image; its caption is often the only place a fact lives
+                text = m.get("text", "") or ""
+                if m.get("blip_caption"):
+                    text = f"{text} [shared image: {m['blip_caption']}]".strip()
+                yield f"locomo-{ci}", {"speaker": m.get("speaker", "Unknown"), "text": text,
                                        "sent_at": dt.isoformat() if dt else None,
                                        "message_id": f"locomo-{ci}-{m.get('dia_id', '')}" if m.get("dia_id") else None}
             i += 1
@@ -275,11 +279,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--max-batches", type=int, default=None); s.set_defaults(fn=cmd_process)
 
     s = sub.add_parser("search", help="search memories"); _add_common(s)
-    s.add_argument("query"); s.add_argument("-k", type=int, default=10); s.add_argument("--subject", default=None)
+    s.add_argument("query"); s.add_argument("-k", type=int, default=15); s.add_argument("--subject", default=None)
     s.add_argument("--history", action="store_true"); s.add_argument("--json", action="store_true"); s.set_defaults(fn=cmd_search)
 
     s = sub.add_parser("context", help="prompt-ready context block"); _add_common(s)
-    s.add_argument("query"); s.add_argument("-k", type=int, default=10); s.add_argument("--max-chars", type=int, default=2400)
+    s.add_argument("query"); s.add_argument("-k", type=int, default=15); s.add_argument("--max-chars", type=int, default=3600)
     s.set_defaults(fn=cmd_context)
 
     s = sub.add_parser("profile", help="what is known about a subject"); _add_common(s)

@@ -34,7 +34,13 @@ logger = logging.getLogger(__name__)
 @dataclass
 class WorkerConfig:
     concurrency: int = 2               # chats processed in parallel (each pass = 2+ concurrent LLM calls)
-    batch_size: int = 6                # consecutive messages of one chat per extraction pass
+    batch_size: int = 2                # consecutive messages of one chat per extraction pass. Measured on LoCoMo
+                                       # (research/benchmarks/chat_memory_locomo.py): the extractor emits ~2 memories
+                                       # per call whatever the window, so 2-message batches recover 15 pts more
+                                       # evidence than 6-message batches, at ~2.5x extraction time.
+    batch_words: int = 0               # >0: instead of a fixed message count, pull contiguous messages until
+                                       # this many words are queued (capped by batch_words_max_messages)
+    batch_words_max_messages: int = 40 # hard cap on messages per pass in word mode
     poll_interval: float = 0.25        # seconds between queue checks while work may be pending
     idle_poll_interval: float = 2.0    # seconds between checks when the queue was empty
     lease_seconds: float = 300.0
@@ -157,7 +163,9 @@ class MemoryWorker:
 
     async def run_once(self) -> bool:
         """Lease and process one batch synchronously (no background tasks). Returns False if the queue was empty."""
-        jobs = await self.store.lease_job(self.worker_id, self.config.lease_seconds, batch_size=self.config.batch_size)
+        jobs = await self.store.lease_job(self.worker_id, self.config.lease_seconds, batch_size=self.config.batch_size,
+                                          batch_words=self.config.batch_words,
+                                          batch_max_messages=self.config.batch_words_max_messages)
         if not jobs:
             return False
         await self._process(jobs)
@@ -188,7 +196,8 @@ class MemoryWorker:
         while not self._stop.is_set():
             try:
                 await self._periodic()
-                jobs = await self.store.lease_job(self.worker_id, cfg.lease_seconds, batch_size=cfg.batch_size)
+                jobs = await self.store.lease_job(self.worker_id, cfg.lease_seconds, batch_size=cfg.batch_size,
+                                                  batch_words=cfg.batch_words, batch_max_messages=cfg.batch_words_max_messages)
                 if not jobs:
                     self._wake.clear()
                     pending = await self.store.pending_jobs()

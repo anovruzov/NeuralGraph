@@ -618,7 +618,7 @@ class ChatMemoryStore:
                                           available_at=available_at, max_attempts=max_attempts, payload=payload)
 
     async def lease_job(self, worker_id: str, lease_seconds: float, kinds: Iterable[str] | None = None,
-                        batch_size: int = 1) -> list[Job]:
+                        batch_size: int = 1, batch_words: int = 0, batch_max_messages: int = 40) -> list[Job]:
         """Lease the oldest runnable job, plus (for ``extract`` jobs) up to ``batch_size-1`` directly
         following queued messages of the same chat (contiguous ``seq``), so one LLM pass covers a turn.
 
@@ -648,7 +648,25 @@ class ChatMemoryStore:
                 # a job that already failed is retried with a smaller batch (halved per attempt) so one bad
                 # message cannot poison its neighbours and the retried prompt differs from the failed one
                 eff_batch = max(1, batch_size >> int(head["attempts"]))
-                if head["kind"] == "extract" and eff_batch > 1 and head["chat_id"] is not None:
+                eff_words = max(0, batch_words >> int(head["attempts"]))
+                if head["kind"] == "extract" and eff_words > 0 and head["chat_id"] is not None:
+                    # word mode: keep pulling contiguous queued messages until the batch holds eff_words words
+                    wrow = c.execute("SELECT text FROM messages WHERE message_id=?", (head["ref_id"],)).fetchone()
+                    words = len((wrow["text"] if wrow else "").split())
+                    rows = c.execute(
+                        """SELECT j.*, m.text AS _text FROM jobs j JOIN messages m ON m.message_id = j.ref_id
+                           WHERE j.kind='extract' AND j.chat_id=? AND j.status='queued'
+                           AND j.seq > ? AND j.available_at <= ? ORDER BY j.seq LIMIT ?""",
+                        (head["chat_id"], head["seq"], runnable_at, max(1, batch_max_messages - 1)),
+                    ).fetchall()
+                    prev = head["seq"]
+                    for r in rows:
+                        if r["seq"] != prev + 1 or words >= eff_words:
+                            break
+                        leased.append(r)
+                        words += len((r["_text"] or "").split())
+                        prev = r["seq"]
+                elif head["kind"] == "extract" and eff_batch > 1 and head["chat_id"] is not None:
                     rows = c.execute(
                         """SELECT * FROM jobs WHERE kind='extract' AND chat_id=? AND status='queued'
                            AND seq > ? AND available_at <= ? ORDER BY seq LIMIT ?""",

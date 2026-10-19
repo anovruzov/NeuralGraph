@@ -76,7 +76,7 @@ class FusionTests(RetrievalTestCase):
 
     async def test_channels_and_explanations(self) -> None:
         ids = await self.seed()
-        hits = await self.ret.search("Luna cat", k=2)
+        hits = await self.ret.search("Luna cat", k=2, channels="VKG")   # graph channel is opt-in by default
         self.assertEqual(hits[0].memory.memory_id, ids["ali_cat"])
         self.assertIn("keyword", hits[0].channels)
         self.assertIn("graph", hits[0].channels, "the entity 'luna' is matched in the query")
