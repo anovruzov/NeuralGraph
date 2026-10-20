@@ -187,6 +187,20 @@ window), raising the cap alone, hard subject routing, k=5, LoCoMo image captions
 turning off relation extraction to save time (−37% time, −6 pts: that call registers the entities the
 subject boost needs). Reconcile threshold 0.75 saves ~19% time within noise.
 
+### Track D, LongMemEval Oracle (50-question stratified sample, seed 1)
+
+`research/benchmarks/chat_memory_longmemeval.py`, same model and metric. One fresh database per question,
+one chat per session. **turn@15** = a memory in the context block cites a `has_answer` turn.
+
+| configuration | turn@15 | memories / question |
+|---|---:|---:|
+| shipped defaults (assistant turns not extracted) | 87.0 | 12.0 |
+| `extract_assistant=True` after the fixes in this commit | **93.5** | 22.2 |
+
+Five of six question types score 100 under both. Every miss under the default is an assistant-said fact.
+Abstention (4 questions with no answer in the history): the context block is never empty, 0/4 in both runs.
+Query latency on these databases: p50 10 ms / p95 12 ms end to end (embedding included), 403-token context.
+
 ## Evidence classes at a glance
 
 | track | headline | evidence class |

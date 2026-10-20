@@ -42,7 +42,7 @@ MEMORY_PROMPT = """You maintain the long-term memory of an AI assistant across m
 Read the NEW MESSAGES and extract only what is worth remembering in FUTURE conversations. Use CONTEXT only to resolve references.
 
 KEEP (durable, specific, useful later): identity details (name, location, job, family, age), stable facts, preferences and habits, dislikes, important events with dates, plans and commitments, relationships between people, health, goals, decisions, projects, possessions, strong opinions.
-SKIP: pure greetings, thanks, jokes, generic advice or explanations from the assistant, hypotheticals, momentary states ("I'm tired right now"), anything already in KNOWN MEMORIES unless the new message adds a concrete detail.
+SKIP: pure greetings, thanks, jokes, {assistant_skip}, hypotheticals, momentary states ("I'm tired right now"), anything already in KNOWN MEMORIES unless the new message adds a concrete detail.
 A reaction, compliment or question still COUNTS as a source when it restates or implies a fact about a participant: "That charity race for mental health sounds great" -> the race raised awareness for mental health; "For walking or running?" answered "Running" -> the shoes are for running; "You'll be an awesome mom" -> Melanie thinks Caroline will be a great mother. Read replies together with the message they answer.
 If a message lists several items (books, hobbies, places, people), keep them all: one memory per item, or one memory that names every item verbatim. Never collapse a list into a vague summary.
 Never store facts about the assistant itself.
@@ -55,7 +55,7 @@ RULES:
 5. confidence 0-1: 1.0 stated explicitly, 0.6 clearly implied, lower if uncertain. Do not invent details.
 6. "sources" = indices of the NEW MESSAGES that support the memory.
 7. "entities" = people, places, organisations, pets, products, projects, events named in the memory: short canonical names with a type from {{person, place, org, pet, product, project, event, other}}.
-8. Messages marked (assistant) are reference only and can never be a source; only what the human participants say counts.
+8. {assistant_rule}
 9. Up to {max_memories} memories. Keep every specific detail about a participant as its own memory rather than merging several facts into one sentence. If nothing qualifies return {{"memories": []}}.
 
 CHAT PARTICIPANTS: {speakers}
@@ -71,6 +71,15 @@ NEW MESSAGES (date: {date}):
 
 Return ONLY JSON:
 {{"memories": [{{"text": "...", "kind": "fact", "subject": "Full Name", "when": null, "importance": 0.7, "confidence": 0.9, "sources": [1], "entities": [{{"name": "...", "type": "..."}}]}}]}}"""
+
+ASSISTANT_RULE_OFF = ("Messages marked (assistant) are reference only and can never be a source; only what the human "
+                      "participants say counts.")
+ASSISTANT_RULE_ON = ("Messages marked (assistant) ARE valid sources for what the assistant told the user: recommendations, "
+                     "names, numbers, ratios, instructions, places, titles. Phrase them from the user's side with the "
+                     "user as subject (\"The user was recommended Miss Bee Providore in Bandung\", \"The user was told to "
+                     "dilute tea tree oil 1:10 with a carrier oil\"). Never make the assistant itself the subject.")
+ASSISTANT_SKIP_OFF = "generic advice or explanations from the assistant"
+ASSISTANT_SKIP_ON = "assistant explanations that carry no specific name, number, place, title or instruction"
 
 RELATION_PROMPT = """You are building a knowledge graph from a chat between {speakers}.
 From the NEW MESSAGES extract entities and [subject, relation, object] facts that are stated or clearly implied. Use CONTEXT only to resolve references.
@@ -352,7 +361,8 @@ class CandidateMemory:
 @dataclass
 class ExtractionConfig:
     context_messages: int = 6
-    max_message_chars: int = 1500
+    max_message_chars: int = 1500          # raised to max_assistant_message_chars for assistant turns when they are sources
+    max_assistant_message_chars: int = 3000
     max_memories_per_batch: int = 12       # measured: the model under-extracts; 12 with the 'keep every detail' rule
     max_triples_per_batch: int = 12
     registry_prompt_entities: int = 80
@@ -477,8 +487,9 @@ class MemoryExtractor:
         known = await self._known_memories(speaker_ids, human_speakers)
         date = (worthy[-1].sent_at or worthy[0].sent_at or now_iso())[:10]
         roles = tuple(r.lower() for r in cfg.ignore_speakers)
+        msg_chars = max(cfg.max_message_chars, cfg.max_assistant_message_chars) if cfg.extract_assistant else cfg.max_message_chars
         ctx_txt = _fmt_messages(context, names, cfg.max_message_chars, numbered=False, assistant_roles=roles)
-        new_txt = _fmt_messages(worthy, names, cfg.max_message_chars, numbered=True, assistant_roles=roles,
+        new_txt = _fmt_messages(worthy, names, msg_chars, numbered=True, assistant_roles=roles,
                                 annotate=cfg.annotate_relative_dates)
         repair = _REPAIR_SUFFIX.format() if attempt > 1 else ""
         max_tokens = int(cfg.generate_max_tokens * (1.0 + 0.5 * min(3, attempt - 1)))
@@ -488,6 +499,8 @@ class MemoryExtractor:
             registry=registry.prompt_text(cfg.registry_prompt_entities),
             known_memories="\n".join(f"- {k}" for k in known) or "(none)",
             context=ctx_txt, messages=new_txt, date=date,
+            assistant_rule=ASSISTANT_RULE_ON if cfg.extract_assistant else ASSISTANT_RULE_OFF,
+            assistant_skip=ASSISTANT_SKIP_ON if cfg.extract_assistant else ASSISTANT_SKIP_OFF,
         ) + repair
         tasks = [self.llm.generate(mem_prompt, max_tokens=max_tokens, timeout=cfg.llm_timeout)]
         if cfg.extract_relations:
@@ -679,9 +692,15 @@ class MemoryExtractor:
             c.source_message_ids = [m.message_id for m in src_msgs]
             c.observed_at = primary.sent_at or primary.ingested_at
             speaker_eid = speaker_ids.get(primary.speaker) or norm_entity(primary.speaker)
-            sid = registry.resolve(c.subject_raw, speaker_id=speaker_eid, etype="person") if c.subject_raw else None
+            # first-person subjects ("I", "the user") resolve to the *human* the memory is about: for a memory sourced
+            # from an assistant turn that is the person it was said to, never the assistant itself
+            subject_speaker = speaker_eid
+            if self._is_assistant(primary) and cfg.extract_assistant:
+                human_primary = next((m for m in src_msgs if not self._is_assistant(m)), humans[-1])
+                subject_speaker = speaker_ids.get(human_primary.speaker) or norm_entity(names.get(human_primary.speaker, human_primary.speaker))
+            sid = registry.resolve(c.subject_raw, speaker_id=subject_speaker, etype="person") if c.subject_raw else None
             if not sid:
-                sid = speaker_eid
+                sid = subject_speaker
             if (sid and sid.lower() in cfg.ignore_speakers) or (self._is_assistant(primary) and sid == speaker_eid and not cfg.extract_assistant):
                 # a memory about the assistant itself is never stored
                 self._audit_reject(c, "assistant_subject")
