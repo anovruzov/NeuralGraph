@@ -42,7 +42,9 @@ MEMORY_PROMPT = """You maintain the long-term memory of an AI assistant across m
 Read the NEW MESSAGES and extract only what is worth remembering in FUTURE conversations. Use CONTEXT only to resolve references.
 
 KEEP (durable, specific, useful later): identity details (name, location, job, family, age), stable facts, preferences and habits, dislikes, important events with dates, plans and commitments, relationships between people, health, goals, decisions, projects, possessions, strong opinions.
-SKIP: greetings, small talk, thanks, jokes, questions that carry no information, generic advice or explanations from the assistant, hypotheticals, momentary states ("I'm tired right now"), anything already in KNOWN MEMORIES unless the new message adds a concrete detail.
+SKIP: pure greetings, thanks, jokes, {assistant_skip}, hypotheticals, momentary states ("I'm tired right now"), anything already in KNOWN MEMORIES unless the new message adds a concrete detail.
+A reaction, compliment or question still COUNTS as a source when it restates or implies a fact about a participant: "That charity race for mental health sounds great" -> the race raised awareness for mental health; "For walking or running?" answered "Running" -> the shoes are for running; "You'll be an awesome mom" -> Melanie thinks Caroline will be a great mother. Read replies together with the message they answer.
+If a message lists several items (books, hobbies, places, people), keep them all: one memory per item, or one memory that names every item verbatim. Never collapse a list into a vague summary.
 Never store facts about the assistant itself.
 
 RULES:
@@ -53,8 +55,8 @@ RULES:
 5. confidence 0-1: 1.0 stated explicitly, 0.6 clearly implied, lower if uncertain. Do not invent details.
 6. "sources" = indices of the NEW MESSAGES that support the memory.
 7. "entities" = people, places, organisations, pets, products, projects, events named in the memory: short canonical names with a type from {{person, place, org, pet, product, project, event, other}}.
-8. Messages marked (assistant) are reference only and can never be a source; only what the human participants say counts.
-9. At most {max_memories} memories; fewer is better than padding. If nothing qualifies return {{"memories": []}}.
+8. {assistant_rule}
+9. Up to {max_memories} memories. Keep every specific detail about a participant as its own memory rather than merging several facts into one sentence. If nothing qualifies return {{"memories": []}}.
 
 CHAT PARTICIPANTS: {speakers}
 KNOWN ENTITIES: {registry}
@@ -69,6 +71,15 @@ NEW MESSAGES (date: {date}):
 
 Return ONLY JSON:
 {{"memories": [{{"text": "...", "kind": "fact", "subject": "Full Name", "when": null, "importance": 0.7, "confidence": 0.9, "sources": [1], "entities": [{{"name": "...", "type": "..."}}]}}]}}"""
+
+ASSISTANT_RULE_OFF = ("Messages marked (assistant) are reference only and can never be a source; only what the human "
+                      "participants say counts.")
+ASSISTANT_RULE_ON = ("Messages marked (assistant) ARE valid sources for what the assistant told the user: recommendations, "
+                     "names, numbers, ratios, instructions, places, titles. Phrase them from the user's side with the "
+                     "user as subject (\"The user was recommended Miss Bee Providore in Bandung\", \"The user was told to "
+                     "dilute tea tree oil 1:10 with a carrier oil\"). Never make the assistant itself the subject.")
+ASSISTANT_SKIP_OFF = "generic advice or explanations from the assistant"
+ASSISTANT_SKIP_ON = "assistant explanations that carry no specific name, number, place, title or instruction"
 
 RELATION_PROMPT = """You are building a knowledge graph from a chat between {speakers}.
 From the NEW MESSAGES extract entities and [subject, relation, object] facts that are stated or clearly implied. Use CONTEXT only to resolve references.
@@ -350,8 +361,9 @@ class CandidateMemory:
 @dataclass
 class ExtractionConfig:
     context_messages: int = 6
-    max_message_chars: int = 1500
-    max_memories_per_batch: int = 8
+    max_message_chars: int = 1500          # raised to max_assistant_message_chars for assistant turns when they are sources
+    max_assistant_message_chars: int = 3000
+    max_memories_per_batch: int = 12       # measured: the model under-extracts; 12 with the 'keep every detail' rule
     max_triples_per_batch: int = 12
     registry_prompt_entities: int = 80
     known_memories_in_prompt: int = 12
@@ -364,7 +376,7 @@ class ExtractionConfig:
     max_related_links: int = 3
     extract_relations: bool = True
     gate_chitchat: bool = True
-    generate_max_tokens: int = 2000        # 8 memories x ~150 tokens of JSON fits comfortably
+    generate_max_tokens: int = 3000        # 12 memories x ~150 tokens of JSON plus headroom
     reconcile_max_tokens: int = 220
     llm_timeout: float = 120.0
     speaker_names: dict[str, str] = field(default_factory=dict)   # e.g. {"user": "Ali Novruzov"}
@@ -475,8 +487,9 @@ class MemoryExtractor:
         known = await self._known_memories(speaker_ids, human_speakers)
         date = (worthy[-1].sent_at or worthy[0].sent_at or now_iso())[:10]
         roles = tuple(r.lower() for r in cfg.ignore_speakers)
+        msg_chars = max(cfg.max_message_chars, cfg.max_assistant_message_chars) if cfg.extract_assistant else cfg.max_message_chars
         ctx_txt = _fmt_messages(context, names, cfg.max_message_chars, numbered=False, assistant_roles=roles)
-        new_txt = _fmt_messages(worthy, names, cfg.max_message_chars, numbered=True, assistant_roles=roles,
+        new_txt = _fmt_messages(worthy, names, msg_chars, numbered=True, assistant_roles=roles,
                                 annotate=cfg.annotate_relative_dates)
         repair = _REPAIR_SUFFIX.format() if attempt > 1 else ""
         max_tokens = int(cfg.generate_max_tokens * (1.0 + 0.5 * min(3, attempt - 1)))
@@ -486,6 +499,8 @@ class MemoryExtractor:
             registry=registry.prompt_text(cfg.registry_prompt_entities),
             known_memories="\n".join(f"- {k}" for k in known) or "(none)",
             context=ctx_txt, messages=new_txt, date=date,
+            assistant_rule=ASSISTANT_RULE_ON if cfg.extract_assistant else ASSISTANT_RULE_OFF,
+            assistant_skip=ASSISTANT_SKIP_ON if cfg.extract_assistant else ASSISTANT_SKIP_OFF,
         ) + repair
         tasks = [self.llm.generate(mem_prompt, max_tokens=max_tokens, timeout=cfg.llm_timeout)]
         if cfg.extract_relations:
@@ -677,9 +692,15 @@ class MemoryExtractor:
             c.source_message_ids = [m.message_id for m in src_msgs]
             c.observed_at = primary.sent_at or primary.ingested_at
             speaker_eid = speaker_ids.get(primary.speaker) or norm_entity(primary.speaker)
-            sid = registry.resolve(c.subject_raw, speaker_id=speaker_eid, etype="person") if c.subject_raw else None
+            # first-person subjects ("I", "the user") resolve to the *human* the memory is about: for a memory sourced
+            # from an assistant turn that is the person it was said to, never the assistant itself
+            subject_speaker = speaker_eid
+            if self._is_assistant(primary) and cfg.extract_assistant:
+                human_primary = next((m for m in src_msgs if not self._is_assistant(m)), humans[-1])
+                subject_speaker = speaker_ids.get(human_primary.speaker) or norm_entity(names.get(human_primary.speaker, human_primary.speaker))
+            sid = registry.resolve(c.subject_raw, speaker_id=subject_speaker, etype="person") if c.subject_raw else None
             if not sid:
-                sid = speaker_eid
+                sid = subject_speaker
             if (sid and sid.lower() in cfg.ignore_speakers) or (self._is_assistant(primary) and sid == speaker_eid and not cfg.extract_assistant):
                 # a memory about the assistant itself is never stored
                 self._audit_reject(c, "assistant_subject")
@@ -789,6 +810,10 @@ class MemoryExtractor:
 
         accepted: list[CandidateMemory] = []   # for intra-batch dedupe
         self._superseded_in_plan = {}          # target id -> the new memory that replaced it in this plan
+        # Phase 1 (in order, no LLM): exact and intra-batch duplicates, and the per-candidate shortlist.
+        # Phase 2 (concurrent): the RECONCILE_PROMPT calls, which are independent of each other.
+        # Phase 3 (in order): apply decisions, so same-target corrections still chain deterministically.
+        pending: list[tuple[CandidateMemory, list[tuple[float, Memory]], str, Memory | None]] = []
         for c in cands:
             # exact text duplicate anywhere
             exact = await self.store.find_active_by_text_hash(c.text_hash)
@@ -796,7 +821,7 @@ class MemoryExtractor:
                 plan.duplicate_sources.append((exact.memory_id, c.source_message_ids))
                 plan.audit.append(("duplicate", exact.memory_id, {"text": clip(c.text, 120), "how": "exact"}))
                 continue
-            # intra-batch near-duplicate
+            # intra-batch near-duplicate (against everything not already dropped as a duplicate)
             if any(_cos(c.embedding, a.embedding) >= cfg.dedupe_cosine for a in accepted):
                 plan.audit.append(("duplicate", None, {"text": clip(c.text, 120), "how": "intra_batch"}))
                 continue
@@ -810,17 +835,27 @@ class MemoryExtractor:
                 pool = {m.memory_id: m for m in by_subject.get(c.subject_id, [])}
                 kw = await self.store.keyword_candidates(c.text, limit=cfg.reconcile_candidates * 4)
                 top = [(cfg.reconcile_cosine, pool[mid]) for mid, _ in kw if mid in pool][: cfg.reconcile_candidates]
-            decision, target, merged_text = "ADD", None, None
             if top and top[0][0] >= cfg.dedupe_cosine:
-                decision, target = "DUPLICATE", top[0][1]
+                pending.append((c, top, "DUPLICATE", top[0][1]))
             elif top and top[0][0] >= cfg.reconcile_cosine:
-                decision, target, merged_text = await self._ask_reconcile(c, [m for _, m in top])
+                pending.append((c, top, "ASK", None))
+                accepted.append(c)
+            else:
+                pending.append((c, top, "ADD", None))
+                accepted.append(c)
+
+        asks = [(i, c, top) for i, (c, top, d, _) in enumerate(pending) if d == "ASK"]
+        answers = await asyncio.gather(*(self._ask_reconcile(c, [m for _, m in top]) for _, c, top in asks))
+        resolved: dict[int, tuple[str, Memory | None, str | None]] = {i: ans for (i, _, _), ans in zip(asks, answers)}
+
+        for i, (c, top, d, target) in enumerate(pending):
+            decision, merged_text = d, None
+            if d == "ASK":
+                decision, target, merged_text = resolved[i]
             if decision in ("UPDATE", "CONTRADICT") and target is not None and target.memory_id in self._superseded_in_plan:
                 # an earlier candidate of this batch already replaced that target: chain onto the replacement
                 target = self._superseded_in_plan[target.memory_id]
             await self._apply_decision(c, decision, target, merged_text, top, plan)
-            if decision in ("ADD", "UPDATE", "CONTRADICT"):
-                accepted.append(c)
 
     async def _ask_reconcile(self, c: CandidateMemory, existing: list[Memory]) -> tuple[str, Memory | None, str | None]:
         letters = "ABCDEFGH"

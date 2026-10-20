@@ -167,6 +167,40 @@ exist to be compared against, not cited.
 
 ---
 
+## Track D — The shipped assistant pipeline (`NeuralGraph.chat_memory`)
+
+Measured 2026-10-18/19 with `research/benchmarks/chat_memory_locomo.py`: LoCoMo conversation 0,
+sessions 1–8 (174 messages), 66 non-adversarial questions whose evidence lies in those sessions.
+Extraction by Qwen3.8-9B (LM Studio, `LLM_NO_THINK_PREFILL=1`), embeddings nomic-embed-text v1.5.
+Retrieval-only: **evidence@k** = a retrieved memory cites a gold evidence message (provenance, no
+judge). One question is 1.5 points; treat deltas under 3 as noise.
+**Evidence class: single conversation, single model, committed harness; per-run artifacts not committed.**
+
+| configuration | memories | questions with no memory on any evidence | evidence@15 |
+|---|---:|---:|---:|
+| previous defaults: 6-message batches, graph channel on, k=10 | 57 | 30% | 62.7 |
+| 2-message batches, graph off, k=15 | 76 | 17% | 78.8 |
+| + recall-first prompt (reactions/questions/lists count, cap 12) — **shipped** | 147 | 6% | **87.9** |
+
+What did not help: 300-word batching (44.8; the extractor emits ~2 memories per call whatever the
+window), raising the cap alone, hard subject routing, k=5, LoCoMo image captions (0 to −3), and
+turning off relation extraction to save time (−37% time, −6 pts: that call registers the entities the
+subject boost needs). Reconcile threshold 0.75 saves ~19% time within noise.
+
+### Track D, LongMemEval Oracle (50-question stratified sample, seed 1)
+
+`research/benchmarks/chat_memory_longmemeval.py`, same model and metric. One fresh database per question,
+one chat per session. **turn@15** = a memory in the context block cites a `has_answer` turn.
+
+| configuration | turn@15 | memories / question |
+|---|---:|---:|
+| shipped defaults (assistant turns not extracted) | 87.0 | 12.0 |
+| `extract_assistant=True` after the fixes in this commit | **93.5** | 22.2 |
+
+Five of six question types score 100 under both. Every miss under the default is an assistant-said fact.
+Abstention (4 questions with no answer in the history): the context block is never empty, 0/4 in both runs.
+Query latency on these databases: p50 10 ms / p95 12 ms end to end (embedding included), 403-token context.
+
 ## Evidence classes at a glance
 
 | track | headline | evidence class |

@@ -38,14 +38,18 @@ class RetrievalConfig:
     weight_vector: float = 1.0
     weight_keyword: float = 0.8
     weight_graph: float = 0.7
+    channels: str = "VK"                # default channels: V=vector K=keyword G=entity graph. The graph channel is
+                                       # off by default: on LoCoMo it never helped and cost up to 9 pts of evidence
+                                       # recall (it pulls related non-answers into the context). Pass channels="VKG"
+                                       # per call, or set this, to turn it on.
     subject_boost: float = 1.6           # query names the memory's subject
     entity_boost: float = 1.25           # query names an entity the memory mentions
     importance_weight: float = 0.35      # score *= (1 - w) + w * importance
     recency_weight: float = 0.2          # score *= (1 - w) + w * recency
     recency_half_life_days: float = 365.0
     min_channel_hits: int = 1
-    context_max_chars: int = 2400
-    context_k: int = 10
+    context_max_chars: int = 3600
+    context_k: int = 15                  # 15 beat 10 by 3-4 pts and 5 by ~10 on LoCoMo evidence recall
     context_min_relative_score: float = 0.25   # drop context lines scoring < this fraction of the top hit
     vector_min_sim: float = 0.05               # cosine floor for the vector channel (drops ~orthogonal noise)
     context_min_vector_sim: float = 0.3        # a context line needs a keyword/graph hit or at least this cosine
@@ -263,10 +267,11 @@ class MemoryRetriever:
         include_superseded: bool = False,
         with_sources: bool = True,
         query_embedding: list[float] | None = None,
-        channels: str = "VKG",
+        channels: str | None = None,
         touch: bool = True,
     ) -> list[RetrievedMemory]:
         cfg = self.config
+        channels = channels or cfg.channels
         query = normalize_ws(query)
         if not query:
             return []
@@ -306,9 +311,10 @@ class MemoryRetriever:
             per_channel["keyword"] = dict(kr)
             rankings.append([m for m, _ in kr]); weights.append(cfg.weight_keyword)
 
-        q_entities: list[str] = []
+        # entities named in the query drive the subject/entity priors regardless of channel selection;
+        # only the graph *channel* (mention + 1-hop ranking) is gated on "G"
+        q_entities: list[str] = await self.query_entities(query)
         if "G" in channels:
-            q_entities = await self.query_entities(query)
             if q_entities:
                 gr = await self._graph_rank(q_entities, allowed, cfg.depth, bool(include_superseded or since or until),
                                             subject=subject_id, chat_id=chat_id, kinds=kind_set, since=since, until=until)

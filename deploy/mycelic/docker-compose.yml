@@ -80,7 +80,10 @@ secrets:
   metrics_token:
     environment: MYCELIC_METRICS_TOKEN
   ca_bundle:
-    file: ${CA_BUNDLE_FILE:-/dev/null}
+    # default: an empty file inside the build context. /dev/null is outside the context and current
+    # Docker (compose via buildx bake) refuses to read it without --allow=fs.read; the Dockerfile treats an
+    # empty secret as "no corporate CA".
+    file: ${CA_BUNDLE_FILE:-./no-ca.pem}
 
 volumes:
   nats-data:

@@ -65,7 +65,7 @@ TOOLS: list[dict[str, Any]] = [
                         "before answering anything about the user's life, preferences, history, people or projects."),
         "inputSchema": _schema({
             "query": {"type": "string", "description": "What to look for, in natural language."},
-            "k": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10},
+            "k": {"type": "integer", "minimum": 1, "maximum": 50, "default": 15},
             "subject": {"type": "string", "description": "Only memories about this person/entity (name)."},
             "chat_id": {"type": "string", "description": "Only memories first observed in this chat."},
             "kinds": {"type": "array", "items": {"type": "string"}, "description": "fact, preference, event, plan, relationship, opinion, identity, task, other"},
@@ -82,8 +82,8 @@ TOOLS: list[dict[str, Any]] = [
                         "or read before replying. Empty string when nothing relevant is stored."),
         "inputSchema": _schema({
             "query": {"type": "string"},
-            "k": {"type": "integer", "minimum": 1, "maximum": 30, "default": 10},
-            "max_chars": {"type": "integer", "minimum": 200, "maximum": 20000, "default": 2400},
+            "k": {"type": "integer", "minimum": 1, "maximum": 30, "default": 15},
+            "max_chars": {"type": "integer", "minimum": 200, "maximum": 20000, "default": 3600},
             "subject": {"type": "string"},
         }, ["query"]),
         "annotations": {"readOnlyHint": True, "openWorldHint": False},
@@ -176,7 +176,7 @@ class MemoryTools:
             raise ToolError(f"unknown tool: {name}")
         return await fn(**args)
 
-    async def tool_memory_search(self, query: str, k: int = 10, subject: str | None = None, chat_id: str | None = None,
+    async def tool_memory_search(self, query: str, k: int = 15, subject: str | None = None, chat_id: str | None = None,
                                  kinds: list[str] | None = None, since: str | None = None, until: str | None = None,
                                  include_superseded: bool = False) -> dict[str, Any]:
         hits = await self.cm.search(query, k=int(k), subject=subject, chat_id=chat_id, kinds=kinds, since=since,
@@ -186,7 +186,7 @@ class MemoryTools:
              "sources": [{"chat_id": s.chat_id, "speaker": s.speaker, "sent_at": s.sent_at, "text": s.text[:300]} for s in h.sources[:3]]}
             for h in hits]}
 
-    async def tool_memory_context(self, query: str, k: int = 10, max_chars: int = 2400, subject: str | None = None) -> dict[str, Any]:
+    async def tool_memory_context(self, query: str, k: int = 15, max_chars: int = 3600, subject: str | None = None) -> dict[str, Any]:
         block = await self.cm.context_for(query, k=int(k), max_chars=int(max_chars), subject=subject)
         return {"query": query, "context": block, "empty": not block}
 

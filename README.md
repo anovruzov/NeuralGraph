@@ -27,7 +27,7 @@
 
 NeuralGraph gives Claude and any MCP-capable agent memory that survives the end of a
 conversation. Every turn becomes structured memories, entities and typed relations in a
-local knowledge graph; retrieval fuses three independent channels; the whole thing runs on
+local knowledge graph; retrieval fuses vector and keyword channels by rank, with an entity-graph channel you can opt into; the whole thing runs on
 your machine against a local model.
 
 **Free and open source** — no cloud accounts, no API keys, no subscriptions, no telemetry.
@@ -36,7 +36,7 @@ What makes it different from a vector store with a nice wrapper:
 
 | | NeuralGraph |
 |---|---|
-| **Retrieval** | Vector + BM25 + entity-graph hop, fused by Reciprocal Rank Fusion — not cosine similarity alone |
+| **Retrieval** | Vector + BM25 fused by Reciprocal Rank Fusion, plus subject and entity priors — not cosine similarity alone. An entity-graph hop channel exists but is off by default: measured, it never helped |
 | **Time** | Facts supersede facts. "Where did Ali live in March?" returns the *March* answer, not today's |
 | **Speakers** | Per-agent routing: a question about Nurman searches Nurman's memories. Worth **+8.9 points** end to end |
 | **Evidence** | Every retrieval decision is measured on LoCoMo (1,540 questions) with per-question artifacts committed |
@@ -291,7 +291,7 @@ discarded) are in [`research/mycelic/`](research/mycelic/).
               context block → Claude
 ```
 
-**Ranks fuse, scores don't.** Three channels vote by rank, so no single scorer's scale can
+**Ranks fuse, scores don't.** Channels vote by rank (vector and keyword by default; the graph hop is opt-in because it cost up to 9 points of evidence recall on LoCoMo), so no single scorer's scale can
 dominate. Priors then reweight by importance, mild recency, and whether the query names the
 memory's subject or a mentioned entity. Finally a line must earn its place: a keyword or
 graph hit, or cosine above the floor — otherwise it does not reach the model's context.
@@ -404,6 +404,7 @@ to what. You can search memory and feed it a chat turn straight from the page.
 | `LLM_MODEL` | backend default | Generation model |
 | `EMBED_MODEL` | backend default | Embedding model |
 | `OLLAMA_NUM_PARALLEL` | — | Match `--parallel` when using Ollama |
+| `LLM_NO_THINK_PREFILL` | unset | `1` for Qwen builds that ignore `reasoning_effort` and return empty replies |
 
 Command-line flags override environment variables.
 

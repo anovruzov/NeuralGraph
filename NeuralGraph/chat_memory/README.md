@@ -429,6 +429,7 @@ Two worth understanding:
 | `LLM_MODEL` | backend default | Generation model. |
 | `EMBED_MODEL` | backend default | Embedding model. |
 | `OLLAMA_NUM_PARALLEL` | — | Match `--parallel` when using Ollama. |
+| `LLM_NO_THINK_PREFILL` | unset | Set to `1` for Qwen builds that ignore `reasoning_effort` and spend the whole output budget thinking (empty replies, retries, dead jobs). Prefills an empty think block. |
 
 Command-line flags override environment variables.
 
@@ -500,7 +501,7 @@ extractor's gate may be dropping your input as chit-chat — it is deliberately
 selective. Use `remember` to confirm the read path works.
 
 **Extraction is slow.** Raise `--parallel`, and raise `OLLAMA_NUM_PARALLEL` to
-match. `--batch-size` (default 6) trades latency for throughput.
+match. `--batch-size` (default 2; 6 is ~2.5x faster on bulk ingest but was measured to lose ~15 pts of evidence recall) trades latency for throughput.
 
 **`401 unauthorized` on `/mcp`.** A token is set and the client is not sending
 it, or is sending a different one. Check `Authorization: Bearer <token>`.

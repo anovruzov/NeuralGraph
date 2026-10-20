@@ -135,7 +135,7 @@ two chats produced at the same moment and prunes old finished jobs.
   dimension until maintenance re-embeds them (`reembed_limit` per run).
 * **keyword** – FTS5 bm25 (Porter, accent-folded, possessives stripped) or in-process BM25; subject/chat/
   speaker filters are pushed into the query so a filtered search is never starved by the global limit.
-* **graph** – entities named in the query (longest alias match) → memories that mention them, plus one typed
+* **graph** (opt-in, `channels="VKG"`; off by default because it cost up to 9 pts of evidence recall on LoCoMo by pulling related non-answers into the context) – entities named in the query (longest alias match) → memories that mention them, plus one typed
   hop over relations; hub entities are down-weighted by inverse frequency.
 * fused with RRF, then priors: importance, mild recency, ×`subject_boost` when the query names the memory's
   subject, ×`entity_boost` when it names a mentioned entity.
@@ -244,8 +244,8 @@ ingest research/datasets/locomo10.json --locomo --only 0,1 --process
 `dedupe_cosine` 0.94, `reconcile_cosine` 0.62, `related_cosine` 0.55, `extract_assistant` False,
 `annotate_relative_dates` True, `min_grounding_overlap` 0.2, `require_name_grounding` True,
 `speaker_names` ({"user": "Your Name"} so first person resolves to a real subject).
-`worker`: `concurrency` 2, `batch_size` 6, `lease_seconds` 300, `backoff_base` 5, `backoff_max` 600,
-`maintenance_interval` 900, `merge_cosine` 0.96. `retrieval`: `depth` 100, `rrf_k` 60, channel weights,
+`worker`: `concurrency` 2, `batch_size` 2 (measured: 6 loses ~15 pts of evidence recall on LoCoMo), `lease_seconds` 300, `backoff_base` 5, `backoff_max` 600,
+`maintenance_interval` 900, `merge_cosine` 0.96. `retrieval`: `channels` "VK" (graph channel opt-in: it never helped on LoCoMo), `context_k` 15, `context_max_chars` 3600, `depth` 100, `rrf_k` 60, channel weights,
 `subject_boost` 1.6, `entity_boost` 1.25, `recency_half_life_days` 365, `vector_min_sim` 0.05,
 `context_min_vector_sim` 0.3. The cosine thresholds were set for nomic-embed-text-class models; re-tune them
 for another embedding model.
