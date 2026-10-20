@@ -7,7 +7,6 @@ research/
 docs/
 demo/results/
 tests/
-deploy/mycelic/.env
 *.db
 *.db-wal
 *.db-shm

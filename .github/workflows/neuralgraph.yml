@@ -1,0 +1,29 @@
+name: neuralgraph
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    name: tests and assistant/research separation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m pytest NeuralGraph/tests -q -p no:warnings
+      - name: the assistant imports no research code
+        run: |
+          python -c "
+          import NeuralGraph.chat_memory, sys
+          leaked = [m for m in sys.modules if m.startswith('NeuralGraph.research')]
+          assert not leaked, leaked
+          print('clean')"
+      - name: chat_memory image builds
+        run: docker build -f deploy/chat_memory/Dockerfile -t neuralgraph-memory:ci .
