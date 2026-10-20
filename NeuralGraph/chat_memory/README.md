@@ -401,7 +401,7 @@ All commands are `python -m NeuralGraph.chat_memory <command>`.
 
 **Common flags** (accepted by every command): `--db`, `--model`, `--base-url`,
 `--embed-model`, `--parallel`, `--workers`, `--batch-size`, `--debounce`,
-`--user-name`, `--extract-assistant`, `--fake-llm`, `-v/--verbose`.
+`--user-name`, `--no-extract-assistant`, `--fake-llm`, `-v/--verbose`.
 
 **`serve` flags**: `--host` (default `127.0.0.1`), `--port` (default `8765`),
 `--mcp-token`, `--api-token`, `--allowed-origin`, `--cors-origin`,
@@ -412,9 +412,12 @@ Two worth understanding:
 - `--debounce` (default 1.0s) waits so that a user turn and the assistant's
   reply are extracted together as one window. Lower it and you extract from half
   an exchange; raise it and memories appear later.
-- `--extract-assistant` also mines assistant turns. Off by default, because the
-  assistant's own output is a poor source of facts about the user and tends to
-  feed the model's own inventions back into memory.
+- `--no-extract-assistant` limits memory to what the human says. By default the
+  assistant's turns are sources too: a recommendation, ratio, name or place the
+  assistant gave you is stored from your side ("The user was told to ...").
+  Measured on LongMemEval this is +6.5 points of evidence recall at about 1.85x
+  the memory count; turn it off if you want a smaller store or do not want the
+  assistant's own mistakes to become memories.
 
 ---
 

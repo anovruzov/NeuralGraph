@@ -366,7 +366,7 @@ python -m NeuralGraph.chat_memory stats
 
 Common flags on every command: `--db`, `--model`, `--base-url`, `--embed-model`,
 `--parallel`, `--workers`, `--batch-size`, `--debounce`, `--user-name`,
-`--extract-assistant`, `--fake-llm`, `-v`.
+`--no-extract-assistant`, `--fake-llm`, `-v`.
 
 Separate databases are just separate paths — `--db ~/work.db` and `--db ~/personal.db`
 share nothing.

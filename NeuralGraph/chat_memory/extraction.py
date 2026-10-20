@@ -381,7 +381,9 @@ class ExtractionConfig:
     llm_timeout: float = 120.0
     speaker_names: dict[str, str] = field(default_factory=dict)   # e.g. {"user": "Ali Novruzov"}
     ignore_speakers: tuple[str, ...] = ("assistant", "system")     # never the *subject* of a memory
-    extract_assistant: bool = False        # assistant/system turns are context only, never a memory source
+    extract_assistant: bool = True         # assistant turns are sources too (facts the assistant gave the user, stored
+                                           # from the user's side). Measured on LongMemEval: 87.0 -> 93.5 turn@15 at
+                                           # ~1.85x memories. False = assistant turns are context only.
     annotate_relative_dates: bool = True   # "yesterday [= 7 May 2023]" so the model copies absolute dates
     min_grounding_overlap: float = 0.2     # share of a memory's content tokens that must appear in the window
     require_name_grounding: bool = True    # capitalised names in a memory must occur in the window/registry

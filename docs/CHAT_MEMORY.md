@@ -94,7 +94,8 @@ processed in one pass (a user turn and its reply usually land together thanks to
 One pass:
 
 1. **Gate** – greetings, acknowledgements, assistant boilerplate are marked `skipped` without a model call.
-   Assistant turns are context only (never a memory source) unless `extract_assistant=True`.
+   Assistant turns are sources too by default (facts the assistant gave the user, phrased from the user's side);
+   `extract_assistant=False` makes them context only.
 2. **Extract** – two concurrent Qwen calls: memories (`MEMORY_PROMPT`) and entities + triples
    (`RELATION_PROMPT`), both with the known-entity registry, recent memories about the speakers, prior
    context, and relative dates pre-annotated (`yesterday [= 7 May 2023]`).
@@ -229,7 +230,7 @@ bearer auth, optional `--allowed-origin` (DNS-rebinding protection), CORS. Verif
 ```
 python -m NeuralGraph.chat_memory serve|mcp|ingest|process|search|context|profile|stats|forget|remember|maintain
   --db PATH  --model M  --base-url URL  --embed-model E  --parallel N  --workers N  --batch-size N
-  --debounce SECONDS  --user-name NAME  --extract-assistant  --fake-llm  -v
+  --debounce SECONDS  --user-name NAME  --no-extract-assistant  --fake-llm  -v
 serve --host --port --mcp-token --api-token --allowed-origin --cors-origin --allowed-host
 ingest FILE.jsonl [--chat-id ID] [--process]        # {"chat_id","speaker","text","sent_at"?,"role"?} per line
 ingest research/datasets/locomo10.json --locomo --only 0,1 --process
@@ -241,7 +242,7 @@ ingest research/datasets/locomo10.json --locomo --only 0,1 --process
 ## Configuration knobs (`ChatMemoryConfig`)
 
 `extraction`: `context_messages` 6, `max_memories_per_batch` 12, `min_importance` 0.3, `min_confidence` 0.45,
-`dedupe_cosine` 0.94, `reconcile_cosine` 0.62, `related_cosine` 0.55, `extract_assistant` False,
+`dedupe_cosine` 0.94, `reconcile_cosine` 0.62, `related_cosine` 0.55, `extract_assistant` True (LongMemEval: 87.0 -> 93.5 turn@15),
 `annotate_relative_dates` True, `min_grounding_overlap` 0.2, `require_name_grounding` True,
 `speaker_names` ({"user": "Your Name"} so first person resolves to a real subject).
 `worker`: `concurrency` 2, `batch_size` 2 (measured: 6 loses ~15 pts of evidence recall on LoCoMo), `lease_seconds` 300, `backoff_base` 5, `backoff_max` 600,

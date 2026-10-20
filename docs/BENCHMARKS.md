@@ -194,10 +194,10 @@ one chat per session. **turn@15** = a memory in the context block cites a `has_a
 
 | configuration | turn@15 | memories / question |
 |---|---:|---:|
-| shipped defaults (assistant turns not extracted) | 87.0 | 12.0 |
-| `extract_assistant=True` after the fixes in this commit | **93.5** | 22.2 |
+| `extract_assistant=False` (the default before 2026-10-20) | 87.0 | 12.0 |
+| `extract_assistant=True` (**shipped default** since 2026-10-20) | **93.5** | 22.2 |
 
-Five of six question types score 100 under both. Every miss under the default is an assistant-said fact.
+Five of six question types score 100 under both. Every miss with assistant turns excluded is an assistant-said fact.
 Abstention (4 questions with no answer in the history): the context block is never empty, 0/4 in both runs.
 Query latency on these databases: p50 10 ms / p95 12 ms end to end (embedding included), 403-token context.
 

@@ -70,7 +70,8 @@ def make_config(args) -> ChatMemoryConfig:
     cfg.worker.concurrency = args.concurrency
     cfg.worker.maintenance_interval = 0
     cfg.extraction.llm_timeout = 600.0
-    cfg.extraction.extract_assistant = args.extract_assistant
+    if args.extract_assistant is not None:
+        cfg.extraction.extract_assistant = args.extract_assistant
     cfg.extraction.speaker_names = {"user": args.user_name}
     if args.batch_size:
         cfg.worker.batch_size = args.batch_size
@@ -215,7 +216,8 @@ def main():
     ap.add_argument("--parallel", type=int, default=4)
     ap.add_argument("--concurrency", type=int, default=2, help="sessions (chats) extracted in parallel")
     ap.add_argument("--batch-size", type=int, default=0, help="0 = shipped default")
-    ap.add_argument("--extract-assistant", action="store_true")
+    ap.add_argument("--extract-assistant", dest="extract_assistant", action="store_true", default=None)
+    ap.add_argument("--no-extract-assistant", dest="extract_assistant", action="store_false")
     ap.add_argument("--user-name", default="The user")
     ap.add_argument("--types", default=None, help="comma-separated question_type filter applied after sampling")
     args = ap.parse_args()

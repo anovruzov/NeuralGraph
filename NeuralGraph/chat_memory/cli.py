@@ -41,8 +41,8 @@ def _build(args: argparse.Namespace) -> ChatMemory:
     cfg.debounce_seconds = args.debounce
     if args.user_name:
         cfg.extraction.speaker_names["user"] = args.user_name
-    if args.extract_assistant:
-        cfg.extraction.extract_assistant = True
+    if args.extract_assistant is not None:
+        cfg.extraction.extract_assistant = args.extract_assistant
     llm = None
     if args.fake_llm:
         from .testing import scripted_fake_llm
@@ -61,7 +61,10 @@ def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--batch-size", type=int, default=2, help="messages per extraction pass (2 measured best; 6 is faster but loses recall)")
     p.add_argument("--debounce", type=float, default=1.0, help="seconds to wait so a turn and its reply batch together")
     p.add_argument("--user-name", default=None, help="display name for speaker 'user' (e.g. your name)")
-    p.add_argument("--extract-assistant", action="store_true", help="also extract memories from assistant turns")
+    p.add_argument("--extract-assistant", dest="extract_assistant", action="store_true", default=None,
+                   help="extract memories from assistant turns too (the default)")
+    p.add_argument("--no-extract-assistant", dest="extract_assistant", action="store_false",
+                   help="assistant turns are context only; only what the human says becomes memory")
     p.add_argument("--fake-llm", action="store_true", help="deterministic fake model (demos/tests, no server)")
     p.add_argument("-v", "--verbose", action="store_true")
 

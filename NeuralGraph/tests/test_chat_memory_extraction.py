@@ -172,19 +172,27 @@ class ExtractorPlanTests(ExtractorTestCase):
         self.assertIn("(assistant)", prompt)
 
     async def test_gate_skips_chitchat_and_assistant_only_without_llm(self) -> None:
+        # with extract_assistant=False (the opt-out) assistant turns are context only
+        cfg = ExtractionConfig(extract_assistant=False)
         m1, _ = await self.store.add_message("c1", "Ali", "thanks!!")
         m2, _ = await self.store.add_message("c1", "assistant", "You're welcome, anything else?", role="assistant")
         llm = self.make_llm()
-        plan = await MemoryExtractor(self.store, llm).build_plan([m1, m2])
+        plan = await MemoryExtractor(self.store, llm, cfg).build_plan([m1, m2])
         self.assertEqual(llm.stats.generate_calls, 0)
         self.assertIn(m1.message_id, plan.skipped_message_ids)
         self.assertEqual(set(plan.skipped_message_ids) | set(plan.processed_message_ids), {m1.message_id, m2.message_id})
         self.assertEqual(plan.new_memories, [])
         # an assistant turn with real content is context only: still no LLM call, marked processed
         m3, _ = await self.store.add_message("c1", "assistant", "Berlin has three opera houses and a famous zoo.", role="assistant")
-        plan = await MemoryExtractor(self.store, llm).build_plan([m3])
+        plan = await MemoryExtractor(self.store, llm, cfg).build_plan([m3])
         self.assertEqual(llm.stats.generate_calls, 0)
         self.assertEqual(plan.processed_message_ids, [m3.message_id])
+        # with the default (extract_assistant=True) the same assistant turn IS extracted: the gate still
+        # drops the boilerplate reply, but the content-bearing one reaches the model
+        plan = await MemoryExtractor(self.store, llm).build_plan([m2])
+        self.assertEqual(llm.stats.generate_calls, 0, "boilerplate assistant reply is gated")
+        plan = await MemoryExtractor(self.store, llm).build_plan([m3])
+        self.assertGreater(llm.stats.generate_calls, 0, "content-bearing assistant turn is a source by default")
 
     async def test_duplicate_exact_and_embedding(self) -> None:
         m1, m2 = await self.seed()
