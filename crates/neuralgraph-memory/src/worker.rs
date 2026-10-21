@@ -336,7 +336,13 @@ impl MemoryWorker {
             }
             self.wake_event.set();
             let wait = remaining.map(|r| r.min(0.2)).unwrap_or(0.2);
-            self.idle_event.wait_timeout(wait).await;
+            if self.busy.load(Ordering::SeqCst) > 0 {
+                self.idle_event.wait_timeout(wait).await;
+            } else {
+                // queued but not leased yet (debounce, backoff, a worker about to lease): the idle event is already
+                // set, so poll briefly instead of spinning
+                tokio::time::sleep(Duration::from_secs_f64(wait.min(0.01))).await;
+            }
         }
     }
 
@@ -483,6 +489,12 @@ impl MemoryWorker {
     }
 
     // ------------------------------------------------------------------ processing
+    /// Process jobs this worker already leased, in the current task (what a loop iteration does after
+    /// `lease_job`; exposed so a zombie worker committing after its lease expired can be simulated).
+    pub async fn process_leased(&self, jobs: Vec<Job>) -> Result<()> {
+        self.process(jobs).await.map(|_| ())
+    }
+
     async fn process(&self, jobs: Vec<Job>) -> Result<Processed> {
         if jobs[0].kind == "maintain" {
             // a cancelled maintenance pass leaves its job leased until the lease expires, as before
