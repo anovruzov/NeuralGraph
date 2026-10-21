@@ -13,3 +13,6 @@ research/results/emb_cache/
 research/results/kg_cache/
 research/results/scratch/
 research/results/smoke*.json
+
+# Rust build output
+/target/
