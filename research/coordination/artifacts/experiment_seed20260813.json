@@ -1,0 +1,2734 @@
+{
+  "milestone": {
+    "after_failure": {
+      "claim_roots": {
+        "claim_65fb15657eb14270d381": [
+          "R1"
+        ]
+      },
+      "exported_bytes": 1596,
+      "exported_claim_count": 1,
+      "metrics": {
+        "apparent_replica_count": 1,
+        "confidence_valid_support_gap": 0.46,
+        "current_confidence": 0.96,
+        "current_task_success": false,
+        "minimal_failure_domain_cut": 0,
+        "minimal_support_coalition_size": 0,
+        "reconstruction_coalition_count": 0,
+        "unique_failure_domain_count": 1,
+        "unique_lineage_root_count": 1,
+        "valid_support_coverage": 0.5
+      },
+      "policy_violations": 0,
+      "route": [
+        "node-a",
+        "node-b",
+        "node-c"
+      ],
+      "synthesis": {
+        "answer": null,
+        "confidence": 0.96,
+        "covered_slots": [
+          "left"
+        ],
+        "selected_claim_ids": [
+          "claim_65fb15657eb14270d381"
+        ],
+        "selected_node_ids": [
+          "node-a"
+        ],
+        "success": false
+      }
+    },
+    "after_repair": {
+      "claim_roots": {
+        "claim_6272c59b80b61797f06d": [
+          "R3"
+        ],
+        "claim_65fb15657eb14270d381": [
+          "R1"
+        ]
+      },
+      "exported_bytes": 2134,
+      "exported_claim_count": 2,
+      "metrics": {
+        "apparent_replica_count": 2,
+        "confidence_valid_support_gap": 0.0,
+        "current_confidence": 0.94,
+        "current_task_success": true,
+        "minimal_failure_domain_cut": 1,
+        "minimal_support_coalition_size": 2,
+        "reconstruction_coalition_count": 1,
+        "unique_failure_domain_count": 2,
+        "unique_lineage_root_count": 2,
+        "valid_support_coverage": 1.0
+      },
+      "policy_violations": 0,
+      "route": [
+        "node-a",
+        "node-c",
+        "node-d"
+      ],
+      "synthesis": {
+        "answer": "LX_LR82DIMG18LTH9:RX_MGXZPDCTO2J0T2",
+        "confidence": 0.94,
+        "covered_slots": [
+          "left",
+          "right"
+        ],
+        "selected_claim_ids": [
+          "claim_65fb15657eb14270d381",
+          "claim_6272c59b80b61797f06d"
+        ],
+        "selected_node_ids": [
+          "node-a",
+          "node-d"
+        ],
+        "success": true
+      }
+    },
+    "before_failure": {
+      "claim_roots": {
+        "claim_49fe4a377f23039db8bd": [
+          "R2"
+        ],
+        "claim_65fb15657eb14270d381": [
+          "R1"
+        ],
+        "claim_ea05b03a907713bacc69": [
+          "R2"
+        ]
+      },
+      "exported_bytes": 2682,
+      "exported_claim_count": 3,
+      "metrics": {
+        "apparent_replica_count": 3,
+        "confidence_valid_support_gap": 0.0,
+        "current_confidence": 0.93,
+        "current_task_success": true,
+        "minimal_failure_domain_cut": 1,
+        "minimal_support_coalition_size": 2,
+        "reconstruction_coalition_count": 1,
+        "unique_failure_domain_count": 2,
+        "unique_lineage_root_count": 2,
+        "valid_support_coverage": 1.0
+      },
+      "policy_violations": 0,
+      "route": [
+        "node-a",
+        "node-b",
+        "node-c"
+      ],
+      "synthesis": {
+        "answer": "LX_LR82DIMG18LTH9:RX_MGXZPDCTO2J0T2",
+        "confidence": 0.93,
+        "covered_slots": [
+          "left",
+          "right"
+        ],
+        "selected_claim_ids": [
+          "claim_65fb15657eb14270d381",
+          "claim_49fe4a377f23039db8bd"
+        ],
+        "selected_node_ids": [
+          "node-a",
+          "node-b"
+        ],
+        "success": true
+      }
+    }
+  },
+  "schema_version": "1.0",
+  "seed": 20260813,
+  "strategies": {
+    "lineage_targeted_repair": {
+      "cost": {
+        "phase_query_count": 3,
+        "total_exported_bytes": 6412,
+        "total_exported_claims": 6,
+        "verification_steps": 2
+      },
+      "evaluation": {
+        "observed_failure_threshold": 1,
+        "predicted_failure_domain_threshold": 1,
+        "repair_steps": 2
+      },
+      "fixture": {
+        "expected_answer": "LX_LR82DIMG18LTH9:RX_MGXZPDCTO2J0T2",
+        "node_ids": [
+          "node-a",
+          "node-b",
+          "node-c",
+          "node-d"
+        ],
+        "query": {
+          "authorization": {
+            "allow_redacted": false,
+            "allowed_node_ids": [
+              "node-a",
+              "node-b",
+              "node-c",
+              "node-d"
+            ],
+            "scopes": [
+              "capability:opaque-pair"
+            ]
+          },
+          "budget": {
+            "max_claims": 8,
+            "max_nodes": 3,
+            "max_verifications": 2
+          },
+          "content": "Reconstruct the two-part capability identified by QX_75FAXB1KECD5N2",
+          "issued_at": "2025-01-01T12:00:13Z",
+          "query_id": "query_20260813",
+          "requested_capability": "opaque_pair_reconstruction",
+          "requester_id": "experiment-controller",
+          "valid_at": "2025-01-01T12:00:13Z"
+        },
+        "structural_expectations": {
+          "node-a": {
+            "failure_domain": "FD1",
+            "root": "R1",
+            "slot": "left"
+          },
+          "node-b": {
+            "failure_domain": "FD2",
+            "root": "R2",
+            "slot": "right"
+          },
+          "node-c": {
+            "failure_domain": "FD2",
+            "root": "R2",
+            "slot": "right"
+          },
+          "node-d": {
+            "failure_domain": "FD3",
+            "root": "R3",
+            "slot": "right"
+          }
+        }
+      },
+      "manifest": {
+        "budget": {
+          "max_claims": 8,
+          "max_nodes": 3,
+          "max_verifications": 2
+        },
+        "code_version": null,
+        "fixture_version": "collective-capability-v1",
+        "interventions": [
+          {
+            "ended_at": null,
+            "expected_effect": "invalidate node-b and correlated node-c evidence",
+            "intervention_id": "intervention_001",
+            "random_seed": 20260813,
+            "reason": "controlled removal of shared critical support",
+            "run_id": "run_20260813_lineage_targeted_repair",
+            "started_at": "2025-01-01T12:00:13.021000Z",
+            "target_id": "R2",
+            "target_type": "lineage_root"
+          }
+        ],
+        "run_id": "run_20260813_lineage_targeted_repair",
+        "seed": 20260813,
+        "started_at": "2025-01-01T12:00:13Z",
+        "strategy": "lineage_targeted_repair"
+      },
+      "phases": {
+        "after_failure": {
+          "claim_roots": {
+            "claim_65fb15657eb14270d381": [
+              "R1"
+            ]
+          },
+          "exported_bytes": 1596,
+          "exported_claim_count": 1,
+          "metrics": {
+            "apparent_replica_count": 1,
+            "confidence_valid_support_gap": 0.46,
+            "current_confidence": 0.96,
+            "current_task_success": false,
+            "minimal_failure_domain_cut": 0,
+            "minimal_support_coalition_size": 0,
+            "reconstruction_coalition_count": 0,
+            "unique_failure_domain_count": 1,
+            "unique_lineage_root_count": 1,
+            "valid_support_coverage": 0.5
+          },
+          "policy_violations": 0,
+          "route": [
+            "node-a",
+            "node-b",
+            "node-c"
+          ],
+          "synthesis": {
+            "answer": null,
+            "confidence": 0.96,
+            "covered_slots": [
+              "left"
+            ],
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381"
+            ],
+            "selected_node_ids": [
+              "node-a"
+            ],
+            "success": false
+          }
+        },
+        "after_repair": {
+          "claim_roots": {
+            "claim_6272c59b80b61797f06d": [
+              "R3"
+            ],
+            "claim_65fb15657eb14270d381": [
+              "R1"
+            ]
+          },
+          "exported_bytes": 2134,
+          "exported_claim_count": 2,
+          "metrics": {
+            "apparent_replica_count": 2,
+            "confidence_valid_support_gap": 0.0,
+            "current_confidence": 0.94,
+            "current_task_success": true,
+            "minimal_failure_domain_cut": 1,
+            "minimal_support_coalition_size": 2,
+            "reconstruction_coalition_count": 1,
+            "unique_failure_domain_count": 2,
+            "unique_lineage_root_count": 2,
+            "valid_support_coverage": 1.0
+          },
+          "policy_violations": 0,
+          "route": [
+            "node-a",
+            "node-c",
+            "node-d"
+          ],
+          "synthesis": {
+            "answer": "LX_LR82DIMG18LTH9:RX_MGXZPDCTO2J0T2",
+            "confidence": 0.94,
+            "covered_slots": [
+              "left",
+              "right"
+            ],
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381",
+              "claim_6272c59b80b61797f06d"
+            ],
+            "selected_node_ids": [
+              "node-a",
+              "node-d"
+            ],
+            "success": true
+          }
+        },
+        "before_failure": {
+          "claim_roots": {
+            "claim_49fe4a377f23039db8bd": [
+              "R2"
+            ],
+            "claim_65fb15657eb14270d381": [
+              "R1"
+            ],
+            "claim_ea05b03a907713bacc69": [
+              "R2"
+            ]
+          },
+          "exported_bytes": 2682,
+          "exported_claim_count": 3,
+          "metrics": {
+            "apparent_replica_count": 3,
+            "confidence_valid_support_gap": 0.0,
+            "current_confidence": 0.93,
+            "current_task_success": true,
+            "minimal_failure_domain_cut": 1,
+            "minimal_support_coalition_size": 2,
+            "reconstruction_coalition_count": 1,
+            "unique_failure_domain_count": 2,
+            "unique_lineage_root_count": 2,
+            "valid_support_coverage": 1.0
+          },
+          "policy_violations": 0,
+          "route": [
+            "node-a",
+            "node-b",
+            "node-c"
+          ],
+          "synthesis": {
+            "answer": "LX_LR82DIMG18LTH9:RX_MGXZPDCTO2J0T2",
+            "confidence": 0.93,
+            "covered_slots": [
+              "left",
+              "right"
+            ],
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381",
+              "claim_49fe4a377f23039db8bd"
+            ],
+            "selected_node_ids": [
+              "node-a",
+              "node-b"
+            ],
+            "success": true
+          }
+        }
+      },
+      "privacy_assertions": {
+        "answer_absent_from_query": true,
+        "answer_symbols_absent_from_distractors": true,
+        "complete_answer_absent_from_every_memory": true,
+        "no_policy_violations": true,
+        "nodes_have_separate_record_collections": true,
+        "only_claim_contracts_exported": true
+      },
+      "repair": {
+        "reason": "independent support selected",
+        "selected_node_id": "node-d",
+        "steps": 2,
+        "verification_results": [
+          {
+            "failure_domains": [
+              "FD2"
+            ],
+            "lineage_root_ids": [
+              "R2"
+            ],
+            "node_id": "node-c",
+            "reason": "correlated support",
+            "supported_slots": [],
+            "valid": false,
+            "verification_id": "verification_query_20260813_01"
+          },
+          {
+            "failure_domains": [
+              "FD3"
+            ],
+            "lineage_root_ids": [
+              "R3"
+            ],
+            "node_id": "node-d",
+            "reason": "independent support available",
+            "supported_slots": [
+              "right"
+            ],
+            "valid": true,
+            "verification_id": "verification_query_20260813_02"
+          }
+        ]
+      },
+      "trace_events": [
+        {
+          "details": {
+            "phase": "before_failure",
+            "query_id": "query_20260813"
+          },
+          "event_id": "event_0001",
+          "event_type": "query_received",
+          "occurred_at": "2025-01-01T12:00:13.001000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 1,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "node_ids": [
+              "node-a",
+              "node-b",
+              "node-c"
+            ],
+            "phase": "before_failure"
+          },
+          "event_id": "event_0002",
+          "event_type": "route_selected",
+          "occurred_at": "2025-01-01T12:00:13.002000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 2,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "local_trace_id": "trace_e14ae0bdcba536da990c",
+            "node_id": "node-a",
+            "policy_status": "allowed",
+            "retrieval_operator": "mock_exact_lookup"
+          },
+          "event_id": "event_0003",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.006000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 3,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "claim_id": "claim_65fb15657eb14270d381",
+            "failure_domains": [
+              "FD1"
+            ],
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "node_id": "node-a"
+          },
+          "event_id": "event_0004",
+          "event_type": "evidence_exported",
+          "occurred_at": "2025-01-01T12:00:13.007000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 4,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [
+              "R2"
+            ],
+            "local_trace_id": "trace_ddaa4819993c8893e471",
+            "node_id": "node-b",
+            "policy_status": "allowed",
+            "retrieval_operator": "mock_exact_lookup"
+          },
+          "event_id": "event_0005",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.011000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 5,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "claim_id": "claim_49fe4a377f23039db8bd",
+            "failure_domains": [
+              "FD2"
+            ],
+            "lineage_root_ids": [
+              "R2"
+            ],
+            "node_id": "node-b"
+          },
+          "event_id": "event_0006",
+          "event_type": "evidence_exported",
+          "occurred_at": "2025-01-01T12:00:13.012000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 6,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [
+              "R2"
+            ],
+            "local_trace_id": "trace_262f82d20dbd2c60fd4b",
+            "node_id": "node-c",
+            "policy_status": "allowed",
+            "retrieval_operator": "mock_exact_lookup"
+          },
+          "event_id": "event_0007",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.016000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 7,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "claim_id": "claim_ea05b03a907713bacc69",
+            "failure_domains": [
+              "FD2"
+            ],
+            "lineage_root_ids": [
+              "R2"
+            ],
+            "node_id": "node-c"
+          },
+          "event_id": "event_0008",
+          "event_type": "evidence_exported",
+          "occurred_at": "2025-01-01T12:00:13.017000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 8,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381",
+              "claim_49fe4a377f23039db8bd"
+            ],
+            "selected_node_ids": [
+              "node-a",
+              "node-b"
+            ],
+            "success": true
+          },
+          "event_id": "event_0009",
+          "event_type": "claim_synthesized",
+          "occurred_at": "2025-01-01T12:00:13.018000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 9,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "metrics": {
+              "apparent_replica_count": 3,
+              "confidence_valid_support_gap": 0.0,
+              "current_confidence": 0.93,
+              "current_task_success": true,
+              "minimal_failure_domain_cut": 1,
+              "minimal_support_coalition_size": 2,
+              "reconstruction_coalition_count": 1,
+              "unique_failure_domain_count": 2,
+              "unique_lineage_root_count": 2,
+              "valid_support_coverage": 1.0
+            }
+          },
+          "event_id": "event_0010",
+          "event_type": "fragility_scored",
+          "occurred_at": "2025-01-01T12:00:13.019000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 10,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "confidence": 0.93,
+            "phase": "before_failure",
+            "success": true
+          },
+          "event_id": "event_0011",
+          "event_type": "capability_evaluated",
+          "occurred_at": "2025-01-01T12:00:13.020000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 11,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "expected_effect": "invalidate node-b and correlated node-c evidence",
+            "intervention_id": "intervention_001",
+            "reason": "controlled removal of shared critical support",
+            "target_id": "R2",
+            "target_type": "lineage_root"
+          },
+          "event_id": "event_0012",
+          "event_type": "failure_injected",
+          "occurred_at": "2025-01-01T12:00:13.022000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 12,
+          "trace_id": "intervention_001"
+        },
+        {
+          "details": {
+            "phase": "after_failure",
+            "query_id": "query_20260813"
+          },
+          "event_id": "event_0013",
+          "event_type": "query_received",
+          "occurred_at": "2025-01-01T12:00:13.023000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 13,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "node_ids": [
+              "node-a",
+              "node-b",
+              "node-c"
+            ],
+            "phase": "after_failure"
+          },
+          "event_id": "event_0014",
+          "event_type": "route_selected",
+          "occurred_at": "2025-01-01T12:00:13.024000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 14,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "local_trace_id": "trace_e14ae0bdcba536da990c",
+            "node_id": "node-a",
+            "policy_status": "allowed",
+            "retrieval_operator": "mock_exact_lookup"
+          },
+          "event_id": "event_0015",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.028000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 15,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "claim_id": "claim_65fb15657eb14270d381",
+            "failure_domains": [
+              "FD1"
+            ],
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "node_id": "node-a"
+          },
+          "event_id": "event_0016",
+          "event_type": "evidence_exported",
+          "occurred_at": "2025-01-01T12:00:13.029000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 16,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [],
+            "local_trace_id": "trace_ddaa4819993c8893e471",
+            "node_id": "node-b",
+            "policy_status": "denied",
+            "retrieval_operator": "policy_filter"
+          },
+          "event_id": "event_0017",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.032000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 17,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "node_id": "node-b",
+            "policy_status": "denied"
+          },
+          "event_id": "event_0018",
+          "event_type": "policy_block",
+          "occurred_at": "2025-01-01T12:00:13.033000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 18,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [],
+            "local_trace_id": "trace_262f82d20dbd2c60fd4b",
+            "node_id": "node-c",
+            "policy_status": "denied",
+            "retrieval_operator": "policy_filter"
+          },
+          "event_id": "event_0019",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.036000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 19,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "node_id": "node-c",
+            "policy_status": "denied"
+          },
+          "event_id": "event_0020",
+          "event_type": "policy_block",
+          "occurred_at": "2025-01-01T12:00:13.037000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 20,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381"
+            ],
+            "selected_node_ids": [
+              "node-a"
+            ],
+            "success": false
+          },
+          "event_id": "event_0021",
+          "event_type": "claim_synthesized",
+          "occurred_at": "2025-01-01T12:00:13.038000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 21,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "metrics": {
+              "apparent_replica_count": 1,
+              "confidence_valid_support_gap": 0.46,
+              "current_confidence": 0.96,
+              "current_task_success": false,
+              "minimal_failure_domain_cut": 0,
+              "minimal_support_coalition_size": 0,
+              "reconstruction_coalition_count": 0,
+              "unique_failure_domain_count": 1,
+              "unique_lineage_root_count": 1,
+              "valid_support_coverage": 0.5
+            }
+          },
+          "event_id": "event_0022",
+          "event_type": "fragility_scored",
+          "occurred_at": "2025-01-01T12:00:13.039000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 22,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "confidence": 0.96,
+            "phase": "after_failure",
+            "success": false
+          },
+          "event_id": "event_0023",
+          "event_type": "capability_evaluated",
+          "occurred_at": "2025-01-01T12:00:13.040000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 23,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "candidate_node_ids": [
+              "node-c",
+              "node-d"
+            ],
+            "excluded_failure_domains": [
+              "FD1",
+              "FD2"
+            ],
+            "excluded_roots": [
+              "R1",
+              "R2"
+            ],
+            "missing_slots": [
+              "right"
+            ]
+          },
+          "event_id": "event_0024",
+          "event_type": "repair_requested",
+          "occurred_at": "2025-01-01T12:00:13.041000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 24,
+          "trace_id": "repair_query_20260813"
+        },
+        {
+          "details": {
+            "node_id": "node-c",
+            "verification_id": "verification_query_20260813_01"
+          },
+          "event_id": "event_0025",
+          "event_type": "verification_requested",
+          "occurred_at": "2025-01-01T12:00:13.042000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 25,
+          "trace_id": "repair_query_20260813"
+        },
+        {
+          "details": {
+            "result": {
+              "failure_domains": [
+                "FD2"
+              ],
+              "lineage_root_ids": [
+                "R2"
+              ],
+              "node_id": "node-c",
+              "reason": "correlated support",
+              "supported_slots": [],
+              "valid": false,
+              "verification_id": "verification_query_20260813_01"
+            }
+          },
+          "event_id": "event_0026",
+          "event_type": "verification_result",
+          "occurred_at": "2025-01-01T12:00:13.043000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 26,
+          "trace_id": "repair_query_20260813"
+        },
+        {
+          "details": {
+            "node_id": "node-d",
+            "verification_id": "verification_query_20260813_02"
+          },
+          "event_id": "event_0027",
+          "event_type": "verification_requested",
+          "occurred_at": "2025-01-01T12:00:13.044000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 27,
+          "trace_id": "repair_query_20260813"
+        },
+        {
+          "details": {
+            "result": {
+              "failure_domains": [
+                "FD3"
+              ],
+              "lineage_root_ids": [
+                "R3"
+              ],
+              "node_id": "node-d",
+              "reason": "independent support available",
+              "supported_slots": [
+                "right"
+              ],
+              "valid": true,
+              "verification_id": "verification_query_20260813_02"
+            }
+          },
+          "event_id": "event_0028",
+          "event_type": "verification_result",
+          "occurred_at": "2025-01-01T12:00:13.045000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 28,
+          "trace_id": "repair_query_20260813"
+        },
+        {
+          "details": {
+            "reason": "independent support selected",
+            "selected_node_id": "node-d",
+            "steps": 2
+          },
+          "event_id": "event_0029",
+          "event_type": "repair_completed",
+          "occurred_at": "2025-01-01T12:00:13.046000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 29,
+          "trace_id": "repair_query_20260813"
+        },
+        {
+          "details": {
+            "phase": "after_independent_repair",
+            "query_id": "query_20260813"
+          },
+          "event_id": "event_0030",
+          "event_type": "query_received",
+          "occurred_at": "2025-01-01T12:00:13.047000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 30,
+          "trace_id": "query_trace_query_20260813_after_independent_repair"
+        },
+        {
+          "details": {
+            "node_ids": [
+              "node-a",
+              "node-c",
+              "node-d"
+            ],
+            "phase": "after_independent_repair"
+          },
+          "event_id": "event_0031",
+          "event_type": "route_selected",
+          "occurred_at": "2025-01-01T12:00:13.048000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 31,
+          "trace_id": "query_trace_query_20260813_after_independent_repair"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "local_trace_id": "trace_e14ae0bdcba536da990c",
+            "node_id": "node-a",
+            "policy_status": "allowed",
+            "retrieval_operator": "mock_exact_lookup"
+          },
+          "event_id": "event_0032",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.052000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 32,
+          "trace_id": "query_trace_query_20260813_after_independent_repair"
+        },
+        {
+          "details": {
+            "claim_id": "claim_65fb15657eb14270d381",
+            "failure_domains": [
+              "FD1"
+            ],
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "node_id": "node-a"
+          },
+          "event_id": "event_0033",
+          "event_type": "evidence_exported",
+          "occurred_at": "2025-01-01T12:00:13.053000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 33,
+          "trace_id": "query_trace_query_20260813_after_independent_repair"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [],
+            "local_trace_id": "trace_262f82d20dbd2c60fd4b",
+            "node_id": "node-c",
+            "policy_status": "denied",
+            "retrieval_operator": "policy_filter"
+          },
+          "event_id": "event_0034",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.056000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 34,
+          "trace_id": "query_trace_query_20260813_after_independent_repair"
+        },
+        {
+          "details": {
+            "node_id": "node-c",
+            "policy_status": "denied"
+          },
+          "event_id": "event_0035",
+          "event_type": "policy_block",
+          "occurred_at": "2025-01-01T12:00:13.057000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 35,
+          "trace_id": "query_trace_query_20260813_after_independent_repair"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [
+              "R3"
+            ],
+            "local_trace_id": "trace_b36c1b65ccebdab878b8",
+            "node_id": "node-d",
+            "policy_status": "allowed",
+            "retrieval_operator": "mock_exact_lookup"
+          },
+          "event_id": "event_0036",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.061000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 36,
+          "trace_id": "query_trace_query_20260813_after_independent_repair"
+        },
+        {
+          "details": {
+            "claim_id": "claim_6272c59b80b61797f06d",
+            "failure_domains": [
+              "FD3"
+            ],
+            "lineage_root_ids": [
+              "R3"
+            ],
+            "node_id": "node-d"
+          },
+          "event_id": "event_0037",
+          "event_type": "evidence_exported",
+          "occurred_at": "2025-01-01T12:00:13.062000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 37,
+          "trace_id": "query_trace_query_20260813_after_independent_repair"
+        },
+        {
+          "details": {
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381",
+              "claim_6272c59b80b61797f06d"
+            ],
+            "selected_node_ids": [
+              "node-a",
+              "node-d"
+            ],
+            "success": true
+          },
+          "event_id": "event_0038",
+          "event_type": "claim_synthesized",
+          "occurred_at": "2025-01-01T12:00:13.063000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 38,
+          "trace_id": "query_trace_query_20260813_after_independent_repair"
+        },
+        {
+          "details": {
+            "metrics": {
+              "apparent_replica_count": 2,
+              "confidence_valid_support_gap": 0.0,
+              "current_confidence": 0.94,
+              "current_task_success": true,
+              "minimal_failure_domain_cut": 1,
+              "minimal_support_coalition_size": 2,
+              "reconstruction_coalition_count": 1,
+              "unique_failure_domain_count": 2,
+              "unique_lineage_root_count": 2,
+              "valid_support_coverage": 1.0
+            }
+          },
+          "event_id": "event_0039",
+          "event_type": "fragility_scored",
+          "occurred_at": "2025-01-01T12:00:13.064000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 39,
+          "trace_id": "query_trace_query_20260813_after_independent_repair"
+        },
+        {
+          "details": {
+            "confidence": 0.94,
+            "phase": "after_independent_repair",
+            "success": true
+          },
+          "event_id": "event_0040",
+          "event_type": "capability_evaluated",
+          "occurred_at": "2025-01-01T12:00:13.065000Z",
+          "run_id": "run_20260813_lineage_targeted_repair",
+          "schema_version": "1.0",
+          "sequence": 40,
+          "trace_id": "query_trace_query_20260813_after_independent_repair"
+        }
+      ]
+    },
+    "lineage_without_repair": {
+      "cost": {
+        "phase_query_count": 2,
+        "total_exported_bytes": 4278,
+        "total_exported_claims": 4,
+        "verification_steps": 0
+      },
+      "evaluation": {
+        "observed_failure_threshold": 1,
+        "predicted_failure_domain_threshold": 1,
+        "repair_steps": 0
+      },
+      "fixture": {
+        "expected_answer": "LX_LR82DIMG18LTH9:RX_MGXZPDCTO2J0T2",
+        "node_ids": [
+          "node-a",
+          "node-b",
+          "node-c",
+          "node-d"
+        ],
+        "query": {
+          "authorization": {
+            "allow_redacted": false,
+            "allowed_node_ids": [
+              "node-a",
+              "node-b",
+              "node-c",
+              "node-d"
+            ],
+            "scopes": [
+              "capability:opaque-pair"
+            ]
+          },
+          "budget": {
+            "max_claims": 8,
+            "max_nodes": 3,
+            "max_verifications": 2
+          },
+          "content": "Reconstruct the two-part capability identified by QX_75FAXB1KECD5N2",
+          "issued_at": "2025-01-01T12:00:13Z",
+          "query_id": "query_20260813",
+          "requested_capability": "opaque_pair_reconstruction",
+          "requester_id": "experiment-controller",
+          "valid_at": "2025-01-01T12:00:13Z"
+        },
+        "structural_expectations": {
+          "node-a": {
+            "failure_domain": "FD1",
+            "root": "R1",
+            "slot": "left"
+          },
+          "node-b": {
+            "failure_domain": "FD2",
+            "root": "R2",
+            "slot": "right"
+          },
+          "node-c": {
+            "failure_domain": "FD2",
+            "root": "R2",
+            "slot": "right"
+          },
+          "node-d": {
+            "failure_domain": "FD3",
+            "root": "R3",
+            "slot": "right"
+          }
+        }
+      },
+      "manifest": {
+        "budget": {
+          "max_claims": 8,
+          "max_nodes": 3,
+          "max_verifications": 2
+        },
+        "code_version": null,
+        "fixture_version": "collective-capability-v1",
+        "interventions": [
+          {
+            "ended_at": null,
+            "expected_effect": "invalidate node-b and correlated node-c evidence",
+            "intervention_id": "intervention_001",
+            "random_seed": 20260813,
+            "reason": "controlled removal of shared critical support",
+            "run_id": "run_20260813_lineage_without_repair",
+            "started_at": "2025-01-01T12:00:13.021000Z",
+            "target_id": "R2",
+            "target_type": "lineage_root"
+          }
+        ],
+        "run_id": "run_20260813_lineage_without_repair",
+        "seed": 20260813,
+        "started_at": "2025-01-01T12:00:13Z",
+        "strategy": "lineage_without_repair"
+      },
+      "phases": {
+        "after_failure": {
+          "claim_roots": {
+            "claim_65fb15657eb14270d381": [
+              "R1"
+            ]
+          },
+          "exported_bytes": 1596,
+          "exported_claim_count": 1,
+          "metrics": {
+            "apparent_replica_count": 1,
+            "confidence_valid_support_gap": 0.46,
+            "current_confidence": 0.96,
+            "current_task_success": false,
+            "minimal_failure_domain_cut": 0,
+            "minimal_support_coalition_size": 0,
+            "reconstruction_coalition_count": 0,
+            "unique_failure_domain_count": 1,
+            "unique_lineage_root_count": 1,
+            "valid_support_coverage": 0.5
+          },
+          "policy_violations": 0,
+          "route": [
+            "node-a",
+            "node-b",
+            "node-c"
+          ],
+          "synthesis": {
+            "answer": null,
+            "confidence": 0.96,
+            "covered_slots": [
+              "left"
+            ],
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381"
+            ],
+            "selected_node_ids": [
+              "node-a"
+            ],
+            "success": false
+          }
+        },
+        "after_repair": {
+          "claim_roots": {
+            "claim_65fb15657eb14270d381": [
+              "R1"
+            ]
+          },
+          "exported_bytes": 1596,
+          "exported_claim_count": 1,
+          "metrics": {
+            "apparent_replica_count": 1,
+            "confidence_valid_support_gap": 0.46,
+            "current_confidence": 0.96,
+            "current_task_success": false,
+            "minimal_failure_domain_cut": 0,
+            "minimal_support_coalition_size": 0,
+            "reconstruction_coalition_count": 0,
+            "unique_failure_domain_count": 1,
+            "unique_lineage_root_count": 1,
+            "valid_support_coverage": 0.5
+          },
+          "policy_violations": 0,
+          "route": [
+            "node-a",
+            "node-b",
+            "node-c"
+          ],
+          "synthesis": {
+            "answer": null,
+            "confidence": 0.96,
+            "covered_slots": [
+              "left"
+            ],
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381"
+            ],
+            "selected_node_ids": [
+              "node-a"
+            ],
+            "success": false
+          }
+        },
+        "before_failure": {
+          "claim_roots": {
+            "claim_49fe4a377f23039db8bd": [
+              "R2"
+            ],
+            "claim_65fb15657eb14270d381": [
+              "R1"
+            ],
+            "claim_ea05b03a907713bacc69": [
+              "R2"
+            ]
+          },
+          "exported_bytes": 2682,
+          "exported_claim_count": 3,
+          "metrics": {
+            "apparent_replica_count": 3,
+            "confidence_valid_support_gap": 0.0,
+            "current_confidence": 0.93,
+            "current_task_success": true,
+            "minimal_failure_domain_cut": 1,
+            "minimal_support_coalition_size": 2,
+            "reconstruction_coalition_count": 1,
+            "unique_failure_domain_count": 2,
+            "unique_lineage_root_count": 2,
+            "valid_support_coverage": 1.0
+          },
+          "policy_violations": 0,
+          "route": [
+            "node-a",
+            "node-b",
+            "node-c"
+          ],
+          "synthesis": {
+            "answer": "LX_LR82DIMG18LTH9:RX_MGXZPDCTO2J0T2",
+            "confidence": 0.93,
+            "covered_slots": [
+              "left",
+              "right"
+            ],
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381",
+              "claim_49fe4a377f23039db8bd"
+            ],
+            "selected_node_ids": [
+              "node-a",
+              "node-b"
+            ],
+            "success": true
+          }
+        }
+      },
+      "privacy_assertions": {
+        "answer_absent_from_query": true,
+        "answer_symbols_absent_from_distractors": true,
+        "complete_answer_absent_from_every_memory": true,
+        "no_policy_violations": true,
+        "nodes_have_separate_record_collections": true,
+        "only_claim_contracts_exported": true
+      },
+      "repair": null,
+      "trace_events": [
+        {
+          "details": {
+            "phase": "before_failure",
+            "query_id": "query_20260813"
+          },
+          "event_id": "event_0001",
+          "event_type": "query_received",
+          "occurred_at": "2025-01-01T12:00:13.001000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 1,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "node_ids": [
+              "node-a",
+              "node-b",
+              "node-c"
+            ],
+            "phase": "before_failure"
+          },
+          "event_id": "event_0002",
+          "event_type": "route_selected",
+          "occurred_at": "2025-01-01T12:00:13.002000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 2,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "local_trace_id": "trace_e14ae0bdcba536da990c",
+            "node_id": "node-a",
+            "policy_status": "allowed",
+            "retrieval_operator": "mock_exact_lookup"
+          },
+          "event_id": "event_0003",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.006000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 3,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "claim_id": "claim_65fb15657eb14270d381",
+            "failure_domains": [
+              "FD1"
+            ],
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "node_id": "node-a"
+          },
+          "event_id": "event_0004",
+          "event_type": "evidence_exported",
+          "occurred_at": "2025-01-01T12:00:13.007000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 4,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [
+              "R2"
+            ],
+            "local_trace_id": "trace_ddaa4819993c8893e471",
+            "node_id": "node-b",
+            "policy_status": "allowed",
+            "retrieval_operator": "mock_exact_lookup"
+          },
+          "event_id": "event_0005",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.011000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 5,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "claim_id": "claim_49fe4a377f23039db8bd",
+            "failure_domains": [
+              "FD2"
+            ],
+            "lineage_root_ids": [
+              "R2"
+            ],
+            "node_id": "node-b"
+          },
+          "event_id": "event_0006",
+          "event_type": "evidence_exported",
+          "occurred_at": "2025-01-01T12:00:13.012000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 6,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [
+              "R2"
+            ],
+            "local_trace_id": "trace_262f82d20dbd2c60fd4b",
+            "node_id": "node-c",
+            "policy_status": "allowed",
+            "retrieval_operator": "mock_exact_lookup"
+          },
+          "event_id": "event_0007",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.016000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 7,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "claim_id": "claim_ea05b03a907713bacc69",
+            "failure_domains": [
+              "FD2"
+            ],
+            "lineage_root_ids": [
+              "R2"
+            ],
+            "node_id": "node-c"
+          },
+          "event_id": "event_0008",
+          "event_type": "evidence_exported",
+          "occurred_at": "2025-01-01T12:00:13.017000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 8,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381",
+              "claim_49fe4a377f23039db8bd"
+            ],
+            "selected_node_ids": [
+              "node-a",
+              "node-b"
+            ],
+            "success": true
+          },
+          "event_id": "event_0009",
+          "event_type": "claim_synthesized",
+          "occurred_at": "2025-01-01T12:00:13.018000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 9,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "metrics": {
+              "apparent_replica_count": 3,
+              "confidence_valid_support_gap": 0.0,
+              "current_confidence": 0.93,
+              "current_task_success": true,
+              "minimal_failure_domain_cut": 1,
+              "minimal_support_coalition_size": 2,
+              "reconstruction_coalition_count": 1,
+              "unique_failure_domain_count": 2,
+              "unique_lineage_root_count": 2,
+              "valid_support_coverage": 1.0
+            }
+          },
+          "event_id": "event_0010",
+          "event_type": "fragility_scored",
+          "occurred_at": "2025-01-01T12:00:13.019000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 10,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "confidence": 0.93,
+            "phase": "before_failure",
+            "success": true
+          },
+          "event_id": "event_0011",
+          "event_type": "capability_evaluated",
+          "occurred_at": "2025-01-01T12:00:13.020000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 11,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "expected_effect": "invalidate node-b and correlated node-c evidence",
+            "intervention_id": "intervention_001",
+            "reason": "controlled removal of shared critical support",
+            "target_id": "R2",
+            "target_type": "lineage_root"
+          },
+          "event_id": "event_0012",
+          "event_type": "failure_injected",
+          "occurred_at": "2025-01-01T12:00:13.022000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 12,
+          "trace_id": "intervention_001"
+        },
+        {
+          "details": {
+            "phase": "after_failure",
+            "query_id": "query_20260813"
+          },
+          "event_id": "event_0013",
+          "event_type": "query_received",
+          "occurred_at": "2025-01-01T12:00:13.023000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 13,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "node_ids": [
+              "node-a",
+              "node-b",
+              "node-c"
+            ],
+            "phase": "after_failure"
+          },
+          "event_id": "event_0014",
+          "event_type": "route_selected",
+          "occurred_at": "2025-01-01T12:00:13.024000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 14,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "local_trace_id": "trace_e14ae0bdcba536da990c",
+            "node_id": "node-a",
+            "policy_status": "allowed",
+            "retrieval_operator": "mock_exact_lookup"
+          },
+          "event_id": "event_0015",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.028000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 15,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "claim_id": "claim_65fb15657eb14270d381",
+            "failure_domains": [
+              "FD1"
+            ],
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "node_id": "node-a"
+          },
+          "event_id": "event_0016",
+          "event_type": "evidence_exported",
+          "occurred_at": "2025-01-01T12:00:13.029000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 16,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [],
+            "local_trace_id": "trace_ddaa4819993c8893e471",
+            "node_id": "node-b",
+            "policy_status": "denied",
+            "retrieval_operator": "policy_filter"
+          },
+          "event_id": "event_0017",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.032000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 17,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "node_id": "node-b",
+            "policy_status": "denied"
+          },
+          "event_id": "event_0018",
+          "event_type": "policy_block",
+          "occurred_at": "2025-01-01T12:00:13.033000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 18,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [],
+            "local_trace_id": "trace_262f82d20dbd2c60fd4b",
+            "node_id": "node-c",
+            "policy_status": "denied",
+            "retrieval_operator": "policy_filter"
+          },
+          "event_id": "event_0019",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.036000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 19,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "node_id": "node-c",
+            "policy_status": "denied"
+          },
+          "event_id": "event_0020",
+          "event_type": "policy_block",
+          "occurred_at": "2025-01-01T12:00:13.037000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 20,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381"
+            ],
+            "selected_node_ids": [
+              "node-a"
+            ],
+            "success": false
+          },
+          "event_id": "event_0021",
+          "event_type": "claim_synthesized",
+          "occurred_at": "2025-01-01T12:00:13.038000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 21,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "metrics": {
+              "apparent_replica_count": 1,
+              "confidence_valid_support_gap": 0.46,
+              "current_confidence": 0.96,
+              "current_task_success": false,
+              "minimal_failure_domain_cut": 0,
+              "minimal_support_coalition_size": 0,
+              "reconstruction_coalition_count": 0,
+              "unique_failure_domain_count": 1,
+              "unique_lineage_root_count": 1,
+              "valid_support_coverage": 0.5
+            }
+          },
+          "event_id": "event_0022",
+          "event_type": "fragility_scored",
+          "occurred_at": "2025-01-01T12:00:13.039000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 22,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "confidence": 0.96,
+            "phase": "after_failure",
+            "success": false
+          },
+          "event_id": "event_0023",
+          "event_type": "capability_evaluated",
+          "occurred_at": "2025-01-01T12:00:13.040000Z",
+          "run_id": "run_20260813_lineage_without_repair",
+          "schema_version": "1.0",
+          "sequence": 23,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        }
+      ]
+    },
+    "replica_count": {
+      "cost": {
+        "phase_query_count": 3,
+        "total_exported_bytes": 5874,
+        "total_exported_claims": 5,
+        "verification_steps": 2
+      },
+      "evaluation": {
+        "observed_failure_threshold": 1,
+        "predicted_failure_domain_threshold": 1,
+        "repair_steps": 2
+      },
+      "fixture": {
+        "expected_answer": "LX_LR82DIMG18LTH9:RX_MGXZPDCTO2J0T2",
+        "node_ids": [
+          "node-a",
+          "node-b",
+          "node-c",
+          "node-d"
+        ],
+        "query": {
+          "authorization": {
+            "allow_redacted": false,
+            "allowed_node_ids": [
+              "node-a",
+              "node-b",
+              "node-c",
+              "node-d"
+            ],
+            "scopes": [
+              "capability:opaque-pair"
+            ]
+          },
+          "budget": {
+            "max_claims": 8,
+            "max_nodes": 3,
+            "max_verifications": 2
+          },
+          "content": "Reconstruct the two-part capability identified by QX_75FAXB1KECD5N2",
+          "issued_at": "2025-01-01T12:00:13Z",
+          "query_id": "query_20260813",
+          "requested_capability": "opaque_pair_reconstruction",
+          "requester_id": "experiment-controller",
+          "valid_at": "2025-01-01T12:00:13Z"
+        },
+        "structural_expectations": {
+          "node-a": {
+            "failure_domain": "FD1",
+            "root": "R1",
+            "slot": "left"
+          },
+          "node-b": {
+            "failure_domain": "FD2",
+            "root": "R2",
+            "slot": "right"
+          },
+          "node-c": {
+            "failure_domain": "FD2",
+            "root": "R2",
+            "slot": "right"
+          },
+          "node-d": {
+            "failure_domain": "FD3",
+            "root": "R3",
+            "slot": "right"
+          }
+        }
+      },
+      "manifest": {
+        "budget": {
+          "max_claims": 8,
+          "max_nodes": 3,
+          "max_verifications": 2
+        },
+        "code_version": null,
+        "fixture_version": "collective-capability-v1",
+        "interventions": [
+          {
+            "ended_at": null,
+            "expected_effect": "invalidate node-b and correlated node-c evidence",
+            "intervention_id": "intervention_001",
+            "random_seed": 20260813,
+            "reason": "controlled removal of shared critical support",
+            "run_id": "run_20260813_replica_count",
+            "started_at": "2025-01-01T12:00:13.021000Z",
+            "target_id": "R2",
+            "target_type": "lineage_root"
+          }
+        ],
+        "run_id": "run_20260813_replica_count",
+        "seed": 20260813,
+        "started_at": "2025-01-01T12:00:13Z",
+        "strategy": "replica_count"
+      },
+      "phases": {
+        "after_failure": {
+          "claim_roots": {
+            "claim_65fb15657eb14270d381": [
+              "R1"
+            ]
+          },
+          "exported_bytes": 1596,
+          "exported_claim_count": 1,
+          "metrics": {
+            "apparent_replica_count": 1,
+            "confidence_valid_support_gap": 0.46,
+            "current_confidence": 0.96,
+            "current_task_success": false,
+            "minimal_failure_domain_cut": 0,
+            "minimal_support_coalition_size": 0,
+            "reconstruction_coalition_count": 0,
+            "unique_failure_domain_count": 1,
+            "unique_lineage_root_count": 1,
+            "valid_support_coverage": 0.5
+          },
+          "policy_violations": 0,
+          "route": [
+            "node-a",
+            "node-b",
+            "node-c"
+          ],
+          "synthesis": {
+            "answer": null,
+            "confidence": 0.96,
+            "covered_slots": [
+              "left"
+            ],
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381"
+            ],
+            "selected_node_ids": [
+              "node-a"
+            ],
+            "success": false
+          }
+        },
+        "after_repair": {
+          "claim_roots": {
+            "claim_65fb15657eb14270d381": [
+              "R1"
+            ]
+          },
+          "exported_bytes": 1596,
+          "exported_claim_count": 1,
+          "metrics": {
+            "apparent_replica_count": 1,
+            "confidence_valid_support_gap": 0.46,
+            "current_confidence": 0.96,
+            "current_task_success": false,
+            "minimal_failure_domain_cut": 0,
+            "minimal_support_coalition_size": 0,
+            "reconstruction_coalition_count": 0,
+            "unique_failure_domain_count": 1,
+            "unique_lineage_root_count": 1,
+            "valid_support_coverage": 0.5
+          },
+          "policy_violations": 0,
+          "route": [
+            "node-a",
+            "node-c",
+            "node-b"
+          ],
+          "synthesis": {
+            "answer": null,
+            "confidence": 0.96,
+            "covered_slots": [
+              "left"
+            ],
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381"
+            ],
+            "selected_node_ids": [
+              "node-a"
+            ],
+            "success": false
+          }
+        },
+        "before_failure": {
+          "claim_roots": {
+            "claim_49fe4a377f23039db8bd": [
+              "R2"
+            ],
+            "claim_65fb15657eb14270d381": [
+              "R1"
+            ],
+            "claim_ea05b03a907713bacc69": [
+              "R2"
+            ]
+          },
+          "exported_bytes": 2682,
+          "exported_claim_count": 3,
+          "metrics": {
+            "apparent_replica_count": 3,
+            "confidence_valid_support_gap": 0.0,
+            "current_confidence": 0.93,
+            "current_task_success": true,
+            "minimal_failure_domain_cut": 1,
+            "minimal_support_coalition_size": 2,
+            "reconstruction_coalition_count": 1,
+            "unique_failure_domain_count": 2,
+            "unique_lineage_root_count": 2,
+            "valid_support_coverage": 1.0
+          },
+          "policy_violations": 0,
+          "route": [
+            "node-a",
+            "node-b",
+            "node-c"
+          ],
+          "synthesis": {
+            "answer": "LX_LR82DIMG18LTH9:RX_MGXZPDCTO2J0T2",
+            "confidence": 0.93,
+            "covered_slots": [
+              "left",
+              "right"
+            ],
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381",
+              "claim_49fe4a377f23039db8bd"
+            ],
+            "selected_node_ids": [
+              "node-a",
+              "node-b"
+            ],
+            "success": true
+          }
+        }
+      },
+      "privacy_assertions": {
+        "answer_absent_from_query": true,
+        "answer_symbols_absent_from_distractors": true,
+        "complete_answer_absent_from_every_memory": true,
+        "no_policy_violations": true,
+        "nodes_have_separate_record_collections": true,
+        "only_claim_contracts_exported": true
+      },
+      "repair": {
+        "reason": "no independent support within budget",
+        "selected_node_id": null,
+        "steps": 2,
+        "verification_results": [
+          {
+            "failure_domains": [
+              "FD2"
+            ],
+            "lineage_root_ids": [
+              "R2"
+            ],
+            "node_id": "node-c",
+            "reason": "lineage root unavailable",
+            "supported_slots": [],
+            "valid": false,
+            "verification_id": "verification_query_20260813_01"
+          },
+          {
+            "failure_domains": [
+              "FD2"
+            ],
+            "lineage_root_ids": [
+              "R2"
+            ],
+            "node_id": "node-b",
+            "reason": "lineage root unavailable",
+            "supported_slots": [],
+            "valid": false,
+            "verification_id": "verification_query_20260813_02"
+          }
+        ]
+      },
+      "trace_events": [
+        {
+          "details": {
+            "phase": "before_failure",
+            "query_id": "query_20260813"
+          },
+          "event_id": "event_0001",
+          "event_type": "query_received",
+          "occurred_at": "2025-01-01T12:00:13.001000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 1,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "node_ids": [
+              "node-a",
+              "node-b",
+              "node-c"
+            ],
+            "phase": "before_failure"
+          },
+          "event_id": "event_0002",
+          "event_type": "route_selected",
+          "occurred_at": "2025-01-01T12:00:13.002000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 2,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "local_trace_id": "trace_e14ae0bdcba536da990c",
+            "node_id": "node-a",
+            "policy_status": "allowed",
+            "retrieval_operator": "mock_exact_lookup"
+          },
+          "event_id": "event_0003",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.006000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 3,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "claim_id": "claim_65fb15657eb14270d381",
+            "failure_domains": [
+              "FD1"
+            ],
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "node_id": "node-a"
+          },
+          "event_id": "event_0004",
+          "event_type": "evidence_exported",
+          "occurred_at": "2025-01-01T12:00:13.007000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 4,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [
+              "R2"
+            ],
+            "local_trace_id": "trace_ddaa4819993c8893e471",
+            "node_id": "node-b",
+            "policy_status": "allowed",
+            "retrieval_operator": "mock_exact_lookup"
+          },
+          "event_id": "event_0005",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.011000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 5,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "claim_id": "claim_49fe4a377f23039db8bd",
+            "failure_domains": [
+              "FD2"
+            ],
+            "lineage_root_ids": [
+              "R2"
+            ],
+            "node_id": "node-b"
+          },
+          "event_id": "event_0006",
+          "event_type": "evidence_exported",
+          "occurred_at": "2025-01-01T12:00:13.012000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 6,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [
+              "R2"
+            ],
+            "local_trace_id": "trace_262f82d20dbd2c60fd4b",
+            "node_id": "node-c",
+            "policy_status": "allowed",
+            "retrieval_operator": "mock_exact_lookup"
+          },
+          "event_id": "event_0007",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.016000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 7,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "claim_id": "claim_ea05b03a907713bacc69",
+            "failure_domains": [
+              "FD2"
+            ],
+            "lineage_root_ids": [
+              "R2"
+            ],
+            "node_id": "node-c"
+          },
+          "event_id": "event_0008",
+          "event_type": "evidence_exported",
+          "occurred_at": "2025-01-01T12:00:13.017000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 8,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381",
+              "claim_49fe4a377f23039db8bd"
+            ],
+            "selected_node_ids": [
+              "node-a",
+              "node-b"
+            ],
+            "success": true
+          },
+          "event_id": "event_0009",
+          "event_type": "claim_synthesized",
+          "occurred_at": "2025-01-01T12:00:13.018000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 9,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "metrics": {
+              "apparent_replica_count": 3,
+              "confidence_valid_support_gap": 0.0,
+              "current_confidence": 0.93,
+              "current_task_success": true,
+              "minimal_failure_domain_cut": 1,
+              "minimal_support_coalition_size": 2,
+              "reconstruction_coalition_count": 1,
+              "unique_failure_domain_count": 2,
+              "unique_lineage_root_count": 2,
+              "valid_support_coverage": 1.0
+            }
+          },
+          "event_id": "event_0010",
+          "event_type": "fragility_scored",
+          "occurred_at": "2025-01-01T12:00:13.019000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 10,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "confidence": 0.93,
+            "phase": "before_failure",
+            "success": true
+          },
+          "event_id": "event_0011",
+          "event_type": "capability_evaluated",
+          "occurred_at": "2025-01-01T12:00:13.020000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 11,
+          "trace_id": "query_trace_query_20260813_before_failure"
+        },
+        {
+          "details": {
+            "expected_effect": "invalidate node-b and correlated node-c evidence",
+            "intervention_id": "intervention_001",
+            "reason": "controlled removal of shared critical support",
+            "target_id": "R2",
+            "target_type": "lineage_root"
+          },
+          "event_id": "event_0012",
+          "event_type": "failure_injected",
+          "occurred_at": "2025-01-01T12:00:13.022000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 12,
+          "trace_id": "intervention_001"
+        },
+        {
+          "details": {
+            "phase": "after_failure",
+            "query_id": "query_20260813"
+          },
+          "event_id": "event_0013",
+          "event_type": "query_received",
+          "occurred_at": "2025-01-01T12:00:13.023000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 13,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "node_ids": [
+              "node-a",
+              "node-b",
+              "node-c"
+            ],
+            "phase": "after_failure"
+          },
+          "event_id": "event_0014",
+          "event_type": "route_selected",
+          "occurred_at": "2025-01-01T12:00:13.024000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 14,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "local_trace_id": "trace_e14ae0bdcba536da990c",
+            "node_id": "node-a",
+            "policy_status": "allowed",
+            "retrieval_operator": "mock_exact_lookup"
+          },
+          "event_id": "event_0015",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.028000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 15,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "claim_id": "claim_65fb15657eb14270d381",
+            "failure_domains": [
+              "FD1"
+            ],
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "node_id": "node-a"
+          },
+          "event_id": "event_0016",
+          "event_type": "evidence_exported",
+          "occurred_at": "2025-01-01T12:00:13.029000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 16,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [],
+            "local_trace_id": "trace_ddaa4819993c8893e471",
+            "node_id": "node-b",
+            "policy_status": "denied",
+            "retrieval_operator": "policy_filter"
+          },
+          "event_id": "event_0017",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.032000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 17,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "node_id": "node-b",
+            "policy_status": "denied"
+          },
+          "event_id": "event_0018",
+          "event_type": "policy_block",
+          "occurred_at": "2025-01-01T12:00:13.033000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 18,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [],
+            "local_trace_id": "trace_262f82d20dbd2c60fd4b",
+            "node_id": "node-c",
+            "policy_status": "denied",
+            "retrieval_operator": "policy_filter"
+          },
+          "event_id": "event_0019",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.036000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 19,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "node_id": "node-c",
+            "policy_status": "denied"
+          },
+          "event_id": "event_0020",
+          "event_type": "policy_block",
+          "occurred_at": "2025-01-01T12:00:13.037000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 20,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381"
+            ],
+            "selected_node_ids": [
+              "node-a"
+            ],
+            "success": false
+          },
+          "event_id": "event_0021",
+          "event_type": "claim_synthesized",
+          "occurred_at": "2025-01-01T12:00:13.038000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 21,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "metrics": {
+              "apparent_replica_count": 1,
+              "confidence_valid_support_gap": 0.46,
+              "current_confidence": 0.96,
+              "current_task_success": false,
+              "minimal_failure_domain_cut": 0,
+              "minimal_support_coalition_size": 0,
+              "reconstruction_coalition_count": 0,
+              "unique_failure_domain_count": 1,
+              "unique_lineage_root_count": 1,
+              "valid_support_coverage": 0.5
+            }
+          },
+          "event_id": "event_0022",
+          "event_type": "fragility_scored",
+          "occurred_at": "2025-01-01T12:00:13.039000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 22,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "confidence": 0.96,
+            "phase": "after_failure",
+            "success": false
+          },
+          "event_id": "event_0023",
+          "event_type": "capability_evaluated",
+          "occurred_at": "2025-01-01T12:00:13.040000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 23,
+          "trace_id": "query_trace_query_20260813_after_failure"
+        },
+        {
+          "details": {
+            "candidate_node_ids": [
+              "node-c",
+              "node-b"
+            ],
+            "excluded_failure_domains": [],
+            "excluded_roots": [],
+            "missing_slots": [
+              "right"
+            ]
+          },
+          "event_id": "event_0024",
+          "event_type": "repair_requested",
+          "occurred_at": "2025-01-01T12:00:13.041000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 24,
+          "trace_id": "repair_query_20260813"
+        },
+        {
+          "details": {
+            "node_id": "node-c",
+            "verification_id": "verification_query_20260813_01"
+          },
+          "event_id": "event_0025",
+          "event_type": "verification_requested",
+          "occurred_at": "2025-01-01T12:00:13.042000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 25,
+          "trace_id": "repair_query_20260813"
+        },
+        {
+          "details": {
+            "result": {
+              "failure_domains": [
+                "FD2"
+              ],
+              "lineage_root_ids": [
+                "R2"
+              ],
+              "node_id": "node-c",
+              "reason": "lineage root unavailable",
+              "supported_slots": [],
+              "valid": false,
+              "verification_id": "verification_query_20260813_01"
+            }
+          },
+          "event_id": "event_0026",
+          "event_type": "verification_result",
+          "occurred_at": "2025-01-01T12:00:13.043000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 26,
+          "trace_id": "repair_query_20260813"
+        },
+        {
+          "details": {
+            "node_id": "node-b",
+            "verification_id": "verification_query_20260813_02"
+          },
+          "event_id": "event_0027",
+          "event_type": "verification_requested",
+          "occurred_at": "2025-01-01T12:00:13.044000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 27,
+          "trace_id": "repair_query_20260813"
+        },
+        {
+          "details": {
+            "result": {
+              "failure_domains": [
+                "FD2"
+              ],
+              "lineage_root_ids": [
+                "R2"
+              ],
+              "node_id": "node-b",
+              "reason": "lineage root unavailable",
+              "supported_slots": [],
+              "valid": false,
+              "verification_id": "verification_query_20260813_02"
+            }
+          },
+          "event_id": "event_0028",
+          "event_type": "verification_result",
+          "occurred_at": "2025-01-01T12:00:13.045000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 28,
+          "trace_id": "repair_query_20260813"
+        },
+        {
+          "details": {
+            "reason": "no independent support within budget",
+            "selected_node_id": null,
+            "steps": 2
+          },
+          "event_id": "event_0029",
+          "event_type": "repair_completed",
+          "occurred_at": "2025-01-01T12:00:13.046000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 29,
+          "trace_id": "repair_query_20260813"
+        },
+        {
+          "details": {
+            "phase": "after_replica_repair",
+            "query_id": "query_20260813"
+          },
+          "event_id": "event_0030",
+          "event_type": "query_received",
+          "occurred_at": "2025-01-01T12:00:13.047000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 30,
+          "trace_id": "query_trace_query_20260813_after_replica_repair"
+        },
+        {
+          "details": {
+            "node_ids": [
+              "node-a",
+              "node-c",
+              "node-b"
+            ],
+            "phase": "after_replica_repair"
+          },
+          "event_id": "event_0031",
+          "event_type": "route_selected",
+          "occurred_at": "2025-01-01T12:00:13.048000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 31,
+          "trace_id": "query_trace_query_20260813_after_replica_repair"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "local_trace_id": "trace_e14ae0bdcba536da990c",
+            "node_id": "node-a",
+            "policy_status": "allowed",
+            "retrieval_operator": "mock_exact_lookup"
+          },
+          "event_id": "event_0032",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.052000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 32,
+          "trace_id": "query_trace_query_20260813_after_replica_repair"
+        },
+        {
+          "details": {
+            "claim_id": "claim_65fb15657eb14270d381",
+            "failure_domains": [
+              "FD1"
+            ],
+            "lineage_root_ids": [
+              "R1"
+            ],
+            "node_id": "node-a"
+          },
+          "event_id": "event_0033",
+          "event_type": "evidence_exported",
+          "occurred_at": "2025-01-01T12:00:13.053000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 33,
+          "trace_id": "query_trace_query_20260813_after_replica_repair"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [],
+            "local_trace_id": "trace_262f82d20dbd2c60fd4b",
+            "node_id": "node-c",
+            "policy_status": "denied",
+            "retrieval_operator": "policy_filter"
+          },
+          "event_id": "event_0034",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.056000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 34,
+          "trace_id": "query_trace_query_20260813_after_replica_repair"
+        },
+        {
+          "details": {
+            "node_id": "node-c",
+            "policy_status": "denied"
+          },
+          "event_id": "event_0035",
+          "event_type": "policy_block",
+          "occurred_at": "2025-01-01T12:00:13.057000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 35,
+          "trace_id": "query_trace_query_20260813_after_replica_repair"
+        },
+        {
+          "details": {
+            "lineage_root_ids": [],
+            "local_trace_id": "trace_ddaa4819993c8893e471",
+            "node_id": "node-b",
+            "policy_status": "denied",
+            "retrieval_operator": "policy_filter"
+          },
+          "event_id": "event_0036",
+          "event_type": "retrieval_selected",
+          "occurred_at": "2025-01-01T12:00:13.060000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 36,
+          "trace_id": "query_trace_query_20260813_after_replica_repair"
+        },
+        {
+          "details": {
+            "node_id": "node-b",
+            "policy_status": "denied"
+          },
+          "event_id": "event_0037",
+          "event_type": "policy_block",
+          "occurred_at": "2025-01-01T12:00:13.061000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 37,
+          "trace_id": "query_trace_query_20260813_after_replica_repair"
+        },
+        {
+          "details": {
+            "selected_claim_ids": [
+              "claim_65fb15657eb14270d381"
+            ],
+            "selected_node_ids": [
+              "node-a"
+            ],
+            "success": false
+          },
+          "event_id": "event_0038",
+          "event_type": "claim_synthesized",
+          "occurred_at": "2025-01-01T12:00:13.062000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 38,
+          "trace_id": "query_trace_query_20260813_after_replica_repair"
+        },
+        {
+          "details": {
+            "metrics": {
+              "apparent_replica_count": 1,
+              "confidence_valid_support_gap": 0.46,
+              "current_confidence": 0.96,
+              "current_task_success": false,
+              "minimal_failure_domain_cut": 0,
+              "minimal_support_coalition_size": 0,
+              "reconstruction_coalition_count": 0,
+              "unique_failure_domain_count": 1,
+              "unique_lineage_root_count": 1,
+              "valid_support_coverage": 0.5
+            }
+          },
+          "event_id": "event_0039",
+          "event_type": "fragility_scored",
+          "occurred_at": "2025-01-01T12:00:13.063000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 39,
+          "trace_id": "query_trace_query_20260813_after_replica_repair"
+        },
+        {
+          "details": {
+            "confidence": 0.96,
+            "phase": "after_replica_repair",
+            "success": false
+          },
+          "event_id": "event_0040",
+          "event_type": "capability_evaluated",
+          "occurred_at": "2025-01-01T12:00:13.064000Z",
+          "run_id": "run_20260813_replica_count",
+          "schema_version": "1.0",
+          "sequence": 40,
+          "trace_id": "query_trace_query_20260813_after_replica_repair"
+        }
+      ]
+    }
+  },
+  "strategy_summary": {
+    "lineage_targeted_repair": {
+      "after_failure": false,
+      "after_repair": true,
+      "before_failure": true,
+      "verification_steps": 2
+    },
+    "lineage_without_repair": {
+      "after_failure": false,
+      "after_repair": false,
+      "before_failure": true,
+      "verification_steps": 0
+    },
+    "replica_count": {
+      "after_failure": false,
+      "after_repair": false,
+      "before_failure": true,
+      "verification_steps": 2
+    }
+  }
+}

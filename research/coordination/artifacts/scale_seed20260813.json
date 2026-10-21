@@ -1,0 +1,1976 @@
+{
+  "cost_by_arity": {
+    "K2": {
+      "all_baselines_correct": true,
+      "mean_bytes_moved": 6600.416667,
+      "mean_record_count": 5.0,
+      "mean_route_size": 3.0
+    },
+    "K3": {
+      "all_baselines_correct": true,
+      "mean_bytes_moved": 9111.333333,
+      "mean_record_count": 7.5,
+      "mean_route_size": 4.0
+    },
+    "K5": {
+      "all_baselines_correct": true,
+      "mean_bytes_moved": 14133.166667,
+      "mean_record_count": 12.5,
+      "mean_route_size": 6.0
+    },
+    "K8": {
+      "all_baselines_correct": true,
+      "mean_bytes_moved": 21665.916667,
+      "mean_record_count": 20.0,
+      "mean_route_size": 9.0
+    }
+  },
+  "interventions": [
+    "node_failure",
+    "lineage_root_failure",
+    "authorization_revocation"
+  ],
+  "points": [
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7562,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 4,
+      "recovery_steps": 2,
+      "repair_policy": "source_count",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K2_H2_I1",
+        "node_count": 4,
+        "slots": 2
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 5238,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 4,
+      "recovery_steps": 3,
+      "repair_policy": "source_count",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K2_H2_I1",
+        "node_count": 4,
+        "slots": 2
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 5238,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 4,
+      "recovery_steps": 3,
+      "repair_policy": "source_count",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K2_H2_I1",
+        "node_count": 4,
+        "slots": 2
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 5249,
+      "capability_survival": false,
+      "intervention": "node_failure",
+      "record_count": 4,
+      "recovery_steps": 3,
+      "repair_policy": "lineage_aware",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K2_H2_I1",
+        "node_count": 4,
+        "slots": 2
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 5249,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 4,
+      "recovery_steps": 3,
+      "repair_policy": "lineage_aware",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K2_H2_I1",
+        "node_count": 4,
+        "slots": 2
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 5249,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 4,
+      "recovery_steps": 3,
+      "repair_policy": "lineage_aware",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K2_H2_I1",
+        "node_count": 4,
+        "slots": 2
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7562,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 4,
+      "recovery_steps": 2,
+      "repair_policy": "source_count",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K2_H2_I2",
+        "node_count": 4,
+        "slots": 2
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7562,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 4,
+      "recovery_steps": 2,
+      "repair_policy": "source_count",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K2_H2_I2",
+        "node_count": 4,
+        "slots": 2
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7562,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 4,
+      "recovery_steps": 2,
+      "repair_policy": "source_count",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K2_H2_I2",
+        "node_count": 4,
+        "slots": 2
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7578,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 4,
+      "recovery_steps": 1,
+      "repair_policy": "lineage_aware",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K2_H2_I2",
+        "node_count": 4,
+        "slots": 2
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7578,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 4,
+      "recovery_steps": 1,
+      "repair_policy": "lineage_aware",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K2_H2_I2",
+        "node_count": 4,
+        "slots": 2
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7578,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 4,
+      "recovery_steps": 1,
+      "repair_policy": "lineage_aware",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K2_H2_I2",
+        "node_count": 4,
+        "slots": 2
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7562,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 6,
+      "recovery_steps": 3,
+      "repair_policy": "source_count",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K2_H3_I1",
+        "node_count": 6,
+        "slots": 2
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 5238,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 6,
+      "recovery_steps": 5,
+      "repair_policy": "source_count",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K2_H3_I1",
+        "node_count": 6,
+        "slots": 2
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 5238,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 6,
+      "recovery_steps": 5,
+      "repair_policy": "source_count",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K2_H3_I1",
+        "node_count": 6,
+        "slots": 2
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 5249,
+      "capability_survival": false,
+      "intervention": "node_failure",
+      "record_count": 6,
+      "recovery_steps": 5,
+      "repair_policy": "lineage_aware",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K2_H3_I1",
+        "node_count": 6,
+        "slots": 2
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 5249,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 6,
+      "recovery_steps": 5,
+      "repair_policy": "lineage_aware",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K2_H3_I1",
+        "node_count": 6,
+        "slots": 2
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 5249,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 6,
+      "recovery_steps": 5,
+      "repair_policy": "lineage_aware",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K2_H3_I1",
+        "node_count": 6,
+        "slots": 2
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7562,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 6,
+      "recovery_steps": 3,
+      "repair_policy": "source_count",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K2_H3_I2",
+        "node_count": 6,
+        "slots": 2
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7562,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 6,
+      "recovery_steps": 3,
+      "repair_policy": "source_count",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K2_H3_I2",
+        "node_count": 6,
+        "slots": 2
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7562,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 6,
+      "recovery_steps": 3,
+      "repair_policy": "source_count",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K2_H3_I2",
+        "node_count": 6,
+        "slots": 2
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7578,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 6,
+      "recovery_steps": 2,
+      "repair_policy": "lineage_aware",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K2_H3_I2",
+        "node_count": 6,
+        "slots": 2
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7578,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 6,
+      "recovery_steps": 2,
+      "repair_policy": "lineage_aware",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K2_H3_I2",
+        "node_count": 6,
+        "slots": 2
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7578,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 6,
+      "recovery_steps": 2,
+      "repair_policy": "lineage_aware",
+      "route_size": 3,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K2_H3_I2",
+        "node_count": 6,
+        "slots": 2
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 10475,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 6,
+      "recovery_steps": 3,
+      "repair_policy": "source_count",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K3_H2_I1",
+        "node_count": 6,
+        "slots": 3
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7180,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 6,
+      "recovery_steps": 4,
+      "repair_policy": "source_count",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K3_H2_I1",
+        "node_count": 6,
+        "slots": 3
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7180,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 6,
+      "recovery_steps": 4,
+      "repair_policy": "source_count",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K3_H2_I1",
+        "node_count": 6,
+        "slots": 3
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7195,
+      "capability_survival": false,
+      "intervention": "node_failure",
+      "record_count": 6,
+      "recovery_steps": 4,
+      "repair_policy": "lineage_aware",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K3_H2_I1",
+        "node_count": 6,
+        "slots": 3
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7195,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 6,
+      "recovery_steps": 4,
+      "repair_policy": "lineage_aware",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K3_H2_I1",
+        "node_count": 6,
+        "slots": 3
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7195,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 6,
+      "recovery_steps": 4,
+      "repair_policy": "lineage_aware",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K3_H2_I1",
+        "node_count": 6,
+        "slots": 3
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 10475,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 6,
+      "recovery_steps": 3,
+      "repair_policy": "source_count",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K3_H2_I2",
+        "node_count": 6,
+        "slots": 3
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 10475,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 6,
+      "recovery_steps": 3,
+      "repair_policy": "source_count",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K3_H2_I2",
+        "node_count": 6,
+        "slots": 3
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 10475,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 6,
+      "recovery_steps": 3,
+      "repair_policy": "source_count",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K3_H2_I2",
+        "node_count": 6,
+        "slots": 3
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 10497,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 6,
+      "recovery_steps": 2,
+      "repair_policy": "lineage_aware",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K3_H2_I2",
+        "node_count": 6,
+        "slots": 3
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 10497,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 6,
+      "recovery_steps": 2,
+      "repair_policy": "lineage_aware",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K3_H2_I2",
+        "node_count": 6,
+        "slots": 3
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 10497,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 6,
+      "recovery_steps": 2,
+      "repair_policy": "lineage_aware",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K3_H2_I2",
+        "node_count": 6,
+        "slots": 3
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 10475,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 9,
+      "recovery_steps": 5,
+      "repair_policy": "source_count",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K3_H3_I1",
+        "node_count": 9,
+        "slots": 3
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7180,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 9,
+      "recovery_steps": 7,
+      "repair_policy": "source_count",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K3_H3_I1",
+        "node_count": 9,
+        "slots": 3
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7180,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 9,
+      "recovery_steps": 7,
+      "repair_policy": "source_count",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K3_H3_I1",
+        "node_count": 9,
+        "slots": 3
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7195,
+      "capability_survival": false,
+      "intervention": "node_failure",
+      "record_count": 9,
+      "recovery_steps": 7,
+      "repair_policy": "lineage_aware",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K3_H3_I1",
+        "node_count": 9,
+        "slots": 3
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7195,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 9,
+      "recovery_steps": 7,
+      "repair_policy": "lineage_aware",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K3_H3_I1",
+        "node_count": 9,
+        "slots": 3
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 7195,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 9,
+      "recovery_steps": 7,
+      "repair_policy": "lineage_aware",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K3_H3_I1",
+        "node_count": 9,
+        "slots": 3
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 10475,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 9,
+      "recovery_steps": 5,
+      "repair_policy": "source_count",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K3_H3_I2",
+        "node_count": 9,
+        "slots": 3
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 10475,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 9,
+      "recovery_steps": 5,
+      "repair_policy": "source_count",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K3_H3_I2",
+        "node_count": 9,
+        "slots": 3
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 10475,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 9,
+      "recovery_steps": 5,
+      "repair_policy": "source_count",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K3_H3_I2",
+        "node_count": 9,
+        "slots": 3
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 10497,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 9,
+      "recovery_steps": 4,
+      "repair_policy": "lineage_aware",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K3_H3_I2",
+        "node_count": 9,
+        "slots": 3
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 10497,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 9,
+      "recovery_steps": 4,
+      "repair_policy": "lineage_aware",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K3_H3_I2",
+        "node_count": 9,
+        "slots": 3
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 10497,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 9,
+      "recovery_steps": 4,
+      "repair_policy": "lineage_aware",
+      "route_size": 4,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K3_H3_I2",
+        "node_count": 9,
+        "slots": 3
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16301,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 10,
+      "recovery_steps": 5,
+      "repair_policy": "source_count",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K5_H2_I1",
+        "node_count": 10,
+        "slots": 5
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 11064,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 10,
+      "recovery_steps": 6,
+      "repair_policy": "source_count",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K5_H2_I1",
+        "node_count": 10,
+        "slots": 5
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 11064,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 10,
+      "recovery_steps": 6,
+      "repair_policy": "source_count",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K5_H2_I1",
+        "node_count": 10,
+        "slots": 5
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 11087,
+      "capability_survival": false,
+      "intervention": "node_failure",
+      "record_count": 10,
+      "recovery_steps": 6,
+      "repair_policy": "lineage_aware",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K5_H2_I1",
+        "node_count": 10,
+        "slots": 5
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 11087,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 10,
+      "recovery_steps": 6,
+      "repair_policy": "lineage_aware",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K5_H2_I1",
+        "node_count": 10,
+        "slots": 5
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 11087,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 10,
+      "recovery_steps": 6,
+      "repair_policy": "lineage_aware",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K5_H2_I1",
+        "node_count": 10,
+        "slots": 5
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16301,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 10,
+      "recovery_steps": 5,
+      "repair_policy": "source_count",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K5_H2_I2",
+        "node_count": 10,
+        "slots": 5
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16301,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 10,
+      "recovery_steps": 5,
+      "repair_policy": "source_count",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K5_H2_I2",
+        "node_count": 10,
+        "slots": 5
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16301,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 10,
+      "recovery_steps": 5,
+      "repair_policy": "source_count",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K5_H2_I2",
+        "node_count": 10,
+        "slots": 5
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16335,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 10,
+      "recovery_steps": 4,
+      "repair_policy": "lineage_aware",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K5_H2_I2",
+        "node_count": 10,
+        "slots": 5
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16335,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 10,
+      "recovery_steps": 4,
+      "repair_policy": "lineage_aware",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K5_H2_I2",
+        "node_count": 10,
+        "slots": 5
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16335,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 10,
+      "recovery_steps": 4,
+      "repair_policy": "lineage_aware",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K5_H2_I2",
+        "node_count": 10,
+        "slots": 5
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16301,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 15,
+      "recovery_steps": 9,
+      "repair_policy": "source_count",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K5_H3_I1",
+        "node_count": 15,
+        "slots": 5
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 11064,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 15,
+      "recovery_steps": 11,
+      "repair_policy": "source_count",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K5_H3_I1",
+        "node_count": 15,
+        "slots": 5
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 11064,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 15,
+      "recovery_steps": 11,
+      "repair_policy": "source_count",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K5_H3_I1",
+        "node_count": 15,
+        "slots": 5
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 11087,
+      "capability_survival": false,
+      "intervention": "node_failure",
+      "record_count": 15,
+      "recovery_steps": 11,
+      "repair_policy": "lineage_aware",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K5_H3_I1",
+        "node_count": 15,
+        "slots": 5
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 11087,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 15,
+      "recovery_steps": 11,
+      "repair_policy": "lineage_aware",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K5_H3_I1",
+        "node_count": 15,
+        "slots": 5
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 11087,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 15,
+      "recovery_steps": 11,
+      "repair_policy": "lineage_aware",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K5_H3_I1",
+        "node_count": 15,
+        "slots": 5
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16301,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 15,
+      "recovery_steps": 9,
+      "repair_policy": "source_count",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K5_H3_I2",
+        "node_count": 15,
+        "slots": 5
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16301,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 15,
+      "recovery_steps": 9,
+      "repair_policy": "source_count",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K5_H3_I2",
+        "node_count": 15,
+        "slots": 5
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16301,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 15,
+      "recovery_steps": 9,
+      "repair_policy": "source_count",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K5_H3_I2",
+        "node_count": 15,
+        "slots": 5
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16335,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 15,
+      "recovery_steps": 8,
+      "repair_policy": "lineage_aware",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K5_H3_I2",
+        "node_count": 15,
+        "slots": 5
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16335,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 15,
+      "recovery_steps": 8,
+      "repair_policy": "lineage_aware",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K5_H3_I2",
+        "node_count": 15,
+        "slots": 5
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16335,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 15,
+      "recovery_steps": 8,
+      "repair_policy": "lineage_aware",
+      "route_size": 6,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K5_H3_I2",
+        "node_count": 15,
+        "slots": 5
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 25040,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 16,
+      "recovery_steps": 8,
+      "repair_policy": "source_count",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K8_H2_I1",
+        "node_count": 16,
+        "slots": 8
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16890,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 16,
+      "recovery_steps": 9,
+      "repair_policy": "source_count",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K8_H2_I1",
+        "node_count": 16,
+        "slots": 8
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16890,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 16,
+      "recovery_steps": 9,
+      "repair_policy": "source_count",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K8_H2_I1",
+        "node_count": 16,
+        "slots": 8
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16925,
+      "capability_survival": false,
+      "intervention": "node_failure",
+      "record_count": 16,
+      "recovery_steps": 9,
+      "repair_policy": "lineage_aware",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K8_H2_I1",
+        "node_count": 16,
+        "slots": 8
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16925,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 16,
+      "recovery_steps": 9,
+      "repair_policy": "lineage_aware",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K8_H2_I1",
+        "node_count": 16,
+        "slots": 8
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16925,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 16,
+      "recovery_steps": 9,
+      "repair_policy": "lineage_aware",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 1,
+        "label": "K8_H2_I1",
+        "node_count": 16,
+        "slots": 8
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 25040,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 16,
+      "recovery_steps": 8,
+      "repair_policy": "source_count",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K8_H2_I2",
+        "node_count": 16,
+        "slots": 8
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 25040,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 16,
+      "recovery_steps": 8,
+      "repair_policy": "source_count",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K8_H2_I2",
+        "node_count": 16,
+        "slots": 8
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 25040,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 16,
+      "recovery_steps": 8,
+      "repair_policy": "source_count",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K8_H2_I2",
+        "node_count": 16,
+        "slots": 8
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 25092,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 16,
+      "recovery_steps": 7,
+      "repair_policy": "lineage_aware",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K8_H2_I2",
+        "node_count": 16,
+        "slots": 8
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 25092,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 16,
+      "recovery_steps": 7,
+      "repair_policy": "lineage_aware",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K8_H2_I2",
+        "node_count": 16,
+        "slots": 8
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 25092,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 16,
+      "recovery_steps": 7,
+      "repair_policy": "lineage_aware",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 2,
+        "independent_roots": 2,
+        "label": "K8_H2_I2",
+        "node_count": 16,
+        "slots": 8
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 25040,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 24,
+      "recovery_steps": 15,
+      "repair_policy": "source_count",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K8_H3_I1",
+        "node_count": 24,
+        "slots": 8
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16890,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 24,
+      "recovery_steps": 17,
+      "repair_policy": "source_count",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K8_H3_I1",
+        "node_count": 24,
+        "slots": 8
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16890,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 24,
+      "recovery_steps": 17,
+      "repair_policy": "source_count",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K8_H3_I1",
+        "node_count": 24,
+        "slots": 8
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16925,
+      "capability_survival": false,
+      "intervention": "node_failure",
+      "record_count": 24,
+      "recovery_steps": 17,
+      "repair_policy": "lineage_aware",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K8_H3_I1",
+        "node_count": 24,
+        "slots": 8
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16925,
+      "capability_survival": false,
+      "intervention": "lineage_root_failure",
+      "record_count": 24,
+      "recovery_steps": 17,
+      "repair_policy": "lineage_aware",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K8_H3_I1",
+        "node_count": 24,
+        "slots": 8
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 16925,
+      "capability_survival": false,
+      "intervention": "authorization_revocation",
+      "record_count": 24,
+      "recovery_steps": 17,
+      "repair_policy": "lineage_aware",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 1,
+        "label": "K8_H3_I1",
+        "node_count": 24,
+        "slots": 8
+      },
+      "structural_min_cut": 1,
+      "unrecovered_silent_forgetting": true
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 25040,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 24,
+      "recovery_steps": 15,
+      "repair_policy": "source_count",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K8_H3_I2",
+        "node_count": 24,
+        "slots": 8
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 25040,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 24,
+      "recovery_steps": 15,
+      "repair_policy": "source_count",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K8_H3_I2",
+        "node_count": 24,
+        "slots": 8
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 25040,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 24,
+      "recovery_steps": 15,
+      "repair_policy": "source_count",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K8_H3_I2",
+        "node_count": 24,
+        "slots": 8
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 25092,
+      "capability_survival": true,
+      "intervention": "node_failure",
+      "record_count": 24,
+      "recovery_steps": 14,
+      "repair_policy": "lineage_aware",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K8_H3_I2",
+        "node_count": 24,
+        "slots": 8
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 25092,
+      "capability_survival": true,
+      "intervention": "lineage_root_failure",
+      "record_count": 24,
+      "recovery_steps": 14,
+      "repair_policy": "lineage_aware",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K8_H3_I2",
+        "node_count": 24,
+        "slots": 8
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    },
+    {
+      "baseline_correct": true,
+      "bytes_moved": 25092,
+      "capability_survival": true,
+      "intervention": "authorization_revocation",
+      "record_count": 24,
+      "recovery_steps": 14,
+      "repair_policy": "lineage_aware",
+      "route_size": 9,
+      "spec": {
+        "holders_per_slot": 3,
+        "independent_roots": 2,
+        "label": "K8_H3_I2",
+        "node_count": 24,
+        "slots": 8
+      },
+      "structural_min_cut": 2,
+      "unrecovered_silent_forgetting": false
+    }
+  ],
+  "repair_policies": [
+    "source_count",
+    "lineage_aware"
+  ],
+  "replication_effect_under_correlated_lineage": {
+    "lineage_aware::H2::I1": 0.0,
+    "lineage_aware::H3::I1": 0.0,
+    "source_count::H2::I1": 0.0,
+    "source_count::H3::I1": 0.0
+  },
+  "scale_version": "scale-generalization-v1",
+  "schema_version": "1.0",
+  "seed": 20260813,
+  "specs": [
+    "K2_H2_I1",
+    "K2_H2_I2",
+    "K2_H3_I1",
+    "K2_H3_I2",
+    "K3_H2_I1",
+    "K3_H2_I2",
+    "K3_H3_I1",
+    "K3_H3_I2",
+    "K5_H2_I1",
+    "K5_H2_I2",
+    "K5_H3_I1",
+    "K5_H3_I2",
+    "K8_H2_I1",
+    "K8_H2_I2",
+    "K8_H3_I1",
+    "K8_H3_I2"
+  ],
+  "survival_by_independence": {
+    "lineage_aware::authorization_revocation::I1": {
+      "invariant_across_scale": true,
+      "max_recovery_steps": 17,
+      "mean_recovery_steps": 7.75,
+      "points": 8,
+      "survival_rate": 0.0
+    },
+    "lineage_aware::authorization_revocation::I2": {
+      "invariant_across_scale": true,
+      "max_recovery_steps": 14,
+      "mean_recovery_steps": 5.25,
+      "points": 8,
+      "survival_rate": 1.0
+    },
+    "lineage_aware::lineage_root_failure::I1": {
+      "invariant_across_scale": true,
+      "max_recovery_steps": 17,
+      "mean_recovery_steps": 7.75,
+      "points": 8,
+      "survival_rate": 0.0
+    },
+    "lineage_aware::lineage_root_failure::I2": {
+      "invariant_across_scale": true,
+      "max_recovery_steps": 14,
+      "mean_recovery_steps": 5.25,
+      "points": 8,
+      "survival_rate": 1.0
+    },
+    "lineage_aware::node_failure::I1": {
+      "invariant_across_scale": true,
+      "max_recovery_steps": 17,
+      "mean_recovery_steps": 7.75,
+      "points": 8,
+      "survival_rate": 0.0
+    },
+    "lineage_aware::node_failure::I2": {
+      "invariant_across_scale": true,
+      "max_recovery_steps": 14,
+      "mean_recovery_steps": 5.25,
+      "points": 8,
+      "survival_rate": 1.0
+    },
+    "source_count::authorization_revocation::I1": {
+      "invariant_across_scale": true,
+      "max_recovery_steps": 17,
+      "mean_recovery_steps": 7.75,
+      "points": 8,
+      "survival_rate": 0.0
+    },
+    "source_count::authorization_revocation::I2": {
+      "invariant_across_scale": true,
+      "max_recovery_steps": 15,
+      "mean_recovery_steps": 6.25,
+      "points": 8,
+      "survival_rate": 1.0
+    },
+    "source_count::lineage_root_failure::I1": {
+      "invariant_across_scale": true,
+      "max_recovery_steps": 17,
+      "mean_recovery_steps": 7.75,
+      "points": 8,
+      "survival_rate": 0.0
+    },
+    "source_count::lineage_root_failure::I2": {
+      "invariant_across_scale": true,
+      "max_recovery_steps": 15,
+      "mean_recovery_steps": 6.25,
+      "points": 8,
+      "survival_rate": 1.0
+    },
+    "source_count::node_failure::I1": {
+      "invariant_across_scale": true,
+      "max_recovery_steps": 15,
+      "mean_recovery_steps": 6.25,
+      "points": 8,
+      "survival_rate": 1.0
+    },
+    "source_count::node_failure::I2": {
+      "invariant_across_scale": true,
+      "max_recovery_steps": 15,
+      "mean_recovery_steps": 6.25,
+      "points": 8,
+      "survival_rate": 1.0
+    }
+  }
+}
