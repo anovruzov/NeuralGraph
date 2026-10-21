@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Generate the golden fixtures the Rust port is tested against, from the Python reference implementation.
 
-The Python package ``NeuralGraph.chat_memory`` (kept in the repository for the research harnesses) is the
-reference. Every deterministic piece of it is exercised here and its outputs written as JSON next to this file;
-``tests/golden.rs`` replays the same inputs through the Rust crate and asserts equality.
+The reference is the Python package ``NeuralGraph.chat_memory`` as released at ``REFERENCE_COMMIT`` (the last
+commit before the port). It is extracted from git into a temporary directory, so this script works on any checkout
+even though the repository now keeps only part of that package. Every deterministic piece of it is exercised here
+and its outputs written as JSON next to this file; ``tests/golden.rs`` replays the same inputs through the Rust
+crate and asserts equality.
 
 Determinism: the clock is pinned (every module's ``utcnow``) and ``new_id`` is replaced by per-prefix counters
 (``mem_00000000000000000001``...). The Rust side pins its clock and ids the same way, so whole database dumps,
@@ -13,22 +15,44 @@ Run from the repository root:
 
     python crates/neuralgraph-memory/tests/golden/generate.py
 
-Needs Python >= 3.11 with aiohttp, numpy and rank-bm25 (``pip install -r requirements.txt``).
+Needs Python >= 3.11 with aiohttp, numpy and rank-bm25 (``pip install -r requirements.txt``) and git. Set
+``NG_PYTHON_REFERENCE=/path/to/checkout`` to use an existing tree that contains ``NeuralGraph/`` instead.
 """
 from __future__ import annotations
 
 import asyncio
+import io
 import json
+import os
 import shutil
 import sqlite3
+import subprocess
 import sys
+import tarfile
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
-sys.path.insert(0, str(ROOT))
+# origin/main before the Rust port: the last release of the Python memory server
+REFERENCE_COMMIT = "f431110221c009f61fc5973e6e62a86ec467cfc3"
+
+
+def _reference_root() -> Path:
+    override = os.environ.get("NG_PYTHON_REFERENCE")
+    if override:
+        return Path(override)
+    dest = Path(tempfile.mkdtemp(prefix="ng-python-reference-"))
+    tar_bytes = subprocess.run(["git", "-C", str(ROOT), "archive", "--format=tar", REFERENCE_COMMIT, "NeuralGraph"],
+                               check=True, capture_output=True).stdout
+    with tarfile.open(fileobj=io.BytesIO(tar_bytes)) as tar:
+        tar.extractall(dest, filter="data")
+    return dest
+
+
+REF = _reference_root()
+sys.path.insert(0, str(REF))
 
 import numpy as np  # noqa: E402
 
@@ -947,7 +971,7 @@ async def gen_rest(tmp: Path) -> None:
     for c in clients.values():
         await c.close()
     await cm.close()
-    write("rest.json", {"exchanges": out, "dashboard_sha_len": len((ROOT / "NeuralGraph/chat_memory/ui/dashboard.html").read_text(encoding="utf-8"))})
+    write("rest.json", {"exchanges": out, "dashboard_sha_len": len((REF / "NeuralGraph/chat_memory/ui/dashboard.html").read_text(encoding="utf-8"))})
 
 
 async def main() -> None:
