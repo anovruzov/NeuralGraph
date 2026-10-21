@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+members = ["crates/neuralgraph-memory"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+rust-version = "1.89"
+
+[profile.release]
+lto = "thin"
+codegen-units = 4

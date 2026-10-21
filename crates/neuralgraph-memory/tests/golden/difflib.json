@@ -1,0 +1,4752 @@
+{
+ "pairs": [
+  {
+   "a": "berlin",
+   "b": "berlin",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "berlin",
+   "b": "berlín",
+   "ratio": 0.8333333333333334,
+   "quick": 0.8333333333333334,
+   "real_quick": 1.0
+  },
+  {
+   "a": "berlin",
+   "b": "melanie carter",
+   "ratio": 0.2,
+   "quick": 0.5,
+   "real_quick": 0.6
+  },
+  {
+   "a": "berlin",
+   "b": "melanie",
+   "ratio": 0.46153846153846156,
+   "quick": 0.6153846153846154,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "berlin",
+   "b": "tokyo",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "berlin",
+   "b": "prenzlauer berg",
+   "ratio": 0.2857142857142857,
+   "quick": 0.47619047619047616,
+   "real_quick": 0.5714285714285714
+  },
+  {
+   "a": "berlin",
+   "b": "kreuzberg",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.8
+  },
+  {
+   "a": "berlin",
+   "b": "luna",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.8
+  },
+  {
+   "a": "berlin",
+   "b": "charite",
+   "ratio": 0.15384615384615385,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "berlin",
+   "b": "charité",
+   "ratio": 0.3076923076923077,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "berlin",
+   "b": "leyla",
+   "ratio": 0.36363636363636365,
+   "quick": 0.36363636363636365,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "berlin",
+   "b": "jonas",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "berlin",
+   "b": "ali novruzov",
+   "ratio": 0.3333333333333333,
+   "quick": 0.4444444444444444,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "berlin",
+   "b": "ali",
+   "ratio": 0.4444444444444444,
+   "quick": 0.4444444444444444,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "berlin",
+   "b": "baku",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 0.8
+  },
+  {
+   "a": "berlin",
+   "b": "hamburg",
+   "ratio": 0.3076923076923077,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "berlin",
+   "b": "osaka",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "berlin",
+   "b": "kyoto",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "berlin",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.009216589861751152,
+   "quick": 0.009216589861751152,
+   "real_quick": 0.055299539170506916
+  },
+  {
+   "a": "berlin",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.008130081300813009,
+   "real_quick": 0.04878048780487805
+  },
+  {
+   "a": "berlin",
+   "b": "abcdef",
+   "ratio": 0.3333333333333333,
+   "quick": 0.3333333333333333,
+   "real_quick": 1.0
+  },
+  {
+   "a": "berlin",
+   "b": "fedcba",
+   "ratio": 0.16666666666666666,
+   "quick": 0.3333333333333333,
+   "real_quick": 1.0
+  },
+  {
+   "a": "berlin",
+   "b": "the quick brown fox",
+   "ratio": 0.24,
+   "quick": 0.4,
+   "real_quick": 0.48
+  },
+  {
+   "a": "berlin",
+   "b": "quick brown the fox",
+   "ratio": 0.16,
+   "quick": 0.4,
+   "real_quick": 0.48
+  },
+  {
+   "a": "berlín",
+   "b": "berlin",
+   "ratio": 0.8333333333333334,
+   "quick": 0.8333333333333334,
+   "real_quick": 1.0
+  },
+  {
+   "a": "berlín",
+   "b": "berlín",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "berlín",
+   "b": "melanie carter",
+   "ratio": 0.2,
+   "quick": 0.4,
+   "real_quick": 0.6
+  },
+  {
+   "a": "berlín",
+   "b": "melanie",
+   "ratio": 0.46153846153846156,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "berlín",
+   "b": "tokyo",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "berlín",
+   "b": "prenzlauer berg",
+   "ratio": 0.2857142857142857,
+   "quick": 0.47619047619047616,
+   "real_quick": 0.5714285714285714
+  },
+  {
+   "a": "berlín",
+   "b": "kreuzberg",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.8
+  },
+  {
+   "a": "berlín",
+   "b": "luna",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.8
+  },
+  {
+   "a": "berlín",
+   "b": "charite",
+   "ratio": 0.15384615384615385,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "berlín",
+   "b": "charité",
+   "ratio": 0.15384615384615385,
+   "quick": 0.15384615384615385,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "berlín",
+   "b": "leyla",
+   "ratio": 0.36363636363636365,
+   "quick": 0.36363636363636365,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "berlín",
+   "b": "jonas",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "berlín",
+   "b": "ali novruzov",
+   "ratio": 0.1111111111111111,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "berlín",
+   "b": "ali",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "berlín",
+   "b": "baku",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 0.8
+  },
+  {
+   "a": "berlín",
+   "b": "hamburg",
+   "ratio": 0.3076923076923077,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "berlín",
+   "b": "osaka",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "berlín",
+   "b": "kyoto",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "berlín",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.009216589861751152,
+   "quick": 0.009216589861751152,
+   "real_quick": 0.055299539170506916
+  },
+  {
+   "a": "berlín",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.008130081300813009,
+   "real_quick": 0.04878048780487805
+  },
+  {
+   "a": "berlín",
+   "b": "abcdef",
+   "ratio": 0.3333333333333333,
+   "quick": 0.3333333333333333,
+   "real_quick": 1.0
+  },
+  {
+   "a": "berlín",
+   "b": "fedcba",
+   "ratio": 0.16666666666666666,
+   "quick": 0.3333333333333333,
+   "real_quick": 1.0
+  },
+  {
+   "a": "berlín",
+   "b": "the quick brown fox",
+   "ratio": 0.24,
+   "quick": 0.32,
+   "real_quick": 0.48
+  },
+  {
+   "a": "berlín",
+   "b": "quick brown the fox",
+   "ratio": 0.16,
+   "quick": 0.32,
+   "real_quick": 0.48
+  },
+  {
+   "a": "melanie carter",
+   "b": "berlin",
+   "ratio": 0.2,
+   "quick": 0.5,
+   "real_quick": 0.6
+  },
+  {
+   "a": "melanie carter",
+   "b": "berlín",
+   "ratio": 0.2,
+   "quick": 0.4,
+   "real_quick": 0.6
+  },
+  {
+   "a": "melanie carter",
+   "b": "melanie carter",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "melanie carter",
+   "b": "melanie",
+   "ratio": 0.6666666666666666,
+   "quick": 0.6666666666666666,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "melanie carter",
+   "b": "tokyo",
+   "ratio": 0.10526315789473684,
+   "quick": 0.10526315789473684,
+   "real_quick": 0.5263157894736842
+  },
+  {
+   "a": "melanie carter",
+   "b": "prenzlauer berg",
+   "ratio": 0.3448275862068966,
+   "quick": 0.6206896551724138,
+   "real_quick": 0.9655172413793104
+  },
+  {
+   "a": "melanie carter",
+   "b": "kreuzberg",
+   "ratio": 0.2608695652173913,
+   "quick": 0.34782608695652173,
+   "real_quick": 0.782608695652174
+  },
+  {
+   "a": "melanie carter",
+   "b": "luna",
+   "ratio": 0.2222222222222222,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.4444444444444444
+  },
+  {
+   "a": "melanie carter",
+   "b": "charite",
+   "ratio": 0.47619047619047616,
+   "quick": 0.5714285714285714,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "melanie carter",
+   "b": "charité",
+   "ratio": 0.38095238095238093,
+   "quick": 0.47619047619047616,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "melanie carter",
+   "b": "leyla",
+   "ratio": 0.3157894736842105,
+   "quick": 0.3157894736842105,
+   "real_quick": 0.5263157894736842
+  },
+  {
+   "a": "melanie carter",
+   "b": "jonas",
+   "ratio": 0.10526315789473684,
+   "quick": 0.21052631578947367,
+   "real_quick": 0.5263157894736842
+  },
+  {
+   "a": "melanie carter",
+   "b": "ali novruzov",
+   "ratio": 0.23076923076923078,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "melanie carter",
+   "b": "ali",
+   "ratio": 0.23529411764705882,
+   "quick": 0.35294117647058826,
+   "real_quick": 0.35294117647058826
+  },
+  {
+   "a": "melanie carter",
+   "b": "baku",
+   "ratio": 0.1111111111111111,
+   "quick": 0.1111111111111111,
+   "real_quick": 0.4444444444444444
+  },
+  {
+   "a": "melanie carter",
+   "b": "hamburg",
+   "ratio": 0.19047619047619047,
+   "quick": 0.2857142857142857,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "melanie carter",
+   "b": "osaka",
+   "ratio": 0.21052631578947367,
+   "quick": 0.21052631578947367,
+   "real_quick": 0.5263157894736842
+  },
+  {
+   "a": "melanie carter",
+   "b": "kyoto",
+   "ratio": 0.10526315789473684,
+   "quick": 0.10526315789473684,
+   "real_quick": 0.5263157894736842
+  },
+  {
+   "a": "melanie carter",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.0,
+   "quick": 0.017777777777777778,
+   "real_quick": 0.12444444444444444
+  },
+  {
+   "a": "melanie carter",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.015748031496062992,
+   "real_quick": 0.11023622047244094
+  },
+  {
+   "a": "melanie carter",
+   "b": "abcdef",
+   "ratio": 0.1,
+   "quick": 0.3,
+   "real_quick": 0.6
+  },
+  {
+   "a": "melanie carter",
+   "b": "fedcba",
+   "ratio": 0.2,
+   "quick": 0.3,
+   "real_quick": 0.6
+  },
+  {
+   "a": "melanie carter",
+   "b": "the quick brown fox",
+   "ratio": 0.24242424242424243,
+   "quick": 0.42424242424242425,
+   "real_quick": 0.8484848484848485
+  },
+  {
+   "a": "melanie carter",
+   "b": "quick brown the fox",
+   "ratio": 0.18181818181818182,
+   "quick": 0.42424242424242425,
+   "real_quick": 0.8484848484848485
+  },
+  {
+   "a": "melanie",
+   "b": "berlin",
+   "ratio": 0.46153846153846156,
+   "quick": 0.6153846153846154,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "melanie",
+   "b": "berlín",
+   "ratio": 0.46153846153846156,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "melanie",
+   "b": "melanie carter",
+   "ratio": 0.6666666666666666,
+   "quick": 0.6666666666666666,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "melanie",
+   "b": "melanie",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "melanie",
+   "b": "tokyo",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "melanie",
+   "b": "prenzlauer berg",
+   "ratio": 0.36363636363636365,
+   "quick": 0.45454545454545453,
+   "real_quick": 0.6363636363636364
+  },
+  {
+   "a": "melanie",
+   "b": "kreuzberg",
+   "ratio": 0.25,
+   "quick": 0.25,
+   "real_quick": 0.875
+  },
+  {
+   "a": "melanie",
+   "b": "luna",
+   "ratio": 0.36363636363636365,
+   "quick": 0.5454545454545454,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "melanie",
+   "b": "charite",
+   "ratio": 0.14285714285714285,
+   "quick": 0.42857142857142855,
+   "real_quick": 1.0
+  },
+  {
+   "a": "melanie",
+   "b": "charité",
+   "ratio": 0.2857142857142857,
+   "quick": 0.2857142857142857,
+   "real_quick": 1.0
+  },
+  {
+   "a": "melanie",
+   "b": "leyla",
+   "ratio": 0.5,
+   "quick": 0.5,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "melanie",
+   "b": "jonas",
+   "ratio": 0.16666666666666666,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "melanie",
+   "b": "ali novruzov",
+   "ratio": 0.21052631578947367,
+   "quick": 0.42105263157894735,
+   "real_quick": 0.7368421052631579
+  },
+  {
+   "a": "melanie",
+   "b": "ali",
+   "ratio": 0.4,
+   "quick": 0.6,
+   "real_quick": 0.6
+  },
+  {
+   "a": "melanie",
+   "b": "baku",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "melanie",
+   "b": "hamburg",
+   "ratio": 0.14285714285714285,
+   "quick": 0.2857142857142857,
+   "real_quick": 1.0
+  },
+  {
+   "a": "melanie",
+   "b": "osaka",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "melanie",
+   "b": "kyoto",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "melanie",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.0,
+   "quick": 0.009174311926605505,
+   "real_quick": 0.06422018348623854
+  },
+  {
+   "a": "melanie",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.008097165991902834,
+   "real_quick": 0.05668016194331984
+  },
+  {
+   "a": "melanie",
+   "b": "abcdef",
+   "ratio": 0.15384615384615385,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "melanie",
+   "b": "fedcba",
+   "ratio": 0.3076923076923077,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "melanie",
+   "b": "the quick brown fox",
+   "ratio": 0.15384615384615385,
+   "quick": 0.23076923076923078,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "melanie",
+   "b": "quick brown the fox",
+   "ratio": 0.07692307692307693,
+   "quick": 0.23076923076923078,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "tokyo",
+   "b": "berlin",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "tokyo",
+   "b": "berlín",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "tokyo",
+   "b": "melanie carter",
+   "ratio": 0.10526315789473684,
+   "quick": 0.10526315789473684,
+   "real_quick": 0.5263157894736842
+  },
+  {
+   "a": "tokyo",
+   "b": "melanie",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "tokyo",
+   "b": "tokyo",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "tokyo",
+   "b": "prenzlauer berg",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.5
+  },
+  {
+   "a": "tokyo",
+   "b": "kreuzberg",
+   "ratio": 0.14285714285714285,
+   "quick": 0.14285714285714285,
+   "real_quick": 0.7142857142857143
+  },
+  {
+   "a": "tokyo",
+   "b": "luna",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "tokyo",
+   "b": "charite",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "tokyo",
+   "b": "charité",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "tokyo",
+   "b": "leyla",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 1.0
+  },
+  {
+   "a": "tokyo",
+   "b": "jonas",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 1.0
+  },
+  {
+   "a": "tokyo",
+   "b": "ali novruzov",
+   "ratio": 0.23529411764705882,
+   "quick": 0.23529411764705882,
+   "real_quick": 0.5882352941176471
+  },
+  {
+   "a": "tokyo",
+   "b": "ali",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.75
+  },
+  {
+   "a": "tokyo",
+   "b": "baku",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "tokyo",
+   "b": "hamburg",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "tokyo",
+   "b": "osaka",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 1.0
+  },
+  {
+   "a": "tokyo",
+   "b": "kyoto",
+   "ratio": 0.6,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "tokyo",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.046296296296296294
+  },
+  {
+   "a": "tokyo",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.04081632653061224
+  },
+  {
+   "a": "tokyo",
+   "b": "abcdef",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "tokyo",
+   "b": "fedcba",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "tokyo",
+   "b": "the quick brown fox",
+   "ratio": 0.25,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "tokyo",
+   "b": "quick brown the fox",
+   "ratio": 0.16666666666666666,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "berlin",
+   "ratio": 0.2857142857142857,
+   "quick": 0.47619047619047616,
+   "real_quick": 0.5714285714285714
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "berlín",
+   "ratio": 0.2857142857142857,
+   "quick": 0.47619047619047616,
+   "real_quick": 0.5714285714285714
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "melanie carter",
+   "ratio": 0.3448275862068966,
+   "quick": 0.6206896551724138,
+   "real_quick": 0.9655172413793104
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "melanie",
+   "ratio": 0.36363636363636365,
+   "quick": 0.45454545454545453,
+   "real_quick": 0.6363636363636364
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "tokyo",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.5
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "prenzlauer berg",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "kreuzberg",
+   "ratio": 0.5833333333333334,
+   "quick": 0.6666666666666666,
+   "real_quick": 0.75
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "luna",
+   "ratio": 0.21052631578947367,
+   "quick": 0.42105263157894735,
+   "real_quick": 0.42105263157894735
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "charite",
+   "ratio": 0.18181818181818182,
+   "quick": 0.2727272727272727,
+   "real_quick": 0.6363636363636364
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "charité",
+   "ratio": 0.09090909090909091,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.6363636363636364
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "leyla",
+   "ratio": 0.3,
+   "quick": 0.3,
+   "real_quick": 0.5
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "jonas",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 0.5
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "ali novruzov",
+   "ratio": 0.14814814814814814,
+   "quick": 0.5185185185185185,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "ali",
+   "ratio": 0.1111111111111111,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.3333333333333333
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "baku",
+   "ratio": 0.21052631578947367,
+   "quick": 0.3157894736842105,
+   "real_quick": 0.42105263157894735
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "hamburg",
+   "ratio": 0.36363636363636365,
+   "quick": 0.45454545454545453,
+   "real_quick": 0.6363636363636364
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "osaka",
+   "ratio": 0.1,
+   "quick": 0.1,
+   "real_quick": 0.5
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "kyoto",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.5
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.008849557522123894,
+   "quick": 0.017699115044247787,
+   "real_quick": 0.13274336283185842
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.01568627450980392,
+   "real_quick": 0.11764705882352941
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "abcdef",
+   "ratio": 0.09523809523809523,
+   "quick": 0.2857142857142857,
+   "real_quick": 0.5714285714285714
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "fedcba",
+   "ratio": 0.19047619047619047,
+   "quick": 0.2857142857142857,
+   "real_quick": 0.5714285714285714
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "the quick brown fox",
+   "ratio": 0.29411764705882354,
+   "quick": 0.35294117647058826,
+   "real_quick": 0.8823529411764706
+  },
+  {
+   "a": "prenzlauer berg",
+   "b": "quick brown the fox",
+   "ratio": 0.23529411764705882,
+   "quick": 0.35294117647058826,
+   "real_quick": 0.8823529411764706
+  },
+  {
+   "a": "kreuzberg",
+   "b": "berlin",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.8
+  },
+  {
+   "a": "kreuzberg",
+   "b": "berlín",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.8
+  },
+  {
+   "a": "kreuzberg",
+   "b": "melanie carter",
+   "ratio": 0.2608695652173913,
+   "quick": 0.34782608695652173,
+   "real_quick": 0.782608695652174
+  },
+  {
+   "a": "kreuzberg",
+   "b": "melanie",
+   "ratio": 0.25,
+   "quick": 0.25,
+   "real_quick": 0.875
+  },
+  {
+   "a": "kreuzberg",
+   "b": "tokyo",
+   "ratio": 0.14285714285714285,
+   "quick": 0.14285714285714285,
+   "real_quick": 0.7142857142857143
+  },
+  {
+   "a": "kreuzberg",
+   "b": "prenzlauer berg",
+   "ratio": 0.5833333333333334,
+   "quick": 0.6666666666666666,
+   "real_quick": 0.75
+  },
+  {
+   "a": "kreuzberg",
+   "b": "kreuzberg",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "kreuzberg",
+   "b": "luna",
+   "ratio": 0.15384615384615385,
+   "quick": 0.15384615384615385,
+   "real_quick": 0.6153846153846154
+  },
+  {
+   "a": "kreuzberg",
+   "b": "charite",
+   "ratio": 0.25,
+   "quick": 0.25,
+   "real_quick": 0.875
+  },
+  {
+   "a": "kreuzberg",
+   "b": "charité",
+   "ratio": 0.125,
+   "quick": 0.125,
+   "real_quick": 0.875
+  },
+  {
+   "a": "kreuzberg",
+   "b": "leyla",
+   "ratio": 0.14285714285714285,
+   "quick": 0.14285714285714285,
+   "real_quick": 0.7142857142857143
+  },
+  {
+   "a": "kreuzberg",
+   "b": "jonas",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.7142857142857143
+  },
+  {
+   "a": "kreuzberg",
+   "b": "ali novruzov",
+   "ratio": 0.2857142857142857,
+   "quick": 0.2857142857142857,
+   "real_quick": 0.8571428571428571
+  },
+  {
+   "a": "kreuzberg",
+   "b": "ali",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.5
+  },
+  {
+   "a": "kreuzberg",
+   "b": "baku",
+   "ratio": 0.3076923076923077,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.6153846153846154
+  },
+  {
+   "a": "kreuzberg",
+   "b": "hamburg",
+   "ratio": 0.375,
+   "quick": 0.5,
+   "real_quick": 0.875
+  },
+  {
+   "a": "kreuzberg",
+   "b": "osaka",
+   "ratio": 0.14285714285714285,
+   "quick": 0.14285714285714285,
+   "real_quick": 0.7142857142857143
+  },
+  {
+   "a": "kreuzberg",
+   "b": "kyoto",
+   "ratio": 0.14285714285714285,
+   "quick": 0.14285714285714285,
+   "real_quick": 0.7142857142857143
+  },
+  {
+   "a": "kreuzberg",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.00909090909090909,
+   "quick": 0.00909090909090909,
+   "real_quick": 0.08181818181818182
+  },
+  {
+   "a": "kreuzberg",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.008032128514056224,
+   "real_quick": 0.07228915662650602
+  },
+  {
+   "a": "kreuzberg",
+   "b": "abcdef",
+   "ratio": 0.13333333333333333,
+   "quick": 0.26666666666666666,
+   "real_quick": 0.8
+  },
+  {
+   "a": "kreuzberg",
+   "b": "fedcba",
+   "ratio": 0.26666666666666666,
+   "quick": 0.26666666666666666,
+   "real_quick": 0.8
+  },
+  {
+   "a": "kreuzberg",
+   "b": "the quick brown fox",
+   "ratio": 0.14285714285714285,
+   "quick": 0.35714285714285715,
+   "real_quick": 0.6428571428571429
+  },
+  {
+   "a": "kreuzberg",
+   "b": "quick brown the fox",
+   "ratio": 0.21428571428571427,
+   "quick": 0.35714285714285715,
+   "real_quick": 0.6428571428571429
+  },
+  {
+   "a": "luna",
+   "b": "berlin",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.8
+  },
+  {
+   "a": "luna",
+   "b": "berlín",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.8
+  },
+  {
+   "a": "luna",
+   "b": "melanie carter",
+   "ratio": 0.3333333333333333,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.4444444444444444
+  },
+  {
+   "a": "luna",
+   "b": "melanie",
+   "ratio": 0.36363636363636365,
+   "quick": 0.5454545454545454,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "luna",
+   "b": "tokyo",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "luna",
+   "b": "prenzlauer berg",
+   "ratio": 0.21052631578947367,
+   "quick": 0.42105263157894735,
+   "real_quick": 0.42105263157894735
+  },
+  {
+   "a": "luna",
+   "b": "kreuzberg",
+   "ratio": 0.15384615384615385,
+   "quick": 0.15384615384615385,
+   "real_quick": 0.6153846153846154
+  },
+  {
+   "a": "luna",
+   "b": "luna",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "luna",
+   "b": "charite",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "luna",
+   "b": "charité",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "luna",
+   "b": "leyla",
+   "ratio": 0.4444444444444444,
+   "quick": 0.4444444444444444,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "luna",
+   "b": "jonas",
+   "ratio": 0.4444444444444444,
+   "quick": 0.4444444444444444,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "luna",
+   "b": "ali novruzov",
+   "ratio": 0.25,
+   "quick": 0.5,
+   "real_quick": 0.5
+  },
+  {
+   "a": "luna",
+   "b": "ali",
+   "ratio": 0.2857142857142857,
+   "quick": 0.5714285714285714,
+   "real_quick": 0.8571428571428571
+  },
+  {
+   "a": "luna",
+   "b": "baku",
+   "ratio": 0.25,
+   "quick": 0.5,
+   "real_quick": 1.0
+  },
+  {
+   "a": "luna",
+   "b": "hamburg",
+   "ratio": 0.18181818181818182,
+   "quick": 0.36363636363636365,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "luna",
+   "b": "osaka",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "luna",
+   "b": "kyoto",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "luna",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.0,
+   "quick": 0.009302325581395349,
+   "real_quick": 0.037209302325581395
+  },
+  {
+   "a": "luna",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.00819672131147541,
+   "real_quick": 0.03278688524590164
+  },
+  {
+   "a": "luna",
+   "b": "abcdef",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 0.8
+  },
+  {
+   "a": "luna",
+   "b": "fedcba",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 0.8
+  },
+  {
+   "a": "luna",
+   "b": "the quick brown fox",
+   "ratio": 0.17391304347826086,
+   "quick": 0.17391304347826086,
+   "real_quick": 0.34782608695652173
+  },
+  {
+   "a": "luna",
+   "b": "quick brown the fox",
+   "ratio": 0.17391304347826086,
+   "quick": 0.17391304347826086,
+   "real_quick": 0.34782608695652173
+  },
+  {
+   "a": "charite",
+   "b": "berlin",
+   "ratio": 0.3076923076923077,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "charite",
+   "b": "berlín",
+   "ratio": 0.15384615384615385,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "charite",
+   "b": "melanie carter",
+   "ratio": 0.47619047619047616,
+   "quick": 0.5714285714285714,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "charite",
+   "b": "melanie",
+   "ratio": 0.42857142857142855,
+   "quick": 0.42857142857142855,
+   "real_quick": 1.0
+  },
+  {
+   "a": "charite",
+   "b": "tokyo",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "charite",
+   "b": "prenzlauer berg",
+   "ratio": 0.2727272727272727,
+   "quick": 0.2727272727272727,
+   "real_quick": 0.6363636363636364
+  },
+  {
+   "a": "charite",
+   "b": "kreuzberg",
+   "ratio": 0.25,
+   "quick": 0.25,
+   "real_quick": 0.875
+  },
+  {
+   "a": "charite",
+   "b": "luna",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "charite",
+   "b": "charite",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "charite",
+   "b": "charité",
+   "ratio": 0.8571428571428571,
+   "quick": 0.8571428571428571,
+   "real_quick": 1.0
+  },
+  {
+   "a": "charite",
+   "b": "leyla",
+   "ratio": 0.16666666666666666,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "charite",
+   "b": "jonas",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "charite",
+   "b": "ali novruzov",
+   "ratio": 0.21052631578947367,
+   "quick": 0.3157894736842105,
+   "real_quick": 0.7368421052631579
+  },
+  {
+   "a": "charite",
+   "b": "ali",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.6
+  },
+  {
+   "a": "charite",
+   "b": "baku",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "charite",
+   "b": "hamburg",
+   "ratio": 0.42857142857142855,
+   "quick": 0.42857142857142855,
+   "real_quick": 1.0
+  },
+  {
+   "a": "charite",
+   "b": "osaka",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "charite",
+   "b": "kyoto",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "charite",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.0,
+   "quick": 0.009174311926605505,
+   "real_quick": 0.06422018348623854
+  },
+  {
+   "a": "charite",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.008097165991902834,
+   "real_quick": 0.05668016194331984
+  },
+  {
+   "a": "charite",
+   "b": "abcdef",
+   "ratio": 0.3076923076923077,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "charite",
+   "b": "fedcba",
+   "ratio": 0.3076923076923077,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "charite",
+   "b": "the quick brown fox",
+   "ratio": 0.15384615384615385,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "charite",
+   "b": "quick brown the fox",
+   "ratio": 0.23076923076923078,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "charité",
+   "b": "berlin",
+   "ratio": 0.3076923076923077,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "charité",
+   "b": "berlín",
+   "ratio": 0.15384615384615385,
+   "quick": 0.15384615384615385,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "charité",
+   "b": "melanie carter",
+   "ratio": 0.38095238095238093,
+   "quick": 0.47619047619047616,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "charité",
+   "b": "melanie",
+   "ratio": 0.2857142857142857,
+   "quick": 0.2857142857142857,
+   "real_quick": 1.0
+  },
+  {
+   "a": "charité",
+   "b": "tokyo",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "charité",
+   "b": "prenzlauer berg",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.6363636363636364
+  },
+  {
+   "a": "charité",
+   "b": "kreuzberg",
+   "ratio": 0.125,
+   "quick": 0.125,
+   "real_quick": 0.875
+  },
+  {
+   "a": "charité",
+   "b": "luna",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "charité",
+   "b": "charite",
+   "ratio": 0.8571428571428571,
+   "quick": 0.8571428571428571,
+   "real_quick": 1.0
+  },
+  {
+   "a": "charité",
+   "b": "charité",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "charité",
+   "b": "leyla",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "charité",
+   "b": "jonas",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "charité",
+   "b": "ali novruzov",
+   "ratio": 0.21052631578947367,
+   "quick": 0.3157894736842105,
+   "real_quick": 0.7368421052631579
+  },
+  {
+   "a": "charité",
+   "b": "ali",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.6
+  },
+  {
+   "a": "charité",
+   "b": "baku",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "charité",
+   "b": "hamburg",
+   "ratio": 0.42857142857142855,
+   "quick": 0.42857142857142855,
+   "real_quick": 1.0
+  },
+  {
+   "a": "charité",
+   "b": "osaka",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "charité",
+   "b": "kyoto",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "charité",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.0,
+   "quick": 0.009174311926605505,
+   "real_quick": 0.06422018348623854
+  },
+  {
+   "a": "charité",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.008097165991902834,
+   "real_quick": 0.05668016194331984
+  },
+  {
+   "a": "charité",
+   "b": "abcdef",
+   "ratio": 0.15384615384615385,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "charité",
+   "b": "fedcba",
+   "ratio": 0.3076923076923077,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "charité",
+   "b": "the quick brown fox",
+   "ratio": 0.15384615384615385,
+   "quick": 0.38461538461538464,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "charité",
+   "b": "quick brown the fox",
+   "ratio": 0.15384615384615385,
+   "quick": 0.38461538461538464,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "leyla",
+   "b": "berlin",
+   "ratio": 0.18181818181818182,
+   "quick": 0.36363636363636365,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "leyla",
+   "b": "berlín",
+   "ratio": 0.18181818181818182,
+   "quick": 0.36363636363636365,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "leyla",
+   "b": "melanie carter",
+   "ratio": 0.3157894736842105,
+   "quick": 0.3157894736842105,
+   "real_quick": 0.5263157894736842
+  },
+  {
+   "a": "leyla",
+   "b": "melanie",
+   "ratio": 0.5,
+   "quick": 0.5,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "leyla",
+   "b": "tokyo",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 1.0
+  },
+  {
+   "a": "leyla",
+   "b": "prenzlauer berg",
+   "ratio": 0.3,
+   "quick": 0.3,
+   "real_quick": 0.5
+  },
+  {
+   "a": "leyla",
+   "b": "kreuzberg",
+   "ratio": 0.14285714285714285,
+   "quick": 0.14285714285714285,
+   "real_quick": 0.7142857142857143
+  },
+  {
+   "a": "leyla",
+   "b": "luna",
+   "ratio": 0.4444444444444444,
+   "quick": 0.4444444444444444,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "leyla",
+   "b": "charite",
+   "ratio": 0.16666666666666666,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "leyla",
+   "b": "charité",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "leyla",
+   "b": "leyla",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "leyla",
+   "b": "jonas",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 1.0
+  },
+  {
+   "a": "leyla",
+   "b": "ali novruzov",
+   "ratio": 0.11764705882352941,
+   "quick": 0.23529411764705882,
+   "real_quick": 0.5882352941176471
+  },
+  {
+   "a": "leyla",
+   "b": "ali",
+   "ratio": 0.25,
+   "quick": 0.5,
+   "real_quick": 0.75
+  },
+  {
+   "a": "leyla",
+   "b": "baku",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "leyla",
+   "b": "hamburg",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "leyla",
+   "b": "osaka",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 1.0
+  },
+  {
+   "a": "leyla",
+   "b": "kyoto",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 1.0
+  },
+  {
+   "a": "leyla",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.0,
+   "quick": 0.009259259259259259,
+   "real_quick": 0.046296296296296294
+  },
+  {
+   "a": "leyla",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.00816326530612245,
+   "real_quick": 0.04081632653061224
+  },
+  {
+   "a": "leyla",
+   "b": "abcdef",
+   "ratio": 0.18181818181818182,
+   "quick": 0.36363636363636365,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "leyla",
+   "b": "fedcba",
+   "ratio": 0.36363636363636365,
+   "quick": 0.36363636363636365,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "leyla",
+   "b": "the quick brown fox",
+   "ratio": 0.08333333333333333,
+   "quick": 0.08333333333333333,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "leyla",
+   "b": "quick brown the fox",
+   "ratio": 0.08333333333333333,
+   "quick": 0.08333333333333333,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "jonas",
+   "b": "berlin",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "jonas",
+   "b": "berlín",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "jonas",
+   "b": "melanie carter",
+   "ratio": 0.21052631578947367,
+   "quick": 0.21052631578947367,
+   "real_quick": 0.5263157894736842
+  },
+  {
+   "a": "jonas",
+   "b": "melanie",
+   "ratio": 0.16666666666666666,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "jonas",
+   "b": "tokyo",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 1.0
+  },
+  {
+   "a": "jonas",
+   "b": "prenzlauer berg",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 0.5
+  },
+  {
+   "a": "jonas",
+   "b": "kreuzberg",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.7142857142857143
+  },
+  {
+   "a": "jonas",
+   "b": "luna",
+   "ratio": 0.4444444444444444,
+   "quick": 0.4444444444444444,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "jonas",
+   "b": "charite",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "jonas",
+   "b": "charité",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "jonas",
+   "b": "leyla",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 1.0
+  },
+  {
+   "a": "jonas",
+   "b": "jonas",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "jonas",
+   "b": "ali novruzov",
+   "ratio": 0.11764705882352941,
+   "quick": 0.35294117647058826,
+   "real_quick": 0.5882352941176471
+  },
+  {
+   "a": "jonas",
+   "b": "ali",
+   "ratio": 0.25,
+   "quick": 0.25,
+   "real_quick": 0.75
+  },
+  {
+   "a": "jonas",
+   "b": "baku",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "jonas",
+   "b": "hamburg",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "jonas",
+   "b": "osaka",
+   "ratio": 0.4,
+   "quick": 0.6,
+   "real_quick": 1.0
+  },
+  {
+   "a": "jonas",
+   "b": "kyoto",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 1.0
+  },
+  {
+   "a": "jonas",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.0,
+   "quick": 0.009259259259259259,
+   "real_quick": 0.046296296296296294
+  },
+  {
+   "a": "jonas",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.00816326530612245,
+   "real_quick": 0.04081632653061224
+  },
+  {
+   "a": "jonas",
+   "b": "abcdef",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "jonas",
+   "b": "fedcba",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "jonas",
+   "b": "the quick brown fox",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "jonas",
+   "b": "quick brown the fox",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "ali novruzov",
+   "b": "berlin",
+   "ratio": 0.3333333333333333,
+   "quick": 0.4444444444444444,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "ali novruzov",
+   "b": "berlín",
+   "ratio": 0.2222222222222222,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "ali novruzov",
+   "b": "melanie carter",
+   "ratio": 0.3076923076923077,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "ali novruzov",
+   "b": "melanie",
+   "ratio": 0.21052631578947367,
+   "quick": 0.42105263157894735,
+   "real_quick": 0.7368421052631579
+  },
+  {
+   "a": "ali novruzov",
+   "b": "tokyo",
+   "ratio": 0.23529411764705882,
+   "quick": 0.23529411764705882,
+   "real_quick": 0.5882352941176471
+  },
+  {
+   "a": "ali novruzov",
+   "b": "prenzlauer berg",
+   "ratio": 0.2222222222222222,
+   "quick": 0.5185185185185185,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "ali novruzov",
+   "b": "kreuzberg",
+   "ratio": 0.2857142857142857,
+   "quick": 0.2857142857142857,
+   "real_quick": 0.8571428571428571
+  },
+  {
+   "a": "ali novruzov",
+   "b": "luna",
+   "ratio": 0.125,
+   "quick": 0.5,
+   "real_quick": 0.5
+  },
+  {
+   "a": "ali novruzov",
+   "b": "charite",
+   "ratio": 0.21052631578947367,
+   "quick": 0.3157894736842105,
+   "real_quick": 0.7368421052631579
+  },
+  {
+   "a": "ali novruzov",
+   "b": "charité",
+   "ratio": 0.21052631578947367,
+   "quick": 0.3157894736842105,
+   "real_quick": 0.7368421052631579
+  },
+  {
+   "a": "ali novruzov",
+   "b": "leyla",
+   "ratio": 0.11764705882352941,
+   "quick": 0.23529411764705882,
+   "real_quick": 0.5882352941176471
+  },
+  {
+   "a": "ali novruzov",
+   "b": "jonas",
+   "ratio": 0.11764705882352941,
+   "quick": 0.35294117647058826,
+   "real_quick": 0.5882352941176471
+  },
+  {
+   "a": "ali novruzov",
+   "b": "ali novruzov",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "ali novruzov",
+   "b": "ali",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.4
+  },
+  {
+   "a": "ali novruzov",
+   "b": "baku",
+   "ratio": 0.25,
+   "quick": 0.25,
+   "real_quick": 0.5
+  },
+  {
+   "a": "ali novruzov",
+   "b": "hamburg",
+   "ratio": 0.21052631578947367,
+   "quick": 0.3157894736842105,
+   "real_quick": 0.7368421052631579
+  },
+  {
+   "a": "ali novruzov",
+   "b": "osaka",
+   "ratio": 0.11764705882352941,
+   "quick": 0.23529411764705882,
+   "real_quick": 0.5882352941176471
+  },
+  {
+   "a": "ali novruzov",
+   "b": "kyoto",
+   "ratio": 0.23529411764705882,
+   "quick": 0.23529411764705882,
+   "real_quick": 0.5882352941176471
+  },
+  {
+   "a": "ali novruzov",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.008968609865470852,
+   "quick": 0.008968609865470852,
+   "real_quick": 0.10762331838565023
+  },
+  {
+   "a": "ali novruzov",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.007936507936507936,
+   "quick": 0.007936507936507936,
+   "real_quick": 0.09523809523809523
+  },
+  {
+   "a": "ali novruzov",
+   "b": "abcdef",
+   "ratio": 0.1111111111111111,
+   "quick": 0.1111111111111111,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "ali novruzov",
+   "b": "fedcba",
+   "ratio": 0.1111111111111111,
+   "quick": 0.1111111111111111,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "ali novruzov",
+   "b": "the quick brown fox",
+   "ratio": 0.25806451612903225,
+   "quick": 0.45161290322580644,
+   "real_quick": 0.7741935483870968
+  },
+  {
+   "a": "ali novruzov",
+   "b": "quick brown the fox",
+   "ratio": 0.25806451612903225,
+   "quick": 0.45161290322580644,
+   "real_quick": 0.7741935483870968
+  },
+  {
+   "a": "ali",
+   "b": "berlin",
+   "ratio": 0.4444444444444444,
+   "quick": 0.4444444444444444,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "ali",
+   "b": "berlín",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "ali",
+   "b": "melanie carter",
+   "ratio": 0.23529411764705882,
+   "quick": 0.35294117647058826,
+   "real_quick": 0.35294117647058826
+  },
+  {
+   "a": "ali",
+   "b": "melanie",
+   "ratio": 0.4,
+   "quick": 0.6,
+   "real_quick": 0.6
+  },
+  {
+   "a": "ali",
+   "b": "tokyo",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.75
+  },
+  {
+   "a": "ali",
+   "b": "prenzlauer berg",
+   "ratio": 0.1111111111111111,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.3333333333333333
+  },
+  {
+   "a": "ali",
+   "b": "kreuzberg",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.5
+  },
+  {
+   "a": "ali",
+   "b": "luna",
+   "ratio": 0.2857142857142857,
+   "quick": 0.5714285714285714,
+   "real_quick": 0.8571428571428571
+  },
+  {
+   "a": "ali",
+   "b": "charite",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.6
+  },
+  {
+   "a": "ali",
+   "b": "charité",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.6
+  },
+  {
+   "a": "ali",
+   "b": "leyla",
+   "ratio": 0.25,
+   "quick": 0.5,
+   "real_quick": 0.75
+  },
+  {
+   "a": "ali",
+   "b": "jonas",
+   "ratio": 0.25,
+   "quick": 0.25,
+   "real_quick": 0.75
+  },
+  {
+   "a": "ali",
+   "b": "ali novruzov",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.4
+  },
+  {
+   "a": "ali",
+   "b": "ali",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "ali",
+   "b": "baku",
+   "ratio": 0.2857142857142857,
+   "quick": 0.2857142857142857,
+   "real_quick": 0.8571428571428571
+  },
+  {
+   "a": "ali",
+   "b": "hamburg",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 0.6
+  },
+  {
+   "a": "ali",
+   "b": "osaka",
+   "ratio": 0.25,
+   "quick": 0.25,
+   "real_quick": 0.75
+  },
+  {
+   "a": "ali",
+   "b": "kyoto",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.75
+  },
+  {
+   "a": "ali",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.009345794392523364,
+   "quick": 0.009345794392523364,
+   "real_quick": 0.028037383177570093
+  },
+  {
+   "a": "ali",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.00823045267489712,
+   "quick": 0.00823045267489712,
+   "real_quick": 0.024691358024691357
+  },
+  {
+   "a": "ali",
+   "b": "abcdef",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "ali",
+   "b": "fedcba",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "ali",
+   "b": "the quick brown fox",
+   "ratio": 0.09090909090909091,
+   "quick": 0.09090909090909091,
+   "real_quick": 0.2727272727272727
+  },
+  {
+   "a": "ali",
+   "b": "quick brown the fox",
+   "ratio": 0.09090909090909091,
+   "quick": 0.09090909090909091,
+   "real_quick": 0.2727272727272727
+  },
+  {
+   "a": "baku",
+   "b": "berlin",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 0.8
+  },
+  {
+   "a": "baku",
+   "b": "berlín",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 0.8
+  },
+  {
+   "a": "baku",
+   "b": "melanie carter",
+   "ratio": 0.1111111111111111,
+   "quick": 0.1111111111111111,
+   "real_quick": 0.4444444444444444
+  },
+  {
+   "a": "baku",
+   "b": "melanie",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "baku",
+   "b": "tokyo",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "baku",
+   "b": "prenzlauer berg",
+   "ratio": 0.10526315789473684,
+   "quick": 0.3157894736842105,
+   "real_quick": 0.42105263157894735
+  },
+  {
+   "a": "baku",
+   "b": "kreuzberg",
+   "ratio": 0.15384615384615385,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.6153846153846154
+  },
+  {
+   "a": "baku",
+   "b": "luna",
+   "ratio": 0.25,
+   "quick": 0.5,
+   "real_quick": 1.0
+  },
+  {
+   "a": "baku",
+   "b": "charite",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "baku",
+   "b": "charité",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "baku",
+   "b": "leyla",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "baku",
+   "b": "jonas",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "baku",
+   "b": "ali novruzov",
+   "ratio": 0.25,
+   "quick": 0.25,
+   "real_quick": 0.5
+  },
+  {
+   "a": "baku",
+   "b": "ali",
+   "ratio": 0.2857142857142857,
+   "quick": 0.2857142857142857,
+   "real_quick": 0.8571428571428571
+  },
+  {
+   "a": "baku",
+   "b": "baku",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "baku",
+   "b": "hamburg",
+   "ratio": 0.36363636363636365,
+   "quick": 0.5454545454545454,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "baku",
+   "b": "osaka",
+   "ratio": 0.4444444444444444,
+   "quick": 0.4444444444444444,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "baku",
+   "b": "kyoto",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "baku",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.009302325581395349,
+   "quick": 0.018604651162790697,
+   "real_quick": 0.037209302325581395
+  },
+  {
+   "a": "baku",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.01639344262295082,
+   "real_quick": 0.03278688524590164
+  },
+  {
+   "a": "baku",
+   "b": "abcdef",
+   "ratio": 0.2,
+   "quick": 0.4,
+   "real_quick": 0.8
+  },
+  {
+   "a": "baku",
+   "b": "fedcba",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.8
+  },
+  {
+   "a": "baku",
+   "b": "the quick brown fox",
+   "ratio": 0.08695652173913043,
+   "quick": 0.2608695652173913,
+   "real_quick": 0.34782608695652173
+  },
+  {
+   "a": "baku",
+   "b": "quick brown the fox",
+   "ratio": 0.08695652173913043,
+   "quick": 0.2608695652173913,
+   "real_quick": 0.34782608695652173
+  },
+  {
+   "a": "hamburg",
+   "b": "berlin",
+   "ratio": 0.3076923076923077,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "hamburg",
+   "b": "berlín",
+   "ratio": 0.3076923076923077,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "hamburg",
+   "b": "melanie carter",
+   "ratio": 0.19047619047619047,
+   "quick": 0.2857142857142857,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "hamburg",
+   "b": "melanie",
+   "ratio": 0.14285714285714285,
+   "quick": 0.2857142857142857,
+   "real_quick": 1.0
+  },
+  {
+   "a": "hamburg",
+   "b": "tokyo",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "hamburg",
+   "b": "prenzlauer berg",
+   "ratio": 0.36363636363636365,
+   "quick": 0.45454545454545453,
+   "real_quick": 0.6363636363636364
+  },
+  {
+   "a": "hamburg",
+   "b": "kreuzberg",
+   "ratio": 0.375,
+   "quick": 0.5,
+   "real_quick": 0.875
+  },
+  {
+   "a": "hamburg",
+   "b": "luna",
+   "ratio": 0.18181818181818182,
+   "quick": 0.36363636363636365,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "hamburg",
+   "b": "charite",
+   "ratio": 0.42857142857142855,
+   "quick": 0.42857142857142855,
+   "real_quick": 1.0
+  },
+  {
+   "a": "hamburg",
+   "b": "charité",
+   "ratio": 0.42857142857142855,
+   "quick": 0.42857142857142855,
+   "real_quick": 1.0
+  },
+  {
+   "a": "hamburg",
+   "b": "leyla",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "hamburg",
+   "b": "jonas",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "hamburg",
+   "b": "ali novruzov",
+   "ratio": 0.21052631578947367,
+   "quick": 0.3157894736842105,
+   "real_quick": 0.7368421052631579
+  },
+  {
+   "a": "hamburg",
+   "b": "ali",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 0.6
+  },
+  {
+   "a": "hamburg",
+   "b": "baku",
+   "ratio": 0.36363636363636365,
+   "quick": 0.5454545454545454,
+   "real_quick": 0.7272727272727273
+  },
+  {
+   "a": "hamburg",
+   "b": "hamburg",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "hamburg",
+   "b": "osaka",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "hamburg",
+   "b": "kyoto",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "hamburg",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.009174311926605505,
+   "quick": 0.01834862385321101,
+   "real_quick": 0.06422018348623854
+  },
+  {
+   "a": "hamburg",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.016194331983805668,
+   "real_quick": 0.05668016194331984
+  },
+  {
+   "a": "hamburg",
+   "b": "abcdef",
+   "ratio": 0.3076923076923077,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "hamburg",
+   "b": "fedcba",
+   "ratio": 0.15384615384615385,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "hamburg",
+   "b": "the quick brown fox",
+   "ratio": 0.23076923076923078,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "hamburg",
+   "b": "quick brown the fox",
+   "ratio": 0.07692307692307693,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "osaka",
+   "b": "berlin",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "osaka",
+   "b": "berlín",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "osaka",
+   "b": "melanie carter",
+   "ratio": 0.21052631578947367,
+   "quick": 0.21052631578947367,
+   "real_quick": 0.5263157894736842
+  },
+  {
+   "a": "osaka",
+   "b": "melanie",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "osaka",
+   "b": "tokyo",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 1.0
+  },
+  {
+   "a": "osaka",
+   "b": "prenzlauer berg",
+   "ratio": 0.1,
+   "quick": 0.1,
+   "real_quick": 0.5
+  },
+  {
+   "a": "osaka",
+   "b": "kreuzberg",
+   "ratio": 0.14285714285714285,
+   "quick": 0.14285714285714285,
+   "real_quick": 0.7142857142857143
+  },
+  {
+   "a": "osaka",
+   "b": "luna",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "osaka",
+   "b": "charite",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "osaka",
+   "b": "charité",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "osaka",
+   "b": "leyla",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 1.0
+  },
+  {
+   "a": "osaka",
+   "b": "jonas",
+   "ratio": 0.4,
+   "quick": 0.6,
+   "real_quick": 1.0
+  },
+  {
+   "a": "osaka",
+   "b": "ali novruzov",
+   "ratio": 0.11764705882352941,
+   "quick": 0.23529411764705882,
+   "real_quick": 0.5882352941176471
+  },
+  {
+   "a": "osaka",
+   "b": "ali",
+   "ratio": 0.25,
+   "quick": 0.25,
+   "real_quick": 0.75
+  },
+  {
+   "a": "osaka",
+   "b": "baku",
+   "ratio": 0.4444444444444444,
+   "quick": 0.4444444444444444,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "osaka",
+   "b": "hamburg",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "osaka",
+   "b": "osaka",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "osaka",
+   "b": "kyoto",
+   "ratio": 0.2,
+   "quick": 0.4,
+   "real_quick": 1.0
+  },
+  {
+   "a": "osaka",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.0,
+   "quick": 0.018518518518518517,
+   "real_quick": 0.046296296296296294
+  },
+  {
+   "a": "osaka",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.0163265306122449,
+   "real_quick": 0.04081632653061224
+  },
+  {
+   "a": "osaka",
+   "b": "abcdef",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "osaka",
+   "b": "fedcba",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "osaka",
+   "b": "the quick brown fox",
+   "ratio": 0.08333333333333333,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "osaka",
+   "b": "quick brown the fox",
+   "ratio": 0.08333333333333333,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "kyoto",
+   "b": "berlin",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "kyoto",
+   "b": "berlín",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "kyoto",
+   "b": "melanie carter",
+   "ratio": 0.10526315789473684,
+   "quick": 0.10526315789473684,
+   "real_quick": 0.5263157894736842
+  },
+  {
+   "a": "kyoto",
+   "b": "melanie",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "kyoto",
+   "b": "tokyo",
+   "ratio": 0.6,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "kyoto",
+   "b": "prenzlauer berg",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.5
+  },
+  {
+   "a": "kyoto",
+   "b": "kreuzberg",
+   "ratio": 0.14285714285714285,
+   "quick": 0.14285714285714285,
+   "real_quick": 0.7142857142857143
+  },
+  {
+   "a": "kyoto",
+   "b": "luna",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "kyoto",
+   "b": "charite",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "kyoto",
+   "b": "charité",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "kyoto",
+   "b": "leyla",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 1.0
+  },
+  {
+   "a": "kyoto",
+   "b": "jonas",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 1.0
+  },
+  {
+   "a": "kyoto",
+   "b": "ali novruzov",
+   "ratio": 0.23529411764705882,
+   "quick": 0.23529411764705882,
+   "real_quick": 0.5882352941176471
+  },
+  {
+   "a": "kyoto",
+   "b": "ali",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.75
+  },
+  {
+   "a": "kyoto",
+   "b": "baku",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.8888888888888888
+  },
+  {
+   "a": "kyoto",
+   "b": "hamburg",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.8333333333333334
+  },
+  {
+   "a": "kyoto",
+   "b": "osaka",
+   "ratio": 0.2,
+   "quick": 0.4,
+   "real_quick": 1.0
+  },
+  {
+   "a": "kyoto",
+   "b": "kyoto",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "kyoto",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.046296296296296294
+  },
+  {
+   "a": "kyoto",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.04081632653061224
+  },
+  {
+   "a": "kyoto",
+   "b": "abcdef",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "kyoto",
+   "b": "fedcba",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "kyoto",
+   "b": "the quick brown fox",
+   "ratio": 0.25,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "kyoto",
+   "b": "quick brown the fox",
+   "ratio": 0.3333333333333333,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "berlin",
+   "ratio": 0.009216589861751152,
+   "quick": 0.009216589861751152,
+   "real_quick": 0.055299539170506916
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "berlín",
+   "ratio": 0.009216589861751152,
+   "quick": 0.009216589861751152,
+   "real_quick": 0.055299539170506916
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "melanie carter",
+   "ratio": 0.017777777777777778,
+   "quick": 0.017777777777777778,
+   "real_quick": 0.12444444444444444
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "melanie",
+   "ratio": 0.009174311926605505,
+   "quick": 0.009174311926605505,
+   "real_quick": 0.06422018348623854
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "tokyo",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.046296296296296294
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "prenzlauer berg",
+   "ratio": 0.017699115044247787,
+   "quick": 0.017699115044247787,
+   "real_quick": 0.13274336283185842
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "kreuzberg",
+   "ratio": 0.00909090909090909,
+   "quick": 0.00909090909090909,
+   "real_quick": 0.08181818181818182
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "luna",
+   "ratio": 0.009302325581395349,
+   "quick": 0.009302325581395349,
+   "real_quick": 0.037209302325581395
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "charite",
+   "ratio": 0.009174311926605505,
+   "quick": 0.009174311926605505,
+   "real_quick": 0.06422018348623854
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "charité",
+   "ratio": 0.009174311926605505,
+   "quick": 0.009174311926605505,
+   "real_quick": 0.06422018348623854
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "leyla",
+   "ratio": 0.009259259259259259,
+   "quick": 0.009259259259259259,
+   "real_quick": 0.046296296296296294
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "jonas",
+   "ratio": 0.009259259259259259,
+   "quick": 0.009259259259259259,
+   "real_quick": 0.046296296296296294
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "ali novruzov",
+   "ratio": 0.008968609865470852,
+   "quick": 0.008968609865470852,
+   "real_quick": 0.10762331838565023
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "ali",
+   "ratio": 0.009345794392523364,
+   "quick": 0.009345794392523364,
+   "real_quick": 0.028037383177570093
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "baku",
+   "ratio": 0.009302325581395349,
+   "quick": 0.018604651162790697,
+   "real_quick": 0.037209302325581395
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "hamburg",
+   "ratio": 0.01834862385321101,
+   "quick": 0.01834862385321101,
+   "real_quick": 0.06422018348623854
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "osaka",
+   "ratio": 0.018518518518518517,
+   "quick": 0.018518518518518517,
+   "real_quick": 0.046296296296296294
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "kyoto",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.046296296296296294
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.004434589800443459,
+   "quick": 0.5365853658536586,
+   "real_quick": 0.9356984478935698
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "abcdef",
+   "ratio": 0.018433179723502304,
+   "quick": 0.018433179723502304,
+   "real_quick": 0.055299539170506916
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "fedcba",
+   "ratio": 0.009216589861751152,
+   "quick": 0.018433179723502304,
+   "real_quick": 0.055299539170506916
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "the quick brown fox",
+   "ratio": 0.008695652173913044,
+   "quick": 0.008695652173913044,
+   "real_quick": 0.16521739130434782
+  },
+  {
+   "a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "b": "quick brown the fox",
+   "ratio": 0.008695652173913044,
+   "quick": 0.008695652173913044,
+   "real_quick": 0.16521739130434782
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "berlin",
+   "ratio": 0.008130081300813009,
+   "quick": 0.008130081300813009,
+   "real_quick": 0.04878048780487805
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "berlín",
+   "ratio": 0.008130081300813009,
+   "quick": 0.008130081300813009,
+   "real_quick": 0.04878048780487805
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "melanie carter",
+   "ratio": 0.015748031496062992,
+   "quick": 0.015748031496062992,
+   "real_quick": 0.11023622047244094
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "melanie",
+   "ratio": 0.008097165991902834,
+   "quick": 0.008097165991902834,
+   "real_quick": 0.05668016194331984
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "tokyo",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.04081632653061224
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "prenzlauer berg",
+   "ratio": 0.01568627450980392,
+   "quick": 0.01568627450980392,
+   "real_quick": 0.11764705882352941
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "kreuzberg",
+   "ratio": 0.008032128514056224,
+   "quick": 0.008032128514056224,
+   "real_quick": 0.07228915662650602
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "luna",
+   "ratio": 0.00819672131147541,
+   "quick": 0.00819672131147541,
+   "real_quick": 0.03278688524590164
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "charite",
+   "ratio": 0.008097165991902834,
+   "quick": 0.008097165991902834,
+   "real_quick": 0.05668016194331984
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "charité",
+   "ratio": 0.008097165991902834,
+   "quick": 0.008097165991902834,
+   "real_quick": 0.05668016194331984
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "leyla",
+   "ratio": 0.00816326530612245,
+   "quick": 0.00816326530612245,
+   "real_quick": 0.04081632653061224
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "jonas",
+   "ratio": 0.00816326530612245,
+   "quick": 0.00816326530612245,
+   "real_quick": 0.04081632653061224
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "ali novruzov",
+   "ratio": 0.007936507936507936,
+   "quick": 0.007936507936507936,
+   "real_quick": 0.09523809523809523
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "ali",
+   "ratio": 0.00823045267489712,
+   "quick": 0.00823045267489712,
+   "real_quick": 0.024691358024691357
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "baku",
+   "ratio": 0.01639344262295082,
+   "quick": 0.01639344262295082,
+   "real_quick": 0.03278688524590164
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "hamburg",
+   "ratio": 0.016194331983805668,
+   "quick": 0.016194331983805668,
+   "real_quick": 0.05668016194331984
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "osaka",
+   "ratio": 0.0163265306122449,
+   "quick": 0.0163265306122449,
+   "real_quick": 0.04081632653061224
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "kyoto",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.04081632653061224
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.008869179600886918,
+   "quick": 0.5365853658536586,
+   "real_quick": 0.9356984478935698
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "abcdef",
+   "ratio": 0.016260162601626018,
+   "quick": 0.016260162601626018,
+   "real_quick": 0.04878048780487805
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "fedcba",
+   "ratio": 0.016260162601626018,
+   "quick": 0.016260162601626018,
+   "real_quick": 0.04878048780487805
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "the quick brown fox",
+   "ratio": 0.007722007722007722,
+   "quick": 0.007722007722007722,
+   "real_quick": 0.14671814671814673
+  },
+  {
+   "a": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "b": "quick brown the fox",
+   "ratio": 0.007722007722007722,
+   "quick": 0.007722007722007722,
+   "real_quick": 0.14671814671814673
+  },
+  {
+   "a": "abcdef",
+   "b": "berlin",
+   "ratio": 0.3333333333333333,
+   "quick": 0.3333333333333333,
+   "real_quick": 1.0
+  },
+  {
+   "a": "abcdef",
+   "b": "berlín",
+   "ratio": 0.3333333333333333,
+   "quick": 0.3333333333333333,
+   "real_quick": 1.0
+  },
+  {
+   "a": "abcdef",
+   "b": "melanie carter",
+   "ratio": 0.3,
+   "quick": 0.3,
+   "real_quick": 0.6
+  },
+  {
+   "a": "abcdef",
+   "b": "melanie",
+   "ratio": 0.3076923076923077,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "abcdef",
+   "b": "tokyo",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "abcdef",
+   "b": "prenzlauer berg",
+   "ratio": 0.2857142857142857,
+   "quick": 0.2857142857142857,
+   "real_quick": 0.5714285714285714
+  },
+  {
+   "a": "abcdef",
+   "b": "kreuzberg",
+   "ratio": 0.26666666666666666,
+   "quick": 0.26666666666666666,
+   "real_quick": 0.8
+  },
+  {
+   "a": "abcdef",
+   "b": "luna",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 0.8
+  },
+  {
+   "a": "abcdef",
+   "b": "charite",
+   "ratio": 0.3076923076923077,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "abcdef",
+   "b": "charité",
+   "ratio": 0.15384615384615385,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "abcdef",
+   "b": "leyla",
+   "ratio": 0.18181818181818182,
+   "quick": 0.36363636363636365,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "abcdef",
+   "b": "jonas",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "abcdef",
+   "b": "ali novruzov",
+   "ratio": 0.1111111111111111,
+   "quick": 0.1111111111111111,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "abcdef",
+   "b": "ali",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "abcdef",
+   "b": "baku",
+   "ratio": 0.2,
+   "quick": 0.4,
+   "real_quick": 0.8
+  },
+  {
+   "a": "abcdef",
+   "b": "hamburg",
+   "ratio": 0.3076923076923077,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "abcdef",
+   "b": "osaka",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "abcdef",
+   "b": "kyoto",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "abcdef",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.018433179723502304,
+   "quick": 0.018433179723502304,
+   "real_quick": 0.055299539170506916
+  },
+  {
+   "a": "abcdef",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.016260162601626018,
+   "quick": 0.016260162601626018,
+   "real_quick": 0.04878048780487805
+  },
+  {
+   "a": "abcdef",
+   "b": "abcdef",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "abcdef",
+   "b": "fedcba",
+   "ratio": 0.16666666666666666,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "abcdef",
+   "b": "the quick brown fox",
+   "ratio": 0.16,
+   "quick": 0.32,
+   "real_quick": 0.48
+  },
+  {
+   "a": "abcdef",
+   "b": "quick brown the fox",
+   "ratio": 0.24,
+   "quick": 0.32,
+   "real_quick": 0.48
+  },
+  {
+   "a": "fedcba",
+   "b": "berlin",
+   "ratio": 0.16666666666666666,
+   "quick": 0.3333333333333333,
+   "real_quick": 1.0
+  },
+  {
+   "a": "fedcba",
+   "b": "berlín",
+   "ratio": 0.16666666666666666,
+   "quick": 0.3333333333333333,
+   "real_quick": 1.0
+  },
+  {
+   "a": "fedcba",
+   "b": "melanie carter",
+   "ratio": 0.3,
+   "quick": 0.3,
+   "real_quick": 0.6
+  },
+  {
+   "a": "fedcba",
+   "b": "melanie",
+   "ratio": 0.3076923076923077,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "fedcba",
+   "b": "tokyo",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "fedcba",
+   "b": "prenzlauer berg",
+   "ratio": 0.19047619047619047,
+   "quick": 0.2857142857142857,
+   "real_quick": 0.5714285714285714
+  },
+  {
+   "a": "fedcba",
+   "b": "kreuzberg",
+   "ratio": 0.26666666666666666,
+   "quick": 0.26666666666666666,
+   "real_quick": 0.8
+  },
+  {
+   "a": "fedcba",
+   "b": "luna",
+   "ratio": 0.2,
+   "quick": 0.2,
+   "real_quick": 0.8
+  },
+  {
+   "a": "fedcba",
+   "b": "charite",
+   "ratio": 0.15384615384615385,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "fedcba",
+   "b": "charité",
+   "ratio": 0.3076923076923077,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "fedcba",
+   "b": "leyla",
+   "ratio": 0.36363636363636365,
+   "quick": 0.36363636363636365,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "fedcba",
+   "b": "jonas",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "fedcba",
+   "b": "ali novruzov",
+   "ratio": 0.1111111111111111,
+   "quick": 0.1111111111111111,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "fedcba",
+   "b": "ali",
+   "ratio": 0.2222222222222222,
+   "quick": 0.2222222222222222,
+   "real_quick": 0.6666666666666666
+  },
+  {
+   "a": "fedcba",
+   "b": "baku",
+   "ratio": 0.4,
+   "quick": 0.4,
+   "real_quick": 0.8
+  },
+  {
+   "a": "fedcba",
+   "b": "hamburg",
+   "ratio": 0.15384615384615385,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.9230769230769231
+  },
+  {
+   "a": "fedcba",
+   "b": "osaka",
+   "ratio": 0.18181818181818182,
+   "quick": 0.18181818181818182,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "fedcba",
+   "b": "kyoto",
+   "ratio": 0.0,
+   "quick": 0.0,
+   "real_quick": 0.9090909090909091
+  },
+  {
+   "a": "fedcba",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.009216589861751152,
+   "quick": 0.018433179723502304,
+   "real_quick": 0.055299539170506916
+  },
+  {
+   "a": "fedcba",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.016260162601626018,
+   "real_quick": 0.04878048780487805
+  },
+  {
+   "a": "fedcba",
+   "b": "abcdef",
+   "ratio": 0.16666666666666666,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "fedcba",
+   "b": "fedcba",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "fedcba",
+   "b": "the quick brown fox",
+   "ratio": 0.08,
+   "quick": 0.32,
+   "real_quick": 0.48
+  },
+  {
+   "a": "fedcba",
+   "b": "quick brown the fox",
+   "ratio": 0.08,
+   "quick": 0.32,
+   "real_quick": 0.48
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "berlin",
+   "ratio": 0.24,
+   "quick": 0.4,
+   "real_quick": 0.48
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "berlín",
+   "ratio": 0.24,
+   "quick": 0.32,
+   "real_quick": 0.48
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "melanie carter",
+   "ratio": 0.24242424242424243,
+   "quick": 0.42424242424242425,
+   "real_quick": 0.8484848484848485
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "melanie",
+   "ratio": 0.15384615384615385,
+   "quick": 0.23076923076923078,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "tokyo",
+   "ratio": 0.25,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "prenzlauer berg",
+   "ratio": 0.29411764705882354,
+   "quick": 0.35294117647058826,
+   "real_quick": 0.8823529411764706
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "kreuzberg",
+   "ratio": 0.2857142857142857,
+   "quick": 0.35714285714285715,
+   "real_quick": 0.6428571428571429
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "luna",
+   "ratio": 0.17391304347826086,
+   "quick": 0.17391304347826086,
+   "real_quick": 0.34782608695652173
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "charite",
+   "ratio": 0.15384615384615385,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "charité",
+   "ratio": 0.07692307692307693,
+   "quick": 0.38461538461538464,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "leyla",
+   "ratio": 0.08333333333333333,
+   "quick": 0.08333333333333333,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "jonas",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "ali novruzov",
+   "ratio": 0.1935483870967742,
+   "quick": 0.45161290322580644,
+   "real_quick": 0.7741935483870968
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "ali",
+   "ratio": 0.09090909090909091,
+   "quick": 0.09090909090909091,
+   "real_quick": 0.2727272727272727
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "baku",
+   "ratio": 0.08695652173913043,
+   "quick": 0.2608695652173913,
+   "real_quick": 0.34782608695652173
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "hamburg",
+   "ratio": 0.23076923076923078,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "osaka",
+   "ratio": 0.08333333333333333,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "kyoto",
+   "ratio": 0.16666666666666666,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.008695652173913044,
+   "quick": 0.008695652173913044,
+   "real_quick": 0.16521739130434782
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.007722007722007722,
+   "real_quick": 0.14671814671814673
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "abcdef",
+   "ratio": 0.16,
+   "quick": 0.32,
+   "real_quick": 0.48
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "fedcba",
+   "ratio": 0.24,
+   "quick": 0.32,
+   "real_quick": 0.48
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "the quick brown fox",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "the quick brown fox",
+   "b": "quick brown the fox",
+   "ratio": 0.7894736842105263,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "berlin",
+   "ratio": 0.16,
+   "quick": 0.4,
+   "real_quick": 0.48
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "berlín",
+   "ratio": 0.24,
+   "quick": 0.32,
+   "real_quick": 0.48
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "melanie carter",
+   "ratio": 0.18181818181818182,
+   "quick": 0.42424242424242425,
+   "real_quick": 0.8484848484848485
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "melanie",
+   "ratio": 0.15384615384615385,
+   "quick": 0.23076923076923078,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "tokyo",
+   "ratio": 0.16666666666666666,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "prenzlauer berg",
+   "ratio": 0.23529411764705882,
+   "quick": 0.35294117647058826,
+   "real_quick": 0.8823529411764706
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "kreuzberg",
+   "ratio": 0.21428571428571427,
+   "quick": 0.35714285714285715,
+   "real_quick": 0.6428571428571429
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "luna",
+   "ratio": 0.17391304347826086,
+   "quick": 0.17391304347826086,
+   "real_quick": 0.34782608695652173
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "charite",
+   "ratio": 0.23076923076923078,
+   "quick": 0.46153846153846156,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "charité",
+   "ratio": 0.15384615384615385,
+   "quick": 0.38461538461538464,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "leyla",
+   "ratio": 0.08333333333333333,
+   "quick": 0.08333333333333333,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "jonas",
+   "ratio": 0.16666666666666666,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "ali novruzov",
+   "ratio": 0.12903225806451613,
+   "quick": 0.45161290322580644,
+   "real_quick": 0.7741935483870968
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "ali",
+   "ratio": 0.09090909090909091,
+   "quick": 0.09090909090909091,
+   "real_quick": 0.2727272727272727
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "baku",
+   "ratio": 0.08695652173913043,
+   "quick": 0.2608695652173913,
+   "real_quick": 0.34782608695652173
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "hamburg",
+   "ratio": 0.15384615384615385,
+   "quick": 0.3076923076923077,
+   "real_quick": 0.5384615384615384
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "osaka",
+   "ratio": 0.08333333333333333,
+   "quick": 0.16666666666666666,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "kyoto",
+   "ratio": 0.3333333333333333,
+   "quick": 0.3333333333333333,
+   "real_quick": 0.4166666666666667
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "ratio": 0.008695652173913044,
+   "quick": 0.008695652173913044,
+   "real_quick": 0.16521739130434782
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "ratio": 0.0,
+   "quick": 0.007722007722007722,
+   "real_quick": 0.14671814671814673
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "abcdef",
+   "ratio": 0.24,
+   "quick": 0.32,
+   "real_quick": 0.48
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "fedcba",
+   "ratio": 0.16,
+   "quick": 0.32,
+   "real_quick": 0.48
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "the quick brown fox",
+   "ratio": 0.7894736842105263,
+   "quick": 1.0,
+   "real_quick": 1.0
+  },
+  {
+   "a": "quick brown the fox",
+   "b": "quick brown the fox",
+   "ratio": 1.0,
+   "quick": 1.0,
+   "real_quick": 1.0
+  }
+ ],
+ "close": [
+  {
+   "word": "berlin",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "berlin",
+    "berlín"
+   ]
+  },
+  {
+   "word": "berlin",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "berlin",
+    "berlín"
+   ]
+  },
+  {
+   "word": "berlin",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "berlin"
+   ]
+  },
+  {
+   "word": "berlín",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "berlín",
+    "berlin"
+   ]
+  },
+  {
+   "word": "berlín",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "berlín",
+    "berlin"
+   ]
+  },
+  {
+   "word": "berlín",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "berlín"
+   ]
+  },
+  {
+   "word": "melanie carter",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "melanie carter",
+    "melanie"
+   ]
+  },
+  {
+   "word": "melanie carter",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "melanie carter"
+   ]
+  },
+  {
+   "word": "melanie carter",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "melanie carter"
+   ]
+  },
+  {
+   "word": "melanie",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "melanie",
+    "melanie carter"
+   ]
+  },
+  {
+   "word": "melanie",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "melanie"
+   ]
+  },
+  {
+   "word": "melanie",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "melanie"
+   ]
+  },
+  {
+   "word": "tokyo",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "tokyo",
+    "kyoto"
+   ]
+  },
+  {
+   "word": "tokyo",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "tokyo"
+   ]
+  },
+  {
+   "word": "tokyo",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "tokyo"
+   ]
+  },
+  {
+   "word": "prenzlauer berg",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "prenzlauer berg"
+   ]
+  },
+  {
+   "word": "prenzlauer berg",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "prenzlauer berg"
+   ]
+  },
+  {
+   "word": "prenzlauer berg",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "prenzlauer berg"
+   ]
+  },
+  {
+   "word": "kreuzberg",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "kreuzberg"
+   ]
+  },
+  {
+   "word": "kreuzberg",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "kreuzberg"
+   ]
+  },
+  {
+   "word": "kreuzberg",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "kreuzberg"
+   ]
+  },
+  {
+   "word": "luna",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "luna"
+   ]
+  },
+  {
+   "word": "luna",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "luna"
+   ]
+  },
+  {
+   "word": "luna",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "luna"
+   ]
+  },
+  {
+   "word": "charite",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "charite",
+    "charité"
+   ]
+  },
+  {
+   "word": "charite",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "charite",
+    "charité"
+   ]
+  },
+  {
+   "word": "charite",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "charite"
+   ]
+  },
+  {
+   "word": "charité",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "charité",
+    "charite"
+   ]
+  },
+  {
+   "word": "charité",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "charité",
+    "charite"
+   ]
+  },
+  {
+   "word": "charité",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "charité"
+   ]
+  },
+  {
+   "word": "leyla",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "leyla"
+   ]
+  },
+  {
+   "word": "leyla",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "leyla"
+   ]
+  },
+  {
+   "word": "leyla",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "leyla"
+   ]
+  },
+  {
+   "word": "jonas",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "jonas"
+   ]
+  },
+  {
+   "word": "jonas",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "jonas"
+   ]
+  },
+  {
+   "word": "jonas",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "jonas"
+   ]
+  },
+  {
+   "word": "ali novruzov",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "ali novruzov"
+   ]
+  },
+  {
+   "word": "ali novruzov",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "ali novruzov"
+   ]
+  },
+  {
+   "word": "ali novruzov",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "ali novruzov"
+   ]
+  },
+  {
+   "word": "ali",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "ali"
+   ]
+  },
+  {
+   "word": "ali",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "ali"
+   ]
+  },
+  {
+   "word": "ali",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "ali"
+   ]
+  },
+  {
+   "word": "baku",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "baku"
+   ]
+  },
+  {
+   "word": "baku",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "baku"
+   ]
+  },
+  {
+   "word": "baku",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "baku"
+   ]
+  },
+  {
+   "word": "hamburg",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "hamburg"
+   ]
+  },
+  {
+   "word": "hamburg",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "hamburg"
+   ]
+  },
+  {
+   "word": "hamburg",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "hamburg"
+   ]
+  },
+  {
+   "word": "osaka",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "osaka"
+   ]
+  },
+  {
+   "word": "osaka",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "osaka"
+   ]
+  },
+  {
+   "word": "osaka",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "osaka"
+   ]
+  },
+  {
+   "word": "kyoto",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "kyoto",
+    "tokyo"
+   ]
+  },
+  {
+   "word": "kyoto",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "kyoto"
+   ]
+  },
+  {
+   "word": "kyoto",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "kyoto"
+   ]
+  },
+  {
+   "word": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+   ]
+  },
+  {
+   "word": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+   ]
+  },
+  {
+   "word": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+   ]
+  },
+  {
+   "word": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab"
+   ]
+  },
+  {
+   "word": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab"
+   ]
+  },
+  {
+   "word": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab"
+   ]
+  },
+  {
+   "word": "abcdef",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "abcdef"
+   ]
+  },
+  {
+   "word": "abcdef",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "abcdef"
+   ]
+  },
+  {
+   "word": "abcdef",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "abcdef"
+   ]
+  },
+  {
+   "word": "fedcba",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "fedcba"
+   ]
+  },
+  {
+   "word": "fedcba",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "fedcba"
+   ]
+  },
+  {
+   "word": "fedcba",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "fedcba"
+   ]
+  },
+  {
+   "word": "the quick brown fox",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "the quick brown fox",
+    "quick brown the fox"
+   ]
+  },
+  {
+   "word": "the quick brown fox",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "the quick brown fox"
+   ]
+  },
+  {
+   "word": "the quick brown fox",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "the quick brown fox"
+   ]
+  },
+  {
+   "word": "quick brown the fox",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "quick brown the fox",
+    "the quick brown fox"
+   ]
+  },
+  {
+   "word": "quick brown the fox",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "quick brown the fox"
+   ]
+  },
+  {
+   "word": "quick brown the fox",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "quick brown the fox"
+   ]
+  },
+  {
+   "word": "berln",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "berlín",
+    "berlin"
+   ]
+  },
+  {
+   "word": "berln",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "berlín",
+    "berlin"
+   ]
+  },
+  {
+   "word": "berln",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "berlín",
+    "berlin"
+   ]
+  },
+  {
+   "word": "melani carter",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "melanie carter",
+    "melanie"
+   ]
+  },
+  {
+   "word": "melani carter",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "melanie carter"
+   ]
+  },
+  {
+   "word": "melani carter",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "melanie carter"
+   ]
+  },
+  {
+   "word": "tokio",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "tokyo"
+   ]
+  },
+  {
+   "word": "tokio",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "tokyo"
+   ]
+  },
+  {
+   "word": "tokio",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": []
+  },
+  {
+   "word": "kreuzbergg",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "kreuzberg"
+   ]
+  },
+  {
+   "word": "kreuzbergg",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "kreuzberg"
+   ]
+  },
+  {
+   "word": "kreuzbergg",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "kreuzberg"
+   ]
+  },
+  {
+   "word": "charitee",
+   "cutoff": 0.6,
+   "n": 3,
+   "out": [
+    "charite",
+    "charité"
+   ]
+  },
+  {
+   "word": "charitee",
+   "cutoff": 0.8,
+   "n": 3,
+   "out": [
+    "charite",
+    "charité"
+   ]
+  },
+  {
+   "word": "charitee",
+   "cutoff": 0.9,
+   "n": 3,
+   "out": [
+    "charite"
+   ]
+  }
+ ]
+}

@@ -1,20 +1,16 @@
-"""Cross-chat memory for NeuralGraph.
+"""Python reference of the NeuralGraph memory pipeline (frozen).
 
-Durable SQLite store of raw chat messages, LLM-derived memories, entities, typed relations and
-provenance, plus a background worker that runs Qwen (via ``NeuralGraph.llm_backend``) in parallel to
-selectively turn new messages into memories and relationships, and a hybrid retriever that answers
-questions across every chat.
-
-Quick start::
+The memory server is the Rust crate ``crates/neuralgraph-memory`` (binary ``neuralgraph-memory``). This package keeps
+the library modules only because the research harnesses ``research/benchmarks/chat_memory_*.py`` drive the pipeline
+in-process through :class:`ChatMemory`; it is not shipped and receives no new features. Both implementations share
+the database format.
 
     from NeuralGraph.chat_memory import ChatMemory
 
-    async with ChatMemory("~/.neuralgraph/chat_memory.db") as cm:      # worker runs in the background
+    async with ChatMemory("/tmp/research.db") as cm:      # worker runs in the background
         await cm.add_message("chat-1", "user", "I moved to Berlin last month")
         ...
         print(await cm.context_for("where does the user live?"))
-
-Run ``python -m NeuralGraph.chat_memory --help`` for the CLI (ingest, serve with dashboard, search, ...).
 """
 from .extraction import ExtractionConfig, MemoryExtractor
 from .llm import BackendLLMClient, FakeLLMClient, LLMClient, LLMError, fake_embedding

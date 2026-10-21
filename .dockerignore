@@ -1,13 +1,16 @@
 .git
+.context
+target
 .venv
 **/__pycache__
 **/*.pyc
 .pytest_cache
+# the image is the Rust server; the Python research tree and docs are not part of it
+NeuralGraph/
 research/
 docs/
 demo/results/
-tests/
+demo/*.py
 *.db
 *.db-wal
 *.db-shm
-NeuralGraph/research/retrieval/en_thesaurus.jsonl

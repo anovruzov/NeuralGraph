@@ -6,8 +6,27 @@ on:
   pull_request:
 
 jobs:
-  tests:
-    name: tests and assistant/research separation
+  rust:
+    name: memory server (Rust) — fmt, clippy, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --locked
+      - name: the CLI starts and the fake-model pipeline runs end to end
+        run: |
+          db="$RUNNER_TEMP/smoke.db"
+          cargo run --locked --quiet -- ingest demo/data/sample_chats.jsonl --fake-llm --process --debounce 0 --db "$db"
+          cargo run --locked --quiet -- search "Where does the user live?" --fake-llm --db "$db"
+
+  research:
+    name: research track (Python, until it is ported)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -18,12 +37,19 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: python -m pytest NeuralGraph/tests -q -p no:warnings
-      - name: the assistant imports no research code
+      - name: the Python chat_memory reference imports no research code
         run: |
           python -c "
           import NeuralGraph.chat_memory, sys
           leaked = [m for m in sys.modules if m.startswith('NeuralGraph.research')]
           assert not leaked, leaked
           print('clean')"
-      - name: chat_memory image builds
-        run: docker build -f deploy/chat_memory/Dockerfile -t neuralgraph-memory:ci .
+
+  image:
+    name: chat_memory image builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f deploy/chat_memory/Dockerfile -t neuralgraph-memory:ci .
+      - run: docker run --rm --entrypoint neuralgraph-memory neuralgraph-memory:ci --version

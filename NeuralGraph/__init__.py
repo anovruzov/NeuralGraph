@@ -1,11 +1,7 @@
 """NeuralGraph — persistent graph memory for AI agents.
 
-The package holds two things that are deliberately kept apart:
-
-``NeuralGraph.chat_memory``
-    The assistant. A local-first, long-term memory server exposed over MCP.
-    This is the shipped product, and the only subpackage a user of the
-    assistant needs. Importing it does not pull in the research code.
+The shipped assistant — the local-first, long-term memory server exposed over MCP — is the Rust crate
+``crates/neuralgraph-memory`` at the repository root, not part of this Python package. What lives here:
 
 ``NeuralGraph.research``
     The public research tracks — the LoCoMo retrieval engine
@@ -13,8 +9,13 @@ The package holds two things that are deliberately kept apart:
     (``research.coordination``). Experimental, benchmark-facing, and not
     required to run the assistant.
 
-Two modules are shared by both: :mod:`NeuralGraph.llm_backend` (one shim over
-Ollama and LM Studio) and :mod:`NeuralGraph.temporal_utils` (date parsing and
+``NeuralGraph.chat_memory``
+    The frozen Python reference of the assistant's pipeline, kept only for the
+    research harnesses that drive it in-process. It does not import the
+    research code.
+
+Two modules are shared: :mod:`NeuralGraph.llm_backend` (one shim over Ollama
+and LM Studio) and :mod:`NeuralGraph.temporal_utils` (date parsing and
 relative-date resolution).
 
 This module stays deliberately empty of imports so that neither side pays for

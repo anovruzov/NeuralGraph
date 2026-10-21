@@ -1,0 +1,790 @@
+{
+ "parse": [
+  {
+   "text": "Sure! Here is the JSON:\n```json\n{\"memories\": [{\"text\": \"a\",}, ],}\n```\nHope this helps.",
+   "object": {
+    "memories": [
+     {
+      "text": "a"
+     }
+    ]
+   },
+   "array": [
+    {
+     "text": "a"
+    }
+   ]
+  },
+  {
+   "text": "<think>reasoning</think>{\"memories\": [{\"text\": \"one\"}, {\"text\": \"tw",
+   "object": {
+    "memories": [
+     {
+      "text": "one"
+     },
+     {
+      "text": "tw"
+     }
+    ]
+   },
+   "array": [
+    {
+     "text": "one"
+    },
+    {
+     "text": "tw"
+    }
+   ]
+  },
+  {
+   "text": "[[\"a\",\"b\",\"c\"]] trailing",
+   "object": null,
+   "array": [
+    [
+     "a",
+     "b",
+     "c"
+    ]
+   ]
+  },
+  {
+   "text": "no json here",
+   "object": null,
+   "array": null
+  },
+  {
+   "text": "{}",
+   "object": {},
+   "array": null
+  },
+  {
+   "text": "[]",
+   "object": null,
+   "array": []
+  },
+  {
+   "text": "{\"text\": \"he said {hi} and \\\"bye\\\"\", \"n\": 1}",
+   "object": {
+    "text": "he said {hi} and \"bye\"",
+    "n": 1
+   },
+   "array": null
+  },
+  {
+   "text": "```\n{\"a\": 1}\n```",
+   "object": {
+    "a": 1
+   },
+   "array": null
+  },
+  {
+   "text": "```JSON {\"a\": [1, 2, 3,]} ```",
+   "object": {
+    "a": [
+     1,
+     2,
+     3
+    ]
+   },
+   "array": [
+    1,
+    2,
+    3
+   ]
+  },
+  {
+   "text": "prefix {\"a\": {\"b\": [1, {\"c\": \"d\"}]}} suffix {\"x\": 2}",
+   "object": {
+    "a": {
+     "b": [
+      1,
+      {
+       "c": "d"
+      }
+     ]
+    }
+   },
+   "array": [
+    1,
+    {
+     "c": "d"
+    }
+   ]
+  },
+  {
+   "text": "{\"a\": \"unterminated",
+   "object": {
+    "a": "unterminated"
+   },
+   "array": null
+  },
+  {
+   "text": "{\"a\": 1, \"b\":",
+   "object": {
+    "a": 1
+   },
+   "array": null
+  },
+  {
+   "text": "{\"a\": [1, 2",
+   "object": {
+    "a": [
+     1,
+     2
+    ]
+   },
+   "array": [
+    1,
+    2
+   ]
+  },
+  {
+   "text": "[1, 2, {\"a\": \"b\"",
+   "object": {
+    "a": "b"
+   },
+   "array": [
+    1,
+    2,
+    {
+     "a": "b"
+    }
+   ]
+  },
+  {
+   "text": "{\"a\": 1.5e3, \"b\": -0.0, \"c\": true, \"d\": null}",
+   "object": {
+    "a": 1500.0,
+    "b": -0.0,
+    "c": true,
+    "d": null
+   },
+   "array": null
+  },
+  {
+   "text": "{\"memories\": []}",
+   "object": {
+    "memories": []
+   },
+   "array": []
+  },
+  {
+   "text": "I cannot help with that.",
+   "object": null,
+   "array": null
+  },
+  {
+   "text": "<think>{\"no\": 1}</think> {\"yes\": 2}",
+   "object": {
+    "yes": 2
+   },
+   "array": null
+  },
+  {
+   "text": "{\"dup\": 1, \"dup\": 2}",
+   "object": {
+    "dup": 2
+   },
+   "array": null
+  },
+  {
+   "text": "{\"ü\": \"ñ\", \"emoji\": \"\\ud83d\\ude00\"}",
+   "object": {
+    "ü": "ñ",
+    "emoji": "😀"
+   },
+   "array": null
+  },
+  {
+   "text": " \n {\"a\": \"b\"} \n ",
+   "object": {
+    "a": "b"
+   },
+   "array": null
+  },
+  {
+   "text": "{\"a\": 1}}",
+   "object": {
+    "a": 1
+   },
+   "array": null
+  },
+  {
+   "text": "{{\"a\": 1}",
+   "object": null,
+   "array": null
+  },
+  {
+   "text": "\"just a string\"",
+   "object": null,
+   "array": null
+  }
+ ],
+ "as_str": [
+  {
+   "value": null,
+   "limit": 0,
+   "out": ""
+  },
+  {
+   "value": null,
+   "limit": 5,
+   "out": ""
+  },
+  {
+   "value": "x",
+   "limit": 0,
+   "out": "x"
+  },
+  {
+   "value": "x",
+   "limit": 5,
+   "out": "x"
+  },
+  {
+   "value": "  a  b  ",
+   "limit": 0,
+   "out": "a b"
+  },
+  {
+   "value": "  a  b  ",
+   "limit": 5,
+   "out": "a b"
+  },
+  {
+   "value": "üüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüü",
+   "limit": 0,
+   "out": "üüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüü"
+  },
+  {
+   "value": "üüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüü",
+   "limit": 5,
+   "out": "üüüüü"
+  },
+  {
+   "value": 1,
+   "limit": 0,
+   "out": "1"
+  },
+  {
+   "value": 1,
+   "limit": 5,
+   "out": "1"
+  },
+  {
+   "value": 1.5,
+   "limit": 0,
+   "out": "1.5"
+  },
+  {
+   "value": 1.5,
+   "limit": 5,
+   "out": "1.5"
+  },
+  {
+   "value": 0.1,
+   "limit": 0,
+   "out": "0.1"
+  },
+  {
+   "value": 0.1,
+   "limit": 5,
+   "out": "0.1"
+  },
+  {
+   "value": 1e-07,
+   "limit": 0,
+   "out": "1e-07"
+  },
+  {
+   "value": 1e-07,
+   "limit": 5,
+   "out": "1e-07"
+  },
+  {
+   "value": 1e+16,
+   "limit": 0,
+   "out": "1e+16"
+  },
+  {
+   "value": 1e+16,
+   "limit": 5,
+   "out": "1e+16"
+  },
+  {
+   "value": true,
+   "limit": 0,
+   "out": "True"
+  },
+  {
+   "value": true,
+   "limit": 5,
+   "out": "True"
+  },
+  {
+   "value": false,
+   "limit": 0,
+   "out": "False"
+  },
+  {
+   "value": false,
+   "limit": 5,
+   "out": "False"
+  },
+  {
+   "value": [
+    1,
+    "a"
+   ],
+   "limit": 0,
+   "out": "[1, \"a\"]"
+  },
+  {
+   "value": [
+    1,
+    "a"
+   ],
+   "limit": 5,
+   "out": "[1, \""
+  },
+  {
+   "value": {
+    "k": "v",
+    "n": [
+     1,
+     2
+    ]
+   },
+   "limit": 0,
+   "out": "{\"k\": \"v\", \"n\": [1, 2]}"
+  },
+  {
+   "value": {
+    "k": "v",
+    "n": [
+     1,
+     2
+    ]
+   },
+   "limit": 5,
+   "out": "{\"k\":"
+  },
+  {
+   "value": {},
+   "limit": 0,
+   "out": "{}"
+  },
+  {
+   "value": {},
+   "limit": 5,
+   "out": "{}"
+  },
+  {
+   "value": "",
+   "limit": 0,
+   "out": ""
+  },
+  {
+   "value": "",
+   "limit": 5,
+   "out": ""
+  },
+  {
+   "value": "0.9",
+   "limit": 0,
+   "out": "0.9"
+  },
+  {
+   "value": "0.9",
+   "limit": 5,
+   "out": "0.9"
+  },
+  {
+   "value": " 0.4 ",
+   "limit": 0,
+   "out": "0.4"
+  },
+  {
+   "value": " 0.4 ",
+   "limit": 5,
+   "out": "0.4"
+  },
+  {
+   "value": "high",
+   "limit": 0,
+   "out": "high"
+  },
+  {
+   "value": "high",
+   "limit": 5,
+   "out": "high"
+  },
+  {
+   "value": "1_000",
+   "limit": 0,
+   "out": "1_000"
+  },
+  {
+   "value": "1_000",
+   "limit": 5,
+   "out": "1_000"
+  },
+  {
+   "value": "nan",
+   "limit": 0,
+   "out": "nan"
+  },
+  {
+   "value": "nan",
+   "limit": 5,
+   "out": "nan"
+  },
+  {
+   "value": "inf",
+   "limit": 0,
+   "out": "inf"
+  },
+  {
+   "value": "inf",
+   "limit": 5,
+   "out": "inf"
+  },
+  {
+   "value": "-Infinity",
+   "limit": 0,
+   "out": "-Infinity"
+  },
+  {
+   "value": "-Infinity",
+   "limit": 5,
+   "out": "-Infi"
+  },
+  {
+   "value": "2",
+   "limit": 0,
+   "out": "2"
+  },
+  {
+   "value": "2",
+   "limit": 5,
+   "out": "2"
+  },
+  {
+   "value": -3,
+   "limit": 0,
+   "out": "-3"
+  },
+  {
+   "value": -3,
+   "limit": 5,
+   "out": "-3"
+  },
+  {
+   "value": 1e+300,
+   "limit": 0,
+   "out": "1e+300"
+  },
+  {
+   "value": 1e+300,
+   "limit": 5,
+   "out": "1e+30"
+  },
+  {
+   "value": 0.0,
+   "limit": 0,
+   "out": "0.0"
+  },
+  {
+   "value": 0.0,
+   "limit": 5,
+   "out": "0.0"
+  }
+ ],
+ "as_float": [
+  {
+   "value": null,
+   "out": 0.5
+  },
+  {
+   "value": "x",
+   "out": 0.5
+  },
+  {
+   "value": "  a  b  ",
+   "out": 0.5
+  },
+  {
+   "value": "üüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüü",
+   "out": 0.5
+  },
+  {
+   "value": 1,
+   "out": 1.0
+  },
+  {
+   "value": 1.5,
+   "out": 1.0
+  },
+  {
+   "value": 0.1,
+   "out": 0.1
+  },
+  {
+   "value": 1e-07,
+   "out": 1e-07
+  },
+  {
+   "value": 1e+16,
+   "out": 1.0
+  },
+  {
+   "value": true,
+   "out": 1.0
+  },
+  {
+   "value": false,
+   "out": 0.0
+  },
+  {
+   "value": [
+    1,
+    "a"
+   ],
+   "out": 0.5
+  },
+  {
+   "value": {
+    "k": "v",
+    "n": [
+     1,
+     2
+    ]
+   },
+   "out": 0.5
+  },
+  {
+   "value": {},
+   "out": 0.5
+  },
+  {
+   "value": "",
+   "out": 0.5
+  },
+  {
+   "value": "0.9",
+   "out": 0.9
+  },
+  {
+   "value": " 0.4 ",
+   "out": 0.4
+  },
+  {
+   "value": "high",
+   "out": 0.5
+  },
+  {
+   "value": "1_000",
+   "out": 1.0
+  },
+  {
+   "value": "nan",
+   "out": 0.5
+  },
+  {
+   "value": "inf",
+   "out": 1.0
+  },
+  {
+   "value": "-Infinity",
+   "out": 0.0
+  },
+  {
+   "value": "2",
+   "out": 1.0
+  },
+  {
+   "value": -3,
+   "out": 0.0
+  },
+  {
+   "value": 1e+300,
+   "out": 1.0
+  },
+  {
+   "value": 0.0,
+   "out": 0.0
+  }
+ ],
+ "as_list": [
+  {
+   "value": null,
+   "out": []
+  },
+  {
+   "value": "x",
+   "out": [
+    "x"
+   ]
+  },
+  {
+   "value": "  a  b  ",
+   "out": [
+    "  a  b  "
+   ]
+  },
+  {
+   "value": "üüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüü",
+   "out": [
+    "üüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüü"
+   ]
+  },
+  {
+   "value": 1,
+   "out": [
+    1
+   ]
+  },
+  {
+   "value": 1.5,
+   "out": [
+    1.5
+   ]
+  },
+  {
+   "value": 0.1,
+   "out": [
+    0.1
+   ]
+  },
+  {
+   "value": 1e-07,
+   "out": [
+    1e-07
+   ]
+  },
+  {
+   "value": 1e+16,
+   "out": [
+    1e+16
+   ]
+  },
+  {
+   "value": true,
+   "out": [
+    true
+   ]
+  },
+  {
+   "value": false,
+   "out": [
+    false
+   ]
+  },
+  {
+   "value": [
+    1,
+    "a"
+   ],
+   "out": [
+    1,
+    "a"
+   ]
+  },
+  {
+   "value": {
+    "k": "v",
+    "n": [
+     1,
+     2
+    ]
+   },
+   "out": [
+    {
+     "k": "v",
+     "n": [
+      1,
+      2
+     ]
+    }
+   ]
+  },
+  {
+   "value": {},
+   "out": [
+    {}
+   ]
+  },
+  {
+   "value": "",
+   "out": [
+    ""
+   ]
+  },
+  {
+   "value": "0.9",
+   "out": [
+    "0.9"
+   ]
+  },
+  {
+   "value": " 0.4 ",
+   "out": [
+    " 0.4 "
+   ]
+  },
+  {
+   "value": "high",
+   "out": [
+    "high"
+   ]
+  },
+  {
+   "value": "1_000",
+   "out": [
+    "1_000"
+   ]
+  },
+  {
+   "value": "nan",
+   "out": [
+    "nan"
+   ]
+  },
+  {
+   "value": "inf",
+   "out": [
+    "inf"
+   ]
+  },
+  {
+   "value": "-Infinity",
+   "out": [
+    "-Infinity"
+   ]
+  },
+  {
+   "value": "2",
+   "out": [
+    "2"
+   ]
+  },
+  {
+   "value": -3,
+   "out": [
+    -3
+   ]
+  },
+  {
+   "value": 1e+300,
+   "out": [
+    1e+300
+   ]
+  },
+  {
+   "value": 0.0,
+   "out": [
+    0.0
+   ]
+  }
+ ]
+}
