@@ -1,0 +1,7064 @@
+{
+ "specs": [
+  {
+   "content": "Hey Mel! Good to see you! How have you been?",
+   "speaker": "Caroline",
+   "created_at": "2023-05-08T13:56:00+00:00",
+   "wave_amplitudes": {
+    "spatial": 0.75,
+    "causal": 1.0,
+    "emotional": 0.35
+   },
+   "entity_ids": [],
+   "importance_score": 0.7
+  },
+  {
+   "content": "Hey Caroline! Good to see you! I'm swamped with the kids & work. What's up with you? Anything new?",
+   "speaker": "Melanie",
+   "created_at": "2023-05-08T13:57:00+00:00",
+   "wave_amplitudes": {
+    "temporal": 0.55,
+    "action": 0.35,
+    "spatial": 1.0,
+    "causal": 1.0,
+    "emotional": 0.55,
+    "quantitative": 0.75
+   },
+   "entity_ids": [
+    "ent:caroline",
+    "ent:kids"
+   ],
+   "importance_score": 0.7
+  },
+  {
+   "content": "I went to a LGBTQ support group yesterday and it was so powerful.",
+   "speaker": "Caroline",
+   "created_at": "2023-05-08T13:58:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.35,
+    "temporal": 0.35,
+    "action": 0.35,
+    "state": 0.55,
+    "spatial": 0.35,
+    "causal": 0.55,
+    "emotional": 0.75,
+    "quantitative": 0.55
+   },
+   "entity_ids": [
+    "ent:lgbtq",
+    "ent:support"
+   ],
+   "importance_score": 0.4
+  },
+  {
+   "content": "Wow, that's cool, Caroline! What happened that was so awesome? Did you hear any inspiring stories?",
+   "speaker": "Melanie",
+   "created_at": "2023-05-08T13:59:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.35,
+    "temporal": 0.55,
+    "action": 0.55,
+    "spatial": 1.0,
+    "causal": 1.0,
+    "emotional": 0.35,
+    "quantitative": 0.35
+   },
+   "entity_ids": [
+    "ent:caroline"
+   ],
+   "importance_score": 0.7
+  },
+  {
+   "content": "The transgender stories were so inspiring! I was so happy and thankful for all the support.",
+   "speaker": "Caroline",
+   "created_at": "2023-05-08T14:00:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.35,
+    "temporal": 0.35,
+    "action": 0.55,
+    "state": 0.35,
+    "spatial": 0.35,
+    "causal": 1.0,
+    "emotional": 0.75,
+    "quantitative": 0.35
+   },
+   "entity_ids": [
+    "ent:support",
+    "ent:transgender"
+   ],
+   "importance_score": 0.35
+  },
+  {
+   "content": "Wow, love that painting! So cool you found such a helpful group. What's it done for you?",
+   "speaker": "Melanie",
+   "created_at": "2023-05-08T14:01:00+00:00",
+   "wave_amplitudes": {
+    "temporal": 0.35,
+    "action": 0.35,
+    "state": 0.55,
+    "spatial": 1.0,
+    "causal": 0.95,
+    "emotional": 0.55,
+    "quantitative": 0.55
+   },
+   "entity_ids": [
+    "ent:painting"
+   ],
+   "importance_score": 0.65
+  },
+  {
+   "content": "The support group has made me feel accepted and given me courage to embrace myself.",
+   "speaker": null,
+   "created_at": "2023-05-08T14:02:00+00:00",
+   "wave_amplitudes": {
+    "temporal": 0.35,
+    "action": 0.75,
+    "relational": 0.35,
+    "state": 0.55,
+    "spatial": 0.55,
+    "causal": 0.75,
+    "emotional": 0.75
+   },
+   "entity_ids": [
+    "ent:support"
+   ],
+   "importance_score": 0.4
+  },
+  {
+   "content": "That's really cool. You've got guts. What now?",
+   "speaker": "Melanie",
+   "created_at": "2023-05-08T14:03:00+00:00",
+   "wave_amplitudes": {
+    "relational": 0.35,
+    "spatial": 0.95,
+    "causal": 0.75,
+    "emotional": 0.35,
+    "quantitative": 0.35
+   },
+   "entity_ids": [],
+   "importance_score": 0.35
+  },
+  {
+   "content": "Gonna continue my edu and check out career options, which is pretty exciting!",
+   "speaker": "Caroline",
+   "created_at": "2023-05-08T14:04:00+00:00",
+   "wave_amplitudes": {
+    "temporal": 0.55,
+    "action": 0.35,
+    "relational": 0.55,
+    "state": 0.75,
+    "causal": 0.75,
+    "emotional": 0.55
+   },
+   "entity_ids": [
+    "ent:career"
+   ],
+   "importance_score": 0.55
+  },
+  {
+   "content": "Wow, Caroline! What kinda jobs are you thinkin' of? Anything that stands out?",
+   "speaker": "Melanie",
+   "created_at": "2023-05-08T14:05:00+00:00",
+   "wave_amplitudes": {
+    "temporal": 0.55,
+    "action": 0.35,
+    "relational": 0.35,
+    "state": 0.35,
+    "spatial": 0.75,
+    "causal": 0.95,
+    "emotional": 0.35
+   },
+   "entity_ids": [
+    "ent:caroline"
+   ],
+   "importance_score": 0.55
+  },
+  {
+   "content": "Hey Caroline, since we last chatted, I've had a lot of things happening to me. I ran a charity race for mental health last Saturday – it was really rewarding. Really made me think about taking care of our minds.",
+   "speaker": "Melanie",
+   "created_at": "2023-05-25T13:14:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.55,
+    "temporal": 0.55,
+    "action": 0.55,
+    "relational": 1.0,
+    "state": 0.95,
+    "spatial": 1.0,
+    "causal": 1.0,
+    "emotional": 1.0,
+    "quantitative": 0.95
+   },
+   "entity_ids": [
+    "ent:caroline"
+   ],
+   "importance_score": 0.5
+  },
+  {
+   "content": "That charity race sounds great, Mel! Making a difference & raising awareness for mental health is super rewarding - I'm really proud of you for taking part!",
+   "speaker": "Caroline",
+   "created_at": "2023-05-25T13:15:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.55,
+    "action": 0.55,
+    "relational": 1.0,
+    "state": 0.75,
+    "spatial": 0.75,
+    "causal": 0.95,
+    "emotional": 0.55,
+    "quantitative": 0.95
+   },
+   "entity_ids": [],
+   "importance_score": 0.45
+  },
+  {
+   "content": "Thanks, Caroline! The event was really thought-provoking. I'm starting to realize that self-care is really important. It's a journey for me, but when I look after myself, I'm able to better look after my family.",
+   "speaker": "Melanie",
+   "created_at": "2023-05-25T13:16:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.55,
+    "temporal": 0.55,
+    "action": 0.75,
+    "relational": 1.0,
+    "state": 0.75,
+    "spatial": 1.0,
+    "causal": 0.95,
+    "emotional": 1.0,
+    "quantitative": 1.0
+   },
+   "entity_ids": [
+    "ent:caroline",
+    "ent:family"
+   ],
+   "importance_score": 0.5
+  },
+  {
+   "content": "I totally agree, Melanie. Taking care of ourselves is so important - even if it's not always easy. Great that you're prioritizing self-care.",
+   "speaker": null,
+   "created_at": "2023-05-25T13:17:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.55,
+    "action": 0.55,
+    "relational": 0.55,
+    "state": 0.55,
+    "spatial": 1.0,
+    "causal": 0.75,
+    "emotional": 1.0,
+    "quantitative": 0.55
+   },
+   "entity_ids": [
+    "ent:melanie"
+   ],
+   "importance_score": 0.55
+  },
+  {
+   "content": "Yeah, it's tough. So I'm carving out some me-time each day - running, reading, or playing my violin - which refreshes me and helps me stay present for my fam!",
+   "speaker": "Melanie",
+   "created_at": "2023-05-25T13:18:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.35,
+    "action": 1.0,
+    "relational": 0.35,
+    "state": 0.75,
+    "spatial": 1.0,
+    "causal": 1.0,
+    "emotional": 1.0,
+    "quantitative": 0.75
+   },
+   "entity_ids": [],
+   "importance_score": 0.55
+  },
+  {
+   "content": "That's great, Mel! Taking time for yourself is so important. You're doing an awesome job looking after yourself and your family!",
+   "speaker": "Caroline",
+   "created_at": "2023-05-25T13:19:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.35,
+    "temporal": 0.55,
+    "action": 0.55,
+    "relational": 0.55,
+    "state": 0.75,
+    "spatial": 0.75,
+    "causal": 1.0,
+    "emotional": 0.95,
+    "quantitative": 0.35
+   },
+   "entity_ids": [
+    "ent:family"
+   ],
+   "importance_score": 0.4
+  },
+  {
+   "content": "Thanks, Caroline. It's still a work in progress, but I'm doing my best. My kids are so excited about summer break! We're thinking about going camping next month. Any fun plans for the summer?",
+   "speaker": "Melanie",
+   "created_at": "2023-05-25T13:20:00+00:00",
+   "wave_amplitudes": {
+    "temporal": 0.75,
+    "action": 0.55,
+    "relational": 0.75,
+    "state": 1.0,
+    "spatial": 0.95,
+    "causal": 1.0,
+    "emotional": 1.0,
+    "quantitative": 0.95
+   },
+   "entity_ids": [
+    "ent:caroline",
+    "ent:kids",
+    "ent:camping"
+   ],
+   "importance_score": 0.4
+  },
+  {
+   "content": "Researching adoption agencies — it's been a dream to have a family and give a loving home to kids who need it.",
+   "speaker": "Caroline",
+   "created_at": "2023-05-25T13:21:00+00:00",
+   "wave_amplitudes": {
+    "temporal": 0.55,
+    "relational": 0.55,
+    "state": 0.35,
+    "spatial": 1.0,
+    "causal": 0.55,
+    "emotional": 1.0,
+    "quantitative": 0.95
+   },
+   "entity_ids": [
+    "ent:kids",
+    "ent:adoption",
+    "ent:family"
+   ],
+   "importance_score": 0.4
+  },
+  {
+   "content": "Wow, Caroline! That's awesome! Taking in kids in need - you're so kind. Your future family is gonna be so lucky to have you!",
+   "speaker": "Melanie",
+   "created_at": "2023-05-25T13:22:00+00:00",
+   "wave_amplitudes": {
+    "temporal": 0.35,
+    "action": 0.35,
+    "relational": 0.75,
+    "state": 0.55,
+    "spatial": 1.0,
+    "causal": 0.75,
+    "emotional": 1.0,
+    "quantitative": 0.35
+   },
+   "entity_ids": [
+    "ent:caroline",
+    "ent:kids",
+    "ent:family"
+   ],
+   "importance_score": 0.65
+  },
+  {
+   "content": "Thanks, Mel! My goal is to give kids a loving home. I'm truly grateful for all the support I've got from friends and mentors. Now the hard work starts to turn my dream into a reality. And here's one of the adoption agencies I'm looking into. It's a lot to take in, but I'm feeling hopeful and optimistic.",
+   "speaker": "Caroline",
+   "created_at": "2023-05-25T13:23:00+00:00",
+   "wave_amplitudes": {
+    "temporal": 0.75,
+    "action": 1.0,
+    "relational": 0.75,
+    "state": 0.55,
+    "spatial": 1.0,
+    "causal": 1.0,
+    "emotional": 1.0,
+    "quantitative": 1.0
+   },
+   "entity_ids": [
+    "ent:kids",
+    "ent:adoption",
+    "ent:support",
+    "ent:friends"
+   ],
+   "importance_score": 0.65
+  },
+  {
+   "content": "Hey Melanie! How's it going? I wanted to tell you about my school event last week. It was awesome! I talked about my transgender journey and encouraged students to get involved in the LGBTQ community. It was great to see their reactions. It made me reflect on how far I've come since I started transitioning three years ago.",
+   "speaker": null,
+   "created_at": "2023-06-09T19:55:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.55,
+    "temporal": 0.55,
+    "action": 1.0,
+    "relational": 0.75,
+    "state": 1.0,
+    "spatial": 1.0,
+    "causal": 1.0,
+    "emotional": 1.0,
+    "quantitative": 1.0
+   },
+   "entity_ids": [
+    "ent:melanie",
+    "ent:lgbtq",
+    "ent:school",
+    "ent:transgender"
+   ],
+   "importance_score": 0.3
+  },
+  {
+   "content": "Hey Caroline! Great to hear from you. Sounds like your event was amazing! I'm so proud of you for spreading awareness and getting others involved in the LGBTQ community. You've come a long way since your transition - keep on inspiring people with your strength and courage!",
+   "speaker": "Melanie",
+   "created_at": "2023-06-09T19:56:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.95,
+    "temporal": 0.75,
+    "action": 0.75,
+    "relational": 0.75,
+    "state": 1.0,
+    "spatial": 1.0,
+    "causal": 1.0,
+    "emotional": 1.0,
+    "quantitative": 0.95
+   },
+   "entity_ids": [
+    "ent:caroline",
+    "ent:lgbtq"
+   ],
+   "importance_score": 0.45
+  },
+  {
+   "content": "Thanks, Mel! Your backing really means a lot. I felt super powerful giving my talk. I shared my own journey, the struggles I had and how much I've developed since coming out. It was wonderful to see how the audience related to what I said and how it inspired them to be better allies. Conversations about gender identity and inclusion are so necessary and I'm thankful for being able to give a voice to the trans community.",
+   "speaker": "Caroline",
+   "created_at": "2023-06-09T19:57:00+00:00",
+   "wave_amplitudes": {
+    "entity": 1.0,
+    "temporal": 1.0,
+    "action": 0.75,
+    "relational": 1.0,
+    "state": 1.0,
+    "spatial": 1.0,
+    "causal": 1.0,
+    "emotional": 1.0,
+    "quantitative": 1.0
+   },
+   "entity_ids": [],
+   "importance_score": 0.3
+  },
+  {
+   "content": "Wow, Caroline, you're doing an awesome job of inspiring others with your journey. It's great to be part of it and see how you're positively affecting so many. Talking about inclusivity and acceptance is crucial, and you're so brave to speak up for the trans community. Keep up the great work!",
+   "speaker": "Melanie",
+   "created_at": "2023-06-09T19:58:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.75,
+    "temporal": 0.35,
+    "action": 0.95,
+    "relational": 0.35,
+    "state": 1.0,
+    "spatial": 1.0,
+    "causal": 1.0,
+    "emotional": 1.0,
+    "quantitative": 0.75
+   },
+   "entity_ids": [
+    "ent:caroline"
+   ],
+   "importance_score": 0.5
+  },
+  {
+   "content": "Thanks Mel! Your kind words mean a lot. Sharing our experiences isn't always easy, but I feel it's important to help promote understanding and acceptance. I've been blessed with loads of love and support throughout this journey, and I want to pass it on to others. By sharing our stories, we can build a strong, supportive community of hope.",
+   "speaker": "Caroline",
+   "created_at": "2023-06-09T19:59:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.55,
+    "action": 1.0,
+    "relational": 0.95,
+    "state": 0.75,
+    "spatial": 1.0,
+    "causal": 1.0,
+    "emotional": 1.0,
+    "quantitative": 1.0
+   },
+   "entity_ids": [
+    "ent:support"
+   ],
+   "importance_score": 0.7
+  },
+  {
+   "content": "Yeah, Caroline! It takes courage to talk about our own stories. But it's in these vulnerable moments that we bond and understand each other. We all have our different paths, but if we share them, we show people that they're not alone. Our stories can be so inspiring and encouraging to others who are facing the same challenges. Thank you for using your voice to create love, acceptance, and hope. You're doing amazing!",
+   "speaker": "Melanie",
+   "created_at": "2023-06-09T20:00:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.55,
+    "temporal": 0.35,
+    "action": 1.0,
+    "relational": 0.95,
+    "state": 1.0,
+    "spatial": 1.0,
+    "causal": 1.0,
+    "emotional": 1.0,
+    "quantitative": 1.0
+   },
+   "entity_ids": [
+    "ent:caroline"
+   ],
+   "importance_score": 0.55
+  },
+  {
+   "content": "Your words mean a lot to me. I'm grateful for the chance to share my story and give others hope. We all have unique paths, and by working together we can build a more inclusive and understanding world. I'm going to keep using my voice to make a change and lift others up. And you're part of that!",
+   "speaker": "Caroline",
+   "created_at": "2023-06-09T20:01:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.35,
+    "temporal": 0.55,
+    "action": 0.35,
+    "relational": 1.0,
+    "state": 1.0,
+    "spatial": 1.0,
+    "causal": 1.0,
+    "emotional": 1.0,
+    "quantitative": 1.0
+   },
+   "entity_ids": [],
+   "importance_score": 0.7
+  },
+  {
+   "content": "Thanks, Caroline, for letting me join your journey. I'm so proud to be part of the difference you're making. Let's keep motivating and helping each other out as we journey through life. We can make a real impact together!",
+   "speaker": null,
+   "created_at": "2023-06-09T20:02:00+00:00",
+   "wave_amplitudes": {
+    "temporal": 0.55,
+    "action": 1.0,
+    "relational": 0.75,
+    "state": 0.55,
+    "spatial": 1.0,
+    "causal": 1.0,
+    "emotional": 1.0,
+    "quantitative": 1.0
+   },
+   "entity_ids": [
+    "ent:caroline"
+   ],
+   "importance_score": 0.55
+  },
+  {
+   "content": "Yeah Mel, let's spread love and understanding! Thanks for the support and encouragement. We can tackle life's challenges together! We got this!",
+   "speaker": "Caroline",
+   "created_at": "2023-06-09T20:03:00+00:00",
+   "wave_amplitudes": {
+    "temporal": 0.35,
+    "action": 0.35,
+    "relational": 0.75,
+    "spatial": 1.0,
+    "causal": 1.0,
+    "emotional": 0.55,
+    "quantitative": 0.75
+   },
+   "entity_ids": [
+    "ent:support"
+   ],
+   "importance_score": 0.7
+  },
+  {
+   "content": "Yes, Caroline! We can do it. Your courage is inspiring. I want to be couragous for my family- they motivate me and give me love. What motivates you?",
+   "speaker": "Melanie",
+   "created_at": "2023-06-09T20:04:00+00:00",
+   "wave_amplitudes": {
+    "entity": 0.75,
+    "temporal": 0.55,
+    "action": 0.35,
+    "relational": 0.35,
+    "spatial": 1.0,
+    "causal": 1.0,
+    "emotional": 1.0,
+    "quantitative": 0.35
+   },
+   "entity_ids": [
+    "ent:caroline",
+    "ent:family"
+   ],
+   "importance_score": 0.5
+  }
+ ],
+ "nows": {
+  "t0": "2026-09-30T08:00:00+00:00",
+  "t3h": "2026-09-30T11:00:00+00:00",
+  "t30d": "2026-10-30T08:07:00+00:00"
+ },
+ "chain": [
+  {
+   "edge_id": "00000000-0000-4000-0000-00000000001f",
+   "source_id": "00000000-0000-4000-0000-000000000001",
+   "target_id": "00000000-0000-4000-0000-000000000002",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000020",
+   "source_id": "00000000-0000-4000-0000-000000000002",
+   "target_id": "00000000-0000-4000-0000-000000000003",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000021",
+   "source_id": "00000000-0000-4000-0000-000000000003",
+   "target_id": "00000000-0000-4000-0000-000000000004",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000022",
+   "source_id": "00000000-0000-4000-0000-000000000004",
+   "target_id": "00000000-0000-4000-0000-000000000005",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000023",
+   "source_id": "00000000-0000-4000-0000-000000000005",
+   "target_id": "00000000-0000-4000-0000-000000000006",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000024",
+   "source_id": "00000000-0000-4000-0000-000000000006",
+   "target_id": "00000000-0000-4000-0000-000000000007",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000025",
+   "source_id": "00000000-0000-4000-0000-000000000007",
+   "target_id": "00000000-0000-4000-0000-000000000008",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000026",
+   "source_id": "00000000-0000-4000-0000-000000000008",
+   "target_id": "00000000-0000-4000-0000-000000000009",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000027",
+   "source_id": "00000000-0000-4000-0000-000000000009",
+   "target_id": "00000000-0000-4000-0000-00000000000a",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000028",
+   "source_id": "00000000-0000-4000-0000-00000000000b",
+   "target_id": "00000000-0000-4000-0000-00000000000c",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000029",
+   "source_id": "00000000-0000-4000-0000-00000000000c",
+   "target_id": "00000000-0000-4000-0000-00000000000d",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-00000000002a",
+   "source_id": "00000000-0000-4000-0000-00000000000d",
+   "target_id": "00000000-0000-4000-0000-00000000000e",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-00000000002b",
+   "source_id": "00000000-0000-4000-0000-00000000000e",
+   "target_id": "00000000-0000-4000-0000-00000000000f",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-00000000002c",
+   "source_id": "00000000-0000-4000-0000-00000000000f",
+   "target_id": "00000000-0000-4000-0000-000000000010",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-00000000002d",
+   "source_id": "00000000-0000-4000-0000-000000000010",
+   "target_id": "00000000-0000-4000-0000-000000000011",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-00000000002e",
+   "source_id": "00000000-0000-4000-0000-000000000011",
+   "target_id": "00000000-0000-4000-0000-000000000012",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-00000000002f",
+   "source_id": "00000000-0000-4000-0000-000000000012",
+   "target_id": "00000000-0000-4000-0000-000000000013",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000030",
+   "source_id": "00000000-0000-4000-0000-000000000013",
+   "target_id": "00000000-0000-4000-0000-000000000014",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000031",
+   "source_id": "00000000-0000-4000-0000-000000000015",
+   "target_id": "00000000-0000-4000-0000-000000000016",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000032",
+   "source_id": "00000000-0000-4000-0000-000000000016",
+   "target_id": "00000000-0000-4000-0000-000000000017",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000033",
+   "source_id": "00000000-0000-4000-0000-000000000017",
+   "target_id": "00000000-0000-4000-0000-000000000018",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000034",
+   "source_id": "00000000-0000-4000-0000-000000000018",
+   "target_id": "00000000-0000-4000-0000-000000000019",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000035",
+   "source_id": "00000000-0000-4000-0000-000000000019",
+   "target_id": "00000000-0000-4000-0000-00000000001a",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000036",
+   "source_id": "00000000-0000-4000-0000-00000000001a",
+   "target_id": "00000000-0000-4000-0000-00000000001b",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000037",
+   "source_id": "00000000-0000-4000-0000-00000000001b",
+   "target_id": "00000000-0000-4000-0000-00000000001c",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000038",
+   "source_id": "00000000-0000-4000-0000-00000000001c",
+   "target_id": "00000000-0000-4000-0000-00000000001d",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000039",
+   "source_id": "00000000-0000-4000-0000-00000000001d",
+   "target_id": "00000000-0000-4000-0000-00000000001e",
+   "edge_type": "temporal",
+   "base_weight": 0.9999930555796681,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 600.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 60.0
+   }
+  }
+ ],
+ "chain_single": [],
+ "auto_link": [
+  {
+   "edge_id": "00000000-0000-4000-0000-00000000003d",
+   "source_id": "00000000-0000-4000-0000-00000000003a",
+   "target_id": "00000000-0000-4000-0000-00000000003b",
+   "edge_type": "temporal",
+   "base_weight": 0.9998842659569603,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 10000.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 1500.0
+   }
+  }
+ ],
+ "auto_link_episode": [],
+ "naive_edge": {
+  "edge_id": "00000000-0000-4000-0000-000000000041",
+  "source_id": "00000000-0000-4000-0000-00000000003e",
+  "target_id": "00000000-0000-4000-0000-000000000040",
+  "edge_type": "temporal",
+  "base_weight": 0.9998842659569603,
+  "sign": 1.0,
+  "confidence": 1.0,
+  "context_embedding": null,
+  "created_at": "2026-09-30T08:00:00+00:00",
+  "last_activated": "2026-09-30T08:00:00+00:00",
+  "activation_count": 0,
+  "propagation_delay_ms": 10000.0,
+  "ltp_boost": 1.0,
+  "ltp_decay_rate": 0.01,
+  "gate_threshold": 0.3,
+  "metadata": {
+   "direction": "after",
+   "time_diff_seconds": 3600.0
+  }
+ },
+ "naive_chain": [
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000042",
+   "source_id": "00000000-0000-4000-0000-00000000003f",
+   "target_id": "00000000-0000-4000-0000-00000000003e",
+   "edge_type": "temporal",
+   "base_weight": 0.9998842659569603,
+   "sign": 1.0,
+   "confidence": 1.0,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 10000.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.3,
+   "metadata": {
+    "direction": "before",
+    "time_diff_seconds": 3599.9995
+   }
+  }
+ ],
+ "mixed_chain": {
+  "error": "TypeError: can't compare offset-naive and offset-aware datetimes"
+ },
+ "causal": [
+  null,
+  null,
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000043",
+   "source_id": "00000000-0000-4000-0000-000000000002",
+   "target_id": "00000000-0000-4000-0000-000000000003",
+   "edge_type": "causal",
+   "base_weight": 1.0,
+   "sign": 1.0,
+   "confidence": 0.8,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 0.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.4,
+   "metadata": {
+    "causal_type": "causes"
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000044",
+   "source_id": "00000000-0000-4000-0000-000000000002",
+   "target_id": "00000000-0000-4000-0000-000000000004",
+   "edge_type": "causal",
+   "base_weight": 1.0,
+   "sign": 1.0,
+   "confidence": 0.95,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 0.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.4,
+   "metadata": {
+    "causal_type": "enables"
+   }
+  },
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000045",
+   "source_id": "00000000-0000-4000-0000-000000000004",
+   "target_id": "00000000-0000-4000-0000-000000000005",
+   "edge_type": "causal",
+   "base_weight": 1.0,
+   "sign": 1.0,
+   "confidence": 0.7,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 0.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.4,
+   "metadata": {
+    "causal_type": "prevents"
+   }
+  },
+  null,
+  {
+   "edge_id": "00000000-0000-4000-0000-000000000046",
+   "source_id": "00000000-0000-4000-0000-00000000003e",
+   "target_id": "00000000-0000-4000-0000-000000000040",
+   "edge_type": "causal",
+   "base_weight": 1.0,
+   "sign": 1.0,
+   "confidence": 0.6,
+   "context_embedding": null,
+   "created_at": "2026-09-30T08:00:00+00:00",
+   "last_activated": "2026-09-30T08:00:00+00:00",
+   "activation_count": 0,
+   "propagation_delay_ms": 0.0,
+   "ltp_boost": 1.0,
+   "ltp_decay_rate": 0.01,
+   "gate_threshold": 0.4,
+   "metadata": {
+    "causal_type": "causes"
+   }
+  }
+ ],
+ "causal_loose": {
+  "edge_id": "00000000-0000-4000-0000-000000000047",
+  "source_id": "00000000-0000-4000-0000-000000000007",
+  "target_id": "00000000-0000-4000-0000-000000000003",
+  "edge_type": "causal",
+  "base_weight": 1.0,
+  "sign": 1.0,
+  "confidence": 0.61,
+  "context_embedding": null,
+  "created_at": "2026-09-30T08:00:00+00:00",
+  "last_activated": "2026-09-30T08:00:00+00:00",
+  "activation_count": 0,
+  "propagation_delay_ms": 0.0,
+  "ltp_boost": 1.0,
+  "ltp_decay_rate": 0.01,
+  "gate_threshold": 0.4,
+  "metadata": {
+   "causal_type": "causes"
+  }
+ },
+ "follow_causal": {
+  "effects": [
+   [
+    "00000000-0000-4000-0000-000000000004",
+    "00000000-0000-4000-0000-000000000044"
+   ],
+   [
+    "00000000-0000-4000-0000-000000000005",
+    "00000000-0000-4000-0000-000000000045"
+   ]
+  ],
+  "effects_1": [
+   [
+    "00000000-0000-4000-0000-000000000004",
+    "00000000-0000-4000-0000-000000000044"
+   ]
+  ],
+  "causes": [
+   [
+    "00000000-0000-4000-0000-000000000004",
+    "00000000-0000-4000-0000-000000000045"
+   ],
+   [
+    "00000000-0000-4000-0000-000000000002",
+    "00000000-0000-4000-0000-000000000044"
+   ]
+  ],
+  "none": []
+ },
+ "follow_temporal": {
+  "backward": [
+   [
+    "00000000-0000-4000-0000-000000000008",
+    "00000000-0000-4000-0000-000000000026"
+   ],
+   [
+    "00000000-0000-4000-0000-000000000007",
+    "00000000-0000-4000-0000-000000000025"
+   ],
+   [
+    "00000000-0000-4000-0000-000000000006",
+    "00000000-0000-4000-0000-000000000024"
+   ]
+  ],
+  "forward": [
+   [
+    "00000000-0000-4000-0000-00000000000a",
+    "00000000-0000-4000-0000-000000000027"
+   ]
+  ],
+  "strict": [
+   [
+    "00000000-0000-4000-0000-000000000008",
+    "00000000-0000-4000-0000-000000000026"
+   ],
+   [
+    "00000000-0000-4000-0000-000000000007",
+    "00000000-0000-4000-0000-000000000025"
+   ],
+   [
+    "00000000-0000-4000-0000-000000000006",
+    "00000000-0000-4000-0000-000000000024"
+   ],
+   [
+    "00000000-0000-4000-0000-000000000005",
+    "00000000-0000-4000-0000-000000000023"
+   ],
+   [
+    "00000000-0000-4000-0000-000000000004",
+    "00000000-0000-4000-0000-000000000022"
+   ]
+  ],
+  "start": []
+ },
+ "context": {
+  "before": [
+   "00000000-0000-4000-0000-00000000000f",
+   "00000000-0000-4000-0000-00000000000e"
+  ],
+  "after": [
+   "00000000-0000-4000-0000-000000000011",
+   "00000000-0000-4000-0000-000000000012",
+   "00000000-0000-4000-0000-000000000013",
+   "00000000-0000-4000-0000-000000000014"
+  ]
+ },
+ "co_activation": [
+  3,
+  6,
+  0
+ ],
+ "ltp_strength": [
+  1.2079441541679836,
+  1.2079441541679836,
+  0.0,
+  0.0
+ ],
+ "summation": [
+  [
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  [
+   1.7137074871318725,
+   1.512341549329908,
+   1.7137074871318725,
+   0.0
+  ],
+  [
+   1.0234630589971545,
+   0.9032029794747437,
+   1.0234630589971545,
+   0.0
+  ],
+  [
+   0.9700801185701035,
+   0.8560926998970133,
+   0.9700801185701035,
+   0.0
+  ],
+  [
+   0.8788213791445176,
+   0.7755571450201592,
+   0.8788213791445176,
+   0.0
+  ],
+  [
+   0.9700801185701035,
+   0.8560926998970133,
+   0.9700801185701035,
+   0.0
+  ],
+  [
+   0.9700801185701035,
+   0.8560926998970133,
+   0.9700801185701035,
+   0.0
+  ],
+  [
+   0.8788213791445176,
+   0.7755571450201592,
+   0.8788213791445176,
+   0.0
+  ],
+  [
+   0.8788213791445176,
+   0.7755571450201592,
+   0.8788213791445176,
+   0.0
+  ],
+  [
+   0.8788213791445176,
+   0.7755571450201592,
+   0.8788213791445176,
+   0.0
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  [
+   0.8787257718343157,
+   0.7754727718650415,
+   0.8787257718343157,
+   0.0
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ]
+ ],
+ "threshold": [
+  [
+   false,
+   false,
+   false
+  ],
+  [
+   true,
+   true,
+   false
+  ],
+  [
+   true,
+   true,
+   false
+  ],
+  [
+   true,
+   true,
+   false
+  ],
+  [
+   true,
+   true,
+   false
+  ],
+  [
+   false,
+   false,
+   false
+  ],
+  [
+   true,
+   true,
+   false
+  ],
+  [
+   true,
+   true,
+   false
+  ]
+ ],
+ "stdp": [
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  false
+ ],
+ "decay_ltp": 20,
+ "decay_ltp_fast": 20,
+ "decay_ltp_t2": 0,
+ "patterns": {
+  "1": [
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "occurrences": 4
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state')",
+    "occurrences": 3
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "occurrences": 3
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "occurrences": 2
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'quantitative', 'relational', 'spatial', 'temporal')",
+    "occurrences": 1
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'quantitative', 'relational', 'spatial', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'temporal')",
+    "occurrences": 1
+   },
+   {
+    "source_dimensions": "()",
+    "target_dimensions": "()",
+    "occurrences": 1
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'quantitative', 'spatial', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'spatial', 'state', 'temporal')",
+    "occurrences": 1
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'spatial', 'temporal')",
+    "occurrences": 1
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'relational', 'state', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'relational', 'spatial', 'state', 'temporal')",
+    "occurrences": 1
+   },
+   {
+    "source_dimensions": "('causal', 'emotional', 'quantitative', 'relational', 'spatial')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'relational', 'state', 'temporal')",
+    "occurrences": 1
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'relational', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('causal', 'emotional', 'quantitative', 'relational', 'spatial')",
+    "occurrences": 1
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state')",
+    "occurrences": 1
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('causal', 'emotional', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "occurrences": 1
+   },
+   {
+    "source_dimensions": "('causal', 'emotional', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "occurrences": 1
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "occurrences": 1
+   },
+   {
+    "source_dimensions": "('causal', 'emotional', 'spatial')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'quantitative', 'spatial', 'temporal')",
+    "occurrences": 1
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'spatial', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'spatial', 'state', 'temporal')",
+    "occurrences": 1
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'quantitative', 'spatial', 'state', 'temporal')",
+    "occurrences": 1
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'quantitative', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'relational', 'spatial', 'state', 'temporal')",
+    "occurrences": 1
+   }
+  ],
+  "2": [
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "occurrences": 4
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state')",
+    "occurrences": 3
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "occurrences": 3
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "occurrences": 2
+   }
+  ],
+  "3": [
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "occurrences": 4
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state')",
+    "occurrences": 3
+   },
+   {
+    "source_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state')",
+    "target_dimensions": "('action', 'causal', 'emotional', 'entity', 'quantitative', 'relational', 'spatial', 'state', 'temporal')",
+    "occurrences": 3
+   }
+  ],
+  "500": []
+ },
+ "refractory": {
+  "initial": [
+   false,
+   0.0
+  ],
+  "activated": [
+   true,
+   50.0,
+   "2026-10-30T08:07:00.050000+00:00"
+  ],
+  "set": [
+   true,
+   250.5,
+   "2026-10-30T08:07:00.250500+00:00"
+  ],
+  "default": {
+   "error": "AttributeError: 'TemporalConfig' object has no attribute 'refractory_period_ms'"
+  },
+  "zero": {
+   "error": "AttributeError: 'TemporalConfig' object has no attribute 'refractory_period_ms'"
+  },
+  "naive": [
+   true,
+   125.0
+  ],
+  "past": [
+   false,
+   0.0
+  ]
+ },
+ "windows": [
+  [
+   "2023-05-08T00:00:00+00:00",
+   "2023-05-09T00:00:00+00:00"
+  ],
+  [
+   "2023-05-01T00:00:00+00:00",
+   "2023-05-03T00:00:00+00:00"
+  ],
+  [
+   "2023-06-10T12:00:00+00:00",
+   "2023-07-01T00:00:00+00:00"
+  ],
+  [
+   "2023-05-25T00:00:00+00:00",
+   null
+  ],
+  [
+   null,
+   "2023-05-20T00:00:00+00:00"
+  ],
+  [
+   null,
+   null
+  ],
+  [
+   "2023-05-08T10:00:00",
+   "2023-05-08T18:00:00"
+  ]
+ ],
+ "markers": [
+  null,
+  [
+   "May",
+   "Yesterday"
+  ],
+  [],
+  [
+   "support group",
+   "last week",
+   "kids"
+  ]
+ ],
+ "boosts": [
+  [
+   [
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ]
+   ],
+   [
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.3,
+     "temporal_before_match"
+    ],
+    [
+     1.3,
+     "temporal_before_match"
+    ],
+    [
+     1.3,
+     "temporal_before_match"
+    ],
+    [
+     1.3,
+     "temporal_before_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ]
+   ]
+  ],
+  [
+   [
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ]
+   ],
+   [
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.3,
+     "temporal_before_match"
+    ],
+    [
+     1.3,
+     "temporal_before_match"
+    ],
+    [
+     1.3,
+     "temporal_before_match"
+    ],
+    [
+     1.3,
+     "temporal_before_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ]
+   ]
+  ],
+  [
+   [
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ]
+   ],
+   [
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.3,
+     "temporal_before_match"
+    ],
+    [
+     1.3,
+     "temporal_before_match"
+    ],
+    [
+     1.3,
+     "temporal_before_match"
+    ],
+    [
+     1.3,
+     "temporal_before_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ]
+   ]
+  ],
+  [
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ]
+  ],
+  [
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.3,
+     "temporal_marker_match: kids"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.3,
+     "temporal_marker_match: kids"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.3,
+     "temporal_marker_match: kids"
+    ]
+   ],
+   [
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.3,
+     "temporal_marker_match: kids"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.3,
+     "temporal_marker_match: kids"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.3,
+     "temporal_marker_match: kids"
+    ]
+   ]
+  ],
+  [
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.3,
+     "temporal_marker_match: last week"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.3,
+     "temporal_marker_match: last week"
+    ]
+   ],
+   [
+    [
+     1.15,
+     "temporal_proximity (1 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (1 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (1 days)"
+    ],
+    [
+     1.3,
+     "temporal_marker_match: last week"
+    ]
+   ],
+   [
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.3,
+     "temporal_marker_match: last week"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.3,
+     "temporal_marker_match: last week"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.3,
+     "temporal_marker_match: last week"
+    ]
+   ]
+  ],
+  [
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.15,
+     "temporal_proximity (1 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (1 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (1 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (1 days)"
+    ]
+   ],
+   [
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ]
+  ],
+  [
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.15,
+     "temporal_proximity (1 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (1 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (1 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (1 days)"
+    ]
+   ],
+   [
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ]
+  ],
+  [
+   [
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ]
+   ],
+   [
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ]
+   ],
+   [
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ]
+   ],
+   [
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ],
+    [
+     1.3,
+     "temporal_after_match"
+    ]
+   ],
+   [
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ]
+   ],
+   [
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ]
+   ],
+   [
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ],
+    [
+     1.15,
+     "has_timestamp_metadata"
+    ]
+   ]
+  ],
+  [
+   [
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ]
+   ],
+   [
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ],
+    [
+     1.15,
+     "temporal_proximity (5 days)"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.3,
+     "temporal_before_match"
+    ],
+    [
+     1.3,
+     "temporal_before_match"
+    ],
+    [
+     1.3,
+     "temporal_before_match"
+    ],
+    [
+     1.3,
+     "temporal_before_match"
+    ]
+   ],
+   [
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ],
+    [
+     1.0,
+     "no_temporal_match"
+    ]
+   ],
+   [
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ],
+    [
+     1.5,
+     "exact_temporal_overlap"
+    ]
+   ]
+  ]
+ ],
+ "boost_disabled": [
+  1.0,
+  "temporal_boost_disabled"
+ ],
+ "applied": [
+  [
+   [
+    "00000000-0000-4000-0000-000000000001",
+    1.5
+   ],
+   [
+    "00000000-0000-4000-0000-000000000005",
+    1.455
+   ],
+   [
+    "00000000-0000-4000-0000-000000000009",
+    1.41
+   ],
+   [
+    "00000000-0000-4000-0000-00000000003e",
+    1.095
+   ],
+   [
+    "00000000-0000-4000-0000-00000000000d",
+    0.91
+   ],
+   [
+    "00000000-0000-4000-0000-000000000011",
+    0.88
+   ],
+   [
+    "00000000-0000-4000-0000-00000000004f",
+    0.8739999999999999
+   ],
+   [
+    "00000000-0000-4000-0000-000000000015",
+    0.85
+   ],
+   [
+    "00000000-0000-4000-0000-000000000019",
+    0.8200000000000001
+   ],
+   [
+    "00000000-0000-4000-0000-00000000001d",
+    0.79
+   ]
+  ],
+  [
+   [
+    "00000000-0000-4000-0000-000000000001",
+    1.15
+   ],
+   [
+    "00000000-0000-4000-0000-000000000005",
+    1.1155
+   ],
+   [
+    "00000000-0000-4000-0000-000000000009",
+    1.081
+   ],
+   [
+    "00000000-0000-4000-0000-00000000000d",
+    0.91
+   ],
+   [
+    "00000000-0000-4000-0000-000000000011",
+    0.88
+   ],
+   [
+    "00000000-0000-4000-0000-00000000004f",
+    0.8739999999999999
+   ],
+   [
+    "00000000-0000-4000-0000-000000000015",
+    0.85
+   ],
+   [
+    "00000000-0000-4000-0000-00000000003e",
+    0.8394999999999999
+   ],
+   [
+    "00000000-0000-4000-0000-000000000019",
+    0.8200000000000001
+   ],
+   [
+    "00000000-0000-4000-0000-00000000001d",
+    0.79
+   ]
+  ],
+  [
+   [
+    "00000000-0000-4000-0000-000000000001",
+    1.0
+   ],
+   [
+    "00000000-0000-4000-0000-000000000015",
+    0.9774999999999999
+   ],
+   [
+    "00000000-0000-4000-0000-000000000005",
+    0.97
+   ],
+   [
+    "00000000-0000-4000-0000-000000000019",
+    0.943
+   ],
+   [
+    "00000000-0000-4000-0000-000000000009",
+    0.94
+   ],
+   [
+    "00000000-0000-4000-0000-00000000000d",
+    0.91
+   ],
+   [
+    "00000000-0000-4000-0000-00000000001d",
+    0.9085
+   ],
+   [
+    "00000000-0000-4000-0000-000000000011",
+    0.88
+   ],
+   [
+    "00000000-0000-4000-0000-00000000004f",
+    0.8739999999999999
+   ],
+   [
+    "00000000-0000-4000-0000-00000000003e",
+    0.73
+   ]
+  ],
+  [
+   [
+    "00000000-0000-4000-0000-00000000000d",
+    1.183
+   ],
+   [
+    "00000000-0000-4000-0000-000000000011",
+    1.1440000000000001
+   ],
+   [
+    "00000000-0000-4000-0000-000000000015",
+    1.105
+   ],
+   [
+    "00000000-0000-4000-0000-000000000019",
+    1.066
+   ],
+   [
+    "00000000-0000-4000-0000-00000000001d",
+    1.0270000000000001
+   ],
+   [
+    "00000000-0000-4000-0000-000000000001",
+    1.0
+   ],
+   [
+    "00000000-0000-4000-0000-00000000004f",
+    0.9880000000000001
+   ],
+   [
+    "00000000-0000-4000-0000-000000000005",
+    0.97
+   ],
+   [
+    "00000000-0000-4000-0000-000000000009",
+    0.94
+   ],
+   [
+    "00000000-0000-4000-0000-00000000003e",
+    0.73
+   ]
+  ],
+  [
+   [
+    "00000000-0000-4000-0000-000000000001",
+    1.3
+   ],
+   [
+    "00000000-0000-4000-0000-000000000005",
+    1.261
+   ],
+   [
+    "00000000-0000-4000-0000-000000000009",
+    1.222
+   ],
+   [
+    "00000000-0000-4000-0000-00000000003e",
+    0.949
+   ],
+   [
+    "00000000-0000-4000-0000-00000000000d",
+    0.91
+   ],
+   [
+    "00000000-0000-4000-0000-000000000011",
+    0.88
+   ],
+   [
+    "00000000-0000-4000-0000-00000000004f",
+    0.8739999999999999
+   ],
+   [
+    "00000000-0000-4000-0000-000000000015",
+    0.85
+   ],
+   [
+    "00000000-0000-4000-0000-000000000019",
+    0.8200000000000001
+   ],
+   [
+    "00000000-0000-4000-0000-00000000001d",
+    0.79
+   ]
+  ],
+  [
+   [
+    "00000000-0000-4000-0000-000000000001",
+    1.0
+   ],
+   [
+    "00000000-0000-4000-0000-000000000005",
+    0.97
+   ],
+   [
+    "00000000-0000-4000-0000-000000000009",
+    0.94
+   ],
+   [
+    "00000000-0000-4000-0000-00000000000d",
+    0.91
+   ],
+   [
+    "00000000-0000-4000-0000-000000000011",
+    0.88
+   ],
+   [
+    "00000000-0000-4000-0000-00000000004f",
+    0.8739999999999999
+   ],
+   [
+    "00000000-0000-4000-0000-000000000015",
+    0.85
+   ],
+   [
+    "00000000-0000-4000-0000-000000000019",
+    0.8200000000000001
+   ],
+   [
+    "00000000-0000-4000-0000-00000000001d",
+    0.79
+   ],
+   [
+    "00000000-0000-4000-0000-00000000003e",
+    0.73
+   ]
+  ],
+  [
+   [
+    "00000000-0000-4000-0000-000000000001",
+    1.5
+   ],
+   [
+    "00000000-0000-4000-0000-000000000005",
+    1.455
+   ],
+   [
+    "00000000-0000-4000-0000-000000000009",
+    1.41
+   ],
+   [
+    "00000000-0000-4000-0000-00000000003e",
+    1.095
+   ],
+   [
+    "00000000-0000-4000-0000-00000000000d",
+    0.91
+   ],
+   [
+    "00000000-0000-4000-0000-000000000011",
+    0.88
+   ],
+   [
+    "00000000-0000-4000-0000-00000000004f",
+    0.8739999999999999
+   ],
+   [
+    "00000000-0000-4000-0000-000000000015",
+    0.85
+   ],
+   [
+    "00000000-0000-4000-0000-000000000019",
+    0.8200000000000001
+   ],
+   [
+    "00000000-0000-4000-0000-00000000001d",
+    0.79
+   ]
+  ]
+ ],
+ "applied_disabled": [
+  [
+   "00000000-0000-4000-0000-000000000001",
+   1.0
+  ],
+  [
+   "00000000-0000-4000-0000-000000000005",
+   0.97
+  ],
+  [
+   "00000000-0000-4000-0000-000000000009",
+   0.94
+  ],
+  [
+   "00000000-0000-4000-0000-00000000000d",
+   0.91
+  ],
+  [
+   "00000000-0000-4000-0000-000000000011",
+   0.88
+  ],
+  [
+   "00000000-0000-4000-0000-000000000015",
+   0.85
+  ],
+  [
+   "00000000-0000-4000-0000-000000000019",
+   0.8200000000000001
+  ],
+  [
+   "00000000-0000-4000-0000-00000000001d",
+   0.79
+  ],
+  [
+   "00000000-0000-4000-0000-00000000004f",
+   0.76
+  ],
+  [
+   "00000000-0000-4000-0000-00000000003e",
+   0.73
+  ]
+ ],
+ "conflicts": [
+  2,
+  0,
+  2,
+  0
+ ],
+ "graph": {
+  "nodes": [
+   {
+    "node_id": "00000000-0000-4000-0000-000000000001",
+    "layer": 0,
+    "content": "Hey Mel! Good to see you! How have you been?",
+    "embedding": [
+     0.0,
+     0.0,
+     0.0,
+     0.2886751345948129,
+     0.0,
+     -0.5773502691896258,
+     0.0,
+     -0.2886751345948129,
+     0.0,
+     0.0,
+     0.2886751345948129,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.2886751345948129,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.2886751345948129,
+     -0.2886751345948129,
+     0.0,
+     0.0,
+     0.2886751345948129,
+     -0.2886751345948129,
+     0.0,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "spatial": 0.75,
+     "causal": 1.0,
+     "emotional": 0.35
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.7,
+    "importance_score": 0.7,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [],
+    "session_key": "t1",
+    "created_at": "2023-05-08T13:56:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 0,
+     "speaker": "Caroline",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 2
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000002",
+    "layer": 0,
+    "content": "Hey Caroline! Good to see you! I'm swamped with the kids & work. What's up with you? Anything new?",
+    "embedding": [
+     0.0,
+     0.0,
+     0.3922322702763681,
+     0.19611613513818404,
+     0.0,
+     -0.3922322702763681,
+     0.0,
+     -0.3922322702763681,
+     0.0,
+     0.0,
+     0.19611613513818404,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     -0.19611613513818404,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.3922322702763681,
+     -0.19611613513818404,
+     0.0,
+     0.3922322702763681,
+     0.0,
+     0.0,
+     0.0,
+     0.19611613513818404,
+     -0.19611613513818404,
+     0.0,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "temporal": 0.55,
+     "action": 0.35,
+     "spatial": 1.0,
+     "causal": 1.0,
+     "emotional": 0.55,
+     "quantitative": 0.75
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.7,
+    "importance_score": 0.7,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:caroline",
+     "ent:kids"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-08T13:57:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 1,
+     "speaker": "Melanie",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1,
+     "causal": 2
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.9182958340544894
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000003",
+    "layer": 0,
+    "content": "I went to a LGBTQ support group yesterday and it was so powerful.",
+    "embedding": [
+     0.0,
+     0.0,
+     -0.24253562503633297,
+     0.0,
+     0.24253562503633297,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.24253562503633297,
+     0.0,
+     0.0,
+     0.24253562503633297,
+     0.48507125007266594,
+     0.0,
+     -0.24253562503633297,
+     0.0,
+     -0.24253562503633297,
+     0.0,
+     -0.48507125007266594,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     -0.24253562503633297,
+     -0.24253562503633297,
+     0.0,
+     0.24253562503633297,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "entity": 0.35,
+     "temporal": 0.35,
+     "action": 0.35,
+     "state": 0.55,
+     "spatial": 0.35,
+     "causal": 0.55,
+     "emotional": 0.75,
+     "quantitative": 0.55
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.4,
+    "importance_score": 0.4,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:lgbtq",
+     "ent:support"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-08T13:58:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 2,
+     "speaker": "Caroline",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 3,
+     "co_activation": 5
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.954434002924965
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000004",
+    "layer": 0,
+    "content": "Wow, that's cool, Caroline! What happened that was so awesome? Did you hear any inspiring stories?",
+    "embedding": [
+     0.0,
+     0.0,
+     0.20851441405707477,
+     0.20851441405707477,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     -0.20851441405707477,
+     -0.20851441405707477,
+     0.41702882811414954,
+     0.0,
+     0.0,
+     0.0,
+     0.41702882811414954,
+     0.0,
+     -0.41702882811414954,
+     0.0,
+     0.20851441405707477,
+     0.20851441405707477,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     -0.41702882811414954,
+     0.0,
+     0.0,
+     0.20851441405707477,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "entity": 0.35,
+     "temporal": 0.55,
+     "action": 0.55,
+     "spatial": 1.0,
+     "causal": 1.0,
+     "emotional": 0.35,
+     "quantitative": 0.35
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.7,
+    "importance_score": 0.7,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:caroline"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-08T13:59:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 3,
+     "speaker": "Melanie",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 2,
+     "causal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.9182958340544894
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000005",
+    "layer": 0,
+    "content": "The transgender stories were so inspiring! I was so happy and thankful for all the support.",
+    "embedding": [
+     0.0,
+     0.0,
+     -0.21320071635561041,
+     -0.21320071635561041,
+     0.0,
+     0.0,
+     0.21320071635561041,
+     0.0,
+     0.0,
+     -0.21320071635561041,
+     0.0,
+     0.0,
+     0.42640143271122083,
+     0.0,
+     0.42640143271122083,
+     0.0,
+     -0.42640143271122083,
+     0.0,
+     0.0,
+     0.0,
+     -0.21320071635561041,
+     0.0,
+     0.0,
+     0.0,
+     -0.21320071635561041,
+     0.0,
+     -0.21320071635561041,
+     0.0,
+     0.21320071635561041,
+     -0.21320071635561041,
+     -0.21320071635561041,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "entity": 0.35,
+     "temporal": 0.35,
+     "action": 0.55,
+     "state": 0.35,
+     "spatial": 0.35,
+     "causal": 1.0,
+     "emotional": 0.75,
+     "quantitative": 0.35
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.35,
+    "importance_score": 0.35,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:support",
+     "ent:transgender"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-08T14:00:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 4,
+     "speaker": "Caroline",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1,
+     "co_activation": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 1.0
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000006",
+    "layer": 0,
+    "content": "Wow, love that painting! So cool you found such a helpful group. What's it done for you?",
+    "embedding": [
+     0.0,
+     0.0,
+     -0.22360679774997896,
+     0.0,
+     0.22360679774997896,
+     -0.4472135954999579,
+     -0.22360679774997896,
+     0.0,
+     0.0,
+     0.22360679774997896,
+     0.22360679774997896,
+     0.0,
+     0.0,
+     0.0,
+     0.22360679774997896,
+     0.22360679774997896,
+     -0.4472135954999579,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.22360679774997896,
+     0.0,
+     -0.22360679774997896,
+     0.0,
+     -0.22360679774997896,
+     0.0,
+     0.22360679774997896,
+     0.22360679774997896,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "temporal": 0.35,
+     "action": 0.35,
+     "state": 0.55,
+     "spatial": 1.0,
+     "causal": 0.95,
+     "emotional": 0.55,
+     "quantitative": 0.55
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.65,
+    "importance_score": 0.65,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:painting"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-08T14:01:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 5,
+     "speaker": "Melanie",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000007",
+    "layer": 0,
+    "content": "The support group has made me feel accepted and given me courage to embrace myself.",
+    "embedding": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.2182178902359924,
+     0.6546536707079772,
+     -0.2182178902359924,
+     0.0,
+     0.0,
+     0.4364357804719848,
+     0.0,
+     0.2182178902359924,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     -0.2182178902359924,
+     0.0,
+     -0.2182178902359924,
+     0.0,
+     -0.2182178902359924,
+     0.0,
+     0.0,
+     0.0,
+     -0.2182178902359924,
+     0.0,
+     0.0,
+     0.0,
+     0.2182178902359924,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "temporal": 0.35,
+     "action": 0.75,
+     "relational": 0.35,
+     "state": 0.55,
+     "spatial": 0.55,
+     "causal": 0.75,
+     "emotional": 0.75
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.4,
+    "importance_score": 0.4,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:support"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-08T14:02:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 6,
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1,
+     "causal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 1.0
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000008",
+    "layer": 0,
+    "content": "That's really cool. You've got guts. What now?",
+    "embedding": [
+     0.0,
+     0.0,
+     0.0,
+     0.23570226039551587,
+     0.0,
+     -0.23570226039551587,
+     -0.47140452079103173,
+     0.0,
+     0.0,
+     0.0,
+     0.7071067811865476,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     -0.23570226039551587,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     -0.23570226039551587,
+     0.0,
+     0.0,
+     0.0,
+     0.23570226039551587,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "relational": 0.35,
+     "spatial": 0.95,
+     "causal": 0.75,
+     "emotional": 0.35,
+     "quantitative": 0.35
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.35,
+    "importance_score": 0.35,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [],
+    "session_key": "t1",
+    "created_at": "2023-05-08T14:03:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 7,
+     "speaker": "Melanie",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1,
+     "co_activation": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 1.0
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000009",
+    "layer": 0,
+    "content": "Gonna continue my edu and check out career options, which is pretty exciting!",
+    "embedding": [
+     0.0,
+     0.2773500981126146,
+     0.0,
+     -0.2773500981126146,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     -0.2773500981126146,
+     0.0,
+     0.0,
+     -0.5547001962252291,
+     0.0,
+     0.2773500981126146,
+     0.0,
+     -0.2773500981126146,
+     0.0,
+     0.0,
+     -0.2773500981126146,
+     0.0,
+     0.0,
+     -0.2773500981126146,
+     -0.2773500981126146,
+     0.0,
+     0.0,
+     -0.2773500981126146,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "temporal": 0.55,
+     "action": 0.35,
+     "relational": 0.55,
+     "state": 0.75,
+     "causal": 0.75,
+     "emotional": 0.55
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.55,
+    "importance_score": 0.55,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:career"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-08T14:04:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 8,
+     "speaker": "Caroline",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-00000000000a",
+    "layer": 0,
+    "content": "Wow, Caroline! What kinda jobs are you thinkin' of? Anything that stands out?",
+    "embedding": [
+     0.0,
+     0.30151134457776363,
+     0.30151134457776363,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     -0.30151134457776363,
+     -0.30151134457776363,
+     0.0,
+     0.30151134457776363,
+     0.0,
+     0.0,
+     0.0,
+     0.30151134457776363,
+     0.0,
+     -0.30151134457776363,
+     0.0,
+     0.30151134457776363,
+     0.0,
+     0.0,
+     0.30151134457776363,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.30151134457776363,
+     -0.30151134457776363,
+     0.0,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "temporal": 0.55,
+     "action": 0.35,
+     "relational": 0.35,
+     "state": 0.35,
+     "spatial": 0.75,
+     "causal": 0.95,
+     "emotional": 0.35
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.55,
+    "importance_score": 0.55,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:caroline"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-08T14:05:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 9,
+     "speaker": "Melanie",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {},
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-00000000000b",
+    "layer": 0,
+    "content": "Hey Caroline, since we last chatted, I've had a lot of things happening to me. I ran a charity race for mental health last Saturday – it was really rewarding. Really made me think about taking care of our minds.",
+    "embedding": [
+     0.0,
+     0.0,
+     0.0,
+     -0.2626128657194451,
+     0.13130643285972254,
+     0.2626128657194451,
+     0.2626128657194451,
+     -0.13130643285972254,
+     0.0,
+     -0.13130643285972254,
+     0.13130643285972254,
+     0.0,
+     0.0,
+     0.0,
+     0.13130643285972254,
+     0.13130643285972254,
+     0.0,
+     0.0,
+     0.39391929857916763,
+     0.13130643285972254,
+     -0.13130643285972254,
+     -0.13130643285972254,
+     0.13130643285972254,
+     -0.2626128657194451,
+     0.2626128657194451,
+     -0.39391929857916763,
+     0.0,
+     0.0,
+     0.2626128657194451,
+     -0.2626128657194451,
+     -0.13130643285972254,
+     -0.13130643285972254
+    ],
+    "wave_amplitudes": {
+     "entity": 0.55,
+     "temporal": 0.55,
+     "action": 0.55,
+     "relational": 1.0,
+     "state": 0.95,
+     "spatial": 1.0,
+     "causal": 1.0,
+     "emotional": 1.0,
+     "quantitative": 0.95
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.5,
+    "importance_score": 0.5,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:caroline"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-25T13:14:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 10,
+     "speaker": "Melanie",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-00000000000c",
+    "layer": 0,
+    "content": "That charity race sounds great, Mel! Making a difference & raising awareness for mental health is super rewarding - I'm really proud of you for taking part!",
+    "embedding": [
+     0.18257418583505536,
+     0.0,
+     0.18257418583505536,
+     -0.3651483716701107,
+     -0.18257418583505536,
+     -0.18257418583505536,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.18257418583505536,
+     -0.18257418583505536,
+     0.0,
+     0.0,
+     0.0,
+     0.18257418583505536,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     -0.3651483716701107,
+     0.3651483716701107,
+     0.0,
+     0.18257418583505536,
+     -0.18257418583505536,
+     -0.5477225575051661,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "entity": 0.55,
+     "action": 0.55,
+     "relational": 1.0,
+     "state": 0.75,
+     "spatial": 0.75,
+     "causal": 0.95,
+     "emotional": 0.55,
+     "quantitative": 0.95
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.45,
+    "importance_score": 0.45,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [],
+    "session_key": "t1",
+    "created_at": "2023-05-25T13:15:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 11,
+     "speaker": "Caroline",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-00000000000d",
+    "layer": 0,
+    "content": "Thanks, Caroline! The event was really thought-provoking. I'm starting to realize that self-care is really important. It's a journey for me, but when I look after myself, I'm able to better look after my family.",
+    "embedding": [
+     0.0,
+     -0.11322770341445956,
+     0.45291081365783825,
+     0.0,
+     -0.11322770341445956,
+     0.0,
+     0.11322770341445956,
+     0.0,
+     0.0,
+     -0.11322770341445956,
+     0.11322770341445956,
+     0.0,
+     0.11322770341445956,
+     0.0,
+     0.11322770341445956,
+     -0.11322770341445956,
+     0.0,
+     0.0,
+     -0.11322770341445956,
+     0.0,
+     -0.3396831102433787,
+     0.0,
+     0.0,
+     -0.5661385170722978,
+     0.0,
+     -0.11322770341445956,
+     -0.11322770341445956,
+     -0.11322770341445956,
+     0.45291081365783825,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "entity": 0.55,
+     "temporal": 0.55,
+     "action": 0.75,
+     "relational": 1.0,
+     "state": 0.75,
+     "spatial": 1.0,
+     "causal": 0.95,
+     "emotional": 1.0,
+     "quantitative": 1.0
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.5,
+    "importance_score": 0.5,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:caroline",
+     "ent:family"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-25T13:16:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 12,
+     "speaker": "Melanie",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 2
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-00000000000e",
+    "layer": 0,
+    "content": "I totally agree, Melanie. Taking care of ourselves is so important - even if it's not always easy. Great that you're prioritizing self-care.",
+    "embedding": [
+     -0.3481553119113957,
+     0.17407765595569785,
+     0.0,
+     0.17407765595569785,
+     0.0,
+     -0.17407765595569785,
+     0.0,
+     0.0,
+     0.0,
+     -0.3481553119113957,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     -0.17407765595569785,
+     0.0,
+     0.17407765595569785,
+     -0.17407765595569785,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.17407765595569785,
+     0.0,
+     0.5222329678670935,
+     0.0,
+     0.3481553119113957,
+     -0.17407765595569785,
+     -0.3481553119113957,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "entity": 0.55,
+     "action": 0.55,
+     "relational": 0.55,
+     "state": 0.55,
+     "spatial": 1.0,
+     "causal": 0.75,
+     "emotional": 1.0,
+     "quantitative": 0.55
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.55,
+    "importance_score": 0.55,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:melanie"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-25T13:17:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 13,
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-00000000000f",
+    "layer": 0,
+    "content": "Yeah, it's tough. So I'm carving out some me-time each day - running, reading, or playing my violin - which refreshes me and helps me stay present for my fam!",
+    "embedding": [
+     -0.1690308509457033,
+     0.1690308509457033,
+     0.3380617018914066,
+     0.1690308509457033,
+     0.1690308509457033,
+     0.3380617018914066,
+     0.50709255283711,
+     0.0,
+     0.1690308509457033,
+     0.0,
+     0.0,
+     0.1690308509457033,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     -0.1690308509457033,
+     0.0,
+     -0.1690308509457033,
+     0.0,
+     -0.1690308509457033,
+     -0.1690308509457033,
+     0.1690308509457033,
+     -0.1690308509457033,
+     -0.1690308509457033,
+     0.0,
+     -0.1690308509457033,
+     -0.3380617018914066,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "entity": 0.35,
+     "action": 1.0,
+     "relational": 0.35,
+     "state": 0.75,
+     "spatial": 1.0,
+     "causal": 1.0,
+     "emotional": 1.0,
+     "quantitative": 0.75
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.55,
+    "importance_score": 0.55,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [],
+    "session_key": "t1",
+    "created_at": "2023-05-25T13:18:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 14,
+     "speaker": "Melanie",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000010",
+    "layer": 0,
+    "content": "That's great, Mel! Taking time for yourself is so important. You're doing an awesome job looking after yourself and your family!",
+    "embedding": [
+     -0.22941573387056174,
+     0.0,
+     0.0,
+     0.0,
+     -0.22941573387056174,
+     -0.22941573387056174,
+     0.0,
+     -0.22941573387056174,
+     0.0,
+     0.0,
+     0.22941573387056174,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     -0.22941573387056174,
+     -0.22941573387056174,
+     0.0,
+     0.22941573387056174,
+     0.0,
+     -0.22941573387056174,
+     0.0,
+     0.0,
+     -0.4588314677411235,
+     -0.22941573387056174,
+     0.0,
+     0.22941573387056174,
+     0.0,
+     0.0,
+     0.0,
+     -0.4588314677411235,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "entity": 0.35,
+     "temporal": 0.55,
+     "action": 0.55,
+     "relational": 0.55,
+     "state": 0.75,
+     "spatial": 0.75,
+     "causal": 1.0,
+     "emotional": 0.95,
+     "quantitative": 0.35
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.4,
+    "importance_score": 0.4,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:family"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-25T13:19:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 15,
+     "speaker": "Caroline",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000011",
+    "layer": 0,
+    "content": "Thanks, Caroline. It's still a work in progress, but I'm doing my best. My kids are so excited about summer break! We're thinking about going camping next month. Any fun plans for the summer?",
+    "embedding": [
+     0.0,
+     0.0,
+     0.42857142857142855,
+     0.0,
+     -0.14285714285714285,
+     -0.14285714285714285,
+     0.0,
+     0.0,
+     -0.14285714285714285,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     -0.14285714285714285,
+     0.0,
+     -0.2857142857142857,
+     0.0,
+     0.0,
+     0.14285714285714285,
+     0.0,
+     0.14285714285714285,
+     0.0,
+     -0.5714285714285714,
+     0.2857142857142857,
+     0.0,
+     0.0,
+     -0.2857142857142857,
+     0.14285714285714285,
+     0.0,
+     -0.2857142857142857,
+     -0.14285714285714285
+    ],
+    "wave_amplitudes": {
+     "temporal": 0.75,
+     "action": 0.55,
+     "relational": 0.75,
+     "state": 1.0,
+     "spatial": 0.95,
+     "causal": 1.0,
+     "emotional": 1.0,
+     "quantitative": 0.95
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.4,
+    "importance_score": 0.4,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:caroline",
+     "ent:kids",
+     "ent:camping"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-25T13:20:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 16,
+     "speaker": "Melanie",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000012",
+    "layer": 0,
+    "content": "Researching adoption agencies — it's been a dream to have a family and give a loving home to kids who need it.",
+    "embedding": [
+     -0.1889822365046136,
+     0.0,
+     0.0,
+     0.3779644730092272,
+     0.1889822365046136,
+     0.0,
+     -0.1889822365046136,
+     0.0,
+     0.0,
+     -0.1889822365046136,
+     0.3779644730092272,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     -0.1889822365046136,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.1889822365046136,
+     -0.1889822365046136,
+     0.0,
+     -0.5669467095138409,
+     -0.1889822365046136,
+     0.0,
+     0.1889822365046136,
+     -0.1889822365046136,
+     -0.1889822365046136,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "temporal": 0.55,
+     "relational": 0.55,
+     "state": 0.35,
+     "spatial": 1.0,
+     "causal": 0.55,
+     "emotional": 1.0,
+     "quantitative": 0.95
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.4,
+    "importance_score": 0.4,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:kids",
+     "ent:adoption",
+     "ent:family"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-25T13:21:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 17,
+     "speaker": "Caroline",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000013",
+    "layer": 0,
+    "content": "Wow, Caroline! That's awesome! Taking in kids in need - you're so kind. Your future family is gonna be so lucky to have you!",
+    "embedding": [
+     0.0,
+     0.0,
+     0.17407765595569785,
+     0.17407765595569785,
+     0.0,
+     -0.3481553119113957,
+     0.0,
+     0.0,
+     0.0,
+     -0.17407765595569785,
+     0.3481553119113957,
+     0.17407765595569785,
+     -0.17407765595569785,
+     0.17407765595569785,
+     -0.17407765595569785,
+     0.0,
+     -0.3481553119113957,
+     0.0,
+     0.3481553119113957,
+     0.17407765595569785,
+     0.0,
+     -0.17407765595569785,
+     0.0,
+     -0.17407765595569785,
+     -0.17407765595569785,
+     0.0,
+     0.0,
+     0.0,
+     0.17407765595569785,
+     0.0,
+     -0.3481553119113957,
+     -0.17407765595569785
+    ],
+    "wave_amplitudes": {
+     "temporal": 0.35,
+     "action": 0.35,
+     "relational": 0.75,
+     "state": 0.55,
+     "spatial": 1.0,
+     "causal": 0.75,
+     "emotional": 1.0,
+     "quantitative": 0.35
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.65,
+    "importance_score": 0.65,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:caroline",
+     "ent:kids",
+     "ent:family"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-25T13:22:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 18,
+     "speaker": "Melanie",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000014",
+    "layer": 0,
+    "content": "Thanks, Mel! My goal is to give kids a loving home. I'm truly grateful for all the support I've got from friends and mentors. Now the hard work starts to turn my dream into a reality. And here's one of the adoption agencies I'm looking into. It's a lot to take in, but I'm feeling hopeful and optimistic.",
+    "embedding": [
+     0.0,
+     -0.09805806756909202,
+     0.29417420270727607,
+     0.0,
+     0.0,
+     -0.09805806756909202,
+     -0.19611613513818404,
+     -0.19611613513818404,
+     -0.09805806756909202,
+     0.09805806756909202,
+     0.29417420270727607,
+     0.0,
+     0.29417420270727607,
+     0.09805806756909202,
+     0.0,
+     0.09805806756909202,
+     0.0,
+     0.09805806756909202,
+     0.0,
+     0.09805806756909202,
+     -0.19611613513818404,
+     0.09805806756909202,
+     0.09805806756909202,
+     0.0,
+     0.0,
+     -0.29417420270727607,
+     -0.29417420270727607,
+     -0.3922322702763681,
+     0.3922322702763681,
+     -0.09805806756909202,
+     -0.19611613513818404,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "temporal": 0.75,
+     "action": 1.0,
+     "relational": 0.75,
+     "state": 0.55,
+     "spatial": 1.0,
+     "causal": 1.0,
+     "emotional": 1.0,
+     "quantitative": 1.0
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.65,
+    "importance_score": 0.65,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:kids",
+     "ent:adoption",
+     "ent:support",
+     "ent:friends"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-05-25T13:23:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 19,
+     "speaker": "Caroline",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {},
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000015",
+    "layer": 0,
+    "content": "Hey Melanie! How's it going? I wanted to tell you about my school event last week. It was awesome! I talked about my transgender journey and encouraged students to get involved in the LGBTQ community. It was great to see their reactions. It made me reflect on how far I've come since I started transitioning three years ago.",
+    "embedding": [
+     0.0,
+     0.0,
+     -0.11470786693528087,
+     0.11470786693528087,
+     0.22941573387056174,
+     -0.11470786693528087,
+     0.11470786693528087,
+     -0.11470786693528087,
+     0.11470786693528087,
+     -0.11470786693528087,
+     0.3441236008058426,
+     -0.22941573387056174,
+     0.11470786693528087,
+     -0.22941573387056174,
+     0.22941573387056174,
+     0.0,
+     0.0,
+     0.11470786693528087,
+     0.0,
+     0.0,
+     -0.22941573387056174,
+     -0.11470786693528087,
+     0.0,
+     -0.11470786693528087,
+     -0.11470786693528087,
+     -0.22941573387056174,
+     -0.11470786693528087,
+     -0.11470786693528087,
+     0.5735393346764044,
+     -0.22941573387056174,
+     0.0,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "entity": 0.55,
+     "temporal": 0.55,
+     "action": 1.0,
+     "relational": 0.75,
+     "state": 1.0,
+     "spatial": 1.0,
+     "causal": 1.0,
+     "emotional": 1.0,
+     "quantitative": 1.0
+    },
+    "activation_level": 0.4,
+    "last_activated": "2026-10-30T08:07:00+00:00",
+    "refractory_until": "2026-10-30T08:06:59+00:00",
+    "heat_score": 0.51,
+    "importance_score": 0.3,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:melanie",
+     "ent:lgbtq",
+     "ent:school",
+     "ent:transgender"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-06-09T19:55:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 20,
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000016",
+    "layer": 0,
+    "content": "Hey Caroline! Great to hear from you. Sounds like your event was amazing! I'm so proud of you for spreading awareness and getting others involved in the LGBTQ community. You've come a long way since your transition - keep on inspiring people with your strength and courage!",
+    "embedding": [
+     0.2773500981126146,
+     0.0,
+     0.1386750490563073,
+     0.0,
+     -0.1386750490563073,
+     -0.41602514716892186,
+     0.0,
+     -0.2773500981126146,
+     -0.1386750490563073,
+     -0.1386750490563073,
+     0.1386750490563073,
+     -0.41602514716892186,
+     0.2773500981126146,
+     0.0,
+     0.0,
+     -0.1386750490563073,
+     0.1386750490563073,
+     0.1386750490563073,
+     -0.1386750490563073,
+     0.0,
+     -0.2773500981126146,
+     -0.2773500981126146,
+     0.0,
+     0.1386750490563073,
+     -0.1386750490563073,
+     0.0,
+     -0.1386750490563073,
+     0.0,
+     0.1386750490563073,
+     -0.1386750490563073,
+     0.0,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "entity": 0.95,
+     "temporal": 0.75,
+     "action": 0.75,
+     "relational": 0.75,
+     "state": 1.0,
+     "spatial": 1.0,
+     "causal": 1.0,
+     "emotional": 1.0,
+     "quantitative": 0.95
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.45,
+    "importance_score": 0.45,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:caroline",
+     "ent:lgbtq"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-06-09T19:56:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 21,
+     "speaker": "Melanie",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000017",
+    "layer": 0,
+    "content": "Thanks, Mel! Your backing really means a lot. I felt super powerful giving my talk. I shared my own journey, the struggles I had and how much I've developed since coming out. It was wonderful to see how the audience related to what I said and how it inspired them to be better allies. Conversations about gender identity and inclusion are so necessary and I'm thankful for being able to give a voice to the trans community.",
+    "embedding": [
+     -0.08032193289024989,
+     0.0,
+     0.08032193289024989,
+     -0.16064386578049977,
+     0.08032193289024989,
+     0.08032193289024989,
+     0.08032193289024989,
+     0.0,
+     -0.16064386578049977,
+     0.16064386578049977,
+     0.32128773156099955,
+     0.08032193289024989,
+     0.24096579867074966,
+     0.0,
+     0.08032193289024989,
+     0.08032193289024989,
+     -0.08032193289024989,
+     0.08032193289024989,
+     -0.16064386578049977,
+     0.08032193289024989,
+     -0.16064386578049977,
+     0.0,
+     0.0,
+     -0.16064386578049977,
+     -0.08032193289024989,
+     -0.4016096644512494,
+     -0.32128773156099955,
+     -0.16064386578049977,
+     0.4819315973414993,
+     -0.16064386578049977,
+     0.0,
+     -0.24096579867074966
+    ],
+    "wave_amplitudes": {
+     "entity": 1.0,
+     "temporal": 1.0,
+     "action": 0.75,
+     "relational": 1.0,
+     "state": 1.0,
+     "spatial": 1.0,
+     "causal": 1.0,
+     "emotional": 1.0,
+     "quantitative": 1.0
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.3,
+    "importance_score": 0.3,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [],
+    "session_key": "t1",
+    "created_at": "2023-06-09T19:57:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 22,
+     "speaker": "Caroline",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000018",
+    "layer": 0,
+    "content": "Wow, Caroline, you're doing an awesome job of inspiring others with your journey. It's great to be part of it and see how you're positively affecting so many. Talking about inclusivity and acceptance is crucial, and you're so brave to speak up for the trans community. Keep up the great work!",
+    "embedding": [
+     0.0,
+     0.0,
+     0.10846522890932808,
+     0.0,
+     0.21693045781865616,
+     -0.4338609156373123,
+     0.0,
+     -0.21693045781865616,
+     -0.10846522890932808,
+     0.0,
+     0.32539568672798425,
+     -0.21693045781865616,
+     0.10846522890932808,
+     0.10846522890932808,
+     0.32539568672798425,
+     0.10846522890932808,
+     0.0,
+     0.0,
+     0.5423261445466404,
+     0.0,
+     0.0,
+     0.21693045781865616,
+     0.0,
+     -0.10846522890932808,
+     0.0,
+     -0.10846522890932808,
+     -0.10846522890932808,
+     0.0,
+     0.0,
+     -0.10846522890932808,
+     -0.10846522890932808,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "entity": 0.75,
+     "temporal": 0.35,
+     "action": 0.95,
+     "relational": 0.35,
+     "state": 1.0,
+     "spatial": 1.0,
+     "causal": 1.0,
+     "emotional": 1.0,
+     "quantitative": 0.75
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.5,
+    "importance_score": 0.5,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:caroline"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-06-09T19:58:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 23,
+     "speaker": "Melanie",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000019",
+    "layer": 0,
+    "content": "Thanks Mel! Your kind words mean a lot. Sharing our experiences isn't always easy, but I feel it's important to help promote understanding and acceptance. I've been blessed with loads of love and support throughout this journey, and I want to pass it on to others. By sharing our stories, we can build a strong, supportive community of hope.",
+    "embedding": [
+     -0.10783277320343841,
+     0.10783277320343841,
+     0.10783277320343841,
+     0.10783277320343841,
+     0.0,
+     0.0,
+     0.0,
+     -0.10783277320343841,
+     0.0,
+     -0.10783277320343841,
+     0.3234983196103152,
+     -0.10783277320343841,
+     0.0,
+     0.0,
+     0.10783277320343841,
+     0.21566554640687682,
+     -0.10783277320343841,
+     0.10783277320343841,
+     0.21566554640687682,
+     0.0,
+     -0.21566554640687682,
+     0.10783277320343841,
+     0.21566554640687682,
+     -0.21566554640687682,
+     0.10783277320343841,
+     -0.3234983196103152,
+     -0.43133109281375365,
+     0.21566554640687682,
+     0.43133109281375365,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "entity": 0.55,
+     "action": 1.0,
+     "relational": 0.95,
+     "state": 0.75,
+     "spatial": 1.0,
+     "causal": 1.0,
+     "emotional": 1.0,
+     "quantitative": 1.0
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.7,
+    "importance_score": 0.7,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:support"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-06-09T19:59:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 24,
+     "speaker": "Caroline",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-00000000001a",
+    "layer": 0,
+    "content": "Yeah, Caroline! It takes courage to talk about our own stories. But it's in these vulnerable moments that we bond and understand each other. We all have our different paths, but if we share them, we show people that they're not alone. Our stories can be so inspiring and encouraging to others who are facing the same challenges. Thank you for using your voice to create love, acceptance, and hope. You're doing amazing!",
+    "embedding": [
+     0.0,
+     0.0,
+     0.20851441405707477,
+     0.0,
+     0.10425720702853739,
+     -0.20851441405707477,
+     -0.20851441405707477,
+     0.0,
+     -0.20851441405707477,
+     -0.20851441405707477,
+     0.5212860351426869,
+     0.10425720702853739,
+     0.0,
+     0.0,
+     0.10425720702853739,
+     0.10425720702853739,
+     0.10425720702853739,
+     -0.10425720702853739,
+     0.10425720702853739,
+     0.0,
+     -0.10425720702853739,
+     -0.10425720702853739,
+     0.41702882811414954,
+     -0.10425720702853739,
+     0.41702882811414954,
+     0.0,
+     0.0,
+     0.10425720702853739,
+     0.10425720702853739,
+     -0.10425720702853739,
+     -0.10425720702853739,
+     -0.10425720702853739
+    ],
+    "wave_amplitudes": {
+     "entity": 0.55,
+     "temporal": 0.35,
+     "action": 1.0,
+     "relational": 0.95,
+     "state": 1.0,
+     "spatial": 1.0,
+     "causal": 1.0,
+     "emotional": 1.0,
+     "quantitative": 1.0
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.55,
+    "importance_score": 0.55,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:caroline"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-06-09T20:00:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 25,
+     "speaker": "Melanie",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 2
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-00000000001b",
+    "layer": 0,
+    "content": "Your words mean a lot to me. I'm grateful for the chance to share my story and give others hope. We all have unique paths, and by working together we can build a more inclusive and understanding world. I'm going to keep using my voice to make a change and lift others up. And you're part of that!",
+    "embedding": [
+     -0.17888543819998318,
+     -0.08944271909999159,
+     0.2683281572999747,
+     -0.17888543819998318,
+     -0.08944271909999159,
+     -0.08944271909999159,
+     0.08944271909999159,
+     -0.08944271909999159,
+     -0.08944271909999159,
+     -0.08944271909999159,
+     0.35777087639996635,
+     -0.17888543819998318,
+     0.08944271909999159,
+     0.0,
+     0.17888543819998318,
+     -0.08944271909999159,
+     0.2683281572999747,
+     0.08944271909999159,
+     0.17888543819998318,
+     0.0,
+     0.0,
+     -0.08944271909999159,
+     0.0,
+     0.0,
+     0.2683281572999747,
+     -0.4472135954999579,
+     -0.35777087639996635,
+     -0.08944271909999159,
+     0.2683281572999747,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "entity": 0.35,
+     "temporal": 0.55,
+     "action": 0.35,
+     "relational": 1.0,
+     "state": 1.0,
+     "spatial": 1.0,
+     "causal": 1.0,
+     "emotional": 1.0,
+     "quantitative": 1.0
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.7,
+    "importance_score": 0.7,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [],
+    "session_key": "t1",
+    "created_at": "2023-06-09T20:01:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 26,
+     "speaker": "Caroline",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-00000000001c",
+    "layer": 0,
+    "content": "Thanks, Caroline, for letting me join your journey. I'm so proud to be part of the difference you're making. Let's keep motivating and helping each other out as we journey through life. We can make a real impact together!",
+    "embedding": [
+     0.0,
+     0.0,
+     0.34299717028501764,
+     0.0,
+     0.17149858514250882,
+     0.17149858514250882,
+     0.0,
+     0.0,
+     0.0,
+     0.17149858514250882,
+     0.17149858514250882,
+     -0.5144957554275265,
+     0.17149858514250882,
+     -0.34299717028501764,
+     0.0,
+     0.0,
+     0.0,
+     -0.17149858514250882,
+     -0.17149858514250882,
+     0.0,
+     -0.17149858514250882,
+     -0.17149858514250882,
+     0.17149858514250882,
+     0.0,
+     0.34299717028501764,
+     -0.17149858514250882,
+     -0.17149858514250882,
+     0.17149858514250882,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "temporal": 0.55,
+     "action": 1.0,
+     "relational": 0.75,
+     "state": 0.55,
+     "spatial": 1.0,
+     "causal": 1.0,
+     "emotional": 1.0,
+     "quantitative": 1.0
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.55,
+    "importance_score": 0.55,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:caroline"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-06-09T20:02:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 27,
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-00000000001d",
+    "layer": 0,
+    "content": "Yeah Mel, let's spread love and understanding! Thanks for the support and encouragement. We can tackle life's challenges together! We got this!",
+    "embedding": [
+     -0.20412414523193154,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.20412414523193154,
+     -0.20412414523193154,
+     0.0,
+     0.0,
+     0.0,
+     0.20412414523193154,
+     -0.20412414523193154,
+     0.4082482904638631,
+     -0.20412414523193154,
+     0.0,
+     0.20412414523193154,
+     0.0,
+     0.0,
+     -0.20412414523193154,
+     0.0,
+     -0.20412414523193154,
+     0.0,
+     0.0,
+     -0.20412414523193154,
+     0.4082482904638631,
+     -0.20412414523193154,
+     -0.4082482904638631,
+     0.20412414523193154,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "wave_amplitudes": {
+     "temporal": 0.35,
+     "action": 0.35,
+     "relational": 0.75,
+     "spatial": 1.0,
+     "causal": 1.0,
+     "emotional": 0.55,
+     "quantitative": 0.75
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.7,
+    "importance_score": 0.7,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:support"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-06-09T20:03:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 28,
+     "speaker": "Caroline",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-00000000001e",
+    "layer": 0,
+    "content": "Yes, Caroline! We can do it. Your courage is inspiring. I want to be couragous for my family- they motivate me and give me love. What motivates you?",
+    "embedding": [
+     -0.19611613513818404,
+     -0.19611613513818404,
+     0.19611613513818404,
+     -0.19611613513818404,
+     0.19611613513818404,
+     -0.19611613513818404,
+     0.19611613513818404,
+     0.0,
+     0.0,
+     0.0,
+     0.19611613513818404,
+     0.0,
+     -0.19611613513818404,
+     0.0,
+     0.0,
+     0.0,
+     -0.19611613513818404,
+     0.0,
+     -0.5883484054145521,
+     0.0,
+     0.0,
+     -0.19611613513818404,
+     0.19611613513818404,
+     -0.19611613513818404,
+     0.19611613513818404,
+     0.0,
+     -0.19611613513818404,
+     0.0,
+     0.0,
+     0.0,
+     -0.19611613513818404,
+     -0.19611613513818404
+    ],
+    "wave_amplitudes": {
+     "entity": 0.75,
+     "temporal": 0.55,
+     "action": 0.35,
+     "relational": 0.35,
+     "spatial": 1.0,
+     "causal": 1.0,
+     "emotional": 1.0,
+     "quantitative": 0.35
+    },
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.5,
+    "importance_score": 0.5,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [
+     "ent:caroline",
+     "ent:family"
+    ],
+    "session_key": "t1",
+    "created_at": "2023-06-09T20:04:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "dia_index": 29,
+     "speaker": "Melanie",
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {},
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-00000000003a",
+    "layer": 0,
+    "content": "extra note 0",
+    "embedding": null,
+    "wave_amplitudes": {},
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.5,
+    "importance_score": 0.5,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [],
+    "session_key": "t1",
+    "created_at": "2023-06-09T20:09:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-00000000003b",
+    "layer": 0,
+    "content": "extra note 1",
+    "embedding": null,
+    "wave_amplitudes": {},
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.5,
+    "importance_score": 0.5,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [],
+    "session_key": "t1",
+    "created_at": "2023-06-09T20:34:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {},
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-00000000003c",
+    "layer": 0,
+    "content": "extra note 2",
+    "embedding": null,
+    "wave_amplitudes": {},
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.5,
+    "importance_score": 0.5,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [],
+    "session_key": "t1",
+    "created_at": "2023-06-11T05:24:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {},
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   }
+  ],
+  "edges": [
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000028",
+    "source_id": "00000000-0000-4000-0000-00000000000b",
+    "target_id": "00000000-0000-4000-0000-00000000000c",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000029",
+    "source_id": "00000000-0000-4000-0000-00000000000c",
+    "target_id": "00000000-0000-4000-0000-00000000000d",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-00000000002a",
+    "source_id": "00000000-0000-4000-0000-00000000000d",
+    "target_id": "00000000-0000-4000-0000-00000000000e",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000031",
+    "source_id": "00000000-0000-4000-0000-000000000015",
+    "target_id": "00000000-0000-4000-0000-000000000016",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000032",
+    "source_id": "00000000-0000-4000-0000-000000000016",
+    "target_id": "00000000-0000-4000-0000-000000000017",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000033",
+    "source_id": "00000000-0000-4000-0000-000000000017",
+    "target_id": "00000000-0000-4000-0000-000000000018",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000034",
+    "source_id": "00000000-0000-4000-0000-000000000018",
+    "target_id": "00000000-0000-4000-0000-000000000019",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000035",
+    "source_id": "00000000-0000-4000-0000-000000000019",
+    "target_id": "00000000-0000-4000-0000-00000000001a",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000036",
+    "source_id": "00000000-0000-4000-0000-00000000001a",
+    "target_id": "00000000-0000-4000-0000-00000000001b",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000037",
+    "source_id": "00000000-0000-4000-0000-00000000001b",
+    "target_id": "00000000-0000-4000-0000-00000000001c",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000038",
+    "source_id": "00000000-0000-4000-0000-00000000001c",
+    "target_id": "00000000-0000-4000-0000-00000000001d",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000039",
+    "source_id": "00000000-0000-4000-0000-00000000001d",
+    "target_id": "00000000-0000-4000-0000-00000000001e",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-00000000003d",
+    "source_id": "00000000-0000-4000-0000-00000000003a",
+    "target_id": "00000000-0000-4000-0000-00000000003b",
+    "edge_type": "temporal",
+    "base_weight": 0.9998842659569603,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 10000.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 1500.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000043",
+    "source_id": "00000000-0000-4000-0000-000000000002",
+    "target_id": "00000000-0000-4000-0000-000000000003",
+    "edge_type": "causal",
+    "base_weight": 1.0,
+    "sign": 1.0,
+    "confidence": 0.8,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.4,
+    "metadata": {
+     "causal_type": "causes"
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000044",
+    "source_id": "00000000-0000-4000-0000-000000000002",
+    "target_id": "00000000-0000-4000-0000-000000000004",
+    "edge_type": "causal",
+    "base_weight": 1.0,
+    "sign": 1.0,
+    "confidence": 0.95,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.4,
+    "metadata": {
+     "causal_type": "enables"
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000045",
+    "source_id": "00000000-0000-4000-0000-000000000004",
+    "target_id": "00000000-0000-4000-0000-000000000005",
+    "edge_type": "causal",
+    "base_weight": 1.0,
+    "sign": 1.0,
+    "confidence": 0.7,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.4,
+    "metadata": {
+     "causal_type": "prevents"
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000047",
+    "source_id": "00000000-0000-4000-0000-000000000007",
+    "target_id": "00000000-0000-4000-0000-000000000003",
+    "edge_type": "causal",
+    "base_weight": 1.0,
+    "sign": 1.0,
+    "confidence": 0.61,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.4,
+    "metadata": {
+     "causal_type": "causes"
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000020",
+    "source_id": "00000000-0000-4000-0000-000000000002",
+    "target_id": "00000000-0000-4000-0000-000000000003",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000021",
+    "source_id": "00000000-0000-4000-0000-000000000003",
+    "target_id": "00000000-0000-4000-0000-000000000004",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000027",
+    "source_id": "00000000-0000-4000-0000-000000000009",
+    "target_id": "00000000-0000-4000-0000-00000000000a",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 1,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000026",
+    "source_id": "00000000-0000-4000-0000-000000000008",
+    "target_id": "00000000-0000-4000-0000-000000000009",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 2,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000025",
+    "source_id": "00000000-0000-4000-0000-000000000007",
+    "target_id": "00000000-0000-4000-0000-000000000008",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 2,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-00000000002c",
+    "source_id": "00000000-0000-4000-0000-00000000000f",
+    "target_id": "00000000-0000-4000-0000-000000000010",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 1,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-00000000002b",
+    "source_id": "00000000-0000-4000-0000-00000000000e",
+    "target_id": "00000000-0000-4000-0000-00000000000f",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 1,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-00000000002d",
+    "source_id": "00000000-0000-4000-0000-000000000010",
+    "target_id": "00000000-0000-4000-0000-000000000011",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 1,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-00000000002e",
+    "source_id": "00000000-0000-4000-0000-000000000011",
+    "target_id": "00000000-0000-4000-0000-000000000012",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 1,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-00000000002f",
+    "source_id": "00000000-0000-4000-0000-000000000012",
+    "target_id": "00000000-0000-4000-0000-000000000013",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 1,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000030",
+    "source_id": "00000000-0000-4000-0000-000000000013",
+    "target_id": "00000000-0000-4000-0000-000000000014",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 1,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000049",
+    "source_id": "00000000-0000-4000-0000-000000000003",
+    "target_id": "00000000-0000-4000-0000-000000000005",
+    "edge_type": "co_activation",
+    "base_weight": 0.3,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 1,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "context": "retrieval"
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-00000000004a",
+    "source_id": "00000000-0000-4000-0000-000000000005",
+    "target_id": "00000000-0000-4000-0000-000000000008",
+    "edge_type": "co_activation",
+    "base_weight": 0.3,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 1,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "context": "retrieval"
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-00000000004b",
+    "source_id": "00000000-0000-4000-0000-000000000008",
+    "target_id": "00000000-0000-4000-0000-00000000000c",
+    "edge_type": "co_activation",
+    "base_weight": 0.3,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 1,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "context": "test"
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000048",
+    "source_id": "00000000-0000-4000-0000-000000000003",
+    "target_id": "00000000-0000-4000-0000-000000000008",
+    "edge_type": "co_activation",
+    "base_weight": 0.3,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 3,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "context": "retrieval"
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-00000000004c",
+    "source_id": "00000000-0000-4000-0000-000000000003",
+    "target_id": "00000000-0000-4000-0000-00000000000c",
+    "edge_type": "co_activation",
+    "base_weight": 0.3,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 1,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "context": "test"
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-00000000004d",
+    "source_id": "00000000-0000-4000-0000-000000000003",
+    "target_id": "00000000-0000-4000-0000-000000000003",
+    "edge_type": "co_activation",
+    "base_weight": 0.3,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 1,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "context": "test"
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-00000000004e",
+    "source_id": "00000000-0000-4000-0000-000000000003",
+    "target_id": "00000000-0000-4000-0000-00000000000c",
+    "edge_type": "co_activation",
+    "base_weight": 0.3,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 1,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "context": "test"
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-00000000001f",
+    "source_id": "00000000-0000-4000-0000-000000000001",
+    "target_id": "00000000-0000-4000-0000-000000000002",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000022",
+    "source_id": "00000000-0000-4000-0000-000000000004",
+    "target_id": "00000000-0000-4000-0000-000000000005",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 1,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000023",
+    "source_id": "00000000-0000-4000-0000-000000000005",
+    "target_id": "00000000-0000-4000-0000-000000000006",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 1,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000024",
+    "source_id": "00000000-0000-4000-0000-000000000006",
+    "target_id": "00000000-0000-4000-0000-000000000007",
+    "edge_type": "temporal",
+    "base_weight": 0.9999930555796681,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 2,
+    "propagation_delay_ms": 600.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 60.0
+    }
+   },
+   {
+    "edge_id": "conflict-03-04",
+    "source_id": "00000000-0000-4000-0000-000000000003",
+    "target_id": "00000000-0000-4000-0000-000000000004",
+    "edge_type": "temporal",
+    "base_weight": 0.8,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-10-30T08:07:00+00:00",
+    "last_activated": "2026-10-30T08:07:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "after"
+    }
+   },
+   {
+    "edge_id": "conflict-04-03",
+    "source_id": "00000000-0000-4000-0000-000000000004",
+    "target_id": "00000000-0000-4000-0000-000000000003",
+    "edge_type": "temporal",
+    "base_weight": 0.8,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-10-30T08:07:00+00:00",
+    "last_activated": "2026-10-30T08:07:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before"
+    }
+   },
+   {
+    "edge_id": "conflict-01-1a",
+    "source_id": "00000000-0000-4000-0000-000000000001",
+    "target_id": "00000000-0000-4000-0000-00000000001a",
+    "edge_type": "temporal",
+    "base_weight": 0.8,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-10-30T08:07:00+00:00",
+    "last_activated": "2026-10-30T08:07:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {}
+   },
+   {
+    "edge_id": "conflict-1a-01",
+    "source_id": "00000000-0000-4000-0000-00000000001a",
+    "target_id": "00000000-0000-4000-0000-000000000001",
+    "edge_type": "temporal",
+    "base_weight": 0.8,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-10-30T08:07:00+00:00",
+    "last_activated": "2026-10-30T08:07:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "sideways"
+    }
+   },
+   {
+    "edge_id": "conflict-0d-03",
+    "source_id": "00000000-0000-4000-0000-00000000000d",
+    "target_id": "00000000-0000-4000-0000-000000000003",
+    "edge_type": "temporal",
+    "base_weight": 0.2,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-10-30T08:07:00+00:00",
+    "last_activated": "2026-10-30T08:07:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before"
+    }
+   },
+   {
+    "edge_id": "conflict-03-0d",
+    "source_id": "00000000-0000-4000-0000-000000000003",
+    "target_id": "00000000-0000-4000-0000-00000000000d",
+    "edge_type": "temporal",
+    "base_weight": 0.2,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-10-30T08:07:00+00:00",
+    "last_activated": "2026-10-30T08:07:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "after"
+    }
+   }
+  ]
+ },
+ "graph_t2": {
+  "nodes": [
+   {
+    "node_id": "00000000-0000-4000-0000-00000000003e",
+    "layer": 0,
+    "content": "naive a",
+    "embedding": null,
+    "wave_amplitudes": {},
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.5,
+    "importance_score": 0.5,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [],
+    "session_key": "t2",
+    "created_at": "2023-05-08T13:00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1,
+     "causal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 1.0
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-00000000003f",
+    "layer": 0,
+    "content": "naive b",
+    "embedding": null,
+    "wave_amplitudes": {},
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.5,
+    "importance_score": 0.5,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [],
+    "session_key": "t2",
+    "created_at": "2023-05-08T12:00:00.000500",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {
+     "temporal": 1
+    },
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   },
+   {
+    "node_id": "00000000-0000-4000-0000-000000000040",
+    "layer": 0,
+    "content": "aware c",
+    "embedding": null,
+    "wave_amplitudes": {},
+    "activation_level": 0.0,
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "refractory_until": null,
+    "heat_score": 0.5,
+    "importance_score": 0.5,
+    "consolidation_state": "active",
+    "parent_id": null,
+    "child_ids": [],
+    "entity_ids": [],
+    "session_key": "t2",
+    "created_at": "2023-05-08T14:00:00+00:00",
+    "updated_at": "2026-09-30T08:00:00+00:00",
+    "source_memory_ids": [],
+    "metadata": {
+     "resolved_date": null,
+     "temporal_tokens": null,
+     "temporal_metadata": null,
+     "resolved_dates": null,
+     "explicit_date": null,
+     "duration_years": null,
+     "duration_months": null,
+     "since_year": null,
+     "since_date": null
+    },
+    "edge_type_counts": {},
+    "dominant_dimension": "",
+    "diversity_score": 0.5
+   }
+  ],
+  "edges": [
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000041",
+    "source_id": "00000000-0000-4000-0000-00000000003e",
+    "target_id": "00000000-0000-4000-0000-000000000040",
+    "edge_type": "temporal",
+    "base_weight": 0.9998842659569603,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 10000.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "after",
+     "time_diff_seconds": 3600.0
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000042",
+    "source_id": "00000000-0000-4000-0000-00000000003f",
+    "target_id": "00000000-0000-4000-0000-00000000003e",
+    "edge_type": "temporal",
+    "base_weight": 0.9998842659569603,
+    "sign": 1.0,
+    "confidence": 1.0,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 10000.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.3,
+    "metadata": {
+     "direction": "before",
+     "time_diff_seconds": 3599.9995
+    }
+   },
+   {
+    "edge_id": "00000000-0000-4000-0000-000000000046",
+    "source_id": "00000000-0000-4000-0000-00000000003e",
+    "target_id": "00000000-0000-4000-0000-000000000040",
+    "edge_type": "causal",
+    "base_weight": 1.0,
+    "sign": 1.0,
+    "confidence": 0.6,
+    "context_embedding": null,
+    "created_at": "2026-09-30T08:00:00+00:00",
+    "last_activated": "2026-09-30T08:00:00+00:00",
+    "activation_count": 0,
+    "propagation_delay_ms": 0.0,
+    "ltp_boost": 1.0,
+    "ltp_decay_rate": 0.01,
+    "gate_threshold": 0.4,
+    "metadata": {
+     "causal_type": "causes"
+    }
+   }
+  ]
+ }
+}
