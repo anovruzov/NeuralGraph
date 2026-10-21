@@ -1,13 +1,15 @@
-# Cross-chat memory (`NeuralGraph.chat_memory`)
+# Cross-chat memory (`neuralgraph-memory`)
 
 Durable memory across every chat, generated automatically in the background by a local Qwen model,
-searchable from Python, the CLI, a REST API, a live dashboard, and from Claude through MCP.
+searchable from Rust, the CLI, a REST API, a live dashboard, and from Claude through MCP. The implementation is
+the Rust crate [`crates/neuralgraph-memory`](../crates/neuralgraph-memory/) (one binary, one SQLite file); the
+user guide is its [README](../crates/neuralgraph-memory/README.md).
 
 ```
 chat app / Claude ──POST /api/messages, memory_add_message──▶ messages (SQLite, WAL)
                                                                   │  job queue (leased, retried, dead-lettered)
                                                                   ▼
-                                   MemoryWorker ── N parallel passes ── Qwen via llm_backend
+                                   MemoryWorker ── N parallel passes ── Qwen via backend.rs
                                        gate → extract memories + relations → ground → reconcile → commit (1 txn)
                                                                   │
                           memories · entities · relations · links · provenance · audit
@@ -36,34 +38,35 @@ behind; a zombie worker whose lease expired cannot double-write. That is what ma
 ## Quick start
 
 ```bash
-uv venv --python 3.11 .venv && uv pip install --python .venv/bin/python aiohttp numpy rank-bm25
+cargo install --locked --path crates/neuralgraph-memory        # -> ~/.cargo/bin/neuralgraph-memory
 # local model: Ollama ...
 ollama pull qwen2.5:7b-instruct && ollama pull nomic-embed-text
 export LLM_BASE_URL=http://localhost:11434 LLM_MODEL=qwen2.5:7b-instruct EMBED_MODEL=nomic-embed-text
 # ... or LM Studio (default http://127.0.0.1:1234, google/gemma-4-e4b + text-embedding-nomic-embed-text-v1.5)
 
 # run everything: worker + dashboard + REST + MCP
-.venv/bin/python -m NeuralGraph.chat_memory serve --user-name "Your Name" --parallel 4
+neuralgraph-memory serve --user-name "Your Name" --parallel 4
 # open http://127.0.0.1:8765/
 ```
 
-Python:
+As a library (`neuralgraph_memory` crate):
 
-```python
-from NeuralGraph.chat_memory import ChatMemory
+```rust
+use neuralgraph_memory::{ChatMemory, ChatMemoryConfig, MessageInput, SearchOptions};
 
-async with ChatMemory("~/.neuralgraph/chat_memory.db") as cm:        # worker starts in the background
-    await cm.add_message("chat-42", "user", "I moved to Berlin last month and my cat Luna is 3")  # ~1 ms, no LLM
-    await cm.add_message("chat-42", "assistant", "Congrats on the move!", role="assistant")
-    ...
-    block = await cm.context_for("where does the user live?")      # prepend to the next prompt
-    hits = await cm.search("Luna", k=5)                            # RetrievedMemory: memory, score, channels, sources
-    prof = await cm.profile("user")
+let cm = ChatMemory::open("~/.neuralgraph/chat_memory.db", None, ChatMemoryConfig::default())?;
+cm.start().await?;                                                    // worker starts in the background
+cm.add_message("chat-42", "user", "I moved to Berlin last month and my cat Luna is 3", MessageInput::default())?;
+let block = cm.context_for("where does the user live?", None, None, &SearchOptions::default()).await?;
+let hits = cm.search("Luna", &SearchOptions { k: 5, ..Default::default() }).await?;   // memory, score, channels, sources
+let prof = cm.profile("user", 60)?;
+cm.close().await;
 ```
 
-No model server? `--fake-llm` (CLI) or `llm=scripted_fake_llm()` (Python) runs a deterministic stand-in.
+No model server? `--fake-llm` (CLI) or `Some(Arc::new(testing::scripted_fake_llm()))` (library) runs a
+deterministic stand-in.
 
-**Live demo:** `.venv/bin/python demo/chat_memory_live_demo.py --fake-llm` starts everything, replays
+**Live demo:** `cargo run --release --example chat_memory_live_demo -- --fake-llm` starts everything, replays
 `demo/data/sample_chats.jsonl` with human pacing, calls `memory_context`/`memory_search` over the
 MCP endpoint the way Claude would, prints what the worker learned after each chat, and keeps serving at the
 end (`--screenshots` saves a storyboard, `--locomo 0` adds a 400-message chat for volume, `--no-serve` exits
@@ -86,7 +89,7 @@ Memory text is indexed in SQLite FTS5 (Porter stemming) when available; otherwis
 
 ## The worker
 
-`MemoryWorker` runs `concurrency` asyncio loops. Each loop leases the oldest runnable job; the SQL lease
+`MemoryWorker` runs `concurrency` tokio tasks. Each loop leases the oldest runnable job; the SQL lease
 only hands out a chat's message when no earlier message of that chat is still queued or leased, so **chats
 run in parallel and each chat stays in order**. Up to `batch_size` consecutive messages of a chat are
 processed in one pass (a user turn and its reply usually land together thanks to `debounce_seconds`).
@@ -96,7 +99,7 @@ One pass:
 1. **Gate** – greetings, acknowledgements, assistant boilerplate are marked `skipped` without a model call.
    Assistant turns are sources too by default (facts the assistant gave the user, phrased from the user's side);
    `extract_assistant=False` makes them context only.
-2. **Extract** – two concurrent Qwen calls: memories (`MEMORY_PROMPT`) and entities + triples
+2. **Extract** – two concurrent model calls: memories (`MEMORY_PROMPT`) and entities + triples
    (`RELATION_PROMPT`), both with the known-entity registry, recent memories about the speakers, prior
    context, and relative dates pre-annotated (`yesterday [= 7 May 2023]`).
 3. **Normalise & ground** – names resolve through the registry (exact, alias, first name → known full name,
@@ -129,10 +132,10 @@ two chats produced at the same moment and prunes old finished jobs.
 
 `MemoryRetriever.search(query, k, subject, speaker, chat_id, kinds, since, until, include_superseded)`
 
-* **vector** – cosine over numpy matrices of memory embeddings (one per embedding dimension, refreshed
+* **vector** – cosine over float32 matrices of memory embeddings (one per embedding dimension, refreshed
   incrementally with the rows written since the last query, so an ingest-heavy server never rebuilds the
-  whole index; filters are masks, so tens of thousands of memories stay in the low milliseconds); floor
-  `vector_min_sim`. Changing the embedding model is safe: old rows keep matching queries of their own
+  whole index; filters are masks, large indexes are scanned on every core while the keyword query runs);
+  floor `vector_min_sim`. Changing the embedding model is safe: old rows keep matching queries of their own
   dimension until maintenance re-embeds them (`reembed_limit` per run).
 * **keyword** – FTS5 bm25 (Porter, accent-folded, possessives stripped) or in-process BM25; subject/chat/
   speaker filters are pushed into the query so a filtered search is never starved by the global limit.
@@ -181,7 +184,7 @@ token itself: open `http://host:8765/?token=…` once (it is remembered per brow
 
 ## Claude access through MCP (edge and cloud)
 
-The same tool set is exposed over two transports (`NeuralGraph/chat_memory/mcp_server.py`):
+The same tool set is exposed over two transports (`crates/neuralgraph-memory/src/mcp.rs`):
 
 | tool | what it does |
 |---|---|
@@ -201,19 +204,19 @@ Resources `memory://status`, `memory://entities`, `memory://profile/{subject}`; 
 
 ```bash
 # Claude Code
-claude mcp add neuralgraph-memory -e PYTHONPATH=/path/to/NeuralGraph -- /path/to/.venv/bin/python -m NeuralGraph.chat_memory mcp --db ~/.neuralgraph/chat_memory.db
+claude mcp add neuralgraph-memory -- "$(command -v neuralgraph-memory)" mcp --db ~/.neuralgraph/chat_memory.db
 ```
 ```json
 // Claude Desktop: claude_desktop_config.json
-{"mcpServers": {"neuralgraph-memory": {"command": "/path/to/.venv/bin/python",
-  "args": ["-m", "NeuralGraph.chat_memory", "mcp", "--db", "/Users/you/.neuralgraph/chat_memory.db"],
-  "env": {"PYTHONPATH": "/path/to/NeuralGraph", "LLM_BASE_URL": "http://localhost:11434", "LLM_MODEL": "qwen2.5:7b-instruct", "EMBED_MODEL": "nomic-embed-text"}}}}
+{"mcpServers": {"neuralgraph-memory": {"command": "/Users/you/.cargo/bin/neuralgraph-memory",
+  "args": ["mcp", "--db", "/Users/you/.neuralgraph/chat_memory.db"],
+  "env": {"LLM_BASE_URL": "http://localhost:11434", "LLM_MODEL": "qwen2.5:7b-instruct", "EMBED_MODEL": "nomic-embed-text"}}}}
 ```
 
 **Cloud / remote (Streamable HTTP)** – `serve` mounts the endpoint at `/mcp` next to the dashboard:
 
 ```bash
-NEURALGRAPH_MCP_TOKEN=change-me .venv/bin/python -m NeuralGraph.chat_memory serve --host 0.0.0.0 --port 8765
+NEURALGRAPH_MCP_TOKEN=change-me neuralgraph-memory serve --host 0.0.0.0 --port 8765
 claude mcp add --transport http neuralgraph-memory https://memory.example.com/mcp --header "Authorization: Bearer change-me"
 ```
 
@@ -222,13 +225,14 @@ Messages API with the MCP connector (`mcp_servers=[{"type": "url", "url": "https
 "name": "memory", "authorization_token": "change-me"}]` plus `tools=[{"type": "mcp_toolset",
 "mcp_server_name": "memory"}]`, beta `mcp-client-2025-11-20`). The transport implements MCP 2025-06-18
 (with 2025-03-26 / 2024-11-05 negotiation): JSON or SSE responses, `Mcp-Session-Id`, `MCP-Protocol-Version`,
-bearer auth, optional `--allowed-origin` (DNS-rebinding protection), CORS. Verified against the official
-`mcp` Python SDK client over both transports.
+bearer auth, optional `--allowed-origin` (DNS-rebinding protection), CORS. The Python server it replaces was
+verified against the official `mcp` Python SDK client over both transports; the Rust server answers the same
+requests with byte-identical JSON-RPC payloads (`tests/golden/mcp.json`, `tests/golden/rest.json`).
 
 ## CLI
 
 ```
-python -m NeuralGraph.chat_memory serve|mcp|ingest|process|search|context|profile|stats|forget|remember|maintain
+neuralgraph-memory serve|mcp|ingest|process|search|context|profile|stats|forget|remember|maintain
   --db PATH  --model M  --base-url URL  --embed-model E  --parallel N  --workers N  --batch-size N
   --debounce SECONDS  --user-name NAME  --no-extract-assistant  --fake-llm  -v
 serve --host --port --mcp-token --api-token --allowed-origin --cors-origin --allowed-host
@@ -254,17 +258,23 @@ for another embedding model.
 ## Tests
 
 ```bash
-.venv/bin/python -m unittest NeuralGraph.tests.test_chat_memory_store NeuralGraph.tests.test_chat_memory_extraction \
-  NeuralGraph.tests.test_chat_memory_worker NeuralGraph.tests.test_chat_memory_retrieval NeuralGraph.tests.test_chat_memory_mcp
+cargo test                       # 139 tests, a few seconds, no model server, no network
 ```
 
-All tests use temporary SQLite files and a deterministic fake model (`FakeLLMClient`, hashed bag-of-words
+All tests use temporary SQLite files and a deterministic fake model (`FakeLlmClient`, hashed bag-of-words
 embeddings); they cover idempotent ingestion, per-chat ordering with cross-chat parallelism, backoff and
 dead-lettering, restart recovery of expired leases, lease-fenced commits, reconciliation decisions and the
 "older observation never wins" rule, grounding rejections, embedding outages, retrieval channels and filters,
-superseded handling, the token ledger and grade, and the MCP protocol over stdio and HTTP.
-Both runners work: `python -m pytest NeuralGraph/tests` collects the whole suite, or run the
-modules individually with `unittest` as above.
+superseded handling, the token ledger and grade, and the MCP protocol over stdio and HTTP. Each of the 106 tests
+of the former Python suite has a Rust counterpart of the same name (`tests/store.rs`, `extraction.rs`,
+`retrieval.rs`, `worker.rs`, `mcp.rs`, `review_fixes.rs`).
+
+`tests/golden.rs` holds the port's parity evidence: `tests/golden/generate.py` ran the Python implementation
+with a pinned clock and counter-based ids and recorded its outputs, and the Rust crate must reproduce them
+exactly — text and date helpers, every extraction prompt byte for byte, a full fake-model ingest of the sample
+chats down to every database row, extraction plans for 17 scenarios, retrieval scores and channels, an MCP
+session and the REST API. `tests/golden/ingest_user_named.sqlite` is a database written by the Python version;
+the retrieval, MCP and REST checks open, search and write it.
 
 ## Deployment
 
@@ -274,7 +284,7 @@ modules individually with `unittest` as above.
   `https://your-host/mcp`.
 * **Edge (laptop / mini-PC):** `deploy/chat_memory/neuralgraph-memory.service` runs `serve` as a systemd
   user service next to a local Ollama; Claude Desktop/Code talk to it over stdio (`mcp`) or to the local
-  HTTP endpoint. Everything is one Python process plus one SQLite file; no other services.
+  HTTP endpoint. Everything is one binary plus one SQLite file; no other services.
 * Read caches are keyed on SQLite's `data_version` as well as the in-process write counter, so a reader in a
   second process (for example `search` on the CLI while `serve` is running) never serves stale indexes.
 
@@ -286,3 +296,33 @@ modules individually with `unittest` as above.
   the weakest step, and it is biased towards ADD, which keeps the store safe but leaves near-duplicates for
   maintenance to merge. Thresholds are exposed for tuning against a labelled sample of your own chats.
 * Run one *worker* per database (`serve` or `mcp`); read-only CLI commands can run alongside it.
+
+## Port from Python
+
+The memory server was rewritten from Python (`NeuralGraph.chat_memory`) to Rust. What was kept identical, on
+purpose:
+
+* **Storage.** Schema, SQL statements, JSON columns (sorted keys, non-ASCII kept), float32 little-endian
+  embedding blobs and the FTS5 tables are unchanged, so an existing database opens and keeps working, and a
+  database written by the Rust server can be read by the Python one.
+* **Behaviour.** Prompts (byte for byte), extraction, reconciliation, retrieval scoring and fusion, worker
+  queue semantics, defaults (`batch_size` 2, `concurrency` 2, graph channel off, `context_k` 15, assistant
+  turns extracted, the recall-first prompt), the CLI, environment variables, HTTP routes, JSON shapes and the MCP
+  tool schemas.
+* **Python semantics the outputs depend on** are reproduced explicitly (`src/pycompat.rs`): code-point string
+  lengths, `round()`, float repr, `json.dumps` formats, `difflib` ratios, BM25 from `rank_bm25`.
+
+Differences that remain:
+
+* Vector similarities are float32 dot products; the order of exactly tied candidates is fixed (index order)
+  where numpy left it unspecified.
+* The worker's tasks run in parallel on several threads, so with `concurrency > 1` the interleaving of
+  different chats (and therefore tie order among equally ranked relations) can vary between runs, as it could
+  under a different asyncio schedule.
+* Two latent Python issues are not reproduced: concurrent extraction passes shared one "superseded in this
+  plan" table (now per pass), and `wait_idle` re-checked an already-set idle event in a loop (now it polls).
+* Error messages for malformed MCP tool arguments are phrased like the Python exceptions for the common cases
+  (unexpected/missing arguments, bad integers and floats); exotic type errors may be worded differently.
+
+The Python package remains in `NeuralGraph/chat_memory/` only as the reference the research harnesses
+(`research/benchmarks/chat_memory_*.py`) still import; it is not part of the product.

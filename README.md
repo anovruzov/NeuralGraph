@@ -7,7 +7,7 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-10b981.svg?style=flat-square"></a>
-  <a href="https://www.python.org/"><img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB.svg?style=flat-square&amp;logo=python&amp;logoColor=white"></a>
+  <a href="https://www.rust-lang.org/"><img alt="Rust 1.89+" src="https://img.shields.io/badge/Rust-1.89%2B-B7410E.svg?style=flat-square&amp;logo=rust&amp;logoColor=white"></a>
   <a href="https://modelcontextprotocol.io"><img alt="MCP 2025-06-18" src="https://img.shields.io/badge/MCP-2025--06--18-7c3aed.svg?style=flat-square"></a>
   <a href="#privacy-by-construction"><img alt="Local-first" src="https://img.shields.io/badge/Cloud_accounts-0-0ea5e9.svg?style=flat-square"></a>
   <a href="#benchmarks"><img alt="LoCoMo +8.9 pts over flat retrieval" src="https://img.shields.io/badge/LoCoMo-%2B8.9_pts_over_flat_retrieval-f59e0b.svg?style=flat-square"></a>
@@ -41,7 +41,7 @@ What makes it different from a vector store with a nice wrapper:
 | **Speakers** | Per-agent routing: a question about Nurman searches Nurman's memories. Worth **+8.9 points** end to end |
 | **Evidence** | Every retrieval decision is measured on LoCoMo (1,540 questions) with per-question artifacts committed |
 | **Honesty** | We publish the experiments that **failed**, and the judge every number was scored by |
-| **Ownership** | One Python process, one SQLite file. Delete the file and the memory is gone — really gone |
+| **Ownership** | One binary, one SQLite file. Delete the file and the memory is gone — really gone |
 
 ---
 
@@ -49,9 +49,10 @@ What makes it different from a vector store with a nice wrapper:
 
 ### Prerequisites
 
-- **Python 3.11+**
+- **[Rust](https://rustup.rs) 1.89+** and a C compiler (SQLite is compiled into the binary) — or use the
+  [container image](#deployment)
 - **[Ollama](https://ollama.com)** or **[LM Studio](https://lmstudio.ai)** — optional for a first run (`--fake-llm`)
-- ~8 GB RAM for a 7B-class model. The database itself is tiny.
+- ~8 GB RAM for a 7B-class model. The memory server idles at ~12 MB; the database is tiny.
 
 ### 60 seconds, no model required
 
@@ -59,12 +60,8 @@ What makes it different from a vector store with a nice wrapper:
 git clone https://github.com/anovruzov/NeuralGraph.git
 cd NeuralGraph
 
-# python3 must be 3.11+ (macOS ships 3.9 — use python3.11/python3.12 if so)
-python3 -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-
 # Watch memory get built, live, with a deterministic stand-in model
-python demo/chat_memory_live_demo.py --fake-llm
+cargo run --release --example chat_memory_live_demo -- --fake-llm
 ```
 
 `--fake-llm` runs the entire extraction and retrieval pipeline with a deterministic
@@ -73,6 +70,8 @@ stand-in, so you can see the machinery work before downloading a single weight.
 ### With a real local model
 
 ```bash
+cargo install --locked --path crates/neuralgraph-memory     # -> ~/.cargo/bin/neuralgraph-memory
+
 ollama pull qwen2.5:7b-instruct        # generation
 ollama pull nomic-embed-text           # embeddings
 
@@ -80,7 +79,7 @@ export LLM_BASE_URL=http://localhost:11434
 export LLM_MODEL=qwen2.5:7b-instruct
 export EMBED_MODEL=nomic-embed-text
 
-python -m NeuralGraph.chat_memory serve --user-name "Your Name"
+neuralgraph-memory serve --user-name "Your Name"
 ```
 
 Open **http://127.0.0.1:8765/** — the dashboard shows the queue draining, memories
@@ -111,10 +110,9 @@ clients and **Streamable HTTP** for everything else, negotiating protocol `2025-
 {
   "mcpServers": {
     "neuralgraph-memory": {
-      "command": "/absolute/path/to/NeuralGraph/.venv/bin/python",
-      "args": ["-m", "NeuralGraph.chat_memory", "mcp", "--user-name", "Your Name"],
+      "command": "/Users/you/.cargo/bin/neuralgraph-memory",
+      "args": ["mcp", "--user-name", "Your Name"],
       "env": {
-        "PYTHONPATH": "/absolute/path/to/NeuralGraph",
         "LLM_BASE_URL": "http://localhost:11434",
         "LLM_MODEL": "qwen2.5:7b-instruct",
         "EMBED_MODEL": "nomic-embed-text"
@@ -124,15 +122,13 @@ clients and **Streamable HTTP** for everything else, negotiating protocol `2025-
 }
 ```
 
-Use absolute paths — the client inherits neither your `PATH` nor your working directory.
-`PYTHONPATH` must point at the repository root; without it the server exits with
-`No module named 'NeuralGraph'`.
+Use the absolute path to the binary (`command -v neuralgraph-memory` prints it) — the client
+does not inherit your `PATH`.
 
 ### Claude Code
 
 ```bash
-claude mcp add neuralgraph-memory -e PYTHONPATH=/absolute/path/to/NeuralGraph \
-  -- /absolute/path/to/NeuralGraph/.venv/bin/python -m NeuralGraph.chat_memory mcp --user-name "Your Name"
+claude mcp add neuralgraph-memory -- "$(command -v neuralgraph-memory)" mcp --user-name "Your Name"
 
 # ...or against an already-running HTTP server
 claude mcp add --transport http neuralgraph-memory http://127.0.0.1:8765/mcp \
@@ -142,7 +138,7 @@ claude mcp add --transport http neuralgraph-memory http://127.0.0.1:8765/mcp \
 Ask Claude *"what do you remember about me?"* — if `memory_status` comes back, you are wired up.
 
 > Full client configuration, transports, tokens and troubleshooting:
-> **[Chat Memory User Guide](NeuralGraph/chat_memory/README.md)**
+> **[Chat Memory User Guide](crates/neuralgraph-memory/README.md)**
 
 ---
 
@@ -308,29 +304,30 @@ local memory in Claude, everything you need is in the first row and nothing in t
 research tree is imported at runtime.
 
 ```text
+crates/neuralgraph-memory/  THE ASSISTANT — memory server, MCP, worker, store, dashboard (Rust)
 NeuralGraph/
-├── chat_memory/            THE ASSISTANT — memory server, MCP, worker, store, dashboard
 ├── research/
 │   ├── retrieval/          research engine: Tesseract retrieval, rerank, entity graph
 │   └── coordination/       research: multi-agent capability-survival simulator
-├── llm_backend.py          shared: one shim over Ollama and LM Studio
-├── temporal_utils.py       shared: date parsing, relative-date resolution
-└── tests/                  222 tests, no GPU and no network required
+├── chat_memory/            frozen Python reference of the assistant, kept for the research harnesses
+├── llm_backend.py          research: one shim over Ollama and LM Studio
+├── temporal_utils.py       research: date parsing, relative-date resolution
+└── tests/                  research tests (Python)
 
-demo/                       runnable assistant demos (work with --fake-llm)
+demo/                       runnable assistant demos (cargo examples; work with --fake-llm)
 deploy/                     Docker, compose and systemd units for the assistant
 docs/                       assistant docs: design, benchmarks, architecture
 research/                   THE RESEARCH TRACK — harnesses, datasets, reports, results
 ```
 
-`import NeuralGraph.chat_memory` pulls in ten modules and no research code. The
-separation is enforced by the import graph, not just by folder names — the assistant
-never reaches into `NeuralGraph.research`, and the two only share the LLM shim and the
-date utilities.
+The assistant is a separate Rust crate with no dependency on the Python tree, so it cannot
+reach into the research code. The research track stays in Python for now; its harnesses for
+the assistant pipeline (`research/benchmarks/chat_memory_*.py`) still drive the Python
+reference package, which is why that package remains in `NeuralGraph/chat_memory/`.
 
 | I want to… | Start here |
 |---|---|
-| Give Claude persistent memory | [`NeuralGraph/chat_memory/README.md`](NeuralGraph/chat_memory/README.md) |
+| Give Claude persistent memory | [`crates/neuralgraph-memory/README.md`](crates/neuralgraph-memory/README.md) |
 | See it work in 60 seconds | [`demo/README.md`](demo/README.md) |
 | Reproduce a benchmark number | [`research/README.md`](research/README.md) |
 | Read what did and did not work | [`research/reports/README.md`](research/reports/README.md) |
@@ -341,7 +338,7 @@ date utilities.
 ## CLI
 
 Everything the server does, available from a terminal. All commands are
-`python -m NeuralGraph.chat_memory <command>`.
+`neuralgraph-memory <command>`.
 
 | Command | What it does |
 |---|---|
@@ -358,9 +355,9 @@ Everything the server does, available from a terminal. All commands are
 | `maintain` | Run one maintenance pass |
 
 ```bash
-python -m NeuralGraph.chat_memory remember "Ali moved to Berlin" --subject Ali
-python -m NeuralGraph.chat_memory search "where does Ali live" --history
-python -m NeuralGraph.chat_memory stats
+neuralgraph-memory remember "Ali moved to Berlin" --subject Ali
+neuralgraph-memory search "where does Ali live" --history
+neuralgraph-memory stats
 ```
 
 Common flags on every command: `--db`, `--model`, `--base-url`, `--embed-model`,
@@ -399,9 +396,9 @@ to what. You can search memory and feed it a chat turn straight from the page.
 | `NEURALGRAPH_MEMORY_DB` | `~/.neuralgraph/chat_memory.db` | Database path |
 | `NEURALGRAPH_MCP_TOKEN` | unset | Bearer token required on `/mcp` |
 | `NEURALGRAPH_API_TOKEN` | unset | Bearer token required on `/api/*` |
-| `LLM_BASE_URL` | LM Studio default | Model server URL |
-| `LLM_MODEL` | backend default | Generation model |
-| `EMBED_MODEL` | backend default | Embedding model |
+| `LLM_BASE_URL` | `http://127.0.0.1:1234` (LM Studio) | Model server URL; port 11434 selects the Ollama API |
+| `LLM_MODEL` | `google/gemma-4-e4b` | Generation model |
+| `EMBED_MODEL` | `text-embedding-nomic-embed-text-v1.5` | Embedding model |
 | `OLLAMA_NUM_PARALLEL` | — | Match `--parallel` when using Ollama |
 | `LLM_NO_THINK_PREFILL` | unset | `1` for Qwen builds that ignore `reasoning_effort` and return empty replies |
 
@@ -422,7 +419,7 @@ Hardening if you expose it beyond localhost: bearer tokens on `/mcp` and `/api/*
 (`--mcp-token`, `--api-token`), a CORS allow-list, `Host` validation and CSRF protection
 (a state-changing request from a foreign `Origin` is refused). Binding to anything other
 than `127.0.0.1` makes the server reachable by other machines — read
-[Security](NeuralGraph/chat_memory/README.md#12-security) before you do.
+[Security](crates/neuralgraph-memory/README.md#12-security) before you do.
 
 You remain responsible for the machine and the applications that can reach the database
 and the MCP server.
@@ -440,15 +437,16 @@ docker build -f deploy/chat_memory/Dockerfile -t neuralgraph-memory .
 ```
 
 For an always-on laptop or mini-PC, `deploy/chat_memory/neuralgraph-memory.service` runs
-`serve` as a systemd user service beside a local Ollama. One Python process, one SQLite
-file, no other services.
+`serve` as a systemd user service beside a local Ollama. One binary, one SQLite file, no
+other services.
 
 ---
 
 ## Tests
 
 ```bash
-python -m pytest NeuralGraph/tests -q        # 222 tests, ~4 s
+cargo test                                   # memory server: 139 tests, a few seconds
+python -m pytest NeuralGraph/tests -q        # research track (Python): 116 tests
 ```
 
 Every test uses a temporary database and a deterministic fake model, so the suite needs no
@@ -458,11 +456,11 @@ commits, reconciliation and the "older observation never wins" rule, grounding r
 embedding outages, retrieval channels and filters, superseded handling, the token ledger
 and grade, and the MCP protocol over both stdio and HTTP.
 
-`unittest` works too, if you want a single module:
-
-```bash
-python -m unittest NeuralGraph.tests.test_chat_memory_mcp
-```
+The server was ported from Python; `crates/neuralgraph-memory/tests/golden.rs` replays
+fixtures recorded from the Python implementation (prompts, database contents after a full
+ingest, retrieval scores, MCP and REST responses) and requires identical output, including
+against a database the Python version wrote. See
+[Port from Python](docs/CHAT_MEMORY.md#port-from-python).
 
 ---
 
@@ -472,13 +470,13 @@ python -m unittest NeuralGraph.tests.test_chat_memory_mcp
 |---|---|
 | Model server unreachable | `ollama serve`; confirm `LLM_BASE_URL` (default `http://localhost:11434`) |
 | Model not found | `ollama list`, then `ollama pull qwen2.5:7b-instruct` / `nomic-embed-text` |
-| Import errors | Activate the venv, re-run `pip install -r requirements.txt` |
-| MCP client cannot connect | Run `python -m NeuralGraph.chat_memory mcp` in a terminal first; then check the **absolute** interpreter path in your client config |
+| Build errors | Rust 1.89+ (`rustup update`) and a C compiler (`xcode-select --install`, `build-essential`) |
+| MCP client cannot connect | Run `neuralgraph-memory mcp` in a terminal first; then check the **absolute** binary path in your client config |
 | Extraction seems stuck | Open the dashboard — the queue and worker mood tell you immediately |
 | Concurrency does nothing | Raise `OLLAMA_NUM_PARALLEL` to match `--parallel`, or requests just queue inside Ollama |
 
 More, client by client, in the
-**[Chat Memory User Guide](NeuralGraph/chat_memory/README.md#14-troubleshooting)**.
+**[Chat Memory User Guide](crates/neuralgraph-memory/README.md#14-troubleshooting)**.
 
 ---
 
@@ -486,7 +484,7 @@ More, client by client, in the
 
 | Document | What is in it |
 |---|---|
-| **[Chat Memory User Guide](NeuralGraph/chat_memory/README.md)** | Install, transports, every tool, every flag |
+| **[Chat Memory User Guide](crates/neuralgraph-memory/README.md)** | Install, transports, every tool, every flag |
 | **[Chat Memory Design](docs/CHAT_MEMORY.md)** | Why extraction is gated, how channels fuse, how commits are fenced |
 | **[Benchmarks](docs/BENCHMARKS.md)** | Every number across the coordination, retrieval and baseline tracks, with evidence classes |
 | **[Research](research/README.md)** | The research track: how to reproduce every number |
