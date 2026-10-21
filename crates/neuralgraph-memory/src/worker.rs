@@ -666,7 +666,17 @@ impl MemoryWorker {
                 );
             }
         });
-        tracing::info!("chat {}: {} msgs -> {} in {dt:.1}s", plan.chat_id, messages.len(), plan.summary());
+        let summary: indexmap::IndexMap<String, i64> = plan
+            .summary()
+            .as_object()
+            .map(|o| o.iter().map(|(k, v)| (k.clone(), v.as_i64().unwrap_or(0))).collect())
+            .unwrap_or_default();
+        tracing::info!(
+            "chat {}: {} msgs -> {} in {dt:.1}s",
+            plan.chat_id,
+            messages.len(),
+            crate::pycompat::py_repr_counts(&summary)
+        );
         Ok(Processed::Done)
     }
 

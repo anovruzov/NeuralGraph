@@ -2,15 +2,31 @@
 
 use clap::Parser;
 use neuralgraph_memory::cli::{run, Cli, Command};
+use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::fmt::format::Writer;
-use tracing_subscriber::fmt::time::FormatTime;
+use tracing_subscriber::fmt::{FmtContext, FormatEvent, FormatFields};
+use tracing_subscriber::registry::LookupSpan;
 
-/// `%(asctime)s` of Python logging: local time with milliseconds after a comma.
-struct AscTime;
+/// The log line format the Python CLI used: `%(asctime)s %(levelname)s %(name)s: %(message)s`.
+struct PythonLogFormat;
 
-impl FormatTime for AscTime {
-    fn format_time(&self, w: &mut Writer<'_>) -> std::fmt::Result {
-        write!(w, "{}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S,%3f"))
+impl<S, N> FormatEvent<S, N> for PythonLogFormat
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+    N: for<'a> FormatFields<'a> + 'static,
+{
+    fn format_event(&self, ctx: &FmtContext<'_, S, N>, mut w: Writer<'_>, event: &Event<'_>) -> std::fmt::Result {
+        let meta = event.metadata();
+        let level = match *meta.level() {
+            Level::ERROR => "ERROR",
+            Level::WARN => "WARNING",
+            Level::INFO => "INFO",
+            Level::DEBUG | Level::TRACE => "DEBUG",
+        };
+        let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S,%3f");
+        write!(w, "{now} {level} {}: ", meta.target())?;
+        ctx.field_format().format_fields(w.by_ref(), event)?;
+        writeln!(w)
     }
 }
 
@@ -20,8 +36,7 @@ fn main() {
     let level = if verbose { tracing::Level::DEBUG } else { tracing::Level::INFO };
     // stdout is the protocol channel in `mcp` mode, so logs go to stderr there
     let to_stderr = matches!(cli.cmd, Command::Mcp { .. });
-    let builder =
-        tracing_subscriber::fmt().with_max_level(level).with_timer(AscTime).with_ansi(false).with_target(true);
+    let builder = tracing_subscriber::fmt().with_max_level(level).with_ansi(false).event_format(PythonLogFormat);
     if to_stderr {
         builder.with_writer(std::io::stderr).init();
     } else {
