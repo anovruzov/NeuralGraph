@@ -1,0 +1,962 @@
+{
+ "cases": [
+  {
+   "text": "",
+   "normalize_ws": "",
+   "fold": "",
+   "tokenize": [],
+   "tokenize_nostem": [],
+   "tokenize_nonum": [],
+   "fts_match_string": "",
+   "norm_entity": "",
+   "norm_relation": "",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "   ",
+   "normalize_ws": "",
+   "fold": "   ",
+   "tokenize": [],
+   "tokenize_nostem": [],
+   "tokenize_nonum": [],
+   "fts_match_string": "",
+   "norm_entity": "",
+   "norm_relation": "",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "ok",
+   "normalize_ws": "ok",
+   "fold": "ok",
+   "tokenize": [],
+   "tokenize_nostem": [],
+   "tokenize_nonum": [],
+   "fts_match_string": "",
+   "norm_entity": "ok",
+   "norm_relation": "ok",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "thanks!",
+   "normalize_ws": "thanks!",
+   "fold": "thanks!",
+   "tokenize": [],
+   "tokenize_nostem": [],
+   "tokenize_nonum": [],
+   "fts_match_string": "",
+   "norm_entity": "thanks",
+   "norm_relation": "thanks",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "lol",
+   "normalize_ws": "lol",
+   "fold": "lol",
+   "tokenize": [
+    "lol"
+   ],
+   "tokenize_nostem": [
+    "lol"
+   ],
+   "tokenize_nonum": [
+    "lol"
+   ],
+   "fts_match_string": "\"lol\"",
+   "norm_entity": "lol",
+   "norm_relation": "lol",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "Hi!",
+   "normalize_ws": "Hi!",
+   "fold": "hi!",
+   "tokenize": [],
+   "tokenize_nostem": [],
+   "tokenize_nonum": [],
+   "fts_match_string": "",
+   "norm_entity": "hi",
+   "norm_relation": "hi",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "Sure! Let me know if you need anything else.",
+   "normalize_ws": "Sure! Let me know if you need anything else.",
+   "fold": "sure! let me know if you need anything else.",
+   "tokenize": [
+    "need",
+    "anyth",
+    "else"
+   ],
+   "tokenize_nostem": [
+    "need",
+    "anything",
+    "else"
+   ],
+   "tokenize_nonum": [
+    "need",
+    "anyth",
+    "else"
+   ],
+   "fts_match_string": "\"need\" OR \"anything\" OR \"else\"",
+   "norm_entity": "sure let me know if you need anything else",
+   "norm_relation": "sure_let_me_know_if_you_need_anything_else",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "good morning",
+   "normalize_ws": "good morning",
+   "fold": "good morning",
+   "tokenize": [
+    "morn"
+   ],
+   "tokenize_nostem": [
+    "morning"
+   ],
+   "tokenize_nonum": [
+    "morn"
+   ],
+   "fts_match_string": "\"morning\"",
+   "norm_entity": "good morning",
+   "norm_relation": "good_morning",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "I moved to Berlin",
+   "normalize_ws": "I moved to Berlin",
+   "fold": "i moved to berlin",
+   "tokenize": [
+    "move",
+    "berlin"
+   ],
+   "tokenize_nostem": [
+    "moved",
+    "berlin"
+   ],
+   "tokenize_nonum": [
+    "move",
+    "berlin"
+   ],
+   "fts_match_string": "\"moved\" OR \"berlin\"",
+   "norm_entity": "i moved to berlin",
+   "norm_relation": "i_moved_to_berlin",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "My cat is called Luna",
+   "normalize_ws": "My cat is called Luna",
+   "fold": "my cat is called luna",
+   "tokenize": [
+    "cat",
+    "call",
+    "luna"
+   ],
+   "tokenize_nostem": [
+    "cat",
+    "called",
+    "luna"
+   ],
+   "tokenize_nonum": [
+    "cat",
+    "call",
+    "luna"
+   ],
+   "fts_match_string": "\"cat\" OR \"called\" OR \"luna\"",
+   "norm_entity": "my cat is called luna",
+   "norm_relation": "my_cat_is_called_luna",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "42",
+   "normalize_ws": "42",
+   "fold": "42",
+   "tokenize": [
+    "42"
+   ],
+   "tokenize_nostem": [
+    "42"
+   ],
+   "tokenize_nonum": [],
+   "fts_match_string": "\"42\"",
+   "norm_entity": "42",
+   "norm_relation": "42",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "Can you remind me what Mel said about Tokyo?",
+   "normalize_ws": "Can you remind me what Mel said about Tokyo?",
+   "fold": "can you remind me what mel said about tokyo?",
+   "tokenize": [
+    "remind",
+    "mel",
+    "said",
+    "tokyo"
+   ],
+   "tokenize_nostem": [
+    "remind",
+    "mel",
+    "said",
+    "tokyo"
+   ],
+   "tokenize_nonum": [
+    "remind",
+    "mel",
+    "said",
+    "tokyo"
+   ],
+   "fts_match_string": "\"remind\" OR \"mel\" OR \"said\" OR \"tokyo\"",
+   "norm_entity": "can you remind me what mel said about tokyo",
+   "norm_relation": "can_you_remind_me_what_mel_said_about_tokyo",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "I moved to Berlin in March 2024, it's great",
+   "normalize_ws": "I moved to Berlin in March 2024, it's great",
+   "fold": "i moved to berlin in march 2024, it's great",
+   "tokenize": [
+    "move",
+    "berlin",
+    "march",
+    "2024"
+   ],
+   "tokenize_nostem": [
+    "moved",
+    "berlin",
+    "march",
+    "2024"
+   ],
+   "tokenize_nonum": [
+    "move",
+    "berlin",
+    "march",
+    "2024"
+   ],
+   "fts_match_string": "\"moved\" OR \"berlin\" OR \"march\" OR \"2024\"",
+   "norm_entity": "i moved to berlin in march 2024 it's great",
+   "norm_relation": "i_moved_to_berlin_in_march_2024_it_s_great",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "Zürich Müller",
+   "normalize_ws": "Zürich Müller",
+   "fold": "zurich muller",
+   "tokenize": [
+    "zurich",
+    "muller"
+   ],
+   "tokenize_nostem": [
+    "zurich",
+    "muller"
+   ],
+   "tokenize_nonum": [
+    "zurich",
+    "muller"
+   ],
+   "fts_match_string": "\"zurich\" OR \"muller\"",
+   "norm_entity": "zurich muller",
+   "norm_relation": "z_rich_m_ller",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "São Paulo",
+   "normalize_ws": "São Paulo",
+   "fold": "sao paulo",
+   "tokenize": [
+    "sao",
+    "paulo"
+   ],
+   "tokenize_nostem": [
+    "sao",
+    "paulo"
+   ],
+   "tokenize_nonum": [
+    "sao",
+    "paulo"
+   ],
+   "fts_match_string": "\"sao\" OR \"paulo\"",
+   "norm_entity": "sao paulo",
+   "norm_relation": "s_o_paulo",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "  Melanie's ",
+   "normalize_ws": "Melanie's",
+   "fold": "  melanie's ",
+   "tokenize": [
+    "melanie"
+   ],
+   "tokenize_nostem": [
+    "melanie"
+   ],
+   "tokenize_nonum": [
+    "melanie"
+   ],
+   "fts_match_string": "\"melanie\"",
+   "norm_entity": "melanie",
+   "norm_relation": "melanie_s",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "The Beatles'",
+   "normalize_ws": "The Beatles'",
+   "fold": "the beatles'",
+   "tokenize": [
+    "beatle"
+   ],
+   "tokenize_nostem": [
+    "beatles"
+   ],
+   "tokenize_nonum": [
+    "beatle"
+   ],
+   "fts_match_string": "\"beatles\"",
+   "norm_entity": "beatles",
+   "norm_relation": "the_beatles",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "What is Mel's job?",
+   "normalize_ws": "What is Mel's job?",
+   "fold": "what is mel's job?",
+   "tokenize": [
+    "mel",
+    "job"
+   ],
+   "tokenize_nostem": [
+    "mel",
+    "job"
+   ],
+   "tokenize_nonum": [
+    "mel",
+    "job"
+   ],
+   "fts_match_string": "\"mel\" OR \"job\"",
+   "norm_entity": "what is mel's job",
+   "norm_relation": "what_is_mel_s_job",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "Ali's brother Jörg Müller lives in Zürich.",
+   "normalize_ws": "Ali's brother Jörg Müller lives in Zürich.",
+   "fold": "ali's brother jorg muller lives in zurich.",
+   "tokenize": [
+    "ali",
+    "brother",
+    "jorg",
+    "muller",
+    "live",
+    "zurich"
+   ],
+   "tokenize_nostem": [
+    "ali",
+    "brother",
+    "jorg",
+    "muller",
+    "lives",
+    "zurich"
+   ],
+   "tokenize_nonum": [
+    "ali",
+    "brother",
+    "jorg",
+    "muller",
+    "live",
+    "zurich"
+   ],
+   "fts_match_string": "\"ali\" OR \"brother\" OR \"jorg\" OR \"muller\" OR \"lives\" OR \"zurich\"",
+   "norm_entity": "ali's brother jorg muller lives in zurich",
+   "norm_relation": "ali_s_brother_j_rg_m_ller_lives_in_z_rich",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "running cities visited planned buses glass",
+   "normalize_ws": "running cities visited planned buses glass",
+   "fold": "running cities visited planned buses glass",
+   "tokenize": [
+    "run",
+    "city",
+    "visit",
+    "plan",
+    "bus",
+    "glass"
+   ],
+   "tokenize_nostem": [
+    "running",
+    "cities",
+    "visited",
+    "planned",
+    "buses",
+    "glass"
+   ],
+   "tokenize_nonum": [
+    "run",
+    "city",
+    "visit",
+    "plan",
+    "bus",
+    "glass"
+   ],
+   "fts_match_string": "\"running\" OR \"cities\" OR \"visited\" OR \"planned\" OR \"buses\" OR \"glass\"",
+   "norm_entity": "running cities visited planned buses glass",
+   "norm_relation": "running_cities_visited_planned_buses_glass",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "hated cooking lives",
+   "normalize_ws": "hated cooking lives",
+   "fold": "hated cooking lives",
+   "tokenize": [
+    "hate",
+    "cook",
+    "live"
+   ],
+   "tokenize_nostem": [
+    "hated",
+    "cooking",
+    "lives"
+   ],
+   "tokenize_nonum": [
+    "hate",
+    "cook",
+    "live"
+   ],
+   "fts_match_string": "\"hated\" OR \"cooking\" OR \"lives\"",
+   "norm_entity": "hated cooking lives",
+   "norm_relation": "hated_cooking_lives",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "I'm Ali. I just moved from Baku to Berlin last month for a nursing job at Charité.",
+   "normalize_ws": "I'm Ali. I just moved from Baku to Berlin last month for a nursing job at Charité.",
+   "fold": "i'm ali. i just moved from baku to berlin last month for a nursing job at charite.",
+   "tokenize": [
+    "ali",
+    "move",
+    "baku",
+    "berlin",
+    "last",
+    "month",
+    "nurs",
+    "job",
+    "charite"
+   ],
+   "tokenize_nostem": [
+    "ali",
+    "moved",
+    "baku",
+    "berlin",
+    "last",
+    "month",
+    "nursing",
+    "job",
+    "charite"
+   ],
+   "tokenize_nonum": [
+    "ali",
+    "move",
+    "baku",
+    "berlin",
+    "last",
+    "month",
+    "nurs",
+    "job",
+    "charite"
+   ],
+   "fts_match_string": "\"ali\" OR \"moved\" OR \"baku\" OR \"berlin\" OR \"last\" OR \"month\" OR \"nursing\" OR \"job\" OR \"charite\"",
+   "norm_entity": "i'm ali i just moved from baku to berlin last month for a nursing job at charite",
+   "norm_relation": "i_m_ali_i_just_moved_from_baku_to_berlin_last_month_for_a_nu",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "Sure, of course! Happy to help.",
+   "normalize_ws": "Sure, of course! Happy to help.",
+   "fold": "sure, of course! happy to help.",
+   "tokenize": [
+    "course",
+    "happy",
+    "help"
+   ],
+   "tokenize_nostem": [
+    "course",
+    "happy",
+    "help"
+   ],
+   "tokenize_nonum": [
+    "course",
+    "happy",
+    "help"
+   ],
+   "fts_match_string": "\"course\" OR \"happy\" OR \"help\"",
+   "norm_entity": "sure of course happy to help",
+   "norm_relation": "sure_of_course_happy_to_help",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "yes yes ok thanks",
+   "normalize_ws": "yes yes ok thanks",
+   "fold": "yes yes ok thanks",
+   "tokenize": [],
+   "tokenize_nostem": [],
+   "tokenize_nonum": [],
+   "fts_match_string": "",
+   "norm_entity": "yes yes ok thanks",
+   "norm_relation": "yes_yes_ok_thanks",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "hmmmm",
+   "normalize_ws": "hmmmm",
+   "fold": "hmmmm",
+   "tokenize": [
+    "hmmmm"
+   ],
+   "tokenize_nostem": [
+    "hmmmm"
+   ],
+   "tokenize_nonum": [
+    "hmmmm"
+   ],
+   "fts_match_string": "\"hmmmm\"",
+   "norm_entity": "hmmmm",
+   "norm_relation": "hmmmm",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "hahaha!!",
+   "normalize_ws": "hahaha!!",
+   "fold": "hahaha!!",
+   "tokenize": [
+    "hahaha"
+   ],
+   "tokenize_nostem": [
+    "hahaha"
+   ],
+   "tokenize_nonum": [
+    "hahaha"
+   ],
+   "fts_match_string": "\"hahaha\"",
+   "norm_entity": "hahaha",
+   "norm_relation": "hahaha",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "k",
+   "normalize_ws": "k",
+   "fold": "k",
+   "tokenize": [],
+   "tokenize_nostem": [],
+   "tokenize_nonum": [],
+   "fts_match_string": "",
+   "norm_entity": "k",
+   "norm_relation": "k",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "Ok.",
+   "normalize_ws": "Ok.",
+   "fold": "ok.",
+   "tokenize": [],
+   "tokenize_nostem": [],
+   "tokenize_nonum": [],
+   "fts_match_string": "",
+   "norm_entity": "ok",
+   "norm_relation": "ok",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "I'm 34 and I have 2 kids.",
+   "normalize_ws": "I'm 34 and I have 2 kids.",
+   "fold": "i'm 34 and i have 2 kids.",
+   "tokenize": [
+    "34",
+    "2",
+    "kid"
+   ],
+   "tokenize_nostem": [
+    "34",
+    "2",
+    "kids"
+   ],
+   "tokenize_nonum": [
+    "kid"
+   ],
+   "fts_match_string": "\"34\" OR \"2\" OR \"kids\"",
+   "norm_entity": "i'm 34 and i have 2 kids",
+   "norm_relation": "i_m_34_and_i_have_2_kids",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "normalize_ws": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "fold": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "tokenize": [
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   ],
+   "tokenize_nostem": [
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   ],
+   "tokenize_nonum": [
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   ],
+   "fts_match_string": "\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"",
+   "norm_entity": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "norm_relation": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "Ünïcödé — test… “quotes” and 'apostrophes' don't break it's tokens",
+   "normalize_ws": "Ünïcödé — test… “quotes” and 'apostrophes' don't break it's tokens",
+   "fold": "unicode — test... “quotes” and 'apostrophes' don't break it's tokens",
+   "tokenize": [
+    "unicode",
+    "test",
+    "quote",
+    "apostroph",
+    "dont",
+    "break",
+    "token"
+   ],
+   "tokenize_nostem": [
+    "unicode",
+    "test",
+    "quotes",
+    "apostrophes",
+    "dont",
+    "break",
+    "tokens"
+   ],
+   "tokenize_nonum": [
+    "unicode",
+    "test",
+    "quote",
+    "apostroph",
+    "dont",
+    "break",
+    "token"
+   ],
+   "fts_match_string": "\"unicode\" OR \"test\" OR \"quotes\" OR \"apostrophes\" OR \"dont\" OR \"break\" OR \"tokens\"",
+   "norm_entity": "unicode test quotes and 'apostrophes' don't break it's tokens",
+   "norm_relation": "n_c_d_test_quotes_and_apostrophes_don_t_break_it_s_tokens",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "the-the 'quoted' --dash-- 12 345 a1 b2 c3",
+   "normalize_ws": "the-the 'quoted' --dash-- 12 345 a1 b2 c3",
+   "fold": "the-the 'quoted' --dash-- 12 345 a1 b2 c3",
+   "tokenize": [
+    "the-the",
+    "quot",
+    "dash",
+    "12",
+    "345"
+   ],
+   "tokenize_nostem": [
+    "the-the",
+    "quoted",
+    "dash",
+    "12",
+    "345"
+   ],
+   "tokenize_nonum": [
+    "the-the",
+    "quot",
+    "dash",
+    "345"
+   ],
+   "fts_match_string": "\"thethe\" OR \"quoted\" OR \"dash\" OR \"12\" OR \"345\"",
+   "norm_entity": "the-the 'quoted' --dash-- 12 345 a1 b2 c3",
+   "norm_relation": "the_the_quoted_dash_12_345_a1_b2_c3",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "ΣΊΣΥΦΟΣ İstanbul ǅ ß straße",
+   "normalize_ws": "ΣΊΣΥΦΟΣ İstanbul ǅ ß straße",
+   "fold": "σισυφος istanbul dz ß straße",
+   "tokenize": [
+    "istanbul",
+    "stra"
+   ],
+   "tokenize_nostem": [
+    "istanbul",
+    "stra"
+   ],
+   "tokenize_nonum": [
+    "istanbul",
+    "stra"
+   ],
+   "fts_match_string": "\"istanbul\" OR \"stra\"",
+   "norm_entity": "istanbul dz stra e",
+   "norm_relation": "i_stanbul_stra_e",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "tabs\tand\nnewlines\r\nhere\u001c\u001f",
+   "normalize_ws": "tabs and newlines here",
+   "fold": "tabs\tand\nnewlines\r\nhere\u001c\u001f",
+   "tokenize": [
+    "tab",
+    "newline",
+    "here"
+   ],
+   "tokenize_nostem": [
+    "tabs",
+    "newlines",
+    "here"
+   ],
+   "tokenize_nonum": [
+    "tab",
+    "newline",
+    "here"
+   ],
+   "fts_match_string": "\"tabs\" OR \"newlines\" OR \"here\"",
+   "norm_entity": "tabs and newlines here",
+   "norm_relation": "tabs_and_newlines_here",
+   "is_probable_chitchat": false
+  },
+  {
+   "text": "Long time no see! How are you?",
+   "normalize_ws": "Long time no see! How are you?",
+   "fold": "long time no see! how are you?",
+   "tokenize": [
+    "long",
+    "time",
+    "see"
+   ],
+   "tokenize_nostem": [
+    "long",
+    "time",
+    "see"
+   ],
+   "tokenize_nonum": [
+    "long",
+    "time",
+    "see"
+   ],
+   "fts_match_string": "\"long\" OR \"time\" OR \"see\"",
+   "norm_entity": "long time no see how are you",
+   "norm_relation": "long_time_no_see_how_are_you",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "you're welcome",
+   "normalize_ws": "you're welcome",
+   "fold": "you're welcome",
+   "tokenize": [
+    "youre",
+    "welcome"
+   ],
+   "tokenize_nostem": [
+    "youre",
+    "welcome"
+   ],
+   "tokenize_nonum": [
+    "youre",
+    "welcome"
+   ],
+   "fts_match_string": "\"youre\" OR \"welcome\"",
+   "norm_entity": "you're welcome",
+   "norm_relation": "you_re_welcome",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "Let me know if you have questions about the trip",
+   "normalize_ws": "Let me know if you have questions about the trip",
+   "fold": "let me know if you have questions about the trip",
+   "tokenize": [
+    "question",
+    "trip"
+   ],
+   "tokenize_nostem": [
+    "questions",
+    "trip"
+   ],
+   "tokenize_nonum": [
+    "question",
+    "trip"
+   ],
+   "fts_match_string": "\"questions\" OR \"trip\"",
+   "norm_entity": "let me know if you have questions about the trip",
+   "norm_relation": "let_me_know_if_you_have_questions_about_the_trip",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "Perfect, thanks!",
+   "normalize_ws": "Perfect, thanks!",
+   "fold": "perfect, thanks!",
+   "tokenize": [
+    "perfect"
+   ],
+   "tokenize_nostem": [
+    "perfect"
+   ],
+   "tokenize_nonum": [
+    "perfect"
+   ],
+   "fts_match_string": "\"perfect\"",
+   "norm_entity": "perfect thanks",
+   "norm_relation": "perfect_thanks",
+   "is_probable_chitchat": true
+  },
+  {
+   "text": "My sister Leyla is visiting from Baku next weekend.",
+   "normalize_ws": "My sister Leyla is visiting from Baku next weekend.",
+   "fold": "my sister leyla is visiting from baku next weekend.",
+   "tokenize": [
+    "sister",
+    "leyla",
+    "visit",
+    "baku",
+    "next",
+    "weekend"
+   ],
+   "tokenize_nostem": [
+    "sister",
+    "leyla",
+    "visiting",
+    "baku",
+    "next",
+    "weekend"
+   ],
+   "tokenize_nonum": [
+    "sister",
+    "leyla",
+    "visit",
+    "baku",
+    "next",
+    "weekend"
+   ],
+   "fts_match_string": "\"sister\" OR \"leyla\" OR \"visiting\" OR \"baku\" OR \"next\" OR \"weekend\"",
+   "norm_entity": "my sister leyla is visiting from baku next weekend",
+   "norm_relation": "my_sister_leyla_is_visiting_from_baku_next_weekend",
+   "is_probable_chitchat": false
+  }
+ ],
+ "stem": {
+  "lives": "live",
+  "running": "run",
+  "cities": "city",
+  "visited": "visit",
+  "planned": "plan",
+  "buses": "bus",
+  "glass": "glass",
+  "hated": "hate",
+  "cooking": "cook",
+  "ties": "tie",
+  "dies": "die",
+  "boxes": "box",
+  "dishes": "dish",
+  "going": "going",
+  "sing": "sing",
+  "bled": "bled",
+  "agreed": "agre",
+  "hopping": "hop",
+  "filled": "fill",
+  "fizzed": "fizz",
+  "rated": "rate",
+  "troubled": "trouble",
+  "sized": "size",
+  "hoped": "hope",
+  "fixing": "fix",
+  "news": "new",
+  "is": "is",
+  "was": "was",
+  "bus": "bus",
+  "abilities": "ability",
+  "studying": "study",
+  "boxed": "box",
+  "played": "play"
+ },
+ "norm_relation": {
+  "Lives In": "lives_in",
+  "works_at": "works_at",
+  "  has-pet!! ": "has_pet",
+  "": "",
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "Ünïcode rel": "n_code_rel",
+  "--x--": "x"
+ },
+ "content_hash": [
+  {
+   "parts": [],
+   "hash": "6fa1d8fcfd719046d762"
+  },
+  {
+   "parts": [
+    ""
+   ],
+   "hash": "536ab90c361a81ab3398"
+  },
+  {
+   "parts": [
+    "a"
+   ],
+   "hash": "25c740d2af2b5ddc6aac"
+  },
+  {
+   "parts": [
+    "a",
+    "b"
+   ],
+   "hash": "71b91ac974ba1ab89173"
+  },
+  {
+   "parts": [
+    "ab"
+   ],
+   "hash": "db87a8104bb3f782a012"
+  },
+  {
+   "parts": [
+    "chat",
+    "Ali",
+    "I moved",
+    "2026-01-01",
+    ""
+   ],
+   "hash": "11c9db1e4f94c5213d91"
+  },
+  {
+   "parts": [
+    "ünï",
+    "€"
+   ],
+   "hash": "11ccd8d52fd2af8d5029"
+  }
+ ],
+ "clip": [
+  {
+   "text": "hello world",
+   "limit": 5,
+   "out": "hell…"
+  },
+  {
+   "text": "hello world",
+   "limit": 50,
+   "out": "hello world"
+  },
+  {
+   "text": "a  b  c  d",
+   "limit": 4,
+   "out": "a…"
+  },
+  {
+   "text": "ünïcödé text",
+   "limit": 4,
+   "out": "ünï…"
+  },
+  {
+   "text": "",
+   "limit": 3,
+   "out": ""
+  },
+  {
+   "text": "abc",
+   "limit": 0,
+   "out": "…"
+  },
+  {
+   "text": "abc",
+   "limit": 1,
+   "out": "…"
+  }
+ ]
+}

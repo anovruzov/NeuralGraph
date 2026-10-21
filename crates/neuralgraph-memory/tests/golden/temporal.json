@@ -1,0 +1,5914 @@
+{
+ "resolve": [
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "I went there yesterday",
+   "out": "I went there yesterday [= 16 September 2026]",
+   "resolved": {
+    "yesterday": "16 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "last night was fun",
+   "out": "last night [= 16 September 2026] was fun",
+   "resolved": {
+    "yesterday": "16 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "last weekend we hiked",
+   "out": "last weekend [= 12-13 September 2026] we hiked",
+   "resolved": {
+    "last_weekend": "12-13 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "last week I started",
+   "out": "last week [= week of 7 September 2026] I started",
+   "resolved": {
+    "last_week": "week of 7 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "this week is busy",
+   "out": "this week [= week of 14 September 2026] is busy",
+   "resolved": {
+    "this_week": "week of 14 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "last weekend and last week",
+   "out": "last weekend [= 12-13 September 2026] and last week [= week of 7 September 2026]",
+   "resolved": {
+    "last_weekend": "12-13 September 2026",
+    "last_week": "week of 7 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "last year I moved",
+   "out": "last year [= 2025] I moved",
+   "resolved": {
+    "last_year": "2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "last month we met",
+   "out": "last month [= August 2026] we met",
+   "resolved": {
+    "last_month": "August 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "this month I travel",
+   "out": "this month [= September 2026] I travel",
+   "resolved": {
+    "this_month": "September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "this year is good",
+   "out": "this year [= 2026] is good",
+   "resolved": {
+    "this_year": "2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "next month I go",
+   "out": "next month [= October 2026] I go",
+   "resolved": {
+    "next_month": "October 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "a few weeks ago",
+   "out": "a few weeks ago [= around 27 August 2026]",
+   "resolved": {
+    "few_weeks_ago": "around 27 August 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "few weeks ago",
+   "out": "a few weeks ago [= around 27 August 2026]",
+   "resolved": {
+    "few_weeks_ago": "around 27 August 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "two weeks ago",
+   "out": "two weeks ago [= around 3 September 2026]",
+   "resolved": {
+    "two_weeks_ago": "around 3 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "2 weeks ago",
+   "out": "two weeks ago [= around 3 September 2026]",
+   "resolved": {
+    "two_weeks_ago": "around 3 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "3 days ago and 10 days ago",
+   "out": "3 days ago [= 14 September 2026] and 10 days ago [= 14 September 2026]",
+   "resolved": {
+    "3_days_ago": "14 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "two days ago",
+   "out": "two days ago [= 15 September 2026]",
+   "resolved": {
+    "two_days_ago": "15 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "last Monday",
+   "out": "last monday [= 14 September 2026]",
+   "resolved": {
+    "last_monday": "14 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "last friday and last Fri.",
+   "out": "last friday [= 11 September 2026] and last friday [= 11 September 2026].",
+   "resolved": {
+    "last_friday": "11 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "this sat",
+   "out": "this saturday [= 19 September 2026]",
+   "resolved": {
+    "this_saturday": "19 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "next tues",
+   "out": "next tuesday [= 29 September 2026]",
+   "resolved": {
+    "next_tuesday": "29 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "on wed",
+   "out": "on wednesday [= 16 September 2026]",
+   "resolved": {
+    "on_wednesday": "16 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "on Weds we met",
+   "out": "on wednesday [= 16 September 2026] we met",
+   "resolved": {
+    "on_wednesday": "16 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "today and tonight",
+   "out": "today [= 17 September 2026] and tonight [= 17 September 2026]",
+   "resolved": {
+    "today": "17 September 2026",
+    "tonight": "17 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "tomorrow",
+   "out": "tomorrow [= 18 September 2026]",
+   "resolved": {
+    "tomorrow": "18 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "this morning",
+   "out": "this morning [= 17 September 2026]",
+   "resolved": {
+    "this_morning": "17 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "this afternoon and this evening",
+   "out": "this afternoon [= 17 September 2026] and this evening [= 17 September 2026]",
+   "resolved": {
+    "this_afternoon": "17 September 2026",
+    "this_evening": "17 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "earlier today",
+   "out": "earlier today [= 17 September 2026]",
+   "resolved": {
+    "today": "17 September 2026",
+    "earlier_today": "17 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "the other day",
+   "out": "the other day [= around 15 September 2026]",
+   "resolved": {
+    "the_other_day": "around 15 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "a couple days ago",
+   "out": "a couple days ago [= 15 September 2026]",
+   "resolved": {
+    "couple_days_ago": "15 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "couple of days ago",
+   "out": "a couple days ago [= 15 September 2026]",
+   "resolved": {
+    "couple_days_ago": "15 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "the day before yesterday",
+   "out": "the day before yesterday [= 16 September 2026]",
+   "resolved": {
+    "yesterday": "16 September 2026",
+    "day_before_yesterday": "15 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "next week",
+   "out": "next week [= week of 21 September 2026]",
+   "resolved": {
+    "next_week": "week of 21 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "over the weekend",
+   "out": "over the weekend [= 12-13 September 2026]",
+   "resolved": {
+    "over_weekend": "12-13 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "during the weekend",
+   "out": "during the weekend [= 12-13 September 2026]",
+   "resolved": {
+    "over_weekend": "12-13 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "three days ago",
+   "out": "three days ago [= 14 September 2026]",
+   "resolved": {
+    "three_days_ago": "14 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "five days ago",
+   "out": "five days ago [= 12 September 2026]",
+   "resolved": {
+    "five_days_ago": "12 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "a week ago",
+   "out": "a week ago [= 10 September 2026]",
+   "resolved": {
+    "a_week_ago": "10 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "ten years ago",
+   "out": "ten years ago [= 2016]",
+   "resolved": {
+    "10_years_ago": "2016"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "5 years ago",
+   "out": "5 years ago [= 2021]",
+   "resolved": {
+    "5_years_ago": "2021"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "on thursday next week",
+   "out": "on thursday [= 10 September 2026] next week [= week of 21 September 2026]",
+   "resolved": {
+    "on_thursday": "10 September 2026",
+    "next_week": "week of 21 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "nothing relative here",
+   "out": "nothing relative here",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "Yesterday and YESTERDAY",
+   "out": "yesterday [= 16 September 2026] and yesterday [= 16 September 2026]",
+   "resolved": {
+    "yesterday": "16 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "last weekend [= already]",
+   "out": "last weekend [= 12-13 September 2026] [= already]",
+   "resolved": {
+    "last_weekend": "12-13 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "on Sunday, last Sunday and this Sunday",
+   "out": "on sunday [= 13 September 2026], last sunday [= 13 September 2026] and this sunday [= 20 September 2026]",
+   "resolved": {
+    "last_sunday": "13 September 2026",
+    "this_sunday": "20 September 2026",
+    "on_sunday": "13 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "on the weekend",
+   "out": "on the weekend",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "on su",
+   "out": "on sunday [= 13 September 2026]",
+   "resolved": {
+    "on_sunday": "13 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "last mo",
+   "out": "last monday [= 14 September 2026]",
+   "resolved": {
+    "last_monday": "14 September 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "I said thanks today [= 1 Jan 2020]",
+   "out": "I said thanks today [= 1 Jan 2020]",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2026-09-17T10:00:00+00:00",
+   "text": "99999999999 days ago",
+   "out": null,
+   "resolved": null,
+   "error": "OverflowError"
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "I went there yesterday",
+   "out": "I went there yesterday [= 7 May 2023]",
+   "resolved": {
+    "yesterday": "7 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "last night was fun",
+   "out": "last night [= 7 May 2023] was fun",
+   "resolved": {
+    "yesterday": "7 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "last weekend we hiked",
+   "out": "last weekend [= 6-7 May 2023] we hiked",
+   "resolved": {
+    "last_weekend": "6-7 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "last week I started",
+   "out": "last week [= week of 1 May 2023] I started",
+   "resolved": {
+    "last_week": "week of 1 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "this week is busy",
+   "out": "this week [= week of 8 May 2023] is busy",
+   "resolved": {
+    "this_week": "week of 8 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "last weekend and last week",
+   "out": "last weekend [= 6-7 May 2023] and last week [= week of 1 May 2023]",
+   "resolved": {
+    "last_weekend": "6-7 May 2023",
+    "last_week": "week of 1 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "last year I moved",
+   "out": "last year [= 2022] I moved",
+   "resolved": {
+    "last_year": "2022"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "last month we met",
+   "out": "last month [= April 2023] we met",
+   "resolved": {
+    "last_month": "April 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "this month I travel",
+   "out": "this month [= May 2023] I travel",
+   "resolved": {
+    "this_month": "May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "this year is good",
+   "out": "this year [= 2023] is good",
+   "resolved": {
+    "this_year": "2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "next month I go",
+   "out": "next month [= June 2023] I go",
+   "resolved": {
+    "next_month": "June 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "a few weeks ago",
+   "out": "a few weeks ago [= around 17 April 2023]",
+   "resolved": {
+    "few_weeks_ago": "around 17 April 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "few weeks ago",
+   "out": "a few weeks ago [= around 17 April 2023]",
+   "resolved": {
+    "few_weeks_ago": "around 17 April 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "two weeks ago",
+   "out": "two weeks ago [= around 24 April 2023]",
+   "resolved": {
+    "two_weeks_ago": "around 24 April 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "2 weeks ago",
+   "out": "two weeks ago [= around 24 April 2023]",
+   "resolved": {
+    "two_weeks_ago": "around 24 April 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "3 days ago and 10 days ago",
+   "out": "3 days ago [= 5 May 2023] and 10 days ago [= 5 May 2023]",
+   "resolved": {
+    "3_days_ago": "5 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "two days ago",
+   "out": "two days ago [= 6 May 2023]",
+   "resolved": {
+    "two_days_ago": "6 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "last Monday",
+   "out": "last monday [= 1 May 2023]",
+   "resolved": {
+    "last_monday": "1 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "last friday and last Fri.",
+   "out": "last friday [= 5 May 2023] and last friday [= 5 May 2023].",
+   "resolved": {
+    "last_friday": "5 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "this sat",
+   "out": "this saturday [= 13 May 2023]",
+   "resolved": {
+    "this_saturday": "13 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "next tues",
+   "out": "next tuesday [= 16 May 2023]",
+   "resolved": {
+    "next_tuesday": "16 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "on wed",
+   "out": "on wednesday [= 3 May 2023]",
+   "resolved": {
+    "on_wednesday": "3 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "on Weds we met",
+   "out": "on wednesday [= 3 May 2023] we met",
+   "resolved": {
+    "on_wednesday": "3 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "today and tonight",
+   "out": "today [= 8 May 2023] and tonight [= 8 May 2023]",
+   "resolved": {
+    "today": "8 May 2023",
+    "tonight": "8 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "tomorrow",
+   "out": "tomorrow [= 9 May 2023]",
+   "resolved": {
+    "tomorrow": "9 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "this morning",
+   "out": "this morning [= 8 May 2023]",
+   "resolved": {
+    "this_morning": "8 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "this afternoon and this evening",
+   "out": "this afternoon [= 8 May 2023] and this evening [= 8 May 2023]",
+   "resolved": {
+    "this_afternoon": "8 May 2023",
+    "this_evening": "8 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "earlier today",
+   "out": "earlier today [= 8 May 2023]",
+   "resolved": {
+    "today": "8 May 2023",
+    "earlier_today": "8 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "the other day",
+   "out": "the other day [= around 6 May 2023]",
+   "resolved": {
+    "the_other_day": "around 6 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "a couple days ago",
+   "out": "a couple days ago [= 6 May 2023]",
+   "resolved": {
+    "couple_days_ago": "6 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "couple of days ago",
+   "out": "a couple days ago [= 6 May 2023]",
+   "resolved": {
+    "couple_days_ago": "6 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "the day before yesterday",
+   "out": "the day before yesterday [= 7 May 2023]",
+   "resolved": {
+    "yesterday": "7 May 2023",
+    "day_before_yesterday": "6 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "next week",
+   "out": "next week [= week of 15 May 2023]",
+   "resolved": {
+    "next_week": "week of 15 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "over the weekend",
+   "out": "over the weekend [= 6-7 May 2023]",
+   "resolved": {
+    "over_weekend": "6-7 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "during the weekend",
+   "out": "during the weekend [= 6-7 May 2023]",
+   "resolved": {
+    "over_weekend": "6-7 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "three days ago",
+   "out": "three days ago [= 5 May 2023]",
+   "resolved": {
+    "three_days_ago": "5 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "five days ago",
+   "out": "five days ago [= 3 May 2023]",
+   "resolved": {
+    "five_days_ago": "3 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "a week ago",
+   "out": "a week ago [= 1 May 2023]",
+   "resolved": {
+    "a_week_ago": "1 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "ten years ago",
+   "out": "ten years ago [= 2013]",
+   "resolved": {
+    "10_years_ago": "2013"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "5 years ago",
+   "out": "5 years ago [= 2018]",
+   "resolved": {
+    "5_years_ago": "2018"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "on thursday next week",
+   "out": "on thursday [= 4 May 2023] next week [= week of 15 May 2023]",
+   "resolved": {
+    "on_thursday": "4 May 2023",
+    "next_week": "week of 15 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "nothing relative here",
+   "out": "nothing relative here",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "Yesterday and YESTERDAY",
+   "out": "yesterday [= 7 May 2023] and yesterday [= 7 May 2023]",
+   "resolved": {
+    "yesterday": "7 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "last weekend [= already]",
+   "out": "last weekend [= 6-7 May 2023] [= already]",
+   "resolved": {
+    "last_weekend": "6-7 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "on Sunday, last Sunday and this Sunday",
+   "out": "on sunday [= 7 May 2023], last sunday [= 7 May 2023] and this sunday [= 14 May 2023]",
+   "resolved": {
+    "last_sunday": "7 May 2023",
+    "this_sunday": "14 May 2023",
+    "on_sunday": "7 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "on the weekend",
+   "out": "on the weekend",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "on su",
+   "out": "on sunday [= 7 May 2023]",
+   "resolved": {
+    "on_sunday": "7 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "last mo",
+   "out": "last monday [= 1 May 2023]",
+   "resolved": {
+    "last_monday": "1 May 2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "I said thanks today [= 1 Jan 2020]",
+   "out": "I said thanks today [= 1 Jan 2020]",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2023-05-08T13:56:00+00:00",
+   "text": "99999999999 days ago",
+   "out": null,
+   "resolved": null,
+   "error": "OverflowError"
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "I went there yesterday",
+   "out": "I went there yesterday [= 31 December 2025]",
+   "resolved": {
+    "yesterday": "31 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "last night was fun",
+   "out": "last night [= 31 December 2025] was fun",
+   "resolved": {
+    "yesterday": "31 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "last weekend we hiked",
+   "out": "last weekend [= 27-28 December 2025] we hiked",
+   "resolved": {
+    "last_weekend": "27-28 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "last week I started",
+   "out": "last week [= week of 22 December 2025] I started",
+   "resolved": {
+    "last_week": "week of 22 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "this week is busy",
+   "out": "this week [= week of 29 December 2025] is busy",
+   "resolved": {
+    "this_week": "week of 29 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "last weekend and last week",
+   "out": "last weekend [= 27-28 December 2025] and last week [= week of 22 December 2025]",
+   "resolved": {
+    "last_weekend": "27-28 December 2025",
+    "last_week": "week of 22 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "last year I moved",
+   "out": "last year [= 2025] I moved",
+   "resolved": {
+    "last_year": "2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "last month we met",
+   "out": "last month [= December 2025] we met",
+   "resolved": {
+    "last_month": "December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "this month I travel",
+   "out": "this month [= January 2026] I travel",
+   "resolved": {
+    "this_month": "January 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "this year is good",
+   "out": "this year [= 2026] is good",
+   "resolved": {
+    "this_year": "2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "next month I go",
+   "out": "next month [= February 2026] I go",
+   "resolved": {
+    "next_month": "February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "a few weeks ago",
+   "out": "a few weeks ago [= around 11 December 2025]",
+   "resolved": {
+    "few_weeks_ago": "around 11 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "few weeks ago",
+   "out": "a few weeks ago [= around 11 December 2025]",
+   "resolved": {
+    "few_weeks_ago": "around 11 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "two weeks ago",
+   "out": "two weeks ago [= around 18 December 2025]",
+   "resolved": {
+    "two_weeks_ago": "around 18 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "2 weeks ago",
+   "out": "two weeks ago [= around 18 December 2025]",
+   "resolved": {
+    "two_weeks_ago": "around 18 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "3 days ago and 10 days ago",
+   "out": "3 days ago [= 29 December 2025] and 10 days ago [= 29 December 2025]",
+   "resolved": {
+    "3_days_ago": "29 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "two days ago",
+   "out": "two days ago [= 30 December 2025]",
+   "resolved": {
+    "two_days_ago": "30 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "last Monday",
+   "out": "last monday [= 29 December 2025]",
+   "resolved": {
+    "last_monday": "29 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "last friday and last Fri.",
+   "out": "last friday [= 26 December 2025] and last friday [= 26 December 2025].",
+   "resolved": {
+    "last_friday": "26 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "this sat",
+   "out": "this saturday [= 3 January 2026]",
+   "resolved": {
+    "this_saturday": "3 January 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "next tues",
+   "out": "next tuesday [= 13 January 2026]",
+   "resolved": {
+    "next_tuesday": "13 January 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "on wed",
+   "out": "on wednesday [= 31 December 2025]",
+   "resolved": {
+    "on_wednesday": "31 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "on Weds we met",
+   "out": "on wednesday [= 31 December 2025] we met",
+   "resolved": {
+    "on_wednesday": "31 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "today and tonight",
+   "out": "today [= 1 January 2026] and tonight [= 1 January 2026]",
+   "resolved": {
+    "today": "1 January 2026",
+    "tonight": "1 January 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "tomorrow",
+   "out": "tomorrow [= 2 January 2026]",
+   "resolved": {
+    "tomorrow": "2 January 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "this morning",
+   "out": "this morning [= 1 January 2026]",
+   "resolved": {
+    "this_morning": "1 January 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "this afternoon and this evening",
+   "out": "this afternoon [= 1 January 2026] and this evening [= 1 January 2026]",
+   "resolved": {
+    "this_afternoon": "1 January 2026",
+    "this_evening": "1 January 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "earlier today",
+   "out": "earlier today [= 1 January 2026]",
+   "resolved": {
+    "today": "1 January 2026",
+    "earlier_today": "1 January 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "the other day",
+   "out": "the other day [= around 30 December 2025]",
+   "resolved": {
+    "the_other_day": "around 30 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "a couple days ago",
+   "out": "a couple days ago [= 30 December 2025]",
+   "resolved": {
+    "couple_days_ago": "30 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "couple of days ago",
+   "out": "a couple days ago [= 30 December 2025]",
+   "resolved": {
+    "couple_days_ago": "30 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "the day before yesterday",
+   "out": "the day before yesterday [= 31 December 2025]",
+   "resolved": {
+    "yesterday": "31 December 2025",
+    "day_before_yesterday": "30 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "next week",
+   "out": "next week [= week of 5 January 2026]",
+   "resolved": {
+    "next_week": "week of 5 January 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "over the weekend",
+   "out": "over the weekend [= 27-28 December 2025]",
+   "resolved": {
+    "over_weekend": "27-28 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "during the weekend",
+   "out": "during the weekend [= 27-28 December 2025]",
+   "resolved": {
+    "over_weekend": "27-28 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "three days ago",
+   "out": "three days ago [= 29 December 2025]",
+   "resolved": {
+    "three_days_ago": "29 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "five days ago",
+   "out": "five days ago [= 27 December 2025]",
+   "resolved": {
+    "five_days_ago": "27 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "a week ago",
+   "out": "a week ago [= 25 December 2025]",
+   "resolved": {
+    "a_week_ago": "25 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "ten years ago",
+   "out": "ten years ago [= 2016]",
+   "resolved": {
+    "10_years_ago": "2016"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "5 years ago",
+   "out": "5 years ago [= 2021]",
+   "resolved": {
+    "5_years_ago": "2021"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "on thursday next week",
+   "out": "on thursday [= 25 December 2025] next week [= week of 5 January 2026]",
+   "resolved": {
+    "on_thursday": "25 December 2025",
+    "next_week": "week of 5 January 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "nothing relative here",
+   "out": "nothing relative here",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "Yesterday and YESTERDAY",
+   "out": "yesterday [= 31 December 2025] and yesterday [= 31 December 2025]",
+   "resolved": {
+    "yesterday": "31 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "last weekend [= already]",
+   "out": "last weekend [= 27-28 December 2025] [= already]",
+   "resolved": {
+    "last_weekend": "27-28 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "on Sunday, last Sunday and this Sunday",
+   "out": "on sunday [= 28 December 2025], last sunday [= 28 December 2025] and this sunday [= 4 January 2026]",
+   "resolved": {
+    "last_sunday": "28 December 2025",
+    "this_sunday": "4 January 2026",
+    "on_sunday": "28 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "on the weekend",
+   "out": "on the weekend",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "on su",
+   "out": "on sunday [= 28 December 2025]",
+   "resolved": {
+    "on_sunday": "28 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "last mo",
+   "out": "last monday [= 29 December 2025]",
+   "resolved": {
+    "last_monday": "29 December 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "I said thanks today [= 1 Jan 2020]",
+   "out": "I said thanks today [= 1 Jan 2020]",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2026-01-01T00:30:00+02:00",
+   "text": "99999999999 days ago",
+   "out": null,
+   "resolved": null,
+   "error": "OverflowError"
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "I went there yesterday",
+   "out": "I went there yesterday [= 28 February 2024]",
+   "resolved": {
+    "yesterday": "28 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "last night was fun",
+   "out": "last night [= 28 February 2024] was fun",
+   "resolved": {
+    "yesterday": "28 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "last weekend we hiked",
+   "out": "last weekend [= 24-25 February 2024] we hiked",
+   "resolved": {
+    "last_weekend": "24-25 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "last week I started",
+   "out": "last week [= week of 19 February 2024] I started",
+   "resolved": {
+    "last_week": "week of 19 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "this week is busy",
+   "out": "this week [= week of 26 February 2024] is busy",
+   "resolved": {
+    "this_week": "week of 26 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "last weekend and last week",
+   "out": "last weekend [= 24-25 February 2024] and last week [= week of 19 February 2024]",
+   "resolved": {
+    "last_weekend": "24-25 February 2024",
+    "last_week": "week of 19 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "last year I moved",
+   "out": "last year [= 2023] I moved",
+   "resolved": {
+    "last_year": "2023"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "last month we met",
+   "out": "last month [= January 2024] we met",
+   "resolved": {
+    "last_month": "January 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "this month I travel",
+   "out": "this month [= February 2024] I travel",
+   "resolved": {
+    "this_month": "February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "this year is good",
+   "out": "this year [= 2024] is good",
+   "resolved": {
+    "this_year": "2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "next month I go",
+   "out": "next month [= March 2024] I go",
+   "resolved": {
+    "next_month": "March 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "a few weeks ago",
+   "out": "a few weeks ago [= around 8 February 2024]",
+   "resolved": {
+    "few_weeks_ago": "around 8 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "few weeks ago",
+   "out": "a few weeks ago [= around 8 February 2024]",
+   "resolved": {
+    "few_weeks_ago": "around 8 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "two weeks ago",
+   "out": "two weeks ago [= around 15 February 2024]",
+   "resolved": {
+    "two_weeks_ago": "around 15 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "2 weeks ago",
+   "out": "two weeks ago [= around 15 February 2024]",
+   "resolved": {
+    "two_weeks_ago": "around 15 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "3 days ago and 10 days ago",
+   "out": "3 days ago [= 26 February 2024] and 10 days ago [= 26 February 2024]",
+   "resolved": {
+    "3_days_ago": "26 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "two days ago",
+   "out": "two days ago [= 27 February 2024]",
+   "resolved": {
+    "two_days_ago": "27 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "last Monday",
+   "out": "last monday [= 26 February 2024]",
+   "resolved": {
+    "last_monday": "26 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "last friday and last Fri.",
+   "out": "last friday [= 23 February 2024] and last friday [= 23 February 2024].",
+   "resolved": {
+    "last_friday": "23 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "this sat",
+   "out": "this saturday [= 2 March 2024]",
+   "resolved": {
+    "this_saturday": "2 March 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "next tues",
+   "out": "next tuesday [= 12 March 2024]",
+   "resolved": {
+    "next_tuesday": "12 March 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "on wed",
+   "out": "on wednesday [= 28 February 2024]",
+   "resolved": {
+    "on_wednesday": "28 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "on Weds we met",
+   "out": "on wednesday [= 28 February 2024] we met",
+   "resolved": {
+    "on_wednesday": "28 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "today and tonight",
+   "out": "today [= 29 February 2024] and tonight [= 29 February 2024]",
+   "resolved": {
+    "today": "29 February 2024",
+    "tonight": "29 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "tomorrow",
+   "out": "tomorrow [= 1 March 2024]",
+   "resolved": {
+    "tomorrow": "1 March 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "this morning",
+   "out": "this morning [= 29 February 2024]",
+   "resolved": {
+    "this_morning": "29 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "this afternoon and this evening",
+   "out": "this afternoon [= 29 February 2024] and this evening [= 29 February 2024]",
+   "resolved": {
+    "this_afternoon": "29 February 2024",
+    "this_evening": "29 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "earlier today",
+   "out": "earlier today [= 29 February 2024]",
+   "resolved": {
+    "today": "29 February 2024",
+    "earlier_today": "29 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "the other day",
+   "out": "the other day [= around 27 February 2024]",
+   "resolved": {
+    "the_other_day": "around 27 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "a couple days ago",
+   "out": "a couple days ago [= 27 February 2024]",
+   "resolved": {
+    "couple_days_ago": "27 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "couple of days ago",
+   "out": "a couple days ago [= 27 February 2024]",
+   "resolved": {
+    "couple_days_ago": "27 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "the day before yesterday",
+   "out": "the day before yesterday [= 28 February 2024]",
+   "resolved": {
+    "yesterday": "28 February 2024",
+    "day_before_yesterday": "27 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "next week",
+   "out": "next week [= week of 4 March 2024]",
+   "resolved": {
+    "next_week": "week of 4 March 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "over the weekend",
+   "out": "over the weekend [= 24-25 February 2024]",
+   "resolved": {
+    "over_weekend": "24-25 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "during the weekend",
+   "out": "during the weekend [= 24-25 February 2024]",
+   "resolved": {
+    "over_weekend": "24-25 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "three days ago",
+   "out": "three days ago [= 26 February 2024]",
+   "resolved": {
+    "three_days_ago": "26 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "five days ago",
+   "out": "five days ago [= 24 February 2024]",
+   "resolved": {
+    "five_days_ago": "24 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "a week ago",
+   "out": "a week ago [= 22 February 2024]",
+   "resolved": {
+    "a_week_ago": "22 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "ten years ago",
+   "out": "ten years ago [= 2014]",
+   "resolved": {
+    "10_years_ago": "2014"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "5 years ago",
+   "out": "5 years ago [= 2019]",
+   "resolved": {
+    "5_years_ago": "2019"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "on thursday next week",
+   "out": "on thursday [= 22 February 2024] next week [= week of 4 March 2024]",
+   "resolved": {
+    "on_thursday": "22 February 2024",
+    "next_week": "week of 4 March 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "nothing relative here",
+   "out": "nothing relative here",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "Yesterday and YESTERDAY",
+   "out": "yesterday [= 28 February 2024] and yesterday [= 28 February 2024]",
+   "resolved": {
+    "yesterday": "28 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "last weekend [= already]",
+   "out": "last weekend [= 24-25 February 2024] [= already]",
+   "resolved": {
+    "last_weekend": "24-25 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "on Sunday, last Sunday and this Sunday",
+   "out": "on sunday [= 25 February 2024], last sunday [= 25 February 2024] and this sunday [= 3 March 2024]",
+   "resolved": {
+    "last_sunday": "25 February 2024",
+    "this_sunday": "3 March 2024",
+    "on_sunday": "25 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "on the weekend",
+   "out": "on the weekend",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "on su",
+   "out": "on sunday [= 25 February 2024]",
+   "resolved": {
+    "on_sunday": "25 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "last mo",
+   "out": "last monday [= 26 February 2024]",
+   "resolved": {
+    "last_monday": "26 February 2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "I said thanks today [= 1 Jan 2020]",
+   "out": "I said thanks today [= 1 Jan 2020]",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2024-02-29T23:59:59-05:00",
+   "text": "99999999999 days ago",
+   "out": null,
+   "resolved": null,
+   "error": "OverflowError"
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "I went there yesterday",
+   "out": "I went there yesterday [= 1 March 2026]",
+   "resolved": {
+    "yesterday": "1 March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "last night was fun",
+   "out": "last night [= 1 March 2026] was fun",
+   "resolved": {
+    "yesterday": "1 March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "last weekend we hiked",
+   "out": "last weekend [= 28-1 February 2026] we hiked",
+   "resolved": {
+    "last_weekend": "28-1 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "last week I started",
+   "out": "last week [= week of 23 February 2026] I started",
+   "resolved": {
+    "last_week": "week of 23 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "this week is busy",
+   "out": "this week [= week of 2 March 2026] is busy",
+   "resolved": {
+    "this_week": "week of 2 March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "last weekend and last week",
+   "out": "last weekend [= 28-1 February 2026] and last week [= week of 23 February 2026]",
+   "resolved": {
+    "last_weekend": "28-1 February 2026",
+    "last_week": "week of 23 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "last year I moved",
+   "out": "last year [= 2025] I moved",
+   "resolved": {
+    "last_year": "2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "last month we met",
+   "out": "last month [= February 2026] we met",
+   "resolved": {
+    "last_month": "February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "this month I travel",
+   "out": "this month [= March 2026] I travel",
+   "resolved": {
+    "this_month": "March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "this year is good",
+   "out": "this year [= 2026] is good",
+   "resolved": {
+    "this_year": "2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "next month I go",
+   "out": "next month [= April 2026] I go",
+   "resolved": {
+    "next_month": "April 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "a few weeks ago",
+   "out": "a few weeks ago [= around 9 February 2026]",
+   "resolved": {
+    "few_weeks_ago": "around 9 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "few weeks ago",
+   "out": "a few weeks ago [= around 9 February 2026]",
+   "resolved": {
+    "few_weeks_ago": "around 9 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "two weeks ago",
+   "out": "two weeks ago [= around 16 February 2026]",
+   "resolved": {
+    "two_weeks_ago": "around 16 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "2 weeks ago",
+   "out": "two weeks ago [= around 16 February 2026]",
+   "resolved": {
+    "two_weeks_ago": "around 16 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "3 days ago and 10 days ago",
+   "out": "3 days ago [= 27 February 2026] and 10 days ago [= 27 February 2026]",
+   "resolved": {
+    "3_days_ago": "27 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "two days ago",
+   "out": "two days ago [= 28 February 2026]",
+   "resolved": {
+    "two_days_ago": "28 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "last Monday",
+   "out": "last monday [= 23 February 2026]",
+   "resolved": {
+    "last_monday": "23 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "last friday and last Fri.",
+   "out": "last friday [= 27 February 2026] and last friday [= 27 February 2026].",
+   "resolved": {
+    "last_friday": "27 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "this sat",
+   "out": "this saturday [= 7 March 2026]",
+   "resolved": {
+    "this_saturday": "7 March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "next tues",
+   "out": "next tuesday [= 10 March 2026]",
+   "resolved": {
+    "next_tuesday": "10 March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "on wed",
+   "out": "on wednesday [= 25 February 2026]",
+   "resolved": {
+    "on_wednesday": "25 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "on Weds we met",
+   "out": "on wednesday [= 25 February 2026] we met",
+   "resolved": {
+    "on_wednesday": "25 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "today and tonight",
+   "out": "today [= 2 March 2026] and tonight [= 2 March 2026]",
+   "resolved": {
+    "today": "2 March 2026",
+    "tonight": "2 March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "tomorrow",
+   "out": "tomorrow [= 3 March 2026]",
+   "resolved": {
+    "tomorrow": "3 March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "this morning",
+   "out": "this morning [= 2 March 2026]",
+   "resolved": {
+    "this_morning": "2 March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "this afternoon and this evening",
+   "out": "this afternoon [= 2 March 2026] and this evening [= 2 March 2026]",
+   "resolved": {
+    "this_afternoon": "2 March 2026",
+    "this_evening": "2 March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "earlier today",
+   "out": "earlier today [= 2 March 2026]",
+   "resolved": {
+    "today": "2 March 2026",
+    "earlier_today": "2 March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "the other day",
+   "out": "the other day [= around 28 February 2026]",
+   "resolved": {
+    "the_other_day": "around 28 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "a couple days ago",
+   "out": "a couple days ago [= 28 February 2026]",
+   "resolved": {
+    "couple_days_ago": "28 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "couple of days ago",
+   "out": "a couple days ago [= 28 February 2026]",
+   "resolved": {
+    "couple_days_ago": "28 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "the day before yesterday",
+   "out": "the day before yesterday [= 1 March 2026]",
+   "resolved": {
+    "yesterday": "1 March 2026",
+    "day_before_yesterday": "28 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "next week",
+   "out": "next week [= week of 9 March 2026]",
+   "resolved": {
+    "next_week": "week of 9 March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "over the weekend",
+   "out": "over the weekend [= 28-1 February 2026]",
+   "resolved": {
+    "over_weekend": "28-1 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "during the weekend",
+   "out": "during the weekend [= 28-1 February 2026]",
+   "resolved": {
+    "over_weekend": "28-1 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "three days ago",
+   "out": "three days ago [= 27 February 2026]",
+   "resolved": {
+    "three_days_ago": "27 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "five days ago",
+   "out": "five days ago [= 25 February 2026]",
+   "resolved": {
+    "five_days_ago": "25 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "a week ago",
+   "out": "a week ago [= 23 February 2026]",
+   "resolved": {
+    "a_week_ago": "23 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "ten years ago",
+   "out": "ten years ago [= 2016]",
+   "resolved": {
+    "10_years_ago": "2016"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "5 years ago",
+   "out": "5 years ago [= 2021]",
+   "resolved": {
+    "5_years_ago": "2021"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "on thursday next week",
+   "out": "on thursday [= 26 February 2026] next week [= week of 9 March 2026]",
+   "resolved": {
+    "on_thursday": "26 February 2026",
+    "next_week": "week of 9 March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "nothing relative here",
+   "out": "nothing relative here",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "Yesterday and YESTERDAY",
+   "out": "yesterday [= 1 March 2026] and yesterday [= 1 March 2026]",
+   "resolved": {
+    "yesterday": "1 March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "last weekend [= already]",
+   "out": "last weekend [= 28-1 February 2026] [= already]",
+   "resolved": {
+    "last_weekend": "28-1 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "on Sunday, last Sunday and this Sunday",
+   "out": "on sunday [= 1 March 2026], last sunday [= 1 March 2026] and this sunday [= 8 March 2026]",
+   "resolved": {
+    "last_sunday": "1 March 2026",
+    "this_sunday": "8 March 2026",
+    "on_sunday": "1 March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "on the weekend",
+   "out": "on the weekend",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "on su",
+   "out": "on sunday [= 1 March 2026]",
+   "resolved": {
+    "on_sunday": "1 March 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "last mo",
+   "out": "last monday [= 23 February 2026]",
+   "resolved": {
+    "last_monday": "23 February 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "I said thanks today [= 1 Jan 2020]",
+   "out": "I said thanks today [= 1 Jan 2020]",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2026-03-02T09:12:00+00:00",
+   "text": "99999999999 days ago",
+   "out": null,
+   "resolved": null,
+   "error": "OverflowError"
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "I went there yesterday",
+   "out": "I went there yesterday [= 30 December 2026]",
+   "resolved": {
+    "yesterday": "30 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "last night was fun",
+   "out": "last night [= 30 December 2026] was fun",
+   "resolved": {
+    "yesterday": "30 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "last weekend we hiked",
+   "out": "last weekend [= 26-27 December 2026] we hiked",
+   "resolved": {
+    "last_weekend": "26-27 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "last week I started",
+   "out": "last week [= week of 21 December 2026] I started",
+   "resolved": {
+    "last_week": "week of 21 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "this week is busy",
+   "out": "this week [= week of 28 December 2026] is busy",
+   "resolved": {
+    "this_week": "week of 28 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "last weekend and last week",
+   "out": "last weekend [= 26-27 December 2026] and last week [= week of 21 December 2026]",
+   "resolved": {
+    "last_weekend": "26-27 December 2026",
+    "last_week": "week of 21 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "last year I moved",
+   "out": "last year [= 2025] I moved",
+   "resolved": {
+    "last_year": "2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "last month we met",
+   "out": "last month [= November 2026] we met",
+   "resolved": {
+    "last_month": "November 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "this month I travel",
+   "out": "this month [= December 2026] I travel",
+   "resolved": {
+    "this_month": "December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "this year is good",
+   "out": "this year [= 2026] is good",
+   "resolved": {
+    "this_year": "2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "next month I go",
+   "out": "next month [= January 2027] I go",
+   "resolved": {
+    "next_month": "January 2027"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "a few weeks ago",
+   "out": "a few weeks ago [= around 10 December 2026]",
+   "resolved": {
+    "few_weeks_ago": "around 10 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "few weeks ago",
+   "out": "a few weeks ago [= around 10 December 2026]",
+   "resolved": {
+    "few_weeks_ago": "around 10 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "two weeks ago",
+   "out": "two weeks ago [= around 17 December 2026]",
+   "resolved": {
+    "two_weeks_ago": "around 17 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "2 weeks ago",
+   "out": "two weeks ago [= around 17 December 2026]",
+   "resolved": {
+    "two_weeks_ago": "around 17 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "3 days ago and 10 days ago",
+   "out": "3 days ago [= 28 December 2026] and 10 days ago [= 28 December 2026]",
+   "resolved": {
+    "3_days_ago": "28 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "two days ago",
+   "out": "two days ago [= 29 December 2026]",
+   "resolved": {
+    "two_days_ago": "29 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "last Monday",
+   "out": "last monday [= 28 December 2026]",
+   "resolved": {
+    "last_monday": "28 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "last friday and last Fri.",
+   "out": "last friday [= 25 December 2026] and last friday [= 25 December 2026].",
+   "resolved": {
+    "last_friday": "25 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "this sat",
+   "out": "this saturday [= 2 January 2027]",
+   "resolved": {
+    "this_saturday": "2 January 2027"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "next tues",
+   "out": "next tuesday [= 12 January 2027]",
+   "resolved": {
+    "next_tuesday": "12 January 2027"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "on wed",
+   "out": "on wednesday [= 30 December 2026]",
+   "resolved": {
+    "on_wednesday": "30 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "on Weds we met",
+   "out": "on wednesday [= 30 December 2026] we met",
+   "resolved": {
+    "on_wednesday": "30 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "today and tonight",
+   "out": "today [= 31 December 2026] and tonight [= 31 December 2026]",
+   "resolved": {
+    "today": "31 December 2026",
+    "tonight": "31 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "tomorrow",
+   "out": "tomorrow [= 1 January 2027]",
+   "resolved": {
+    "tomorrow": "1 January 2027"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "this morning",
+   "out": "this morning [= 31 December 2026]",
+   "resolved": {
+    "this_morning": "31 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "this afternoon and this evening",
+   "out": "this afternoon [= 31 December 2026] and this evening [= 31 December 2026]",
+   "resolved": {
+    "this_afternoon": "31 December 2026",
+    "this_evening": "31 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "earlier today",
+   "out": "earlier today [= 31 December 2026]",
+   "resolved": {
+    "today": "31 December 2026",
+    "earlier_today": "31 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "the other day",
+   "out": "the other day [= around 29 December 2026]",
+   "resolved": {
+    "the_other_day": "around 29 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "a couple days ago",
+   "out": "a couple days ago [= 29 December 2026]",
+   "resolved": {
+    "couple_days_ago": "29 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "couple of days ago",
+   "out": "a couple days ago [= 29 December 2026]",
+   "resolved": {
+    "couple_days_ago": "29 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "the day before yesterday",
+   "out": "the day before yesterday [= 30 December 2026]",
+   "resolved": {
+    "yesterday": "30 December 2026",
+    "day_before_yesterday": "29 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "next week",
+   "out": "next week [= week of 4 January 2027]",
+   "resolved": {
+    "next_week": "week of 4 January 2027"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "over the weekend",
+   "out": "over the weekend [= 26-27 December 2026]",
+   "resolved": {
+    "over_weekend": "26-27 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "during the weekend",
+   "out": "during the weekend [= 26-27 December 2026]",
+   "resolved": {
+    "over_weekend": "26-27 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "three days ago",
+   "out": "three days ago [= 28 December 2026]",
+   "resolved": {
+    "three_days_ago": "28 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "five days ago",
+   "out": "five days ago [= 26 December 2026]",
+   "resolved": {
+    "five_days_ago": "26 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "a week ago",
+   "out": "a week ago [= 24 December 2026]",
+   "resolved": {
+    "a_week_ago": "24 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "ten years ago",
+   "out": "ten years ago [= 2016]",
+   "resolved": {
+    "10_years_ago": "2016"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "5 years ago",
+   "out": "5 years ago [= 2021]",
+   "resolved": {
+    "5_years_ago": "2021"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "on thursday next week",
+   "out": "on thursday [= 24 December 2026] next week [= week of 4 January 2027]",
+   "resolved": {
+    "on_thursday": "24 December 2026",
+    "next_week": "week of 4 January 2027"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "nothing relative here",
+   "out": "nothing relative here",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "Yesterday and YESTERDAY",
+   "out": "yesterday [= 30 December 2026] and yesterday [= 30 December 2026]",
+   "resolved": {
+    "yesterday": "30 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "last weekend [= already]",
+   "out": "last weekend [= 26-27 December 2026] [= already]",
+   "resolved": {
+    "last_weekend": "26-27 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "on Sunday, last Sunday and this Sunday",
+   "out": "on sunday [= 27 December 2026], last sunday [= 27 December 2026] and this sunday [= 3 January 2027]",
+   "resolved": {
+    "last_sunday": "27 December 2026",
+    "this_sunday": "3 January 2027",
+    "on_sunday": "27 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "on the weekend",
+   "out": "on the weekend",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "on su",
+   "out": "on sunday [= 27 December 2026]",
+   "resolved": {
+    "on_sunday": "27 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "last mo",
+   "out": "last monday [= 28 December 2026]",
+   "resolved": {
+    "last_monday": "28 December 2026"
+   },
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "I said thanks today [= 1 Jan 2020]",
+   "out": "I said thanks today [= 1 Jan 2020]",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2026-12-31T12:00:00Z",
+   "text": "99999999999 days ago",
+   "out": null,
+   "resolved": null,
+   "error": "OverflowError"
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "I went there yesterday",
+   "out": "I went there yesterday [= 14 June 2025]",
+   "resolved": {
+    "yesterday": "14 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "last night was fun",
+   "out": "last night [= 14 June 2025] was fun",
+   "resolved": {
+    "yesterday": "14 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "last weekend we hiked",
+   "out": "last weekend [= 14-15 June 2025] we hiked",
+   "resolved": {
+    "last_weekend": "14-15 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "last week I started",
+   "out": "last week [= week of 2 June 2025] I started",
+   "resolved": {
+    "last_week": "week of 2 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "this week is busy",
+   "out": "this week [= week of 9 June 2025] is busy",
+   "resolved": {
+    "this_week": "week of 9 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "last weekend and last week",
+   "out": "last weekend [= 14-15 June 2025] and last week [= week of 2 June 2025]",
+   "resolved": {
+    "last_weekend": "14-15 June 2025",
+    "last_week": "week of 2 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "last year I moved",
+   "out": "last year [= 2024] I moved",
+   "resolved": {
+    "last_year": "2024"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "last month we met",
+   "out": "last month [= May 2025] we met",
+   "resolved": {
+    "last_month": "May 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "this month I travel",
+   "out": "this month [= June 2025] I travel",
+   "resolved": {
+    "this_month": "June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "this year is good",
+   "out": "this year [= 2025] is good",
+   "resolved": {
+    "this_year": "2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "next month I go",
+   "out": "next month [= July 2025] I go",
+   "resolved": {
+    "next_month": "July 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "a few weeks ago",
+   "out": "a few weeks ago [= around 25 May 2025]",
+   "resolved": {
+    "few_weeks_ago": "around 25 May 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "few weeks ago",
+   "out": "a few weeks ago [= around 25 May 2025]",
+   "resolved": {
+    "few_weeks_ago": "around 25 May 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "two weeks ago",
+   "out": "two weeks ago [= around 1 June 2025]",
+   "resolved": {
+    "two_weeks_ago": "around 1 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "2 weeks ago",
+   "out": "two weeks ago [= around 1 June 2025]",
+   "resolved": {
+    "two_weeks_ago": "around 1 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "3 days ago and 10 days ago",
+   "out": "3 days ago [= 12 June 2025] and 10 days ago [= 12 June 2025]",
+   "resolved": {
+    "3_days_ago": "12 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "two days ago",
+   "out": "two days ago [= 13 June 2025]",
+   "resolved": {
+    "two_days_ago": "13 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "last Monday",
+   "out": "last monday [= 9 June 2025]",
+   "resolved": {
+    "last_monday": "9 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "last friday and last Fri.",
+   "out": "last friday [= 13 June 2025] and last friday [= 13 June 2025].",
+   "resolved": {
+    "last_friday": "13 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "this sat",
+   "out": "this saturday [= 21 June 2025]",
+   "resolved": {
+    "this_saturday": "21 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "next tues",
+   "out": "next tuesday [= 24 June 2025]",
+   "resolved": {
+    "next_tuesday": "24 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "on wed",
+   "out": "on wednesday [= 11 June 2025]",
+   "resolved": {
+    "on_wednesday": "11 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "on Weds we met",
+   "out": "on wednesday [= 11 June 2025] we met",
+   "resolved": {
+    "on_wednesday": "11 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "today and tonight",
+   "out": "today [= 15 June 2025] and tonight [= 15 June 2025]",
+   "resolved": {
+    "today": "15 June 2025",
+    "tonight": "15 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "tomorrow",
+   "out": "tomorrow [= 16 June 2025]",
+   "resolved": {
+    "tomorrow": "16 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "this morning",
+   "out": "this morning [= 15 June 2025]",
+   "resolved": {
+    "this_morning": "15 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "this afternoon and this evening",
+   "out": "this afternoon [= 15 June 2025] and this evening [= 15 June 2025]",
+   "resolved": {
+    "this_afternoon": "15 June 2025",
+    "this_evening": "15 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "earlier today",
+   "out": "earlier today [= 15 June 2025]",
+   "resolved": {
+    "today": "15 June 2025",
+    "earlier_today": "15 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "the other day",
+   "out": "the other day [= around 13 June 2025]",
+   "resolved": {
+    "the_other_day": "around 13 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "a couple days ago",
+   "out": "a couple days ago [= 13 June 2025]",
+   "resolved": {
+    "couple_days_ago": "13 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "couple of days ago",
+   "out": "a couple days ago [= 13 June 2025]",
+   "resolved": {
+    "couple_days_ago": "13 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "the day before yesterday",
+   "out": "the day before yesterday [= 14 June 2025]",
+   "resolved": {
+    "yesterday": "14 June 2025",
+    "day_before_yesterday": "13 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "next week",
+   "out": "next week [= week of 16 June 2025]",
+   "resolved": {
+    "next_week": "week of 16 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "over the weekend",
+   "out": "over the weekend [= 14-15 June 2025]",
+   "resolved": {
+    "over_weekend": "14-15 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "during the weekend",
+   "out": "during the weekend [= 14-15 June 2025]",
+   "resolved": {
+    "over_weekend": "14-15 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "three days ago",
+   "out": "three days ago [= 12 June 2025]",
+   "resolved": {
+    "three_days_ago": "12 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "five days ago",
+   "out": "five days ago [= 10 June 2025]",
+   "resolved": {
+    "five_days_ago": "10 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "a week ago",
+   "out": "a week ago [= 8 June 2025]",
+   "resolved": {
+    "a_week_ago": "8 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "ten years ago",
+   "out": "ten years ago [= 2015]",
+   "resolved": {
+    "10_years_ago": "2015"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "5 years ago",
+   "out": "5 years ago [= 2020]",
+   "resolved": {
+    "5_years_ago": "2020"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "on thursday next week",
+   "out": "on thursday [= 12 June 2025] next week [= week of 16 June 2025]",
+   "resolved": {
+    "on_thursday": "12 June 2025",
+    "next_week": "week of 16 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "nothing relative here",
+   "out": "nothing relative here",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "Yesterday and YESTERDAY",
+   "out": "yesterday [= 14 June 2025] and yesterday [= 14 June 2025]",
+   "resolved": {
+    "yesterday": "14 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "last weekend [= already]",
+   "out": "last weekend [= 14-15 June 2025] [= already]",
+   "resolved": {
+    "last_weekend": "14-15 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "on Sunday, last Sunday and this Sunday",
+   "out": "on sunday [= 8 June 2025], last sunday [= 8 June 2025] and this sunday [= 15 June 2025]",
+   "resolved": {
+    "last_sunday": "8 June 2025",
+    "this_sunday": "15 June 2025",
+    "on_sunday": "8 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "on the weekend",
+   "out": "on the weekend",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "on su",
+   "out": "on sunday [= 8 June 2025]",
+   "resolved": {
+    "on_sunday": "8 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "last mo",
+   "out": "last monday [= 9 June 2025]",
+   "resolved": {
+    "last_monday": "9 June 2025"
+   },
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "I said thanks today [= 1 Jan 2020]",
+   "out": "I said thanks today [= 1 Jan 2020]",
+   "resolved": {},
+   "error": null
+  },
+  {
+   "base": "2025-06-15T08:00:00",
+   "text": "99999999999 days ago",
+   "out": null,
+   "resolved": null,
+   "error": "OverflowError"
+  }
+ ],
+ "flexible": [
+  {
+   "text": "1:56 pm on 8 May, 2023",
+   "iso": "2023-05-08T13:56:00",
+   "error": null
+  },
+  {
+   "text": "10:15 am on 27 January, 2024",
+   "iso": "2024-01-27T10:15:00",
+   "error": null
+  },
+  {
+   "text": "12:00 am on 1 June, 2023",
+   "iso": "2023-06-01T00:00:00",
+   "error": null
+  },
+  {
+   "text": "2023-05-08T13:56:00",
+   "iso": "2023-05-08T13:56:00",
+   "error": null
+  },
+  {
+   "text": "2023-05-08",
+   "iso": "2023-05-08T00:00:00",
+   "error": null
+  },
+  {
+   "text": "8 May 2023",
+   "iso": "2023-05-08T00:00:00",
+   "error": null
+  },
+  {
+   "text": "May 8, 2023",
+   "iso": "2023-05-08T00:00:00",
+   "error": null
+  },
+  {
+   "text": "May 8 2023",
+   "iso": "2023-05-08T00:00:00",
+   "error": null
+  },
+  {
+   "text": "around 16 September 2026",
+   "iso": null,
+   "error": null
+  },
+  {
+   "text": "week of 14 September 2026",
+   "iso": null,
+   "error": null
+  },
+  {
+   "text": "7-8 March 2026",
+   "iso": null,
+   "error": null
+  },
+  {
+   "text": "September 2026",
+   "iso": null,
+   "error": null
+  },
+  {
+   "text": "2025",
+   "iso": null,
+   "error": null
+  },
+  {
+   "text": "31 February 2023",
+   "iso": null,
+   "error": "ValueError"
+  },
+  {
+   "text": "garbage",
+   "iso": null,
+   "error": null
+  },
+  {
+   "text": "",
+   "iso": null,
+   "error": null
+  },
+  {
+   "text": "2026-03-02T09:12:00+00:00",
+   "iso": "2026-03-02T09:12:00+00:00",
+   "error": null
+  },
+  {
+   "text": "13:00 pm on 8 May, 2023",
+   "iso": null,
+   "error": "ValueError"
+  }
+ ],
+ "parse_when": [
+  {
+   "when": "2024-03-15",
+   "observed_at": null,
+   "out": [
+    "2024-03-15",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-03-15",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2024-03-15",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-03-15",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2024-03-15",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-03-15",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2024-03-15",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-03-15",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-03-15",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-03-15",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2024-03-15",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-03-15",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2024-03-15",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-03-15",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2024-03-15",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-03",
+   "observed_at": null,
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "2024-03",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "2024-03",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "2024-03",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "2024-03",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "2024-03",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "2024-03",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "2024-03",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "2024",
+   "observed_at": null,
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "2024",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "2024",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "2024",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "2024",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "2024",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "2024",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "2024",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "March 2024",
+   "observed_at": null,
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "March 2024",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "March 2024",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "March 2024",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "March 2024",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "March 2024",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "March 2024",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "March 2024",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2024-03",
+    "month"
+   ]
+  },
+  {
+   "when": "8 May 2023",
+   "observed_at": null,
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "8 May 2023",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "8 May 2023",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "8 May 2023",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "8 May 2023",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "8 May 2023",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "8 May 2023",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "8 May 2023",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "May 8, 2023",
+   "observed_at": null,
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "May 8, 2023",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "May 8, 2023",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "May 8, 2023",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "May 8, 2023",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "May 8, 2023",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "May 8, 2023",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "May 8, 2023",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "null",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "null",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "null",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "null",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "null",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "null",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "null",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "null",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2024-13-01",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2024-13-01",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2024-13-01",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2024-13-01",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2024-13-01",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2024-13-01",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2024-13-01",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2024-13-01",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "yesterday",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "yesterday",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2026-09-16",
+    "day"
+   ]
+  },
+  {
+   "when": "yesterday",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2023-05-07",
+    "day"
+   ]
+  },
+  {
+   "when": "yesterday",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2025-12-31",
+    "day"
+   ]
+  },
+  {
+   "when": "yesterday",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-02-28",
+    "day"
+   ]
+  },
+  {
+   "when": "yesterday",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2026-03-01",
+    "day"
+   ]
+  },
+  {
+   "when": "yesterday",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2026-12-30",
+    "day"
+   ]
+  },
+  {
+   "when": "yesterday",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2025-06-14",
+    "day"
+   ]
+  },
+  {
+   "when": "next summer",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "next summer",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "next summer",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "next summer",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "next summer",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "next summer",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "next summer",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "next summer",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "last year",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "last year",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2025",
+    "year"
+   ]
+  },
+  {
+   "when": "last year",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2022",
+    "year"
+   ]
+  },
+  {
+   "when": "last year",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2025",
+    "year"
+   ]
+  },
+  {
+   "when": "last year",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2023",
+    "year"
+   ]
+  },
+  {
+   "when": "last year",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2025",
+    "year"
+   ]
+  },
+  {
+   "when": "last year",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2025",
+    "year"
+   ]
+  },
+  {
+   "when": "last year",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "this year",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "this year",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2026",
+    "year"
+   ]
+  },
+  {
+   "when": "this year",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2023",
+    "year"
+   ]
+  },
+  {
+   "when": "this year",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2026",
+    "year"
+   ]
+  },
+  {
+   "when": "this year",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "this year",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2026",
+    "year"
+   ]
+  },
+  {
+   "when": "this year",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2026",
+    "year"
+   ]
+  },
+  {
+   "when": "this year",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2025",
+    "year"
+   ]
+  },
+  {
+   "when": "next year",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "next year",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2027",
+    "year"
+   ]
+  },
+  {
+   "when": "next year",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "next year",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2027",
+    "year"
+   ]
+  },
+  {
+   "when": "next year",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2025",
+    "year"
+   ]
+  },
+  {
+   "when": "next year",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2027",
+    "year"
+   ]
+  },
+  {
+   "when": "next year",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2027",
+    "year"
+   ]
+  },
+  {
+   "when": "next year",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2026",
+    "year"
+   ]
+  },
+  {
+   "when": "a year ago",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "a year ago",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2025",
+    "year"
+   ]
+  },
+  {
+   "when": "a year ago",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2022",
+    "year"
+   ]
+  },
+  {
+   "when": "a year ago",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2025",
+    "year"
+   ]
+  },
+  {
+   "when": "a year ago",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2023",
+    "year"
+   ]
+  },
+  {
+   "when": "a year ago",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2025",
+    "year"
+   ]
+  },
+  {
+   "when": "a year ago",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2025",
+    "year"
+   ]
+  },
+  {
+   "when": "a year ago",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "two years ago",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "two years ago",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "two years ago",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2021",
+    "year"
+   ]
+  },
+  {
+   "when": "two years ago",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "two years ago",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2022",
+    "year"
+   ]
+  },
+  {
+   "when": "two years ago",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "two years ago",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2024",
+    "year"
+   ]
+  },
+  {
+   "when": "two years ago",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2023",
+    "year"
+   ]
+  },
+  {
+   "when": "2024-02-30",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2024-02-30",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2024-02-30",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2024-02-30",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2024-02-30",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2024-02-30",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2024-02-30",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2024-02-30",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "1899",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "1899",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "1899",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "1899",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "1899",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "1899",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "1899",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "1899",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2101",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2101",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2101",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2101",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2101",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2101",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2101",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "2101",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "sept 2024",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "sept 2024",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "sept 2024",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "sept 2024",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "sept 2024",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "sept 2024",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "sept 2024",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "sept 2024",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "sep 2024",
+   "observed_at": null,
+   "out": [
+    "2024-09",
+    "month"
+   ]
+  },
+  {
+   "when": "sep 2024",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2024-09",
+    "month"
+   ]
+  },
+  {
+   "when": "sep 2024",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2024-09",
+    "month"
+   ]
+  },
+  {
+   "when": "sep 2024",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2024-09",
+    "month"
+   ]
+  },
+  {
+   "when": "sep 2024",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-09",
+    "month"
+   ]
+  },
+  {
+   "when": "sep 2024",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2024-09",
+    "month"
+   ]
+  },
+  {
+   "when": "sep 2024",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2024-09",
+    "month"
+   ]
+  },
+  {
+   "when": "sep 2024",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2024-09",
+    "month"
+   ]
+  },
+  {
+   "when": "8 may, 2023",
+   "observed_at": null,
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "8 may, 2023",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "8 may, 2023",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "8 may, 2023",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "8 may, 2023",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "8 may, 2023",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "8 may, 2023",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "8 may, 2023",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "may 8 2023",
+   "observed_at": null,
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "may 8 2023",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "may 8 2023",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "may 8 2023",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "may 8 2023",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "may 8 2023",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "may 8 2023",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "may 8 2023",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "  \"2024-01-05\"  ",
+   "observed_at": null,
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "  \"2024-01-05\"  ",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "  \"2024-01-05\"  ",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "  \"2024-01-05\"  ",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "  \"2024-01-05\"  ",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "  \"2024-01-05\"  ",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "  \"2024-01-05\"  ",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "  \"2024-01-05\"  ",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05T10:00:00",
+   "observed_at": null,
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05T10:00:00",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05T10:00:00",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05T10:00:00",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05T10:00:00",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05T10:00:00",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05T10:00:00",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05T10:00:00",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05 10:00",
+   "observed_at": null,
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05 10:00",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05 10:00",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05 10:00",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05 10:00",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05 10:00",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05 10:00",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "2024-01-05 10:00",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2024-01-05",
+    "day"
+   ]
+  },
+  {
+   "when": "last month",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "last month",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2026-08",
+    "month"
+   ]
+  },
+  {
+   "when": "last month",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2023-04",
+    "month"
+   ]
+  },
+  {
+   "when": "last month",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2025-12",
+    "month"
+   ]
+  },
+  {
+   "when": "last month",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-01",
+    "month"
+   ]
+  },
+  {
+   "when": "last month",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2026-02",
+    "month"
+   ]
+  },
+  {
+   "when": "last month",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2026-11",
+    "month"
+   ]
+  },
+  {
+   "when": "last month",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2025-05",
+    "month"
+   ]
+  },
+  {
+   "when": "a few weeks ago",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "a few weeks ago",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2026-08",
+    "month"
+   ]
+  },
+  {
+   "when": "a few weeks ago",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2023-04",
+    "month"
+   ]
+  },
+  {
+   "when": "a few weeks ago",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2025-12",
+    "month"
+   ]
+  },
+  {
+   "when": "a few weeks ago",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-02",
+    "month"
+   ]
+  },
+  {
+   "when": "a few weeks ago",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2026-02",
+    "month"
+   ]
+  },
+  {
+   "when": "a few weeks ago",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2026-12",
+    "month"
+   ]
+  },
+  {
+   "when": "a few weeks ago",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2025-05",
+    "month"
+   ]
+  },
+  {
+   "when": "last weekend",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "last weekend",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2026-09",
+    "month"
+   ]
+  },
+  {
+   "when": "last weekend",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2023-05",
+    "month"
+   ]
+  },
+  {
+   "when": "last weekend",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2025-12",
+    "month"
+   ]
+  },
+  {
+   "when": "last weekend",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-02",
+    "month"
+   ]
+  },
+  {
+   "when": "last weekend",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2026-02",
+    "month"
+   ]
+  },
+  {
+   "when": "last weekend",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2026-12",
+    "month"
+   ]
+  },
+  {
+   "when": "last weekend",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2025-06",
+    "month"
+   ]
+  },
+  {
+   "when": "today",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "today",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2026-09-17",
+    "day"
+   ]
+  },
+  {
+   "when": "today",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2023-05-08",
+    "day"
+   ]
+  },
+  {
+   "when": "today",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2026-01-01",
+    "day"
+   ]
+  },
+  {
+   "when": "today",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-02-29",
+    "day"
+   ]
+  },
+  {
+   "when": "today",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2026-03-02",
+    "day"
+   ]
+  },
+  {
+   "when": "today",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2026-12-31",
+    "day"
+   ]
+  },
+  {
+   "when": "today",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2025-06-15",
+    "day"
+   ]
+  },
+  {
+   "when": "tomorrow",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "tomorrow",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2026-09-18",
+    "day"
+   ]
+  },
+  {
+   "when": "tomorrow",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2023-05-09",
+    "day"
+   ]
+  },
+  {
+   "when": "tomorrow",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2026-01-02",
+    "day"
+   ]
+  },
+  {
+   "when": "tomorrow",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-03-01",
+    "day"
+   ]
+  },
+  {
+   "when": "tomorrow",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2026-03-03",
+    "day"
+   ]
+  },
+  {
+   "when": "tomorrow",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2027-01-01",
+    "day"
+   ]
+  },
+  {
+   "when": "tomorrow",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2025-06-16",
+    "day"
+   ]
+  },
+  {
+   "when": "N/A",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "N/A",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "N/A",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "N/A",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "N/A",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "N/A",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "N/A",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "N/A",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "-",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "-",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "-",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "-",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "-",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "-",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "-",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "-",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "31 feb 2024",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "31 feb 2024",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "31 feb 2024",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "31 feb 2024",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "31 feb 2024",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "31 feb 2024",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "31 feb 2024",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "31 feb 2024",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "last monday",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "last monday",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2026-09-14",
+    "day"
+   ]
+  },
+  {
+   "when": "last monday",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2023-05-01",
+    "day"
+   ]
+  },
+  {
+   "when": "last monday",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2025-12-29",
+    "day"
+   ]
+  },
+  {
+   "when": "last monday",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-02-26",
+    "day"
+   ]
+  },
+  {
+   "when": "last monday",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2026-02-23",
+    "day"
+   ]
+  },
+  {
+   "when": "last monday",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2026-12-28",
+    "day"
+   ]
+  },
+  {
+   "when": "last monday",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2025-06-09",
+    "day"
+   ]
+  },
+  {
+   "when": "two weeks ago",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "two weeks ago",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2026-09",
+    "month"
+   ]
+  },
+  {
+   "when": "two weeks ago",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2023-04",
+    "month"
+   ]
+  },
+  {
+   "when": "two weeks ago",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2025-12",
+    "month"
+   ]
+  },
+  {
+   "when": "two weeks ago",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-02",
+    "month"
+   ]
+  },
+  {
+   "when": "two weeks ago",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2026-02",
+    "month"
+   ]
+  },
+  {
+   "when": "two weeks ago",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2026-12",
+    "month"
+   ]
+  },
+  {
+   "when": "two weeks ago",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2025-06",
+    "month"
+   ]
+  },
+  {
+   "when": "10 days ago",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "10 days ago",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2026-09-07",
+    "day"
+   ]
+  },
+  {
+   "when": "10 days ago",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2023-04-28",
+    "day"
+   ]
+  },
+  {
+   "when": "10 days ago",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2025-12-22",
+    "day"
+   ]
+  },
+  {
+   "when": "10 days ago",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-02-19",
+    "day"
+   ]
+  },
+  {
+   "when": "10 days ago",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2026-02-20",
+    "day"
+   ]
+  },
+  {
+   "when": "10 days ago",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2026-12-21",
+    "day"
+   ]
+  },
+  {
+   "when": "10 days ago",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2025-06-05",
+    "day"
+   ]
+  },
+  {
+   "when": "5 years ago",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "5 years ago",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "5 years ago",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "5 years ago",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "5 years ago",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "5 years ago",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "5 years ago",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "5 years ago",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "this week",
+   "observed_at": null,
+   "out": [
+    null,
+    "none"
+   ]
+  },
+  {
+   "when": "this week",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2026-09",
+    "month"
+   ]
+  },
+  {
+   "when": "this week",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2023-05",
+    "month"
+   ]
+  },
+  {
+   "when": "this week",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2025-12",
+    "month"
+   ]
+  },
+  {
+   "when": "this week",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2024-02",
+    "month"
+   ]
+  },
+  {
+   "when": "this week",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2026-03",
+    "month"
+   ]
+  },
+  {
+   "when": "this week",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2026-12",
+    "month"
+   ]
+  },
+  {
+   "when": "this week",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2025-06",
+    "month"
+   ]
+  },
+  {
+   "when": "jan 2025",
+   "observed_at": null,
+   "out": [
+    "2025-01",
+    "month"
+   ]
+  },
+  {
+   "when": "jan 2025",
+   "observed_at": "2026-09-17T10:00:00+00:00",
+   "out": [
+    "2025-01",
+    "month"
+   ]
+  },
+  {
+   "when": "jan 2025",
+   "observed_at": "2023-05-08T13:56:00+00:00",
+   "out": [
+    "2025-01",
+    "month"
+   ]
+  },
+  {
+   "when": "jan 2025",
+   "observed_at": "2026-01-01T00:30:00+02:00",
+   "out": [
+    "2025-01",
+    "month"
+   ]
+  },
+  {
+   "when": "jan 2025",
+   "observed_at": "2024-02-29T23:59:59-05:00",
+   "out": [
+    "2025-01",
+    "month"
+   ]
+  },
+  {
+   "when": "jan 2025",
+   "observed_at": "2026-03-02T09:12:00+00:00",
+   "out": [
+    "2025-01",
+    "month"
+   ]
+  },
+  {
+   "when": "jan 2025",
+   "observed_at": "2026-12-31T12:00:00Z",
+   "out": [
+    "2025-01",
+    "month"
+   ]
+  },
+  {
+   "when": "jan 2025",
+   "observed_at": "2025-06-15T08:00:00",
+   "out": [
+    "2025-01",
+    "month"
+   ]
+  }
+ ],
+ "parse_iso": [
+  {
+   "text": "2026-09-17T08:00:00+00:00",
+   "iso": "2026-09-17T08:00:00+00:00"
+  },
+  {
+   "text": "2026-09-17T08:00:00Z",
+   "iso": "2026-09-17T08:00:00+00:00"
+  },
+  {
+   "text": "2026-09-17",
+   "iso": "2026-09-17T00:00:00+00:00"
+  },
+  {
+   "text": "2026-09-17T08:00",
+   "iso": "2026-09-17T08:00:00+00:00"
+  },
+  {
+   "text": "2026-09-17T08",
+   "iso": "2026-09-17T08:00:00+00:00"
+  },
+  {
+   "text": "2026-09-17 08:00:00",
+   "iso": "2026-09-17T08:00:00+00:00"
+  },
+  {
+   "text": "2026-09-17T08:00:00.123+02:00",
+   "iso": "2026-09-17T08:00:00.123000+02:00"
+  },
+  {
+   "text": "2026-09-17T08:00:00.123456-05:30",
+   "iso": "2026-09-17T08:00:00.123456-05:30"
+  },
+  {
+   "text": "20260917",
+   "iso": "2026-09-17T00:00:00+00:00"
+  },
+  {
+   "text": "20260917T080000",
+   "iso": "2026-09-17T08:00:00+00:00"
+  },
+  {
+   "text": "2026-09-17T08:00:00+0200",
+   "iso": "2026-09-17T08:00:00+02:00"
+  },
+  {
+   "text": "garbage",
+   "iso": null
+  },
+  {
+   "text": "",
+   "iso": null
+  },
+  {
+   "text": "2026-13-01",
+   "iso": null
+  },
+  {
+   "text": "2026-09-17T25:00:00",
+   "iso": null
+  },
+  {
+   "text": "2026-09-17x08:00:00",
+   "iso": "2026-09-17T08:00:00+00:00"
+  },
+  {
+   "text": "2026-09-17T08:00:00.1",
+   "iso": "2026-09-17T08:00:00.100000+00:00"
+  },
+  {
+   "text": "2026-09-17T08:00:00,5",
+   "iso": "2026-09-17T08:00:00.500000+00:00"
+  }
+ ],
+ "older": [
+  {
+   "a": "2026-05-01T12:00:00+02:00",
+   "b": "2026-05-01T09:00:00+00:00",
+   "out": false
+  },
+  {
+   "a": "2026-05-01T08:00:00+02:00",
+   "b": "2026-05-01T09:00:00+00:00",
+   "out": true
+  },
+  {
+   "a": "",
+   "b": "2026-01-01",
+   "out": false
+  },
+  {
+   "a": "x",
+   "b": "y",
+   "out": true
+  },
+  {
+   "a": "2026-01-01",
+   "b": "garbage",
+   "out": true
+  },
+  {
+   "a": "2026-01-01T00:00:00+00:00",
+   "b": "2026-01-01T00:00:00+00:00",
+   "out": false
+  }
+ ]
+}

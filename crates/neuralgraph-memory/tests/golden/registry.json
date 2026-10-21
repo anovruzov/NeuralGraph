@@ -1,0 +1,335 @@
+{
+ "cases": [
+  {
+   "op": "add",
+   "id": "melanie carter",
+   "name": "Melanie Carter",
+   "type": "person",
+   "count": 10,
+   "aliases": [
+    "mel"
+   ]
+  },
+  {
+   "op": "add",
+   "id": "berlin",
+   "name": "Berlin",
+   "type": "place",
+   "count": 5,
+   "aliases": []
+  },
+  {
+   "op": "resolve",
+   "mention": "Mel",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": "melanie carter"
+  },
+  {
+   "op": "resolve",
+   "mention": "Melanie",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": "melanie carter"
+  },
+  {
+   "op": "resolve",
+   "mention": "melanie carter's",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": "melanie carter"
+  },
+  {
+   "op": "resolve",
+   "mention": "I",
+   "speaker_id": "ali",
+   "etype": "",
+   "create": true,
+   "out": "ali"
+  },
+  {
+   "op": "resolve",
+   "mention": "Berlín",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": "berlin"
+  },
+  {
+   "op": "resolve",
+   "mention": "Tokyo",
+   "speaker_id": null,
+   "etype": "city",
+   "create": true,
+   "out": "tokyo"
+  },
+  {
+   "op": "resolve",
+   "mention": "May",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": null
+  },
+  {
+   "op": "resolve",
+   "mention": "2024",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": null
+  },
+  {
+   "op": "resolve",
+   "mention": "",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": null
+  },
+  {
+   "op": "add",
+   "id": "alex smith",
+   "name": "Alex Smith",
+   "type": "person",
+   "count": 3,
+   "aliases": []
+  },
+  {
+   "op": "add",
+   "id": "alex jones",
+   "name": "Alex Jones",
+   "type": "person",
+   "count": 3,
+   "aliases": []
+  },
+  {
+   "op": "resolve",
+   "mention": "Alex",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": "alex"
+  },
+  {
+   "op": "resolve",
+   "mention": "Alex Jones",
+   "speaker_id": null,
+   "etype": "person",
+   "create": true,
+   "out": "alex jones"
+  },
+  {
+   "op": "resolve",
+   "mention": "the user",
+   "speaker_id": "ali",
+   "etype": "",
+   "create": true,
+   "out": "ali"
+  },
+  {
+   "op": "resolve",
+   "mention": "Dr. Smith",
+   "speaker_id": null,
+   "etype": "person",
+   "create": false,
+   "out": null
+  },
+  {
+   "op": "resolve",
+   "mention": "Kreuzberg",
+   "speaker_id": null,
+   "etype": "Place",
+   "create": true,
+   "out": "kreuzberg"
+  },
+  {
+   "op": "resolve",
+   "mention": "kreuzbergg",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": "kreuzberg"
+  },
+  {
+   "op": "resolve",
+   "mention": "my",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": null
+  },
+  {
+   "op": "resolve",
+   "mention": "x",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": null
+  },
+  {
+   "op": "resolve",
+   "mention": "12-34",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": null
+  },
+  {
+   "op": "resolve",
+   "mention": "assistant",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": null
+  },
+  {
+   "op": "resolve",
+   "mention": "Luna",
+   "speaker_id": null,
+   "etype": "Dog",
+   "create": true,
+   "out": "luna"
+  },
+  {
+   "op": "resolve",
+   "mention": "Charité",
+   "speaker_id": null,
+   "etype": "organisation",
+   "create": true,
+   "out": "charite"
+  },
+  {
+   "op": "resolve",
+   "mention": "charite",
+   "speaker_id": null,
+   "etype": "",
+   "create": false,
+   "out": "charite"
+  },
+  {
+   "op": "add",
+   "id": "ali",
+   "name": "Ali",
+   "type": "",
+   "count": 2,
+   "aliases": [
+    "ali n",
+    "Ali Novruzov"
+   ]
+  },
+  {
+   "op": "resolve",
+   "mention": "Ali N",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": "ali"
+  },
+  {
+   "op": "resolve",
+   "mention": "ali novruzov",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": "ali"
+  },
+  {
+   "op": "resolve",
+   "mention": "Ali",
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": "ali"
+  },
+  {
+   "op": "resolve",
+   "mention": {
+    "x": 1
+   },
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": "x 1"
+  },
+  {
+   "op": "resolve",
+   "mention": 42,
+   "speaker_id": null,
+   "etype": "",
+   "create": true,
+   "out": null
+  },
+  {
+   "op": "resolve",
+   "mention": "Pottery Studio",
+   "speaker_id": null,
+   "etype": "hobby class",
+   "create": true,
+   "out": "pottery studio"
+  },
+  {
+   "op": "state",
+   "prompt_text": "Melanie Carter (person), Berlin (place), Alex Smith (person), Alex Jones (person), Ali",
+   "new_entities": {
+    "tokyo": {
+     "name": "Tokyo",
+     "type": "place",
+     "count": 0
+    },
+    "alex": {
+     "name": "Alex",
+     "type": "",
+     "count": 0
+    },
+    "kreuzberg": {
+     "name": "Kreuzberg",
+     "type": "place",
+     "count": 0
+    },
+    "luna": {
+     "name": "Luna",
+     "type": "pet",
+     "count": 0
+    },
+    "charite": {
+     "name": "Charité",
+     "type": "org",
+     "count": 0
+    },
+    "x 1": {
+     "name": "{\"x\": 1}",
+     "type": "",
+     "count": 0
+    },
+    "pottery studio": {
+     "name": "Pottery Studio",
+     "type": "other",
+     "count": 0
+    }
+   },
+   "aliases": {
+    "mel": "melanie carter",
+    "ali n": "ali",
+    "ali novruzov": "ali"
+   }
+  }
+ ],
+ "norm_type": {
+  "person": "person",
+  "People": "person",
+  "city": "place",
+  "big city": "other",
+  "hobby class": "other",
+  "": "",
+  "unknown thing": "other",
+  "University of X": "org",
+  "pet": "pet",
+  "Dog": "pet",
+  "media": "product",
+  "  ": ""
+ }
+}
