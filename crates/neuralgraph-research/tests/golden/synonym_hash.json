@@ -1,0 +1,11924 @@
+{
+ "table_size": 116935,
+ "table_sha256": "f8b0e29a252dbf5bcbecebb80f75d20262d7014a6a3921c030244ab22b6921fd",
+ "domain": {
+  "medium": [
+   "console",
+   "device",
+   "pc",
+   "platform",
+   "system"
+  ],
+  "mediums": [
+   "consoles",
+   "devices",
+   "pcs",
+   "platforms",
+   "systems"
+  ],
+  "console": [
+   "device",
+   "gamecube",
+   "medium",
+   "nintendo",
+   "pc",
+   "platform",
+   "playstation",
+   "switch",
+   "xbox"
+  ],
+  "tournament": [
+   "championship",
+   "competition",
+   "contest",
+   "tourney"
+  ],
+  "tourney": [
+   "competition",
+   "contest",
+   "tournament"
+  ],
+  "stream": [
+   "broadcast",
+   "live",
+   "streaming"
+  ],
+  "animal": [
+   "cat",
+   "creature",
+   "dog",
+   "pet",
+   "turtle"
+  ],
+  "animals": [
+   "cats",
+   "creatures",
+   "dogs",
+   "pets",
+   "turtles"
+  ],
+  "pet": [
+   "animal",
+   "cat",
+   "companion",
+   "dog",
+   "turtle"
+  ],
+  "pets": [
+   "animals",
+   "cats",
+   "companions",
+   "dogs",
+   "turtles"
+  ],
+  "letter": [
+   "correspondence",
+   "letters",
+   "mail",
+   "message"
+  ],
+  "letters": [
+   "correspondence",
+   "letter",
+   "mail",
+   "messages"
+  ],
+  "gift": [
+   "gave",
+   "give",
+   "present"
+  ],
+  "gave": [
+   "gift",
+   "give",
+   "present"
+  ],
+  "script": [
+   "movie",
+   "screenplay",
+   "writing"
+  ],
+  "scripts": [
+   "movies",
+   "screenplays",
+   "writings"
+  ],
+  "reject": [
+   "declined",
+   "denied",
+   "refused",
+   "rejected"
+  ],
+  "rejected": [
+   "declined",
+   "denied",
+   "refused",
+   "reject"
+  ]
+ },
+ "extended": {
+  "when": [],
+  "did": [],
+  "caroline": [
+   "carolean",
+   "caroline"
+  ],
+  "the": [],
+  "lgbtq": [],
+  "support": [
+   "accompaniment",
+   "back",
+   "back up",
+   "backing",
+   "bread and butter",
+   "confirm",
+   "corroborate",
+   "defend",
+   "digest",
+   "documentation",
+   "financial backing",
+   "financial support",
+   "funding",
+   "hold",
+   "keep",
+   "livelihood",
+   "living",
+   "patronize",
+   "reenforcement",
+   "reinforcement",
+   "subscribe",
+   "supporting",
+   "sustenance"
+  ],
+  "group": [
+   "aggroup",
+   "chemical group",
+   "grouping",
+   "mathematical group",
+   "radical"
+  ],
+  "melanie": [],
+  "paint": [
+   "key",
+   "pigment",
+   "rouge"
+  ],
+  "sunrise": [
+   "dawn",
+   "sunrise(a)"
+  ],
+  "what": [],
+  "fields": [
+   "fields",
+   "w. c. fields",
+   "william claude dukenfield"
+  ],
+  "would": [],
+  "likely": [
+   "potential",
+   "probable",
+   "probably"
+  ],
+  "pursue": [
+   "act on",
+   "follow",
+   "follow up on",
+   "prosecute",
+   "quest for"
+  ],
+  "her": [],
+  "educaton": [],
+  "research": [
+   "explore",
+   "inquiry",
+   "search"
+  ],
+  "identity": [
+   "identicalness",
+   "identity element",
+   "identity operator",
+   "indistinguishability",
+   "individuality",
+   "personal identity"
+  ],
+  "run": [
+   "black market",
+   "bleed",
+   "campaign",
+   "carry",
+   "consort",
+   "course",
+   "discharge",
+   "execute",
+   "extend",
+   "feed",
+   "flow",
+   "footrace",
+   "function",
+   "go",
+   "guide",
+   "hunt",
+   "ladder",
+   "lead",
+   "melt",
+   "move",
+   "operate",
+   "pass",
+   "play",
+   "ply",
+   "political campaign",
+   "prevail",
+   "race",
+   "range",
+   "ravel",
+   "rivulet",
+   "run for",
+   "running",
+   "running game",
+   "running play",
+   "scat",
+   "streak",
+   "tally",
+   "tend",
+   "test",
+   "unravel"
+  ],
+  "charity": [
+   "brotherly love",
+   "jacob's ladder"
+  ],
+  "race": [
+   "raceway",
+   "run",
+   "rush",
+   "slipstream",
+   "subspecies"
+  ],
+  "planning": [
+   "preparation",
+   "provision"
+  ],
+  "going": [
+   "departure",
+   "going(a)",
+   "passing",
+   "sledding"
+  ],
+  "camping": [
+   "bivouacking",
+   "encampment",
+   "tenting"
+  ],
+  "relationship": [
+   "human relationship",
+   "kinship"
+  ],
+  "status": [
+   "condition",
+   "position"
+  ],
+  "give": [
+   "afford",
+   "apply",
+   "collapse",
+   "commit",
+   "consecrate",
+   "contribute",
+   "dedicate",
+   "devote",
+   "establish",
+   "feed",
+   "gift",
+   "grant",
+   "hold",
+   "impart",
+   "move over",
+   "pass",
+   "pay",
+   "present",
+   "render",
+   "sacrifice",
+   "spring",
+   "springiness",
+   "throw",
+   "yield"
+  ],
+  "speech": [
+   "actor's line",
+   "address",
+   "language",
+   "lecture",
+   "manner of speaking",
+   "oral communication",
+   "speech communication",
+   "spoken communication",
+   "spoken language",
+   "voice communication"
+  ],
+  "school": [
+   "educate",
+   "school day",
+   "schoolhouse",
+   "schooling",
+   "schooltime",
+   "shoal"
+  ],
+  "meet": [
+   "assemble",
+   "come across",
+   "converge",
+   "encounter",
+   "fit",
+   "fitting",
+   "foregather",
+   "forgather",
+   "gather",
+   "get together",
+   "play",
+   "receive",
+   "run across",
+   "run into",
+   "see",
+   "sports meeting",
+   "suffer",
+   "take on",
+   "touch"
+  ],
+  "with": [],
+  "friends": [],
+  "family": [
+   "class",
+   "family line",
+   "family unit",
+   "fellowship",
+   "folk",
+   "home",
+   "house",
+   "household",
+   "kin",
+   "kinfolk",
+   "kinsfolk",
+   "menage",
+   "phratry",
+   "sept",
+   "syndicate"
+  ],
+  "and": [],
+  "mentors": [],
+  "how": [],
+  "long": [
+   "farseeing",
+   "hanker",
+   "retentive"
+  ],
+  "has": [],
+  "had": [],
+  "current": [
+   "electric current",
+   "stream"
+  ],
+  "for": [],
+  "where": [],
+  "move": [
+   "act",
+   "affect",
+   "be active",
+   "displace",
+   "go",
+   "make a motion",
+   "motion",
+   "motivate",
+   "relocation",
+   "run",
+   "travel"
+  ],
+  "from": [],
+  "years": [
+   "days",
+   "long time",
+   "old age"
+  ],
+  "ago": [
+   "agone"
+  ],
+  "was": [],
+  "birthday": [
+   "natal day"
+  ],
+  "career": [
+   "calling",
+   "life history",
+   "vocation"
+  ],
+  "path": [
+   "course",
+   "itinerary",
+   "route",
+   "track",
+   "way"
+  ],
+  "decided": [
+   "distinct"
+  ],
+  "persue": [],
+  "still": [
+   "allay",
+   "calm",
+   "distillery",
+   "ease",
+   "even",
+   "however",
+   "hush",
+   "inactive",
+   "noneffervescent",
+   "placid",
+   "relieve",
+   "silent",
+   "stock-still"
+  ],
+  "want": [
+   "desire",
+   "lack",
+   "need",
+   "privation",
+   "require",
+   "wish"
+  ],
+  "counseling": [
+   "guidance"
+  ],
+  "she": [],
+  "hadn": [],
+  "received": [
+   "standard"
+  ],
+  "growing": [
+   "growth"
+  ],
+  "activities": [],
+  "does": [],
+  "partake": [
+   "partake in",
+   "share",
+   "touch"
+  ],
+  "sign": [
+   "augury",
+   "bless",
+   "contract",
+   "gestural",
+   "mark",
+   "polarity",
+   "ratify",
+   "sign of the zodiac",
+   "sign on",
+   "sign up",
+   "signal",
+   "signalise",
+   "signalize",
+   "signboard",
+   "subscribe"
+  ],
+  "pottery": [
+   "clayware"
+  ],
+  "class": [
+   "category",
+   "classify",
+   "course",
+   "division",
+   "family",
+   "form",
+   "grade",
+   "social class",
+   "socio-economic class",
+   "stratum",
+   "year"
+  ],
+  "transgender": [
+   "transgendered"
+  ],
+  "conference": [
+   "group discussion",
+   "league"
+  ],
+  "camped": [],
+  "kids": [],
+  "like": [
+   "alike(p)",
+   "comparable",
+   "ilk",
+   "same",
+   "similar",
+   "the like",
+   "the likes of",
+   "wish"
+  ],
+  "museum": [],
+  "have": [
+   "accept",
+   "consume",
+   "experience",
+   "feature",
+   "get",
+   "give birth",
+   "have got",
+   "hold",
+   "induce",
+   "make",
+   "own",
+   "receive",
+   "rich person",
+   "suffer",
+   "take"
+  ],
+  "picnic": [
+   "cinch",
+   "field day"
+  ],
+  "seuss": [],
+  "books": [],
+  "bookshelf": [],
+  "read": [
+   "learn",
+   "record",
+   "register",
+   "say",
+   "scan",
+   "show",
+   "take",
+   "understand"
+  ],
+  "destress": [
+   "de-emphasize"
+  ],
+  "book": [
+   "bible",
+   "koran",
+   "ledger",
+   "record",
+   "reserve",
+   "rule book",
+   "script",
+   "volume"
+  ],
+  "nothing": [
+   "aught",
+   "cipher",
+   "cypher",
+   "goose egg",
+   "nada",
+   "naught",
+   "nil",
+   "nix",
+   "null",
+   "zero",
+   "zilch",
+   "zip",
+   "zippo"
+  ],
+  "impossible": [
+   "inconceivable",
+   "out of the question",
+   "unacceptable",
+   "unimaginable"
+  ],
+  "writing": [
+   "authorship",
+   "committal to writing",
+   "composition",
+   "penning",
+   "piece of writing",
+   "written material"
+  ],
+  "option": [
+   "alternative",
+   "choice"
+  ],
+  "adoption": [
+   "acceptance",
+   "acceptation",
+   "borrowing",
+   "espousal"
+  ],
+  "meeting": [
+   "coming together",
+   "confluence",
+   "congress",
+   "encounter",
+   "get together",
+   "group meeting",
+   "merging"
+  ],
+  "workshop": [
+   "shop"
+  ],
+  "considered": [],
+  "member": [
+   "extremity",
+   "fellow member",
+   "penis"
+  ],
+  "community": [
+   "biotic community",
+   "community of interests",
+   "residential district"
+  ],
+  "june": [
+   "june"
+  ],
+  "events": [],
+  "participated": [],
+  "pride": [
+   "congratulate",
+   "plume",
+   "pridefulness",
+   "superbia"
+  ],
+  "parade": [
+   "exhibit",
+   "march",
+   "promenade",
+   "troop"
+  ],
+  "during": [],
+  "summer": [
+   "summertime"
+  ],
+  "help": [
+   "aid",
+   "assist",
+   "assistant",
+   "avail",
+   "facilitate",
+   "help oneself",
+   "serve"
+  ],
+  "children": [],
+  "july": [
+   "july"
+  ],
+  "join": [
+   "articulation",
+   "conjoin",
+   "connect",
+   "fall in",
+   "get together",
+   "union"
+  ],
+  "mentorship": [],
+  "program": [
+   "broadcast",
+   "computer program",
+   "computer programme",
+   "course of study",
+   "plan",
+   "platform",
+   "programme"
+  ],
+  "recently": [
+   "late",
+   "lately",
+   "latterly",
+   "of late"
+  ],
+  "done": [
+   "through",
+   "through with"
+  ],
+  "ways": [
+   "shipway",
+   "slipway"
+  ],
+  "participating": [
+   "active"
+  ],
+  "many": [],
+  "times": [
+   "multiplication"
+  ],
+  "gone": [
+   "asleep(p)",
+   "bygone",
+   "done for(p)",
+   "exhausted",
+   "gone(p)",
+   "intoxicated"
+  ],
+  "beach": [],
+  "new": [
+   "fresh",
+   "modern",
+   "new",
+   "new(a)",
+   "newly",
+   "raw",
+   "unexampled",
+   "young"
+  ],
+  "activist": [
+   "activistic",
+   "militant"
+  ],
+  "more": [
+   "more",
+   "more(a)",
+   "sir thomas more",
+   "thomas more",
+   "to a greater extent"
+  ],
+  "interested": [
+   "concerned"
+  ],
+  "national": [
+   "home(a)",
+   "subject"
+  ],
+  "park": [
+   "ballpark",
+   "common",
+   "commons",
+   "green",
+   "mungo park",
+   "park",
+   "parking lot",
+   "parkland"
+  ],
+  "theme": [
+   "composition",
+   "idea",
+   "melodic theme",
+   "motif",
+   "musical theme",
+   "root",
+   "subject"
+  ],
+  "kind": [
+   "form",
+   "genial",
+   "sort",
+   "tolerant",
+   "variety"
+  ],
+  "art": [
+   "artistic creation",
+   "artistic production",
+   "artistry",
+   "artwork",
+   "fine art",
+   "prowess"
+  ],
+  "make": [
+   "brand",
+   "cause",
+   "construct",
+   "cook",
+   "create",
+   "do",
+   "draw",
+   "form",
+   "gain",
+   "get",
+   "have",
+   "hold",
+   "induce",
+   "lay down",
+   "make believe",
+   "make up",
+   "make water",
+   "micturate",
+   "name",
+   "pass water",
+   "pee",
+   "pee-pee",
+   "piddle",
+   "piss",
+   "pretend",
+   "produce",
+   "puddle",
+   "reach",
+   "relieve oneself",
+   "seduce",
+   "shuffle",
+   "spend a penny",
+   "stool",
+   "take",
+   "take a leak",
+   "urinate",
+   "wee",
+   "wee-wee",
+   "work"
+  ],
+  "daughter": [
+   "girl"
+  ],
+  "attend": [
+   "advert",
+   "give ear",
+   "go to",
+   "hang",
+   "look",
+   "pay heed",
+   "see",
+   "serve",
+   "take care"
+  ],
+  "august": [
+   "aug",
+   "august",
+   "grand",
+   "lordly",
+   "revered",
+   "venerable"
+  ],
+  "ally": [
+   "friend"
+  ],
+  "who": [
+   "world health organization"
+  ],
+  "supports": [],
+  "negative": [
+   "damaging",
+   "disconfirming",
+   "electronegative",
+   "minus",
+   "negatively charged",
+   "veto"
+  ],
+  "experience": [
+   "feel",
+   "get",
+   "go through",
+   "have",
+   "know",
+   "receive",
+   "see"
+  ],
+  "types": [],
+  "made": [],
+  "fesetival": [],
+  "together": [
+   "in concert",
+   "unitedly"
+  ],
+  "political": [],
+  "leaning": [
+   "atilt",
+   "proclivity",
+   "propensity",
+   "tendency",
+   "tilt"
+  ],
+  "painted": [
+   "motley"
+  ],
+  "are": [
+   "ar"
+  ],
+  "pets": [
+   "animals",
+   "cats",
+   "companions",
+   "dogs",
+   "turtles"
+  ],
+  "names": [
+   "name calling"
+  ],
+  "apply": [
+   "enforce",
+   "give",
+   "go for",
+   "hold",
+   "lend oneself",
+   "practice",
+   "put on",
+   "use"
+  ],
+  "agencies": [],
+  "draw": [
+   "absorb",
+   "attract",
+   "cast",
+   "describe",
+   "disembowel",
+   "draw and quarter",
+   "draw play",
+   "draw poker",
+   "drawing card",
+   "get",
+   "get out",
+   "guide",
+   "haul",
+   "haulage",
+   "hook",
+   "lot",
+   "make",
+   "puff",
+   "pull",
+   "pull back",
+   "pull out",
+   "quarter",
+   "reap",
+   "standoff",
+   "string",
+   "take out",
+   "tie",
+   "trace",
+   "withdraw"
+  ],
+  "self": [
+   "ego"
+  ],
+  "portrait": [
+   "portrayal"
+  ],
+  "subject": [
+   "capable",
+   "case",
+   "content",
+   "dependent",
+   "depicted object",
+   "discipline",
+   "guinea pig",
+   "national",
+   "subjugate",
+   "theme",
+   "topic"
+  ],
+  "both": [
+   "both(a)"
+  ],
+  "symbols": [],
+  "important": [
+   "authoritative",
+   "crucial",
+   "of import",
+   "significant"
+  ],
+  "encounter": [
+   "brush",
+   "coming upon",
+   "confrontation",
+   "find",
+   "meet",
+   "meeting",
+   "run into"
+  ],
+  "people": [
+   "citizenry",
+   "multitude"
+  ],
+  "hike": [
+   "boost",
+   "hike up",
+   "hiking",
+   "raise",
+   "rise",
+   "tramp"
+  ],
+  "plate": [
+   "collection plate",
+   "crustal plate",
+   "denture",
+   "home plate",
+   "photographic plate",
+   "plateful",
+   "scale",
+   "shell"
+  ],
+  "religious": [
+   "spiritual"
+  ],
+  "instruments": [],
+  "play": [
+   "act",
+   "bet",
+   "bid",
+   "bring",
+   "caper",
+   "child's play",
+   "dally",
+   "drama",
+   "dramatic play",
+   "free rein",
+   "frolic",
+   "fun",
+   "gambling",
+   "gambol",
+   "looseness",
+   "maneuver",
+   "meet",
+   "playing period",
+   "recreate",
+   "romp",
+   "run",
+   "shimmer",
+   "spiel",
+   "swordplay",
+   "toy",
+   "turn"
+  ],
+  "musical": [
+   "melodious",
+   "musical comedy",
+   "musical theater"
+  ],
+  "artists": [],
+  "bands": [],
+  "seen": [],
+  "youth": [
+   "early days",
+   "juvenility",
+   "young",
+   "young person",
+   "youthfulness"
+  ],
+  "center": [
+   "center field",
+   "center of attention",
+   "center(a)",
+   "centre",
+   "centre of attention",
+   "concentrate",
+   "eye",
+   "focus on",
+   "heart",
+   "kernel",
+   "middle",
+   "midpoint",
+   "nerve center",
+   "nerve centre",
+   "plaza",
+   "snapper"
+  ],
+  "putting": [
+   "putt"
+  ],
+  "talent": [
+   "endowment"
+  ],
+  "show": [
+   "appearance",
+   "demo",
+   "demonstrate",
+   "display",
+   "exhibit",
+   "express",
+   "indicate",
+   "picture",
+   "present",
+   "prove",
+   "read",
+   "show up",
+   "testify",
+   "usher"
+  ],
+  "enjoy": [
+   "bask",
+   "delight",
+   "love",
+   "relish",
+   "savor",
+   "savour"
+  ],
+  "song": [
+   "birdcall",
+   "strain",
+   "sung",
+   "vocal"
+  ],
+  "four": [
+   "four-spot",
+   "foursome",
+   "iv",
+   "little joe",
+   "quadruplet",
+   "quartet",
+   "quatern",
+   "quaternary",
+   "quaternion",
+   "quaternity",
+   "tetrad"
+  ],
+  "seasons": [],
+  "vivaldi": [
+   "antonio lucio vivaldi",
+   "antonio vivaldi",
+   "vivaldi"
+  ],
+  "some": [
+   "approximately",
+   "some(a)"
+  ],
+  "changes": [],
+  "faced": [],
+  "transition": [
+   "conversion",
+   "modulation",
+   "passage"
+  ],
+  "journey": [
+   "journeying",
+   "travel"
+  ],
+  "hikes": [],
+  "biking": [],
+  "been": [],
+  "practicing": [],
+  "personality": [],
+  "traits": [],
+  "might": [
+   "mightiness",
+   "power"
+  ],
+  "say": [
+   "allege",
+   "order",
+   "pronounce",
+   "read",
+   "state",
+   "suppose"
+  ],
+  "specific": [
+   "particular"
+  ],
+  "attended": [
+   "accompanied",
+   "tended to"
+  ],
+  "suggestion": [
+   "hypnotism",
+   "proffer",
+   "prompting",
+   "proposition",
+   "trace"
+  ],
+  "friend": [
+   "acquaintance",
+   "ally",
+   "friend",
+   "quaker",
+   "supporter"
+  ],
+  "adopt": [
+   "assume",
+   "borrow",
+   "dramatize",
+   "espouse",
+   "follow",
+   "take in",
+   "take over",
+   "take up"
+  ],
+  "child": [
+   "baby",
+   "fry",
+   "kid",
+   "minor",
+   "nestling",
+   "nipper",
+   "shaver",
+   "small fry",
+   "tiddler",
+   "tike",
+   "tyke",
+   "youngster"
+  ],
+  "get": [
+   "acquire",
+   "arrive",
+   "become",
+   "beget",
+   "bring",
+   "capture",
+   "catch",
+   "contract",
+   "draw",
+   "drive",
+   "experience",
+   "get down",
+   "get under one's skin",
+   "grow",
+   "have",
+   "induce",
+   "let",
+   "make",
+   "pay back",
+   "perplex",
+   "receive",
+   "scram",
+   "suffer"
+  ],
+  "hurt": [
+   "ache",
+   "bruise",
+   "damage",
+   "detriment",
+   "distress",
+   "injure",
+   "injury",
+   "offend",
+   "pain",
+   "spite",
+   "suffer",
+   "suffering",
+   "weakened",
+   "wound",
+   "wounded"
+  ],
+  "roadtrip": [],
+  "after": [
+   "after(a)",
+   "subsequently"
+  ],
+  "another": [
+   "another(a)"
+  ],
+  "soon": [
+   "before long",
+   "presently",
+   "shortly"
+  ],
+  "items": [],
+  "bought": [],
+  "pass": [
+   "authorize",
+   "base on balls",
+   "bye",
+   "clear",
+   "communicate",
+   "crack",
+   "die",
+   "elapse",
+   "evanesce",
+   "exceed",
+   "excrete",
+   "fall",
+   "flip",
+   "give",
+   "guide",
+   "hand",
+   "happen",
+   "head",
+   "laissez passer",
+   "legislate",
+   "liberty chit",
+   "make it",
+   "make pass",
+   "mountain pass",
+   "notch",
+   "overhaul",
+   "overtake",
+   "pass on",
+   "passing",
+   "passing game",
+   "passing play",
+   "passing(a)",
+   "passport",
+   "reach",
+   "run",
+   "sink",
+   "spend",
+   "strait",
+   "straits",
+   "toss",
+   "travel by",
+   "turn over"
+  ],
+  "interview": [
+   "consultation",
+   "question"
+  ],
+  "buy": [
+   "bargain",
+   "bribe",
+   "purchase"
+  ],
+  "figurines": [],
+  "back": [
+   "back up",
+   "back(a)",
+   "backrest",
+   "backward",
+   "backwards",
+   "bet on",
+   "binding",
+   "dorsum",
+   "endorse",
+   "indorse",
+   "plump for",
+   "plunk for",
+   "rear",
+   "rearward",
+   "rearwards",
+   "second",
+   "spinal column",
+   "support"
+  ],
+  "home": [
+   "base",
+   "dwelling",
+   "family",
+   "home plate",
+   "home(a)",
+   "nursing home",
+   "place",
+   "rest home"
+  ],
+  "country": [
+   "area",
+   "land",
+   "nation",
+   "rural area",
+   "state"
+  ],
+  "raise": [
+   "arouse",
+   "ascent",
+   "bring up",
+   "call down",
+   "call forth",
+   "conjure",
+   "conjure up",
+   "elevate",
+   "enhance",
+   "erect",
+   "evoke",
+   "get up",
+   "grow",
+   "hike",
+   "invoke",
+   "leaven",
+   "lift",
+   "promote",
+   "prove",
+   "put forward",
+   "put up",
+   "rear",
+   "recruit",
+   "resurrect",
+   "rise",
+   "salary increase",
+   "set up",
+   "stir",
+   "wage hike",
+   "wage increase"
+  ],
+  "awareness": [
+   "cognisance",
+   "cognizance",
+   "consciousness",
+   "knowingness",
+   "sentience"
+  ],
+  "realize": [
+   "actualise",
+   "actualize",
+   "gain",
+   "realise",
+   "recognize",
+   "substantiate",
+   "understand"
+  ],
+  "prioritize": [
+   "prioritise"
+  ],
+  "care": [
+   "aid",
+   "attention",
+   "caution",
+   "charge",
+   "concern",
+   "give care",
+   "guardianship",
+   "maintenance",
+   "manage",
+   "tending",
+   "tutelage",
+   "upkeep",
+   "wish",
+   "worry"
+  ],
+  "plans": [],
+  "type": [
+   "character",
+   "typecast",
+   "typewrite"
+  ],
+  "individuals": [],
+  "agency": [
+   "authority",
+   "bureau",
+   "federal agency",
+   "government agency",
+   "means",
+   "office",
+   "representation"
+  ],
+  "considering": [],
+  "why": [
+   "wherefore"
+  ],
+  "choose": [
+   "opt",
+   "pick out",
+   "prefer",
+   "select",
+   "take"
+  ],
+  "excited": [
+   "activated",
+   "aroused",
+   "delirious"
+  ],
+  "about": [
+   "about(p)",
+   "almost",
+   "approximately",
+   "around",
+   "most",
+   "near",
+   "nearly",
+   "nigh",
+   "virtually",
+   "well-nigh"
+  ],
+  "process": [
+   "action",
+   "appendage",
+   "cognitive operation",
+   "cognitive process",
+   "march",
+   "mental process",
+   "operation",
+   "outgrowth",
+   "physical process",
+   "procedure",
+   "serve",
+   "summons",
+   "treat",
+   "unconscious process",
+   "work"
+  ],
+  "think": [
+   "believe",
+   "cerebrate",
+   "cogitate",
+   "conceive",
+   "consider",
+   "guess",
+   "imagine",
+   "intend",
+   "opine",
+   "reckon",
+   "remember",
+   "suppose"
+  ],
+  "decision": [
+   "conclusion",
+   "decisiveness",
+   "determination"
+  ],
+  "mel": [],
+  "husband": [
+   "conserve",
+   "hubby",
+   "married man"
+  ],
+  "married": [
+   "marital"
+  ],
+  "necklace": [],
+  "symbolize": [
+   "symbolise",
+   "typify"
+  ],
+  "grandma": [
+   "gran",
+   "grandmother",
+   "grannie",
+   "granny",
+   "nan",
+   "nanna"
+  ],
+  "gift": [
+   "endow",
+   "endowment",
+   "gave",
+   "give",
+   "giving",
+   "present"
+  ],
+  "hand": [
+   "bridge player",
+   "deal",
+   "handwriting",
+   "helping hand",
+   "hired hand",
+   "manus",
+   "mitt",
+   "pass",
+   "paw"
+  ],
+  "bowl": [
+   "bowlful",
+   "bowling ball",
+   "pipe bowl",
+   "roll",
+   "stadium",
+   "trough"
+  ],
+  "reminder": [
+   "admonisher"
+  ],
+  "while": [
+   "patch",
+   "piece",
+   "spell"
+  ],
+  "mental": [
+   "genial"
+  ],
+  "health": [
+   "wellness"
+  ],
+  "services": [],
+  "pursuing": [],
+  "discussed": [],
+  "motivated": [],
+  "place": [
+   "come in",
+   "come out",
+   "home",
+   "identify",
+   "invest",
+   "localise",
+   "localize",
+   "locate",
+   "plaza",
+   "position",
+   "property",
+   "put",
+   "rate",
+   "seat",
+   "set",
+   "shoes",
+   "space",
+   "station",
+   "stead",
+   "target",
+   "topographic point"
+  ],
+  "create": [
+   "make",
+   "produce"
+  ],
+  "black": [
+   "african-american",
+   "black",
+   "blacken",
+   "blackened",
+   "blackness",
+   "bleak",
+   "bootleg",
+   "calamitous",
+   "dark",
+   "dim",
+   "disastrous",
+   "disgraceful",
+   "fatal",
+   "fateful",
+   "grim",
+   "ignominious",
+   "inglorious",
+   "inkiness",
+   "joseph black",
+   "mordant",
+   "negro",
+   "negroid",
+   "opprobrious",
+   "pitch-black",
+   "pitch-dark",
+   "shameful",
+   "shirley temple",
+   "shirley temple black",
+   "sinister",
+   "smutty",
+   "total darkness"
+  ],
+  "white": [
+   "andrew d. white",
+   "andrew dickson white",
+   "ashen",
+   "blank",
+   "caucasian",
+   "e. b. white",
+   "edward d. white",
+   "edward douglas white jr.",
+   "edward white",
+   "egg white",
+   "elwyn brooks white",
+   "flannel",
+   "lily-white",
+   "patrick victor martindale white",
+   "patrick white",
+   "snowy",
+   "stanford white",
+   "t. h. white",
+   "theodore harold white",
+   "white",
+   "white person",
+   "white river",
+   "white-hot",
+   "whiten",
+   "whitened",
+   "whiteness"
+  ],
+  "photo": [
+   "photograph"
+  ],
+  "library": [
+   "depository library",
+   "program library",
+   "subroutine library"
+  ],
+  "favorite": [
+   "darling",
+   "favored",
+   "favourite",
+   "front-runner"
+  ],
+  "childhood": [
+   "puerility"
+  ],
+  "recommend": [
+   "advocate",
+   "commend",
+   "urge"
+  ],
+  "take": [
+   "accept",
+   "aim",
+   "assume",
+   "bring",
+   "carry",
+   "choose",
+   "claim",
+   "consider",
+   "consume",
+   "contain",
+   "contract",
+   "drive",
+   "fill",
+   "film",
+   "get hold of",
+   "have",
+   "lead",
+   "learn",
+   "lease",
+   "make",
+   "necessitate",
+   "occupy",
+   "read",
+   "remove",
+   "return",
+   "submit",
+   "subscribe",
+   "use up"
+  ],
+  "away": [
+   "aside",
+   "away(p)",
+   "forth",
+   "off",
+   "out",
+   "outside"
+  ],
+  "becoming": [
+   "comely",
+   "comme il faut",
+   "decorous",
+   "seemly"
+  ],
+  "nicole": [],
+  "shoes": [
+   "place"
+  ],
+  "that": [],
+  "got": [],
+  "used": [
+   "exploited",
+   "secondhand"
+  ],
+  "reason": [
+   "argue",
+   "cause",
+   "conclude",
+   "ground",
+   "intellect",
+   "rationality",
+   "reason out",
+   "understanding"
+  ],
+  "getting": [
+   "acquiring"
+  ],
+  "into": [],
+  "running": [
+   "linear",
+   "run",
+   "running(a)",
+   "track"
+  ],
+  "great": [
+   "bang-up",
+   "big(p)",
+   "capital",
+   "outstanding"
+  ],
+  "pot": [
+   "batch",
+   "bay window",
+   "corporation",
+   "dope",
+   "flowerpot",
+   "gage",
+   "grass",
+   "green goddess",
+   "jackpot",
+   "kitty",
+   "locoweed",
+   "mary jane",
+   "potbelly",
+   "potentiometer",
+   "potful",
+   "sens",
+   "sess",
+   "skunk",
+   "smoke",
+   "toilet",
+   "tummy",
+   "weed"
+  ],
+  "clay": [
+   "cadaver",
+   "clay",
+   "henry clay",
+   "lucius clay",
+   "lucius dubignon clay",
+   "mud",
+   "the great compromiser"
+  ],
+  "creative": [
+   "originative"
+  ],
+  "project": [
+   "cast",
+   "contrive",
+   "externalise",
+   "externalize",
+   "plan",
+   "projection",
+   "propose",
+   "send off",
+   "stick out",
+   "throw",
+   "undertaking",
+   "visualize"
+  ],
+  "besides": [
+   "also",
+   "as well",
+   "in any case",
+   "likewise",
+   "too"
+  ],
+  "their": [],
+  "latest": [
+   "a la mode",
+   "in style",
+   "in vogue",
+   "modish",
+   "up-to-the-minute"
+  ],
+  "see": [
+   "ascertain",
+   "assure",
+   "attend",
+   "check",
+   "consider",
+   "control",
+   "determine",
+   "ensure",
+   "escort",
+   "examine",
+   "experience",
+   "go steady",
+   "insure",
+   "interpret",
+   "learn",
+   "meet",
+   "reckon",
+   "regard",
+   "see to it",
+   "understand",
+   "view",
+   "visit",
+   "visualize",
+   "watch",
+   "witness"
+  ],
+  "council": [],
+  "sunflowers": [],
+  "represent": [
+   "act",
+   "constitute",
+   "correspond",
+   "defend",
+   "exemplify",
+   "interpret",
+   "map",
+   "present",
+   "stage",
+   "stand for",
+   "typify"
+  ],
+  "according": [],
+  "flowers": [],
+  "inspired": [
+   "divine"
+  ],
+  "painting": [
+   "house painting",
+   "picture"
+  ],
+  "often": [
+   "frequently",
+   "much"
+  ],
+  "trip": [
+   "activate",
+   "actuate",
+   "get off",
+   "head trip",
+   "misstep",
+   "set off",
+   "slip",
+   "spark",
+   "spark off",
+   "stumble",
+   "touch off",
+   "travel",
+   "trigger",
+   "trigger off",
+   "trip out",
+   "trip up",
+   "trip-up",
+   "tripper",
+   "turn on"
+  ],
+  "last": [
+   "cobbler's last",
+   "concluding",
+   "death",
+   "end",
+   "endure",
+   "final",
+   "finally",
+   "in conclusion",
+   "last(a)",
+   "last-place",
+   "lastly",
+   "lowest",
+   "shoemaker's last",
+   "stopping point",
+   "survive",
+   "utmost"
+  ],
+  "year": [
+   "class",
+   "twelvemonth",
+   "yr"
+  ],
+  "feel": [
+   "experience",
+   "find",
+   "finger",
+   "palpate",
+   "sense",
+   "spirit",
+   "tactile property"
+  ],
+  "watching": [
+   "observation"
+  ],
+  "meteor": [
+   "meteoroid",
+   "shooting star"
+  ],
+  "shower": [
+   "cascade",
+   "exhibitor",
+   "lavish",
+   "rain shower",
+   "shower bath",
+   "shower down"
+  ],
+  "whose": [],
+  "celebrate": [
+   "fete",
+   "lionize",
+   "observe"
+  ],
+  "performed": [],
+  "concert": [],
+  "use": [
+   "apply",
+   "consumption",
+   "employ",
+   "employment",
+   "enjoyment",
+   "exercise",
+   "expend",
+   "function",
+   "habit",
+   "habituate",
+   "manipulation",
+   "practice",
+   "usage",
+   "utilisation",
+   "utilise",
+   "utilization",
+   "utilize"
+  ],
+  "colors": [
+   "colours"
+  ],
+  "patterns": [],
+  "pet": [
+   "animal",
+   "cat",
+   "companion",
+   "darling",
+   "dog",
+   "favored",
+   "positron emission tomography",
+   "turtle"
+  ],
+  "oliver": [
+   "joseph oliver",
+   "king oliver",
+   "oliver"
+  ],
+  "hide": [
+   "conceal",
+   "fell",
+   "hide out",
+   "obscure",
+   "pelt",
+   "shroud",
+   "skin"
+  ],
+  "his": [],
+  "bone": [
+   "cram",
+   "debone",
+   "ivory",
+   "off-white",
+   "os",
+   "osseous tissue",
+   "pearl"
+  ],
+  "once": [
+   "at one time",
+   "erst",
+   "erstwhile",
+   "formerly",
+   "in one case",
+   "one time"
+  ],
+  "activity": [
+   "action",
+   "activeness",
+   "bodily process",
+   "natural process"
+  ],
+  "dad": [
+   "dada",
+   "daddy",
+   "pa",
+   "papa",
+   "pappa",
+   "pop"
+  ],
+  "local": [
+   "local anesthetic"
+  ],
+  "church": [
+   "christian church",
+   "church building",
+   "church service"
+  ],
+  "find": [
+   "bump",
+   "chance",
+   "detect",
+   "determine",
+   "discover",
+   "discovery",
+   "encounter",
+   "feel",
+   "find oneself",
+   "happen",
+   "line up",
+   "receive",
+   "recover",
+   "regain",
+   "rule",
+   "witness"
+  ],
+  "neighborhood": [
+   "neighbourhood",
+   "region",
+   "vicinity"
+  ],
+  "walk": [
+   "base on balls",
+   "manner of walking",
+   "paseo",
+   "take the air",
+   "walk of life",
+   "walking",
+   "walkway"
+  ],
+  "which": [],
+  "motivates": [],
+  "courageous": [
+   "brave"
+  ],
+  "classical": [
+   "classic",
+   "classical music",
+   "graeco-roman",
+   "greco-roman"
+  ],
+  "musicians": [],
+  "listening": [
+   "hearing"
+  ],
+  "fan": [
+   "buff",
+   "devotee",
+   "lover",
+   "sports fan",
+   "winnow"
+  ],
+  "terms": [
+   "footing",
+   "price"
+  ],
+  "modern": [
+   "advanced",
+   "bodoni",
+   "bodoni font",
+   "mod",
+   "modern",
+   "modern font",
+   "new"
+  ],
+  "music": [
+   "euphony",
+   "medicine"
+  ],
+  "creating": [],
+  "precautionary": [
+   "precautional"
+  ],
+  "advice": [],
+  "started": [],
+  "setback": [
+   "reverse"
+  ],
+  "face": [
+   "boldness",
+   "confront",
+   "expression",
+   "font",
+   "front",
+   "grimace",
+   "human face",
+   "side"
+  ],
+  "october": [
+   "oct",
+   "october"
+  ],
+  "keep": [
+   "continue",
+   "donjon",
+   "dungeon",
+   "hold",
+   "hold on",
+   "keep open",
+   "maintain",
+   "observe",
+   "preserve",
+   "prevent",
+   "restrain",
+   "retain",
+   "stay fresh",
+   "support",
+   "sustain"
+  ],
+  "herself": [],
+  "busy": [
+   "engaged",
+   "fussy",
+   "in use",
+   "interfering",
+   "occupy"
+  ],
+  "break": [
+   "bankrupt",
+   "better",
+   "break away",
+   "break dance",
+   "break in",
+   "break of serve",
+   "break off",
+   "break out",
+   "break up",
+   "breakage",
+   "breakout",
+   "burst",
+   "bust",
+   "collapse",
+   "come apart",
+   "crack",
+   "dampen",
+   "demote",
+   "develop",
+   "discontinue",
+   "disruption",
+   "erupt",
+   "fail",
+   "fall apart",
+   "fault",
+   "fracture",
+   "gaolbreak",
+   "gap",
+   "get around",
+   "get out",
+   "good luck",
+   "happy chance",
+   "interrupt",
+   "interruption",
+   "jailbreak",
+   "open frame",
+   "pause",
+   "prison-breaking",
+   "prisonbreak",
+   "recrudesce",
+   "respite",
+   "rupture",
+   "separate",
+   "snap off",
+   "split up",
+   "stop",
+   "transgress",
+   "unwrap",
+   "violate",
+   "wear",
+   "wear out"
+  ],
+  "share": [
+   "apportion",
+   "contribution",
+   "deal",
+   "divvy up",
+   "parcel",
+   "part",
+   "partake",
+   "percentage",
+   "plowshare",
+   "portion",
+   "portion out"
+  ],
+  "poetry": [
+   "poesy",
+   "verse"
+  ],
+  "reading": [
+   "indication",
+   "interpretation",
+   "meter reading",
+   "reading",
+   "reading material",
+   "recitation"
+  ],
+  "posters": [],
+  "drawing": [
+   "draft",
+   "drafting",
+   "draftsmanship",
+   "drawing off",
+   "lottery"
+  ],
+  "describe": [
+   "depict",
+   "draw",
+   "identify",
+   "report",
+   "trace"
+  ],
+  "through": [
+   "done",
+   "through and through",
+   "through(a)"
+  ],
+  "life": [
+   "animation",
+   "biography",
+   "life sentence",
+   "life-time",
+   "lifespan",
+   "lifetime",
+   "liveliness",
+   "living"
+  ],
+  "happened": [],
+  "son": [
+   "boy",
+   "logos",
+   "son",
+   "word"
+  ],
+  "road": [
+   "route"
+  ],
+  "handle": [
+   "cover",
+   "grip",
+   "handgrip",
+   "hold",
+   "manage",
+   "palm",
+   "treat",
+   "wield"
+  ],
+  "accident": [
+   "chance event",
+   "fortuity",
+   "stroke"
+  ],
+  "reaction": [
+   "chemical reaction",
+   "response"
+  ],
+  "enjoying": [],
+  "grand": [
+   "august",
+   "deluxe",
+   "distinguished",
+   "exalted",
+   "expansive",
+   "fantastic",
+   "grand piano",
+   "thousand"
+  ],
+  "canyon": [
+   "canon"
+  ],
+  "supporting": [
+   "encouraging",
+   "load-bearing(a)",
+   "support"
+  ],
+  "relax": [
+   "decompress",
+   "loosen",
+   "loosen up",
+   "make relaxed",
+   "slack",
+   "slow down",
+   "unbend",
+   "unlax",
+   "unstrain",
+   "unwind"
+  ],
+  "respect": [
+   "abide by",
+   "deference",
+   "esteem",
+   "honor",
+   "honour",
+   "obedience",
+   "observe",
+   "prise",
+   "prize",
+   "regard",
+   "value"
+  ],
+  "grandpa": [
+   "grandfather"
+  ],
+  "sculpture": [
+   "carving",
+   "sculpt"
+  ],
+  "oscar": [
+   "academy award"
+  ],
+  "instrument": [
+   "cat's-paw",
+   "instrumental role",
+   "instrumentate",
+   "legal document",
+   "musical instrument",
+   "pawn",
+   "tool"
+  ],
+  "love": [
+   "beloved",
+   "enjoy",
+   "erotic love",
+   "passion",
+   "sexual love",
+   "sleep together"
+  ],
+  "most": [
+   "about",
+   "most(a)",
+   "to the highest degree"
+  ],
+  "jon": [],
+  "lost": [
+   "baffled",
+   "bemused",
+   "confused",
+   "doomed",
+   "helpless",
+   "missed"
+  ],
+  "job": [
+   "book of job",
+   "caper",
+   "chore",
+   "job",
+   "occupation",
+   "problem",
+   "speculate",
+   "subcontract",
+   "task"
+  ],
+  "banker": [],
+  "gina": [],
+  "door": [
+   "doorway"
+  ],
+  "dash": [
+   "bolt",
+   "crash",
+   "dah",
+   "dart",
+   "daunt",
+   "elan",
+   "flair",
+   "hyphen",
+   "panache",
+   "smash",
+   "sprint",
+   "style"
+  ],
+  "common": [
+   "coarse",
+   "mutual",
+   "park",
+   "plebeian",
+   "unwashed",
+   "usual",
+   "vernacular",
+   "vulgar"
+  ],
+  "decide": [
+   "adjudicate",
+   "determine",
+   "make up one's mind",
+   "resolve",
+   "settle"
+  ],
+  "start": [
+   "begin",
+   "beginning",
+   "bug out",
+   "bulge",
+   "bulge out",
+   "come out",
+   "commence",
+   "depart",
+   "embark on",
+   "get down",
+   "get going",
+   "go",
+   "head start",
+   "originate",
+   "pop",
+   "pop out",
+   "protrude",
+   "scratch",
+   "scratch line",
+   "start up",
+   "starting",
+   "starting line",
+   "starting signal",
+   "startle",
+   "take up"
+  ],
+  "dance": [
+   "dancing",
+   "trip the light fantastic",
+   "trip the light fantastic toe"
+  ],
+  "studio": [
+   "studio apartment"
+  ],
+  "thinks": [],
+  "ideal": [
+   "apotheosis",
+   "idealistic",
+   "nonesuch",
+   "nonpareil",
+   "nonsuch",
+   "paragon",
+   "saint"
+  ],
+  "should": [],
+  "look": [
+   "appear",
+   "attend",
+   "count",
+   "expect",
+   "expression",
+   "front",
+   "looking",
+   "looking at",
+   "search",
+   "seem",
+   "spirit"
+  ],
+  "performing": [
+   "acting"
+  ],
+  "festival": [
+   "fete"
+  ],
+  "launch": [
+   "establish",
+   "launching",
+   "plunge",
+   "set in motion"
+  ],
+  "campaign": [
+   "cause",
+   "crusade",
+   "drive",
+   "effort",
+   "hunting expedition",
+   "military campaign",
+   "movement",
+   "political campaign",
+   "run",
+   "safari",
+   "take the field"
+  ],
+  "store": [
+   "fund",
+   "hive away",
+   "lay in",
+   "memory",
+   "put in",
+   "salt away",
+   "shop",
+   "stack away",
+   "stash away",
+   "stock",
+   "storehouse"
+  ],
+  "paris": [
+   "capital of france",
+   "city of light",
+   "french capital",
+   "genus paris",
+   "paris"
+  ],
+  "city": [
+   "metropolis",
+   "urban center"
+  ],
+  "jean": [
+   "denim"
+  ],
+  "john": [
+   "gospel according to john",
+   "john",
+   "john lackland",
+   "john the divine",
+   "john the evangelist",
+   "king john",
+   "saint john",
+   "saint john the apostle",
+   "st. john",
+   "st. john the apostle",
+   "toilet",
+   "whoremaster"
+  ],
+  "visited": [],
+  "team": [
+   "squad",
+   "team up"
+  ],
+  "artist": [
+   "creative person"
+  ],
+  "cool": [
+   "all right",
+   "aplomb",
+   "chill",
+   "cool down",
+   "cool off",
+   "coolheaded",
+   "nerveless"
+  ],
+  "designs": [],
+  "tattoo": [],
+  "gym": [
+   "gymnasium"
+  ],
+  "open": [
+   "afford",
+   "assailable",
+   "candid",
+   "capable",
+   "clear",
+   "exposed",
+   "loose",
+   "open up",
+   "open(a)",
+   "opened",
+   "outdoors",
+   "overt",
+   "receptive",
+   "surface",
+   "undecided",
+   "undetermined",
+   "unfastened",
+   "unfold",
+   "unresolved"
+  ],
+  "online": [
+   "on-line",
+   "on-line(a)"
+  ],
+  "clothing": [
+   "article of clothing",
+   "habiliment",
+   "vesture",
+   "wear",
+   "wearable"
+  ],
+  "expanding": [],
+  "social": [
+   "sociable",
+   "societal"
+  ],
+  "media": [],
+  "presence": [
+   "bearing",
+   "front"
+  ],
+  "host": [
+   "boniface",
+   "horde",
+   "host",
+   "innkeeper",
+   "legion",
+   "master of ceremonies",
+   "server"
+  ],
+  "competition": [
+   "contention",
+   "contest",
+   "rival",
+   "rivalry"
+  ],
+  "fair": [
+   "average",
+   "bazaar",
+   "bonny",
+   "carnival",
+   "clean",
+   "fair(a)",
+   "fairish",
+   "fairly",
+   "honest",
+   "just",
+   "reasonable"
+  ],
+  "exposure": [
+   "photograph",
+   "vulnerability"
+  ],
+  "own": [
+   "have",
+   "own(a)",
+   "possess"
+  ],
+  "businesses": [],
+  "out": [
+   "away",
+   "come out",
+   "come out of the closet",
+   "extinct",
+   "forbidden",
+   "knocked out(p)",
+   "out(a)",
+   "out(p)"
+  ],
+  "they": [],
+  "design": [
+   "blueprint",
+   "designing",
+   "figure",
+   "invention",
+   "pattern",
+   "plan",
+   "purpose"
+  ],
+  "internship": [],
+  "accepted": [
+   "recognised",
+   "recognized"
+  ],
+  "lean": [
+   "angle",
+   "list",
+   "skimpy",
+   "slant",
+   "tend",
+   "thin",
+   "tilt",
+   "tip"
+  ],
+  "startup": [
+   "inauguration"
+  ],
+  "develop": [
+   "acquire",
+   "break",
+   "build up",
+   "evolve",
+   "explicate",
+   "grow",
+   "make grow",
+   "modernize",
+   "originate",
+   "train"
+  ],
+  "video": [
+   "picture",
+   "television",
+   "video recording"
+  ],
+  "presentation": [
+   "demonstration",
+   "display",
+   "intro",
+   "introduction",
+   "presentment"
+  ],
+  "teach": [
+   "blackbeard",
+   "edward teach",
+   "edward thatch",
+   "instruct",
+   "learn",
+   "teach",
+   "thatch"
+  ],
+  "style": [
+   "dash",
+   "expressive style",
+   "manner",
+   "stylus",
+   "title",
+   "vogue"
+  ],
+  "fashion": [
+   "forge",
+   "manner"
+  ],
+  "pieces": [],
+  "promote": [
+   "advance",
+   "advertise",
+   "boost",
+   "elevate",
+   "encourage",
+   "further",
+   "kick upstairs",
+   "raise",
+   "upgrade"
+  ],
+  "clothes": [
+   "apparel"
+  ],
+  "business": [
+   "business concern",
+   "business organisation",
+   "business organization",
+   "business sector",
+   "byplay",
+   "clientele",
+   "commercial enterprise",
+   "concern",
+   "occupation",
+   "stage business"
+  ],
+  "venture": [
+   "adventure",
+   "embark",
+   "guess",
+   "hazard",
+   "jeopardize",
+   "speculation",
+   "stake"
+  ],
+  "offer": [
+   "bid",
+   "crack",
+   "extend",
+   "offer up",
+   "offering",
+   "proffer",
+   "propose",
+   "put up",
+   "tender",
+   "volunteer"
+  ],
+  "receive": [
+   "experience",
+   "find",
+   "get",
+   "have",
+   "incur",
+   "invite",
+   "meet",
+   "obtain",
+   "pick up",
+   "take in",
+   "welcome"
+  ],
+  "participate": [
+   "enter",
+   "take part"
+  ],
+  "competitions": [],
+  "rome": [
+   "capital of italy",
+   "eternal city",
+   "italian capital",
+   "roma",
+   "rome"
+  ],
+  "cities": [],
+  "limited": [
+   "circumscribed",
+   "express",
+   "modified",
+   "special"
+  ],
+  "collection": [
+   "accumulation",
+   "aggregation",
+   "assemblage",
+   "assembling",
+   "collecting",
+   "compendium",
+   "solicitation"
+  ],
+  "hoodies": [],
+  "visit": [
+   "call",
+   "call in",
+   "chew the fat",
+   "inflict",
+   "inspect",
+   "see",
+   "sojourn",
+   "travel to"
+  ],
+  "networking": [],
+  "being": [
+   "beingness",
+   "existence",
+   "face of the earth",
+   "organism"
+  ],
+  "recognized": [
+   "accepted",
+   "recognised"
+  ],
+  "editors": [],
+  "learning": [
+   "acquisition",
+   "eruditeness"
+  ],
+  "marketing": [
+   "selling"
+  ],
+  "analytics": [],
+  "tools": [],
+  "collaborate": [
+   "cooperate",
+   "get together",
+   "join forces"
+  ],
+  "content": [
+   "capacity",
+   "cognitive content",
+   "contented",
+   "contentedness",
+   "contents",
+   "mental object",
+   "message",
+   "subject"
+  ],
+  "mention": [
+   "advert",
+   "bring up",
+   "citation",
+   "cite",
+   "honorable mention",
+   "name",
+   "note",
+   "refer",
+   "reference"
+  ],
+  "shia": [
+   "shiah"
+  ],
+  "labeouf": [],
+  "dancing": [
+   "dance",
+   "saltation",
+   "terpsichore"
+  ],
+  "memory": [
+   "computer memory",
+   "computer storage",
+   "memory board",
+   "remembering",
+   "retention",
+   "retentiveness",
+   "retentivity",
+   "storage",
+   "store"
+  ],
+  "piece": [
+   "assemble",
+   "bit",
+   "firearm",
+   "man",
+   "musical composition",
+   "nibble",
+   "objet d'art",
+   "part",
+   "patch",
+   "slice",
+   "while"
+  ],
+  "perform": [
+   "do",
+   "execute"
+  ],
+  "win": [
+   "acquire",
+   "earn",
+   "gain",
+   "succeed",
+   "winnings"
+  ],
+  "first": [
+   "1st",
+   "beginning",
+   "beginning(a)",
+   "first base",
+   "first gear",
+   "first of all",
+   "first off",
+   "first-class honours degree",
+   "firstly",
+   "foremost",
+   "inaugural",
+   "number 1",
+   "number one",
+   "world-class"
+  ],
+  "dancers": [],
+  "attitude": [
+   "mental attitude",
+   "position"
+  ],
+  "towards": [],
+  "part": [
+   "character",
+   "component",
+   "component part",
+   "constituent",
+   "contribution",
+   "depart",
+   "division",
+   "function",
+   "partially",
+   "parting",
+   "piece",
+   "portion",
+   "region",
+   "section",
+   "separate",
+   "share",
+   "voice"
+  ],
+  "flooring": [
+   "floor"
+  ],
+  "looking": [
+   "look",
+   "looking for",
+   "sounding"
+  ],
+  "february": [
+   "feb",
+   "february"
+  ],
+  "customers": [],
+  "progress": [
+   "advance",
+   "advancement",
+   "build up",
+   "come along",
+   "come on",
+   "forward motion",
+   "get along",
+   "get on",
+   "onward motion",
+   "procession",
+   "progression",
+   "shape up"
+  ],
+  "furniture": [
+   "article of furniture",
+   "piece of furniture"
+  ],
+  "decor": [
+   "interior decoration"
+  ],
+  "special": [
+   "especial(a)",
+   "extra",
+   "limited",
+   "particular",
+   "particular(a)"
+  ],
+  "doing": [],
+  "compare": [
+   "comparison",
+   "equate",
+   "liken"
+  ],
+  "entrepreneurial": [],
+  "journeys": [],
+  "successful": [],
+  "shut": [
+   "close",
+   "closed",
+   "exclude",
+   "unopen"
+  ],
+  "down": [
+   "cut down",
+   "depressed",
+   "devour",
+   "down",
+   "down feather",
+   "down pat",
+   "down(a)",
+   "down(p)",
+   "downward",
+   "downwardly",
+   "downwards",
+   "gloomy",
+   "john l. h. down",
+   "knock down",
+   "land",
+   "mastered",
+   "pile",
+   "polish",
+   "pull down",
+   "push down",
+   "shoot down",
+   "toss off"
+  ],
+  "bank": [
+   "bank building",
+   "camber",
+   "cant",
+   "count",
+   "deposit",
+   "depository financial institution",
+   "savings bank"
+  ],
+  "account": [
+   "account statement",
+   "accounting",
+   "answer for",
+   "bill",
+   "business relationship",
+   "calculate",
+   "explanation",
+   "history",
+   "report",
+   "score"
+  ],
+  "combine": [
+   "aggregate",
+   "blend",
+   "combining",
+   "compound",
+   "trust",
+   "unite"
+  ],
+  "him": [],
+  "contest": [
+   "competition",
+   "contend",
+   "repugn"
+  ],
+  "stay": [
+   "arrest",
+   "bide",
+   "continue",
+   "delay",
+   "detain",
+   "last out",
+   "persist",
+   "quell",
+   "remain",
+   "rest",
+   "stay on",
+   "stay put",
+   "stick",
+   "stick around"
+  ],
+  "confident": [
+   "convinced(p)",
+   "sure-footed",
+   "surefooted"
+  ],
+  "professional": [
+   "master",
+   "pro",
+   "professional person"
+  ],
+  "may": [
+   "may",
+   "whitethorn"
+  ],
+  "currently": [
+   "presently"
+  ],
+  "offering": [
+   "oblation",
+   "offer"
+  ],
+  "clipboard": [],
+  "notepad": [],
+  "attached": [
+   "affiliated",
+   "committed"
+  ],
+  "tell": [
+   "assure",
+   "distinguish",
+   "evidence",
+   "narrate",
+   "order",
+   "recite",
+   "recount",
+   "state",
+   "tell",
+   "william tell"
+  ],
+  "won": [
+   "north korean won",
+   "south korean won"
+  ],
+  "working": [
+   "running(a)",
+   "working(a)",
+   "workings"
+  ],
+  "opening": [
+   "chess opening",
+   "curtain raising",
+   "first step",
+   "gap",
+   "hatchway",
+   "opening night",
+   "orifice",
+   "possibility"
+  ],
+  "opened": [
+   "open"
+  ],
+  "night": [
+   "dark",
+   "nighttime",
+   "nox"
+  ],
+  "feeling": [
+   "impression",
+   "intuitive feeling",
+   "spirit",
+   "touch"
+  ],
+  "brings": [],
+  "plan": [
+   "architectural plan",
+   "be after",
+   "contrive",
+   "design",
+   "program",
+   "programme",
+   "project"
+  ],
+  "general": [
+   "cosmopolitan",
+   "full general",
+   "superior general"
+  ],
+  "sentiment": [
+   "opinion"
+  ],
+  "upcoming": [
+   "approaching"
+  ],
+  "edition": [
+   "version"
+  ],
+  "line": [
+   "agate line",
+   "argumentation",
+   "business line",
+   "cable",
+   "channel",
+   "contrast",
+   "course",
+   "credit line",
+   "demarcation",
+   "dividing line",
+   "line of business",
+   "line of merchandise",
+   "line of products",
+   "lineage",
+   "note",
+   "occupation",
+   "pipeline",
+   "product line",
+   "production line",
+   "rail line",
+   "railway line",
+   "run along",
+   "telephone line",
+   "trace",
+   "tune",
+   "wrinkle"
+  ],
+  "makes": [],
+  "perfect": [
+   "arrant(a)",
+   "hone",
+   "perfective"
+  ],
+  "mentor": [
+   "wise man"
+  ],
+  "guide": [
+   "draw",
+   "guide on",
+   "guidebook",
+   "lead",
+   "pass",
+   "run",
+   "scout",
+   "steer",
+   "template",
+   "usher"
+  ],
+  "temporary": [
+   "impermanent",
+   "irregular",
+   "temp"
+  ],
+  "cover": [
+   "address",
+   "binding",
+   "blanket",
+   "breed",
+   "brood",
+   "compensate",
+   "continue",
+   "cover charge",
+   "cover song",
+   "cover up",
+   "cover version",
+   "covering",
+   "covering fire",
+   "deal",
+   "embrace",
+   "extend",
+   "handle",
+   "insure",
+   "masking",
+   "overcompensate",
+   "overlay",
+   "plow",
+   "report",
+   "screen",
+   "screening",
+   "shroud",
+   "spread over",
+   "top",
+   "traverse",
+   "treat",
+   "underwrite",
+   "wrap up"
+  ],
+  "expenses": [],
+  "receiving": [],
+  "event": [
+   "case",
+   "consequence"
+  ],
+  "regarding": [],
+  "barcelona": [
+   "barcelona"
+  ],
+  "maria": [
+   "calophyllum longifolium",
+   "mare",
+   "maria"
+  ],
+  "dinner": [
+   "dinner party"
+  ],
+  "donate": [],
+  "car": [
+   "auto",
+   "automobile",
+   "cable car",
+   "elevator car",
+   "gondola",
+   "machine",
+   "motorcar",
+   "railcar",
+   "railroad car",
+   "railway car"
+  ],
+  "martial": [
+   "martial",
+   "martial(a)",
+   "soldierly",
+   "warlike"
+  ],
+  "arts": [
+   "humanistic discipline"
+  ],
+  "volunteering": [],
+  "des": [
+   "diethylstilbesterol",
+   "diethylstilbestrol"
+  ],
+  "having": [],
+  "financial": [
+   "fiscal"
+  ],
+  "gave": [
+   "gift",
+   "give",
+   "present"
+  ],
+  "money": [],
+  "younger": [
+   "jr."
+  ],
+  "tough": [
+   "bad",
+   "baffling",
+   "bully",
+   "hard",
+   "hood",
+   "ruffianly",
+   "rugged",
+   "street fighter",
+   "sturdy",
+   "toughened"
+  ],
+  "met": [],
+  "helped": [],
+  "test": [
+   "essay",
+   "examination",
+   "examine",
+   "mental test",
+   "mental testing",
+   "prove",
+   "psychometric test",
+   "quiz",
+   "run",
+   "screen",
+   "trial",
+   "try",
+   "try out"
+  ],
+  "taken": [
+   "interpreted"
+  ],
+  "multiple": [],
+  "grandmother": [
+   "grandma"
+  ],
+  "patriotic": [
+   "loyal"
+  ],
+  "person": [
+   "individual",
+   "mortal",
+   "somebody",
+   "someone",
+   "soul"
+  ],
+  "classes": [],
+  "degree": [
+   "academic degree",
+   "arcdegree",
+   "grade",
+   "level",
+   "point",
+   "stage"
+  ],
+  "yoga": [],
+  "damages": [
+   "amends",
+   "indemnification",
+   "indemnity",
+   "redress",
+   "restitution"
+  ],
+  "pacific": [
+   "pacific",
+   "pacific ocean",
+   "peaceable"
+  ],
+  "northwest": [
+   "nor'-west",
+   "north-west",
+   "northwest",
+   "northwesterly",
+   "northwestern",
+   "northwestern united states",
+   "northwestward",
+   "nw"
+  ],
+  "areas": [],
+  "convention": [
+   "convening",
+   "conventionality",
+   "formula",
+   "normal",
+   "pattern",
+   "rule"
+  ],
+  "colleagues": [],
+  "desserts": [],
+  "boot": [
+   "bang",
+   "bring up",
+   "iron boot",
+   "iron heel",
+   "kick",
+   "luggage compartment",
+   "reboot",
+   "the boot"
+  ],
+  "camp": [
+   "bivouac",
+   "camp down",
+   "camp out",
+   "campy",
+   "cantonment",
+   "clique",
+   "encamp",
+   "encampment",
+   "refugee camp",
+   "summer camp",
+   "tent"
+  ],
+  "european": [
+   "european"
+  ],
+  "countries": [],
+  "closer": [
+   "finisher",
+   "nearer"
+  ],
+  "faith": [
+   "religion",
+   "trust"
+  ],
+  "party": [
+   "company",
+   "political party"
+  ],
+  "veterans": [],
+  "causes": [],
+  "passionate": [],
+  "homeless": [
+   "dispossessed",
+   "homeless person",
+   "stateless"
+  ],
+  "shelter": [
+   "protection",
+   "tax shelter"
+  ],
+  "funraiser": [],
+  "shelters": [],
+  "volunteer": [
+   "military volunteer",
+   "offer",
+   "tennessean",
+   "unpaid",
+   "unpaid worker",
+   "voluntary"
+  ],
+  "dog": [
+   "andiron",
+   "cad",
+   "canis familiaris",
+   "chase",
+   "domestic dog",
+   "frank",
+   "frump",
+   "pawl"
+  ],
+  "max": [
+   "soap"
+  ],
+  "outdoor": [
+   "outdoor(a)"
+  ],
+  "practiced": [
+   "adept",
+   "practised"
+  ],
+  "states": [],
+  "vacationed": [],
+  "around": [
+   "about",
+   "approximately",
+   "round"
+  ],
+  "holiday": [
+   "vacation"
+  ],
+  "live": [
+   "alive",
+   "alive(p)",
+   "be",
+   "bouncy",
+   "exist",
+   "hot",
+   "know",
+   "live(a)",
+   "populate",
+   "survive",
+   "unrecorded"
+  ],
+  "close": [
+   "airless",
+   "cheeseparing",
+   "close up",
+   "close-fitting",
+   "closelipped",
+   "closely",
+   "closemouthed",
+   "come together",
+   "conclude",
+   "conclusion",
+   "confining",
+   "faithful",
+   "fill up",
+   "finale",
+   "near",
+   "secretive",
+   "shut",
+   "snug",
+   "stopping point",
+   "tight",
+   "tightlipped"
+  ],
+  "mountains": [],
+  "area": [
+   "country",
+   "expanse",
+   "region",
+   "sphere",
+   "surface area"
+  ],
+  "hit": [
+   "bang",
+   "collide with",
+   "collision",
+   "come to",
+   "hitting",
+   "impinge on",
+   "murder",
+   "reach",
+   "run into",
+   "score",
+   "shoot",
+   "smash",
+   "smasher",
+   "strike",
+   "striking",
+   "stumble"
+  ],
+  "flood": [
+   "alluvion",
+   "deluge",
+   "flood lamp",
+   "flood tide",
+   "floodlight",
+   "flowage",
+   "glut",
+   "inundation",
+   "outpouring",
+   "overflow",
+   "oversupply",
+   "photoflood",
+   "torrent"
+  ],
+  "old": [
+   "bang-up",
+   "erstwhile(a)",
+   "old",
+   "old(a)",
+   "older",
+   "previous(a)"
+  ],
+  "moving": [],
+  "hiking": [
+   "hike"
+  ],
+  "exercises": [],
+  "firefighter": [
+   "fireman"
+  ],
+  "call": [
+   "address",
+   "bid",
+   "birdcall",
+   "call",
+   "call in",
+   "call off",
+   "call option",
+   "call up",
+   "claim",
+   "cry",
+   "margin call",
+   "name",
+   "phone",
+   "phone call",
+   "predict",
+   "ring",
+   "send for",
+   "shout",
+   "telephone",
+   "telephone call",
+   "visit"
+  ],
+  "food": [
+   "food for thought",
+   "intellectual nourishment",
+   "nutrient",
+   "solid food"
+  ],
+  "item": [
+   "detail",
+   "point",
+   "token"
+  ],
+  "drop": [
+   "bead",
+   "cliff",
+   "dangle",
+   "devolve",
+   "dip",
+   "discharge",
+   "dismiss",
+   "drib",
+   "dribble",
+   "driblet",
+   "drop curtain",
+   "drop off",
+   "fall",
+   "fell",
+   "flatten",
+   "free fall",
+   "knock off",
+   "neglect",
+   "pearl",
+   "put down",
+   "set down",
+   "shed",
+   "sink",
+   "spend",
+   "unload"
+  ],
+  "off": [
+   "away",
+   "cancelled",
+   "murder",
+   "sour",
+   "turned"
+  ],
+  "attributes": [],
+  "written": [
+   "scripted"
+  ],
+  "notes": [],
+  "gratitude": [],
+  "renovate": [
+   "animate",
+   "refurbish",
+   "restitute"
+  ],
+  "hometown": [],
+  "work": [
+   "act",
+   "bring",
+   "cultivate",
+   "do work",
+   "employment",
+   "exercise",
+   "exploit",
+   "ferment",
+   "function",
+   "influence",
+   "knead",
+   "make",
+   "oeuvre",
+   "piece of work",
+   "process",
+   "put to work",
+   "shape",
+   "solve",
+   "sour",
+   "study",
+   "work on",
+   "workplace"
+  ],
+  "medal": [
+   "decoration"
+  ],
+  "coco": [
+   "coconut"
+  ],
+  "dogs": [],
+  "shadow": [
+   "apparition",
+   "darkness",
+   "dwarf",
+   "overshadow",
+   "shade",
+   "shade off",
+   "tail",
+   "trace"
+  ],
+  "adopted": [
+   "adoptive"
+  ],
+  "volunteers": [],
+  "weeks": [],
+  "passed": [],
+  "between": [
+   "'tween",
+   "betwixt"
+  ],
+  "adopting": [],
+  "future": [
+   "future tense",
+   "future(a)",
+   "futurity",
+   "hereafter",
+   "time to come"
+  ],
+  "main": [
+   "briny",
+   "chief(a)",
+   "independent",
+   "main(a)"
+  ],
+  "focus": [
+   "centering",
+   "concenter",
+   "concentrate",
+   "direction",
+   "focal point",
+   "focalise",
+   "focalize",
+   "focusing",
+   "focussing",
+   "nidus",
+   "sharpen",
+   "stress"
+  ],
+  "politics": [
+   "government",
+   "political relation",
+   "political science",
+   "political sympathies"
+  ],
+  "sparked": [],
+  "interest": [
+   "concern",
+   "interest group",
+   "interestingness",
+   "involvement",
+   "matter to",
+   "pastime",
+   "sake",
+   "stake"
+  ],
+  "improving": [
+   "up"
+  ],
+  "education": [
+   "breeding",
+   "department of education",
+   "didactics",
+   "educational activity",
+   "instruction",
+   "pedagogy",
+   "teaching",
+   "training"
+  ],
+  "infrastructure": [
+   "base",
+   "substructure"
+  ],
+  "extra": [
+   "additional",
+   "duplicate",
+   "excess",
+   "special",
+   "supernumerary"
+  ],
+  "funding": [
+   "financing",
+   "support"
+  ],
+  "shown": [],
+  "shared": [
+   "divided"
+  ],
+  "workout": [
+   "exercise"
+  ],
+  "december": [
+   "dec",
+   "december"
+  ],
+  "meal": [
+   "repast"
+  ],
+  "mates": [
+   "couple"
+  ],
+  "service": [
+   "avail",
+   "divine service",
+   "military service",
+   "overhaul",
+   "religious service",
+   "robert william service",
+   "serve",
+   "service",
+   "service of process",
+   "servicing",
+   "serving",
+   "table service"
+  ],
+  "efforts": [],
+  "sit": [
+   "baby-sit",
+   "model",
+   "ride",
+   "seat",
+   "sit around",
+   "sit down"
+  ],
+  "little": [
+   "fiddling",
+   "little(a)",
+   "minuscule",
+   "short",
+   "small"
+  ],
+  "girl": [
+   "daughter",
+   "female child",
+   "fille",
+   "girlfriend",
+   "miss",
+   "missy",
+   "young lady",
+   "young woman"
+  ],
+  "before": [
+   "ahead",
+   "earlier"
+  ],
+  "office": [
+   "agency",
+   "business office",
+   "function",
+   "office staff",
+   "position",
+   "power"
+  ],
+  "again": [
+   "once again",
+   "once more",
+   "over again"
+  ],
+  "colleague": [
+   "co-worker",
+   "confrere",
+   "fellow",
+   "fellow worker",
+   "workfellow"
+  ],
+  "rob": [
+   "overcharge"
+  ],
+  "invite": [
+   "ask for",
+   "ask in",
+   "ask over",
+   "ask round",
+   "bid",
+   "call for",
+   "pay for",
+   "receive",
+   "tempt"
+  ],
+  "name": [
+   "appoint",
+   "be known as",
+   "call",
+   "diagnose",
+   "epithet",
+   "figure",
+   "gens",
+   "identify",
+   "know as",
+   "list",
+   "make",
+   "mention",
+   "nominate",
+   "public figure"
+  ],
+  "one": [
+   "ace",
+   "ane",
+   "matchless",
+   "one(a)",
+   "single",
+   "unity"
+  ],
+  "remind": [
+   "prompt"
+  ],
+  "england": [
+   "england"
+  ],
+  "idea": [
+   "estimate",
+   "mind",
+   "theme",
+   "thought"
+  ],
+  "castle": [
+   "castling",
+   "palace",
+   "rook"
+  ],
+  "box": [
+   "box seat",
+   "boxful",
+   "boxwood",
+   "corner",
+   "loge",
+   "package"
+  ],
+  "certificate": [
+   "certification",
+   "credential",
+   "credentials",
+   "security"
+  ],
+  "particularly": [
+   "especially",
+   "in particular",
+   "peculiarly",
+   "specially"
+  ],
+  "policymaking": [],
+  "weekend": [],
+  "april": [
+   "apr",
+   "april"
+  ],
+  "put": [
+   "arrange",
+   "assign",
+   "frame",
+   "invest",
+   "lay",
+   "place",
+   "pose",
+   "position",
+   "put option",
+   "set"
+  ],
+  "strain": [
+   "breed",
+   "deform",
+   "extend",
+   "filter",
+   "form",
+   "mental strain",
+   "nervous strain",
+   "puree",
+   "sift",
+   "song",
+   "straining",
+   "stress",
+   "strive",
+   "striving",
+   "tenor",
+   "tense",
+   "try",
+   "tune"
+  ],
+  "wallet": [
+   "billfold",
+   "notecase",
+   "pocketbook"
+  ],
+  "explore": [
+   "research"
+  ],
+  "topic": [
+   "issue",
+   "matter",
+   "subject"
+  ],
+  "blogging": [],
+  "policies": [],
+  "recent": [
+   "holocene",
+   "late(a)"
+  ],
+  "blog": [
+   "web log"
+  ],
+  "march": [
+   "border",
+   "borderland",
+   "demonstrate",
+   "mar",
+   "march",
+   "marching",
+   "marching music",
+   "master of architecture",
+   "parade",
+   "process"
+  ],
+  "fitness": [
+   "fittingness",
+   "physical fitness"
+  ],
+  "improved": [],
+  "since": [],
+  "starting": [
+   "start"
+  ],
+  "camps": [],
+  "spread": [
+   "banquet",
+   "bedspread",
+   "circulate",
+   "diffuse",
+   "dispersed",
+   "distribute",
+   "facing pages",
+   "gap",
+   "go around",
+   "outspread",
+   "overspread",
+   "paste",
+   "propagate",
+   "ranch",
+   "scatter",
+   "spread head",
+   "spread out",
+   "spreadhead",
+   "spreading",
+   "unfold"
+  ],
+  "iwth": [],
+  "mother": [
+   "beget",
+   "female parent",
+   "fuss",
+   "overprotect"
+  ],
+  "mom": [
+   "ma"
+  ],
+  "nearby": [],
+  "small": [
+   "belittled",
+   "humble",
+   "little",
+   "minor",
+   "modest",
+   "small(a)"
+  ],
+  "emotions": [],
+  "ready": [
+   "cook",
+   "fix",
+   "quick",
+   "ready(a)"
+  ],
+  "need": [
+   "demand",
+   "indigence",
+   "motivation",
+   "necessitate",
+   "want"
+  ],
+  "word": [
+   "bible",
+   "discussion",
+   "give voice",
+   "news",
+   "parole",
+   "password",
+   "son"
+  ],
+  "fundraiser": [],
+  "goodbye": [
+   "adieu"
+  ],
+  "honor": [
+   "award",
+   "honour",
+   "laurels",
+   "pureness",
+   "purity",
+   "respect",
+   "reward"
+  ],
+  "memories": [],
+  "beloved": [
+   "darling",
+   "dear",
+   "dearest",
+   "honey",
+   "love"
+  ],
+  "values": [],
+  "rescue": [
+   "deliver",
+   "deliverance",
+   "delivery",
+   "saving"
+  ],
+  "mentioned": [],
+  "waterfall": [
+   "falls"
+  ],
+  "oregon": [
+   "beaver state",
+   "or",
+   "ore.",
+   "oregon"
+  ],
+  "feels": [],
+  "upside": [
+   "top"
+  ],
+  "poses": [],
+  "exciting": [],
+  "news": [
+   "intelligence",
+   "news program",
+   "newsworthiness",
+   "tidings",
+   "word"
+  ],
+  "trying": [
+   "nerve-racking"
+  ],
+  "improve": [
+   "better"
+  ],
+  "strength": [
+   "force",
+   "forte",
+   "intensity",
+   "lastingness",
+   "military capability",
+   "persuasiveness",
+   "potency"
+  ],
+  "endurance": [
+   "survival"
+  ],
+  "promoted": [],
+  "biggest": [],
+  "challenges": [],
+  "assistant": [
+   "adjunct",
+   "help",
+   "helper",
+   "supporter"
+  ],
+  "manager": [
+   "coach",
+   "director"
+  ],
+  "cousin": [
+   "cousin-german",
+   "first cousin",
+   "full cousin"
+  ],
+  "rights": [],
+  "marching": [
+   "march"
+  ],
+  "sunsets": [],
+  "natural": [
+   "biological",
+   "born",
+   "cancel",
+   "innate",
+   "instinctive",
+   "lifelike",
+   "raw",
+   "rude"
+  ],
+  "disaster": [
+   "calamity",
+   "catastrophe"
+  ],
+  "affected": [
+   "moved(p)",
+   "unnatural"
+  ],
+  "impact": [
+   "affect",
+   "impingement",
+   "shock",
+   "wallop"
+  ],
+  "homes": [],
+  "discuss": [
+   "discourse",
+   "hash out"
+  ],
+  "potential": [
+   "electric potential",
+   "likely",
+   "possible",
+   "potency",
+   "potentiality"
+  ],
+  "solutions": [],
+  "later": [
+   "by and by",
+   "late",
+   "later(a)",
+   "subsequently"
+  ],
+  "evening": [
+   "eve",
+   "even",
+   "eventide"
+  ],
+  "appreciate": [
+   "apprise",
+   "apprize",
+   "prize",
+   "revalue",
+   "take account"
+  ],
+  "veteran": [
+   "ex-serviceman",
+   "old hand",
+   "old stager",
+   "old-timer",
+   "oldtimer",
+   "seasoned",
+   "stager",
+   "vet",
+   "veteran soldier",
+   "warhorse"
+  ],
+  "hospital": [
+   "infirmary"
+  ],
+  "visiting": [],
+  "military": [
+   "armed forces",
+   "armed services",
+   "military machine",
+   "war machine"
+  ],
+  "apart": [
+   "apart(p)",
+   "aside",
+   "asunder"
+  ],
+  "involved": [
+   "byzantine",
+   "mired"
+  ],
+  "week": [
+   "calendar week",
+   "hebdomad",
+   "workweek"
+  ],
+  "involving": [],
+  "memorial": [
+   "commemoration",
+   "monument",
+   "remembrance"
+  ],
+  "generations": [],
+  "memorials": [],
+  "believe": [
+   "think",
+   "trust"
+  ],
+  "cause": [
+   "campaign",
+   "causal agent",
+   "do",
+   "grounds",
+   "induce",
+   "lawsuit",
+   "make",
+   "reason"
+  ],
+  "organized": [
+   "organised",
+   "unionised",
+   "unionized"
+  ],
+  "funds": [
+   "cash in hand",
+   "finances",
+   "monetary resource",
+   "pecuniary resource"
+  ],
+  "victims": [],
+  "domestic": [
+   "domestic help",
+   "domesticated",
+   "house servant"
+  ],
+  "abuse": [
+   "blackguard",
+   "clapperclaw",
+   "contumely",
+   "insult",
+   "maltreatment",
+   "mistreat",
+   "misuse",
+   "pervert",
+   "revilement",
+   "shout",
+   "vilification"
+  ],
+  "recognition": [
+   "acknowledgement",
+   "acknowledgment",
+   "credit",
+   "identification",
+   "realization"
+  ],
+  "puppy": [
+   "pup"
+  ],
+  "two": [
+   "deuce",
+   "ii"
+  ],
+  "stuck": [],
+  "questioning": [
+   "doubting",
+   "inquiring",
+   "inquisitive",
+   "quizzical"
+  ],
+  "decisions": [],
+  "goals": [],
+  "second": [
+   "2d",
+   "2nd",
+   "arcsecond",
+   "back",
+   "endorse",
+   "endorsement",
+   "indorse",
+   "indorsement",
+   "irregular",
+   "moment",
+   "sec",
+   "second base",
+   "second gear",
+   "secondly",
+   "secondment"
+  ],
+  "adjusting": [],
+  "its": [],
+  "donations": [],
+  "acquire": [
+   "assume",
+   "develop",
+   "gain",
+   "get",
+   "grow",
+   "learn",
+   "win"
+  ],
+  "international": [
+   "external",
+   "international"
+  ],
+  "luxury": [
+   "lavishness",
+   "luxuriousness",
+   "opulence",
+   "sumptuousness"
+  ],
+  "france": [
+   "anatole france",
+   "france",
+   "french republic",
+   "jacques anatole francois thibault"
+  ],
+  "appreciation": [
+   "admiration",
+   "grasp",
+   "hold",
+   "taste"
+  ],
+  "travel": [
+   "change of location",
+   "go",
+   "jaunt",
+   "journey",
+   "locomote",
+   "locomotion",
+   "move",
+   "move around",
+   "traveling",
+   "travelling",
+   "trip"
+  ],
+  "photography": [
+   "picture taking"
+  ],
+  "artistic": [
+   "aesthetic"
+  ],
+  "skills": [],
+  "father": [
+   "beget",
+   "begetter",
+   "church father",
+   "don",
+   "father",
+   "father-god",
+   "fatherhood",
+   "forefather",
+   "founder",
+   "male parent",
+   "padre"
+  ],
+  "desert": [
+   "abandon",
+   "defect"
+  ],
+  "drought": [
+   "drouth"
+  ],
+  "criticize": [
+   "criticise",
+   "knock"
+  ],
+  "orphanage": [
+   "orphanhood",
+   "orphans' asylum"
+  ],
+  "galleries": [],
+  "animal": [
+   "animal(a)",
+   "animate being",
+   "beast",
+   "brute",
+   "cat",
+   "creature",
+   "dog",
+   "fauna",
+   "pet",
+   "turtle"
+  ],
+  "welfare": [
+   "benefit",
+   "social welfare",
+   "wellbeing"
+  ],
+  "kitten": [
+   "kitty"
+  ],
+  "nate": [],
+  "joanna": [],
+  "interests": [],
+  "watch": [
+   "catch",
+   "determine",
+   "follow",
+   "keep an eye on",
+   "look on",
+   "look out",
+   "lookout",
+   "observe",
+   "see",
+   "take in",
+   "ticker",
+   "view",
+   "vigil",
+   "watch out",
+   "watch over"
+  ],
+  "eternal": [
+   "ageless",
+   "endless"
+  ],
+  "sunshine": [
+   "cheerfulness",
+   "fair weather",
+   "sunlight"
+  ],
+  "spotless": [
+   "immaculate"
+  ],
+  "mind": [
+   "bear in mind",
+   "beware",
+   "brain",
+   "head",
+   "heed",
+   "idea",
+   "intellect",
+   "judgment",
+   "nous",
+   "psyche",
+   "take care",
+   "thinker"
+  ],
+  "game": [
+   "bet on",
+   "biz",
+   "crippled",
+   "gamey",
+   "gamy",
+   "gritty",
+   "mettlesome",
+   "plot",
+   "spirited",
+   "spunky"
+  ],
+  "tournament": [
+   "championship",
+   "competition",
+   "contest",
+   "tourney"
+  ],
+  "wouldn": [],
+  "any": [
+   "any(a)"
+  ],
+  "discomfort": [
+   "irritation",
+   "soreness",
+   "uncomfortableness"
+  ],
+  "hobbies": [],
+  "turtles": [],
+  "finish": [
+   "coating",
+   "complete",
+   "destination",
+   "eat up",
+   "end",
+   "ending",
+   "finish up",
+   "finishing",
+   "goal",
+   "polish",
+   "stopping point"
+  ],
+  "screenplay": [],
+  "major": [
+   "john major",
+   "john r. major",
+   "john roy major",
+   "major",
+   "major(ip)"
+  ],
+  "achievement": [
+   "accomplishment"
+  ],
+  "accomplish": [
+   "achieve",
+   "carry through"
+  ],
+  "january": [
+   "jan",
+   "january"
+  ],
+  "submitted": [],
+  "allergic": [
+   "hypersensitised",
+   "hypersensitive",
+   "hypersensitized",
+   "sensitised",
+   "sensitized",
+   "supersensitised",
+   "supersensitive",
+   "supersensitized"
+  ],
+  "underlying": [
+   "fundamental",
+   "implicit in(p)"
+  ],
+  "condition": [
+   "circumstance",
+   "discipline",
+   "experimental condition",
+   "precondition",
+   "shape",
+   "status",
+   "stipulate",
+   "stipulation",
+   "strings",
+   "term"
+  ],
+  "based": [],
+  "allergies": [],
+  "audition": [
+   "hearing",
+   "try out",
+   "tryout"
+  ],
+  "gig": [
+   "spear"
+  ],
+  "nickname": [
+   "byname",
+   "cognomen",
+   "dub",
+   "moniker",
+   "sobriquet",
+   "soubriquet"
+  ],
+  "purple": [
+   "empurple",
+   "empurpled",
+   "imperial",
+   "purpleness",
+   "purplish",
+   "purpurate",
+   "the purple",
+   "violet"
+  ],
+  "hair": [
+   "fuzz",
+   "hair's-breadth",
+   "haircloth",
+   "pilus",
+   "tomentum"
+  ],
+  "physical": [
+   "forcible"
+  ],
+  "transformation": [
+   "shift",
+   "translation",
+   "transmutation"
+  ],
+  "undergo": [],
+  "movie": [
+   "film",
+   "flick",
+   "motion picture",
+   "motion-picture show",
+   "moving picture",
+   "moving-picture show",
+   "pic",
+   "picture",
+   "picture show"
+  ],
+  "spot": [
+   "bit",
+   "blemish",
+   "blob",
+   "blot",
+   "dapple",
+   "descry",
+   "discern",
+   "distinguish",
+   "fleck",
+   "maculation",
+   "make out",
+   "patch",
+   "pick out",
+   "pip",
+   "point",
+   "position",
+   "recognise",
+   "recognize",
+   "smudge",
+   "speckle",
+   "spotlight",
+   "tell apart",
+   "topographic point",
+   "touch"
+  ],
+  "found": [
+   "establish"
+  ],
+  "trails": [],
+  "addition": [
+   "accession",
+   "add-on",
+   "gain",
+   "improver",
+   "increase",
+   "summation"
+  ],
+  "third": [
+   "3rd",
+   "one-third",
+   "tertiary",
+   "third base",
+   "third gear",
+   "thirdly"
+  ],
+  "were": [],
+  "rejected": [
+   "declined",
+   "denied",
+   "jilted",
+   "refused",
+   "reject"
+  ],
+  "production": [
+   "output",
+   "product"
+  ],
+  "companies": [],
+  "hosting": [],
+  "gaming": [
+   "gambling"
+  ],
+  "buddies": [],
+  "tourney": [
+   "competition",
+   "contest",
+   "tournament"
+  ],
+  "places": [],
+  "vegan": [],
+  "icecream": [
+   "ice cream"
+  ],
+  "diet": [
+   "dieting"
+  ],
+  "ice": [
+   "frappe",
+   "frost",
+   "frosting",
+   "ice rink",
+   "internal-combustion engine",
+   "methamphetamine",
+   "sparkler",
+   "water ice"
+  ],
+  "cream": [
+   "bat",
+   "clobber",
+   "drub",
+   "emollient",
+   "lick",
+   "ointment",
+   "pick",
+   "skim",
+   "thrash"
+  ],
+  "writings": [
+   "hagiographa"
+  ],
+  "fourth": [
+   "4th",
+   "fourthly",
+   "one-fourth",
+   "quaternary"
+  ],
+  "someone": [
+   "person"
+  ],
+  "write": [
+   "compose",
+   "drop a line",
+   "indite",
+   "pen",
+   "save",
+   "spell"
+  ],
+  "touching": [
+   "affecting",
+   "touch"
+  ],
+  "letter": [
+   "alphabetic character",
+   "correspondence",
+   "letter of the alphabet",
+   "letters",
+   "mail",
+   "message",
+   "missive",
+   "varsity letter"
+  ],
+  "recommendations": [],
+  "given": [
+   "apt(p)",
+   "granted",
+   "precondition",
+   "presumption"
+  ],
+  "time": [
+   "clip",
+   "clock",
+   "clock time",
+   "fourth dimension",
+   "meter",
+   "prison term"
+  ],
+  "chill": [
+   "cool",
+   "frisson",
+   "gelidity",
+   "iciness",
+   "pall",
+   "shivering"
+  ],
+  "writers": [],
+  "almond": [
+   "amygdalus communis",
+   "prunus amygdalus",
+   "prunus dulcis",
+   "sweet almond"
+  ],
+  "milk": [
+   "milk",
+   "milk river"
+  ],
+  "cooking": [
+   "cookery",
+   "preparation"
+  ],
+  "laptop": [
+   "laptop computer"
+  ],
+  "crash": [
+   "barge in",
+   "break apart",
+   "break up",
+   "clang",
+   "collapse",
+   "dash",
+   "doss",
+   "go down",
+   "ram",
+   "smash",
+   "wreck"
+  ],
+  "chocolate": [
+   "burnt umber",
+   "cocoa",
+   "coffee",
+   "deep brown",
+   "umber"
+  ],
+  "tart": [
+   "lemony",
+   "prostitute",
+   "sharp"
+  ],
+  "raspberries": [],
+  "movies": [],
+  "lot": [
+   "batch",
+   "bunch",
+   "distribute",
+   "draw",
+   "fortune",
+   "lot",
+   "set"
+  ],
+  "board": [
+   "circuit board",
+   "control panel",
+   "dining table",
+   "display panel",
+   "gameboard",
+   "get on",
+   "plank",
+   "room",
+   "table"
+  ],
+  "games": [],
+  "played": [],
+  "scripts": [
+   "movies",
+   "screenplays",
+   "writings"
+  ],
+  "something": [],
+  "joy": [
+   "delight",
+   "gladden",
+   "joyfulness",
+   "joyousness",
+   "pleasure",
+   "rejoice"
+  ],
+  "tilly": [],
+  "big": [
+   "adult",
+   "bad",
+   "big(a)",
+   "big(p)",
+   "bighearted",
+   "boastful",
+   "boastfully",
+   "bounteous",
+   "bountiful",
+   "freehanded",
+   "giving",
+   "handsome",
+   "large",
+   "liberal",
+   "magnanimous",
+   "openhanded",
+   "prominent",
+   "swelled",
+   "vainglorious"
+  ],
+  "screen": [
+   "blind",
+   "block out",
+   "concealment",
+   "cover",
+   "covert",
+   "crt screen",
+   "filmdom",
+   "projection screen",
+   "riddle",
+   "screen out",
+   "shield",
+   "sieve",
+   "silver screen",
+   "sort",
+   "test"
+  ],
+  "script": [
+   "book",
+   "handwriting",
+   "movie",
+   "playscript",
+   "screenplay",
+   "writing"
+  ],
+  "screens": [],
+  "over": [
+   "all over",
+   "complete",
+   "o'er"
+  ],
+  "recipes": [],
+  "things": [],
+  "reccomended": [],
+  "remember": [
+   "call back",
+   "call up",
+   "commemorate",
+   "commend",
+   "recall",
+   "recollect",
+   "retrieve",
+   "think",
+   "think back",
+   "think of"
+  ],
+  "happy": [
+   "felicitous",
+   "glad",
+   "well-chosen"
+  ],
+  "console": [
+   "cabinet",
+   "comfort",
+   "console table",
+   "device",
+   "gamecube",
+   "medium",
+   "nintendo",
+   "pc",
+   "platform",
+   "playstation",
+   "switch",
+   "xbox"
+  ],
+  "mediums": [
+   "consoles",
+   "devices",
+   "pcs",
+   "platforms",
+   "systems"
+  ],
+  "letters": [
+   "correspondence",
+   "letter",
+   "mail",
+   "messages"
+  ],
+  "recieved": [],
+  "valorant": [],
+  "torunament": [],
+  "beginning": [
+   "beginning(a)",
+   "commencement",
+   "first",
+   "get-go",
+   "kickoff",
+   "offset",
+   "origin",
+   "outset",
+   "root",
+   "rootage",
+   "showtime",
+   "source",
+   "start",
+   "starting time"
+  ],
+  "november": [
+   "nov",
+   "november"
+  ],
+  "alternative": [
+   "alternate",
+   "option"
+  ],
+  "consider": [
+   "count",
+   "deal",
+   "debate",
+   "deliberate",
+   "look at",
+   "moot",
+   "regard",
+   "see",
+   "study",
+   "take",
+   "think",
+   "turn over",
+   "view",
+   "weigh"
+  ],
+  "beauty": [
+   "beaut",
+   "smasher"
+  ],
+  "state": [
+   "body politic",
+   "commonwealth",
+   "country",
+   "department of state",
+   "express",
+   "land",
+   "nation",
+   "province",
+   "res publica",
+   "say",
+   "state of matter",
+   "submit",
+   "tell"
+  ],
+  "tried": [
+   "tested"
+  ],
+  "disburse": [
+   "pay out"
+  ],
+  "tournaments": [],
+  "screenplays": [],
+  "others": [],
+  "learn": [
+   "acquire",
+   "determine",
+   "discover",
+   "find out",
+   "get a line",
+   "get wind",
+   "get word",
+   "hear",
+   "larn",
+   "memorize",
+   "pick up",
+   "read",
+   "see",
+   "study",
+   "take",
+   "teach"
+  ],
+  "half": [
+   "half(a)",
+   "one-half"
+  ],
+  "september": [
+   "sep",
+   "sept",
+   "september"
+  ],
+  "good": [
+   "adept",
+   "beneficial",
+   "commodity",
+   "dear",
+   "dependable",
+   "effective",
+   "estimable",
+   "full",
+   "goodness",
+   "honest",
+   "just",
+   "right",
+   "ripe",
+   "salutary",
+   "serious",
+   "sound",
+   "thoroughly",
+   "unspoiled",
+   "unspoilt",
+   "upright",
+   "well"
+  ],
+  "month": [
+   "calendar month"
+  ],
+  "wise": [
+   "fresh",
+   "isaac mayer wise",
+   "judicious",
+   "knowing",
+   "stephen samuel wise",
+   "wise"
+  ],
+  "answer": [
+   "reply",
+   "resolve",
+   "respond",
+   "response",
+   "solution",
+   "suffice"
+  ],
+  "yes": [],
+  "preform": [],
+  "duties": [],
+  "because": [],
+  "color": [
+   "color in",
+   "coloration",
+   "coloring",
+   "coloring material",
+   "colorise",
+   "colorize",
+   "colour",
+   "colour in",
+   "colouration",
+   "colouring",
+   "colourise",
+   "colourize",
+   "discolor",
+   "emblazon",
+   "gloss",
+   "semblance",
+   "tinge",
+   "vividness"
+  ],
+  "trilogy": [],
+  "series": [
+   "serial",
+   "serial publication"
+  ],
+  "lighting": [
+   "ignition",
+   "light"
+  ],
+  "room": [
+   "board",
+   "elbow room",
+   "way"
+  ],
+  "just": [
+   "barely",
+   "equitable",
+   "fair",
+   "good",
+   "just now",
+   "merely",
+   "precisely",
+   "simply"
+  ],
+  "friday": [
+   "fri",
+   "friday"
+  ],
+  "genre": [
+   "music genre",
+   "writing style"
+  ],
+  "finished": [
+   "ruined"
+  ],
+  "coconut": [
+   "coco",
+   "coco palm",
+   "cocoa palm",
+   "cocoanut",
+   "coconut meat",
+   "coconut palm",
+   "coconut tree",
+   "cocos nucifera"
+  ],
+  "dairy": [
+   "dairy farm"
+  ],
+  "free": [
+   "absolve",
+   "barren",
+   "complimentary",
+   "detached",
+   "discharge",
+   "disengage",
+   "dislodge",
+   "exempt",
+   "free people",
+   "liberal",
+   "liberate",
+   "loose",
+   "release",
+   "rid",
+   "spare",
+   "unblock",
+   "unloose",
+   "unloosen"
+  ],
+  "dessert": [
+   "afters",
+   "sweet"
+  ],
+  "flavors": [],
+  "women": [],
+  "flavor": [
+   "flavour",
+   "relish",
+   "season",
+   "spirit"
+  ],
+  "taking": [
+   "fetching",
+   "pickings"
+  ],
+  "ingredients": [],
+  "recipe": [
+   "formula"
+  ],
+  "called": [],
+  "films": [],
+  "helps": [],
+  "escape": [
+   "break loose",
+   "elude",
+   "escapism",
+   "evasion",
+   "flight",
+   "get away",
+   "get off",
+   "leak",
+   "leakage",
+   "miss",
+   "outflow",
+   "safety valve",
+   "scat"
+  ],
+  "stimulates": [],
+  "imagination": [
+   "imagery",
+   "imaginativeness",
+   "imaging",
+   "mental imagery",
+   "resource",
+   "vision"
+  ],
+  "filling": [
+   "fill",
+   "woof"
+  ],
+  "cake": [
+   "bar",
+   "coat",
+   "patty"
+  ],
+  "frosting": [
+   "ice",
+   "icing"
+  ],
+  "could": [],
+  "whispering": [
+   "murmuring",
+   "rustle",
+   "whisper"
+  ],
+  "falls": [
+   "waterfall"
+  ],
+  "joke": [
+   "antic",
+   "gag",
+   "jape",
+   "jest",
+   "laugh"
+  ],
+  "invited": [],
+  "sometime": [
+   "erstwhile(a)"
+  ],
+  "stuffed": [],
+  "organizing": [],
+  "everyone": [],
+  "yesterday": [],
+  "appeared": [],
+  "superhero": [],
+  "toy": [
+   "dally",
+   "diddle",
+   "fiddle",
+   "miniature",
+   "play",
+   "plaything",
+   "toy dog"
+  ],
+  "figure": [
+   "calculate",
+   "design",
+   "digit",
+   "enter",
+   "fig",
+   "human body",
+   "name",
+   "number",
+   "trope",
+   "visualize"
+  ],
+  "displayed": [],
+  "cork": [
+   "bob",
+   "bottle cork",
+   "cork",
+   "cork up",
+   "phellem"
+  ],
+  "motivation": [
+   "motivating",
+   "motive",
+   "need"
+  ],
+  "creativity": [
+   "creative thinking",
+   "creativeness"
+  ],
+  "hosted": [],
+  "promised": [],
+  "discover": [
+   "detect",
+   "fall upon",
+   "find",
+   "identify",
+   "learn",
+   "unwrap"
+  ],
+  "woodhaven": [],
+  "themes": [],
+  "explored": [],
+  "loves": [],
+  "can": [
+   "buttocks",
+   "can buoy",
+   "canful",
+   "displace",
+   "put up",
+   "tin",
+   "tin can",
+   "toilet"
+  ],
+  "wrote": [],
+  "post": [
+   "brand",
+   "c. w. post",
+   "carry",
+   "charles william post",
+   "emily post",
+   "emily price post",
+   "mail",
+   "military post",
+   "position",
+   "post",
+   "put up",
+   "stake",
+   "station",
+   "wiley post"
+  ],
+  "hope": [
+   "bob hope",
+   "desire",
+   "go for",
+   "hope",
+   "leslie townes hope",
+   "promise",
+   "trust"
+  ],
+  "even": [
+   "even out",
+   "evening",
+   "fifty-fifty",
+   "flush",
+   "regular",
+   "still",
+   "tied(p)",
+   "yet"
+  ],
+  "days": [
+   "years"
+  ],
+  "delicious": [
+   "delectable",
+   "delicious",
+   "delightful"
+  ],
+  "sharing": [
+   "communion",
+   "share-out"
+  ],
+  "winning": [
+   "fetching",
+   "victorious"
+  ],
+  "experimenting": [],
+  "options": [],
+  "substitution": [
+   "commutation",
+   "exchange",
+   "permutation",
+   "replacement",
+   "switch",
+   "transposition"
+  ],
+  "suggest": [
+   "evoke",
+   "hint",
+   "intimate",
+   "paint a picture",
+   "propose"
+  ],
+  "butter": [],
+  "baking": [
+   "baking hot"
+  ],
+  "taught": [],
+  "dish": [
+   "cup of tea",
+   "dish aerial",
+   "dish antenna",
+   "dishful",
+   "saucer",
+   "serve",
+   "smasher"
+  ],
+  "treats": [],
+  "flour": [],
+  "crust": [
+   "cheekiness",
+   "earth's crust",
+   "encrustation",
+   "freshness",
+   "gall",
+   "impertinence",
+   "impudence",
+   "incrustation",
+   "insolence"
+  ],
+  "ganache": [],
+  "fresh": [
+   "bracing",
+   "clean",
+   "impertinent",
+   "impudent",
+   "invigorated",
+   "new",
+   "newly",
+   "novel",
+   "overbold",
+   "refreshed",
+   "reinvigorated",
+   "sassy",
+   "saucy",
+   "smart",
+   "sweet",
+   "unfermented",
+   "unused",
+   "wise"
+  ],
+  "likes": [],
+  "making": [
+   "devising",
+   "qualification"
+  ],
+  "birthdays": [],
+  "blueberries": [],
+  "gluten": [],
+  "ladies": [],
+  "club": [
+   "baseball club",
+   "bludgeon",
+   "cabaret",
+   "clubhouse",
+   "gild",
+   "golf club",
+   "guild",
+   "lodge",
+   "order",
+   "social club",
+   "society"
+  ],
+  "blew": [],
+  "playing": [
+   "acting"
+  ],
+  "nonstop": [
+   "around-the-clock",
+   "nonstop flight"
+  ],
+  "futuristic": [
+   "futurist"
+  ],
+  "setting": [
+   "background",
+   "context",
+   "mise en scene",
+   "mount",
+   "place setting",
+   "scene",
+   "scope"
+  ],
+  "gameplay": [],
+  "mentioning": [],
+  "unwinding": [],
+  "classic": [
+   "classical"
+  ],
+  "watched": [],
+  "living": [
+   "animation",
+   "life",
+   "living(a)",
+   "support",
+   "surviving"
+  ],
+  "comfy": [
+   "comfortable"
+  ],
+  "hers": [],
+  "focused": [
+   "focussed"
+  ],
+  "writes": [],
+  "rejection": [],
+  "company": [
+   "accompany",
+   "caller",
+   "companion",
+   "companionship",
+   "fellowship",
+   "keep company",
+   "party",
+   "ship's company",
+   "society",
+   "troupe"
+  ],
+  "ability": [
+   "power"
+  ],
+  "bounce": [
+   "bounciness",
+   "bouncing",
+   "bound",
+   "jounce",
+   "leap",
+   "rebound",
+   "recoil",
+   "resile",
+   "reverberate",
+   "ricochet",
+   "spring",
+   "take a hop"
+  ],
+  "setbacks": [],
+  "encouragement": [
+   "boost"
+  ],
+  "rely": [
+   "count"
+  ],
+  "cheer": [
+   "barrack",
+   "cheer up",
+   "cheerfulness",
+   "chirk up",
+   "embolden",
+   "exhort",
+   "hearten",
+   "inspire",
+   "jolly along",
+   "jolly up",
+   "pep up",
+   "recreate",
+   "root on",
+   "urge",
+   "urge on"
+  ],
+  "michigan": [
+   "boodle",
+   "chicago",
+   "great lakes state",
+   "lake michigan",
+   "mi",
+   "mich.",
+   "michigan",
+   "newmarket",
+   "stops",
+   "wolverine state"
+  ],
+  "contribute": [
+   "chip in",
+   "conduce",
+   "give",
+   "kick in",
+   "lead",
+   "lend",
+   "put up"
+  ],
+  "sunday": [
+   "billy sunday",
+   "dominicus",
+   "lord's day",
+   "sun",
+   "sunday",
+   "william ashley sunday"
+  ],
+  "inspires": [],
+  "drawings": [],
+  "characters": [],
+  "ideas": [],
+  "seeing": [
+   "eyesight",
+   "visual perception"
+  ],
+  "come": [
+   "add up",
+   "amount",
+   "arrive",
+   "come in",
+   "come up",
+   "derive",
+   "do",
+   "fall",
+   "follow",
+   "hail",
+   "issue forth",
+   "occur",
+   "semen",
+   "total"
+  ],
+  "alive": [
+   "active",
+   "alert",
+   "alive(p)",
+   "animated",
+   "live"
+  ],
+  "ingredient": [
+   "component",
+   "fixings"
+  ],
+  "lactose": [
+   "milk sugar"
+  ],
+  "notebooks": [],
+  "prompted": [],
+  "reflect": [
+   "chew over",
+   "reverberate",
+   "shine"
+  ],
+  "writer": [
+   "author"
+  ],
+  "recommends": [],
+  "brother": [
+   "blood brother",
+   "brother",
+   "buddy",
+   "comrade"
+  ],
+  "brought": [],
+  "xenoblade": [],
+  "chronicles": [],
+  "notebook": [
+   "notebook computer"
+  ],
+  "youtube": [],
+  "videos": [],
+  "picture": [
+   "depict",
+   "icon",
+   "ikon",
+   "image",
+   "mental picture",
+   "movie",
+   "painting",
+   "photograph",
+   "pictorial matter",
+   "render",
+   "scene",
+   "show",
+   "video",
+   "visualize",
+   "word picture"
+  ],
+  "near": [
+   "about",
+   "approach",
+   "approximate",
+   "cheeseparing",
+   "close",
+   "dear",
+   "near(a)",
+   "nigh"
+  ],
+  "fort": [
+   "fort up",
+   "fortify",
+   "fortress",
+   "garrison"
+  ],
+  "wayne": [
+   "anthony wayne",
+   "duke wayne",
+   "john wayne",
+   "mad anthony wayne",
+   "wayne"
+  ],
+  "sunset": [
+   "sundown",
+   "sunset(a)"
+  ],
+  "field": [
+   "airfield",
+   "battlefield",
+   "discipline",
+   "field of force",
+   "field of operation",
+   "field of operations",
+   "field of view",
+   "force field",
+   "line of business",
+   "plain",
+   "playing field",
+   "sphere",
+   "theater",
+   "theater of operations",
+   "theatre",
+   "theatre of operations"
+  ],
+  "turtle": [
+   "capsize",
+   "turtleneck"
+  ],
+  "goes": [],
+  "tampa": [
+   "tampa"
+  ],
+  "experimentation": [
+   "experiment"
+  ],
+  "hate": [
+   "detest",
+   "hatred"
+  ],
+  "novella": [
+   "novelette"
+  ],
+  "snakes": [],
+  "caramel": [
+   "caramel brown",
+   "caramelized sugar",
+   "yellowish brown"
+  ],
+  "numbs": [],
+  "supervillain": [],
+  "sugar": [
+   "boodle",
+   "carbohydrate",
+   "refined sugar",
+   "saccharify"
+  ],
+  "distracted": [
+   "distrait"
+  ],
+  "sadness": [
+   "gloominess",
+   "sorrow",
+   "sorrowfulness",
+   "unhappiness"
+  ],
+  "television": [
+   "telecasting",
+   "television receiver",
+   "television system",
+   "tv",
+   "video"
+  ],
+  "regards": [],
+  "basketball": [
+   "basketball game",
+   "hoops"
+  ],
+  "not": [
+   "non"
+  ],
+  "related": [
+   "related to"
+  ],
+  "collect": [
+   "call for",
+   "cod",
+   "gather",
+   "gather up",
+   "pick up",
+   "pull in",
+   "roll up",
+   "take in"
+  ],
+  "tim": [],
+  "lewis": [
+   "c. s. lewis",
+   "carl lewis",
+   "clive staples lewis",
+   "frederick carleton lewis",
+   "harry sinclair lewis",
+   "jerry lee lewis",
+   "john l. lewis",
+   "john llewelly lewis",
+   "lewis",
+   "meriwether lewis",
+   "sinclair lewis"
+  ],
+  "greene": [
+   "graham greene",
+   "greene",
+   "henry graham greene"
+  ],
+  "collections": [],
+  "shop": [
+   "browse",
+   "denounce",
+   "patronize",
+   "shop class",
+   "store",
+   "workshop"
+  ],
+  "york": [
+   "house of york",
+   "york"
+  ],
+  "achieve": [
+   "accomplish",
+   "attain",
+   "reach"
+  ],
+  "high": [
+   "eminent",
+   "gamey",
+   "heights",
+   "high gear",
+   "high up",
+   "high-pitched",
+   "in high spirits",
+   "luxuriously",
+   "mellow",
+   "richly",
+   "senior high school"
+  ],
+  "score": [
+   "account",
+   "grade",
+   "grudge",
+   "hit",
+   "mark",
+   "musical score",
+   "nock",
+   "rack up",
+   "scotch",
+   "seduce",
+   "sexual conquest",
+   "tally"
+  ],
+  "points": [],
+  "geographical": [
+   "geographic"
+  ],
+  "locations": [],
+  "gear": [
+   "appurtenance",
+   "cogwheel",
+   "gear mechanism",
+   "gear wheel",
+   "geared wheel",
+   "gearing",
+   "paraphernalia",
+   "pitch"
+  ],
+  "signed": [
+   "gestural"
+  ],
+  "endorsement": [
+   "blurb",
+   "indorsement",
+   "sanction",
+   "second"
+  ],
+  "deal": [
+   "bargain",
+   "batch",
+   "business deal",
+   "conduct",
+   "consider",
+   "cope",
+   "cover",
+   "distribute",
+   "hand",
+   "manage",
+   "sell",
+   "share",
+   "softwood",
+   "trade"
+  ],
+  "deals": [],
+  "offered": [],
+  "seattle": [
+   "seattle"
+  ],
+  "sports": [],
+  "surfing": [
+   "surfboarding",
+   "surfriding"
+  ],
+  "reality": [
+   "realism",
+   "realness",
+   "world"
+  ],
+  "anthony": [
+   "anthony",
+   "antony",
+   "susan anthony",
+   "susan b. anthony",
+   "susan brownell anthony"
+  ],
+  "reconnect": [],
+  "fellow": [
+   "boyfriend",
+   "buster",
+   "chap",
+   "colleague",
+   "companion",
+   "dude",
+   "mate"
+  ],
+  "harry": [
+   "harass",
+   "ravage"
+  ],
+  "potter": [
+   "ceramicist",
+   "ceramist",
+   "putter",
+   "thrower"
+  ],
+  "california": [
+   "ca",
+   "calif.",
+   "california",
+   "golden state"
+  ],
+  "authors": [],
+  "prominent": [
+   "big",
+   "outstanding"
+  ],
+  "organization": [
+   "administration",
+   "arrangement",
+   "constitution",
+   "organisation",
+   "system"
+  ],
+  "traveling": [
+   "travel"
+  ],
+  "chicago": [
+   "chicago",
+   "michigan",
+   "windy city"
+  ],
+  "teammates": [],
+  "returning": [
+   "returning(a)",
+   "reverting"
+  ],
+  "attending": [
+   "attendance",
+   "attention"
+  ],
+  "similar": [
+   "alike(p)",
+   "exchangeable",
+   "like"
+  ],
+  "collectible": [
+   "collectable",
+   "payable"
+  ],
+  "popular": [
+   "democratic",
+   "pop"
+  ],
+  "management": [
+   "direction"
+  ],
+  "technique": [
+   "proficiency"
+  ],
+  "prepare": [
+   "cook",
+   "fix",
+   "groom",
+   "organize",
+   "train"
+  ],
+  "exams": [],
+  "composer": [],
+  "tunes": [],
+  "piano": [
+   "forte-piano",
+   "pianissimo",
+   "pianoforte",
+   "soft",
+   "softly"
+  ],
+  "schools": [],
+  "universal": [
+   "cosmopolitan",
+   "linguistic universal",
+   "universal joint",
+   "universal proposition"
+  ],
+  "studios": [],
+  "player": [
+   "actor",
+   "musician",
+   "participant"
+  ],
+  "frequently": [
+   "oft",
+   "often",
+   "oftentimes",
+   "ofttimes"
+  ],
+  "travels": [],
+  "smoky": [],
+  "north": [
+   "compass north",
+   "due north",
+   "frederick north",
+   "magnetic north",
+   "north",
+   "northerly",
+   "northward",
+   "northwards",
+   "second earl of guilford",
+   "union"
+  ],
+  "carolina": [
+   "carolina",
+   "carolinas"
+  ],
+  "tennesee": [],
+  "fiction": [
+   "fabrication"
+  ],
+  "stories": [],
+  "cooked": [],
+  "lebron": [],
+  "james": [
+   "epistle of james",
+   "henry james",
+   "james",
+   "james i",
+   "james ii",
+   "james iv",
+   "james river",
+   "jesse james",
+   "king james",
+   "king james i",
+   "saint james",
+   "saint james the apostle",
+   "st. james",
+   "st. james the apostle",
+   "william james"
+  ],
+  "wife": [
+   "married woman"
+  ],
+  "vacation": [
+   "holiday"
+  ],
+  "greenhouse": [
+   "glasshouse"
+  ],
+  "ankle": [
+   "ankle joint",
+   "articulatio talocruralis",
+   "mortise joint"
+  ],
+  "injury": [
+   "accidental injury",
+   "harm",
+   "hurt",
+   "trauma",
+   "wound"
+  ],
+  "injured": [
+   "offended"
+  ],
+  "recovery": [
+   "convalescence",
+   "retrieval"
+  ],
+  "building": [
+   "construction",
+   "edifice"
+  ],
+  "core": [
+   "congress of racial equality",
+   "core group",
+   "effect",
+   "kernel",
+   "magnetic core",
+   "nucleus"
+  ],
+  "benefit": [
+   "do good",
+   "profit",
+   "welfare"
+  ],
+  "supplement": [
+   "accessory",
+   "addendum",
+   "append",
+   "supplementation"
+  ],
+  "training": [
+   "education",
+   "grooming",
+   "preparation"
+  ],
+  "other": [
+   "early(a)",
+   "other(a)"
+  ],
+  "performance": [
+   "carrying into action",
+   "carrying out",
+   "execution",
+   "operation",
+   "public presentation"
+  ],
+  "rocky": [
+   "bouldered",
+   "bouldery",
+   "rough",
+   "stony"
+  ],
+  "professionally": [],
+  "violin": [
+   "fiddle"
+  ],
+  "trivia": [
+   "triviality"
+  ],
+  "performances": [],
+  "assist": [
+   "aid",
+   "help",
+   "serve"
+  ],
+  "knowledge": [
+   "cognition"
+  ],
+  "organize": [
+   "coordinate",
+   "devise",
+   "form",
+   "get up",
+   "machinate",
+   "mastermind",
+   "organise",
+   "prepare",
+   "unionize"
+  ],
+  "italy": [
+   "italia",
+   "italian republic",
+   "italy"
+  ],
+  "fantasy": [
+   "fantasise",
+   "fantasize",
+   "illusion",
+   "phantasy"
+  ],
+  "star": [
+   "ace",
+   "asterisk",
+   "headliner",
+   "lead",
+   "leading(p)",
+   "principal",
+   "star topology"
+  ],
+  "wars": [],
+  "hobby": [
+   "avocation",
+   "falco subbuteo",
+   "hobbyhorse",
+   "rocking horse"
+  ],
+  "dreams": [],
+  "pick": [
+   "blame",
+   "break up",
+   "choice",
+   "clean",
+   "cream",
+   "cull",
+   "foot",
+   "nibble",
+   "peck",
+   "pickax",
+   "pickaxe",
+   "picking",
+   "plectron",
+   "plectrum",
+   "pluck",
+   "woof"
+  ],
+  "day": [
+   "24-hour interval",
+   "clarence day",
+   "clarence shepard day jr.",
+   "day",
+   "daylight",
+   "daytime",
+   "mean solar day",
+   "sidereal day",
+   "solar day",
+   "twenty-four hour period",
+   "twenty-four hours"
+  ],
+  "study": [
+   "analyze",
+   "cogitation",
+   "consider",
+   "contemplate",
+   "discipline",
+   "hit the books",
+   "learn",
+   "meditate",
+   "report",
+   "sketch",
+   "survey",
+   "work"
+  ],
+  "abroad": [
+   "afield",
+   "overseas"
+  ],
+  "will": [
+   "bequeath",
+   "testament",
+   "volition"
+  ],
+  "leave": [
+   "allow",
+   "allow for",
+   "bequeath",
+   "depart",
+   "entrust",
+   "exit",
+   "farewell",
+   "forget",
+   "go away",
+   "go forth",
+   "impart",
+   "lead",
+   "leave alone",
+   "leave behind",
+   "leave of absence",
+   "let alone",
+   "provide",
+   "pull up stakes",
+   "result"
+  ],
+  "ireland": [
+   "eire",
+   "emerald isle",
+   "hibernia",
+   "ireland",
+   "irish republic",
+   "republic of ireland"
+  ],
+  "position": [
+   "attitude",
+   "berth",
+   "billet",
+   "military position",
+   "office",
+   "perspective",
+   "place",
+   "placement",
+   "post",
+   "posture",
+   "put",
+   "side",
+   "situation",
+   "spatial relation",
+   "spot",
+   "stance",
+   "status",
+   "stead",
+   "view"
+  ],
+  "challenge": [
+   "dispute",
+   "gainsay",
+   "take exception"
+  ],
+  "pre": [],
+  "season": [
+   "flavor",
+   "flavour",
+   "harden",
+   "temper",
+   "time of year"
+  ],
+  "aspects": [],
+  "universe": [
+   "cosmos",
+   "creation",
+   "existence",
+   "macrocosm",
+   "population",
+   "universe of discourse",
+   "world"
+  ],
+  "collaborations": [],
+  "forum": [
+   "assembly",
+   "meeting place"
+  ],
+  "highest": [],
+  "number": [
+   "act",
+   "count",
+   "figure",
+   "issue",
+   "keep down",
+   "list",
+   "numeral",
+   "phone number",
+   "total"
+  ],
+  "scored": [],
+  "restaurant": [
+   "eatery",
+   "eating house",
+   "eating place"
+  ],
+  "nike": [
+   "nike"
+  ],
+  "gatorade": [],
+  "articles": [],
+  "magazine": [
+   "cartridge",
+   "cartridge holder",
+   "mag",
+   "magazine publisher",
+   "powder magazine",
+   "powder store"
+  ],
+  "novels": [],
+  "end": [
+   "cease",
+   "conclusion",
+   "death",
+   "destruction",
+   "ending",
+   "finish",
+   "goal",
+   "last",
+   "oddment",
+   "remainder",
+   "remnant",
+   "stop",
+   "terminal",
+   "terminate"
+  ],
+  "skyped": [],
+  "bond": [
+   "adhere",
+   "adhesiveness",
+   "alliance",
+   "attachment",
+   "bail",
+   "bind",
+   "bond",
+   "bond certificate",
+   "bond paper",
+   "chemical bond",
+   "draw together",
+   "james bond",
+   "julian bond",
+   "shackle"
+  ],
+  "introduced": [],
+  "goal": [
+   "end",
+   "finish"
+  ],
+  "teaming": [],
+  "aug": [
+   "august"
+  ],
+  "intention": [
+   "purpose"
+  ],
+  "behind": [
+   "behind(p)",
+   "behindhand",
+   "buttocks",
+   "in arrears",
+   "slow"
+  ],
+  "wanting": [
+   "deficient",
+   "lacking"
+  ],
+  "philosopher": [],
+  "stone": [
+   "edward durell stone",
+   "endocarp",
+   "gem",
+   "harlan f. stone",
+   "harlan fisk stone",
+   "harlan fiske stone",
+   "harlan stone",
+   "i. f. stone",
+   "isidor feinstein stone",
+   "lapidate",
+   "lucy stone",
+   "oliver stone",
+   "pit",
+   "rock",
+   "stone"
+  ],
+  "bring": [
+   "convey",
+   "fetch",
+   "get",
+   "institute",
+   "land",
+   "lend",
+   "make for",
+   "play",
+   "take",
+   "work",
+   "wreak"
+  ],
+  "thanksgiving": [
+   "grace",
+   "thanksgiving",
+   "thanksgiving day"
+  ],
+  "tradition": [
+   "custom"
+  ],
+  "nyc": [],
+  "enticing": [
+   "alluring"
+  ],
+  "soup": [],
+  "spice": [
+   "spice up",
+   "spiciness",
+   "zest"
+  ],
+  "add": [
+   "add together",
+   "append",
+   "attention deficit disorder",
+   "lend",
+   "supply",
+   "total"
+  ],
+  "next": [
+   "adjacent",
+   "following",
+   "future(a)"
+  ],
+  "picking": [
+   "pick"
+  ],
+  "endorsements": [],
+  "recommendation": [
+   "good word",
+   "passport",
+   "testimonial"
+  ],
+  "venue": [
+   "locale",
+   "locus"
+  ],
+  "girlfriend": [
+   "girl",
+   "lady friend"
+  ],
+  "wedding": [
+   "hymeneals",
+   "marriage",
+   "nuptials",
+   "wedding ceremony",
+   "wedding party"
+  ],
+  "ceremony": [
+   "ceremonial",
+   "ceremonial occasion",
+   "observance"
+  ],
+  "passion": [
+   "heat",
+   "love",
+   "mania",
+   "passion",
+   "passion of christ",
+   "passionateness",
+   "rage"
+  ],
+  "connects": [],
+  "all": [
+   "all(a)",
+   "wholly"
+  ],
+  "world": [
+   "domain",
+   "earth",
+   "global",
+   "human beings",
+   "human race",
+   "humanity",
+   "humankind",
+   "humans",
+   "man",
+   "mankind",
+   "populace",
+   "reality",
+   "universe",
+   "worldly concern"
+  ],
+  "handles": [],
+  "opponents": [],
+  "better": [
+   "ameliorate",
+   "amend",
+   "best",
+   "better(p)",
+   "bettor",
+   "break",
+   "improve",
+   "meliorate"
+  ],
+  "capture": [
+   "appropriate",
+   "becharm",
+   "beguile",
+   "bewitch",
+   "captivate",
+   "catch",
+   "charm",
+   "enamor",
+   "enamour",
+   "enchant",
+   "entrance",
+   "fascinate",
+   "gaining control",
+   "get",
+   "seizure",
+   "trance"
+  ],
+  "mountain": [
+   "batch",
+   "mount"
+  ],
+  "range": [
+   "array",
+   "chain",
+   "chain of mountains",
+   "compass",
+   "crop",
+   "image",
+   "lay out",
+   "mountain chain",
+   "mountain range",
+   "range of mountains",
+   "rate",
+   "reach",
+   "roll",
+   "run",
+   "scope",
+   "set out",
+   "stove",
+   "straddle"
+  ],
+  "players": [],
+  "rewarding": [],
+  "mentoring": [],
+  "able": [
+   "able-bodied",
+   "capable"
+  ],
+  "novel": [
+   "fresh",
+   "refreshing"
+  ],
+  "sources": [],
+  "inspiration": [
+   "brainchild",
+   "divine guidance",
+   "inhalation",
+   "stirring"
+  ],
+  "rowling": [],
+  "quote": [
+   "cite",
+   "quotation",
+   "quotation mark"
+  ],
+  "resonate": [
+   "come across",
+   "vibrate"
+  ],
+  "whiteboard": [],
+  "therapy": [],
+  "court": [
+   "court",
+   "court of justice",
+   "court of law",
+   "courtroom",
+   "courtyard",
+   "homage",
+   "judicature",
+   "law court",
+   "lawcourt",
+   "margaret court",
+   "motor hotel",
+   "royal court",
+   "tribunal",
+   "woo"
+  ],
+  "cook": [
+   "captain cook",
+   "captain james cook",
+   "cook",
+   "fix",
+   "fudge",
+   "james cook",
+   "make",
+   "prepare",
+   "ready"
+  ],
+  "using": [
+   "exploitation"
+  ],
+  "slow": [
+   "behind",
+   "boring",
+   "decelerate",
+   "dense",
+   "dull",
+   "slack",
+   "slacken",
+   "slow down",
+   "slow up",
+   "slowly"
+  ],
+  "cooker": [],
+  "honey": [
+   "beloved"
+  ],
+  "garlic": [
+   "ail",
+   "allium sativum"
+  ],
+  "chicken": [
+   "chickenhearted",
+   "gallus gallus",
+   "lily-livered",
+   "poulet",
+   "volaille",
+   "white-livered",
+   "wimp",
+   "yellow",
+   "yellow-bellied"
+  ],
+  "huge": [
+   "brobdingnagian",
+   "immense",
+   "vast"
+  ],
+  "issue": [
+   "come forth",
+   "come out",
+   "consequence",
+   "egress",
+   "emerge",
+   "emergence",
+   "exit",
+   "go forth",
+   "government issue",
+   "issuance",
+   "issuing",
+   "military issue",
+   "number",
+   "offspring",
+   "publication",
+   "publish",
+   "return",
+   "supply",
+   "topic",
+   "write out"
+  ],
+  "serves": [],
+  "hard": [
+   "arduous",
+   "concentrated",
+   "difficult",
+   "firmly",
+   "hardly",
+   "heavily",
+   "intemperate",
+   "knockout",
+   "severe",
+   "severely",
+   "strong",
+   "tough",
+   "unvoiced"
+  ],
+  "prized": [],
+  "possession": [
+   "monomania",
+   "ownership",
+   "self-control"
+  ],
+  "inspiring": [],
+  "views": [],
+  "coastline": [],
+  "shows": [],
+  "difficult": [
+   "hard",
+   "unmanageable"
+  ],
+  "sessions": [
+   "roger huntington sessions",
+   "roger sessions",
+   "sessions"
+  ],
+  "overcome": [
+   "get over",
+   "get the best",
+   "get the better of",
+   "master",
+   "overwhelm",
+   "subdue",
+   "surmount"
+  ],
+  "pushing": [
+   "push"
+  ],
+  "himself": [],
+  "mistake": [
+   "err",
+   "error",
+   "fault",
+   "misapprehension",
+   "misidentify",
+   "misunderstanding"
+  ],
+  "rereading": [],
+  "left": [
+   "left field",
+   "left hand",
+   "left wing",
+   "left(a)",
+   "leftover"
+  ],
+  "hopeful": [
+   "aspirant",
+   "bright"
+  ],
+  "following": [
+   "followers",
+   "following(a)",
+   "next",
+   "pursuit"
+  ],
+  "alchemist": [],
+  "perspective": [
+   "linear perspective",
+   "position"
+  ],
+  "flexibility": [
+   "flexibleness",
+   "tractability"
+  ],
+  "usually": [
+   "normally"
+  ],
+  "hold": [
+   "accommodate",
+   "agree",
+   "apply",
+   "appreciation",
+   "bear",
+   "cargo area",
+   "carry",
+   "clasp",
+   "contain",
+   "control",
+   "declare",
+   "deem",
+   "defend",
+   "defy",
+   "delay",
+   "detention",
+   "give",
+   "halt",
+   "handle",
+   "harbor",
+   "have",
+   "hold up",
+   "keep",
+   "make",
+   "oblige",
+   "prevail",
+   "reserve",
+   "restrain",
+   "retain",
+   "support",
+   "sustain",
+   "take hold",
+   "throw"
+  ],
+  "pose": [
+   "affectation",
+   "airs",
+   "impersonate",
+   "model",
+   "perplex",
+   "personate",
+   "posture",
+   "present",
+   "put"
+  ],
+  "forest": [
+   "afforest",
+   "timber",
+   "timberland",
+   "wood",
+   "woodland",
+   "woods"
+  ],
+  "studies": [],
+  "story": [
+   "fib",
+   "floor",
+   "history",
+   "narrative",
+   "report"
+  ],
+  "discussion": [
+   "discourse",
+   "give-and-take",
+   "treatment",
+   "word"
+  ],
+  "assists": [],
+  "way": [
+   "direction",
+   "manner",
+   "means",
+   "path",
+   "right smart",
+   "room",
+   "way of life"
+  ],
+  "dealing": [
+   "transaction"
+  ],
+  "doubts": [],
+  "stress": [
+   "accent",
+   "accentuate",
+   "emphasis",
+   "emphasise",
+   "emphasize",
+   "focus",
+   "punctuate",
+   "strain",
+   "tension",
+   "try"
+  ],
+  "atmosphere": [
+   "air",
+   "ambiance",
+   "ambience",
+   "atmospheric state",
+   "standard atmosphere"
+  ],
+  "against": [],
+  "rival": [
+   "challenger",
+   "competition",
+   "competitor",
+   "contender",
+   "equal"
+  ],
+  "jog": [
+   "lope",
+   "nudge",
+   "ramble on",
+   "square up",
+   "trot"
+  ],
+  "without": [],
+  "pain": [
+   "anguish",
+   "annoyance",
+   "hurt",
+   "hurting",
+   "nuisance",
+   "pain in the neck",
+   "pain sensation",
+   "painful sensation",
+   "painfulness",
+   "trouble"
+  ],
+  "photoshoot": [],
+  "growth": [
+   "development",
+   "emergence",
+   "growing",
+   "increase",
+   "maturation",
+   "ontogenesis",
+   "ontogeny"
+  ],
+  "seminars": [],
+  "conducting": [],
+  "himalayan": [
+   "himalayan"
+  ],
+  "trek": [],
+  "influence": [
+   "act upon",
+   "charm",
+   "determine",
+   "work"
+  ],
+  "resources": [],
+  "language": [
+   "linguistic communication",
+   "linguistic process",
+   "lyric",
+   "speech",
+   "terminology"
+  ],
+  "know": [
+   "acknowledge",
+   "cognise",
+   "cognize",
+   "experience",
+   "live",
+   "sleep together"
+  ],
+  "german": [
+   "german",
+   "german language",
+   "high german"
+  ],
+  "character": [
+   "case",
+   "character reference",
+   "eccentric",
+   "fiber",
+   "fibre",
+   "fictional character",
+   "graph",
+   "grapheme",
+   "graphic symbol",
+   "part",
+   "persona",
+   "quality",
+   "reference",
+   "role",
+   "theatrical role",
+   "type"
+  ],
+  "lord": [
+   "godhead",
+   "lord",
+   "noble",
+   "nobleman",
+   "overlord"
+  ],
+  "rings": [],
+  "aragorn": [],
+  "everything": [],
+  "map": [
+   "function",
+   "map out",
+   "represent"
+  ],
+  "semester": [],
+  "staying": [],
+  "johns": [
+   "jasper johns",
+   "johns"
+  ],
+  "sealing": [
+   "waterproofing"
+  ],
+  "beverage": [
+   "drink",
+   "drinkable",
+   "potable"
+  ],
+  "cult": [
+   "cultus",
+   "fad",
+   "religious cult"
+  ],
+  "mystery": [
+   "closed book",
+   "enigma",
+   "mystery story",
+   "secret",
+   "whodunit"
+  ],
+  "football": [
+   "football game"
+  ],
+  "fifty": [
+   "50",
+   "fifty dollar bill"
+  ],
+  "shades": [
+   "sunglasses"
+  ],
+  "grey": [
+   "charles grey",
+   "gray",
+   "gray-haired",
+   "gray-headed",
+   "grayish",
+   "grey",
+   "grey-haired",
+   "grey-headed",
+   "greyish",
+   "grizzly",
+   "hoar",
+   "hoary",
+   "lady jane grey",
+   "second earl grey",
+   "white-haired",
+   "zane grey"
+  ],
+  "halloween": [
+   "allhallows eve",
+   "hallowe'en",
+   "halloween"
+  ],
+  "disneyland": [
+   "disneyland"
+  ],
+  "avoid": [
+   "debar",
+   "invalidate",
+   "keep off"
+  ],
+  "breakup": [
+   "dissolution",
+   "separation"
+  ],
+  "crime": [
+   "criminal offence",
+   "criminal offense",
+   "law-breaking"
+  ],
+  "coding": [
+   "cryptography"
+  ],
+  "fragrance": [
+   "aroma",
+   "bouquet"
+  ],
+  "opposes": [],
+  "least": [
+   "least(a)",
+   "to the lowest degree"
+  ],
+  "tims": [],
+  "audrey": [],
+  "three": [
+   "deuce-ace",
+   "iii",
+   "leash",
+   "tercet",
+   "ternary",
+   "ternion",
+   "terzetto",
+   "threesome",
+   "tierce",
+   "trey",
+   "triad",
+   "trine",
+   "trinity",
+   "trio",
+   "triplet",
+   "troika"
+  ],
+  "andrew": [
+   "andrew",
+   "saint andrew",
+   "saint andrew the apostle",
+   "st. andrew"
+  ],
+  "analyst": [
+   "psychoanalyst"
+  ],
+  "indoor": [
+   "indoor(a)"
+  ],
+  "pursued": [
+   "chased"
+  ],
+  "checked": [
+   "checkered",
+   "chequered"
+  ],
+  "muffins": [],
+  "hummingbird": [],
+  "pixie": [
+   "elf",
+   "pyxie"
+  ],
+  "groups": [],
+  "joined": [
+   "coupled",
+   "united"
+  ],
+  "positive": [
+   "cocksure",
+   "confirming",
+   "convinced(p)",
+   "electropositive",
+   "incontrovertible",
+   "plus",
+   "positive degree",
+   "positively charged",
+   "positivist",
+   "prescribed"
+  ],
+  "reinforcement": [
+   "reenforcement",
+   "reinforcing stimulus",
+   "reward",
+   "strengthener",
+   "support"
+  ],
+  "course": [
+   "class",
+   "course of action",
+   "course of instruction",
+   "course of study",
+   "line",
+   "naturally",
+   "path",
+   "row",
+   "run",
+   "trend"
+  ],
+  "rock": [
+   "careen",
+   "john rock",
+   "rock",
+   "rock 'n' roll",
+   "rock candy",
+   "shake",
+   "stone",
+   "sway",
+   "tilt"
+  ],
+  "climbing": [
+   "climb"
+  ],
+  "than": [],
+  "nature": [],
+  "really": [
+   "actually",
+   "in truth",
+   "truly",
+   "very"
+  ],
+  "misses": [],
+  "frustration": [
+   "defeat",
+   "foiling",
+   "thwarting"
+  ],
+  "ownership": [
+   "possession"
+  ],
+  "andew": [],
+  "meat": [
+   "kernel"
+  ],
+  "prefer": [
+   "choose",
+   "favor",
+   "favour"
+  ],
+  "eating": [
+   "feeding"
+  ],
+  "took": [],
+  "problems": [],
+  "faces": [],
+  "toby": [
+   "toby fillpot jug",
+   "toby jug"
+  ],
+  "grow": [
+   "acquire",
+   "develop",
+   "farm",
+   "get",
+   "mature",
+   "originate",
+   "produce",
+   "raise",
+   "turn"
+  ],
+  "fishing": [
+   "sportfishing"
+  ],
+  "stressor": [],
+  "dresses": [],
+  "arm": [
+   "branch",
+   "build up",
+   "fortify",
+   "gird",
+   "limb",
+   "sleeve",
+   "weapon"
+  ],
+  "potentially": [],
+  "accomodate": [],
+  "situation": [
+   "position",
+   "site",
+   "state of affairs"
+  ],
+  "months": [],
+  "buddy": [
+   "brother",
+   "chum",
+   "crony",
+   "pal",
+   "sidekick"
+  ],
+  "foods": [],
+  "wine": [
+   "vino",
+   "wine-colored",
+   "wine-coloured"
+  ],
+  "tasting": [
+   "degustation",
+   "relishing",
+   "savoring",
+   "savouring",
+   "taste"
+  ],
+  "wtih": [],
+  "freely": [],
+  "breeds": [],
+  "discipline": [
+   "bailiwick",
+   "check",
+   "condition",
+   "correct",
+   "correction",
+   "field",
+   "field of study",
+   "sort out",
+   "study",
+   "subject",
+   "subject area",
+   "subject field",
+   "train"
+  ],
+  "referring": [],
+  "conversations": [],
+  "scout": [
+   "guide",
+   "lookout",
+   "pathfinder",
+   "reconnoiter",
+   "reconnoitre",
+   "scout",
+   "talent scout"
+  ],
+  "view": [
+   "aspect",
+   "consider",
+   "eyeshot",
+   "horizon",
+   "look at",
+   "opinion",
+   "panorama",
+   "position",
+   "prospect",
+   "scene",
+   "see",
+   "sight",
+   "survey",
+   "vista",
+   "watch"
+  ],
+  "skill": [
+   "accomplishment",
+   "acquirement",
+   "acquisition",
+   "attainment",
+   "science"
+  ],
+  "learned": [
+   "conditioned",
+   "erudite",
+   "knowing"
+  ],
+  "birdwatching": [],
+  "fit": [
+   "burst",
+   "conform to",
+   "conniption",
+   "equip",
+   "fill",
+   "fit(p)",
+   "fulfil",
+   "fulfill",
+   "go",
+   "match",
+   "meet",
+   "paroxysm",
+   "satisfy",
+   "scene",
+   "suit",
+   "tantrum"
+  ],
+  "schedule": [
+   "agenda"
+  ],
+  "animals": [
+   "cats",
+   "creatures",
+   "dogs",
+   "pets",
+   "turtles"
+  ],
+  "fun": [
+   "merriment",
+   "play",
+   "playfulness",
+   "sport"
+  ],
+  "moved": [
+   "moved(p)"
+  ],
+  "apartment": [
+   "flat"
+  ],
+  "eat": [
+   "consume",
+   "corrode",
+   "eat on",
+   "feed"
+  ],
+  "bird": [
+   "birdwatch",
+   "boo",
+   "dame",
+   "fowl",
+   "shuttlecock"
+  ],
+  "mesmerizes": [],
+  "express": [
+   "carry",
+   "evince",
+   "express mail",
+   "expressage",
+   "give tongue to",
+   "limited",
+   "press out",
+   "show",
+   "state",
+   "utter",
+   "verbalise",
+   "verbalize"
+  ],
+  "missing": [
+   "lacking"
+  ],
+  "exploring": [],
+  "pastries": [],
+  "cafe": [
+   "coffee bar",
+   "coffee shop",
+   "coffeehouse"
+  ],
+  "playdates": [],
+  "space": [
+   "blank",
+   "blank space",
+   "distance",
+   "infinite",
+   "outer space",
+   "place",
+   "quad"
+  ],
+  "large": [
+   "big",
+   "big(p)",
+   "boastfully",
+   "bombastic"
+  ],
+  "bonding": [
+   "soldering"
+  ],
+  "hear": [
+   "learn",
+   "listen",
+   "try"
+  ],
+  "facing": [
+   "cladding",
+   "lining",
+   "veneer"
+  ],
+  "search": [
+   "hunt",
+   "hunting",
+   "look",
+   "look for",
+   "lookup",
+   "research",
+   "seek"
+  ],
+  "friendly": [
+   "well disposed",
+   "well-disposed"
+  ],
+  "typically": [],
+  "set": [
+   "adjust",
+   "arrange",
+   "band",
+   "bent",
+   "circle",
+   "countersink",
+   "determine",
+   "determined",
+   "dress",
+   "exercise set",
+   "fit(p)",
+   "fix",
+   "fixed",
+   "fructify",
+   "go down",
+   "go under",
+   "hardened",
+   "hardening",
+   "jell",
+   "laid",
+   "localise",
+   "localize",
+   "located",
+   "lot",
+   "mark",
+   "place",
+   "plant",
+   "put",
+   "readiness",
+   "rig",
+   "set",
+   "set up",
+   "set(p)",
+   "seth",
+   "sic",
+   "specify",
+   "stage set",
+   "typeset"
+  ],
+  "backyard": [],
+  "stumble": [
+   "bumble",
+   "falter",
+   "hit",
+   "lurch",
+   "slip up",
+   "trip",
+   "trip up"
+  ],
+  "across": [
+   "crossways",
+   "crosswise"
+  ],
+  "few": [],
+  "shares": [],
+  "dishes": [],
+  "includes": [],
+  "monday": [
+   "mon",
+   "monday"
+  ],
+  "personalities": [],
+  "fur": [
+   "pelt"
+  ],
+  "babies": [],
+  "pups": [],
+  "practice": [
+   "apply",
+   "commit",
+   "do",
+   "drill",
+   "exercise",
+   "pattern",
+   "practise",
+   "praxis",
+   "rehearse",
+   "use"
+  ],
+  "trail": [
+   "chase",
+   "drag",
+   "lead",
+   "shack",
+   "train"
+  ],
+  "went": [],
+  "grooming": [
+   "dressing",
+   "training"
+  ],
+  "essential": [
+   "all-important(a)",
+   "indispensable",
+   "necessity",
+   "substantive"
+  ],
+  "neighbors": [],
+  "comfort": [
+   "comfortableness",
+   "consolation",
+   "console",
+   "ease",
+   "quilt",
+   "solace",
+   "soothe"
+  ],
+  "weather": [
+   "atmospheric condition",
+   "brave",
+   "brave out",
+   "conditions",
+   "endure",
+   "upwind",
+   "weather condition"
+  ],
+  "cooled": [],
+  "beds": [],
+  "calm": [
+   "calm air",
+   "calm down",
+   "chill out",
+   "composure",
+   "cool it",
+   "cool off",
+   "lull",
+   "quiet",
+   "quieten",
+   "sedate",
+   "serene",
+   "settle down",
+   "simmer down",
+   "steady",
+   "still",
+   "tranquil",
+   "tranquilize",
+   "tranquillise",
+   "tranquillize",
+   "unagitated"
+  ],
+  "leash": [
+   "collar",
+   "lead",
+   "rope",
+   "tether",
+   "three"
+  ],
+  "incident": [
+   "incidental"
+  ],
+  "walks": [],
+  "ecological": [
+   "bionomic",
+   "bionomical",
+   "ecologic"
+  ],
+  "systems": [],
+  "reduce": [
+   "abridge",
+   "boil down",
+   "bring down",
+   "come down",
+   "concentrate",
+   "cut",
+   "cut back",
+   "cut down",
+   "deoxidize",
+   "dilute",
+   "melt off",
+   "repress",
+   "scale down",
+   "shrink",
+   "slenderize",
+   "slim",
+   "slim down",
+   "thin",
+   "tighten",
+   "trim",
+   "trim back",
+   "trim down"
+  ],
+  "carbon": [
+   "atomic number 6",
+   "carbon copy",
+   "carbon paper"
+  ],
+  "footprint": [
+   "footmark",
+   "step"
+  ],
+  "helping": [
+   "portion",
+   "serving"
+  ],
+  "planet": [
+   "major planet",
+   "satellite"
+  ],
+  "also": [
+   "besides"
+  ],
+  "body": [
+   "consistency",
+   "dead body",
+   "organic structure",
+   "personify",
+   "soundbox",
+   "torso"
+  ],
+  "couldn": [],
+  "period": [
+   "full point",
+   "full stop",
+   "geological period",
+   "menstruation",
+   "point",
+   "stop",
+   "time period"
+  ],
+  "jewelry": [
+   "jewellery"
+  ],
+  "recycled": [],
+  "objects": [],
+  "portion": [
+   "assign",
+   "dowry",
+   "fortune",
+   "helping",
+   "parcel",
+   "part",
+   "share"
+  ],
+  "profits": [
+   "net income",
+   "winnings"
+  ],
+  "thank": [
+   "give thanks"
+  ],
+  "react": [
+   "oppose",
+   "respond"
+  ],
+  "snow": [
+   "bamboozle",
+   "baron snow of leicester",
+   "c. p. snow",
+   "charles percy snow",
+   "coke",
+   "snow",
+   "snowfall"
+  ],
+  "response": [
+   "answer",
+   "reaction",
+   "reception",
+   "reply"
+  ],
+  "experiences": [],
+  "best": [
+   "best",
+   "better",
+   "better(p)",
+   "c. h. best",
+   "charles herbert best",
+   "outdo",
+   "topper"
+  ],
+  "companions": [],
+  "cuisine": [
+   "culinary art"
+  ],
+  "try": [
+   "assay",
+   "attempt",
+   "essay",
+   "hear",
+   "judge",
+   "render",
+   "sample",
+   "seek",
+   "strain",
+   "stress",
+   "test",
+   "try on"
+  ],
+  "town": [
+   "ithiel town",
+   "town",
+   "townsfolk",
+   "township",
+   "townspeople"
+  ],
+  "sushi": [],
+  "date": [
+   "appointment",
+   "date stamp",
+   "day of the month",
+   "engagement",
+   "escort",
+   "go steady"
+  ],
+  "saturday": [
+   "sabbatum",
+   "sat",
+   "saturday"
+  ],
+  "aspect": [
+   "expression",
+   "facet",
+   "view"
+  ],
+  "autumn": [
+   "fall"
+  ],
+  "beautiful": [],
+  "owners": [],
+  "tips": [],
+  "active": [
+   "active agent",
+   "active voice",
+   "alive",
+   "combat-ready",
+   "dynamic",
+   "fighting",
+   "participating"
+  ],
+  "stimulation": [
+   "foreplay",
+   "input",
+   "stimulant",
+   "stimulus"
+  ],
+  "safe": [
+   "condom",
+   "dependable",
+   "safe(p)"
+  ],
+  "them": [],
+  "maintenance": [
+   "alimony",
+   "care",
+   "criminal maintenance",
+   "sustenance"
+  ],
+  "cats": [],
+  "vegetables": [],
+  "economic": [
+   "economical"
+  ],
+  "drink": [
+   "beverage",
+   "boozing",
+   "crapulence",
+   "drink in",
+   "drinking",
+   "drunkenness",
+   "hit the bottle",
+   "imbibe",
+   "swallow",
+   "toast",
+   "tope"
+  ],
+  "pizza": [
+   "pizza pie"
+  ],
+  "italian": [
+   "italian"
+  ],
+  "suspected": [],
+  "recreational": [
+   "amateur"
+  ],
+  "planned": [
+   "aforethought(ip)"
+  ],
+  "resume": [
+   "curriculum vitae",
+   "re-start",
+   "restart",
+   "sketch",
+   "sum up",
+   "take up"
+  ],
+  "drums": [],
+  "adulthood": [
+   "maturity"
+  ],
+  "connecticut": [
+   "connecticut",
+   "connecticut river",
+   "constitution state",
+   "ct",
+   "ct.",
+   "nutmeg state"
+  ],
+  "ned": [],
+  "adventure": [
+   "dangerous undertaking",
+   "escapade",
+   "gamble",
+   "risky venture",
+   "venture"
+  ],
+  "civilization": [
+   "civilisation",
+   "culture",
+   "refinement"
+  ],
+  "different": [],
+  "colored": [
+   "biased",
+   "bleached",
+   "colorful",
+   "coloured",
+   "negro"
+  ],
+  "cards": [
+   "card game"
+  ],
+  "talking": [
+   "talk"
+  ],
+  "you": [],
+  "imposter": [
+   "fake",
+   "faker",
+   "fraud",
+   "impostor",
+   "pretender",
+   "pseud",
+   "pseudo",
+   "role player",
+   "sham",
+   "shammer"
+  ],
+  "mentions": [],
+  "recommended": [],
+  "lonely": [
+   "alone(p)",
+   "lone(a)",
+   "lonesome",
+   "solitary",
+   "unfrequented"
+  ],
+  "samantha": [],
+  "till": [
+   "boulder clay",
+   "cashbox",
+   "public treasury"
+  ],
+  "organizations": [],
+  "beneficiaries": [],
+  "fans": [],
+  "same": [
+   "lapp",
+   "like",
+   "same(p)"
+  ],
+  "depart": [
+   "deviate",
+   "go",
+   "leave",
+   "part",
+   "quit",
+   "set forth",
+   "set off",
+   "set out",
+   "sidetrack",
+   "start",
+   "start out",
+   "take leave",
+   "take off"
+  ],
+  "canada": [
+   "canada"
+  ],
+  "tickets": [],
+  "spend": [
+   "drop",
+   "expend",
+   "pass"
+  ],
+  "additional": [
+   "extra"
+  ],
+  "jill": [],
+  "sister": [
+   "sis",
+   "sister"
+  ],
+  "tricks": [],
+  "siblings": [],
+  "didn": [],
+  "starbucks": [],
+  "beer": [],
+  "mcgee": [],
+  "bar": [
+   "banish",
+   "barricade",
+   "barroom",
+   "browning automatic rifle",
+   "cake",
+   "debar",
+   "exclude",
+   "legal profession",
+   "measure",
+   "prevention",
+   "stripe"
+  ],
+  "serve": [
+   "assist",
+   "attend",
+   "attend to",
+   "dish",
+   "dish out",
+   "dish up",
+   "do",
+   "function",
+   "help",
+   "process",
+   "serve up",
+   "serve well",
+   "service",
+   "suffice",
+   "swear out",
+   "wait on"
+  ],
+  "ask": [
+   "ask out",
+   "enquire",
+   "expect",
+   "inquire",
+   "necessitate",
+   "require"
+  ],
+  "baseball": [
+   "ball",
+   "baseball game"
+  ],
+  "equipments": [],
+  "refurbish": [
+   "freshen up",
+   "renovate"
+  ],
+  "conversation": [],
+  "mobile": [
+   "fluid",
+   "mobile",
+   "mobile river",
+   "nomadic",
+   "peregrine",
+   "roving",
+   "wandering"
+  ],
+  "complete": [
+   "accomplished",
+   "all over",
+   "arrant(a)",
+   "concluded",
+   "consummate",
+   "dispatch",
+   "ended",
+   "fill in",
+   "fill out",
+   "finish",
+   "make out",
+   "nail",
+   "over",
+   "terminated"
+  ],
+  "witcher": [],
+  "programming": [
+   "computer programing",
+   "computer programming",
+   "programing",
+   "scheduling"
+  ],
+  "members": [],
+  "cyberpunk": [
+   "cyber-terrorist"
+  ],
+  "moment": [
+   "bit",
+   "consequence",
+   "here and now",
+   "instant",
+   "minute",
+   "mo",
+   "second"
+  ],
+  "deciding": [
+   "deciding(a)",
+   "decision making"
+  ],
+  "chess": [
+   "bromus secalinus",
+   "cheat",
+   "chess game"
+  ],
+  "mark": [
+   "bell ringer",
+   "brand",
+   "check",
+   "chump",
+   "commemorate",
+   "crisscross",
+   "cross off",
+   "deutsche mark",
+   "deutschmark",
+   "distinguish",
+   "german mark",
+   "gospel according to mark",
+   "grade",
+   "mark",
+   "marker",
+   "notice",
+   "print",
+   "punctuate",
+   "saint mark",
+   "scar",
+   "score",
+   "scratch",
+   "set",
+   "sign",
+   "st. mark",
+   "stain",
+   "stigma",
+   "stigmatize",
+   "tag",
+   "target"
+  ],
+  "josh": [
+   "kid"
+  ],
+  "developer": [],
+  "languages": [],
+  "worked": [],
+  "application": [
+   "application program",
+   "applications programme",
+   "coating",
+   "covering",
+   "diligence",
+   "lotion",
+   "practical application"
+  ],
+  "build": [
+   "build up",
+   "construct",
+   "establish",
+   "human body",
+   "physique"
+  ],
+  "sitting": [
+   "posing",
+   "seance",
+   "seated"
+  ],
+  "app": [],
+  "unique": [
+   "alone(p)",
+   "singular",
+   "unique(p)"
+  ],
+  "mostly": [
+   "by and large",
+   "largely"
+  ],
+  "metal": [
+   "alloy",
+   "metallic",
+   "metallic element"
+  ],
+  "detector": [
+   "demodulator",
+   "sensing element",
+   "sensor"
+  ],
+  "far": [
+   "army for the liberation of rwanda"
+  ],
+  "intense": [
+   "acute",
+   "vivid"
+  ],
+  "communicate": [
+   "commune",
+   "convey",
+   "intercommunicate",
+   "pass",
+   "pass along",
+   "pass on",
+   "put across"
+  ],
+  "famous": [
+   "celebrated"
+  ],
+  "pup": [
+   "puppy",
+   "whelp"
+  ],
+  "embody": [
+   "be",
+   "incarnate",
+   "personify"
+  ],
+  "appearance": [
+   "appearing",
+   "coming into court",
+   "show",
+   "visual aspect"
+  ],
+  "woman": [
+   "adult female",
+   "charwoman",
+   "womanhood"
+  ],
+  "saw": [
+   "power saw",
+   "proverb"
+  ],
+  "virtual": [
+   "virtual(a)"
+  ],
+  "impresses": [],
+  "japan": [
+   "japan",
+   "japanese archipelago",
+   "japanese islands",
+   "nihon",
+   "nippon"
+  ],
+  "assignment": [
+   "appointment",
+   "assigning",
+   "duty assignment",
+   "grant"
+  ],
+  "giving": [
+   "big",
+   "gift"
+  ],
+  "breed": [
+   "cover",
+   "engender",
+   "multiply",
+   "stock",
+   "strain"
+  ],
+  "daisy": [],
+  "remaining": [
+   "leftover"
+  ],
+  "raised": [
+   "brocaded",
+   "raised(a)"
+  ],
+  "system": [
+   "arrangement",
+   "organization",
+   "scheme",
+   "system of rules"
+  ],
+  "created": [],
+  "charitable": [
+   "benevolent",
+   "good-hearted",
+   "kindly",
+   "large-hearted",
+   "openhearted",
+   "sympathetic"
+  ],
+  "foundation": [
+   "base",
+   "basis",
+   "foot",
+   "foundation garment",
+   "fundament",
+   "grounding",
+   "groundwork",
+   "initiation",
+   "substructure",
+   "understructure"
+  ],
+  "generate": [
+   "beget",
+   "bring forth",
+   "render"
+  ],
+  "reports": [],
+  "analysis": [
+   "analytic thinking",
+   "psychoanalysis"
+  ],
+  "achieving": [],
+  "matches": [],
+  "disagreement": [
+   "discrepancy",
+   "dissension",
+   "dissonance"
+  ],
+  "teams": [],
+  "volunteered": [],
+  "there": [
+   "thither"
+  ],
+  "required": [
+   "compulsory",
+   "needed"
+  ],
+  "cold": [
+   "cold-blooded",
+   "coldness",
+   "common cold",
+   "dusty",
+   "frigid",
+   "inhuman",
+   "insensate",
+   "moth-eaten",
+   "stale"
+  ],
+  "winter": [
+   "overwinter",
+   "wintertime"
+  ],
+  "become": [
+   "get",
+   "go",
+   "suit",
+   "turn"
+  ],
+  "toronto": [
+   "toronto"
+  ],
+  "return": [
+   "bring back",
+   "come back",
+   "coming back",
+   "fall",
+   "getting even",
+   "hark back",
+   "homecoming",
+   "issue",
+   "paying back",
+   "payoff",
+   "proceeds",
+   "reappearance",
+   "recurrence",
+   "reelect",
+   "refund",
+   "rejoinder",
+   "render",
+   "restitution",
+   "retort",
+   "return key",
+   "revert",
+   "take",
+   "take back",
+   "takings",
+   "tax return",
+   "yield"
+  ],
+  "vancouver": [
+   "george vancouver",
+   "vancouver"
+  ],
+  "strategy": [
+   "scheme"
+  ],
+  "clinic": [],
+  "instead": [
+   "alternatively",
+   "rather"
+  ],
+  "shooters": [],
+  "rpg": [],
+  "immersive": [],
+  "phone": [
+   "call",
+   "earphone",
+   "sound",
+   "speech sound",
+   "telephone"
+  ],
+  "outing": [
+   "excursion",
+   "field day"
+  ],
+  "difficulties": [],
+  "development": [
+   "developing",
+   "evolution",
+   "exploitation",
+   "growth"
+  ],
+  "teaching": [
+   "commandment",
+   "education",
+   "instruction",
+   "pedagogy",
+   "precept"
+  ],
+  "programs": [],
+  "headphones": [],
+  "much": [
+   "a great deal",
+   "a lot",
+   "much(a)",
+   "often",
+   "practically"
+  ],
+  "pay": [
+   "compensate",
+   "give",
+   "make up",
+   "pay off",
+   "pay up",
+   "wage",
+   "yield"
+  ],
+  "per": [],
+  "omelette": [
+   "omelet"
+  ],
+  "meringue": [],
+  "dream": [
+   "ambition",
+   "daydream",
+   "dreaming",
+   "pipe dream",
+   "stargaze",
+   "woolgather"
+  ],
+  "let": [
+   "allow",
+   "get",
+   "lashkar-e-taiba",
+   "lease",
+   "net ball",
+   "permit"
+  ],
+  "steam": [
+   "steam clean",
+   "steamer"
+  ],
+  "milestone": [
+   "milepost"
+  ],
+  "informed": [],
+  "constantly": [
+   "always",
+   "forever",
+   "incessantly",
+   "invariably",
+   "perpetually"
+  ],
+  "dev": [],
+  "non": [
+   "not"
+  ],
+  "profit": [
+   "benefit",
+   "gain",
+   "net income",
+   "turn a profit"
+  ],
+  "developers": [],
+  "card": [
+   "batting order",
+   "calling card",
+   "circuit board",
+   "identity card",
+   "menu",
+   "poster",
+   "scorecard",
+   "tease",
+   "wag"
+  ],
+  "kid": [
+   "banter",
+   "chaff",
+   "child",
+   "jolly",
+   "josh",
+   "kidskin",
+   "kyd",
+   "pull the leg of"
+  ],
+  "lose": [
+   "miss",
+   "suffer",
+   "turn a loss"
+  ],
+  "due": [
+   "ascribable",
+   "due(p)"
+  ],
+  "power": [
+   "ability",
+   "baron",
+   "electricity",
+   "exponent",
+   "force",
+   "might",
+   "office",
+   "powerfulness",
+   "world power"
+  ],
+  "outage": [],
+  "purpose": [
+   "aim",
+   "design",
+   "determination",
+   "function",
+   "intent",
+   "intention",
+   "resolve"
+  ],
+  "hooked": [
+   "aquiline",
+   "dependent",
+   "hooklike"
+  ],
+  "fifa": [],
+  "illegal": [],
+  "cricket": [],
+  "background": [
+   "backdrop",
+   "background knowledge",
+   "background signal",
+   "desktop",
+   "downplay",
+   "ground",
+   "play down",
+   "screen background",
+   "setting"
+  ],
+  "check": [
+   "arrest",
+   "assay",
+   "bank check",
+   "bridle",
+   "check into",
+   "check mark",
+   "check off",
+   "check out",
+   "check over",
+   "check up on",
+   "check-out procedure",
+   "checker",
+   "checkout",
+   "cheque",
+   "chequer",
+   "chink",
+   "chip",
+   "chit",
+   "confirmation",
+   "contain",
+   "control",
+   "crack",
+   "delay",
+   "determine",
+   "discipline",
+   "go over",
+   "hindrance",
+   "hold back",
+   "look into",
+   "mark",
+   "mark off",
+   "match",
+   "retard",
+   "see",
+   "stop",
+   "suss out",
+   "tab",
+   "tick",
+   "tick off",
+   "turn back"
+  ],
+  "boring": [
+   "deadening",
+   "drilling",
+   "dull",
+   "ho-hum",
+   "irksome",
+   "oil production",
+   "slow",
+   "tedious",
+   "tiresome",
+   "wearisome"
+  ],
+  "chemistry": [
+   "alchemy",
+   "chemical science",
+   "interpersonal chemistry"
+  ],
+  "ballet": [
+   "concert dance"
+  ],
+  "jolene": [],
+  "deborah": [],
+  "pendant": [
+   "chandelier",
+   "pendent"
+  ],
+  "symbolic": [
+   "emblematic",
+   "symbolical"
+  ],
+  "gifts": [],
+  "mothers": [],
+  "peace": [
+   "ataraxis",
+   "heartsease",
+   "pacification",
+   "peace of mind",
+   "peace treaty",
+   "peacefulness",
+   "public security",
+   "repose",
+   "serenity"
+  ],
+  "grieving": [
+   "bereaved"
+  ],
+  "deaths": [],
+  "loved": [],
+  "ones": [],
+  "parents": [],
+  "seraphim": [],
+  "snake": [
+   "hydra",
+   "ophidian",
+   "plumber's snake",
+   "serpent",
+   "snake",
+   "snake in the grass",
+   "snake river"
+  ],
+  "partner": [
+   "collaborator",
+   "spouse"
+  ],
+  "walking": [
+   "walk",
+   "walk-to(a)"
+  ],
+  "dead": [
+   "abruptly",
+   "absolutely",
+   "all in(p)",
+   "dead(a)",
+   "dead(p)",
+   "deadened",
+   "drained",
+   "idle"
+  ],
+  "anna": [],
+  "sometimes": [],
+  "bogota": [
+   "bogota",
+   "capital of colombia"
+  ],
+  "mini": [
+   "miniskirt"
+  ],
+  "retreat": [
+   "back away",
+   "back out",
+   "crawfish",
+   "crawfish out",
+   "hideaway",
+   "pull back",
+   "pull in one's horns",
+   "retirement",
+   "retrograde",
+   "withdraw"
+  ],
+  "drinks": [],
+  "karlie": [],
+  "bali": [
+   "bali"
+  ],
+  "dating": [
+   "geological dating"
+  ],
+  "morning": [
+   "dawn",
+   "forenoon",
+   "good morning",
+   "morn",
+   "morning time"
+  ],
+  "techniques": [],
+  "enhance": [
+   "heighten",
+   "raise"
+  ],
+  "listen": [
+   "hear",
+   "heed",
+   "take heed"
+  ],
+  "bicycle": [
+   "bike",
+   "cycle",
+   "pedal",
+   "wheel"
+  ],
+  "ride": [
+   "depend on",
+   "drive",
+   "mount",
+   "sit",
+   "tease"
+  ],
+  "robotics": [],
+  "professor": [
+   "prof"
+  ],
+  "talkeetna": [],
+  "meditation": [
+   "speculation"
+  ],
+  "aquarium": [
+   "fish tank",
+   "marine museum"
+  ],
+  "susie": [],
+  "lead": [
+   "atomic number 82",
+   "conduct",
+   "contribute",
+   "direct",
+   "go",
+   "guide",
+   "head",
+   "jumper cable",
+   "lead story",
+   "lead-in",
+   "leading",
+   "leash",
+   "leave",
+   "lede",
+   "moderate",
+   "pb",
+   "pencil lead",
+   "precede",
+   "run",
+   "spark advance",
+   "star",
+   "take",
+   "tip",
+   "top",
+   "track",
+   "trail"
+  ],
+  "session": [
+   "school term",
+   "seance"
+  ],
+  "projects": [],
+  "located": [
+   "placed",
+   "set",
+   "situated"
+  ],
+  "rio": [
+   "rio de janeiro"
+  ],
+  "janeiro": [],
+  "brazil": [
+   "brasil",
+   "brazil",
+   "brazil nut",
+   "federative republic of brazil"
+  ],
+  "motivational": [],
+  "longer": [
+   "thirster",
+   "yearner"
+  ],
+  "meetup": [],
+  "scuba": [
+   "aqualung"
+  ],
+  "diving": [
+   "dive",
+   "diving event"
+  ],
+  "lessons": [],
+  "deboran": [],
+  "agree": [
+   "concord",
+   "concur",
+   "harmonize",
+   "hold",
+   "match"
+  ],
+  "gain": [
+   "acquire",
+   "addition",
+   "advance",
+   "amplification",
+   "bring in",
+   "clear",
+   "derive",
+   "earn",
+   "gain ground",
+   "gather",
+   "get ahead",
+   "make",
+   "make headway",
+   "profit",
+   "pull ahead",
+   "pull in",
+   "put on",
+   "reach",
+   "realise",
+   "realize",
+   "take in",
+   "win"
+  ],
+  "engineering": [
+   "applied science",
+   "engine room",
+   "engineering science",
+   "technology"
+  ],
+  "traveled": [
+   "travelled"
+  ],
+  "neighbor": [
+   "neighbour"
+  ],
+  "resuming": [],
+  "whenever": [],
+  "comes": [],
+  "outlook": [
+   "expectation",
+   "lookout",
+   "mentality"
+  ],
+  "stuff": [
+   "block",
+   "choke up",
+   "clobber",
+   "farce",
+   "gorge",
+   "hooey",
+   "lug",
+   "material",
+   "poppycock",
+   "stuff and nonsense",
+   "thrust"
+  ],
+  "underprivileged": [],
+  "stem": [
+   "bow",
+   "halt",
+   "root",
+   "shank",
+   "stalk",
+   "stanch",
+   "staunch",
+   "stem turn"
+  ],
+  "subjects": [],
+  "involve": [
+   "affect",
+   "imply",
+   "necessitate",
+   "regard"
+  ],
+  "engineers": [],
+  "garden": [],
+  "initially": [
+   "ab initio"
+  ],
+  "incorporate": [
+   "comprise",
+   "contain",
+   "incorporated",
+   "integrate",
+   "integrated",
+   "merged",
+   "unified"
+  ],
+  "daily": [
+   "casual",
+   "day by day",
+   "day-after-day",
+   "day-by-day",
+   "day-to-day"
+  ],
+  "routine": [
+   "act",
+   "everyday",
+   "function",
+   "modus operandi",
+   "procedure",
+   "subprogram",
+   "subroutine"
+  ],
+  "exercise": [
+   "drill",
+   "example",
+   "exercising",
+   "exert",
+   "physical exercise",
+   "physical exertion",
+   "practice",
+   "practice session",
+   "recitation",
+   "use",
+   "work",
+   "work out",
+   "workout"
+  ],
+  "deb": [
+   "debutante"
+  ],
+  "smile": [
+   "grin",
+   "grinning",
+   "smiling"
+  ],
+  "overwhelmed": [],
+  "helpful": [],
+  "studying": [
+   "perusal"
+  ],
+  "method": [
+   "method acting"
+  ],
+  "tasks": [],
+  "importance": [
+   "grandness"
+  ],
+  "urgency": [
+   "importunity"
+  ],
+  "sea": [
+   "ocean"
+  ],
+  "surf": [
+   "breaker",
+   "breakers",
+   "browse",
+   "channel-surf",
+   "surfboard"
+  ],
+  "props": [],
+  "enjoys": [],
+  "album": [
+   "record album"
+  ],
+  "deep": [
+   "abstruse",
+   "bass",
+   "cryptic",
+   "deeply",
+   "late",
+   "rich",
+   "thick",
+   "trench"
+  ],
+  "relaxation": [
+   "easiness",
+   "liberalization",
+   "loosening",
+   "relaxation behavior",
+   "relaxation method",
+   "rest",
+   "slackening"
+  ],
+  "comforting": [
+   "cheering",
+   "consolatory",
+   "consoling",
+   "satisfying"
+  ],
+  "spent": [
+   "exhausted"
+  ],
+  "spending": [
+   "disbursal",
+   "disbursement",
+   "outgo",
+   "outlay"
+  ],
+  "easy": [
+   "comfortable",
+   "easily",
+   "easygoing",
+   "gentle",
+   "leisurely",
+   "light",
+   "loose",
+   "promiscuous",
+   "slowly",
+   "sluttish",
+   "soft",
+   "wanton"
+  ],
+  "plays": [],
+  "finding": [
+   "determination"
+  ],
+  "snuggled": [
+   "nestled"
+  ],
+  "under": [
+   "below",
+   "nether",
+   "under(a)"
+  ],
+  "bed": [
+   "bottom",
+   "go to bed",
+   "layer",
+   "seam",
+   "sleep together"
+  ],
+  "every": [
+   "every(a)"
+  ],
+  "engines": [],
+  "journal": [
+   "daybook",
+   "diary"
+  ],
+  "track": [
+   "cart track",
+   "cartroad",
+   "caterpillar track",
+   "caterpillar tread",
+   "chase",
+   "cut",
+   "data track",
+   "lead",
+   "path",
+   "racetrack",
+   "rail",
+   "rails",
+   "running",
+   "runway",
+   "traverse"
+  ],
+  "calming": [
+   "appeasement"
+  ],
+  "cute": [
+   "cunning",
+   "precious"
+  ],
+  "awesome": [
+   "amazing"
+  ],
+  "nintendo": [],
+  "switch": [
+   "change",
+   "change over",
+   "electric switch",
+   "electrical switch",
+   "interchange",
+   "shift",
+   "substitution",
+   "switch over",
+   "switching",
+   "throw",
+   "trade"
+  ],
+  "bench": [
+   "bench",
+   "judiciary",
+   "terrace",
+   "workbench"
+  ],
+  "house": [
+   "domiciliate",
+   "family",
+   "firm",
+   "put up",
+   "sign of the zodiac",
+   "theater"
+  ],
+  "chat": [
+   "chew the fat",
+   "confab",
+   "confabulation",
+   "new world chat",
+   "old world chat",
+   "schmoose",
+   "schmooze"
+  ],
+  "habits": [],
+  "balanced": [],
+  "rest": [
+   "breathe",
+   "catch one's breath",
+   "ease",
+   "eternal rest",
+   "eternal sleep",
+   "lie",
+   "perch",
+   "pillow",
+   "quietus",
+   "relaxation",
+   "remainder",
+   "repose",
+   "reside",
+   "respite",
+   "sleep",
+   "stay",
+   "take a breather"
+  ],
+  "calmness": [
+   "composure"
+  ],
+  "provided": [],
+  "feedback": [],
+  "present": [
+   "award",
+   "confront",
+   "deliver",
+   "give",
+   "introduce",
+   "lay out",
+   "nowadays",
+   "portray",
+   "pose",
+   "present tense",
+   "present(a)",
+   "represent",
+   "salute",
+   "show",
+   "stage",
+   "submit"
+  ],
+  "value": [
+   "economic value",
+   "measure",
+   "note value",
+   "prize",
+   "rate",
+   "respect",
+   "time value"
+  ],
+  "wants": [],
+  "luna": [
+   "luna"
+  ],
+  "meditate": [
+   "chew over",
+   "study"
+  ],
+  "plant": [
+   "establish",
+   "flora",
+   "implant",
+   "industrial plant",
+   "plant life",
+   "set",
+   "works"
+  ],
+  "focusing": [
+   "focalization",
+   "focus"
+  ],
+  "lately": [
+   "recently"
+  ],
+  "age": [
+   "eld",
+   "historic period",
+   "long time",
+   "old age",
+   "senesce"
+  ],
+  "wii": [],
+  "reschedule": [],
+  "stood": [],
+  "mindfulness": [
+   "heedfulness"
+  ],
+  "change": [
+   "alter",
+   "alteration",
+   "commute",
+   "convert",
+   "deepen",
+   "exchange",
+   "modification",
+   "modify",
+   "switch",
+   "transfer",
+   "variety",
+   "vary"
+  ],
+  "described": [],
+  "provide": [
+   "bring home the bacon",
+   "cater",
+   "leave",
+   "ply",
+   "put up",
+   "supply"
+  ],
+  "cookies": [],
+  "bake": [
+   "broil"
+  ],
+  "pals": [],
+  "freeing": [
+   "liberation"
+  ],
+  "release": [
+   "acquittance",
+   "button",
+   "discharge",
+   "dismissal",
+   "exhaust",
+   "free",
+   "give up",
+   "handout",
+   "let go of",
+   "liberate",
+   "liberation",
+   "outlet",
+   "passing",
+   "publish",
+   "relinquish",
+   "resign",
+   "secrete",
+   "spill",
+   "tone ending",
+   "turn",
+   "unblock",
+   "vent",
+   "waiver"
+  ],
+  "anxiety": [
+   "anxiousness"
+  ],
+  "horror": [
+   "repugnance"
+  ],
+  "screenings": [],
+  "lucifer": [
+   "match",
+   "morning star",
+   "satan"
+  ],
+  "tarantula": [
+   "european wolf spider"
+  ],
+  "thrilling": [
+   "electrifying"
+  ],
+  "playstation": [],
+  "holidays": [],
+  "evan": [],
+  "drive": [
+   "aim",
+   "campaign",
+   "driveway",
+   "driving",
+   "driving force",
+   "force",
+   "get",
+   "motor",
+   "parkway",
+   "repel",
+   "ride",
+   "take",
+   "thrust",
+   "tug"
+  ],
+  "kinds": [],
+  "broken": [
+   "broken in",
+   "busted",
+   "confused",
+   "crushed",
+   "disordered",
+   "humbled",
+   "humiliated",
+   "impoverished",
+   "low",
+   "rugged",
+   "unkept",
+   "upset",
+   "wiped out"
+  ],
+  "roadtrips": [],
+  "prius": [],
+  "owned": [],
+  "sam": [
+   "surface-to-air missile"
+  ],
+  "jasper": [],
+  "tours": [
+   "tours"
+  ],
+  "metropolitan": [],
+  "outdoors": [
+   "open",
+   "open air",
+   "out-of-doors",
+   "outside"
+  ],
+  "lifestyle": [
+   "life style"
+  ],
+  "doctor": [
+   "doc",
+   "doctor of the church",
+   "dr.",
+   "md",
+   "medico",
+   "physician",
+   "repair",
+   "sophisticate"
+  ],
+  "weight": [
+   "burden",
+   "exercising weight",
+   "free weight",
+   "slant",
+   "system of weights",
+   "weight unit",
+   "weightiness",
+   "weighting"
+  ],
+  "problem": [
+   "job",
+   "trouble"
+  ],
+  "sudden": [],
+  "heart": [
+   "affection",
+   "bosom",
+   "center",
+   "kernel",
+   "mettle",
+   "nerve",
+   "pump",
+   "spirit",
+   "spunk",
+   "ticker"
+  ],
+  "palpitation": [
+   "shaking"
+  ],
+  "shocked": [
+   "aghast(p)"
+  ],
+  "unhealthy": [
+   "insalubrious"
+  ],
+  "snacks": [],
+  "recurring": [
+   "revenant"
+  ],
+  "frustrates": [],
+  "grocery": [
+   "foodstuff",
+   "grocery store"
+  ],
+  "mock": [
+   "bemock"
+  ],
+  "overweight": [
+   "corpulence",
+   "fleshy"
+  ],
+  "healthy": [
+   "good for you",
+   "goodly",
+   "intelligent",
+   "level-headed",
+   "levelheaded",
+   "salubrious",
+   "sound"
+  ],
+  "suggestions": [],
+  "personal": [],
+  "light": [
+   "abstemious",
+   "alight",
+   "calorie-free",
+   "clean",
+   "easy",
+   "faint",
+   "fall",
+   "fire",
+   "idle",
+   "ignite",
+   "illume",
+   "illuminate",
+   "illumination",
+   "illumine",
+   "inner light",
+   "light source",
+   "light up",
+   "light-colored",
+   "lighter",
+   "lighting",
+   "lightly",
+   "lightness",
+   "lightsome",
+   "lite",
+   "low-cal",
+   "luminosity",
+   "scant",
+   "short",
+   "sparkle",
+   "tripping",
+   "unaccented",
+   "unhorse",
+   "visible light",
+   "visible radiation",
+   "wakeful"
+  ],
+  "dietary": [
+   "dietetic",
+   "dietetical"
+  ],
+  "appropriate": [
+   "allow",
+   "capture",
+   "conquer",
+   "seize"
+  ],
+  "encourage": [
+   "promote"
+  ],
+  "lifestyles": [],
+  "feelings": [],
+  "significant": [
+   "important",
+   "meaning(a)",
+   "substantial"
+  ],
+  "seriously": [
+   "badly",
+   "earnestly",
+   "in earnest"
+  ],
+  "electronic": [],
+  "device": [
+   "gimmick",
+   "twist"
+  ],
+  "cope": [
+   "contend",
+   "deal",
+   "get by",
+   "grapple",
+   "header",
+   "make do",
+   "make out",
+   "manage"
+  ],
+  "issues": [],
+  "approach": [
+   "access",
+   "approach path",
+   "approach shot",
+   "approaching",
+   "attack",
+   "border on",
+   "come near",
+   "come on",
+   "coming",
+   "draw close",
+   "draw near",
+   "go up",
+   "near",
+   "overture",
+   "plan of attack",
+   "set about"
+  ],
+  "keeps": [],
+  "accidents": [],
+  "soccer": [
+   "association football"
+  ],
+  "meals": [],
+  "scare": [
+   "daunt",
+   "frighten",
+   "panic",
+   "panic attack"
+  ],
+  "role": [
+   "character",
+   "function"
+  ],
+  "well": [
+   "advantageously",
+   "comfortably",
+   "considerably",
+   "easily",
+   "fountainhead",
+   "good",
+   "intimately",
+   "substantially",
+   "swell",
+   "well(p)",
+   "wellspring"
+  ],
+  "lapsed": [
+   "nonchurchgoing"
+  ],
+  "appointment": [
+   "appointee",
+   "assignment",
+   "date",
+   "designation",
+   "fitting",
+   "naming"
+  ],
+  "mid": [
+   "mid(a)"
+  ],
+  "checkups": [],
+  "outlets": [],
+  "skiing": [],
+  "banff": [
+   "banff"
+  ],
+  "quest": [
+   "bay",
+   "pursuit",
+   "request",
+   "seeking"
+  ],
+  "healthier": [
+   "fitter"
+  ],
+  "address": [
+   "accost",
+   "call",
+   "come up to",
+   "computer address",
+   "cover",
+   "destination",
+   "direct",
+   "name and address",
+   "reference",
+   "savoir-faire",
+   "speak",
+   "speech",
+   "turn to"
+  ],
+  "incidents": [],
+  "strangers": [],
+  "persistent": [
+   "dogged",
+   "haunting",
+   "lasting",
+   "relentless",
+   "unrelenting"
+  ],
+  "travelling": [
+   "travel"
+  ],
+  "lifting": [],
+  "weights": [],
+  "kayaking": [],
+  "scares": [],
+  "ailment": [
+   "complaint",
+   "ill"
+  ],
+  "occur": [
+   "come",
+   "happen"
+  ],
+  "conincides": [],
+  "reunion": [
+   "reunification"
+  ],
+  "fall": [
+   "accrue",
+   "autumn",
+   "capitulation",
+   "come",
+   "decrease",
+   "descend",
+   "descent",
+   "devolve",
+   "downfall",
+   "drop",
+   "fall",
+   "fall down",
+   "hang",
+   "light",
+   "pass",
+   "pin",
+   "precipitate",
+   "return",
+   "settle",
+   "shine",
+   "spill",
+   "strike",
+   "twilight"
+  ],
+  "bike": [
+   "bicycle",
+   "motorcycle"
+  ],
+  "announce": [
+   "annunciate",
+   "declare",
+   "denote",
+   "foretell",
+   "harbinger",
+   "herald"
+  ],
+  "marriage": [
+   "man and wife",
+   "marriage ceremony",
+   "married couple",
+   "matrimony",
+   "spousal relationship",
+   "union",
+   "wedding",
+   "wedlock"
+  ],
+  "extended": [
+   "drawn-out",
+   "elongated",
+   "extensive"
+  ],
+  "hanging": [
+   "suspension",
+   "wall hanging"
+  ],
+  "exhibit": [
+   "display",
+   "expose",
+   "parade",
+   "show"
+  ],
+  "bride": [
+   "bridget"
+  ],
+  "honeymoon": [],
+  "drunken": [
+   "bibulous"
+  ],
+  "reliever": [
+   "allayer",
+   "comforter",
+   "fireman",
+   "relief pitcher",
+   "stand-in"
+  ],
+  "broke": [
+   "bust",
+   "skint",
+   "stone-broke",
+   "stony-broke"
+  ],
+  "watercolor": [
+   "water-color",
+   "water-colour",
+   "watercolour"
+  ],
+  "buster": [
+   "baby buster",
+   "bronco buster",
+   "broncobuster",
+   "fellow"
+  ],
+  "relaxing": [
+   "restful"
+  ],
+  "habit": [
+   "riding habit",
+   "substance abuse",
+   "use",
+   "wont"
+  ],
+  "soda": [
+   "pop",
+   "sodium carbonate"
+  ],
+  "candy": [
+   "confect",
+   "sugarcoat"
+  ],
+  "consumption": [
+   "economic consumption",
+   "expenditure",
+   "ingestion",
+   "intake",
+   "pulmonary tuberculosis",
+   "uptake",
+   "usance",
+   "use",
+   "use of goods and services",
+   "using up"
+  ],
+  "frustrating": [
+   "frustrative",
+   "thwarting"
+  ],
+  "supermarket": [],
+  "finds": [],
+  "gripping": [
+   "absorbing"
+  ],
+  "water": [
+   "body of water",
+   "h2o",
+   "irrigate",
+   "urine",
+   "water system"
+  ],
+  "smartwatch": [],
+  "bonsai": [],
+  "tree": [
+   "corner",
+   "shoetree",
+   "sir herbert beerbohm tree",
+   "tree",
+   "tree diagram"
+  ],
+  "perfection": [
+   "flawlessness",
+   "ne plus ultra",
+   "paragon"
+  ],
+  "insights": [],
+  "searching": [
+   "inquisitory",
+   "trenchant"
+  ],
+  "fruitlessly": [
+   "unproductively"
+  ],
+  "hour": [
+   "60 minutes",
+   "hr",
+   "minute",
+   "time of day"
+  ],
+  "turned": [
+   "off"
+  ],
+  "flavorful": [
+   "flavorous",
+   "flavorsome",
+   "flavourful",
+   "flavourous",
+   "flavoursome",
+   "sapid",
+   "saporous"
+  ],
+  "request": [
+   "ask for",
+   "asking",
+   "bespeak",
+   "call for",
+   "petition",
+   "postulation",
+   "quest"
+  ],
+  "concept": [
+   "conception",
+   "construct"
+  ],
+  "emphasize": [
+   "stress",
+   "underscore"
+  ],
+  "landscapes": [],
+  "suffer": [
+   "digest",
+   "endure",
+   "get",
+   "have",
+   "hurt",
+   "lose",
+   "meet",
+   "sustain"
+  ],
+  "knee": [
+   "articulatio genus",
+   "genu",
+   "human knee",
+   "knee joint",
+   "stifle"
+  ],
+  "healing": [
+   "curative"
+  ],
+  "form": [
+   "cast",
+   "class",
+   "constitute",
+   "descriptor",
+   "human body",
+   "imprint",
+   "kind",
+   "make",
+   "mannequin",
+   "organise",
+   "organize",
+   "pattern",
+   "phase",
+   "shape",
+   "signifier",
+   "spring",
+   "strain",
+   "take form",
+   "take shape",
+   "var.",
+   "variant",
+   "word form"
+  ],
+  "expression": [
+   "aspect",
+   "construction",
+   "face",
+   "facial expression",
+   "formula",
+   "formulation",
+   "look",
+   "manifestation",
+   "reflection",
+   "reflexion",
+   "saying",
+   "verbal expression",
+   "verbalism"
+  ],
+  "electronics": [],
+  "injuries": [],
+  "weightlifting": [
+   "weightlift"
+  ],
+  "mate": [
+   "checkmate",
+   "copulate",
+   "fellow",
+   "first mate",
+   "ilex paraguariensis",
+   "match",
+   "paraguay tea",
+   "spouse",
+   "teammate"
+  ],
+  "digestive": [],
+  "adventurous": [
+   "adventuresome"
+  ],
+  "emerging": [
+   "emergent",
+   "rising"
+  ],
+  "island": [],
+  "grew": [],
+  "breaking": [
+   "breakage"
+  ],
+  "relief": [
+   "alleviation",
+   "assuagement",
+   "ease",
+   "easing",
+   "embossment",
+   "ministration",
+   "relievo",
+   "respite",
+   "rilievo",
+   "sculptural relief",
+   "stand-in",
+   "succor",
+   "succour"
+  ],
+  "motto": [
+   "catchword",
+   "shibboleth",
+   "slogan"
+  ],
+  "concerning": [],
+  "published": [
+   "promulgated"
+  ],
+  "exhibition": [
+   "expo",
+   "exposition"
+  ],
+  "clear": [
+   "absolved",
+   "acquit",
+   "all the way",
+   "authorize",
+   "clean",
+   "clean-cut",
+   "clear up",
+   "clear(p)",
+   "clear-cut",
+   "clearly",
+   "crystalise",
+   "crystalize",
+   "crystallise",
+   "crystallize",
+   "decipherable",
+   "elucidate",
+   "enlighten",
+   "gain",
+   "illuminate",
+   "net",
+   "open",
+   "pass",
+   "percipient",
+   "readable",
+   "shed light on",
+   "solve",
+   "sort out",
+   "straighten out",
+   "top",
+   "unclutter",
+   "unmortgaged",
+   "well-defined"
+  ],
+  "head": [
+   "capitulum",
+   "caput",
+   "chief",
+   "drumhead",
+   "forefront",
+   "fountainhead",
+   "head up",
+   "head word",
+   "heading",
+   "headway",
+   "lead",
+   "mind",
+   "oral sex",
+   "pass",
+   "point",
+   "principal",
+   "promontory",
+   "question",
+   "read/write head",
+   "steer",
+   "top dog"
+  ],
+  "keys": [],
+  "flying": [
+   "fast",
+   "fast-flying",
+   "flight",
+   "quick"
+  ],
+  "version": [
+   "adaptation",
+   "edition",
+   "interpretation",
+   "translation",
+   "variant",
+   "variation"
+  ],
+  "limiting": [
+   "confining",
+   "modification"
+  ],
+  "seek": [
+   "search",
+   "try"
+  ],
+  "low": [
+   "abject",
+   "broken",
+   "david low",
+   "depleted",
+   "depression",
+   "first gear",
+   "gloomy",
+   "humble",
+   "low",
+   "low-pitched",
+   "low-toned",
+   "moo",
+   "sir david alexander cecil low",
+   "sir david low"
+  ],
+  "apologize": [
+   "apologise",
+   "excuse",
+   "rationalise",
+   "rationalize"
+  ],
+  "bland": [
+   "flat",
+   "flavorless",
+   "flavourless",
+   "insipid",
+   "politic",
+   "savorless",
+   "savourless",
+   "vapid"
+  ],
+  "sculpting": [],
+  "quit": [
+   "depart",
+   "discontinue",
+   "drop out",
+   "foreswear",
+   "leave office"
+  ],
+  "skydiving": [],
+  "stolen": [],
+  "hindered": [],
+  "calvin": [
+   "calvin",
+   "jean caulvin",
+   "jean cauvin",
+   "jean chauvin",
+   "john calvin",
+   "melvin calvin"
+  ],
+  "tokyo": [
+   "capital of japan",
+   "edo",
+   "japanese capital",
+   "tokio",
+   "tokyo",
+   "yeddo",
+   "yedo"
+  ],
+  "dave": [],
+  "aerosmith": [],
+  "enjoyed": [],
+  "cars": [],
+  "employ": [
+   "employment",
+   "hire",
+   "use"
+  ],
+  "mishap": [
+   "bad luck",
+   "misadventure",
+   "mischance"
+  ],
+  "mic": [
+   "microphone"
+  ],
+  "flooded": [
+   "afloat(p)"
+  ],
+  "mishaps": [],
+  "hollywood": [
+   "hollywood"
+  ],
+  "regularly": [
+   "on a regular basis"
+  ],
+  "parks": [
+   "parks",
+   "rosa parks"
+  ],
+  "mountainous": [
+   "cragged"
+  ],
+  "regions": [],
+  "insurance": [
+   "indemnity",
+   "policy"
+  ],
+  "paperwork": [],
+  "wish": [
+   "bid",
+   "care",
+   "indirect request",
+   "like",
+   "regard",
+   "want",
+   "wish well",
+   "wishing"
+  ],
+  "expand": [
+   "boom",
+   "elaborate",
+   "extend",
+   "inflate",
+   "spread out"
+  ],
+  "brand": [
+   "brandmark",
+   "firebrand",
+   "make",
+   "mark",
+   "post",
+   "stigmatize",
+   "sword",
+   "trade name",
+   "trademark"
+  ],
+  "record": [
+   "book",
+   "criminal record",
+   "enter",
+   "phonograph record",
+   "put down",
+   "read",
+   "record book",
+   "register",
+   "tape",
+   "track record"
+  ],
+  "podcast": [],
+  "fixing": [
+   "fastener",
+   "fixation",
+   "neutering",
+   "repair"
+  ],
+  "restoration": [
+   "renovation",
+   "restitution",
+   "restoration"
+  ],
+  "san": [],
+  "francisco": [],
+  "flight": [
+   "escape",
+   "fledge",
+   "flight of stairs",
+   "flight of steps",
+   "flying",
+   "trajectory"
+  ],
+  "boston": [
+   "bean town",
+   "beantown",
+   "boston",
+   "capital of massachusetts",
+   "hub of the universe"
+  ],
+  "released": [],
+  "jam": [
+   "block",
+   "chock up",
+   "cram",
+   "crush",
+   "fix",
+   "jamming",
+   "jampack",
+   "obstruct",
+   "ram",
+   "throng",
+   "wad"
+  ],
+  "band": [
+   "banding",
+   "dance band",
+   "isthmus",
+   "ring",
+   "set",
+   "stria",
+   "striation",
+   "stripe"
+  ],
+  "dodge": [
+   "contrivance",
+   "dodging",
+   "hedge",
+   "scheme"
+  ],
+  "charger": [
+   "battery charger",
+   "courser"
+  ],
+  "subaru": [],
+  "forester": [
+   "arboriculturist",
+   "c. s. forester",
+   "cecil scott forester",
+   "forester",
+   "tree farmer"
+  ],
+  "nostalgic": [],
+  "garage": [
+   "service department"
+  ],
+  "ferrari": [],
+  "frank": [
+   "blunt",
+   "dog",
+   "frank",
+   "frankfurter",
+   "hot dog",
+   "hotdog",
+   "postmark",
+   "weenie",
+   "wiener",
+   "wienerwurst"
+  ],
+  "ocean": [
+   "sea"
+  ],
+  "collaborating": [],
+  "connected": [
+   "affiliated",
+   "machine-accessible"
+  ],
+  "sights": [],
+  "former": [
+   "early(a)",
+   "erstwhile(a)",
+   "former(a)"
+  ],
+  "auto": [
+   "car"
+  ],
+  "ferraris": [],
+  "ford": [
+   "crossing",
+   "edsel bryant ford",
+   "ford",
+   "ford hermann hueffer",
+   "ford madox ford",
+   "fording",
+   "gerald ford",
+   "gerald r. ford",
+   "gerald rudolph ford",
+   "henry ford",
+   "henry ford ii",
+   "john ford",
+   "president ford"
+  ],
+  "mustang": [],
+  "modification": [
+   "alteration",
+   "change",
+   "limiting",
+   "qualifying"
+  ],
+  "guitars": [],
+  "clock": [
+   "time"
+  ],
+  "tower": [
+   "column",
+   "loom",
+   "tugboat"
+  ],
+  "smoothly": [
+   "swimmingly"
+  ],
+  "repaired": [],
+  "vintage": [
+   "time of origin"
+  ],
+  "camera": [
+   "photographic camera",
+   "television camera"
+  ],
+  "gala": [
+   "blowout",
+   "gala affair",
+   "jamboree"
+  ],
+  "producer": [
+   "manufacturer"
+  ],
+  "meant": [],
+  "frozen": [
+   "fixed",
+   "flash-frozen",
+   "frigid",
+   "frozen(p)"
+  ],
+  "jumpstart": [
+   "jump",
+   "jump-start"
+  ],
+  "manage": [
+   "care",
+   "cope",
+   "deal",
+   "do",
+   "handle",
+   "oversee",
+   "pull off",
+   "wangle",
+   "wield"
+  ],
+  "save": [
+   "bring through",
+   "carry through",
+   "deliver",
+   "economise",
+   "economize",
+   "keep open",
+   "lay aside",
+   "make unnecessary",
+   "preserve",
+   "pull through",
+   "salvage",
+   "save up",
+   "spare",
+   "write"
+  ],
+  "gives": [],
+  "sense": [
+   "common sense",
+   "feel",
+   "sensation",
+   "sensory faculty",
+   "sentience",
+   "sentiency",
+   "signified",
+   "smell"
+  ],
+  "fuels": [],
+  "soul": [
+   "person",
+   "psyche",
+   "soulfulness"
+  ],
+  "weekends": [],
+  "tour": [
+   "circuit",
+   "enlistment",
+   "go"
+  ],
+  "fixed": [
+   "frozen",
+   "rigid",
+   "set"
+  ],
+  "arrange": [
+   "dress",
+   "fix up",
+   "format",
+   "order",
+   "put",
+   "set",
+   "set up",
+   "stage"
+  ],
+  "adding": [],
+  "elements": [],
+  "songs": [],
+  "proud": [
+   "gallant"
+  ],
+  "picked": [],
+  "modifications": [],
+  "mod": [
+   "modern",
+   "modernistic"
+  ],
+  "custom": [
+   "custom-made",
+   "customs",
+   "tradition",
+   "usage",
+   "usance"
+  ],
+  "audience": [
+   "consultation",
+   "hearing"
+  ],
+  "sang": [
+   "american ginseng"
+  ],
+  "shooting": [
+   "shot"
+  ],
+  "featured": [],
+  "guitar": [],
+  "customized": [],
+  "shiny": [
+   "bright",
+   "glazed",
+   "glistening"
+  ],
+  "glow": [
+   "beam",
+   "burn",
+   "freshness",
+   "gleam",
+   "incandescence",
+   "luminescence",
+   "radiance",
+   "radiate",
+   "shine"
+  ],
+  "customize": [
+   "custom-make",
+   "customise"
+  ],
+  "emotion": [],
+  "sees": [],
+  "ticket": [
+   "fine",
+   "just the ticket",
+   "slate",
+   "tag"
+  ],
+  "visits": [],
+  "disney": [
+   "disney",
+   "walt disney",
+   "walter elias disney"
+  ],
+  "favorites": [],
+  "reactions": [],
+  "drives": [],
+  "junkyard": [],
+  "satisfying": [
+   "comforting",
+   "hearty"
+  ],
+  "restoring": [],
+  "reach": [
+   "achieve",
+   "arrive at",
+   "attain",
+   "compass",
+   "contact",
+   "extend to",
+   "gain",
+   "get hold of",
+   "get through",
+   "get to",
+   "hit",
+   "make",
+   "pass",
+   "progress to",
+   "range",
+   "reach out",
+   "reaching",
+   "scope",
+   "stretch",
+   "strive",
+   "touch"
+  ],
+  "aim": [
+   "bearing",
+   "calculate",
+   "direct",
+   "draw a bead on",
+   "drive",
+   "object",
+   "objective",
+   "propose",
+   "purport",
+   "purpose",
+   "take",
+   "take aim",
+   "target",
+   "train"
+  ],
+  "masterpiece": [
+   "chef-d'oeuvre"
+  ],
+  "wheels": [],
+  "headlined": [],
+  "fulfilling": [],
+  "festivals": [],
+  "square": [
+   "feather",
+   "foursquare",
+   "hearty",
+   "lame",
+   "public square",
+   "second power",
+   "square toes",
+   "square up",
+   "square(a)",
+   "square(p)",
+   "squarely",
+   "straight"
+  ],
+  "location": [
+   "localization",
+   "placement"
+  ],
+  "energizing": [
+   "activating",
+   "activation",
+   "energising",
+   "kinetic"
+  ],
+  "balance": [
+   "balance wheel",
+   "counterbalance",
+   "counterweight",
+   "equilibrate",
+   "equilibrise",
+   "equilibrium",
+   "equilibrize",
+   "equipoise",
+   "libra",
+   "poise",
+   "proportion",
+   "remainder",
+   "symmetry"
+  ],
+  "relation": [
+   "recounting",
+   "relation back",
+   "relative",
+   "sexual intercourse",
+   "telling"
+  ],
+  "capturing": [],
+  "toughest": [],
+  "extraordinary": [
+   "extraordinary(p)",
+   "over-the-top",
+   "sinful"
+  ],
+  "sell": [
+   "betray",
+   "deal"
+  ],
+  "restored": [],
+  "admires": [],
+  "realization": [
+   "actualisation",
+   "actualization",
+   "fruition",
+   "realisation",
+   "recognition"
+  ],
+  "nightclub": [
+   "cabaret"
+  ],
+  "pursuits": [],
+  "photograph": [
+   "exposure",
+   "photo",
+   "pic",
+   "picture",
+   "shoot",
+   "snap"
+  ],
+  "showed": [],
+  "japanese": [
+   "japanese",
+   "nipponese"
+  ],
+  "boost": [
+   "advance",
+   "encouragement",
+   "hike",
+   "promote",
+   "rise",
+   "supercharge"
+  ],
+  "diy": [],
+  "mods": [],
+  "photos": [],
+  "stunning": [
+   "arresting"
+  ],
+  "chef": [],
+  "acoustic": [
+   "acoustical"
+  ],
+  "destroying": [],
+  "boats": [],
+  "canvas": [
+   "canvas tent",
+   "canvass",
+   "sail"
+  ],
+  "motorcycles": [],
+  "Animal": [
+   "animal(a)",
+   "animate being",
+   "beast",
+   "brute",
+   "cat",
+   "creature",
+   "dog",
+   "fauna",
+   "pet",
+   "turtle"
+  ],
+  "PETS": [
+   "animals",
+   "cats",
+   "companions",
+   "dogs",
+   "turtles"
+  ],
+  "big_cat": [],
+  "big cat": [
+   "cat"
+  ],
+  "15 may organization": [
+   "15 may organization"
+  ],
+  "zzzunknown": [],
+  "": [],
+  "a": [
+   "group a",
+   "type a"
+  ],
+  "Console": [
+   "cabinet",
+   "comfort",
+   "console table",
+   "device",
+   "gamecube",
+   "medium",
+   "nintendo",
+   "pc",
+   "platform",
+   "playstation",
+   "switch",
+   "xbox"
+  ],
+  "Rejected": [
+   "declined",
+   "denied",
+   "jilted",
+   "refused",
+   "reject"
+  ]
+ },
+ "plain": {
+  "when": [],
+  "did": [],
+  "caroline": [
+   "carolean",
+   "caroline"
+  ],
+  "the": [],
+  "lgbtq": [],
+  "support": [
+   "accompaniment",
+   "back",
+   "back up",
+   "backing",
+   "bread and butter",
+   "confirm",
+   "corroborate",
+   "defend",
+   "digest",
+   "documentation",
+   "financial backing",
+   "financial support",
+   "funding",
+   "hold",
+   "keep",
+   "livelihood",
+   "living",
+   "patronize",
+   "reenforcement",
+   "reinforcement",
+   "subscribe",
+   "supporting",
+   "sustenance"
+  ],
+  "group": [
+   "aggroup",
+   "chemical group",
+   "grouping",
+   "mathematical group",
+   "radical"
+  ],
+  "melanie": [],
+  "paint": [
+   "key",
+   "pigment",
+   "rouge"
+  ],
+  "sunrise": [
+   "dawn",
+   "sunrise(a)"
+  ],
+  "what": [],
+  "fields": [
+   "fields",
+   "w. c. fields",
+   "william claude dukenfield"
+  ],
+  "would": [],
+  "likely": [
+   "potential",
+   "probable",
+   "probably"
+  ],
+  "pursue": [
+   "act on",
+   "follow",
+   "follow up on",
+   "prosecute",
+   "quest for"
+  ],
+  "her": [],
+  "educaton": [],
+  "research": [
+   "explore",
+   "inquiry",
+   "search"
+  ],
+  "identity": [
+   "identicalness",
+   "identity element",
+   "identity operator",
+   "indistinguishability",
+   "individuality",
+   "personal identity"
+  ],
+  "run": [
+   "black market",
+   "bleed",
+   "campaign",
+   "carry",
+   "consort",
+   "course",
+   "discharge",
+   "execute",
+   "extend",
+   "feed",
+   "flow",
+   "footrace",
+   "function",
+   "go",
+   "guide",
+   "hunt",
+   "ladder",
+   "lead",
+   "melt",
+   "move",
+   "operate",
+   "pass",
+   "play",
+   "ply",
+   "political campaign",
+   "prevail",
+   "race",
+   "range",
+   "ravel",
+   "rivulet",
+   "run for",
+   "running",
+   "running game",
+   "running play",
+   "scat",
+   "streak",
+   "tally",
+   "tend",
+   "test",
+   "unravel"
+  ],
+  "charity": [
+   "brotherly love",
+   "jacob's ladder"
+  ],
+  "race": [
+   "raceway",
+   "run",
+   "rush",
+   "slipstream",
+   "subspecies"
+  ],
+  "planning": [
+   "preparation",
+   "provision"
+  ],
+  "going": [
+   "departure",
+   "going(a)",
+   "passing",
+   "sledding"
+  ],
+  "camping": [
+   "bivouacking",
+   "encampment",
+   "tenting"
+  ],
+  "relationship": [
+   "human relationship",
+   "kinship"
+  ],
+  "status": [
+   "condition",
+   "position"
+  ],
+  "give": [
+   "afford",
+   "apply",
+   "collapse",
+   "commit",
+   "consecrate",
+   "contribute",
+   "dedicate",
+   "devote",
+   "establish",
+   "feed",
+   "gift",
+   "grant",
+   "hold",
+   "impart",
+   "move over",
+   "pass",
+   "pay",
+   "present",
+   "render",
+   "sacrifice",
+   "spring",
+   "springiness",
+   "throw",
+   "yield"
+  ],
+  "speech": [
+   "actor's line",
+   "address",
+   "language",
+   "lecture",
+   "manner of speaking",
+   "oral communication",
+   "speech communication",
+   "spoken communication",
+   "spoken language",
+   "voice communication"
+  ],
+  "school": [
+   "educate",
+   "school day",
+   "schoolhouse",
+   "schooling",
+   "schooltime",
+   "shoal"
+  ],
+  "meet": [
+   "assemble",
+   "come across",
+   "converge",
+   "encounter",
+   "fit",
+   "fitting",
+   "foregather",
+   "forgather",
+   "gather",
+   "get together",
+   "play",
+   "receive",
+   "run across",
+   "run into",
+   "see",
+   "sports meeting",
+   "suffer",
+   "take on",
+   "touch"
+  ],
+  "with": [],
+  "friends": [],
+  "family": [
+   "class",
+   "family line",
+   "family unit",
+   "fellowship",
+   "folk",
+   "home",
+   "house",
+   "household",
+   "kin",
+   "kinfolk",
+   "kinsfolk",
+   "menage",
+   "phratry",
+   "sept",
+   "syndicate"
+  ],
+  "and": [],
+  "mentors": [],
+  "how": [],
+  "long": [
+   "farseeing",
+   "hanker",
+   "retentive"
+  ],
+  "has": [],
+  "had": [],
+  "current": [
+   "electric current",
+   "stream"
+  ],
+  "for": [],
+  "where": [],
+  "move": [
+   "act",
+   "affect",
+   "be active",
+   "displace",
+   "go",
+   "make a motion",
+   "motion",
+   "motivate",
+   "relocation",
+   "run",
+   "travel"
+  ],
+  "from": [],
+  "years": [
+   "days",
+   "long time",
+   "old age"
+  ],
+  "ago": [
+   "agone"
+  ],
+  "was": [],
+  "birthday": [
+   "natal day"
+  ],
+  "career": [
+   "calling",
+   "life history",
+   "vocation"
+  ],
+  "path": [
+   "course",
+   "itinerary",
+   "route",
+   "track",
+   "way"
+  ],
+  "decided": [
+   "distinct"
+  ],
+  "persue": [],
+  "still": [
+   "allay",
+   "calm",
+   "distillery",
+   "ease",
+   "even",
+   "however",
+   "hush",
+   "inactive",
+   "noneffervescent",
+   "placid",
+   "relieve",
+   "silent",
+   "stock-still"
+  ],
+  "want": [
+   "desire",
+   "lack",
+   "need",
+   "privation",
+   "require",
+   "wish"
+  ],
+  "counseling": [
+   "guidance"
+  ],
+  "she": [],
+  "hadn": [],
+  "received": [
+   "standard"
+  ],
+  "growing": [
+   "growth"
+  ],
+  "activities": [],
+  "does": [],
+  "partake": [
+   "partake in",
+   "share",
+   "touch"
+  ],
+  "sign": [
+   "augury",
+   "bless",
+   "contract",
+   "gestural",
+   "mark",
+   "polarity",
+   "ratify",
+   "sign of the zodiac",
+   "sign on",
+   "sign up",
+   "signal",
+   "signalise",
+   "signalize",
+   "signboard",
+   "subscribe"
+  ],
+  "pottery": [
+   "clayware"
+  ],
+  "class": [
+   "category",
+   "classify",
+   "course",
+   "division",
+   "family",
+   "form",
+   "grade",
+   "social class",
+   "socio-economic class",
+   "stratum",
+   "year"
+  ],
+  "transgender": [
+   "transgendered"
+  ],
+  "conference": [
+   "group discussion",
+   "league"
+  ],
+  "camped": [],
+  "kids": [],
+  "like": [
+   "alike(p)",
+   "comparable",
+   "ilk",
+   "same",
+   "similar",
+   "the like",
+   "the likes of",
+   "wish"
+  ],
+  "museum": [],
+  "have": [
+   "accept",
+   "consume",
+   "experience",
+   "feature",
+   "get",
+   "give birth",
+   "have got",
+   "hold",
+   "induce",
+   "make",
+   "own",
+   "receive",
+   "rich person",
+   "suffer",
+   "take"
+  ],
+  "picnic": [
+   "cinch",
+   "field day"
+  ],
+  "seuss": [],
+  "books": [],
+  "bookshelf": [],
+  "read": [
+   "learn",
+   "record",
+   "register",
+   "say",
+   "scan",
+   "show",
+   "take",
+   "understand"
+  ],
+  "destress": [
+   "de-emphasize"
+  ],
+  "book": [
+   "bible",
+   "koran",
+   "ledger",
+   "record",
+   "reserve",
+   "rule book",
+   "script",
+   "volume"
+  ],
+  "nothing": [
+   "aught",
+   "cipher",
+   "cypher",
+   "goose egg",
+   "nada",
+   "naught",
+   "nil",
+   "nix",
+   "null",
+   "zero",
+   "zilch",
+   "zip",
+   "zippo"
+  ],
+  "impossible": [
+   "inconceivable",
+   "out of the question",
+   "unacceptable",
+   "unimaginable"
+  ],
+  "writing": [
+   "authorship",
+   "committal to writing",
+   "composition",
+   "penning",
+   "piece of writing",
+   "written material"
+  ],
+  "option": [
+   "alternative",
+   "choice"
+  ],
+  "adoption": [
+   "acceptance",
+   "acceptation",
+   "borrowing",
+   "espousal"
+  ],
+  "meeting": [
+   "coming together",
+   "confluence",
+   "congress",
+   "encounter",
+   "get together",
+   "group meeting",
+   "merging"
+  ],
+  "workshop": [
+   "shop"
+  ],
+  "considered": [],
+  "member": [
+   "extremity",
+   "fellow member",
+   "penis"
+  ],
+  "community": [
+   "biotic community",
+   "community of interests",
+   "residential district"
+  ],
+  "june": [
+   "june"
+  ],
+  "events": [],
+  "participated": [],
+  "pride": [
+   "congratulate",
+   "plume",
+   "pridefulness",
+   "superbia"
+  ],
+  "parade": [
+   "exhibit",
+   "march",
+   "promenade",
+   "troop"
+  ],
+  "during": [],
+  "summer": [
+   "summertime"
+  ],
+  "help": [
+   "aid",
+   "assist",
+   "assistant",
+   "avail",
+   "facilitate",
+   "help oneself",
+   "serve"
+  ],
+  "children": [],
+  "july": [
+   "july"
+  ],
+  "join": [
+   "articulation",
+   "conjoin",
+   "connect",
+   "fall in",
+   "get together",
+   "union"
+  ],
+  "mentorship": [],
+  "program": [
+   "broadcast",
+   "computer program",
+   "computer programme",
+   "course of study",
+   "plan",
+   "platform",
+   "programme"
+  ],
+  "recently": [
+   "late",
+   "lately",
+   "latterly",
+   "of late"
+  ],
+  "done": [
+   "through",
+   "through with"
+  ],
+  "ways": [
+   "shipway",
+   "slipway"
+  ],
+  "participating": [
+   "active"
+  ],
+  "many": [],
+  "times": [
+   "multiplication"
+  ],
+  "gone": [
+   "asleep(p)",
+   "bygone",
+   "done for(p)",
+   "exhausted",
+   "gone(p)",
+   "intoxicated"
+  ],
+  "beach": [],
+  "new": [
+   "fresh",
+   "modern",
+   "new",
+   "new(a)",
+   "newly",
+   "raw",
+   "unexampled",
+   "young"
+  ],
+  "activist": [
+   "activistic",
+   "militant"
+  ],
+  "more": [
+   "more",
+   "more(a)",
+   "sir thomas more",
+   "thomas more",
+   "to a greater extent"
+  ],
+  "interested": [
+   "concerned"
+  ],
+  "national": [
+   "home(a)",
+   "subject"
+  ],
+  "park": [
+   "ballpark",
+   "common",
+   "commons",
+   "green",
+   "mungo park",
+   "park",
+   "parking lot",
+   "parkland"
+  ],
+  "theme": [
+   "composition",
+   "idea",
+   "melodic theme",
+   "motif",
+   "musical theme",
+   "root",
+   "subject"
+  ],
+  "kind": [
+   "form",
+   "genial",
+   "sort",
+   "tolerant",
+   "variety"
+  ],
+  "art": [
+   "artistic creation",
+   "artistic production",
+   "artistry",
+   "artwork",
+   "fine art",
+   "prowess"
+  ],
+  "make": [
+   "brand",
+   "cause",
+   "construct",
+   "cook",
+   "create",
+   "do",
+   "draw",
+   "form",
+   "gain",
+   "get",
+   "have",
+   "hold",
+   "induce",
+   "lay down",
+   "make believe",
+   "make up",
+   "make water",
+   "micturate",
+   "name",
+   "pass water",
+   "pee",
+   "pee-pee",
+   "piddle",
+   "piss",
+   "pretend",
+   "produce",
+   "puddle",
+   "reach",
+   "relieve oneself",
+   "seduce",
+   "shuffle",
+   "spend a penny",
+   "stool",
+   "take",
+   "take a leak",
+   "urinate",
+   "wee",
+   "wee-wee",
+   "work"
+  ],
+  "daughter": [
+   "girl"
+  ],
+  "attend": [
+   "advert",
+   "give ear",
+   "go to",
+   "hang",
+   "look",
+   "pay heed",
+   "see",
+   "serve",
+   "take care"
+  ],
+  "august": [
+   "aug",
+   "august",
+   "grand",
+   "lordly",
+   "revered",
+   "venerable"
+  ],
+  "ally": [
+   "friend"
+  ],
+  "who": [
+   "world health organization"
+  ],
+  "supports": [],
+  "negative": [
+   "damaging",
+   "disconfirming",
+   "electronegative",
+   "minus",
+   "negatively charged",
+   "veto"
+  ],
+  "experience": [
+   "feel",
+   "get",
+   "go through",
+   "have",
+   "know",
+   "receive",
+   "see"
+  ],
+  "types": [],
+  "made": [],
+  "fesetival": [],
+  "together": [
+   "in concert",
+   "unitedly"
+  ],
+  "political": [],
+  "leaning": [
+   "atilt",
+   "proclivity",
+   "propensity",
+   "tendency",
+   "tilt"
+  ],
+  "painted": [
+   "motley"
+  ],
+  "are": [
+   "ar"
+  ],
+  "pets": [],
+  "names": [
+   "name calling"
+  ],
+  "apply": [
+   "enforce",
+   "give",
+   "go for",
+   "hold",
+   "lend oneself",
+   "practice",
+   "put on",
+   "use"
+  ],
+  "agencies": [],
+  "draw": [
+   "absorb",
+   "attract",
+   "cast",
+   "describe",
+   "disembowel",
+   "draw and quarter",
+   "draw play",
+   "draw poker",
+   "drawing card",
+   "get",
+   "get out",
+   "guide",
+   "haul",
+   "haulage",
+   "hook",
+   "lot",
+   "make",
+   "puff",
+   "pull",
+   "pull back",
+   "pull out",
+   "quarter",
+   "reap",
+   "standoff",
+   "string",
+   "take out",
+   "tie",
+   "trace",
+   "withdraw"
+  ],
+  "self": [
+   "ego"
+  ],
+  "portrait": [
+   "portrayal"
+  ],
+  "subject": [
+   "capable",
+   "case",
+   "content",
+   "dependent",
+   "depicted object",
+   "discipline",
+   "guinea pig",
+   "national",
+   "subjugate",
+   "theme",
+   "topic"
+  ],
+  "both": [
+   "both(a)"
+  ],
+  "symbols": [],
+  "important": [
+   "authoritative",
+   "crucial",
+   "of import",
+   "significant"
+  ],
+  "encounter": [
+   "brush",
+   "coming upon",
+   "confrontation",
+   "find",
+   "meet",
+   "meeting",
+   "run into"
+  ],
+  "people": [
+   "citizenry",
+   "multitude"
+  ],
+  "hike": [
+   "boost",
+   "hike up",
+   "hiking",
+   "raise",
+   "rise",
+   "tramp"
+  ],
+  "plate": [
+   "collection plate",
+   "crustal plate",
+   "denture",
+   "home plate",
+   "photographic plate",
+   "plateful",
+   "scale",
+   "shell"
+  ],
+  "religious": [
+   "spiritual"
+  ],
+  "instruments": [],
+  "play": [
+   "act",
+   "bet",
+   "bid",
+   "bring",
+   "caper",
+   "child's play",
+   "dally",
+   "drama",
+   "dramatic play",
+   "free rein",
+   "frolic",
+   "fun",
+   "gambling",
+   "gambol",
+   "looseness",
+   "maneuver",
+   "meet",
+   "playing period",
+   "recreate",
+   "romp",
+   "run",
+   "shimmer",
+   "spiel",
+   "swordplay",
+   "toy",
+   "turn"
+  ],
+  "musical": [
+   "melodious",
+   "musical comedy",
+   "musical theater"
+  ],
+  "artists": [],
+  "bands": [],
+  "seen": [],
+  "youth": [
+   "early days",
+   "juvenility",
+   "young",
+   "young person",
+   "youthfulness"
+  ],
+  "center": [
+   "center field",
+   "center of attention",
+   "center(a)",
+   "centre",
+   "centre of attention",
+   "concentrate",
+   "eye",
+   "focus on",
+   "heart",
+   "kernel",
+   "middle",
+   "midpoint",
+   "nerve center",
+   "nerve centre",
+   "plaza",
+   "snapper"
+  ],
+  "putting": [
+   "putt"
+  ],
+  "talent": [
+   "endowment"
+  ],
+  "show": [
+   "appearance",
+   "demo",
+   "demonstrate",
+   "display",
+   "exhibit",
+   "express",
+   "indicate",
+   "picture",
+   "present",
+   "prove",
+   "read",
+   "show up",
+   "testify",
+   "usher"
+  ],
+  "enjoy": [
+   "bask",
+   "delight",
+   "love",
+   "relish",
+   "savor",
+   "savour"
+  ],
+  "song": [
+   "birdcall",
+   "strain",
+   "sung",
+   "vocal"
+  ],
+  "four": [
+   "four-spot",
+   "foursome",
+   "iv",
+   "little joe",
+   "quadruplet",
+   "quartet",
+   "quatern",
+   "quaternary",
+   "quaternion",
+   "quaternity",
+   "tetrad"
+  ],
+  "seasons": [],
+  "vivaldi": [
+   "antonio lucio vivaldi",
+   "antonio vivaldi",
+   "vivaldi"
+  ],
+  "some": [
+   "approximately",
+   "some(a)"
+  ],
+  "changes": [],
+  "faced": [],
+  "transition": [
+   "conversion",
+   "modulation",
+   "passage"
+  ],
+  "journey": [
+   "journeying",
+   "travel"
+  ],
+  "hikes": [],
+  "biking": [],
+  "been": [],
+  "practicing": [],
+  "personality": [],
+  "traits": [],
+  "might": [
+   "mightiness",
+   "power"
+  ],
+  "say": [
+   "allege",
+   "order",
+   "pronounce",
+   "read",
+   "state",
+   "suppose"
+  ],
+  "specific": [
+   "particular"
+  ],
+  "attended": [
+   "accompanied",
+   "tended to"
+  ],
+  "suggestion": [
+   "hypnotism",
+   "proffer",
+   "prompting",
+   "proposition",
+   "trace"
+  ],
+  "friend": [
+   "acquaintance",
+   "ally",
+   "friend",
+   "quaker",
+   "supporter"
+  ],
+  "adopt": [
+   "assume",
+   "borrow",
+   "dramatize",
+   "espouse",
+   "follow",
+   "take in",
+   "take over",
+   "take up"
+  ],
+  "child": [
+   "baby",
+   "fry",
+   "kid",
+   "minor",
+   "nestling",
+   "nipper",
+   "shaver",
+   "small fry",
+   "tiddler",
+   "tike",
+   "tyke",
+   "youngster"
+  ],
+  "get": [
+   "acquire",
+   "arrive",
+   "become",
+   "beget",
+   "bring",
+   "capture",
+   "catch",
+   "contract",
+   "draw",
+   "drive",
+   "experience",
+   "get down",
+   "get under one's skin",
+   "grow",
+   "have",
+   "induce",
+   "let",
+   "make",
+   "pay back",
+   "perplex",
+   "receive",
+   "scram",
+   "suffer"
+  ],
+  "hurt": [
+   "ache",
+   "bruise",
+   "damage",
+   "detriment",
+   "distress",
+   "injure",
+   "injury",
+   "offend",
+   "pain",
+   "spite",
+   "suffer",
+   "suffering",
+   "weakened",
+   "wound",
+   "wounded"
+  ],
+  "roadtrip": [],
+  "after": [
+   "after(a)",
+   "subsequently"
+  ],
+  "another": [
+   "another(a)"
+  ],
+  "soon": [
+   "before long",
+   "presently",
+   "shortly"
+  ],
+  "items": [],
+  "bought": [],
+  "pass": [
+   "authorize",
+   "base on balls",
+   "bye",
+   "clear",
+   "communicate",
+   "crack",
+   "die",
+   "elapse",
+   "evanesce",
+   "exceed",
+   "excrete",
+   "fall",
+   "flip",
+   "give",
+   "guide",
+   "hand",
+   "happen",
+   "head",
+   "laissez passer",
+   "legislate",
+   "liberty chit",
+   "make it",
+   "make pass",
+   "mountain pass",
+   "notch",
+   "overhaul",
+   "overtake",
+   "pass on",
+   "passing",
+   "passing game",
+   "passing play",
+   "passing(a)",
+   "passport",
+   "reach",
+   "run",
+   "sink",
+   "spend",
+   "strait",
+   "straits",
+   "toss",
+   "travel by",
+   "turn over"
+  ],
+  "interview": [
+   "consultation",
+   "question"
+  ],
+  "buy": [
+   "bargain",
+   "bribe",
+   "purchase"
+  ],
+  "figurines": []
+ },
+ "expanded": [
+  {
+   "words": [
+    "camping",
+    "Hike"
+   ],
+   "plain": [
+    "Hike",
+    "bivouacking",
+    "boost",
+    "camping",
+    "encampment",
+    "hike up",
+    "hiking",
+    "raise",
+    "rise",
+    "tenting",
+    "tramp"
+   ],
+   "extended": [
+    "Hike",
+    "bivouacking",
+    "boost",
+    "camping",
+    "encampment",
+    "hike up",
+    "hiking",
+    "raise",
+    "rise",
+    "tenting",
+    "tramp"
+   ]
+  },
+  {
+   "words": [
+    "pet",
+    "letter",
+    "unknownword"
+   ],
+   "plain": [
+    "alphabetic character",
+    "darling",
+    "favored",
+    "letter",
+    "letter of the alphabet",
+    "missive",
+    "pet",
+    "positron emission tomography",
+    "unknownword",
+    "varsity letter"
+   ],
+   "extended": [
+    "alphabetic character",
+    "animal",
+    "cat",
+    "companion",
+    "correspondence",
+    "darling",
+    "dog",
+    "favored",
+    "letter",
+    "letter of the alphabet",
+    "letters",
+    "mail",
+    "message",
+    "missive",
+    "pet",
+    "positron emission tomography",
+    "turtle",
+    "unknownword",
+    "varsity letter"
+   ]
+  },
+  {
+   "words": [],
+   "plain": [],
+   "extended": []
+  },
+  {
+   "words": [
+    "Gift",
+    "gift"
+   ],
+   "plain": [
+    "Gift",
+    "endow",
+    "endowment",
+    "gift",
+    "give",
+    "giving"
+   ],
+   "extended": [
+    "Gift",
+    "endow",
+    "endowment",
+    "gave",
+    "gift",
+    "give",
+    "giving",
+    "present"
+   ]
+  }
+ ]
+}
