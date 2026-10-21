@@ -18,6 +18,7 @@ pub mod lsh;
 pub mod mega_search;
 pub mod pattern_completion;
 pub mod prompts;
+pub mod pytext;
 pub mod query_router;
 pub mod reranker;
 pub mod retriever;

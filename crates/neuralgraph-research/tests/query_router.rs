@@ -6,9 +6,10 @@ mod common;
 
 use common::{assert_json_eq, load, s};
 use indexmap::IndexSet;
+use neuralgraph_research::retrieval::pytext::py_capitalize;
 use neuralgraph_research::retrieval::query_router::{
-    compute_edit_distance, create_filtered_retriever, fuzzy_match, is_alias_match, match_entity, py_capitalize,
-    FilteredRetriever, QueryAnalysis, QueryRouter, SoftFilterResult, SoftResults,
+    compute_edit_distance, create_filtered_retriever, fuzzy_match, is_alias_match, match_entity, FilteredRetriever,
+    QueryAnalysis, QueryRouter, SoftFilterResult, SoftResults,
 };
 use neuralgraph_research::retrieval::{
     node_ref, InMemoryNeuralGraphStorage, NeuralGraphStorage, NeuralNode, NodeLayer, NodeRef,
