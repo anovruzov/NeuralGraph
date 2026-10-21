@@ -186,7 +186,7 @@ pub enum Command {
     Eval(EvalArgs),
 }
 
-/// Options both subcommands take.
+// Options both subcommands take (a plain comment: a doc comment would become the subcommands' help text).
 #[derive(Args, Debug, Clone)]
 pub struct CommonArgs {
     #[arg(long, required = true)]

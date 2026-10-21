@@ -279,8 +279,12 @@ impl RescoreClock for SystemClock {
 
 /// The answer rows of one file (`json.load(f)['results']`).
 pub fn load_results(path: &str) -> HResult<Vec<Value>> {
-    let text = std::fs::read_to_string(path).map_err(|e| {
-        HarnessError::new("FileNotFoundError", format!("{e}: {}", neuralgraph_memory::pycompat::py_repr_str(path)))
+    let text = std::fs::read_to_string(path).map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => HarnessError::new(
+            "FileNotFoundError",
+            format!("[Errno 2] No such file or directory: {}", neuralgraph_memory::pycompat::py_repr_str(path)),
+        ),
+        _ => HarnessError::from(e),
     })?;
     let v: Value = serde_json::from_str(&text)?;
     Ok(py_getitem(&v, "results")?.as_array().cloned().unwrap_or_default())
