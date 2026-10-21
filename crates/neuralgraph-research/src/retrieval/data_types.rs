@@ -230,6 +230,12 @@ impl NeuralEdge {
         days_since(&self.created_at)
     }
 
+    /// `edge._cached_weight = None` / `edge._cached_weight_key = None`: callers that change a field outside the
+    /// cache key (e.g. `base_weight`) or that want "now" re-read cleared the cache by hand in Python.
+    pub fn invalidate_weight_cache(&mut self) {
+        self.cached_weight = None;
+    }
+
     /// Effective weight with recency decay and decaying LTP, cached per activation state.
     pub fn effective_weight(&mut self) -> f64 {
         let key = (self.last_activated, self.activation_count, self.ltp_boost.to_bits());
