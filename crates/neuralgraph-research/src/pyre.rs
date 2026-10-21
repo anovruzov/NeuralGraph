@@ -38,6 +38,47 @@ pub fn strip_non_word(s: &str) -> String {
     s.chars().filter(|c| py_is_word_char(*c)).collect()
 }
 
+/// Maximal runs of Python word characters, in order.
+pub fn word_runs(s: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut start: Option<usize> = None;
+    for (i, c) in s.char_indices() {
+        match (py_is_word_char(c), start) {
+            (true, None) => start = Some(i),
+            (false, Some(st)) => {
+                out.push(&s[st..i]);
+                start = None;
+            }
+            _ => {}
+        }
+    }
+    if let Some(st) = start {
+        out.push(&s[st..]);
+    }
+    out
+}
+
+/// `re.findall(r"\b<first><rest>{min_rest,}\b", s)` where `first` and `rest` only accept word characters (the
+/// `\b[A-Z][a-z]+\b` family). Such a match is always a whole run of word characters, so this is exact under
+/// Python's `\w` where a Rust regex `\b` is not (it treats joiners and marks as word characters).
+pub fn findall_whole_words(
+    s: &str,
+    first: impl Fn(char) -> bool,
+    rest: impl Fn(char) -> bool,
+    min_rest: usize,
+) -> Vec<&str> {
+    word_runs(s)
+        .into_iter()
+        .filter(|w| {
+            let mut cs = w.chars();
+            cs.next().is_some_and(&first) && {
+                let tail: Vec<char> = cs.collect();
+                tail.len() >= min_rest && tail.iter().all(|c| rest(*c))
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -47,5 +88,11 @@ mod tests {
         assert_eq!(strip_non_word("Yoga\u{1F9D8}\u{200D}\u{2640}\u{FE0F}!"), "Yoga");
         assert_eq!(PY_NON_WORD.replace_all("Yoga\u{1F9D8}\u{200D}\u{2640}\u{FE0F}!", ""), "Yoga");
         assert!(py_is_word_char('_') && py_is_word_char('\u{00B2}') && !py_is_word_char('\u{203F}'));
+    }
+
+    #[test]
+    fn whole_words() {
+        let caps = |t| findall_whole_words(t, |c: char| c.is_ascii_uppercase(), |c: char| c.is_ascii_alphabetic(), 1);
+        assert_eq!(caps("Hi Bob, Café x2 Ann\u{200D} I OK_ Zed"), vec!["Hi", "Bob", "Ann", "Zed"]);
     }
 }
