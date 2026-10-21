@@ -1,0 +1,1735 @@
+{
+ "conv_idx": 1,
+ "n_messages": 40,
+ "speakers": [
+  "Gina",
+  "Jon"
+ ],
+ "calls": [
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person)\n\nSPEAKER: Gina\nMESSAGE: Hey Jon! Good to see you. What's up? Anything new?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"Hey\", \"type\": \"person\"}, {\"name\": \"Jon\", \"type\": \"person\"}, {\"name\": \"Good\", \"type\": \"person\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"Hey\", \"talked about\", \"Jon\"], [\"my\", \"likes\", \"Painting\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting\n\nSPEAKER: Jon\nMESSAGE: Hey Gina! Good to see you too. Lost my job as a banker yesterday, so I'm gonna take a shot at starting my own business.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "```json\n{\n  \"entities\": [\n    {\n      \"name\": \"Hey\",\n      \"type\": \"thing\"\n    },\n    {\n      \"name\": \"Gina\",\n      \"type\": \"thing\"\n    },\n    {\n      \"name\": \"Good\",\n      \"type\": \"thing\"\n    },\n    {\n      \"name\": \"I\",\n      \"type\": \"person\"\n    }\n  ],\n  \"triples\": [\n    [\n      \"Hey\",\n      \"talked about\",\n      \"Gina\"\n    ],\n    [\n      \"my\",\n      \"likes\",\n      \"Painting\"\n    ]\n  ]\n}\n```"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting\n\nSPEAKER: Gina\nMESSAGE: Sorry about your job Jon, but starting your own business sounds awesome! Unfortunately, I also lost my job at Door Dash this month. What business are you thinking of?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "Sure! Here you go: {\"entities\": [{\"name\": \"Sorry\", \"type\": \"thing\"}, {\"name\": \"Jon\", \"type\": \"thing\"}, {\"name\": \"Unfortunately\", \"type\": \"thing\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"Sorry\", \"talked about\", \"Jon\"], [\"my\", \"likes\", \"Painting\"]]} Hope that helps {really}."
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting\n\nSPEAKER: Jon\nMESSAGE: Sorry to hear that! I'm starting a dance studio 'cause I'm passionate about dancing and it'd be great to share it with others.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"Mel\", \"type\": \"person\"}, {\"name\": \"Caroline's\", \"type\": null}], \"triples\": [[\"Mel\", \"is friends with\", \"caroline\"], [\"x\", \"y\"], \"abc\", [\"Mel\", \"r\", \"Mel\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting, mel (person)\n\nSPEAKER: Gina\nMESSAGE: That's cool, Jon! What got you into this biz?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "no json at all"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting, mel (person)\n\nSPEAKER: Jon\nMESSAGE: I've been into dancing since I was a kid and it's been my passion and escape. I wanna start a dance studio so I can teach others the joy that dancing brings me.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"broken\", }"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting, mel (person)\n\nSPEAKER: Gina\nMESSAGE: Wow Jon, same here! Dance is pretty much my go-to for stress relief. Got any fave styles?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": null
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting, mel (person)\n\nSPEAKER: Jon\nMESSAGE: Cool, Gina! I love all dances, but contemporary is my top pick. It's so expressive and powerful! What's your fave?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": \"abc\", \"triples\": \"xyz\"}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting, mel (person)\n\nSPEAKER: Gina\nMESSAGE: Yeah, me too! Contemporary dance is so expressive and graceful - it really speaks to me.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [\"Melanie\", 42, null, [\"a\", \"b\"], {\"k\": 1.5}], \"triples\": [[1, 2.5, true]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting, mel (person)\n\nSPEAKER: Jon\nMESSAGE: Wow, great idea! Let's go to a dance class, it'll be so much fun!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"melanei\", \"type\": \"Person\"}, {\"name\": \"carolin\"}, {\"name\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"type\": \"long\"}, {\"type\": \"orphan\"}], \"triples\": []}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), mel (person), hey (person), good (person), painting\n\nSPEAKER: Gina\nMESSAGE: Yeah! Let's explore some new dance moves. We should plan a dance session soon!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": {\"Sweden\": 1, \"Gym\": 2}, \"triples\": {\"a\": 1}}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), mel (person), hey (person), good (person), painting\n\nSPEAKER: Jon\nMESSAGE: Yeah definitely! Wanna see my moves next Fri? Can't wait!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [], \"triples\": [], \"extra\": {\"nested\": {\"deep\": [1, 2, 3]}}}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), mel (person), hey (person), good (person), painting\n\nSPEAKER: Gina\nMESSAGE: Sounds great, Jon! Next Friday works. Let's boogie!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"Art Show!!\", \"type\": \"Event / Show\"}, {\"name\": \"  The   LGBTQ+  Group  \", \"type\": \"organisation\"}], \"triples\": [[\"I\", \"Attended\", \"art show\"], [\"me\", \"joined\", \"the lgbtq group\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), mel (person), hey (person), good (person), painting\n\nSPEAKER: Jon\nMESSAGE: Wow, I'm excited too! This is gonna be great!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": null, \"triples\": [[\"Caroline\", \"has_pet\", \"Oscar\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), mel (person), caroline (none), hey (person), good (person)\n\nSPEAKER: Gina\nMESSAGE: Wow! What did you get?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "<think>hmm {\"entities\": []}</think> {\"entities\": [{\"name\": \"Café Müller\", \"type\": \"Place\"}]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), mel (person), caroline (none), hey (person), good (person)\n\nSPEAKER: Jon\nMESSAGE: Woah, that pic's from when my dance crew took home first in a local comp last year. It was amazing up on that stage! I'm super keen to spread that intensity with other peeps. Gina, you ever been in any dance comps or shows?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"Woah\", \"type\": \"person\"}, {\"name\": \"It\", \"type\": \"person\"}, {\"name\": \"Gina\", \"type\": \"person\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"Woah\", \"talked about\", \"It\"], [\"my\", \"likes\", \"Painting\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Gina\nMESSAGE: I used to compete in a few dance competitions and shows - my fav memory was when my team won first place at a regionals at age fifteen. It was an awesome feeling of accomplishment!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"It\", \"type\": \"thing\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"my\", \"likes\", \"Painting\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Jon\nMESSAGE: Wow! Winning first place is amazing! What dance were you doing?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"Wow\", \"type\": \"thing\"}, {\"name\": \"Winning\", \"type\": \"thing\"}, {\"name\": \"What\", \"type\": \"thing\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"Wow\", \"talked about\", \"Winning\"], [\"my\", \"likes\", \"Painting\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Gina\nMESSAGE: Thanks! We just did a contemporary piece called \"Finding Freedom.\" It was really emotional and powerful.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"Thanks\", \"type\": \"person\"}, {\"name\": \"We\", \"type\": \"person\"}, {\"name\": \"Finding\", \"type\": \"person\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"Thanks\", \"talked about\", \"We\"], [\"my\", \"likes\", \"Painting\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Jon\nMESSAGE: Wow, that must've been great! Check my ideal dance studio by the water.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"Wow\", \"type\": \"thing\"}, {\"name\": \"Check\", \"type\": \"thing\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"Wow\", \"talked about\", \"Check\"], [\"my\", \"likes\", \"Painting\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Gina\nMESSAGE: Cool setup! Man, you can't deny that view! Got time to rehearse with a biz and a new store?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"Cool\", \"type\": \"thing\"}, {\"name\": \"Man\", \"type\": \"thing\"}, {\"name\": \"Got\", \"type\": \"thing\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"Cool\", \"talked about\", \"Man\"], [\"my\", \"likes\", \"Painting\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Jon\nMESSAGE: Hopefully, we will find a place like this that will inspire us!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "```json\n{\n  \"entities\": [\n    {\n      \"name\": \"Hopefully\",\n      \"type\": \"person\"\n    },\n    {\n      \"name\": \"I\",\n      \"type\": \"person\"\n    }\n  ],\n  \"triples\": [\n    [\n      \"my\",\n      \"likes\",\n      \"Painting\"\n    ]\n  ]\n}\n```"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Gina\nMESSAGE: Wow, it looks great! What dances do you practice? Got any projects planned?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "Sure! Here you go: {\"entities\": [{\"name\": \"Wow\", \"type\": \"thing\"}, {\"name\": \"What\", \"type\": \"thing\"}, {\"name\": \"Got\", \"type\": \"thing\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"Wow\", \"talked about\", \"What\"], [\"my\", \"likes\", \"Painting\"]]} Hope that helps {really}."
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Jon\nMESSAGE: Thanks! I rehearsed with a small group of dancers after work. We do all kinds of dances, from contemporary to hip-hop. We've got some cool projects in the works. Finishing up choreography to perform at a nearby festival next month. Can't wait!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"Mel\", \"type\": \"person\"}, {\"name\": \"Caroline's\", \"type\": null}], \"triples\": [[\"Mel\", \"is friends with\", \"caroline\"], [\"x\", \"y\"], \"abc\", [\"Mel\", \"r\", \"Mel\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Gina\nMESSAGE: Wow, it looks awesome! Are they yours at the festival? They're so graceful!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "no json at all"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Jon\nMESSAGE: Yeah, they're the ones performing at the festival! They've been practicing hard and will definitely impress with their grace and skill.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"broken\", }"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Gina\nMESSAGE: Wow, they look great! Can't wait to see them rock the festival. Gonna be awesome!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": null
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Jon\nMESSAGE: Yeah, awesome! Glad to be part of it.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": \"abc\", \"triples\": \"xyz\"}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Gina\nMESSAGE: Hey Jon! Long time no see! Things have been hectic lately. I just launched an ad campaign for my clothing store in hopes of growing the business. Starting my own store and taking risks is both scary and rewarding. I'm excited to see where it takes me!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [\"Melanie\", 42, null, [\"a\", \"b\"], {\"k\": 1.5}], \"triples\": [[1, 2.5, true]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Jon\nMESSAGE: Hey Gina! Whoa, your store looks great! All your hard work really paid off - congrats! Must be awesome to see your stuff on display.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"melanei\", \"type\": \"Person\"}, {\"name\": \"carolin\"}, {\"name\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"type\": \"long\"}, {\"type\": \"orphan\"}], \"triples\": []}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Gina\nMESSAGE: Thanks a bunch! It's awesome seeing my vision happen. How's the dance studio going? Did you find the right spot?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": {\"Sweden\": 1, \"Gym\": 2}, \"triples\": {\"a\": 1}}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Jon\nMESSAGE: Hey Gina! Thanks for asking. I'm on the hunt for the ideal spot for my dance studio and it's been quite a journey! I've been looking at different places and picturing how the space would look. I even found a place with great natural light! Oh, I've been to Paris yesterday! It was sooo cool.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [], \"triples\": [], \"extra\": {\"nested\": {\"deep\": [1, 2, 3]}}}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Gina\nMESSAGE: Wow, nice spot! Where is it? Got any other features you want to think about before you decide? Paris?! That is really great Jon! Never had a chance to visit it. Been only to Rome once.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"Art Show!!\", \"type\": \"Event / Show\"}, {\"name\": \"  The   LGBTQ+  Group  \", \"type\": \"organisation\"}], \"triples\": [[\"I\", \"Attended\", \"art show\"], [\"me\", \"joined\", \"the lgbtq group\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Jon\nMESSAGE: It's downtown which is awesome cuz it's easy to get to. Plus the natural light! Gotta check the size & floor quality too. We need a good dance floor with enough bounce for me & my students to dance safely.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": null, \"triples\": [[\"Caroline\", \"has_pet\", \"Oscar\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Gina\nMESSAGE: Definitely! Dance floors help avoid injuries and make dancing more enjoyable. You thinking about it is great. Any particular type of flooring you like?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "<think>hmm {\"entities\": []}</think> {\"entities\": [{\"name\": \"Café Müller\", \"type\": \"Place\"}]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), hey (person)\n\nSPEAKER: Jon\nMESSAGE: Yeah, good flooring's crucial. I'm after Marley flooring, which is what dance studios usually use. It's great 'cause it's grippy but still lets you move, plus it's tough and easy to keep clean.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"Yeah\", \"type\": \"thing\"}, {\"name\": \"Marley\", \"type\": \"thing\"}, {\"name\": \"It\", \"type\": \"thing\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"Yeah\", \"talked about\", \"Marley\"], [\"my\", \"likes\", \"Painting\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), it (person)\n\nSPEAKER: Gina\nMESSAGE: Sounds great! Marley's perfect; it's got the right amount of grip and movement. Can't wait to see your dance studio done!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"Sounds\", \"type\": \"person\"}, {\"name\": \"Marley\", \"type\": \"person\"}, {\"name\": \"Can\", \"type\": \"person\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"Sounds\", \"talked about\", \"Marley\"], [\"my\", \"likes\", \"Painting\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), it (person)\n\nSPEAKER: Jon\nMESSAGE: Yeah, can't wait to see it done! Looking for the right place and getting everything ready has been a mix of exciting and nerve-wracking, but I'm determined to make it work. It'll be worth it!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"Yeah\", \"type\": \"thing\"}, {\"name\": \"Looking\", \"type\": \"thing\"}, {\"name\": \"It\", \"type\": \"thing\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"Yeah\", \"talked about\", \"Looking\"], [\"my\", \"likes\", \"Painting\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), it (person)\n\nSPEAKER: Gina\nMESSAGE: Believe in yourself, Jon! The process may be tough, but you got this. Push through and it'll be worth it. Don't forget to take breaks and dance it out when you need to destress!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"Believe\", \"type\": \"thing\"}, {\"name\": \"Jon\", \"type\": \"thing\"}, {\"name\": \"Push\", \"type\": \"thing\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"Believe\", \"talked about\", \"Jon\"], [\"my\", \"likes\", \"Painting\"]]}"
+  },
+  {
+   "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), painting, mel (person), caroline (none), it (person)\n\nSPEAKER: Jon\nMESSAGE: Glad I have you in my corner! Gotta make time to dance and vent, that's for sure. We'll make it through this - hang in there!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+   "kwargs": {
+    "temperature": 0,
+    "max_tokens": 300,
+    "timeout_seconds": 60
+   },
+   "response": "{\"entities\": [{\"name\": \"Glad\", \"type\": \"person\"}, {\"name\": \"Gotta\", \"type\": \"person\"}, {\"name\": \"We\", \"type\": \"person\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"Glad\", \"talked about\", \"Gotta\"], [\"my\", \"likes\", \"Painting\"]]}"
+  }
+ ],
+ "result": {
+  "messages": [
+   {
+    "idx": 0,
+    "entities": [
+     "hey",
+     "jon",
+     "good",
+     "gina",
+     "painting"
+    ],
+    "triples": [
+     [
+      "hey",
+      "talked_about",
+      "jon"
+     ],
+     [
+      "gina",
+      "likes",
+      "painting"
+     ]
+    ]
+   },
+   {
+    "idx": 1,
+    "entities": [
+     "hey",
+     "gina",
+     "good",
+     "jon",
+     "painting"
+    ],
+    "triples": [
+     [
+      "hey",
+      "talked_about",
+      "gina"
+     ],
+     [
+      "jon",
+      "likes",
+      "painting"
+     ]
+    ]
+   },
+   {
+    "idx": 2,
+    "entities": [
+     "gina"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 3,
+    "entities": [
+     "mel",
+     "caroline",
+     "jon"
+    ],
+    "triples": [
+     [
+      "mel",
+      "is_friends_with",
+      "caroline"
+     ]
+    ]
+   },
+   {
+    "idx": 4,
+    "entities": [
+     "gina"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 5,
+    "entities": [
+     "jon"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 6,
+    "entities": [
+     "gina"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 7,
+    "entities": [
+     "a",
+     "b",
+     "c",
+     "jon"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 8,
+    "entities": [
+     "mel",
+     "42",
+     "none",
+     "'a' 'b'",
+     "1",
+     "true",
+     "gina"
+    ],
+    "triples": [
+     [
+      "1",
+      "2_5",
+      "true"
+     ]
+    ]
+   },
+   {
+    "idx": 9,
+    "entities": [
+     "mel",
+     "caroline",
+     "jon"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 10,
+    "entities": [
+     "sweden",
+     "gym",
+     "gina"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 11,
+    "entities": [
+     "jon"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 12,
+    "entities": [
+     "art show",
+     "the lgbtq group",
+     "gina"
+    ],
+    "triples": [
+     [
+      "gina",
+      "attended",
+      "art show"
+     ],
+     [
+      "gina",
+      "joined",
+      "the lgbtq group"
+     ]
+    ]
+   },
+   {
+    "idx": 13,
+    "entities": [
+     "caroline",
+     "oscar",
+     "jon"
+    ],
+    "triples": [
+     [
+      "caroline",
+      "has_pet",
+      "oscar"
+     ]
+    ]
+   },
+   {
+    "idx": 14,
+    "entities": [
+     "gina"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 15,
+    "entities": [
+     "woah",
+     "it",
+     "gina",
+     "jon",
+     "painting"
+    ],
+    "triples": [
+     [
+      "woah",
+      "talked_about",
+      "it"
+     ],
+     [
+      "jon",
+      "likes",
+      "painting"
+     ]
+    ]
+   },
+   {
+    "idx": 16,
+    "entities": [
+     "it",
+     "gina",
+     "painting"
+    ],
+    "triples": [
+     [
+      "gina",
+      "likes",
+      "painting"
+     ]
+    ]
+   },
+   {
+    "idx": 17,
+    "entities": [
+     "wow",
+     "winning",
+     "what",
+     "jon",
+     "painting"
+    ],
+    "triples": [
+     [
+      "wow",
+      "talked_about",
+      "winning"
+     ],
+     [
+      "jon",
+      "likes",
+      "painting"
+     ]
+    ]
+   },
+   {
+    "idx": 18,
+    "entities": [
+     "thanks",
+     "we",
+     "finding",
+     "gina",
+     "painting"
+    ],
+    "triples": [
+     [
+      "thanks",
+      "talked_about",
+      "we"
+     ],
+     [
+      "gina",
+      "likes",
+      "painting"
+     ]
+    ]
+   },
+   {
+    "idx": 19,
+    "entities": [
+     "wow",
+     "check",
+     "jon",
+     "painting"
+    ],
+    "triples": [
+     [
+      "wow",
+      "talked_about",
+      "check"
+     ],
+     [
+      "jon",
+      "likes",
+      "painting"
+     ]
+    ]
+   },
+   {
+    "idx": 20,
+    "entities": [
+     "cool",
+     "man",
+     "got",
+     "gina",
+     "painting"
+    ],
+    "triples": [
+     [
+      "cool",
+      "talked_about",
+      "man"
+     ],
+     [
+      "gina",
+      "likes",
+      "painting"
+     ]
+    ]
+   },
+   {
+    "idx": 21,
+    "entities": [
+     "hopefully",
+     "jon",
+     "painting"
+    ],
+    "triples": [
+     [
+      "jon",
+      "likes",
+      "painting"
+     ]
+    ]
+   },
+   {
+    "idx": 22,
+    "entities": [
+     "gina"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 23,
+    "entities": [
+     "mel",
+     "caroline",
+     "jon"
+    ],
+    "triples": [
+     [
+      "mel",
+      "is_friends_with",
+      "caroline"
+     ]
+    ]
+   },
+   {
+    "idx": 24,
+    "entities": [
+     "gina"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 25,
+    "entities": [
+     "jon"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 26,
+    "entities": [
+     "gina"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 27,
+    "entities": [
+     "a",
+     "b",
+     "c",
+     "jon"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 28,
+    "entities": [
+     "mel",
+     "42",
+     "none",
+     "'a' 'b'",
+     "1",
+     "true",
+     "gina"
+    ],
+    "triples": [
+     [
+      "1",
+      "2_5",
+      "true"
+     ]
+    ]
+   },
+   {
+    "idx": 29,
+    "entities": [
+     "mel",
+     "caroline",
+     "jon"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 30,
+    "entities": [
+     "sweden",
+     "gym",
+     "gina"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 31,
+    "entities": [
+     "jon"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 32,
+    "entities": [
+     "art show",
+     "the lgbtq group",
+     "gina"
+    ],
+    "triples": [
+     [
+      "gina",
+      "attended",
+      "art show"
+     ],
+     [
+      "gina",
+      "joined",
+      "the lgbtq group"
+     ]
+    ]
+   },
+   {
+    "idx": 33,
+    "entities": [
+     "caroline",
+     "oscar",
+     "jon"
+    ],
+    "triples": [
+     [
+      "caroline",
+      "has_pet",
+      "oscar"
+     ]
+    ]
+   },
+   {
+    "idx": 34,
+    "entities": [
+     "gina"
+    ],
+    "triples": []
+   },
+   {
+    "idx": 35,
+    "entities": [
+     "yeah",
+     "marley",
+     "it",
+     "jon",
+     "painting"
+    ],
+    "triples": [
+     [
+      "yeah",
+      "talked_about",
+      "marley"
+     ],
+     [
+      "jon",
+      "likes",
+      "painting"
+     ]
+    ]
+   },
+   {
+    "idx": 36,
+    "entities": [
+     "sounds",
+     "marley",
+     "can",
+     "gina",
+     "painting"
+    ],
+    "triples": [
+     [
+      "sounds",
+      "talked_about",
+      "marley"
+     ],
+     [
+      "gina",
+      "likes",
+      "painting"
+     ]
+    ]
+   },
+   {
+    "idx": 37,
+    "entities": [
+     "yeah",
+     "looking",
+     "it",
+     "jon",
+     "painting"
+    ],
+    "triples": [
+     [
+      "yeah",
+      "talked_about",
+      "looking"
+     ],
+     [
+      "jon",
+      "likes",
+      "painting"
+     ]
+    ]
+   },
+   {
+    "idx": 38,
+    "entities": [
+     "believe",
+     "jon",
+     "push",
+     "gina",
+     "painting"
+    ],
+    "triples": [
+     [
+      "believe",
+      "talked_about",
+      "jon"
+     ],
+     [
+      "gina",
+      "likes",
+      "painting"
+     ]
+    ]
+   },
+   {
+    "idx": 39,
+    "entities": [
+     "glad",
+     "gotta",
+     "we",
+     "jon",
+     "painting"
+    ],
+    "triples": [
+     [
+      "glad",
+      "talked_about",
+      "gotta"
+     ],
+     [
+      "jon",
+      "likes",
+      "painting"
+     ]
+    ]
+   }
+  ],
+  "registry": {
+   "gina": {
+    "type": "person",
+    "count": 23
+   },
+   "jon": {
+    "type": "person",
+    "count": 23
+   },
+   "hey": {
+    "type": "person",
+    "count": 2
+   },
+   "good": {
+    "type": "person",
+    "count": 2
+   },
+   "painting": {
+    "type": "",
+    "count": 14
+   },
+   "mel": {
+    "type": "person",
+    "count": 6
+   },
+   "caroline": {
+    "type": "none",
+    "count": 6
+   },
+   "a": {
+    "type": "",
+    "count": 2
+   },
+   "b": {
+    "type": "",
+    "count": 2
+   },
+   "c": {
+    "type": "",
+    "count": 2
+   },
+   "42": {
+    "type": "",
+    "count": 2
+   },
+   "none": {
+    "type": "",
+    "count": 2
+   },
+   "'a' 'b'": {
+    "type": "",
+    "count": 2
+   },
+   "1": {
+    "type": "",
+    "count": 2
+   },
+   "true": {
+    "type": "",
+    "count": 2
+   },
+   "sweden": {
+    "type": "",
+    "count": 2
+   },
+   "gym": {
+    "type": "",
+    "count": 2
+   },
+   "art show": {
+    "type": "event show",
+    "count": 2
+   },
+   "the lgbtq group": {
+    "type": "organisation",
+    "count": 2
+   },
+   "oscar": {
+    "type": "",
+    "count": 2
+   },
+   "woah": {
+    "type": "person",
+    "count": 1
+   },
+   "it": {
+    "type": "person",
+    "count": 4
+   },
+   "wow": {
+    "type": "thing",
+    "count": 2
+   },
+   "winning": {
+    "type": "thing",
+    "count": 1
+   },
+   "what": {
+    "type": "thing",
+    "count": 1
+   },
+   "thanks": {
+    "type": "person",
+    "count": 1
+   },
+   "we": {
+    "type": "person",
+    "count": 2
+   },
+   "finding": {
+    "type": "person",
+    "count": 1
+   },
+   "check": {
+    "type": "thing",
+    "count": 1
+   },
+   "cool": {
+    "type": "thing",
+    "count": 1
+   },
+   "man": {
+    "type": "thing",
+    "count": 1
+   },
+   "got": {
+    "type": "thing",
+    "count": 1
+   },
+   "hopefully": {
+    "type": "person",
+    "count": 1
+   },
+   "yeah": {
+    "type": "thing",
+    "count": 2
+   },
+   "marley": {
+    "type": "thing",
+    "count": 2
+   },
+   "sounds": {
+    "type": "person",
+    "count": 1
+   },
+   "can": {
+    "type": "person",
+    "count": 1
+   },
+   "looking": {
+    "type": "thing",
+    "count": 1
+   },
+   "believe": {
+    "type": "thing",
+    "count": 1
+   },
+   "push": {
+    "type": "thing",
+    "count": 1
+   },
+   "glad": {
+    "type": "person",
+    "count": 1
+   },
+   "gotta": {
+    "type": "person",
+    "count": 1
+   }
+  }
+ },
+ "cached_run": {
+  "calls": [
+   {
+    "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person)\n\nSPEAKER: Gina\nMESSAGE: Hey Jon! Good to see you. What's up? Anything new?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+    "kwargs": {
+     "temperature": 0,
+     "max_tokens": 300,
+     "timeout_seconds": 60
+    },
+    "response": "{\"entities\": [{\"name\": \"Hey\", \"type\": \"person\"}, {\"name\": \"Jon\", \"type\": \"person\"}, {\"name\": \"Good\", \"type\": \"person\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"Hey\", \"talked about\", \"Jon\"], [\"my\", \"likes\", \"Painting\"]]}"
+   },
+   {
+    "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting\n\nSPEAKER: Jon\nMESSAGE: Hey Gina! Good to see you too. Lost my job as a banker yesterday, so I'm gonna take a shot at starting my own business.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+    "kwargs": {
+     "temperature": 0,
+     "max_tokens": 300,
+     "timeout_seconds": 60
+    },
+    "response": "```json\n{\n  \"entities\": [\n    {\n      \"name\": \"Hey\",\n      \"type\": \"thing\"\n    },\n    {\n      \"name\": \"Gina\",\n      \"type\": \"thing\"\n    },\n    {\n      \"name\": \"Good\",\n      \"type\": \"thing\"\n    },\n    {\n      \"name\": \"I\",\n      \"type\": \"person\"\n    }\n  ],\n  \"triples\": [\n    [\n      \"Hey\",\n      \"talked about\",\n      \"Gina\"\n    ],\n    [\n      \"my\",\n      \"likes\",\n      \"Painting\"\n    ]\n  ]\n}\n```"
+   },
+   {
+    "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting\n\nSPEAKER: Gina\nMESSAGE: Sorry about your job Jon, but starting your own business sounds awesome! Unfortunately, I also lost my job at Door Dash this month. What business are you thinking of?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+    "kwargs": {
+     "temperature": 0,
+     "max_tokens": 300,
+     "timeout_seconds": 60
+    },
+    "response": "Sure! Here you go: {\"entities\": [{\"name\": \"Sorry\", \"type\": \"thing\"}, {\"name\": \"Jon\", \"type\": \"thing\"}, {\"name\": \"Unfortunately\", \"type\": \"thing\"}, {\"name\": \"I\", \"type\": \"person\"}], \"triples\": [[\"Sorry\", \"talked about\", \"Jon\"], [\"my\", \"likes\", \"Painting\"]]} Hope that helps {really}."
+   },
+   {
+    "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting\n\nSPEAKER: Jon\nMESSAGE: Sorry to hear that! I'm starting a dance studio 'cause I'm passionate about dancing and it'd be great to share it with others.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+    "kwargs": {
+     "temperature": 0,
+     "max_tokens": 300,
+     "timeout_seconds": 60
+    },
+    "response": "{\"entities\": [{\"name\": \"Mel\", \"type\": \"person\"}, {\"name\": \"Caroline's\", \"type\": null}], \"triples\": [[\"Mel\", \"is friends with\", \"caroline\"], [\"x\", \"y\"], \"abc\", [\"Mel\", \"r\", \"Mel\"]]}"
+   },
+   {
+    "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting, mel (person), caroline (none)\n\nSPEAKER: Gina\nMESSAGE: That's cool, Jon! What got you into this biz?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+    "kwargs": {
+     "temperature": 0,
+     "max_tokens": 300,
+     "timeout_seconds": 60
+    },
+    "response": "no json at all"
+   },
+   {
+    "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting, mel (person), caroline (none)\n\nSPEAKER: Jon\nMESSAGE: I've been into dancing since I was a kid and it's been my passion and escape. I wanna start a dance studio so I can teach others the joy that dancing brings me.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+    "kwargs": {
+     "temperature": 0,
+     "max_tokens": 300,
+     "timeout_seconds": 60
+    },
+    "response": "{\"entities\": [{\"name\": \"broken\", }"
+   },
+   {
+    "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting, mel (person), caroline (none)\n\nSPEAKER: Gina\nMESSAGE: Wow Jon, same here! Dance is pretty much my go-to for stress relief. Got any fave styles?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+    "kwargs": {
+     "temperature": 0,
+     "max_tokens": 300,
+     "timeout_seconds": 60
+    },
+    "response": null
+   },
+   {
+    "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting, mel (person), caroline (none)\n\nSPEAKER: Jon\nMESSAGE: Cool, Gina! I love all dances, but contemporary is my top pick. It's so expressive and powerful! What's your fave?\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+    "kwargs": {
+     "temperature": 0,
+     "max_tokens": 300,
+     "timeout_seconds": 60
+    },
+    "response": "{\"entities\": \"abc\", \"triples\": \"xyz\"}"
+   },
+   {
+    "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting, mel (person), caroline (none), a, b, c\n\nSPEAKER: Gina\nMESSAGE: Yeah, me too! Contemporary dance is so expressive and graceful - it really speaks to me.\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+    "kwargs": {
+     "temperature": 0,
+     "max_tokens": 300,
+     "timeout_seconds": 60
+    },
+    "response": "{\"entities\": [\"Melanie\", 42, null, [\"a\", \"b\"], {\"k\": 1.5}], \"triples\": [[1, 2.5, true]]}"
+   },
+   {
+    "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), hey (person), good (person), painting, mel (person), caroline (none), a, b, c, 42, none, 'a' 'b', 1, true\n\nSPEAKER: Jon\nMESSAGE: Wow, great idea! Let's go to a dance class, it'll be so much fun!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+    "kwargs": {
+     "temperature": 0,
+     "max_tokens": 300,
+     "timeout_seconds": 60
+    },
+    "response": "{\"entities\": [{\"name\": \"melanei\", \"type\": \"Person\"}, {\"name\": \"carolin\"}, {\"name\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"type\": \"long\"}, {\"type\": \"orphan\"}], \"triples\": []}"
+   },
+   {
+    "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Gina\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), mel (person), hey (person), good (person), painting, caroline (none), a, b, c, 42, none, 'a' 'b', 1, true\n\nSPEAKER: Gina\nMESSAGE: Yeah! Let's explore some new dance moves. We should plan a dance session soon!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+    "kwargs": {
+     "temperature": 0,
+     "max_tokens": 300,
+     "timeout_seconds": 60
+    },
+    "response": "{\"entities\": {\"Sweden\": 1, \"Gym\": 2}, \"triples\": {\"a\": 1}}"
+   },
+   {
+    "prompt": "You are building a knowledge graph from a chat between Gina and Jon.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"Jon\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): gina (person), jon (person), mel (person), hey (person), good (person), painting, caroline (none), a, b, c, 42, none, 'a' 'b', 1, true, sweden, gym\n\nSPEAKER: Jon\nMESSAGE: Yeah definitely! Wanna see my moves next Fri? Can't wait!\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+    "kwargs": {
+     "temperature": 0,
+     "max_tokens": 300,
+     "timeout_seconds": 60
+    },
+    "response": "{\"entities\": [], \"triples\": [], \"extra\": {\"nested\": {\"deep\": [1, 2, 3]}}}"
+   }
+  ],
+  "result": {
+   "messages": [
+    {
+     "idx": 0,
+     "entities": [
+      "hey",
+      "jon",
+      "good",
+      "gina",
+      "painting"
+     ],
+     "triples": [
+      [
+       "hey",
+       "talked_about",
+       "jon"
+      ],
+      [
+       "gina",
+       "likes",
+       "painting"
+      ]
+     ]
+    },
+    {
+     "idx": 1,
+     "entities": [
+      "hey",
+      "gina",
+      "good",
+      "jon",
+      "painting"
+     ],
+     "triples": [
+      [
+       "hey",
+       "talked_about",
+       "gina"
+      ],
+      [
+       "jon",
+       "likes",
+       "painting"
+      ]
+     ]
+    },
+    {
+     "idx": 2,
+     "entities": [
+      "gina"
+     ],
+     "triples": []
+    },
+    {
+     "idx": 3,
+     "entities": [
+      "mel",
+      "caroline",
+      "jon"
+     ],
+     "triples": [
+      [
+       "mel",
+       "is_friends_with",
+       "caroline"
+      ]
+     ]
+    },
+    {
+     "idx": 4,
+     "entities": [
+      "gina"
+     ],
+     "triples": []
+    },
+    {
+     "idx": 5,
+     "entities": [
+      "jon"
+     ],
+     "triples": []
+    },
+    {
+     "idx": 6,
+     "entities": [
+      "gina"
+     ],
+     "triples": []
+    },
+    {
+     "idx": 7,
+     "entities": [
+      "a",
+      "b",
+      "c",
+      "jon"
+     ],
+     "triples": []
+    },
+    {
+     "idx": 8,
+     "entities": [
+      "mel",
+      "42",
+      "none",
+      "'a' 'b'",
+      "1",
+      "true",
+      "gina"
+     ],
+     "triples": [
+      [
+       "1",
+       "2_5",
+       "true"
+      ]
+     ]
+    },
+    {
+     "idx": 9,
+     "entities": [
+      "mel",
+      "caroline",
+      "jon"
+     ],
+     "triples": []
+    },
+    {
+     "idx": 10,
+     "entities": [
+      "sweden",
+      "gym",
+      "gina"
+     ],
+     "triples": []
+    },
+    {
+     "idx": 11,
+     "entities": [
+      "jon"
+     ],
+     "triples": []
+    }
+   ],
+   "registry": {
+    "gina": {
+     "type": "person",
+     "count": 8
+    },
+    "jon": {
+     "type": "person",
+     "count": 8
+    },
+    "hey": {
+     "type": "person",
+     "count": 2
+    },
+    "good": {
+     "type": "person",
+     "count": 2
+    },
+    "painting": {
+     "type": "",
+     "count": 2
+    },
+    "mel": {
+     "type": "person",
+     "count": 3
+    },
+    "caroline": {
+     "type": "none",
+     "count": 2
+    },
+    "a": {
+     "type": "",
+     "count": 1
+    },
+    "b": {
+     "type": "",
+     "count": 1
+    },
+    "c": {
+     "type": "",
+     "count": 1
+    },
+    "42": {
+     "type": "",
+     "count": 1
+    },
+    "none": {
+     "type": "",
+     "count": 1
+    },
+    "'a' 'b'": {
+     "type": "",
+     "count": 1
+    },
+    "1": {
+     "type": "",
+     "count": 1
+    },
+    "true": {
+     "type": "",
+     "count": 1
+    },
+    "sweden": {
+     "type": "",
+     "count": 1
+    },
+    "gym": {
+     "type": "",
+     "count": 1
+    }
+   }
+  },
+  "file": "{\"messages\": [{\"idx\": 0, \"entities\": [\"hey\", \"jon\", \"good\", \"gina\", \"painting\"], \"triples\": [[\"hey\", \"talked_about\", \"jon\"], [\"gina\", \"likes\", \"painting\"]]}, {\"idx\": 1, \"entities\": [\"hey\", \"gina\", \"good\", \"jon\", \"painting\"], \"triples\": [[\"hey\", \"talked_about\", \"gina\"], [\"jon\", \"likes\", \"painting\"]]}, {\"idx\": 2, \"entities\": [\"gina\"], \"triples\": []}, {\"idx\": 3, \"entities\": [\"mel\", \"caroline\", \"jon\"], \"triples\": [[\"mel\", \"is_friends_with\", \"caroline\"]]}, {\"idx\": 4, \"entities\": [\"gina\"], \"triples\": []}, {\"idx\": 5, \"entities\": [\"jon\"], \"triples\": []}, {\"idx\": 6, \"entities\": [\"gina\"], \"triples\": []}, {\"idx\": 7, \"entities\": [\"a\", \"b\", \"c\", \"jon\"], \"triples\": []}, {\"idx\": 8, \"entities\": [\"mel\", \"42\", \"none\", \"'a' 'b'\", \"1\", \"true\", \"gina\"], \"triples\": [[\"1\", \"2_5\", \"true\"]]}, {\"idx\": 9, \"entities\": [\"mel\", \"caroline\", \"jon\"], \"triples\": []}, {\"idx\": 10, \"entities\": [\"sweden\", \"gym\", \"gina\"], \"triples\": []}, {\"idx\": 11, \"entities\": [\"jon\"], \"triples\": []}], \"registry\": {\"gina\": {\"type\": \"person\", \"count\": 8}, \"jon\": {\"type\": \"person\", \"count\": 8}, \"hey\": {\"type\": \"person\", \"count\": 2}, \"good\": {\"type\": \"person\", \"count\": 2}, \"painting\": {\"type\": \"\", \"count\": 2}, \"mel\": {\"type\": \"person\", \"count\": 3}, \"caroline\": {\"type\": \"none\", \"count\": 2}, \"a\": {\"type\": \"\", \"count\": 1}, \"b\": {\"type\": \"\", \"count\": 1}, \"c\": {\"type\": \"\", \"count\": 1}, \"42\": {\"type\": \"\", \"count\": 1}, \"none\": {\"type\": \"\", \"count\": 1}, \"'a' 'b'\": {\"type\": \"\", \"count\": 1}, \"1\": {\"type\": \"\", \"count\": 1}, \"true\": {\"type\": \"\", \"count\": 1}, \"sweden\": {\"type\": \"\", \"count\": 1}, \"gym\": {\"type\": \"\", \"count\": 1}}}"
+ },
+ "type_error": "TypeError: 'int' object is not iterable",
+ "units": {
+  "norm": [
+   [
+    "Melanie",
+    "melanie"
+   ],
+   [
+    "  The LGBTQ+ group's ",
+    "the lgbtq group"
+   ],
+   [
+    "Caroline's",
+    "caroline"
+   ],
+   [
+    "I",
+    "i"
+   ],
+   [
+    "MY",
+    "my"
+   ],
+   [
+    "mine",
+    "mine"
+   ],
+   [
+    "",
+    ""
+   ],
+   [
+    "!!!",
+    ""
+   ],
+   [
+    null,
+    "none"
+   ],
+   [
+    42,
+    "42"
+   ],
+   [
+    1.5,
+    "1 5"
+   ],
+   [
+    true,
+    "true"
+   ],
+   [
+    [
+     "a",
+     1
+    ],
+    "'a' 1"
+   ],
+   [
+    {
+     "k": "v"
+    },
+    "'k' 'v'"
+   ],
+   [
+    "Café Müller",
+    "caf m ller"
+   ],
+   [
+    "rock-climbing 'gym'",
+    "rock-climbing 'gym'"
+   ],
+   [
+    "x\ty\nz",
+    "x y z"
+   ],
+   [
+    "İstanbul",
+    "i stanbul"
+   ]
+  ],
+  "resolve": [
+   [
+    "Mel",
+    "Melanie",
+    "melanie"
+   ],
+   [
+    "Melanie",
+    "Melanie",
+    "melanie"
+   ],
+   [
+    "melanie's",
+    "Melanie",
+    "melanie"
+   ],
+   [
+    "carolina",
+    "Melanie",
+    "carolina"
+   ],
+   [
+    "caro",
+    "Melanie",
+    "caroline"
+   ],
+   [
+    "art shows",
+    "Melanie",
+    "art show"
+   ],
+   [
+    "art",
+    "Melanie",
+    "art"
+   ],
+   [
+    "the lgbtq group",
+    "Melanie",
+    "the lgbtq group"
+   ],
+   [
+    "lgbtq groups",
+    "Melanie",
+    "lgbtq group"
+   ],
+   [
+    "me",
+    "Melanie",
+    "melanie"
+   ],
+   [
+    "Al",
+    "Melanie",
+    "al"
+   ],
+   [
+    "alfred",
+    "Melanie",
+    "alfred"
+   ],
+   [
+    "xyz",
+    "Melanie",
+    "xyz"
+   ],
+   [
+    null,
+    "Melanie",
+    "none"
+   ],
+   [
+    7,
+    "Melanie",
+    "7"
+   ]
+  ],
+  "registry": {
+   "melanie": {
+    "type": "person",
+    "count": 3
+   },
+   "caroline": {
+    "type": "person",
+    "count": 2
+   },
+   "art show": {
+    "type": "event",
+    "count": 1
+   },
+   "lgbtq group": {
+    "type": "",
+    "count": 1
+   },
+   "al": {
+    "type": "person",
+    "count": 1
+   }
+  },
+  "parse": [
+   [
+    "{\"entities\": [{\"name\": \"a\"}], \"triples\": [[\"a\", \"b\", \"c\"]]}",
+    {
+     "entities": [
+      {
+       "name": "a"
+      }
+     ],
+     "triples": [
+      [
+       "a",
+       "b",
+       "c"
+      ]
+     ]
+    }
+   ],
+   [
+    "",
+    {
+     "entities": [],
+     "triples": []
+    }
+   ],
+   [
+    "{}",
+    {
+     "entities": [],
+     "triples": []
+    }
+   ],
+   [
+    "{ bad",
+    {
+     "entities": [],
+     "triples": []
+    }
+   ],
+   [
+    "[1, 2]",
+    {
+     "entities": [],
+     "triples": []
+    }
+   ],
+   [
+    "pre {\"entities\": [1, \"x\"]} mid {\"triples\": []} post",
+    {
+     "entities": [],
+     "triples": []
+    }
+   ],
+   [
+    "{\"entities\": 0, \"triples\": false}",
+    {
+     "entities": [],
+     "triples": []
+    }
+   ],
+   [
+    "{\"entities\": {\"a\": 1}, \"triples\": \"ab\"}",
+    {
+     "entities": [
+      {
+       "name": "a",
+       "type": ""
+      }
+     ],
+     "triples": []
+    }
+   ],
+   [
+    "{\"triples\": [[\"a\",\"b\",\"c\"], [\"d\"], (\"e\")]}",
+    {
+     "entities": [],
+     "triples": []
+    }
+   ],
+   [
+    "{\"entities\": 5}",
+    {
+     "error": "TypeError: 'int' object is not iterable"
+    }
+   ],
+   [
+    "{\"triples\": 3.5}",
+    {
+     "error": "TypeError: 'float' object is not iterable"
+    }
+   ],
+   [
+    "{\"entities\": true}",
+    {
+     "error": "TypeError: 'bool' object is not iterable"
+    }
+   ]
+  ]
+ },
+ "format_check": "You are building a knowledge graph from a chat between {a} and {b}.\nExtract from the MESSAGE below:\n1. entities: people, places, organisations, pets, objects, events, activities, media titles, dates, health conditions, jobs, hobbies. Short canonical names, lowercase, singular. Resolve first person (\"I\", \"my\", \"me\") to the speaker \"{x}\". Resolve nicknames and pronouns to the KNOWN ENTITIES list when they refer to the same thing; reuse the exact known name.\n2. triples: [subject, relation, object] facts stated or clearly implied by the message. Subject and object must be entities from your list. Relation is a short verb phrase (has_pet, lives_in, attended, likes, works_as, plans, bought, read, moved_from, ...).\n\nKNOWN ENTITIES (reuse these names when they match): }\n\nSPEAKER: {x}\nMESSAGE: {{y}}\n\nReturn ONLY JSON: {\"entities\": [{\"name\": \"...\", \"type\": \"...\"}], \"triples\": [[\"subject\", \"relation\", \"object\"]]}",
+ "flatten_lengths": [
+  419,
+  369,
+  663,
+  629,
+  680,
+  675,
+  689,
+  681,
+  509,
+  568
+ ]
+}
