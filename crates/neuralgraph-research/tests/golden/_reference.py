@@ -17,7 +17,7 @@ Determinism helpers:
 - ``freeze_now(modules, now)`` replaces ``datetime`` in the given modules with a subclass whose ``now()`` returns
   ``now`` (aware UTC when a tz is passed, the same wall time naive otherwise), the way the Rust tests pin
   ``clock::set_fixed`` and ``pytime::set_fixed_local_offset(Some(0))``.
-- ``ordered_ids(prefix)`` makes ``uuid.uuid4`` deterministic for modules that mint ids.
+- ``ordered_ids(modules)`` makes ``uuid.uuid4`` deterministic for modules that mint ids (shared counter).
 - ``dump(name, obj)`` writes the fixture with sorted keys off (insertion order is part of the contract).
 """
 from __future__ import annotations
@@ -82,19 +82,34 @@ def freeze_now(modules, now: _datetime = FIXED_NOW) -> None:
             m.datetime = cls
 
 
-def ordered_ids(module, prefix: str = "id") -> None:
-    """Replace ``module.uuid.uuid4`` with a counter (``00000000-0000-4000-8000-000000000001``...)."""
-    import uuid as _uuid
+class _OrderedUuid:
+    """Stand-in for the ``uuid`` module: ``uuid4()`` counts ``00000000-0000-4000-0000-000000000001``... (the
+    Rust side's ``data_types::set_deterministic_uuids(Some(0))``). One counter for every patched module."""
 
-    counter = {"n": 0}
+    def __init__(self) -> None:
+        import uuid as _uuid
+        self._uuid = _uuid
+        self.n = 0
 
-    class _Fake:
-        @staticmethod
-        def uuid4():
-            counter["n"] += 1
-            return _uuid.UUID(int=(0x4000 << 64) | counter["n"])
+    def reset(self, start: int = 0) -> None:
+        self.n = start
 
-    module.uuid = _Fake
+    def uuid4(self):
+        self.n += 1
+        return self._uuid.UUID(int=(0x4000 << 64) | self.n)
+
+    def __getattr__(self, name):
+        return getattr(self._uuid, name)
+
+
+UUIDS = _OrderedUuid()
+
+
+def ordered_ids(modules) -> None:
+    """Make ``uuid.uuid4()`` deterministic in the given modules (shared counter ``UUIDS``; ``UUIDS.reset()``)."""
+    for m in modules:
+        if hasattr(m, "uuid"):
+            m.uuid = UUIDS
 
 
 def f32_bits(values) -> list[int]:

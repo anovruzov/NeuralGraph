@@ -31,7 +31,8 @@ pub mod tesseract;
 pub mod wavefront;
 
 pub use data_types::{
-    cosine_similarity, edge_ref, generate_edge_id, generate_node_id, node_ref, ConsolidationResult, ConsolidationState,
-    EdgeRef, EdgeType, NeuralEdge, NeuralNode, NodeLayer, NodeRef, RetrievalResult, RetrievalStageConfig,
+    cosine_similarity, edge_ref, generate_edge_id, generate_node_id, node_ref, set_deterministic_uuids, uuid4,
+    ConsolidationResult, ConsolidationState, EdgeRef, EdgeType, NeuralEdge, NeuralNode, NodeLayer, NodeRef,
+    RetrievalResult, RetrievalStageConfig,
 };
 pub use storage::{Direction, InMemoryNeuralGraphStorage, NeuralGraphStorage};

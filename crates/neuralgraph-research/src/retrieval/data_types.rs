@@ -661,14 +661,39 @@ impl ConsolidationResult {
     }
 }
 
+thread_local! {
+    static DETERMINISTIC_UUIDS: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+}
+
+/// Make every [`uuid4`] on this thread a counter, `00000000-0000-4000-0000-000000000001` onwards (`Some(0)`),
+/// or random again (`None`). The golden generators patch Python's `uuid.uuid4` the same way
+/// (`_reference.ordered_ids`), one counter shared by every module.
+pub fn set_deterministic_uuids(start: Option<u64>) {
+    DETERMINISTIC_UUIDS.with(|c| c.set(start));
+}
+
+/// `str(uuid.uuid4())` — every module that minted a uuid goes through here.
+pub fn uuid4() -> String {
+    let next = DETERMINISTIC_UUIDS.with(|c| {
+        c.get().map(|n| {
+            c.set(Some(n + 1));
+            n + 1
+        })
+    });
+    match next {
+        Some(n) => format!("00000000-0000-4000-0000-{n:012x}"),
+        None => uuid::Uuid::new_v4().to_string(),
+    }
+}
+
 /// `str(uuid.uuid4())`.
 pub fn generate_node_id() -> String {
-    uuid::Uuid::new_v4().to_string()
+    uuid4()
 }
 
 /// `str(uuid.uuid4())`.
 pub fn generate_edge_id() -> String {
-    uuid::Uuid::new_v4().to_string()
+    uuid4()
 }
 
 /// Cosine similarity in float64, summed sequentially like the Python generator expressions.
