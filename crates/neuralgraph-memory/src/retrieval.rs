@@ -284,22 +284,43 @@ impl IndexData {
         }
         let q = normalise_f32(qvec);
         let floor = min_sim as f32;
-        let mut hits: Vec<(usize, f32)> = Vec::new();
-        for (row, &i) in mat.idxs.iter().enumerate() {
-            if !mask[i] {
-                continue;
+        let scan = |rows: std::ops::Range<usize>| -> Vec<(usize, f32)> {
+            let mut out = Vec::new();
+            for row in rows {
+                let i = mat.idxs[row];
+                if !mask[i] {
+                    continue;
+                }
+                let sim = dot_f32(&mat.data[row * mat.dim..(row + 1) * mat.dim], &q);
+                if sim >= floor && sim.is_finite() {
+                    out.push((i, sim));
+                }
             }
-            let sim = dot_f32(&mat.data[row * mat.dim..(row + 1) * mat.dim], &q);
-            if sim >= floor && sim.is_finite() {
-                hits.push((i, sim));
-            }
-        }
+            out
+        };
+        // Large indexes are scanned on every core; chunks are concatenated in row order, so the result is the
+        // same as a sequential scan.
+        let rows = mat.idxs.len();
+        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).min(16);
+        let mut hits: Vec<(usize, f32)> = if threads > 1 && rows * mat.dim >= PARALLEL_SCAN_FLOPS {
+            let chunk = rows.div_ceil(threads);
+            std::thread::scope(|sc| {
+                let handles: Vec<_> =
+                    (0..threads).map(|t| sc.spawn(move || scan(t * chunk..((t + 1) * chunk).min(rows)))).collect();
+                handles.into_iter().flat_map(|h| h.join().expect("vector scan thread")).collect()
+            })
+        } else {
+            scan(0..rows)
+        };
         // highest similarity first; ties keep index order (numpy's order for ties is unspecified)
         hits.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         hits.truncate(k);
         hits.into_iter().map(|(i, s)| (self.ids[i].clone(), s as f64)).collect()
     }
 }
+
+/// Below this many multiply-adds a vector scan is faster on one thread than spread over the cores.
+const PARALLEL_SCAN_FLOPS: usize = 2_000_000;
 
 /// Mutable side of the index: the rows, refreshed incrementally from the store.
 #[derive(Default)]
@@ -508,21 +529,17 @@ impl MemoryRetriever {
         let mut per_channel: IndexMap<&str, IndexMap<String, f64>> =
             IndexMap::from([("vector", IndexMap::new()), ("keyword", IndexMap::new()), ("graph", IndexMap::new())]);
 
-        if channels.contains('V') {
-            let qvec = match &opts.query_embedding {
+        let qvec = if channels.contains('V') {
+            match &opts.query_embedding {
                 Some(v) => Some(v.clone()),
                 None => self.llm.embed(&query).await.ok(),
-            };
-            if let Some(qv) = qvec.filter(|v| !v.is_empty()) {
-                let vr = index.vector_rank(&qv, &mask, cfg.depth, cfg.vector_min_sim);
-                per_channel["vector"] = vr.iter().cloned().collect();
-                rankings.push(vr.into_iter().map(|(m, _)| m).collect());
-                weights.push(cfg.weight_vector);
             }
-        }
-
+            .filter(|v| !v.is_empty())
+        } else {
+            None
+        };
         let widen = opts.include_superseded || since.is_some() || until.is_some();
-        if channels.contains('K') {
+        let keyword = || -> Result<Vec<(String, f64)>> {
             let filter = ChannelFilter {
                 subject: subject_id.clone(),
                 chat_id: some_str(&opts.chat_id).map(str::to_string),
@@ -536,7 +553,22 @@ impl MemoryRetriever {
             if widen {
                 kw_rows.extend(self.store.keyword_candidates(&query, depth2, "superseded", &filter)?);
             }
-            let kr: Vec<(String, f64)> = kw_rows.into_iter().filter(|(m, _)| allowed(m)).take(cfg.depth).collect();
+            Ok(kw_rows)
+        };
+        // The two channels are independent reads: the FTS5 query runs on its own thread while this one scans the
+        // vectors. Rankings are assembled in the fixed order vector, keyword, so fusion is unaffected.
+        let (vr, kw_rows) = std::thread::scope(|sc| {
+            let kw = channels.contains('K').then(|| sc.spawn(keyword));
+            let vr = qvec.as_ref().map(|qv| index.vector_rank(qv, &mask, cfg.depth, cfg.vector_min_sim));
+            (vr, kw.map(|h| h.join().expect("keyword channel thread")))
+        });
+        if let Some(vr) = vr {
+            per_channel["vector"] = vr.iter().cloned().collect();
+            rankings.push(vr.into_iter().map(|(m, _)| m).collect());
+            weights.push(cfg.weight_vector);
+        }
+        if let Some(kw_rows) = kw_rows {
+            let kr: Vec<(String, f64)> = kw_rows?.into_iter().filter(|(m, _)| allowed(m)).take(cfg.depth).collect();
             let mut kmap = IndexMap::new();
             for (m, s) in &kr {
                 kmap.insert(m.clone(), *s);
