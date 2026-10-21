@@ -12,6 +12,7 @@
 
 pub mod numpy;
 pub mod pyrandom;
+pub mod pyre;
 pub mod pytime;
 
 pub mod llm_backend;
