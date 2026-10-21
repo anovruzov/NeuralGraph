@@ -1,4 +1,5 @@
-# Runtime dependencies for NeuralGraph (benchmark harness + chat memory). Python >= 3.11.
+# Python dependencies of the research track only (NeuralGraph/research, research/benchmarks and the frozen
+# Python chat_memory reference those harnesses import). The memory server itself is Rust: crates/neuralgraph-memory.
 aiohttp>=3.9
 numpy>=1.26
 rank-bm25>=0.2.2

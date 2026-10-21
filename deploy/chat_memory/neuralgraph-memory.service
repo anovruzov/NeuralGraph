@@ -1,15 +1,16 @@
-# Edge deployment as a systemd user service (Linux). Copy to ~/.config/systemd/user/ and run:
+# Edge deployment as a systemd user service (Linux). Install the binary first:
+#   cargo install --locked --path crates/neuralgraph-memory      # -> ~/.cargo/bin/neuralgraph-memory
+# then copy this file to ~/.config/systemd/user/ and run:
 #   systemctl --user daemon-reload && systemctl --user enable --now neuralgraph-memory
 [Unit]
 Description=NeuralGraph cross-chat memory (worker + dashboard + MCP)
 After=network.target
 
 [Service]
-WorkingDirectory=%h/NeuralGraph
 Environment=LLM_BASE_URL=http://127.0.0.1:11434
 Environment=LLM_MODEL=qwen2.5:7b-instruct
 Environment=EMBED_MODEL=nomic-embed-text
-ExecStart=%h/NeuralGraph/.venv/bin/python -m NeuralGraph.chat_memory serve --host 127.0.0.1 --port 8765 --parallel 2
+ExecStart=%h/.cargo/bin/neuralgraph-memory serve --host 127.0.0.1 --port 8765 --parallel 2
 Restart=on-failure
 RestartSec=5
 
