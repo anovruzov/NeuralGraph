@@ -16,6 +16,7 @@
 use indexmap::{IndexMap, IndexSet};
 use neuralgraph_memory::pycompat::{py_len, py_split_whitespace, py_strip, py_truthy};
 use serde_json::{json, Map, Value};
+use std::rc::Rc;
 use std::sync::LazyLock;
 
 use super::data_types::{NodeLayer, NodeRef};
@@ -1507,9 +1508,28 @@ pub type SoftResults = IndexMap<String, SoftFilterResult>;
 /// What `get_filtered_candidates` returns: (candidates, analysis, per-node verdicts in soft/boost modes).
 pub type FilteredCandidates = (Vec<NodeRef>, QueryAnalysis, Option<SoftResults>);
 
+/// How a [`FilteredRetriever`] holds its storage: borrowed for a retriever that lives inside one function (the
+/// usual case), or shared (`Rc`) for one an owner such as the research service keeps per session for as long as
+/// it runs (a borrow would make that owner self-referential).
+pub enum StorageHandle<'a> {
+    Borrowed(&'a dyn NeuralGraphStorage),
+    Shared(Rc<dyn NeuralGraphStorage>),
+}
+
+impl<'a> std::ops::Deref for StorageHandle<'a> {
+    type Target = dyn NeuralGraphStorage + 'a;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            StorageHandle::Borrowed(s) => *s,
+            StorageHandle::Shared(s) => &**s,
+        }
+    }
+}
+
 /// Query-aware candidate filtering in hard, soft or boost mode (`FilteredRetriever`).
 pub struct FilteredRetriever<'a> {
-    pub storage: &'a dyn NeuralGraphStorage,
+    pub storage: StorageHandle<'a>,
     pub router: QueryRouter,
     pub filter_mode: String,
     pub soft_fallback_threshold: f64,
@@ -1565,7 +1585,22 @@ impl<'a> FilteredRetriever<'a> {
     /// `FilteredRetriever(storage, filter_mode="boost", soft_fallback_threshold=0.2)`.
     pub fn new(storage: &'a dyn NeuralGraphStorage, filter_mode: &str, soft_fallback_threshold: f64) -> Self {
         FilteredRetriever {
-            storage,
+            storage: StorageHandle::Borrowed(storage),
+            router: QueryRouter::new(None),
+            filter_mode: filter_mode.to_string(),
+            soft_fallback_threshold,
+            filter_stats: FilterStats::default(),
+        }
+    }
+
+    /// Same as [`FilteredRetriever::new`] over a shared storage handle, for retrievers an owner keeps around.
+    pub fn new_shared(
+        storage: Rc<dyn NeuralGraphStorage>,
+        filter_mode: &str,
+        soft_fallback_threshold: f64,
+    ) -> FilteredRetriever<'static> {
+        FilteredRetriever {
+            storage: StorageHandle::Shared(storage),
             router: QueryRouter::new(None),
             filter_mode: filter_mode.to_string(),
             soft_fallback_threshold,
