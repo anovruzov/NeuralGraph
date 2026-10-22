@@ -7,9 +7,7 @@
 //! outgoing edges), honesty (truncated walks, cycles and dangling ids under-report, never invent), and
 //! containment (lineage crosses the boundary as identifier tuples only).
 //!
-//! The Python ran the resolver and adapter-binding suites once per backend (in-memory and SQLite). The SQLite
-//! instantiations are below too, compiled out until `retrieval::sqlite_storage` is ported (it is another
-//! area's stub in this tree); enabling them is removing the `cfg(any())` on `mod sqlite_backend`.
+//! The Python ran the resolver and adapter-binding suites once per backend (in-memory and SQLite); so do these.
 
 use neuralgraph_research::coordination::adapters::{
     LocalNode, LocalNodeRef, LocalRetrieve, LocalValue, MemoryNodeAdapter, NeuralGraphMemoryAdapter, PolicyFilter,
@@ -752,17 +750,15 @@ resolver_suite!(in_memory_lineage_resolver_tests, super::in_memory_backend());
 adapter_suite!(in_memory_real_adapter_tests, super::in_memory_backend());
 
 /// The SQLite instantiations (`SQLiteLineageResolverTests`, `SQLiteRealAdapterTests`). Every store gets an
-/// explicit temporary `db_path`: the Python default points at `~/.memmachine/memories.db`. Compiled out until
-/// `retrieval::sqlite_storage` is ported; the constructor below assumes `SQLiteNeuralGraphStorage::new(path)`.
-#[cfg(any())]
+/// explicit temporary `db_path`: the Python default points at `~/.memmachine/memories.db`.
 mod sqlite_backend {
     use super::*;
-    use neuralgraph_research::retrieval::sqlite_storage::SQLiteNeuralGraphStorage;
+    use neuralgraph_research::retrieval::sqlite_storage::SqliteNeuralGraphStorage;
 
     pub fn sqlite_backend() -> Backend {
         let tmpdir = tempfile::tempdir().unwrap();
         let db_path = tmpdir.path().join("coordination_lineage_test.db");
-        Backend { storage: Rc::new(SQLiteNeuralGraphStorage::new(&db_path)), tmpdir: Some(tmpdir) }
+        Backend { storage: Rc::new(SqliteNeuralGraphStorage::new(&db_path)), tmpdir: Some(tmpdir) }
     }
 
     resolver_suite!(sqlite_lineage_resolver_tests, super::sqlite_backend());

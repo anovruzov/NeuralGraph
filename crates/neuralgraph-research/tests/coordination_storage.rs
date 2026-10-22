@@ -2,12 +2,8 @@
 //! survive a durable round trip) and `NeuralGraph/tests/test_coordination_experiment_restart.py` (multi-node
 //! reconstruction survives closing and reopening per-node stores), same test names and assertions.
 //!
-//! Every test needs `SQLiteNeuralGraphStorage`, which belongs to the `retrieval::sqlite_storage` port (a stub in
-//! this tree when these were written). The file is therefore compiled out by the crate-level `cfg(any())`;
-//! enabling it is deleting that attribute once the store lands. The only assumed API is
-//! `SQLiteNeuralGraphStorage::new(db_path)` and `close()`, both used through `open_sqlite` / `close` below; every
-//! store gets an explicit temporary `db_path` (the Python default points at `~/.memmachine/memories.db`).
-#![cfg(any())]
+//! Every test runs on `SqliteNeuralGraphStorage`; every store gets an explicit temporary `db_path` (the Python
+//! default points at `~/.memmachine/memories.db`).
 
 use neuralgraph_research::coordination::adapters::{LocalNodeRef, LocalValue, NeuralGraphMemoryAdapter};
 use neuralgraph_research::coordination::contracts::{
@@ -21,18 +17,18 @@ use neuralgraph_research::coordination::storage_adapter::StorageLineageResolver;
 use neuralgraph_research::retrieval::data_types::{
     edge_ref, node_ref, EdgeType, NeuralEdge, NeuralNode, NodeLayer, NodeRef,
 };
-use neuralgraph_research::retrieval::sqlite_storage::SQLiteNeuralGraphStorage;
+use neuralgraph_research::retrieval::sqlite_storage::SqliteNeuralGraphStorage;
 use neuralgraph_research::retrieval::storage::{InMemoryNeuralGraphStorage, NeuralGraphStorage};
 use serde_json::{json, Value};
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-fn open_sqlite(db_path: &Path) -> Rc<SQLiteNeuralGraphStorage> {
-    Rc::new(SQLiteNeuralGraphStorage::new(db_path))
+fn open_sqlite(db_path: &Path) -> Rc<SqliteNeuralGraphStorage> {
+    Rc::new(SqliteNeuralGraphStorage::new(db_path))
 }
 
-fn close(storage: &SQLiteNeuralGraphStorage) {
+fn close(storage: &SqliteNeuralGraphStorage) {
     storage.close();
 }
 
@@ -56,7 +52,7 @@ fn make_node(node_id: &str, source_memory_ids: Option<&[&str]>) -> NodeRef {
 struct SqliteCase {
     _tmpdir: tempfile::TempDir,
     db_path: PathBuf,
-    storage: Rc<SQLiteNeuralGraphStorage>,
+    storage: Rc<SqliteNeuralGraphStorage>,
 }
 
 impl SqliteCase {
@@ -289,7 +285,7 @@ const EXPECTED_ANSWER: &str = "LEFT_HALF_9F2Q:RIGHT_HALF_3KX7";
 
 /// One derived episode plus the origin message it derives from (the consolidation shape: the episode's own
 /// `source_memory_ids` names its origin and a HIERARCHY edge runs episode -> origin).
-fn seed_slot_episode(storage: &SQLiteNeuralGraphStorage, episode_id: &str, origin_id: &str, slot: &str, value: &str) {
+fn seed_slot_episode(storage: &SqliteNeuralGraphStorage, episode_id: &str, origin_id: &str, slot: &str, value: &str) {
     let mut episode = NeuralNode::new(episode_id, NodeLayer::Episode, value);
     episode.embedding = Some(RESTART_EMBEDDING.to_vec());
     episode.session_key = RESTART_SESSION_KEY.into();
@@ -310,7 +306,7 @@ fn seed_slot_episode(storage: &SQLiteNeuralGraphStorage, episode_id: &str, origi
 
 fn restart_adapter(
     node_id: &str,
-    storage: Rc<SQLiteNeuralGraphStorage>,
+    storage: Rc<SqliteNeuralGraphStorage>,
     clock: &Rc<LogicalClock>,
 ) -> NeuralGraphMemoryAdapter {
     let capability = CapabilityDescriptor {
@@ -362,8 +358,8 @@ fn restart_query(seed: i64) -> QueryRequest {
 /// A fresh coordinator over the given stores, executed once: nothing is carried between calls except what lives
 /// in the two SQLite files.
 fn reconstruct(
-    storage_a: Rc<SQLiteNeuralGraphStorage>,
-    storage_b: Rc<SQLiteNeuralGraphStorage>,
+    storage_a: Rc<SqliteNeuralGraphStorage>,
+    storage_b: Rc<SqliteNeuralGraphStorage>,
     seed: i64,
     phase: &str,
 ) -> QueryExecution {
