@@ -17,33 +17,42 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
-      - run: cargo clippy --all-targets --locked -- -D warnings
-      - run: cargo test --locked
+      - run: cargo clippy -p neuralgraph-memory --all-targets --locked -- -D warnings
+      # includes tests/crate_boundary.rs: the product crate must never depend on the research crate
+      - run: cargo test -p neuralgraph-memory --locked
       - name: the CLI starts and the fake-model pipeline runs end to end
         run: |
           db="$RUNNER_TEMP/smoke.db"
-          cargo run --locked --quiet -- ingest demo/data/sample_chats.jsonl --fake-llm --process --debounce 0 --db "$db"
-          cargo run --locked --quiet -- search "Where does the user live?" --fake-llm --db "$db"
+          cargo run -p neuralgraph-memory --locked --quiet -- ingest demo/data/sample_chats.jsonl --fake-llm --process --debounce 0 --db "$db"
+          cargo run -p neuralgraph-memory --locked --quiet -- search "Where does the user live?" --fake-llm --db "$db"
 
   research:
-    name: research track (Python, until it is ported)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    name: research track (Rust) — clippy, tests, pinned artifacts
+    # macOS: the fixtures pin numpy's float32 arithmetic, which numpy took from Accelerate; the crate calls the
+    # same routines there, so parity assertions are exact (elsewhere they fall back to tolerances)
+    runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          python-version: "3.11"
-          cache: pip
-      - run: pip install -r requirements.txt
-      - run: python -m pytest NeuralGraph/tests -q -p no:warnings
-      - name: the Python chat_memory reference imports no research code
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy -p neuralgraph-research --all-targets --locked -- -D warnings
+      # golden-fixture parity with the Python reference (last Python commit eba2f370)
+      - run: cargo test -p neuralgraph-research --release --locked
+      - name: the coordination track regenerates its pinned artifacts byte for byte
         run: |
-          python -c "
-          import NeuralGraph.chat_memory, sys
-          leaked = [m for m in sys.modules if m.startswith('NeuralGraph.research')]
-          assert not leaked, leaked
-          print('clean')"
+          out="$RUNNER_TEMP/coordination"
+          mkdir -p "$out/figures"
+          cargo build -p neuralgraph-research --release --locked --bin coordination
+          bin=target/release/coordination
+          $bin experiment --output "$out/experiment_seed20260813.json"
+          $bin benchmark --output "$out/benchmark_seed20260813.json"
+          $bin benchmark --sweep 30 --output "$out/benchmark_sweep30_seed20260813.json"
+          $bin scale --output "$out/scale_seed20260813.json"
+          $bin figures --output-dir "$out/figures"
+          (cd "$out" && shasum -a 256 -c "$GITHUB_WORKSPACE/research/coordination/artifacts/SHA256SUMS")
 
   image:
     name: chat_memory image builds
