@@ -78,6 +78,12 @@ fn numpy_pairwise_sums_match_everywhere() {
 }
 
 #[test]
+// The fixture holds Apple Accelerate's float bits (numpy's BLAS on the machine that recorded it); other
+// platforms' BLAS sums in a different order, so the bit-exact comparison only means something on macOS arm64.
+#[cfg_attr(
+    not(all(target_os = "macos", target_arch = "aarch64")),
+    ignore = "fixture bits are Apple Accelerate's; exact on macOS arm64 only"
+)]
 fn numpy_blas_matches_on_macos() {
     if !BITWISE_NUMPY {
         eprintln!("skipped: float32 BLAS parity is only defined against Accelerate (macOS)");
