@@ -13,12 +13,11 @@
 //! - Functions that embedded candidates (`get_embedding` from `answering.py`) take an [`Llm`] and the embedding
 //!   options the `AnsweringConfig` would have given (`None` = the defaults); a failed embedding is an empty
 //!   vector, as in Python.
-//! - `extract_topic_keywords_universal` belongs to `tesseract.py` (ported separately); until that port is merged
-//!   a private copy of it and of the synonym expansion it uses lives at the end of this section
-//!   ([`topic_keywords_shim`]). Replace it with `crate::retrieval::tesseract::extract_topic_keywords_universal`.
+//! - `extract_topic_keywords_universal` comes from `tesseract.py`, as the Python imported it.
 
 use crate::llm_backend::{EmbedOptions, Llm};
 use crate::pyre::{compile, findall, findall1, search};
+use crate::retrieval::tesseract::extract_topic_keywords_universal;
 use fancy_regex::Regex;
 use indexmap::IndexSet;
 use neuralgraph_memory::pycompat::{py_split_whitespace, py_str, py_strip, py_strip_chars, py_truthy};
@@ -684,8 +683,7 @@ pub fn extract_list_items(
             if let Some((prefix, suffix)) = sentence.split_once(':') {
                 let prefix_lower = prefix.to_lowercase();
                 // Python recomputed the (pure) keyword set for every such sentence; once per call is the same
-                let universal =
-                    universal.get_or_insert_with(|| topic_keywords_shim::extract_topic_keywords_universal(question));
+                let universal = universal.get_or_insert_with(|| extract_topic_keywords_universal(question));
                 if q.is_empty() || universal.iter().any(|k| prefix_lower.contains(k.as_str())) {
                     push_parts(suffix, &mut items);
                 }
@@ -735,7 +733,7 @@ pub async fn extract_list_items_semantic(
     let q = question.to_lowercase();
     let prefer_names = q.contains("name");
     let qnames = question_names(question);
-    let topic_keywords = topic_keywords_shim::extract_topic_keywords_universal(question);
+    let topic_keywords = extract_topic_keywords_universal(question);
 
     let mut candidates: Vec<String> = Vec::new();
     for mem in memories {
@@ -841,149 +839,6 @@ pub fn extract_duration_answer(question: &str, memories: &[Value]) -> Option<Str
         }
     }
     None
-}
-
-/// Temporary private copy of `tesseract.extract_topic_keywords_universal` and the synonym expansion it uses
-/// (`synonym_hash.expand_with_synonyms_extended`), needed by [`extract_list_items`] and
-/// [`extract_list_items_semantic`]. Both live in other modules of the port; once those are merged, call them and
-/// delete this module. The thesaurus is read from where the Python read it.
-pub mod topic_keywords_shim {
-    use super::{findall1, KEYWORD_RE};
-    use std::collections::{HashMap, HashSet};
-    use std::sync::LazyLock;
-
-    const THESAURUS: &str =
-        concat!(env!("CARGO_MANIFEST_DIR"), "/../../NeuralGraph/research/retrieval/en_thesaurus.jsonl");
-
-    /// `_load_thesaurus()`: word -> synonyms, both directions; empty when the file is missing.
-    static SYNONYMS: LazyLock<HashMap<String, HashSet<String>>> = LazyLock::new(|| {
-        let mut hash: HashMap<String, HashSet<String>> = HashMap::new();
-        let Ok(text) = std::fs::read_to_string(THESAURUS) else {
-            tracing::warn!("Thesaurus file not found: {THESAURUS}");
-            return hash;
-        };
-        for line in text.lines() {
-            let Ok(entry) = serde_json::from_str::<serde_json::Value>(neuralgraph_memory::pycompat::py_strip(line))
-            else {
-                continue;
-            };
-            let word = entry.get("word").and_then(|w| w.as_str()).unwrap_or("").to_lowercase().replace('_', " ");
-            let synonyms = entry.get("synonyms").and_then(|s| s.as_array());
-            let Some(synonyms) = synonyms.filter(|s| !s.is_empty()) else { continue };
-            if word.is_empty() {
-                continue;
-            }
-            let normalized: HashSet<String> = synonyms
-                .iter()
-                .filter_map(|s| s.as_str())
-                .filter(|s| s.chars().count() > 1)
-                .map(|s| s.to_lowercase().replace('_', " "))
-                .collect();
-            hash.entry(word.clone()).or_default().extend(normalized.iter().cloned());
-            for syn in normalized {
-                hash.entry(syn).or_default().insert(word.clone());
-            }
-        }
-        hash
-    });
-
-    /// `DOMAIN_SYNONYMS`
-    const DOMAIN_SYNONYMS: [(&str, &[&str]); 18] = [
-        ("medium", &["console", "pc", "platform", "device", "system"]),
-        ("mediums", &["consoles", "pcs", "platforms", "devices", "systems"]),
-        ("console", &["medium", "platform", "device", "gamecube", "playstation", "xbox", "switch", "nintendo", "pc"]),
-        ("tournament", &["tourney", "competition", "contest", "championship"]),
-        ("tourney", &["tournament", "competition", "contest"]),
-        ("stream", &["streaming", "broadcast", "live"]),
-        ("animal", &["pet", "creature", "turtle", "dog", "cat"]),
-        ("animals", &["pets", "creatures", "turtles", "dogs", "cats"]),
-        ("pet", &["animal", "companion", "turtle", "dog", "cat"]),
-        ("pets", &["animals", "companions", "turtles", "dogs", "cats"]),
-        ("letter", &["letters", "mail", "correspondence", "message"]),
-        ("letters", &["letter", "mail", "correspondence", "messages"]),
-        ("gift", &["present", "gave", "give"]),
-        ("gave", &["give", "gift", "present"]),
-        ("script", &["screenplay", "writing", "movie"]),
-        ("scripts", &["screenplays", "writings", "movies"]),
-        ("reject", &["rejected", "declined", "denied", "refused"]),
-        ("rejected", &["reject", "declined", "denied", "refused"]),
-    ];
-
-    /// `_expand_morphology_basic`
-    fn expand_morphology_basic(word: &str) -> HashSet<String> {
-        let mut variants: HashSet<String> = HashSet::from([word.to_string()]);
-        let w = word.to_lowercase();
-        let n = w.chars().count();
-        let mut base = w.clone();
-        let chop = |s: &str, k: usize| s.chars().take(s.chars().count() - k).collect::<String>();
-        let doubled = |s: &str| {
-            let c: Vec<char> = s.chars().collect();
-            c.len() >= 2 && c[c.len() - 1] == c[c.len() - 2]
-        };
-        if w.ends_with("ed") && n > 4 {
-            base = chop(&w, 2);
-            if base.ends_with('i') {
-                base = chop(&base, 1) + "y";
-            } else if doubled(&base) {
-                base = chop(&base, 1);
-            }
-        } else if w.ends_with("ing") && n > 5 {
-            base = chop(&w, 3);
-            if doubled(&base) {
-                base = chop(&base, 1);
-            }
-        } else if w.ends_with("ies") && n > 4 {
-            base = chop(&w, 3) + "y";
-        } else if w.ends_with('s') && !w.ends_with("ss") && n > 3 {
-            base = chop(&w, 1);
-        }
-        variants.insert(base.clone());
-        if base.chars().count() >= 3 {
-            variants.insert(format!("{base}s"));
-            variants.insert(format!("{base}ed"));
-            variants.insert(format!("{base}ing"));
-            if base.ends_with('e') {
-                variants.insert(format!("{}ing", chop(&base, 1)));
-                variants.insert(format!("{base}d"));
-            }
-        }
-        // `str.isalpha()`: non-empty and every character a letter
-        variants.retain(|v| v.chars().count() >= 3 && v.chars().all(char::is_alphabetic));
-        variants
-    }
-
-    /// `extract_topic_keywords_universal`. Python returned a `set` and every caller only tests membership; the
-    /// keywords come back sorted.
-    pub fn extract_topic_keywords_universal(question: &str) -> indexmap::IndexSet<String> {
-        const STOP: [&str; 41] = [
-            "what", "which", "who", "where", "when", "why", "how", "did", "does", "do", "is", "are", "was", "were",
-            "has", "have", "had", "will", "would", "could", "should", "the", "a", "an", "to", "for", "in", "on", "at",
-            "of", "with", "from", "types", "type", "kinds", "kind", "names", "name", "list", "all", "any",
-        ];
-        let mut keywords: HashSet<String> = findall1(&KEYWORD_RE, &question.to_lowercase())
-            .into_iter()
-            .filter(|t| !STOP.contains(&t.as_str()))
-            .collect();
-        let mut expanded = HashSet::new();
-        for w in &keywords {
-            expanded.extend(expand_morphology_basic(w));
-        }
-        keywords.extend(expanded);
-        // expand_with_synonyms_extended
-        let mut with_syns = keywords.clone();
-        for word in &keywords {
-            let lower = word.to_lowercase();
-            if let Some(s) = SYNONYMS.get(&lower) {
-                with_syns.extend(s.iter().cloned());
-            }
-            if let Some((_, s)) = DOMAIN_SYNONYMS.iter().find(|(k, _)| *k == lower) {
-                with_syns.extend(s.iter().map(|x| x.to_string()));
-            }
-        }
-        let mut sorted: Vec<String> = with_syns.into_iter().collect();
-        sorted.sort();
-        sorted.into_iter().collect()
-    }
 }
 
 // ---- NeuralGraphService (ported separately) ----
