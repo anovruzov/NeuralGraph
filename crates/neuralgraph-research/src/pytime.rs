@@ -136,9 +136,13 @@ impl PyDateTime {
         s
     }
 
-    /// `datetime.fromisoformat(s)` (Python 3.11 grammar, as implemented by the product crate).
+    /// `datetime.fromisoformat(s)` (Python 3.11 grammar, as implemented by the product crate). Two forms the
+    /// product parser lacks are rewritten first: ISO week dates (`2023-W19-1`, `2023W19`, ...) and the `Z`
+    /// designator after a time (`...T10:00Z`).
     pub fn fromisoformat(s: &str) -> Option<Self> {
-        let (naive, offset) = neuralgraph_memory::models::parse_iso_parts(s)?;
+        let parsed = neuralgraph_memory::models::parse_iso_parts(s)
+            .or_else(|| neuralgraph_memory::models::parse_iso_parts(&iso_311_extras(s)?));
+        let (naive, offset) = parsed?;
         Some(PyDateTime { naive, offset_seconds: offset })
     }
 
@@ -147,6 +151,58 @@ impl PyDateTime {
         let tz = FixedOffset::east_opt(self.offset_seconds.unwrap_or(0)).expect("valid offset");
         tz.from_local_datetime(&self.naive).single().expect("fixed offsets are unambiguous")
     }
+}
+
+/// Rewrite the Python 3.11 `fromisoformat` forms the product parser does not know into ones it does: a week
+/// date becomes its calendar date, a trailing `Z` after a time becomes `+00:00`. `None` when nothing applies.
+fn iso_311_extras(s: &str) -> Option<String> {
+    if !s.is_ascii() {
+        return None;
+    }
+    let b = s.as_bytes();
+    let digit = |i: usize| b.get(i).is_some_and(u8::is_ascii_digit);
+    let num = |r: std::ops::Range<usize>| -> Option<u32> { s.get(r)?.parse().ok() };
+    let mut out: String;
+    // week dates: YYYY-Www[-D] or YYYYWww[D]
+    let week = if b.len() >= 8 && b[4] == b'-' && b[5] == b'W' && digit(6) && digit(7) {
+        if b.len() >= 10 && b[8] == b'-' && digit(9) {
+            Some((num(6..8)?, num(9..10)?, 10))
+        } else {
+            Some((num(6..8)?, 1, 8))
+        }
+    } else if b.len() >= 7 && b[4] == b'W' && digit(5) && digit(6) {
+        if digit(7) {
+            Some((num(5..7)?, num(7..8)?, 8))
+        } else {
+            Some((num(5..7)?, 1, 7))
+        }
+    } else {
+        None
+    };
+    let rest_start;
+    match week {
+        Some((w, d, end)) => {
+            if !(0..4).all(digit) || !(1..=7).contains(&d) {
+                return None;
+            }
+            let weekday = chrono::Weekday::try_from((d - 1) as u8).ok()?;
+            let date = chrono::NaiveDate::from_isoywd_opt(num(0..4)? as i32, w, weekday)?;
+            out = date.format("%Y-%m-%d").to_string();
+            rest_start = end;
+        }
+        None => {
+            out = String::new();
+            rest_start = 0;
+        }
+    }
+    out.push_str(&s[rest_start..]);
+    // a time followed by `Z`
+    let date_len = if week.is_some() || (b.len() > 4 && b[4] == b'-') { 10 } else { 8 };
+    if out.len() > date_len + 1 && out.ends_with('Z') {
+        out.pop();
+        out.push_str("+00:00");
+    }
+    (out != s).then_some(out)
 }
 
 /// `timedelta.total_seconds()`.
