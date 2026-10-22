@@ -1,5 +1,10 @@
 # Experiment reports
 
+> **These experiments ran on the Python implementation** (the last commit containing it is
+> `eba2f370`). The research code is now the Rust crate `crates/neuralgraph-research`; the
+> commands to rerun anything are in [`research/README.md`](../README.md#reproducing). The
+> reports below are unchanged records of what was run, including their Python commands.
+
 One file per experiment from the September 2026 retrieval campaign, kept **verbatim** as
 the record of what was run — including the paths and line numbers of the repository as it
 stood at the time. See [the path mapping](../README.md#reading-the-reports) for where

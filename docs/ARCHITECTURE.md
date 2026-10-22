@@ -4,6 +4,12 @@
 **Date:** December 19, 2025
 **Project:** MemMachine - Neural Memory System
 
+> **Note (2026-10):** this design document predates the Rust port. The engine it describes is now
+> `crates/neuralgraph-research/src/retrieval/` (one Rust module per Python module named below), ported from the
+> Python implementation (last at commit `eba2f370`) and pinned to it by golden fixtures. Code snippets show the
+> original Python API; the Rust types and functions carry the same names in snake_case/CamelCase. The shipped
+> assistant is a different system: `crates/neuralgraph-memory` and [`CHAT_MEMORY.md`](CHAT_MEMORY.md).
+
 ---
 
 ## Table of Contents
@@ -81,7 +87,7 @@ The system draws from three domains:
 ## 2.2 Module Organization
 
 ```
-NeuralGraph/
+crates/neuralgraph-research/src/          (was NeuralGraph/; each .py is now the .rs of the same name)
 ├── Core Data Layer
 │   ├── data_types.py          # Node, Edge, Enums
 │   ├── storage.py             # Abstract storage interface

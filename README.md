@@ -304,26 +304,24 @@ local memory in Claude, everything you need is in the first row and nothing in t
 research tree is imported at runtime.
 
 ```text
-crates/neuralgraph-memory/  THE ASSISTANT — memory server, MCP, worker, store, dashboard (Rust)
-NeuralGraph/
-├── research/
-│   ├── retrieval/          research engine: Tesseract retrieval, rerank, entity graph
-│   └── coordination/       research: multi-agent capability-survival simulator
-├── chat_memory/            frozen Python reference of the assistant, kept for the research harnesses
-├── llm_backend.py          research: one shim over Ollama and LM Studio
-├── temporal_utils.py       research: date parsing, relative-date resolution
-└── tests/                  research tests (Python)
+crates/neuralgraph-memory/    THE ASSISTANT — memory server, MCP, worker, store, dashboard
+crates/neuralgraph-research/  research code — one binary per harness in src/bin/
+├── src/retrieval/            Tesseract retrieval, rerank, entity graph, the neural-graph engine
+├── src/coordination/         multi-agent capability-survival simulator
+├── src/benchmarks/           shared harness code (LoCoMo runner, evaluators, rescorer, chat_memory)
+└── tests/golden/             fixtures recorded from the Python implementation the campaign ran on
 
-demo/                       runnable assistant demos (cargo examples; work with --fake-llm)
-deploy/                     Docker, compose and systemd units for the assistant
-docs/                       assistant docs: design, benchmarks, architecture
-research/                   THE RESEARCH TRACK — harnesses, datasets, reports, results
+demo/                         runnable assistant demos (cargo examples; work with --fake-llm)
+deploy/                       Docker, compose and systemd units for the assistant
+docs/                         assistant docs: design, benchmarks, architecture
+research/                     THE RESEARCH TRACK — datasets, reports, results, pinned artifacts
 ```
 
-The assistant is a separate Rust crate with no dependency on the Python tree, so it cannot
-reach into the research code. The research track stays in Python for now; its harnesses for
-the assistant pipeline (`research/benchmarks/chat_memory_*.py`) still drive the Python
-reference package, which is why that package remains in `NeuralGraph/chat_memory/`.
+Everything is Rust. The assistant crate never depends on the research crate (a test checks
+it from `cargo metadata`); the research crate builds on the assistant crate, and its
+`chat-memory-*` harnesses drive the assistant's memory library in-process. The campaign
+itself ran on a Python implementation, kept in git history (last at `eba2f370`); the Rust
+port reproduces its deterministic outputs and is pinned to them by golden fixtures.
 
 | I want to… | Start here |
 |---|---|
@@ -445,8 +443,8 @@ other services.
 ## Tests
 
 ```bash
-cargo test                                   # memory server: 139 tests, a few seconds
-python -m pytest NeuralGraph/tests -q        # research track (Python): 116 tests
+cargo test -p neuralgraph-memory                   # memory server, a few seconds
+cargo test -p neuralgraph-research --release       # research track: parity with the Python, artifacts
 ```
 
 Every test uses a temporary database and a deterministic fake model, so the suite needs no
@@ -460,7 +458,9 @@ The server was ported from Python; `crates/neuralgraph-memory/tests/golden.rs` r
 fixtures recorded from the Python implementation (prompts, database contents after a full
 ingest, retrieval scores, MCP and REST responses) and requires identical output, including
 against a database the Python version wrote. See
-[Port from Python](docs/CHAT_MEMORY.md#port-from-python).
+[Port from Python](docs/CHAT_MEMORY.md#port-from-python). The research crate is pinned to
+the Python research code the same way; see
+[`crates/neuralgraph-research/README.md`](crates/neuralgraph-research/README.md).
 
 ---
 

@@ -502,6 +502,11 @@ Earlier releases ran as `python -m NeuralGraph.chat_memory`. The Rust server is 
   flags, environment variables, HTTP routes, JSON shapes and MCP tools are unchanged.
 - **Update your MCP client config**: the command is now the binary path and `PYTHONPATH` is no longer needed.
 
+The parity evidence is `tests/golden.rs`: the fixtures in `tests/golden/` were recorded from the Python
+implementation at `f4311102` by `tests/golden/generate.py`. That script was removed together with the last of the
+Python and is recoverable from git history (`git show eba2f370:crates/neuralgraph-memory/tests/golden/generate.py`).
+The fixtures are the contract: change one only deliberately, in a commit that says why, never to make a test pass.
+
 ---
 
 ## Related
