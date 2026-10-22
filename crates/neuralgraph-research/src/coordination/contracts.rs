@@ -145,13 +145,28 @@ pub fn str_list(items: &[String]) -> Value {
     Value::Array(items.iter().map(|s| Value::String(s.clone())).collect())
 }
 
-/// Build an object from `(field, value)` pairs in the given order.
+/// A dataclass as `to_jsonable` returns it: its own fields in declaration order, every value below them with
+/// sorted keys. (Python's `asdict` turned nested dataclasses into plain dicts first, and `to_jsonable` sorts the
+/// keys of every plain dict it meets.)
 pub(crate) fn fields(pairs: Vec<(&str, Value)>) -> Value {
     let mut m = Map::new();
     for (k, v) in pairs {
-        m.insert(k.to_string(), v);
+        m.insert(k.to_string(), sort_keys_deep(v));
     }
     Value::Object(m)
+}
+
+/// `to_jsonable(dict)`: keys sorted, recursively.
+pub fn sort_keys_deep(v: Value) -> Value {
+    match v {
+        Value::Object(o) => {
+            let mut entries: Vec<(String, Value)> = o.into_iter().collect();
+            entries.sort_by(|a, b| a.0.cmp(&b.0));
+            Value::Object(entries.into_iter().map(|(k, v)| (k, sort_keys_deep(v))).collect())
+        }
+        Value::Array(a) => Value::Array(a.into_iter().map(sort_keys_deep).collect()),
+        other => other,
+    }
 }
 
 /// `_require(value, name)`: a non-empty string after `strip()`.

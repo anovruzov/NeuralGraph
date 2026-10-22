@@ -1104,8 +1104,8 @@ pub fn run_benchmark(seed: i64) -> CoordinationResult<Value> {
             intervention.to_string(),
             json!({
                 "description": rows[0]["intervention_plan"]["description"],
+                "strategies_surviving": sorted_strings(surviving.clone()),
                 "survival_rate": py_round(surviving.len() as f64 / STRATEGIES.len() as f64, 6),
-                "strategies_surviving": sorted_strings(surviving),
                 "silent_forgetting_count": rows.iter().filter(|r| r["silent_forgetting"] == true).count(),
             }),
         );
