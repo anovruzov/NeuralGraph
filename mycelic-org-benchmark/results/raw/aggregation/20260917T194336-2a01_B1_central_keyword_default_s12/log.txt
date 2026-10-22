@@ -1,0 +1,2 @@
+2026-09-17T20:19:19Z start 20260917T194336-2a01_B1_central_keyword_default_s12 system=B1_central_keyword kind=baseline seed=12 condition=default dataset=4281c50f257377b6
+2026-09-17T20:21:57Z ok runtime_s=157.94 peak_rss_mb=386 n_accepted=1135 recall_global=0.7

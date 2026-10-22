@@ -1,0 +1,2 @@
+2026-09-17T23:21:48Z start 20260917T231153-5b07_B7_mycelic_significant_cells_only-o3-c4_s2 system=B7_mycelic kind=hierarchy seed=2 condition=significant_cells_only-o3-c4 dataset=9df3bf594d527eb0
+2026-09-17T23:22:04Z ok runtime_s=15.61 peak_rss_mb=358 n_accepted=1259 recall_global=0.6

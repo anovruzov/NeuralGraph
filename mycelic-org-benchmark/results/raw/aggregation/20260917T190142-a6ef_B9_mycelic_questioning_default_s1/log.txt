@@ -1,0 +1,2 @@
+2026-09-17T19:09:52Z start 20260917T190142-a6ef_B9_mycelic_questioning_default_s1 system=B9_mycelic_questioning kind=hierarchy seed=1 condition=default dataset=d4b3bd09fd427f49
+2026-09-17T19:10:48Z ok runtime_s=55.28 peak_rss_mb=427 n_accepted=524 recall_global=0.4
