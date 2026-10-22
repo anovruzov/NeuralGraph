@@ -4,7 +4,7 @@
 //! plus per-store results on two LoCoMo conversations ingested like `retrieval_eval.py::ingest`.
 //!
 //! Charges contain float32 BLAS dot products, bit-identical to numpy on macOS only; elsewhere the rankings are
-//! compared by charge per rank with a tolerance (see `numpy::BITWISE_NUMPY`).
+//! compared by charge per rank with a tolerance (see `numpy::bitwise_numpy()`).
 
 mod common;
 
@@ -12,7 +12,7 @@ use chrono::NaiveDate;
 use common::{assert_json_close, assert_json_eq, load, pin_now, s, FIXED_NOW};
 use indexmap::IndexSet;
 use neuralgraph_memory::fake_embedding;
-use neuralgraph_research::numpy::BITWISE_NUMPY;
+use neuralgraph_research::numpy::bitwise_numpy;
 use neuralgraph_research::pytime::PyDateTime;
 use neuralgraph_research::retrieval::external_retriever::is_open_domain_query;
 use neuralgraph_research::retrieval::tesseract::{
@@ -232,7 +232,7 @@ fn ranked(results: &Scored) -> Value {
 /// Exact on macOS; elsewhere (other BLAS) the charge at each rank within a tolerance, ids not compared.
 #[track_caller]
 fn assert_ranked(actual: &Value, expected: &Value, what: &str) {
-    if BITWISE_NUMPY {
+    if bitwise_numpy() {
         assert_json_eq(actual, expected, what);
         return;
     }

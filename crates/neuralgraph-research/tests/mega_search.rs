@@ -1,6 +1,6 @@
 //! Parity of mega search with Python (`tests/golden/mega_search.json`, written by `gen_mega_search.py`): every
 //! channel combination the harnesses use, for every LoCoMo question of conversation 1, with and without the LLM
-//! entity graph. Vector scores are float32 BLAS results, bit-exact on macOS only (`numpy::BITWISE_NUMPY`); off
+//! entity graph. Vector scores are float32 BLAS results, bit-exact on macOS only (`numpy::bitwise_numpy()`); off
 //! macOS only the BLAS-free pieces are compared.
 
 mod common;
@@ -9,7 +9,7 @@ use common::{assert_json_eq, load, s};
 use indexmap::{IndexMap, IndexSet};
 use neuralgraph_memory::fake_embedding;
 use neuralgraph_memory::pycompat::{dumps, JsonFormat};
-use neuralgraph_research::numpy::BITWISE_NUMPY;
+use neuralgraph_research::numpy::bitwise_numpy;
 use neuralgraph_research::retrieval::mega_search::{entities_of, rrf, tokenize, MegaIndex};
 use neuralgraph_research::retrieval::{node_ref, NeuralNode, NodeLayer, NodeRef};
 use serde_json::{json, Value};
@@ -137,7 +137,7 @@ fn every_question_and_channel_mix_matches() {
         for (name, got) in variants(&st, q, &qvec, &pool, &tess) {
             // channels without V are BLAS-free and must match everywhere
             let blas_free = name == "kg_G" || name == "K_weighted_X";
-            if !BITWISE_NUMPY && !blas_free {
+            if !bitwise_numpy() && !blas_free {
                 continue;
             }
             if let Some(full) = st.f["full"].get(qi) {
@@ -160,7 +160,7 @@ fn channels_match() {
         let pool = pool_for(&st, case);
         let what = format!("q{qi}");
         assert_json_eq(&json!(st.mega.keyword_rank(q, &pool, 100)), &ch["keyword"], &what);
-        if BITWISE_NUMPY {
+        if bitwise_numpy() {
             assert_json_eq(&json!(st.mega.vector_rank(&qvec, &pool, 100)), &ch["vector"], &what);
             let seeds: Vec<String> =
                 rrf(&[st.mega.vector_rank(&qvec, &pool, 100), st.mega.keyword_rank(q, &pool, 100)], None, 60)

@@ -18,7 +18,7 @@ mod common;
 use async_trait::async_trait;
 use common::{assert_json_close, assert_json_eq, load, pin_now, FIXED_NOW};
 use neuralgraph_memory::fake_embedding;
-use neuralgraph_research::numpy::BITWISE_NUMPY;
+use neuralgraph_research::numpy::bitwise_numpy;
 use neuralgraph_research::pyrandom::PyRandom;
 use neuralgraph_research::pytime::PyDateTime;
 use neuralgraph_research::retrieval::consolidation::ConsolidationConfig;
@@ -108,7 +108,7 @@ fn make(cfg: NeuralGraphServiceConfig, seed: i128) -> NeuralGraphService {
 /// `np.dot`) are BLAS results: bit-exact where numpy used Accelerate (macOS), within rounding elsewhere.
 #[track_caller]
 fn assert_blas(actual: &Value, expected: &Value, what: &str) {
-    if BITWISE_NUMPY {
+    if bitwise_numpy() {
         assert_json_eq(actual, expected, what);
     } else {
         assert_json_close(actual, expected, 1e-5, what);

@@ -52,8 +52,13 @@ mod blas {
     pub const NO_TRANS: i32 = 111;
 }
 
-/// True when the float32 helpers are bit-identical to numpy on this platform (macOS, Accelerate).
-pub const BITWISE_NUMPY: bool = cfg!(target_os = "macos");
+/// True when float32 BLAS results are expected to be bit-identical to the recorded numpy values: macOS, where both
+/// call Accelerate. Accelerate's gemv kernels also differ in their last bits between Apple CPU generations, so a
+/// machine other than the one that recorded the fixtures (CI's runners) sets `NEURALGRAPH_BLAS_TOLERANT=1`, and the
+/// parity tests take the tolerance path they use off macOS: near-tied vector scores may then swap ranks.
+pub fn bitwise_numpy() -> bool {
+    cfg!(target_os = "macos") && std::env::var_os("NEURALGRAPH_BLAS_TOLERANT").is_none()
+}
 
 /// `np.dot(a, b)` for two float32 vectors.
 pub fn sdot(a: &[f32], b: &[f32]) -> f32 {

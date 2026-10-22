@@ -5,7 +5,7 @@ mod common;
 
 use common::{assert_json_eq, f32_bits, f64_bits, f64s, load, pin_now, s, unpin_now};
 use neuralgraph_research::numpy::{
-    norm_f32, normalized_f32_eps, pairwise_sum_f32, row_norms_f32, sdot, sgemv, BITWISE_NUMPY,
+    bitwise_numpy, norm_f32, normalized_f32_eps, pairwise_sum_f32, row_norms_f32, sdot, sgemv,
 };
 use neuralgraph_research::pyrandom::{NumpyRandomState, PyRandom};
 use neuralgraph_research::retrieval::lsh::{LshConfig, RandomProjectionLsh, SimHash};
@@ -79,7 +79,7 @@ fn numpy_pairwise_sums_match_everywhere() {
 
 #[test]
 fn numpy_blas_matches_on_macos() {
-    if !BITWISE_NUMPY {
+    if !bitwise_numpy() {
         eprintln!("skipped: float32 BLAS parity is only defined against Accelerate (macOS)");
         return;
     }
@@ -143,7 +143,7 @@ fn lsh_matches() {
     }
     assert_eq!(format!("{:x}", h.finalize()), s(&want["projections_sha256"]), "projection matrices");
     assert_eq!(json!([lsh.remove("n3"), lsh.remove("missing")]), want["removed"]);
-    if BITWISE_NUMPY {
+    if bitwise_numpy() {
         for (i, q) in queries.iter().enumerate() {
             assert_json_eq(&pairs(&lsh.query(q, 15, 0.0)), &want["query"][i], &format!("lsh query {i}"));
             assert_json_eq(
@@ -156,7 +156,7 @@ fn lsh_matches() {
     }
     let sim = SimHash::new(48, 64, 42);
     let sigs: Vec<String> = embs[..20].iter().map(|e| sim.compute_signature(e).to_string()).collect();
-    if BITWISE_NUMPY {
+    if bitwise_numpy() {
         assert_eq!(json!(sigs), want["simhash"]);
         let map = embs[..40].iter().enumerate().map(|(i, e)| (format!("n{i}"), e.clone())).collect();
         let dups: Vec<Value> =
@@ -203,12 +203,10 @@ fn in_memory_storage_matches() {
         json!(v.iter().map(|(n, s)| json!([n.borrow().node_id, s])).collect::<Vec<_>>())
     };
     for (i, q) in queries.iter().enumerate() {
-        if BITWISE_NUMPY {
-            assert_json_eq(
-                &ids(st.vector_search(q, "big", 20, None)),
-                &want["vector_big"][i],
-                &format!("vector big {i}"),
-            );
+        // always search: the session statistics below count these queries; only the ranking needs Accelerate's bits
+        let big = ids(st.vector_search(q, "big", 20, None));
+        if bitwise_numpy() {
+            assert_json_eq(&big, &want["vector_big"][i], &format!("vector big {i}"));
         }
         assert_json_eq(
             &ids(st.vector_search(q, "small", 10, None)),
@@ -234,7 +232,7 @@ fn in_memory_storage_matches() {
     assert_json_eq(&json!(nb), &want["neighbors_n3"], "neighbours");
     let mut stats = st.get_session_statistics("big");
     let mut want_stats = want["stats_big"].clone();
-    if !BITWISE_NUMPY {
+    if !bitwise_numpy() {
         stats["lsh_stats"] = Value::Null;
         want_stats["lsh_stats"] = Value::Null;
     }

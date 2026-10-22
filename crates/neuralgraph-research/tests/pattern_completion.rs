@@ -1,6 +1,6 @@
 //! Parity of `retrieval::pattern_completion` with `pattern_completion.py` (`tests/golden/pattern_completion.json`,
 //! written by `gen_pattern_completion.py`). Connection weights are numpy float64 BLAS results: bit-exact on
-//! macOS (`numpy::BITWISE_NUMPY`); elsewhere they and everything downstream are compared with a tolerance.
+//! macOS (`numpy::bitwise_numpy()`); elsewhere they and everything downstream are compared with a tolerance.
 
 mod common;
 mod engine_common;
@@ -9,7 +9,7 @@ use common::{assert_json_close, assert_json_eq, load, FIXED_NOW};
 use engine_common::{add_messages, add_semantic_and_entity_edges, install, scored, DIM};
 use indexmap::IndexMap;
 use neuralgraph_memory::fake_embedding;
-use neuralgraph_research::numpy::BITWISE_NUMPY;
+use neuralgraph_research::numpy::bitwise_numpy;
 use neuralgraph_research::retrieval::hierarchy::{HierarchyManager, MessageNodeArgs};
 use neuralgraph_research::retrieval::pattern_completion::{
     ActivationState, CA3PatternCompleter, PatternCompletionConfig, ThetaGammaOrganizer,
@@ -23,7 +23,7 @@ use std::rc::Rc;
 /// Exact on macOS, 1e-12 relative elsewhere (BLAS summation order differs).
 #[track_caller]
 fn check(actual: &Value, expected: &Value, what: &str) {
-    if BITWISE_NUMPY {
+    if bitwise_numpy() {
         assert_json_eq(actual, expected, what);
     } else {
         assert_json_close(actual, expected, 1e-12, what);

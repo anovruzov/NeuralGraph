@@ -28,9 +28,12 @@ jobs:
 
   research:
     name: research track (Rust) — clippy, tests, pinned artifacts
-    # macOS: the fixtures pin numpy's float32 arithmetic, which numpy took from Accelerate; the crate calls the
-    # same routines there, so parity assertions are exact (elsewhere they fall back to tolerances)
+    # macOS: the fixtures pin numpy's float32 arithmetic, which numpy took from Accelerate, and the crate calls the
+    # same routines. Accelerate's last bits still differ between Apple CPU generations, so on CI's runners the
+    # float32-BLAS parity checks take their tolerance path (NEURALGRAPH_BLAS_TOLERANT); everything else stays exact.
     runs-on: macos-latest
+    env:
+      NEURALGRAPH_BLAS_TOLERANT: "1"
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4

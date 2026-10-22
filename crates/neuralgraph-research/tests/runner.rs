@@ -4,7 +4,7 @@
 //! The end-to-end replays run the whole `run_benchmark` of the runner (every retrieval mode, the H5 flags, the
 //! OpenAI judge path) and of the call-center script with a scripted model, and compare stdout, the report and the
 //! sequence of prompts with Python's. The cosine rankings carry float32 values computed through Accelerate, so the
-//! fixture comparisons are exact on macOS only ([`neuralgraph_research::numpy::BITWISE_NUMPY`]).
+//! fixture comparisons are exact on macOS only ([`neuralgraph_research::numpy::bitwise_numpy()`]).
 
 mod common;
 
@@ -19,7 +19,7 @@ use neuralgraph_research::benchmarks::retrieval_eval::cached_embeddings;
 use neuralgraph_research::benchmarks::runner::*;
 use neuralgraph_research::benchmarks::two_agent_eval as ta;
 use neuralgraph_research::llm_backend::ScriptedLlm;
-use neuralgraph_research::numpy::BITWISE_NUMPY;
+use neuralgraph_research::numpy::bitwise_numpy;
 use neuralgraph_research::pytime::PyDateTime;
 use neuralgraph_research::retrieval::data_types::{node_ref, NodeRef};
 use neuralgraph_research::retrieval::dialogue_linker::DialogueLinker;
@@ -318,7 +318,7 @@ fn graph_expansion_pairs_and_cosine_match_python() {
             let got = expand_via_graph(&*storage, &linker, &res, seed_k, decay.parse().unwrap());
             assert_json_eq(&ids(&got), &row[format!("graph_{seed_k}_{decay}")], &format!("graph {q:?} {seed_k}"));
         }
-        if !BITWISE_NUMPY {
+        if !bitwise_numpy() {
             continue;
         }
         let cos = cosine_topk(&nodes, &qvec, 20).unwrap();
@@ -441,7 +441,7 @@ fn prompt_shas(llm: &ScriptedLlm) -> Value {
 
 #[tokio::test(flavor = "current_thread")]
 async fn runner_end_to_end_replays_match_python() {
-    if !BITWISE_NUMPY {
+    if !bitwise_numpy() {
         return; // cosine back-fills and mega's vector channel rank by Accelerate float32 values
     }
     pin_now(FIXED_NOW);
