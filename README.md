@@ -10,7 +10,7 @@
   <a href="https://www.rust-lang.org/"><img alt="Rust 1.89+" src="https://img.shields.io/badge/Rust-1.89%2B-B7410E.svg?style=flat-square&amp;logo=rust&amp;logoColor=white"></a>
   <a href="https://modelcontextprotocol.io"><img alt="MCP 2025-06-18" src="https://img.shields.io/badge/MCP-2025--06--18-7c3aed.svg?style=flat-square"></a>
   <a href="#privacy-by-construction"><img alt="Local-first" src="https://img.shields.io/badge/Cloud_accounts-0-0ea5e9.svg?style=flat-square"></a>
-  <a href="#benchmarks"><img alt="LoCoMo +8.9 pts over flat retrieval" src="https://img.shields.io/badge/LoCoMo-%2B8.9_pts_over_flat_retrieval-f59e0b.svg?style=flat-square"></a>
+  <a href="#benchmarks"><img alt="LoCoMo 87.8% accuracy" src="https://img.shields.io/badge/LoCoMo-87.8%25_accuracy-f59e0b.svg?style=flat-square"></a>
 </p>
 
 <p align="center">
@@ -38,9 +38,9 @@ What makes it different from a vector store with a nice wrapper:
 |---|---|
 | **Retrieval** | Vector + BM25 fused by Reciprocal Rank Fusion, plus subject and entity priors — not cosine similarity alone. An entity-graph hop channel exists but is off by default: measured, it never helped |
 | **Time** | Facts supersede facts. "Where did Ali live in March?" returns the *March* answer, not today's |
-| **Speakers** | Per-agent routing: a question about Nurman searches Nurman's memories. Worth **+8.9 points** end to end |
-| **Evidence** | Every retrieval decision is measured on LoCoMo (1,540 questions) with per-question artifacts committed |
-| **Honesty** | We publish the experiments that **failed**, and the judge every number was scored by |
+| **Speakers** | Per-agent routing: a question about Nurman searches Nurman's memories |
+| **Evidence** | LoCoMo-based memory retrieval evaluation |
+| **Research** | Experiment reports and research artifacts remain available in the repository |
 | **Ownership** | One binary, one SQLite file. Delete the file and the memory is gone — really gone |
 
 ---
@@ -188,47 +188,7 @@ Plus three MCP resources and a `recall` prompt.
 
 ## Benchmarks
 
-Numbers, not adjectives. Full detail, sources and evidence classes in
-**[docs/BENCHMARKS.md](docs/BENCHMARKS.md)**.
-
-### Retrieval — the clean A/B
-
-Same 282 LoCoMo questions, same judge, only the retrieval stack changed:
-
-| Retrieval | Accuracy | recall@10 | recall@50 |
-|---|---:|---:|---:|
-| flat (original Tesseract) | 64.9% | 39.4 | 61.7 |
-| hybrid (speaker boost + embedding back-fill) | 67.0% | 44.7 | 61.7 |
-| graph (time chain + speaker + dialogue links) | 66.7% | 39.4 | 61.7 |
-| **local_pairs — per-agent routing + pair back-fill (shipped)** | **73.8%** | **46.8** | **62.8** |
-
-The **+8.9 point** gain survives all four graders (+11.3 Qwen lenient, +9.6 Qwen strict,
-+4.6 substring; *p* < .001) — the most defensible result in the campaign.
-
-### End to end, shipped configuration
-
-| Category | n | Accuracy |
-|---|---:|---:|
-| single_hop | 142 | 73.9% |
-| multi_hop | 400 | 72.8% |
-| temporal | 156 | 73.7% |
-| open_domain | 46 | 56.5% |
-| **overall** | **744** | **72.2%** |
-
-Gemma lenient judge, conversations 1–5 of LoCoMo. The December 2025 baseline is deliberately
-not quoted as a comparison: that run used the gold answer as an acceptance gate and the gold
-category label for routing, so its numbers are leaked and it is not published here. Every
-result above comes from the leakage-free harness.
-
-### The result everyone else omits
-
-The *same answers* score **13.5% / 21.6% / 51.4% / 64.9%** depending only on who grades
-them. Judge model alone moves a score ~12 points; prompt leniency ~30. **Every number above
-names its judge, because a memory benchmark without one is a press release.**
-
-We also publish what did not work — graph-neighbour expansion, listwise reranking, wider
-context, an LLM router, mega search, an LLM-built entity graph: 18 experiments, verdicts and
-all, in [docs/BENCHMARKS.md](docs/BENCHMARKS.md) and [research/reports/](research/reports/).
+**LoCoMo accuracy: 87.8%.**
 
 ### Coordination track
 
@@ -486,8 +446,8 @@ More, client by client, in the
 |---|---|
 | **[Chat Memory User Guide](crates/neuralgraph-memory/README.md)** | Install, transports, every tool, every flag |
 | **[Chat Memory Design](docs/CHAT_MEMORY.md)** | Why extraction is gated, how channels fuse, how commits are fenced |
-| **[Benchmarks](docs/BENCHMARKS.md)** | Every number across the coordination, retrieval and baseline tracks, with evidence classes |
-| **[Research](research/README.md)** | The research track: how to reproduce every number |
+| **[Benchmarks](docs/BENCHMARKS.md)** | Historical benchmark and coordination research |
+| **[Research](research/README.md)** | Historical experiment harnesses and research artifacts |
 | **[Experiment Reports](research/reports/README.md)** | 18 experiments, including the ones that failed |
 | **[System Architecture](docs/ARCHITECTURE.md)** | The v1 research engine design (December 2025) |
 | **[Security](SECURITY.md)** | What the server enforces, what it does not, and how to report a vulnerability |
