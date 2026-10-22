@@ -15,12 +15,17 @@ Compiled 2026-09-06 during the repository audit.
 
 ## Track A — Coordination: capability survival (Anar)
 
-Source: `NeuralGraph/research/coordination/artifacts/` at `13a1729`
-(branch `claude/session-analysis-continuation-sm1a1t`).
+Source: `NeuralGraph/coordination/artifacts/` at `13a1729`
+(branch `claude/session-analysis-continuation-sm1a1t`); the artifacts are now committed at
+[`research/coordination/artifacts/`](../research/coordination/artifacts/) and regenerate
+byte-identically from the Rust port (`cargo run --release -p neuralgraph-research --bin
+coordination -- experiment|benchmark [--sweep 30]|scale|figures`; CI checks `SHA256SUMS`).
 Deterministic simulator, seed 20260813, 30-seed sweep, 5-node fixture.
 **Evidence class: bitwise reproducible** — all SHA256SUMS verify and all
 four JSON artifacts regenerate byte-identically (re-verified 2026-09-06,
 macOS arm64, Python 3.11.14; PYTHONHASHSEED-independent). 277 tests pass.
+Re-verified 2026-10-22 with the Rust port: all nine artifacts (JSON and SVG)
+regenerate byte-identically; CI checks them on every push.
 
 Mean capability survival per (strategy, intervention), 30 seeds:
 
@@ -70,6 +75,11 @@ Source: `research/reports/RESULTS_ALL.md` + `research/results/*.json` at
 1,540 questions. Models: gemma-4-e4b (answer/rerank/campaign judge),
 nomic-embed-text v1.5, qwen3.6-35b (independent judge). Leakage-free
 harness (gold-answer gate and gold-category routing removed).
+
+The retrieval-only numbers below (recall@k, every result file's `retrieval_metrics`, the H9
+tables) re-derive exactly from the Rust port with the cached embeddings
+(`research/README.md`, "Reproducing"), except two cells that depended on Python's per-process
+set order and were never reproducible in Python either (see `crates/neuralgraph-research/README.md`).
 
 ### Headline — shipped system, conversations 1–5 (744 of 1,540 questions)
 
@@ -167,9 +177,10 @@ exist to be compared against, not cited.
 
 ---
 
-## Track D — The shipped assistant pipeline (`NeuralGraph.chat_memory`)
+## Track D — The shipped assistant pipeline (`NeuralGraph.chat_memory`, now `crates/neuralgraph-memory`)
 
-Measured 2026-10-18/19 with `research/benchmarks/chat_memory_locomo.py`: LoCoMo conversation 0,
+Measured 2026-10-18/19 with `research/benchmarks/chat_memory_locomo.py` (now
+`cargo run --release -p neuralgraph-research --bin chat-memory-locomo`): LoCoMo conversation 0,
 sessions 1–8 (174 messages), 66 non-adversarial questions whose evidence lies in those sessions.
 Extraction by Qwen3.8-9B (LM Studio, `LLM_NO_THINK_PREFILL=1`), embeddings nomic-embed-text v1.5.
 Retrieval-only: **evidence@k** = a retrieved memory cites a gold evidence message (provenance, no
@@ -189,7 +200,7 @@ subject boost needs). Reconcile threshold 0.75 saves ~19% time within noise.
 
 ### Track D, LongMemEval Oracle (50-question stratified sample, seed 1)
 
-`research/benchmarks/chat_memory_longmemeval.py`, same model and metric. One fresh database per question,
+`research/benchmarks/chat_memory_longmemeval.py` (now `--bin chat-memory-longmemeval`), same model and metric. One fresh database per question,
 one chat per session. **turn@15** = a memory in the context block cites a `has_answer` turn.
 
 | configuration | turn@15 | memories / question |

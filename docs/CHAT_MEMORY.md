@@ -269,7 +269,8 @@ superseded handling, the token ledger and grade, and the MCP protocol over stdio
 of the former Python suite has a Rust counterpart of the same name (`tests/store.rs`, `extraction.rs`,
 `retrieval.rs`, `worker.rs`, `mcp.rs`, `review_fixes.rs`).
 
-`tests/golden.rs` holds the port's parity evidence: `tests/golden/generate.py` ran the Python implementation
+`tests/golden.rs` holds the port's parity evidence: `tests/golden/generate.py` (removed with the rest of the
+Python; recoverable with `git show eba2f370:crates/neuralgraph-memory/tests/golden/generate.py`) ran the Python implementation
 with a pinned clock and counter-based ids and recorded its outputs, and the Rust crate must reproduce them
 exactly — text and date helpers, every extraction prompt byte for byte, a full fake-model ingest of the sample
 chats down to every database row, extraction plans for 17 scenarios, retrieval scores and channels, an MCP
@@ -324,5 +325,6 @@ Differences that remain:
 * Error messages for malformed MCP tool arguments are phrased like the Python exceptions for the common cases
   (unexpected/missing arguments, bad integers and floats); exotic type errors may be worded differently.
 
-The Python package remains in `NeuralGraph/chat_memory/` only as the reference the research harnesses
-(`research/benchmarks/chat_memory_*.py`) still import; it is not part of the product.
+The Python package is gone from the repository (last present at `eba2f370`). The research harnesses that
+measure this pipeline (`chat-memory-locomo`, `chat-memory-longmemeval` in `crates/neuralgraph-research`) drive
+this crate as a library.

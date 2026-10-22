@@ -8,12 +8,11 @@ a few things you need to know that you could not guess.
 ```bash
 git clone https://github.com/anovruzov/NeuralGraph.git
 cd NeuralGraph
-cargo build                                   # the memory server (Rust 1.89+, a C compiler)
-
-# only for the research track, which is still Python:
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+cargo build                                   # everything (Rust 1.89+, a C compiler)
 ```
+
+Everything is Rust: the memory server (`crates/neuralgraph-memory`) and the research track
+(`crates/neuralgraph-research`). There is no Python in the repository.
 
 No model server is needed to develop or to run the tests: `--fake-llm` substitutes a
 deterministic stand-in everywhere, and every test uses it.
@@ -21,12 +20,12 @@ deterministic stand-in everywhere, and every test uses it.
 ## Tests
 
 ```bash
-cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
-cargo test                                    # memory server: 139 tests, a few seconds
-python -m pytest NeuralGraph/tests -q         # research track: 116 tests, no GPU, no network
+cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings
+cargo test -p neuralgraph-memory              # memory server, a few seconds
+cargo test -p neuralgraph-research --release  # research track: golden parity, coordination artifacts
 ```
 
-CI runs all of the above. Tests must stay offline and deterministic. If a change needs a
+CI runs all of the above (the research job on macOS, see below). Tests must stay offline and deterministic. If a change needs a
 model, it needs a fake in
 [`crates/neuralgraph-memory/src/testing.rs`](crates/neuralgraph-memory/src/testing.rs) too.
 
@@ -36,36 +35,45 @@ implementation's recorded behaviour: prompts byte for byte, database contents af
 ingest, retrieval scores, MCP and REST responses. A deliberate behaviour change therefore
 fails those tests; update the affected fixture in
 `crates/neuralgraph-memory/tests/golden/` in the same commit and say why in the message.
-`generate.py` in that directory regenerates every fixture from the Python reference (it
-extracts the last Python release of the package from git, so it works on any checkout).
+Those fixtures were recorded from the Python implementation at `f4311102` by
+`crates/neuralgraph-memory/tests/golden/generate.py`, which was removed with the rest of
+the Python; it is recoverable from git history (`git show eba2f370:crates/neuralgraph-memory/tests/golden/generate.py`).
+Change a fixture only deliberately, by hand or by porting that script, never to make a test
+pass.
+
+The research crate is held to the Python research code the same way:
+`crates/neuralgraph-research/tests/golden/*.json` were recorded from the Python at
+`eba2f370` (the last commit with Python in it) by the `gen_*.py` scripts that sat next to
+them, recoverable from git history at the commit before the Python was removed (see
+[the crate README](crates/neuralgraph-research/README.md#golden-fixtures)). The same rule
+applies: fixtures change only deliberately, and the commit says why. Fixtures that pin
+numpy's float32 arithmetic are exact on macOS (where numpy used Accelerate and the crate
+calls the same routines) and checked with tolerances elsewhere, which is why CI runs the
+research job on macOS.
 
 ## Where code goes
 
-The assistant and the research are kept apart, and the import graph enforces it:
+The assistant and the research are kept apart, and the crate graph enforces it:
 
-- **`crates/neuralgraph-memory/`** — the assistant (Rust). Self-contained: it does not call
-  into the Python tree at all.
-- **`NeuralGraph/research/`** — the retrieval engine and the coordination simulator.
-  Free to depend on each other.
-- **`NeuralGraph/chat_memory/`** — the frozen Python reference of the assistant. It exists
-  only because `research/benchmarks/chat_memory_*.py` import it; do not develop features
-  there. It may import `llm_backend` and `temporal_utils`, and nothing else.
-- **Shared Python** — `llm_backend.py` and `temporal_utils.py`, used by the research track
-  and the reference package.
+- **`crates/neuralgraph-memory/`** — the assistant. Self-contained: it must never depend on
+  the research crate, in any dependency kind.
+- **`crates/neuralgraph-research/`** — the retrieval engine (`src/retrieval/`), the
+  coordination simulator (`src/coordination/`) and the benchmark harnesses (`src/bin/`,
+  `src/benchmarks/`). It depends on the memory crate (shared Python-compatibility helpers,
+  the date parser, the model backend, and the memory library its `chat-memory-*` harnesses
+  drive), never the other way round.
+- **`research/`** — data, results, reports and the coordination track's pinned artifacts.
 
 The organizational-memory service, Mycelic, lives in its own repository:
 [PNurmanM/MycelicLabs](https://github.com/PNurmanM/MycelicLabs). It keeps its own copies of the
 coordination contracts, the MCP protocol core and the tokenizer, so changes here never need to be
 mirrored there.
 
-A quick check that the Python reference still keeps out of the research code:
+[`crates/neuralgraph-memory/tests/crate_boundary.rs`](crates/neuralgraph-memory/tests/crate_boundary.rs)
+checks the rule from `cargo metadata` on every test run:
 
 ```bash
-python -c "
-import NeuralGraph.chat_memory, sys
-leaked = [m for m in sys.modules if m.startswith('NeuralGraph.research')]
-assert not leaked, leaked
-print('clean')"
+cargo test -p neuralgraph-memory --test crate_boundary
 ```
 
 ## The one rule for benchmark changes

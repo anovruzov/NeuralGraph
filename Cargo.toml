@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/neuralgraph-memory"]
+members = ["crates/neuralgraph-memory", "crates/neuralgraph-research"]
 
 [workspace.package]
 edition = "2021"

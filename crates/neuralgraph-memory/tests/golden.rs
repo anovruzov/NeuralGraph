@@ -1,5 +1,7 @@
-//! Parity with the Python implementation: every fixture in `tests/golden/` was produced by `generate.py` from the
-//! Python reference; these tests replay the same inputs through the Rust crate and require identical outputs.
+//! Parity with the Python implementation: every fixture in `tests/golden/` was recorded from the Python reference at
+//! `f4311102` by `generate.py` (removed with the rest of the Python; `git show
+//! eba2f370:crates/neuralgraph-memory/tests/golden/generate.py`). These tests replay the same inputs through the Rust
+//! crate and require identical outputs. Fixtures change only deliberately.
 
 mod common;
 

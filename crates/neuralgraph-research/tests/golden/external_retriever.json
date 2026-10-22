@@ -1,0 +1,451 @@
+{
+ "is_open_domain": {
+  "What is gravity?": [
+   true,
+   0.8
+  ],
+  "What are the stars made of?": [
+   true,
+   0.8
+  ],
+  "how much is it": [
+   true,
+   0.7
+  ],
+  "Who was he?": [
+   true,
+   0.8
+  ],
+  "Where is Paris located": [
+   true,
+   0.7
+  ],
+  "my largest fear": [
+   true,
+   0.7
+  ],
+  "Tell me about the meeting": [
+   false,
+   0.0
+  ],
+  "What causes   rain": [
+   true,
+   0.8
+  ],
+  "": [
+   false,
+   0.4
+  ],
+  "  EXPLAIN quantum  ": [
+   true,
+   0.8
+  ],
+  "what year did we meet": [
+   true,
+   0.7
+  ],
+  "The cell": [
+   true,
+   0.6
+  ],
+  "Describe it": [
+   false,
+   0.4
+  ]
+ },
+ "tracer": {
+  "stats_empty": {
+   "total_queries": 0,
+   "open_domain_queries": 0,
+   "zero_session_hits": 0,
+   "external_called": 0,
+   "external_improved_results": 0
+  },
+  "stats": {
+   "total_queries": 5,
+   "open_domain_queries": 3,
+   "zero_session_hits": 3,
+   "external_called": 2,
+   "external_improved_results": 1,
+   "open_domain_ratio": 0.6,
+   "zero_hit_ratio": 0.6,
+   "external_coverage": 0.6666666666666666
+  },
+  "recent": [
+   {
+    "query_text": "Who is he?",
+    "timestamp": "2026-09-30T08:00:00+00:00",
+    "is_open_domain": false,
+    "open_domain_confidence": 0.0,
+    "detected_query_type": "",
+    "strategy_used": "semantic",
+    "bypassed_entity_filter": false,
+    "bypassed_temporal_filter": false,
+    "session_candidates_count": 0,
+    "session_hits_at_threshold": 0,
+    "external_retriever_called": true,
+    "external_results_count": 0,
+    "external_retrieval_latency_ms": 0.0,
+    "final_results_count": 0,
+    "external_in_top_k": 0
+   },
+   {
+    "query_text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "timestamp": "2026-09-30T08:00:00+00:00",
+    "is_open_domain": true,
+    "open_domain_confidence": 0.0,
+    "detected_query_type": "",
+    "strategy_used": "open_domain",
+    "bypassed_entity_filter": false,
+    "bypassed_temporal_filter": false,
+    "session_candidates_count": 0,
+    "session_hits_at_threshold": 0,
+    "external_retriever_called": false,
+    "external_results_count": 0,
+    "external_retrieval_latency_ms": 0.0,
+    "final_results_count": 0,
+    "external_in_top_k": 0
+   }
+  ],
+  "recent_all": [
+   {
+    "query_text": "Capital of France",
+    "timestamp": "2026-09-30T08:00:00+00:00",
+    "is_open_domain": true,
+    "open_domain_confidence": 0.0,
+    "detected_query_type": "",
+    "strategy_used": "semantic",
+    "bypassed_entity_filter": false,
+    "bypassed_temporal_filter": false,
+    "session_candidates_count": 0,
+    "session_hits_at_threshold": 1,
+    "external_retriever_called": true,
+    "external_results_count": 0,
+    "external_retrieval_latency_ms": 12.5,
+    "final_results_count": 0,
+    "external_in_top_k": 2
+   },
+   {
+    "query_text": "Who is he?",
+    "timestamp": "2026-09-30T08:00:00+00:00",
+    "is_open_domain": false,
+    "open_domain_confidence": 0.0,
+    "detected_query_type": "",
+    "strategy_used": "semantic",
+    "bypassed_entity_filter": false,
+    "bypassed_temporal_filter": false,
+    "session_candidates_count": 0,
+    "session_hits_at_threshold": 0,
+    "external_retriever_called": true,
+    "external_results_count": 0,
+    "external_retrieval_latency_ms": 0.0,
+    "final_results_count": 0,
+    "external_in_top_k": 0
+   },
+   {
+    "query_text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "timestamp": "2026-09-30T08:00:00+00:00",
+    "is_open_domain": true,
+    "open_domain_confidence": 0.0,
+    "detected_query_type": "",
+    "strategy_used": "open_domain",
+    "bypassed_entity_filter": false,
+    "bypassed_temporal_filter": false,
+    "session_candidates_count": 0,
+    "session_hits_at_threshold": 0,
+    "external_retriever_called": false,
+    "external_results_count": 0,
+    "external_retrieval_latency_ms": 0.0,
+    "final_results_count": 0,
+    "external_in_top_k": 0
+   }
+  ]
+ },
+ "results": {
+  "to_dict": {
+   "content": "Paris is the capital of France.",
+   "source": "wikipedia",
+   "source_url": null,
+   "title": "Paris",
+   "relevance_score": 0.9,
+   "confidence": 1.0,
+   "metadata": {
+    "page_id": "1"
+   },
+   "retrieved_at": "2026-09-30T08:00:00+00:00",
+   "cache_key": "wikipedia:7ee7038e498a82bc"
+  },
+  "roundtrip": {
+   "content": "Paris is the capital of France.",
+   "source": "wikipedia",
+   "source_url": null,
+   "title": "Paris",
+   "relevance_score": 0.9,
+   "confidence": 1.0,
+   "metadata": {
+    "page_id": "1"
+   },
+   "retrieved_at": "2026-09-30T08:00:00+00:00",
+   "cache_key": "wikipedia:7ee7038e498a82bc"
+  },
+  "minimal": {
+   "content": "ünïcode",
+   "source": "web",
+   "source_url": null,
+   "title": null,
+   "relevance_score": 0.0,
+   "confidence": 1.0,
+   "metadata": {},
+   "retrieved_at": "2026-09-30T08:00:00+00:00",
+   "cache_key": "web:cd1850cd26e86481"
+  },
+  "keys": [
+   "s:d41d8cd98f00b204",
+   "s:0cc175b9c0f1b6a8",
+   "s:81765a8a276e5cd4"
+  ]
+ },
+ "persistent": {
+  "get_missing": null,
+  "files_after_put": {
+   "3cfbb08d0578c039ff6af21a15350e3b.json": "{\n  \"query\": \"What is Rain?\",\n  \"cached_at\": \"2026-09-30T08:00:00+00:00\",\n  \"results\": [\n    {\n      \"content\": \"Rain is liquid water.\",\n      \"source\": \"wikipedia\",\n      \"source_url\": null,\n      \"title\": \"Rain\",\n      \"relevance_score\": 1.0,\n      \"confidence\": 1.0,\n      \"metadata\": {},\n      \"retrieved_at\": \"2026-09-30T08:00:00+00:00\",\n      \"cache_key\": \"wikipedia:f623cd97373cbee7\"\n    },\n    {\n      \"content\": \"Clouds\\u2026\",\n      \"source\": \"wikipedia\",\n      \"source_url\": null,\n      \"title\": null,\n      \"relevance_score\": 0.0,\n      \"confidence\": 1.0,\n      \"metadata\": {\n        \"n\": 2\n      },\n      \"retrieved_at\": \"2026-09-30T08:00:00+00:00\",\n      \"cache_key\": \"wikipedia:9095a4d69fbd448f\"\n    }\n  ]\n}",
+   "index.json": "{\n  \"3cfbb08d0578c039ff6af21a15350e3b\": {\n    \"query\": \"What is Rain?\",\n    \"cached_at\": \"2026-09-30T08:00:00+00:00\",\n    \"result_count\": 2\n  }\n}"
+  },
+  "get_hit": [
+   {
+    "content": "Rain is liquid water.",
+    "source": "wikipedia",
+    "source_url": null,
+    "title": "Rain",
+    "relevance_score": 1.0,
+    "confidence": 1.0,
+    "metadata": {},
+    "retrieved_at": "2026-09-30T08:00:00+00:00",
+    "cache_key": "wikipedia:f623cd97373cbee7"
+   },
+   {
+    "content": "Clouds…",
+    "source": "wikipedia",
+    "source_url": null,
+    "title": null,
+    "relevance_score": 0.0,
+    "confidence": 1.0,
+    "metadata": {
+     "n": 2
+    },
+    "retrieved_at": "2026-09-30T08:00:00+00:00",
+    "cache_key": "wikipedia:9095a4d69fbd448f"
+   }
+  ],
+  "reopened_hit": [
+   {
+    "content": "Rain is liquid water.",
+    "source": "wikipedia",
+    "source_url": null,
+    "title": "Rain",
+    "relevance_score": 1.0,
+    "confidence": 1.0,
+    "metadata": {},
+    "retrieved_at": "2026-09-30T08:00:00+00:00",
+    "cache_key": "wikipedia:f623cd97373cbee7"
+   },
+   {
+    "content": "Clouds…",
+    "source": "wikipedia",
+    "source_url": null,
+    "title": null,
+    "relevance_score": 0.0,
+    "confidence": 1.0,
+    "metadata": {
+     "n": 2
+    },
+    "retrieved_at": "2026-09-30T08:00:00+00:00",
+    "cache_key": "wikipedia:9095a4d69fbd448f"
+   }
+  ],
+  "cleared": 1,
+  "files_after_clear": {
+   "index.json": "{}"
+  },
+  "get_after_clear": null
+ },
+ "wikipedia": {
+  "source_name": "wikipedia",
+  "supports_embedding_search": false,
+  "available": true,
+  "first": [
+   {
+    "content": "Photosynthesis is a process used by plants…",
+    "source": "wikipedia",
+    "source_url": "https://en.wikipedia.org/wiki/Photosynthesis",
+    "title": "Photosynthesis",
+    "relevance_score": 1.0,
+    "confidence": 0.9,
+    "metadata": {
+     "page_id": "101",
+     "snippet": "process <b>plants</b>",
+     "word_count": 9000
+    },
+    "retrieved_at": "2026-09-30T08:00:00+00:00",
+    "cache_key": "wikipedia:36938835caf2f080"
+   },
+   {
+    "content": "Chlorophyll is a green pigment.",
+    "source": "wikipedia",
+    "source_url": "https://en.wikipedia.org/wiki/Chlorophyll",
+    "title": "Chlorophyll",
+    "relevance_score": 0.9,
+    "confidence": 0.9,
+    "metadata": {
+     "page_id": "202",
+     "snippet": "green pigment",
+     "word_count": 0
+    },
+    "retrieved_at": "2026-09-30T08:00:00+00:00",
+    "cache_key": "wikipedia:e178490ccb68ed5d"
+   }
+  ],
+  "first_requests": [
+   {
+    "path": "/w/api.php",
+    "params": [
+     [
+      "action",
+      "query"
+     ],
+     [
+      "list",
+      "search"
+     ],
+     [
+      "srsearch",
+      "What is Photosynthesis?"
+     ],
+     [
+      "srlimit",
+      "6"
+     ],
+     [
+      "format",
+      "json"
+     ]
+    ],
+    "ua": "NeuralGraph/1.0 (Memory System; contact@example.com)"
+   },
+   {
+    "path": "/w/api.php",
+    "params": [
+     [
+      "action",
+      "query"
+     ],
+     [
+      "pageids",
+      "101|202|303"
+     ],
+     [
+      "prop",
+      "extracts|info"
+     ],
+     [
+      "exintro",
+      "true"
+     ],
+     [
+      "explaintext",
+      "true"
+     ],
+     [
+      "excharacters",
+      "1000"
+     ],
+     [
+      "inprop",
+      "url"
+     ],
+     [
+      "format",
+      "json"
+     ]
+    ],
+    "ua": "NeuralGraph/1.0 (Memory System; contact@example.com)"
+   }
+  ],
+  "cached": [
+   {
+    "content": "Photosynthesis is a process used by plants…",
+    "source": "wikipedia",
+    "source_url": "https://en.wikipedia.org/wiki/Photosynthesis",
+    "title": "Photosynthesis",
+    "relevance_score": 1.0,
+    "confidence": 0.9,
+    "metadata": {
+     "page_id": "101",
+     "snippet": "process <b>plants</b>",
+     "word_count": 9000
+    },
+    "retrieved_at": "2026-09-30T08:00:00+00:00",
+    "cache_key": "wikipedia:36938835caf2f080"
+   }
+  ],
+  "cached_requests": [],
+  "nothing": [],
+  "fail": [],
+  "last_error_set": true,
+  "registry_enabled": [
+   "wikipedia"
+  ],
+  "registry_all": {
+   "wikipedia": [
+    {
+     "content": "Photosynthesis is a process used by plants…",
+     "source": "wikipedia",
+     "source_url": "https://en.wikipedia.org/wiki/Photosynthesis",
+     "title": "Photosynthesis",
+     "relevance_score": 1.0,
+     "confidence": 0.9,
+     "metadata": {
+      "page_id": "101",
+      "snippet": "process <b>plants</b>",
+      "word_count": 9000
+     },
+     "retrieved_at": "2026-09-30T08:00:00+00:00",
+     "cache_key": "wikipedia:36938835caf2f080"
+    },
+    {
+     "content": "Chlorophyll is a green pigment.",
+     "source": "wikipedia",
+     "source_url": "https://en.wikipedia.org/wiki/Chlorophyll",
+     "title": "Chlorophyll",
+     "relevance_score": 0.9,
+     "confidence": 0.9,
+     "metadata": {
+      "page_id": "202",
+      "snippet": "green pigment",
+      "word_count": 0
+     },
+     "retrieved_at": "2026-09-30T08:00:00+00:00",
+     "cache_key": "wikipedia:e178490ccb68ed5d"
+    }
+   ]
+  },
+  "registry_disabled": {},
+  "unregister": [
+   true,
+   false
+  ],
+  "down_available": [
+   false,
+   false
+  ],
+  "down_retrieve": []
+ },
+ "config": {
+  "api_url": "https://en.wikipedia.org/w/api.php",
+  "search_limit": 5,
+  "extract_chars": 1000,
+  "timeout_seconds": 2.0,
+  "cache_ttl_hours": 24.0,
+  "user_agent": "NeuralGraph/1.0 (Memory System; contact@example.com)"
+ }
+}
