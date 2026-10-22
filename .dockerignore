@@ -1,10 +1,6 @@
 .git
 .context
 target
-.venv
-**/__pycache__
-**/*.pyc
-.pytest_cache
 # the image is the Rust server; the research crate's data and fixtures, the research tree and docs are not part
 # of it (the research crate's manifest and sources stay: it is a workspace member)
 crates/neuralgraph-research/data/
