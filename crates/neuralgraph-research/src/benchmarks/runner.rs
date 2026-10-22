@@ -69,7 +69,6 @@ use crate::temporal_utils::{
 use indexmap::{IndexMap, IndexSet};
 use neuralgraph_memory::pycompat::{
     decimal_value, dumps, fnum, obj, py_int_parse, py_prefix, py_repr_str, py_round, py_str, py_strip, py_truthy,
-    JsonFormat,
 };
 use serde_json::{Map, Value};
 use std::cell::RefCell;
@@ -1928,9 +1927,4 @@ pub fn print_latency_stats(out: &mut dyn Write, name: &str, latencies: &[f64]) -
     writeln!(out, "  P95:      {:.1} ms", at(0.95))?;
     writeln!(out, "  P99:      {:.1} ms", at(0.99))?;
     Ok(())
-}
-
-/// The output format of the report (`json.dump(..., indent=2)`).
-pub fn report_format() -> JsonFormat {
-    json_indent(2)
 }
