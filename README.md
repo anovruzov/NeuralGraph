@@ -490,6 +490,7 @@ More, client by client, in the
 | **[Research](research/README.md)** | The research track: how to reproduce every number |
 | **[Experiment Reports](research/reports/README.md)** | 18 experiments, including the ones that failed |
 | **[System Architecture](docs/ARCHITECTURE.md)** | The v1 research engine design (December 2025) |
+| **[Security](SECURITY.md)** | What the server enforces, what it does not, and how to report a vulnerability |
 | **[Contributing](CONTRIBUTING.md)** | Setup, tests, and the one rule for benchmark changes |
 
 ---
