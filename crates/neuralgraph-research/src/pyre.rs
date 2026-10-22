@@ -79,6 +79,98 @@ pub fn findall_whole_words(
         .collect()
 }
 
+/// Python's `\b` as lookarounds over its own `\w` (fancy-regex syntax).
+fn py_boundary() -> String {
+    let w = format!("[{PY_WORD_CLASS}]");
+    format!("(?:(?<={w})(?!{w})|(?<!{w})(?={w}))")
+}
+
+/// Translate a Python `re` pattern (`str` pattern, no `re.MULTILINE`) into an equivalent fancy-regex pattern:
+/// `\w`, `\W`, `\b`, `\B`, `\s`, `\S` take Python's definitions (inside character classes too), and `$`
+/// also matches before a final newline as Python's does. Everything else is the shared syntax.
+pub fn translate(py: &str) -> String {
+    let w = format!("[{PY_WORD_CLASS}]");
+    let mut out = String::with_capacity(py.len() * 2);
+    let mut in_class = false;
+    let mut chars = py.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => {
+                let Some(e) = chars.next() else {
+                    out.push('\\');
+                    break;
+                };
+                match (e, in_class) {
+                    ('w', _) => out.push_str(&w),
+                    ('W', false) => out.push_str(&format!("[^{PY_WORD_CLASS}]")),
+                    ('s', false) => out.push_str(r"[\s\x1c-\x1f]"),
+                    ('s', true) => out.push_str(r"\s\x1c-\x1f"),
+                    ('S', false) => out.push_str(r"[^\s\x1c-\x1f]"),
+                    ('b', false) => out.push_str(&py_boundary()),
+                    ('B', false) => out.push_str(&format!("(?!{})", py_boundary())),
+                    ('W' | 'S', true) => panic!("pyre::translate: \\{e} inside a class is not supported"),
+                    _ => {
+                        out.push('\\');
+                        out.push(e);
+                    }
+                }
+            }
+            '[' if !in_class => {
+                in_class = true;
+                out.push('[');
+                // a leading `^` and a leading `]` belong to the class syntax
+                if chars.peek() == Some(&'^') {
+                    out.push(chars.next().unwrap());
+                }
+                if chars.peek() == Some(&']') {
+                    chars.next();
+                    out.push_str("\\]");
+                }
+            }
+            '[' => out.push_str("\\["),
+            ']' if in_class => {
+                in_class = false;
+                out.push(']');
+            }
+            '$' if !in_class => out.push_str(r"(?=\n?\z)"),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// Compile a Python `re` pattern with Python's semantics (see [`translate`]); `ignore_case` is `re.IGNORECASE`.
+pub fn compile(py: &str, ignore_case: bool) -> fancy_regex::Regex {
+    let prefix = if ignore_case { "(?i)" } else { "" };
+    let pattern = format!("{prefix}{}", translate(py));
+    fancy_regex::Regex::new(&pattern).unwrap_or_else(|e| panic!("pyre::compile({py:?}): {e}"))
+}
+
+/// `re.findall(pattern, s)`: whole matches, or group 1 when the pattern has exactly one group, or every group
+/// (`None` as "") when it has more.
+pub fn findall(re: &fancy_regex::Regex, s: &str) -> Vec<Vec<String>> {
+    let groups = re.captures_len() - 1;
+    let mut out = Vec::new();
+    for caps in re.captures_iter(s) {
+        let caps = caps.expect("regex backtrack limit");
+        out.push(match groups {
+            0 => vec![caps.get(0).unwrap().as_str().to_string()],
+            _ => (1..=groups).map(|i| caps.get(i).map_or(String::new(), |m| m.as_str().to_string())).collect(),
+        });
+    }
+    out
+}
+
+/// `re.findall` of a pattern with at most one group, as strings.
+pub fn findall1(re: &fancy_regex::Regex, s: &str) -> Vec<String> {
+    findall(re, s).into_iter().map(|mut g| g.swap_remove(0)).collect()
+}
+
+/// `bool(re.search(pattern, s))`
+pub fn search(re: &fancy_regex::Regex, s: &str) -> bool {
+    re.is_match(s).expect("regex backtrack limit")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -88,6 +180,16 @@ mod tests {
         assert_eq!(strip_non_word("Yoga\u{1F9D8}\u{200D}\u{2640}\u{FE0F}!"), "Yoga");
         assert_eq!(PY_NON_WORD.replace_all("Yoga\u{1F9D8}\u{200D}\u{2640}\u{FE0F}!", ""), "Yoga");
         assert!(py_is_word_char('_') && py_is_word_char('\u{00B2}') && !py_is_word_char('\u{203F}'));
+    }
+
+    #[test]
+    fn translated_patterns_follow_python() {
+        let re = compile(r"\b[a-z]{3,}\b", false);
+        assert_eq!(findall1(&re, "fun\u{200D} yes_no abc\u{00B2} hello\u{FE0F}"), vec!["fun", "hello"]);
+        let tail = compile(r"\b(?:too|as well)\b$", true);
+        assert!(search(&tail, "me TOO\n") && !search(&tail, "metoo"));
+        let cls = compile(r"[^\w\s\-]", false);
+        assert_eq!(cls.replace_all("a-b c!\u{200D}", ""), "a-b c");
     }
 
     #[test]
