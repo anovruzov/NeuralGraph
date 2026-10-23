@@ -201,6 +201,26 @@ Five of six question types score 100 under both. Every miss with assistant turns
 Abstention (4 questions with no answer in the history): the context block is never empty, 0/4 in both runs.
 Query latency on these databases: p50 10 ms / p95 12 ms end to end (embedding included), 403-token context.
 
+### Track D, end-to-end accuracy of the shipped pipeline (same 50 LongMemEval Oracle questions)
+
+`research/benchmarks/chat_memory_answer_eval.py`: a local model answers from the shipped context block (mean ~540
+tokens), a local model of a different family (Gemma-4-e4b) grades under a lenient and a strict prompt, plus substring.
+
+| answerer | lenient | strict | substring | "I don't know" on answerable |
+|---|---:|---:|---:|---:|
+| Qwen3.8-9B, concise prompt | 80.0 | 54.0 | 44.0 | 15 / 46 |
+| Qwen3.6-35B-A3B, concise prompt | 74.0 | 48.0 | 42.0 | 10 / 46 |
+| Qwen3.8-9B, compute prompt (reason, then answer) | 72.0 | 56.0 | 34.0 | 7 / 46 |
+
+Reading the gap between 93.5 retrieval and ~55 strict: about 5 of every 20 strict misses are judge false negatives
+("approximately 1300" vs gold "1300", "Fridays" vs "Friday", "around 6:30 pm" vs "6:30 pm"), so hand-corrected
+strict is roughly 65. The genuine misses are arithmetic over several memories (30-minute jog -> 0.5 hours, two
+school spans -> 10 years, day counts between dates) and assistant facts that were never extracted. A bigger local
+answerer did not help; letting the model reason traded "I don't know" for wrong sums. The lenient judge passed 7
+"I don't know" answers on questions with a gold value. In production the reader is Claude, not a local 9B; the
+number that describes the memory system is retrieval. A human-labelled sample is the next step before quoting any
+accuracy figure.
+
 ## Evidence classes at a glance
 
 | track | headline | evidence class |
