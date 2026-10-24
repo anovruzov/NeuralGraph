@@ -62,6 +62,7 @@ __all__ = [
     "ROOT", "RUN_CHANNEL", "START", "TIE_SALT", "TOP_N", "WORLD_TABLE", "EmergenceWorld", "WorldError",
     "build_emergence_world", "build_records", "canonical_entity_id", "check_world_counts", "entity_ids",
     "fixed_questions", "generate", "gold_labels", "master_data", "narrative_prefixes", "ordered_candidates",
+    "SEED_DRAWN_COUNTS", "SEED_INVARIANT_COUNTS", "table_row_diff",
     "pack_predicate", "question_for", "received_date", "record_dict", "record_ref", "records_per_site",
     "site_configs", "site_id_of", "site_ids", "world_counts", "backup_sqlite", "restore_store",
 ]
@@ -220,14 +221,58 @@ def world_counts(org: Org, corpus: Corpus, gold: Gold) -> dict[str, int]:
             "entities": len(corpus.entities)}
 
 
-def check_world_counts(counts: Mapping[str, int], target_users: int) -> None:
-    """Refuse a world whose counts are not section 3.1's row for ``target_users``."""
+#: The counts section 3.1 fixes for a size whatever the seed draws: the org's user total, the planted pattern and
+#: decoy totals, and the entity list.  The generator derives each from ``target_users`` and its own constants, so a
+#: world that misses one of these is not this benchmark's world and must be refused at any seed.
+SEED_INVARIANT_COUNTS: tuple[str, ...] = ("users", "patterns_real", "gold_discoverable", "decoys", "entities")
+
+#: The counts the draw moves: how the org falls into sites and teams, how many records the users write, and how many
+#: of the planted patterns come out rare.  Section 3.1's row records **seed 0's** draw of these, so requiring the row
+#: exactly is a guard against the seed, not against a malformed world -- it refused every seed but 0, which is why
+#: seeds 1-5 could only run as disclosed guard-bypass diagnostics.  They are checked as structure instead.
+SEED_DRAWN_COUNTS: tuple[str, ...] = ("sites", "teams", "records", "gold_rare")
+
+
+def table_row_diff(counts: Mapping[str, int], target_users: int) -> list[str]:
+    """Which of section 3.1's numbers this world does not match, as ``name: got != row`` (empty when it matches).
+
+    The historical table check, kept as a diagnostic: it says what a world's draw did, and it is reported rather
+    than enforced, so a run on a seed other than 0 is self-describing instead of refused.
+    """
     row = WORLD_TABLE.get(target_users)
     if row is None:
         raise WorldError(f"no row of section 3.1 for target_users {target_users}") from None
-    bad = sorted(k for k in row if counts.get(k) != row[k])
+    return [f"{k}: {counts.get(k)} != {row[k]}" for k in sorted(row) if counts.get(k) != row[k]]
+
+
+def check_world_counts(counts: Mapping[str, int], target_users: int) -> None:
+    """Refuse a world that is not this size's EMERGENCE world, at any seed.
+
+    The seed-invariant counts must equal section 3.1's row exactly.  The drawn counts are held to the structure the
+    benchmark needs rather than to seed 0's numbers: at least the two sites the admission rule compares, a team for
+    each site, records to carry the evidence, and no more rare patterns than planted ones.  Each is a property of
+    the benchmark's definition, not a band fitted to the development seeds.
+
+    What this no longer catches -- a world whose record total is off by one -- was never a safety property: the
+    record total is a draw, and :func:`table_row_diff` still reports it.
+    """
+    row = WORLD_TABLE.get(target_users)
+    if row is None:
+        raise WorldError(f"no row of section 3.1 for target_users {target_users}") from None
+    bad = sorted(k for k in SEED_INVARIANT_COUNTS if counts.get(k) != row[k])
     if bad:
         raise WorldError(f"world counts differ from section 3.1 at target_users {target_users}: {bad}") from None
+    missing = sorted(k for k in SEED_DRAWN_COUNTS if counts.get(k) is None)
+    if missing:
+        raise WorldError(f"world counts lack {missing} at target_users {target_users}") from None
+    if counts["sites"] < 2:
+        raise WorldError(f"a world with {counts['sites']} site(s) cannot meet the two-site admission rule") from None
+    if counts["teams"] < counts["sites"]:
+        raise WorldError(f"{counts['teams']} teams across {counts['sites']} sites: a site without a team") from None
+    if counts["records"] < counts["users"]:
+        raise WorldError(f"{counts['records']} records for {counts['users']} users: a world without evidence") from None
+    if not 0 <= counts["gold_rare"] <= counts["gold_discoverable"]:
+        raise WorldError(f"{counts['gold_rare']} rare of {counts['gold_discoverable']} discoverable patterns") from None
 
 
 def generate(target_users: int, seed: int) -> tuple[Org, Corpus, Gold]:
@@ -310,6 +355,8 @@ class EmergenceWorld(World):
     corpus: Corpus | None = None
     gold: Gold | None = None
     counts: dict[str, int] = field(default_factory=dict)
+    #: section 3.1's row minus this world's draw, as :func:`table_row_diff` renders it; empty at seed 0
+    table_diff: list[str] = field(default_factory=list)
     per_site_records: dict[str, int] = field(default_factory=dict)
     entity_ids: list[str] = field(default_factory=list)
     tie_salt: str = TIE_SALT
@@ -335,6 +382,7 @@ def build_emergence_world(target_users: int = 200, seed: int = 0, workdir: str |
     org, corpus, gold = generate(target_users, seed)
     counts = world_counts(org, corpus, gold)
     check_world_counts(counts, target_users)
+    table_diff = table_row_diff(counts, target_users)
     pack = load_pack_dir(Path(pack_dir), expected_id=PACK_ID)
     ids = entity_ids(corpus)
     if set(pack.entity_types[ENTITY_TYPE].ids or ()) != set(ids):
@@ -364,8 +412,8 @@ def build_emergence_world(target_users: int = 200, seed: int = 0, workdir: str |
     return EmergenceWorld(seed=seed, planted=True, workdir=Path(workdir), pack=pack, pipeline=pipeline,
                           records=records, master_data=master, site_ids=sites, weeks=list(weeks),
                           candidates=candidates, detected=detected, labels=labels, target_users=target_users, org=org,
-                          corpus=corpus, gold=gold, counts=counts, per_site_records=records_per_site(corpus),
-                          entity_ids=ids, tie_salt=tie_salt)
+                          corpus=corpus, gold=gold, counts=counts, table_diff=table_diff,
+                          per_site_records=records_per_site(corpus), entity_ids=ids, tie_salt=tie_salt)
 
 
 def fixed_questions(world: World, n: int = 20) -> list[dict[str, Any]]:

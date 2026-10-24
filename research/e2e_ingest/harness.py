@@ -405,6 +405,8 @@ class E2ERun:
             "weeks": len(world.weeks), "node_granularity": "site", "site_ids": list(world.site_ids),
             "as_of": world.as_of, "pack_id": world.pack.id, "pack_hashes": world.pack.hashes(),
             "expected_counts": dict(ew.WORLD_TABLE[o.world]), "records_per_site": dict(world.per_site_records),
+            # section 3.1's row is seed 0's draw; on any other seed the differences are reported, not enforced
+            "table_row_diff": list(world.table_diff),
             "fraction_of_benchmark": {
                 "users_vs_10k": counts["users"] / BENCHMARK_10K[0],
                 "records_vs_10k": counts["records"] / BENCHMARK_10K[1],
@@ -413,6 +415,8 @@ class E2ERun:
             **counts}
         self.log(f"world: {counts['users']} users, {counts['sites']} sites, {counts['records']} records; "
                  f"{detected} snapshot candidates, {len(self.candidates)} asked; run {self.run_id_detection}")
+        if world.table_diff:
+            self.log(f"world: this seed's draw differs from section 3.1's row (seed 0's): {'; '.join(world.table_diff)}")
         done()
 
     def pristine_copies(self) -> None:

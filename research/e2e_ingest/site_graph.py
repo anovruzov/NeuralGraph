@@ -219,14 +219,18 @@ class PersistentTesseractRetrieval(TesseractRetrieval):
 # --------------------------------------------------------------------------------------------------- the process
 
 class E2ESiteProcess(SiteProcess):
-    """``SiteProcess`` with the persistent retrieval in step 5 and nothing else changed (M17)."""
+    """``SiteProcess`` with the persistent retrieval in step 5 and nothing else changed (M17).
+
+    Step 4 is the parent's line for line, including ``_make_runtime`` (which returns None unless ``config.routing``
+    names this site's file): the routed judge is the parent's behaviour, inherited, not a second implementation.
+    """
 
     def __init__(self, config: SiteConfig) -> None:
         self.config = config
         self.pack = load_pack(config.pack)
         self.clock = SiteClock(config.clock_start)
         edge = Path(config.edge_dir)
-        self.runtime = self._make_runtime(config, edge)     # None unless config.routing names this site's file
+        self.runtime = self._make_runtime(config, edge)
         self.site = EdgeSite(self.pack, config.site_id, edge, runtime=self.runtime, clock=self.clock,
                              master_data=config.master_data, hq_dir=config.hq_dir)
         self.descriptor_bytes = canonical_bytes(wire.descriptor(config.site_id, self.pack.id, self.pack.config_hash,
