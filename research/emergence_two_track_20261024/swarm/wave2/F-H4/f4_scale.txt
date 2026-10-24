@@ -1,0 +1,50 @@
+size 200 seed 0: sites 7, keys with records 1016, rows so far 10938, gold keys 40, decoy keys 97, 1.2 s
+size 200 seed 1: sites 7, keys with records 1019, rows so far 21895, gold keys 40, decoy keys 98, 1.0 s
+size 200 seed 2: sites 8, keys with records 1012, rows so far 32577, gold keys 40, decoy keys 95, 1.2 s
+size 200 seed 3: sites 7, keys with records 1047, rows so far 43758, gold keys 40, decoy keys 93, 1.1 s
+size 200 seed 4: sites 7, keys with records 1008, rows so far 54700, gold keys 40, decoy keys 99, 0.9 s
+size 200 seed 5: sites 7, keys with records 1019, rows so far 65907, gold keys 40, decoy keys 96, 0.9 s
+size 2000 seed 0: sites 9, keys with records 1186, rows so far 22680, gold keys 40, decoy keys 104, 3.9 s
+size 2000 seed 1: sites 11, keys with records 1196, rows so far 45303, gold keys 40, decoy keys 95, 3.6 s
+size 2000 seed 2: sites 13, keys with records 1193, rows so far 67791, gold keys 40, decoy keys 101, 3.4 s
+size 2000 seed 3: sites 11, keys with records 1191, rows so far 90536, gold keys 40, decoy keys 94, 4.0 s
+size 2000 seed 4: sites 7, keys with records 1191, rows so far 113302, gold keys 40, decoy keys 97, 3.6 s
+size 2000 seed 5: sites 13, keys with records 1193, rows so far 136196, gold keys 40, decoy keys 105, 3.8 s
+
+===== size 200 =====
+keys with an askable week: {'other': 5309, 'decoy': 572, 'gold': 240}; 'persistent' keys (>= 7 active weeks, proxy for rule_weeks >= 7): {'other': 287, 'gold': 86, 'decoy': 119}
+THIN class rows (1,0,2,>=3,>=3,1): 130 rows; gold 75 (57.7%), decoy 41 (31.5%), other 14 (10.8%); P(clear) 1.000; net3 +0.138
+keys with >= 1 THIN week (inside the label window for gold/decoy): {'gold': '56/240 = 23.3%', 'decoy': '13/572 = 2.3%', 'other': '5/5309 = 0.1%'}
+  gold by rarity: rare 6/103, common 50/137  (H4: 'only RARE gold passes through the thin state')
+  sites present (nP, capped 4) at in-window weeks: gold {1: 295, 2: 822, 3: 642, 4: 330}; decoy {1: 996, 2: 918, 3: 1354, 4: 1594}
+  top-6 classes by net3 (pooled fit at this size), rows / gold / decoy / P(clear):
+    (1, 0, 2, 3, 3, 1)     net3 +0.138 rows   130 gold   75 decoy   41 P(clear) 0.986
+    (2, 2, 3, 0, 3, 1)     net3 +0.083 rows     7 gold    4 decoy    3 P(clear) 0.680
+    (1, 1, 2, 3, 3, 0)     net3 +0.044 rows    11 gold    7 decoy    4 P(clear) 0.240
+    (0, 0, 1, 0, 0, 0)     net3 -0.000 rows 40653 gold 1016 decoy 2279 P(clear) 0.000
+    (0, 0, 2, 0, 0, 0)     net3 -0.000 rows  8845 gold  463 decoy  649 P(clear) 0.000
+    (0, 1, 1, 0, 0, 0)     net3 -0.000 rows  4879 gold  140 decoy  258 P(clear) 0.000
+  AUC gold-vs-decoy, LOSO fit at this size, all keys                      : pooled 0.616  per seed {'0': 0.621, '1': 0.573, '2': 0.671, '3': 0.617, '4': 0.696, '5': 0.612}  (n gold 240, decoy 572)
+  AUC gold-vs-decoy, LOSO fit at this size, persistent (>=7 active weeks) : pooled 0.621  per seed {'0': 0.592, '1': 0.578, '2': 0.754, '3': 0.714, '4': 0.557, '5': 0.64}  (n gold 86, decoy 119)
+  AUC of the bare THIN indicator (ever thin), all keys: 0.604
+  AUC of the bare THIN indicator (ever thin), persistent: 0.635
+
+===== size 2000 =====
+keys with an askable week: {'other': 6317, 'gold': 240, 'decoy': 593}; 'persistent' keys (>= 7 active weeks, proxy for rule_weeks >= 7): {'other': 5095, 'gold': 233, 'decoy': 514}
+THIN class rows (1,0,2,>=3,>=3,1): 2567 rows; gold 90 (3.5%), decoy 144 (5.6%), other 2333 (90.9%); P(clear) 1.000; net3 -0.930
+keys with >= 1 THIN week (inside the label window for gold/decoy): {'gold': '31/240 = 12.9%', 'decoy': '15/593 = 2.5%', 'other': '695/6317 = 11.0%'}
+  gold by rarity: rare 5/92, common 26/148  (H4: 'only RARE gold passes through the thin state')
+  sites present (nP, capped 4) at in-window weeks: gold {1: 41, 2: 208, 3: 397, 4: 1440}; decoy {1: 735, 2: 873, 3: 944, 4: 3713}
+  top-6 classes by net3 (pooled fit at this size), rows / gold / decoy / P(clear):
+    (1, 2, 3, 3, 3, 0)     net3 +0.023 rows    35 gold   12 decoy   13 P(clear) 0.395
+    (0, 0, 1, 0, 0, 0)     net3 -0.000 rows 22754 gold  375 decoy 1289 P(clear) 0.000
+    (0, 0, 2, 0, 0, 0)     net3 -0.000 rows 18788 gold  382 decoy 1099 P(clear) 0.000
+    (0, 0, 3, 0, 0, 0)     net3 -0.000 rows 13903 gold  341 decoy 1115 P(clear) 0.000
+    (0, 1, 1, 0, 0, 0)     net3 -0.000 rows  7475 gold  125 decoy  406 P(clear) 0.000
+    (1, 0, 1, 0, 1, 1)     net3 -0.000 rows  5647 gold  122 decoy  252 P(clear) 0.000
+  AUC gold-vs-decoy, LOSO fit at this size, all keys                      : pooled 0.451  per seed {'0': 0.448, '1': 0.524, '2': 0.431, '3': 0.449, '4': 0.424, '5': 0.513}  (n gold 240, decoy 593)
+  AUC gold-vs-decoy, LOSO fit at this size, persistent (>=7 active weeks) : pooled 0.471  per seed {'0': 0.474, '1': 0.553, '2': 0.441, '3': 0.452, '4': 0.456, '5': 0.523}  (n gold 233, decoy 514)
+  AUC gold-vs-decoy, table fitted at 200 users, transferred, all keys                      : pooled 0.522  per seed {'0': 0.459, '1': 0.561, '2': 0.596, '3': 0.512, '4': 0.589, '5': 0.415}  (n gold 240, decoy 593)
+  AUC gold-vs-decoy, table fitted at 200 users, transferred, persistent (>=7 active weeks) : pooled 0.528  per seed {'0': 0.465, '1': 0.568, '2': 0.598, '3': 0.507, '4': 0.604, '5': 0.414}  (n gold 233, decoy 514)
+  AUC of the bare THIN indicator (ever thin), all keys: 0.563
+  AUC of the bare THIN indicator (ever thin), persistent: 0.562

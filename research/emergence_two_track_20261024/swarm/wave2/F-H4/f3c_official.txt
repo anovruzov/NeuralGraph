@@ -1,0 +1,9 @@
+seed  asked  report.found  recomputed_found  accepted_decoys(recomputed)  AUC S_Net3@asked-week gold-vs-decoy (key class)  n_gold n_decoy
+0        55            13                13                           34                                           0.613      15      35
+1        53            12                12                           31                                           0.610      13      31
+2        60            17                17                           34                                           0.661      19      36
+3        53            17                17                           33                                           0.558      19      33
+4        60            19                19                           37                                           0.711      19      40
+5        60            15                15                           35                                           0.782      15      39
+pooled AUC S_Net3@asked-week on the official asked set: 0.658; per seed {'0': 0.613, '1': 0.61, '2': 0.661, '3': 0.558, '4': 0.711, '5': 0.782}  (H4's claim for this pool: 0.842 S_Net / 0.814 S_Net3, with look-ahead)
+note: recomputed found uses the key-class/window convention of h4_cells; the report's own 'found' is the official number.

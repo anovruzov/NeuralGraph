@@ -47,6 +47,21 @@ means sealed seeds, which means a founders' decision first, not an engineering o
 other session has running tests the *implementation*, not the selection bias. Until a held-out run exists, the
 figure to quote is "+10 on the seeds the ordering was chosen on".
 
+### 1b. The one arm the swarm left standing — reorder the asked set, e2e, budget-matched
+
+**What it is.** Order the detector's *already-asked* candidates by the exported cell class at the snapshot
+week (F-H4's replay: **138/240 found vs rule-first 128**, which is e2e-confirmed at 127; decoys 97 vs 113;
+better on 5 seeds, tie on 1). Same 60 questions. It reaches no never-asked pattern — it removes supported
+decoys from the top-60 (9–14 swaps per seed).
+
+**Decision rule, fixed now.** One e2e arm against **budget-matched rule-first (128)**, using the
+**at-snapshot** score (F-H4 found H4's quoted 0.842 was look-ahead), with a **label-free** variant alongside
+(replay: 137, but rare 8 → 4 and decoys 110). It is shipped only if it beats 128 with decoys at or below 113 on
+the e2e run. **Before any run: a founders' ruling** on whether a class table fitted on dev-seed labels counts
+as "labels selecting" (H8 §2 says it does); if it does, only the label-free variant may run.
+
+**Cost.** One ablation arm, six seeds, ~3 hours, on a quiet machine.
+
 ### 2. A verifier with discriminating power — the step the loop is missing
 
 **Why.** The acquisition loop asked, got records back, and recounted. Counting cannot tell a rare pattern's late
@@ -60,6 +75,11 @@ never select.
 
 **Decision rule.** AUC ≥ 0.75 on held-out seeds means build the verifier. Below 0.65, the loop is dead for good
 and §1's budget should go to candidate generation instead. Between the two, report and stop.
+
+**Answered by the swarm, 2026-10-24.** The exported contracts *do* hold a gold-vs-decoy direction at 200 users
+(H2's label-fitted oracle 0.83; H5-2 label-free 0.945) — and it does not transfer: 0.742 at 2,000 users, below
+0.70 on the dominant decoy classes, because it is a record-density artefact. A verifier trained at 200 users is a
+200-user verifier. See `swarm/NEGATIVE_RESULT.md`.
 
 **Cost.** Offline, under an hour. No broker.
 

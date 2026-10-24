@@ -1,0 +1,37 @@
+(a) seed-swap inside the replay: S_Net3@snapshot with the table fitted on 4 of the 5 other seeds (drop one), six-seed totals
+  5-seed LOSO fit (reference, = f3)                                        found 138 rare 10 decoys  97 bg 11 [18, 20, 26, 28, 22, 24]
+  4-seed fit, training seed 0 dropped where it was a training seed         found 136 rare 10 decoys  97 bg 11 [18, 19, 27, 26, 22, 24]
+  4-seed fit, training seed 1 dropped where it was a training seed         found 137 rare 10 decoys  97 bg 11 [17, 20, 26, 28, 22, 24]
+  4-seed fit, training seed 2 dropped where it was a training seed         found 138 rare 10 decoys  97 bg 11 [18, 20, 26, 28, 22, 24]
+  4-seed fit, training seed 3 dropped where it was a training seed         found 137 rare 10 decoys  97 bg 10 [17, 20, 26, 28, 22, 24]
+  4-seed fit, training seed 4 dropped where it was a training seed         found 138 rare 10 decoys  97 bg  9 [18, 20, 26, 28, 22, 24]
+  4-seed fit, training seed 5 dropped where it was a training seed         found 139 rare 11 decoys  96 bg 12 [18, 20, 27, 28, 22, 24]
+  fit on ['0', '1', '2'], replay ['3', '4', '5']: S_Net3 found 74 decoys 48 [28, 22, 24]  vs rule-first found 69 decoys 59 [26, 21, 22]
+  fit on ['3', '4', '5'], replay ['0', '1', '2']: S_Net3 found 62 decoys 49 [17, 19, 26]  vs rule-first found 59 decoys 54 [18, 18, 23]
+
+(b) label-free STRUCTURAL orderings at the snapshot week (no fitted table; ties -> shipped score, then hash)
+  nP ascending (fewer sites present first)                                 found 125 rare 12 decoys  86 bg 18 [19, 19, 22, 26, 18, 21]
+  nP descending                                                            found  87 rare 10 decoys 122 bg 14 [10, 12, 18, 16, 16, 15]
+  thin indicator first (nP==2 & nC==1 & roots>=3 & rep>=3 & fresh)         found 119 rare  7 decoys 112 bg 13 [18, 15, 21, 26, 18, 21]
+  nC==1 first (exactly one certain k-site)                                 found 114 rare  9 decoys 110 bg 15 [18, 14, 19, 24, 17, 22]
+  nC ascending                                                             found 122 rare 17 decoys  89 bg 21 [21, 21, 20, 24, 20, 16]
+  sumlb ascending (less exported evidence first)                           found  99 rare 17 decoys  88 bg 22 [15, 16, 15, 23, 15, 15]
+  sumlb descending                                                         found 129 rare  2 decoys 127 bg  1 [18, 19, 25, 28, 19, 20]
+  (nC==1, then nP asc)                                                     found 122 rare 12 decoys  93 bg 19 [19, 17, 22, 25, 18, 21]
+  S_cert (gate certainly clears from b) first                              found 137 rare  4 decoys 110 bg  3 [21, 20, 27, 28, 20, 21]
+  nU ascending (fewer uncertain sites)                                     found 126 rare  1 decoys 111 bg  6 [17, 18, 26, 25, 20, 20]
+  rule hit first, then nP ascending, then score                            found 127 rare 13 decoys  93 bg 18 [19, 21, 22, 26, 18, 21]
+  (these are 11 variants tried AFTER seeing f3; best-of-11 applies -- they are here to see whether S_Net3's gain is a structural fact)
+  random order (300 draws): mean 104.9, 95th 113, max 116  (shipped 118, rule-first 128, S_Net3 138)
+
+(c) look-ahead in H4's per-key score on the asked (snapshot) pool: is the argmax week after the asked week?
+  asked detector rows: 515; per-key S_Net3 argmax week AFTER the snapshot week: 426 (82.7%), by key class {'decoy': 271, 'gold': 118, 'other': 37}
+  -> H4's snapshot-pool AUC 0.842 / 0.814 (and my 0.791 diagnostic) read cells HQ did not have when the question was asked; the at-snapshot AUC is 0.66.
+
+(d) swap accounting: S_Net3@snapshot vs rule-first, per seed
+  seed 0: questions swapped 11/60; dropped {('background', 'sup'): 2, ('true', 'sup'): 2, ('decoy', 'sup'): 3, ('decoy', 'not'): 3, ('background', 'not'): 1}; added {('decoy', 'sup'): 7, ('background', 'not'): 1, ('background', 'sup'): 1, ('true', 'sup'): 2}; found 18 -> 18 (gained ['p011', 'p015'], lost ['p001', 'p009']); decoys 15 -> 16
+  seed 1: questions swapped 13/60; dropped {('decoy', 'sup'): 8, ('decoy', 'not'): 2, ('background', 'not'): 1, ('true', 'sup'): 2}; added {('decoy', 'sup'): 7, ('background', 'not'): 2, ('true', 'sup'): 4}; found 18 -> 20 (gained ['p004', 'p007', 'p020', 'p028'], lost ['p027', 'p035']); decoys 22 -> 18
+  seed 2: questions swapped 14/60; dropped {('decoy', 'sup'): 8, ('true', 'sup'): 1, ('true', 'not'): 1, ('decoy', 'not'): 2, ('background', 'sup'): 2}; added {('decoy', 'sup'): 8, ('true', 'sup'): 4, ('true', 'not'): 1, ('background', 'not'): 1}; found 23 -> 26 (gained ['p023', 'p026', 'p030', 'p039'], lost ['p003']); decoys 17 -> 15
+  seed 3: questions swapped 9/60; dropped {('true', 'sup'): 2, ('decoy', 'sup'): 7}; added {('decoy', 'sup'): 4, ('true', 'sup'): 4, ('background', 'not'): 1}; found 26 -> 28 (gained ['p004', 'p019', 'p032', 'p033'], lost ['p014', 'p020']); decoys 21 -> 20
+  seed 4: questions swapped 14/60; dropped {('decoy', 'sup'): 12, ('true', 'sup'): 1, ('decoy', 'not'): 1}; added {('decoy', 'not'): 2, ('background', 'sup'): 1, ('background', 'not'): 2, ('true', 'sup'): 2, ('decoy', 'sup'): 7}; found 21 -> 22 (gained ['p011', 'p015'], lost ['p022']); decoys 19 -> 12
+  seed 5: questions swapped 11/60; dropped {('decoy', 'sup'): 9, ('decoy', 'not'): 1, ('background', 'sup'): 1}; added {('true', 'sup'): 2, ('background', 'not'): 2, ('decoy', 'not'): 3, ('decoy', 'sup'): 3, ('background', 'sup'): 1}; found 22 -> 24 (gained ['p019', 'p031'], lost []); decoys 19 -> 16

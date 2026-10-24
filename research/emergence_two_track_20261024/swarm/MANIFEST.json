@@ -86,13 +86,13 @@
   "kills_pre_registered_in": "swarm/WAVE_1_RESULTS.md section 3",
   "returned": {
    "F-H3": "DEAD (3 of 4 kills fired; margin over the free line +0.036, p=0.12; top-20 precision 0.14 vs p* 0.39)",
-   "F-H5": "H5-3 DEAD (c_g measured 0.616 at its own week -> p* 0.447 > P@20 0.393; at 2,000 users the gate admits 67% of background, P@20 0.108); H5-2 reclassified as a sparse-world density artefact (0.945 at 200, 0.742 at 2,000)"
+   "F-H5": "H5-3 DEAD (c_g measured 0.616 at its own week -> p* 0.447 > P@20 0.393; at 2,000 users the gate admits 67% of background, P@20 0.108); H5-2 reclassified as a sparse-world density artefact (0.945 at 200, 0.742 at 2,000)",
+   "F-H4": "H4-3 DEAD (own per-seed kill; 80% of AUC on never-clearing classes; inverts at 2,000 users; 0.842 was look-ahead); H4-2 DEAD stand-alone; asked-set reorder alive at replay level only (138 vs 128, label-fitted)"
   },
   "pending": [
-   "F-H4",
    "F-H7"
   ],
-  "control_rule_state": "wave 3 depends on F-H4 alone"
+  "control_rule_state": "all three rankers dead -> NEGATIVE_RESULT.md (sentence B); swarm stops at 14/24; reorder handed to NEXT_EXPERIMENTS as one e2e arm pending a labels-select ruling"
  },
  "arena_console": {
   "branch": "research/arena",
@@ -107,5 +107,6 @@
    "arena/console-live-run-5.png",
    "arena/console-live-judge-6.png"
   ]
- }
+ },
+ "stopped_on_rule": "yes: zero surviving rankers after wave 2"
 }

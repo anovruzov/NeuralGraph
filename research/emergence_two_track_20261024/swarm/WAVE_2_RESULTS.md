@@ -1,7 +1,7 @@
 # Wave 2 — the falsifiers' verdicts
 
-**Status: two of four reported (F-H3 16:26Z, F-H5 16:39Z). F-H4 and F-H7 outstanding; this document is
-amended when they land.** Deliverables verbatim under `swarm/wave2/<id>/`.
+**Status: three of four reported (F-H3 16:26Z, F-H5 16:39Z, F-H4 16:40Z). F-H7 outstanding; it cannot change
+the control-rule outcome (H7-1 is a gate fix, not a ranker). Amended when it lands.** Deliverables verbatim under `swarm/wave2/<id>/`.
 
 Every falsifier was handed its target's kills in advance (`WAVE_1_RESULTS.md` §3) and told that confirming was
 not its job. Read-only throughout; `git status` clean in every tree touched.
@@ -13,16 +13,20 @@ not its job. Read-only throughout; `git status` clean in every tree touched.
 | **H3-3** rule-week band | F-H3 | **DEAD** | 3 of 4: beats the free line on 4/6 seeds not 6/6 (margin +0.036, p = 0.12, survives no best-of discount); top-20 precision 0.14 vs measured p* 0.39; adds 5–12 accepted decoys to a bar with zero headroom | kill 4 missed: the ≥16 demotion is a distinct statistic — worth exactly AUC 0.584 on 307 keys, which is the best-of-8 line to three decimals |
 | **H5-3** shape-gated count (the lever) | F-H5 | **DEAD** | kill 4: at the ranker's own best label-free week, c_g = **0.616**, not the ~0.75 H5 estimated (H5's figure was feasibility at *some* week of the label window); p* = 0.447 against measured P@20 0.393. Kill 1: at 2,000 users the θ ≤ 1.25 gate passes **67% of background** vs 39% of gold (74%/75% at 200), P@20 gold 0.108 | kill 2 (one formula) survived by 0.05 on the two weakest seeds; kill 3 (θ wobbles 1.25 ↔ 1.4 across subsets, not a leak) |
 | **H5-2** co-activation (the statistic) | F-H5 | **reclassified**, not promoted | survives every leak and selection test at 200 users (0.945; empirical best-of-56 null max 0.619, p < 0.0005) and erodes to **0.742** at 2,000 (0.69 on classes 1 and 3, which are 76% of decoys). Mechanism corrected: only 5% of gold co-active weeks are same-region, and seed 4 keeps the 7-site org shape yet drops 0.94 → 0.73 — the erosion is **record density**, not region granularity. Any denser world kills it | — |
-| H4-3 expected utility | F-H4 | *pending* | | |
+| **H4-3** expected utility over the cell class | F-H4 | **DEAD** | its own per-seed kill (seeds 1 and 4 below 0.70 at ν = (1,1)); **80% of its AUC orders keys at classes where the gate never clears** — among keys that can yield a verdict, 0.657; at 2,000 users the thin class is 90.9% unplanted and LOSO AUC is **0.451**; at its own argmax week c_g = 0.15–0.24 → p* > 1. Its 0.842 on the asked set was **look-ahead** (a later week than the one asked on 82.7% of rows; 0.661 at the asked week). Mechanism false even at 200: common gold (50/137), not rare (6/103), passes through the thin state | kills 2 and 3: no leak (permutation of the whole fit, 0/200 reach 0.731); and the replay reorder below |
+| H4-2 week choice | F-H4 | DEAD as a stand-alone claim | P̂(clear \| class) is 0 or 1 on 41/64 classes — a gate lookup, not a VoI; a parameter-free structural rule gets 101 vs its 99; ×4.5 optimistic, not replayable | — |
+| *reorder the already-asked pool by the exported class at the snapshot week* | F-H4 | **alive at replay level only** | 138/240 found vs rule-first 128 (e2e-confirmed 127), decoys 97 vs 113, bg 11 vs 13, rare 10 vs 8; per seed better on 5, tie on 1 (sign p = 1/32); seed-swap stable 136–139. The selector is a **label-fitted** class table — H8 §2 says a fitted table is labels selecting; the label-free variants reach 137 with rare 8 → 4 and decoys 110. Not the hypothesis H4 promoted; an empirical reorder whose at-decision AUC (0.66) sits in the selection band | — |
 | H7-1 echo-decoy veto | F-H7 | *pending* | | |
 
 ## 2. What this does to the control rule
 
 ```
-survivors so far: 0 of 2 rankers (H3-3 dead, H5-3 dead)
-wave 3 (combination vs budget-matched control) runs only if F-H4 survives
-H7-1 is a gate fix, not a ranker: it rides along with wave 3 or lands on its own, but cannot trigger it
-if F-H4 dies: NEGATIVE_RESULT.md with sentence B, and the swarm stops at 14 of 24
+survivors: 0 of 3 rankers (H3-3, H5-3, H4-3 all dead)
+→ NEGATIVE_RESULT.md written: sentence B. The swarm stops at 14 of 24.
+H7-1 (gate fix) lands on its own if F-H7 confirms; it does not reopen the ranking question.
+The replay-level reorder is handed to NEXT_EXPERIMENTS.md as ONE e2e arm, gated on a founders' ruling
+about label-fitted tables -- not spawned as a wave 3, because it does not answer the swarm's question
+(it re-ranks what is already asked; it reaches no never-asked pattern).
 ```
 
 ## 3. Two things the falsifiers found that the hypotheses did not

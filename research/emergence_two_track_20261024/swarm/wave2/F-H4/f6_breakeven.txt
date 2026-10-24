@@ -1,0 +1,14 @@
+c_g measured on H4-3's top-k (S_Net3, LOSO, strict salted order) per seed, six seeds summed
+  k week rule         q gold  dec  oth      p |   cg_F   cg_K   cg_B |  p*a_F  p*a_K  p*a_B |   a_d delta  p*b_F | clears(a)? clears(b)? | deflated p*a_B(x4.5)
+  5 S_Net3_wk        30   17    9    4  0.567 |  0.235  0.765  0.941 |  1.169  0.360  0.292 |  0.78  0.69  0.696 | False      False      |   1.31
+  5 S_Pclear_wk      30   17    9    4  0.567 |  0.765  0.882  0.941 |  0.360  0.312  0.292 |  0.89  0.69  0.446 | True       True       |   1.31
+ 10 S_Net3_wk        60   32   18   10  0.533 |  0.156  0.500  0.594 |  1.760  0.550  0.463 |  0.78  0.64  0.762 | False      False      |   2.08
+ 10 S_Pclear_wk      60   32   18   10  0.533 |  0.812  0.906  0.969 |  0.338  0.303  0.284 |  0.83  0.64  0.397 | True       True       |   1.28
+ 20 S_Net3_wk       120   39   31   50  0.325 |  0.154  0.462  0.538 |  1.788  0.596  0.511 |  0.52  0.38  0.562 | False      False      |   2.30
+ 20 S_Pclear_wk     120   39   31   50  0.325 |  0.769  0.897  0.949 |  0.357  0.306  0.290 |  0.77  0.38  0.278 | False      True       |   1.30
+ 30 S_Net3_wk       180   45   42   93  0.250 |  0.133  0.400  0.467 |  2.062  0.688  0.589 |  0.38  0.31  0.471 | False      False      |   2.65
+ 30 S_Pclear_wk     180   45   42   93  0.250 |  0.711  0.844  0.911 |  0.387  0.326  0.302 |  0.69  0.31  0.232 | False      True       |   1.36
+
+reference: filtered gold feasible under F at some week = 81/138 (H6 used 81/138 = 0.587)
+H6's bars: p*_a = 0.47 at c_g = 0.587 (and N must be 10-30; at N = 60 nothing clears, even an oracle); p*_b = 0.19 at lambda = 1, a_d = 0.551, delta = 0.246.
+Decoy bar: 118 accepted decoys with zero headroom -- any accepted decoy under budget (b) breaches it.
