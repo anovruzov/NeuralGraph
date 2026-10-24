@@ -15,6 +15,9 @@ ap.add_argument("--candidates", default="snapshot", choices=["snapshot", "persis
                 help="snapshot: shipped (one question per key at its first snapshot); persist: also re-ask while the "
                      "candidate persists, one question per later candidate week; persist+rule: also ask "
                      "rule-only candidates the same way")
+ap.add_argument("--order", default="shipped", choices=["shipped", "rulefirst"],
+                help="shipped: score desc (M21); rulefirst: detector candidates whose rule channel fired on or before "
+                     "their snapshot week first, then score desc; rule-only candidates last (inference-time fields only)")
 a, rest = ap.parse_known_args()
 rest = [x for x in rest if x != "--"]
 ew.check_world_counts = lambda counts, target_users: None
@@ -40,6 +43,20 @@ if a.pack_override:
     print(f"ABLATION {a.tag}: pack override {over} at {pack}", flush=True)
 else:
     print(f"DIAGNOSTIC {a.tag}: guard bypass only, frozen pack", flush=True)
+if a.order == "rulefirst":
+    from mycelic.collective.jsonio import sha256_hex
+
+    def rulefirst(result, *, tie_salt=ew.TIE_SALT, top_n=ew.TOP_N):
+        found = [c for c in result["candidates"] if c["snapshot"] is not None]
+
+        def rule_by_snapshot(c):
+            r = c.get("rule")
+            return isinstance(r, dict) and bool(r.get("weeks")) and r["weeks"][0] <= c["snapshot"]["week"]
+        found.sort(key=lambda c: (c["snapshot"].get("source") == "rule", not rule_by_snapshot(c),
+                                  -c["snapshot"]["score"], sha256_hex(f"{tie_salt}|{c['key']}")))
+        return (found if top_n is None else found[:top_n]), len(found)
+    ew.ordered_candidates = rulefirst
+    print(f"ABLATION {a.tag}: candidate order = rulefirst", flush=True)
 if a.candidates != "snapshot":
     from mycelic.collective.edge.weeks import week_sunday
     from mycelic.collective.evaluate.baselines import closing_date

@@ -88,5 +88,20 @@ Arms (v4 diagnostic config `rs_nd_n1_n2` at the current code, seed 0, process mo
 - control: no edges
 - treatment: `--graph-edges`
 
-Run IDs `ABLATION-v6-rs_nd_n1_n2-s0-*` and `ABLATION-v6-rs_nd_n1_n2_edges-s0-*`. Results: see §5 once both runs have
-finished.
+Run IDs `ABLATION-v6-rs_nd_n1_n2-s0-*` and `ABLATION-v6-rs_nd_n1_n2_edges-s0-*`. Raw: `raw/native/edges_ab_seed0.txt`.
+
+| | edges off | edges on |
+|---|---|---|
+| questions asked | 539 | 539 (same keys) |
+| verdicts that differ | — | **0 of 539** |
+| patterns found (rare) | 25 (4) | 25 (4), same set |
+| decoys accepted / background-supported | 28 / 16 | 28 / 16 |
+| records read, summed over site rankings | 59,886 | 61,937 (+3.4%) |
+| Tesseract latency p50 / p95 | 0.656 / 1.220 s | 0.676 / 1.222 s |
+
+As §3 predicts, edges change what the ranker returns, but not one verdict. The control also reproduces the earlier v4
+seed-0 run exactly (0 of 539 verdicts differ), so the e2e path is deterministic at this config.
+
+**Verdict:** enabling site edges changes nothing measurable except +3% read volume and latency. The native
+`NeuralRetriever` arm was not run end to end: §3 shows that under the lexical judge no ranker can change a confirm.
+It becomes worth running only together with an LLM judge.

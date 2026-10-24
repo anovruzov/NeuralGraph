@@ -1,7 +1,8 @@
 #!/bin/bash
-# usage: arms.sh ARM [seeds...]; runs from /home/user/emergence (committed HEAD), diagnostic ablations on dev seeds
-S=/tmp/claude-0/-home-user-NeuralGraph/2707d1a8-0286-570b-bef6-de01f8113a8b/scratchpad
-WT=${WT:-/home/user/emergence}; TAGP=${TAGP:-}
+# usage: ARMS_SCRATCH=DIR [WT=TREE] arms.sh ARM [seeds...]; diagnostic ablations on dev seeds.
+# ARMS_SCRATCH holds nats/nats-server, tools/ablate.py and em/ (outputs); WT is the code tree to run (default: cwd)
+S=${ARMS_SCRATCH:?set ARMS_SCRATCH}
+WT=${WT:-$PWD}; TAGP=${TAGP:-}
 cd $WT && export MYCELIC_NATS_SERVER_BIN=$S/nats/nats-server PATH=$S/nats:$PATH PYTHONPATH=$WT
 ARM=$1; shift
 ND='"egress": {"near_duplicate_roots": {"jaccard": 0.65, "days": 14}}'
@@ -9,6 +10,7 @@ N1='"questions": {"pushdown": {"weak_corroborating_sites": 1}}'
 N2='"questions": {"pushdown": {"weak_corroborating_sites": 1, "roots_from_k_sites_only": true}}'
 H1='"detectors": {"min_history_weeks": 1}'
 RS='"detectors": {"min_history_weeks": 1, "rule_snapshots": true}'
+RL='"detectors": {"min_history_weeks": 1, "rule_snapshots": true, "reask": {"every_weeks": 2}}'
 case $ARM in
   nd)        OV="{$ND}"; EXTRA="";;
   n1)        OV="{$N1}"; EXTRA="";;
@@ -18,6 +20,10 @@ case $ARM in
   h1n_nd_n1_n2_all) OV="{$H1, $ND, $N1, $N2}"; EXTRA="--top-n 1000"; CAND="--m 0";;
   h1n_nd_n1_n2) OV="{$H1, $ND, $N1, $N2}"; EXTRA="--top-n 1000";;
   rs_nd_n1_n2) OV="{$RS, $ND, $N2}"; EXTRA="--top-n 100000";;
+  roll_rs_nd_n1_n2) OV="{$RL, $ND, $N2}"; EXTRA="--top-n 100000";;
+  rs_nd_n1_n2_edges) OV="{$RS, $ND, $N2}"; EXTRA="--top-n 100000 --graph-edges";;
+  b60_rs_nd_n2) OV="{$RS, $ND, $N2}"; EXTRA="--top-n 60";;
+  b60_rs_nd_n2_rulefirst) OV="{$RS, $ND, $N2}"; EXTRA="--top-n 60"; CAND="--order rulefirst";;
   rule_nd_n1) OV="{$ND, $N1}"; EXTRA="--top-n 100000"; CAND="--candidates persist+rule";;
   rule_nd)   OV="{$ND}"; EXTRA="--top-n 100000"; CAND="--candidates persist+rule";;
   *) echo unknown arm; exit 2;;
