@@ -241,3 +241,32 @@ down, ticks will be one-line "no change" entries.
 17:04Z — tick 10: no change since 606869a; nothing in flight; no agent spent.
 
 17:15Z — tick 11: 2 new commit(s) from the other session merged; full audit owed next tick.
+
+### tick 11 — the full entry (the one-liner above promised it next tick; delivered now)
+
+Audited: the Gate-0 session's `317aac6` (runbook, world-map builder, `--extra-size` scale probe), `d55daf7`
+(`RESEARCH_REPORT.md`), and `4d065d6`; merged at `fcd0695`. No agent spent.
+
+| # | Item | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Reproducibility | **PASS** | `RESEARCH_REPORT.md` §4.2's 10K figures reproduce from the raw it cites to the unit: `agg_ceiling_by_world_size.txt` lines 6–7 give F 164/240 = 0.683 under the per-site rule and 1,773/1,800 = 98.5% non-planted keys passing the aggregate gate. The 0.742 at 200 (178/240) vs `ceiling_b`'s 0.746 (179/240) is the full-6-week-window protocol difference H4 already recorded (1 pattern). The world map injects report data (`__DATA__`); the template carries no literal figure. |
+| 2 | Traceability | **PASS with two gaps** | (a) §5's 10K latency rows (3,294 s main pass) and §6's 10K run cite no `raw/` path — the report's own rule is "every figure links to its raw output". (b) Two pin ledgers now exist (`PIN_LEDGER.md`, `frontier/PIN_LEDGER.md`); they were written separately and agree on substance. Cross-referenced this tick with one line each; no content changed. |
+| 3 | Labelling | **PASS** | Every non-official number is labelled DIAGNOSTIC in the report and the runbook; the runbook's "do not claim" list is explicit (no 80%, no 10K/50K accuracy, no held-out). `--extra-size` prints "DIAGNOSTIC scale probe" and "cap raised in memory" on every use; the `s10k_*` arms are `in_process` + `--skip-drills`, diagnostic twice over. The world map shows "Unlabelled" unless an answer key is supplied. |
+| 4 | Invariants | **PASS, with a note** | No pin, golden, label or sealed seed touched (`git diff --name-only` clean on all of them). The scale probe bypasses two guards in memory — `check_world_counts` (already bypassed by the wrapper) and the loader's 500-entity schema (`_loader.S_ET` rebuilt in memory) — so c8's invariants are not enforced on a 10K run and no such run can ever be called official; the report says exactly that in §6. |
+| 5 | Cost columns | **PASS** | §3 reports questions, found, rare, decoys and no-pattern confirms per arm with raw paths; §5 reports latency per run. |
+| 6 | Budget matching | **PASS** | The 127 is reported at the same 60-question budget as the 119 it beats, best-of-ten disclosed, held-out confirmation named as still owed. |
+
+**Result: 0 FAIL.** Three corrections owed to the report, none of them a number:
+
+13. **Gate-0 session:** §8 says the 8 suite failures are "all pin or contract mismatches listed in the ledger" — true,
+    and incomplete: 7 of the 8 (the c8 `green_report()` fixture and mutation table) are **repaired** on
+    `research/report-integrity` at `5da07a4`; only the `LIVE_CODE_HASHES_R002` failure remains, by decision.
+14. **Gate-0 session:** §4's "ruled out by measurement" table predates the swarm's close. Add one row: ranking the
+    rule-only pool — spectral, PU, rule identity, information gain, expected utility, co-activation, echo veto —
+    zero of four promoted statistics survived falsification; `swarm/NEGATIVE_RESULT.md`, sentence B.
+15. **Gate-0 session:** §4.2's column "non-planted keys passing (total gate)" (43.7% at 200) sits beside the
+    earlier `specificity_by_world_size.txt` figure for the *per-site* gate (9.6% at 200, K) and `agg_ceiling`'s own
+    per-site figure (16.5%). Three numbers for "non-planted keys passing at 200 users" under three protocols; the
+    report should say which gate and which window each is, or a reader will take 43.7% as the per-site rate.
+16. **Note, both sessions:** §7's "v5 reask offline +8" is on the v4 pool; on the official pool the re-ask lever's
+    ceiling is +4/240 (`EVIDENCE_CEILING.md` §7). Different base, not a contradiction — say so where it is quoted.

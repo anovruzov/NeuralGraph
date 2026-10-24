@@ -1,5 +1,9 @@
 # PIN_LEDGER.md — every live-code digest, what invalidated it, and what a re-pin would write
 
+*The Gate-0 session's independent evidence ledger is `frontier/PIN_LEDGER.md`; it reaches the same conclusion on the
+three digests (different records, do not merge) and classifies the eight `e2e_ingest` failures as the c8 fixture
+mismatch. The two were written separately and agree.*
+
 **Status: `LIVE_CODE_HASHES_R002` is stale and `test_the_code_hashes_are_the_pinned_ones` is red, on purpose.**
 Per the founders' decision of 2026-10-24: preserve the failing evidence, document which intentional change
 invalidated each digest, and re-pin only on a validated tree under review. Nothing in this file has been

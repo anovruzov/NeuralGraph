@@ -1,5 +1,9 @@
 # Pin ledger: which intentional change invalidated which pin
 
+*Cross-reference (added by the orchestrating session at audit tick 11): the governance ledger with the values a
+reviewed re-pin would write is `../PIN_LEDGER.md`; the eight `e2e_ingest` contract failures in §3 below are repaired on
+`research/report-integrity` (`5da07a4`: `green_report()` fixture + c8 mutation table), not only listed.*
+
 Founder decision (2026-10-24):
 
 - Do not re-pin yet. Preserve the failing evidence, and record which intentional change invalidated each pin.
