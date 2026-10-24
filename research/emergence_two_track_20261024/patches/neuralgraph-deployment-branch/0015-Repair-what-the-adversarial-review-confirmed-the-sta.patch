@@ -1,0 +1,245 @@
+From ce0e357823816dd8090bec2423982b5d8db11e71 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 12:33:11 +0000
+Subject: [PATCH 15/15] Repair what the adversarial review confirmed: the stale
+ pin, c8, and the record floor
+
+An independent reviewer attacked the re-applied patch series and the guard
+change. Four findings are fixed here; each failed before and passes after.
+
+F1, the branch was red. 9857556 ("opt-in rule_snapshots") edited
+detect/detectors.py and re-pinned the report's SPIKE_CODE_HASH but not the
+repo's DETECT_SHA256, so test_detection_is_byte_identical_to_its_pin has failed
+since that commit: pinned 9d23000e..., file d113c269.... No run on this branch
+could have had checks_pass true. Re-pinned deliberately, naming the commit and
+the lines that changed it.
+
+F2, the guard repair did not reach its own purpose. check_world_counts accepted
+seeds 1-5, but c8 (report.py) still required every count of section 3.1's row,
+so a run on any seed but 0 still failed its checks and could still only be
+reported as a guard-bypass diagnostic. c8 now requires the seed-invariant counts
+to equal the row and requires the draw to be *reported*: table_row_diff must be
+present and may name only drawn counts. The split now has one definition, in
+report.py, which stays importable without the generator; emergence_world imports
+it back.
+
+F9, the record floor was not derivable. "records >= users" is not a property of
+the benchmark -- nothing says every user writes a record. It is now
+MIN_SITES * ADMISSION_K * gold_discoverable (2 x 3 x 40 = 240 at 200 users),
+which is the admission rule's own arithmetic: fewer records than that and a
+planted pattern cannot be confirmable anywhere. The docstring no longer
+understates what the repair gives up: the floors sit far below the draws the
+generator makes (12,411-13,131 records), so a generator regression that cut the
+corpus by an order of magnitude would now pass the guard, and table_row_diff
+plus c8 are what catch it. The gold_rare bound is kept and labelled for what it
+is -- a restatement that cannot fail from the generator, for hand-built counts.
+
+F11, tests/mycelic/test_pushdown_n1.py ran unittest.main() above class N2Tests,
+so the file's own entry point silently skipped the four N2 tests. Moved to the
+end.
+
+Evidence: tests/mycelic/test_collective_pushdown.py 1 failed -> 81 passed;
+test_pushdown_n1.py 25 passed with all four N2 tests collected by __main__;
+tests/e2e_ingest/test_emergence_world.py 24 passed, including a test that pins
+the record floor to the admission rule's arithmetic.
+
+Open from the same review, not fixed here: F3/F5 (near-duplicate roots are feed
+order dependent and merge different readings), F4 (a sub-k sibling's refute does
+not contest under N1), F6 (N2 constrains roots only), F7 (rule snapshots carry
+supporting_sites from an earlier week), F13 (a site process gets demo_seed and
+could regenerate Gold).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01LhCvWQ3y4pbqgDonDGhVkv
+---
+ research/e2e_ingest/emergence_world.py    | 43 +++++++++++++----------
+ research/e2e_ingest/report.py             | 22 ++++++++++--
+ tests/e2e_ingest/test_emergence_world.py  |  5 ++-
+ tests/mycelic/test_collective_pushdown.py |  5 ++-
+ tests/mycelic/test_pushdown_n1.py         |  7 ++--
+ 5 files changed, 56 insertions(+), 26 deletions(-)
+
+diff --git a/research/e2e_ingest/emergence_world.py b/research/e2e_ingest/emergence_world.py
+index 083399f..4c4ff43 100644
+--- a/research/e2e_ingest/emergence_world.py
++++ b/research/e2e_ingest/emergence_world.py
+@@ -56,13 +56,15 @@ from research.routing_spike.hq import Candidate
+ from research.routing_spike.site_process import SiteConfig
+ from research.routing_spike.world import World, backup_sqlite, restore_store
+ 
++from .report import SEED_DRAWN_COUNTS, SEED_INVARIANT_COUNTS
++
+ __all__ = [
+     "BENCHMARK", "CHAIN_PREDICATES", "EMBED_DIM", "ENTITY_TYPE", "GRACE_WEEKS", "ID_PREFIX", "LANGUAGE", "M",
+     "MAX_RECORDS", "N_DAYS", "N_WEEKS", "NARRATIVE_MARKER_RE", "PACK_DIR", "PACK_ID", "RECORD_REF_RE", "REVENUE_MISS",
+     "ROOT", "RUN_CHANNEL", "START", "TIE_SALT", "TOP_N", "WORLD_TABLE", "EmergenceWorld", "WorldError",
+     "build_emergence_world", "build_records", "canonical_entity_id", "check_world_counts", "entity_ids",
+     "fixed_questions", "generate", "gold_labels", "master_data", "narrative_prefixes", "ordered_candidates",
+-    "SEED_DRAWN_COUNTS", "SEED_INVARIANT_COUNTS", "table_row_diff",
++    "ADMISSION_K", "MIN_SITES", "SEED_DRAWN_COUNTS", "SEED_INVARIANT_COUNTS", "table_row_diff",
+     "pack_predicate", "question_for", "received_date", "record_dict", "record_ref", "records_per_site",
+     "site_configs", "site_id_of", "site_ids", "world_counts", "backup_sqlite", "restore_store",
+ ]
+@@ -221,16 +223,11 @@ def world_counts(org: Org, corpus: Corpus, gold: Gold) -> dict[str, int]:
+             "entities": len(corpus.entities)}
+ 
+ 
+-#: The counts section 3.1 fixes for a size whatever the seed draws: the org's user total, the planted pattern and
+-#: decoy totals, and the entity list.  The generator derives each from ``target_users`` and its own constants, so a
+-#: world that misses one of these is not this benchmark's world and must be refused at any seed.
+-SEED_INVARIANT_COUNTS: tuple[str, ...] = ("users", "patterns_real", "gold_discoverable", "decoys", "entities")
+-
+-#: The counts the draw moves: how the org falls into sites and teams, how many records the users write, and how many
+-#: of the planted patterns come out rare.  Section 3.1's row records **seed 0's** draw of these, so requiring the row
+-#: exactly is a guard against the seed, not against a malformed world -- it refused every seed but 0, which is why
+-#: seeds 1-5 could only run as disclosed guard-bypass diagnostics.  They are checked as structure instead.
+-SEED_DRAWN_COUNTS: tuple[str, ...] = ("sites", "teams", "records", "gold_rare")
++#: The admission rule the benchmark is built on (section 3.1): a pattern is confirmable when ``MIN_SITES`` sites each
++#: hold ``ADMISSION_K`` records on its key.  The world's record floor below is derived from these, not from a range
++#: observed on the development seeds.
++ADMISSION_K = 3
++MIN_SITES = 2
+ 
+ 
+ def table_row_diff(counts: Mapping[str, int], target_users: int) -> list[str]:
+@@ -249,12 +246,16 @@ def check_world_counts(counts: Mapping[str, int], target_users: int) -> None:
+     """Refuse a world that is not this size's EMERGENCE world, at any seed.
+ 
+     The seed-invariant counts must equal section 3.1's row exactly.  The drawn counts are held to the structure the
+-    benchmark needs rather than to seed 0's numbers: at least the two sites the admission rule compares, a team for
+-    each site, records to carry the evidence, and no more rare patterns than planted ones.  Each is a property of
+-    the benchmark's definition, not a band fitted to the development seeds.
+-
+-    What this no longer catches -- a world whose record total is off by one -- was never a safety property: the
+-    record total is a draw, and :func:`table_row_diff` still reports it.
++    benchmark needs rather than to seed 0's numbers: at least the ``MIN_SITES`` sites the admission rule compares, a
++    team for each site, enough records for every planted pattern to be confirmable
++    (``MIN_SITES * ADMISSION_K * gold_discoverable``), and no more rare patterns than planted ones.  Each is derived
++    from the benchmark's definition, not fitted to the development seeds.
++
++    Be clear about what this gives up.  The row pinned four drawn counts exactly, so it also caught any drift in the
++    generator's draw -- a record total off by one, a site appearing.  The floors here are far below the draws the
++    generator actually makes (records 12,411-13,131 against a floor of 240 at 200 users), so a generator regression
++    that cuts the corpus by an order of magnitude would pass this guard and has to be caught by
++    :func:`table_row_diff`, which the run reports and c8 requires to be present and to name only drawn counts.
+     """
+     row = WORLD_TABLE.get(target_users)
+     if row is None:
+@@ -269,8 +270,12 @@ def check_world_counts(counts: Mapping[str, int], target_users: int) -> None:
+         raise WorldError(f"a world with {counts['sites']} site(s) cannot meet the two-site admission rule") from None
+     if counts["teams"] < counts["sites"]:
+         raise WorldError(f"{counts['teams']} teams across {counts['sites']} sites: a site without a team") from None
+-    if counts["records"] < counts["users"]:
+-        raise WorldError(f"{counts['records']} records for {counts['users']} users: a world without evidence") from None
++    floor = MIN_SITES * ADMISSION_K * counts["gold_discoverable"]
++    if counts["records"] < floor:
++        raise WorldError(f"{counts['records']} records cannot carry {counts['gold_discoverable']} patterns at "
++                         f"{MIN_SITES} sites x {ADMISSION_K} records ({floor} minimum)") from None
++    # a restatement of ``Gold.rare`` being a subset of ``Gold.discoverable``: it cannot fail from the generator, and
++    # catches a counts mapping assembled by hand (a report read back, a fixture) that says otherwise
+     if not 0 <= counts["gold_rare"] <= counts["gold_discoverable"]:
+         raise WorldError(f"{counts['gold_rare']} rare of {counts['gold_discoverable']} discoverable patterns") from None
+ 
+diff --git a/research/e2e_ingest/report.py b/research/e2e_ingest/report.py
+index b0a4278..a3ebd18 100644
+--- a/research/e2e_ingest/report.py
++++ b/research/e2e_ingest/report.py
+@@ -428,16 +428,34 @@ def c8_emergence_load(doc: Mapping[str, Any]) -> dict[str, Any]:
+                 and row.get("graph_nodes_db") == expected and row.get("graph_nodes") == row.get("graph_nodes_db")
+                 and row.get("node_ids_sha256") == row.get("record_refs_sha256")):
+             bad_sites.append(site)
++    diff = w.get("table_row_diff")
+     items = [
+         ("one_graph_per_site", len(per_site) == int(w.get("sites") or -1)),
+         ("every_site_whole", not bad_sites),
+         ("totals_agree", ing.get("total_ingested") == ing.get("total_expected") == w.get("records")),
+         ("no_loss", ing.get("loss") == 0),
+         ("pipeline_raised_nothing", ing.get("pipeline_raised") is False),
+-        ("world_is_section_3_1", bool(table) and all(w.get(k) == v for k, v in table.items())),
++        # section 3.1's row is seed 0's draw: the counts it fixes for the size must match at every seed, and the
++        # ones the draw moves must be *reported* (``table_row_diff``, empty at seed 0) rather than required.
++        ("world_invariants_are_section_3_1",
++         bool(table) and all(w.get(k) == table.get(k) for k in SEED_INVARIANT_COUNTS)),
++        ("world_draw_is_reported",
++         isinstance(diff, list) and all(str(line).split(":")[0] in SEED_DRAWN_COUNTS for line in diff)),
+     ]
+     return _result(items, {"sites": len(per_site), "sites_with_a_problem": bad_sites,
+-                           "total_ingested": ing.get("total_ingested"), "records": w.get("records")})
++                           "total_ingested": ing.get("total_ingested"), "records": w.get("records"),
++                           "table_row_diff": list(diff or ())})
++
++
++#: The counts section 3.1 fixes for a world size whatever its seed draws: the generator derives each from
++#: ``target_users`` and its own constants, so a world that misses one is not this benchmark's world.  They live
++#: here, in the checker, because ``emergence_world`` imports the generator (and numpy) and this module must stay
++#: importable by the ``check`` CLI alone; ``emergence_world`` imports them back.
++SEED_INVARIANT_COUNTS: tuple[str, ...] = ("users", "patterns_real", "gold_discoverable", "decoys", "entities")
++
++#: The counts the draw moves.  Section 3.1's row records seed 0's, so requiring the row exactly is a guard against
++#: the seed: it refused every seed but 0, and every run on 1-5 had to be labelled a guard-bypass diagnostic.
++SEED_DRAWN_COUNTS: tuple[str, ...] = ("sites", "teams", "records", "gold_rare")
+ 
+ 
+ #: Section 10's ``discovery`` fields, every one of which c9 requires present.
+diff --git a/tests/e2e_ingest/test_emergence_world.py b/tests/e2e_ingest/test_emergence_world.py
+index b4c70e1..2ca6c88 100644
+--- a/tests/e2e_ingest/test_emergence_world.py
++++ b/tests/e2e_ingest/test_emergence_world.py
+@@ -216,12 +216,15 @@ class WorldTableTests(unittest.TestCase):
+         for broken, why in (
+             ({"sites": 1}, "one site cannot meet the two-site rule"),
+             ({"teams": 6}, "fewer teams than sites"),
+-            ({"records": 308}, "fewer records than users"),
++            ({"records": 239}, "too few records for 40 patterns at 2 sites x k=3"),
+             ({"gold_rare": 41}, "more rare patterns than planted ones"),
+         ):
+             with self.subTest(**broken):
+                 with self.assertRaises(ew.WorldError, msg=why):
+                     ew.check_world_counts({**row, **broken}, 200)
++        self.assertEqual(ew.MIN_SITES * ew.ADMISSION_K * row["gold_discoverable"], 240,
++                         "the record floor is the admission rule's own arithmetic")
++        ew.check_world_counts({**row, "records": 240}, 200)
+         for key in ew.SEED_DRAWN_COUNTS:
+             with self.subTest(missing=key):
+                 with self.assertRaises(ew.WorldError):
+diff --git a/tests/mycelic/test_collective_pushdown.py b/tests/mycelic/test_collective_pushdown.py
+index 6547f9e..2223260 100644
+--- a/tests/mycelic/test_collective_pushdown.py
++++ b/tests/mycelic/test_collective_pushdown.py
+@@ -98,7 +98,10 @@ B4_HASHES = {"it_incidents": {"config_hash": "946becb0adece13f2274bf70eb33af8154
+ # shared nuisance imputation, A3 per entity type; G5 to G8: 7d4ca86b...): detection changes only on purpose, and a
+ # change re-pins it here
+ DETECT_SHA256 = {
+-    "detectors.py": "9d23000e2f84a0eea30fac05ac0227be9b12cf086652c61b5e74f488ac74b6b1",
++    # re-pinned deliberately: 9857556 ("opt-in rule_snapshots") added the rule-layer candidate branch to
++    # detectors.py (detectors.py:631-647).  The archived patch series carried the code and the report's
++    # SPIKE_CODE_HASH re-pin but not this one, so the branch was red from that commit on.
++    "detectors.py": "d113c269415012b1932d537b62188c123dcdc65b1555def263dde8f975cdc695",
+     "rules.py": "f0f5caa1f3168cb5da064aed9fec80fce67f7dee939e4a06880c7245ec8ac62d",
+     "org.py": "33972bebb177c2c7eb4b6dae86c5f8a8cb1ad1a752286bcf803e9b84a7b0368c",
+ }
+diff --git a/tests/mycelic/test_pushdown_n1.py b/tests/mycelic/test_pushdown_n1.py
+index 7905589..767bdf9 100644
+--- a/tests/mycelic/test_pushdown_n1.py
++++ b/tests/mycelic/test_pushdown_n1.py
+@@ -89,9 +89,6 @@ class N1Tests(unittest.TestCase):
+             pack_copy(self.tmp, "device_quality", {("questions.json", "pushdown", "weak_corroborating_sites"): 11})
+ 
+ 
+-if __name__ == "__main__":
+-    unittest.main()
+-
+ 
+ class N2Tests(unittest.TestCase):
+     """``pushdown.roots_from_k_sites_only`` (EMERGENCE-Next N2): sites with fewer than k roots add no roots."""
+@@ -125,3 +122,7 @@ class N2Tests(unittest.TestCase):
+     def test_n2_is_a_different_pack(self) -> None:
+         self.assertNotEqual(self.n2.config_hash, DQ.config_hash)
+         self.assertTrue(GateParams.from_pack(self.n2).to_dict()["roots_from_k_sites_only"])
++
++
++if __name__ == "__main__":
++    unittest.main()
+-- 
+2.43.0
+

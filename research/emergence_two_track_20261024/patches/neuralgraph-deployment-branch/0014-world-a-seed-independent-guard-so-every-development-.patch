@@ -1,0 +1,317 @@
+From 4402c23c219faf961612017fa5403bb3241bee95 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 12:22:27 +0000
+Subject: [PATCH 14/15] world: a seed-independent guard, so every development
+ seed can run as itself
+
+check_world_counts required section 3.1's row exactly. That row records SEED 0's
+draw, so the guard refused every other seed: seeds 1-5 could only be run by
+replacing the function in-process, and every one of their results had to be
+labelled DIAGNOSTIC-guard-bypass. The guard was protecting the seed, not the
+world.
+
+Measured, dev seeds 0-5 at 200 users: users, patterns_real, gold_discoverable,
+decoys and entities are identical on every seed (the generator derives them from
+target_users and its own constants). teams, records, gold_rare and sites are
+drawn: 12,411-13,131 records, 35-40 teams, 11-21 rare, 7-8 sites.
+
+So the invariant counts are still required to equal the row exactly, and the
+drawn ones are held to the structure the benchmark needs instead:
+at least the two sites its admission rule compares, a team per site, at least
+one record per user, and no more rare patterns than planted ones. Each follows
+from the benchmark's definition, not from a band fitted to seeds 0-5.
+
+The table check is kept as table_row_diff(), reported and never enforced: the
+run's report carries table_row_diff and the log says what the draw did, so a
+run on seed != 0 is self-describing rather than refused. Seed 0 still matches
+section 3.1 exactly, and a world that misses a seed-invariant count is still
+refused.
+
+What this no longer catches is a record total off by one. That was never a
+safety property; it is a draw, and the diagnostic still reports it.
+
+Also repaired, both broken by the archived patch series not carrying their
+documentation half (they failed before this change, on the re-applied patches
+alone):
+
+- E2E-INGEST.md M13 narrated the pre-re-pin spike hash while report.py carried
+  0e05bc00...; the brief now records all four deliberate re-pins. The value is
+  verified, not asserted: run.spike_code_hash() computes
+  0e05bc00d1cf28ea80ec8e027391585f8312cdd5d84583d63d4fd5860fbeccc8 over 142
+  files on this tree, which is what c7 checks.
+- E2ESiteProcess.__init__ carried an inline comment the parent's line does not,
+  so "replaces step 5 only" failed on a comment. The comment moved to the class
+  docstring; the child's step 4 is now the parent's line for line.
+
+Suite floor raised 157 -> 159 deliberately (two tests added).
+
+tests/e2e_ingest: 140 passed / 3 failed before, 143 passed after; the 16
+remaining errors are the Live* tests, which need a real nats-server binary that
+this container does not have.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01LhCvWQ3y4pbqgDonDGhVkv
+---
+ docs/collective/E2E-INGEST.md            |  6 +++
+ research/e2e_ingest/emergence_world.py   | 56 ++++++++++++++++++++++--
+ research/e2e_ingest/harness.py           |  4 ++
+ research/e2e_ingest/site_graph.py        |  8 +++-
+ research/e2e_ingest/suites.py            |  4 +-
+ tests/e2e_ingest/test_emergence_world.py | 44 +++++++++++++++++--
+ tests/e2e_ingest/test_workflow.py        |  2 +-
+ 7 files changed, 111 insertions(+), 13 deletions(-)
+
+diff --git a/docs/collective/E2E-INGEST.md b/docs/collective/E2E-INGEST.md
+index e60bb93..0dbd45e 100644
+--- a/docs/collective/E2E-INGEST.md
++++ b/docs/collective/E2E-INGEST.md
+@@ -824,6 +824,12 @@ settings table records the hash at `e3052c0`, `22dc1aba...fb55cd` in full above,
+ (rule 4, `LOOP-48H.md:85`): the run fails, and this value is not amended without naming the commit that changed a
+ pinned file and why.
+ 
++Four deliberate re-pins have followed, each naming the pinned files it changed: `22dc1aba...fb55cd` ->
++`40f2d713...` (near-duplicate roots and N1) -> `4352c2cf...` (their hardening) -> `a2147634...` (N2:
++`gate.py`, `loader.py`) -> `0e05bc00d1cf28ea80ec8e027391585f8312cdd5d84583d63d4fd5860fbeccc8` over `142` files
++(rule_snapshots: `detectors.py`, `loader.py`), which is what `report.SPIKE_CODE_HASH` carries and what c7
++asserts today. The narration above records the state at `e3052c0` and stays historical.
++
+ **M14. The measure job's budgets summed past its timeout** (section 10 scaling table, section 11 `measure`). Was: 5 +
+ 10 + 25 minutes for the three sizes, a sweep of five steps of at least 60 s, Tesseract at three node counts (20,000
+ nodes at 8.7 s per query, `HANDOFF-2026-10-09.md:145`, is about 3 minutes alone), install, and a 10-minute simulator
+diff --git a/research/e2e_ingest/emergence_world.py b/research/e2e_ingest/emergence_world.py
+index 7ce886c..083399f 100644
+--- a/research/e2e_ingest/emergence_world.py
++++ b/research/e2e_ingest/emergence_world.py
+@@ -62,6 +62,7 @@ __all__ = [
+     "ROOT", "RUN_CHANNEL", "START", "TIE_SALT", "TOP_N", "WORLD_TABLE", "EmergenceWorld", "WorldError",
+     "build_emergence_world", "build_records", "canonical_entity_id", "check_world_counts", "entity_ids",
+     "fixed_questions", "generate", "gold_labels", "master_data", "narrative_prefixes", "ordered_candidates",
++    "SEED_DRAWN_COUNTS", "SEED_INVARIANT_COUNTS", "table_row_diff",
+     "pack_predicate", "question_for", "received_date", "record_dict", "record_ref", "records_per_site",
+     "site_configs", "site_id_of", "site_ids", "world_counts", "backup_sqlite", "restore_store",
+ ]
+@@ -220,14 +221,58 @@ def world_counts(org: Org, corpus: Corpus, gold: Gold) -> dict[str, int]:
+             "entities": len(corpus.entities)}
+ 
+ 
++#: The counts section 3.1 fixes for a size whatever the seed draws: the org's user total, the planted pattern and
++#: decoy totals, and the entity list.  The generator derives each from ``target_users`` and its own constants, so a
++#: world that misses one of these is not this benchmark's world and must be refused at any seed.
++SEED_INVARIANT_COUNTS: tuple[str, ...] = ("users", "patterns_real", "gold_discoverable", "decoys", "entities")
++
++#: The counts the draw moves: how the org falls into sites and teams, how many records the users write, and how many
++#: of the planted patterns come out rare.  Section 3.1's row records **seed 0's** draw of these, so requiring the row
++#: exactly is a guard against the seed, not against a malformed world -- it refused every seed but 0, which is why
++#: seeds 1-5 could only run as disclosed guard-bypass diagnostics.  They are checked as structure instead.
++SEED_DRAWN_COUNTS: tuple[str, ...] = ("sites", "teams", "records", "gold_rare")
++
++
++def table_row_diff(counts: Mapping[str, int], target_users: int) -> list[str]:
++    """Which of section 3.1's numbers this world does not match, as ``name: got != row`` (empty when it matches).
++
++    The historical table check, kept as a diagnostic: it says what a world's draw did, and it is reported rather
++    than enforced, so a run on a seed other than 0 is self-describing instead of refused.
++    """
++    row = WORLD_TABLE.get(target_users)
++    if row is None:
++        raise WorldError(f"no row of section 3.1 for target_users {target_users}") from None
++    return [f"{k}: {counts.get(k)} != {row[k]}" for k in sorted(row) if counts.get(k) != row[k]]
++
++
+ def check_world_counts(counts: Mapping[str, int], target_users: int) -> None:
+-    """Refuse a world whose counts are not section 3.1's row for ``target_users``."""
++    """Refuse a world that is not this size's EMERGENCE world, at any seed.
++
++    The seed-invariant counts must equal section 3.1's row exactly.  The drawn counts are held to the structure the
++    benchmark needs rather than to seed 0's numbers: at least the two sites the admission rule compares, a team for
++    each site, records to carry the evidence, and no more rare patterns than planted ones.  Each is a property of
++    the benchmark's definition, not a band fitted to the development seeds.
++
++    What this no longer catches -- a world whose record total is off by one -- was never a safety property: the
++    record total is a draw, and :func:`table_row_diff` still reports it.
++    """
+     row = WORLD_TABLE.get(target_users)
+     if row is None:
+         raise WorldError(f"no row of section 3.1 for target_users {target_users}") from None
+-    bad = sorted(k for k in row if counts.get(k) != row[k])
++    bad = sorted(k for k in SEED_INVARIANT_COUNTS if counts.get(k) != row[k])
+     if bad:
+         raise WorldError(f"world counts differ from section 3.1 at target_users {target_users}: {bad}") from None
++    missing = sorted(k for k in SEED_DRAWN_COUNTS if counts.get(k) is None)
++    if missing:
++        raise WorldError(f"world counts lack {missing} at target_users {target_users}") from None
++    if counts["sites"] < 2:
++        raise WorldError(f"a world with {counts['sites']} site(s) cannot meet the two-site admission rule") from None
++    if counts["teams"] < counts["sites"]:
++        raise WorldError(f"{counts['teams']} teams across {counts['sites']} sites: a site without a team") from None
++    if counts["records"] < counts["users"]:
++        raise WorldError(f"{counts['records']} records for {counts['users']} users: a world without evidence") from None
++    if not 0 <= counts["gold_rare"] <= counts["gold_discoverable"]:
++        raise WorldError(f"{counts['gold_rare']} rare of {counts['gold_discoverable']} discoverable patterns") from None
+ 
+ 
+ def generate(target_users: int, seed: int) -> tuple[Org, Corpus, Gold]:
+@@ -310,6 +355,8 @@ class EmergenceWorld(World):
+     corpus: Corpus | None = None
+     gold: Gold | None = None
+     counts: dict[str, int] = field(default_factory=dict)
++    #: section 3.1's row minus this world's draw, as :func:`table_row_diff` renders it; empty at seed 0
++    table_diff: list[str] = field(default_factory=list)
+     per_site_records: dict[str, int] = field(default_factory=dict)
+     entity_ids: list[str] = field(default_factory=list)
+     tie_salt: str = TIE_SALT
+@@ -335,6 +382,7 @@ def build_emergence_world(target_users: int = 200, seed: int = 0, workdir: str |
+     org, corpus, gold = generate(target_users, seed)
+     counts = world_counts(org, corpus, gold)
+     check_world_counts(counts, target_users)
++    table_diff = table_row_diff(counts, target_users)
+     pack = load_pack_dir(Path(pack_dir), expected_id=PACK_ID)
+     ids = entity_ids(corpus)
+     if set(pack.entity_types[ENTITY_TYPE].ids or ()) != set(ids):
+@@ -364,8 +412,8 @@ def build_emergence_world(target_users: int = 200, seed: int = 0, workdir: str |
+     return EmergenceWorld(seed=seed, planted=True, workdir=Path(workdir), pack=pack, pipeline=pipeline,
+                           records=records, master_data=master, site_ids=sites, weeks=list(weeks),
+                           candidates=candidates, detected=detected, labels=labels, target_users=target_users, org=org,
+-                          corpus=corpus, gold=gold, counts=counts, per_site_records=records_per_site(corpus),
+-                          entity_ids=ids, tie_salt=tie_salt)
++                          corpus=corpus, gold=gold, counts=counts, table_diff=table_diff,
++                          per_site_records=records_per_site(corpus), entity_ids=ids, tie_salt=tie_salt)
+ 
+ 
+ def fixed_questions(world: World, n: int = 20) -> list[dict[str, Any]]:
+diff --git a/research/e2e_ingest/harness.py b/research/e2e_ingest/harness.py
+index bd7f964..78eb09a 100644
+--- a/research/e2e_ingest/harness.py
++++ b/research/e2e_ingest/harness.py
+@@ -405,6 +405,8 @@ class E2ERun:
+             "weeks": len(world.weeks), "node_granularity": "site", "site_ids": list(world.site_ids),
+             "as_of": world.as_of, "pack_id": world.pack.id, "pack_hashes": world.pack.hashes(),
+             "expected_counts": dict(ew.WORLD_TABLE[o.world]), "records_per_site": dict(world.per_site_records),
++            # section 3.1's row is seed 0's draw; on any other seed the differences are reported, not enforced
++            "table_row_diff": list(world.table_diff),
+             "fraction_of_benchmark": {
+                 "users_vs_10k": counts["users"] / BENCHMARK_10K[0],
+                 "records_vs_10k": counts["records"] / BENCHMARK_10K[1],
+@@ -413,6 +415,8 @@ class E2ERun:
+             **counts}
+         self.log(f"world: {counts['users']} users, {counts['sites']} sites, {counts['records']} records; "
+                  f"{detected} snapshot candidates, {len(self.candidates)} asked; run {self.run_id_detection}")
++        if world.table_diff:
++            self.log(f"world: this seed's draw differs from section 3.1's row (seed 0's): {'; '.join(world.table_diff)}")
+         done()
+ 
+     def pristine_copies(self) -> None:
+diff --git a/research/e2e_ingest/site_graph.py b/research/e2e_ingest/site_graph.py
+index ba21fcd..aff9bbf 100644
+--- a/research/e2e_ingest/site_graph.py
++++ b/research/e2e_ingest/site_graph.py
+@@ -219,14 +219,18 @@ class PersistentTesseractRetrieval(TesseractRetrieval):
+ # --------------------------------------------------------------------------------------------------- the process
+ 
+ class E2ESiteProcess(SiteProcess):
+-    """``SiteProcess`` with the persistent retrieval in step 5 and nothing else changed (M17)."""
++    """``SiteProcess`` with the persistent retrieval in step 5 and nothing else changed (M17).
++
++    Step 4 is the parent's line for line, including ``_make_runtime`` (which returns None unless ``config.routing``
++    names this site's file): the routed judge is the parent's behaviour, inherited, not a second implementation.
++    """
+ 
+     def __init__(self, config: SiteConfig) -> None:
+         self.config = config
+         self.pack = load_pack(config.pack)
+         self.clock = SiteClock(config.clock_start)
+         edge = Path(config.edge_dir)
+-        self.runtime = self._make_runtime(config, edge)     # None unless config.routing names this site's file
++        self.runtime = self._make_runtime(config, edge)
+         self.site = EdgeSite(self.pack, config.site_id, edge, runtime=self.runtime, clock=self.clock,
+                              master_data=config.master_data, hq_dir=config.hq_dir)
+         self.descriptor_bytes = canonical_bytes(wire.descriptor(config.site_id, self.pack.id, self.pack.config_hash,
+diff --git a/research/e2e_ingest/suites.py b/research/e2e_ingest/suites.py
+index d4a7dfc..2b02ccb 100644
+--- a/research/e2e_ingest/suites.py
++++ b/research/e2e_ingest/suites.py
+@@ -56,8 +56,8 @@ NEEDS_JOBS = {"core": "suites-core", "lab": "suites-lab", "e2e": "suites-e2e"}
+ NEEDS_ENV = {"suites-core": "E2E_NEEDS_SUITES_CORE", "suites-lab": "E2E_NEEDS_SUITES_LAB",
+              "suites-e2e": "E2E_NEEDS_SUITES_E2E"}
+ #: ``tests/e2e_ingest`` at this build's merge (M2: written into the settings test as a literal, may only rise;
+-#: 151 at the first build, 157 after the review's fixes).
+-E2E_INGEST_FLOOR = 157
++#: 151 at the first build, 157 after the review's fixes, 159 with the seed-independent world guard's tests).
++E2E_INGEST_FLOOR = 159
+ #: The row's counts the reader re-parses from the junit file and requires equal (``junit_bound``).
+ JUNIT_COUNTS = ("tests", "tests_distinct", "failures", "errors", "skipped", "skipped_in_scope")
+ JETSTREAM_CLASSNAME = "tests.mycelic.test_jetstream"
+diff --git a/tests/e2e_ingest/test_emergence_world.py b/tests/e2e_ingest/test_emergence_world.py
+index 07de351..b4c70e1 100644
+--- a/tests/e2e_ingest/test_emergence_world.py
++++ b/tests/e2e_ingest/test_emergence_world.py
+@@ -201,13 +201,49 @@ class WorldTableTests(unittest.TestCase):
+                 self.assertEqual(len(ew.site_ids(org)), counts["sites"])
+                 self.assertEqual(sum(ew.records_per_site(corpus).values()), counts["records"])
+ 
+-    def test_a_world_with_other_counts_is_refused(self) -> None:
+-        # the check can fail: a row with one count off, and a size the table does not fix
+-        with self.assertRaises(ew.WorldError):
+-            ew.check_world_counts({**ew.WORLD_TABLE[200], "records": 12963}, 200)
++    def test_a_world_missing_a_seed_invariant_count_is_refused(self) -> None:
++        # the counts the generator derives from the size: one off means this is not the benchmark's world
++        for key in ew.SEED_INVARIANT_COUNTS:
++            with self.subTest(count=key):
++                with self.assertRaises(ew.WorldError):
++                    ew.check_world_counts({**ew.WORLD_TABLE[200], key: ew.WORLD_TABLE[200][key] - 1}, 200)
+         with self.assertRaises(ew.WorldError):
+             ew.check_world_counts(dict(ew.WORLD_TABLE[200]), 400)
+ 
++    def test_a_structurally_impossible_world_is_refused(self) -> None:
++        # the drawn counts are held to what the benchmark needs, not to seed 0's numbers
++        row = dict(ew.WORLD_TABLE[200])
++        for broken, why in (
++            ({"sites": 1}, "one site cannot meet the two-site rule"),
++            ({"teams": 6}, "fewer teams than sites"),
++            ({"records": 308}, "fewer records than users"),
++            ({"gold_rare": 41}, "more rare patterns than planted ones"),
++        ):
++            with self.subTest(**broken):
++                with self.assertRaises(ew.WorldError, msg=why):
++                    ew.check_world_counts({**row, **broken}, 200)
++        for key in ew.SEED_DRAWN_COUNTS:
++            with self.subTest(missing=key):
++                with self.assertRaises(ew.WorldError):
++                    ew.check_world_counts({k: v for k, v in row.items() if k != key}, 200)
++
++    def test_every_development_seed_is_accepted_and_reports_its_draw(self) -> None:
++        """The repair's point: the guard refused every seed but 0, so seeds 1-5 could only run as diagnostics.
++
++        Seed 0 still matches section 3.1 exactly; the others differ only in counts the draw moves, and those
++        differences are reported by ``table_row_diff`` rather than refused.
++        """
++        for seed in range(6):
++            with self.subTest(seed=seed):
++                org, corpus, gold = ew.generate(200, seed)
++                counts = ew.world_counts(org, corpus, gold)
++                ew.check_world_counts(counts, 200)
++                diff = ew.table_row_diff(counts, 200)
++                self.assertEqual(diff == [], seed == 0, "only seed 0 is section 3.1's own draw")
++                for line in diff:
++                    self.assertIn(line.split(":")[0], ew.SEED_DRAWN_COUNTS,
++                                  "a seed-invariant count may never differ")
++
+ 
+ # --------------------------------------------------------------------------------------------------- the mapping
+ 
+diff --git a/tests/e2e_ingest/test_workflow.py b/tests/e2e_ingest/test_workflow.py
+index fed1fb0..2abf9ba 100644
+--- a/tests/e2e_ingest/test_workflow.py
++++ b/tests/e2e_ingest/test_workflow.py
+@@ -39,7 +39,7 @@ E2E_JOBS = ("e2e", "measure")
+ CLI = "python -m research.e2e_ingest"
+ #: ``pytest --collect-only tests/e2e_ingest`` at this build (M2): a literal, never derived from ``suites.py``, so
+ #: lowering ``E2E_INGEST_FLOOR`` fails here; a later build raises it together with the floor when tests are added.
+-E2E_INGEST_TESTS_AT_THIS_BUILD = 157
++E2E_INGEST_TESTS_AT_THIS_BUILD = 159
+ 
+ 
+ def section(start: str, end: str) -> str:
+-- 
+2.43.0
+

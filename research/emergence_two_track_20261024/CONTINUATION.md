@@ -124,3 +124,31 @@ For the fail-before, apply only the patch's test file.
   probes put class 5 at a 53:60 vs 15:240 refutation asymmetry and argue class 2 is not separable through the
   permitted interface. **Those two numbers are an agent's measurement, not re-run here**; the class-2 argument
   rests on `pack_predicate()`, `vocabulary.json` and `VERDICT_KEYS`, which are checkable.
+
+## 8. Type-2 (temporal scramble): measured, and the naive check does not ship
+
+Dev seeds 0–5, offline over the generator's own records; no run, no labels used as input to the check.
+
+**Separability of the evidence (holds).** 60/60 type-2 decoys have at least one site holding records from ≥2
+distinct chain stages; real patterns 152/240 (63.3%). Stage identity is recoverable without the generator: the
+pack lexicon lists three phrases per stage in causal order (`vocabulary.json` `predicates.<chain>.lexicon.en`;
+positions [0,3,6,9,12] for 5 of 7 chains, the other two ending in the separate `revenue_miss` predicate), and
+`PRED_SURFACE`'s 150 phrases are pairwise unambiguous, so text → stage is exact.
+
+**Usability of the check (fails as specified).** Scope decides everything:
+
+| Verifier's input | real flagged | decoy2 flagged |
+|---|---|---|
+| the pattern's own facet records, whole horizon (oracle view) | 1/240 = 0.4% | 60/60 |
+| every record on (anchor, chain), whole horizon | 112/240 = 46.7% | 60/60 |
+| **records on the key inside the 6-week question window, at the week the system asks** | **18/240 = 7.5%** | **2/60 = 3.3%** |
+| the same, at the best week of the label window | 61/240 = 25.4% | 60/60 |
+
+Requiring a majority of visible stage pairs to be inverted (rather than any pair) does not rescue it at the asked
+week: at the first week it fires on **0/60** type-2 decoys at every threshold (100%, ≥75%, ≥50%) and on 4.6–5.8%
+of real patterns. At the best week it reaches 78–100% on type 2 against 15–18% on real.
+
+**Conclusion.** The inversion is not visible yet when the system asks. The check is only worth its false-reject
+cost *paired with asking later* (v5 timer or v5b ask-when-ready); alone it is strictly harmful. Type 5 is a
+different mechanism — the facets are retracted later (`corpus.py:637-640`), so what catches it is the negative
+polarity records, not order: with positives only, detection on type 5 falls from 60/60 to 7/60.
