@@ -55,3 +55,22 @@ completed and is preserved under `raw/official_ce0e357/`.
 **The number:** official, dev seeds 0–5, code `ce0e357`, drills on, every check green on every seed —
 **93/240 = 0.3875 recall, 118/300 decoys accepted, 341 questions, 3 background-supported conclusions.**
 All six seeds are official; previously only seed 0 could be, which is what the seed-guard repair changed.
+
+
+## 2026-10-24 — tick 3 (orchestrator; engineer result folded in)
+
+Change since tick 2: an engineer's freshness investigation (no code change, no commit in the shared branch) and
+§9 of CONTINUATION.md.
+
+| # | Item | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Reproducibility | **PASS** | The engineer's class-5 ceiling of 30/60 for the shipped source is confirmed independently by our official baseline: `BASELINE_SEEDS_0-5.csv` type-5 column sums to exactly 30. Its gate/oracle parity sweep is a scratch script, not a committed test — see the FAIL below. |
+| 2 | Traceability | **PASS** | Every claim in §9 carries file:line or a report path; the two figures quoted from `EMERGENCE_ROOT_CAUSE_REPORT.md` are marked as quoted, not re-run. |
+| 3 | Labelling | **PASS** | The engineer's measurement is labelled a proxy (world + pipeline + detection, no site verifiers, no judge, no fabric), not an e2e run. |
+| 4 | Invariants | **PASS** | No change committed; no pinned file touched, so `SPIKE_CODE_HASH` is unaffected. |
+| 5 | Cost columns | **PASS** | Unchanged from tick 2. |
+| 6 | Budget matching | **N/A** | No lever result yet. |
+
+**Result: no FAIL, one item owed.** The gate/oracle freshness parity has no regression guard: the oracle pins 42
+as a literal and the gate reads it from the pack, and nothing asserts they agree. Small test, worth adding before
+either session changes a freshness value.

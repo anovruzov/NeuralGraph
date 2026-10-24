@@ -152,3 +152,38 @@ of real patterns. At the best week it reaches 78–100% on type 2 against 15–1
 cost *paired with asking later* (v5 timer or v5b ask-when-ready); alone it is strictly harmful. Type 5 is a
 different mechanism — the facets are retracted later (`corpus.py:637-640`), so what catches it is the negative
 polarity records, not order: with positives only, detection on type 5 falls from 60/60 to 7/60.
+
+
+## 9. Type-5 (stale chain) is not a freshness problem — and the "60/60" does not hold for the shipped config
+
+An engineer traced the freshness path end to end and returned a clean negative. Findings, with the checks that
+confirm them:
+
+- **The gate does enforce the 42-day rule.** `gate.py:252-254` computes `age = as_of - week_sunday(newest)` over
+  the counted confirms and `is_stale = age > freshness_days`; the status branch at `:265-267` sits before the
+  support thresholds. A parity sweep of ages 14–55 days against the harness oracle's `expected_status`
+  (`harness.py:331-334`) gave **42 cases, 0 disagreements** — 42 days supported on both sides, 43 stale on both.
+  One latent divergence worth a guard: the oracle's threshold is the literal `FRESHNESS_DAYS = 42`
+  (`harness.py:105`) while the gate reads it from the pack (`gate.py:91`), and no test asserts the two are equal.
+- **A `stale` verdict is published, not suppressed** (`hq_bridge.py:246-250`, `:329-343` have no status filter);
+  what it suppresses is acceptance, since only `supported` counts (`harness.py:1293`).
+- **Type-5 decoys are fresh when they are asked, by construction.** The facets land in the first half of the
+  horizon and the retraction follows **30–70 days later** (`corpus.py:674-690`, the offset at `:680`). At the first
+  rule week the retraction has not happened. Measured over dev seeds 0–5: the 27 rule-sourced snapshots have ages
+  20/27/34/41 days — **none stale**.
+- **So a freshness change cannot move class 5.** What makes a stale chain acceptable is that a confirm ignores
+  retractions (`verify.py:251-254`), the gate contests only on a *contributing* refute (`gate.py:250`), and each
+  key is asked once. The fix is retraction-awareness in the verifier, and it is not free: the root-cause report's
+  own count says that contest rule would also contest 6 of the 13 found real patterns.
+- **The "type 5 saturated at 60/60" figure does not hold for the shipped candidate source.** The engineer's
+  ceiling there is at most 30/60 (27 keys never asked), and **our official six-seed baseline accepts exactly
+  30/300 type-5 decoys** (per seed 3, 5, 7, 6, 3, 6) — an independent confirmation. 60/60 is a *v4
+  rule_snapshots* figure, where the same analysis puts the ceiling at 57/60.
+
+### The two decoy classes fail for the same reason the rare patterns do
+
+Type 2's inversion is not inside the 6-week window at the week the system asks (0/60 fire there, §8). Type 5's
+retraction has not arrived at the week the system asks. Both become visible later in the window, and so does the
+evidence for 37 of the 76 rare misses. **Asking once, early, is simultaneously the recall bottleneck and the
+reason both decoy classes are invisible.** That makes ask-when-ready (the Gate-0 session's v5b) the lever that
+both verifier checks depend on, rather than an alternative to them.
