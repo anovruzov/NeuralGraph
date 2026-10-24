@@ -92,21 +92,28 @@ CODE_HASHES = {"X1": "e7d5d82e3b9805358718b5927b6cca89bb4912c733fccd7f14c89f61a9
 # x5_attacks.py and x5_inference.py after B4b; effort.json keeps the hashes B4b recorded
 X5_CODE_HASH_R4 = "73a4e487727a7e665301d499a7d5d9c66f7a9b90c81e1445a72ce9bd49d03516"
 # The live-code pin: unlike CODE_HASHES, which reads what effort.json recorded and so never drifts, this one
-# hashes the working tree and must be re-pinned by hand every time the code under it deliberately moves.  Its
-# name carries the change that last moved it.  R002 (ModelExtractor.postprocess re-attaches a predicate whose
-# entity cannot be used, and E1 keeps raw replies) and the G0 planter's reserved strings changed extract.py,
-# e1_extract.py, leakage.py and g0_canary.py after audit round 4.  EMERGENCE-Next's Track B v4 then changed
-# detect/detectors.py (opt-in rule_snapshots), pushdown/gate.py (N1 weak corroboration, N2 roots only from
-# k-root sites) and packs/loader.py -- and EVAL_CODE_FILES globs detect/, edge/, packs/ and evaluate/ while E2,
-# openfda_replay and X5 add pushdown/, so all five moved at once.
-# **This pin and report.SPIKE_CODE_HASH cover overlapping globs and must be re-pinned together.**  They were
-# not: SPIKE_CODE_HASH was re-pinned at b7b1a18, 8981505 and d88c150 and this one at none of them, so
-# tests/mycelic was red for the whole of that work and no run on the branch could have been suites-green.
-LIVE_CODE_HASHES_TB_V4 = {"X1": "150ae5fa432a05d53a64fbfcef8adbbc3b859f3873ec22630e36a13cb7231c49",
-                          "E1": "172231c8bfa6abd538a12f1297729b92ce9dfd5680768310094876d97e1700ff",
-                          "E2": "f8e866ae87f89c1fbb1dbe6035b43ad6e44bcfefd1abe12ecaa5b6808748ee8d",
-                          "openfda_replay": "643011d7b327ed612e743df0df8a011e735746bf5f83219c29653b9e4ea053eb",
-                          "X5": "9ee8fa5b0aea7bd0a07731feff30affc371c265518b548a405b756310a07e18b"}
+# hashes the working tree and must be re-pinned by hand every time the code under it deliberately moves.
+#
+# **IT IS STALE ON PURPOSE AND THIS TEST IS RED ON PURPOSE.**  The founders' decision of 2026-10-24 is to
+# preserve the failing evidence, document which intentional change invalidated each digest, and re-pin only on
+# a validated tree under review.  The ledger is in research/emergence_two_track_20261024/PIN_LEDGER.md; the
+# values a re-pin would write are recorded there, not here.  Do not make this green to make it green.
+#
+# What moved it: R002 (ModelExtractor.postprocess re-attaches a predicate whose entity cannot be used, and E1
+# keeps raw replies) and the G0 planter's reserved strings changed extract.py, e1_extract.py, leakage.py and
+# g0_canary.py after audit round 4.  EMERGENCE-Next's Track B v4 then changed detect/detectors.py (opt-in
+# rule_snapshots), pushdown/gate.py (N1 weak corroboration, N2 roots only from k-root sites) and
+# packs/loader.py -- and EVAL_CODE_FILES globs detect/, edge/, packs/ and evaluate/ while E2, openfda_replay
+# and X5 add pushdown/, so all five moved at once.
+#
+# This pin and report.SPIKE_CODE_HASH cover overlapping globs.  Whether they enforce distinct integrity
+# requirements, or one should be derived from the other, is an open question in PIN_LEDGER.md -- neither is to
+# be deleted before it is answered.
+LIVE_CODE_HASHES_R002 = {"X1": "07c7622705f2210023c79ea345df99c0ad960026addfa246aeda7d6e5353afc4",
+                         "E1": "f7c85e760e798970e19254be7326304be009024863a7411109d78af0ee029ed4",
+                         "E2": "58b6652642cc9a4763d0497b4d516bb1032cc3536ef4d3d87a5ca972dcb8dd34",
+                         "openfda_replay": "2c9ca04bcd079ed19d5b4ea44f9848c545bc35cf830e8348748ab496edaa045e",
+                         "X5": "3e8be5fef9f029176a28f6595c980379b72514075a3f7860121ea25c01c8a155"}
 EFFORT_KEYS = ("attempts", "base_commit", "code_files_changed", "code_hashes", "code_lines_changed", "code_numstat",
                "demo_lint", "diff_method", "docs_lines_added", "evidence", "files", "fit_to_code_choices",
                "fixture_disagreements", "fixture_lexical_f1", "gaps", "kind", "logic_gaps", "presentation_gaps",
@@ -891,9 +898,9 @@ class EvidenceTests(unittest.TestCase):
     def test_the_code_hashes_are_the_pinned_ones(self) -> None:
         self.assertEqual({"X1": H.eval_code_hash(), "E1": e1_extract.e1_code_hash(), "E2": e2_pushdown.e2_code_hash(),
                           "openfda_replay": openfda_replay.replay_code_hash(), "X5": x5_inference.x5_code_hash()},
-                         LIVE_CODE_HASHES_TB_V4)
+                         LIVE_CODE_HASHES_R002)
         self.assertNotEqual(X5_CODE_HASH_R4, CODE_HASHES["X5"])
-        self.assertTrue(all(LIVE_CODE_HASHES_TB_V4[k] != CODE_HASHES[k] for k in CODE_HASHES))
+        self.assertTrue(all(LIVE_CODE_HASHES_R002[k] != CODE_HASHES[k] for k in CODE_HASHES))
         self.assertEqual(effort()["code_hashes"], CODE_HASHES)
 
     def test_no_absolute_path_forbidden_string_or_model_name_in_x3_or_the_pack(self) -> None:
@@ -1112,23 +1119,25 @@ class PointerTests(unittest.TestCase):
 
 
 class LiveCodePinTests(unittest.TestCase):
-    """Every pin that hashes the **working tree**, in one place.
+    """Every pin that hashes the **working tree**, in one place, and which of them are knowingly stale.
 
     This repository keeps two kinds of pinned digest.  One reads a committed artifact (``CODE_HASHES`` from
-    ``effort.json``) and cannot drift.  The other hashes the live code, and silently rots the moment the code
-    under it moves on purpose -- which is the whole point of it, but only if every such pin is re-pinned in the
-    same commit.
+    ``effort.json``) and cannot drift.  The other hashes the live code, and goes stale the moment the code under
+    it moves on purpose -- which is the point of it, but only if every such pin is re-pinned in the same commit.
 
-    Three of them have now gone stale separately on one branch: ``DETECT_SHA256`` (repaired at ce0e357),
-    ``LIVE_CODE_HASHES_TB_V4`` (this file, repaired here), and neither time did the commit that re-pinned
-    ``report.SPIKE_CODE_HASH`` touch the others.  A branch can therefore be red for days while every run on it
-    reports ``checks_pass: true``, because the runs that found it were the ones nobody ran.
+    Three went stale separately on one branch and each was found by a different accident.  So this test names
+    all of them and asserts the *set* of stale ones is exactly ``KNOWN_STALE``.  A fourth pin going stale fails
+    here.  A stale pin being repaired also fails here, until its row leaves ``KNOWN_STALE`` and the ledger.
 
-    So: one test that names them all.  A new live-code pin belongs in this list, not only beside its own
-    constant.
+    ``LIVE_CODE_HASHES_R002`` is stale by decision, not by neglect: the evidence is being preserved until a
+    reviewed re-pin on a validated tree.  ``test_the_code_hashes_are_the_pinned_ones`` is therefore red, on
+    purpose, and is not to be made green to make it green.  See PIN_LEDGER.md.
     """
 
-    def test_every_live_code_pin_matches_the_tree_it_hashes(self) -> None:
+    #: live-code pins known to be stale, each with the ledger section that explains why it has not been repaired
+    KNOWN_STALE = {"LIVE_CODE_HASHES_R002": "PIN_LEDGER.md section 2"}
+
+    def live_pins(self) -> dict[str, tuple[Any, Any]]:
         from mycelic.collective.evaluate import harness as eval_harness
         from mycelic.collective.experiments import e1_extract, e2_pushdown, openfda_replay, x5_inference
         from tests.mycelic.test_collective_pushdown import DETECT_SHA256
@@ -1136,21 +1145,32 @@ class LiveCodePinTests(unittest.TestCase):
         from research.routing_spike.run import spike_code_files, spike_code_hash
 
         detect_dir = pathlib.Path(mycelic.collective.detect.__file__).parent
-        pins = {
+        return {
             "DETECT_SHA256": ({name: hashlib.sha256((detect_dir / name).read_bytes()).hexdigest()
                                for name in DETECT_SHA256}, dict(DETECT_SHA256)),
-            "LIVE_CODE_HASHES_TB_V4": ({"X1": eval_harness.eval_code_hash(), "E1": e1_extract.e1_code_hash(),
-                                        "E2": e2_pushdown.e2_code_hash(),
-                                        "openfda_replay": openfda_replay.replay_code_hash(),
-                                        "X5": x5_inference.x5_code_hash()}, dict(LIVE_CODE_HASHES_TB_V4)),
+            "LIVE_CODE_HASHES_R002": ({"X1": eval_harness.eval_code_hash(), "E1": e1_extract.e1_code_hash(),
+                                       "E2": e2_pushdown.e2_code_hash(),
+                                       "openfda_replay": openfda_replay.replay_code_hash(),
+                                       "X5": x5_inference.x5_code_hash()}, dict(LIVE_CODE_HASHES_R002)),
             "report.SPIKE_CODE_HASH": ({"hash": spike_code_hash(), "files": len(spike_code_files())},
                                        {"hash": rp.SPIKE_CODE_HASH, "files": rp.SPIKE_CODE_FILES}),
         }
-        for name, (live, pinned) in pins.items():
+
+    def test_the_pins_that_should_be_current_are_current(self) -> None:
+        for name, (live, pinned) in self.live_pins().items():
+            if name in self.KNOWN_STALE:
+                continue
             with self.subTest(pin=name):
                 self.assertEqual(live, pinned,
                                  f"{name} is stale: re-pin it deliberately, with the reason, in the commit that "
                                  f"moved the code -- and check the other pins in this test while you are there")
+
+    def test_exactly_the_pins_the_ledger_names_are_stale(self) -> None:
+        """Teeth on both sides: a new stale pin fails here, and so does a repaired one whose ledger row stayed."""
+        stale = {name for name, (live, pinned) in self.live_pins().items() if live != pinned}
+        self.assertEqual(stale, set(self.KNOWN_STALE),
+                         "the set of stale live-code pins has changed; update PIN_LEDGER.md and KNOWN_STALE "
+                         "together, and never by re-pinning to make this pass")
 
 
 if __name__ == "__main__":
