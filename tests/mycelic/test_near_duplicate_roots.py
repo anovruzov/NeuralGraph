@@ -58,6 +58,34 @@ class NearDuplicateRootTests(unittest.TestCase):
                    entities={"component": ["BATTERY-DOOR"]})
         self.assertEqual(self.roots((0.65, 14), [a, b])["x"], "x")
 
+    # ---- reviewer findings (round 2): no chaining, no forward window, values and polarity must agree
+    def test_roots_do_not_chain_and_do_not_depend_on_order(self) -> None:
+        a = "alpha beta gamma delta epsilon zeta eta theta"
+        b = "alpha beta gamma delta epsilon zeta iota kappa"       # ~A
+        c = "alpha beta gamma delta lambda mu iota kappa"          # ~B, not ~A
+        recs = [record(DQ, r, "s1", "2026-04-08", narrative=t, reporter=f"R{r}") for r, t in (("a", a), ("b", b), ("c", c))]
+        for order in (recs, [recs[0], recs[2], recs[1]]):
+            roots = self.roots((0.6, 14), order)
+            self.assertEqual(roots["a"], "a")
+            self.assertNotEqual(roots["c"], "a", "C must not join A through B")
+
+    def test_templated_reports_with_other_values_stay_apart(self) -> None:
+        recs = [record(DQ, "t1", "s1", "2026-04-08", narrative="SD-9 pump pressure reading 3 bar at line 3 alarm raised",
+                       reporter="R1"),
+                record(DQ, "t2", "s1", "2026-04-10", narrative="SD-9 pump pressure reading 7 bar at line 7 alarm raised",
+                       reporter="R9")]
+        self.assertEqual(self.roots((0.65, 14), recs)["t2"], "t2")
+
+    def test_a_negated_report_does_not_share_the_positive_root(self) -> None:
+        recs = self.echoes()[:1] + [record(DQ, "neg", "s1", "2026-04-09", narrative=f"[author N] :: {ECHO} not",
+                                           reporter="R7")]
+        self.assertEqual(self.roots((0.65, 14), recs)["neg"], "neg")
+
+    def test_an_earlier_dated_late_record_does_not_join_a_later_root(self) -> None:
+        new = record(DQ, "new", "s1", "2026-04-20", narrative=f"[author A] :: {ECHO}", reporter="R1")
+        old = record(DQ, "old", "s1", "2026-04-15", narrative=f"[author B] :: {ECHO}", reporter="R2")
+        self.assertEqual(self.roots((0.65, 14), [new, old])["old"], "old")
+
     def test_pack_setting_is_opt_in_and_validated(self) -> None:
         self.assertIsNone(DQ.egress.near_duplicate_roots)
         self.assertEqual(pack_copy(self.tmp, "device_quality").config_hash, DQ.config_hash)

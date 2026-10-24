@@ -271,8 +271,12 @@ def evaluate(pack: "FrozenPack", question: Any, routes: Mapping[str, str], recor
         n += len(corroborating)
         status_reasons = []
         if n < params.min_confirming_sites:
-            status_reasons.append(f"hypothesis: {n} confirming site(s) with at least {k} records; "
-                                  f"min_confirming_sites is {params.min_confirming_sites}")
+            status_reasons.append(
+                f"hypothesis: {n} confirming site(s) with at least {k} records; "
+                f"min_confirming_sites is {params.min_confirming_sites}" if not corroborating else
+                f"hypothesis: {n - len(corroborating)} confirming site(s) with at least {k} records and "
+                f"{len(corroborating)} corroborating with fewer (N1); min_confirming_sites is "
+                f"{params.min_confirming_sites}")
         if roots_lb < params.min_independent_roots:
             status_reasons.append(f"hypothesis: independent roots, lower bound {roots_lb}; "
                                   f"min_independent_roots is {params.min_independent_roots}")
@@ -308,7 +312,8 @@ def evaluate(pack: "FrozenPack", question: Any, routes: Mapping[str, str], recor
     support = {"confirming_sites": confirming, "weak_confirming_sites": weak,
                "refuting_contributing": refuting_contributing, "refuting_siblings": refuting_siblings,
                "unknown_sites": unknown, "roots_lb": roots_lb, "reporters_lb": reporters_lb, "support_lb": support_lb,
-               "newest_week": newest, "truncated_sites": truncated}
+               "newest_week": newest, "truncated_sites": truncated,
+               **({"corroborating_sites": corroborating} if params.weak_corroborating_sites else {})}
     freshness = {"newest_week": newest, "age_days": age, "freshness_days": params.freshness_days, "stale": is_stale}
     checks = {"authorization": True, "schema": True, "provenance": bool(confirming), "temporal": not is_stale,
               "support": status == "supported"}

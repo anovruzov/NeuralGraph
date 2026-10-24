@@ -49,6 +49,7 @@ class N1Tests(unittest.TestCase):
         self.assertEqual(pack_copy(self.tmp, "device_quality").config_hash, DQ.config_hash)
         result = self.gate(DQ, [full("s1"), weak("s2")])
         self.assertEqual(result.status, "hypothesis")
+        self.assertNotIn("corroborating_sites", result.to_dict()["support"])
         self.assertIn("s2 confirms with fewer than 3 records (not counted)", result.reasons)
 
     def test_n1_is_a_different_pack(self) -> None:
@@ -60,6 +61,8 @@ class N1Tests(unittest.TestCase):
         self.assertEqual(result.status, "supported", result.reasons)
         self.assertIn("supported under N1: s2 corroborate with fewer than 3 records", result.reasons)
         self.assertEqual(result.to_dict()["support"]["roots_lb"], 3)          # the k-record site's alone
+        self.assertEqual(result.to_dict()["support"]["corroborating_sites"], ["s2"])
+        self.assertEqual(result.to_dict()["support"]["confirming_sites"], ["s1"])
 
     def test_n1_never_supports_without_a_k_record_site(self) -> None:
         result = self.gate(self.n1, [weak("s1", self.n1), weak("s2", self.n1), weak("s3", self.n1)])
