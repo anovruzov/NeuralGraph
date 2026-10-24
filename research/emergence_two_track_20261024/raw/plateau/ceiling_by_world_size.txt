@@ -1,0 +1,20 @@
+# python3.11 tools/plateau/ceiling_scale.py <size> 0,1,2,3,4,5   (PYTHONPATH=$EMERGENCE_RULE); v4 gate model of tools/plateau/ceiling_b.py
+SIZE 600 F R0_full  all 156/240=0.650 rare 9/93=0.097
+SIZE 600 F TB_v4    all 181/240=0.754 rare 34/93=0.366
+SIZE 600 K R0_full  all 166/240=0.692 rare 19/93=0.204
+SIZE 600 K TB_v4    all 204/240=0.850 rare 57/93=0.613
+SIZE 600 B R0_full  all 168/240=0.700 rare 21/93=0.226
+SIZE 600 B TB_v4    all 212/240=0.883 rare 65/93=0.699
+SIZE 2000 F R0_full  all 154/240=0.642 rare 8/92=0.087
+SIZE 2000 F TB_v4    all 177/240=0.738 rare 29/92=0.315
+SIZE 2000 K R0_full  all 186/240=0.775 rare 38/92=0.413
+SIZE 2000 K TB_v4    all 228/240=0.950 rare 80/92=0.870
+SIZE 2000 B R0_full  all 189/240=0.787 rare 41/92=0.446
+SIZE 2000 B TB_v4    all 231/240=0.963 rare 83/92=0.902
+SIZE 10000 F R0_full  all 134/240=0.558 rare 1/101=0.010
+SIZE 10000 F TB_v4    all 164/240=0.683 rare 25/101=0.248
+SIZE 10000 K R0_full  all 175/240=0.729 rare 36/101=0.356
+SIZE 10000 K TB_v4    all 221/240=0.921 rare 82/101=0.812
+SIZE 10000 B R0_full  all 177/240=0.738 rare 38/101=0.376
+SIZE 10000 B TB_v4    all 223/240=0.929 rare 84/101=0.832
+SIZE 200 F TB_v4    all 179/240=0.746 (and K 199/240=0.829, B 205/240=0.854; reproduces raw/plateau/ceiling_b.json)
