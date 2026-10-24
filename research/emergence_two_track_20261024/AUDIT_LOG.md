@@ -214,3 +214,26 @@ number; it touched a claim about tests, which is exactly the class of claim this
 12. **This session:** fold the four falsifiers' verdicts into `ADVERSARIAL_REVIEW.md` when F-H5/F-H4/F-H7
     land; the earlier independent reviewer (C1–C5) was stopped by the user before reporting (confirmed 16:47Z) —
     said so in the document.
+
+---
+
+## 2026-10-24 — tick 9 (on time; the wave-2 audit; audited by the orchestrator, no agent spent)
+
+Audited: `ng-recovery` through `4b20f83` — wave 2's four falsification reports (`swarm/wave2/`),
+`WAVE_2_RESULTS.md`, `NEGATIVE_RESULT.md`, `ADVERSARIAL_REVIEW.md`, `FINAL_ANSWERS.md`, and the swarm's stop.
+The other session pushed nothing since tick 8.
+
+| # | Item | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Reproducibility | **PASS** | Each falsifier re-ran its target's pre-registered test first and reproduced it before attacking: F-H4 reproduces H4-3 to three decimals (0.731) and the official per-seed found 13/12/17/17/19/15 exactly through the replay; F-H7's replay of all 341 questions / 904 confirms reproduces every recorded status and the 93/118 per seed and per type; F-H5's rebuilt arm reproduces H5-2 (0.953 vs 0.946). Scripts and outputs copied verbatim. |
+| 2 | Traceability | **PASS** | Every kill carries its number and, where it is a code fact, its file:line (`records.py:412-420`, `verify.py:336`, `gate.py:234/240/262`). F-H7's patch is a proposal with its exact pin consequences computed, never applied. One correction made this interval: the C1–C5 reviewer was "stopped by the user", not "presumed lost" — the document and tick 8's item 12 were wrong and now say so. |
+| 3 | Labelling | **PASS** | `NEGATIVE_RESULT.md` labels the one surviving item "alive at replay level only" and "not the hypothesis H4 promoted"; the TB_v4 figures under `nd` are called "model numbers"; H5-2 is "reclassified, not promoted". `ADVERSARIAL_REVIEW.md` separates independent verdicts (Part A) from self-attack (Part B) by name. |
+| 4 | Invariants | **PASS** | No seed outside 0–5 in any wave-2 output; 2,000-user worlds use dev seeds. No pin changed; F-H7 computed what a re-pin would write and left it in the ledger's hands. `git status` clean in every tree every falsifier touched. Sealed seeds untouched. |
+| 5 | Cost columns | **PASS** | Wave 2: four agents, 934K tokens, 573–1,498 s wall. The swarm's total: 14 agents, ~3.0M tokens. The arena run started from the console reports questions/decoys/found beside its verdict. |
+| 6 | Budget matching | **PASS** | The control rule was applied as written: zero survivors → sentence B → stop at 14 of 24. No wave 3 was spawned on the replay-level reorder, because it does not answer the swarm's question and its table is label-fitted; it is handed on as one budget-matched e2e arm against rule-first (128), with a label-free variant required alongside. |
+
+**Result: 0 FAIL.** The swarm closed by its own rule. The three decisions that remain are the founders': the
+reorder arm (and the labels-select ruling it needs), the disclosure invariant, and the re-pin.
+
+Note on cadence: nothing is in flight. Until the per-wave cadence (owed 11) is agreed or the auditor is stood
+down, ticks will be one-line "no change" entries.
