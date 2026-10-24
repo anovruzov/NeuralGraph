@@ -141,6 +141,10 @@ _TEMPLATE_KEYS = ("text", "entity_types", "predicates")
 _QUESTIONS_KEYS = ("templates", "pushdown")
 _PUSHDOWN_KEYS = ("min_confirming_sites", "min_independent_roots", "min_independent_reporters", "freshness_days",
                   "max_sibling_sites")
+#: optional pushdown keys; a pack without them has the bytes, the config hash and the gate of before.
+#: ``weak_corroborating_sites`` (EMERGENCE-Next protocol N1, research only): how many sites that confirm with fewer than
+#: k records (the ``<k`` bucket they already send) may stand in for missing k-record sites, never for all of them.
+_PUSHDOWN_OPTIONAL = {"weak_corroborating_sites": 0}
 _FOLLOWUP_KEYS = ("label", "tier", "enabled", "executor", "args_schema", "draft_schema", "template", "owner_role",
                   "daily_cap", "ack_days", "escalate_to_role")
 _ARG_KEYS = MappingProxyType({"entity_id": ("kind", "entity_type"), "predicate": ("kind",), "conclusion_id": ("kind",),
@@ -312,6 +316,7 @@ class PushdownConfig:
     min_independent_reporters: int
     freshness_days: int
     max_sibling_sites: int
+    weak_corroborating_sites: int = 0
 
 
 @dataclass(frozen=True)
@@ -569,6 +574,7 @@ S_TEMPLATE = _schema(_closed({"text": _string(1, 400), "entity_types": {"type": 
 S_PUSHDOWN = _schema(_closed({
     "min_confirming_sites": _int(1, 100), "min_independent_roots": _int(1, 100000),
     "min_independent_reporters": _int(1, 100000), "freshness_days": _int(1, 3660), "max_sibling_sites": _int(0, 100)}))
+S_PUSHDOWN_OPTIONAL = {"weak_corroborating_sites": _int(0, 10)}
 S_ROLE = _schema(_closed({"label": _LABEL120}))
 S_FOLLOWUP_SCALARS = _schema(_closed({
     "label": _LABEL120, "tier": _string(1, 8), "enabled": _BOOL,
@@ -1083,11 +1089,16 @@ def _questions(b: _Build, egress: Egress) -> tuple[dict[str, QuestionTemplate], 
     for t in egress.egress_entity_types:
         if not any(t in tpl.entity_types and tpl.predicates is None for tpl in out.values()):
             raise PackError(f, "$.templates", f"egress entity type {t} has no template with predicates null") from None
-    pushdown = _object(f, "$.pushdown", raw["pushdown"], _PUSHDOWN_KEYS)
+    raw_pd = raw["pushdown"]
+    optional = {key: raw_pd[key] for key in _PUSHDOWN_OPTIONAL if isinstance(raw_pd, dict) and key in raw_pd}
+    pushdown = _object(f, "$.pushdown", {key: v for key, v in raw_pd.items() if key not in optional}
+                       if isinstance(raw_pd, dict) else raw_pd, _PUSHDOWN_KEYS)
     _check(f, "$.pushdown", pushdown, S_PUSHDOWN)
+    for key, value in optional.items():
+        _check(f, f"$.pushdown.{key}", value, _schema(S_PUSHDOWN_OPTIONAL[key]))
     if pushdown["freshness_days"] < egress.close_lag_days + 7:
         raise PackError(f, "$.pushdown.freshness_days", "must be at least egress.close_lag_days + 7") from None
-    return out, PushdownConfig(**{key: pushdown[key] for key in _PUSHDOWN_KEYS})
+    return out, PushdownConfig(**{key: pushdown[key] for key in _PUSHDOWN_KEYS}, **optional)
 
 
 def _arg_schema(b: _Build, spec: Mapping[str, Any]) -> dict[str, Any]:

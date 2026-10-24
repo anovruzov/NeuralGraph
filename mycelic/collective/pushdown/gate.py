@@ -80,6 +80,7 @@ class GateParams:
     min_independent_reporters: int
     freshness_days: int
     close_lag_days: int
+    weak_corroborating_sites: int = 0       # EMERGENCE-Next N1; 0 is the shipped gate (R0)
 
     @classmethod
     def from_pack(cls, pack: "FrozenPack") -> "GateParams":
@@ -87,13 +88,14 @@ class GateParams:
         return cls(k=pack.egress.k, labels=verdict_buckets(pack), min_confirming_sites=pd.min_confirming_sites,
                    min_independent_roots=pd.min_independent_roots,
                    min_independent_reporters=pd.min_independent_reporters, freshness_days=pd.freshness_days,
-                   close_lag_days=pack.egress.close_lag_days)
+                   close_lag_days=pack.egress.close_lag_days, weak_corroborating_sites=pd.weak_corroborating_sites)
 
     def to_dict(self) -> dict[str, Any]:
         return {"k": self.k, "labels": list(self.labels), "min_confirming_sites": self.min_confirming_sites,
                 "min_independent_roots": self.min_independent_roots,
                 "min_independent_reporters": self.min_independent_reporters, "freshness_days": self.freshness_days,
-                "close_lag_days": self.close_lag_days}
+                "close_lag_days": self.close_lag_days,
+                **({"weak_corroborating_sites": self.weak_corroborating_sites} if self.weak_corroborating_sites else {})}
 
 
 @dataclass(frozen=True)
@@ -247,6 +249,7 @@ def evaluate(pack: "FrozenPack", question: Any, routes: Mapping[str, str], recor
 
     # ---- status
     status_reasons: list[str]
+    corroborating: list[str] = []
     if refuting_contributing:
         status = "contested"
         status_reasons = [f"contested: contributing site {site} refutes" for site in refuting_contributing]
@@ -259,6 +262,13 @@ def evaluate(pack: "FrozenPack", question: Any, routes: Mapping[str, str], recor
                           f"before {as_of}"]
     else:
         n = len(confirming)
+        # N1: sites confirming with fewer than k records (the <k bucket, already sent) may stand in for missing
+        # k-record sites, up to weak_corroborating_sites of them, and only beside at least one k-record site.
+        # They add nothing to roots, reporters, support or freshness, which stay over the k-record sites alone.
+        weak_from_sites = sorted(u["site"] for u in used if u["source"] == "site" and u["verdict"] == "confirm"
+                                 and latest[u["site"]].body["support_bucket"] == SUPPRESSED)
+        corroborating = weak_from_sites[:params.weak_corroborating_sites] if n >= 1 else []
+        n += len(corroborating)
         status_reasons = []
         if n < params.min_confirming_sites:
             status_reasons.append(f"hypothesis: {n} confirming site(s) with at least {k} records; "
@@ -275,12 +285,16 @@ def evaluate(pack: "FrozenPack", question: Any, routes: Mapping[str, str], recor
             status = "supported"
             status_reasons = [f"supported: {n} confirming sites; independent roots, lower bound {roots_lb}; "
                               f"independent reporters, lower bound {reporters_lb}"]
+            if corroborating:
+                status_reasons.append(f"supported under N1: {', '.join(corroborating)} corroborate with fewer than "
+                                      f"{k} records")
 
     # ---- notes
     notes = [f"{site} answered again; the latest verdict is used" for site in superseded]
     notes += [f"not observed at {site} (sibling refutes; scoped negative evidence)" for site in refuting_siblings]
     notes += [f"sibling {site} confirms (counted as support)" for site in confirming if routes[site] == "sibling"]
-    notes += [f"{site} confirms with fewer than {k} records (not counted)" for site in weak]
+    notes += [f"{site} confirms with fewer than {k} records (not counted)" for site in weak
+              if site not in corroborating]
     notes += [f"{site} judged a truncated subset (verify_max_records)" for site in truncated]
     for site in unknown:
         body = latest[site].body
