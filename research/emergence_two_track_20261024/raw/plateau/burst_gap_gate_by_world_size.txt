@@ -1,0 +1,13 @@
+# python3.11 tools/plateau/burst_gate.py <size> 0,1,2,3,4,5  (PYTHONPATH=$EMERGENCE_RULE)
+STRUCT 200 count   patterns 198/240=0.825 rare 61/103  decoys 219/300 (1:15/60 2:59/60 3:28/60 4:57/60 5:60/60)  background 173/1800=0.096
+STRUCT 200 burst3  patterns 170/240=0.708 rare 50/103  decoys 183/300 (1:13/60 2:54/60 3:16/60 4:53/60 5:47/60)  background 119/1800=0.066
+STRUCT 200 burst4  patterns 163/240=0.679 rare 44/103  decoys 183/300 (1:13/60 2:54/60 3:16/60 4:53/60 5:47/60)  background 91/1800=0.051
+STRUCT 200 gap21   patterns 137/240=0.571 rare 35/103  decoys 107/300 (1:0/60 2:2/60 3:0/60 4:50/60 5:55/60)  background 7/1800=0.004
+STRUCT 2000 count   patterns 228/240=0.950 rare 80/92  decoys 270/300 (1:46/60 2:60/60 3:48/60 4:59/60 5:57/60)  background 1258/1800=0.699
+STRUCT 2000 burst3  patterns 169/240=0.704 rare 41/92  decoys 209/300 (1:27/60 2:55/60 3:32/60 4:53/60 5:42/60)  background 531/1800=0.295
+STRUCT 2000 burst4  patterns 154/240=0.642 rare 34/92  decoys 193/300 (1:19/60 2:54/60 3:25/60 4:53/60 5:42/60)  background 363/1800=0.202
+STRUCT 2000 gap21   patterns 175/240=0.729 rare 57/92  decoys 158/300 (1:20/60 2:29/60 3:12/60 4:49/60 5:48/60)  background 538/1800=0.299
+STRUCT 10000 count   patterns 221/240=0.921 rare 82/101  decoys 278/300 (1:49/60 2:60/60 3:49/60 4:60/60 5:60/60)  background 1249/1800=0.694
+STRUCT 10000 burst3  patterns 156/240=0.650 rare 37/101  decoys 212/300 (1:28/60 2:56/60 3:31/60 4:55/60 5:42/60)  background 512/1800=0.284
+STRUCT 10000 burst4  patterns 138/240=0.575 rare 28/101  decoys 196/300 (1:21/60 2:55/60 3:24/60 4:54/60 5:42/60)  background 338/1800=0.188
+STRUCT 10000 gap21   patterns 170/240=0.708 rare 60/101  decoys 174/300 (1:23/60 2:25/60 3:21/60 4:51/60 5:54/60)  background 723/1800=0.402

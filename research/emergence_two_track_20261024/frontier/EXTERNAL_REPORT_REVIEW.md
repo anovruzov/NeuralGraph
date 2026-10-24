@@ -63,3 +63,26 @@ stages in plausible order by chance. **Rejected as a scale fix.** Caveat: non-pl
 Next hypotheses to falsify the same way: consecutive stages within a bounded time gap (the generator spaces facets by
 days); the same event confirmed by several distinct reporters (roots vs reports); per-stage bursts relative to the
 key's own baseline. Each must be site-visible or state what new field it needs to export.
+
+## Second round: reporters, bounded gaps, bursts (all rejected as scale fixes)
+
+- **Same event confirmed by several reporters: rejected by inspection.** Planted facet records are each their own event
+  (1.0 reports per event); background chain records share events (7.2 reports/event at 200 users, 1.5 at 10K).
+  Multi-reporter confirmation selects echoes, not patterns. Planted facets are also not always in time order (one 10K
+  pattern: days 57, 73, 91, 75), which is part of why the stage-order gate cost recall.
+- **Bounded-gap stages and key-relative bursts** (`tools/plateau/burst_gate.py`,
+  `raw/plateau/burst_gap_gate_by_world_size.txt`; on top of the count gate; burst = Poisson excess of the window over the
+  key's own prior weeks only, never future weeks):
+
+| Gate | 200 users: patterns / non-planted keys passing | 2,000 | 10,000 |
+|---|---|---|---|
+| count | 0.825 / 9.6% | 0.950 / 69.9% | 0.921 / 69.4% |
+| gap21 (≥3 consecutive stages ≤21 days apart) | 0.571 / **0.4%** | 0.729 / 29.9% | 0.708 / 40.2% |
+| burst z≥3 | 0.708 / 6.6% | 0.704 / 29.5% | 0.650 / 28.4% |
+| burst z≥4 | 0.679 / 5.1% | 0.642 / 20.2% | 0.575 / 18.8% |
+
+**At 10K every key-level, k-safe signal measured trades recall for specificity on a frontier far below the target**:
+the best operating point still passes about one key in five with no pattern at a pattern ceiling under 0.6. Within this
+representation (per-key aggregates under k per site), 85% at 10K with a tolerable false-pass rate is not reachable.
+Untested: organisational structure of a key's reporters (pattern facets come from specific users over a few regions and
+sites; background reporters are random) — the report's hypergraph idea in the form that fits the Boundary.
