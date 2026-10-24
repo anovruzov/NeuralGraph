@@ -125,3 +125,62 @@ the v5b estimate and the §5 column, not the baseline.
 7. **Either, when the CPU is free:** the v4 replay on `ce0e357`+, which is an e2e run and outside the auditor's remit.
 8. **This session:** the freshness-parity guard now has a third literal to cover — `v5b_offline.py:23`
    `K, FRESH = 3, 42`, beside `harness.py:105` and the pack's `freshness_days`.
+
+---
+
+## 2026-10-24 — tick 6 (audited by the orchestrator directly; no agent spent, machine busy with the v4 replay)
+
+Audited shas: `ng-recovery` at `97fe49f` (fast-forwarded over `545dd12`: `837a887`, `9164290`, `ebeb031`,
+`66d4b80`, `97fe49f`), `ng-deploy` at `ce0e357`, `ng-integrity` at `research/report-integrity`.
+Scope: the frontier scale backlog queued at tick 5, plus this session's own new work.
+
+| # | Item | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Reproducibility | **PASS, with two disclosures owed** | The specificity-by-world-size claim reproduces from the committed artifact: `raw/plateau/specificity_by_world_size.txt` gives non-planted chain keys ever passing = K 173/1800 = **0.096** at 200, 1258/1800 = **0.699** at 2,000, 1249/1800 = **0.694** at 10,000. The method in `tools/plateau/specificity_scale.py` reuses `ceiling_b.gates`/`site_stats`, so it is the same gate model the ceilings use. See the two disclosures below. |
+| 2 | Traceability | **FAIL (new, mine)** | `tests/mycelic` is **red at `ce0e357`**: `test_collective_x3.py::EvidenceTests::test_the_code_hashes_are_the_pinned_ones`, 1 failed / 1734 passed / 45617 subtests, from the v4 replay's own suites step (`runs/v4repro-ce0e357/suites/tests-mycelic.log`). All five digests in `LIVE_CODE_HASHES_R002` have moved. Cause is mechanical and this branch's own doing: `EVAL_CODE_FILES` globs `mycelic/collective/{detect,edge,packs,evaluate}/*.py`, and E2 / openfda_replay / X5 add `pushdown/*.py`; those are exactly the files changed for `rule_snapshots`, N1 and N2. `SPIKE_CODE_HASH` was re-pinned three times across those changes (`b7b1a18`, `8981505`, `d88c150`); this overlapping pin was re-pinned zero times. **Nothing has been re-pinned** — rule 2 wants a diff, a reason and a deliberate commit. |
+| 3 | Labelling | **PASS** | `EVIDENCE_CEILING.md` names 74.6% as the defensible figure for this system and 85.4% as a reviewer-constructed permissive model, in the same table, and says so in §6. The ceiling table is headed "upper bounds by construction". |
+| 4 | Invariants | **PASS** | No seed outside 0–5 appears in any new command or artifact. No golden, label or metric touched: the new files are two CSVs, two docs and the detector dumps. `tesseract.py` unmodified. |
+| 5 | Cost columns | **PASS for the new work** | `raw/plateau/gap_decomposition.csv` and `raw/plateau/candidate_pool.csv` carry per-row state, feasibility, the asked week and the detector channel. 3,054 + 240 rows, both re-derivable from the dumps. |
+| 6 | Budget matching | **N/A** | Still no targeted lever result. The untargeted control arm remains specified and unrun. |
+
+### Two disclosures owed on the specificity claim (item 1)
+
+Both are method facts, not errors, and neither overturns the direction.
+
+1. **The windows are not like for like.** Decoys are scored over their own label window
+   (`d["found_from"], d["found_to"]`); non-planted keys are scored over the whole world
+   (`weeks[0], weeks[-1]`). "Ever passing" therefore gets many more chances for a non-planted key than for a
+   decoy or a gold pattern. The bias is roughly constant in world size, so the 0.096 → 0.70 *trend* survives
+   it, but the absolute level is an upper bound on what a windowed comparison would give.
+2. **The sampled pool changes character with size.** Candidates are filtered to keys with ≥3 records anywhere,
+   then 300 are sampled per seed. At 200 users that pool barely exists; at 10K it is large. The rate is
+   therefore "a random non-planted key *with ≥3 records*", which is the right unit, but the pool it is drawn
+   from is not the same population across sizes. The per-seed pool sizes are printed by the tool and were not
+   kept in the artifact; they should be.
+
+**And one fact the summary line should carry:** 2,000 → 10,000 is **flat** (0.699 → 0.694), not rising. A pure
+density story predicts monotone increase toward 1.0. The saturation says the binding constraint at scale is the
+two-site requirement and the 6-week window, not record count. Writing it as "~70% at 2K and 10K" is accurate;
+writing it as a trend that continues would not be.
+
+### Why this claim matters more than it looks
+
+It bears directly on this session's own result. The rule-only candidate pool at 200 users is 2,831 keys over six
+seeds, of which **83% carry no planted pattern or decoy at all** (`raw/plateau/candidate_pool.csv`). If a random
+non-planted key passes the count gate 70% of the time at 2K, then lowering the detection bar to reach the
+never-asked patterns is not a lever at any size above this one — it is a false-positive generator. The recursive
+loop therefore has to *verify*, not merely *ask*, and its untargeted control has to be budget-matched against
+that same pool.
+
+**Result: 1 FAIL (item 2), new, and it is this session's to carry.** It blocks calling `ce0e357` a green tree
+and therefore blocks any "current best" claim sourced from it — including the v4 replay now running, whose
+verdict will read `pass: false` on this suite whatever the seeds score. It does not touch the official six-seed
+baseline, which was run with drills on and whose six reports are digest-pinned.
+
+### Owed, added this tick
+
+9. **This session:** decide the `LIVE_CODE_HASHES_R002` question deliberately — whether two overlapping pinned
+   digests over the same globs should both exist, or whether one should be derived from the other. Then re-pin
+   with the reason, in its own commit.
+10. **This session:** keep the per-seed pool sizes from `specificity_scale.py` in the artifact, and add the
+    window caveat to the line in `frontier/CONTEXT.md` that quotes 9.6% / ~70%.
