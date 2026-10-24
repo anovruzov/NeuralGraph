@@ -131,3 +131,19 @@ Raw: `raw/rescue/e2e_b60_seeds0-5.txt`.
 Status: a **candidate**, not a result. It was chosen as the best of ten orderings on these same dev seeds. Before
 any claim it needs a frozen candidate, the full drills and suites (`--suites`), and held-out seeds. The gain does not
 touch rare recall (7 vs 7). Rare patterns remain a disclosure problem (`DEEP_RESEARCH_PROBLEM.md` P1).
+
+## 5. A learned ranker trained on the system's own verdicts: no gain (replay)
+
+`tools/rescue/learned_rank.py` fits a logistic model on inference-time features. The target is "the site network
+confirmed it" (system output, never the answer key). It is evaluated leave-one-seed-out.
+
+| ordering (60 questions/seed) | found | decoys | no-pattern confirms |
+|---|---|---|---|
+| shipped | 118 | 113 | 13 |
+| learned (target = system verdict) | 119 | 103 | 15 |
+| rule hit first | 128 | 113 | 13 |
+
+Predicting a confirm finds keys that *can* be confirmed: decoys, echoes and dense background as much as planted
+patterns. A ranker that beats rule-hit-first needs a signal correlated with the pattern rather than with
+confirmability. That is the same specificity problem as P2 in `DEEP_RESEARCH_PROBLEM.md`. Raw:
+`raw/rescue/learned_rank_seeds0-5.txt`.
