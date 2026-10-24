@@ -83,12 +83,23 @@
   ],
   "agents_spent_total": 14,
   "cap": 24,
-  "kills_pre_registered_in": "swarm/WAVE_1_RESULTS.md section 3"
+  "kills_pre_registered_in": "swarm/WAVE_1_RESULTS.md section 3",
+  "returned": {
+   "F-H3": "DEAD (3 of 4 kills fired; margin over the free line +0.036, p=0.12; top-20 precision 0.14 vs p* 0.39)"
+  }
  },
  "arena_console": {
   "branch": "research/arena",
   "first_capture": "arena/console-live-2026-10-24T1611Z.png",
   "omega_peak_measured": 10,
-  "layer_b": "blocked; see wave1/D10/LAYER_B_AUDIT.md"
+  "layer_b": "blocked; see wave1/D10/LAYER_B_AUDIT.md",
+  "controls_exercised": "start R, pause T, resume R, stop refused without confirm, stop -15; sessions swept",
+  "console_started_run": "arena-short-20261024T162521Z: 7/8 checks ok, c3_idempotent twenty_queries_per_site failed at this scale, verdict refused for unevaluated c10, found 2/40 at 20 candidates",
+  "captures": [
+   "arena/console-live-2026-10-24T1611Z.png",
+   "arena/console-live-run-4.png",
+   "arena/console-live-run-5.png",
+   "arena/console-live-judge-6.png"
+  ]
  }
 }
