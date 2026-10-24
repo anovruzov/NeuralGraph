@@ -1,0 +1,29 @@
+== UNTUNED lexicographic (-sync, kcells, longest_run): per-seed, no parameter to tune ==
+  top-20: gold 0.22 0.24 0.30 0.27 0.16 0.40  (range 0.16-0.40, mean 0.264) | decoy 0.00 0.00 0.00 0.00 0.00 0.00 (mean 0.000) | feasible gold mean 4.1
+  top-50: gold 0.18 0.21 0.17 0.13 0.09 0.18  (range 0.09-0.21, mean 0.161) | decoy 0.00 0.00 0.00 0.03 0.02 0.01 (mean 0.009) | feasible gold mean 5.5
+
+== LOSO, criterion = max (gold@50 - decoy@50) on the 5 training seeds ==
+  held-out seed 0: theta=1.25  P@20 gold 0.35 decoy 0.05 feasible-gold 5.0 | P@50 gold 0.27 decoy 0.03 feasible-gold 8.3
+  held-out seed 1: theta=1.25  P@20 gold 0.40 decoy 0.10 feasible-gold 7.0 | P@50 gold 0.26 decoy 0.06 feasible-gold 9.3
+  held-out seed 2: theta=1.4  P@20 gold 0.50 decoy 0.10 feasible-gold 9.0 | P@50 gold 0.25 decoy 0.04 feasible-gold 9.2
+  held-out seed 3: theta=1.25  P@20 gold 0.40 decoy 0.00 feasible-gold 7.0 | P@50 gold 0.24 decoy 0.00 feasible-gold 9.0
+  held-out seed 4: theta=1.25  P@20 gold 0.25 decoy 0.00 feasible-gold 1.0 | P@50 gold 0.20 decoy 0.00 feasible-gold 3.0
+  held-out seed 5: theta=1.25  P@20 gold 0.46 decoy 0.05 feasible-gold 6.0 | P@50 gold 0.27 decoy 0.02 feasible-gold 9.7
+  SPREAD held-out: P@20 gold 0.25-0.50 (mean 0.394) decoy 0.00-0.10 (mean 0.050) | P@50 gold 0.20-0.27 (mean 0.247) decoy 0.00-0.06 (mean 0.026)
+
+== LOSO, criterion = max gold@20 - decoy@20 ==
+  held-out seed 0: theta=1.25  P@20 gold 0.35 decoy 0.05 | P@50 gold 0.27 decoy 0.03
+  held-out seed 1: theta=1.25  P@20 gold 0.40 decoy 0.10 | P@50 gold 0.26 decoy 0.06
+  held-out seed 2: theta=1.25  P@20 gold 0.45 decoy 0.00 | P@50 gold 0.27 decoy 0.01
+  held-out seed 3: theta=1.25  P@20 gold 0.40 decoy 0.00 | P@50 gold 0.24 decoy 0.00
+  held-out seed 4: theta=1.25  P@20 gold 0.25 decoy 0.00 | P@50 gold 0.20 decoy 0.00
+  held-out seed 5: theta=1.25  P@20 gold 0.46 decoy 0.05 | P@50 gold 0.27 decoy 0.02
+  SPREAD held-out: P@20 gold 0.25-0.46 (mean 0.385) decoy mean 0.033 | P@50 gold 0.20-0.27 (mean 0.250) decoy mean 0.020
+
+== reference: baseline rule_weeks >= 11 per seed (precision / decoy share), and the same cut + sync<=1.34 ==
+  seed 0: >=11 kept 139 gold 20 (0.144) decoy 28 (0.201) | + sync<=1.34 kept  96 gold 15 (0.156) decoy  3 (0.031)
+  seed 1: >=11 kept 115 gold 20 (0.174) decoy 27 (0.235) | + sync<=1.34 kept  82 gold 19 (0.232) decoy  5 (0.061)
+  seed 2: >=11 kept 110 gold 14 (0.127) decoy 23 (0.209) | + sync<=1.34 kept  78 gold 13 (0.167) decoy  1 (0.013)
+  seed 3: >=11 kept 130 gold 13 (0.100) decoy 29 (0.223) | + sync<=1.34 kept  89 gold  9 (0.101) decoy  2 (0.022)
+  seed 4: >=11 kept 129 gold 16 (0.124) decoy 27 (0.209) | + sync<=1.34 kept  88 gold 12 (0.136) decoy  2 (0.023)
+  seed 5: >=11 kept 113 gold 16 (0.142) decoy 23 (0.204) | + sync<=1.34 kept  80 gold 12 (0.150) decoy  3 (0.037)

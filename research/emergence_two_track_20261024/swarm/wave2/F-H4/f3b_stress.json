@@ -1,0 +1,133 @@
+{
+ "structural": {
+  "nP ascending (fewer sites present first)": [
+   125,
+   86,
+   [
+    19,
+    19,
+    22,
+    26,
+    18,
+    21
+   ]
+  ],
+  "nP descending": [
+   87,
+   122,
+   [
+    10,
+    12,
+    18,
+    16,
+    16,
+    15
+   ]
+  ],
+  "thin indicator first (nP==2 & nC==1 & roots>=3 & rep>=3 & fresh)": [
+   119,
+   112,
+   [
+    18,
+    15,
+    21,
+    26,
+    18,
+    21
+   ]
+  ],
+  "nC==1 first (exactly one certain k-site)": [
+   114,
+   110,
+   [
+    18,
+    14,
+    19,
+    24,
+    17,
+    22
+   ]
+  ],
+  "nC ascending": [
+   122,
+   89,
+   [
+    21,
+    21,
+    20,
+    24,
+    20,
+    16
+   ]
+  ],
+  "sumlb ascending (less exported evidence first)": [
+   99,
+   88,
+   [
+    15,
+    16,
+    15,
+    23,
+    15,
+    15
+   ]
+  ],
+  "sumlb descending": [
+   129,
+   127,
+   [
+    18,
+    19,
+    25,
+    28,
+    19,
+    20
+   ]
+  ],
+  "(nC==1, then nP asc)": [
+   122,
+   93,
+   [
+    19,
+    17,
+    22,
+    25,
+    18,
+    21
+   ]
+  ],
+  "S_cert (gate certainly clears from b) first": [
+   137,
+   110,
+   [
+    21,
+    20,
+    27,
+    28,
+    20,
+    21
+   ]
+  ],
+  "nU ascending (fewer uncertain sites)": [
+   126,
+   111,
+   [
+    17,
+    18,
+    26,
+    25,
+    20,
+    20
+   ]
+  ]
+ },
+ "random_null": {
+  "mean": 104.92333333333333,
+  "p95": 113,
+  "max": 116
+ },
+ "lookahead": {
+  "rows": 515,
+  "late": 426
+ }
+}

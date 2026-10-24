@@ -1,0 +1,6 @@
+REAL rule-only   pooled AUC 0.742 (n 110 vs 308) bootstrap 95% CI [0.684, 0.794]  P(AUC<0.70) = 0.070
+                 c1+c3 only: AUC 0.693 (n decoy 235)
+REAL all cands   pooled AUC 0.716 (n 240 vs 531) bootstrap 95% CI [0.676, 0.754]  P(AUC<0.70) = 0.211
+                 c1+c3 only: AUC 0.643 (n decoy 355)
+rebuilt rw>=7    pooled AUC 0.726 (n 240 vs 589) bootstrap 95% CI [0.687, 0.765]  P(AUC<0.70) = 0.094
+                 c1+c3 only: AUC 0.661 (n decoy 379)

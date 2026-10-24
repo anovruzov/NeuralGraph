@@ -1,0 +1,7 @@
+wrote /tmp/claude-0/-home-user-NeuralGraph/2bf29258-e412-50e5-8873-b0acbc147d53/scratchpad/swarm_out/F-H5/top20_per_seed.csv
+  seed 0: gold 6 decoy 1 other 13 | gold F/TB_v4 any-week-feasible 4
+  seed 1: gold 8 decoy 2 other 10 | gold F/TB_v4 any-week-feasible 7
+  seed 2: gold 9 decoy 0 other 11 | gold F/TB_v4 any-week-feasible 8
+  seed 3: gold 8 decoy 0 other 12 | gold F/TB_v4 any-week-feasible 7
+  seed 4: gold 6 decoy 0 other 14 | gold F/TB_v4 any-week-feasible 1
+  seed 5: gold 10 decoy 1 other 9 | gold F/TB_v4 any-week-feasible 6

@@ -1,0 +1,34 @@
+detector pool per seed: {'0': 84, '1': 88, '2': 90, '3': 84, '4': 86, '5': 86}
+
+ordering of the asked detector pool, B=60/seed                         found/240 rare decoys  bg  per-seed  decoys by class
+shipped (score desc)  [det_rank reproduction]                                118    7    113  13  [18, 15, 22, 24, 18, 21]  {1: 7, 2: 53, 3: 8, 5: 45}
+rule hit first, then score  [Gate-0, e2e-confirmed 127]                      128    8    113  13  [18, 18, 23, 26, 21, 22]  {1: 7, 2: 53, 3: 8, 5: 45}
+** S_Net3 at snapshot week, then shipped  [THE PRE-REGISTERED USE]           138   10     97  11  [18, 20, 26, 28, 22, 24]  {1: 6, 2: 38, 3: 12, 4: 1, 5: 40}
+S_Net3 H4 per-key (max over rule weeks), then shipped  [diagnostic]          137   13     90  16  [22, 19, 25, 27, 21, 23]  {1: 5, 2: 37, 3: 9, 4: 9, 5: 30}
+S_Net (nu=1,0) at snapshot week, then shipped  [diagnostic]                  140   12     95  13  [18, 20, 27, 28, 23, 24]  {1: 6, 2: 37, 3: 12, 4: 1, 5: 39}
+P^(clear|b) at snapshot week, then shipped  [diagnostic, label-free]         137    4    111   6  [21, 20, 27, 28, 20, 21]  {1: 8, 2: 45, 3: 11, 4: 3, 5: 44}
+rule hit first, then S_Net3@snap, then score  [diagnostic combo]             139   11     98  11  [18, 21, 26, 28, 22, 24]  {1: 6, 2: 38, 3: 12, 4: 2, 5: 40}
+S_Net3@snap > 0 first, then rule hit, then score  [diagnostic combo]         123    7    111  13  [18, 17, 22, 26, 18, 22]  {1: 7, 2: 52, 3: 9, 5: 43}
+
+recorded references: replay shipped 118 [18,15,22,24,18,21] / rule-first 128 [18,18,23,26,21,22], decoys 113, bg 13; e2e shipped 119 / rule-first 127, decoys 112 / 113.
+
+AUC gold-vs-decoy of the snapshot-week scores over the asked detector pool (all ~86/seed, no budget):
+  net3     row label (true = gold & in-window at snapshot week)    AUC 0.663  (n gold 155, decoy 310)
+  net3     key class (H4's convention)                             AUC 0.661  (n gold 157, decoy 306)
+  net      row label (true = gold & in-window at snapshot week)    AUC 0.675  (n gold 155, decoy 310)
+  net      key class (H4's convention)                             AUC 0.674  (n gold 157, decoy 306)
+  pclear   row label (true = gold & in-window at snapshot week)    AUC 0.630  (n gold 155, decoy 310)
+  pclear   key class (H4's convention)                             AUC 0.623  (n gold 157, decoy 306)
+  net3_h4  row label (true = gold & in-window at snapshot week)    AUC 0.792  (n gold 155, decoy 310)
+  net3_h4  key class (H4's convention)                             AUC 0.791  (n gold 157, decoy 306)
+
+why: among the 60 chosen per seed, how many carry a positive S_Net3 at the snapshot week, and the verdict composition of positives vs non-positives over the WHOLE detector pool
+  net3>0=True  label=background supported 1
+  net3>0=True  label=decoy      supported 29
+  net3>0=True  label=true       supported 22
+  net3>0=False label=background not       31
+  net3>0=False label=background supported 21
+  net3>0=False label=decoy      not       48
+  net3>0=False label=decoy      supported 233
+  net3>0=False label=true       not       4
+  net3>0=False label=true       supported 129

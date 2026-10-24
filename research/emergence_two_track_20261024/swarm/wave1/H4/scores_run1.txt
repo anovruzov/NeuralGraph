@@ -1,0 +1,71 @@
+rows (key,week) 42912
+filtered pool 1765 Counter({'other': 1310, 'decoy': 317, 'gold': 138})
+
+AUC on the filtered pool (rule_only, rule_weeks>=7; 138 gold / 317 decoy / 1310 other); strict salted orderings
+score      g-vs-decoy g-vs-other  g-vs-decoy(ties=.5)  g-vs-nongold(ties=.5)   per-seed g-vs-decoy
+baseline        0.600      0.693                0.611                  0.685   0.664 0.646 0.549 0.484 0.664 0.564  spread 0.484-0.664
+S_cert          0.576      0.802                0.520                  0.666   0.581 0.549 0.630 0.606 0.588 0.546  spread 0.546-0.630
+S_poss          0.614      0.739                0.593                  0.678   0.640 0.652 0.592 0.536 0.686 0.557  spread 0.536-0.686
+S_sumlb         0.533      0.872                0.516                  0.805   0.587 0.488 0.611 0.584 0.465 0.504  spread 0.465-0.611
+S_Pclear        0.584      0.844                0.583                  0.793   0.558 0.546 0.650 0.633 0.583 0.545  spread 0.545-0.650
+S_ent           0.573      0.705                0.572                  0.679   0.608 0.595 0.553 0.450 0.687 0.567  spread 0.450-0.687
+S_IG            0.638      0.655                0.636                  0.650   0.685 0.679 0.592 0.583 0.782 0.566  spread 0.566-0.782
+S_Yield         0.615      0.834                0.614                  0.791   0.605 0.560 0.736 0.709 0.628 0.532  spread 0.532-0.736
+null 95% band (random strict order, 2000 draws): 0.442 0.558 max 0.591
+
+precision@20 / @50 per seed: (gold, decoy, gold-with-corrected-verdict-at-the-policy-week)
+baseline   @20 (2, 4, 0) (4, 4, 0) (1, 4, 0) (1, 4, 0) (2, 3, 0) (0, 3, 0)  sum gold 10 decoy 22 corrected 0
+           @50 (8, 11, 0) (7, 13, 0) (2, 13, 0) (2, 15, 0) (10, 11, 0) (5, 11, 0)  sum gold 34 decoy 74 corrected 0
+S_cert     @20 (5, 15, 0) (6, 14, 0) (8, 11, 0) (8, 11, 0) (6, 14, 0) (7, 11, 0)  sum gold 40 decoy 76 corrected 0
+           @50 (9, 25, 0) (11, 26, 0) (12, 18, 0) (14, 21, 0) (8, 19, 0) (9, 17, 0)  sum gold 63 decoy 126 corrected 0
+S_poss     @20 (2, 4, 0) (4, 4, 0) (1, 3, 0) (1, 4, 0) (2, 3, 0) (0, 3, 0)  sum gold 10 decoy 21 corrected 0
+           @50 (9, 11, 0) (9, 14, 0) (2, 13, 0) (2, 15, 0) (10, 12, 0) (6, 12, 0)  sum gold 38 decoy 77 corrected 0
+S_sumlb    @20 (8, 12, 8) (8, 12, 7) (10, 10, 10) (9, 11, 9) (4, 15, 4) (6, 12, 6)  sum gold 45 decoy 72 corrected 44
+           @50 (11, 26, 10) (12, 30, 11) (13, 24, 12) (14, 26, 13) (10, 27, 6) (10, 18, 9)  sum gold 70 decoy 151 corrected 61
+S_Pclear   @20 (4, 16, 4) (6, 14, 5) (10, 10, 10) (9, 11, 8) (4, 16, 4) (6, 12, 6)  sum gold 39 decoy 79 corrected 37
+           @50 (10, 24, 10) (12, 27, 11) (12, 19, 12) (13, 23, 12) (9, 22, 8) (9, 16, 9)  sum gold 65 decoy 131 corrected 62
+S_ent      @20 (4, 11, 2) (3, 8, 1) (1, 10, 0) (2, 9, 1) (4, 8, 0) (4, 7, 3)  sum gold 18 decoy 53 corrected 7
+           @50 (8, 14, 4) (8, 13, 6) (3, 14, 1) (4, 13, 2) (7, 14, 2) (7, 9, 6)  sum gold 37 decoy 77 corrected 21
+S_IG       @20 (3, 3, 1) (4, 3, 0) (1, 3, 0) (3, 2, 1) (3, 4, 0) (1, 2, 1)  sum gold 15 decoy 17 corrected 3
+           @50 (10, 9, 6) (9, 8, 4) (3, 14, 1) (4, 7, 1) (9, 8, 3) (7, 5, 3)  sum gold 42 decoy 51 corrected 18
+S_Yield    @20 (8, 12, 8) (5, 15, 5) (10, 9, 10) (11, 9, 11) (4, 16, 4) (7, 11, 7)  sum gold 45 decoy 72 corrected 45
+           @50 (10, 24, 10) (13, 25, 13) (12, 17, 12) (14, 23, 14) (9, 19, 9) (8, 16, 8)  sum gold 66 decoy 124 corrected 66
+
+objective table over (key, rule-week) rows, b-class = (nC, nU, nP, roots_lb, rep_lb, fresh):
+cls                           n P(clear)  P(gold) P(g|clr)  P(c|g) P(c|~g)      IG   yield   H(A)  decoy  d_clr
+(0, 0, 2, 0, 0, 0)         8640    0.000    0.054    0.000   0.000   0.000  0.0000  0.0000  0.000    600      0
+(0, 0, 1, 0, 0, 0)         5127    0.000    0.062    0.000   0.000   0.000  0.0000  0.0000  0.000    532      0
+(0, 0, 3, 0, 0, 0)         2634    0.000    0.088    0.000   0.000   0.000  0.0000  0.0000  0.000   1033      0
+(0, 1, 2, 0, 0, 0)         1810    0.077    0.070    0.371   0.413   0.052  0.0494  0.0287  0.393    119     25
+(2, 0, 3, 3, 3, 1)         1129    0.999    0.429    0.428   0.998   1.000  0.0011  0.4278  0.010    645    645
+(0, 1, 3, 0, 0, 0)         1065    0.157    0.139    0.383   0.432   0.112  0.0530  0.0601  0.627    298     72
+(2, 0, 2, 3, 3, 1)          674    1.000    0.500    0.500   1.000   1.000  0.0000  0.5000  0.000    336    336
+(0, 1, 1, 0, 0, 0)          551    0.000    0.073    0.000   0.000   0.000  0.0000  0.0000  0.000     61      0
+(2, 0, 3, 0, 3, 1)          383    0.624    0.008    0.013   1.000   0.621  0.0054  0.0078  0.955    380    236
+(0, 2, 3, 0, 0, 0)          312    0.455    0.115    0.162   0.639   0.431  0.0128  0.0737  0.994    172    114
+(1, 0, 2, 0, 1, 1)          258    0.783    0.101    0.119   0.923   0.767  0.0114  0.0930  0.755      5      3
+(1, 0, 3, 3, 3, 1)          203    1.000    0.227    0.227   1.000   1.000  0.0000  0.2266  0.000    151    151
+(2, 0, 3, 3, 3, 0)          163    0.000    0.153    0.000   0.000   0.000  0.0000  0.0000  0.000    138      0
+(1, 0, 3, 0, 1, 1)          146    0.781    0.137    0.158   0.900   0.762  0.0110  0.1233  0.759     27     21
+(2, 1, 3, 3, 3, 1)          143    1.000    0.147    0.147   1.000   1.000  0.0000  0.1469  0.000    122    122
+(2, 0, 2, 3, 3, 0)          140    0.000    0.329    0.000   0.000   0.000  0.0000  0.0000  0.000     94      0
+(1, 0, 2, 3, 3, 1)          114    1.000    0.658    0.658   1.000   1.000  0.0000  0.6579  0.000     37     37
+(0, 2, 2, 0, 0, 0)          111    0.288    0.135    0.219   0.467   0.260  0.0162  0.0631  0.866     38     21
+(1, 0, 3, 3, 3, 0)          105    0.000    0.286    0.000   0.000   0.000  0.0000  0.0000  0.000     72      0
+(2, 0, 2, 0, 3, 1)           86    0.558    0.000    0.000   0.000   0.558  0.0000  0.0000  0.990     86     48
+(1, 0, 2, 3, 3, 0)           83    0.000    0.771    0.000   0.000   0.000  0.0000  0.0000  0.000     17      0
+(2, 0, 3, 0, 3, 0)           82    0.000    0.000    0.000   0.000   0.000  0.0000  0.0000  0.000     82      0
+(1, 1, 3, 3, 3, 1)           68    1.000    0.132    0.132   1.000   1.000  0.0000  0.1324  0.000     58     58
+(1, 1, 3, 0, 1, 1)           67    0.776    0.104    0.077   0.571   0.800  0.0178  0.0597  0.767     28     25
+(1, 0, 1, 0, 1, 1)           66    0.000    0.091    0.000   0.000   0.000  0.0000  0.0000  0.000      8      0
+(1, 0, 1, 3, 3, 1)           61    0.000    0.918    0.000   0.000   0.000  0.0000  0.0000  0.000      0      0
+(1, 0, 1, 3, 3, 0)           56    0.000    1.000    0.000   0.000   0.000  0.0000  0.0000  0.000      0      0
+(1, 2, 3, 3, 3, 1)           51    1.000    0.000    0.000   0.000   1.000  0.0000  0.0000  0.000     51     51
+
+break-even (ask once at the policy's week; corrected = clear AND inside the label window):
+  latest {'questions': 1765, 'gold_corrected': 0, 'decoys_accepted': 4, 'unplanted_supported': 8, 'yield_per_question': 0.0, 'one_in': 1765.0, 'top20_6seeds': {'questions': 120, 'gold_corrected': 0, 'decoys_accepted': 1, 'unplanted_supported': 1, 'yield_per_question': 0.0}, 'top60_6seeds': {'questions': 360, 'gold_corrected': 0, 'decoys_accepted': 2, 'unplanted_supported': 2, 'yield_per_question': 0.0}}
+  S_Pclear {'questions': 1765, 'gold_corrected': 99, 'decoys_accepted': 127, 'unplanted_supported': 131, 'yield_per_question': 0.0561, 'one_in': 17.8, 'top20_6seeds': {'questions': 120, 'gold_corrected': 37, 'decoys_accepted': 61, 'unplanted_supported': 2, 'yield_per_question': 0.3083}, 'top60_6seeds': {'questions': 360, 'gold_corrected': 65, 'decoys_accepted': 111, 'unplanted_supported': 106, 'yield_per_question': 0.1806}}
+  S_Yield {'questions': 1765, 'gold_corrected': 102, 'decoys_accepted': 121, 'unplanted_supported': 124, 'yield_per_question': 0.0578, 'one_in': 17.3, 'top20_6seeds': {'questions': 120, 'gold_corrected': 45, 'decoys_accepted': 54, 'unplanted_supported': 3, 'yield_per_question': 0.375}, 'top60_6seeds': {'questions': 360, 'gold_corrected': 68, 'decoys_accepted': 105, 'unplanted_supported': 98, 'yield_per_question': 0.1889}}
+  S_IG {'questions': 1765, 'gold_corrected': 50, 'decoys_accepted': 62, 'unplanted_supported': 38, 'yield_per_question': 0.0283, 'one_in': 35.3, 'top20_6seeds': {'questions': 120, 'gold_corrected': 3, 'decoys_accepted': 4, 'unplanted_supported': 9, 'yield_per_question': 0.025}, 'top60_6seeds': {'questions': 360, 'gold_corrected': 20, 'decoys_accepted': 11, 'unplanted_supported': 19, 'yield_per_question': 0.0556}}
+  S_ent {'questions': 1765, 'gold_corrected': 84, 'decoys_accepted': 102, 'unplanted_supported': 111, 'yield_per_question': 0.0476, 'one_in': 21.0, 'top20_6seeds': {'questions': 120, 'gold_corrected': 7, 'decoys_accepted': 17, 'unplanted_supported': 6, 'yield_per_question': 0.0583}, 'top60_6seeds': {'questions': 360, 'gold_corrected': 25, 'decoys_accepted': 29, 'unplanted_supported': 94, 'yield_per_question': 0.0694}}
+  whole_rule_only_latest {'questions': 2831, 'gold_corrected': 0, 'one_in': 2831.0, 'decoys_accepted': 8, 'unplanted_supported': 11}

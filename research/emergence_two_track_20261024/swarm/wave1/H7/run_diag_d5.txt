@@ -1,0 +1,16 @@
+class-5 decoy keys (seed 0, filtered pool):
+  entity:E-ARBOR:chain_supply              rule 5..23 n=19 | pos weeks [(1, 1), (5, 9), (6, 9), (7, 4)] | neg weeks [(14, 4), (15, 1), (16, 6)]
+  entity:E-CINDER-EDGE:chain_auth          rule 0..15 n=16 | pos weeks [(0, 11), (1, 3), (2, 7), (3, 1)] | neg weeks [(7, 2), (8, 4), (9, 3)]
+  entity:E-MERIDIANX:chain_auth            rule 3..23 n=21 | pos weeks [(3, 5), (4, 13), (5, 1), (16, 1)] | neg weeks [(8, 2), (9, 6), (17, 1)]
+  entity:E-TUNDRA:chain_pricing            rule 0..18 n=19 | pos weeks [(0, 9), (1, 9), (2, 4), (8, 1), (10, 1), (11, 1), (20, 2)] | neg weeks [(6, 4), (9, 4), (12, 3)]
+  entity:E-VIREO-CORE:chain_firmware       rule 2..19 n=18 | pos weeks [(2, 3), (3, 5), (4, 8)] | neg weeks [(9, 3), (12, 4)]
+  entity:E-ZEPHYR-EDGE:chain_pricing       rule 0..18 n=19 | pos weeks [(0, 9), (1, 13), (2, 9), (11, 1), (20, 1)] | neg weeks [(8, 6), (9, 4), (11, 4)]
+gold keys with a contradiction (seed 0, filtered pool), first 8:
+  entity:E-CINDER-CORE:chain_firmware      rule 4..25 n=12 | pos weeks [(2, 1), (4, 8), (5, 9), (7, 3), (12, 1), (23, 1), (25, 1)] | neg weeks [(5, 1)]
+  entity:E-COBALT-CORE:chain_pricing       rule 0..25 n=17 | pos weeks [(0, 2), (1, 2), (3, 1), (4, 1), (19, 1), (20, 1)] | neg weeks [(1, 1)]
+  entity:E-HALCYON-II:chain_supply         rule 1..25 n=16 | pos weeks [(1, 6), (3, 9), (4, 9), (5, 2), (16, 1), (19, 1), (21, 1), (25, 1)] | neg weeks [(12, 1)]
+  entity:E-HALCYON:chain_policy            rule 5..25 n=21 | pos weeks [(5, 8), (6, 3), (7, 9), (8, 9), (11, 2), (12, 1), (15, 1), (19, 4)] | neg weeks [(4, 1)]
+  entity:E-KESTREL-EDGE:chain_supply       rule 4..25 n=21 | pos weeks [(2, 1), (4, 5), (5, 5), (7, 4), (8, 9), (9, 1), (12, 8), (18, 2), (19, 1), (21, 1), (22, 1)] | neg weeks [(12, 1)]
+  entity:E-PELLUCID-II:chain_firmware      rule 1..9 n=9 | pos weeks [(0, 7), (1, 5), (2, 5), (4, 4), (11, 1)] | neg weeks [(1, 1)]
+  entity:E-TESSERA-EDGE:chain_supply       rule 5..24 n=17 | pos weeks [(0, 1), (5, 2), (6, 2), (9, 2), (10, 1), (17, 1), (21, 1)] | neg weeks [(10, 1)]
+  entity:E-TESSERA-II:chain_firmware       rule 1..13 n=13 | pos weeks [(0, 8), (1, 1), (2, 8), (5, 4), (9, 1)] | neg weeks [(6, 1)]

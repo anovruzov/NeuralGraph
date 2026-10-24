@@ -1,0 +1,39 @@
+top-k precision per seed on the filtered pool, (gold, decoy, gold corrected at label-free week, decoy accepted):
+  baseline  @ 5 (1,1,1,1) (1,1,0,0) (0,2,0,2) (1,0,0,0) (0,1,0,1) (0,0,0,0)   sum gold 3 decoy 5 corrected 1 decoy_acc 4  yield/question 0.033
+  baseline  @10 (1,1,1,1) (2,2,1,0) (0,3,0,2) (1,1,0,0) (2,2,2,1) (0,0,0,0)   sum gold 6 decoy 9 corrected 4 decoy_acc 4  yield/question 0.067
+  baseline  @20 (2,4,2,3) (4,4,3,1) (1,4,1,2) (1,4,0,1) (2,3,2,1) (0,3,0,2)   sum gold 10 decoy 22 corrected 8 decoy_acc 10  yield/question 0.067
+  S_Net     @ 5 (4,1,4,1) (1,3,0,2) (4,0,4,0) (4,1,4,1) (3,0,2,0) (1,1,1,1)   sum gold 17 decoy 6 corrected 15 decoy_acc 5  yield/question 0.500
+  S_Net     @10 (5,1,5,1) (1,3,0,2) (5,0,5,0) (5,1,5,1) (3,0,2,0) (1,2,1,1)   sum gold 20 decoy 7 corrected 18 decoy_acc 5  yield/question 0.300
+  S_Net     @20 (5,1,5,1) (4,3,3,2) (5,0,5,0) (5,3,5,3) (5,0,4,0) (2,2,2,1)   sum gold 26 decoy 9 corrected 24 decoy_acc 7  yield/question 0.200
+  S_Yield   @ 5 (4,1,4,1) (1,4,0,2) (4,0,4,0) (4,1,4,1) (2,3,2,3) (1,2,1,1)   sum gold 16 decoy 11 corrected 15 decoy_acc 8  yield/question 0.500
+  S_Yield   @10 (5,5,5,2) (3,7,2,4) (7,2,7,2) (6,4,5,3) (2,8,2,8) (4,4,4,3)   sum gold 27 decoy 30 corrected 25 decoy_acc 22  yield/question 0.417
+  S_Yield   @20 (8,12,8,9) (5,15,4,9) (10,9,10,8) (11,9,10,5) (4,16,4,12) (7,11,7,10)   sum gold 45 decoy 72 corrected 43 decoy_acc 53  yield/question 0.358
+  S_IG      @ 5 (2,1,1,1) (1,0,0,0) (0,1,0,1) (2,1,2,1) (2,1,1,1) (0,2,0,2)   sum gold 7 decoy 6 corrected 4 decoy_acc 6  yield/question 0.133
+  S_IG      @10 (2,1,1,1) (2,1,1,0) (1,1,1,1) (3,1,2,1) (2,2,1,1) (1,2,1,2)   sum gold 11 decoy 8 corrected 7 decoy_acc 6  yield/question 0.117
+  S_IG      @20 (3,3,2,2) (4,3,3,1) (1,3,1,2) (3,2,2,1) (3,4,2,1) (1,2,1,2)   sum gold 15 decoy 17 corrected 11 decoy_acc 9  yield/question 0.092
+
+S_Net score distribution of the filtered pool's top-20 per seed (what the fitted table puts first):
+  seed 0: +0.32g, +0.32g, +0.32g, +0.32g, +0.32d, +0.08o, +0.08o, +0.08o, +0.08g, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o
+  seed 1: +0.37d, +0.37d, +0.37d, +0.17o, +0.11g, +0.11o, +0.07o, +0.07o, +0.07o, +0.07o, +0.07g, +0.07o, +0.07o, +0.07o, +0.07g, +0.07o, +0.07o, +0.07o, +0.07g, +0.07o
+  seed 2: +0.33g, +0.33o, +0.33g, +0.33g, +0.33g, +0.24g, +0.13o, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o, +0.08o
+  seed 3: +0.32d, +0.32g, +0.32g, +0.32g, +0.32g, +0.11g, +0.10o, +0.10o, +0.10o, +0.10o, +0.10o, +0.10o, +0.10o, +0.10d, +0.10o, +0.10d, +0.10o, +0.10o, +0.10o, +0.10o
+  seed 4: +0.32g, +0.06o, +0.06g, +0.06o, +0.06g, +0.06o, +0.06o, +0.06o, +0.06o, +0.06o, +0.06g, +0.06o, +0.06o, +0.06o, +0.06g, +0.06o, +0.06o, +0.06o, +0.06o, +0.06o
+  seed 5: +0.29d, +0.29o, +0.29g, +0.11o, +0.08o, +0.08o, +0.08o, +0.08d, +0.08o, +0.08o, +0.08o, +0.08o, +0.08g, +0.08o, +0.08o, +0.08o, +0.08o, +0.02o, +0.02o, +0.02o
+
+out-of-pool check -- the snapshot (already-asked) pool, same LOSO scores, AUC gold vs decoy per seed:
+  baseline  pooled 0.499  per-seed 0.646 0.484 0.471 0.504 0.516 0.397
+  S_Net     pooled 0.842  per-seed 0.931 0.826 0.730 0.828 0.925 0.872
+  S_Yield   pooled 0.807  per-seed 0.916 0.849 0.747 0.775 0.840 0.858
+  S_IG      pooled 0.551  per-seed 0.695 0.479 0.465 0.472 0.682 0.480
+  S_Pclear  pooled 0.663  per-seed 0.718 0.571 0.669 0.659 0.621 0.755
+  snapshot pool: Counter({'decoy': 216, 'gold': 102, 'other': 29})
+
+S_Net > 0 (expected net utility positive at nu=1): 701 Counter({'other': 551, 'gold': 89, 'decoy': 61}) gold corrected at label-free week: 76 decoys accepted: 36 unplanted supported: 124
+   seed 0: n=110 {'other': 86, 'decoy': 7, 'gold': 17} corrected 17 decoy_acc 4 other_sup 19
+   seed 1: n=115 {'other': 87, 'gold': 17, 'decoy': 11} corrected 13 decoy_acc 6 other_sup 20
+   seed 2: n=119 {'other': 88, 'decoy': 15, 'gold': 16} corrected 13 decoy_acc 9 other_sup 16
+   seed 3: n=126 {'other': 102, 'gold': 15, 'decoy': 9} corrected 14 decoy_acc 6 other_sup 26
+   seed 4: n=123 {'other': 96, 'gold': 14, 'decoy': 13} corrected 11 decoy_acc 8 other_sup 22
+   seed 5: n=108 {'other': 92, 'gold': 10, 'decoy': 6} corrected 8 decoy_acc 3 other_sup 21
+
+rare flag of gold in S_Net top-20 (6 seeds): {'0': 11, '1': 15}

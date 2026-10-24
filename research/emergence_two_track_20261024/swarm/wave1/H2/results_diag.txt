@@ -1,0 +1,37 @@
+== (a) SCAR check: gate-shaped exported buckets, known positives vs the rule-only pool (filtered n_rw>6) ==
+group                  n  P(wk_ge2k>=1)  P(wk_n1>=1)        wk_ge2k          wk_n1        wk_ge1k     max_ksites   max_roots_lb   max_users_lb max_site_bucket    n_active_wk  rw_first_half       rw_last6
+P: snapshot gold     102          0.941        0.990           6.75           8.51          10.22           2.60          20.07          18.33          10.31          17.38           4.26           2.47
+snapshot decoy       216          0.986        0.995           6.91           7.72           8.01           2.72          13.76          23.85          12.25          16.42           4.08           2.95
+U_f gold             138          0.406        0.732           2.61           4.62           5.37           1.41           9.00           8.42           5.46          17.67           7.28           1.76
+U_f decoy            317          0.366        0.549           2.75           3.85           3.93           1.17           5.96           8.72           5.17          15.48           6.90           1.55
+U_f other           1310          0.003        0.167           0.01           0.51           0.76           0.21           0.50           0.66           1.48          16.75           5.16           2.24
+
+== (b) budget-matched vs wave 0: per seed, K = keys kept at n_rw>=11; PU-buckets LOSO top-K vs the >=11 cut (gold/decoy/other) ==
+   seed 0: K=139  >=11 cut 20/28/91   PU-buckets 20/33/86   PU-ALL 19/39/81
+   seed 1: K=115  >=11 cut 20/27/68   PU-buckets 19/39/57   PU-ALL 22/38/55
+   seed 2: K=110  >=11 cut 14/23/73   PU-buckets 16/23/71   PU-ALL 14/26/70
+   seed 3: K=130  >=11 cut 13/29/88   PU-buckets 16/30/84   PU-ALL 17/30/83
+   seed 4: K=129  >=11 cut 16/27/86   PU-buckets 16/33/80   PU-ALL 17/32/80
+   seed 5: K=113  >=11 cut 16/23/74   PU-buckets 15/23/75   PU-ALL 14/28/71
+   >=11 cut    total 736 keys: gold 99 (0.135) decoy 157 (0.213) other 480 (0.652)  gold:decoy 0.63
+   PU-buckets  total 736 keys: gold 102 (0.139) decoy 181 (0.246) other 453 (0.615)  gold:decoy 0.56
+   PU-ALL      total 736 keys: gold 103 (0.140) decoy 193 (0.262) other 440 (0.598)  gold:decoy 0.53
+
+== (c) buckets-only LOSO ranker: top-20 / top-50 composition per seed (gold/decoy/other) vs n_rw baseline ==
+   seed 0:  top20 PU 7.0/9.0/4.0  base 2.2/4.6/13.1  top50 PU 12.0/24.0/14.0  base 7.6/11.0/31.4
+   seed 1:  top20 PU 4.0/10.0/6.0  base 3.4/4.4/12.2  top50 PU 9.0/25.0/16.0  base 7.0/13.0/30.0
+   seed 2:  top20 PU 10.0/4.0/6.0  base 0.8/4.0/15.2  top50 PU 13.0/17.0/20.0  base 2.0/12.2/35.8
+   seed 3:  top20 PU 10.0/6.0/4.0  base 1.0/4.0/15.0  top50 PU 13.0/17.0/20.0  base 2.0/13.9/34.1
+   seed 4:  top20 PU 5.0/5.0/10.0  base 2.0/3.0/15.0  top50 PU 11.0/18.0/21.0  base 9.6/10.8/29.5
+   seed 5:  top20 PU 5.0/6.0/9.0  base 0.0/2.7/17.3  top50 PU 10.0/15.0/25.0  base 5.2/11.0/33.8
+   six-seed total top20 (120 keys): PU gold 41 (0.342) decoy 40 (0.333) | base gold 9.5 (0.079) decoy 22.7 (0.189)
+   six-seed total top50 (300 keys): PU gold 68 (0.227) decoy 116 (0.387) | base gold 33.4 (0.111) decoy 71.9 (0.240)
+
+== (d) ORACLE-DIAGNOSTIC (labels used to FIT; a ceiling for the feature space, NOT a ranker, NOT a hypothesis) ==
+supervised gold-vs-decoy logistic on U_f gold+decoy rows, leave-one-seed-out, lam=1
+   rw_only      AUC(gold|decoy) per seed [0.67 0.67 0.55 0.49 0.67 0.58]  mean 0.607 spread 0.49-0.67
+   shape        AUC(gold|decoy) per seed [0.55 0.59 0.59 0.63 0.56 0.49]  mean 0.571 spread 0.49-0.63
+   shape+ent    AUC(gold|decoy) per seed [0.70 0.57 0.68 0.63 0.59 0.54]  mean 0.618 spread 0.54-0.70
+   buckets      AUC(gold|decoy) per seed [0.82 0.82 0.84 0.83 0.89 0.79]  mean 0.833 spread 0.79-0.89
+   ALL          AUC(gold|decoy) per seed [0.88 0.85 0.89 0.88 0.89 0.76]  mean 0.857 spread 0.76-0.89
+if even the oracle sits near 0.6-0.7, the exported feature space, not the PU estimator, is what cannot tell gold from decoy

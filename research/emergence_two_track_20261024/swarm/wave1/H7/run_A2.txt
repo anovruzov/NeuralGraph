@@ -1,0 +1,31 @@
+## A4. TB_v4 pass counts over the WHOLE pool (3,178 keys, rule weeks, model B), raw vs echo veto
+
+| variant | gold | d1 | d2 | d3 | d4 | d5 | other | overcounted d4 removed |
+|---|---|---|---|---|---|---|---|---|
+| raw | 207 | 98 | 60 | 111 | 57 | 60 | 178 | 0/26 |
+| support-roots>=2 | 207 | 98 | 60 | 111 | 57 | 60 | 178 | 0/26 |
+| support-roots>=1 | 207 | 98 | 60 | 111 | 4 | 60 | 178 | 26/26 |
+| reporters-roots>=2 | 207 | 98 | 60 | 111 | 57 | 60 | 178 | 0/26 |
+| reporters-roots>=1 | 207 | 98 | 60 | 111 | 4 | 60 | 178 | 26/26 |
+
+## A5. Ceiling cost of the veto: 240 gold patterns, label windows, TB_v4
+
+| model | variant | feasible | per seed | lost |
+|---|---|---|---|---|
+| B | raw | 205/240 = 0.8542 | [34, 33, 34, 36, 36, 32] | 0 [] |
+| B | support-roots>=2 | 205/240 = 0.8542 | [34, 33, 34, 36, 36, 32] | 0 [] |
+| B | support-roots>=1 | 205/240 = 0.8542 | [34, 33, 34, 36, 36, 32] | 0 [] |
+| B | reporters-roots>=2 | 205/240 = 0.8542 | [34, 33, 34, 36, 36, 32] | 0 [] |
+| B | reporters-roots>=1 | 205/240 = 0.8542 | [34, 33, 34, 36, 36, 32] | 0 [] |
+| K | raw | 199/240 = 0.8292 | [34, 32, 33, 35, 34, 31] | 0 [] |
+| K | support-roots>=2 | 199/240 = 0.8292 | [34, 32, 33, 35, 34, 31] | 0 [] |
+| K | support-roots>=1 | 199/240 = 0.8292 | [34, 32, 33, 35, 34, 31] | 0 [] |
+| K | reporters-roots>=2 | 199/240 = 0.8292 | [34, 32, 33, 35, 34, 31] | 0 [] |
+| K | reporters-roots>=1 | 199/240 = 0.8292 | [34, 32, 33, 35, 34, 31] | 0 [] |
+
+## A6. AUC on the filtered pool (rule_only, rule_weeks >= 7) for both signatures (score high = echo-like)
+
+| signature | AUC d4 vs gold | AUC all decoy vs gold | AUC other vs gold | gold>=2 | d4>=2 | d4>=1 | other>=2 |
+|---|---|---|---|---|---|---|---|
+| support-roots | 0.998 | 0.415 | 0.241 | 0/138 | 18/19 | 19/19 | 0/1310 |
+| reporters-roots | 0.998 | 0.410 | 0.237 | 0/138 | 18/19 | 19/19 | 0/1310 |

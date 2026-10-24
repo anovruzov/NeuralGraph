@@ -1,0 +1,24 @@
+seeds with real cells: [0]
+SIZE 2000 seed 0 REAL: candidates 1054 rule-only 911 with-snapshot 143 | sites 9 sites/region [1, 1, 1, 1, 1, 2, 2] | rule-only pool(rw>=7) 894 = gold 13 / decoy 52 / other 829 | H5-2 AUC g/decoy 0.792 g/other 0.319 | gated1.25 P@20 gold 0.10 decoy 0.05 | lex P@20 gold 0.00 decoy 0.00 | secs 34.0
+
+== SIZE 2000 REAL cells, RULE-ONLY pool (H5's definition), pooled over seeds [0] ==
+neg sync (real, 2000)              AUC g/decoy 0.792 (n 13 vs 52) | c1:0.750(n=20) c2:0.949(n=3) c3:0.761(n=23) c4:0.962(n=2) c5:0.969(n=5) | g/other 0.319 (n_other 829)
+neg sync_max (real, 2000)          AUC g/decoy 0.835 (n 13 vs 52) | c1:0.783(n=20) c2:0.910(n=3) c3:0.843(n=23) c4:0.981(n=2) c5:0.931(n=5) | g/other 0.308 (n_other 829)
+n_kcells (real, 2000)              AUC g/decoy 0.538 (n 13 vs 52) | c1:0.623(n=20) c2:0.256(n=3) c3:0.555(n=23) c4:0.000(n=2) c5:0.438(n=5) | g/other 0.714 (n_other 829)
+longest_run (real, 2000)           AUC g/decoy 0.648 (n 13 vs 52) | c1:0.683(n=20) c2:0.603(n=3) c3:0.661(n=23) c4:0.846(n=2) c5:0.423(n=5) | g/other 0.715 (n_other 829)
+gated(1.25,k,lr) rank (real, 2000) AUC g/decoy 0.726 (n 13 vs 52) | c1:0.790(n=20) c2:0.615(n=3) c3:0.716(n=23) c4:0.462(n=2) c5:0.677(n=5) | g/other 0.502 (n_other 829)
+
+== SIZE 2000 REAL cells, ALL candidates rw>=7 (incl. snapshot keys), pooled over seeds [0] ==
+neg sync (real, 2000)              AUC g/decoy 0.756 (n 40 vs 91) | c1:0.715(n=33) c2:0.739(n=10) c3:0.710(n=30) c4:0.920(n=10) c5:0.912(n=10) | g/other 0.286 (n_other 897)
+neg sync_max (real, 2000)          AUC g/decoy 0.761 (n 40 vs 91) | c1:0.712(n=33) c2:0.739(n=10) c3:0.766(n=30) c4:0.873(n=10) c5:0.839(n=10) | g/other 0.254 (n_other 897)
+n_kcells (real, 2000)              AUC g/decoy 0.658 (n 40 vs 91) | c1:0.825(n=33) c2:0.459(n=10) c3:0.810(n=30) c4:0.006(n=10) c5:0.510(n=10) | g/other 0.865 (n_other 897)
+longest_run (real, 2000)           AUC g/decoy 0.621 (n 40 vs 91) | c1:0.635(n=33) c2:0.576(n=10) c3:0.659(n=30) c4:0.601(n=10) c5:0.511(n=10) | g/other 0.735 (n_other 897)
+gated(1.25,k,lr) rank (real, 2000) AUC g/decoy 0.737 (n 40 vs 91) | c1:0.848(n=33) c2:0.599(n=10) c3:0.830(n=30) c4:0.280(n=10) c5:0.705(n=10) | g/other 0.457 (n_other 897)
+
+== gold sync distribution (rule-only pool): share of gold with sync <= 1.25 (passes the gate) by label ==
+  gold   n=   13 pass-gate(sync<=1.25) 0.462 median sync 1.286
+  decoy  n=   52 pass-gate(sync<=1.25) 0.096 median sync 1.600
+  other  n=  829 pass-gate(sync<=1.25) 0.694 median sync 1.182
+
+== per-seed ==
+  seed 0: AUC g/decoy 0.792 g/other 0.319 | pool 894 (gold 13 decoy 52 other 829) | gated P@20 gold 0.10 decoy 0.05 | timings {'generate_seconds': 2.6553429790001246, 'pipeline_seconds': 26.82729305199973, 'detection_seconds': 2.319805302000077}

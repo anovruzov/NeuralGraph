@@ -1,0 +1,712 @@
+{
+ "roots:0": {
+  "records_in_pool_keys": 4616,
+  "own_root_default": 4520,
+  "own_root_nd": 3468,
+  "echo_groups": 296,
+  "roots_per_group_nd": 1.027027027027027,
+  "roots_per_group_default": 3.9932432432432434,
+  "gold_recs": 665,
+  "gold_merged_nd": 0,
+  "gold_multi_event_roots_nd": 0,
+  "nonecho_merged_nd": 43,
+  "multi_event_roots_nd": 1
+ },
+ "roots:1": {
+  "records_in_pool_keys": 4308,
+  "own_root_default": 4219,
+  "own_root_nd": 3253,
+  "echo_groups": 250,
+  "roots_per_group_nd": 1.096,
+  "roots_per_group_default": 4.42,
+  "gold_recs": 534,
+  "gold_merged_nd": 0,
+  "gold_multi_event_roots_nd": 0,
+  "nonecho_merged_nd": 33,
+  "multi_event_roots_nd": 0
+ },
+ "roots:2": {
+  "records_in_pool_keys": 4255,
+  "own_root_default": 4190,
+  "own_root_nd": 3329,
+  "echo_groups": 270,
+  "roots_per_group_nd": 1.037037037037037,
+  "roots_per_group_default": 3.685185185185185,
+  "gold_recs": 619,
+  "gold_merged_nd": 0,
+  "gold_multi_event_roots_nd": 0,
+  "nonecho_merged_nd": 36,
+  "multi_event_roots_nd": 0
+ },
+ "roots:3": {
+  "records_in_pool_keys": 4699,
+  "own_root_default": 4605,
+  "own_root_nd": 3610,
+  "echo_groups": 272,
+  "roots_per_group_nd": 1.0588235294117647,
+  "roots_per_group_default": 4.102941176470588,
+  "gold_recs": 799,
+  "gold_merged_nd": 2,
+  "gold_multi_event_roots_nd": 1,
+  "nonecho_merged_nd": 43,
+  "multi_event_roots_nd": 1
+ },
+ "roots:4": {
+  "records_in_pool_keys": 4444,
+  "own_root_default": 4347,
+  "own_root_nd": 3263,
+  "echo_groups": 299,
+  "roots_per_group_nd": 1.0635451505016722,
+  "roots_per_group_default": 4.157190635451505,
+  "gold_recs": 595,
+  "gold_merged_nd": 0,
+  "gold_multi_event_roots_nd": 0,
+  "nonecho_merged_nd": 35,
+  "multi_event_roots_nd": 0
+ },
+ "roots:5": {
+  "records_in_pool_keys": 4267,
+  "own_root_default": 4136,
+  "own_root_nd": 3173,
+  "echo_groups": 260,
+  "roots_per_group_nd": 1.0307692307692307,
+  "roots_per_group_default": 4.276923076923077,
+  "gold_recs": 547,
+  "gold_merged_nd": 0,
+  "gold_multi_event_roots_nd": 0,
+  "nonecho_merged_nd": 37,
+  "multi_event_roots_nd": 0
+ },
+ "A4:event:raw TB_v4": {
+  "d4": 57,
+  "other": 178,
+  "d5": 60,
+  "gold": 207,
+  "d1": 98,
+  "d2": 60,
+  "d3": 111
+ },
+ "A4:event:veto support-roots>=1": {
+  "other": 178,
+  "d5": 60,
+  "gold": 207,
+  "d1": 98,
+  "d2": 60,
+  "d3": 111,
+  "d4": 4
+ },
+ "A4:nd:raw TB_v4": {
+  "d4": 57,
+  "other": 244,
+  "d5": 60,
+  "gold": 207,
+  "d1": 98,
+  "d2": 60,
+  "d3": 112
+ },
+ "A4:nd:veto support-roots>=1": {
+  "other": 244,
+  "d5": 60,
+  "gold": 207,
+  "d1": 98,
+  "d2": 60,
+  "d3": 112,
+  "d4": 5
+ },
+ "A4:default:raw TB_v4": {
+  "d4": 60,
+  "other": 274,
+  "d5": 60,
+  "gold": 207,
+  "d1": 98,
+  "d2": 60,
+  "d3": 113
+ },
+ "A4:default:veto support-roots>=1": {
+  "d4": 60,
+  "other": 274,
+  "d5": 60,
+  "gold": 207,
+  "d1": 98,
+  "d2": 60,
+  "d3": 113
+ },
+ "A4seed:event:0": {
+  "other:raw": 29,
+  "other:veto": 29,
+  "d4:raw": 10,
+  "d4:veto": 1,
+  "asked_d4:raw": 9,
+  "asked_d4:veto": 1,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "gold:raw": 35,
+  "gold:veto": 35,
+  "d1:raw": 20,
+  "d1:veto": 20,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d3:raw": 18,
+  "d3:veto": 18
+ },
+ "A4seed:event:1": {
+  "other:raw": 28,
+  "other:veto": 28,
+  "gold:raw": 33,
+  "gold:veto": 33,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d3:raw": 18,
+  "d3:veto": 18,
+  "d4:raw": 9,
+  "d4:veto": 0,
+  "asked_d4:raw": 6,
+  "asked_d4:veto": 0,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "d1:raw": 17,
+  "d1:veto": 17
+ },
+ "A4seed:event:2": {
+  "other:raw": 26,
+  "other:veto": 26,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "gold:raw": 34,
+  "gold:veto": 34,
+  "d3:raw": 17,
+  "d3:veto": 17,
+  "d4:raw": 10,
+  "d4:veto": 1,
+  "asked_d4:raw": 7,
+  "asked_d4:veto": 1,
+  "d1:raw": 14,
+  "d1:veto": 14
+ },
+ "A4seed:event:3": {
+  "other:raw": 38,
+  "other:veto": 38,
+  "d1:raw": 12,
+  "d1:veto": 12,
+  "gold:raw": 36,
+  "gold:veto": 36,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d4:raw": 9,
+  "d4:veto": 1,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "d3:raw": 24,
+  "d3:veto": 24,
+  "asked_d4:raw": 4,
+  "asked_d4:veto": 0
+ },
+ "A4seed:event:4": {
+  "other:raw": 29,
+  "other:veto": 29,
+  "gold:raw": 37,
+  "gold:veto": 37,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d3:raw": 17,
+  "d3:veto": 17,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "d1:raw": 22,
+  "d1:veto": 22,
+  "d4:raw": 10,
+  "d4:veto": 1,
+  "asked_d4:raw": 6,
+  "asked_d4:veto": 1
+ },
+ "A4seed:event:5": {
+  "other:raw": 28,
+  "other:veto": 28,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d4:raw": 9,
+  "d4:veto": 0,
+  "asked_d4:raw": 8,
+  "asked_d4:veto": 0,
+  "gold:raw": 32,
+  "gold:veto": 32,
+  "d1:raw": 13,
+  "d1:veto": 13,
+  "d3:raw": 17,
+  "d3:veto": 17
+ },
+ "A4seed:nd:0": {
+  "other:raw": 41,
+  "other:veto": 41,
+  "d4:raw": 10,
+  "d4:veto": 1,
+  "asked_d4:raw": 9,
+  "asked_d4:veto": 1,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "gold:raw": 35,
+  "gold:veto": 35,
+  "d1:raw": 20,
+  "d1:veto": 20,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d3:raw": 18,
+  "d3:veto": 18
+ },
+ "A4seed:nd:1": {
+  "other:raw": 38,
+  "other:veto": 38,
+  "gold:raw": 33,
+  "gold:veto": 33,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d3:raw": 18,
+  "d3:veto": 18,
+  "d4:raw": 9,
+  "d4:veto": 1,
+  "asked_d4:raw": 6,
+  "asked_d4:veto": 1,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "d1:raw": 17,
+  "d1:veto": 17
+ },
+ "A4seed:nd:2": {
+  "other:raw": 41,
+  "other:veto": 41,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "gold:raw": 34,
+  "gold:veto": 34,
+  "d3:raw": 17,
+  "d3:veto": 17,
+  "d4:raw": 10,
+  "d4:veto": 1,
+  "asked_d4:raw": 7,
+  "asked_d4:veto": 1,
+  "d1:raw": 14,
+  "d1:veto": 14
+ },
+ "A4seed:nd:3": {
+  "other:raw": 45,
+  "other:veto": 45,
+  "d1:raw": 12,
+  "d1:veto": 12,
+  "gold:raw": 36,
+  "gold:veto": 36,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d4:raw": 9,
+  "d4:veto": 1,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "d3:raw": 24,
+  "d3:veto": 24,
+  "asked_d4:raw": 4,
+  "asked_d4:veto": 0
+ },
+ "A4seed:nd:4": {
+  "other:raw": 40,
+  "other:veto": 40,
+  "gold:raw": 37,
+  "gold:veto": 37,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d3:raw": 18,
+  "d3:veto": 18,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "d1:raw": 22,
+  "d1:veto": 22,
+  "d4:raw": 10,
+  "d4:veto": 1,
+  "asked_d4:raw": 6,
+  "asked_d4:veto": 1
+ },
+ "A4seed:nd:5": {
+  "other:raw": 39,
+  "other:veto": 39,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d4:raw": 9,
+  "d4:veto": 0,
+  "asked_d4:raw": 8,
+  "asked_d4:veto": 0,
+  "gold:raw": 32,
+  "gold:veto": 32,
+  "d1:raw": 13,
+  "d1:veto": 13,
+  "d3:raw": 17,
+  "d3:veto": 17
+ },
+ "A4seed:default:0": {
+  "other:raw": 45,
+  "other:veto": 45,
+  "d4:raw": 10,
+  "d4:veto": 10,
+  "asked_d4:raw": 9,
+  "asked_d4:veto": 9,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "gold:raw": 35,
+  "gold:veto": 35,
+  "d1:raw": 20,
+  "d1:veto": 20,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d3:raw": 18,
+  "d3:veto": 18
+ },
+ "A4seed:default:1": {
+  "other:raw": 42,
+  "other:veto": 42,
+  "gold:raw": 33,
+  "gold:veto": 33,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d3:raw": 18,
+  "d3:veto": 18,
+  "d4:raw": 10,
+  "d4:veto": 10,
+  "asked_d4:raw": 7,
+  "asked_d4:veto": 7,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "d1:raw": 17,
+  "d1:veto": 17
+ },
+ "A4seed:default:2": {
+  "other:raw": 47,
+  "other:veto": 47,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "gold:raw": 34,
+  "gold:veto": 34,
+  "d3:raw": 17,
+  "d3:veto": 17,
+  "d4:raw": 10,
+  "d4:veto": 10,
+  "asked_d4:raw": 7,
+  "asked_d4:veto": 7,
+  "d1:raw": 14,
+  "d1:veto": 14
+ },
+ "A4seed:default:3": {
+  "other:raw": 54,
+  "other:veto": 54,
+  "d1:raw": 12,
+  "d1:veto": 12,
+  "gold:raw": 36,
+  "gold:veto": 36,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d4:raw": 10,
+  "d4:veto": 10,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "d3:raw": 24,
+  "d3:veto": 24,
+  "asked_d4:raw": 4,
+  "asked_d4:veto": 4
+ },
+ "A4seed:default:4": {
+  "other:raw": 44,
+  "other:veto": 44,
+  "gold:raw": 37,
+  "gold:veto": 37,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d3:raw": 18,
+  "d3:veto": 18,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "d1:raw": 22,
+  "d1:veto": 22,
+  "d4:raw": 10,
+  "d4:veto": 10,
+  "asked_d4:raw": 6,
+  "asked_d4:veto": 6
+ },
+ "A4seed:default:5": {
+  "other:raw": 42,
+  "other:veto": 42,
+  "d5:raw": 10,
+  "d5:veto": 10,
+  "d2:raw": 10,
+  "d2:veto": 10,
+  "d4:raw": 10,
+  "d4:veto": 10,
+  "asked_d4:raw": 8,
+  "asked_d4:veto": 8,
+  "gold:raw": 32,
+  "gold:veto": 32,
+  "d1:raw": 13,
+  "d1:veto": 13,
+  "d3:raw": 18,
+  "d3:veto": 18
+ },
+ "A5:event:B:raw": {
+  "feasible": 205,
+  "per_seed": [
+   34,
+   33,
+   34,
+   36,
+   36,
+   32
+  ],
+  "lost": []
+ },
+ "A5:event:B:veto>=1": {
+  "feasible": 205,
+  "per_seed": [
+   34,
+   33,
+   34,
+   36,
+   36,
+   32
+  ],
+  "lost": []
+ },
+ "A5:event:K:raw": {
+  "feasible": 199,
+  "per_seed": [
+   34,
+   32,
+   33,
+   35,
+   34,
+   31
+  ],
+  "lost": []
+ },
+ "A5:event:K:veto>=1": {
+  "feasible": 199,
+  "per_seed": [
+   34,
+   32,
+   33,
+   35,
+   34,
+   31
+  ],
+  "lost": []
+ },
+ "A5:nd:B:raw": {
+  "feasible": 205,
+  "per_seed": [
+   34,
+   33,
+   34,
+   36,
+   36,
+   32
+  ],
+  "lost": []
+ },
+ "A5:nd:B:veto>=1": {
+  "feasible": 205,
+  "per_seed": [
+   34,
+   33,
+   34,
+   36,
+   36,
+   32
+  ],
+  "lost": []
+ },
+ "A5:nd:K:raw": {
+  "feasible": 199,
+  "per_seed": [
+   34,
+   32,
+   33,
+   35,
+   34,
+   31
+  ],
+  "lost": []
+ },
+ "A5:nd:K:veto>=1": {
+  "feasible": 199,
+  "per_seed": [
+   34,
+   32,
+   33,
+   35,
+   34,
+   31
+  ],
+  "lost": []
+ },
+ "A5:default:B:raw": {
+  "feasible": 205,
+  "per_seed": [
+   34,
+   33,
+   34,
+   36,
+   36,
+   32
+  ],
+  "lost": []
+ },
+ "A5:default:B:veto>=1": {
+  "feasible": 205,
+  "per_seed": [
+   34,
+   33,
+   34,
+   36,
+   36,
+   32
+  ],
+  "lost": []
+ },
+ "A5:default:K:raw": {
+  "feasible": 199,
+  "per_seed": [
+   34,
+   32,
+   33,
+   35,
+   34,
+   31
+  ],
+  "lost": []
+ },
+ "A5:default:K:veto>=1": {
+  "feasible": 199,
+  "per_seed": [
+   34,
+   32,
+   33,
+   35,
+   34,
+   31
+  ],
+  "lost": []
+ },
+ "pairs:event": {
+  "gold": {
+   "(1, 1)": 2310,
+   "(2, 2)": 331,
+   "(1, 0)": 16,
+   "(2, 1)": 2
+  },
+  "d1": {
+   "(1, 1)": 710,
+   "(1, 0)": 3
+  },
+  "d2": {
+   "(1, 1)": 1026,
+   "(2, 2)": 106,
+   "(1, 0)": 6
+  },
+  "d3": {
+   "(1, 1)": 1003,
+   "(2, 2)": 39,
+   "(1, 0)": 9,
+   "(2, 1)": 23,
+   "(3, 1)": 8,
+   "(2, 0)": 1
+  },
+  "d4": {
+   "(2, 1)": 662,
+   "(3, 1)": 43,
+   "(2, 0)": 56,
+   "(1, 1)": 33,
+   "(1, 0)": 12
+  },
+  "d5": {
+   "(1, 1)": 1441,
+   "(2, 2)": 252,
+   "(2, 1)": 1
+  },
+  "other": {
+   "(1, 1)": 463,
+   "(1, 0)": 12
+  }
+ },
+ "pairs:nd": {
+  "gold": {
+   "(1, 1)": 2329,
+   "(2, 2)": 333,
+   "(1, 0)": 8
+  },
+  "d1": {
+   "(1, 1)": 728
+  },
+  "d2": {
+   "(1, 1)": 1032,
+   "(2, 2)": 106
+  },
+  "d3": {
+   "(1, 1)": 1014,
+   "(2, 2)": 39,
+   "(1, 0)": 5,
+   "(2, 1)": 24,
+   "(3, 1)": 8
+  },
+  "d4": {
+   "(2, 1)": 716,
+   "(2, 0)": 104,
+   "(3, 1)": 43,
+   "(1, 1)": 49,
+   "(1, 0)": 19
+  },
+  "d5": {
+   "(1, 1)": 1442,
+   "(2, 2)": 253
+  },
+  "other": {
+   "(1, 1)": 732,
+   "(1, 0)": 1
+  }
+ },
+ "pairs:default": {
+  "gold": {
+   "(1, 1)": 2338,
+   "(2, 2)": 333
+  },
+  "d1": {
+   "(1, 1)": 729
+  },
+  "d2": {
+   "(1, 1)": 1032,
+   "(2, 2)": 106
+  },
+  "d3": {
+   "(1, 1)": 1027,
+   "(2, 2)": 69,
+   "(3, 3)": 5,
+   "(3, 2)": 3
+  },
+  "d4": {
+   "(2, 2)": 1064,
+   "(3, 3)": 24,
+   "(3, 2)": 19,
+   "(1, 1)": 302,
+   "(2, 1)": 8
+  },
+  "d5": {
+   "(1, 1)": 1442,
+   "(2, 2)": 253
+  },
+  "other": {
+   "(1, 1)": 817
+  }
+ }
+}

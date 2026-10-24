@@ -1,0 +1,87 @@
+== per-seed AUC gold-vs-decoy of the untuned synchrony statistic (neg mean_sites_per_week_win) ==
+  seed 0: n_gold 25 n_decoy 58  AUC g/decoy 0.963  g/other 0.415
+  seed 1: n_gold 27 n_decoy 62  AUC g/decoy 0.965  g/other 0.471
+  seed 2: n_gold 21 n_decoy 50  AUC g/decoy 0.970  g/other 0.449
+  seed 3: n_gold 21 n_decoy 51  AUC g/decoy 0.934  g/other 0.349
+  seed 4: n_gold 20 n_decoy 50  AUC g/decoy 0.904  g/other 0.334
+  seed 5: n_gold 24 n_decoy 46  AUC g/decoy 0.933  g/other 0.466
+
+== baselines ==
+count (rule_weeks)           AUC g/decoy 0.611 | per class c1:0.652(n=122) c2:0.380(n=21) c3:0.735(n=132) c4:0.373(n=19) c5:0.102(n=28) | g/other 0.703 g/nongold 0.685
+                             top-20 gold/decoy per seed 2/5 4/4 1/4 1/4 2/3 0/3 | mean gold 1.6 (0.080) decoy 3.8 (0.190) feasible-gold 1.0 rare-gold 0.6
+                             top-50 gold/decoy per seed 7/11 7/13 2/12 2/14 10/11 5/11 | mean gold 5.5 (0.111) decoy 12.0 (0.239) feasible-gold 2.8 rare-gold 3.7
+longest_run                  AUC g/decoy 0.668 | per class c1:0.753(n=122) c2:0.345(n=21) c3:0.797(n=132) c4:0.321(n=19) c5:0.078(n=28) | g/other 0.785 g/nongold 0.762
+                             top-20 gold/decoy per seed 3/6 3/7 1/5 1/5 3/6 4/6 | mean gold 2.4 (0.122) decoy 6.0 (0.299) feasible-gold 1.1 rare-gold 1.3
+                             top-50 gold/decoy per seed 8/14 9/13 6/13 6/14 9/12 9/12 | mean gold 7.8 (0.156) decoy 12.8 (0.257) feasible-gold 4.0 rare-gold 5.3
+n_kcells_win (count in window) AUC g/decoy 0.592 | per class c1:0.726(n=122) c2:0.237(n=21) c3:0.698(n=132) c4:0.004(n=19) c5:0.080(n=28) | g/other 0.852 g/nongold 0.802
+                             top-20 gold/decoy per seed 8/12 6/14 10/10 7/13 4/16 5/13 | mean gold 6.8 (0.338) decoy 13.0 (0.648) feasible-gold 6.8 rare-gold 0.0
+                             top-50 gold/decoy per seed 12/25 10/30 12/22 13/24 9/23 10/17 | mean gold 11.0 (0.220) decoy 23.4 (0.469) feasible-gold 8.4 rare-gold 3.4
+
+== untuned composites ==
+ratio kcells/sync, then lr/sync AUC g/decoy 0.676 | per class c1:0.796(n=122) c2:0.386(n=21) c3:0.765(n=132) c4:0.090(n=19) c5:0.252(n=28) | g/other 0.817 g/nongold 0.790
+                             top-20 gold/decoy per seed 8/12 8/12 10/10 9/11 4/13 5/13 | mean gold 7.3 (0.367) decoy 11.8 (0.592) feasible-gold 7.3 rare-gold 0.0
+                             top-50 gold/decoy per seed 11/24 9/30 12/20 13/24 8/23 11/15 | mean gold 10.7 (0.213) decoy 22.7 (0.453) feasible-gold 8.3 rare-gold 3.0
+lex: -sync, kcells, lr       AUC g/decoy 0.952 | per class c1:0.934(n=122) c2:0.989(n=21) c3:0.958(n=132) c4:0.976(n=19) c5:0.963(n=28) | g/other 0.525 g/nongold 0.608
+                             top-20 gold/decoy per seed 4/0 5/0 6/0 5/0 3/0 8/0 | mean gold 5.3 (0.264) decoy 0.0 (0.000) feasible-gold 4.1 rare-gold 2.3
+                             top-50 gold/decoy per seed 9/0 11/0 9/0 6/1 4/1 9/0 | mean gold 8.0 (0.161) decoy 0.4 (0.009) feasible-gold 5.5 rare-gold 5.0
+lex: -n_sync_weeks, kcells, lr AUC g/decoy 0.804 | per class c1:0.773(n=122) c2:0.967(n=21) c3:0.760(n=132) c4:0.962(n=19) c5:0.949(n=28) | g/other 0.516 g/nongold 0.572
+                             top-20 gold/decoy per seed 4/0 5/0 6/0 5/0 3/0 8/0 | mean gold 5.3 (0.264) decoy 0.0 (0.000) feasible-gold 4.1 rare-gold 2.3
+                             top-50 gold/decoy per seed 9/0 11/0 9/0 6/1 4/1 9/0 | mean gold 8.0 (0.161) decoy 0.4 (0.009) feasible-gold 5.5 rare-gold 5.0
+product kcells*excl_frac     AUC g/decoy 0.748 | per class c1:0.825(n=122) c2:0.650(n=21) c3:0.816(n=132) c4:0.359(n=19) c5:0.364(n=28) | g/other 0.802 g/nongold 0.791
+                             top-20 gold/decoy per seed 9/11 8/11 11/9 10/10 5/11 5/11 | mean gold 8.0 (0.400) decoy 10.5 (0.525) feasible-gold 7.7 rare-gold 0.5
+                             top-50 gold/decoy per seed 11/22 10/19 12/14 13/17 9/16 12/12 | mean gold 11.3 (0.227) decoy 16.7 (0.333) feasible-gold 8.6 rare-gold 3.8
+
+== gated composite: keep sync <= theta, rank by (kcells, longest_run); theta fixed, all seeds (for reference) ==
+gate sync<=1.0 (k,lr)        AUC g/decoy 0.777 | per class c1:0.842(n=122) c2:0.586(n=21) c3:0.846(n=132) c4:0.437(n=19) c5:0.486(n=28) | g/other 0.555 g/nongold 0.598
+                             top-20 gold/decoy per seed 4/0 5/0 6/0 5/0 3/0 8/0 | mean gold 5.3 (0.264) decoy 0.0 (0.000) feasible-gold 4.1 rare-gold 2.3
+                             top-50 gold/decoy per seed 9/0 11/0 9/0 6/1 4/1 9/0 | mean gold 8.0 (0.161) decoy 0.4 (0.009) feasible-gold 5.5 rare-gold 5.0
+gate sync<=1.1 (k,lr)        AUC g/decoy 0.781 | per class c1:0.845(n=122) c2:0.594(n=21) c3:0.849(n=132) c4:0.452(n=19) c5:0.496(n=28) | g/other 0.560 g/nongold 0.603
+                             top-20 gold/decoy per seed 4/0 6/0 6/0 5/0 3/0 7/0 | mean gold 5.2 (0.260) decoy 0.0 (0.000) feasible-gold 4.0 rare-gold 2.0
+                             top-50 gold/decoy per seed 9/0 12/0 9/0 6/1 4/1 9/0 | mean gold 8.2 (0.164) decoy 0.4 (0.008) feasible-gold 5.5 rare-gold 5.0
+gate sync<=1.2 (k,lr)        AUC g/decoy 0.843 | per class c1:0.880(n=122) c2:0.720(n=21) c3:0.892(n=132) c4:0.618(n=19) c5:0.655(n=28) | g/other 0.642 g/nongold 0.681
+                             top-20 gold/decoy per seed 5/0 7/1 7/0 6/0 5/0 9/1 | mean gold 6.6 (0.330) decoy 0.3 (0.017) feasible-gold 4.7 rare-gold 2.3
+                             top-50 gold/decoy per seed 12/0 13/1 11/0 10/0 8/0 13/1 | mean gold 11.2 (0.224) decoy 0.4 (0.008) feasible-gold 7.0 rare-gold 6.8
+gate sync<=1.25 (k,lr)       AUC g/decoy 0.887 | per class c1:0.911(n=122) c2:0.821(n=21) c3:0.915(n=132) c4:0.748(n=19) c5:0.777(n=28) | g/other 0.713 g/nongold 0.747
+                             top-20 gold/decoy per seed 7/1 8/2 9/0 8/0 5/0 9/1 | mean gold 7.7 (0.385) decoy 0.7 (0.033) feasible-gold 5.7 rare-gold 2.4
+                             top-50 gold/decoy per seed 13/2 13/3 13/0 12/0 10/0 14/1 | mean gold 12.5 (0.250) decoy 1.0 (0.020) feasible-gold 8.0 rare-gold 7.2
+gate sync<=1.34 (k,lr)       AUC g/decoy 0.909 | per class c1:0.922(n=122) c2:0.884(n=21) c3:0.930(n=132) c4:0.821(n=19) c5:0.818(n=28) | g/other 0.738 g/nongold 0.771
+                             top-20 gold/decoy per seed 8/2 9/3 9/1 9/0 4/0 8/1 | mean gold 7.9 (0.397) decoy 1.2 (0.058) feasible-gold 6.1 rare-gold 2.3
+                             top-50 gold/decoy per seed 13/2 14/4 12/1 12/0 11/0 13/1 | mean gold 12.6 (0.251) decoy 1.4 (0.028) feasible-gold 7.9 rare-gold 6.9
+gate sync<=1.4 (k,lr)        AUC g/decoy 0.916 | per class c1:0.922(n=122) c2:0.907(n=21) c3:0.934(n=132) c4:0.857(n=19) c5:0.848(n=28) | g/other 0.763 g/nongold 0.793
+                             top-20 gold/decoy per seed 8/2 9/3 10/2 9/0 4/0 8/1 | mean gold 8.1 (0.405) decoy 1.3 (0.067) feasible-gold 6.3 rare-gold 2.1
+                             top-50 gold/decoy per seed 14/2 15/3 12/2 12/0 10/0 13/1 | mean gold 12.9 (0.258) decoy 1.5 (0.030) feasible-gold 8.3 rare-gold 6.9
+gate sync<=1.5 (k,lr)        AUC g/decoy 0.897 | per class c1:0.911(n=122) c2:0.948(n=21) c3:0.901(n=132) c4:0.840(n=19) c5:0.824(n=28) | g/other 0.809 g/nongold 0.826
+                             top-20 gold/decoy per seed 8/7 8/7 12/3 11/1 6/3 6/4 | mean gold 8.5 (0.427) decoy 4.2 (0.208) feasible-gold 7.5 rare-gold 1.2
+                             top-50 gold/decoy per seed 14/7 13/7 14/4 13/1 11/3 12/4 | mean gold 13.0 (0.259) decoy 4.4 (0.088) feasible-gold 8.8 rare-gold 5.6
+gate sync<=1.67 (k,lr)       AUC g/decoy 0.878 | per class c1:0.882(n=122) c2:0.936(n=21) c3:0.902(n=132) c4:0.822(n=19) c5:0.755(n=28) | g/other 0.832 g/nongold 0.841
+                             top-20 gold/decoy per seed 9/8 8/8 12/5 11/2 6/5 5/7 | mean gold 8.5 (0.425) decoy 5.8 (0.292) feasible-gold 7.7 rare-gold 1.0
+                             top-50 gold/decoy per seed 13/9 13/8 14/6 13/3 11/6 12/7 | mean gold 12.7 (0.254) decoy 6.5 (0.131) feasible-gold 8.9 rare-gold 5.2
+gate sync<=2.0 (k,lr)        AUC g/decoy 0.759 | per class c1:0.804(n=122) c2:0.752(n=21) c3:0.808(n=132) c4:0.683(n=19) c5:0.370(n=28) | g/other 0.847 g/nongold 0.830
+                             top-20 gold/decoy per seed 8/12 8/12 11/8 11/9 6/11 5/11 | mean gold 8.2 (0.408) decoy 10.5 (0.525) feasible-gold 7.7 rare-gold 0.5
+                             top-50 gold/decoy per seed 13/15 12/18 12/11 14/15 9/14 12/13 | mean gold 12.0 (0.241) decoy 14.4 (0.287) feasible-gold 9.0 rare-gold 4.4
+gate sync<=99 (k,lr)         AUC g/decoy 0.592 | per class c1:0.726(n=122) c2:0.237(n=21) c3:0.698(n=132) c4:0.004(n=19) c5:0.080(n=28) | g/other 0.852 g/nongold 0.802
+                             top-20 gold/decoy per seed 8/12 6/14 10/10 7/13 4/16 5/13 | mean gold 6.8 (0.338) decoy 13.0 (0.648) feasible-gold 6.8 rare-gold 0.0
+                             top-50 gold/decoy per seed 12/25 10/30 12/22 13/24 9/23 10/17 | mean gold 11.0 (0.220) decoy 23.4 (0.469) feasible-gold 8.4 rare-gold 3.4
+
+== gated, longest_run only (no k count) ==
+gate sync<=1.2 (lr only)     AUC g/decoy 0.870 | per class c1:0.888(n=122) c2:0.750(n=21) c3:0.928(n=132) c4:0.745(n=19) c5:0.665(n=28) | g/other 0.606 g/nongold 0.657
+                             top-20 gold/decoy per seed 2/0 4/0 1/0 2/0 4/0 7/1 | mean gold 3.3 (0.164) decoy 0.2 (0.013) feasible-gold 1.4 rare-gold 2.4
+                             top-50 gold/decoy per seed 11/0 12/1 10/0 9/0 8/1 11/1 | mean gold 10.2 (0.204) decoy 0.4 (0.009) feasible-gold 6.1 rare-gold 6.8
+gate sync<=1.34 (lr only)    AUC g/decoy 0.917 | per class c1:0.920(n=122) c2:0.888(n=21) c3:0.942(n=132) c4:0.883(n=19) c5:0.814(n=28) | g/other 0.690 g/nongold 0.734
+                             top-20 gold/decoy per seed 3/0 5/1 1/0 2/0 4/0 6/1 | mean gold 3.4 (0.171) decoy 0.3 (0.017) feasible-gold 1.2 rare-gold 2.6
+                             top-50 gold/decoy per seed 12/2 12/3 11/0 9/0 11/0 11/1 | mean gold 11.0 (0.221) decoy 1.1 (0.021) feasible-gold 6.4 rare-gold 7.6
+gate sync<=1.5 (lr only)     AUC g/decoy 0.909 | per class c1:0.916(n=122) c2:0.956(n=21) c3:0.922(n=132) c4:0.866(n=19) c5:0.817(n=28) | g/other 0.747 g/nongold 0.779
+                             top-20 gold/decoy per seed 4/2 3/3 1/2 1/0 6/1 5/2 | mean gold 3.4 (0.168) decoy 1.7 (0.084) feasible-gold 1.5 rare-gold 2.2
+                             top-50 gold/decoy per seed 12/4 13/5 9/3 10/1 13/1 10/3 | mean gold 11.0 (0.219) decoy 2.8 (0.057) feasible-gold 6.5 rare-gold 6.7
+
+== leave-one-seed-out: choose theta on 5 seeds by mean top-50 gold, score the 6th ==
+LOSO (k,lr): s0 th=1.5 P20 0.40g/0.35d P50 0.27g/0.14d | s1 th=1.5 P20 0.40g/0.35d P50 0.27g/0.14d | s2 th=1.4 P20 0.50g/0.10d P50 0.25g/0.04d | s3 th=1.4 P20 0.45g/0.00d P50 0.24g/0.00d | s4 th=1.4 P20 0.21g/0.00d P50 0.21g/0.00d | s5 th=1.5 P20 0.31g/0.20d P50 0.24g/0.08d
+   held-out P@20 gold 0.21-0.50 (mean 0.379) decoy mean 0.167 | P@50 gold 0.21-0.27 (mean 0.246) decoy mean 0.067
+LOSO (lr only): s0 th=1.25 P20 0.12g/0.00d P50 0.24g/0.03d | s1 th=1.25 P20 0.17g/0.00d P50 0.23g/0.04d | s2 th=1.4 P20 0.05g/0.05d P50 0.22g/0.02d | s3 th=1.4 P20 0.07g/0.00d P50 0.18g/0.00d | s4 th=1.4 P20 0.20g/0.00d P50 0.22g/0.00d | s5 th=1.4 P20 0.31g/0.05d P50 0.22g/0.02d
+   held-out P@20 gold 0.05-0.31 (mean 0.154) decoy mean 0.017 | P@50 gold 0.18-0.24 (mean 0.218) decoy mean 0.019
+
+== how many gold are reachable this way: gold in filtered pool by k-cells and feasibility ==
+gold k-cells>=1: 53 of 138
+gold feasible(F/TB_v4): 81  rare: 92
+gold feasible & k-cells>=1: 48
+gold sync<=1.34: 113  decoy sync<=1.34: 23  other: 1084

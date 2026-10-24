@@ -1,0 +1,35 @@
+SIZE 2000 seed 0: records 68463 sites 9 sites/region [1, 1, 1, 1, 1, 2, 2] pool(rw>=7) 1078 = gold 40 / decoy 103 / other 935 | H5-2 AUC g/decoy 0.777 g/other 0.291 | sync median gold 1.3550420168067228 decoy 1.625 | gated1.25 P@20 gold 0.35 decoy 0.00 (det 0.35/0.00) | lex P@20 gold 0.00 decoy 0.00 | rebuild 0.6s
+SIZE 2000 seed 1: records 68514 sites 11 sites/region [1, 1, 1, 2, 2, 2, 2] pool(rw>=7) 1072 = gold 40 / decoy 95 / other 937 | H5-2 AUC g/decoy 0.762 g/other 0.271 | sync median gold 1.3693181818181817 decoy 1.7619047619047619 | gated1.25 P@20 gold 0.10 decoy 0.05 (det 0.10/0.05) | lex P@20 gold 0.00 decoy 0.00 | rebuild 0.6s
+SIZE 2000 seed 2: records 67241 sites 13 sites/region [1, 1, 1, 1, 3, 3, 3] pool(rw>=7) 1066 = gold 40 / decoy 99 / other 927 | H5-2 AUC g/decoy 0.676 g/other 0.277 | sync median gold 1.4166666666666667 decoy 1.6666666666666667 | gated1.25 P@20 gold 0.35 decoy 0.05 (det 0.35/0.05) | lex P@20 gold 0.05 decoy 0.00 | rebuild 0.6s
+SIZE 2000 seed 3: records 68238 sites 11 sites/region [1, 1, 1, 1, 2, 2, 3] pool(rw>=7) 1091 = gold 40 / decoy 93 / other 958 | H5-2 AUC g/decoy 0.654 g/other 0.195 | sync median gold 1.5 decoy 1.7 | gated1.25 P@20 gold 0.05 decoy 0.05 (det 0.05/0.05) | lex P@20 gold 0.00 decoy 0.00 | rebuild 0.6s
+SIZE 2000 seed 4: records 67221 sites 7 sites/region [1, 1, 1, 1, 1, 1, 1] pool(rw>=7) 1072 = gold 40 / decoy 96 / other 936 | H5-2 AUC g/decoy 0.765 g/other 0.332 | sync median gold 1.2792207792207793 decoy 1.5 | gated1.25 P@20 gold 0.57 decoy 0.00 (det 0.55/0.00) | lex P@20 gold 0.00 decoy 0.00 | rebuild 0.6s
+SIZE 2000 seed 5: records 69775 sites 13 sites/region [1, 1, 1, 1, 3, 3, 3] pool(rw>=7) 1097 = gold 40 / decoy 103 / other 954 | H5-2 AUC g/decoy 0.756 g/other 0.288 | sync median gold 1.4 decoy 1.7333333333333334 | gated1.25 P@20 gold 0.15 decoy 0.05 (det 0.15/0.05) | lex P@20 gold 0.00 decoy 0.00 | rebuild 0.5s
+
+== SIZE 2000 pooled over seeds [0, 1, 2, 3, 4, 5]: H5-2 statistic = -mean sites per active week, longest-run window ==
+neg sync (size 2000)               AUC g/decoy 0.726 (n 240 vs 589) | c1:0.676(n=187) c2:0.828(n=71) c3:0.651(n=198) c4:0.888(n=75) c5:0.821(n=69) | g/other 0.277 (n_other 5647)
+neg sync_max (size 2000)           AUC g/decoy 0.734 (n 240 vs 589) | c1:0.687(n=187) c2:0.761(n=71) c3:0.711(n=198) c4:0.865(n=75) c5:0.786(n=69) | g/other 0.247 (n_other 5647)
+n_kcells (size 2000)               AUC g/decoy 0.573 (n 240 vs 589) | c1:0.697(n=187) c2:0.471(n=71) c3:0.695(n=198) c4:0.101(n=75) c5:0.484(n=69) | g/other 0.817 (n_other 5647)
+longest_run (size 2000)            AUC g/decoy 0.594 (n 240 vs 589) | c1:0.565(n=187) c2:0.570(n=71) c3:0.618(n=198) c4:0.591(n=75) c5:0.607(n=69) | g/other 0.687 (n_other 5647)
+gated(1.25,k,lr) rank (size 2000)  AUC g/decoy 0.695 (n 240 vs 589) | c1:0.770(n=187) c2:0.667(n=71) c3:0.752(n=198) c4:0.393(n=75) c5:0.677(n=69) | g/other 0.461 (n_other 5647)
+
+== distribution of max co-active sites in the window (sync_max) by label ==
+  gold   n=  240 [(1, 4), (2, 86), (3, 86), (4, 41), (5, 19), (6, 2), (7, 2)]
+  decoy  n=  589 [(1, 5), (2, 71), (3, 129), (4, 160), (5, 129), (6, 62), (7, 23), (8, 2), (9, 8)]
+  other  n= 5647 [(1, 1234), (2, 3307), (3, 725), (4, 204), (5, 121), (6, 48), (7, 7), (8, 1)]
+  decoy1 n=  187 [(1, 2), (2, 28), (3, 50), (4, 53), (5, 35), (6, 14), (7, 3), (9, 2)]
+  decoy2 n=   71 [(2, 7), (3, 13), (4, 25), (5, 17), (6, 5), (7, 2), (8, 1), (9, 1)]
+  decoy3 n=  198 [(1, 3), (2, 25), (3, 49), (4, 54), (5, 41), (6, 20), (7, 5), (8, 1)]
+  decoy4 n=   75 [(2, 3), (3, 8), (4, 16), (5, 18), (6, 15), (7, 9), (8, 1), (9, 5)]
+  decoy5 n=   69 [(2, 8), (3, 10), (4, 14), (5, 21), (6, 11), (7, 5)]
+
+== per-seed summary ==
+  seed 0: AUC g/decoy 0.777 g/other 0.291 sites 9 sites/region [1, 1, 1, 1, 1, 2, 2] pool 1078 gold 40 decoy 103 other 935 gated P@20 gold 0.35 decoy 0.00
+  seed 1: AUC g/decoy 0.762 g/other 0.271 sites 11 sites/region [1, 1, 1, 2, 2, 2, 2] pool 1072 gold 40 decoy 95 other 937 gated P@20 gold 0.10 decoy 0.05
+  seed 2: AUC g/decoy 0.676 g/other 0.277 sites 13 sites/region [1, 1, 1, 1, 3, 3, 3] pool 1066 gold 40 decoy 99 other 927 gated P@20 gold 0.35 decoy 0.05
+  seed 3: AUC g/decoy 0.654 g/other 0.195 sites 11 sites/region [1, 1, 1, 1, 2, 2, 3] pool 1091 gold 40 decoy 93 other 958 gated P@20 gold 0.05 decoy 0.05
+  seed 4: AUC g/decoy 0.765 g/other 0.332 sites 7 sites/region [1, 1, 1, 1, 1, 1, 1] pool 1072 gold 40 decoy 96 other 936 gated P@20 gold 0.57 decoy 0.00
+  seed 5: AUC g/decoy 0.756 g/other 0.288 sites 13 sites/region [1, 1, 1, 1, 3, 3, 3] pool 1097 gold 40 decoy 103 other 954 gated P@20 gold 0.15 decoy 0.05
+
+real	0m6.020s
+user	0m5.637s
+sys	0m0.378s

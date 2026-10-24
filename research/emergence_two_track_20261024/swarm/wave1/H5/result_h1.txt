@@ -1,0 +1,45 @@
+filtered pool 1765 {'gold': 138, 'decoy': 317, 'other': 1310}
+
+== AUC (higher statistic = ranked more gold-like) ==
+count                        AUC g/decoy 0.611 | per class c1:0.652(n=122) c2:0.380(n=21) c3:0.735(n=132) c4:0.373(n=19) c5:0.102(n=28) | g/other 0.703 g/nongold 0.685
+longest_run                  AUC g/decoy 0.668 | per class c1:0.753(n=122) c2:0.345(n=21) c3:0.797(n=132) c4:0.321(n=19) c5:0.078(n=28) | g/other 0.785 g/nongold 0.762
+n_runs                       AUC g/decoy 0.498 | per class c1:0.468(n=122) c2:0.518(n=21) c3:0.491(n=132) c4:0.576(n=19) c5:0.582(n=28) | g/other 0.452 g/nongold 0.461
+neg_n_runs                   AUC g/decoy 0.502 | per class c1:0.532(n=122) c2:0.482(n=21) c3:0.509(n=132) c4:0.424(n=19) c5:0.418(n=28) | g/other 0.548 g/nongold 0.539
+count_minus_longest          AUC g/decoy 0.487 | per class c1:0.450(n=122) c2:0.512(n=21) c3:0.482(n=132) c4:0.584(n=19) c5:0.579(n=28) | g/other 0.445 g/nongold 0.453
+neg_count_minus_longest      AUC g/decoy 0.513 | per class c1:0.550(n=122) c2:0.488(n=21) c3:0.518(n=132) c4:0.416(n=19) c5:0.421(n=28) | g/other 0.555 g/nongold 0.547
+longest_frac                 AUC g/decoy 0.515 | per class c1:0.554(n=122) c2:0.482(n=21) c3:0.521(n=132) c4:0.416(n=19) c5:0.416(n=28) | g/other 0.564 g/nongold 0.554
+span                         AUC g/decoy 0.593 | per class c1:0.608(n=122) c2:0.423(n=21) c3:0.699(n=132) c4:0.429(n=19) c5:0.201(n=28) | g/other 0.641 g/nongold 0.631
+density                      AUC g/decoy 0.505 | per class c1:0.539(n=122) c2:0.477(n=21) c3:0.512(n=132) c4:0.423(n=19) c5:0.411(n=28) | g/other 0.550 g/nongold 0.541
+gap_var                      AUC g/decoy 0.496 | per class c1:0.461(n=122) c2:0.521(n=21) c3:0.490(n=132) c4:0.577(n=19) c5:0.589(n=28) | g/other 0.452 g/nongold 0.461
+neg_gap_var                  AUC g/decoy 0.504 | per class c1:0.539(n=122) c2:0.479(n=21) c3:0.510(n=132) c4:0.423(n=19) c5:0.411(n=28) | g/other 0.548 g/nongold 0.539
+n_big_gaps                   AUC g/decoy 0.498 | per class c1:0.468(n=122) c2:0.518(n=21) c3:0.491(n=132) c4:0.576(n=19) c5:0.582(n=28) | g/other 0.452 g/nongold 0.461
+first                        AUC g/decoy 0.500 | per class c1:0.427(n=122) c2:0.710(n=21) c3:0.445(n=132) c4:0.742(n=19) c5:0.823(n=28) | g/other 0.383 g/nongold 0.406
+neg_first                    AUC g/decoy 0.500 | per class c1:0.573(n=122) c2:0.290(n=21) c3:0.555(n=132) c4:0.258(n=19) c5:0.177(n=28) | g/other 0.617 g/nongold 0.594
+last                         AUC g/decoy 0.538 | per class c1:0.469(n=122) c2:0.591(n=21) c3:0.597(n=132) c4:0.647(n=19) c5:0.419(n=28) | g/other 0.466 g/nongold 0.480
+
+== precision at top-N per seed (random tie-break averaged over 20 draws) ==
+count                        P@20 gold 0.078 decoy 0.191 per-seed gold 0.11 0.17 0.04 0.05 0.10 0.00 | P@50 gold 0.110 decoy 0.241 per-seed gold 0.15 0.14 0.04 0.04 0.19 0.10
+longest_run                  P@20 gold 0.124 decoy 0.299 per-seed gold 0.15 0.15 0.05 0.05 0.15 0.20 | P@50 gold 0.157 decoy 0.255 per-seed gold 0.15 0.19 0.12 0.12 0.17 0.19
+span                         P@20 gold 0.058 decoy 0.187 per-seed gold 0.15 0.17 0.02 0.01 0.00 0.00 | P@50 gold 0.085 decoy 0.168 per-seed gold 0.11 0.12 0.06 0.06 0.10 0.06
+neg_n_runs                   P@20 gold 0.085 decoy 0.199 per-seed gold 0.11 0.08 0.08 0.07 0.08 0.09 | P@50 gold 0.083 decoy 0.195 per-seed gold 0.09 0.09 0.08 0.09 0.07 0.09
+neg_count_minus_longest      P@20 gold 0.085 decoy 0.199 per-seed gold 0.11 0.08 0.08 0.07 0.08 0.09 | P@50 gold 0.083 decoy 0.195 per-seed gold 0.09 0.09 0.08 0.09 0.07 0.09
+longest_frac                 P@20 gold 0.085 decoy 0.199 per-seed gold 0.11 0.08 0.08 0.07 0.08 0.09 | P@50 gold 0.083 decoy 0.195 per-seed gold 0.09 0.09 0.08 0.09 0.07 0.09
+
+== longest_run distribution by class ==
+gold [(7, 1), (8, 23), (9, 20), (10, 7), (11, 19), (12, 19), (13, 14), (14, 11), (15, 3), (16, 3), (17, 5), (18, 1), (19, 4), (20, 1), (21, 2), (23, 3), (24, 1), (25, 1)]
+decoy [(5, 1), (6, 1), (7, 4), (8, 179), (9, 11), (10, 14), (11, 19), (12, 12), (13, 7), (14, 11), (15, 6), (16, 12), (17, 7), (18, 7), (19, 9), (20, 4), (21, 3), (22, 4), (23, 2), (24, 2), (25, 2)]
+other [(3, 3), (4, 19), (5, 43), (6, 56), (7, 230), (8, 575), (9, 68), (10, 56), (11, 43), (12, 42), (13, 34), (14, 24), (15, 22), (16, 18), (17, 12), (18, 12), (19, 4), (20, 5), (21, 9), (22, 9), (23, 9), (24, 10), (25, 6), (26, 1)]
+
+== n_runs distribution by class ==
+gold [(1, 101), (2, 33), (3, 4)]
+decoy [(1, 230), (2, 80), (3, 7)]
+other [(1, 843), (2, 381), (3, 82), (4, 4)]
+
+== per decoy class: median count / longest_run / n_runs ==
+1 122 count 9.0 longest 8.0 n_runs 1.0 span 9.5
+2 21 count 14 longest 13 n_runs 1 span 14
+3 132 count 8.0 longest 8.0 n_runs 1.0 span 8.0
+4 19 count 15 longest 14 n_runs 1 span 16
+5 28 count 19.0 longest 19.0 n_runs 1.0 span 19.0
+gold 138 count 12.0 longest 11.0 n_runs 1.0 span 13.0
+other 1310 count 8.0 longest 8.0 n_runs 1.0 span 9.0

@@ -1,0 +1,167 @@
+{
+ "shipped (score desc)  [det_rank reproduction]": {
+  "found": 118,
+  "rare": 7,
+  "decoys": 113,
+  "bg": 13,
+  "per_seed": [
+   18,
+   15,
+   22,
+   24,
+   18,
+   21
+  ],
+  "decoys_by_class": {
+   "1": 7,
+   "2": 53,
+   "3": 8,
+   "5": 45
+  }
+ },
+ "rule hit first, then score  [Gate-0, e2e-confirmed 127]": {
+  "found": 128,
+  "rare": 8,
+  "decoys": 113,
+  "bg": 13,
+  "per_seed": [
+   18,
+   18,
+   23,
+   26,
+   21,
+   22
+  ],
+  "decoys_by_class": {
+   "1": 7,
+   "2": 53,
+   "3": 8,
+   "5": 45
+  }
+ },
+ "** S_Net3 at snapshot week, then shipped  [THE PRE-REGISTERED USE]": {
+  "found": 138,
+  "rare": 10,
+  "decoys": 97,
+  "bg": 11,
+  "per_seed": [
+   18,
+   20,
+   26,
+   28,
+   22,
+   24
+  ],
+  "decoys_by_class": {
+   "1": 6,
+   "2": 38,
+   "3": 12,
+   "4": 1,
+   "5": 40
+  }
+ },
+ "S_Net3 H4 per-key (max over rule weeks), then shipped  [diagnostic]": {
+  "found": 137,
+  "rare": 13,
+  "decoys": 90,
+  "bg": 16,
+  "per_seed": [
+   22,
+   19,
+   25,
+   27,
+   21,
+   23
+  ],
+  "decoys_by_class": {
+   "1": 5,
+   "2": 37,
+   "3": 9,
+   "4": 9,
+   "5": 30
+  }
+ },
+ "S_Net (nu=1,0) at snapshot week, then shipped  [diagnostic]": {
+  "found": 140,
+  "rare": 12,
+  "decoys": 95,
+  "bg": 13,
+  "per_seed": [
+   18,
+   20,
+   27,
+   28,
+   23,
+   24
+  ],
+  "decoys_by_class": {
+   "1": 6,
+   "2": 37,
+   "3": 12,
+   "4": 1,
+   "5": 39
+  }
+ },
+ "P^(clear|b) at snapshot week, then shipped  [diagnostic, label-free]": {
+  "found": 137,
+  "rare": 4,
+  "decoys": 111,
+  "bg": 6,
+  "per_seed": [
+   21,
+   20,
+   27,
+   28,
+   20,
+   21
+  ],
+  "decoys_by_class": {
+   "1": 8,
+   "2": 45,
+   "3": 11,
+   "4": 3,
+   "5": 44
+  }
+ },
+ "rule hit first, then S_Net3@snap, then score  [diagnostic combo]": {
+  "found": 139,
+  "rare": 11,
+  "decoys": 98,
+  "bg": 11,
+  "per_seed": [
+   18,
+   21,
+   26,
+   28,
+   22,
+   24
+  ],
+  "decoys_by_class": {
+   "1": 6,
+   "2": 38,
+   "3": 12,
+   "4": 2,
+   "5": 40
+  }
+ },
+ "S_Net3@snap > 0 first, then rule hit, then score  [diagnostic combo]": {
+  "found": 123,
+  "rare": 7,
+  "decoys": 111,
+  "bg": 13,
+  "per_seed": [
+   18,
+   17,
+   22,
+   26,
+   18,
+   22
+  ],
+  "decoys_by_class": {
+   "1": 7,
+   "2": 52,
+   "3": 9,
+   "5": 43
+  }
+ }
+}

@@ -1,0 +1,41 @@
+baseline n_rw:
+BASELINE n_rw                                AUC(g|d) pooled 0.611 per-seed [0.67 0.67 0.55 0.49 0.67 0.58] spread 0.49-0.67 | top20x6 gold 9 decoy 23 | top50x6 gold 33 decoy 72 | wave-0 budget (736) gold 99 decoy 157
+reference: wave-0 >=11 cut on 736 keys = gold 99 / decoy 157; PU-buckets LOSO (test_02/03) AUC 0.643, top20x6 41/40, top50x6 68/116
+
+== (A) PN transfer from the system's own outcomes (found vs asked-not-found on the snapshot pool), LOSO by seed ==
+P = asked & found: 93  N = asked & not found: 254 (contains 9 gold the system missed, 216 decoys, 29 other)
+PN-transfer found-vs-notfound / rw_only      AUC(g|d) pooled 0.421 per-seed [0.33 0.33 0.45 0.51 0.33 0.42] spread 0.33-0.51 | top20x6 gold 1 decoy 2 | top50x6 gold 2 decoy 16 | wave-0 budget (736) gold 13 decoy 114
+PN-transfer found-vs-notfound / shape        AUC(g|d) pooled 0.478 per-seed [0.36 0.50 0.46 0.57 0.52 0.55] spread 0.36-0.57 | top20x6 gold 4 decoy 13 | top50x6 gold 14 decoy 43 | wave-0 budget (736) gold 41 decoy 108
+PN-transfer found-vs-notfound / shape+ent    AUC(g|d) pooled 0.528 per-seed [0.42 0.52 0.61 0.56 0.53 0.60] spread 0.42-0.61 | top20x6 gold 8 decoy 16 | top50x6 gold 21 decoy 45 | wave-0 budget (736) gold 62 decoy 137
+PN-transfer found-vs-notfound / buckets      AUC(g|d) pooled 0.708 per-seed [0.74 0.64 0.81 0.77 0.65 0.66] spread 0.64-0.81 | top20x6 gold 52 decoy 34 | top50x6 gold 73 decoy 99 | wave-0 budget (736) gold 97 decoy 154
+PN-transfer found-vs-notfound / ALL          AUC(g|d) pooled 0.685 per-seed [0.70 0.60 0.80 0.74 0.66 0.61] spread 0.60-0.80 | top20x6 gold 47 decoy 34 | top50x6 gold 73 decoy 97 | wave-0 budget (736) gold 98 decoy 159
+   (snapshot pool, in-sample, buckets: AUC found-vs-notfound 0.954; gold-vs-decoy among snapshot keys 0.926)
+
+== (B) single exported statistics, no fitting (all tried are listed; multiplicity = number of lines) ==
+s = max_roots_lb                             AUC(g|d) pooled 0.603 per-seed [0.62 0.55 0.68 0.67 0.55 0.60] spread 0.55-0.68 | top20x6 gold 50 decoy 67 | top50x6 gold 82 decoy 144 | wave-0 budget (736) gold 107 decoy 198
+s = max_users_lb                             AUC(g|d) pooled 0.580 per-seed [0.61 0.54 0.65 0.60 0.53 0.59] spread 0.53-0.65 | top20x6 gold 46 decoy 72 | top50x6 gold 77 decoy 135 | wave-0 budget (736) gold 107 decoy 198
+s = max(roots-users)                         AUC(g|d) pooled 0.589 per-seed [0.62 0.52 0.61 0.68 0.58 0.55] spread 0.52-0.68 | top20x6 gold 43 decoy 53 | top50x6 gold 59 decoy 84 | wave-0 budget (736) gold 82 decoy 153
+s = max roots/(users+1)                      AUC(g|d) pooled 0.622 per-seed [0.64 0.55 0.68 0.68 0.64 0.59] spread 0.55-0.68 | top20x6 gold 48 decoy 60 | top50x6 gold 85 decoy 133 | wave-0 budget (736) gold 107 decoy 198
+s = sum(roots-users) over wks                AUC(g|d) pooled 0.596 per-seed [0.63 0.52 0.63 0.70 0.53 0.57] spread 0.52-0.70 | top20x6 gold 44 decoy 53 | top50x6 gold 57 decoy 81 | wave-0 budget (736) gold 81 decoy 150
+s = wk_ge1k                                  AUC(g|d) pooled 0.595 per-seed [0.65 0.52 0.68 0.64 0.54 0.56] spread 0.52-0.68 | top20x6 gold 47 decoy 59 | top50x6 gold 70 decoy 149 | wave-0 budget (736) gold 107 decoy 198
+s = wk_ge2k                                  AUC(g|d) pooled 0.507 per-seed [0.51 0.48 0.57 0.55 0.43 0.53] spread 0.43-0.57 | top20x6 gold 36 decoy 81 | top50x6 gold 63 decoy 132 | wave-0 budget (736) gold 85 decoy 186
+s = wk_n1                                    AUC(g|d) pooled 0.569 per-seed [0.64 0.50 0.64 0.58 0.52 0.54] spread 0.50-0.64 | top20x6 gold 42 decoy 71 | top50x6 gold 76 decoy 154 | wave-0 budget (736) gold 108 decoy 201
+s = max_ksites                               AUC(g|d) pooled 0.569 per-seed [0.57 0.53 0.66 0.57 0.52 0.58] spread 0.52-0.66 | top20x6 gold 39 decoy 78 | top50x6 gold 71 decoy 136 | wave-0 budget (736) gold 107 decoy 198
+s = max_site_bucket                          AUC(g|d) pooled 0.604 per-seed [0.63 0.56 0.67 0.63 0.55 0.60] spread 0.55-0.67 | top20x6 gold 44 decoy 66 | top50x6 gold 77 decoy 122 | wave-0 budget (736) gold 107 decoy 198
+s = max_sumlb                                AUC(g|d) pooled 0.536 per-seed [0.58 0.49 0.61 0.58 0.46 0.51] spread 0.46-0.61 | top20x6 gold 45 decoy 74 | top50x6 gold 74 decoy 164 | wave-0 budget (736) gold 119 decoy 269
+s = max_nsites                               AUC(g|d) pooled 0.384 per-seed [0.39 0.38 0.38 0.34 0.43 0.38] spread 0.34-0.43 | top20x6 gold 16 decoy 63 | top50x6 gold 43 decoy 151 | wave-0 budget (736) gold 97 decoy 261
+
+== (C) ORACLE coefficients (labels used to fit; diagnostic only): supervised gold-vs-decoy on U_f, all six seeds, buckets ==
+   wk_blind_ge2k      -2.352
+   wk_ge1k            +1.939
+   wk_n1              -1.694
+   std_sumlb          -1.647
+   max_roots_lb       +1.505
+   max_site_bucket    +1.469
+   intercept          -1.177
+   weak_wks           +0.963
+   wk_ge2k            +0.644
+   max_nsites         -0.490
+   mean_weak          -0.471
+   max_ksites         +0.469
+   cosine(PU direction, oracle gold-vs-decoy direction) = +0.363;  cosine(PN-transfer direction, oracle) = +0.804

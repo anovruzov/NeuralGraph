@@ -1,0 +1,52 @@
+== (1) field provenance
+features: nC, nU, nP, roots_lb, rep_lb, fresh from per-site weekly cells (n, n_roots, n_reporters; '<k' or count) over [w-5, w].
+contract: CellRow(site, entity_type, entity_id, predicate, iso_week, channel, n, n_roots, n_reporters, res_conf_min, bundle, as_of) -- all three counts ARE exported, k-suppressed.
+BUT H4 did not read HQ's cells: test_h4_extract.py rebuilds them from corpus.recs (every record on the key, polarity-blind). Check against HQ's actual stored cells:
+  asked rows compared (all v4 pool rows found in h4_cells): 3178; window lower-bound vector identical: 3134 (98.6%); site-count vector identical: 3148 (99.1%); both: 3134
+  per seed (lb agree, sites agree, n): {'0': (531, 535, 539), '1': (534, 536, 539), '2': (487, 488, 494), '3': (543, 545, 551), '4': (523, 525, 532), '5': (516, 519, 523)}; disagreement direction: {('lb', 'h4>hq'): 44}
+  (roots / reporters per cell cannot be checked against the pool dump -- it recorded only n. CellRow carries them; provenance of those two is by contract reading only.)
+
+== (3) fitted table
+  index: the 6-tuple class only (code: Counter keyed by r['cls']); 64 classes populated; no entity / seed / key index.
+  rows (askable weeks) per key by label -- the fit weights a key by its number of askable weeks: {'other': 13.3, 'decoy': 13.6, 'gold': 15.2}
+  filtered keys scored at a class with P(clear) < 0.01 (can never yield a verdict): 1721/1765; gold 117/138, decoy 298/317
+  AUC gold-vs-decoy among those never-clearing keys alone (ordering by ~1e-6 smoothing residues): 0.730; among the rest: 0.657
+  pairs (gold,decoy) both never-clearing: 34866 of 43746 (79.7%); gold ranked above decoy in 0.730 of them
+  pairs clearing-gold vs never-clearing-decoy: 6258; gold above in 1.000
+  pairs never-clearing-gold vs clearing-decoy: 2223; gold above in 0.000
+  pairs both clearing: 399; gold above in 0.657
+  near-zero classes at which filtered gold/decoy keys are scored, with their net3 (pooled fit) -- the sign/magnitude is smoothing arithmetic:
+    (0, 0, 1, 0, 0, 0)     keys 1349  net3 -1.54e-08  P(gold|c) 0.049  rows 20796  clears 0
+    (0, 0, 2, 0, 0, 0)     keys  235  net3 -8.07e-08  P(gold|c) 0.053  rows 8690  clears 0
+    (0, 0, 3, 0, 0, 0)     keys   82  net3 -5.25e-07  P(gold|c) 0.088  rows 2644  clears 0
+    (1, 0, 1, 3, 3, 0)     keys   11  net3 +1.31e-04  P(gold|c) 0.979  rows 86  clears 0
+    (1, 0, 3, 3, 3, 0)     keys   10  net3 -9.20e-05  P(gold|c) 0.282  rows 105  clears 0
+    (0, 1, 1, 0, 0, 0)     keys    9  net3 -9.26e-07  P(gold|c) 0.057  rows 2478  clears 0
+
+== (4) label-flip
+  flip held-out key ('0', 'entity:E-CINDER-CORE:chain_firmware'): s moves by +0.000e+00 (LOSO: cannot move; passes trivially)
+  flip ONE training gold key -> held-out seed: max |delta s|, AUC before -> after
+    held-out 0: flipped entity:E-ARBOR:chain_firmware (seed 1): max|ds| 1.679e-05; AUC 0.797 -> 0.797
+    held-out 1: flipped entity:E-CINDER-CORE:chain_firmware (seed 0): max|ds| 3.428e-03; AUC 0.641 -> 0.641
+    held-out 2: flipped entity:E-CINDER-CORE:chain_firmware (seed 0): max|ds| 6.627e-05; AUC 0.777 -> 0.777
+    held-out 3: flipped entity:E-CINDER-CORE:chain_firmware (seed 0): max|ds| 1.016e-04; AUC 0.806 -> 0.806
+    held-out 4: flipped entity:E-CINDER-CORE:chain_firmware (seed 0): max|ds| 3.607e-03; AUC 0.676 -> 0.676
+    held-out 5: flipped entity:E-CINDER-CORE:chain_firmware (seed 0): max|ds| 7.170e-05; AUC 0.717 -> 0.717
+
+== (5) seed-swap: refit on 4 of the 5 training seeds (drop one), per held-out seed; and a 3/3 split
+  held-out 0: 5-seed AUC 0.797; 4-seed fits (dropped, AUC, top5 overlap/5): [('1', 0.702, 5), ('2', 0.797, 5), ('3', 0.801, 5), ('4', 0.702, 5), ('5', 0.797, 5)]
+  held-out 1: 5-seed AUC 0.641; 4-seed fits (dropped, AUC, top5 overlap/5): [('0', 0.641, 5), ('2', 0.658, 5), ('3', 0.717, 3), ('4', 0.641, 4), ('5', 0.735, 4)]
+  held-out 2: 5-seed AUC 0.777; 4-seed fits (dropped, AUC, top5 overlap/5): [('0', 0.777, 5), ('1', 0.808, 5), ('3', 0.777, 4), ('4', 0.808, 5), ('5', 0.777, 4)]
+  held-out 3: 5-seed AUC 0.806; 4-seed fits (dropped, AUC, top5 overlap/5): [('0', 0.768, 5), ('1', 0.768, 5), ('2', 0.806, 5), ('4', 0.745, 5), ('5', 0.806, 5)]
+  held-out 4: 5-seed AUC 0.676; 4-seed fits (dropped, AUC, top5 overlap/5): [('0', 0.676, 5), ('1', 0.676, 5), ('2', 0.676, 5), ('3', 0.782, 1), ('5', 0.767, 1)]
+  held-out 5: 5-seed AUC 0.717; 4-seed fits (dropped, AUC, top5 overlap/5): [('0', 0.717, 4), ('1', 0.717, 4), ('2', 0.717, 5), ('3', 0.717, 5), ('4', 0.71, 5)]
+  fit on ['0', '1', '2'] -> score ['3', '4', '5']: pooled AUC 0.741; per seed {'3': 0.746, '4': 0.782, '5': 0.71}
+  fit on ['3', '4', '5'] -> score ['0', '1', '2']: pooled AUC 0.707; per seed {'0': 0.702, '1': 0.641, '2': 0.793}
+  top-3 classes by net3 per fold: {'0': ['(1, 0, 2, 3, 3, 1)', '(1, 0, 1, 3, 3, 0)', '(0, 0, 1, 0, 0, 0)'], '1': ['(1, 0, 2, 3, 3, 1)', '(1, 1, 3, 0, 3, 1)', '(2, 0, 2, 3, 3, 1)'], '2': ['(2, 2, 3, 0, 3, 1)', '(1, 0, 2, 3, 3, 1)', '(1, 2, 3, 0, 3, 1)'], '3': ['(1, 0, 2, 3, 3, 1)', '(1, 1, 2, 3, 3, 0)', '(1, 2, 3, 0, 3, 1)'], '4': ['(1, 0, 2, 3, 3, 1)', '(1, 2, 3, 0, 3, 1)', '(2, 0, 2, 3, 3, 1)'], '5': ['(1, 0, 2, 3, 3, 1)', '(1, 1, 2, 3, 3, 1)', '(1, 0, 1, 3, 3, 0)']}
+
+== (8) too-good-to-be-honest: permutation null of the WHOLE LOSO fit+score (200 permutations; labels permuted among keys within seed)
+  first permutation took 0.5 s
+  pooled AUC under the permutation null: mean 0.499, 95th pct 0.549, 99th 0.568, max 0.592
+  observed S_Net3 pooled 0.731: exceeded by 0/200 permutations; S_Net 0.794: by 0/200
+  min-over-seeds AUC under the null: 95th pct 0.488, max 0.515 (observed S_Net3 min 0.641, S_Net min 0.741)
+done 85.8 s for the null

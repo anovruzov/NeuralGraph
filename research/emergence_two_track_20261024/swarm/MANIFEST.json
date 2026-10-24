@@ -1,0 +1,111 @@
+{
+ "written": "2026-10-24T15:48:16.172174Z",
+ "directive": {
+  "spec_sha256": "19fe84b79c3a07ef648330d5774b7ad1278a9efe07fdcc64c0d40a201fcda98a",
+  "launcher_sha256": "af3d84292561a0560ac11122bd4fe23215dd74e38d75107144ecb4d987fd01d8",
+  "reference_images": {
+   "IMG_0272(1).jpeg": "e9a2989a4c580ec9ad9bcb442b97c0e11923678cfd086eac84a09add3e20ed7b",
+   "IMG_0273(1).jpeg": "c36df0c12423f26f5d13f7014eac9e1b92426f450640b5cb99a70dfed4060704",
+   "IMG_0274(1).jpeg": "1530145950962a37ad9d473abea09d2ac956b981b42046ab2b2fe2dd668ba517",
+   "IMG_3571(1).jpeg": "f56465c05168a3c55768d3fe53b5f222b9bea1f8bb2d3e7c9cc8c86c23d71706",
+   "IMG_3574(1).jpeg": "5c41bcc628c35986fdb6e6275051b33a760a3e1d4fa5292ebc934c5fbf0e7331",
+   "IMG_3575(1).jpeg": "682c0b8443f23a41f75bcb0781d0c4e0df70f02ce19ac75c03ed9985b4d41788",
+   "IMG_3577(1).jpeg": "e86902d4084f6bc6df6b8cb89706dd12bf58e39ca1112acddb55533d6f6bb290"
+  }
+ },
+ "repo_heads": {
+  "NeuralGraph/claude/session-analysis-continuation-sm1a1t": "1987110774a39bcc2667db2c16aca6044b42d47f",
+  "NeuralGraph/research/emergence-next-continuation-20261024 (ng-deploy)": "ce0e357823816dd8090bec2423982b5d8db11e71",
+  "NeuralGraph/research/report-integrity (ng-integrity)": "5da07a4aac84899620a13bb29e42c9bc3341ac9b",
+  "NeuralGraph/claude/mycelic-gate-0-recovery-tjl82x (ng-recovery)": "e6aba1cc1af622a4b564671c2caf7f38ea6b7077 (corrected per D9; was recorded before two merges)",
+  "MycelicLabs/HEAD (local, 8 commits ahead of read-only origin)": "ed65f5a9f2703a214acc152aedb215a952b63314",
+  "NeuralGraph/research/arena (ng-arena)": "80227ad125a368069a2d24aacaa1d7d50b6c2666"
+ },
+ "known_prior_references_verified": {
+  "MycelicLabs a09283a": true,
+  "NeuralGraph f440d10": true,
+  "old_harness_baseline e094bd8": true
+ },
+ "baseline": {
+  "official": "93/240 = 0.3875, 118/300 decoys, 341 questions, drills on, all checks green",
+  "artifact": "raw/official_ce0e357/BASELINE_SEEDS_0-5.csv",
+  "artifact_sha256": "936cf8a60db0736223e9b1d8e5b9a2a7e109b4f6ffda7ae9da44938aeec6749c",
+  "report_sha256_per_seed_in": "raw/official_ce0e357/ledger.jsonl",
+  "metric_definitions": "research/e2e_ingest/report.py at ce0e357; F/TB_v4 ceiling 179/240 from raw/plateau/ceiling_b.json"
+ },
+ "capability_probe": {
+  "team_flag": "unset",
+  "spawn_tool": "Agent (background subagents, independent contexts)",
+  "peer_messaging": "SendMessage available; no other session visible on this machine",
+  "git_worktree": true,
+  "nproc": 4,
+  "mem_gb": 15,
+  "disk_avail_gb": 20,
+  "load_1m": 0.12,
+  "transport": "nats-server v2.10.29 (authorized, loopback, scratchpad)",
+  "cargo": "1.97.0",
+  "python": "3.11.17",
+  "token_budget_remaining_approx": "15M"
+ },
+ "agent_count_requested": "[10,100]",
+ "actual_builders": 14,
+ "builder_kind": "background subagents, not Agent Teams",
+ "product_workers_alive": 0,
+ "layer_b_status": "BLOCKED: MycelicLabs is read-only from this session; audited, not instantiated",
+ "integration": "b00 = orchestrator; agents write only to scratchpad/swarm_out/<id>/; deterministic merge into research/swarm/",
+ "stopped_on_budget": false,
+ "reproduction_command": "see research/swarm/SWARM_PROMPT.md and OMEGA_HIVEGENESIS.spec",
+ "wave_1": {
+  "launched": "2026-10-24T15:44Z",
+  "start_stamps": "15:48:27-15:48:29Z",
+  "first_end": "15:59:37Z",
+  "omega_peak": 10,
+  "omega_measured_by": "research/arena concurrency.max_overlap over the agents' own stamps",
+  "returned_by_16:10Z": 9,
+  "outstanding": [],
+  "promoted": [
+   "H5-2/H5-3",
+   "H4-3",
+   "H7-1",
+   "H3-3 (conditional)"
+  ],
+  "yield": "4/8 = 0.5",
+  "control_rule": "spawn wave 2: one falsifier per survivor",
+  "returned": 10
+ },
+ "wave_2": {
+  "launched": "2026-10-24T16:17Z",
+  "falsifiers": [
+   "F-H5",
+   "F-H4",
+   "F-H7",
+   "F-H3"
+  ],
+  "agents_spent_total": 14,
+  "cap": 24,
+  "kills_pre_registered_in": "swarm/WAVE_1_RESULTS.md section 3",
+  "returned": {
+   "F-H3": "DEAD (3 of 4 kills fired; margin over the free line +0.036, p=0.12; top-20 precision 0.14 vs p* 0.39)",
+   "F-H5": "H5-3 DEAD (c_g measured 0.616 at its own week -> p* 0.447 > P@20 0.393; at 2,000 users the gate admits 67% of background, P@20 0.108); H5-2 reclassified as a sparse-world density artefact (0.945 at 200, 0.742 at 2,000)",
+   "F-H4": "H4-3 DEAD (own per-seed kill; 80% of AUC on never-clearing classes; inverts at 2,000 users; 0.842 was look-ahead); H4-2 DEAD stand-alone; asked-set reorder alive at replay level only (138 vs 128, label-fitted)",
+   "F-H7": "H7-1 DEAD (no-op on the shipped pack: one root per record; replay delta 0; gold cost under root sharing; 10-36% at 2,000)"
+  },
+  "pending": [],
+  "control_rule_state": "0 of 4 targets survived -> NEGATIVE_RESULT.md (sentence B); swarm stopped at 14/24"
+ },
+ "arena_console": {
+  "branch": "research/arena",
+  "first_capture": "arena/console-live-2026-10-24T1611Z.png",
+  "omega_peak_measured": 10,
+  "layer_b": "blocked; see wave1/D10/LAYER_B_AUDIT.md",
+  "controls_exercised": "start R, pause T, resume R, stop refused without confirm, stop -15; sessions swept",
+  "console_started_run": "arena-short-20261024T162521Z: 7/8 checks ok, c3_idempotent twenty_queries_per_site failed at this scale, verdict refused for unevaluated c10, found 2/40 at 20 candidates",
+  "captures": [
+   "arena/console-live-2026-10-24T1611Z.png",
+   "arena/console-live-run-4.png",
+   "arena/console-live-run-5.png",
+   "arena/console-live-judge-6.png"
+  ]
+ },
+ "stopped_on_rule": "yes: zero surviving rankers after wave 2"
+}

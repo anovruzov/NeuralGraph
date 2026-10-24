@@ -1,0 +1,14 @@
+
+== size 200: gold co-active weeks (>=2 sites) inside the window: all-in-one-region 0 vs spanning regions 114 (0.00 same-region)
+neg sync, SITE granularity (200)   AUC g/decoy 0.945 (n 138 vs 317) | c1:0.921(n=122) c2:0.989(n=21) c3:0.951(n=132) c4:0.979(n=19) c5:0.979(n=28) | g/other 0.417 (n_other 1310)
+neg sync, REGION granularity (200) AUC g/decoy 0.945 (n 138 vs 317) | c1:0.920(n=122) c2:0.989(n=21) c3:0.951(n=132) c4:0.978(n=19) c5:0.979(n=28) | g/other 0.416 (n_other 1310)
+   gold   n=  138 median sync site 1.167 region 1.167 | pass gate (<=1.25) site 0.739 region 0.739
+   decoy  n=  317 median sync site 2.000 region 2.000 | pass gate (<=1.25) site 0.044 region 0.044
+   other  n= 1310 median sync site 1.000 region 1.000 | pass gate (<=1.25) site 0.750 region 0.751
+
+== size 2000: gold co-active weeks (>=2 sites) inside the window: all-in-one-region 25 vs spanning regions 471 (0.05 same-region)
+neg sync, SITE granularity (2000)  AUC g/decoy 0.742 (n 110 vs 308) | c1:0.698(n=115) c2:0.881(n=20) c3:0.690(n=124) c4:0.905(n=19) c5:0.905(n=36) | g/other 0.303 (n_other 4995)
+neg sync, REGION granularity (2000) AUC g/decoy 0.756 (n 110 vs 308) | c1:0.730(n=115) c2:0.859(n=20) c3:0.702(n=124) c4:0.882(n=19) c5:0.905(n=36) | g/other 0.342 (n_other 4995)
+   gold   n=  110 median sync site 1.333 region 1.273 | pass gate (<=1.25) site 0.391 region 0.473
+   decoy  n=  308 median sync site 1.625 region 1.500 | pass gate (<=1.25) site 0.094 region 0.130
+   other  n= 4995 median sync site 1.188 region 1.167 | pass gate (<=1.25) site 0.673 region 0.703

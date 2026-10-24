@@ -1,0 +1,25 @@
+## 3a. Gold TB_v4 feasibility over label windows (240 patterns), counterfactual root sharing among gold facet records
+
+| counterfactual | model | raw (N1+N2) | raw lost vs original | veto>=1 | veto lost vs raw-CF (marginal cost) | rare lost (marginal) | common lost (marginal) | per seed raw | per seed veto |
+|---|---|---|---|---|---|---|---|---|---|
+| original | B | 205/240 | 0 | 205/240 | **0** | 0 | 0 | [34, 33, 34, 36, 36, 32] | [34, 33, 34, 36, 36, 32] |
+| original | K | 199/240 | 0 | 199/240 | **0** | 0 | 0 | [34, 32, 33, 35, 34, 31] | [34, 32, 33, 35, 34, 31] |
+| CF-C one shared pair | B | 161/240 | 44 | 160/240 | **1** | 0 | 1 | [26, 23, 30, 32, 26, 24] | [26, 23, 30, 32, 26, 23] |
+| CF-C one shared pair | K | 157/240 | 42 | 157/240 | **0** | 0 | 0 | [25, 22, 30, 32, 25, 23] | [25, 22, 30, 32, 25, 23] |
+| CF-B pairs | B | 161/240 | 44 | 151/240 | **10** | 0 | 10 | [26, 23, 30, 32, 26, 24] | [25, 22, 29, 30, 24, 21] |
+| CF-B pairs | K | 157/240 | 42 | 147/240 | **10** | 0 | 10 | [25, 22, 30, 32, 25, 23] | [24, 20, 28, 30, 24, 21] |
+| CF-A@0.25 | B | 192/240 | 13 | 178/240 | **14** | 1 | 13 | [31, 29, 33, 35, 34, 30] | [29, 27, 30, 32, 32, 28] |
+| CF-A@0.25 | K | 187/240 | 12 | 172/240 | **15** | 1 | 14 | [31, 28, 32, 34, 33, 29] | [29, 26, 29, 31, 30, 27] |
+| CF-A@0.5 | B | 176/240 | 29 | 144/240 | **32** | 1 | 31 | [29, 25, 32, 34, 31, 25] | [25, 20, 25, 30, 25, 19] |
+| CF-A@0.5 | K | 174/240 | 25 | 140/240 | **34** | 1 | 33 | [29, 24, 32, 34, 30, 25] | [25, 19, 25, 30, 23, 18] |
+| CF-A all share | B | 57/240 | 148 | 29/240 | **28** | 0 | 28 | [13, 11, 9, 8, 9, 7] | [4, 6, 7, 3, 6, 3] |
+| CF-A all share | K | 43/240 | 156 | 24/240 | **19** | 0 | 19 | [10, 8, 8, 6, 5, 6] | [3, 4, 6, 3, 5, 3] |
+
+## 3b. Why: exported (support, roots) bucket pairs of gold k-sites at feasible weeks, original vs CF-A
+
+  original: {(1, 0): 12, (1, 1): 2245, (2, 1): 2, (2, 2): 331}
+  CF-A all share: {(1, 0): 149, (1, 1): 148, (2, 0): 25, (2, 1): 60}
+
+## 3c. The decoy side is unchanged by the counterfactual (d4 keys carry no gold facet records): d4 TB_v4 passes at rule weeks, raw vs veto, event roots
+
+  d4: raw 57 -> veto 4

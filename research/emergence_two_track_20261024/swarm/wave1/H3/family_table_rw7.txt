@@ -1,0 +1,33 @@
+filtered pool: rule_only & rule_weeks>=7: n=1765 gold=138 decoy=317 other=1310 gold_rate=0.078 decoy_rate=0.180 gold:decoy=0.44
+
+family               n  gold decoy other  g_rate  d_rate    g:d  lift_g:d
+chain_firmware     305    29    54   222   0.095   0.177   0.54      1.23
+chain_policy       274    23    53   198   0.084   0.193   0.43      1.00
+chain_attrition    272    16    51   205   0.059   0.188   0.31      0.72
+chain_supply       255    24    41   190   0.094   0.161   0.59      1.34
+chain_network      248    17    34   197   0.069   0.137   0.50      1.15
+chain_pricing      211    10    40   161   0.047   0.190   0.25      0.57
+chain_auth         200    19    44   137   0.095   0.220   0.43      0.99
+
+pooled 6 seeds, family x (gold,decoy): chi2=6.23 dof=6 p=0.397
+pooled 6 seeds, family x (gold,decoy,other): chi2=14.46 dof=12 p=0.272
+
+per seed, family -> gold/decoy/n, and within-seed family x (gold,decoy) chi-square:
+  seed 0: attr:1/7/54 auth:0/8/30 firm:6/5/50 netw:5/10/39 poli:2/12/44 pric:1/12/43 supp:10/4/48   chi2=23.9 p=0.001
+  seed 1: attr:0/15/40 auth:3/16/42 firm:15/9/62 netw:6/4/46 poli:1/10/49 pric:1/1/32 supp:1/7/33   chi2=28.3 p=0.000
+  seed 2: attr:2/10/41 auth:3/7/26 firm:1/8/40 netw:0/4/33 poli:7/4/50 pric:1/8/30 supp:7/9/45   chi2=13.3 p=0.039
+  seed 3: attr:5/4/51 auth:4/3/29 firm:4/16/52 netw:0/2/41 poli:5/12/50 pric:2/8/39 supp:1/6/42   chi2=8.5 p=0.205
+  seed 4: attr:4/10/50 auth:6/6/39 firm:1/10/52 netw:2/6/41 poli:2/5/38 pric:2/2/25 supp:3/11/48   chi2=6.0 p=0.418
+  seed 5: attr:4/5/36 auth:3/4/34 firm:2/6/49 netw:4/8/48 poli:6/10/43 pric:3/9/42 supp:2/4/39   chi2=1.5 p=0.960
+
+seed x family interaction on gold counts (6x7): chi2=76.40 dof=30 p=0.0000
+seed x family interaction on decoy counts (6x7): chi2=61.52 dof=30 p=0.0006
+
+leave-one-seed-out transfer of the family signal: corr(train log-odds gold:decoy per family, test log-odds)
+  hold out seed 0: r = -0.068
+  hold out seed 1: r = -0.623
+  hold out seed 2: r = -0.257
+  hold out seed 3: r = -0.626
+  hold out seed 4: r = -0.793
+  hold out seed 5: r = -0.111
+  mean -0.413  min -0.793  max -0.068  (positive = the prior transfers)

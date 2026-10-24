@@ -1,0 +1,30 @@
+== (1) READS provenance ==
+  h5_feats(site_weeks, rule_weeks) -> sync, kcells, lr. Inputs: cell lower bound per (site, ISO week) for the key (detection_inputs: entity_type, entity_id, predicate, site, iso_week, n) and the key's rule_weeks (exported 'rule' part). No labels.*, no candidate_pool.csv column, no facet_records, no node ids, no file paths, no value equality across sites.
+  Fields of example_candidate_fields used: key (entity_id, entity_type, predicate), rule (weeks). Cells: the HQ-side k-suppressed weekly cells.
+
+== (4) label-flip test ==
+  gold key entity:E-CINDER-CORE:chain_firmware seed 0: s before (1, 3, 11) after flip (1, 3, 11) -> moved: False
+  decoy key entity:E-ARBOR:chain_supply seed 0: s before (0, 4, 19) after flip (0, 4, 19) -> moved: False
+  (the statistic has no label argument; the test is structural and passes by construction)
+
+== (3) rename test: hash every entity name and site id, recompute, compare rankings ==
+  keys with identical (gate, kcells, lr, sync) after renaming sites: 1765/1765
+  distinct entity names in the pool: 150; a per-name table would have 150 cells for 1,765 keys (H8 §5 item 3: a fit to labels). Not used.
+
+== (5) seed-swap: refit theta on every 4-of-6 and 5-of-6 subset with H5's two LOSO criteria ==
+  criterion gold@50-decoy@50, train on 5 seeds (6 subsets): theta chosen = {1.25: 3, 1.4: 3}
+  criterion gold@50-decoy@50, train on 4 seeds (15 subsets): theta chosen = {1.25: 8, 1.34: 1, 1.4: 6}
+  criterion gold@20-decoy@20, train on 5 seeds (6 subsets): theta chosen = {1.25: 3, 1.4: 3}
+  criterion gold@20-decoy@20, train on 4 seeds (15 subsets): theta chosen = {1.25: 5, 1.34: 1, 1.4: 9}
+  s(key) recomputed with only seed 3 present equals the all-seed value for 304/304 seed-3 keys
+
+== (6) subset-membership: is anything in s(key) computed over the gold+decoy subset? ==
+  No: sync, kcells, lr are per-key functions of that key's cells; the gate compares sync to a constant; P@20 is taken over the FULL filtered pool.
+  Check: AUC of the gated rank computed over the full pool vs over the G+D subset only (would differ if group sizes entered):
+  AUC g/decoy of the gated rank: ranks over full pool 0.8848 | ranks over G+D only 0.8848 (equal => no subset dependence)
+
+== (2) missingness-by-class of every input ==
+  keys with >= 1 real cell: {'gold': '138/138', 'decoy': '317/317', 'other': '1310/1310'} (rule_weeks >= 7 implies cells; no class-specific missingness)
+
+== (8) alarm status ==
+  H5-2 at 0.945 trips the >= 0.79 alarm; items 1-6 above pass structurally. The alarm is NOT a leak but a generator construction (pick_users), see kill 1.

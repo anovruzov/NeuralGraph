@@ -1,0 +1,24 @@
+seeds with real cells: [0, 1, 2, 3, 4, 5]  pool rows: 1765
+cell presence (site,week) over pool keys: in both 10172, real-only 434, rebuilt-only 0  (Jaccard 0.959)
+
+== REAL cells ==
+neg mean_sites_per_week_win  AUC g/decoy 0.945 | per class c1:0.921(n=122) c2:0.989(n=21) c3:0.951(n=132) c4:0.979(n=19) c5:0.979(n=28) | g/other 0.417 g/nongold 0.520
+neg sync_max_win             AUC g/decoy 0.884 | per class c1:0.869(n=122) c2:0.915(n=21) c3:0.893(n=132) c4:0.912(n=19) c5:0.879(n=28) | g/other 0.374 g/nongold 0.473
+n_kcells_win                 AUC g/decoy 0.494 | per class c1:0.603(n=122) c2:0.249(n=21) c3:0.568(n=132) c4:0.006(n=19) c5:0.103(n=28) | g/other 0.695 g/nongold 0.656
+  seed 0: lex(-sync,k,lr) P@20 gold 0.20 decoy 0.00 feas 2.0 | P@50 gold 0.17 decoy 0.00 || gate1.25 P@20 gold 0.30 decoy 0.05 feas 4.0 | P@50 gold 0.26 decoy 0.04
+  seed 1: lex(-sync,k,lr) P@20 gold 0.26 decoy 0.00 feas 4.3 | P@50 gold 0.21 decoy 0.00 || gate1.25 P@20 gold 0.40 decoy 0.10 feas 7.0 | P@50 gold 0.25 decoy 0.06
+  seed 2: lex(-sync,k,lr) P@20 gold 0.25 decoy 0.00 feas 5.0 | P@50 gold 0.16 decoy 0.00 || gate1.25 P@20 gold 0.45 decoy 0.00 feas 8.0 | P@50 gold 0.27 decoy 0.01
+  seed 3: lex(-sync,k,lr) P@20 gold 0.28 decoy 0.00 feas 5.0 | P@50 gold 0.13 decoy 0.03 || gate1.25 P@20 gold 0.40 decoy 0.00 feas 7.0 | P@50 gold 0.24 decoy 0.00
+  seed 4: lex(-sync,k,lr) P@20 gold 0.16 decoy 0.00 feas 0.2 | P@50 gold 0.09 decoy 0.02 || gate1.25 P@20 gold 0.30 decoy 0.00 feas 1.0 | P@50 gold 0.22 decoy 0.00
+  seed 5: lex(-sync,k,lr) P@20 gold 0.45 decoy 0.00 feas 7.0 | P@50 gold 0.18 decoy 0.01 || gate1.25 P@20 gold 0.51 decoy 0.05 feas 6.0 | P@50 gold 0.29 decoy 0.02
+
+== rebuilt cells ==
+neg mean_sites_per_week_win  AUC g/decoy 0.946 | per class c1:0.924(n=122) c2:0.989(n=21) c3:0.953(n=132) c4:0.979(n=19) c5:0.965(n=28) | g/other 0.419 g/nongold 0.522
+neg sync_max_win             AUC g/decoy 0.885 | per class c1:0.874(n=122) c2:0.919(n=21) c3:0.897(n=132) c4:0.915(n=19) c5:0.844(n=28) | g/other 0.379 g/nongold 0.478
+n_kcells_win                 AUC g/decoy 0.491 | per class c1:0.597(n=122) c2:0.247(n=21) c3:0.565(n=132) c4:0.006(n=19) c5:0.113(n=28) | g/other 0.688 g/nongold 0.650
+  seed 0: lex(-sync,k,lr) P@20 gold 0.22 decoy 0.00 feas 2.4 | P@50 gold 0.18 decoy 0.00 || gate1.25 P@20 gold 0.35 decoy 0.05 feas 5.0 | P@50 gold 0.27 decoy 0.03
+  seed 1: lex(-sync,k,lr) P@20 gold 0.24 decoy 0.00 feas 4.3 | P@50 gold 0.21 decoy 0.00 || gate1.25 P@20 gold 0.40 decoy 0.10 feas 7.0 | P@50 gold 0.26 decoy 0.06
+  seed 2: lex(-sync,k,lr) P@20 gold 0.30 decoy 0.00 feas 6.0 | P@50 gold 0.17 decoy 0.00 || gate1.25 P@20 gold 0.45 decoy 0.00 feas 8.0 | P@50 gold 0.27 decoy 0.01
+  seed 3: lex(-sync,k,lr) P@20 gold 0.27 decoy 0.00 feas 5.0 | P@50 gold 0.13 decoy 0.03 || gate1.25 P@20 gold 0.40 decoy 0.00 feas 7.0 | P@50 gold 0.24 decoy 0.00
+  seed 4: lex(-sync,k,lr) P@20 gold 0.16 decoy 0.00 feas 0.1 | P@50 gold 0.09 decoy 0.02 || gate1.25 P@20 gold 0.25 decoy 0.00 feas 1.0 | P@50 gold 0.20 decoy 0.00
+  seed 5: lex(-sync,k,lr) P@20 gold 0.40 decoy 0.00 feas 7.0 | P@50 gold 0.18 decoy 0.01 || gate1.25 P@20 gold 0.46 decoy 0.05 feas 6.0 | P@50 gold 0.27 decoy 0.02

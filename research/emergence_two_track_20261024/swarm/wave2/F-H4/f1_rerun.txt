@@ -1,0 +1,44 @@
+rows (key, week): 42912
+filtered pool: 1765 {'other': 1310, 'decoy': 317, 'gold': 138}
+S_Net3    pooled(strict) 0.731  pooled(ties=.5) 0.730  per-seed 0.797 0.641 0.777 0.806 0.676 0.717  min 0.641 max 0.806
+S_Net     pooled(strict) 0.794  pooled(ties=.5) 0.795  per-seed 0.826 0.790 0.787 0.798 0.800 0.741  min 0.741 max 0.826
+baseline  pooled(strict) 0.600  pooled(ties=.5) 0.611  per-seed 0.664 0.646 0.549 0.484 0.664 0.564  min 0.484 max 0.664
+
+against H4's reported numbers:
+  S_Net3: H4 pooled 0.731 vs re-run 0.731; H4 per-seed [0.797, 0.641, 0.777, 0.806, 0.676, 0.717] vs re-run [0.797, 0.641, 0.777, 0.806, 0.676, 0.717]
+  S_Net: H4 pooled 0.794 vs re-run 0.794; H4 per-seed [0.826, 0.79, 0.787, 0.798, 0.8, 0.741] vs re-run [0.826, 0.79, 0.787, 0.798, 0.8, 0.741]
+
+verdict lines (pre-registered target = S_Net3, nu=(1,1)):
+  H4-3's own KILL ('any held-out seed below 0.70'): seeds below 0.70 = ['1', '4'] -> KILLED by its own criterion
+  H8 single-seed line 0.61-0.63: seeds below 0.63 = []; below 0.61 = []
+  H8 pooled line (one pre-registered statistic, p<0.05): 0.549 -> pooled 0.731 above
+  H8 free reference line (longest rule run, 0.668): pooled above; seeds below 0.668 = ['1']
+  H8 best-of-50 line 0.62: pooled above
+  H8 leak alarm >= 0.79: S_Net3 does not trip; S_Net (nu=(1,0)) TRIPS
+
+fitted table granularity: 64 distinct classes over all rows; 63 classes seen at rule weeks
+top classes by net3 (pooled fit) seen at rule weeks, with rows / gold rows / gold KEYS / decoy rows:
+  (1, 0, 2, 3, 3, 1)     net3 +0.296 rows   114 gold_rows   75 gold_keys  56 decoy_rows   37 P(clear) 0.984
+  (1, 2, 3, 0, 3, 0)     net3 +0.255 rows     2 gold_rows    2 gold_keys   1 decoy_rows    0 P(clear) 0.545
+  (1, 2, 3, 0, 3, 1)     net3 +0.203 rows     3 gold_rows    2 gold_keys   2 decoy_rows    0 P(clear) 0.436
+  (2, 2, 3, 0, 3, 1)     net3 +0.089 rows     7 gold_rows    4 gold_keys   1 decoy_rows    3 P(clear) 0.687
+  (1, 1, 3, 0, 3, 0)     net3 +0.073 rows     2 gold_rows    1 gold_keys   1 decoy_rows    0 P(clear) 0.295
+  (1, 1, 2, 3, 3, 0)     net3 +0.045 rows    11 gold_rows    7 gold_keys   5 decoy_rows    4 P(clear) 0.245
+  (1, 0, 1, 3, 3, 0)     net3 +0.000 rows    86 gold_rows   86 gold_keys  54 decoy_rows    0 P(clear) 0.002
+  (1, 0, 1, 3, 3, 1)     net3 +0.000 rows   124 gold_rows  116 gold_keys  65 decoy_rows    0 P(clear) 0.001
+  (0, 0, 1, 0, 0, 0)     net3 -0.000 rows 20796 gold_rows 1016 gold_keys 209 decoy_rows 2238 P(clear) 0.000
+  (0, 0, 2, 0, 0, 0)     net3 -0.000 rows  8690 gold_rows  463 gold_keys 139 decoy_rows  623 P(clear) 0.000
+  (0, 0, 3, 0, 0, 0)     net3 -0.000 rows  2644 gold_rows  232 gold_keys  82 decoy_rows 1043 P(clear) 0.000
+  (0, 1, 1, 0, 0, 0)     net3 -0.000 rows  2478 gold_rows  140 gold_keys  62 decoy_rows  258 P(clear) 0.000
+
+filtered gold/decoy keys by the class at their S_Net3 argmax week (top 10):
+  (0, 0, 1, 0, 0, 0)     {'decoy': 150, 'gold': 87}
+  (0, 0, 3, 0, 0, 0)     {'decoy': 77}
+  (0, 0, 2, 0, 0, 0)     {'decoy': 41, 'gold': 13}
+  (1, 0, 2, 3, 3, 1)     {'decoy': 6, 'gold': 14}
+  (2, 0, 2, 3, 3, 1)     {'decoy': 13, 'gold': 5}
+  (1, 0, 1, 3, 3, 0)     {'gold': 11}
+  (1, 0, 3, 3, 3, 0)     {'decoy': 10}
+  (2, 0, 3, 3, 3, 0)     {'decoy': 8}
+  (2, 0, 3, 0, 3, 0)     {'decoy': 5}
+  (1, 0, 1, 3, 3, 1)     {'gold': 4}
