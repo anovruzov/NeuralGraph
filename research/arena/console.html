@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mycelic Arena</title>
+<style>
+:root {
+  --bg:#07090c; --panel:#0a0d11; --well:#0e1217; --rule:#1c252f; --rule-2:#2a3540;
+  --text:#c5ced8; --dim:#5a6672; --dim-2:#3b4551;
+  --amber:#e0a23b; --red:#e4574f; --green:#4fc77a; --cyan:#4fcfc3; --white:#eef2f6;
+}
+* { box-sizing:border-box }
+html, body { margin:0; background:var(--bg); color:var(--text); }
+body { font:12px/1.45 ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace; font-variant-numeric:tabular-nums; padding:10px 14px 60px; }
+a { color:var(--cyan); text-decoration:none } a:hover { text-decoration:underline }
+b { font-weight:600; color:var(--white) }
+.dim { color:var(--dim) } .dim2 { color:var(--dim-2) }
+.a { color:var(--amber) } .r { color:var(--red) } .g { color:var(--green) } .c { color:var(--cyan) } .d { color:var(--dim) }
+header.top { display:flex; gap:18px; align-items:center; color:var(--dim); border-bottom:1px solid var(--rule); padding:4px 0 6px; }
+header.top .path { flex:1 }
+.pill { padding:1px 8px; border:1px solid var(--rule-2); border-radius:2px; letter-spacing:.08em; font-size:11px }
+.pill.LIVE { color:var(--green); border-color:var(--green) } .pill.RECONNECTING { color:var(--amber); border-color:var(--amber) }
+.pill.OFFLINE { color:var(--red); border-color:var(--red) } .pill.REPLAY { color:var(--cyan); border-color:var(--cyan) }
+.title { margin:10px 0 0; font-size:16px; letter-spacing:.06em; color:var(--amber) }
+.title .dim { font-size:11px; letter-spacing:.04em; margin-left:14px }
+.sub { color:var(--dim); font-size:11px; letter-spacing:.06em; margin-bottom:8px }
+.cmd { display:flex; align-items:center; gap:8px; border:1px solid var(--rule); padding:5px 9px; margin:6px 0 14px; background:var(--panel) }
+.cmd .prompt { color:var(--green) } .cmd .tag { margin-left:auto; color:var(--amber); font-size:11px }
+section { position:relative; border:1px solid var(--rule); padding:14px 10px 10px; margin:0 0 12px; background:var(--panel) }
+section h2 { position:absolute; top:-8px; left:10px; margin:0; padding:0 6px; background:var(--panel); font-size:11px; font-weight:600; letter-spacing:.1em; color:var(--amber) }
+section h2 select { background:var(--well); color:var(--text); border:1px solid var(--rule-2); font:inherit; font-size:11px }
+.two { display:grid; grid-template-columns:1fr 1fr; gap:12px } .two section { margin:0 0 12px }
+@media (max-width:1000px) { .two { grid-template-columns:1fr } }
+.foot { margin-top:8px; font-size:11px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap }
+/* 01 deck */
+.deck { display:grid; grid-template-columns:repeat(4,1fr); gap:10px }
+@media (max-width:1000px) { .deck { grid-template-columns:repeat(2,1fr) } }
+.card { border:1px solid var(--rule-2); padding:7px 9px; min-height:92px; cursor:pointer; background:var(--well) }
+.card:hover { border-color:var(--text) }
+.card .hd { display:flex; justify-content:space-between; color:var(--white) }
+.card.RUNNING { border-color:var(--green) } .card.COMPLETE { border-color:var(--cyan) } .card.FAILED { border-color:var(--red) } .card.QUEUED { border-color:var(--amber) }
+.card .ln { color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.card .st { margin-top:4px }
+.card .dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--dim-2) }
+.card.RUNNING .dot { background:var(--green); box-shadow:0 0 6px var(--green) }
+.card.COMPLETE .dot { background:var(--cyan) } .card.FAILED .dot { background:var(--red) } .card.QUEUED .dot { background:var(--amber) }
+.empty { color:var(--dim); padding:14px 4px; letter-spacing:.06em }
+/* 02 arena */
+.pipeline { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:10px; font-size:11px; color:var(--dim) }
+.pipeline .rd { padding:1px 6px; border:1px solid var(--rule-2) }
+.pipeline .rd.cur { color:var(--bg); background:var(--amber); border-color:var(--amber); font-weight:600 }
+.pipeline .rd.done { color:var(--green); border-color:var(--green) }
+.arena-row { display:grid; grid-template-columns:1fr 230px; gap:14px }
+@media (max-width:1000px) { .arena-row { grid-template-columns:1fr } }
+.grid { display:grid; grid-template-columns:repeat(10,1fr); gap:4px; position:relative }
+.cell { border:1px solid var(--rule); background:var(--well); height:30px; display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--dim-2); cursor:default; position:relative }
+.cell.has { color:var(--text); cursor:pointer }
+.cell.QUEUED { border-color:var(--amber); color:var(--amber) }
+.cell.RUNNING { border-color:var(--green); color:var(--green); box-shadow:inset 0 0 0 1px rgba(79,199,122,.25) }
+.cell.COMPLETE { border-color:var(--cyan); color:var(--cyan) }
+.cell.FAILED, .cell.ELIMINATED { border-color:var(--red); color:var(--red) }
+.cell.sel { outline:1px solid var(--white) }
+.cell .n { position:absolute; left:3px; top:1px; font-size:9px; color:var(--dim-2) }
+.grid .nodata { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--dim); letter-spacing:.1em; background:rgba(7,9,12,.6) }
+.stats { font-size:11.5px } .stats div { display:flex; justify-content:space-between; gap:8px; padding:1px 0; border-bottom:1px dotted var(--rule) }
+.stats .k { color:var(--dim) } .stats .v { color:var(--text); text-align:right }
+.timeline-wrap { margin-top:12px; border-top:1px solid var(--rule); padding-top:8px }
+canvas { display:block; width:100%; }
+#timeline { height:150px } #graph { height:300px }
+.tl-legend { font-size:11px; color:var(--dim); display:flex; gap:16px; margin-top:4px; flex-wrap:wrap }
+.sw { display:inline-block; width:10px; height:8px; vertical-align:middle; margin-right:4px }
+/* 03 stream */
+.stream { min-height:180px; max-height:260px; overflow:auto }
+.stream .ln { display:grid; grid-template-columns:70px 64px 1fr auto; gap:8px; padding:2px 0; border-bottom:1px dotted var(--rule) }
+.stream .ln .tag { font-weight:600 } .stream .ln .who { color:var(--dim) } .stream .ln .rt { color:var(--dim); white-space:nowrap }
+/* 04 judge */
+.rub { display:grid; grid-template-columns:1fr 150px 70px; gap:8px; padding:2px 0; border-bottom:1px dotted var(--rule); align-items:center }
+.rub .bar { color:var(--green); letter-spacing:-1px; white-space:pre } .rub .bar.bad { color:var(--red) }
+.rub .sc { text-align:right; color:var(--white) }
+.rub.hdr { color:var(--dim); border-bottom:1px solid var(--rule-2) }
+/* 05 trace */
+.trace-tools { display:flex; gap:12px; align-items:center; margin-bottom:6px; font-size:11px; color:var(--dim) }
+.trace-tools input { background:var(--well); border:1px solid var(--rule-2); color:var(--text); font:inherit; padding:1px 6px; width:220px }
+.btn { background:var(--well); border:1px solid var(--rule-2); color:var(--text); font:inherit; font-size:11px; padding:2px 10px; cursor:pointer; letter-spacing:.06em }
+.btn:hover:not(:disabled) { border-color:var(--text) } .btn:disabled { opacity:.35; cursor:default }
+.btn.on { color:var(--green); border-color:var(--green) } .btn.danger { color:var(--red); border-color:var(--red) } .btn.primary { color:var(--amber); border-color:var(--amber) }
+.trace { position:relative; height:330px; overflow:auto; border:1px solid var(--rule); background:var(--bg) }
+.trace .spacer { width:1px } .trace .window { position:absolute; left:0; right:0; top:0 }
+.row { height:18px; line-height:18px; display:grid; grid-template-columns:96px 88px 110px 1fr 52px; gap:8px; padding:0 8px; white-space:nowrap; overflow:hidden; cursor:pointer }
+.row:hover { background:var(--well) } .row .ts { color:var(--dim) } .row .tag { font-weight:600 } .row .who { color:var(--dim); overflow:hidden; text-overflow:ellipsis }
+.row .msg { overflow:hidden; text-overflow:ellipsis } .row .id { color:var(--dim-2); text-align:right }
+/* 07 controls */
+.ctl { display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; font-size:11.5px }
+.ctl .grp { border:1px solid var(--rule); padding:8px } .ctl .grp h3 { margin:0 0 6px; font-size:11px; color:var(--dim); font-weight:600; letter-spacing:.08em }
+.ctl .grp div { display:flex; justify-content:space-between; gap:8px; padding:1px 0 } .ctl .grp .k { color:var(--dim) }
+.ctl .btns { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px }
+.ctl select { background:var(--well); color:var(--text); border:1px solid var(--rule-2); font:inherit; font-size:11px }
+/* drawer */
+.drawer { position:fixed; top:0; right:0; bottom:0; width:min(560px,92vw); background:var(--panel); border-left:1px solid var(--rule-2); padding:12px 14px; overflow:auto; z-index:10; box-shadow:-20px 0 40px rgba(0,0,0,.6) }
+.drawer.hidden { display:none }
+.drawer h3 { margin:0 0 8px; color:var(--amber); font-size:13px; letter-spacing:.06em; display:flex; justify-content:space-between }
+.drawer .kv div { display:flex; gap:10px; padding:1px 0 } .drawer .kv .k { color:var(--dim); min-width:90px }
+.drawer pre { background:var(--bg); border:1px solid var(--rule); padding:8px; font-size:11px; white-space:pre-wrap; word-break:break-all; max-height:260px; overflow:auto }
+.drawer ul { padding-left:16px; margin:4px 0 }
+footer.bottom { position:fixed; left:0; right:0; bottom:0; display:flex; justify-content:space-between; gap:12px; padding:5px 14px; border-top:1px solid var(--rule); background:var(--bg); color:var(--dim); font-size:11px }
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="path">~/.arena -- mycelic -- <b id="hdr-n">0</b> agents · <span id="hdr-mode">RESEARCH</span></span>
+  <span class="dim" id="hdr-ev">event #0</span>
+  <span class="pill OFFLINE" id="conn">OFFLINE</span>
+  <span class="dim" id="hdr-clock"></span>
+</header>
+<div class="title">ARENA =&gt; <b id="t-n">0</b> AGENTS <span class="dim">[ENGINE: EMERGENCE HARNESS · NEURALGRAPH SITES · JETSTREAM · SWARM STAMPS]</span></div>
+<div class="sub" id="sub">EVERY LINE BELOW IS READ FROM SOMETHING THE RUNTIME WROTE · NOTHING IS GENERATED · ABSENCE IS SHOWN AS ABSENCE</div>
+<div class="cmd"><span class="prompt">&gt;</span> <span id="cmd">arena: connecting</span><span class="tag" id="cmd-tag">[OFFLINE]</span></div>
+
+<section id="p01"><h2>01 / STRATEGY DECK (<span id="deck-n">0</span> live · by latest activity)</h2>
+  <div class="deck" id="deck"></div>
+</section>
+
+<section id="p02"><h2>02 / ARENA · <span id="arena-mode">COLLABORATIVE RESEARCH</span> · <span id="arena-reg">0</span> REGISTERED → <span id="arena-done">0</span> COMPLETE</h2>
+  <div class="pipeline" id="pipeline"></div>
+  <div class="arena-row">
+    <div class="grid" id="grid"></div>
+    <div class="stats" id="stats"></div>
+  </div>
+  <div class="timeline-wrap">
+    <canvas id="timeline"></canvas>
+    <div class="tl-legend" id="tl-legend"></div>
+  </div>
+  <div class="foot" id="arena-foot"></div>
+</section>
+
+<div class="two">
+  <section id="p03"><h2>03 / ADVERSARIAL RESEARCH STREAM</h2>
+    <div class="stream" id="stream"></div>
+    <div class="foot" id="stream-foot"></div>
+  </section>
+  <section id="p04"><h2>04 / INDEPENDENT JUDGE · RUBRIC</h2>
+    <div id="judge"></div>
+    <div class="foot" id="judge-foot"></div>
+  </section>
+</div>
+
+<section id="p05"><h2>05 / SESSION LOG · ORCHESTRATION TRACE</h2>
+  <div class="trace-tools">
+    <label>filter <input id="trace-filter" placeholder="tag · agent · text"></label>
+    <span id="trace-count"></span>
+    <button class="btn on" id="trace-follow">FOLLOW</button>
+    <span class="dim2">click a line for its event and artifact</span>
+  </div>
+  <div class="trace" id="trace"><div class="spacer" id="trace-spacer"></div><div class="window" id="trace-window"></div></div>
+</section>
+
+<div class="two">
+  <section id="p06"><h2>06 / NEURALGRAPH VIEW · <select id="site"></select></h2>
+    <canvas id="graph"></canvas>
+    <div class="foot" id="graph-foot"><span>NO DATA</span></div>
+  </section>
+  <section id="p07"><h2>07 / CONTROLS · OBSERVABILITY</h2>
+    <div class="ctl" id="ctl"></div>
+  </section>
+</div>
+
+<aside id="drawer" class="drawer hidden"></aside>
+<footer class="bottom"><span id="f-left"></span><span id="f-mid"></span><span id="f-right"></span></footer>
+
+<script>
+'use strict';
+const ARENA = window.ARENA = { events: [], byAgent: {}, state: null, conn: 'OFFLINE', lastId: 0, sel: null, selEvent: null,
+                               graph: null, graphSite: null, follow: true, filter: '', es: null, replay: false };
+const $ = id => document.getElementById(id);
+const TAGC = { SPAWN:'g', COMPLETE:'c', ARTIFACT:'c', ROUTE:'a', ASK:'a', REPLY:'g', VERIFY:'g', FAIL:'r', TEST:'a', EDGE:'c',
+               SYNC:'c', PUBLISH:'c', COMMIT:'a', PHASE:'a', LOG:'d', CONTROL:'r', SOURCE:'d', PATCH:'g', RECOVER:'g' };
+const STREAM_TAGS = new Set(['FAIL','TEST','VERIFY','PATCH','RECOVER']);
+const ROUNDS = [['R0','SPAWN'],['R1','HYPOTHESIS'],['R2','FALSIFY'],['R3','COMBINE']];
+let dirty = { all: true };
+let raf = 0;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const hhmm = iso => iso ? iso.slice(11, 23) : '';
+const fmtDur = s => { if (s == null || isNaN(s)) return '—'; s = Math.max(0, Math.round(s)); const m = Math.floor(s/60), h = Math.floor(m/60); return h ? `${h}h${String(m%60).padStart(2,'0')}m` : m ? `${m}m${String(s%60).padStart(2,'0')}s` : `${s}s`; };
+const nowS = () => Date.now() / 1000;
+const ts = iso => iso ? Date.parse(iso) / 1000 : null;
+
+// ---------------------------------------------------------------- transport: SSE with Last-Event-ID resume
+function setConn(c) { ARENA.conn = c; const p = $('conn'); p.textContent = c; p.className = 'pill ' + c; dirty.header = true; schedule(); }
+function connect(after) {
+  if (ARENA.es) ARENA.es.close();
+  const es = new EventSource('/events?after=' + (after || 0));
+  es.onopen = () => setConn(ARENA.replay ? 'REPLAY' : 'LIVE');
+  es.onerror = () => setConn('RECONNECTING');     // the browser retries and sends Last-Event-ID itself
+  es.addEventListener('snapshot', e => { ARENA.state = JSON.parse(e.data); dirty.all = true; schedule(); });
+  es.addEventListener('state', e => { ARENA.state = JSON.parse(e.data); dirty.state = true; schedule(); });
+  es.addEventListener('event', e => { ingest(JSON.parse(e.data)); schedule(); });
+  ARENA.es = es;
+}
+function ingest(ev) {
+  if (ev.id <= ARENA.lastId) return;              // ordering: a replayed or duplicated id is dropped
+  ARENA.lastId = ev.id;
+  ARENA.events.push(ev);
+  if (ARENA.events.length > 20000) ARENA.events.splice(0, 5000);   // bounded memory
+  if (ev.agent) (ARENA.byAgent[ev.agent] = ARENA.byAgent[ev.agent] || []).push(ev);
+  dirty.trace = true; dirty.header = true;
+  if (STREAM_TAGS.has(ev.tag)) dirty.stream = true;
+  if (ev.tag === 'EDGE' || ev.tag === 'SYNC') dirty.graph = true;
+  if (ev.source === 'swarm') { dirty.deck = true; dirty.grid = true; }
+  if (ev.tag === 'VERIFY' || ev.tag === 'FAIL' || ev.tag === 'PHASE' || ev.tag === 'CONTROL') { dirty.judge = true; dirty.ctl = true; }
+}
+function schedule() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); }
+
+// ---------------------------------------------------------------- render
+function render() {
+  const S = ARENA.state;
+  renderHeader();
+  if (!S) { dirty = {}; return; }
+  const all = dirty.all;
+  if (all || dirty.deck || dirty.state) renderDeck();
+  if (all || dirty.grid || dirty.state) { renderPipeline(); renderGrid(); renderStats(); drawTimeline(); }
+  if (all || dirty.stream) renderStream();
+  if (all || dirty.judge || dirty.state) renderJudge();
+  if (all || dirty.trace) renderTrace();
+  if (all || dirty.graph) loadGraph();
+  if (all || dirty.ctl || dirty.state) renderControls();
+  renderFooter();
+  dirty = {};
+  document.body.dataset.ready = '1';
+}
+function agents() { return (ARENA.state && ARENA.state.agents) || []; }
+function lastEventOf(id) { const l = ARENA.byAgent[id]; return l ? l[l.length - 1] : null; }
+
+function renderHeader() {
+  const S = ARENA.state, n = agents().length;
+  $('hdr-n').textContent = n; $('t-n').textContent = n;
+  $('hdr-ev').textContent = 'event #' + ARENA.lastId;
+  $('hdr-clock').textContent = new Date().toISOString().slice(11, 19) + 'Z';
+  if (!S) { $('cmd').textContent = 'arena: connecting'; $('cmd-tag').textContent = '[' + ARENA.conn + ']'; return; }
+  const run = S.run, h = S.harness;
+  let cmd = 'arena: ';
+  if (h && h.running) cmd += `${h.paused ? 'PAUSED' : 'RUNNING'} ${h.scenario} pid ${h.pid}`;
+  else if (run) cmd += `attached ${run.run_id} · phase ${run.phase || '?'}${run.completed ? ' · finished' : ''}`;
+  else cmd += 'no run attached';
+  cmd += ` · swarm ${S.concurrency.running} running / ${S.concurrency.registered} registered`;
+  $('cmd').textContent = cmd;
+  const round = currentRound();
+  $('cmd-tag').textContent = `[${round} · ${ARENA.conn}]`;
+}
+function currentRound() {
+  const A = agents();
+  if (!A.length) return 'R0 IDLE';
+  const hyp = A.filter(a => (a.role || {}).role !== 'auditor');
+  if (hyp.some(a => a.state === 'RUNNING')) return 'R1 HYPOTHESIS';
+  if (hyp.length && hyp.every(a => a.state === 'COMPLETE')) return 'R1 COMPLETE';
+  return 'R0 SPAWN';
+}
+
+function renderDeck() {
+  const A = agents().slice();
+  const key = a => { const e = lastEventOf(a.id); return [(a.state === 'RUNNING') ? 0 : 1, -(e ? e.id : 0)]; };
+  A.sort((x, y) => { const a = key(x), b = key(y); return a[0] - b[0] || a[1] - b[1]; });
+  const top = A.slice(0, 4);
+  $('deck-n').textContent = A.filter(a => a.state === 'RUNNING').length;
+  if (!top.length) { $('deck').innerHTML = '<div class="empty">NO DATA — no agent has written a START stamp under the swarm root</div>'; return; }
+  $('deck').innerHTML = top.map(a => {
+    const r = a.role || {}, e = lastEventOf(a.id), now = nowS();
+    const run = a.start ? (a.end ? ts(a.end) - ts(a.start) : now - ts(a.start)) : null;
+    return `<div class="card ${a.state}" data-agent="${esc(a.id)}">
+      <div class="hd"><span>[ ${esc(a.id)} · ${esc(r.model || 'model unknown')} ]</span><span class="dot"></span></div>
+      <div class="ln">role: ${esc(r.role || '?')} · ${esc(r.family || 'family unknown')}</div>
+      <div class="ln">task: ${esc(r.deliverable || '—')} · runtime ${fmtDur(run)}</div>
+      <div class="ln st ${a.state === 'RUNNING' ? 'g' : a.state === 'COMPLETE' ? 'c' : a.state === 'FAILED' ? 'r' : 'a'}">${esc(a.state)}${a.artifacts.length ? ' · ' + a.artifacts.length + ' artifact' + (a.artifacts.length > 1 ? 's' : '') : ''}</div>
+      <div class="ln dim2">${e ? esc(e.tag + ' ' + e.msg) : 'no events yet'}</div>
+    </div>`;
+  }).join('');
+  for (const c of $('deck').querySelectorAll('.card')) c.onclick = () => openDrawer(c.dataset.agent);
+}
+
+function renderPipeline() {
+  const A = agents(), hyp = A.filter(a => (a.role || {}).role !== 'auditor');
+  const counts = [A.length, hyp.length, 0, 0];
+  const cur = currentRound();
+  $('pipeline').innerHTML = ROUNDS.map(([r, name], i) => {
+    const cls = (cur.startsWith(r) && !cur.endsWith('COMPLETE')) ? 'cur' : (i === 1 && cur === 'R1 COMPLETE') || (i === 0 && A.length) ? 'done' : '';
+    const n = counts[i] ? ` (${counts[i]})` : (i >= 2 ? ' (not started)' : '');
+    return `<span class="rd ${cls}">${r} ${name}${n}</span>${i < ROUNDS.length - 1 ? '<span>›</span>' : ''}`;
+  }).join('') + `<span class="dim2" style="margin-left:auto">rounds advance only on evaluated outcomes · wave 2 is spawned by the control rule, never by the clock</span>`;
+}
+
+function renderGrid() {
+  const A = agents().slice().sort((x, y) => x.id.localeCompare(y.id, undefined, { numeric: true }));
+  const cells = [];
+  for (let i = 0; i < 100; i++) {
+    const a = A[i];
+    if (a) cells.push(`<div class="cell has ${a.state}${ARENA.sel === a.id ? ' sel' : ''}" data-agent="${esc(a.id)}" title="${esc(a.id)} ${a.state}"><span class="n">${String(i + 1).padStart(2, '0')}</span>${esc(a.id)}</div>`);
+    else cells.push(`<div class="cell"><span class="n">${String(i + 1).padStart(2, '0')}</span>··</div>`);
+  }
+  $('grid').innerHTML = cells.join('') + (A.length ? '' : '<div class="nodata">NO DATA — 0 AGENTS REGISTERED</div>');
+  for (const c of $('grid').querySelectorAll('.cell.has')) c.onclick = () => openDrawer(c.dataset.agent);
+  $('arena-reg').textContent = A.length;
+  $('arena-done').textContent = A.filter(a => a.state === 'COMPLETE').length;
+}
+
+function renderStats() {
+  const C = ARENA.state.concurrency, P = ARENA.state.policy;
+  const row = (k, v, cls) => `<div><span class="k">${k}</span><span class="v ${cls || ''}">${v}</span></div>`;
+  const nd = '<span class="dim">NO DATA</span>';
+  $('stats').innerHTML =
+    row('registered', C.registered) + row('queued', C.queued, 'a') + row('running', C.running, 'g') + row('complete', C.complete, 'c') +
+    row('failed', C.failed, C.failed ? 'r' : '') +
+    row('ω(E) now', C.omega_now, 'g') + row('ω(E) peak', `${C.omega_peak}${C.omega_peak_at ? ' @ ' + hhmm(C.omega_peak_at).slice(0, 8) : ''}`, 'a') +
+    row('throughput', C.throughput_per_min != null ? C.throughput_per_min.toFixed(2) + '/min' : nd) +
+    row('mean runtime', C.mean_runtime_s != null ? fmtDur(C.mean_runtime_s) : nd) +
+    row('queue latency', C.queue_latency != null ? fmtDur(C.queue_latency) : nd + '<span class="dim2"> · no ENQUEUED stamp</span>') +
+    row('model calls (swarm)', C.model_requests_in_flight != null ? C.model_requests_in_flight : nd + '<span class="dim2"> · not instrumented</span>') +
+    row('model calls (bench)', `${P.model_requests_in_benchmark} <span class="dim2">by policy</span>`) +
+    row('sources', (ARENA.state.console.sources || []).join(' · ') || nd);
+  const peakNote = C.omega_peak >= 10 ? `ω(E) ≥ 10 observed: ${C.omega_peak} agents' stamped intervals overlap` : `ω(E) = ${C.omega_peak}: below 10 — the limiting resource is reported, not hidden`;
+  $('arena-foot').innerHTML = `<span>state: ${esc(ARENA.state.console.sources.includes('swarm') ? 'swarm stamps' : 'no swarm')} · ${esc(peakNote)}</span><span>counts are of stamped intervals, not of claims</span>`;
+}
+
+// ---------------------------------------------------------------- concurrency timeline (canvas)
+function fitCanvas(c) { const r = c.getBoundingClientRect(), d = window.devicePixelRatio || 1; c.width = Math.max(1, r.width * d); c.height = Math.max(1, r.height * d); const g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); return [g, r.width, r.height]; }
+function drawTimeline() {
+  const c = $('timeline'), [g, W, H] = fitCanvas(c), C = ARENA.state.concurrency, ivs = C.intervals || [], now = ARENA.state.console.now;
+  g.clearRect(0, 0, W, H);
+  g.font = '10px ui-monospace, Menlo, monospace';
+  if (!ivs.length) { g.fillStyle = '#5a6672'; g.fillText('NO DATA — no stamped intervals', 8, 20); $('tl-legend').innerHTML = ''; return; }
+  const t0 = Math.min(...ivs.map(i => i.start)), t1 = Math.max(now, ...ivs.map(i => i.end || now));
+  const L = 44, R = 8, T = 6, rowH = Math.max(6, Math.min(12, (H - 40) / ivs.length));
+  const x = t => L + (W - L - R) * ((t - t0) / Math.max(1, t1 - t0));
+  const byId = {}; for (const a of agents()) byId[a.id] = a;
+  ivs.slice().sort((p, q) => p.agent.localeCompare(q.agent, undefined, { numeric: true })).forEach((iv, i) => {
+    const y = T + i * rowH, a = byId[iv.agent] || {}, col = a.state === 'COMPLETE' ? '#4fcfc3' : a.state === 'FAILED' ? '#e4574f' : '#4fc77a';
+    g.fillStyle = '#5a6672'; g.fillText(iv.agent, 2, y + rowH - 2);
+    g.fillStyle = col; g.globalAlpha = iv.end ? 0.9 : 0.55;
+    g.fillRect(x(iv.start), y + 1, Math.max(2, x(iv.end || now) - x(iv.start)), rowH - 2);
+    g.globalAlpha = 1;
+  });
+  // the overlap series, as a step line, amber
+  const ser = C.series || [], yS = H - 28, hS = 20, kmax = Math.max(1, ...ser.map(p => p[1]));
+  g.strokeStyle = '#e0a23b'; g.lineWidth = 1; g.beginPath();
+  ser.forEach((p, i) => { const X = x(p[0]), Y = yS + hS - hS * (p[1] / kmax); i ? g.lineTo(X, Y) : g.moveTo(X, Y); });
+  g.stroke();
+  if (C.omega_peak_at) { const X = x(ts(C.omega_peak_at)); g.strokeStyle = '#e0a23b'; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(X, T); g.lineTo(X, H - 4); g.stroke(); g.setLineDash([]); g.fillStyle = '#e0a23b'; g.fillText('ω=' + C.omega_peak, Math.min(W - 40, X + 4), T + 10); }
+  g.fillStyle = '#3b4551'; g.fillText(new Date(t0 * 1000).toISOString().slice(11, 19), L, H - 2); const e = new Date(t1 * 1000).toISOString().slice(11, 19); g.fillText(e, W - R - g.measureText(e).width, H - 2);
+  $('tl-legend').innerHTML = `<span><i class="sw" style="background:#4fc77a"></i>running (open interval, ends at now)</span><span><i class="sw" style="background:#4fcfc3"></i>complete</span><span><i class="sw" style="background:#e4574f"></i>failed</span><span><i class="sw" style="background:#e0a23b;height:2px"></i>open intervals over time · peak ω(E) = ${C.omega_peak}</span><span class="dim2">interval = the agent's own START/END stamps; model-call boundaries inside an agent are not visible from here</span>`;
+}
+
+// ---------------------------------------------------------------- 03 stream
+function renderStream() {
+  const L = ARENA.events.filter(e => STREAM_TAGS.has(e.tag)).slice(-40).reverse();
+  if (!L.length) { $('stream').innerHTML = '<div class="empty">WAITING — no verification, test, failure or patch event has been emitted</div>'; $('stream-foot').innerHTML = '<span>an attack counts only once validated · a patch only once its tests pass</span><span class="dim2">0 events</span>'; return; }
+  $('stream').innerHTML = L.map(e => `<div class="ln" data-id="${e.id}"><span class="tag ${TAGC[e.tag]}">[${e.tag}]</span><span class="who">${esc(e.agent || e.source)}</span><span>${esc(e.msg)}</span><span class="rt">${hhmm(e.ts).slice(0, 8)} #${e.id}</span></div>`).join('');
+  for (const d of $('stream').querySelectorAll('.ln')) d.onclick = () => openEvent(+d.dataset.id);
+  const f = L.filter(e => e.tag === 'FAIL').length;
+  $('stream-foot').innerHTML = `<span>${L.length} shown · ${f} FAIL</span><span class="dim2">${esc(ARENA.state.run ? ARENA.state.run.run_id : 'no run')}</span>`;
+}
+
+// ---------------------------------------------------------------- 04 judge
+function bar(frac, n = 16) { const k = Math.round(Math.max(0, Math.min(1, frac)) * n); return '[' + '#'.repeat(k) + ' '.repeat(n - k) + ']'; }
+function renderJudge() {
+  const S = ARENA.state, run = S.run; let html = '';
+  if (run && run.checks && Object.keys(run.checks).length) {
+    const ks = Object.keys(run.checks).sort(), ok = ks.filter(k => run.checks[k].ok).length;
+    html += `<div class="rub hdr"><span>EMERGENCE run checks (evidence-grounded, deterministic)</span><span>assertions</span><span class="sc">ok</span></div>`;
+    for (const k of ks) { const c = run.checks[k], tot = c.assertions || 0, bad = (c.failed || []).length, frac = tot ? (tot - bad) / tot : (c.ok ? 1 : 0);
+      html += `<div class="rub"><span>${esc(k)}${bad ? ' <span class="r">' + esc(c.failed.join(',')) + '</span>' : ''}</span><span class="bar ${c.ok ? '' : 'bad'}">${bar(frac)}</span><span class="sc ${c.ok ? 'g' : 'r'}">${tot - bad}/${tot}</span></div>`; }
+    const v = run.verdict || {};
+    html += `<div class="rub"><span><b>score</b> ${ok}/${ks.length} checks ok</span><span class="bar ${ok === ks.length ? '' : 'bad'}">${bar(ks.length ? ok / ks.length : 0)}</span><span class="sc">${ks.length ? Math.round(100 * ok / ks.length) : 0}/100</span></div>`;
+    html += `<div class="rub"><span>verdict: pass=<b class="${v.pass ? 'g' : 'r'}">${v.pass}</b> checks_pass=<b>${v.checks_pass}</b>${v.reason ? ' · ' + esc(v.reason) : ''}${(v.unevaluated_required || []).length ? ' · unevaluated: ' + esc(v.unevaluated_required.join(',')) : ''}</span><span></span><span></span></div>`;
+    const d = run.discovery || {};
+    if (d.found != null) html += `<div class="rub"><span>discovery: found ${d.found}/${d.gold_discoverable} · recall ${d.recall_all != null ? d.recall_all.toFixed(3) : '?'} · rare ${d.recall_rare != null ? d.recall_rare.toFixed(3) : '?'} · decoys ${d.decoy_accepted_by_type ? Object.values(d.decoy_accepted_by_type).reduce((a, b) => a + b, 0) : '?'} · questions ${run.questions_asked ?? '?'}</span><span></span><span></span></div>`;
+  } else html += `<div class="empty">NO DATA — no run report; run checks appear here as the harness writes them</div>`;
+  html += `<div class="rub hdr" style="margin-top:10px"><span>swarm hypothesis rubric (SWARM_PROMPT §4; applied by the falsifier wave)</span><span></span><span class="sc">weight</span></div>`;
+  const crit = [['no label inside the statistic', 30], ['beats the designed null (H8) at p<0.05', 25], ['best-of-k disclosed, sample discounted', 15], ['survives leave-one-seed-out', 15], ['clears the break-even (H6)', 15]];
+  const judged = ARENA.events.filter(e => e.source === 'swarm' && e.tag === 'ARTIFACT' && /HYPOTHESES|NULL|BREAK_EVEN/.test(e.msg)).length;
+  for (const [c, w] of crit) html += `<div class="rub"><span>${esc(c)}</span><span class="bar dim">${bar(0)}</span><span class="sc dim">—/${w}</span></div>`;
+  html += `<div class="rub"><span class="dim">${judged ? judged + ' hypothesis artifact' + (judged > 1 ? 's' : '') + ' delivered · falsifiers not yet spawned → no score' : 'no hypothesis artifact delivered yet → no score'}</span><span></span><span></span></div>`;
+  $('judge').innerHTML = html;
+  $('judge-foot').innerHTML = `<span>judges never score their own work: the falsifier is a separate agent</span><span class="dim2">blind to model cards: n/a (one model)</span>`;
+}
+
+// ---------------------------------------------------------------- 05 trace (virtualised)
+const ROW = 18;
+function filtered() { const f = ARENA.filter.trim().toLowerCase(); if (!f) return ARENA.events; return ARENA.events.filter(e => (e.tag + ' ' + (e.agent || '') + ' ' + e.msg + ' ' + e.source).toLowerCase().includes(f)); }
+function renderTrace() {
+  const box = $('trace'), L = filtered();
+  $('trace-spacer').style.height = (L.length * ROW) + 'px';
+  $('trace-count').textContent = `${L.length} / ${ARENA.events.length} events`;
+  if (!L.length) { $('trace-window').innerHTML = '<div class="row dim" style="cursor:default">WAITING — no events</div>'; return; }
+  if (ARENA.follow) box.scrollTop = box.scrollHeight;
+  const first = Math.max(0, Math.floor(box.scrollTop / ROW) - 5), last = Math.min(L.length, first + Math.ceil(box.clientHeight / ROW) + 10);
+  $('trace-window').style.transform = `translateY(${first * ROW}px)`;
+  let h = '';
+  for (let i = first; i < last; i++) { const e = L[i]; h += `<div class="row" data-id="${e.id}"><span class="ts">${hhmm(e.ts)}</span><span class="tag ${TAGC[e.tag] || 'd'}">[${e.tag.toLowerCase()}]</span><span class="who">${esc(e.agent || e.source)}</span><span class="msg">${esc(e.msg)}</span><span class="id">#${e.id}</span></div>`; }
+  $('trace-window').innerHTML = h;
+  for (const d of $('trace-window').querySelectorAll('.row')) d.onclick = () => openEvent(+d.dataset.id);
+}
+$('trace').addEventListener('scroll', () => { const b = $('trace'); if (b.scrollTop + b.clientHeight < b.scrollHeight - 4 && ARENA.follow) { ARENA.follow = false; $('trace-follow').className = 'btn'; } renderTrace(); });
+$('trace-follow').onclick = () => { ARENA.follow = !ARENA.follow; $('trace-follow').className = 'btn' + (ARENA.follow ? ' on' : ''); renderTrace(); };
+$('trace-filter').oninput = e => { ARENA.filter = e.target.value; renderTrace(); };
+
+// ---------------------------------------------------------------- 06 graph
+function loadGraph() {
+  const sel = $('site'), sites = (ARENA.state.run && ARENA.state.run.sites) || [];
+  if (sel.options.length !== sites.length) { sel.innerHTML = sites.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('') || '<option value="">no site</option>'; }
+  const site = ARENA.graphSite || sel.value || sites[0] || '';
+  if (!site) { drawGraph({ status: 'NO DATA', reason: 'no run attached, or no site graph written yet' }); return; }
+  fetch('/graph?site=' + encodeURIComponent(site)).then(r => r.json()).then(gr => { ARENA.graph = gr; drawGraph(gr); }).catch(() => drawGraph({ status: 'NO DATA', reason: 'graph endpoint unreachable' }));
+}
+$('site').onchange = e => { ARENA.graphSite = e.target.value; loadGraph(); };
+function drawGraph(gr) {
+  const c = $('graph'), [g, W, H] = fitCanvas(c);
+  g.clearRect(0, 0, W, H); g.font = '10px ui-monospace, Menlo, monospace';
+  if (gr.status !== 'OK') { g.fillStyle = '#5a6672'; g.fillText('NO DATA — ' + (gr.reason || ''), 8, 20); $('graph-foot').innerHTML = `<span>NO DATA</span><span class="dim2">${esc(gr.reason || '')}</span>`; return; }
+  const nodes = gr.sample_nodes || [], edges = gr.sample_edges || [], lin = (gr.lineage && gr.lineage.sample) || [];
+  const cx = W * 0.33, cy = H / 2, R = Math.min(cx, cy) - 16, pos = {};
+  const layers = [...new Set(nodes.map(n => n.layer))], lcol = { message: '#4fc77a', entity: '#e0a23b', summary: '#4fcfc3' };
+  nodes.forEach((n, i) => { const a = i / Math.max(1, nodes.length) * Math.PI * 2, rr = R * (0.55 + 0.45 * (layers.indexOf(n.layer) / Math.max(1, layers.length))); pos[n.node_id] = [cx + rr * Math.cos(a), cy + rr * Math.sin(a), n]; });
+  g.strokeStyle = 'rgba(79,199,122,.45)'; g.lineWidth = 1;
+  let drawn = 0;
+  for (const e of edges) { const a = pos[e.source], b = pos[e.target]; if (!a || !b) continue; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); drawn++; }
+  for (const id in pos) { const [x, y, n] = pos[id]; g.fillStyle = lcol[(n.layer || '').toLowerCase()] || '#c5ced8'; g.fillRect(x - 1.5, y - 1.5, 3, 3); }
+  g.fillStyle = '#5a6672'; g.fillText(`${gr.site}: ${gr.nodes} nodes · ${gr.edges} edges (sample ${nodes.length} nodes, ${drawn} edges drawn)`, 8, 12);
+  // lineage, as its own cluster on the right: child <- parent
+  const lx = W * 0.72, ids = [...new Set(lin.flatMap(r => [r.child_id, r.parent_id]).filter(Boolean))], lp = {};
+  ids.forEach((id, i) => { const a = i / Math.max(1, ids.length) * Math.PI * 2, rr = Math.min(W * 0.2, R); lp[id] = [lx + rr * Math.cos(a), cy + rr * Math.sin(a)]; });
+  g.strokeStyle = 'rgba(79,207,195,.7)';
+  for (const r of lin) { const a = lp[r.parent_id], b = lp[r.child_id]; if (!a || !b) continue; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); }
+  g.fillStyle = '#4fcfc3'; for (const id in lp) g.fillRect(lp[id][0] - 1.5, lp[id][1] - 1.5, 3, 3);
+  g.fillStyle = '#5a6672'; g.fillText(`fabric lineage: ${gr.lineage ? gr.lineage.count : 0} edges${lin.length ? ' (sample ' + lin.length + ')' : ''}`, lx - 60, 12);
+  if (!gr.edges) { g.fillStyle = '#e0a23b'; g.fillText('0 EDGES PERSISTED — the site path writes nodes only (site_graph.py:188); shown as such', 8, H - 6); }
+  $('graph-foot').innerHTML = `<span>${esc(gr.site)} · nodes ${gr.nodes} · edges ${gr.edges} · lineage ${gr.lineage ? gr.lineage.count : 0}</span><span class="dim2">${esc(gr.path)}</span>`;
+}
+
+// ---------------------------------------------------------------- 07 controls
+function renderControls() {
+  const S = ARENA.state, h = S.harness || {}, run = S.run, scen = h.scenarios || {};
+  const kv = (k, v) => `<div><span class="k">${k}</span><span>${v}</span></div>`;
+  $('ctl').innerHTML = `
+    <div class="grp"><h3>RUN · EMERGENCE HARNESS (real process group)</h3>
+      ${kv('scenario', `<select id="scen">${Object.keys(scen).map(k => `<option value="${esc(k)}">${esc(k)} — ${esc(scen[k])}</option>`).join('') || '<option>none configured (--runs-root)</option>'}</select>`)}
+      ${kv('status', h.running ? `<span class="${h.paused ? 'a' : 'g'}">${h.paused ? 'PAUSED' : 'RUNNING'}</span> pid ${h.pid}` : (h.returncode != null ? `exited ${h.returncode}` : '<span class="dim">idle</span>'))}
+      ${kv('run dir', `<span class="dim2">${esc(h.run_dir || (run && run.run_dir) || '—')}</span>`)}
+      <div class="btns"><button class="btn primary" id="b-start" ${h.running || !Object.keys(scen).length ? 'disabled' : ''}>START</button><button class="btn" id="b-pause" ${h.running && !h.paused ? '' : 'disabled'}>PAUSE</button><button class="btn" id="b-resume" ${h.running && h.paused ? '' : 'disabled'}>RESUME</button><button class="btn danger" id="b-stop" ${h.running ? '' : 'disabled'}>STOP</button></div>
+    </div>
+    <div class="grp"><h3>BUDGETS · MODELS</h3>
+      ${kv('swarm agents', `${S.concurrency.registered} registered <span class="dim2">· spawned by the orchestrating session; the console observes</span>`)}
+      ${kv('harness concurrency', '--jobs per scenario (threads for the reference pass and fixed queries)')}
+      ${kv('model', '<span class="dim">NOT CONFIGURED</span> <span class="dim2">· the benchmark makes no model calls by policy</span>')}
+      ${kv('token / cost budget', `<span class="dim">0 in benchmark</span> <span class="dim2">· builder-layer tokens not visible here</span>`)}
+    </div>
+    <div class="grp"><h3>REPLAY · EXPORT</h3>
+      ${kv('event log', `<span class="dim2">${esc(S.console.latest_event_id)} events on the server</span>`)}
+      <div class="btns"><button class="btn" id="b-replay">REPLAY FROM #0</button><button class="btn" id="b-live">RESUME LIVE</button><a class="btn" href="/export" target="_blank">EXPORT JSON</a><a class="btn" href="/export.jsonl" target="_blank">EXPORT JSONL</a></div>
+    </div>
+    <div class="grp"><h3>INSPECT</h3>
+      ${kv('agents', agents().map(a => `<a href="#" data-agent="${esc(a.id)}" class="ag">${esc(a.id)}</a>`).join(' ') || '<span class="dim">none</span>')}
+      ${kv('sites', (run && run.sites || []).map(s => `<a href="#" data-site="${esc(s)}" class="si">${esc(s)}</a>`).join(' ') || '<span class="dim">none</span>')}
+      ${kv('sources', (S.console.sources || []).join(' · '))}
+    </div>`;
+  const post = (o, after) => fetch('/control', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o) }).then(r => r.json()).then(j => { if (j.error) alert(j.error); if (after) after(j); });
+  $('b-start').onclick = () => post({ action: 'start', scenario: $('scen').value });
+  $('b-pause').onclick = () => post({ action: 'pause' });
+  $('b-resume').onclick = () => post({ action: 'resume' });
+  $('b-stop').onclick = () => { if (!confirm(`Stop the running harness (pid ${h.pid})? This terminates its process group and the run cannot be resumed.`)) return; post({ action: 'stop', confirm: true }); };
+  $('b-replay').onclick = () => { ARENA.replay = true; ARENA.events = []; ARENA.byAgent = {}; ARENA.lastId = 0; ARENA.follow = true; dirty.all = true; connect(0); };
+  $('b-live').onclick = () => { ARENA.replay = false; connect(ARENA.lastId); };
+  for (const a of $('ctl').querySelectorAll('a.ag')) a.onclick = e => { e.preventDefault(); openDrawer(a.dataset.agent); };
+  for (const a of $('ctl').querySelectorAll('a.si')) a.onclick = e => { e.preventDefault(); ARENA.graphSite = a.dataset.site; $('site').value = a.dataset.site; loadGraph(); };
+}
+
+// ---------------------------------------------------------------- drawer
+function openEvent(id) { const e = ARENA.events.find(x => x.id === id); if (!e) return; ARENA.selEvent = e; openDrawer(e.agent || null, e); }
+function openDrawer(agentId, ev) {
+  ARENA.sel = agentId; const a = agents().find(x => x.id === agentId) || null; const r = (a && a.role) || {};
+  const evs = agentId ? (ARENA.byAgent[agentId] || []).slice(-60).reverse() : [];
+  const art = (p) => `<a href="/artifact?path=${encodeURIComponent(p)}" target="_blank">${esc(p.split('/').pop())}</a>`;
+  let h = `<h3><span>${esc(agentId || (ev ? ev.source : ''))}</span><button class="btn" id="d-close">CLOSE</button></h3>`;
+  if (a) h += `<div class="kv">${[['state', a.state], ['role', r.role], ['family', r.family], ['model', r.model], ['deliverable', r.deliverable], ['start', a.start], ['end', a.end || '—']].map(([k, v]) => `<div><span class="k">${k}</span><span>${esc(v || '—')}</span></div>`).join('')}</div>
+    <p class="dim">artifacts (${a.artifacts.length})</p><ul>${a.artifacts.map(f => `<li>${art((ARENA.byAgent[a.id] || []).find(e => e.tag === 'ARTIFACT' && e.msg.includes(' ' + f + ' '))?.ref?.path || f)}</li>`).join('') || '<li class="dim">none yet</li>'}</ul>`;
+  if (ev) h += `<p class="dim">event #${ev.id} · ${esc(ev.tag)} · observed ${esc(ev.ts)}${ev.at ? ' · artifact time ' + esc(ev.at) : ''}</p>${ev.ref && ev.ref.path ? `<p>artifact: ${art(ev.ref.path)}${ev.ref.line ? ' line ' + ev.ref.line : ''}${ev.ref.sha ? ' ' + esc(ev.ref.sha.slice(0, 12)) : ''}</p>` : ''}<pre>${esc(JSON.stringify(ev, null, 1))}</pre>`;
+  if (evs.length) h += `<p class="dim">recent events for ${esc(agentId)}</p>` + evs.map(e => `<div class="row" data-id="${e.id}" style="padding:0"><span class="ts">${hhmm(e.ts)}</span><span class="tag ${TAGC[e.tag] || 'd'}">[${e.tag.toLowerCase()}]</span><span class="who">${esc(e.source)}</span><span class="msg">${esc(e.msg)}</span><span class="id">#${e.id}</span></div>`).join('');
+  const d = $('drawer'); d.innerHTML = h; d.classList.remove('hidden');
+  $('d-close').onclick = () => { d.classList.add('hidden'); ARENA.sel = null; dirty.grid = true; schedule(); };
+  for (const r2 of d.querySelectorAll('.row')) r2.onclick = () => openEvent(+r2.dataset.id);
+  dirty.grid = true; schedule();
+}
+
+function renderFooter() {
+  const S = ARENA.state; if (!S) return;
+  $('f-left').textContent = `mode: collaborative research · engine: EMERGENCE harness${S.run ? ' @ ' + S.run.run_id : ' (no run)'}`;
+  $('f-mid').textContent = `events #${ARENA.lastId} · sources: ${(S.console.sources || []).join(', ') || 'none'} · ${ARENA.conn}`;
+  $('f-right').textContent = `policy: 0 model calls in benchmark · console is read-only on every repo`;
+}
+
+// clocks: header second hand, deck runtimes, timeline 'now'
+setInterval(() => { $('hdr-clock').textContent = new Date().toISOString().slice(11, 19) + 'Z'; if (ARENA.state && agents().some(a => a.state === 'RUNNING')) { renderDeck(); } }, 1000);
+window.addEventListener('resize', () => { if (ARENA.state) { drawTimeline(); if (ARENA.graph) drawGraph(ARENA.graph); } });
+connect(0);
+</script>
+</body>
+</html>
