@@ -1033,6 +1033,14 @@ def _detectors(b: _Build, egress: Egress) -> dict[str, Any]:
     """The schema gives types and closed ranges; the open ends and the cross-checks are explicit here."""
     f = "detectors.json"
     raw = b.files[f]
+    # optional (absent = false, the shipped candidate source): EMERGENCE-Next research setting; a candidate the rule
+    # layer found but no detector alerted on gets a snapshot from its rule hit, so HQ may ask it
+    extra: dict[str, Any] = {}
+    if isinstance(raw, dict) and "rule_snapshots" in raw:
+        if not isinstance(raw["rule_snapshots"], bool):
+            raise PackError(f, "$.rule_snapshots", "must be a boolean") from None
+        extra = {"rule_snapshots": raw["rule_snapshots"]}
+        raw = {k: v for k, v in raw.items() if k != "rule_snapshots"}
     _check(f, "$", raw, S_DETECTORS)
     for path, value in (("$.burst.alpha_site", raw["burst"]["alpha_site"]),
                         ("$.burst.lambda_floor", raw["burst"]["lambda_floor"]),
@@ -1052,7 +1060,7 @@ def _detectors(b: _Build, egress: Egress) -> dict[str, Any]:
         raise PackError(f, "$.burst.p_max", "must be < 1") from None
     if raw["decoy"]["stale_days"] < egress.close_lag_days + 7:
         raise PackError(f, "$.decoy.stale_days", "must be at least egress.close_lag_days + 7") from None
-    return raw
+    return {**raw, **extra}
 
 
 def _rules(b: _Build, egress: Egress) -> dict[str, Rule]:
