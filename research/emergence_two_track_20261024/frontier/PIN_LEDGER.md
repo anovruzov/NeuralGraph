@@ -9,8 +9,9 @@ This file records evidence only. **No pin was changed for it.** My local re-pin 
 
 How it was measured: each failing test was run at every commit in the local series (`28275759` and the six commits
 on top of it), plus a walk back through history for the x3 pin. The test runs found 8 genuine failures. A further 16
-errors came from running the live tests without `MYCELIC_NATS_SERVER_BIN`, which was my mistake; those are being
-re-run with the broker.
+errors came from running the live tests without `MYCELIC_NATS_SERVER_BIN`, which was my mistake; re-run with the
+broker at `3d4c3b07`, all 26 pass (`test_harness::LiveRunTests`, `test_hq_bridge::LiveBridgeTests`,
+`test_publish_api`; 178 subtests). Full tally at `3d4c3b07`: 8 failures, all listed below; no other test fails.
 
 ## 1. The three overlapping digests — they check different things
 
