@@ -4,7 +4,7 @@ C = {int(k): v for k, v in json.load(open(f"{S}/plateau/ceiling_b.json")).items(
 rows = json.load(open(f"{S}/plateau/funnel_rows.json"))
 by = {(r["cfg"], r["seed"], r["pattern"]): r for r in rows}
 # v4 vs v2 gains / losses per seed
-for s in range(5):
+for s in range(6):
     v2 = {r["pattern"] for r in rows if r["cfg"] == "v2" and r["seed"] == s and r["stage"] == "found"}
     v4 = {r["pattern"] for r in rows if r["cfg"] == "v4" and r["seed"] == s and r["stage"] == "found"}
     gain = sorted(v4 - v2); loss = sorted(v2 - v4)
@@ -13,7 +13,8 @@ for s in range(5):
 dirc = collections.Counter()
 for r in rows:
     if r["cfg"] != "v4" or not r["rare"] or r["stage"] == "found": continue
-    fw = C[r["seed"]][r["pattern"]]["feasible_weeks"]["B"]["TB_v4"]
+    _f = C[r["seed"]][r["pattern"]]["feasible_weeks"]
+    fw = sorted(set(_f["B"]["TB_v4"]) | set(_f["F"]["TB_v4"]))  # union: F (facet records) is not a subset of B (key records)
     if not fw: dirc["structural"] += 1; continue
     a = r["asked_weeks_status"][0][0]
     dirc["asked_before_all_feasible" if all(w > a for w in fw) else ("asked_after_all_feasible" if all(w < a for w in fw) else "between")] += 1

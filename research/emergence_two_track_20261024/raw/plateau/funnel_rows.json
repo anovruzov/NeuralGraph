@@ -35212,5 +35212,3461 @@
    }
   ],
   "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p000",
+  "rare": false,
+  "key": "entity:E-LUMEN:chain_pricing",
+  "window": [
+   "2024-W15",
+   "2024-W21"
+  ],
+  "label_sites": [
+   "r05-site-00",
+   "r06-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W16",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21",
+   "2024-W22",
+   "2024-W23",
+   "2024-W24",
+   "2024-W25",
+   "2024-W26"
+  ],
+  "candidate_weeks": [
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W16",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "supported",
+    "ambiguous": false,
+    "reason": "2 strong sites; newest strong week 2024-W16",
+    "route": [
+     "r06-site-00",
+     "r05-site-00",
+     "r04-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r04-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r05-site-00": {
+      "contradicted": false,
+      "events": 7,
+      "newest_week": "2024-W16",
+      "records": 7,
+      "strong": true,
+      "users": 7
+     },
+     "r06-site-00": {
+      "contradicted": false,
+      "events": 7,
+      "newest_week": "2024-W15",
+      "records": 7,
+      "strong": true,
+      "users": 6
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p001",
+  "rare": false,
+  "key": "entity:E-TUNDRA-CORE:chain_pricing",
+  "window": [
+   "2024-W07",
+   "2024-W16"
+  ],
+  "label_sites": [
+   "r03-site-00",
+   "r06-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W09",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19"
+  ],
+  "candidate_weeks": [
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W09",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "supported",
+    "ambiguous": false,
+    "reason": "2 strong sites; newest strong week 2024-W09",
+    "route": [
+     "r03-site-00",
+     "r06-site-00",
+     "r02-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r02-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r03-site-00": {
+      "contradicted": false,
+      "events": 12,
+      "newest_week": "2024-W09",
+      "records": 12,
+      "strong": true,
+      "users": 11
+     },
+     "r06-site-00": {
+      "contradicted": false,
+      "events": 9,
+      "newest_week": "2024-W09",
+      "records": 9,
+      "strong": true,
+      "users": 8
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p002",
+  "rare": true,
+  "key": "entity:E-CINDERX:chain_policy",
+  "window": [
+   "2024-W05",
+   "2024-W12"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r01-site-00",
+   "r02-site-00",
+   "r04-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "rule"
+  ],
+  "snapshot_week": "2024-W07",
+  "snapshot_source": "rule",
+  "rule_weeks": [
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21",
+   "2024-W22",
+   "2024-W23"
+  ],
+  "candidate_weeks": [],
+  "asked_weeks_status": [
+   [
+    "2024-W07",
+    "hypothesis",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "hypothesis",
+    "ambiguous": false,
+    "reason": "no routed site holds the pattern strongly",
+    "route": [
+     "r01-site-00",
+     "r00-site-00",
+     "r02-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 1,
+      "newest_week": "2024-W05",
+      "records": 1,
+      "strong": false,
+      "users": 1
+     },
+     "r01-site-00": {
+      "contradicted": false,
+      "events": 2,
+      "newest_week": "2024-W07",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     },
+     "r02-site-00": {
+      "contradicted": false,
+      "events": 2,
+      "newest_week": "2024-W07",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     }
+    },
+    "status": "hypothesis"
+   }
+  ],
+  "stage": "S4_verdict_hypothesis"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p003",
+  "rare": false,
+  "key": "entity:E-VERIDIAN:chain_network",
+  "window": [
+   "2024-W14",
+   "2024-W23"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r03-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W15",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21",
+   "2024-W22",
+   "2024-W23",
+   "2024-W24",
+   "2024-W25",
+   "2024-W26"
+  ],
+  "candidate_weeks": [
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W15",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "supported",
+    "ambiguous": false,
+    "reason": "2 strong sites; newest strong week 2024-W15",
+    "route": [
+     "r03-site-00",
+     "r00-site-00",
+     "r01-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 4,
+      "newest_week": "2024-W15",
+      "records": 4,
+      "strong": true,
+      "users": 4
+     },
+     "r01-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r03-site-00": {
+      "contradicted": false,
+      "events": 11,
+      "newest_week": "2024-W15",
+      "records": 11,
+      "strong": true,
+      "users": 10
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p004",
+  "rare": true,
+  "key": "entity:E-CINDER-PAY:chain_attrition",
+  "window": [
+   "2024-W01",
+   "2024-W07"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r04-site-00"
+  ],
+  "contradicted_label": true,
+  "shared_key": false,
+  "cand_channels": [
+   "rule"
+  ],
+  "snapshot_week": "2024-W06",
+  "snapshot_source": "rule",
+  "rule_weeks": [
+   "2024-W03",
+   "2024-W04",
+   "2024-W05",
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10"
+  ],
+  "candidate_weeks": [],
+  "asked_weeks_status": [
+   [
+    "2024-W06",
+    "hypothesis",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": null,
+    "ambiguous": true,
+    "reason": "contradicted at 1 routed site(s)",
+    "route": [
+     "r00-site-00",
+     "r04-site-00",
+     "r06-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": true,
+      "events": 2,
+      "newest_week": "2024-W03",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     },
+     "r04-site-00": {
+      "contradicted": false,
+      "events": 2,
+      "newest_week": "2024-W03",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     },
+     "r06-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     }
+    },
+    "status": "hypothesis"
+   }
+  ],
+  "stage": "S4_verdict_hypothesis"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p005",
+  "rare": false,
+  "key": "entity:E-VIREO-EDGE:chain_pricing",
+  "window": [
+   "2024-W04",
+   "2024-W10"
+  ],
+  "label_sites": [
+   "r01-site-00",
+   "r02-site-00"
+  ],
+  "contradicted_label": true,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W07",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W05",
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13"
+  ],
+  "candidate_weeks": [
+   "2024-W07",
+   "2024-W08",
+   "2024-W09"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W07",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": null,
+    "ambiguous": true,
+    "reason": "contradicted at 1 routed site(s)",
+    "route": [
+     "r02-site-00",
+     "r01-site-00",
+     "r00-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r01-site-00": {
+      "contradicted": false,
+      "events": 5,
+      "newest_week": "2024-W05",
+      "records": 5,
+      "strong": true,
+      "users": 5
+     },
+     "r02-site-00": {
+      "contradicted": true,
+      "events": 14,
+      "newest_week": "2024-W06",
+      "records": 14,
+      "strong": false,
+      "users": 12
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p006",
+  "rare": true,
+  "key": "entity:E-VANTAGE-CORE:chain_auth",
+  "window": [
+   "2024-W08",
+   "2024-W17"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r03-site-00",
+   "r04-site-00",
+   "r06-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "rule"
+  ],
+  "snapshot_week": "2024-W09",
+  "snapshot_source": "rule",
+  "rule_weeks": [
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W25",
+   "2024-W26"
+  ],
+  "candidate_weeks": [],
+  "asked_weeks_status": [
+   [
+    "2024-W09",
+    "hypothesis",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "hypothesis",
+    "ambiguous": false,
+    "reason": "no routed site holds the pattern strongly",
+    "route": [
+     "r06-site-00",
+     "r04-site-00",
+     "r00-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r04-site-00": {
+      "contradicted": false,
+      "events": 1,
+      "newest_week": "2024-W09",
+      "records": 1,
+      "strong": false,
+      "users": 1
+     },
+     "r06-site-00": {
+      "contradicted": false,
+      "events": 2,
+      "newest_week": "2024-W08",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     }
+    },
+    "status": "hypothesis"
+   }
+  ],
+  "stage": "S4_verdict_hypothesis"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p007",
+  "rare": true,
+  "key": "entity:E-PEREGRINE-CORE:chain_policy",
+  "window": [
+   "2024-W12",
+   "2024-W20"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r01-site-00",
+   "r04-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W16",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21"
+  ],
+  "candidate_weeks": [
+   "2024-W16",
+   "2024-W17"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W16",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "hypothesis",
+    "ambiguous": false,
+    "reason": "no routed site holds the pattern strongly",
+    "route": [
+     "r04-site-00",
+     "r01-site-00",
+     "r00-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 1,
+      "newest_week": "2024-W13",
+      "records": 1,
+      "strong": false,
+      "users": 1
+     },
+     "r01-site-00": {
+      "contradicted": false,
+      "events": 2,
+      "newest_week": "2024-W16",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     },
+     "r04-site-00": {
+      "contradicted": false,
+      "events": 2,
+      "newest_week": "2024-W14",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p008",
+  "rare": true,
+  "key": "entity:E-LUMEN-PAY:chain_network",
+  "window": [
+   "2024-W16",
+   "2024-W22"
+  ],
+  "label_sites": [
+   "r01-site-00",
+   "r04-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "rule"
+  ],
+  "snapshot_week": "2024-W11",
+  "snapshot_source": "rule",
+  "rule_weeks": [
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21",
+   "2024-W22",
+   "2024-W23",
+   "2024-W24",
+   "2024-W25"
+  ],
+  "candidate_weeks": [],
+  "asked_weeks_status": [
+   [
+    "2024-W11",
+    "hypothesis",
+    true
+   ]
+  ],
+  "oracle": [],
+  "stage": "S3_asked_before_window"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p009",
+  "rare": false,
+  "key": "entity:E-TUNDRAX:chain_policy",
+  "window": [
+   "2024-W12",
+   "2024-W19"
+  ],
+  "label_sites": [
+   "r02-site-00",
+   "r03-site-00",
+   "r05-site-00",
+   "r06-site-00"
+  ],
+  "contradicted_label": true,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W14",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21",
+   "2024-W22",
+   "2024-W23",
+   "2024-W24"
+  ],
+  "candidate_weeks": [
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W14",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": null,
+    "ambiguous": true,
+    "reason": "contradicted at 1 routed site(s)",
+    "route": [
+     "r03-site-00",
+     "r05-site-00",
+     "r06-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r03-site-00": {
+      "contradicted": true,
+      "events": 5,
+      "newest_week": "2024-W12",
+      "records": 5,
+      "strong": false,
+      "users": 4
+     },
+     "r05-site-00": {
+      "contradicted": false,
+      "events": 9,
+      "newest_week": "2024-W14",
+      "records": 9,
+      "strong": true,
+      "users": 8
+     },
+     "r06-site-00": {
+      "contradicted": false,
+      "events": 3,
+      "newest_week": "2024-W14",
+      "records": 3,
+      "strong": true,
+      "users": 3
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p010",
+  "rare": false,
+  "key": "entity:E-QUARRY-PAY:chain_policy",
+  "window": [
+   "2024-W05",
+   "2024-W12"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r04-site-00",
+   "r05-site-00"
+  ],
+  "contradicted_label": true,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W07",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W05",
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20"
+  ],
+  "candidate_weeks": [
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W07",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": null,
+    "ambiguous": true,
+    "reason": "contradicted at 1 routed site(s)",
+    "route": [
+     "r00-site-00",
+     "r04-site-00",
+     "r05-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 8,
+      "newest_week": "2024-W07",
+      "records": 8,
+      "strong": true,
+      "users": 8
+     },
+     "r04-site-00": {
+      "contradicted": false,
+      "events": 6,
+      "newest_week": "2024-W05",
+      "records": 6,
+      "strong": true,
+      "users": 6
+     },
+     "r05-site-00": {
+      "contradicted": true,
+      "events": 3,
+      "newest_week": "2024-W06",
+      "records": 3,
+      "strong": false,
+      "users": 3
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p011",
+  "rare": true,
+  "key": "entity:E-VERIDIAN-EDGE:chain_supply",
+  "window": [
+   "2024-W06",
+   "2024-W13"
+  ],
+  "label_sites": [
+   "r01-site-00",
+   "r04-site-00",
+   "r05-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "rule"
+  ],
+  "snapshot_week": "2024-W06",
+  "snapshot_source": "rule",
+  "rule_weeks": [
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W26"
+  ],
+  "candidate_weeks": [],
+  "asked_weeks_status": [
+   [
+    "2024-W06",
+    "hypothesis",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "hypothesis",
+    "ambiguous": false,
+    "reason": "no routed site holds the pattern strongly",
+    "route": [
+     "r02-site-00",
+     "r05-site-00",
+     "r06-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r02-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r05-site-00": {
+      "contradicted": false,
+      "events": 1,
+      "newest_week": "2024-W06",
+      "records": 1,
+      "strong": false,
+      "users": 1
+     },
+     "r06-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     }
+    },
+    "status": "hypothesis"
+   }
+  ],
+  "stage": "S4_verdict_hypothesis"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p012",
+  "rare": false,
+  "key": "entity:E-VIREO:chain_policy",
+  "window": [
+   "2024-W04",
+   "2024-W10"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r01-site-00",
+   "r02-site-00",
+   "r04-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W07",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W04",
+   "2024-W05",
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20"
+  ],
+  "candidate_weeks": [
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W07",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "supported",
+    "ambiguous": false,
+    "reason": "3 strong sites; newest strong week 2024-W06",
+    "route": [
+     "r04-site-00",
+     "r01-site-00",
+     "r00-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 5,
+      "newest_week": "2024-W05",
+      "records": 5,
+      "strong": true,
+      "users": 5
+     },
+     "r01-site-00": {
+      "contradicted": false,
+      "events": 5,
+      "newest_week": "2024-W06",
+      "records": 5,
+      "strong": true,
+      "users": 5
+     },
+     "r04-site-00": {
+      "contradicted": false,
+      "events": 8,
+      "newest_week": "2024-W04",
+      "records": 8,
+      "strong": true,
+      "users": 8
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p013",
+  "rare": false,
+  "key": "entity:E-GRANITE:chain_policy",
+  "window": [
+   "2024-W03",
+   "2024-W09"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r02-site-00",
+   "r06-site-00"
+  ],
+  "contradicted_label": true,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W07",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W04",
+   "2024-W05",
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W24",
+   "2024-W25"
+  ],
+  "candidate_weeks": [
+   "2024-W07",
+   "2024-W08"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W07",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": null,
+    "ambiguous": true,
+    "reason": "contradicted at 1 routed site(s)",
+    "route": [
+     "r00-site-00",
+     "r06-site-00",
+     "r02-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": true,
+      "events": 9,
+      "newest_week": "2024-W03",
+      "records": 9,
+      "strong": false,
+      "users": 9
+     },
+     "r02-site-00": {
+      "contradicted": false,
+      "events": 8,
+      "newest_week": "2024-W04",
+      "records": 8,
+      "strong": true,
+      "users": 8
+     },
+     "r06-site-00": {
+      "contradicted": false,
+      "events": 3,
+      "newest_week": "2024-W05",
+      "records": 3,
+      "strong": false,
+      "users": 2
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p014",
+  "rare": true,
+  "key": "entity:E-KESTREL:chain_network",
+  "window": [
+   "2024-W04",
+   "2024-W11"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r01-site-00",
+   "r04-site-00",
+   "r06-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "rule"
+  ],
+  "snapshot_week": "2024-W06",
+  "snapshot_source": "rule",
+  "rule_weeks": [
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W21",
+   "2024-W22",
+   "2024-W23",
+   "2024-W24",
+   "2024-W25",
+   "2024-W26"
+  ],
+  "candidate_weeks": [],
+  "asked_weeks_status": [
+   [
+    "2024-W06",
+    "hypothesis",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "hypothesis",
+    "ambiguous": false,
+    "reason": "no routed site holds the pattern strongly",
+    "route": [
+     "r03-site-00",
+     "r04-site-00",
+     "r01-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r01-site-00": {
+      "contradicted": false,
+      "events": 1,
+      "newest_week": "2024-W04",
+      "records": 1,
+      "strong": false,
+      "users": 1
+     },
+     "r03-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r04-site-00": {
+      "contradicted": false,
+      "events": 2,
+      "newest_week": "2024-W06",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     }
+    },
+    "status": "hypothesis"
+   }
+  ],
+  "stage": "S4_verdict_hypothesis"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p015",
+  "rare": true,
+  "key": "entity:E-VERIDIAN-PAY:chain_supply",
+  "window": [
+   "2024-W10",
+   "2024-W16"
+  ],
+  "label_sites": [
+   "r01-site-00",
+   "r02-site-00",
+   "r06-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "rule"
+  ],
+  "snapshot_week": "2024-W11",
+  "snapshot_source": "rule",
+  "rule_weeks": [
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17"
+  ],
+  "candidate_weeks": [],
+  "asked_weeks_status": [
+   [
+    "2024-W11",
+    "hypothesis",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "hypothesis",
+    "ambiguous": false,
+    "reason": "no routed site holds the pattern strongly",
+    "route": [
+     "r06-site-00",
+     "r01-site-00",
+     "r05-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r01-site-00": {
+      "contradicted": false,
+      "events": 1,
+      "newest_week": "2024-W10",
+      "records": 1,
+      "strong": false,
+      "users": 1
+     },
+     "r05-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r06-site-00": {
+      "contradicted": false,
+      "events": 2,
+      "newest_week": "2024-W11",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     }
+    },
+    "status": "hypothesis"
+   }
+  ],
+  "stage": "S4_verdict_hypothesis"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p016",
+  "rare": false,
+  "key": "entity:E-WEXFORD-PAY:chain_attrition",
+  "window": [
+   "2024-W07",
+   "2024-W17"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r01-site-00",
+   "r02-site-00",
+   "r03-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W08",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20"
+  ],
+  "candidate_weeks": [
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W08",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "supported",
+    "ambiguous": false,
+    "reason": "2 strong sites; newest strong week 2024-W08",
+    "route": [
+     "r00-site-00",
+     "r03-site-00",
+     "r04-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 6,
+      "newest_week": "2024-W07",
+      "records": 6,
+      "strong": true,
+      "users": 5
+     },
+     "r03-site-00": {
+      "contradicted": false,
+      "events": 7,
+      "newest_week": "2024-W08",
+      "records": 7,
+      "strong": true,
+      "users": 6
+     },
+     "r04-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p017",
+  "rare": false,
+  "key": "entity:E-BASALTX:chain_supply",
+  "window": [
+   "2024-W10",
+   "2024-W18"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r04-site-00",
+   "r05-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W13",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20"
+  ],
+  "candidate_weeks": [
+   "2024-W13",
+   "2024-W14",
+   "2024-W15"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W13",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "supported",
+    "ambiguous": false,
+    "reason": "2 strong sites; newest strong week 2024-W13",
+    "route": [
+     "r00-site-00",
+     "r05-site-00",
+     "r04-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 8,
+      "newest_week": "2024-W10",
+      "records": 8,
+      "strong": true,
+      "users": 8
+     },
+     "r04-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r05-site-00": {
+      "contradicted": false,
+      "events": 5,
+      "newest_week": "2024-W13",
+      "records": 5,
+      "strong": true,
+      "users": 5
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p018",
+  "rare": true,
+  "key": "entity:E-SOLACE-EDGE:chain_pricing",
+  "window": [
+   "2024-W02",
+   "2024-W10"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r01-site-00",
+   "r02-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "rule"
+  ],
+  "snapshot_week": "2024-W06",
+  "snapshot_source": "rule",
+  "rule_weeks": [
+   "2024-W04",
+   "2024-W05",
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11"
+  ],
+  "candidate_weeks": [],
+  "asked_weeks_status": [
+   [
+    "2024-W06",
+    "hypothesis",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "hypothesis",
+    "ambiguous": false,
+    "reason": "no routed site holds the pattern strongly",
+    "route": [
+     "r00-site-00",
+     "r02-site-00",
+     "r01-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 1,
+      "newest_week": "2024-W02",
+      "records": 1,
+      "strong": false,
+      "users": 1
+     },
+     "r01-site-00": {
+      "contradicted": false,
+      "events": 1,
+      "newest_week": "2024-W06",
+      "records": 1,
+      "strong": false,
+      "users": 1
+     },
+     "r02-site-00": {
+      "contradicted": false,
+      "events": 2,
+      "newest_week": "2024-W04",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     }
+    },
+    "status": "hypothesis"
+   }
+  ],
+  "stage": "S4_verdict_hypothesis"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p019",
+  "rare": true,
+  "key": "entity:E-PELLUCID-II:chain_auth",
+  "window": [
+   "2024-W06",
+   "2024-W19"
+  ],
+  "label_sites": [
+   "r01-site-00",
+   "r02-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W11",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18"
+  ],
+  "candidate_weeks": [
+   "2024-W11"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W11",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "supported",
+    "ambiguous": false,
+    "reason": "2 strong sites; newest strong week 2024-W11",
+    "route": [
+     "r02-site-00",
+     "r01-site-00",
+     "r00-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r01-site-00": {
+      "contradicted": false,
+      "events": 3,
+      "newest_week": "2024-W11",
+      "records": 3,
+      "strong": true,
+      "users": 3
+     },
+     "r02-site-00": {
+      "contradicted": false,
+      "events": 3,
+      "newest_week": "2024-W10",
+      "records": 3,
+      "strong": true,
+      "users": 3
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p020",
+  "rare": true,
+  "key": "entity:E-SABLE-CORE:chain_network",
+  "window": [
+   "2024-W06",
+   "2024-W12"
+  ],
+  "label_sites": [
+   "r01-site-00",
+   "r05-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "rule"
+  ],
+  "snapshot_week": "2024-W06",
+  "snapshot_source": "rule",
+  "rule_weeks": [
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W17",
+   "2024-W24"
+  ],
+  "candidate_weeks": [],
+  "asked_weeks_status": [
+   [
+    "2024-W06",
+    "hypothesis",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "hypothesis",
+    "ambiguous": false,
+    "reason": "no routed site holds the pattern strongly",
+    "route": [
+     "r05-site-00",
+     "r02-site-00",
+     "r01-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r01-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r02-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r05-site-00": {
+      "contradicted": false,
+      "events": 1,
+      "newest_week": "2024-W06",
+      "records": 1,
+      "strong": false,
+      "users": 1
+     }
+    },
+    "status": "hypothesis"
+   }
+  ],
+  "stage": "S4_verdict_hypothesis"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p021",
+  "rare": true,
+  "key": "entity:E-MARLIN-PAY:chain_attrition",
+  "window": [
+   "2024-W10",
+   "2024-W20"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r01-site-00",
+   "r02-site-00",
+   "r04-site-00"
+  ],
+  "contradicted_label": true,
+  "shared_key": false,
+  "cand_channels": [
+   "rule"
+  ],
+  "snapshot_week": "2024-W10",
+  "snapshot_source": "rule",
+  "rule_weeks": [
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21",
+   "2024-W22",
+   "2024-W23"
+  ],
+  "candidate_weeks": [],
+  "asked_weeks_status": [
+   [
+    "2024-W10",
+    "hypothesis",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "hypothesis",
+    "ambiguous": false,
+    "reason": "no routed site holds the pattern strongly",
+    "route": [
+     "r00-site-00",
+     "r04-site-00",
+     "r06-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r04-site-00": {
+      "contradicted": false,
+      "events": 2,
+      "newest_week": "2024-W10",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     },
+     "r06-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     }
+    },
+    "status": "hypothesis"
+   }
+  ],
+  "stage": "S4_verdict_hypothesis"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p022",
+  "rare": true,
+  "key": "entity:E-THISTLE-PAY:chain_policy",
+  "window": [
+   "2024-W09",
+   "2024-W16"
+  ],
+  "label_sites": [
+   "r01-site-00",
+   "r02-site-00",
+   "r05-site-00",
+   "r06-site-00"
+  ],
+  "contradicted_label": true,
+  "shared_key": false,
+  "cand_channels": [
+   "rule"
+  ],
+  "snapshot_week": "2024-W09",
+  "snapshot_source": "rule",
+  "rule_weeks": [
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17"
+  ],
+  "candidate_weeks": [],
+  "asked_weeks_status": [
+   [
+    "2024-W09",
+    "hypothesis",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "hypothesis",
+    "ambiguous": false,
+    "reason": "no routed site holds the pattern strongly",
+    "route": [
+     "r02-site-00",
+     "r03-site-00",
+     "r05-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r02-site-00": {
+      "contradicted": false,
+      "events": 2,
+      "newest_week": "2024-W09",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     },
+     "r03-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r05-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     }
+    },
+    "status": "hypothesis"
+   }
+  ],
+  "stage": "S4_verdict_hypothesis"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p023",
+  "rare": false,
+  "key": "entity:E-VIREO-PAY:chain_attrition",
+  "window": [
+   "2024-W06",
+   "2024-W16"
+  ],
+  "label_sites": [
+   "r02-site-00",
+   "r03-site-00",
+   "r04-site-00",
+   "r06-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W07",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W04",
+   "2024-W05",
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20"
+  ],
+  "candidate_weeks": [
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W07",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "supported",
+    "ambiguous": false,
+    "reason": "2 strong sites; newest strong week 2024-W07",
+    "route": [
+     "r03-site-00",
+     "r06-site-00",
+     "r01-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r01-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r03-site-00": {
+      "contradicted": false,
+      "events": 8,
+      "newest_week": "2024-W06",
+      "records": 8,
+      "strong": true,
+      "users": 7
+     },
+     "r06-site-00": {
+      "contradicted": false,
+      "events": 9,
+      "newest_week": "2024-W07",
+      "records": 9,
+      "strong": true,
+      "users": 7
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p024",
+  "rare": false,
+  "key": "entity:E-HALCYON-CORE:chain_firmware",
+  "window": [
+   "2024-W14",
+   "2024-W24"
+  ],
+  "label_sites": [
+   "r02-site-00",
+   "r03-site-00",
+   "r04-site-00",
+   "r06-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W16",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W14",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21",
+   "2024-W22",
+   "2024-W23",
+   "2024-W24"
+  ],
+  "candidate_weeks": [
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W16",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "supported",
+    "ambiguous": false,
+    "reason": "3 strong sites; newest strong week 2024-W16",
+    "route": [
+     "r06-site-00",
+     "r02-site-00",
+     "r03-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r02-site-00": {
+      "contradicted": false,
+      "events": 6,
+      "newest_week": "2024-W14",
+      "records": 6,
+      "strong": true,
+      "users": 5
+     },
+     "r03-site-00": {
+      "contradicted": false,
+      "events": 4,
+      "newest_week": "2024-W16",
+      "records": 4,
+      "strong": true,
+      "users": 4
+     },
+     "r06-site-00": {
+      "contradicted": false,
+      "events": 9,
+      "newest_week": "2024-W16",
+      "records": 9,
+      "strong": true,
+      "users": 9
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p025",
+  "rare": false,
+  "key": "entity:E-PELLUCID-EDGE:chain_pricing",
+  "window": [
+   "2024-W02",
+   "2024-W11"
+  ],
+  "label_sites": [
+   "r02-site-00",
+   "r03-site-00",
+   "r05-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W07",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W04",
+   "2024-W05",
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21"
+  ],
+  "candidate_weeks": [
+   "2024-W07",
+   "2024-W08",
+   "2024-W09"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W07",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "supported",
+    "ambiguous": false,
+    "reason": "3 strong sites; newest strong week 2024-W07",
+    "route": [
+     "r05-site-00",
+     "r03-site-00",
+     "r02-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r02-site-00": {
+      "contradicted": false,
+      "events": 3,
+      "newest_week": "2024-W07",
+      "records": 3,
+      "strong": true,
+      "users": 3
+     },
+     "r03-site-00": {
+      "contradicted": false,
+      "events": 4,
+      "newest_week": "2024-W04",
+      "records": 4,
+      "strong": true,
+      "users": 4
+     },
+     "r05-site-00": {
+      "contradicted": false,
+      "events": 9,
+      "newest_week": "2024-W02",
+      "records": 9,
+      "strong": true,
+      "users": 8
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p026",
+  "rare": false,
+  "key": "entity:E-NIMBUS-CORE:chain_policy",
+  "window": [
+   "2024-W14",
+   "2024-W24"
+  ],
+  "label_sites": [
+   "r01-site-00",
+   "r02-site-00",
+   "r04-site-00",
+   "r05-site-00"
+  ],
+  "contradicted_label": true,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W15",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21",
+   "2024-W22",
+   "2024-W23",
+   "2024-W24",
+   "2024-W25"
+  ],
+  "candidate_weeks": [
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21",
+   "2024-W22",
+   "2024-W23"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W15",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": null,
+    "ambiguous": true,
+    "reason": "contradicted at 1 routed site(s)",
+    "route": [
+     "r04-site-00",
+     "r01-site-00",
+     "r05-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r01-site-00": {
+      "contradicted": false,
+      "events": 7,
+      "newest_week": "2024-W14",
+      "records": 7,
+      "strong": true,
+      "users": 6
+     },
+     "r04-site-00": {
+      "contradicted": true,
+      "events": 5,
+      "newest_week": "2024-W15",
+      "records": 5,
+      "strong": false,
+      "users": 5
+     },
+     "r05-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p027",
+  "rare": true,
+  "key": "entity:E-OSPREY:chain_attrition",
+  "window": [
+   "2024-W08",
+   "2024-W16"
+  ],
+  "label_sites": [
+   "r02-site-00",
+   "r03-site-00",
+   "r06-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "rule"
+  ],
+  "snapshot_week": "2024-W08",
+  "snapshot_source": "rule",
+  "rule_weeks": [
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18"
+  ],
+  "candidate_weeks": [],
+  "asked_weeks_status": [
+   [
+    "2024-W08",
+    "hypothesis",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "hypothesis",
+    "ambiguous": false,
+    "reason": "no routed site holds the pattern strongly",
+    "route": [
+     "r06-site-00",
+     "r03-site-00",
+     "r00-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r03-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r06-site-00": {
+      "contradicted": false,
+      "events": 2,
+      "newest_week": "2024-W08",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     }
+    },
+    "status": "hypothesis"
+   }
+  ],
+  "stage": "S4_verdict_hypothesis"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p028",
+  "rare": false,
+  "key": "entity:E-ORIONX:chain_attrition",
+  "window": [
+   "2024-W12",
+   "2024-W22"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r01-site-00",
+   "r02-site-00",
+   "r03-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W14",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W02",
+   "2024-W03",
+   "2024-W04",
+   "2024-W05",
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21",
+   "2024-W22",
+   "2024-W23",
+   "2024-W24",
+   "2024-W25"
+  ],
+  "candidate_weeks": [
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21",
+   "2024-W22"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W14",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "supported",
+    "ambiguous": false,
+    "reason": "2 strong sites; newest strong week 2024-W14",
+    "route": [
+     "r03-site-00",
+     "r01-site-00",
+     "r00-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r01-site-00": {
+      "contradicted": false,
+      "events": 3,
+      "newest_week": "2024-W14",
+      "records": 3,
+      "strong": true,
+      "users": 3
+     },
+     "r03-site-00": {
+      "contradicted": false,
+      "events": 6,
+      "newest_week": "2024-W12",
+      "records": 6,
+      "strong": true,
+      "users": 6
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p029",
+  "rare": true,
+  "key": "entity:E-MERIDIANX:chain_network",
+  "window": [
+   "2024-W06",
+   "2024-W14"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r05-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W08",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16"
+  ],
+  "candidate_weeks": [
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W08",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "hypothesis",
+    "ambiguous": false,
+    "reason": "no routed site holds the pattern strongly",
+    "route": [
+     "r00-site-00",
+     "r05-site-00",
+     "r03-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 2,
+      "newest_week": "2024-W07",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     },
+     "r03-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r05-site-00": {
+      "contradicted": false,
+      "events": 1,
+      "newest_week": "2024-W06",
+      "records": 1,
+      "strong": false,
+      "users": 1
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p030",
+  "rare": false,
+  "key": "entity:E-UMBRA-CORE:chain_pricing",
+  "window": [
+   "2024-W15",
+   "2024-W23"
+  ],
+  "label_sites": [
+   "r02-site-00",
+   "r03-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W17",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21",
+   "2024-W22",
+   "2024-W23",
+   "2024-W24"
+  ],
+  "candidate_weeks": [
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W17",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "supported",
+    "ambiguous": false,
+    "reason": "2 strong sites; newest strong week 2024-W17",
+    "route": [
+     "r03-site-00",
+     "r02-site-00",
+     "r01-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r01-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r02-site-00": {
+      "contradicted": false,
+      "events": 3,
+      "newest_week": "2024-W15",
+      "records": 3,
+      "strong": true,
+      "users": 3
+     },
+     "r03-site-00": {
+      "contradicted": false,
+      "events": 8,
+      "newest_week": "2024-W17",
+      "records": 8,
+      "strong": true,
+      "users": 8
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p031",
+  "rare": true,
+  "key": "entity:E-TUNDRA-EDGE:chain_policy",
+  "window": [
+   "2024-W05",
+   "2024-W14"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r06-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W10",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W05",
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17"
+  ],
+  "candidate_weeks": [
+   "2024-W10"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W10",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": null,
+    "ambiguous": true,
+    "reason": "exactly one strong routed site",
+    "route": [
+     "r00-site-00",
+     "r06-site-00",
+     "r05-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 2,
+      "newest_week": "2024-W10",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     },
+     "r05-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r06-site-00": {
+      "contradicted": false,
+      "events": 4,
+      "newest_week": "2024-W10",
+      "records": 4,
+      "strong": true,
+      "users": 4
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p032",
+  "rare": true,
+  "key": "entity:E-BASALT-PAY:chain_auth",
+  "window": [
+   "2024-W17",
+   "2024-W25"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r02-site-00",
+   "r04-site-00"
+  ],
+  "contradicted_label": true,
+  "shared_key": false,
+  "cand_channels": [
+   "rule"
+  ],
+  "snapshot_week": "2024-W18",
+  "snapshot_source": "rule",
+  "rule_weeks": [
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21",
+   "2024-W22",
+   "2024-W23",
+   "2024-W24",
+   "2024-W25",
+   "2024-W26"
+  ],
+  "candidate_weeks": [],
+  "asked_weeks_status": [
+   [
+    "2024-W18",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": null,
+    "ambiguous": true,
+    "reason": "contradicted at 1 routed site(s)",
+    "route": [
+     "r00-site-00",
+     "r02-site-00",
+     "r06-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": true,
+      "events": 2,
+      "newest_week": "2024-W17",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     },
+     "r02-site-00": {
+      "contradicted": false,
+      "events": 1,
+      "newest_week": "2024-W18",
+      "records": 1,
+      "strong": false,
+      "users": 1
+     },
+     "r06-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p033",
+  "rare": false,
+  "key": "entity:E-QUARRY-II:chain_network",
+  "window": [
+   "2024-W11",
+   "2024-W19"
+  ],
+  "label_sites": [
+   "r03-site-00",
+   "r06-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W12",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20"
+  ],
+  "candidate_weeks": [
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W12",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "supported",
+    "ambiguous": false,
+    "reason": "2 strong sites; newest strong week 2024-W12",
+    "route": [
+     "r03-site-00",
+     "r06-site-00",
+     "r02-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r02-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r03-site-00": {
+      "contradicted": false,
+      "events": 7,
+      "newest_week": "2024-W11",
+      "records": 7,
+      "strong": true,
+      "users": 7
+     },
+     "r06-site-00": {
+      "contradicted": false,
+      "events": 6,
+      "newest_week": "2024-W12",
+      "records": 6,
+      "strong": true,
+      "users": 5
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p034",
+  "rare": false,
+  "key": "entity:E-LUMENX:chain_auth",
+  "window": [
+   "2024-W11",
+   "2024-W19"
+  ],
+  "label_sites": [
+   "r02-site-00",
+   "r04-site-00",
+   "r05-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W12",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18"
+  ],
+  "candidate_weeks": [
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W12",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "supported",
+    "ambiguous": false,
+    "reason": "2 strong sites; newest strong week 2024-W12",
+    "route": [
+     "r04-site-00",
+     "r02-site-00",
+     "r00-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r00-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r02-site-00": {
+      "contradicted": false,
+      "events": 4,
+      "newest_week": "2024-W11",
+      "records": 4,
+      "strong": true,
+      "users": 4
+     },
+     "r04-site-00": {
+      "contradicted": false,
+      "events": 7,
+      "newest_week": "2024-W12",
+      "records": 7,
+      "strong": true,
+      "users": 7
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p035",
+  "rare": false,
+  "key": "entity:E-COBALTX:chain_network",
+  "window": [
+   "2024-W11",
+   "2024-W19"
+  ],
+  "label_sites": [
+   "r01-site-00",
+   "r03-site-00",
+   "r04-site-00",
+   "r05-site-00"
+  ],
+  "contradicted_label": true,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W12",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21",
+   "2024-W22"
+  ],
+  "candidate_weeks": [
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W12",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": "supported",
+    "ambiguous": false,
+    "reason": "3 strong sites; newest strong week 2024-W12",
+    "route": [
+     "r01-site-00",
+     "r03-site-00",
+     "r05-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r01-site-00": {
+      "contradicted": false,
+      "events": 7,
+      "newest_week": "2024-W12",
+      "records": 7,
+      "strong": true,
+      "users": 7
+     },
+     "r03-site-00": {
+      "contradicted": false,
+      "events": 6,
+      "newest_week": "2024-W12",
+      "records": 6,
+      "strong": true,
+      "users": 5
+     },
+     "r05-site-00": {
+      "contradicted": false,
+      "events": 5,
+      "newest_week": "2024-W11",
+      "records": 5,
+      "strong": true,
+      "users": 4
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p036",
+  "rare": true,
+  "key": "entity:E-UMBRA:chain_firmware",
+  "window": [
+   "2024-W13",
+   "2024-W20"
+  ],
+  "label_sites": [
+   "r00-site-00",
+   "r04-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "rule"
+  ],
+  "snapshot_week": "2024-W07",
+  "snapshot_source": "rule",
+  "rule_weeks": [
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20",
+   "2024-W21"
+  ],
+  "candidate_weeks": [],
+  "asked_weeks_status": [
+   [
+    "2024-W07",
+    "hypothesis",
+    true
+   ]
+  ],
+  "oracle": [],
+  "stage": "S3_asked_before_window"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p037",
+  "rare": false,
+  "key": "entity:E-WEXFORD:chain_firmware",
+  "window": [
+   "2024-W08",
+   "2024-W16"
+  ],
+  "label_sites": [
+   "r04-site-00",
+   "r05-site-00",
+   "r06-site-00"
+  ],
+  "contradicted_label": true,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W09",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W21",
+   "2024-W22",
+   "2024-W23",
+   "2024-W24",
+   "2024-W25",
+   "2024-W26"
+  ],
+  "candidate_weeks": [
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W09",
+    "supported",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": null,
+    "ambiguous": true,
+    "reason": "contradicted at 1 routed site(s)",
+    "route": [
+     "r05-site-00",
+     "r04-site-00",
+     "r06-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r04-site-00": {
+      "contradicted": false,
+      "events": 3,
+      "newest_week": "2024-W09",
+      "records": 3,
+      "strong": true,
+      "users": 3
+     },
+     "r05-site-00": {
+      "contradicted": false,
+      "events": 5,
+      "newest_week": "2024-W08",
+      "records": 5,
+      "strong": true,
+      "users": 5
+     },
+     "r06-site-00": {
+      "contradicted": true,
+      "events": 4,
+      "newest_week": "2024-W08",
+      "records": 4,
+      "strong": false,
+      "users": 4
+     }
+    },
+    "status": "supported"
+   }
+  ],
+  "stage": "found"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p038",
+  "rare": true,
+  "key": "entity:E-CINDER-CORE:chain_attrition",
+  "window": [
+   "2024-W02",
+   "2024-W12"
+  ],
+  "label_sites": [
+   "r03-site-00",
+   "r05-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "detector",
+   "rule"
+  ],
+  "snapshot_week": "2024-W07",
+  "snapshot_source": "detector",
+  "rule_weeks": [
+   "2024-W02",
+   "2024-W03",
+   "2024-W04",
+   "2024-W05",
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14"
+  ],
+  "candidate_weeks": [
+   "2024-W07"
+  ],
+  "asked_weeks_status": [
+   [
+    "2024-W07",
+    "stale",
+    true
+   ]
+  ],
+  "oracle": [
+   {
+    "expected": null,
+    "ambiguous": true,
+    "reason": "exactly one strong routed site",
+    "route": [
+     "r03-site-00",
+     "r05-site-00",
+     "r04-site-00"
+    ],
+    "per_site_facet_counts": {
+     "r03-site-00": {
+      "contradicted": false,
+      "events": 2,
+      "newest_week": "2024-W07",
+      "records": 2,
+      "strong": false,
+      "users": 2
+     },
+     "r04-site-00": {
+      "contradicted": false,
+      "events": 0,
+      "newest_week": null,
+      "records": 0,
+      "strong": false,
+      "users": 0
+     },
+     "r05-site-00": {
+      "contradicted": false,
+      "events": 4,
+      "newest_week": "2024-W03",
+      "records": 4,
+      "strong": true,
+      "users": 4
+     }
+    },
+    "status": "stale"
+   }
+  ],
+  "stage": "S4_verdict_stale"
+ },
+ {
+  "cfg": "v4",
+  "seed": 5,
+  "pattern": "p039",
+  "rare": true,
+  "key": "entity:E-SABLEX:chain_firmware",
+  "window": [
+   "2024-W09",
+   "2024-W18"
+  ],
+  "label_sites": [
+   "r04-site-00",
+   "r06-site-00"
+  ],
+  "contradicted_label": false,
+  "shared_key": false,
+  "cand_channels": [
+   "rule"
+  ],
+  "snapshot_week": "2024-W06",
+  "snapshot_source": "rule",
+  "rule_weeks": [
+   "2024-W04",
+   "2024-W05",
+   "2024-W06",
+   "2024-W07",
+   "2024-W08",
+   "2024-W09",
+   "2024-W10",
+   "2024-W11",
+   "2024-W12",
+   "2024-W13",
+   "2024-W14",
+   "2024-W15",
+   "2024-W16",
+   "2024-W17",
+   "2024-W18",
+   "2024-W19",
+   "2024-W20"
+  ],
+  "candidate_weeks": [],
+  "asked_weeks_status": [
+   [
+    "2024-W06",
+    "hypothesis",
+    true
+   ]
+  ],
+  "oracle": [],
+  "stage": "S3_asked_before_window"
  }
 ]
