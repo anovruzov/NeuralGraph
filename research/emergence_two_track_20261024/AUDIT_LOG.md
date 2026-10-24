@@ -212,5 +212,5 @@ number; it touched a claim about tests, which is exactly the class of claim this
     wave boundary. Proposal to the Gate-0 session: one entry per wave (spawn, return, control-rule decision),
     with the 10-minute tick reduced to "merge and re-arm" between boundaries.
 12. **This session:** fold the four falsifiers' verdicts into `ADVERSARIAL_REVIEW.md` when F-H5/F-H4/F-H7
-    land; the earlier independent reviewer (C1–C5) has not reported in 95 minutes and is presumed lost — say
-    so in the document rather than wait.
+    land; the earlier independent reviewer (C1–C5) was stopped by the user before reporting (confirmed 16:47Z) —
+    said so in the document.

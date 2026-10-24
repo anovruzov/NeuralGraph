@@ -4,8 +4,8 @@ Two sources. **Part A** is the swarm's own adversarial layer: four falsifiers, e
 author of its target, each handed the kills in advance and told that confirming was not its job. Their reports
 are verbatim under `swarm/wave2/<id>/FALSIFICATION.md`. **Part B** covers the claims in this mission's earlier
 documents (`EVIDENCE_CEILING.md`, `BENCHMARK_INTEGRITY.md`, `RECURSIVE_ACQUISITION.md`). An independent
-reviewer was spawned for those at 15:03Z with five named claims (C1–C5) and had not reported by 16:45Z; it is
-presumed lost. Part B is therefore what the wave-1 and wave-2 agents established *incidentally* about those
+reviewer was spawned for those at 15:03Z with five named claims (C1–C5); it was **stopped by the user** before
+reporting (confirmed 16:47Z when a status ping was refused), so no independent C1–C5 verdict exists. Part B is therefore what the wave-1 and wave-2 agents established *incidentally* about those
 claims, plus the orchestrator's own re-attack — and it says which is which. A self-attack is weaker than an
 independent one; where that matters, the gap is named rather than papered over.
 
@@ -51,4 +51,4 @@ F-H4 left standing.
   tables — the one open item.
 - A sealed-seed run of anything — forbidden until the founders decide, and the only thing that would turn a dev-seed
   figure into a result.
-- The independent C1–C5 reviewer reporting; its verdicts supersede Part B's self-attack where they differ.
+- A new independent C1–C5 reviewer, if the user wants one; its verdicts would supersede Part B's self-attack.
