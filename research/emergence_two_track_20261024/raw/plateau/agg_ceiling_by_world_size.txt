@@ -1,0 +1,7 @@
+# tools/plateau/agg_ceiling.py SIZE 0,1,2,3,4,5 (dev seeds; offline upper bound; DIAGNOSTIC)
+AGG 200 site  F patterns 178/240=0.742 rare 41/103  K patterns 198/240=0.825 rare 61/103  non-planted keys passing 297/1800=0.165
+AGG 200 agg   F patterns 240/240=1.000 rare 103/103  K patterns 240/240=1.000 rare 103/103  non-planted keys passing 787/1800=0.437
+AGG 2000 site  F patterns 177/240=0.738 rare 29/92  K patterns 228/240=0.950 rare 80/92  non-planted keys passing 1318/1800=0.732
+AGG 2000 agg   F patterns 240/240=1.000 rare 92/92  K patterns 240/240=1.000 rare 92/92  non-planted keys passing 1737/1800=0.965
+AGG 10000 site  F patterns 164/240=0.683 rare 25/101  K patterns 221/240=0.921 rare 82/101  non-planted keys passing 1304/1800=0.724
+AGG 10000 agg   F patterns 240/240=1.000 rare 101/101  K patterns 240/240=1.000 rare 101/101  non-planted keys passing 1773/1800=0.985
