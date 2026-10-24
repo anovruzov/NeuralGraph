@@ -184,3 +184,33 @@ baseline, which was run with drills on and whose six reports are digest-pinned.
    with the reason, in its own commit.
 10. **This session:** keep the per-seed pool sizes from `specificity_scale.py` in the artifact, and add the
     window caveat to the line in `frontier/CONTEXT.md` that quotes 9.6% / ~70%.
+
+---
+
+## 2026-10-24 — tick 8 (delivered 44 minutes late; audited by the orchestrator, no agent spent)
+
+The tick queued at 15:54Z and reached the session at 16:39Z: a 10-minute cadence cannot be met by turns that
+run forty minutes, and a late tick audits a state that no longer exists. This entry covers the whole interval
+since tick 6 (`ac3d81c`). Audited: `ng-recovery` through `9dfab02` plus the other session's `a381621`,
+`2b19748`, `5e51690`, `6970ac4`, `ecffe22`, `efa93e9`; `ng-arena` through `f985e91`.
+
+| # | Item | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Reproducibility | **PASS** | Wave 1: ten agents, each with scripts and captured outputs copied verbatim under `swarm/wave1/<id>/`; H7's gate model reproduces `ceiling_b.json` exactly (B 205/240, K 199/240), H4's exactly but for a full-window edge (1/205, stated), H5's cells match the real `detection_inputs` path at Jaccard 0.959. Arena: 12 tests, counted from the run output. The console-started run reproduces the LiveRunTests short configuration. |
+| 2 | Traceability | **FAIL, mine, corrected** | Commit `b07e9a3` on `research/arena` says "Thirteen tests green"; the run it was written after showed **11 passed, 1 failed**. The message was written before the result was read. Corrected in `cf49665`, which says so. Everything else traces: every arena event carries the file and line it was read from; `MANIFEST.json`'s stale ng-recovery head (D9's catch) corrected. |
+| 3 | Labelling | **PASS** | Every wave-1 number is labelled ESTIMATE (gate model) or, for H2's label-fitted 0.83, "ORACLE-DIAGNOSTIC — NOT a hypothesis". The other session's 127 vs 119 is "diagnostic". The console labels a run by its own verdict: the short run shows `pass=False`, `c3_idempotent` FAILED (within `SHORT_SCALE`), `c10` unevaluated. Nothing is called a baseline. |
+| 4 | Invariants | **PASS, one disclosure** | No seed outside 0–5 in any agent output (F-H5's 2,000-user worlds use seeds 0–5 at a larger size). No pin changed; `LIVE_CODE_HASHES_R002` stays stale by decision. `tesseract.py` untouched. `git status` clean in every tree every agent touched — F-H3 disclosed creating and removing a stray `key` file in `/home/user/NeuralGraph`. The console binds loopback and is read-only on every repo. |
+| 5 | Cost columns | **PASS** | Wave 1: 2.09M tokens, 712–1,462 s wall each, ω(E) = 10 measured. Console runs report questions (20), decoys (8), found (2/40) beside recall. Agent count 14 of the cap of 24. |
+| 6 | Budget matching | **PASS for method, N/A for result** | H6 derived p* before any ranker was scored (0.47 displacing / 0.19 additive); F-H3 applied it and died on it. The budget-matched combination arm (wave 3) is not yet run. |
+
+**Result: 1 FAIL (item 2), mine, caught and corrected within the hour.** It does not touch any measured
+number; it touched a claim about tests, which is exactly the class of claim this programme exists to police.
+
+### Owed, added this tick
+
+11. **Both sessions:** the cadence. A 10-minute tick is re-armed as agreed, but the honest unit of audit is the
+    wave boundary. Proposal to the Gate-0 session: one entry per wave (spawn, return, control-rule decision),
+    with the 10-minute tick reduced to "merge and re-arm" between boundaries.
+12. **This session:** fold the four falsifiers' verdicts into `ADVERSARIAL_REVIEW.md` when F-H5/F-H4/F-H7
+    land; the earlier independent reviewer (C1–C5) has not reported in 95 minutes and is presumed lost — say
+    so in the document rather than wait.
