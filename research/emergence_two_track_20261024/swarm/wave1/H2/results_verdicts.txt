@@ -1,0 +1,48 @@
+asked keys in reports 341 (snapshot pool 347; snapshot keys missing from reports 6, report keys outside snapshot pool 0)
+P'' = asked & supported: 304 = gold 94 + decoy 207 + other 3
+N'' = asked & never supported: 43 = gold 8 + decoy 9 + other 26
+agreement of verdict-supported with found on snapshot keys: 0.392
+
+PN-transfer VERDICT-based (asked&supported vs asked&never-supported) / buckets: pooled AUC(g|d) 0.561; per-seed [0.57, 0.48, 0.68, 0.6, 0.5, 0.56] (n_rw [0.67, 0.67, 0.55, 0.49, 0.67, 0.58]); seeds above n_rw: 2/6
+   seed  U_f |   top20 gold/decoy/other     n_rw top20 |   top50 gold/decoy/other     n_rw top50 | wave0 K PN K gold/decoy >=11 gold/decoy
+      0  308 |    7.0/ 13.0/  0.0         2.2/ 4.6/13.1 |   11.0/ 24.0/ 15.0         7.6/11.0/31.4 |     139      20/35           20/28     
+      1  304 |    5.0/ 15.0/  0.0         3.4/ 4.4/12.2 |   10.0/ 24.0/ 16.0         7.0/13.0/30.0 |     115      17/37           20/27     
+      2  265 |    8.0/ 12.0/  0.0         0.8/ 4.0/15.2 |   13.0/ 19.0/ 18.0         2.0/12.2/35.8 |     110      15/22           14/23     
+      3  304 |    6.0/ 14.0/  0.0         1.0/ 4.0/15.0 |   13.0/ 21.0/ 16.0         2.0/13.9/34.1 |     130      16/30           13/29     
+      4  293 |    5.0/ 15.0/  0.0         2.0/ 3.0/15.0 |    8.0/ 22.0/ 20.0         9.6/10.8/29.5 |     129      15/27           16/27     
+      5  291 |    7.0/ 12.0/  1.0         0.0/ 2.7/17.3 |   10.0/ 17.0/ 23.0         5.2/11.0/33.8 |     113      16/21           16/23     
+   six-seed totals: top20 PN 38/81/1 vs n_rw 9.5/22.7/87.8 | top50 PN 65/127/108 vs n_rw 33.4/71.9/194.7 | wave-0 budget PN 99/172 vs >=11 cut 99/157
+   precision: top20 gold 0.317 decoy 0.675 (n_rw 0.079/0.189) | top50 gold 0.217 decoy 0.423 (n_rw 0.111/0.240)
+
+PN-transfer FOUND-based (snapshot gold found vs rest of snapshot pool) / buckets: pooled AUC(g|d) 0.708; per-seed [0.74, 0.64, 0.81, 0.77, 0.65, 0.66] (n_rw [0.67, 0.67, 0.55, 0.49, 0.67, 0.58]); seeds above n_rw: 4/6
+   seed  U_f |   top20 gold/decoy/other     n_rw top20 |   top50 gold/decoy/other     n_rw top50 | wave0 K PN K gold/decoy >=11 gold/decoy
+      0  308 |   11.0/  5.0/  4.0         2.2/ 4.6/13.1 |   15.0/ 16.0/ 19.0         7.6/11.0/31.4 |     139      20/32           20/28     
+      1  304 |    6.0/ 10.0/  4.0         3.4/ 4.4/12.2 |   13.0/ 23.0/ 14.0         7.0/13.0/30.0 |     115      19/35           20/27     
+      2  265 |   11.0/  2.0/  7.0         0.8/ 4.0/15.2 |   12.0/ 12.0/ 26.0         2.0/12.2/35.8 |     110      13/16           14/23     
+      3  304 |   12.0/  5.0/  3.0         1.0/ 4.0/15.0 |   13.0/ 17.0/ 20.0         2.0/13.9/34.1 |     130      17/27           13/29     
+      4  293 |    6.0/  5.0/  9.0         2.0/ 3.0/15.0 |    9.0/ 18.0/ 23.0         9.6/10.8/29.5 |     129      14/26           16/27     
+      5  291 |    6.0/  7.0/  7.0         0.0/ 2.7/17.3 |   11.0/ 13.0/ 26.0         5.2/11.0/33.8 |     113      14/18           16/23     
+   six-seed totals: top20 PN 52/34/34 vs n_rw 9.5/22.7/87.8 | top50 PN 73/99/128 vs n_rw 33.4/71.9/194.7 | wave-0 budget PN 97/154 vs >=11 cut 99/157
+   precision: top20 gold 0.433 decoy 0.283 (n_rw 0.079/0.189) | top50 gold 0.243 decoy 0.330 (n_rw 0.111/0.240)
+
+PN-transfer VERDICT-based (asked&supported vs asked&never-supported) / ALL: pooled AUC(g|d) 0.559; per-seed [0.57, 0.49, 0.7, 0.6, 0.51, 0.49] (n_rw [0.67, 0.67, 0.55, 0.49, 0.67, 0.58]); seeds above n_rw: 2/6
+   seed  U_f |   top20 gold/decoy/other     n_rw top20 |   top50 gold/decoy/other     n_rw top50 | wave0 K PN K gold/decoy >=11 gold/decoy
+      0  308 |    6.0/ 14.0/  0.0         2.2/ 4.6/13.1 |   13.0/ 24.0/ 13.0         7.6/11.0/31.4 |     139      19/31           20/28     
+      1  304 |    5.0/ 15.0/  0.0         3.4/ 4.4/12.2 |    9.0/ 24.0/ 17.0         7.0/13.0/30.0 |     115      15/35           20/27     
+      2  265 |    8.0/ 12.0/  0.0         0.8/ 4.0/15.2 |   13.0/ 19.0/ 18.0         2.0/12.2/35.8 |     110      14/22           14/23     
+      3  304 |    7.0/ 13.0/  0.0         1.0/ 4.0/15.0 |   13.0/ 21.0/ 16.0         2.0/13.9/34.1 |     130      16/28           13/29     
+      4  293 |    4.0/ 15.0/  1.0         2.0/ 3.0/15.0 |    9.0/ 21.0/ 20.0         9.6/10.8/29.5 |     129      14/28           16/27     
+      5  291 |    5.0/ 10.0/  5.0         0.0/ 2.7/17.3 |   10.0/ 16.0/ 24.0         5.2/11.0/33.8 |     113      14/17           16/23     
+   six-seed totals: top20 PN 35/79/6 vs n_rw 9.5/22.7/87.8 | top50 PN 67/125/108 vs n_rw 33.4/71.9/194.7 | wave-0 budget PN 92/161 vs >=11 cut 99/157
+   precision: top20 gold 0.292 decoy 0.658 (n_rw 0.079/0.189) | top50 gold 0.223 decoy 0.417 (n_rw 0.111/0.240)
+
+PN-transfer FOUND-based (snapshot gold found vs rest of snapshot pool) / ALL: pooled AUC(g|d) 0.685; per-seed [0.7, 0.6, 0.8, 0.74, 0.66, 0.61] (n_rw [0.67, 0.67, 0.55, 0.49, 0.67, 0.58]); seeds above n_rw: 4/6
+   seed  U_f |   top20 gold/decoy/other     n_rw top20 |   top50 gold/decoy/other     n_rw top50 | wave0 K PN K gold/decoy >=11 gold/decoy
+      0  308 |    8.0/  7.0/  5.0         2.2/ 4.6/13.1 |   16.0/ 16.0/ 18.0         7.6/11.0/31.4 |     139      20/32           20/28     
+      1  304 |    5.0/ 10.0/  5.0         3.4/ 4.4/12.2 |   11.0/ 24.0/ 15.0         7.0/13.0/30.0 |     115      22/36           20/27     
+      2  265 |   11.0/  1.0/  8.0         0.8/ 4.0/15.2 |   12.0/ 11.0/ 27.0         2.0/12.2/35.8 |     110      14/18           14/23     
+      3  304 |   11.0/  6.0/  3.0         1.0/ 4.0/15.0 |   13.0/ 15.0/ 22.0         2.0/13.9/34.1 |     130      16/29           13/29     
+      4  293 |    7.0/  5.0/  8.0         2.0/ 3.0/15.0 |   10.0/ 16.0/ 24.0         9.6/10.8/29.5 |     129      13/26           16/27     
+      5  291 |    5.0/  5.0/ 10.0         0.0/ 2.7/17.3 |   11.0/ 15.0/ 24.0         5.2/11.0/33.8 |     113      13/18           16/23     
+   six-seed totals: top20 PN 47/34/39 vs n_rw 9.5/22.7/87.8 | top50 PN 73/97/130 vs n_rw 33.4/71.9/194.7 | wave-0 budget PN 98/159 vs >=11 cut 99/157
+   precision: top20 gold 0.392 decoy 0.283 (n_rw 0.079/0.189) | top50 gold 0.243 decoy 0.323 (n_rw 0.111/0.240)

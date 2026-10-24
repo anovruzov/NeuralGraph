@@ -1,0 +1,2 @@
+observed AUC 0.946; permutation null (2000 draws, within-seed): mean 0.503 sd 0.030 max 0.601 99.9th pct 0.595
+best-of-26 two-sided null (500 draws): mean 0.567 99th pct 0.605 max 0.615

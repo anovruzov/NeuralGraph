@@ -1,0 +1,111 @@
+filtered pool 1765
+
+== AUC, statistics over ALL 26 weeks ==
+
+== scope: all 26 weeks ==
+excl_frac_all                AUC g/decoy 0.905 | per class c1:0.886(n=122) c2:0.979(n=21) c3:0.890(n=132) c4:0.977(n=19) c5:0.963(n=28) | g/other 0.421 g/nongold 0.515
+first_spread_all             AUC g/decoy 0.582 | per class c1:0.536(n=122) c2:0.587(n=21) c3:0.596(n=132) c4:0.770(n=19) c5:0.610(n=28) | g/other 0.484 g/nongold 0.503
+first_std_all                AUC g/decoy 0.570 | per class c1:0.529(n=122) c2:0.573(n=21) c3:0.583(n=132) c4:0.757(n=19) c5:0.583(n=28) | g/other 0.459 g/nongold 0.481
+n_kcells_all                 AUC g/decoy 0.488 | per class c1:0.592(n=122) c2:0.247(n=21) c3:0.562(n=132) c4:0.006(n=19) c5:0.113(n=28) | g/other 0.687 g/nongold 0.648
+max_ksites_6w_all            AUC g/decoy 0.499 | per class c1:0.598(n=122) c2:0.154(n=21) c3:0.566(n=132) c4:0.126(n=19) c5:0.205(n=28) | g/other 0.682 g/nongold 0.647
+n_active_weeks_all           AUC g/decoy 0.765 | per class c1:0.793(n=122) c2:0.553(n=21) c3:0.843(n=132) c4:0.520(n=19) c5:0.534(n=28) | g/other 0.680 g/nongold 0.697
+neg_sync_max_all             AUC g/decoy 0.901 | per class c1:0.909(n=122) c2:0.919(n=21) c3:0.905(n=132) c4:0.915(n=19) c5:0.843(n=28) | g/other 0.387 g/nongold 0.487
+neg_n_sync_weeks_all         AUC g/decoy 0.750 | per class c1:0.718(n=122) c2:0.969(n=21) c3:0.677(n=132) c4:0.972(n=19) c5:0.958(n=28) | g/other 0.385 g/nongold 0.456
+neg_ksync_max_all            AUC g/decoy 0.562 | per class c1:0.453(n=122) c2:0.842(n=21) c3:0.492(n=132) c4:0.979(n=19) c5:0.938(n=28) | g/other 0.314 g/nongold 0.363
+neg_n_active_sites_all       AUC g/decoy 0.550 | per class c1:0.599(n=122) c2:0.571(n=21) c3:0.525(n=132) c4:0.487(n=19) c5:0.502(n=28) | g/other 0.303 g/nongold 0.351
+neg_max_sites_6w_all         AUC g/decoy 0.615 | per class c1:0.648(n=122) c2:0.645(n=21) c3:0.595(n=132) c4:0.646(n=19) c5:0.556(n=28) | g/other 0.227 g/nongold 0.303
+neg_mean_sites_per_week_all  AUC g/decoy 0.952 | per class c1:0.944(n=122) c2:0.989(n=21) c3:0.947(n=132) c4:0.984(n=19) c5:0.965(n=28) | g/other 0.412 g/nongold 0.517
+neg_n_active_cells_all       AUC g/decoy 0.512 | per class c1:0.483(n=122) c2:0.870(n=21) c3:0.378(n=132) c4:0.908(n=19) c5:0.819(n=28) | g/other 0.287 g/nongold 0.331
+
+== scope: longest rule run window (run widened by 8-week rule window) ==
+excl_frac_win                AUC g/decoy 0.911 | per class c1:0.879(n=122) c2:0.980(n=21) c3:0.913(n=132) c4:0.972(n=19) c5:0.952(n=28) | g/other 0.427 g/nongold 0.522
+first_spread_win             AUC g/decoy 0.693 | per class c1:0.682(n=122) c2:0.670(n=21) c3:0.740(n=132) c4:0.666(n=19) c5:0.535(n=28) | g/other 0.596 g/nongold 0.615
+first_std_win                AUC g/decoy 0.684 | per class c1:0.676(n=122) c2:0.663(n=21) c3:0.732(n=132) c4:0.647(n=19) c5:0.503(n=28) | g/other 0.564 g/nongold 0.587
+n_kcells_win                 AUC g/decoy 0.491 | per class c1:0.597(n=122) c2:0.247(n=21) c3:0.565(n=132) c4:0.006(n=19) c5:0.113(n=28) | g/other 0.688 g/nongold 0.650
+max_ksites_6w_win            AUC g/decoy 0.502 | per class c1:0.603(n=122) c2:0.154(n=21) c3:0.568(n=132) c4:0.126(n=19) c5:0.205(n=28) | g/other 0.689 g/nongold 0.653
+n_active_weeks_win           AUC g/decoy 0.789 | per class c1:0.833(n=122) c2:0.541(n=21) c3:0.882(n=132) c4:0.486(n=19) c5:0.460(n=28) | g/other 0.759 g/nongold 0.765
+neg_sync_max_win             AUC g/decoy 0.885 | per class c1:0.874(n=122) c2:0.919(n=21) c3:0.897(n=132) c4:0.915(n=19) c5:0.844(n=28) | g/other 0.379 g/nongold 0.478
+neg_n_sync_weeks_win         AUC g/decoy 0.729 | per class c1:0.671(n=122) c2:0.972(n=21) c3:0.668(n=132) c4:0.975(n=19) c5:0.961(n=28) | g/other 0.374 g/nongold 0.443
+neg_ksync_max_win            AUC g/decoy 0.558 | per class c1:0.446(n=122) c2:0.842(n=21) c3:0.489(n=132) c4:0.979(n=19) c5:0.938(n=28) | g/other 0.313 g/nongold 0.360
+neg_n_active_sites_win       AUC g/decoy 0.530 | per class c1:0.552(n=122) c2:0.565(n=21) c3:0.504(n=132) c4:0.554(n=19) c5:0.550(n=28) | g/other 0.258 g/nongold 0.311
+neg_max_sites_6w_win         AUC g/decoy 0.597 | per class c1:0.617(n=122) c2:0.645(n=21) c3:0.583(n=132) c4:0.646(n=19) c5:0.556(n=28) | g/other 0.219 g/nongold 0.292
+neg_mean_sites_per_week_win  AUC g/decoy 0.946 | per class c1:0.924(n=122) c2:0.989(n=21) c3:0.953(n=132) c4:0.979(n=19) c5:0.965(n=28) | g/other 0.419 g/nongold 0.522
+neg_n_active_cells_win       AUC g/decoy 0.460 | per class c1:0.395(n=122) c2:0.868(n=21) c3:0.326(n=132) c4:0.928(n=19) c5:0.843(n=28) | g/other 0.211 g/nongold 0.260
+
+== baselines ==
+count (rule_weeks)           AUC g/decoy 0.611 | per class c1:0.652(n=122) c2:0.380(n=21) c3:0.735(n=132) c4:0.373(n=19) c5:0.102(n=28) | g/other 0.703 g/nongold 0.685
+longest_run                  AUC g/decoy 0.668 | per class c1:0.753(n=122) c2:0.345(n=21) c3:0.797(n=132) c4:0.321(n=19) c5:0.078(n=28) | g/other 0.785 g/nongold 0.762
+
+== distributions by class (scope win) ==
+-- sync_max_win
+  gold   n= 138 [(1, 60), (2, 64), (3, 11), (4, 2), (5, 1)]
+  decoy  n= 317 [(1, 6), (2, 66), (3, 134), (4, 105), (5, 6)]
+  other  n=1310 [(1, 856), (2, 426), (3, 27), (4, 1)]
+  decoy1 n= 122 [(1, 5), (2, 24), (3, 46), (4, 46), (5, 1)]
+  decoy2 n=  21 [(2, 3), (3, 10), (4, 5), (5, 3)]
+  decoy3 n= 132 [(1, 1), (2, 25), (3, 62), (4, 43), (5, 1)]
+  decoy4 n=  19 [(2, 3), (3, 8), (4, 8)]
+  decoy5 n=  28 [(2, 11), (3, 10), (4, 5), (5, 2)]
+-- n_sync_weeks_win
+  gold   n= 138 [(0, 60), (1, 55), (2, 18), (3, 3), (4, 1), (5, 1)]
+  decoy  n= 317 [(0, 6), (1, 208), (2, 41), (3, 31), (4, 19), (5, 11), (6, 1)]
+  other  n=1310 [(0, 856), (1, 396), (2, 44), (3, 12), (4, 1), (5, 1)]
+  decoy1 n= 122 [(0, 5), (1, 94), (2, 17), (3, 3), (4, 2), (5, 1)]
+  decoy2 n=  21 [(2, 3), (3, 8), (4, 6), (5, 4)]
+  decoy3 n= 132 [(0, 1), (1, 114), (2, 13), (4, 3), (5, 1)]
+  decoy4 n=  19 [(2, 2), (3, 8), (4, 6), (5, 2), (6, 1)]
+  decoy5 n=  28 [(2, 7), (3, 12), (4, 5), (5, 4)]
+-- ksync_max_win
+  gold   n= 138 [(0, 85), (1, 35), (2, 18)]
+  decoy  n= 317 [(0, 182), (1, 40), (2, 60), (3, 24), (4, 11)]
+  other  n=1310 [(0, 1296), (1, 14)]
+  decoy1 n= 122 [(0, 89), (1, 20), (2, 13)]
+  decoy2 n=  21 [(0, 2), (1, 5), (2, 10), (3, 4)]
+  decoy3 n= 132 [(0, 90), (1, 16), (2, 16), (3, 8), (4, 2)]
+  decoy4 n=  19 [(2, 6), (3, 7), (4, 6)]
+  decoy5 n=  28 [(0, 1), (2, 16), (3, 7), (4, 4)]
+-- first_spread_win
+  gold   n= 138 [(0, 8), (1, 6), (2, 16), (3, 18), (4, 16), (5, 7), (6, 8), (7, 18), (8, 9), (9, 7), (10, 6), (11, 5), (12, 4), (13, 3)]
+  decoy  n= 317 [(0, 114), (1, 27), (2, 23), (3, 21), (4, 27), (5, 19), (6, 24), (7, 21), (8, 9), (9, 5), (10, 3), (11, 6), (12, 4), (13, 7)]
+  other  n=1310 [(0, 152), (1, 234), (2, 115), (3, 96), (4, 110), (5, 105), (6, 108), (7, 111), (8, 92), (9, 34), (10, 35), (11, 20), (12, 24), (13, 26)]
+  decoy1 n= 122 [(0, 42), (1, 13), (2, 4), (3, 9), (4, 11), (5, 8), (6, 13), (7, 7), (8, 2), (9, 1), (10, 1), (11, 3), (12, 1), (13, 3)]
+  decoy2 n=  21 [(0, 8), (1, 1), (2, 2), (3, 3), (6, 2), (8, 1), (9, 1), (13, 2), (14, 1)]
+  decoy3 n= 132 [(0, 52), (1, 10), (2, 16), (3, 6), (4, 12), (5, 8), (6, 8), (7, 10), (8, 3), (9, 3), (11, 1), (12, 1), (13, 2)]
+  decoy4 n=  19 [(0, 5), (1, 3), (2, 1), (3, 1), (4, 2), (5, 1), (6, 1), (7, 2), (8, 2), (13, 1)]
+  decoy5 n=  28 [(0, 8), (3, 3), (4, 3), (5, 2), (6, 1), (7, 2), (8, 1), (10, 2), (11, 2), (12, 2), (14, 1), (16, 1)]
+-- n_kcells_win
+  gold   n= 138 [(0, 85), (1, 7), (2, 1), (3, 20), (4, 17), (5, 8)]
+  decoy  n= 317 [(0, 182), (1, 35), (2, 37), (3, 10), (4, 18), (5, 6), (6, 8), (7, 3), (8, 5), (9, 3), (10, 2), (11, 1), (12, 4), (15, 1)]
+  other  n=1310 [(0, 1296), (1, 14)]
+  decoy1 n= 122 [(0, 89), (1, 16), (2, 16), (3, 1)]
+  decoy2 n=  21 [(0, 2), (1, 4), (2, 4), (3, 2), (4, 4), (5, 2), (6, 2), (7, 1)]
+  decoy3 n= 132 [(0, 90), (1, 15), (2, 16), (3, 6), (4, 1), (6, 1), (7, 1), (11, 1), (12, 1)]
+  decoy4 n=  19 [(4, 1), (6, 2), (7, 1), (8, 4), (9, 2), (10, 2), (11, 1), (12, 3), (15, 1), (16, 1), (20, 1)]
+  decoy5 n=  28 [(0, 1), (2, 2), (3, 1), (4, 12), (5, 4), (6, 4), (7, 1), (8, 1), (9, 1), (12, 1)]
+-- max_ksites_6w_win
+  gold   n= 138 [(0, 76), (1, 13), (2, 20), (3, 24), (4, 5)]
+  decoy  n= 317 [(0, 167), (1, 46), (2, 53), (3, 35), (4, 15), (5, 1)]
+  other  n=1310 [(0, 1167), (1, 141), (2, 2)]
+  decoy1 n= 122 [(0, 82), (1, 25), (2, 14), (3, 1)]
+  decoy2 n=  21 [(2, 6), (3, 12), (4, 3)]
+  decoy3 n= 132 [(0, 84), (1, 22), (2, 15), (3, 8), (4, 3)]
+  decoy4 n=  19 [(2, 5), (3, 7), (4, 7)]
+  decoy5 n=  28 [(0, 1), (2, 14), (3, 8), (4, 4), (5, 1)]
+-- n_active_sites_win
+  gold   n= 138 [(2, 20), (3, 45), (4, 33), (5, 33), (6, 5), (7, 1), (8, 1)]
+  decoy  n= 317 [(2, 30), (3, 88), (4, 123), (5, 55), (6, 17), (7, 4)]
+  other  n=1310 [(1, 25), (2, 656), (3, 396), (4, 124), (5, 73), (6, 28), (7, 8)]
+  decoy1 n= 122 [(2, 13), (3, 28), (4, 47), (5, 21), (6, 12), (7, 1)]
+  decoy2 n=  21 [(2, 2), (3, 6), (4, 5), (5, 6), (6, 2)]
+  decoy3 n= 132 [(2, 13), (3, 42), (4, 50), (5, 22), (6, 3), (7, 2)]
+  decoy4 n=  19 [(3, 5), (4, 11), (5, 3)]
+  decoy5 n=  28 [(2, 2), (3, 7), (4, 13), (5, 3), (6, 2), (7, 1)]
+
+== precision at top-N (single statistics) ==
+count                        P@20 gold 0.078 decoy 0.191 per-seed gold 0.11 0.17 0.04 0.05 0.10 0.00 | P@50 gold 0.110 decoy 0.241 per-seed gold 0.15 0.14 0.04 0.04 0.19 0.10
+longest_run                  P@20 gold 0.124 decoy 0.299 per-seed gold 0.15 0.15 0.05 0.05 0.15 0.20 | P@50 gold 0.157 decoy 0.255 per-seed gold 0.15 0.19 0.12 0.12 0.17 0.19
+n_kcells_win                 P@20 gold 0.340 decoy 0.647 per-seed gold 0.40 0.32 0.50 0.37 0.20 0.25 | P@50 gold 0.195 decoy 0.486 per-seed gold 0.22 0.17 0.25 0.25 0.13 0.14
+max_ksites_6w_win            P@20 gold 0.313 decoy 0.645 per-seed gold 0.32 0.28 0.47 0.33 0.17 0.30 | P@50 gold 0.194 decoy 0.456 per-seed gold 0.22 0.19 0.24 0.26 0.12 0.15
+neg_sync_max_win             P@20 gold 0.071 decoy 0.007 per-seed gold 0.08 0.10 0.09 0.04 0.03 0.08 | P@50 gold 0.068 decoy 0.007 per-seed gold 0.08 0.10 0.08 0.05 0.03 0.08
+neg_n_sync_weeks_win         P@20 gold 0.071 decoy 0.007 per-seed gold 0.08 0.10 0.09 0.04 0.03 0.08 | P@50 gold 0.068 decoy 0.007 per-seed gold 0.08 0.10 0.08 0.05 0.03 0.08
+neg_mean_sites_per_week_win  P@20 gold 0.071 decoy 0.007 per-seed gold 0.08 0.10 0.09 0.04 0.03 0.08 | P@50 gold 0.068 decoy 0.007 per-seed gold 0.08 0.10 0.08 0.05 0.03 0.08

@@ -1,0 +1,27 @@
+A  rule_weeks (wave-0 baseline)
+  AUC gold-vs-decoy per seed 0.672 0.668 0.550 0.494 0.671 0.583  mean 0.607 min 0.494
+  top-20 gold [2, 4, 1, 1, 2, 0] sum 10 prec 0.083 | decoy [4, 4, 4, 4, 3, 3] sum 22 rate 0.183
+  top-50 gold [8, 7, 2, 2, 10, 5] sum 34 prec 0.113 | decoy [11, 13, 13, 15, 11, 11] sum 74 rate 0.247
+W  rule_weeks with rw==8 demoted
+  AUC gold-vs-decoy per seed 0.671 0.664 0.550 0.492 0.671 0.601  mean 0.608 min 0.492
+  top-20 gold [2, 4, 1, 1, 2, 0] sum 10 prec 0.083 | decoy [4, 4, 4, 4, 3, 3] sum 22 rate 0.183
+  top-50 gold [8, 7, 2, 2, 10, 5] sum 34 prec 0.113 | decoy [11, 13, 13, 15, 11, 11] sum 74 rate 0.247
+
+threshold filters per seed (kept / gold kept / gold total / precision / recall / decoy rate):
+  rule_weeks >= 11
+    seed 0: kept 139 gold 20/25  prec 0.144  recall 0.800  decoy 0.201
+    seed 1: kept 115 gold 20/27  prec 0.174  recall 0.741  decoy 0.235
+    seed 2: kept 110 gold 14/21  prec 0.127  recall 0.667  decoy 0.209
+    seed 3: kept 130 gold 13/21  prec 0.100  recall 0.619  decoy 0.223
+    seed 4: kept 129 gold 16/20  prec 0.124  recall 0.800  decoy 0.209
+    seed 5: kept 113 gold 16/24  prec 0.142  recall 0.667  decoy 0.204
+    all   : kept 736 gold 99/138  prec 0.135  recall 0.717  decoy 0.213  gold:decoy 0.63
+  rule_weeks >= 9
+    seed 0: kept 175 gold 23/25  prec 0.131  recall 0.920  decoy 0.171
+    seed 1: kept 156 gold 24/27  prec 0.154  recall 0.889  decoy 0.224
+    seed 2: kept 141 gold 19/21  prec 0.135  recall 0.905  decoy 0.213
+    seed 3: kept 160 gold 18/21  prec 0.113  recall 0.857  decoy 0.200
+    seed 4: kept 159 gold 19/20  prec 0.119  recall 0.950  decoy 0.182
+    seed 5: kept 146 gold 21/24  prec 0.144  recall 0.875  decoy 0.185
+    all   : kept 937 gold 124/138  prec 0.132  recall 0.899  decoy 0.195  gold:decoy 0.68
+  rule_weeks >= 9 excluding == 8 is the same set as >= 9; the two filters differ only in whether 9 and 10 are kept.

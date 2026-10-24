@@ -1,0 +1,13 @@
+{
+  "_note": "Real launch metadata for wave 1, written by the orchestrator at spawn time. Model is the session model the subagents inherited; no override was passed.",
+  "H1": {"family": "spectral / low-rank", "role": "hypothesis", "model": "inherited: claude-fable-5-1", "deliverable": "HYPOTHESES.md"},
+  "H2": {"family": "positive-unlabeled", "role": "hypothesis", "model": "inherited: claude-fable-5-1", "deliverable": "HYPOTHESES.md"},
+  "H3": {"family": "Bayesian promotion by rule identity", "role": "hypothesis", "model": "inherited: claude-fable-5-1", "deliverable": "HYPOTHESES.md"},
+  "H4": {"family": "information gain vs corrected verdicts", "role": "hypothesis", "model": "inherited: claude-fable-5-1", "deliverable": "HYPOTHESES.md"},
+  "H5": {"family": "cross-site timing", "role": "hypothesis", "model": "inherited: claude-fable-5-1", "deliverable": "HYPOTHESES.md"},
+  "H6": {"family": "rare-event / FDR break-even", "role": "threshold", "model": "inherited: claude-fable-5-1", "deliverable": "BREAK_EVEN.md"},
+  "H7": {"family": "correlated evidence / inhibition", "role": "hypothesis", "model": "inherited: claude-fable-5-1", "deliverable": "HYPOTHESES.md"},
+  "H8": {"family": "null / adversary", "role": "adversary", "model": "inherited: claude-fable-5-1", "deliverable": "NULL.md"},
+  "D9": {"family": "execution-path D-table (NeuralGraph + EMERGENCE)", "role": "auditor", "model": "inherited: claude-fable-5-1", "deliverable": "EXECUTION_PATH.md"},
+  "D10": {"family": "Layer B audit (MycelicLabs)", "role": "auditor", "model": "inherited: claude-fable-5-1", "deliverable": "LAYER_B_AUDIT.md"}
+}

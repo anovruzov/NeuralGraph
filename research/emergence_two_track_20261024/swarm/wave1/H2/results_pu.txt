@@ -1,0 +1,133 @@
+pool rows 3178  U 2831  U_filtered(n_rw>6) 1765  gold in U 138 (0.049)  gold in U_f 138 (0.078)  decoy in U_f 317
+P 'snap_gold': 102 keys
+P 'snap_gold_found': 93 keys
+
+== (1) CLASS PRIOR IN U — Elkan-Noto, out-of-fold g (5-fold), P = snapshot gold ==
+features         pool    c=E[g|P] pi_global  pi_sum  target
+rw_only          full       0.051     0.677   0.543  0.049
+rw_only          filt       0.058     0.934   0.834  0.078
+shape            full       0.109     0.294   0.237  0.049
+shape            filt       0.113     0.455   0.375  0.078
+shape+ent        full       0.156     0.194   0.155  0.049
+shape+ent        filt       0.155     0.316   0.256  0.078
+shape+ent+pred   full       0.150     0.205   0.159  0.049
+shape+ent+pred   filt       0.149     0.331   0.262  0.078
+buckets          full       0.636     0.021   0.012  0.049
+buckets          filt       0.650     0.031   0.018  0.078
+ALL              full       0.719     0.014   0.008  0.049
+ALL              filt       0.719     0.023   0.012  0.078
+
+-- mixture-proportion estimate (min over bins of p_U/p_P), P = snapshot gold --
+MPE on n_rw, pool full: pi_hat = 0.257   bins(lo, nP, nU, pU/pP): 0:0/1066/nan; 7:12/828/2.49; 9:22/201/0.33; 11:28/200/0.26; 13:14/163/0.42; 15:5/118/0.85; 17:11/98/0.32; 19:10/157/0.57
+MPE on ALL-feature g (P-quintile bins), pool full: pi_hat = 0.000   bins(nP/nU/pU:pP): 21/2816/4.83; 20/13/0.02; 20/1/0.00; 20/0/0.00; 21/1/0.00
+MPE on n_rw, pool filt: pi_hat = 0.413   bins(lo, nP, nU, pU/pP): 0:0/0/nan; 7:12/828/3.99; 9:22/201/0.53; 11:28/200/0.41; 13:14/163/0.67; 15:5/118/1.36; 17:11/98/0.51; 19:10/157/0.91
+MPE on ALL-feature g (P-quintile bins), pool filt: pi_hat = 0.000   bins(nP/nU/pU:pP): 21/1746/4.80; 20/15/0.04; 20/3/0.01; 20/0/0.00; 21/1/0.00
+
+== (3) FILTERED RULE-ONLY POOL (n_rw>6): gold vs decoy, ranker vs rule_weeks baseline ==
+counts are expected gold/decoy keys in the top-N per seed under random tie-breaking, summed over six seeds (6 x N keys asked)
+BASELINE rule_weeks (n_rw)         AUC(g|d)=0.611 AUC(g|all)=0.685 | top20 gold   9.5 decoy  22.7 | top50 gold  33.4 decoy  71.9 | per-seed gold@20 [2.2 3.4 0.8 1.0 2.0 0.0] gold@50 [7.6 7.0 2.0 2.0 9.6 5.2]
+BASELINE n_rw, tie-break max_run   AUC(g|d)=0.616 AUC(g|all)=0.693 | top20 gold  10.7 decoy  23.7 | top50 gold  35.0 decoy  73.0 | per-seed gold@20 [3.0 3.7 1.0 1.0 2.0 0.0] gold@50 [8.0 7.0 2.0 2.0 10.0 6.0]
+--- random-ordering reference (expected): gold@20 per seed = 20*rate, gold@50 = 50*rate
+   seed 0: U_f 308 gold 25 decoy 58 -> random gold@20 1.6 decoy@20 3.8 gold@50 4.1
+   seed 1: U_f 304 gold 27 decoy 62 -> random gold@20 1.8 decoy@20 4.1 gold@50 4.4
+   seed 2: U_f 265 gold 21 decoy 50 -> random gold@20 1.6 decoy@20 3.8 gold@50 4.0
+   seed 3: U_f 304 gold 21 decoy 51 -> random gold@20 1.4 decoy@20 3.4 gold@50 3.5
+   seed 4: U_f 293 gold 20 decoy 50 -> random gold@20 1.4 decoy@20 3.4 gold@50 3.4
+   seed 5: U_f 291 gold 24 decoy 46 -> random gold@20 1.6 decoy@20 3.2 gold@50 4.1
+
+-- IN-SAMPLE (fit on P + U_f of all six seeds, score U_f) --
+snap_gold/rw_only/g                AUC(g|d)=0.611 AUC(g|all)=0.685 | top20 gold   9.5 decoy  22.7 | top50 gold  33.4 decoy  71.9 | per-seed gold@20 [2.2 3.4 0.8 1.0 2.0 0.0] gold@50 [7.6 7.0 2.0 2.0 9.6 5.2]
+snap_gold/shape/g                  AUC(g|d)=0.568 AUC(g|all)=0.575 | top20 gold  15.0 decoy  18.2 | top50 gold  42.0 decoy  53.7 | per-seed gold@20 [1.0 3.0 2.0 2.0 5.0 2.0] gold@50 [6.0 6.0 5.0 5.0 13.0 7.0]
+snap_gold/shape/en2                AUC(g|d)=0.583 AUC(g|all)=0.600 | top20 gold  21.3 decoy  21.0 | top50 gold  42.5 decoy  53.3 | per-seed gold@20 [3.0 4.0 2.0 2.3 6.0 4.0] gold@50 [7.0 6.0 5.0 4.5 13.0 7.0]
+snap_gold/shape+ent/g              AUC(g|d)=0.586 AUC(g|all)=0.657 | top20 gold  28.0 decoy  33.0 | top50 gold  44.0 decoy  81.0 | per-seed gold@20 [4.0 4.0 3.0 3.0 8.0 6.0] gold@50 [7.0 5.0 6.0 6.0 11.0 9.0]
+snap_gold/shape+ent/en2            AUC(g|d)=0.589 AUC(g|all)=0.667 | top20 gold  29.0 decoy  36.0 | top50 gold  46.0 decoy  84.0 | per-seed gold@20 [4.0 4.0 4.0 3.0 8.0 6.0] gold@50 [7.0 5.0 7.0 6.0 11.0 10.0]
+snap_gold/shape+ent+pred/g         AUC(g|d)=0.587 AUC(g|all)=0.656 | top20 gold  27.0 decoy  34.0 | top50 gold  49.0 decoy  81.0 | per-seed gold@20 [4.0 4.0 1.0 3.0 9.0 6.0] gold@50 [7.0 8.0 6.0 7.0 11.0 10.0]
+snap_gold/shape+ent+pred/en2       AUC(g|d)=0.592 AUC(g|all)=0.666 | top20 gold  27.0 decoy  33.0 | top50 gold  50.0 decoy  80.0 | per-seed gold@20 [4.0 4.0 1.0 3.0 9.0 6.0] gold@50 [7.0 8.0 6.0 6.0 12.0 11.0]
+snap_gold/buckets/g                AUC(g|d)=0.647 AUC(g|all)=0.729 | top20 gold  42.0 decoy  37.0 | top50 gold  68.0 decoy 119.0 | per-seed gold@20 [7.0 5.0 10.0 10.0 5.0 5.0] gold@50 [12.0 9.0 14.0 12.0 11.0 10.0]
+snap_gold/buckets/en2              AUC(g|d)=0.648 AUC(g|all)=0.740 | top20 gold  43.0 decoy  43.0 | top50 gold  70.0 decoy 115.0 | per-seed gold@20 [8.0 5.0 10.0 10.0 5.0 5.0] gold@50 [12.0 10.0 14.0 13.0 11.0 10.0]
+snap_gold/ALL/g                    AUC(g|d)=0.630 AUC(g|all)=0.756 | top20 gold  40.0 decoy  45.0 | top50 gold  73.0 decoy 114.0 | per-seed gold@20 [8.0 3.0 9.0 8.0 7.0 5.0] gold@50 [12.0 9.0 14.0 15.0 12.0 11.0]
+snap_gold/ALL/en2                  AUC(g|d)=0.628 AUC(g|all)=0.761 | top20 gold  40.0 decoy  47.0 | top50 gold  73.0 decoy 117.0 | per-seed gold@20 [8.0 3.0 9.0 8.0 7.0 5.0] gold@50 [12.0 9.0 14.0 15.0 12.0 11.0]
+snap_gold_found/rw_only/g          AUC(g|d)=0.611 AUC(g|all)=0.685 | top20 gold   9.5 decoy  22.7 | top50 gold  33.4 decoy  71.9 | per-seed gold@20 [2.2 3.4 0.8 1.0 2.0 0.0] gold@50 [7.6 7.0 2.0 2.0 9.6 5.2]
+snap_gold_found/shape/g            AUC(g|d)=0.567 AUC(g|all)=0.571 | top20 gold  15.0 decoy  18.5 | top50 gold  41.1 decoy  55.4 | per-seed gold@20 [1.0 3.0 2.0 2.0 5.0 2.0] gold@50 [6.1 5.0 5.0 5.0 13.0 7.0]
+snap_gold_found/shape/en2          AUC(g|d)=0.571 AUC(g|all)=0.577 | top20 gold  19.7 decoy  19.9 | top50 gold  42.0 decoy  52.8 | per-seed gold@20 [3.0 3.7 2.0 2.0 6.0 3.0] gold@50 [6.0 6.0 5.0 5.0 13.0 7.0]
+snap_gold_found/shape+ent/g        AUC(g|d)=0.585 AUC(g|all)=0.657 | top20 gold  29.0 decoy  33.0 | top50 gold  45.0 decoy  81.0 | per-seed gold@20 [4.0 4.0 3.0 3.0 9.0 6.0] gold@50 [7.0 6.0 6.0 6.0 10.0 10.0]
+snap_gold_found/shape+ent/en2      AUC(g|d)=0.589 AUC(g|all)=0.666 | top20 gold  29.0 decoy  35.0 | top50 gold  47.0 decoy  83.0 | per-seed gold@20 [4.0 4.0 4.0 3.0 8.0 6.0] gold@50 [7.0 7.0 7.0 6.0 10.0 10.0]
+snap_gold_found/shape+ent+pred/g   AUC(g|d)=0.586 AUC(g|all)=0.657 | top20 gold  27.0 decoy  34.0 | top50 gold  47.0 decoy  82.0 | per-seed gold@20 [3.0 4.0 2.0 3.0 9.0 6.0] gold@50 [6.0 7.0 6.0 6.0 11.0 11.0]
+snap_gold_found/shape+ent+pred/en2 AUC(g|d)=0.592 AUC(g|all)=0.668 | top20 gold  29.0 decoy  33.0 | top50 gold  49.0 decoy  83.0 | per-seed gold@20 [4.0 4.0 3.0 3.0 9.0 6.0] gold@50 [6.0 7.0 6.0 8.0 11.0 11.0]
+snap_gold_found/buckets/g          AUC(g|d)=0.639 AUC(g|all)=0.713 | top20 gold  43.0 decoy  37.0 | top50 gold  67.0 decoy 119.0 | per-seed gold@20 [8.0 5.0 10.0 10.0 5.0 5.0] gold@50 [12.0 9.0 13.0 12.0 11.0 10.0]
+snap_gold_found/buckets/en2        AUC(g|d)=0.635 AUC(g|all)=0.711 | top20 gold  42.0 decoy  38.0 | top50 gold  67.0 decoy 122.0 | per-seed gold@20 [7.0 5.0 10.0 10.0 5.0 5.0] gold@50 [12.0 9.0 13.0 12.0 11.0 10.0]
+snap_gold_found/ALL/g              AUC(g|d)=0.624 AUC(g|all)=0.747 | top20 gold  37.0 decoy  44.0 | top50 gold  70.0 decoy 117.0 | per-seed gold@20 [7.0 3.0 7.0 9.0 7.0 4.0] gold@50 [11.0 9.0 13.0 14.0 12.0 11.0]
+snap_gold_found/ALL/en2            AUC(g|d)=0.618 AUC(g|all)=0.748 | top20 gold  37.0 decoy  46.0 | top50 gold  70.0 decoy 121.0 | per-seed gold@20 [7.0 3.0 8.0 9.0 6.0 4.0] gold@50 [11.0 9.0 13.0 14.0 12.0 11.0]
+
+-- LEAVE-ONE-SEED-OUT (fit on P + U_f of five seeds, score the sixth; six times) --
+LOSO snap_gold/rw_only/g           AUC(g|d)=0.598 AUC(g|all)=0.675 | top20 gold   9.5 decoy  22.7 | top50 gold  33.4 decoy  71.9 | per-seed gold@20 [2.2 3.4 0.8 1.0 2.0 0.0] gold@50 [7.6 7.0 2.0 2.0 9.6 5.2] | AUC(g|d) per seed [0.67 0.67 0.55 0.49 0.67 0.58] spread 0.49-0.67
+LOSO snap_gold/shape/g             AUC(g|d)=0.571 AUC(g|all)=0.578 | top20 gold  14.0 decoy  19.2 | top50 gold  42.0 decoy  53.7 | per-seed gold@20 [0.0 2.0 2.0 2.0 6.0 2.0] gold@50 [6.0 6.0 5.0 5.0 13.0 7.0] | AUC(g|d) per seed [0.46 0.61 0.50 0.57 0.77 0.51] spread 0.46-0.77
+LOSO snap_gold/shape/en2           AUC(g|d)=0.579 AUC(g|all)=0.593 | top20 gold  22.0 decoy  22.0 | top50 gold  43.0 decoy  54.7 | per-seed gold@20 [3.0 4.0 2.0 2.0 5.0 6.0] gold@50 [7.0 6.0 5.0 5.0 13.0 7.0] | AUC(g|d) per seed [0.49 0.62 0.51 0.58 0.77 0.51] spread 0.49-0.77
+LOSO snap_gold/shape+ent/g         AUC(g|d)=0.591 AUC(g|all)=0.661 | top20 gold  27.0 decoy  34.0 | top50 gold  46.0 decoy  82.0 | per-seed gold@20 [4.0 4.0 2.0 3.0 8.0 6.0] gold@50 [7.0 5.0 6.0 6.0 12.0 10.0] | AUC(g|d) per seed [0.56 0.60 0.56 0.56 0.73 0.54] spread 0.54-0.73
+LOSO snap_gold/shape+ent/en2       AUC(g|d)=0.594 AUC(g|all)=0.670 | top20 gold  28.0 decoy  35.0 | top50 gold  47.0 decoy  83.0 | per-seed gold@20 [4.0 4.0 3.0 3.0 8.0 6.0] gold@50 [7.0 5.0 7.0 6.0 12.0 10.0] | AUC(g|d) per seed [0.56 0.60 0.58 0.57 0.72 0.55] spread 0.55-0.72
+LOSO snap_gold/shape+ent+pred/g    AUC(g|d)=0.578 AUC(g|all)=0.644 | top20 gold  26.0 decoy  32.0 | top50 gold  44.0 decoy  82.0 | per-seed gold@20 [4.0 4.0 1.0 3.0 8.0 6.0] gold@50 [6.0 6.0 6.0 4.0 11.0 11.0] | AUC(g|d) per seed [0.54 0.59 0.53 0.57 0.70 0.56] spread 0.53-0.70
+LOSO snap_gold/shape+ent+pred/en2  AUC(g|d)=0.581 AUC(g|all)=0.653 | top20 gold  27.0 decoy  35.0 | top50 gold  46.0 decoy  82.0 | per-seed gold@20 [4.0 4.0 1.0 3.0 8.0 7.0] gold@50 [6.0 6.0 6.0 5.0 12.0 11.0] | AUC(g|d) per seed [0.54 0.59 0.54 0.58 0.69 0.57] spread 0.54-0.69
+LOSO snap_gold/buckets/g           AUC(g|d)=0.643 AUC(g|all)=0.743 | top20 gold  41.0 decoy  40.0 | top50 gold  68.0 decoy 116.0 | per-seed gold@20 [7.0 4.0 10.0 10.0 5.0 5.0] gold@50 [12.0 9.0 13.0 13.0 11.0 10.0] | AUC(g|d) per seed [0.64 0.54 0.76 0.73 0.64 0.60] spread 0.54-0.76
+LOSO snap_gold/buckets/en2         AUC(g|d)=0.643 AUC(g|all)=0.755 | top20 gold  41.0 decoy  43.0 | top50 gold  69.0 decoy 118.0 | per-seed gold@20 [7.0 4.0 10.0 10.0 5.0 5.0] gold@50 [12.0 9.0 14.0 13.0 11.0 10.0] | AUC(g|d) per seed [0.64 0.54 0.76 0.73 0.64 0.60] spread 0.54-0.76
+LOSO snap_gold/ALL/g               AUC(g|d)=0.629 AUC(g|all)=0.753 | top20 gold  41.0 decoy  44.0 | top50 gold  72.0 decoy 116.0 | per-seed gold@20 [8.0 3.0 9.0 9.0 7.0 5.0] gold@50 [12.0 9.0 13.0 15.0 12.0 11.0] | AUC(g|d) per seed [0.56 0.52 0.73 0.75 0.69 0.55] spread 0.52-0.75
+LOSO snap_gold/ALL/en2             AUC(g|d)=0.627 AUC(g|all)=0.757 | top20 gold  44.0 decoy  44.0 | top50 gold  74.0 decoy 116.0 | per-seed gold@20 [8.0 3.0 10.0 10.0 7.0 6.0] gold@50 [12.0 9.0 14.0 15.0 13.0 11.0] | AUC(g|d) per seed [0.56 0.53 0.73 0.75 0.69 0.54] spread 0.53-0.75
+LOSO snap_gold_found/rw_only/g     AUC(g|d)=0.596 AUC(g|all)=0.674 | top20 gold   9.5 decoy  22.7 | top50 gold  33.4 decoy  71.9 | per-seed gold@20 [2.2 3.4 0.8 1.0 2.0 0.0] gold@50 [7.6 7.0 2.0 2.0 9.6 5.2] | AUC(g|d) per seed [0.67 0.67 0.55 0.49 0.67 0.58] spread 0.49-0.67
+LOSO snap_gold_found/shape/g       AUC(g|d)=0.570 AUC(g|all)=0.574 | top20 gold  14.0 decoy  16.5 | top50 gold  42.2 decoy  53.7 | per-seed gold@20 [0.0 2.0 2.0 2.0 6.0 2.0] gold@50 [6.2 6.0 5.0 5.0 13.0 7.0] | AUC(g|d) per seed [0.46 0.60 0.51 0.58 0.77 0.51] spread 0.46-0.77
+LOSO snap_gold_found/shape/en2     AUC(g|d)=0.575 AUC(g|all)=0.583 | top20 gold  21.7 decoy  20.7 | top50 gold  42.0 decoy  52.9 | per-seed gold@20 [3.0 3.7 2.0 3.0 6.0 4.0] gold@50 [6.0 6.0 5.0 5.0 13.0 7.0] | AUC(g|d) per seed [0.47 0.60 0.50 0.58 0.78 0.51] spread 0.47-0.78
+LOSO snap_gold_found/shape+ent/g   AUC(g|d)=0.590 AUC(g|all)=0.661 | top20 gold  27.0 decoy  33.0 | top50 gold  46.0 decoy  82.0 | per-seed gold@20 [4.0 4.0 2.0 3.0 8.0 6.0] gold@50 [6.0 6.0 7.0 6.0 11.0 10.0] | AUC(g|d) per seed [0.55 0.59 0.58 0.57 0.71 0.54] spread 0.54-0.71
+LOSO snap_gold_found/shape+ent/en2 AUC(g|d)=0.593 AUC(g|all)=0.669 | top20 gold  28.0 decoy  35.0 | top50 gold  47.0 decoy  81.0 | per-seed gold@20 [4.0 4.0 3.0 3.0 8.0 6.0] gold@50 [7.0 6.0 7.0 6.0 11.0 10.0] | AUC(g|d) per seed [0.56 0.59 0.59 0.58 0.71 0.55] spread 0.55-0.71
+LOSO snap_gold_found/shape+ent+pred/g AUC(g|d)=0.574 AUC(g|all)=0.644 | top20 gold  25.0 decoy  31.0 | top50 gold  43.0 decoy  81.0 | per-seed gold@20 [3.0 4.0 1.0 3.0 8.0 6.0] gold@50 [5.0 6.0 6.0 4.0 11.0 11.0] | AUC(g|d) per seed [0.52 0.58 0.55 0.57 0.70 0.56] spread 0.52-0.70
+LOSO snap_gold_found/shape+ent+pred/en2 AUC(g|d)=0.578 AUC(g|all)=0.653 | top20 gold  25.0 decoy  34.0 | top50 gold  45.0 decoy  83.0 | per-seed gold@20 [3.0 4.0 1.0 3.0 8.0 6.0] gold@50 [5.0 6.0 7.0 4.0 12.0 11.0] | AUC(g|d) per seed [0.52 0.57 0.56 0.59 0.69 0.56] spread 0.52-0.69
+LOSO snap_gold_found/buckets/g     AUC(g|d)=0.639 AUC(g|all)=0.726 | top20 gold  41.0 decoy  39.0 | top50 gold  67.0 decoy 120.0 | per-seed gold@20 [7.0 4.0 10.0 10.0 5.0 5.0] gold@50 [12.0 9.0 13.0 12.0 11.0 10.0] | AUC(g|d) per seed [0.64 0.53 0.75 0.71 0.63 0.58] spread 0.53-0.75
+LOSO snap_gold_found/buckets/en2   AUC(g|d)=0.636 AUC(g|all)=0.727 | top20 gold  42.0 decoy  36.0 | top50 gold  67.0 decoy 121.0 | per-seed gold@20 [7.0 5.0 10.0 10.0 5.0 5.0] gold@50 [12.0 9.0 13.0 12.0 11.0 10.0] | AUC(g|d) per seed [0.63 0.52 0.76 0.70 0.62 0.59] spread 0.52-0.76
+LOSO snap_gold_found/ALL/g         AUC(g|d)=0.625 AUC(g|all)=0.750 | top20 gold  39.0 decoy  42.0 | top50 gold  70.0 decoy 118.0 | per-seed gold@20 [7.0 3.0 9.0 10.0 6.0 4.0] gold@50 [11.0 10.0 13.0 14.0 11.0 11.0] | AUC(g|d) per seed [0.59 0.52 0.73 0.72 0.66 0.55] spread 0.52-0.73
+LOSO snap_gold_found/ALL/en2       AUC(g|d)=0.621 AUC(g|all)=0.750 | top20 gold  39.0 decoy  46.0 | top50 gold  70.0 decoy 121.0 | per-seed gold@20 [7.0 3.0 9.0 10.0 6.0 4.0] gold@50 [11.0 10.0 13.0 14.0 11.0 11.0] | AUC(g|d) per seed [0.60 0.51 0.72 0.72 0.65 0.54] spread 0.51-0.72
+BASELINE n_rw AUC(g|d) per seed [0.67 0.67 0.55 0.49 0.67 0.58] spread 0.49-0.67
+
+variants fitted (feature set x P definition x model, lam fixed at 1.0, no tuning): 22 in-sample + 22 LOSO
+
+== PRIMARY (pre-registered): P=snap_gold, features=ALL, model=g; LOSO coefficients averaged over the six fits ==
+   intercept          -8.112 (sd 0.595)
+   rw_first_half      -2.148 (sd 0.085)
+   max_roots_lb       +1.088 (sd 0.094)
+   rw_last6           -1.015 (sd 0.036)
+   max_ksites         +0.985 (sd 0.302)
+   max_site_bucket    +0.847 (sd 0.177)
+   wk_blind_ge2k      -0.633 (sd 0.174)
+   max_users_lb       -0.589 (sd 0.073)
+   wk_ge2k            +0.575 (sd 0.183)
+   density            +0.561 (sd 0.122)
+   wk_ge1k            +0.519 (sd 0.161)
+   max_sumlb          -0.500 (sd 0.227)
+   first_k_wk         +0.485 (sd 0.138)
+   last_k_wk          +0.476 (sd 0.075)
+   mean_weak          -0.471 (sd 0.189)
+   recency            -0.459 (sd 0.039)
+   last_rw            +0.459 (sd 0.039)
+   span               +0.440 (sd 0.051)
+   n_sib              +0.425 (sd 0.081)
+   sib_rw             -0.408 (sd 0.144)
+   max_nsites         +0.387 (sd 0.267)
+   mean_sumlb         -0.374 (sd 0.115)
+   n_rw               +0.351 (sd 0.036)
+   n_gaps             +0.325 (sd 0.112)
+   wk_n1              +0.318 (sd 0.144)
+   max_run            -0.285 (sd 0.053)
+   k_frac_active      +0.229 (sd 0.093)
+   weak_wks           +0.120 (sd 0.141)
+   std_sumlb          +0.107 (sd 0.192)
+   k_span             +0.101 (sd 0.136)
+   n_runs             -0.066 (sd 0.261)
+   first_rw           -0.021 (sd 0.042)
+   contra_wks         -0.017 (sd 0.052)
+   n_active_wk        -0.001 (sd 0.177)
+
+PRIMARY LOSO top-20 and top-50 composition per seed (gold/decoy/other, expected under tie-break) vs baseline n_rw:
+   seed 0:  top20 PU 8.0/10.0/2.0  base 2.2/4.6/13.1  top50 PU 12.0/22.0/16.0  base 7.6/11.0/31.4
+   seed 1:  top20 PU 3.0/12.0/5.0  base 3.4/4.4/12.2  top50 PU 9.0/25.0/16.0  base 7.0/13.0/30.0
+   seed 2:  top20 PU 9.0/6.0/5.0  base 0.8/4.0/15.2  top50 PU 13.0/17.0/20.0  base 2.0/12.2/35.8
+   seed 3:  top20 PU 9.0/2.0/9.0  base 1.0/4.0/15.0  top50 PU 15.0/17.0/18.0  base 2.0/13.9/34.1
+   seed 4:  top20 PU 7.0/5.0/8.0  base 2.0/3.0/15.0  top50 PU 12.0/19.0/19.0  base 9.6/10.8/29.5
+   seed 5:  top20 PU 5.0/9.0/6.0  base 0.0/2.7/17.3  top50 PU 11.0/16.0/23.0  base 5.2/11.0/33.8
+
+within n_rw>=11 (wave-0 cut) gold-vs-decoy AUC: PU-ALL LOSO 0.589 vs n_rw 0.410  (n gold 99, decoy 157)

@@ -17,8 +17,9 @@
   "NeuralGraph/claude/session-analysis-continuation-sm1a1t": "1987110774a39bcc2667db2c16aca6044b42d47f",
   "NeuralGraph/research/emergence-next-continuation-20261024 (ng-deploy)": "ce0e357823816dd8090bec2423982b5d8db11e71",
   "NeuralGraph/research/report-integrity (ng-integrity)": "5da07a4aac84899620a13bb29e42c9bc3341ac9b",
-  "NeuralGraph/claude/mycelic-gate-0-recovery-tjl82x (ng-recovery)": "c41f193a0748a667022a14adf6befc310ef579b8",
-  "MycelicLabs/HEAD (local, 8 commits ahead of read-only origin)": "ed65f5a9f2703a214acc152aedb215a952b63314"
+  "NeuralGraph/claude/mycelic-gate-0-recovery-tjl82x (ng-recovery)": "e6aba1cc1af622a4b564671c2caf7f38ea6b7077 (corrected per D9; was recorded before two merges)",
+  "MycelicLabs/HEAD (local, 8 commits ahead of read-only origin)": "ed65f5a9f2703a214acc152aedb215a952b63314",
+  "NeuralGraph/research/arena (ng-arena)": "80227ad125a368069a2d24aacaa1d7d50b6c2666"
  },
  "known_prior_references_verified": {
   "MycelicLabs a09283a": true,
@@ -53,5 +54,23 @@
  "layer_b_status": "BLOCKED: MycelicLabs is read-only from this session; audited, not instantiated",
  "integration": "b00 = orchestrator; agents write only to scratchpad/swarm_out/<id>/; deterministic merge into research/swarm/",
  "stopped_on_budget": false,
- "reproduction_command": "see research/swarm/SWARM_PROMPT.md and OMEGA_HIVEGENESIS.spec"
+ "reproduction_command": "see research/swarm/SWARM_PROMPT.md and OMEGA_HIVEGENESIS.spec",
+ "wave_1": {
+  "launched": "2026-10-24T15:44Z",
+  "start_stamps": "15:48:27-15:48:29Z",
+  "first_end": "15:59:37Z",
+  "omega_peak": 10,
+  "omega_measured_by": "research/arena concurrency.max_overlap over the agents' own stamps",
+  "returned_by_16:10Z": 9,
+  "outstanding": [
+   "H4"
+  ],
+  "promoted": [
+   "H5-2/H5-3",
+   "H7-1",
+   "H3-3 (conditional)"
+  ],
+  "yield": "3/8 = 0.375",
+  "control_rule": "spawn wave 2: one falsifier per survivor"
+ }
 }
