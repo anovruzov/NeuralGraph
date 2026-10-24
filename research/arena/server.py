@@ -90,10 +90,10 @@ class HarnessController:
         if cfg.runs_root is None:
             raise RuntimeError("no --runs-root configured")
         run_id = f"arena-{scenario}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}"
-        run_dir = cfg.runs_root / run_id
-        run_dir.mkdir(parents=True, exist_ok=True)
+        cfg.runs_root.mkdir(parents=True, exist_ok=True)
+        run_dir = cfg.runs_root / run_id                 # the harness creates it, and refuses one that exists
         argv = cfg.scenarios[scenario].argv(run_dir, run_id)
-        log_path = run_dir / "arena-harness.log"
+        log_path = cfg.runs_root / f"{run_id}.log"       # so the log lives beside the run, not inside it
         self._log = open(log_path, "wb")
         env = dict(os.environ)
         env.update(cfg.harness_env)

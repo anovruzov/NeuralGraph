@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import socket
+import sys
 import tempfile
 import threading
 import time
@@ -13,7 +14,7 @@ from pathlib import Path
 
 from research.arena import concurrency
 from research.arena.events import Event, EventStore
-from research.arena.server import App, Config, ConsoleServer
+from research.arena.server import App, Config, ConsoleServer, Scenario
 from research.arena.sources import GitSource, HarnessSource, SwarmSource, Tail
 
 SYNTHETIC = "SYNTHETIC FIXTURE -- not a run"
@@ -207,6 +208,24 @@ class ServerTests(unittest.TestCase):
         self.assertIn("event: snapshot", text)
         ids = [int(l.split(": ")[1]) for l in text.splitlines() if l.startswith("id: ")]
         self.assertEqual(ids, [last])                                           # only what is newer than the cursor
+
+    def test_start_leaves_the_run_dir_to_the_harness_and_reports_its_exit(self) -> None:
+        """The harness refuses an --out that already exists, so the controller must not pre-create it.  The
+        synthetic 'harness' here exits 0 only if its run dir does not exist when it starts: its exit code is the
+        assertion, and the controller must report that exit as an event."""
+        d = Path(self.tmp.name)
+        fake = Scenario("fake", SYNTHETIC, lambda run_dir, run_id: [
+            sys.executable, "-c", "import os, sys; sys.exit(0 if not os.path.exists(sys.argv[1]) else 3)", str(run_dir)])
+        self.app.config.runs_root, self.app.config.scenarios = d / "runs", {"fake": fake}
+        st = self.app.controller.start("fake")
+        self.assertEqual(st["scenario"], "fake")
+        self.app.controller.proc.wait(10)
+        self.app.controller.check()
+        evs = self.app.store.since(0)
+        ctl = next(e for e in evs if e.tag == "CONTROL")
+        self.assertEqual(self.app.controller.proc.returncode, 0)                 # the dir did not pre-exist
+        self.assertTrue((d / "runs" / (ctl.data["run_id"] + ".log")).exists())  # the log is beside it
+        self.assertEqual([e.tag for e in evs if e.source == "control"], ["CONTROL", "COMPLETE"])
 
     def test_controls_refuse_destruction_without_confirm_and_unknown_actions(self) -> None:
         def post(obj: dict) -> tuple[int, dict]:
