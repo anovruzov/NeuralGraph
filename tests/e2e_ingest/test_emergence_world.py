@@ -216,12 +216,15 @@ class WorldTableTests(unittest.TestCase):
         for broken, why in (
             ({"sites": 1}, "one site cannot meet the two-site rule"),
             ({"teams": 6}, "fewer teams than sites"),
-            ({"records": 308}, "fewer records than users"),
+            ({"records": 239}, "too few records for 40 patterns at 2 sites x k=3"),
             ({"gold_rare": 41}, "more rare patterns than planted ones"),
         ):
             with self.subTest(**broken):
                 with self.assertRaises(ew.WorldError, msg=why):
                     ew.check_world_counts({**row, **broken}, 200)
+        self.assertEqual(ew.MIN_SITES * ew.ADMISSION_K * row["gold_discoverable"], 240,
+                         "the record floor is the admission rule's own arithmetic")
+        ew.check_world_counts({**row, "records": 240}, 200)
         for key in ew.SEED_DRAWN_COUNTS:
             with self.subTest(missing=key):
                 with self.assertRaises(ew.WorldError):

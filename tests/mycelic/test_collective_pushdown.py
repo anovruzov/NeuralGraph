@@ -98,7 +98,10 @@ B4_HASHES = {"it_incidents": {"config_hash": "946becb0adece13f2274bf70eb33af8154
 # shared nuisance imputation, A3 per entity type; G5 to G8: 7d4ca86b...): detection changes only on purpose, and a
 # change re-pins it here
 DETECT_SHA256 = {
-    "detectors.py": "9d23000e2f84a0eea30fac05ac0227be9b12cf086652c61b5e74f488ac74b6b1",
+    # re-pinned deliberately: 9857556 ("opt-in rule_snapshots") added the rule-layer candidate branch to
+    # detectors.py (detectors.py:631-647).  The archived patch series carried the code and the report's
+    # SPIKE_CODE_HASH re-pin but not this one, so the branch was red from that commit on.
+    "detectors.py": "d113c269415012b1932d537b62188c123dcdc65b1555def263dde8f975cdc695",
     "rules.py": "f0f5caa1f3168cb5da064aed9fec80fce67f7dee939e4a06880c7245ec8ac62d",
     "org.py": "33972bebb177c2c7eb4b6dae86c5f8a8cb1ad1a752286bcf803e9b84a7b0368c",
 }

@@ -56,13 +56,15 @@ from research.routing_spike.hq import Candidate
 from research.routing_spike.site_process import SiteConfig
 from research.routing_spike.world import World, backup_sqlite, restore_store
 
+from .report import SEED_DRAWN_COUNTS, SEED_INVARIANT_COUNTS
+
 __all__ = [
     "BENCHMARK", "CHAIN_PREDICATES", "EMBED_DIM", "ENTITY_TYPE", "GRACE_WEEKS", "ID_PREFIX", "LANGUAGE", "M",
     "MAX_RECORDS", "N_DAYS", "N_WEEKS", "NARRATIVE_MARKER_RE", "PACK_DIR", "PACK_ID", "RECORD_REF_RE", "REVENUE_MISS",
     "ROOT", "RUN_CHANNEL", "START", "TIE_SALT", "TOP_N", "WORLD_TABLE", "EmergenceWorld", "WorldError",
     "build_emergence_world", "build_records", "canonical_entity_id", "check_world_counts", "entity_ids",
     "fixed_questions", "generate", "gold_labels", "master_data", "narrative_prefixes", "ordered_candidates",
-    "SEED_DRAWN_COUNTS", "SEED_INVARIANT_COUNTS", "table_row_diff",
+    "ADMISSION_K", "MIN_SITES", "SEED_DRAWN_COUNTS", "SEED_INVARIANT_COUNTS", "table_row_diff",
     "pack_predicate", "question_for", "received_date", "record_dict", "record_ref", "records_per_site",
     "site_configs", "site_id_of", "site_ids", "world_counts", "backup_sqlite", "restore_store",
 ]
@@ -221,16 +223,11 @@ def world_counts(org: Org, corpus: Corpus, gold: Gold) -> dict[str, int]:
             "entities": len(corpus.entities)}
 
 
-#: The counts section 3.1 fixes for a size whatever the seed draws: the org's user total, the planted pattern and
-#: decoy totals, and the entity list.  The generator derives each from ``target_users`` and its own constants, so a
-#: world that misses one of these is not this benchmark's world and must be refused at any seed.
-SEED_INVARIANT_COUNTS: tuple[str, ...] = ("users", "patterns_real", "gold_discoverable", "decoys", "entities")
-
-#: The counts the draw moves: how the org falls into sites and teams, how many records the users write, and how many
-#: of the planted patterns come out rare.  Section 3.1's row records **seed 0's** draw of these, so requiring the row
-#: exactly is a guard against the seed, not against a malformed world -- it refused every seed but 0, which is why
-#: seeds 1-5 could only run as disclosed guard-bypass diagnostics.  They are checked as structure instead.
-SEED_DRAWN_COUNTS: tuple[str, ...] = ("sites", "teams", "records", "gold_rare")
+#: The admission rule the benchmark is built on (section 3.1): a pattern is confirmable when ``MIN_SITES`` sites each
+#: hold ``ADMISSION_K`` records on its key.  The world's record floor below is derived from these, not from a range
+#: observed on the development seeds.
+ADMISSION_K = 3
+MIN_SITES = 2
 
 
 def table_row_diff(counts: Mapping[str, int], target_users: int) -> list[str]:
@@ -249,12 +246,16 @@ def check_world_counts(counts: Mapping[str, int], target_users: int) -> None:
     """Refuse a world that is not this size's EMERGENCE world, at any seed.
 
     The seed-invariant counts must equal section 3.1's row exactly.  The drawn counts are held to the structure the
-    benchmark needs rather than to seed 0's numbers: at least the two sites the admission rule compares, a team for
-    each site, records to carry the evidence, and no more rare patterns than planted ones.  Each is a property of
-    the benchmark's definition, not a band fitted to the development seeds.
+    benchmark needs rather than to seed 0's numbers: at least the ``MIN_SITES`` sites the admission rule compares, a
+    team for each site, enough records for every planted pattern to be confirmable
+    (``MIN_SITES * ADMISSION_K * gold_discoverable``), and no more rare patterns than planted ones.  Each is derived
+    from the benchmark's definition, not fitted to the development seeds.
 
-    What this no longer catches -- a world whose record total is off by one -- was never a safety property: the
-    record total is a draw, and :func:`table_row_diff` still reports it.
+    Be clear about what this gives up.  The row pinned four drawn counts exactly, so it also caught any drift in the
+    generator's draw -- a record total off by one, a site appearing.  The floors here are far below the draws the
+    generator actually makes (records 12,411-13,131 against a floor of 240 at 200 users), so a generator regression
+    that cuts the corpus by an order of magnitude would pass this guard and has to be caught by
+    :func:`table_row_diff`, which the run reports and c8 requires to be present and to name only drawn counts.
     """
     row = WORLD_TABLE.get(target_users)
     if row is None:
@@ -269,8 +270,12 @@ def check_world_counts(counts: Mapping[str, int], target_users: int) -> None:
         raise WorldError(f"a world with {counts['sites']} site(s) cannot meet the two-site admission rule") from None
     if counts["teams"] < counts["sites"]:
         raise WorldError(f"{counts['teams']} teams across {counts['sites']} sites: a site without a team") from None
-    if counts["records"] < counts["users"]:
-        raise WorldError(f"{counts['records']} records for {counts['users']} users: a world without evidence") from None
+    floor = MIN_SITES * ADMISSION_K * counts["gold_discoverable"]
+    if counts["records"] < floor:
+        raise WorldError(f"{counts['records']} records cannot carry {counts['gold_discoverable']} patterns at "
+                         f"{MIN_SITES} sites x {ADMISSION_K} records ({floor} minimum)") from None
+    # a restatement of ``Gold.rare`` being a subset of ``Gold.discoverable``: it cannot fail from the generator, and
+    # catches a counts mapping assembled by hand (a report read back, a fixture) that says otherwise
     if not 0 <= counts["gold_rare"] <= counts["gold_discoverable"]:
         raise WorldError(f"{counts['gold_rare']} rare of {counts['gold_discoverable']} discoverable patterns") from None
 

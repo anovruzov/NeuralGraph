@@ -428,16 +428,34 @@ def c8_emergence_load(doc: Mapping[str, Any]) -> dict[str, Any]:
                 and row.get("graph_nodes_db") == expected and row.get("graph_nodes") == row.get("graph_nodes_db")
                 and row.get("node_ids_sha256") == row.get("record_refs_sha256")):
             bad_sites.append(site)
+    diff = w.get("table_row_diff")
     items = [
         ("one_graph_per_site", len(per_site) == int(w.get("sites") or -1)),
         ("every_site_whole", not bad_sites),
         ("totals_agree", ing.get("total_ingested") == ing.get("total_expected") == w.get("records")),
         ("no_loss", ing.get("loss") == 0),
         ("pipeline_raised_nothing", ing.get("pipeline_raised") is False),
-        ("world_is_section_3_1", bool(table) and all(w.get(k) == v for k, v in table.items())),
+        # section 3.1's row is seed 0's draw: the counts it fixes for the size must match at every seed, and the
+        # ones the draw moves must be *reported* (``table_row_diff``, empty at seed 0) rather than required.
+        ("world_invariants_are_section_3_1",
+         bool(table) and all(w.get(k) == table.get(k) for k in SEED_INVARIANT_COUNTS)),
+        ("world_draw_is_reported",
+         isinstance(diff, list) and all(str(line).split(":")[0] in SEED_DRAWN_COUNTS for line in diff)),
     ]
     return _result(items, {"sites": len(per_site), "sites_with_a_problem": bad_sites,
-                           "total_ingested": ing.get("total_ingested"), "records": w.get("records")})
+                           "total_ingested": ing.get("total_ingested"), "records": w.get("records"),
+                           "table_row_diff": list(diff or ())})
+
+
+#: The counts section 3.1 fixes for a world size whatever its seed draws: the generator derives each from
+#: ``target_users`` and its own constants, so a world that misses one is not this benchmark's world.  They live
+#: here, in the checker, because ``emergence_world`` imports the generator (and numpy) and this module must stay
+#: importable by the ``check`` CLI alone; ``emergence_world`` imports them back.
+SEED_INVARIANT_COUNTS: tuple[str, ...] = ("users", "patterns_real", "gold_discoverable", "decoys", "entities")
+
+#: The counts the draw moves.  Section 3.1's row records seed 0's, so requiring the row exactly is a guard against
+#: the seed: it refused every seed but 0, and every run on 1-5 had to be labelled a guard-bypass diagnostic.
+SEED_DRAWN_COUNTS: tuple[str, ...] = ("sites", "teams", "records", "gold_rare")
 
 
 #: Section 10's ``discovery`` fields, every one of which c9 requires present.

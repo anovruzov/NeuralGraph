@@ -89,9 +89,6 @@ class N1Tests(unittest.TestCase):
             pack_copy(self.tmp, "device_quality", {("questions.json", "pushdown", "weak_corroborating_sites"): 11})
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class N2Tests(unittest.TestCase):
     """``pushdown.roots_from_k_sites_only`` (EMERGENCE-Next N2): sites with fewer than k roots add no roots."""
@@ -125,3 +122,7 @@ class N2Tests(unittest.TestCase):
     def test_n2_is_a_different_pack(self) -> None:
         self.assertNotEqual(self.n2.config_hash, DQ.config_hash)
         self.assertTrue(GateParams.from_pack(self.n2).to_dict()["roots_from_k_sites_only"])
+
+
+if __name__ == "__main__":
+    unittest.main()
