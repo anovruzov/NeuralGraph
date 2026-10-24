@@ -1,0 +1,57 @@
+{
+ "written": "2026-10-24T15:48:16.172174Z",
+ "directive": {
+  "spec_sha256": "19fe84b79c3a07ef648330d5774b7ad1278a9efe07fdcc64c0d40a201fcda98a",
+  "launcher_sha256": "af3d84292561a0560ac11122bd4fe23215dd74e38d75107144ecb4d987fd01d8",
+  "reference_images": {
+   "IMG_0272(1).jpeg": "e9a2989a4c580ec9ad9bcb442b97c0e11923678cfd086eac84a09add3e20ed7b",
+   "IMG_0273(1).jpeg": "c36df0c12423f26f5d13f7014eac9e1b92426f450640b5cb99a70dfed4060704",
+   "IMG_0274(1).jpeg": "1530145950962a37ad9d473abea09d2ac956b981b42046ab2b2fe2dd668ba517",
+   "IMG_3571(1).jpeg": "f56465c05168a3c55768d3fe53b5f222b9bea1f8bb2d3e7c9cc8c86c23d71706",
+   "IMG_3574(1).jpeg": "5c41bcc628c35986fdb6e6275051b33a760a3e1d4fa5292ebc934c5fbf0e7331",
+   "IMG_3575(1).jpeg": "682c0b8443f23a41f75bcb0781d0c4e0df70f02ce19ac75c03ed9985b4d41788",
+   "IMG_3577(1).jpeg": "e86902d4084f6bc6df6b8cb89706dd12bf58e39ca1112acddb55533d6f6bb290"
+  }
+ },
+ "repo_heads": {
+  "NeuralGraph/claude/session-analysis-continuation-sm1a1t": "1987110774a39bcc2667db2c16aca6044b42d47f",
+  "NeuralGraph/research/emergence-next-continuation-20261024 (ng-deploy)": "ce0e357823816dd8090bec2423982b5d8db11e71",
+  "NeuralGraph/research/report-integrity (ng-integrity)": "5da07a4aac84899620a13bb29e42c9bc3341ac9b",
+  "NeuralGraph/claude/mycelic-gate-0-recovery-tjl82x (ng-recovery)": "c41f193a0748a667022a14adf6befc310ef579b8",
+  "MycelicLabs/HEAD (local, 8 commits ahead of read-only origin)": "ed65f5a9f2703a214acc152aedb215a952b63314"
+ },
+ "known_prior_references_verified": {
+  "MycelicLabs a09283a": true,
+  "NeuralGraph f440d10": true,
+  "old_harness_baseline e094bd8": true
+ },
+ "baseline": {
+  "official": "93/240 = 0.3875, 118/300 decoys, 341 questions, drills on, all checks green",
+  "artifact": "raw/official_ce0e357/BASELINE_SEEDS_0-5.csv",
+  "artifact_sha256": "936cf8a60db0736223e9b1d8e5b9a2a7e109b4f6ffda7ae9da44938aeec6749c",
+  "report_sha256_per_seed_in": "raw/official_ce0e357/ledger.jsonl",
+  "metric_definitions": "research/e2e_ingest/report.py at ce0e357; F/TB_v4 ceiling 179/240 from raw/plateau/ceiling_b.json"
+ },
+ "capability_probe": {
+  "team_flag": "unset",
+  "spawn_tool": "Agent (background subagents, independent contexts)",
+  "peer_messaging": "SendMessage available; no other session visible on this machine",
+  "git_worktree": true,
+  "nproc": 4,
+  "mem_gb": 15,
+  "disk_avail_gb": 20,
+  "load_1m": 0.12,
+  "transport": "nats-server v2.10.29 (authorized, loopback, scratchpad)",
+  "cargo": "1.97.0",
+  "python": "3.11.17",
+  "token_budget_remaining_approx": "15M"
+ },
+ "agent_count_requested": "[10,100]",
+ "actual_builders": 10,
+ "builder_kind": "background subagents, not Agent Teams",
+ "product_workers_alive": 0,
+ "layer_b_status": "BLOCKED: MycelicLabs is read-only from this session; audited, not instantiated",
+ "integration": "b00 = orchestrator; agents write only to scratchpad/swarm_out/<id>/; deterministic merge into research/swarm/",
+ "stopped_on_budget": false,
+ "reproduction_command": "see research/swarm/SWARM_PROMPT.md and OMEGA_HIVEGENESIS.spec"
+}
