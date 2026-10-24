@@ -1,0 +1,267 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1130" viewBox="0 0 1800 1130">
+<defs>
+<marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3ee08a"/></marker>
+<marker id="ac" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4fd3ff"/></marker>
+<marker id="ap" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c39bff"/></marker>
+<marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ffb547"/></marker>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ff5d67"/></marker>
+<marker id="ad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8aa89a"/></marker>
+<pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#0d151d" stroke-width="1"/></pattern>
+</defs>
+<rect width="1800" height="1130" fill="#070b10"/><rect width="1800" height="1130" fill="url(#grid)"/>
+<text x="30" y="44" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="24" fill="#3ee08a" font-weight="bold" text-anchor="start" letter-spacing="2">EMERGENCE END-TO-END BENCHMARK</text>
+<text x="30" y="68" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="14" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">System architecture · process mode · one run = one synthetic world seed · research/e2e_ingest</text>
+<path d="M 150,112 L 150,92 L 1662,92 L 1662,112" fill="none" stroke="#8aa89a" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#ad)"/>
+<text x="900" y="86" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="middle" letter-spacing="0">Gold (make_gold) goes to the scorer only; it never crosses to sites, HQ or the fabric</text>
+<rect x="24" y="112" width="252" height="470" rx="4" fill="#0c131b" stroke="#c39bff" stroke-width="1"/>
+<text x="38" y="134" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="10.5" fill="#c39bff" font-weight="bold" text-anchor="start" letter-spacing="1.6">1 · HARNESS</text>
+<text x="38" y="154" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="16" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">World generator</text>
+<rect x="38" y="172" width="224" height="66" rx="3" fill="#101a24" stroke="#c39bff" stroke-width="1.2"/>
+<rect x="38" y="172" width="4" height="66" fill="#c39bff"/>
+<text x="51" y="191" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">build_org(seed)</text>
+<text x="51" y="208" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#c39bff" font-weight="normal" text-anchor="start" letter-spacing="0">org.py</text>
+<text x="51" y="224" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">309 users · 35 teams · 7 sites</text>
+<rect x="38" y="248" width="224" height="66" rx="3" fill="#101a24" stroke="#c39bff" stroke-width="1.2"/>
+<rect x="38" y="248" width="4" height="66" fill="#c39bff"/>
+<text x="51" y="267" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">build_corpus</text>
+<text x="51" y="284" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#c39bff" font-weight="normal" text-anchor="start" letter-spacing="0">corpus.py</text>
+<text x="51" y="300" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">12,964 records · 180 days</text>
+<rect x="38" y="324" width="224" height="84" rx="3" fill="#101a24" stroke="#c39bff" stroke-width="1.2"/>
+<rect x="38" y="324" width="4" height="84" fill="#c39bff"/>
+<text x="51" y="343" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">make_gold</text>
+<text x="51" y="360" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#c39bff" font-weight="normal" text-anchor="start" letter-spacing="0">corpus.py</text>
+<text x="51" y="376" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">40 real patterns:</text>
+<text x="51" y="392" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">22 common · 18 rare</text>
+<rect x="38" y="418" width="224" height="66" rx="3" fill="#101a24" stroke="#c39bff" stroke-width="1.2"/>
+<rect x="38" y="418" width="4" height="66" fill="#c39bff"/>
+<text x="51" y="437" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Decoys</text>
+<text x="51" y="453" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">50 planted · 5 types</text>
+<text x="38" y="512" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">dev seeds 0–5 · world size 200</text>
+<text x="38" y="530" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#ff5d67" font-weight="normal" text-anchor="start" letter-spacing="0">held-out 94000–94009 sealed</text>
+<text x="38" y="556" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#5d7a6c" font-weight="normal" text-anchor="start" letter-spacing="0">pack: emergence (config hash pinned)</text>
+<rect x="310" y="112" width="420" height="470" rx="4" fill="#0c131b" stroke="#4fd3ff" stroke-width="1"/>
+<text x="324" y="134" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="10.5" fill="#4fd3ff" font-weight="bold" text-anchor="start" letter-spacing="1.6">2 · PRIVATE EDGE · ONE PROCESS EACH</text>
+<text x="324" y="154" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="16" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Sites × 7 (r00 … r06)</text>
+<rect x="338" y="178" width="388" height="354" rx="3" fill="#0a1118" stroke="#16303d" stroke-width="1"/>
+<rect x="332" y="172" width="388" height="354" rx="3" fill="#0a1118" stroke="#16303d" stroke-width="1"/>
+<rect x="326" y="166" width="388" height="354" rx="3" fill="#0b1219" stroke="#4fd3ff" stroke-width="1.2"/>
+<text x="340" y="186" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11.5" fill="#4fd3ff" font-weight="bold" text-anchor="start" letter-spacing="0">SITE r0k · site_graph.py · child process</text>
+<rect x="340" y="196" width="360" height="46" rx="3" fill="#101a24" stroke="#4fd3ff" stroke-width="1.2"/>
+<rect x="340" y="196" width="4" height="46" fill="#4fd3ff"/>
+<text x="353" y="215" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">EdgeSite.ingest</text>
+<text x="353" y="231" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">own records only · counts checked · 0 loss</text>
+<rect x="340" y="254" width="172" height="62" rx="3" fill="#101a24" stroke="#4fd3ff" stroke-width="1.2"/>
+<rect x="340" y="254" width="4" height="62" fill="#4fd3ff"/>
+<text x="353" y="273" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Lexical extraction</text>
+<text x="353" y="289" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">pack record interface</text>
+<rect x="528" y="254" width="172" height="62" rx="3" fill="#101a24" stroke="#4fd3ff" stroke-width="1.2"/>
+<rect x="528" y="254" width="4" height="62" fill="#4fd3ff"/>
+<text x="541" y="273" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">NeuralGraph</text>
+<text x="541" y="290" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#4fd3ff" font-weight="normal" text-anchor="start" letter-spacing="0">SQLite · hash embed</text>
+<text x="541" y="306" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">1 node per record</text>
+<rect x="340" y="328" width="172" height="62" rx="3" fill="#101a24" stroke="#4fd3ff" stroke-width="1.2"/>
+<rect x="340" y="328" width="4" height="62" fill="#4fd3ff"/>
+<text x="353" y="347" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Weekly cells</text>
+<text x="353" y="363" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">k-suppressed</text>
+<rect x="480.2" y="334" width="23.8" height="18" rx="2" fill="#2a1d07" stroke="#ffb547" stroke-width="1"/>
+<text x="492.09999999999997" y="347" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#ffb547" font-weight="bold" text-anchor="middle" letter-spacing="0">nd</text>
+<rect x="528" y="328" width="172" height="76" rx="3" fill="#101a24" stroke="#4fd3ff" stroke-width="1.2"/>
+<rect x="528" y="328" width="4" height="76" fill="#4fd3ff"/>
+<text x="541" y="347" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Tesseract</text>
+<text x="541" y="364" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#4fd3ff" font-weight="normal" text-anchor="start" letter-spacing="0">AsOfStorage · L=50</text>
+<text x="541" y="380" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">retrieval (site-local)</text>
+<rect x="528" y="416" width="172" height="62" rx="3" fill="#101a24" stroke="#4fd3ff" stroke-width="1.2"/>
+<rect x="528" y="416" width="4" height="62" fill="#4fd3ff"/>
+<text x="541" y="435" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Lexical judge</text>
+<text x="541" y="451" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">→ verdict (Qwen: later)</text>
+<path d="M 426,242 L 426,254" fill="none" stroke="#4fd3ff" stroke-width="1.8" marker-end="url(#ac)"/>
+<path d="M 614,242 L 614,254" fill="none" stroke="#4fd3ff" stroke-width="1.8" marker-end="url(#ac)"/>
+<path d="M 426,316 L 426,328" fill="none" stroke="#4fd3ff" stroke-width="1.8" marker-end="url(#ac)"/>
+<path d="M 614,316 L 614,328" fill="none" stroke="#4fd3ff" stroke-width="1.8" marker-end="url(#ac)"/>
+<path d="M 614,404 L 614,416" fill="none" stroke="#4fd3ff" stroke-width="1.8" marker-end="url(#ac)"/>
+<rect x="340" y="488" width="360" height="24" rx="3" fill="#071a14" stroke="#3ee08a" stroke-width="1" stroke-dasharray="5 4"/>
+<text x="520" y="504" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11" fill="#3ee08a" font-weight="bold" text-anchor="middle" letter-spacing="0">BOUNDARY · only cells, verdicts, descriptor leave</text>
+<text x="326" y="552" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">Raw records and graph nodes never cross the boundary.</text>
+<text x="326" y="570" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">Logical site ids are never wildcard authorization.</text>
+<path d="M 276,219 L 338,219" fill="none" stroke="#3ee08a" stroke-width="1.8" marker-end="url(#ag)"/>
+<text x="297" y="330" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#3ee08a" text-anchor="middle" transform="rotate(-90 297 330)">records → their site</text>
+<rect x="768" y="112" width="432" height="470" rx="4" fill="#0c131b" stroke="#c39bff" stroke-width="1"/>
+<text x="782" y="134" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="10.5" fill="#c39bff" font-weight="bold" text-anchor="start" letter-spacing="1.6">3 · COORDINATOR (sees cells + verdicts only)</text>
+<text x="782" y="154" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="16" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">HQ · question routing</text>
+<rect x="784" y="166" width="400" height="48" rx="3" fill="#101a24" stroke="#c39bff" stroke-width="1.2"/>
+<rect x="784" y="166" width="4" height="48" fill="#c39bff"/>
+<text x="797" y="185" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">CollectiveStore</text>
+<text x="797" y="201" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">receive log of every site's weekly cells</text>
+<rect x="784" y="224" width="400" height="56" rx="3" fill="#101a24" stroke="#c39bff" stroke-width="1.2"/>
+<rect x="784" y="224" width="4" height="56" fill="#c39bff"/>
+<text x="797" y="243" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Detectors · detect(as_of)</text>
+<text x="797" y="260" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#c39bff" font-weight="normal" text-anchor="start" letter-spacing="0">detectors.py · top-n · tie salt</text>
+<rect x="1152.2" y="230" width="23.8" height="18" rx="2" fill="#2a1d07" stroke="#ffb547" stroke-width="1"/>
+<text x="1164.1000000000001" y="243" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#ffb547" font-weight="bold" text-anchor="middle" letter-spacing="0">h1</text>
+<rect x="1123.4" y="230" width="23.8" height="18" rx="2" fill="#2a1d07" stroke="#ffb547" stroke-width="1"/>
+<text x="1135.3000000000002" y="243" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#ffb547" font-weight="bold" text-anchor="middle" letter-spacing="0">rs</text>
+<rect x="784" y="290" width="400" height="56" rx="3" fill="#101a24" stroke="#c39bff" stroke-width="1.2"/>
+<rect x="784" y="290" width="4" height="56" fill="#c39bff"/>
+<text x="797" y="309" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Candidates → questions</text>
+<text x="797" y="326" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#c39bff" font-weight="normal" text-anchor="start" letter-spacing="0">build_question · pushdown</text>
+<rect x="1152.2" y="296" width="23.8" height="18" rx="2" fill="#2a1d07" stroke="#ffb547" stroke-width="1"/>
+<text x="1164.1000000000001" y="309" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#ffb547" font-weight="bold" text-anchor="middle" letter-spacing="0">n1</text>
+<rect x="1123.4" y="296" width="23.8" height="18" rx="2" fill="#2a1d07" stroke="#ffb547" stroke-width="1"/>
+<text x="1135.3000000000002" y="309" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#ffb547" font-weight="bold" text-anchor="middle" letter-spacing="0">n2</text>
+<rect x="784" y="356" width="400" height="70" rx="3" fill="#101a24" stroke="#c39bff" stroke-width="1.2"/>
+<rect x="784" y="356" width="4" height="70" fill="#c39bff"/>
+<text x="797" y="375" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">TesseractCoordinator.execute</text>
+<text x="797" y="392" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#c39bff" font-weight="normal" text-anchor="start" letter-spacing="0">Router.select · arm R rank fusion</text>
+<text x="797" y="408" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">budget m = 3 sites per question</text>
+<rect x="784" y="436" width="400" height="52" rx="3" fill="#101a24" stroke="#c39bff" stroke-width="1.2"/>
+<rect x="784" y="436" width="4" height="52" fill="#c39bff"/>
+<text x="797" y="455" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Intake → gate.evaluate</text>
+<text x="797" y="471" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">status: supported / hypothesis</text>
+<rect x="784" y="498" width="400" height="52" rx="3" fill="#101a24" stroke="#c39bff" stroke-width="1.2"/>
+<rect x="784" y="498" width="4" height="52" fill="#c39bff"/>
+<text x="797" y="517" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">HQ store</text>
+<text x="797" y="534" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#c39bff" font-weight="normal" text-anchor="start" letter-spacing="0">pd_questions · pd_routes · pd_verdicts · pd_conclusions</text>
+<path d="M 984,214 L 984,224" fill="none" stroke="#c39bff" stroke-width="1.8" marker-end="url(#ap)"/>
+<path d="M 984,280 L 984,290" fill="none" stroke="#c39bff" stroke-width="1.8" marker-end="url(#ap)"/>
+<path d="M 984,346 L 984,356" fill="none" stroke="#c39bff" stroke-width="1.8" marker-end="url(#ap)"/>
+<path d="M 984,426 L 984,436" fill="none" stroke="#c39bff" stroke-width="1.8" marker-end="url(#ap)"/>
+<path d="M 984,488 L 984,498" fill="none" stroke="#c39bff" stroke-width="1.8" marker-end="url(#ap)"/>
+<text x="784" y="570" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#5d7a6c" font-weight="normal" text-anchor="start" letter-spacing="0">route_selected precedes retrieval_selected for every question</text>
+<path d="M 512,352 L 742,352 L 742,190 L 784,190" fill="none" stroke="#3ee08a" stroke-width="1.8" marker-end="url(#ag)"/>
+<text x="748" y="286" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11" fill="#3ee08a" font-weight="normal" text-anchor="start" letter-spacing="0">cells</text>
+<path d="M 784,384 L 700,384" fill="none" stroke="#ffb547" stroke-width="1.8" marker-end="url(#aa)"/>
+<text x="742" y="377" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11" fill="#ffb547" font-weight="normal" text-anchor="middle" letter-spacing="0">question</text>
+<path d="M 700,450 L 754,450 L 754,462 L 784,462" fill="none" stroke="#ffb547" stroke-width="1.8" marker-end="url(#aa)"/>
+<text x="742" y="444" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11" fill="#ffb547" font-weight="normal" text-anchor="middle" letter-spacing="0">verdict</text>
+<text x="706" y="418" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="10.5" fill="#ffb547" font-weight="bold" text-anchor="start" letter-spacing="0">WIRE</text>
+<rect x="1238" y="112" width="300" height="470" rx="4" fill="#0c131b" stroke="#ffb547" stroke-width="1"/>
+<text x="1252" y="134" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="10.5" fill="#ffb547" font-weight="bold" text-anchor="start" letter-spacing="1.6">4 · REAL SERVICE + BROKER</text>
+<text x="1252" y="154" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="16" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Mycelic fabric</text>
+<rect x="1252" y="166" width="272" height="52" rx="3" fill="#101a24" stroke="#ffb547" stroke-width="1.2"/>
+<rect x="1252" y="166" width="4" height="52" fill="#ffb547"/>
+<text x="1265" y="185" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">hq_bridge</text>
+<text x="1265" y="202" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#ffb547" font-weight="normal" text-anchor="start" letter-spacing="0">POST /events · SDK</text>
+<rect x="1252" y="228" width="272" height="48" rx="3" fill="#101a24" stroke="#ffb547" stroke-width="1.2"/>
+<rect x="1252" y="228" width="4" height="48" fill="#ffb547"/>
+<text x="1265" y="247" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">MycelicService</text>
+<text x="1265" y="264" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#ffb547" font-weight="normal" text-anchor="start" letter-spacing="0">ingest_events → outbox</text>
+<rect x="1252" y="286" width="272" height="48" rx="3" fill="#101a24" stroke="#ffb547" stroke-width="1.2"/>
+<rect x="1252" y="286" width="4" height="48" fill="#ffb547"/>
+<text x="1265" y="305" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">HMAC-signed publish</text>
+<text x="1265" y="322" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#ffb547" font-weight="normal" text-anchor="start" letter-spacing="0">keyed integrity</text>
+<rect x="1252" y="344" width="272" height="48" rx="3" fill="#101a24" stroke="#ffb547" stroke-width="1.2"/>
+<rect x="1252" y="344" width="4" height="48" fill="#ffb547"/>
+<text x="1265" y="363" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">NATS JetStream</text>
+<text x="1265" y="380" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#ffb547" font-weight="normal" text-anchor="start" letter-spacing="0">nats-server 2.10.29</text>
+<rect x="1252" y="402" width="272" height="48" rx="3" fill="#101a24" stroke="#ffb547" stroke-width="1.2"/>
+<rect x="1252" y="402" width="4" height="48" fill="#ffb547"/>
+<text x="1265" y="421" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Consumer verifies → apply</text>
+<text x="1265" y="438" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#ffb547" font-weight="normal" text-anchor="start" letter-spacing="0">rules.json · min_support 2</text>
+<rect x="1252" y="460" width="272" height="62" rx="3" fill="#101a24" stroke="#ffb547" stroke-width="1.2"/>
+<rect x="1252" y="460" width="4" height="62" fill="#ffb547"/>
+<text x="1265" y="479" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Conclusions + lineage</text>
+<text x="1265" y="496" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#ffb547" font-weight="normal" text-anchor="start" letter-spacing="0">source_event_ids</text>
+<text x="1265" y="512" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">verdict &amp; conclusion events only</text>
+<path d="M 1388,218 L 1388,228" fill="none" stroke="#ffb547" stroke-width="1.8" marker-end="url(#aa)"/>
+<path d="M 1388,276 L 1388,286" fill="none" stroke="#ffb547" stroke-width="1.8" marker-end="url(#aa)"/>
+<path d="M 1388,334 L 1388,344" fill="none" stroke="#ffb547" stroke-width="1.8" marker-end="url(#aa)"/>
+<path d="M 1388,392 L 1388,402" fill="none" stroke="#ffb547" stroke-width="1.8" marker-end="url(#aa)"/>
+<path d="M 1388,450 L 1388,460" fill="none" stroke="#ffb547" stroke-width="1.8" marker-end="url(#aa)"/>
+<path d="M 1184,524 L 1216,524 L 1216,192 L 1252,192" fill="none" stroke="#3ee08a" stroke-width="1.8" marker-end="url(#ag)"/>
+<text x="1229" y="380" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#3ee08a" text-anchor="middle" transform="rotate(-90 1229 380)">read by watermark</text>
+<rect x="1576" y="112" width="200" height="470" rx="4" fill="#0c131b" stroke="#3ee08a" stroke-width="1"/>
+<text x="1590" y="134" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="10.5" fill="#3ee08a" font-weight="bold" text-anchor="start" letter-spacing="1.6">5 · report.py</text>
+<text x="1590" y="154" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="16" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Scorer</text>
+<text x="1590" y="178" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="12" fill="#8aa89a" font-weight="bold" text-anchor="start" letter-spacing="0">Inputs</text>
+<text x="1594" y="198" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#dcefe5" font-weight="normal" text-anchor="start" letter-spacing="0">· fabric API + lineage</text>
+<text x="1594" y="216" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#dcefe5" font-weight="normal" text-anchor="start" letter-spacing="0">· HQ receive log</text>
+<text x="1594" y="234" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#dcefe5" font-weight="normal" text-anchor="start" letter-spacing="0">· site egress + verdict logs</text>
+<text x="1594" y="252" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#dcefe5" font-weight="normal" text-anchor="start" letter-spacing="0">· Gold</text>
+<rect x="1590" y="280" width="172" height="98" rx="3" fill="#101a24" stroke="#3ee08a" stroke-width="1.2"/>
+<rect x="1590" y="280" width="4" height="98" fill="#3ee08a"/>
+<text x="1603" y="299" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Discovery score</text>
+<text x="1603" y="315" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">found / gold_discoverable</text>
+<text x="1603" y="331" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">recall common / rare</text>
+<text x="1603" y="347" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">decoys accepted by type</text>
+<rect x="1590" y="390" width="172" height="70" rx="3" fill="#101a24" stroke="#3ee08a" stroke-width="1.2"/>
+<rect x="1590" y="390" width="4" height="70" fill="#3ee08a"/>
+<text x="1603" y="409" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Checks</text>
+<text x="1603" y="426" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#3ee08a" font-weight="normal" text-anchor="start" letter-spacing="0">c0 c7 c8 c9</text>
+<text x="1603" y="442" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">fabric · guards · load</text>
+<rect x="1590" y="472" width="172" height="62" rx="3" fill="#101a24" stroke="#3ee08a" stroke-width="1.2"/>
+<rect x="1590" y="472" width="4" height="62" fill="#3ee08a"/>
+<text x="1603" y="491" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Report JSON</text>
+<text x="1603" y="508" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="11" fill="#3ee08a" font-weight="normal" text-anchor="start" letter-spacing="0">e2e-ingest-report</text>
+<text x="1603" y="524" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">+ sha256</text>
+<path d="M 1676,378 L 1676,390" fill="none" stroke="#3ee08a" stroke-width="1.8" marker-end="url(#ag)"/>
+<path d="M 1676,460 L 1676,472" fill="none" stroke="#3ee08a" stroke-width="1.8" marker-end="url(#ag)"/>
+<path d="M 1524,491 L 1556,491 L 1556,194 L 1588,194" fill="none" stroke="#3ee08a" stroke-width="1.8" marker-end="url(#ag)"/>
+<rect x="24" y="622" width="1752" height="330" rx="4" fill="#0c131b" stroke="#3ee08a" stroke-width="1"/>
+<text x="38" y="644" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="10.5" fill="#3ee08a" font-weight="bold" text-anchor="start" letter-spacing="1.6">6 · ABLATIONS, TRACKS, GATES</text>
+<text x="38" y="664" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="16" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Evaluation protocol</text>
+<rect x="40" y="684" width="280" height="84" rx="3" fill="#101a24" stroke="#4fd3ff" stroke-width="1.2"/>
+<rect x="40" y="684" width="4" height="84" fill="#4fd3ff"/>
+<text x="53" y="703" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">ablate.py arms</text>
+<text x="53" y="719" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">pack overrides per arm</text>
+<text x="53" y="735" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">same code, same worlds</text>
+<rect x="360" y="684" width="270" height="84" rx="3" fill="#101a24" stroke="#4fd3ff" stroke-width="1.2"/>
+<rect x="360" y="684" width="4" height="84" fill="#4fd3ff"/>
+<text x="373" y="703" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Dev seeds 0–5</text>
+<text x="373" y="719" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">6 worlds per config</text>
+<text x="373" y="735" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">pooled found / gold</text>
+<rect x="670" y="684" width="360" height="84" rx="3" fill="#101a24" stroke="#c39bff" stroke-width="1.2"/>
+<rect x="670" y="684" width="4" height="84" fill="#c39bff"/>
+<text x="683" y="703" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Two tracks, reported separately</text>
+<text x="683" y="719" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">A · frozen R0 (clean)</text>
+<text x="683" y="735" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">B · EMERGENCE-Next (h1, nd, n1, n2, rs)</text>
+<rect x="1070" y="684" width="310" height="84" rx="3" fill="#101a24" stroke="#ffb547" stroke-width="1.2"/>
+<rect x="1070" y="684" width="4" height="84" fill="#ffb547"/>
+<text x="1083" y="703" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Qwen gate</text>
+<text x="1083" y="719" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">best Track B ≥ 70% on all 6 dev seeds</text>
+<text x="1083" y="735" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">then held-out + live judge</text>
+<rect x="1420" y="684" width="320" height="84" rx="3" fill="#101a24" stroke="#3ee08a" stroke-width="1.2"/>
+<rect x="1420" y="684" width="4" height="84" fill="#3ee08a"/>
+<text x="1433" y="703" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="13.5" fill="#dcefe5" font-weight="bold" text-anchor="start" letter-spacing="0">Swarm console</text>
+<text x="1433" y="719" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">events.jsonl → relay → console</text>
+<text x="1433" y="735" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">every metric cites its report</text>
+<path d="M 320,726 L 360,726" fill="none" stroke="#3ee08a" stroke-width="1.8" marker-end="url(#ag)"/>
+<path d="M 630,726 L 670,726" fill="none" stroke="#3ee08a" stroke-width="1.8" marker-end="url(#ag)"/>
+<path d="M 1030,726 L 1070,726" fill="none" stroke="#3ee08a" stroke-width="1.8" marker-end="url(#ag)"/>
+<path d="M 1380,726 L 1420,726" fill="none" stroke="#3ee08a" stroke-width="1.8" marker-end="url(#ag)"/>
+<path d="M 1676,534 L 1676,600 L 300,600 L 300,684" fill="none" stroke="#3ee08a" stroke-width="1.8" marker-end="url(#ag)"/>
+<text x="940" y="594" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11" fill="#3ee08a" font-weight="normal" text-anchor="middle" letter-spacing="0">one report per (config, seed)</text>
+<text x="40" y="806" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#3ee08a" font-weight="bold" text-anchor="start" letter-spacing="0.6">MEASURED · dev seeds, synthetic worlds, deterministic lexical judge</text>
+<rect x="40" y="818" width="280" height="62" rx="3" fill="#101a24" stroke="#1f2d39" stroke-width="1"/>
+<text x="52" y="838" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="12" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">clean (A)</text>
+<text x="52" y="868" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="24" fill="#8aa89a" font-weight="bold" text-anchor="start" letter-spacing="0">38.8%</text>
+<text x="150" y="866" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">93/240</text>
+<rect x="340" y="818" width="280" height="62" rx="3" fill="#101a24" stroke="#1f2d39" stroke-width="1"/>
+<text x="352" y="838" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="12" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">h1n (B)</text>
+<text x="352" y="868" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="24" fill="#c39bff" font-weight="bold" text-anchor="start" letter-spacing="0">58.3%</text>
+<text x="450" y="866" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">140/240</text>
+<rect x="640" y="818" width="280" height="62" rx="3" fill="#101a24" stroke="#1f2d39" stroke-width="1"/>
+<text x="652" y="838" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="12" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">v2-h1n_nd_n1 (B)</text>
+<text x="652" y="868" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="24" fill="#c39bff" font-weight="bold" text-anchor="start" letter-spacing="0">62.9%</text>
+<text x="750" y="866" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">151/240 · 6 seeds</text>
+<rect x="940" y="818" width="280" height="62" rx="3" fill="#101a24" stroke="#1f2d39" stroke-width="1"/>
+<text x="952" y="838" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="12" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">v4-rs_nd_n1_n2 (B)</text>
+<text x="952" y="868" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="24" fill="#ffb547" font-weight="bold" text-anchor="start" letter-spacing="0">69.0%</text>
+<text x="1050" y="866" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">138/200 · seeds 0–4</text>
+<rect x="1250" y="818" width="510" height="62" rx="3" fill="#1c0a0d" stroke="#ff5d67" stroke-width="1"/>
+<text x="1262" y="838" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="12" fill="#ff5d67" font-weight="bold" text-anchor="start" letter-spacing="0">BOTTLENECK: rare-pattern recall</text>
+<text x="1262" y="858" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="12" fill="#dcefe5" font-weight="normal" text-anchor="start" letter-spacing="0">common ≈ 0.98 · rare 0.16 (v2) → 0.25 (v4)</text>
+<text x="1262" y="874" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">70% needs rare ≈ 0.36 · 80% needs ≈ 0.58 · failing stage under diagnosis</text>
+<text x="40" y="906" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#ff5d67" font-weight="normal" text-anchor="start" letter-spacing="0">NOT RUN · held-out confirmation (seeds 94000–94009)      NOT MEASURED · live Qwen judge, FDR, model tokens/cost</text>
+<text x="40" y="926" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#8aa89a" font-weight="normal" text-anchor="start" letter-spacing="0">Tesseract question→verdict latency (v2, recorded): p50 ≈ 2.1 s · p95 ≈ 3.3 s · ~86 questions and ~260 site pairs per run</text>
+<text x="30" y="980" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11" fill="#8aa89a" font-weight="bold" text-anchor="start" letter-spacing="1.4">LEGEND</text>
+<line x1="110" y1="976" x2="144" y2="976" stroke="#3ee08a" stroke-width="2"/>
+<text x="152" y="980" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#dcefe5" font-weight="normal" text-anchor="start" letter-spacing="0">data flow</text>
+<line x1="264.8" y1="976" x2="298.8" y2="976" stroke="#ffb547" stroke-width="2"/>
+<text x="306.8" y="980" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#dcefe5" font-weight="normal" text-anchor="start" letter-spacing="0">WIRE question / verdict</text>
+<line x1="520.4" y1="976" x2="554.4" y2="976" stroke="#8aa89a" stroke-width="2" stroke-dasharray="6 5"/>
+<text x="562.4" y="980" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#dcefe5" font-weight="normal" text-anchor="start" letter-spacing="0">Gold (scorer only)</text>
+<rect x="740.0" y="965" width="26" height="16" rx="2" fill="#2a1d07" stroke="#ffb547" stroke-width="1"/>
+<text x="753.0" y="977" font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="10.5" fill="#ffb547" font-weight="bold" text-anchor="middle" letter-spacing="0">h1</text>
+<text x="774.0" y="980" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11.5" fill="#dcefe5" font-weight="normal" text-anchor="start" letter-spacing="0">Track B lever: h1 detector warm-up · rs rule snapshots · n1 weak-site corroboration · n2 roots from k sites · nd near-dup roots</text>
+<text x="30" y="1006" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="11" fill="#5d7a6c" font-weight="normal" text-anchor="start" letter-spacing="0">Source: emergence-rule docs/collective/E2E-INGEST.md §1, §3.5, §3.6, §4 · numbers from scratchpad/em/*/e2e-ingest-report.json · 2026-10-24</text>
+</svg>
