@@ -31,3 +31,6 @@ htmlcov/
 
 # Replay outputs (contain API responses; regenerate with a key)
 evaluation/artifacts/replay_*.json
+
+# Agent worktrees created by the Claude Code Agent tool (transient, per-agent checkouts)
+.claude/worktrees/
