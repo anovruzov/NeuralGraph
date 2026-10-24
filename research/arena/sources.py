@@ -206,7 +206,9 @@ class HarnessSource:
                 m = _E2E_LINE.match(line)
                 msg = m.group(2) if m else line
                 low = msg.lower()
-                tag = "TEST" if "drill" in low else ("FAIL" if ("error" in low or "failed" in low) else "LOG")
+                failing = bool(re.search(r"\b(error|traceback|exception)\b", low)) or (
+                    re.search(r"\bfailed\b", low) is not None and re.search(r"(?:^|\D)0 failed|failed=0|failures=0", low) is None)
+                tag = "FAIL" if failing else ("TEST" if "drill" in low else "LOG")
                 store.append(tag=tag, source=self.name, agent="hq", msg=msg,
                              ref={"path": str(self.log.path), "line": lineno}, data={"clock": m.group(1) if m else None})
         self._report(store)

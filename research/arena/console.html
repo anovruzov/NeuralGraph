@@ -12,7 +12,7 @@
 }
 * { box-sizing:border-box }
 html, body { margin:0; background:var(--bg); color:var(--text); }
-body { font:12px/1.45 ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace; font-variant-numeric:tabular-nums; padding:10px 14px 60px; }
+body { font:12px/1.45 ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace; font-variant-numeric:tabular-nums; padding:10px 14px 20px; }
 a { color:var(--cyan); text-decoration:none } a:hover { text-decoration:underline }
 b { font-weight:600; color:var(--white) }
 .dim { color:var(--dim) } .dim2 { color:var(--dim-2) }
@@ -91,9 +91,9 @@ canvas { display:block; width:100%; }
 .row:hover { background:var(--well) } .row .ts { color:var(--dim) } .row .tag { font-weight:600 } .row .who { color:var(--dim); overflow:hidden; text-overflow:ellipsis }
 .row .msg { overflow:hidden; text-overflow:ellipsis } .row .id { color:var(--dim-2); text-align:right }
 /* 07 controls */
-.ctl { display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; font-size:11.5px }
+.ctl { display:grid; grid-template-columns:minmax(0,3fr) minmax(0,2fr); gap:10px 16px; font-size:11.5px }
 .ctl .grp { border:1px solid var(--rule); padding:8px } .ctl .grp h3 { margin:0 0 6px; font-size:11px; color:var(--dim); font-weight:600; letter-spacing:.08em }
-.ctl .grp div { display:flex; justify-content:space-between; gap:8px; padding:1px 0 } .ctl .grp .k { color:var(--dim) }
+.ctl .grp div { display:flex; justify-content:space-between; gap:8px; padding:1px 0; min-width:0 } .ctl .grp .k { color:var(--dim); flex:none } .ctl .grp div > span:last-child { text-align:right; overflow-wrap:anywhere }
 .ctl .btns { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px }
 .ctl select { background:var(--well); color:var(--text); border:1px solid var(--rule-2); font:inherit; font-size:11px }
 /* drawer */
@@ -103,7 +103,7 @@ canvas { display:block; width:100%; }
 .drawer .kv div { display:flex; gap:10px; padding:1px 0 } .drawer .kv .k { color:var(--dim); min-width:90px }
 .drawer pre { background:var(--bg); border:1px solid var(--rule); padding:8px; font-size:11px; white-space:pre-wrap; word-break:break-all; max-height:260px; overflow:auto }
 .drawer ul { padding-left:16px; margin:4px 0 }
-footer.bottom { position:fixed; left:0; right:0; bottom:0; display:flex; justify-content:space-between; gap:12px; padding:5px 14px; border-top:1px solid var(--rule); background:var(--bg); color:var(--dim); font-size:11px }
+footer.bottom { display:flex; justify-content:space-between; gap:12px; padding:8px 0 0; margin-top:4px; border-top:1px solid var(--rule); color:var(--dim); font-size:11px; flex-wrap:wrap }
 </style>
 </head>
 <body>
