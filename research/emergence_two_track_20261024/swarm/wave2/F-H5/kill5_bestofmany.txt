@@ -1,0 +1,35 @@
+== (a) Bonferroni on the pooled Mann-Whitney null (sd 0.0295) ==
+  k =   1: AUC must exceed 0.548
+  k =  26: AUC must exceed 0.585
+  k =  45: AUC must exceed 0.590
+  k =  90: AUC must exceed 0.596
+  k = 200: AUC must exceed 0.603
+
+== (b) effective-sample discount n/k, k = 45 ==
+  k =   1: n_gold_eff 138.0 n_decoy_eff 317.0 sd_eff 0.029 -> AUC must exceed 0.548 (p<0.05 one-sided)
+  k =  10: n_gold_eff  13.8 n_decoy_eff  31.7 sd_eff 0.094 -> AUC must exceed 0.655 (p<0.05 one-sided)
+  k =  26: n_gold_eff   5.3 n_decoy_eff  12.2 sd_eff 0.154 -> AUC must exceed 0.754 (p<0.05 one-sided)
+  k =  45: n_gold_eff   3.1 n_decoy_eff   7.0 sd_eff 0.207 -> AUC must exceed 0.841 (p<0.05 one-sided)
+  k =  90: n_gold_eff   1.5 n_decoy_eff   3.5 sd_eff 0.306 -> AUC must exceed 1.003 (p<0.05 one-sided)
+
+== (c) empirical best-of-family permutation null over H5's actual variants ==
+  variant family: 28 statistics x 2 signs = 56 variants (features_h2.json: 13 stats x 2 scopes + count + longest_run)
+  observed: best-of-family AUC 0.952; pre-registered H5-2 (neg mean_sites_per_week_win, rebuilt cells) 0.946
+  permutation null, 2000 draws: single pre-registered statistic: mean 0.503 sd 0.029 95th 0.552 max 0.618
+  permutation null, best-of-56 (sign flips free): median 0.551 95th 0.582 99th 0.598 max 0.619
+  -> after the best-of-family discount the ONE formula needs AUC > 0.582 (p<0.05); H5-2 has 0.945 (real cells) / 0.946 (rebuilt)
+  -> p-value of 0.945 against the best-of-family null: 0.0000; against the single-statistic null: 0.0000
+
+== the lever (H5-3 P@20 on the full pool, chance 0.078): effective-sample hypergeometric lines ==
+  k =  1: effective top-N slots 120: need >= 15 gold => pooled P@20 >= 0.125; measured pooled P@20 (theta=1.25, real) = 0.393 (47/120)
+  k = 20: effective top-N slots   6: need >= 3 gold => pooled P@20 >= 0.500; measured pooled P@20 (theta=1.25, real) = 0.393 (47/120)
+  k = 45: effective top-N slots   3: need >= 2 gold => pooled P@20 >= 0.667; measured pooled P@20 (theta=1.25, real) = 0.393 (47/120)
+
+== empirical: max over H5's 20 theta x ranker variants of pooled P@20 under within-seed label permutation (features: sync, kcells, lr; rebuilt cells) ==
+  observed pooled P@20 (theta=1.25, with k count, det tie-break, rebuilt cells): 0.383
+  permutation (400 draws): single variant P@20 mean 0.079 95th 0.117 max 0.150 | best-of-20 variants 95th 0.142 max 0.183
+  -> the lever's pooled P@20 must exceed 0.142 after the theta/ranker selection discount; measured 0.383
+
+real	0m46.155s
+user	0m45.697s
+sys	0m0.057s

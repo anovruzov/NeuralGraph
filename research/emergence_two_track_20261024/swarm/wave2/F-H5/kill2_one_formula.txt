@@ -1,0 +1,46 @@
+
+== REAL cells | gated theta=1.25 (PRE-REGISTERED) ==
+  seed 0: FULL pool P@20 gold avg 0.300 det 0.30 decoy 0.050 [>0.25] | G+D subset P@20 gold avg 0.900 det 0.90 decoy 0.100 [>0.55] | pool 308 gd 83 | keys tied at rank-20 score 3
+  seed 1: FULL pool P@20 gold avg 0.400 det 0.40 decoy 0.100 [>0.25] | G+D subset P@20 gold avg 0.850 det 0.85 decoy 0.150 [>0.55] | pool 304 gd 89 | keys tied at rank-20 score 2
+  seed 2: FULL pool P@20 gold avg 0.450 det 0.45 decoy 0.000 [>0.25] | G+D subset P@20 gold avg 0.850 det 0.85 decoy 0.150 [>0.55] | pool 265 gd 71 | keys tied at rank-20 score 4
+  seed 3: FULL pool P@20 gold avg 0.400 det 0.40 decoy 0.000 [>0.25] | G+D subset P@20 gold avg 0.700 det 0.70 decoy 0.300 [>0.55] | pool 304 gd 72 | keys tied at rank-20 score 3
+  seed 4: FULL pool P@20 gold avg 0.300 det 0.30 decoy 0.000 [>0.25] | G+D subset P@20 gold avg 0.650 det 0.65 decoy 0.350 [>0.55] | pool 293 gd 70 | keys tied at rank-20 score 3
+  seed 5: FULL pool P@20 gold avg 0.505 det 0.50 decoy 0.050 [>0.25] | G+D subset P@20 gold avg 0.900 det 0.90 decoy 0.100 [>0.55] | pool 291 gd 70 | keys tied at rank-20 score 7
+  FULL pool: min 0.300 mean 0.393 max 0.505 | seeds > 0.25: 6/6 (avg tie-break), 6/6 (det tie-break)
+  G+D subset: min 0.650 mean 0.808 max 0.900 | seeds > 0.55: 6/6 (avg), 6/6 (det)
+  decoy share at top-20: full 0.05 0.10 0.00 0.00 0.00 0.05 | G+D 0.10 0.15 0.15 0.30 0.35 0.10
+
+== REAL cells | untuned lex (-sync,k,lr) ==
+  seed 0: FULL pool P@20 gold avg 0.200 det 0.20 decoy 0.000 [<=0.25] | G+D subset P@20 gold avg 0.900 det 0.90 decoy 0.100 [>0.55] | pool 308 gd 83 | keys tied at rank-20 score 3
+  seed 1: FULL pool P@20 gold avg 0.263 det 0.25 decoy 0.000 [>0.25] | G+D subset P@20 gold avg 0.900 det 0.90 decoy 0.100 [>0.55] | pool 304 gd 89 | keys tied at rank-20 score 7
+  seed 2: FULL pool P@20 gold avg 0.250 det 0.25 decoy 0.000 [<=0.25] | G+D subset P@20 gold avg 0.850 det 0.85 decoy 0.150 [>0.55] | pool 265 gd 71 | keys tied at rank-20 score 2
+  seed 3: FULL pool P@20 gold avg 0.283 det 0.30 decoy 0.000 [>0.25] | G+D subset P@20 gold avg 0.850 det 0.85 decoy 0.150 [>0.55] | pool 304 gd 72 | keys tied at rank-20 score 4
+  seed 4: FULL pool P@20 gold avg 0.163 det 0.15 decoy 0.000 [<=0.25] | G+D subset P@20 gold avg 0.750 det 0.75 decoy 0.250 [>0.55] | pool 293 gd 70 | keys tied at rank-20 score 4
+  seed 5: FULL pool P@20 gold avg 0.450 det 0.45 decoy 0.000 [>0.25] | G+D subset P@20 gold avg 0.900 det 0.90 decoy 0.100 [>0.55] | pool 291 gd 70 | keys tied at rank-20 score 5
+  FULL pool: min 0.163 mean 0.268 max 0.450 | seeds > 0.25: 3/6 (avg tie-break), 2/6 (det tie-break)
+  G+D subset: min 0.750 mean 0.858 max 0.900 | seeds > 0.55: 6/6 (avg), 6/6 (det)
+  decoy share at top-20: full 0.00 0.00 0.00 0.00 0.00 0.00 | G+D 0.10 0.10 0.15 0.15 0.25 0.10
+
+== rebuilt cells | gated theta=1.25 (PRE-REGISTERED) ==
+  seed 0: FULL pool P@20 gold avg 0.350 det 0.35 decoy 0.050 [>0.25] | G+D subset P@20 gold avg 0.900 det 0.90 decoy 0.100 [>0.55] | pool 308 gd 83 | keys tied at rank-20 score 3
+  seed 1: FULL pool P@20 gold avg 0.400 det 0.40 decoy 0.100 [>0.25] | G+D subset P@20 gold avg 0.850 det 0.85 decoy 0.150 [>0.55] | pool 304 gd 89 | keys tied at rank-20 score 2
+  seed 2: FULL pool P@20 gold avg 0.450 det 0.45 decoy 0.000 [>0.25] | G+D subset P@20 gold avg 0.850 det 0.85 decoy 0.150 [>0.55] | pool 265 gd 71 | keys tied at rank-20 score 4
+  seed 3: FULL pool P@20 gold avg 0.400 det 0.40 decoy 0.000 [>0.25] | G+D subset P@20 gold avg 0.700 det 0.70 decoy 0.300 [>0.55] | pool 304 gd 72 | keys tied at rank-20 score 3
+  seed 4: FULL pool P@20 gold avg 0.250 det 0.25 decoy 0.000 [<=0.25] | G+D subset P@20 gold avg 0.650 det 0.65 decoy 0.350 [>0.55] | pool 293 gd 70 | keys tied at rank-20 score 3
+  seed 5: FULL pool P@20 gold avg 0.463 det 0.45 decoy 0.050 [>0.25] | G+D subset P@20 gold avg 0.900 det 0.90 decoy 0.100 [>0.55] | pool 291 gd 70 | keys tied at rank-20 score 7
+  FULL pool: min 0.250 mean 0.385 max 0.463 | seeds > 0.25: 5/6 (avg tie-break), 5/6 (det tie-break)
+  G+D subset: min 0.650 mean 0.808 max 0.900 | seeds > 0.55: 6/6 (avg), 6/6 (det)
+  decoy share at top-20: full 0.05 0.10 0.00 0.00 0.00 0.05 | G+D 0.10 0.15 0.15 0.30 0.35 0.10
+
+== rebuilt cells | untuned lex (-sync,k,lr) ==
+  seed 0: FULL pool P@20 gold avg 0.220 det 0.25 decoy 0.000 [<=0.25] | G+D subset P@20 gold avg 0.927 det 0.95 decoy 0.072 [>0.55] | pool 308 gd 83 | keys tied at rank-20 score 2
+  seed 1: FULL pool P@20 gold avg 0.237 det 0.25 decoy 0.000 [<=0.25] | G+D subset P@20 gold avg 0.900 det 0.90 decoy 0.100 [>0.55] | pool 304 gd 89 | keys tied at rank-20 score 8
+  seed 2: FULL pool P@20 gold avg 0.300 det 0.30 decoy 0.000 [>0.25] | G+D subset P@20 gold avg 0.850 det 0.85 decoy 0.150 [>0.55] | pool 265 gd 71 | keys tied at rank-20 score 2
+  seed 3: FULL pool P@20 gold avg 0.270 det 0.30 decoy 0.000 [>0.25] | G+D subset P@20 gold avg 0.850 det 0.85 decoy 0.150 [>0.55] | pool 304 gd 72 | keys tied at rank-20 score 5
+  seed 4: FULL pool P@20 gold avg 0.158 det 0.15 decoy 0.000 [<=0.25] | G+D subset P@20 gold avg 0.750 det 0.75 decoy 0.250 [>0.55] | pool 293 gd 70 | keys tied at rank-20 score 5
+  seed 5: FULL pool P@20 gold avg 0.400 det 0.40 decoy 0.000 [>0.25] | G+D subset P@20 gold avg 0.900 det 0.90 decoy 0.100 [>0.55] | pool 291 gd 70 | keys tied at rank-20 score 5
+  FULL pool: min 0.158 mean 0.264 max 0.400 | seeds > 0.25: 3/6 (avg tie-break), 3/6 (det tie-break)
+  G+D subset: min 0.750 mean 0.863 max 0.927 | seeds > 0.55: 6/6 (avg), 6/6 (det)
+  decoy share at top-20: full 0.00 0.00 0.00 0.00 0.00 0.00 | G+D 0.07 0.10 0.15 0.15 0.25 0.10
+
+== reference: H8 N1 line = 95th pct of max-over-6-seeds per-seed p@20 of 1,000 hashed-key rankers: full 0.25, G+D 0.55; chance full 0.078, G+D 0.303 ==

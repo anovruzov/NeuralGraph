@@ -1,0 +1,20 @@
+
+==================== gate model F / TB_v4 ====================
+  pick A_w_maxk : top-20 gold per seed 6.0 8.0 9.0 8.0 6.0 10.1 (P@20 0.393); feasible among them 29.0/47.1 -> c_g(top-20) = 0.616 [per seed 0.67 0.88 0.78 0.75 0.17 0.40] | c_g(all 138 pool gold) = 0.413 | pick inside label window 134/138 = 0.97 | p* = 0.275/c_g = 0.447 -> measured P@20 0.393 FAILS (margin -0.054)
+  pick B_hi     : top-20 gold per seed 6.0 8.0 9.0 8.0 6.0 10.1 (P@20 0.393); feasible among them 0.0/47.1 -> c_g(top-20) = 0.000 [per seed 0.00 0.00 0.00 0.00 0.00 0.00] | c_g(all 138 pool gold) = 0.000 | pick inside label window 24/138 = 0.17 | p* = 0.275/c_g = inf -> measured P@20 0.393 FAILS (margin -inf)
+  pick C_run0   : top-20 gold per seed 6.0 8.0 9.0 8.0 6.0 10.1 (P@20 0.393); feasible among them 16.0/47.1 -> c_g(top-20) = 0.340 [per seed 0.00 0.50 0.44 0.38 0.17 0.40] | c_g(all 138 pool gold) = 0.196 | pick inside label window 114/138 = 0.83 | p* = 0.275/c_g = 0.810 -> measured P@20 0.393 FAILS (margin -0.417)
+  pick D_first  : top-20 gold per seed 6.0 8.0 9.0 8.0 6.0 10.1 (P@20 0.393); feasible among them 16.0/47.1 -> c_g(top-20) = 0.340 [per seed 0.00 0.50 0.44 0.38 0.17 0.40] | c_g(all 138 pool gold) = 0.196 | pick inside label window 113/138 = 0.82 | p* = 0.275/c_g = 0.810 -> measured P@20 0.393 FAILS (margin -0.417)
+  pick E_anywin : top-20 gold per seed 6.0 8.0 9.0 8.0 6.0 10.1 (P@20 0.393); feasible among them 33.0/47.1 -> c_g(top-20) = 0.701 [per seed 0.67 0.88 0.89 0.88 0.17 0.59] | c_g(all 138 pool gold) = 0.587 | p* = 0.275/c_g = 0.393 -> measured P@20 0.393 FAILS (margin -0.000)
+  pick F_flag   : top-20 gold per seed 6.0 8.0 9.0 8.0 6.0 10.1 (P@20 0.393); feasible among them 33.0/47.1 -> c_g(top-20) = 0.701 [per seed 0.67 0.88 0.89 0.88 0.17 0.59] | c_g(all 138 pool gold) = 0.587 | p* = 0.275/c_g = 0.393 -> measured P@20 0.393 FAILS (margin -0.000)
+
+==================== gate model K / TB_v4 ====================
+  pick A_w_maxk : top-20 gold per seed 6.0 8.0 9.0 8.0 6.0 10.1 (P@20 0.393); feasible among them 36.0/47.1 -> c_g(top-20) = 0.764 [per seed 0.83 1.00 1.00 0.75 0.50 0.50] | c_g(all 138 pool gold) = 0.536 | pick inside label window 134/138 = 0.97 | p* = 0.275/c_g = 0.360 -> measured P@20 0.393 CLEARS (margin +0.033)
+  pick B_hi     : top-20 gold per seed 6.0 8.0 9.0 8.0 6.0 10.1 (P@20 0.393); feasible among them 0.0/47.1 -> c_g(top-20) = 0.000 [per seed 0.00 0.00 0.00 0.00 0.00 0.00] | c_g(all 138 pool gold) = 0.000 | pick inside label window 24/138 = 0.17 | p* = 0.275/c_g = inf -> measured P@20 0.393 FAILS (margin -inf)
+  pick C_run0   : top-20 gold per seed 6.0 8.0 9.0 8.0 6.0 10.1 (P@20 0.393); feasible among them 29.0/47.1 -> c_g(top-20) = 0.616 [per seed 0.67 0.62 0.67 0.88 0.17 0.59] | c_g(all 138 pool gold) = 0.341 | pick inside label window 114/138 = 0.83 | p* = 0.275/c_g = 0.447 -> measured P@20 0.393 FAILS (margin -0.054)
+  pick D_first  : top-20 gold per seed 6.0 8.0 9.0 8.0 6.0 10.1 (P@20 0.393); feasible among them 29.0/47.1 -> c_g(top-20) = 0.616 [per seed 0.67 0.62 0.67 0.88 0.17 0.59] | c_g(all 138 pool gold) = 0.341 | pick inside label window 113/138 = 0.82 | p* = 0.275/c_g = 0.447 -> measured P@20 0.393 FAILS (margin -0.054)
+  pick E_anywin : top-20 gold per seed 6.0 8.0 9.0 8.0 6.0 10.1 (P@20 0.393); feasible among them 41.1/47.1 -> c_g(top-20) = 0.873 [per seed 0.83 1.00 1.00 0.88 0.83 0.70] | c_g(all 138 pool gold) = 0.717 | p* = 0.275/c_g = 0.315 -> measured P@20 0.393 CLEARS (margin +0.077)
+  pick F_flag   : top-20 gold per seed 6.0 8.0 9.0 8.0 6.0 10.1 (P@20 0.393); feasible among them 33.0/47.1 -> c_g(top-20) = 0.701 [per seed 0.67 0.88 0.89 0.88 0.17 0.59] | c_g(all 138 pool gold) = 0.587 | p* = 0.275/c_g = 0.393 -> measured P@20 0.393 FAILS (margin -0.000)
+
+== how far the ranker's window sits from the feasible weeks (model F): for top-20 gold, distance in weeks from A_w_maxk to the nearest feasible week ==
+  distance histogram (99 = pattern has no feasible week at all): [(0, 29), (1, 1), (2, 2), (9, 1), (99, 14)]
+  gold in det top-20 with NO F/TB_v4-feasible week anywhere: 14/47

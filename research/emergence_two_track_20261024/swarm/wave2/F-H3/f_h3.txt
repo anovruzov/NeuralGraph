@@ -1,0 +1,116 @@
+pool: rule_only, rule_weeks>=7: 1765 keys, gold 138, decoy 317, other 1310
+per seed gold/decoy: [(0, 25, 58), (1, 27, 62), (2, 21, 50), (3, 21, 51), (4, 20, 50), (5, 24, 46)]
+
+================ KILL 1: one formula, band(9..15->2, >=16->1, <=8->0), vs free line (longest run) ================
+pooled AUC gold-vs-decoy: band 0.704 | longest run 0.668 | rule_weeks count 0.611
+seed      :   s0      s1      s2      s3      s4      s5  
+band      : 0.709   0.685   0.723   0.753   0.663   0.700   mean 0.706 min 0.663
+longest   : 0.705   0.685   0.633   0.629   0.719   0.625   mean 0.666 min 0.625
+rw count  : 0.672   0.668   0.550   0.494   0.671   0.583   mean 0.607 min 0.494
+band > free line 0.668 (pooled constant) per seed: [True, True, True, True, False, True]  -> 5/6
+band > longest-run AUC of the SAME seed:                 [True, False, True, True, False, True]  -> 4/6
+  s0: n_gold 25 n_decoy 58 | null sd(AUC) 0.069 | band-longest diff +0.004 bootstrap sd 0.067 P(diff<=0) 0.492
+  s1: n_gold 27 n_decoy 62 | null sd(AUC) 0.067 | band-longest diff +0.000 bootstrap sd 0.063 P(diff<=0) 0.507
+  s2: n_gold 21 n_decoy 50 | null sd(AUC) 0.076 | band-longest diff +0.090 bootstrap sd 0.074 P(diff<=0) 0.119
+  s3: n_gold 21 n_decoy 51 | null sd(AUC) 0.075 | band-longest diff +0.124 bootstrap sd 0.071 P(diff<=0) 0.043
+  s4: n_gold 20 n_decoy 50 | null sd(AUC) 0.077 | band-longest diff -0.055 bootstrap sd 0.084 P(diff<=0) 0.733
+  s5: n_gold 24 n_decoy 46 | null sd(AUC) 0.073 | band-longest diff +0.074 bootstrap sd 0.073 P(diff<=0) 0.150
+pooled band-longest diff +0.036, bootstrap sd 0.030, one-sided P(diff<=0) = 0.1190
+realised ranker (band + hash tie-break), pooled AUC over 300 salts: mean 0.705 sd 0.010 min 0.681 max 0.734
+VERDICT KILL 1: KILLED  (needs 6/6 above the free line; got 5/6 vs 0.668 and 4/6 vs same-seed longest run)
+
+================ KILL 2: seed-swap and the best-of-many discount ================
+(i) s(key) = band(len(rule_weeks)) reads one exported field of the key itself; refitting on any seed subset cannot move it.
+    Seed-swap of the FORMULA: s(key) unchanged for 1765/1765 keys (trivial). The thing that was fitted is the EDGES (9, 15).
+(ii) edge grid: lo in 7..13, hi in lo..26, structure fixed (mid>high>low): 119 candidate (lo,hi) pairs
+    in-sample (all six seeds) best edges: [('0.708', 9, 13), ('0.705', 9, 14), ('0.704', 9, 15), ('0.702', 9, 12), ('0.695', 9, 17), ('0.683', 9, 16), ('0.682', 9, 18), ('0.678', 9, 9)]
+    (9,15) in-sample AUC 0.704, rank 3 of 119 in the grid
+    LOSO edge choice (pick (lo,hi) on five seeds by pooled AUC, apply to the sixth):
+      hold out s0: chosen edges (9, 13), train AUC 0.708, held-out AUC 0.712  (fixed 9..15 on s0: 0.709; longest run: 0.705)
+      hold out s1: chosen edges (9, 13), train AUC 0.718, held-out AUC 0.665  (fixed 9..15 on s1: 0.685; longest run: 0.685)
+      hold out s2: chosen edges (9, 15), train AUC 0.701, held-out AUC 0.723  (fixed 9..15 on s2: 0.723; longest run: 0.633)
+      hold out s3: chosen edges (9, 13), train AUC 0.705, held-out AUC 0.718  (fixed 9..15 on s3: 0.753; longest run: 0.629)
+      hold out s4: chosen edges (9, 15), train AUC 0.711, held-out AUC 0.663  (fixed 9..15 on s4: 0.663; longest run: 0.719)
+      hold out s5: chosen edges (9, 13), train AUC 0.713, held-out AUC 0.679  (fixed 9..15 on s5: 0.700; longest run: 0.625)
+    LOSO held-out: mean 0.694 min 0.663; above same-seed longest run on 4/6 seeds; above 0.668 on 4/6
+    3-vs-3 seed swap (choose edges on three seeds, test on the other three), all 20 splits:
+      train (0, 1, 2) -> edges (9, 14), test AUC 0.696 (longest run on test 0.655, band wins)
+      train (0, 1, 3) -> edges (9, 15), test AUC 0.696 (longest run on test 0.656, band wins)
+      train (0, 1, 4) -> edges (9, 9), test AUC 0.653 (longest run on test 0.629, band wins)
+      train (0, 1, 5) -> edges (9, 17), test AUC 0.689 (longest run on test 0.657, band wins)
+      train (0, 2, 3) -> edges (9, 14), test AUC 0.679 (longest run on test 0.674, band wins)
+      train (0, 2, 4) -> edges (9, 12), test AUC 0.676 (longest run on test 0.650, band wins)
+      train (0, 2, 5) -> edges (9, 13), test AUC 0.701 (longest run on test 0.677, band wins)
+      train (0, 3, 4) -> edges (9, 13), test AUC 0.697 (longest run on test 0.652, band wins)
+      train (0, 3, 5) -> edges (9, 15), test AUC 0.690 (longest run on test 0.676, band wins)
+      train (0, 4, 5) -> edges (9, 17), test AUC 0.680 (longest run on test 0.652, band wins)
+      train (1, 2, 3) -> edges (9, 14), test AUC 0.693 (longest run on test 0.683, band wins)
+      train (1, 2, 4) -> edges (9, 13), test AUC 0.703 (longest run on test 0.658, band wins)
+      train (1, 2, 5) -> edges (9, 15), test AUC 0.707 (longest run on test 0.687, band wins)
+      train (1, 3, 4) -> edges (9, 13), test AUC 0.714 (longest run on test 0.660, band wins)
+      train (1, 3, 5) -> edges (9, 15), test AUC 0.698 (longest run on test 0.687, band wins)
+      train (1, 4, 5) -> edges (9, 17), test AUC 0.698 (longest run on test 0.661, band wins)
+      train (2, 3, 4) -> edges (9, 13), test AUC 0.685 (longest run on test 0.677, band wins)
+      train (2, 3, 5) -> edges (9, 15), test AUC 0.687 (longest run on test 0.702, longest wins)
+      train (2, 4, 5) -> edges (9, 13), test AUC 0.696 (longest run on test 0.679, band wins)
+      train (3, 4, 5) -> edges (9, 13), test AUC 0.706 (longest run on test 0.680, band wins)
+    swap summary: held-out band mean 0.692 min 0.653 max 0.714; beats longest run on 19/20 splits; edges chosen: [(9, 9), (9, 12), (9, 13), (9, 14), (9, 15), (9, 17)]
+(iii) required pooled AUC to stand at one-sided p<0.05 (null sd 0.0295):
+      vs N1 noise, Bonferroni k=  1: AUC > 0.548
+      vs N1 noise, Bonferroni k=  8: AUC > 0.574   (k=8: H3's variant count; k=16: with sign flip)
+      vs N1 noise, Bonferroni k= 16: AUC > 0.581   (k=8: H3's variant count; k=16: with sign flip)
+      vs N1 noise, Bonferroni k=119: AUC > 0.598   (edge grid)
+      vs N1 noise, Bonferroni k=238: AUC > 0.604   (edge grid with sign flip)
+      vs N1 noise, H8 empirical best-of-k 95th pct: k=10 > 0.60, k=50 > 0.62, k=200 > 0.63
+      observed pooled band AUC 0.704: clears N1 at every k above -> not noise. That is not the question.
+      vs the FREE line (paired, same keys): bootstrap sd of (band - longest) = 0.0296
+        k=  1: band must exceed longest by > 0.049, i.e. AUC > 0.717; observed 0.704 -> FAILS
+        k=  8: band must exceed longest by > 0.074, i.e. AUC > 0.742; observed 0.704 -> FAILS
+        k= 16: band must exceed longest by > 0.081, i.e. AUC > 0.749; observed 0.704 -> FAILS
+        k=119: band must exceed longest by > 0.099, i.e. AUC > 0.767; observed 0.704 -> FAILS
+      per-seed (sd ~0.07): the band must beat longest run on the SAME seed by > 0.115 at k=1 to be a per-seed result; it loses outright on 2 seeds.
+VERDICT KILL 2: KILLED  (after k=8 discount the formula needs pooled AUC > 0.742 over the free line; LOSO-edge min 0.663; seed-swap beats longest on 19/20 splits)
+
+================ KILL 3: break-even at top-10 / top-20 per seed ================
+ranker: band desc, ties by sha256('e2e-ingest-v1|'+key) (H3's tie-break); FULL filtered pool per seed (other keys compete).
+  s0: band-2 keys 110 | top-10: gold 2 (feasible 1) decoy 0 other 8 | top-20: gold 3 (feasible 2) decoy 0 other 17
+  s1: band-2 keys 114 | top-10: gold 2 (feasible 1) decoy 2 other 6 | top-20: gold 4 (feasible 3) decoy 4 other 12
+  s2: band-2 keys 95 | top-10: gold 1 (feasible 1) decoy 2 other 7 | top-20: gold 3 (feasible 2) decoy 5 other 12
+  s3: band-2 keys 97 | top-10: gold 2 (feasible 1) decoy 1 other 7 | top-20: gold 3 (feasible 2) decoy 3 other 14
+  s4: band-2 keys 103 | top-10: gold 1 (feasible 1) decoy 2 other 7 | top-20: gold 2 (feasible 1) decoy 5 other 13
+  s5: band-2 keys 100 | top-10: gold 0 (feasible 0) decoy 2 other 8 | top-20: gold 2 (feasible 2) decoy 5 other 13
+  six-seed top-10: gold 8/60 = p 0.133; feasible gold 5 -> c_g 0.625; p* = 0.275/c_g = 0.440; (a) FAILS (p/p* = 0.30); found if asked at feasible weeks = 5 vs displaced 16.5; (b) decoys asked 9 x a_d 0.551 = 5.0 accepted decoys added against zero headroom -> breach; p vs p*_b 0.19: FAILS
+  six-seed top-20: gold 17/120 = p 0.142; feasible gold 12 -> c_g 0.706; p* = 0.275/c_g = 0.390; (a) FAILS (p/p* = 0.36); found if asked at feasible weeks = 12 vs displaced 33.0; (b) decoys asked 22 x a_d 0.551 = 12.1 accepted decoys added against zero headroom -> breach; p vs p*_b 0.19: FAILS
+  expectation over 300 salts (the top-k is a random draw from the band-2 keys, so the salt is the ranker):
+    top-10: gold 8.9 +- 2.6 (max 17) -> p 0.149 (max 0.283); feasible 6.2; decoys 9.9 +- 2.7 (min 5); P(p >= 0.47) = 0.000; P(0 decoys) = 0.000
+    top-20: gold 17.7 +- 3.7 (max 28) -> p 0.147 (max 0.233); feasible 12.1; decoys 19.8 +- 3.7 (min 11); P(p >= 0.47) = 0.000; P(0 decoys) = 0.000
+  band-2 population (9<=rw<=15): 619 keys, gold 90 (p 0.145), feasible gold 61 (c_g 0.678), decoy 102 (d 0.165); p* = 0.406
+VERDICT KILL 3: KILLED  (top-20 p = 0.142 vs p* = 0.390; top-10 p = 0.133; below 0.19 as well; adds 12.1 accepted decoys at top-20 against zero headroom)
+
+================ KILL 4: is the band longest-run in disguise? ================
+Spearman(band, longest) on gold+decoy subset: +0.421; on full filtered pool: +0.464
+Spearman(band, rw count) on gold+decoy subset: +0.481; Spearman(longest, rw count): +0.814
+AUC longest run alone, same keys: 0.668; AUC band: 0.704; AUC rw count: 0.611
+  band x longest-run bucket (gold/decoy):
+    band=0: <=7: 1/4  8: 13/130  9-12: 0/0  13-15: 0/0  16+: 0/0
+    band=1: <=7: 0/0  8: 1/12  9-12: 4/12  13-15: 8/5  16+: 21/52
+    band=2: <=7: 0/2  8: 9/37  9-12: 61/44  13-15: 20/19  16+: 0/0
+  partial AUC of band given longest run (within exact longest-run strata): 0.576 over 5399 of 43746 gold-decoy pairs (12.3% of pairs are comparable)
+  partial AUC of longest run given band (within band strata):             0.587 over 13810 of 43746 pairs (31.6%)
+  partial AUC of band given longest-run BUCKET (<=7,8,9-12,13-15,16+):   0.565 over 9527 pairs (21.8%)
+  logistic deviance: null 558.4; longest (categorical, 20 df) 457.5; band (2 df) 497.7; both 451.6
+    band | longest: LR = 5.9 on 2 df, p = 5.22e-02
+    longest | band: LR = 46.1 on 20 df, p = 8.16e-04
+  the SAME band applied to longest run instead of rw count: AUC 0.741  (rw-count band 0.704)
+  band with only the >=16 demotion (9..15 and <=8 tied): AUC 0.505; only the <=8 demotion (9+ tied): AUC 0.661
+  longest run restricted to keys with rw>=9: AUC 0.530; band on the same keys: 0.584; rw count: 0.406  (n gold 124, decoy 183)
+  decomposition: indicator rw>=9 alone AUC 0.661 (= H8 N3c best single cut 0.661); full band 0.704; the >=16 demotion adds +0.044 pooled
+  the novelty on the keys it acts on (rw>=9, 124 gold / 183 decoy): AUC 0.584, null sd 0.0336, z = 2.50, one-sided p = 0.0061; Bonferroni thresholds k=1 0.555, k=8 0.584, k=16 0.592
+  the novelty per seed (rw>=9 keys only): 0.516 0.546 0.631 0.757 0.461 0.608  -> above 0.5 on 5/6 (s4 has its gold at rw>=16)
+VERDICT KILL 4: NOT a disguise  (Spearman +0.421; partial AUC band|longest 0.576; band|longest LR p = 5.2e-02) -- the band carries information longest run does not; it still does not clear the free line per seed (KILL 1) or the break-even (KILL 3).
+
+================ SUMMARY ================
+K1 one formula vs free line: pooled 0.704 vs 0.668; per seed above same-seed longest run 4/6; above 0.668 5/6 -> KILLED
+K2 LOSO-edge held-out min 0.663; 3v3 swap beats longest 19/20; needed after k=8 discount 0.742 -> KILLED
+K3 top-20 p 0.142 vs p* 0.390; top-10 p 0.133; +12.1 accepted decoys at top-20 -> KILLED
+K4 Spearman(band,longest) +0.421; partial AUC band|longest 0.576 -> NOT a disguise

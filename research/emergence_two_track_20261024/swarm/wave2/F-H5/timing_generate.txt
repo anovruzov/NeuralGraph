@@ -1,0 +1,2 @@
+generate(2000,0) secs 0.1 records 68463 patterns 90 users 1999
+generate(200,0) secs 0.1 records 12964
