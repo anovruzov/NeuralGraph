@@ -360,6 +360,22 @@ function renderStream() {
 
 // ---------------------------------------------------------------- 04 judge
 function bar(frac, n = 16) { const k = Math.round(Math.max(0, Math.min(1, frac)) * n); return '[' + '#'.repeat(k) + ' '.repeat(n - k) + ']'; }
+const FALS = {};
+function falsifierRows() {
+  for (const e of ARENA.events) {
+    if (e.tag !== 'ARTIFACT' || !/FALSIFICATION\.md/.test(e.msg) || !e.ref || !e.ref.path || FALS[e.id]) continue;
+    FALS[e.id] = { agent: e.agent, path: e.ref.path, status: 'loading' };
+    fetch('/artifact?path=' + encodeURIComponent(e.ref.path)).then(r => r.text()).then(t => {
+      const m = t.match(/\b(H\d-\d(?:\s*\/\s*H\d-\d)?(?:[^:\n]{0,24})?):\s*\*{0,2}(ALIVE|DEAD)\*{0,2}\b[^\n]*/i);
+      const cnt = re => (t.match(re) || []).length;
+      FALS[e.id] = { agent: e.agent, path: e.ref.path, status: 'ok', target: m ? m[1].trim() : '?', verdict: m ? m[2].toUpperCase() : '?',
+                     line: m ? m[0].replace(/\*/g, '').slice(0, 260) : '(no final verdict line found in the file)',
+                     killed: cnt(/VERDICT:\s*\*{0,2}KILLED/gi), survived: cnt(/VERDICT:\s*\*{0,2}SURVIVED/gi), nv: cnt(/VERDICT:\s*\*{0,2}NOT VERIFIABLE/gi) };
+      dirty.judge = true; schedule();
+    }).catch(() => { FALS[e.id].status = 'error'; });
+  }
+  return Object.values(FALS);
+}
 function renderJudge() {
   const S = ARENA.state, run = S.run; let html = '';
   if (run && run.checks && Object.keys(run.checks).length) {
@@ -377,7 +393,12 @@ function renderJudge() {
   const crit = [['no label inside the statistic', 30], ['beats the designed null (H8) at p<0.05', 25], ['best-of-k disclosed, sample discounted', 15], ['survives leave-one-seed-out', 15], ['clears the break-even (H6)', 15]];
   const judged = ARENA.events.filter(e => e.source === 'swarm' && e.tag === 'ARTIFACT' && /HYPOTHESES|NULL|BREAK_EVEN/.test(e.msg)).length;
   for (const [c, w] of crit) html += `<div class="rub"><span>${esc(c)}</span><span class="bar dim">${bar(0)}</span><span class="sc dim">—/${w}</span></div>`;
-  html += `<div class="rub"><span class="dim">${judged ? judged + ' hypothesis artifact' + (judged > 1 ? 's' : '') + ' delivered · falsifiers not yet spawned → no score' : 'no hypothesis artifact delivered yet → no score'}</span><span></span><span></span></div>`;
+  const rows = falsifierRows(), dead = rows.filter(r => r.verdict === 'DEAD').length, alive = rows.filter(r => r.verdict === 'ALIVE').length;
+  html += `<div class="rub hdr" style="margin-top:8px"><span>falsifier verdicts, read from each FALSIFICATION.md (the judge is a separate agent)</span><span>kills fired</span><span class="sc">verdict</span></div>`;
+  if (!rows.length) html += `<div class="rub"><span class="dim">${judged ? judged + ' hypothesis artifact' + (judged > 1 ? 's' : '') + ' delivered · no falsification report yet' : 'no hypothesis artifact delivered yet'}</span><span></span><span></span></div>`;
+  for (const r of rows) { const tot = r.killed + r.survived + r.nv;
+    html += `<div class="rub"><span><b>${esc(r.agent)}</b> → ${esc(r.target)} <a href="/artifact?path=${encodeURIComponent(r.path)}" target="_blank">file</a><br><span class="dim2">${esc(r.line || r.status)}</span></span><span class="bar ${r.verdict === 'DEAD' ? 'bad' : ''}">${bar(tot ? r.killed / tot : 0)}</span><span class="sc ${r.verdict === 'DEAD' ? 'r' : r.verdict === 'ALIVE' ? 'g' : 'dim'}">${r.status === 'ok' ? `${r.killed}/${tot} · ${r.verdict}` : esc(r.status)}</span></div>`; }
+  if (rows.length) html += `<div class="rub"><span class="dim">${rows.length} report${rows.length > 1 ? 's' : ''} · ${dead} DEAD · ${alive} ALIVE · a target is alive only when every pre-registered kill misses</span><span></span><span></span></div>`;
   $('judge').innerHTML = html;
   $('judge-foot').innerHTML = `<span>judges never score their own work: the falsifier is a separate agent</span><span class="dim2">blind to model cards: n/a (one model)</span>`;
 }

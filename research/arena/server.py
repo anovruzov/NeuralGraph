@@ -106,6 +106,30 @@ class HarnessController:
                               ref={"path": str(log_path)}, data={"argv": argv, "pid": self.proc.pid, "run_id": run_id})
         return self.status()
 
+    @staticmethod
+    def _session_pids(sid: int) -> list[int]:
+        try:
+            txt = subprocess.run(["ps", "-eo", "pid=,sid="], capture_output=True, text=True, timeout=5).stdout
+        except (OSError, subprocess.SubprocessError):
+            return []
+        out = []
+        for line in txt.splitlines():
+            parts = line.split()
+            if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit() and int(parts[1]) == sid and int(parts[0]) != sid:
+                out.append(int(parts[0]))
+        return out
+
+    def _sweep(self, sid: int) -> int:
+        """``start_new_session`` made the harness its session's leader, so a site process or broker that outlives
+        it is still in that session: kill them all and report how many there were, rather than leak them."""
+        pids = self._session_pids(sid)
+        for pid in pids:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        return len(pids)
+
     def _signal(self, sig: int) -> None:
         if not (self.proc and self.proc.poll() is None):
             raise RuntimeError("no run in progress")
@@ -138,8 +162,10 @@ class HarnessController:
             os.killpg(os.getpgid(pid), signal.SIGKILL)
             self.proc.wait(5)
         self.paused = False
+        swept = self._sweep(pid)
         self.app.store.append(tag="CONTROL", source="control", agent="operator",
-                              msg=f"stop: pid {pid} exited {self.proc.returncode}", data={"pid": pid, "returncode": self.proc.returncode})
+                              msg=f"stop: pid {pid} exited {self.proc.returncode}; swept {swept} from its session",
+                              data={"pid": pid, "returncode": self.proc.returncode, "swept": swept})
         self._reported_exit = True
         return self.status()
 
@@ -150,6 +176,11 @@ class HarnessController:
             rc = self.proc.returncode
             self.app.store.append(tag="COMPLETE" if rc == 0 else "FAIL", source="control", agent="hq",
                                   msg=f"run {self.scenario} exited {rc}", data={"pid": self.proc.pid, "returncode": rc})
+            swept = self._sweep(self.proc.pid)
+            if swept:
+                self.app.store.append(tag="RECOVER", source="control", agent="hq",
+                                      msg=f"swept {swept} process(es) the run left in session {self.proc.pid}",
+                                      data={"pid": self.proc.pid, "swept": swept})
             if self._log:
                 self._log.close()
 

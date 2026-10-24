@@ -86,16 +86,23 @@ class SwarmSource:
         self.root = Path(root)
         self.roles = dict(roles or {})
         self.agents: dict[str, dict[str, Any]] = {}
+        self._roles_mtime = 0.0
 
     def poll(self, store: EventStore) -> None:
         if not self.root.exists():
             return
         roles_file = self.root / "ROLES.json"
-        if roles_file.exists() and not self.roles:
-            try:
-                self.roles = {k: v for k, v in json.loads(roles_file.read_text()).items() if not k.startswith("_")}
-            except (OSError, ValueError):
-                pass
+        if roles_file.exists():
+            mt = roles_file.stat().st_mtime
+            if mt != self._roles_mtime:          # re-read when the orchestrator adds a wave's launch metadata
+                self._roles_mtime = mt
+                try:
+                    self.roles = {k: v for k, v in json.loads(roles_file.read_text()).items() if not k.startswith("_")}
+                    for aid, a in self.agents.items():
+                        if not a.get("role") and aid in self.roles:
+                            a["role"] = self.roles[aid]
+                except (OSError, ValueError):
+                    pass
         for d in sorted(p for p in self.root.iterdir() if p.is_dir()):
             aid = d.name
             a = self.agents.setdefault(aid, {"id": aid, "start": None, "end": None, "artifacts": [],

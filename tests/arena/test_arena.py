@@ -227,6 +227,20 @@ class ServerTests(unittest.TestCase):
         self.assertTrue((d / "runs" / (ctl.data["run_id"] + ".log")).exists())  # the log is beside it
         self.assertEqual([e.tag for e in evs if e.source == "control"], ["CONTROL", "COMPLETE"])
 
+    def test_a_process_the_run_leaves_in_its_session_is_swept_and_reported(self) -> None:
+        d = Path(self.tmp.name)
+        leaky = Scenario("leaky", SYNTHETIC, lambda run_dir, run_id: ["sh", "-c", "sleep 300 & exit 0"])
+        self.app.config.runs_root, self.app.config.scenarios = d / "runs", {"leaky": leaky}
+        self.app.controller.start("leaky")
+        pid = self.app.controller.proc.pid
+        self.app.controller.proc.wait(10)
+        self.assertTrue(self.app.controller._session_pids(pid))                # the sleep outlived the leader
+        self.app.controller.check()
+        time.sleep(0.2)
+        self.assertEqual(self.app.controller._session_pids(pid), [])           # and was swept
+        tags = [e.tag for e in self.app.store.since(0) if e.source == "control"]
+        self.assertEqual(tags, ["CONTROL", "COMPLETE", "RECOVER"])
+
     def test_controls_refuse_destruction_without_confirm_and_unknown_actions(self) -> None:
         def post(obj: dict) -> tuple[int, dict]:
             req = urllib.request.Request(self.base + "/control", data=json.dumps(obj).encode(),
