@@ -631,6 +631,11 @@ E2E_CHECKS = ("c0_real_fabric_keyed", "c1_signed", "c2_lineage", "c3_idempotent"
 #: The checks the measure job runs over its own report (each size's report carries c0, c7, c8 and c9 of its own).
 MEASURE_CHECKS = ("c5_measured", "c10_suites_green")
 
+#: What a ``run`` owes: every e2e check it can run (``E2E_CHECKS``), which excludes the two belonging to other
+#: jobs (c5 the measure job, c6 the workflow test).  An unevaluated one makes ``checks_pass`` false -- the drills
+#: included, which is the point: an ablation that skips them may not wear the same verdict as a guarded run.
+RUN_REQUIRED_CHECKS = E2E_CHECKS
+
 
 def run_checks(doc: Mapping[str, Any], names: Sequence[str] = E2E_CHECKS) -> dict[str, Any]:
     return {name: CHECKS[name](doc) for name in names}
@@ -845,15 +850,27 @@ SUITES_NOT_GREEN = "suites_not_green"
 
 
 def verdict(checks: Mapping[str, Mapping[str, Any]], *, not_run: Mapping[str, str] | None = None,
-            suites_green: bool = False) -> dict[str, Any]:
-    """``checks_pass`` when every check that ran is ``ok``; ``pass`` only when, besides, the suites' junit evidence
-    of M2 is in the report and green (``suites_green``), else ``reason`` is ``suites_not_green`` (criterion 10: a
-    run on a tree whose suites are not shown green is not a result). ``not_run`` names the checks this job did not
-    run and why, and ``complete`` is false while any is missing: a report never claims a check it did not make."""
+            suites_green: bool = False, required: Sequence[str] = ()) -> dict[str, Any]:
+    """``checks_pass`` when every check that ran is ``ok`` **and every required check actually ran**; ``pass`` only
+    when, besides, the suites' junit evidence of M2 is in the report and green (``suites_green``), else ``reason``
+    is ``suites_not_green`` (criterion 10: a run on a tree whose suites are not shown green is not a result).
+    ``not_run`` names the checks this job did not run and why, and ``complete`` is false while any is missing: a
+    report never claims a check it did not make.
+
+    ``required`` names the checks this job owes.  It exists because ``checks_pass`` used to mean only "nothing that
+    ran failed", so a run that skipped its privacy and integrity drills (``--skip-drills`` puts c1-c4 in
+    ``not_run``) or carried no suites evidence reported ``checks_pass: true`` while the gates that would have
+    caught a defect were never evaluated.  An unevaluated required gate now fails ``checks_pass`` and is named in
+    ``reason``, so no reader has to cross-check ``not_run`` to learn that a number is unguarded."""
     failed = sorted(name for name, c in checks.items() if not c.get("ok"))
     missing = dict(not_run or {})
-    checks_pass = not failed
+    unevaluated = sorted(name for name in required if name in missing)
+    checks_pass = not failed and not unevaluated
+    reason = None if suites_green else SUITES_NOT_GREEN
+    if unevaluated:
+        reason = f"required checks not evaluated: {', '.join(unevaluated)}"
     return {"pass": checks_pass and bool(suites_green), "checks_pass": checks_pass,
-            "reason": None if suites_green else SUITES_NOT_GREEN, "suites_green": bool(suites_green),
-            "failed": failed, "checks_run": sorted(checks), "not_run": dict(sorted(missing.items())),
+            "reason": reason, "suites_green": bool(suites_green),
+            "failed": failed, "unevaluated_required": unevaluated,
+            "checks_run": sorted(checks), "not_run": dict(sorted(missing.items())),
             "complete": not missing}

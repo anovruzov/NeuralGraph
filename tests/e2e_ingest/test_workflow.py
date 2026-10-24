@@ -39,7 +39,7 @@ E2E_JOBS = ("e2e", "measure")
 CLI = "python -m research.e2e_ingest"
 #: ``pytest --collect-only tests/e2e_ingest`` at this build (M2): a literal, never derived from ``suites.py``, so
 #: lowering ``E2E_INGEST_FLOOR`` fails here; a later build raises it together with the floor when tests are added.
-E2E_INGEST_TESTS_AT_THIS_BUILD = 159
+E2E_INGEST_TESTS_AT_THIS_BUILD = 165
 
 
 def section(start: str, end: str) -> str:

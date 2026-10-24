@@ -57,7 +57,7 @@ NEEDS_ENV = {"suites-core": "E2E_NEEDS_SUITES_CORE", "suites-lab": "E2E_NEEDS_SU
              "suites-e2e": "E2E_NEEDS_SUITES_E2E"}
 #: ``tests/e2e_ingest`` at this build's merge (M2: written into the settings test as a literal, may only rise;
 #: 151 at the first build, 157 after the review's fixes, 159 with the seed-independent world guard's tests).
-E2E_INGEST_FLOOR = 159
+E2E_INGEST_FLOOR = 165
 #: The row's counts the reader re-parses from the junit file and requires equal (``junit_bound``).
 JUNIT_COUNTS = ("tests", "tests_distinct", "failures", "errors", "skipped", "skipped_in_scope")
 JETSTREAM_CLASSNAME = "tests.mycelic.test_jetstream"

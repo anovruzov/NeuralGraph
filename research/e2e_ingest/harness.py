@@ -1444,7 +1444,8 @@ class E2ERun:
         names = [n for n in rp.E2E_CHECKS if n not in not_run]
         self.doc["checks"] = rp.run_checks(self.doc, names)
         self.doc["verdict"] = rp.verdict(self.doc["checks"], not_run=not_run,
-                                         suites_green=rp.suites_green(self.doc))
+                                         suites_green=rp.suites_green(self.doc),
+                                         required=rp.RUN_REQUIRED_CHECKS)
         return self.doc
 
 

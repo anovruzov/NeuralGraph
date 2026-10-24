@@ -171,7 +171,9 @@ def green_report() -> dict[str, Any]:
                    "broker_binary_version": "2.10.22", "integrity_mode": "keyed",
                    "stream_messages": stream + 3},
         "world": {"sites": 7, "records": 700, "users": 309, "target_users": 200,
-                  "expected_counts": {"users": 309, "sites": 7, "records": 700}},
+                  "expected_counts": {"users": 309, "sites": 7, "records": 700},
+                  # seed 0's draw is section 3.1's row, so the diff a run reports is empty
+                  "table_row_diff": [],},
         "ingest": {"per_site": sites, "total_expected": 700, "total_ingested": 700, "loss": 0,
                    "pipeline_raised": False, "seconds_per_1k_records": 0.3},
         "routing": {"candidates_asked": 20, "verdicts": {"budget_unknown": 0}, "route_selected_first_all": True,
@@ -440,7 +442,9 @@ class CheckTests(unittest.TestCase):
             ("c8_emergence_load", "totals_agree", "ingest.total_ingested", 699),
             ("c8_emergence_load", "no_loss", "ingest.loss", 1),
             ("c8_emergence_load", "pipeline_raised_nothing", "ingest.pipeline_raised", True),
-            ("c8_emergence_load", "world_is_section_3_1", "world.users", 310),
+            ("c8_emergence_load", "world_invariants_are_section_3_1", "world.users", 310),
+            # a draw report that names a count the draw may not move is not a draw report
+            ("c8_emergence_load", "world_draw_is_reported", "world.table_row_diff", ["users: 309 -> 310"]),
             ("c9_benchmark", "every_discovery_field_present", "discovery.decoy_accepted_by_type", DROP),
             ("c9_benchmark", "found_patterns_are_gold_discoverable", "discovery.found_patterns", ["p001", "x999"]),
             ("c9_benchmark", "recall_all_is_found_over_gold", "discovery.recall_all", 0.5),
@@ -615,10 +619,13 @@ class LiveRunTests(unittest.TestCase):
         self.assertEqual(self.doc["run"]["suites_evidence"], None)
         self.assertEqual(self.doc["run"]["suites_problems"], ["no suites directory"])
         self.assertFalse(self.doc["verdict"]["complete"])
-        # M2: no junit evidence of the suites was given to this run, so it does not count whatever its checks say
-        self.assertEqual((self.doc["verdict"]["pass"], self.doc["verdict"]["reason"]),
-                         (False, rp.SUITES_NOT_GREEN))
-        self.assertEqual(self.doc["verdict"]["checks_pass"], not self.doc["verdict"]["failed"])
+        # M2: no junit evidence of the suites was given to this run, so it does not count whatever its checks say.
+        # c10 is a required check, so a run that never evaluated it cannot report ``checks_pass`` either: the
+        # verdict names it under ``unevaluated_required`` and says so as its reason.
+        self.assertFalse(self.doc["verdict"]["pass"])
+        self.assertEqual(self.doc["verdict"]["unevaluated_required"], ["c10_suites_green"])
+        self.assertEqual(self.doc["verdict"]["reason"], "required checks not evaluated: c10_suites_green")
+        self.assertFalse(self.doc["verdict"]["checks_pass"])
         self.assertEqual((self.doc["run"]["mode"], self.doc["phase"], self.doc["completed"]),
                          ("process", "finished", True))
 
