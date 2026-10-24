@@ -1,0 +1,163 @@
+From 73a58bdca7607430ed05f1d5bf614d37e1e656a3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 11:02:36 +0000
+Subject: [PATCH 10/11] detect: opt-in rule_snapshots, so rule-layer candidates
+ can be asked (EMERGENCE-Next)
+
+detectors.rule_snapshots (optional, absent = false = the shipped candidate
+source). A candidate the rule layer found but no detector alerted on gets a
+snapshot from its rule hit: the first rule week at which a full detector
+window fits, as_of that week's close, the rule's sites as supporting sites,
+score 0, source 'rule'. Detector snapshots are untouched. The HQ bridge
+publishes conclusions only under the detection run's recorded snapshot week,
+so this keeps the provenance chain instead of synthesising questions at HQ.
+Nothing new crosses a Boundary: the rule layer runs on HQ's existing weekly
+cells.
+
+Seed 0 (min_history 1, uncapped): true patterns asked inside their window
+23 -> 35 (rare 3 -> 14); questions 84 -> 539; decoy questions 53 -> 97.
+For the frozen track this is the root-cause report's rank 7 (founder's
+decision on the candidate source); here it is a versioned research setting.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Cc9kurj5azoGuhPNUVde8U
+---
+ mycelic/collective/detect/detectors.py | 12 +++++
+ mycelic/collective/packs/loader.py     | 10 +++-
+ tests/mycelic/test_rule_snapshots.py   | 68 ++++++++++++++++++++++++++
+ 3 files changed, 89 insertions(+), 1 deletion(-)
+ create mode 100644 tests/mycelic/test_rule_snapshots.py
+
+diff --git a/mycelic/collective/detect/detectors.py b/mycelic/collective/detect/detectors.py
+index dae111b0..7a646e17 100644
+--- a/mycelic/collective/detect/detectors.py
++++ b/mycelic/collective/detect/detectors.py
+@@ -628,11 +628,23 @@ def _walk(idx: _Index, pack: "FrozenPack", as_of: str, run_channel: str, tie_sal
+          "weeks": rule_weeks[(rule_id, key)],
+          "sites_at_first": [{"site": s, "count_lb": n} for s, n in rule_first[(rule_id, key)].sites]}
+         for rule_id, key in sorted(rule_weeks)]
++    as_of_by_week = {w["week"]: w["as_of"] for w in result["weeks"]}
++    week_list = [w["week"] for w in result["weeks"]]
++    window = cfg.window_weeks
+     for key in sorted(set(candidate_weeks) | set(key_rule_weeks)):
+         ser = series[key]                             # a rule key has a lower-bound count > 0, so it has cells
+         snapshot = alert_detail.get(key, first_detail.get(key))
+         rule = (_rule_part(idx, ser, key_rule_hits[key], key_rule_weeks[key], pack.rules)
+                 if key in key_rule_weeks else None)
++        if snapshot is None and rule is not None and pack.detectors.get("rule_snapshots"):
++            # rule_snapshots (research): the first rule week at which a full detector window fits
++            fits = [w for w in key_rule_weeks[key] if w in week_list and week_list.index(w) >= window - 1]
++            if fits:
++                i = week_list.index(fits[0])
++                snapshot = {"week": fits[0], "as_of": as_of_by_week[fits[0]], "window": [week_list[i - window + 1], fits[0]],
++                            "score": 0.0, "features": {}, "decision_unit": rule["decision_unit"], "source": "rule",
++                            "supporting_sites": sorted({s["site"] if isinstance(s, dict) else s
++                                                        for s in rule.get("sites", [])})}
+         channels = [name for name, present in ((DETECTOR_CHANNEL, key in candidate_weeks),
+                                                (RULE_CHANNEL, rule is not None)) if present]
+         weeks_alerted = alert_weeks.get(key, [])
+diff --git a/mycelic/collective/packs/loader.py b/mycelic/collective/packs/loader.py
+index 1d833e29..b2547519 100644
+--- a/mycelic/collective/packs/loader.py
++++ b/mycelic/collective/packs/loader.py
+@@ -1033,6 +1033,14 @@ def _detectors(b: _Build, egress: Egress) -> dict[str, Any]:
+     """The schema gives types and closed ranges; the open ends and the cross-checks are explicit here."""
+     f = "detectors.json"
+     raw = b.files[f]
++    # optional (absent = false, the shipped candidate source): EMERGENCE-Next research setting; a candidate the rule
++    # layer found but no detector alerted on gets a snapshot from its rule hit, so HQ may ask it
++    extra: dict[str, Any] = {}
++    if isinstance(raw, dict) and "rule_snapshots" in raw:
++        if not isinstance(raw["rule_snapshots"], bool):
++            raise PackError(f, "$.rule_snapshots", "must be a boolean") from None
++        extra = {"rule_snapshots": raw["rule_snapshots"]}
++        raw = {k: v for k, v in raw.items() if k != "rule_snapshots"}
+     _check(f, "$", raw, S_DETECTORS)
+     for path, value in (("$.burst.alpha_site", raw["burst"]["alpha_site"]),
+                         ("$.burst.lambda_floor", raw["burst"]["lambda_floor"]),
+@@ -1052,7 +1060,7 @@ def _detectors(b: _Build, egress: Egress) -> dict[str, Any]:
+         raise PackError(f, "$.burst.p_max", "must be < 1") from None
+     if raw["decoy"]["stale_days"] < egress.close_lag_days + 7:
+         raise PackError(f, "$.decoy.stale_days", "must be at least egress.close_lag_days + 7") from None
+-    return raw
++    return {**raw, **extra}
+ 
+ 
+ def _rules(b: _Build, egress: Egress) -> dict[str, Rule]:
+diff --git a/tests/mycelic/test_rule_snapshots.py b/tests/mycelic/test_rule_snapshots.py
+new file mode 100644
+index 00000000..e332e685
+--- /dev/null
++++ b/tests/mycelic/test_rule_snapshots.py
+@@ -0,0 +1,68 @@
++"""``detectors.rule_snapshots`` (EMERGENCE-Next, opt-in): a rule-layer candidate no detector alerted on gets a snapshot
++from its rule hit. Absent, detection is the shipped one."""
++from __future__ import annotations
++
++import json
++import shutil
++import tempfile
++import unittest
++from pathlib import Path
++
++from mycelic.collective.detect.detectors import detect
++from mycelic.collective.packs.loader import PackError, load_pack
++from research.e2e_ingest import emergence_world as ew
++
++
++def pack_with(**fields):
++    d = Path(tempfile.mkdtemp()) / "emergence"
++    shutil.copytree(ew.PACK_DIR, d)
++    f = d / "detectors.json"
++    j = json.loads(f.read_text())
++    j.update(fields)
++    f.write_text(json.dumps(j))
++    return d
++
++
++class RuleSnapshotTests(unittest.TestCase):
++    @classmethod
++    def setUpClass(cls) -> None:
++        original = ew.check_world_counts
++        ew.check_world_counts = lambda *a: None
++        try:
++            cls.base = ew.build_emergence_world(200, 0, tempfile.mkdtemp(), top_n=None)
++            cls.rule = ew.build_emergence_world(200, 0, tempfile.mkdtemp(), pack_dir=pack_with(rule_snapshots=True),
++                                                top_n=None)
++        finally:
++            ew.check_world_counts = original
++
++    @classmethod
++    def tearDownClass(cls) -> None:
++        cls.base.pipeline.close()
++        cls.rule.pipeline.close()
++
++    def test_absent_is_the_shipped_detector(self) -> None:
++        self.assertNotIn("rule_snapshots", load_pack(str(ew.PACK_DIR)).detectors)
++        self.assertTrue(all(c["snapshot"].get("source") != "rule" for c in self.base.candidates))
++
++    def test_rule_snapshots_add_only_rule_candidates_with_a_full_window(self) -> None:
++        base = {c["key"]: c["snapshot"] for c in self.base.candidates}
++        added = [c for c in self.rule.candidates if c["key"] not in base]
++        self.assertTrue(added)
++        weeks = list(ew.world_weeks(ew.START, ew.N_WEEKS))
++        for c in added:
++            snap = c["snapshot"]
++            self.assertEqual(snap["source"], "rule")
++            self.assertIn(snap["week"], c["rule"]["weeks"])
++            self.assertEqual(weeks.index(snap["week"]) - weeks.index(snap["window"][0]), 5)
++        fields = ("week", "as_of", "window", "score", "supporting_sites")
++        for c in self.rule.candidates:                 # detector snapshots are untouched (pack hashes differ, by design)
++            if c["key"] in base:
++                self.assertEqual({f: c["snapshot"][f] for f in fields}, {f: base[c["key"]][f] for f in fields})
++
++    def test_must_be_boolean(self) -> None:
++        with self.assertRaises(PackError):
++            load_pack(str(pack_with(rule_snapshots="yes")))
++
++
++if __name__ == "__main__":
++    unittest.main()
+-- 
+2.43.0
+

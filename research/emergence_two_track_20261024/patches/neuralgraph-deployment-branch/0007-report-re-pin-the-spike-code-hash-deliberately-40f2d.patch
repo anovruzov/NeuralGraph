@@ -1,8 +1,8 @@
 From f830a57c82012b3750fbc553bca87365ecc3da82 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 08:44:32 +0000
-Subject: [PATCH 7/9] report: re-pin the spike code hash deliberately (40f2d713
- -> 4352c2cf)
+Subject: [PATCH 07/11] report: re-pin the spike code hash deliberately
+ (40f2d713 -> 4352c2cf)
 
 Pinned files changed on purpose in the previous commit: mycelic/collective/
 edge/records.py (hardened near-duplicate roots) and pushdown/gate.py (N1

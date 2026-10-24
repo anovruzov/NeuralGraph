@@ -1,8 +1,8 @@
 From 7eabc4c3e63f54f412f3c5899c1e27263f576f3a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 10:36:24 +0000
-Subject: [PATCH 8/9] pushdown: EMERGENCE-Next N2, roots only from sites whose
- own roots reach k (opt-in)
+Subject: [PATCH 08/11] pushdown: EMERGENCE-Next N2, roots only from sites
+ whose own roots reach k (opt-in)
 
 pushdown.roots_from_k_sites_only (optional, absent = false = R0). Under the
 shipped gate a site whose roots bucket is '<k' adds 1 root (bucket_lower), so

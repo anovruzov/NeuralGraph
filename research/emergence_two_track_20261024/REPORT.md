@@ -6,9 +6,9 @@ Cells that read _pending_ are runs still in flight; they are filled from `raw/e2
 
 ## 0. Answer first
 
-**Current best (dev seeds 0–5, real run): Track B h1n+nd+N1 = 0.629 recall, 174 decoys (baseline 0.388 / 118).
-It fails the frozen decoy bar; the excess is class 2 (temporal scramble, inseparable from true patterns by design),
-class 5 (stale chains) and cross-site echoes (addressed by N2, being measured).**
+**Current best (dev seeds 0–5, real run): Track B h1n+nd+N1+N2 = 0.629 recall, rare 17/103, 153 decoys (baseline
+0.388, 5/103, 118). It fails the frozen decoy bar; the excess is class 2 (temporal scramble, inseparable from true
+patterns by design: +22) and class 5 (stale chains: +18). N2 removed cross-site echo inflation (−21) at no recall cost.**
 
 
 - **Track A (frozen EMERGENCE R0): 0.80 is not reachable under the frozen invariants, and this is now independently
@@ -115,7 +115,10 @@ Seed 0: 22–23 patterns are R0-feasible, 13 are found. The 10 missed (`tools/fu
 | nd (b3025fb6) | near-duplicate roots (echo = one root), first version | 94/240 = 0.392 | **108** (class 4: 41 → 30) | 53–60 |
 | N1 (b3025fb6) | weak-site corroboration (Track B lever) | 96/240 = 0.400 | 119 | 53–60 |
 | nd v2 (f830a57c) | hardened near-duplicate roots alone | 94/240 = 0.392 | 110 | 53–60 |
-| **h1n+nd+N1 (f830a57c, Track B)** | combined | **151/240 = 0.629**; rare recall 0.09–0.24 per seed (baseline 0–0.11) | 174 (fails decoy bar) | 84–90 |
+| **h1n+nd+N1 (f830a57c, Track B)** | combined | **151/240 = 0.629**; rare 17/103 (baseline 5/103) | 174 (fails decoy bar) | 84–90 |
+| **h1n+nd+N1+N2 (b4eeb7bb, Track B)** | + roots only from k-root sites | **151/240 = 0.629**; rare 17/103 | **153** (class 4: 47 → 26) | 84–90 |
+| ask every site (M = all), seeds 0–1 | follow-up search bound | 46/80 (identical to M = 3) | 58 (vs 57) | |
+| rule_snapshots + nd + N1 + N2 (28275759) | rule-layer candidates asked (via the detector, provenance kept) | _pending_ | _pending_ | ~540 |
 
 Notes:
 - Every ablation ran with `--skip-drills`: the run's privacy and leakage drills (c1–c6) did not execute; only c0,

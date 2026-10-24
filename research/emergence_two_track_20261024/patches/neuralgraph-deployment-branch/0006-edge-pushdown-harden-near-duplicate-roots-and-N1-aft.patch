@@ -1,8 +1,8 @@
 From 494650c71e3356859dbb630fc87f35a226879788 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 08:44:31 +0000
-Subject: [PATCH 6/9] edge, pushdown: harden near-duplicate roots and N1 after
- adversarial review
+Subject: [PATCH 06/11] edge, pushdown: harden near-duplicate roots and N1
+ after adversarial review
 
 Near-duplicate roots (reviewer round 2, each reproduced by a probe):
 - no chaining: a record joins only a record that is its own root, so B~A and

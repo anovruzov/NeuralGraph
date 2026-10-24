@@ -1,8 +1,8 @@
 From 7bbaad1dc1c675c8a601f9aed004584506702c8a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 08:15:22 +0000
-Subject: [PATCH 4/9] edge: opt-in near-duplicate roots, so echoes of one event
- at a site are one root
+Subject: [PATCH 04/11] edge: opt-in near-duplicate roots, so echoes of one
+ event at a site are one root
 
 egress.near_duplicate_roots {jaccard, days} (optional; absent = the shipped
 exact-text rule, same pack bytes and hash). A record with no origin and no

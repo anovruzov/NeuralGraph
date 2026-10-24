@@ -8,6 +8,7 @@ ND='"egress": {"near_duplicate_roots": {"jaccard": 0.65, "days": 14}}'
 N1='"questions": {"pushdown": {"weak_corroborating_sites": 1}}'
 N2='"questions": {"pushdown": {"weak_corroborating_sites": 1, "roots_from_k_sites_only": true}}'
 H1='"detectors": {"min_history_weeks": 1}'
+RS='"detectors": {"min_history_weeks": 1, "rule_snapshots": true}'
 case $ARM in
   nd)        OV="{$ND}"; EXTRA="";;
   n1)        OV="{$N1}"; EXTRA="";;
@@ -16,6 +17,7 @@ case $ARM in
   h1n_nd_n1_all) OV="{$H1, $ND, $N1}"; EXTRA="--top-n 1000"; CAND="--m 0";;
   h1n_nd_n1_n2_all) OV="{$H1, $ND, $N1, $N2}"; EXTRA="--top-n 1000"; CAND="--m 0";;
   h1n_nd_n1_n2) OV="{$H1, $ND, $N1, $N2}"; EXTRA="--top-n 1000";;
+  rs_nd_n1_n2) OV="{$RS, $ND, $N2}"; EXTRA="--top-n 100000";;
   rule_nd_n1) OV="{$ND, $N1}"; EXTRA="--top-n 100000"; CAND="--candidates persist+rule";;
   rule_nd)   OV="{$ND}"; EXTRA="--top-n 100000"; CAND="--candidates persist+rule";;
   *) echo unknown arm; exit 2;;

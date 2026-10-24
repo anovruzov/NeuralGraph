@@ -1,0 +1,28 @@
+From 282757598540257bbd13423987997be29187a879 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 11:02:37 +0000
+Subject: [PATCH 11/11] report: re-pin spike code hash for rule_snapshots
+ (detectors.py, loader.py) -> 0e05bc00
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Cc9kurj5azoGuhPNUVde8U
+---
+ research/e2e_ingest/report.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/research/e2e_ingest/report.py b/research/e2e_ingest/report.py
+index f2c33d2b..b0a42781 100644
+--- a/research/e2e_ingest/report.py
++++ b/research/e2e_ingest/report.py
+@@ -74,7 +74,7 @@ BROKER_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+")
+ CI_BROKER_VERSION = "2.10.29"
+ #: M13: ``run.spike_code_hash`` over ``spike_code_files()`` (re-pinned at 7bbaad1d+1, was e3052c0); a different value means a pinned file
+ #: changed (rule 4) and the run fails.
+-SPIKE_CODE_HASH = "a2147634d80bbd3489652c0b363a485f03b7f44efc15e528046963f9bb3dabab"
++SPIKE_CODE_HASH = "0e05bc00d1cf28ea80ec8e027391585f8312cdd5d84583d63d4fd5860fbeccc8"
+ SPIKE_CODE_FILES = 142
+ #: M10: the paths ``code_dirty`` is evaluated over, at the start and at the end of the run.
+ DIRTY_PATHS = ("mycelic", "research/e2e_ingest", "research/routing_spike", "research/mycelic",
+-- 
+2.43.0
+

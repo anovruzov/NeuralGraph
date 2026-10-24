@@ -1,8 +1,8 @@
 From b3025fb6ea086563ba03a076dbbe5555bf287d92 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 08:16:21 +0000
-Subject: [PATCH 5/9] report: re-pin the spike code hash deliberately (22dc1aba
- -> 40f2d713)
+Subject: [PATCH 05/11] report: re-pin the spike code hash deliberately
+ (22dc1aba -> 40f2d713)
 
 The pinned spike files changed on purpose in fa609166..7bbaad1d. Not a refresh to
 get green; each change is opt-in and leaves the default run identical:
