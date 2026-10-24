@@ -48,7 +48,7 @@
   "token_budget_remaining_approx": "15M"
  },
  "agent_count_requested": "[10,100]",
- "actual_builders": 10,
+ "actual_builders": 14,
  "builder_kind": "background subagents, not Agent Teams",
  "product_workers_alive": 0,
  "layer_b_status": "BLOCKED: MycelicLabs is read-only from this session; audited, not instantiated",
@@ -62,15 +62,33 @@
   "omega_peak": 10,
   "omega_measured_by": "research/arena concurrency.max_overlap over the agents' own stamps",
   "returned_by_16:10Z": 9,
-  "outstanding": [
-   "H4"
-  ],
+  "outstanding": [],
   "promoted": [
    "H5-2/H5-3",
+   "H4-3",
    "H7-1",
    "H3-3 (conditional)"
   ],
-  "yield": "3/8 = 0.375",
-  "control_rule": "spawn wave 2: one falsifier per survivor"
+  "yield": "4/8 = 0.5",
+  "control_rule": "spawn wave 2: one falsifier per survivor",
+  "returned": 10
+ },
+ "wave_2": {
+  "launched": "2026-10-24T16:17Z",
+  "falsifiers": [
+   "F-H5",
+   "F-H4",
+   "F-H7",
+   "F-H3"
+  ],
+  "agents_spent_total": 14,
+  "cap": 24,
+  "kills_pre_registered_in": "swarm/WAVE_1_RESULTS.md section 3"
+ },
+ "arena_console": {
+  "branch": "research/arena",
+  "first_capture": "arena/console-live-2026-10-24T1611Z.png",
+  "omega_peak_measured": 10,
+  "layer_b": "blocked; see wave1/D10/LAYER_B_AUDIT.md"
  }
 }

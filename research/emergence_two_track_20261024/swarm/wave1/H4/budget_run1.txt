@@ -1,0 +1,79 @@
+filtered pool, top-k per seed summed over 6 seeds, asked at the label-free week:
+rank by      k    q  gold decoy corrected decoy_acc unpl_sup  corr/q   FP/q       per-seed corrected
+baseline     5   30     3     5         1         4       10   0.033  0.467       [1, 0, 0, 0, 0, 0]
+baseline    10   60     6     9         4         4       14   0.067  0.300       [1, 1, 0, 0, 2, 0]
+baseline    20  120    10    22         8        10       26   0.067  0.300       [2, 3, 1, 0, 2, 0]
+baseline    60  360    40    90        28        43       56   0.078  0.275       [7, 7, 2, 1, 7, 4]
+S_Pclear     5   30     8    21         7        11        1   0.233  0.400       [2, 1, 1, 0, 2, 1]
+S_Pclear    10   60    18    41        16        23        1   0.267  0.400       [2, 2, 3, 2, 3, 4]
+S_Pclear    20  120    39    79        37        61        2   0.308  0.525      [4, 5, 10, 8, 4, 6]
+S_Pclear    60  360    69   141        65       111      106   0.181  0.603  [12, 11, 12, 12, 8, 10]
+S_IG         5   30     7     6         4         6        9   0.133  0.500       [1, 0, 0, 2, 1, 0]
+S_IG        10   60    11     8         7         6       15   0.117  0.350       [1, 1, 1, 2, 1, 1]
+S_IG        20  120    15    17        11         9       31   0.092  0.333       [2, 3, 1, 2, 2, 1]
+S_IG        60  360    48    63        36        31       70   0.100  0.281      [10, 7, 2, 4, 8, 5]
+S_Yield      5   30    16    11        15         8        3   0.500  0.367       [4, 0, 4, 4, 2, 1]
+S_Yield     10   60    27    30        25        22        3   0.417  0.417       [5, 2, 7, 5, 2, 4]
+S_Yield     20  120    45    72        43        53        3   0.358  0.467     [8, 4, 10, 10, 4, 7]
+S_Yield     60  360    70   133        65       107      101   0.181  0.578   [12, 12, 12, 13, 8, 8]
+S_Net        5   30    17     6        15         5        5   0.500  0.333       [4, 0, 4, 4, 2, 1]
+S_Net       10   60    20     7        18         5       22   0.300  0.450       [5, 0, 5, 5, 2, 1]
+S_Net       20  120    26     9        24         7       62   0.200  0.575       [5, 3, 5, 5, 4, 2]
+S_Net       60  360    48    35        40        22      110   0.111  0.367       [9, 5, 7, 6, 8, 5]
+S_Net3       5   30    17     9        16         8        3   0.533  0.367       [4, 0, 4, 4, 2, 2]
+S_Net3      10   60    32    18        31        15        5   0.517  0.333       [7, 1, 9, 9, 2, 3]
+S_Net3      20  120    39    31        37        24       17   0.308  0.342      [8, 4, 9, 10, 3, 3]
+S_Net3      60  360    65    72        54        39       51   0.150  0.250    [12, 8, 10, 10, 7, 7]
+S_thin       5   30    15     7        14         5        6   0.467  0.367       [4, 0, 4, 4, 1, 1]
+S_thin      10   60    20    11        18         8       14   0.300  0.367       [5, 0, 5, 4, 3, 1]
+S_thin      20  120    22    25        20        14       22   0.167  0.300       [5, 2, 5, 4, 3, 1]
+S_thin      60  360    51    87        39        45       57   0.108  0.283       [9, 6, 6, 5, 8, 5]
+
+snapshot (already-asked) pool, AUC gold vs decoy, pooled and per seed:
+  baseline   pooled 0.499  per-seed 0.646 0.484 0.471 0.504 0.516 0.397  spread 0.397-0.646
+  S_Pclear   pooled 0.663  per-seed 0.718 0.571 0.669 0.659 0.621 0.755  spread 0.571-0.755
+  S_IG       pooled 0.551  per-seed 0.695 0.479 0.465 0.472 0.682 0.480  spread 0.465-0.695
+  S_Yield    pooled 0.807  per-seed 0.916 0.849 0.747 0.775 0.840 0.858  spread 0.747-0.916
+  S_Net      pooled 0.842  per-seed 0.931 0.826 0.730 0.828 0.925 0.872  spread 0.730-0.931
+  S_Net3     pooled 0.814  per-seed 0.918 0.829 0.752 0.791 0.891 0.839  spread 0.752-0.918
+  S_thin     pooled 0.697  per-seed 0.821 0.660 0.595 0.715 0.725 0.678  spread 0.595-0.821
+
+calibration: whole rule-only pool at the first fitting rule week (the replay's rule_snapshots week): gate model 58/2831 = 1 in 49; recorded replay ~1 in 220 -> gate-model optimism x4.5
+
+S_Net top-20 x 6 seeds by b-class at the asked week (nC,nU,nP,roots,rep,fresh) -> class:
+   (1, 0, 2, 0, 1, 1)       {'other': 72, 'gold': 8, 'decoy': 2}
+   (2, 0, 3, 3, 3, 1)       {'gold': 11}
+   (1, 0, 3, 0, 1, 1)       {'other': 7, 'decoy': 1}
+   (1, 0, 3, 3, 3, 1)       {'gold': 3, 'decoy': 2, 'other': 1}
+   (1, 0, 2, 3, 3, 1)       {'decoy': 3, 'other': 1, 'gold': 2}
+   (2, 0, 2, 3, 3, 1)       {'decoy': 1, 'other': 1}
+   (1, 1, 3, 0, 3, 1)       {'other': 1}
+   (1, 0, 3, 0, 3, 1)       {'other': 1}
+   (2, 0, 3, 0, 3, 1)       {'gold': 1}
+   (2, 0, 2, 0, 2, 1)       {'other': 1}
+   (1, 1, 3, 3, 3, 1)       {'gold': 1}
+
+S_Net3 top-20 x 6 seeds by b-class at the asked week (nC,nU,nP,roots,rep,fresh) -> class:
+   (2, 0, 3, 3, 3, 1)       {'gold': 24, 'decoy': 14}
+   (2, 0, 2, 3, 3, 1)       {'gold': 6, 'decoy': 10, 'other': 1}
+   (0, 1, 3, 0, 0, 0)       {'other': 13, 'gold': 1}
+   (1, 0, 3, 3, 3, 1)       {'gold': 5, 'decoy': 3, 'other': 2}
+   (1, 0, 3, 0, 1, 1)       {'other': 10}
+   (1, 0, 2, 3, 3, 1)       {'decoy': 3, 'other': 1, 'gold': 2}
+   (1, 0, 2, 0, 1, 1)       {'other': 6}
+   (0, 1, 2, 0, 0, 0)       {'other': 6}
+   (1, 1, 3, 0, 1, 1)       {'other': 2, 'decoy': 1}
+   (0, 2, 2, 0, 0, 0)       {'other': 2}
+   (0, 0, 3, 0, 0, 0)       {'other': 2}
+   (1, 1, 3, 0, 3, 1)       {'other': 1}
+   (2, 0, 3, 0, 3, 1)       {'gold': 1}
+   (1, 0, 2, 0, 3, 1)       {'other': 1}
+   (0, 1, 1, 0, 0, 0)       {'other': 1}
+   (0, 2, 3, 0, 0, 0)       {'other': 1}
+   (1, 0, 3, 0, 3, 1)       {'other': 1}
+
+S_Yield top-20 x 6 seeds by b-class at the asked week (nC,nU,nP,roots,rep,fresh) -> class:
+   (2, 0, 3, 3, 3, 1)       {'gold': 30, 'decoy': 42}
+   (2, 0, 2, 3, 3, 1)       {'decoy': 16, 'gold': 9, 'other': 1}
+   (1, 0, 3, 3, 3, 1)       {'gold': 4, 'decoy': 11, 'other': 1}
+   (1, 0, 2, 3, 3, 1)       {'decoy': 3, 'other': 1, 'gold': 2}
