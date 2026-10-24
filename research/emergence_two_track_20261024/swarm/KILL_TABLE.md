@@ -17,10 +17,15 @@ Dead hypotheses are a deliverable: they are what stops wave 2 from re-proposing 
 | H5-1 | gap variance, run count, density, first/last rule week | ≈ 0.50; longest run 0.668 but only classes 1/3 | 0.50 | — (longest run kept as the free line) |
 | H7-2 | contradiction as negative weight, α ∈ {0…3, drop} | **monotone worse in α** (0.541 → 0.483); d5 passes 28/28 under every α; gold's contradiction lands inside its window, d5's after | 0.483 | — |
 | H7-3 | "the ceiling is optimistic from overcounting" | B 205/240, K 199/240 identical per seed after root de-dup | 0 change | — |
+| H7-1 | echo-decoy veto (support bucket above roots bucket) | no-op on the shipped pack (one root per record, buckets agree 899/904); replay 93→93, 118→118; gold cost 14–15 at 25% root sharing; 10–36% at 2,000 users | 0 | a world where gold never shares roots AND echo decoys do, with nd on — i.e. this one at 200 users |
+| H3-3 | non-monotone rule-week band (wave 2) | beats the free line 4/6 seeds; +0.036 over longest run, p = 0.12; top-20 0.14 vs p* 0.39 | 0.704 | — |
+| H5-3 | shape-gated count (wave 2) | c_g at its own week 0.616 → p* 0.447 > 0.393; at 2,000 users the gate passes 67% of background | 0.393 p@20 | a sparser world |
+| H4-3 | net expected utility (wave 2) | own per-seed kill; 80% of AUC on never-clearing classes; inverts at 2,000 (0.451); 0.842 was look-ahead | 0.66 at-decision | a sequential design |
 | wave-0 | rule_weeks ≥ 11 as a ranker | H6: at the operating point, six-seed totals under the displacing budget −11.2 found −13.7 decoys; under the additive budget +5.1 found **+7.1 accepted decoys** against a bar with zero headroom | — | kept as a negative filter only (≤ 6 holds zero gold) |
 
-Promoted, pending falsification: **H5-2 / H5-3**, **H4-3**, **H7-1**, **H3-3** — see `WAVE_1_RESULTS.md` §3 for each one's
-pre-registered kills.
+Wave 2 killed every promoted target. The one item alive at replay level — reordering the already-asked pool
+by the exported class at the snapshot week (138 vs 128) — is not a hypothesis from this table; see
+`NEXT_EXPERIMENTS.md` §1b.
 
 Closed before this wave and not reopened: routing, index geometry, hypergraph traversal, re-asking a persisting
 candidate, recursive acquisition at the gate, blind promotion of rule-only candidates, persisted graph edges

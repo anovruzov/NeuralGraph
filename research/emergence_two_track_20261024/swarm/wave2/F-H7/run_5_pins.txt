@@ -1,0 +1,9 @@
+SPIKE_CODE_HASH pinned (report.py):          0e05bc00d1cf28ea80ec8e027391585f8312cdd5d84583d63d4fd5860fbeccc8  files 142
+spike_code_hash() current tree:              0e05bc00d1cf28ea80ec8e027391585f8312cdd5d84583d63d4fd5860fbeccc8  files 142
+spike_code_hash() if the patch were applied: 8b2c6940f0639cc7a1eec3c18ea98018b43ad8e50e9191ee92ffe732661c4a22  files 142  (gate.py, loader.py in mycelic/collective/**/*.py)
+E1: current 172231c8bfa6abd538a12f1297729b92ce9dfd5680768310094876d97e1700ff  patched dac1a6c76cb8698f8ab5fb337d2a776372fbd94af34d3a48676a57916c975223  (loader.py in set: True; gate.py in set: False; fn=e1_code_hash)
+E2: current f8e866ae87f89c1fbb1dbe6035b43ad6e44bcfefd1abe12ecaa5b6808748ee8d  patched 0457e20dca2c6c2d548c92556f7601f4bf0849c902a7a486a498b7bfa87debd5  (loader.py in set: True; gate.py in set: True; fn=e2_code_hash)
+openfda_replay: current 643011d7b327ed612e743df0df8a011e735746bf5f83219c29653b9e4ea053eb  patched 381dd91dc59ea9fb537cd04112e3b50bf4e010a4b9dff4c8378b9a7abc34d5fd  (loader.py in set: True; gate.py in set: False; fn=replay_code_hash)
+X5: current 9ee8fa5b0aea7bd0a07731feff30affc371c265518b548a405b756310a07e18b  patched cde2a431558fc17d9fd2e6ce298568669d47c90d0d58ce6b8d10e072a56ecf56  (loader.py in set: True; gate.py in set: True; fn=x5_code_hash)
+X1: current 150ae5fa432a05d53a64fbfcef8adbbc3b859f3873ec22630e36a13cb7231c49  patched 381dd91dc59ea9fb537cd04112e3b50bf4e010a4b9dff4c8378b9a7abc34d5fd  (loader.py in set: True; gate.py in set: False)
+DETECT_SHA256 covers: ['detectors.py', 'org.py', 'rules.py']  -> unaffected (detect/ only)

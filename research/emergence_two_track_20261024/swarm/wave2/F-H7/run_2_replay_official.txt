@@ -1,0 +1,16 @@
+pack config_hash 7783d26569c2  near_duplicate_roots=None  N1=0 N2=False  veto gap=1
+
+| seed | questions | verdicts | confirms | confirms with support bucket > roots bucket | replay == recorded status | found (recorded) | found (shipped replay) | found (veto) | decoys accepted (recorded) | by type | decoys (veto) | by type |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | 55 | 165 | 148 | 0 | 55/55 | 13 | 13 | 13 | 17 | {2: 5, 4: 9, 5: 3} | 17 | {2: 5, 4: 9, 5: 3} |
+| 1 | 53 | 159 | 137 | 0 | 53/53 | 12 | 12 | 12 | 18 | {1: 2, 2: 4, 4: 7, 5: 5} | 18 | {1: 2, 2: 4, 4: 7, 5: 5} |
+| 2 | 60 | 180 | 155 | 1 | 60/60 | 17 | 17 | 17 | 21 | {2: 6, 3: 1, 4: 7, 5: 7} | 21 | {2: 6, 3: 1, 4: 7, 5: 7} |
+    vetoed/flipped: ('756d03cad2', 'entity:E-UMBRAX:chain_network', '2024-W12', 'supported', 'supported', ['r01-site-00'])
+| 3 | 53 | 159 | 140 | 0 | 53/53 | 17 | 17 | 17 | 22 | {1: 3, 2: 8, 3: 1, 4: 4, 5: 6} | 22 | {1: 3, 2: 8, 3: 1, 4: 4, 5: 6} |
+| 4 | 60 | 180 | 157 | 3 | 60/60 | 19 | 19 | 19 | 18 | {1: 1, 2: 7, 3: 1, 4: 6, 5: 3} | 18 | {1: 1, 2: 7, 3: 1, 4: 6, 5: 3} |
+    vetoed/flipped: ('83e85c0903', 'entity:E-UMBRA-CORE:revenue_miss', '2024-W12', 'supported', 'hypothesis', ['r00-site-00', 'r01-site-00', 'r04-site-00'])
+| 5 | 60 | 180 | 167 | 1 | 60/60 | 15 | 15 | 15 | 22 | {2: 7, 3: 1, 4: 8, 5: 6} | 22 | {2: 7, 3: 1, 4: 8, 5: 6} |
+    vetoed/flipped: ('11c4ae914b', 'entity:E-TUNDRA:revenue_miss', '2024-W12', 'supported', 'supported', ['r04-site-00'])
+
+Pooled six seeds: found 93 -> 93 (delta 0); decoys 118 -> 118 (delta 0); by type recorded t1=6, t2=37, t3=4, t4=41, t5=30 ; veto t1=6, t2=37, t3=4, t4=41, t5=30
+Confirms whose support bucket exceeds their roots bucket by >= 1: 5 of 904 recorded confirms; questions whose status the veto changes: 1.

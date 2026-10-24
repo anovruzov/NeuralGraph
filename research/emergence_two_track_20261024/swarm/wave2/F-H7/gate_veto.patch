@@ -1,0 +1,124 @@
+--- a/mycelic/collective/pushdown/gate.py	2026-10-24 16:30:38.986827173 +0000
++++ b/mycelic/collective/pushdown/gate.py	2026-10-24 16:30:39.014856494 +0000
+@@ -36,7 +36,10 @@
+   schema; another window. An HQ record (a timeout or an error) gets only the first two.
+ * **Per site** the valid record with the highest seq is used; valid records with more than one distinct sha256 add the
+   note that the site answered again. Identical duplicates add nothing.
+-* **Counted confirms** are confirms whose ``support_bucket`` is not ``'<k'``; their sums use bucket lower bounds.
++* **Counted confirms** are confirms whose ``support_bucket`` is not ``'<k'``; their sums use bucket lower bounds. With
++  ``echo_veto_bucket_gap`` > 0 (EMERGENCE-Next H7-1, opt-in) a confirm whose ``support_bucket`` sits that many buckets
++  above its ``roots_bucket`` reports more records than roots at one site (correlated disclosure) and is not counted; it
++  is noted, never a weak corroborator, and never contests.
+ * **Status**: contested if and only if a contributing site's used verdict refutes; else hypothesis when no site
+   confirms at all; else stale when counted confirms exist and their newest week ended more than ``freshness_days``
+   before ``as_of`` (exactly ``freshness_days`` is not stale); else one hypothesis reason per failing support check
+@@ -82,6 +85,7 @@
+     close_lag_days: int
+     weak_corroborating_sites: int = 0       # EMERGENCE-Next N1; 0 is the shipped gate (R0)
+     roots_from_k_sites_only: bool = False    # EMERGENCE-Next N2; False is the shipped gate (R0)
++    echo_veto_bucket_gap: int = 0            # EMERGENCE-Next H7-1; 0 is the shipped gate (no veto)
+ 
+     @classmethod
+     def from_pack(cls, pack: "FrozenPack") -> "GateParams":
+@@ -90,7 +94,8 @@
+                    min_independent_roots=pd.min_independent_roots,
+                    min_independent_reporters=pd.min_independent_reporters, freshness_days=pd.freshness_days,
+                    close_lag_days=pack.egress.close_lag_days, weak_corroborating_sites=pd.weak_corroborating_sites,
+-                   roots_from_k_sites_only=pd.roots_from_k_sites_only)
++                   roots_from_k_sites_only=pd.roots_from_k_sites_only,
++                   echo_veto_bucket_gap=pd.echo_veto_bucket_gap)
+ 
+     def to_dict(self) -> dict[str, Any]:
+         return {"k": self.k, "labels": list(self.labels), "min_confirming_sites": self.min_confirming_sites,
+@@ -98,7 +103,8 @@
+                 "min_independent_reporters": self.min_independent_reporters, "freshness_days": self.freshness_days,
+                 "close_lag_days": self.close_lag_days,
+                 **({"weak_corroborating_sites": self.weak_corroborating_sites} if self.weak_corroborating_sites else {}),
+-                **({"roots_from_k_sites_only": True} if self.roots_from_k_sites_only else {})}
++                **({"roots_from_k_sites_only": True} if self.roots_from_k_sites_only else {}),
++                **({"echo_veto_bucket_gap": self.echo_veto_bucket_gap} if self.echo_veto_bucket_gap else {})}
+ 
+ 
+ @dataclass(frozen=True)
+@@ -232,12 +238,20 @@
+         latest[site] = record
+         body = record.body
+         counted = (record.source == "site" and body["verdict"] == "confirm" and body["support_bucket"] != SUPPRESSED)
++        # H7-1 echo veto (opt-in): more records than roots at one site is correlated disclosure (echoes of one root);
++        # such a confirm is not counted. Both buckets are already in the body: nothing new crosses the Boundary.
++        echoed = bool(counted and params.echo_veto_bucket_gap
++                      and (params.labels.index(body["support_bucket"]) - params.labels.index(body["roots_bucket"])
++                           >= params.echo_veto_bucket_gap))
++        counted = counted and not echoed
+         used.append({"site": site, "seq": record.seq, "source": record.source, "sha256": _sha(body),
+-                     "role": routes[site], "verdict": body["verdict"], "counted": counted})
++                     "role": routes[site], "verdict": body["verdict"], "counted": counted,
++                     **({"echo_vetoed": True} if echoed else {})})
+ 
+     # ---- classify the used verdicts
+     confirming = [u["site"] for u in used if u["counted"]]
+-    weak = [u["site"] for u in used if u["verdict"] == "confirm" and not u["counted"]]
++    vetoed = [u["site"] for u in used if u.get("echo_vetoed")]
++    weak = [u["site"] for u in used if u["verdict"] == "confirm" and not u["counted"] and u["site"] not in vetoed]
+     refuting_contributing = [u["site"] for u in used if u["verdict"] == "refute" and u["role"] == "contributing"]
+     refuting_siblings = [u["site"] for u in used if u["verdict"] == "refute" and u["role"] == "sibling"]
+     unknown = [u["site"] for u in used if u["verdict"] == "unknown"]
+@@ -259,7 +273,7 @@
+     if refuting_contributing:
+         status = "contested"
+         status_reasons = [f"contested: contributing site {site} refutes" for site in refuting_contributing]
+-    elif not confirming and not weak:
++    elif not confirming and not weak and not vetoed:
+         status = "hypothesis"
+         status_reasons = ["hypothesis: no evidence (no site confirms)"]
+     elif is_stale:
+@@ -305,6 +319,7 @@
+     notes += [f"sibling {site} confirms (counted as support)" for site in confirming if routes[site] == "sibling"]
+     notes += [f"{site} confirms with fewer than {k} records (not counted)" for site in weak
+               if site not in corroborating]
++    notes += [f"{site} confirms with more records than roots (echo veto; not counted)" for site in vetoed]
+     notes += [f"{site} judged a truncated subset (verify_max_records)" for site in truncated]
+     for site in unknown:
+         body = latest[site].body
+@@ -319,7 +334,8 @@
+                "refuting_contributing": refuting_contributing, "refuting_siblings": refuting_siblings,
+                "unknown_sites": unknown, "roots_lb": roots_lb, "reporters_lb": reporters_lb, "support_lb": support_lb,
+                "newest_week": newest, "truncated_sites": truncated,
+-               **({"corroborating_sites": corroborating} if params.weak_corroborating_sites else {})}
++               **({"corroborating_sites": corroborating} if params.weak_corroborating_sites else {}),
++               **({"echo_vetoed_sites": vetoed} if params.echo_veto_bucket_gap else {})}
+     freshness = {"newest_week": newest, "age_days": age, "freshness_days": params.freshness_days, "stale": is_stale}
+     checks = {"authorization": True, "schema": True, "provenance": bool(confirming), "temporal": not is_stale,
+               "support": status == "supported"}
+--- a/mycelic/collective/packs/loader.py	2026-10-24 16:30:38.989140134 +0000
++++ b/mycelic/collective/packs/loader.py	2026-10-24 16:30:39.015355151 +0000
+@@ -144,7 +144,9 @@
+ #: optional pushdown keys; a pack without them has the bytes, the config hash and the gate of before.
+ #: ``weak_corroborating_sites`` (EMERGENCE-Next protocol N1, research only): how many sites that confirm with fewer than
+ #: k records (the ``<k`` bucket they already send) may stand in for missing k-record sites, never for all of them.
+-_PUSHDOWN_OPTIONAL = {"weak_corroborating_sites": 0, "roots_from_k_sites_only": False}
++#: ``echo_veto_bucket_gap`` (EMERGENCE-Next H7-1, research only): a confirm whose support bucket sits this many buckets
++#: above its roots bucket is not counted (0 = the shipped gate).
++_PUSHDOWN_OPTIONAL = {"weak_corroborating_sites": 0, "roots_from_k_sites_only": False, "echo_veto_bucket_gap": 0}
+ _FOLLOWUP_KEYS = ("label", "tier", "enabled", "executor", "args_schema", "draft_schema", "template", "owner_role",
+                   "daily_cap", "ack_days", "escalate_to_role")
+ _ARG_KEYS = MappingProxyType({"entity_id": ("kind", "entity_type"), "predicate": ("kind",), "conclusion_id": ("kind",),
+@@ -324,6 +326,8 @@
+     #: EMERGENCE-Next N2 (research only): a site's roots count toward min_independent_roots only when its own roots
+     #: bucket reaches k; single-root sites summed across sites are indistinguishable from echoes of one event.
+     roots_from_k_sites_only: bool = False
++    #: EMERGENCE-Next H7-1 (research only): see ``pushdown/gate.py``; 1 is the smallest bucket step.
++    echo_veto_bucket_gap: int = 0
+ 
+ 
+ @dataclass(frozen=True)
+@@ -581,7 +585,8 @@
+ S_PUSHDOWN = _schema(_closed({
+     "min_confirming_sites": _int(1, 100), "min_independent_roots": _int(1, 100000),
+     "min_independent_reporters": _int(1, 100000), "freshness_days": _int(1, 3660), "max_sibling_sites": _int(0, 100)}))
+-S_PUSHDOWN_OPTIONAL = {"weak_corroborating_sites": _int(0, 10), "roots_from_k_sites_only": _BOOL}
++S_PUSHDOWN_OPTIONAL = {"weak_corroborating_sites": _int(0, 10), "roots_from_k_sites_only": _BOOL,
++                       "echo_veto_bucket_gap": _int(0, 3)}
+ S_ROLE = _schema(_closed({"label": _LABEL120}))
+ S_FOLLOWUP_SCALARS = _schema(_closed({
+     "label": _LABEL120, "tier": _string(1, 8), "enabled": _BOOL,

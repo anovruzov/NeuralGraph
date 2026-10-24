@@ -26,6 +26,7 @@ stack on a bottleneck that was never where the stack would have operated.
 | expected utility (H4-3) | S_Net over the cell class | fails its own per-seed kill; 80% of its AUC orders keys that can never clear; inverts at 2,000 users (0.45); c_g at its own week 0.15–0.24 → p* > 1 | 0.73 → 0.66 at-decision |
 | co-activation (H5-3, the lever) | shape-gated count | **c_g measured at its own week = 0.616, not ~0.75**, so p* 0.447 > P@20 0.393; at 2,000 users the gate admits 67% of background, P@20 0.108 | 0.39 |
 | contradiction as inhibition (H7-2) | pos − α·neg | monotone worse in α; gold's contradiction lands inside its window, d5's after | 0.48 |
+| echo-decoy veto (H7-1) | support bucket > roots bucket | the shipped egress gives every record its own root, so the buckets agree in 899/904 recorded confirms; replay delta zero | 0 change |
 
 The surviving statistic, H5-2 co-activation, is clean — p < 0.0005 against an empirical best-of-56 null, every
 leak test passed — and is a **density artefact of a sparse world**: 0.945 at 200 users, 0.742 at 2,000 and
@@ -54,11 +55,16 @@ below 0.70 on the two decoy classes that are three quarters of the pool. A 200-u
 |---|---|---|
 | `rule_weeks ≤ 6` holds zero gold (1,066 keys) | measured, every seed | a free 38% pool shrink; buys no pattern |
 | single-burst keys (rank-1 submatrix) are never gold (0/138) | measured, chosen after seeing labels | a free filter, not re-validatable on dev seeds |
-| H7-1 echo-decoy veto (type-4 passes 57 → 4, zero gold cost) | **pending F-H7** | a decoy-column gate fix if the shipped roots bucket is what H7 modelled; cannot alone clear the decoy bar |
+| H7-1 echo-decoy veto | **dead** | a no-op on the shipped pack (every record is its own root, so the two buckets agree in 899/904 recorded confirms) and on the recorded verdicts (93 → 93, 118 → 118); zero gold cost only because gold never shares roots in this generator; 10–36% at 2,000 users |
 | reorder the **already-asked** pool by the exported class at the snapshot week | alive at replay level only: 138/240 vs rule-first 128 (e2e-confirmed 127), decoys 97 vs 113, seed-swap stable, 5 better / 1 tie | **one e2e arm**, budget-matched against rule-first, at-snapshot score, a label-free variant alongside (137 found, rare 8 → 4, decoys 110) — and a founders' ruling first on whether a label-fitted class table is "labels selecting" |
 | H5-2 co-activation | reclassified | a fact about sparse worlds; a caution against any 200-user-only result |
 
-None of these reaches a never-asked pattern. They move the decoy column or re-rank what is already asked.
+None of these reaches a never-asked pattern. The filters shrink the pool; the reorder re-ranks what is already asked.
+
+One structural fact from F-H7 outlasts the hypothesis: **the gate's roots requirement is, on the shipped pack, the
+support count under another name**, because root attribution happens in egress and the shipped egress attributes
+one root per record. Any real guard against correlated evidence belongs in egress's root attribution, not in the
+gate.
 
 ## 4. What would reopen the question
 
