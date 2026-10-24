@@ -16,6 +16,7 @@ ew.check_world_counts = lambda *a: None
 size = int(sys.argv[1]); seeds = [int(x) for x in sys.argv[2].split(",")]; assert all(s in range(6) for s in seeds)
 
 HIST = 6
+THRESH_HIST = os.environ.get('AGG_RAW_HISTORY') != '1'   # default: history thresholded as released
 def zburst(rows_w, rows_h, nh):
     lam = max(rows_h * WIN / max(nh, 1), 1.0)
     return (rows_w - lam) / (lam ** 0.5)
@@ -43,8 +44,11 @@ for seed in seeds:
             if not lo <= weeks[w] <= hi: continue
             st = site_stats(rows, recs, sites, widx, w - WIN + 1, w, False)
             if not agg(st): continue
-            hst = site_stats(rows, recs, sites, widx, max(0, w - WIN + 1 - HIST), w - WIN, False) if w - WIN >= 0 else {}
-            tw = sum(v["records"] for v in st.values()); th = sum(v["records"] for v in hst.values())
+            tw = sum(v["records"] for v in st.values())
+            th = 0                                   # prior weekly TOTALS as the contract would release them:
+            for hw in range(max(0, w - WIN + 1 - HIST), max(0, w - WIN + 1)):   # 0 stays 0, 1..k-1 -> k-1 ('<k'
+                t = sum(v["records"] for v in site_stats(rows, recs, sites, widx, hw, hw, False).values())  # read high)
+                th += t if (t == 0 or t >= K or not THRESH_HIST) else K - 1
             nh = min(HIST, max(0, w - WIN + 1)); zz = zburst(tw, th, nh) if nh else 0.0
             ns = sum(1 for v in st.values() if v["records"] > 0)
             for k, ok in (("agg", True), ("agg_z3", zz >= 3), ("agg_z4", zz >= 4), ("agg_s3", ns >= 3), ("agg_z3_s3", zz >= 3 and ns >= 3)):
@@ -67,5 +71,5 @@ for seed in seeds:
         for g, v in h.items(): tot[f"bg_{g}"] += v
     print(f"size {size} seed {seed} done", flush=True)
 for g in ("agg", "agg_z3", "agg_z4", "agg_s3", "agg_z3_s3"):
-    print(f"SPEC {size} {g:10s} F patterns {tot['F_'+g]}/{n['pat']}={tot['F_'+g]/n['pat']:.3f} rare {tot['F_'+g+'_rare']}/{n['rare']}"
+    print(f"SPEC{'' if THRESH_HIST else '-rawhist'} {size} {g:10s} F patterns {tot['F_'+g]}/{n['pat']}={tot['F_'+g]/n['pat']:.3f} rare {tot['F_'+g+'_rare']}/{n['rare']}"
           f"  non-planted keys passing {tot['bg_'+g]}/{n['bg']}={tot['bg_'+g]/max(n['bg'],1):.3f}")

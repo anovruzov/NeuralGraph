@@ -1,16 +1,28 @@
+# RAW-HISTORY rows (AGG_RAW_HISTORY=1: prior totals exact — optimistic, superseded by the thresholded rows below)
 # tools/plateau/agg_spec.py SIZE 0,1,2,3,4,5 (dev seeds; offline upper bound, F model; DIAGNOSTIC). Gates on cross-site totals: agg = records>=3, reporters>=3, roots>=3, >=2 sites; z = Poisson excess of the window total over the key's own prior 6 weeks; s3 = >=3 contributing sites
+SPEC-rawhist 200 agg        F patterns 240/240=1.000 rare 103/103  non-planted keys passing 787/1800=0.437
+SPEC-rawhist 200 agg_z3     F patterns 216/240=0.900 rare 88/103  non-planted keys passing 474/1800=0.263
+SPEC-rawhist 200 agg_z4     F patterns 191/240=0.796 rare 63/103  non-planted keys passing 348/1800=0.193
+SPEC-rawhist 200 agg_s3     F patterns 155/240=0.646 rare 68/103  non-planted keys passing 554/1800=0.308
+SPEC-rawhist 200 agg_z3_s3  F patterns 137/240=0.571 rare 57/103  non-planted keys passing 371/1800=0.206
+SPEC-rawhist 2000 agg        F patterns 240/240=1.000 rare 92/92  non-planted keys passing 1737/1800=0.965
+SPEC-rawhist 2000 agg_z3     F patterns 219/240=0.912 rare 80/92  non-planted keys passing 1157/1800=0.643
+SPEC-rawhist 2000 agg_z4     F patterns 195/240=0.812 rare 57/92  non-planted keys passing 809/1800=0.449
+SPEC-rawhist 2000 agg_s3     F patterns 201/240=0.838 rare 74/92  non-planted keys passing 1628/1800=0.904
+SPEC-rawhist 2000 agg_z3_s3  F patterns 185/240=0.771 rare 65/92  non-planted keys passing 949/1800=0.527
+SPEC-rawhist 10000 agg        F patterns 240/240=1.000 rare 101/101  non-planted keys passing 1773/1800=0.985
+SPEC-rawhist 10000 agg_z3     F patterns 219/240=0.912 rare 88/101  non-planted keys passing 1163/1800=0.646
+SPEC-rawhist 10000 agg_z4     F patterns 195/240=0.812 rare 65/101  non-planted keys passing 835/1800=0.464
+SPEC-rawhist 10000 agg_s3     F patterns 229/240=0.954 rare 93/101  non-planted keys passing 1737/1800=0.965
+SPEC-rawhist 10000 agg_z3_s3  F patterns 208/240=0.867 rare 79/101  non-planted keys passing 1036/1800=0.576
+# THRESHOLDED-HISTORY rows (default): prior weekly totals released as the contract would (0 stays 0, 1..k-1 read as k-1)
 SPEC 200 agg        F patterns 240/240=1.000 rare 103/103  non-planted keys passing 787/1800=0.437
-SPEC 200 agg_z3     F patterns 216/240=0.900 rare 88/103  non-planted keys passing 474/1800=0.263
-SPEC 200 agg_z4     F patterns 191/240=0.796 rare 63/103  non-planted keys passing 348/1800=0.193
+SPEC 200 agg_z3     F patterns 216/240=0.900 rare 88/103  non-planted keys passing 423/1800=0.235
+SPEC 200 agg_z4     F patterns 189/240=0.787 rare 61/103  non-planted keys passing 315/1800=0.175
 SPEC 200 agg_s3     F patterns 155/240=0.646 rare 68/103  non-planted keys passing 554/1800=0.308
-SPEC 200 agg_z3_s3  F patterns 137/240=0.571 rare 57/103  non-planted keys passing 371/1800=0.206
-SPEC 2000 agg        F patterns 240/240=1.000 rare 92/92  non-planted keys passing 1737/1800=0.965
-SPEC 2000 agg_z3     F patterns 219/240=0.912 rare 80/92  non-planted keys passing 1157/1800=0.643
-SPEC 2000 agg_z4     F patterns 195/240=0.812 rare 57/92  non-planted keys passing 809/1800=0.449
-SPEC 2000 agg_s3     F patterns 201/240=0.838 rare 74/92  non-planted keys passing 1628/1800=0.904
-SPEC 2000 agg_z3_s3  F patterns 185/240=0.771 rare 65/92  non-planted keys passing 949/1800=0.527
+SPEC 200 agg_z3_s3  F patterns 137/240=0.571 rare 57/103  non-planted keys passing 332/1800=0.184
 SPEC 10000 agg        F patterns 240/240=1.000 rare 101/101  non-planted keys passing 1773/1800=0.985
-SPEC 10000 agg_z3     F patterns 219/240=0.912 rare 88/101  non-planted keys passing 1163/1800=0.646
-SPEC 10000 agg_z4     F patterns 195/240=0.812 rare 65/101  non-planted keys passing 835/1800=0.464
+SPEC 10000 agg_z3     F patterns 218/240=0.908 rare 87/101  non-planted keys passing 788/1800=0.438
+SPEC 10000 agg_z4     F patterns 189/240=0.787 rare 59/101  non-planted keys passing 546/1800=0.303
 SPEC 10000 agg_s3     F patterns 229/240=0.954 rare 93/101  non-planted keys passing 1737/1800=0.965
-SPEC 10000 agg_z3_s3  F patterns 208/240=0.867 rare 79/101  non-planted keys passing 1036/1800=0.576
+SPEC 10000 agg_z3_s3  F patterns 208/240=0.867 rare 79/101  non-planted keys passing 685/1800=0.381

@@ -139,9 +139,10 @@ python3 tools/rescue/det_rank.py <pool dir>       # after tools/rescue/dump_pool
 ## 11. Decisions that unblock the goal (founder)
 
 1. **Disclosure contract:** whether to evaluate aggregate-then-threshold (secure sum) with a written privacy analysis.
-   It is the only measured path past the 68.3% ceiling at 10K. Offline, at 10K, cross-site totals with a burst test
-   (z ≥ 4) reach a 0.812 recall ceiling with 46.4% of non-planted keys passing, against today's 0.683 with 72.4%.
-   That is better on both axes (`raw/plateau/agg_specificity_by_world_size.txt`).
+   It is the only measured path past the 68.3% ceiling at 10K. Offline, at 10K, with past totals thresholded as they
+   would be released, cross-site totals plus a burst test (z ≥ 3) reach a 0.908 recall ceiling with 43.8% of
+   non-planted keys passing, against today's 0.683 with 72.4%. That is better on both axes
+   (`raw/plateau/agg_specificity_by_world_size.txt`). The privacy analysis is `frontier/DISCLOSURE_ANALYSIS.md`.
 2. **Freeze a candidate** (rule-hit-first, v4 config) and run it with drills and suites. Then authorize the sealed
    seeds.
 3. **Define a 10K benchmark** (world table row, pack, loader cap) and allocate compute for 10K and 50K runs.

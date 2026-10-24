@@ -183,13 +183,15 @@ gives the following at 10K:
 | gate (10K users) | recall ceiling | rare | non-planted keys passing |
 |---|---|---|---|
 | per-site rule (today) | 0.683 | 25/101 | 72.4% |
-| total + burst z ≥ 3 | **0.912** | 88/101 | **64.6%** |
-| total + burst z ≥ 4 | **0.812** | 65/101 | **46.4%** |
+| total + burst z ≥ 3 | **0.908** | 87/101 | **43.8%** |
+| total + burst z ≥ 4 | 0.787 | 59/101 | **30.3%** |
+
+Past weekly totals are thresholded exactly as the contract would release them; hidden totals are read as 2.
 
 **Aggregate-then-threshold with a burst test dominates today's rule at 10K on both axes:** more recall *and* fewer
 false passes. The absolute false-pass rate is still high. The site judge and the question budget filter further
-downstream, and a stronger statistic (P2) is still needed. At 200 users, z ≥ 3 gives 0.900 recall at 26.3% (today:
-0.742 at 16.5%).
+downstream, and a stronger statistic (P2) is still needed. At 200 users, z ≥ 3 gives 0.900 recall at 23.5% (today:
+0.742 at 16.5%). A first measurement that used exact past totals, an optimistic assumption, is kept in the raw file for the record.
 
 (The non-planted rates here count any week of the run, so they are higher than §4.3's; compare rows within this
 table, not across tables.)
