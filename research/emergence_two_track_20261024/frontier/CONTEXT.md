@@ -48,8 +48,30 @@ a bucketed verdict → HQ gate (supported / hypothesis) → bridge publishes eve
 - Under the shipped judge's polarity-blind model: **205/240 = 0.854** (rare ≤ 68/103).
 - **35 rare patterns are undiscoverable even then; 32 never have k = 3 records at any one site.** Only pooling sub-k
   counts across sites could recover them — a change to the privacy invariant (founder decision).
-- **Open: these bounds were measured at 309 users. The goal is stated at 10,000 agents.** Per-site counts grow with
-  world size, so the k-floor binds less; the bound at 10K is unmeasured (the orchestrator is measuring it now).
+- **Measured by world size** (`tools/plateau/ceiling_scale.py`, `raw/plateau/ceiling_by_world_size.txt`; v4 gate,
+  dev seeds 0–5). The generator plants the same 90 patterns (40 discoverable) at every size; records and sites grow.
+
+  | Users | F: pattern's own records | K: all records on the key | B: same, polarity-blind |
+  |---|---|---|---|
+  | 200 | 0.746 | 0.829 | 0.854 |
+  | 600 | 0.754 | 0.850 | 0.883 |
+  | 2,000 | 0.738 | 0.950 | 0.963 |
+  | 10,000 | **0.683** | 0.921 | 0.929 |
+
+- **Specificity of the same count gate** (`tools/plateau/specificity_scale.py`,
+  `raw/plateau/specificity_by_world_size.txt`; 300 sampled non-planted chain keys per seed):
+
+  | Users | Decoys passing (key model, in window) | Non-planted chain keys ever passing |
+  |---|---|---|
+  | 200 | 219/300 | 9.6% |
+  | 2,000 | 270/300 | **69.9%** |
+  | 10,000 | 278/300 | **69.4%** |
+
+  **At ≥2,000 users the count gate approves ~70% of keys that carry no planted pattern and 93% of decoys, so the K/B
+  ceilings (0.92 at 10K) are not discovery; the true-evidence ceiling (F) is 0.683 at 10K.** True pattern evidence
+  thins as the same patterns spread over more sites while background accumulates on keys. The binding loss at scale is
+  the evidence representation: per-key counts discard which records belong together (the chain's stages, their order,
+  the owners). What must scale is evidence specificity, under k per site.
 
 ## Offline policy estimates (tools/plateau/v5b_offline.py, estimates not runs)
 
