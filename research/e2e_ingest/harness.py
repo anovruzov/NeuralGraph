@@ -351,6 +351,7 @@ class Options:
     run_id: str = "local"
     idle_timeout: float = 300.0
     suites: Path | None = None
+    routing: str | None = None          # a directory of <site_id>.routing.json: each site's verifier judges through its own
 
 
 @dataclass
@@ -428,7 +429,7 @@ class E2ERun:
         edge, hq_dir = self.dirs["ref"] / "edge", self.dirs["ref"] / "hq"
         for sid in world.site_ids:
             restore_store(sid, self.dirs["pristine"], edge)
-        configs = ew.site_configs(world, edge=edge, hq_dir=hq_dir)
+        configs = ew.site_configs(world, edge=edge, hq_dir=hq_dir, routing=self.options.routing)
         endpoints = sg.open_endpoints(configs, "in_process", hq_dir / "wire.jsonl", self.dirs["ref"] / "configs")
         view = HqView(world.pipeline.store, world.pack)
         self.reference: dict[tuple[str, str], str] = {}
@@ -474,7 +475,7 @@ class E2ERun:
         for sid in world.site_ids:
             restore_store(sid, self.dirs["pristine"], self.main_edge)
         self.main_hq.mkdir(parents=True, exist_ok=True)
-        self.main_configs = ew.site_configs(world, edge=self.main_edge, hq_dir=self.main_hq)
+        self.main_configs = ew.site_configs(world, edge=self.main_edge, hq_dir=self.main_hq, routing=self.options.routing)
         for sid in world.site_ids:                       # the process-mode endpoints read these config files
             write_config(self.main_configs[sid], self.dirs["main"] / "configs" / f"site-{sid}.json")
         self.wire_times: list[dict[str, Any]] = []
@@ -1209,7 +1210,7 @@ class E2ERun:
         post = after[cut:]
         scratch = self.dirs["scratch"]
         restore_store(site, self.dirs["pristine"], scratch / "edge")
-        cfg = ew.site_configs(world, edge=scratch / "edge", hq_dir=scratch / "hq")[site]
+        cfg = ew.site_configs(world, edge=scratch / "edge", hq_dir=scratch / "hq", routing=self.options.routing)[site]
         (scratch / "hq").mkdir(parents=True, exist_ok=True)
         process = sg.E2ESiteProcess(cfg)
         identical = True
@@ -1475,7 +1476,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"error: --suites {suites} is not a directory", file=sys.stderr)
         return 2
     options = Options(out=out, world=args.world, seed=args.seed, mode=args.mode, skip_drills=bool(args.skip_drills),
-                      jobs=args.jobs, run_id=args.run_id, queries=args.queries, top_n=args.top_n, suites=suites)
+                      jobs=args.jobs, run_id=args.run_id, queries=args.queries, top_n=args.top_n, suites=suites,
+                      routing=str(Path(args.routing).resolve()) if args.routing else None)
     run = E2ERun(options=options)
     doc = run.run()
     path = out / rp.REPORT_NAME
@@ -1539,6 +1541,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     r.add_argument("--top-n", type=int, default=ew.TOP_N,
                    help="the candidate list's bound (the brief: 60; the measure job asks 20 at 2,000 users)")
     r.add_argument("--run-id", default="local")
+    r.add_argument("--routing", default=None,
+                   help="a directory holding <site_id>.routing.json for every site; each file's judge_record route "
+                        "(an endpoint with boundary exactly site:<site_id>) judges that site's records instead of the "
+                        "lexical judge")
     r.add_argument("--suites", default=None,
                    help="the directory the suites CLI wrote (M2's junit evidence); criterion 10 runs over it")
     c = sub.add_parser("check", help="re-read a report: recompute its aggregates and re-run its checks (M12)")

@@ -376,8 +376,8 @@ def fixed_questions(world: World, n: int = 20) -> list[dict[str, Any]]:
 
 
 def site_configs(world: World, *, retrieval: str = "tesseract", max_records: int = MAX_RECORDS,
-                 edge: Path | None = None, hq_dir: Path | None = None, embed_dim: int = EMBED_DIM
-                 ) -> dict[str, SiteConfig]:
+                 edge: Path | None = None, hq_dir: Path | None = None, embed_dim: int = EMBED_DIM,
+                 routing: str | None = None) -> dict[str, SiteConfig]:
     """One ``SiteConfig`` per site, as the spike's ``run.site_configs`` builds them, with the pack named by its
     directory (the pack is not built in)."""
     edge = edge or world.workdir / "edge"
@@ -386,7 +386,8 @@ def site_configs(world: World, *, retrieval: str = "tesseract", max_records: int
                             master_data={t: list(v) for t, v in world.master_data[sid].items()},
                             demo_seed=world.seed, retrieval=retrieval, max_records=max_records,
                             graph_path=str(edge / f"site-{sid}.graph.sqlite3"),
-                            clock_start=f"{world.pipeline.as_of}T12:00:00Z", embed_dim=embed_dim)
+                            clock_start=f"{world.pipeline.as_of}T12:00:00Z", embed_dim=embed_dim,
+                            routing=None if routing is None else str(Path(routing) / f"{sid}.routing.json"))
             for sid in world.site_ids}
 
 
