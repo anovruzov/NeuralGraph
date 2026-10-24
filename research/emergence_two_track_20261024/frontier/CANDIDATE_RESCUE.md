@@ -111,4 +111,23 @@ that is 1 case; in v2 5; in v4 9, all rare.
 ## 4. End-to-end confirmation (running)
 
 Arms: `b60_rs_nd_n2` (shipped order, `--top-n 60`) vs `b60_rs_nd_n2_rulefirst` (same, plus `ablate.py --order
-rulefirst`), seeds 0–5. Results are pending.
+rulefirst`), seeds 0–5, real pipeline (NATS fabric, site processes, lexical judge), `--skip-drills`, so DIAGNOSTIC.
+Raw: `raw/rescue/e2e_b60_seeds0-5.txt`.
+
+| arm (360 questions in total) | found / 240 | per seed | rare | decoys | bg |
+|---|---|---|---|---|---|
+| shipped order | 119 | 19 15 22 24 18 21 | 7 | 112 | 13 |
+| **rule hit first** | **127** | 19 18 23 26 20 21 | 7 | 113 | 13 |
+| *replay prediction* | *118 → 128* | | | | |
+
+**Confirmed end to end: +8 of 240 (+3.3 points) at an identical budget.**
+
+- Decoys are 113 vs 112 (under the bar of 118); background-supported confirms are unchanged.
+- The replay was within one pattern per arm: shipped 118 predicted vs 119 actual, rule-first 128 vs 127.
+  That validates the replay as an experiment instrument.
+- Per seed: 4 better, 2 tied, none worse. A sign test on the 4 seeds that differ gives p = 1/16 one-sided. That is
+  suggestive, not conclusive.
+
+Status: a **candidate**, not a result. It was chosen as the best of ten orderings on these same dev seeds. Before
+any claim it needs a frozen candidate, the full drills and suites (`--suites`), and held-out seeds. The gain does not
+touch rare recall (7 vs 7). Rare patterns remain a disclosure problem (`DEEP_RESEARCH_PROBLEM.md` P1).

@@ -1,0 +1,5 @@
+# e2e, process mode, v4 config (rs_nd_n1_n2) with --top-n 60, dev seeds 0-5, --skip-drills (DIAGNOSTIC; exit 1 = verdict pass false, as every diagnostic run)
+# run ids ABLATION-r1-b60_rs_nd_n2-s{0..5}-* (shipped order) and ABLATION-r1-b60_rs_nd_n2_rulefirst-s{0..5}-* (ablate.py --order rulefirst)
+b60_rs_nd_n2           per-seed [19, 15, 22, 24, 18, 21] found 119 rare 7 decoys 112 bg 13 questions 360
+b60_rs_nd_n2_rulefirst per-seed [19, 18, 23, 26, 20, 21] found 127 rare 7 decoys 113 bg 13 questions 360
+# replay prediction (raw/rescue/detector_rerank_seeds0-5.txt): shipped 118 [18,15,22,24,18,21], rulefirst 128 [18,18,23,26,21,22]
