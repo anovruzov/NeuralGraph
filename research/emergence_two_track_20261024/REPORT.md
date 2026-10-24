@@ -6,6 +6,11 @@ Cells that read _pending_ are runs still in flight; they are filled from `raw/e2
 
 ## 0. Answer first
 
+**Current best (dev seeds 0–5, real run): Track B h1n+nd+N1 = 0.629 recall, 174 decoys (baseline 0.388 / 118).
+It fails the frozen decoy bar; the excess is class 2 (temporal scramble, inseparable from true patterns by design),
+class 5 (stale chains) and cross-site echoes (addressed by N2, being measured).**
+
+
 - **Track A (frozen EMERGENCE R0): 0.80 is not reachable under the frozen invariants, and this is now independently
   verified, not argued.** An evidence-level ceiling, computed from the generator's own records and attacked by an
   independent reviewer, caps `recall_all` at **0.6375** with the shipped 6-week window. The most permissive legal
@@ -49,9 +54,11 @@ Clean checkout `e094bd82`, process mode, drills skipped, real broker.
 | found / 40 | 13 | 12 | 17 | 17 | 19 | 15 | **93/240 = 0.3875** |
 | decoys accepted | 17 | 18 | 21 | 22 | 18 | 22 | **118** |
 
-Identical to the recorded figures (root-cause report: 13, 12, 17, 17, 19, 15; 118 of 300). Seed 0 official CLI run:
-_pending_ (the seed-0 row above went through the wrapper, whose bypass is a no-op at seed 0; an untouched-CLI rerun is
-in flight). Wall time ~5–6 min per world on 4 shared CPUs.
+Identical to the recorded figures (root-cause report: 13, 12, 17, 17, 19, 15; 118 of 300). **Seed 0 official CLI run**
+(`OFFICIAL-s0-e094bd82`): unmodified `python -m research.e2e_ingest run`, immutable checkout `e094bd82`,
+`code_dirty_start/end = false`, `checks_pass = true`; 13/40, the same 13 patterns, decoys 5/9/3. Its only non-pass is
+`suites_not_green` (CI's junit suites are not supplied locally). Seeds 1–5 can only run as diagnostics (guard
+bypass). Wall time ~5–7 min per world on 4 shared CPUs.
 
 ## 3. The ceiling (Track A feasibility), independently reviewed
 
@@ -102,11 +109,23 @@ Seed 0: 22–23 patterns are R0-feasible, 13 are found. The 10 missed (`tools/fu
 |---|---|---|---|---|
 | baseline | – | 93/240 = 0.3875 | 118 | 53–60 |
 | h1 | `min_history_weeks` 6 → 1 (legal minimum), cap 60 | 89/240 = 0.371 | 148 | 60 |
-| h1n | h1 + no candidate cap | _pending (0–2: 67/120 = 0.558 vs 42/120)_ | _pending (0–2: 91 vs 56)_ | 84–90 |
+| h1n | h1 + no candidate cap | **140/240 = 0.583** | 182 (fails decoy bar) | 84–90 |
 | persist | re-ask while a candidate persists | 14/40 at s0 (+1) | 17 (+0) | 199 |
-| persist+rule | + ask rule-only candidates, one question per 6-week window | _pending_ | _pending_ | 723 |
-| nd | near-duplicate roots (echo = one root) | _pending_ | _pending_ | |
-| h1n+nd | | _pending_ | _pending_ | |
+| persist+rule | + ask rule-only candidates, one question per 6-week window | **refused by the HQ bridge** (no detector snapshot week: provenance guard, correct) | – | 723 |
+| nd (b3025fb6) | near-duplicate roots (echo = one root), first version | 94/240 = 0.392 | **108** (class 4: 41 → 30) | 53–60 |
+| N1 (b3025fb6) | weak-site corroboration (Track B lever) | 96/240 = 0.400 | 119 | 53–60 |
+| nd v2 (f830a57c) | hardened near-duplicate roots alone | 94/240 = 0.392 | 110 | 53–60 |
+| **h1n+nd+N1 (f830a57c, Track B)** | combined | **151/240 = 0.629**; rare recall 0.09–0.24 per seed (baseline 0–0.11) | 174 (fails decoy bar) | 84–90 |
+
+Notes:
+- Every ablation ran with `--skip-drills`: the run's privacy and leakage drills (c1–c6) did not execute; only c0,
+  c7, c8, c9 were evaluated (c8 fails on seeds 1–5 solely because those worlds are not the seed-0 world table the
+  guard checks). A drills-on N1 run and a drills-on plumbing run are reported in §6.
+- `persist+rule` cannot be tested by expanding candidates at HQ: the bridge publishes a conclusion only under the
+  detection run's recorded snapshot week for that key (`hq_bridge.py:269-277`). Rule-layer routing therefore needs the
+  detector itself to record rule hits as candidates: a candidate-source change (N, founder-gated), not attempted.
+- Rare patterns are the bottleneck at the system level: on seeds 0–2 all 29 rare ONE_CORR patterns produce a detector
+  candidate, but 25 are rule-only and never asked. N1 and nd act only on asked candidates.
 
 Findings so far:
 - **h1 alone is negative.** It surfaces the same patterns earlier (some before their label window, e.g. p036 at W08)
@@ -132,6 +151,14 @@ Deployment-branch commits (patches in `patches/neuralgraph-deployment-branch/`):
 2. `22cbd0ed`: **N1** weak-site corroboration (Track B). `tests/mycelic/test_pushdown_n1.py` (8 tests): R0 unchanged
    without the key; supports 1 k-site + 1 weak; never all-weak; weak adds no roots; contributing refute still
    contests; cap respected; out-of-range refused.
+   **Disclosure analysis.** Today every routed site's verdict is already published to the fabric as a
+   `collective.verdict` event carrying `verdict` and `support_bucket` (including `"<k"`), for every question and
+   whatever the conclusion's status (`research/routing_spike/publish.py:80-87`); the gate result already lists
+   `weak_confirming_sites` under R0 (`gate.py:308`). N1 changes only the conclusion's `status`, a deterministic
+   function of those already-published events. It therefore publishes no new information and adds no differencing
+   surface; what it changes is the corroboration decision (whether a sub-k independent site may count), which is a
+   policy question for the founder, not a disclosure one. k = 3 per counted count, raw-record locality and the
+   Boundary's artifacts are unchanged.
 3. `7bbaad1d`: **near-duplicate roots** `egress.near_duplicate_roots {jaccard 0.65, days 14}`. Offline against ground
    truth on dev seeds 0–5: every echo (site, event) group collapses to one root; 2 of 3,912 true-pattern records are
    merged with another record. At 0.6 the false merges are 4/1,250 (seeds 0–1), at 0.5 107/1,250. Tuned on dev seeds
@@ -142,6 +169,26 @@ Deployment-branch commits (patches in `patches/neuralgraph-deployment-branch/`):
 **Plumbing equivalence (PASS)**: seed 0, fake lexical judge over HTTP through `--routing`: 5,247 judge calls, 5,247
 receipts, 0 errors, every ledger row fake-marked, boundary mode `own`; found set and decoys identical to the baseline
 (13/40, 5/9/3). The judge path is wired correctly; the plumbing run is not inference.
+
+## 6b. Review round 2 on the deployment-branch changes (independent reviewer) and what was done
+
+| Finding | Status | Action |
+|---|---|---|
+| near-dup roots chain (A~B, B~C merged C with A) and depend on order | CONFIRMED | fixed in 494650c7: join only own-root records |
+| templated alerts with other values merged; negated report joins positive root | CONFIRMED | fixed: values and negation words must match |
+| earlier-dated late record joins a later root | CONFIRMED | fixed: backward window only |
+| quadratic ingest (81.6 s at 4k/site) | CONFIRMED | fixed: index on (structured, received_date); 50k/site: 16.9 s on vs 3.5 s off |
+| N1 corroborator absent from `confirming_sites`; reason wording | CONFIRMED | `corroborating_sites` added when N1 is on; wording fixed |
+| plumbing evidence from an intermediate code state, drills skipped | CONFIRMED | re-run at f830a57c **with drills**: c1 signed, c2 lineage, c3 idempotent, c4 recovery all ok; 10,882 fake-judge calls (reference + main passes) |
+| N1 discloses nothing new | CONFIRMED by reviewer | – |
+| v2 runs executed while N2 code sat uncommitted (inactive) in the worktree | self-found (c7 `spike_paths_clean`) | labelled dirty-tree; N2 committed 7eabc4c3 |
+
+N1 with drills (seed 0): c1–c4 ok. 4 new near-dup regression tests fail on 7bbaad1d and pass after.
+
+**N2 (Track B, 7eabc4c3)**: a site's roots count toward `min_independent_roots` only if its own roots bucket reaches
+k. Reason: under R0 `bucket_lower('<k') = 1`, so one event echoed to three sites (one root each after nd) sums to
+three "independent" roots. Offline re-gate of the actual verdicts of the h1n+nd+N1 run at seed 0: 0 of 22 true
+patterns lost, 5 of 9 supported echo-decoy conclusions dropped. End-to-end: _pending_.
 
 ## 7. MycelicLabs (Rust production workspace) — review lane and fix lane
 
@@ -156,9 +203,11 @@ receipts, 0 errors, every ledger row fake-marked, boundary mode `own`; found set
      decision;
   4. the similar-entity and canary checks are too narrow; 404 bodies do not disclose existence (checked: identical
      for real and made-up ids).
-- Fix (`3daed66`): active raw notes with the same slot and normalised text are one source; earliest by
-  `(created_at, store arrival)`. `tests/copied_roots.rs` fails before (`:49`, the copy completed the conclusion), passes
-  after, with an independent-observation control.
+- Fix (`3daed66`, then `8e17b46`): active raw notes with the same slot and normalised text are one source. Round 2
+  showed the first version trusted the client's `observed_at` (a backdated or offset copy displaced the original);
+  the group is now credited to the member whose producer already contributes other evidence, so copying cannot add an
+  agent. `tests/copied_roots.rs` fails before and passes after, including the backdated and offset attacks. Pushed:
+  PNurmanM/MycelicLabs branch `claude/mycelic-gate-0-recovery-tjl82x` (`a09283a`).
 - Found while writing the test, not fixed: **slot selection is not independence-aware** — an agent holding two
   slots can block composition even when an independent alternative exists (recall, not safety).
 - Health startup race: `api.rs:273` returned 503 vs 200 once under heavy CPU load; `golden_api` passed 3/3 when

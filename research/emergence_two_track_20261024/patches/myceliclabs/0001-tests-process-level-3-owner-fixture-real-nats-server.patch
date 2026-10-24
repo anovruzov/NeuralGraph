@@ -1,7 +1,7 @@
 From 2b423cca9d1d08992b8cdd684dca194526aca924 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 08:17:13 +0000
-Subject: [PATCH 1/2] tests: process-level 3-owner fixture (real nats-server +
+Subject: [PATCH 1/5] tests: process-level 3-owner fixture (real nats-server +
  mycelic process + SDK)
 
 Three owners in separate teams each hold one fragment (transport, buffer,

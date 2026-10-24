@@ -10,6 +10,7 @@ from research.e2e_ingest import emergence_world as ew
 ap = argparse.ArgumentParser()
 ap.add_argument("--pack-override", default=None)
 ap.add_argument("--tag", required=True)
+ap.add_argument("--m", type=int, default=None, help="sites HQ routes each question to (shipped: 3); 0 = every site")
 ap.add_argument("--candidates", default="snapshot", choices=["snapshot", "persist", "persist+rule"],
                 help="snapshot: shipped (one question per key at its first snapshot); persist: also re-ask while the "
                      "candidate persists, one question per later candidate week; persist+rule: also ask "
@@ -17,6 +18,9 @@ ap.add_argument("--candidates", default="snapshot", choices=["snapshot", "persis
 a, rest = ap.parse_known_args()
 rest = [x for x in rest if x != "--"]
 ew.check_world_counts = lambda counts, target_users: None
+if a.m is not None:
+    ew.M = a.m if a.m > 0 else 1000
+    print(f"ABLATION {a.tag}: M = {ew.M}", flush=True)
 if a.pack_override:
     over = json.loads(a.pack_override)
     pack = Path(tempfile.mkdtemp(prefix=f"pack-{a.tag}-")) / "emergence"

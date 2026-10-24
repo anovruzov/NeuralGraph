@@ -1,7 +1,7 @@
 From 3daed66cd222f815e3e749bb9a3cb993e5f60110 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 08:17:13 +0000
-Subject: [PATCH 2/2] aggregation: a copied observation is not an independent
+Subject: [PATCH 2/5] aggregation: a copied observation is not an independent
  source
 
 Reviewer finding 2, reproduced against the real service and broker: a second

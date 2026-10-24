@@ -1,7 +1,7 @@
 From 22cbd0edbae1b4db5928fdafbec4816b5b30f8f1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 07:50:54 +0000
-Subject: [PATCH 2/5] pushdown: EMERGENCE-Next protocol N1, weak-site
+Subject: [PATCH 2/9] pushdown: EMERGENCE-Next protocol N1, weak-site
  corroboration (opt-in, research only)
 
 pushdown.weak_corroborating_sites (optional, 0..10, absent = 0) lets up to that

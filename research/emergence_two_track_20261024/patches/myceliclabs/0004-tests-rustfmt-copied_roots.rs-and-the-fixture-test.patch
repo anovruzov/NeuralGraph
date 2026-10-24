@@ -1,0 +1,245 @@
+From a10e2cb54b3193e727f7719c339581cc48ec3cd3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 08:40:21 +0000
+Subject: [PATCH 4/5] tests: rustfmt copied_roots.rs and the fixture test
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Cc9kurj5azoGuhPNUVde8U
+---
+ .../tests/ingestion_fixture_process.rs        | 115 ++++++++++++++++--
+ crates/mycelic/tests/copied_roots.rs          |  32 +++--
+ 2 files changed, 126 insertions(+), 21 deletions(-)
+
+diff --git a/crates/mycelic-harness/tests/ingestion_fixture_process.rs b/crates/mycelic-harness/tests/ingestion_fixture_process.rs
+index 59ad1ae..4b9f349 100644
+--- a/crates/mycelic-harness/tests/ingestion_fixture_process.rs
++++ b/crates/mycelic-harness/tests/ingestion_fixture_process.rs
+@@ -82,24 +82,83 @@ fn three_owner_fixture_end_to_end() {
+ 
+     // ---- fragments + distractors (declared annotations)
+     let t = logi
+-        .remember(&note("Rotterdam strike delays SD-9 servo drive shipments by 3 weeks.", Some("transport_disruption"), Some("sd-9")), "team", Some("t-1"), None, None)
++        .remember(
++            &note(
++                "Rotterdam strike delays SD-9 servo drive shipments by 3 weeks.",
++                Some("transport_disruption"),
++                Some("sd-9"),
++            ),
++            "team",
++            Some("t-1"),
++            None,
++            None,
++        )
+         .unwrap();
+     // resend of the same root (same idempotency key): must be one memory
+     let t_again = logi
+-        .remember(&note("Rotterdam strike delays SD-9 servo drive shipments by 3 weeks.", Some("transport_disruption"), Some("sd-9")), "team", Some("t-1"), None, None)
++        .remember(
++            &note(
++                "Rotterdam strike delays SD-9 servo drive shipments by 3 weeks.",
++                Some("transport_disruption"),
++                Some("sd-9"),
++            ),
++            "team",
++            Some("t-1"),
++            None,
++            None,
++        )
+         .unwrap();
+     let b = proc_
+-        .remember(&note("Supplier buffer for SD-9 servo drives is down to 4 days.", Some("supplier_buffer_low"), Some("sd-9")), "team", Some("b-1"), None, None)
++        .remember(
++            &note(
++                "Supplier buffer for SD-9 servo drives is down to 4 days.",
++                Some("supplier_buffer_low"),
++                Some("sd-9"),
++            ),
++            "team",
++            Some("b-1"),
++            None,
++            None,
++        )
+         .unwrap();
+     // unrelated entity and similarly named entity
+-    logi.remember(&note("KX-2 gearbox carrier delayed.", Some("transport_disruption"), Some("kx-2")), "team", Some("u-1"), None, None).unwrap();
+-    proc_.remember(&note("SD-90 sensor buffer low.", Some("supplier_buffer_low"), Some("sd-90")), "team", Some("s-1"), None, None).unwrap();
+-    sales.remember(&note("Committed 500 SD-90 sensors to Contoso.", Some("demand_commitment"), Some("sd-90")), "team", Some("s-2"), None, None).unwrap();
++    logi.remember(
++        &note("KX-2 gearbox carrier delayed.", Some("transport_disruption"), Some("kx-2")),
++        "team",
++        Some("u-1"),
++        None,
++        None,
++    )
++    .unwrap();
++    proc_
++        .remember(
++            &note("SD-90 sensor buffer low.", Some("supplier_buffer_low"), Some("sd-90")),
++            "team",
++            Some("s-1"),
++            None,
++            None,
++        )
++        .unwrap();
++    sales
++        .remember(
++            &note("Committed 500 SD-90 sensors to Contoso.", Some("demand_commitment"), Some("sd-90")),
++            "team",
++            Some("s-2"),
++            None,
++            None,
++        )
++        .unwrap();
+     // noise without a slot
+     sales.remember(&note("Team offsite moved to Thursday.", None, None), "team", Some("n-1"), None, None).unwrap();
+     // denied owner supplies the missing slot for sd-9 in another enterprise, with a canary
+     rival
+-        .remember(&note(&format!("{CANARY} committed 900 SD-9 drives to Fabrikam."), Some("demand_commitment"), Some("sd-9")), "team", Some("r-1"), None, None)
++        .remember(
++            &note(&format!("{CANARY} committed 900 SD-9 drives to Fabrikam."), Some("demand_commitment"), Some("sd-9")),
++            "team",
++            Some("r-1"),
++            None,
++            None,
++        )
+         .unwrap();
+     wait_idle(&admin, Duration::from_secs(60)).unwrap();
+     assert_eq!(t["memory_id"], t_again["memory_id"], "a resent root must not create a second memory");
+@@ -111,7 +170,17 @@ fn three_owner_fixture_end_to_end() {
+ 
+     // ---- third owner completes it
+     let c = sales
+-        .remember(&note("Committed 1200 SD-9 servo drives to Northwind Robotics for Q4.", Some("demand_commitment"), Some("sd-9")), "team", Some("c-1"), None, None)
++        .remember(
++            &note(
++                "Committed 1200 SD-9 servo drives to Northwind Robotics for Q4.",
++                Some("demand_commitment"),
++                Some("sd-9"),
++            ),
++            "team",
++            Some("c-1"),
++            None,
++            None,
++        )
+         .unwrap();
+     wait_idle(&admin, Duration::from_secs(60)).unwrap();
+     let res = enterprise_answer(&sales, ENTERPRISE);
+@@ -125,7 +194,11 @@ fn three_owner_fixture_end_to_end() {
+     let wire = res.to_string() + &admin_lin.to_string();
+     assert!(!wire.contains(CANARY), "denied owner's canary leaked into northwind payloads");
+     assert!(!wire.to_lowercase().contains("sd-90"), "similarly named entity merged into sd-9 conclusion");
+-    ledger(&mut steps, "composed with exact roots", json!({"conclusion": concl, "roots": expected, "support": ans["support"]}));
++    ledger(
++        &mut steps,
++        "composed with exact roots",
++        json!({"conclusion": concl, "roots": expected, "support": ans["support"]}),
++    );
+ 
+     // ---- authorization: rival cannot read northwind evidence or conclusion
+     for id in expected.iter().chain([&concl]) {
+@@ -145,7 +218,11 @@ fn three_owner_fixture_end_to_end() {
+     d.start("nats").unwrap();
+     d.start("mycelic").unwrap();
+     wait_idle(&admin, Duration::from_secs(90)).unwrap();
+-    assert_eq!(enterprise_answer(&sales, ENTERPRISE)["answer"]["memory_id"], json!(concl), "answer moved after restart");
++    assert_eq!(
++        enterprise_answer(&sales, ENTERPRISE)["answer"]["memory_id"],
++        json!(concl),
++        "answer moved after restart"
++    );
+     assert_eq!(active_snapshot(&admin).unwrap(), snap, "state moved after restart");
+     ledger(&mut steps, "broker+service restart", json!({"active": snap.len()}));
+ 
+@@ -156,9 +233,20 @@ fn three_owner_fixture_end_to_end() {
+     assert!(res["answer"].is_null(), "stale conclusion survived retraction of a root: {}", res["answer"]);
+     let status = admin.get_memory(&concl).unwrap()["status"].clone();
+     assert_ne!(status, "active", "withdrawn conclusion still active");
+-    sales.remember(&note("As mentioned, Rotterdam was in the news again.", None, Some("sd-9")), "team", Some("m-1"), None, None).unwrap();
++    sales
++        .remember(
++            &note("As mentioned, Rotterdam was in the news again.", None, Some("sd-9")),
++            "team",
++            Some("m-1"),
++            None,
++            None,
++        )
++        .unwrap();
+     wait_idle(&admin, Duration::from_secs(60)).unwrap();
+-    assert!(enterprise_answer(&sales, ENTERPRISE)["answer"].is_null(), "casual mention restored a withdrawn conclusion");
++    assert!(
++        enterprise_answer(&sales, ENTERPRISE)["answer"].is_null(),
++        "casual mention restored a withdrawn conclusion"
++    );
+     ledger(&mut steps, "retraction withdraws descendant", json!({"conclusion_status": status}));
+ 
+     // ---- rebuild from the event log into fresh storage
+@@ -172,7 +260,8 @@ fn three_owner_fixture_end_to_end() {
+     ledger(&mut steps, "rebuild from JetStream", json!({"active": snap.len()}));
+ 
+     if let Some(path) = std::env::var_os("MYCELIC_FIXTURE_LEDGER") {
+-        std::fs::write(path, serde_json::to_string_pretty(&json!({"result": "PASS", "steps": steps})).unwrap()).unwrap();
++        std::fs::write(path, serde_json::to_string_pretty(&json!({"result": "PASS", "steps": steps})).unwrap())
++            .unwrap();
+     }
+     d.down();
+ }
+diff --git a/crates/mycelic/tests/copied_roots.rs b/crates/mycelic/tests/copied_roots.rs
+index 5490129..c21833e 100644
+--- a/crates/mycelic/tests/copied_roots.rs
++++ b/crates/mycelic/tests/copied_roots.rs
+@@ -38,19 +38,31 @@ async fn test_a_copy_from_another_agent_is_not_an_independent_source() {
+     // two genuine sources hold all three slots: log-1 (transport and buffer) and sales-1 (demand)
+     h.observe("log-1", TRANSPORT, obs("transport_disruption", "supply:sd-9/transport")).await;
+     h.observe("log-1", BUFFER, obs("supplier_buffer_low", "supply:sd-9/supplier")).await;
+-    h.observe("sales-1", "Helios committed to 40 RX-4 arms; every RX-4 uses an SD-9 drive.",
+-              obs("demand_commitment", "supply:sd-9/demand")).await;
++    h.observe(
++        "sales-1",
++        "Helios committed to 40 RX-4 arms; every RX-4 uses an SD-9 drive.",
++        obs("demand_commitment", "supply:sd-9/demand"),
++    )
++    .await;
+     h.settle().await;
+     assert!(h.layer("enterprise").is_empty(), "two agents cannot meet min_agents = 3");
+     // proc-1 re-posts log-1's buffer note, differing only in case and spacing, with a higher confidence so that it
+     // wins the slot: still one source, so the coalition is still log-1 and sales-1
+-    h.observe("proc-1", &format!("  {}  ", BUFFER.to_uppercase()),
+-              obs_c("supplier_buffer_low", "supply:sd-9/supplier", 0.95)).await;
++    h.observe(
++        "proc-1",
++        &format!("  {}  ", BUFFER.to_uppercase()),
++        obs_c("supplier_buffer_low", "supply:sd-9/supplier", 0.95),
++    )
++    .await;
+     h.settle().await;
+     assert!(h.layer("enterprise").is_empty(), "a copy must not stand in for a third independent agent");
+     // control: proc-1's own, different observation is independent evidence and completes the conclusion
+-    h.observe("proc-1", "Our own count: 9 SD-9 drives on the shelf, reorder lead time 6 weeks.",
+-              obs_c("supplier_buffer_low", "supply:sd-9/supplier", 0.97)).await;
++    h.observe(
++        "proc-1",
++        "Our own count: 9 SD-9 drives on the shelf, reorder lead time 6 weeks.",
++        obs_c("supplier_buffer_low", "supply:sd-9/supplier", 0.97),
++    )
++    .await;
+     h.settle().await;
+     let concl = h.layer("enterprise");
+     assert_eq!(concl.len(), 1, "an independent observation still composes");
+@@ -66,8 +78,12 @@ async fn test_a_backdated_or_offset_copy_cannot_displace_the_original() {
+         let h = setup().await;
+         h.observe("log-1", TRANSPORT, obs("transport_disruption", "supply:sd-9/transport")).await;
+         h.observe("log-1", BUFFER, obs("supplier_buffer_low", "supply:sd-9/supplier")).await;
+-        h.observe("sales-1", "Helios committed to 40 RX-4 arms; every RX-4 uses an SD-9 drive.",
+-                  obs("demand_commitment", "supply:sd-9/demand")).await;
++        h.observe(
++            "sales-1",
++            "Helios committed to 40 RX-4 arms; every RX-4 uses an SD-9 drive.",
++            obs("demand_commitment", "supply:sd-9/demand"),
++        )
++        .await;
+         h.settle().await;
+         let mut fields = obs_c("supplier_buffer_low", "supply:sd-9/supplier", 0.95);
+         fields["observed_at"] = json!(observed_at);
+-- 
+2.43.0
+

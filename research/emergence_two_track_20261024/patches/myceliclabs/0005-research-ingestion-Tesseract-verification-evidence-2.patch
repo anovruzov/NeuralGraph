@@ -1,0 +1,217 @@
+From a09283a5598270140a81f60e4a50386c08e964ab Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 08:46:00 +0000
+Subject: [PATCH 5/5] research: ingestion/Tesseract verification evidence
+ (2026-10-24)
+
+PIPELINE.md (stage-by-stage, implemented/absent), TEST_MATRIX.md (fixture,
+invariant, layer, command, outcome incl. wrong-reason passes and blocked layer
+3), RESULTS.md (fail-before/pass-after for the copied-source defect over two
+review rounds, what was deliberately not changed and why), CHECKPOINT.json,
+TESSERACT_TRACE.md (neither Tesseract is on a production path here or in
+NeuralGraph main).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Cc9kurj5azoGuhPNUVde8U
+---
+ .../CHECKPOINT.json                           | 30 +++++++++++
+ .../ingestion_tesseract_20261024/PIPELINE.md  | 33 ++++++++++++
+ .../ingestion_tesseract_20261024/RESULTS.md   | 54 +++++++++++++++++++
+ .../TESSERACT_TRACE.md                        | 13 +++++
+ .../TEST_MATRIX.md                            | 26 +++++++++
+ 5 files changed, 156 insertions(+)
+ create mode 100644 research/mycelic/ingestion_tesseract_20261024/CHECKPOINT.json
+ create mode 100644 research/mycelic/ingestion_tesseract_20261024/PIPELINE.md
+ create mode 100644 research/mycelic/ingestion_tesseract_20261024/RESULTS.md
+ create mode 100644 research/mycelic/ingestion_tesseract_20261024/TESSERACT_TRACE.md
+ create mode 100644 research/mycelic/ingestion_tesseract_20261024/TEST_MATRIX.md
+
+diff --git a/research/mycelic/ingestion_tesseract_20261024/CHECKPOINT.json b/research/mycelic/ingestion_tesseract_20261024/CHECKPOINT.json
+new file mode 100644
+index 0000000..c0dd4b5
+--- /dev/null
++++ b/research/mycelic/ingestion_tesseract_20261024/CHECKPOINT.json
+@@ -0,0 +1,30 @@
++{
++  "date": "2026-10-24",
++  "repository": "PNurmanM/MycelicLabs",
++  "base": "64027cb",
++  "branch": "claude/mycelic-gate-0-recovery-tjl82x",
++  "commits": {
++    "2b423cc": "tests: process-level 3-owner fixture (as reviewed)",
++    "3daed66": "aggregation: a copied observation is not an independent source",
++    "8e17b46": "aggregation: copy attribution no longer trusts client time",
++    "a10e2cb": "tests: rustfmt"
++  },
++  "historical_checkpoints_not_found": ["research/architecture-recovery-20261024", "8dc5f5a", "78511ae",
++    "architecture_recovery_20261024/*", "emergence70/*", "AGENTS.md", "CLAUDE_MEMORY.md"],
++  "seeds": {"used": "none (deterministic fixtures; no benchmark seed spent)", "sealed_94000_94009": "untouched"},
++  "decisions": [
++    "copied observations (same slot, normalised text) are one source, credited conservatively",
++    "verbatim recount of a retracted note left counting: the golden scenario follows_evidence specifies it",
++    "reviewed fixture test not edited for its findings; findings recorded instead"
++  ],
++  "remaining_failures": [
++    "free-text query can answer another entity's conclusion (entity filter optional)",
++    "slot selection not independence-aware",
++    "paraphrased copies counted as independent",
++    "unknown-parent / stale memory.derived admitted from the stream (suspected, untested: needs direct NATS publish)",
++    "wait_idle ignores JetStream ack-pending (suspected timing)",
++    "health startup race under load (pre-existing)",
++    "layer 3 blind raw-text extraction blocked: no local model endpoint"
++  ],
++  "next_action": "owners decide the retracted-recount semantics; add an entity-bound fixture test with a counterfactual completion; run layer 3 on the machine that serves the local model"
++}
+diff --git a/research/mycelic/ingestion_tesseract_20261024/PIPELINE.md b/research/mycelic/ingestion_tesseract_20261024/PIPELINE.md
+new file mode 100644
+index 0000000..04ada6f
+--- /dev/null
++++ b/research/mycelic/ingestion_tesseract_20261024/PIPELINE.md
+@@ -0,0 +1,33 @@
++# Pipeline as implemented (main 64027cb), stage by stage
++
++Read from source and exercised by tests on 2026-10-24. "Implemented" means a production caller reaches it.
++
++| # | Stage the brief asks for | Status | Where / evidence |
++|---|---|---|---|
++| 1 | Source bytes → owner-local ingestion | **Absent server-side** | `POST /memory` takes caller-supplied `text` plus `topic`, `slot`, `entity`, `confidence` (`service.rs` `validate_memory_body`). The SDK agent (`mycelic-sdk/src/bin/mycelic-agent.rs`) reads `observations.jsonl` that is already labelled. `LocalMemory` is a SQLite note table searched with `LIKE`. |
++| 2 | Parsing / chunking / normalisation | **Absent** | No parser, chunker or normaliser in `crates/mycelic`. The `extract` functions in `mycelic-research` are simulation. |
++| 3 | Evidence extraction / entity / time / source identity | **Absent (caller supplies labels)** | Entity and slot are inputs. Source identity is limited to `idempotency_key`, `local_ref` and the producing agent; no byte hash of a source document exists. |
++| 4 | Durable store + authenticated outbox | **Implemented** | One transaction writes the memory and a `memory.observed` event (`ingest_memory`, service.rs:1106); HMAC-signed events. |
++| 5 | Real JetStream delivery | **Implemented, tested** | `transport.rs`; 9 broker tests in `tests/jetstream.rs` really run with nats-server 2.10.29 (verified with `--nocapture`: no "skipped"). |
++| 6 | Application / indexing | **Implemented** | `apply_event` (idempotent); BM25 index per org (`retrieval.rs`: K1 1.5, B 0.75, layer boost 0.15). No embeddings ("deliberately not part of this slice"). |
++| 7 | Retrieval / routing | **BM25 only** | `query` (service.rs:1511) ranks the caller's visible memories; the answer is `hits.first()`. An `entity` filter exists and is optional. No graph traversal, no routing between holders. |
++| 8 | Cross-owner composition | **Implemented, rule-based** | `aggregation.rs` `compose_rule` + `coordination.rs` `RuleBasedSynthesizer`: one claim per required slot, `min_agents`, `min_teams`; derived memories per layer (team → … → enterprise) with lineage roots. |
++| 9 | Answer with evidence references | Implemented | `answer` + `lineage` (roots, contributing agents/teams, redaction for non-visible nodes). |
++| 10 | Authorised lineage drill-down | Implemented | `GET /lineage/{id}`; non-visible nodes redacted; a foreign org's ids return the same 404 body as made-up ids (checked). |
++| 11 | Correction / withdrawal / rebuild | Implemented | `retract` (agent notes only) withdraws dependants; rebuild from JetStream into a wiped store reproduces the active set (process test and `smoke.rs`). |
++| – | Active inquiry / coordinator / registry / router | **Absent in Rust** | `coordination.rs` ports claim synthesis, `LineageAnalyzer`, coalitions and min-cut only; called from `aggregation.rs` and golden tests. No "tesseract" anywhere in this repository. |
++
++## Ownership
++
++Nurman: NeuralGraph memory and retrieval. Anar: coordination, lineage, experiments. The Rust Mycelic service is
++the production path; the research crate is simulation.
++
++## Missing links that matter most
++
++1. No server-side extraction: every slot/entity is asserted by the caller, so "emergence" is composition over
++   pre-classified observations.
++2. Support is counted by agent id and roots by memory id; copies were independent sources (fixed in 3daed66 for
++   byte-identical text; paraphrases remain).
++3. Slot selection is not independence-aware (one agent holding two slots can block composition).
++4. Retrieval is BM25 with an optional entity filter; NeuralGraph's Tesseract is not on this path (see
++   TESSERACT_TRACE.md).
+diff --git a/research/mycelic/ingestion_tesseract_20261024/RESULTS.md b/research/mycelic/ingestion_tesseract_20261024/RESULTS.md
+new file mode 100644
+index 0000000..2d8c05a
+--- /dev/null
++++ b/research/mycelic/ingestion_tesseract_20261024/RESULTS.md
+@@ -0,0 +1,54 @@
++# Results: ingestion fixture, adversarial review, copied-source fix
++
++Branch `claude/mycelic-gate-0-recovery-tjl82x` from main `64027cb`. Broker nats-server 2.10.29. Planner → engineer →
++adversarial reviewer, two review rounds, each reviewer an independent agent.
++
++## What was executed
++
++| Step | Command | Outcome |
++|---|---|---|
++| Baseline | `MYCELIC_NATS_SERVER_BIN=… cargo test --workspace` on 64027cb | 184 passed, 0 failed, 1 ignored; 9 JetStream tests really executed |
++| 3-owner process fixture | `cargo test -p mycelic-harness --test ingestion_fixture_process -- --nocapture` | passed first run (27 s): abstention, exact roots, cross-org 404s, broker+service SIGKILL restart, retraction, rebuild from JetStream |
++| Review round 1 | probes against the real service and broker (deleted after) | 2 production defects reproduced; 4 assertions shown vacuous or narrow (TEST_MATRIX.md) |
++| Fix 1 (3daed66) | `cargo test -p mycelic --test copied_roots` | fail before (`copied_roots.rs:49`), pass after |
++| Review round 2 | probes | fix 1 bypassable with a backdated or offset `observed_at` (client-controlled) |
++| Fix 2 (8e17b46) | same, + backdated/offset test | fail before, pass after (3 consecutive runs) |
++
++## The defect, before and after
++
++A conclusion of rule `component_supply_risk` needs 3 agents in 2 teams. Two genuine sources (log-1 holds transport and
++buffer; sales-1 holds demand) cannot meet it.
++
++- **Before (64027cb):** proc-1 re-posts log-1's buffer note (case/whitespace changed, confidence 0.95). The copy wins the
++  slot and the conclusion forms with agents {log-1, proc-1, sales-1}.
++- **After fix 1:** the copy is collapsed into one source, earliest `(created_at, arrival)`. Review round 2 showed the
++  client sets `created_at` (via `observed_at`): a copy dated 2020, or dated with offset `-23:59` (later in time, earlier
++  as a string), was "earliest" and the conclusion formed again.
++- **After fix 2:** a copy group is credited to the member whose producer already contributes other evidence; ties to
++  store arrival. Copying can no longer add an agent regardless of timestamps or order. The independent-observation
++  control still composes.
++
++## Deliberately not changed
++
++- A verbatim re-post of a **retracted** note by another agent still restores the conclusion. The golden scenario
++  `scenario_follows_evidence` (steps 36–41) specifies exactly that as a legitimate recount ("counted wrong", then a
++  colleague's recount). My first version blocked it and broke that golden (22 memories vs 25); the golden was not
++  edited. Whether verbatim recounts should count is an owners' decision.
++- Free-text query binding: the API's `entity` filter exists; the vacuous abstention is a test-design defect, recorded
++  rather than fixed by editing the reviewed test.
++- Slot selection is not independence-aware (found while writing the regression test): an agent holding two slots can
++  block composition when an independent alternative exists. Recall, not safety. Not changed.
++
++## Regressions
++
++goldens (`golden_api`, `golden_scenarios`, `golden_units`), `datapath`, `copied_roots`: pass. Health-race flakes
++(`api.rs:273` 503 vs 200; `golden_api` `/health` degraded; `/admin/replay target_seq 23 vs 24`) reproduce on unmodified
++64027cb under load (reviewer: 5 runs each) and predate this work.
++
++## Limitations
++
++- Paraphrased copies are not detected (exact normalised text only).
++- The reviewed fixture test was reformatted by rustfmt in a10e2cb (whitespace only).
++- Layer 3 (blind raw-text extraction on a local model) is blocked: no local model endpoint in this container, and cloud
++  inference is forbidden by the brief.
++- No extractor exists server-side; every slot and entity is caller-asserted (PIPELINE.md).
+diff --git a/research/mycelic/ingestion_tesseract_20261024/TESSERACT_TRACE.md b/research/mycelic/ingestion_tesseract_20261024/TESSERACT_TRACE.md
+new file mode 100644
+index 0000000..ff95dbe
+--- /dev/null
++++ b/research/mycelic/ingestion_tesseract_20261024/TESSERACT_TRACE.md
+@@ -0,0 +1,13 @@
++NeuralGraph origin/main 038fb63 (Rust port; local branch is Python):
++- retrieval::tesseract::Tesseract (crates/neuralgraph-research/src/retrieval/tesseract.rs). Algorithm: four stores
++  (Temporal/Entity/Reasoning/Adversarial), each scans ALL nodes of the session (nodes_or_session) and computes a
++  "charge" (embedding cosine + keyword/entity/temporal heuristics), keeps charge>=min_charge, ranks top-limit;
++  results fused. Exhaustive scoring, no graph traversal / no routing.
++  Runtime callers: benchmarks only (runner.rs:1442,1513; call_center.rs:262; retrieval_eval.rs:292;
++  two_agent_eval.rs:326,697) + tests. Production crate neuralgraph-memory: 0 references. service.rs:45 imports
++  only extract_topic_keywords_universal.
++- coordination::TesseractCoordinator + Router + Registry: constructed only in coordination/benchmark.rs:411,
++  experiment.rs:44 and tests (coordination*.rs). No service caller.
++MycelicLabs main 64027cb: "tesseract" appears nowhere. coordination.rs ports only ClaimEnvelope,
++RuleBasedSynthesizer, LineageAnalyzer, min-cut; called from aggregation.rs. No router/registry/coordinator.
++=> Neither Tesseract executes on any production request path in either repo.
+diff --git a/research/mycelic/ingestion_tesseract_20261024/TEST_MATRIX.md b/research/mycelic/ingestion_tesseract_20261024/TEST_MATRIX.md
+new file mode 100644
+index 0000000..9e7e3a0
+--- /dev/null
++++ b/research/mycelic/ingestion_tesseract_20261024/TEST_MATRIX.md
+@@ -0,0 +1,26 @@
++# Test matrix (2026-10-24)
++
++Broker: nats-server v2.10.29 (sha256 e314da74…), `MYCELIC_NATS_SERVER_BIN` set for every run below.
++Outcome: PASS / FAIL / BLOCKED / NOT-RUN. "Wrong-reason" = passes but the reviewer showed the assertion is vacuous.
++
++| Fixture / invariant | Layer | Command | Outcome |
++|---|---|---|---|
++| Baseline suite on main 64027cb | 1+2 | `cargo test --workspace` | PASS: 184 passed, 0 failed, 1 ignored; 9 JetStream tests executed (`--nocapture`, no "skipped") |
++| 3-owner fixture: composition with exact roots | 2 (real broker + service process + SDK) | `cargo test -p mycelic-harness --test ingestion_fixture_process -- --nocapture` | PASS (roots = exactly the three fragments) |
++| Abstention with denied owner holding the missing slot | 2 | same | PASS, **wrong-reason**: query not entity-bound; null because no enterprise memory exists at all |
++| Similar entity (sd-90) not merged | 2 | same | PASS, **wrong-reason**: sd-90 never complete, check cannot fire |
++| Cross-enterprise denial (memory, lineage) | 2 | same | PASS; 404 bodies identical for real and made-up ids (reviewer probe) |
++| Canary not in serialized payloads | 2 | same | PASS, narrow: query + admin lineage only; `/admin/events`, agent-layer results not scanned |
++| Broker + service SIGKILL and restart | 2 | same | PASS (same answer, same active set) |
++| Retraction withdraws the enterprise conclusion | 2 | same | PASS |
++| Casual unslotted mention does not restore | 2 | same | PASS, weak: unslotted notes never compose |
++| Rebuild from JetStream into a wiped store | 2 | same | PASS (same active set; withdrawn conclusion stays withdrawn) |
++| Resent root (same idempotency key) is one memory | 2 | same | PASS |
++| **Copy by another agent counted as an independent source** | 1 | `cargo test -p mycelic --test copied_roots` | **FAIL on 64027cb** (`copied_roots.rs:49`), PASS after 3daed66 |
++| Copy of a retracted note revives the conclusion | 2 (reviewer probe) | probe, deleted | Reproduced; **not fixed**: contradicts golden `scenario_follows_evidence` steps 36–41 (owners' decision) |
++| Free-text query answers another entity's conclusion | 2 (reviewer probe) | probe, deleted | Reproduced; quality defect; the `entity` filter exists |
++| wait_idle ignores JetStream ack-pending | – | code read | SUSPECTED (timing) |
++| Unknown-parent / stale `memory.derived` admitted from the stream | – | code read (`service.rs:1386-1418`) | SUSPECTED; needs a direct NATS publish to test; NOT-RUN |
++| Full suite after 3daed66 | 1+2 | `cargo test --workspace --no-fail-fast` | goldens, datapath, golden_scenarios, copied_roots PASS; one `api.rs:273` 503-vs-200 health race under heavy CPU load (see RESULTS.md) |
++| Raw-text blind extraction on a local model | 3 | – | **BLOCKED**: no local model endpoint in this container; cloud inference forbidden |
++| Tesseract retrieval / coordination on the production path | – | source trace | Absent (TESSERACT_TRACE.md) |
+-- 
+2.43.0
+

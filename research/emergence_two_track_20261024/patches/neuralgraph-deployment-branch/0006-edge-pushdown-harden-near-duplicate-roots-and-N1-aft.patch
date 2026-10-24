@@ -1,0 +1,192 @@
+From 494650c71e3356859dbb630fc87f35a226879788 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 08:44:31 +0000
+Subject: [PATCH 6/9] edge, pushdown: harden near-duplicate roots and N1 after
+ adversarial review
+
+Near-duplicate roots (reviewer round 2, each reproduced by a probe):
+- no chaining: a record joins only a record that is its own root, so B~A and
+  C~B no longer merge C with A, and the result no longer depends on order;
+- backward window only: an earlier-dated late record no longer joins a later
+  record's root;
+- a near-duplicate must carry exactly the same values (pure numbers such as
+  3, 40%, 1.5) and the same negation words, so templated alerts with other
+  readings, and a negated report beside the positive one, stay apart;
+- candidates come from an index on (structured, received_date): one 50,000-
+  record site ingests in 16.9 s with the rule on, 3.5 s off (was quadratic:
+  81.6 s at 4,000).
+Through the real EdgeSite ingest on dev seeds 0-5: 1 of 3,912 true-pattern
+records changes root; echo groups collapse to 1.04-1.18 roots per group.
+4 new regression tests fail on 7bbaad1d and pass here.
+
+N1: the hypothesis reason no longer counts a <k site as one 'with at least
+k records'; the support record names corroborating_sites when N1 is on (absent
+under R0, so R0 output bytes are unchanged).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Cc9kurj5azoGuhPNUVde8U
+---
+ mycelic/collective/edge/records.py         | 31 +++++++++++++++-------
+ mycelic/collective/pushdown/gate.py        | 11 +++++---
+ tests/mycelic/test_near_duplicate_roots.py | 28 +++++++++++++++++++
+ tests/mycelic/test_pushdown_n1.py          |  3 +++
+ 4 files changed, 60 insertions(+), 13 deletions(-)
+
+diff --git a/mycelic/collective/edge/records.py b/mycelic/collective/edge/records.py
+index d1159a00..6e513b18 100644
+--- a/mycelic/collective/edge/records.py
++++ b/mycelic/collective/edge/records.py
+@@ -45,6 +45,7 @@ Pushdown verification (G6, ``edge/verify.py``) reads and writes here only throug
+ """
+ from __future__ import annotations
+ 
++import re
+ import sqlite3
+ from contextlib import contextmanager
+ from datetime import date, timedelta
+@@ -76,6 +77,7 @@ _DDL = (
+     "origin_ref TEXT, origin_site TEXT, root_ref TEXT NOT NULL, "
+     "forwarded_in INTEGER NOT NULL, synthetic INTEGER NOT NULL)",
+     "CREATE INDEX IF NOT EXISTS records_narrative_key ON records (narrative_key, seq)",
++    "CREATE INDEX IF NOT EXISTS records_structured_date ON records (structured, received_date)",
+     "CREATE INDEX IF NOT EXISTS records_count_week ON records (count_week)",
+     "CREATE TABLE IF NOT EXISTS claims ("
+     "record_ref TEXT NOT NULL REFERENCES records(record_ref), entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, "
+@@ -108,8 +110,15 @@ _INSERT_SITE_INFO = "INSERT INTO site_info (key, value) VALUES (?, ?)"
+ _LAST_SEQ = "SELECT seq FROM records ORDER BY seq DESC LIMIT 1"
+ _HAS_REF = "SELECT seq FROM records WHERE record_ref = ? ORDER BY seq LIMIT 1"
+ _ROOT_BY_KEY = "SELECT root_ref FROM records WHERE narrative_key = ? ORDER BY seq LIMIT 1"
+-_NEAR_BY_DATE = ("SELECT narrative, structured, root_ref FROM records WHERE received_date >= ? AND received_date <= ? "
+-                 "ORDER BY seq")
++# candidates for a near-duplicate root: earlier-dated records of the same entities that are their own root (so roots
++# never chain: B joins A only by resembling A itself, never through an intermediate record)
++_NEAR_CANDIDATES = ("SELECT narrative, root_ref FROM records WHERE structured = ? AND received_date >= ? "
++                    "AND received_date <= ? AND root_ref = record_ref ORDER BY seq")
++#: words that flip or qualify a claim; a near-duplicate must carry exactly the same ones
++_NEGATIONS = frozenset({"not", "no", "never", "without", "none", "nor", "cannot"})
++#: a value (3, 40%, 1.5, 12:30): a near-duplicate must carry exactly the same values; identifiers that mix letters
++#: and digits (an author line, a ticket id) may differ between echoes of one report
++_VALUE_RE = re.compile(r"^[\d.,:%+\-]*\d[\d.,:%+\-]*$")
+ _INSERT_RECORD = (
+     "INSERT INTO records (record_ref, seq, received_date, iso_week, ingested_at, ingest_week, count_week, language, "
+     "codes, structured, narrative, narrative_key, person, reporter_id, origin_ref, origin_site, root_ref, "
+@@ -316,17 +325,19 @@ class EmissionRow:
+ 
+ def _near_duplicate_root(conn: sqlite3.Connection, rec: Mapping[str, Any], text: str, jaccard: float,
+                          days: int) -> str | None:
+-    """The root of the earliest earlier record at this site with the same entities, received within ``days``, whose
+-    folded word set overlaps ``text``'s by at least ``jaccard`` (an echo with a different author line or a reworded
+-    tail), or None."""
++    """The root of the earliest record at this site that is its own root, has the same entities, was received on or
++    up to ``days`` before this one, carries exactly the same values and negation words, and whose folded
++    word set overlaps ``text``'s by at least ``jaccard`` (an echo with a different author line or a reworded tail);
++    else None. Templated reports that differ in a value or in polarity are never merged."""
+     words = set(text.split())
++    key_words = {w for w in words if _VALUE_RE.match(w)} | (words & _NEGATIONS)
+     day = date.fromisoformat(rec["received_date"])
+-    entities = canonical_dumps(rec["entities"])
+-    lo, hi = (day - timedelta(days=days)).isoformat(), (day + timedelta(days=days)).isoformat()
+-    for narrative, structured, root in conn.execute(_NEAR_BY_DATE, (lo, hi)):
+-        if structured != entities:
+-            continue
++    lo, hi = (day - timedelta(days=days)).isoformat(), day.isoformat()
++    for narrative, root in conn.execute(_NEAR_CANDIDATES, (canonical_dumps(rec["entities"]), lo, hi)):
+         other = set(folded(narrative).split())
++        other_key = {w for w in other if _VALUE_RE.match(w)} | (other & _NEGATIONS)
++        if other_key != key_words:
++            continue
+         union = words | other
+         if union and len(words & other) / len(union) >= jaccard:
+             return root
+diff --git a/mycelic/collective/pushdown/gate.py b/mycelic/collective/pushdown/gate.py
+index 5b9d484b..4d429b72 100644
+--- a/mycelic/collective/pushdown/gate.py
++++ b/mycelic/collective/pushdown/gate.py
+@@ -271,8 +271,12 @@ def evaluate(pack: "FrozenPack", question: Any, routes: Mapping[str, str], recor
+         n += len(corroborating)
+         status_reasons = []
+         if n < params.min_confirming_sites:
+-            status_reasons.append(f"hypothesis: {n} confirming site(s) with at least {k} records; "
+-                                  f"min_confirming_sites is {params.min_confirming_sites}")
++            status_reasons.append(
++                f"hypothesis: {n} confirming site(s) with at least {k} records; "
++                f"min_confirming_sites is {params.min_confirming_sites}" if not corroborating else
++                f"hypothesis: {n - len(corroborating)} confirming site(s) with at least {k} records and "
++                f"{len(corroborating)} corroborating with fewer (N1); min_confirming_sites is "
++                f"{params.min_confirming_sites}")
+         if roots_lb < params.min_independent_roots:
+             status_reasons.append(f"hypothesis: independent roots, lower bound {roots_lb}; "
+                                   f"min_independent_roots is {params.min_independent_roots}")
+@@ -308,7 +312,8 @@ def evaluate(pack: "FrozenPack", question: Any, routes: Mapping[str, str], recor
+     support = {"confirming_sites": confirming, "weak_confirming_sites": weak,
+                "refuting_contributing": refuting_contributing, "refuting_siblings": refuting_siblings,
+                "unknown_sites": unknown, "roots_lb": roots_lb, "reporters_lb": reporters_lb, "support_lb": support_lb,
+-               "newest_week": newest, "truncated_sites": truncated}
++               "newest_week": newest, "truncated_sites": truncated,
++               **({"corroborating_sites": corroborating} if params.weak_corroborating_sites else {})}
+     freshness = {"newest_week": newest, "age_days": age, "freshness_days": params.freshness_days, "stale": is_stale}
+     checks = {"authorization": True, "schema": True, "provenance": bool(confirming), "temporal": not is_stale,
+               "support": status == "supported"}
+diff --git a/tests/mycelic/test_near_duplicate_roots.py b/tests/mycelic/test_near_duplicate_roots.py
+index 48b7f76c..a12defb3 100644
+--- a/tests/mycelic/test_near_duplicate_roots.py
++++ b/tests/mycelic/test_near_duplicate_roots.py
+@@ -58,6 +58,34 @@ class NearDuplicateRootTests(unittest.TestCase):
+                    entities={"component": ["BATTERY-DOOR"]})
+         self.assertEqual(self.roots((0.65, 14), [a, b])["x"], "x")
+ 
++    # ---- reviewer findings (round 2): no chaining, no forward window, values and polarity must agree
++    def test_roots_do_not_chain_and_do_not_depend_on_order(self) -> None:
++        a = "alpha beta gamma delta epsilon zeta eta theta"
++        b = "alpha beta gamma delta epsilon zeta iota kappa"       # ~A
++        c = "alpha beta gamma delta lambda mu iota kappa"          # ~B, not ~A
++        recs = [record(DQ, r, "s1", "2026-04-08", narrative=t, reporter=f"R{r}") for r, t in (("a", a), ("b", b), ("c", c))]
++        for order in (recs, [recs[0], recs[2], recs[1]]):
++            roots = self.roots((0.6, 14), order)
++            self.assertEqual(roots["a"], "a")
++            self.assertNotEqual(roots["c"], "a", "C must not join A through B")
++
++    def test_templated_reports_with_other_values_stay_apart(self) -> None:
++        recs = [record(DQ, "t1", "s1", "2026-04-08", narrative="SD-9 pump pressure reading 3 bar at line 3 alarm raised",
++                       reporter="R1"),
++                record(DQ, "t2", "s1", "2026-04-10", narrative="SD-9 pump pressure reading 7 bar at line 7 alarm raised",
++                       reporter="R9")]
++        self.assertEqual(self.roots((0.65, 14), recs)["t2"], "t2")
++
++    def test_a_negated_report_does_not_share_the_positive_root(self) -> None:
++        recs = self.echoes()[:1] + [record(DQ, "neg", "s1", "2026-04-09", narrative=f"[author N] :: {ECHO} not",
++                                           reporter="R7")]
++        self.assertEqual(self.roots((0.65, 14), recs)["neg"], "neg")
++
++    def test_an_earlier_dated_late_record_does_not_join_a_later_root(self) -> None:
++        new = record(DQ, "new", "s1", "2026-04-20", narrative=f"[author A] :: {ECHO}", reporter="R1")
++        old = record(DQ, "old", "s1", "2026-04-15", narrative=f"[author B] :: {ECHO}", reporter="R2")
++        self.assertEqual(self.roots((0.65, 14), [new, old])["old"], "old")
++
+     def test_pack_setting_is_opt_in_and_validated(self) -> None:
+         self.assertIsNone(DQ.egress.near_duplicate_roots)
+         self.assertEqual(pack_copy(self.tmp, "device_quality").config_hash, DQ.config_hash)
+diff --git a/tests/mycelic/test_pushdown_n1.py b/tests/mycelic/test_pushdown_n1.py
+index cdba702a..359d4779 100644
+--- a/tests/mycelic/test_pushdown_n1.py
++++ b/tests/mycelic/test_pushdown_n1.py
+@@ -49,6 +49,7 @@ class N1Tests(unittest.TestCase):
+         self.assertEqual(pack_copy(self.tmp, "device_quality").config_hash, DQ.config_hash)
+         result = self.gate(DQ, [full("s1"), weak("s2")])
+         self.assertEqual(result.status, "hypothesis")
++        self.assertNotIn("corroborating_sites", result.to_dict()["support"])
+         self.assertIn("s2 confirms with fewer than 3 records (not counted)", result.reasons)
+ 
+     def test_n1_is_a_different_pack(self) -> None:
+@@ -60,6 +61,8 @@ class N1Tests(unittest.TestCase):
+         self.assertEqual(result.status, "supported", result.reasons)
+         self.assertIn("supported under N1: s2 corroborate with fewer than 3 records", result.reasons)
+         self.assertEqual(result.to_dict()["support"]["roots_lb"], 3)          # the k-record site's alone
++        self.assertEqual(result.to_dict()["support"]["corroborating_sites"], ["s2"])
++        self.assertEqual(result.to_dict()["support"]["confirming_sites"], ["s1"])
+ 
+     def test_n1_never_supports_without_a_k_record_site(self) -> None:
+         result = self.gate(self.n1, [weak("s1", self.n1), weak("s2", self.n1), weak("s3", self.n1)])
+-- 
+2.43.0
+

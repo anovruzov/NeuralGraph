@@ -1,0 +1,33 @@
+From f830a57c82012b3750fbc553bca87365ecc3da82 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 08:44:32 +0000
+Subject: [PATCH 7/9] report: re-pin the spike code hash deliberately (40f2d713
+ -> 4352c2cf)
+
+Pinned files changed on purpose in the previous commit: mycelic/collective/
+edge/records.py (hardened near-duplicate roots) and pushdown/gate.py (N1
+wording and corroborating_sites). Both are opt-in; the default run is
+unchanged. File count unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Cc9kurj5azoGuhPNUVde8U
+---
+ research/e2e_ingest/report.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/research/e2e_ingest/report.py b/research/e2e_ingest/report.py
+index 0687683a..85a9d74e 100644
+--- a/research/e2e_ingest/report.py
++++ b/research/e2e_ingest/report.py
+@@ -74,7 +74,7 @@ BROKER_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+")
+ CI_BROKER_VERSION = "2.10.29"
+ #: M13: ``run.spike_code_hash`` over ``spike_code_files()`` (re-pinned at 7bbaad1d+1, was e3052c0); a different value means a pinned file
+ #: changed (rule 4) and the run fails.
+-SPIKE_CODE_HASH = "40f2d713f8bb1d97833f7696804071e39078802fe100d26cee93932ca0a19b66"
++SPIKE_CODE_HASH = "4352c2cf7c1bba7c51984f217f4e1ab4f5daa8c9cc4a0fbdb7c478a00daa7223"
+ SPIKE_CODE_FILES = 142
+ #: M10: the paths ``code_dirty`` is evaluated over, at the start and at the end of the run.
+ DIRTY_PATHS = ("mycelic", "research/e2e_ingest", "research/routing_spike", "research/mycelic",
+-- 
+2.43.0
+
