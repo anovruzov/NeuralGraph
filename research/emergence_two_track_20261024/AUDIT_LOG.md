@@ -83,3 +83,45 @@ are queued for the next auditor, which must look hardest at the specificity clai
 count gate: 9.6% at 200 users, ~70% at 2K and 10K). If that holds, the benchmark's discrimination degrades with
 world size, which bears on every scaling plan in the folder and on whether a 2K or 10K result means what a 200-user
 result means. No merge into the shared branch is blocked by this tick.
+
+
+## 2026-10-24 — tick 4 (independent auditor, read-only)
+
+Audited: `ng-recovery` at `d85c7f9` (merge of `132c0ff` and the Gate-0 session's `5eeb945`); `ng-deploy` at
+`ce0e357`, clean.
+
+| # | Item | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Reproducibility | **PASS (baseline, ceiling) / CANNOT VERIFY (v4 replay)** | All six baseline reports re-read: sha256 match `BASELINE_SEEDS_0-5.csv`; found 13/12/17/17/19/15 = 93/240; decoys 118 by type {1:6, 2:37, 3:4, 4:41, 5:30}; 341 questions; 3 background-supported; `checks_pass` true ×6; commands carry no override and no `--skip-drills`. Ceiling recomputed from `ceiling_b.json` cell for cell (F 179, Fs 170, K 199, B 205; undiscoverable 61/41/35). The v4 replay cannot be done here: commit `28275759` is not an object in this repo (only a patch `From` line), and report sha `4ef21383…` exists nowhere in this container. |
+| 2 | Traceability | **FAIL** | `raw/plateau/v5b_offline_seeds0-5.txt` is a truncated stdout capture (line 1 is the tail of the calibration print at `v5b_offline.py:128-130`; the `agree` dict and the six `seed N done` lines are missing; line 9 is a paste artifact). No ESTIMATE label in the file, no inputs, no commit for either tree, no pack override, no seed set beyond the filename. **And the figure is unreconciled:** `sim_policy.py:55` (key-level) gives background-supported 199/535 where `v5b_offline.py:120` (label-level) gives 61/233. REPORT.md:134-135 uses 61 to call the model "optimistic by about a third"; with 199 it is pessimistic by 2×. Nothing states which matches `discovery.background_supported`. Baseline traceability passes. |
+| 3 | Labelling | **PASS (new text), one carried observation** | New text labels diagnostics correctly. Carried: REPORT.md:9-10 and :125 set Track B recall beside the Track A baseline, against REPORT.md:32-33's own rule; §5's heading (:113) says "Track A ablations" over five Track B rows; REPORT.md:47-48 and :67 ("seed 0 only", "seeds 1–5 can only run as diagnostics") are stale after patches 0014/0015 and `069df7e`. |
+| 4 | Invariants | **PASS** | The four new commits touch only the research folder. Generator, labels and scorer unchanged in `ng-deploy` (`corpus.py`, `org.py`, `world.py` diffs empty; `discovery()`, `expected_status`, the decoy rule untouched). Seeds 94000–94009 appear in no command, log or report — every grep hit is a substring of a longer number or prose saying they are sealed. Every pin move has its own commit with a reason. |
+| 5 | Cost columns | **PASS (partial)** | Baseline CSV carries the full set and the per-row type sums equal the totals. REPORT §5 now carries background-supported and questions per world (tick-1 FAIL cleared), but rows still show a decoy **total** with selected class deltas; by-type data exists in `raw/e2e_ledger.jsonl` and is surfacing work. |
+| 6 | Budget matching | **N/A** | No lever result yet. |
+
+**Stale-pin check:** `ng-deploy` at `ce0e357` is **green** — `test_detection_is_byte_identical_to_its_pin` passes,
+`DETECT_SHA256["detectors.py"]` equals the file. Two notes: `ce0e357`'s own message says "1 failed → 81 passed"
+while 80 tests collect today — a count this session should explain rather than defend. And, more seriously:
+**the tree v4's 163/240 was produced on had the stale pin.** At `d88c150` (≡ `28275759`) the pin reads
+`9d23000e` while `detectors.py` hashes `d113c269`. Under this project's own rule — no result claimed from a
+stale-pin tree — the current-best v4 figure is claimed from a tree that violated it, and
+`raw/v4_s0_replay_reference.json` records `checks_pass: true` without disclosing it. The runs used
+`--skip-drills` with no `--suites`, so `c10_suites_green` never evaluated and nothing caught it.
+
+**Result: 1 FAIL (item 2).** The official six-seed baseline passes every item and is unaffected. The FAIL blocks
+the v5b estimate and the §5 column, not the baseline.
+
+### Owed (auditor's list, owners assigned by this session)
+
+1. **Gate-0 session:** rewrite `v5b_offline_seeds0-5.txt` with a header — ESTIMATE label, both tree commits, seed
+   set, pack override, complete stdout.
+2. **Gate-0 session:** reconcile the two background-supported definitions and correct whichever document is wrong.
+3. **Gate-0 session:** commit a v4 ledger with the six report sha256s; today `4ef21383` appears only in the
+   reference JSON and seeds 1–5 have no digest at all.
+4. **Both:** decide whether "no result from a stale-pin tree" has a DIAGNOSTIC exception, or whether v4 must be
+   re-run on `ce0e357`+ before it is called current best. This is a governance decision, not a fix.
+5. **Gate-0 session:** REPORT.md:47-48, :67 are stale; :9-10 and :125 compare tracks; §5's heading is wrong.
+6. **Gate-0 session:** per-row decoys by type in §5.
+7. **Either, when the CPU is free:** the v4 replay on `ce0e357`+, which is an e2e run and outside the auditor's remit.
+8. **This session:** the freshness-parity guard now has a third literal to cover — `v5b_offline.py:23`
+   `K, FRESH = 3, 42`, beside `harness.py:105` and the pack's `freshness_days`.
