@@ -1,0 +1,14 @@
+ranking of detector pool, B=60/seed q   found/240 rare decoys bg   per-seed
+shipped (score desc)          360   118      7    113   13   [18, 15, 22, 24, 18, 21]
+score asc                     360   109     14    106   15   [19, 20, 19, 22, 15, 14]
+cells excess z desc           360   115      2    132    0   [16, 16, 23, 22, 19, 19]
+alert weeks desc              360   118      7    113   14   [18, 15, 22, 24, 18, 21]
+candidate weeks desc          360   114      6    121    5   [15, 16, 22, 24, 20, 17]
+supporting sites desc         360   102      6    119   10   [17, 13, 19, 18, 14, 21]
+window sites max desc         360    64      9    137   12   [9, 9, 14, 13, 9, 10]
+as_of latest first            360    98     15     92   14   [14, 15, 16, 17, 19, 17]
+as_of earliest first          360   104      9    125   11   [18, 16, 18, 23, 14, 15]
+has rule hit first            360   128      8    113   13   [18, 18, 23, 26, 21, 22]
+random (500 draws, mean)      360 104.9   11.7  106.5 15.2   sd 4.6
+ORACLE bound (reads labels)   151   151     17      0    0   [22, 24, 28, 30, 23, 24]
+all detector (not matched)    518   151     17    153   22   [22, 24, 28, 30, 23, 24]

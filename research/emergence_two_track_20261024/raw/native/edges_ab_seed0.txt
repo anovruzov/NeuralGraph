@@ -1,0 +1,12 @@
+# v4 diagnostic config (rs_nd_n1_n2), seed 0, process mode, --skip-drills (DIAGNOSTIC; both runs exit 1 = verdict pass false, as every diagnostic run)
+# run ids ABLATION-v6-rs_nd_n1_n2-s0-* (control) and ABLATION-v6-rs_nd_n1_n2_edges-s0-* (--graph-edges); wall 1363 s / 1386 s
+control found 25 rare 0.222 decoys {'1': 2, '2': 10, '3': 2, '4': 4, '5': 10} bg 16 supported 99
+edges   found 25 rare 0.222 decoys {'1': 2, '2': 10, '3': 2, '4': 4, '5': 10} bg 16 supported 99
+v4 ref  found 25 rare 0.222 decoys {'1': 2, '2': 10, '3': 2, '4': 4, '5': 10} bg 16 supported 99
+questions 539 539 same keys True
+verdict differences control vs edges: 0
+control vs v4 reference differences: 0
+found sets equal: True
+records read (sum over site rankings) 59886 61937
+control tesseract p50 0.656 p95 1.220 s
+edges   tesseract p50 0.676 p95 1.222 s
