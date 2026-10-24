@@ -81,6 +81,7 @@ class GateParams:
     freshness_days: int
     close_lag_days: int
     weak_corroborating_sites: int = 0       # EMERGENCE-Next N1; 0 is the shipped gate (R0)
+    roots_from_k_sites_only: bool = False    # EMERGENCE-Next N2; False is the shipped gate (R0)
 
     @classmethod
     def from_pack(cls, pack: "FrozenPack") -> "GateParams":
@@ -88,14 +89,16 @@ class GateParams:
         return cls(k=pack.egress.k, labels=verdict_buckets(pack), min_confirming_sites=pd.min_confirming_sites,
                    min_independent_roots=pd.min_independent_roots,
                    min_independent_reporters=pd.min_independent_reporters, freshness_days=pd.freshness_days,
-                   close_lag_days=pack.egress.close_lag_days, weak_corroborating_sites=pd.weak_corroborating_sites)
+                   close_lag_days=pack.egress.close_lag_days, weak_corroborating_sites=pd.weak_corroborating_sites,
+                   roots_from_k_sites_only=pd.roots_from_k_sites_only)
 
     def to_dict(self) -> dict[str, Any]:
         return {"k": self.k, "labels": list(self.labels), "min_confirming_sites": self.min_confirming_sites,
                 "min_independent_roots": self.min_independent_roots,
                 "min_independent_reporters": self.min_independent_reporters, "freshness_days": self.freshness_days,
                 "close_lag_days": self.close_lag_days,
-                **({"weak_corroborating_sites": self.weak_corroborating_sites} if self.weak_corroborating_sites else {})}
+                **({"weak_corroborating_sites": self.weak_corroborating_sites} if self.weak_corroborating_sites else {}),
+                **({"roots_from_k_sites_only": True} if self.roots_from_k_sites_only else {})}
 
 
 @dataclass(frozen=True)
@@ -240,7 +243,10 @@ def evaluate(pack: "FrozenPack", question: Any, routes: Mapping[str, str], recor
     unknown = [u["site"] for u in used if u["verdict"] == "unknown"]
     truncated = [u["site"] for u in used if u["source"] == "site" and latest[u["site"]].body["truncated"]]
     counted_bodies = [latest[s].body for s in confirming]
-    roots_lb = sum(bucket_lower(b["roots_bucket"], pack) for b in counted_bodies)
+    # N2: under the shipped gate a site with fewer than k roots still adds 1 per site, so one event echoed to three
+    # sites reads as three independent roots; with roots_from_k_sites_only such sites add none
+    roots_lb = sum(bucket_lower(b["roots_bucket"], pack) for b in counted_bodies
+                   if not (params.roots_from_k_sites_only and b["roots_bucket"] == SUPPRESSED))
     reporters_lb = sum(bucket_lower(b["reporters_bucket"], pack) for b in counted_bodies)
     support_lb = sum(bucket_lower(b["support_bucket"], pack) for b in counted_bodies)
     newest = max((b["newest_week"] for b in counted_bodies), default=None)

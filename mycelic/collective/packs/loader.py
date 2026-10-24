@@ -144,7 +144,7 @@ _PUSHDOWN_KEYS = ("min_confirming_sites", "min_independent_roots", "min_independ
 #: optional pushdown keys; a pack without them has the bytes, the config hash and the gate of before.
 #: ``weak_corroborating_sites`` (EMERGENCE-Next protocol N1, research only): how many sites that confirm with fewer than
 #: k records (the ``<k`` bucket they already send) may stand in for missing k-record sites, never for all of them.
-_PUSHDOWN_OPTIONAL = {"weak_corroborating_sites": 0}
+_PUSHDOWN_OPTIONAL = {"weak_corroborating_sites": 0, "roots_from_k_sites_only": False}
 _FOLLOWUP_KEYS = ("label", "tier", "enabled", "executor", "args_schema", "draft_schema", "template", "owner_role",
                   "daily_cap", "ack_days", "escalate_to_role")
 _ARG_KEYS = MappingProxyType({"entity_id": ("kind", "entity_type"), "predicate": ("kind",), "conclusion_id": ("kind",),
@@ -321,6 +321,9 @@ class PushdownConfig:
     freshness_days: int
     max_sibling_sites: int
     weak_corroborating_sites: int = 0
+    #: EMERGENCE-Next N2 (research only): a site's roots count toward min_independent_roots only when its own roots
+    #: bucket reaches k; single-root sites summed across sites are indistinguishable from echoes of one event.
+    roots_from_k_sites_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -578,7 +581,7 @@ S_TEMPLATE = _schema(_closed({"text": _string(1, 400), "entity_types": {"type": 
 S_PUSHDOWN = _schema(_closed({
     "min_confirming_sites": _int(1, 100), "min_independent_roots": _int(1, 100000),
     "min_independent_reporters": _int(1, 100000), "freshness_days": _int(1, 3660), "max_sibling_sites": _int(0, 100)}))
-S_PUSHDOWN_OPTIONAL = {"weak_corroborating_sites": _int(0, 10)}
+S_PUSHDOWN_OPTIONAL = {"weak_corroborating_sites": _int(0, 10), "roots_from_k_sites_only": _BOOL}
 S_ROLE = _schema(_closed({"label": _LABEL120}))
 S_FOLLOWUP_SCALARS = _schema(_closed({
     "label": _LABEL120, "tier": _string(1, 8), "enabled": _BOOL,

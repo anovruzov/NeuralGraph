@@ -91,3 +91,37 @@ class N1Tests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class N2Tests(unittest.TestCase):
+    """``pushdown.roots_from_k_sites_only`` (EMERGENCE-Next N2): sites with fewer than k roots add no roots."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.n2 = pack_copy(self.tmp, "device_quality", {("questions.json", "pushdown", "roots_from_k_sites_only"): True})
+
+    def gate(self, pack, records):
+        return evaluate(pack, _q(pack), ROUTES, records, as_of=AS_OF)
+
+    def single_root(self, site, pack):
+        return full(site, pack, roots_bucket=SUPPRESSED)
+
+    def test_r0_sums_single_root_sites(self) -> None:
+        recs = [self.single_root(s, DQ) for s in ("s1", "s2", "s3")]
+        self.assertEqual(self.gate(DQ, recs).status, "supported")        # the shipped gate: 1 + 1 + 1 = 3 roots
+        self.assertNotIn("roots_from_k_sites_only", GateParams.from_pack(DQ).to_dict())
+
+    def test_n2_does_not_sum_single_root_sites(self) -> None:
+        recs = [self.single_root(s, self.n2) for s in ("s1", "s2", "s3")]
+        result = self.gate(self.n2, recs)
+        self.assertEqual(result.status, "hypothesis")
+        self.assertEqual(result.to_dict()["support"]["roots_lb"], 0)
+
+    def test_n2_keeps_k_root_sites(self) -> None:
+        result = self.gate(self.n2, [full("s1", self.n2), self.single_root("s2", self.n2)])
+        self.assertEqual(result.status, "supported", result.reasons)
+        self.assertEqual(result.to_dict()["support"]["roots_lb"], 3)
+
+    def test_n2_is_a_different_pack(self) -> None:
+        self.assertNotEqual(self.n2.config_hash, DQ.config_hash)
+        self.assertTrue(GateParams.from_pack(self.n2).to_dict()["roots_from_k_sites_only"])
