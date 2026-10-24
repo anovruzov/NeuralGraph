@@ -6,9 +6,16 @@ Cells that read _pending_ are runs still in flight; they are filled from `raw/e2
 
 ## 0. Answer first
 
-**Current best (dev seeds 0–5, real run): Track B h1n+nd+N1+N2 = 0.629 recall, rare 17/103, 153 decoys (baseline
-0.388, 5/103, 118). It fails the frozen decoy bar; the excess is class 2 (temporal scramble, inseparable from true
-patterns by design: +22) and class 5 (stale chains: +18). N2 removed cross-site echo inflation (−21) at no recall cost.**
+**Current best (dev seeds 0–5, real run): Track B rule_snapshots+nd+N1+N2 (28275759) = 163/240 = 0.679 recall,
+rare 27/103, 181 decoys (baseline 0.388, 5/103, 118). It is 5 discoveries short of the 70% Qwen gate (168/240) and
+fails the frozen decoy bar. Against h1n+nd+N1+N2 (0.629, rare 17/103, 153 decoys) it adds 12 discoveries (10 rare)
+and 28 decoys (class 3 +11, class 5 +12, class 1 +4) at about six times the questions per run (494–552 vs 84–90).
+Where the remaining rare patterns are lost is in `PLATEAU_DIAGNOSIS.md`: v4 asks each rule-layer candidate once,
+usually before its evidence can pass the gate.**
+
+Previous best: Track B h1n+nd+N1+N2 = 0.629 recall, rare 17/103, 153 decoys. Its decoy excess is class 2 (temporal
+scramble, inseparable from true patterns by design: +22) and class 5 (stale chains: +18). N2 removed cross-site echo
+inflation (−21) at no recall cost.
 
 
 - **Track A (frozen EMERGENCE R0): 0.80 is not reachable under the frozen invariants, and this is now independently
@@ -118,7 +125,7 @@ Seed 0: 22–23 patterns are R0-feasible, 13 are found. The 10 missed (`tools/fu
 | **h1n+nd+N1 (f830a57c, Track B)** | combined | **151/240 = 0.629**; rare 17/103 (baseline 5/103) | 174 (fails decoy bar) | 84–90 |
 | **h1n+nd+N1+N2 (b4eeb7bb, Track B)** | + roots only from k-root sites | **151/240 = 0.629**; rare 17/103 | **153** (class 4: 47 → 26) | 84–90 |
 | ask every site (M = all), seeds 0–1 | follow-up search bound | 46/80 (identical to M = 3) | 58 (vs 57) | |
-| rule_snapshots + nd + N1 + N2 (28275759) | rule-layer candidates asked (via the detector, provenance kept) | _pending_ | _pending_ | ~540 |
+| **rule_snapshots + nd + N1 + N2 (28275759, Track B)** | rule-layer candidates asked (via the detector, provenance kept) | **163/240 = 0.679**; rare 27/103; per seed 25, 25, 28, 33, 27, 25 | 181 (fails decoy bar; class 3: 12 → 23, class 5: 48 → 60) | 494–552 |
 
 Notes:
 - Every ablation ran with `--skip-drills`: the run's privacy and leakage drills (c1–c6) did not execute; only c0,
