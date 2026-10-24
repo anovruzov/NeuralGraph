@@ -1,0 +1,206 @@
+<title>Mycelic World Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an atlas sheet. Run controls and the score strip on top, the map beside its legend, the discovery ledger below. */
+:root {
+  --paper: #f2f5f3; --sheet: #ffffff; --ink: #18241f; --muted: #5d6e67; --rule: #d5dfda;
+  --route: #1f6f68; --decoy: #a8641a; --bg-key: #7d8a85; --tint: #e3eeea;
+  --display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", Roboto, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #0f1614; --sheet: #16201d; --ink: #dde7e3; --muted: #93a49d; --rule: #2a3833;
+  --route: #5fb8ad; --decoy: #e0a157; --bg-key: #8a9893; --tint: #1d2c28; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #0f1614; --sheet: #16201d; --ink: #dde7e3; --muted: #93a49d; --rule: #2a3833;
+  --route: #5fb8ad; --decoy: #e0a157; --bg-key: #8a9893; --tint: #1d2c28; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 20px }
+h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0 }
+h1 { font-size: 1.9rem; letter-spacing: -0.01em }
+h2 { font-size: 1.1rem }
+.eyebrow { font-family: var(--mono); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+.lede { color: var(--muted); max-width: 68ch; margin: 6px 0 0 }
+header { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; justify-content: space-between }
+.seeds { display: flex; gap: 6px; flex-wrap: wrap }
+.seeds button, .chips button { font: 500 .85rem var(--mono); border: 1px solid var(--rule); background: var(--sheet); color: var(--ink);
+  padding: 6px 11px; border-radius: 4px; cursor: pointer }
+.seeds button[aria-pressed="true"], .chips button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink) }
+button:focus-visible, tr:focus-visible { outline: 2px solid var(--route); outline-offset: 2px }
+.strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden }
+.stat { background: var(--sheet); padding: 12px 14px; display: grid; gap: 2px }
+.stat b { font: 600 1.45rem var(--display); font-variant-numeric: tabular-nums }
+.stat span { font-size: .8rem; color: var(--muted) }
+.main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 20px }
+@media (max-width: 860px) { .main { grid-template-columns: 1fr } }
+@media (max-width: 560px) { .strip { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+.sheet { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; min-width: 0 }
+svg { width: 100%; height: auto; display: block }
+.side { display: grid; gap: 14px; align-content: start }
+.legend { display: grid; gap: 8px; font-size: .88rem }
+.legend div { display: flex; gap: 10px; align-items: center }
+.sw { width: 26px; height: 0; border-top: 3px solid; flex: none }
+.detail { font-size: .9rem; display: grid; gap: 6px }
+.detail code, td.mono, .mono { font-family: var(--mono); font-size: .8rem }
+.boundary { font-size: .88rem; display: grid; gap: 6px }
+.boundary p { margin: 0 }
+.chips { display: flex; gap: 6px; flex-wrap: wrap }
+.tablebox { overflow-x: auto }
+table { border-collapse: collapse; width: 100%; font-size: .86rem; font-variant-numeric: tabular-nums }
+th { text-align: left; font: 500 .72rem var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap }
+td { padding: 7px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap }
+tr.row { cursor: pointer }
+tr.row:hover, tr.row.sel { background: var(--tint) }
+.pill { font: 500 .72rem var(--mono); padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor }
+.l-true { color: var(--route) } .l-decoy { color: var(--decoy) } .l-background, .l-\? { color: var(--bg-key) }
+.note { font-size: .8rem; color: var(--muted); max-width: 90ch }
+@media (prefers-reduced-motion: no-preference) { .edge { transition: opacity .15s } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">EMERGENCE · 200-user enterprise · diagnostic run · rule-hit-first, 60 questions</div>
+      <h1>Mycelic World Map</h1>
+      <p class="lede">What a network of private sites discovered together about the companies it deals with. Every line is a question HQ asked three sites; every confirmed finding carries hashes of the records behind it, while the records themselves never leave their site.</p>
+    </div>
+    <div class="seeds" id="seeds" role="group" aria-label="World seed"></div>
+  </header>
+
+  <section class="strip" id="strip" aria-label="Run scores"></section>
+
+  <section class="main">
+    <div class="sheet">
+      <svg id="map" viewBox="0 0 640 560" role="img" aria-label="Map of regions, sites and entities"></svg>
+    </div>
+    <div class="side">
+      <div class="sheet legend">
+        <h2>Reading the map</h2>
+        <div><span class="sw" style="border-color:var(--route)"></span>Question on a planted cross-site pattern</div>
+        <div><span class="sw" style="border-color:var(--decoy)"></span>Question on a decoy's key</div>
+        <div><span class="sw" style="border-color:var(--bg-key)"></span>Question on an ordinary key</div>
+        <div><span class="sw" style="border-color:var(--muted);border-top-style:dashed"></span>Verdict still a hypothesis</div>
+        <p class="note">Outer ring: sites, sized by records held. Inner ring: entities asked about. Line colours come from the benchmark's answer key, shown for scoring only; the system never sees it.</p>
+      </div>
+      <div class="sheet detail" id="detail" aria-live="polite">
+        <h2>Select a finding</h2>
+        <p class="note">Tap an entity on the map or a row in the ledger to see where its evidence came from.</p>
+      </div>
+      <div class="sheet boundary">
+        <h2>What crossed the boundary</h2>
+        <p><b>Left each site:</b> weekly counts per entity and predicate, with any count under 3 shown only as <code class="mono">'&lt;k'</code>; yes/no verdicts; SHA-256 hashes of confirming records.</p>
+        <p><b>Stayed at each site:</b> every record's text, its author and its reporter.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sheet" style="display:grid;gap:12px">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center">
+      <h2>Discovery ledger</h2>
+      <div class="chips" id="chips" role="group" aria-label="Filter by answer key"></div>
+    </div>
+    <div class="tablebox"><table>
+      <thead><tr><th>Entity</th><th>Chain</th><th>Week</th><th>Verdict</th><th>Sites asked</th><th>Confirming records</th><th>Lineage</th><th>Seconds</th><th>Answer key</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+    <p class="note">Diagnostic run on development seeds (drills skipped), real NATS fabric and site processes, word-matching site judge. Recall is planted patterns found out of 40 per seed. Official baseline: 93 of 240 across six seeds; this configuration: 127 of 240.</p>
+  </section>
+</div>
+
+<script id="data" type="application/json">__DATA__</script>
+<script>
+const DATA = JSON.parse(document.getElementById('data').textContent);
+const NS = 'http://www.w3.org/2000/svg';
+const KEY = {true: 'Planted pattern', decoy: 'Decoy key', background: 'Ordinary key', '?': 'Unlabelled'};
+let seed = 0, filter = 'all', selected = null;
+const $ = id => document.getElementById(id);
+const el = (tag, attrs = {}, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; return e; };
+const colour = l => l === 'true' ? 'var(--route)' : l === 'decoy' ? 'var(--decoy)' : 'var(--bg-key)';
+const short = e => e.replace(/^E-/, '');
+
+function buttons() {
+  $('seeds').innerHTML = '';
+  DATA.runs.forEach((r, i) => { const b = document.createElement('button'); b.textContent = 'Seed ' + r.seed; b.setAttribute('aria-pressed', i === seed);
+    b.onclick = () => { seed = i; selected = null; render(); }; $('seeds').append(b); });
+  $('chips').innerHTML = '';
+  [['all', 'All'], ['true', 'Planted'], ['decoy', 'Decoy keys'], ['background', 'Ordinary']].forEach(([k, t]) => {
+    const b = document.createElement('button'); b.textContent = t; b.setAttribute('aria-pressed', k === filter);
+    b.onclick = () => { filter = k; render(); }; $('chips').append(b); });
+}
+
+function strip(r) {
+  const s = [[`${r.found}/${r.gold}`, 'planted patterns found'], [`${r.rare_found}/${r.rare}`, 'rare patterns found'],
+    [r.decoys, 'decoys accepted'], [r.background, 'confirmed with no pattern'],
+    [`${r.q2v_p50}s`, 'question to verdict, median'], [`${r.q2v_p95}s`, 'question to verdict, p95'],
+    [`${r.users} / ${Object.keys(r.sites).length}`, 'people / sites'], [r.records.toLocaleString(), 'records, all kept local']];
+  $('strip').innerHTML = s.map(([b, t]) => `<div class="stat"><b>${b}</b><span>${t}</span></div>`).join('');
+}
+
+function map(r) {
+  const svg = $('map'); svg.innerHTML = '';
+  const cx = 320, cy = 280, R = 225, r2 = 120;
+  const sites = Object.keys(r.sites).sort(); const maxRec = Math.max(...Object.values(r.sites));
+  const sp = {}; sites.forEach((s, i) => { const a = -Math.PI / 2 + i * 2 * Math.PI / sites.length; sp[s] = [cx + R * Math.cos(a), cy + R * Math.sin(a), a]; });
+  const ents = [...new Set(r.conclusions.map(c => c.entity))].sort();
+  const ep = {}; ents.forEach((e, i) => { const a = -Math.PI / 2 + i * 2 * Math.PI / ents.length; ep[e] = [cx + r2 * Math.cos(a), cy + r2 * Math.sin(a), a]; });
+  svg.append(el('circle', {cx, cy, r: R, fill: 'none', stroke: 'var(--rule)', 'stroke-width': 1}));
+  svg.append(el('circle', {cx, cy, r: r2, fill: 'none', stroke: 'var(--rule)', 'stroke-dasharray': '2 4'}));
+  const g = el('g'); svg.append(g);
+  r.conclusions.forEach((c, i) => {
+    if (filter !== 'all' && c.label !== filter) return;
+    const [x1, y1] = ep[c.entity];
+    c.route.forEach(s => { if (!sp[s]) return; const [x2, y2] = sp[s];
+      const on = selected == null || selected === c.entity;
+      g.append(el('line', {x1, y1, x2, y2, class: 'edge', stroke: colour(c.label), 'stroke-width': selected === c.entity ? 2.2 : 1.1,
+        'stroke-dasharray': c.status === 'supported' ? '' : '4 4', opacity: on ? (selected ? .95 : .45) : .06}));
+    });
+  });
+  sites.forEach(s => { const [x, y, a] = sp[s]; const rad = 7 + 13 * r.sites[s] / maxRec;
+    svg.append(el('circle', {cx: x, cy: y, r: rad, fill: 'var(--sheet)', stroke: 'var(--ink)', 'stroke-width': 1.5}));
+    const off = rad + 12, lx = cx + (R + off) * Math.cos(a), ly = cy + (R + off) * Math.sin(a) - (Math.sin(a) < -0.7 ? 14 : 0);
+    const t = el('text', {x: lx, y: ly + 4, 'text-anchor': Math.abs(Math.cos(a)) < .3 ? 'middle' : (Math.cos(a) > 0 ? 'start' : 'end'),
+      fill: 'var(--ink)', 'font-family': 'var(--mono)', 'font-size': 11}, s.replace('-site-', '·'));
+    svg.append(t);
+    svg.append(el('text', {x: lx, y: ly + 17, 'text-anchor': t.getAttribute('text-anchor'), fill: 'var(--muted)', 'font-family': 'var(--mono)', 'font-size': 9.5}, r.sites[s].toLocaleString() + ' rec'));
+  });
+  ents.forEach(e => { const [x, y, a] = ep[e]; const labels = r.conclusions.filter(c => c.entity === e).map(c => c.label);
+    const top = labels.includes('true') ? 'true' : labels.includes('decoy') ? 'decoy' : 'background';
+    const dot = el('circle', {cx: x, cy: y, r: selected === e ? 6 : 4, fill: colour(top), stroke: 'var(--sheet)', 'stroke-width': 1.5, tabindex: 0, role: 'button', 'aria-label': e, style: 'cursor:pointer'});
+    dot.onclick = () => { selected = selected === e ? null : e; render(); };
+    dot.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); dot.onclick(); } };
+    svg.append(dot);
+    if (selected === e || ents.length <= 30) svg.append(el('text', {x: cx + (r2 - 12) * Math.cos(a), y: cy + (r2 - 12) * Math.sin(a) + 3,
+      'text-anchor': Math.cos(a) > 0 ? 'end' : 'start', fill: selected === e ? 'var(--ink)' : 'var(--muted)', 'font-family': 'var(--mono)', 'font-size': selected === e ? 11 : 8.5}, short(e)));
+  });
+  svg.append(el('text', {x: cx, y: cy - 6, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-family': 'var(--mono)', 'font-size': 10}, 'HQ sees counts'));
+  svg.append(el('text', {x: cx, y: cy + 9, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-family': 'var(--mono)', 'font-size': 10}, 'and verdicts only'));
+}
+
+function detail(r) {
+  const box = $('detail');
+  if (!selected) { box.innerHTML = '<h2>Select a finding</h2><p class="note">Tap an entity on the map or a row in the ledger to see where its evidence came from.</p>'; return; }
+  const cs = r.conclusions.filter(c => c.entity === selected);
+  box.innerHTML = `<h2>${selected}</h2>` + cs.map(c => `<div><span class="pill l-${c.label}">${KEY[c.label]}</span> <b>${c.predicate.replace('chain_', '')}</b> · ${c.week} · ${c.status}<br>
+    <span class="note">Asked ${c.route.join(', ')} · ${c.confirming} confirming record${c.confirming === 1 ? '' : 's'} · lineage ${c.lineage_ok ? 'verified' : 'not verified'}${c.reconstructable ? ', reconstructable' : ''}</span><br>
+    ${c.hashes.length ? '<code>' + c.hashes.map(h => h + '…').join(' ') + '</code>' : ''}</div>`).join('');
+}
+
+function ledger(r) {
+  const rows = r.conclusions.map((c, i) => ({c, i})).filter(({c}) => filter === 'all' || c.label === filter)
+    .sort((a, b) => (a.c.label === 'true' ? 0 : 1) - (b.c.label === 'true' ? 0 : 1) || a.c.entity.localeCompare(b.c.entity));
+  $('rows').innerHTML = rows.map(({c}) => `<tr class="row${selected === c.entity ? ' sel' : ''}" tabindex="0" data-e="${c.entity}">
+    <td>${short(c.entity)}</td><td>${c.predicate.replace('chain_', '')}</td><td class="mono">${c.week}</td><td>${c.status}</td>
+    <td class="mono">${c.route.map(s => s.replace('-site-', '·')).join(' ')}</td><td>${c.confirming}</td>
+    <td>${c.lineage_ok ? 'verified' : '—'}</td><td>${c.seconds}</td><td><span class="pill l-${c.label}">${KEY[c.label]}</span></td></tr>`).join('');
+  $('rows').querySelectorAll('tr').forEach(tr => { const go = () => { selected = selected === tr.dataset.e ? null : tr.dataset.e; render(); };
+    tr.onclick = go; tr.onkeydown = ev => { if (ev.key === 'Enter') go(); }; });
+}
+
+function render() { const r = DATA.runs[seed]; buttons(); strip(r); map(r); detail(r); ledger(r); }
+render();
+</script>

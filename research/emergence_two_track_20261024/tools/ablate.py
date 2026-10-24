@@ -18,16 +18,46 @@ ap.add_argument("--candidates", default="snapshot", choices=["snapshot", "persis
 ap.add_argument("--order", default="shipped", choices=["shipped", "rulefirst"],
                 help="shipped: score desc (M21); rulefirst: detector candidates whose rule channel fired on or before "
                      "their snapshot week first, then score desc; rule-only candidates last (inference-time fields only)")
+ap.add_argument("--extra-size", type=int, default=None,
+                help="DIAGNOSTIC scale probe: add a section 3.1 row for this target_users (seed-invariant counts as the "
+                     "benchmark defines them; drawn counts 0, so the run's table_row_diff reports every drawn count)")
 a, rest = ap.parse_known_args()
 rest = [x for x in rest if x != "--"]
 ew.check_world_counts = lambda counts, target_users: None
+if a.extra_size is not None:
+    _inv = next(iter(ew.WORLD_TABLE.values()))
+    ew.WORLD_TABLE = {**ew.WORLD_TABLE, a.extra_size: {
+        "users": 0, "sites": 0, "teams": 0, "records": 0, "patterns_real": _inv["patterns_real"],
+        "gold_discoverable": _inv["gold_discoverable"], "gold_rare": 0, "decoys": _inv["decoys"],
+        "entities": _inv["entities"]}}
+    print(f"ABLATION {a.tag}: DIAGNOSTIC scale probe, target_users {a.extra_size} (not a section 3.1 size)", flush=True)
 if a.m is not None:
     ew.M = a.m if a.m > 0 else 1000
     print(f"ABLATION {a.tag}: M = {ew.M}", flush=True)
 if a.pack_override:
     over = json.loads(a.pack_override)
     pack = Path(tempfile.mkdtemp(prefix=f"pack-{a.tag}-")) / "emergence"
-    shutil.copytree(ew.PACK_DIR, pack)
+    if a.extra_size is not None:
+        # the frozen pack registers the <=2,000-user worlds' 150 entities and sites; a larger world has more of both,
+        # so the pack is built from this world's own corpus by the official builder (emergence_pack.write_pack)
+        from research.e2e_ingest import emergence_pack
+        _seed = int(rest[rest.index("--seed") + 1])
+        _corpus = ew.generate(a.extra_size, _seed)[1]
+        emergence_pack.write_pack(pack, corpus=_corpus)
+        from mycelic.collective.packs import loader as _loader
+        _n = len(_corpus.entities)
+        if _n > 500:   # the loader's schema caps alias-only entity ids at 500 (loader.py S_ET); raised IN MEMORY only
+            _loader.S_ET = _loader._schema(_loader._closed({
+                "label": _loader._LABEL80, "separator": {"type": ["string", "null"], "enum": ["-", "/", None]},
+                "case": {"type": "string", "enum": list(_loader.CASES)}, "strip_leading_zeros": _loader._BOOL,
+                "exact_match_metric": _loader._BOOL, "egress": _loader._BOOL,
+                "ids": {"type": ["array", "null"], "items": _loader._string(1, 40, pattern=_loader.ALIAS_ONLY_ID_RE.pattern),
+                        "minItems": 1, "maxItems": _n}}))
+            print(f"ABLATION {a.tag}: DIAGNOSTIC loader entity-id cap raised in memory 500 -> {_n}", flush=True)
+        print(f"ABLATION {a.tag}: pack built from the {a.extra_size}-user seed-{_seed} world by emergence_pack.write_pack",
+              flush=True)
+    else:
+        shutil.copytree(ew.PACK_DIR, pack)
     for fname, fields in over.items():
         f = pack / f"{fname}.json"; d = json.loads(f.read_text())
 
