@@ -1,0 +1,36 @@
+[e2e 13:18:27] world: EMERGENCE target_users=200 seed=3
+[e2e 13:18:34] world: 309 users, 7 sites, 13131 records; 53 snapshot candidates, 53 asked; run det-795af894ab03aaab
+[e2e 13:18:34] world: this seed's draw differs from section 3.1's row (seed 0's): gold_rare: 11 != 18; records: 13131 != 12964; teams: 37 != 35
+[e2e 13:22:34] reference pass: 53 questions, 159 (question, site) answers in 240s
+[e2e 13:22:37] main pass (process): 53 questions, restart site r04-site-00 after 17 of its 34
+[e2e 13:24:18] drill 2: SIGKILL the process of r04-site-00 after 17 of its questions (1896 nodes)
+[e2e 13:24:20] drill 2: r04-site-00 reopened; probe route r01-site-00/r06-site-00/r02-site-00 (masked r04-site-00)
+[e2e 13:25:47] main pass: 53 questions asked, routed and written to HQ's store in 193s; statuses {"hypothesis": 1, "stale": 1, "supported": 51}
+[e2e 13:29:34] fixed queries (before): 140 rankings in 227s
+[e2e 13:29:55] drill 2: 17 post-restart questions re-answered from a fresh graph, identical True; answer matrix equals the reference True
+[e2e 13:29:57] crossing: main pass leakage overlap 0 bytes over 185 items, shapes ok True; pipeline overlap 0 over 7 items
+[e2e 13:29:58] fabric: nats-server 2.10.29 and the service under research.e2e_ingest.drills.E2EProcessDriver; agent hq in emergence
+[e2e 13:30:00] drill 3: nats-server killed after publish 106 of 212
+[e2e 13:30:02] drill 3: 212 publishes (159 verdicts, 53 conclusions), 265 applied, outbox 0
+[e2e 13:30:03] drill 4: forgery 1 (unsigned) counted 1, memory absent True
+[e2e 13:30:03] drill 4: forgery 2 (wrong_key) counted 2, memory absent True
+[e2e 13:30:03] drill 4: forgery 3 (replayed_and_altered) counted 3, memory absent True
+[e2e 13:30:04] drill 5: 53 conclusions reconstructable, 159 verdict events, 159 fabric sha256s equal to HQ's rows with five witnesses each, scan hits 0/0/0
+[e2e 13:30:05] discovery: 17 true / 34 decoy / 2 background candidates; 15 unambiguous planted, 17 patterns found; the simulator's columns in 0.9609357480003382
+[e2e 13:30:07] drill 6: rebuilt in 2s; 53 active notes, replay seen 272 rejected 3
+[e2e 13:33:55] fixed queries (after): 140 rankings in 227s
+[e2e 13:33:55] drill 7: re-ingest 13131 duplicates, 0 new nodes, rankings unchanged True
+[e2e 13:33:56] drill 7: bridge rerun 212 publishes, 0 created, stream 275 -> 275
+e2e-ingest: verdict pass=False checks_pass=True reason=suites_not_green complete=False world=200 seed=3 seconds=929 (synthetic, measurement: false)
+  c0_real_fabric_keyed: ok (9 assertions)
+  c1_signed: ok (34 assertions)
+  c2_lineage: ok (19 assertions)
+  c3_idempotent: ok (12 assertions)
+  c4_recovery: ok (27 assertions)
+  c7_guards: ok (6 assertions)
+  c8_emergence_load: ok (7 assertions)
+  c9_benchmark: ok (6 assertions)
+  c10_suites_green: not run (no suites directory was given (--suites DIR; M2))
+  c5_measured: not run (the measure job (S7): the rate sweep and the three node counts)
+  c6_ci: not run (the workflow test (S8))
+report: /tmp/claude-0/-home-user-NeuralGraph/2bf29258-e412-50e5-8873-b0acbc147d53/scratchpad/runs/official-ce0e357/seed-3/e2e-ingest-report.json sha256=0a307b4f7de8e887059fa8f30cc1613ef0d691ab466f9b53ddb9f1c4bbfa1788

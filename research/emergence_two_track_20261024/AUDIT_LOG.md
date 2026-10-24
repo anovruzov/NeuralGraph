@@ -34,3 +34,24 @@ comparative claim. Fix is mechanical — add the two columns to the result table
   evaluates `c10_suites_green`, so that red test did not gate those runs.
 - **"Type-2 decoys are separable at the verifier" was premature.** The evidence is locally visible, but the naive
   order check does not fire at the week the system asks. Measured below; the claim is withdrawn in that form.
+
+
+## 2026-10-24 — tick 2 (orchestrator; the official baseline landed)
+
+Audited sha: `ng-recovery` at `fd787b7` + this commit. Change since tick 1: the six-seed official baseline
+completed and is preserved under `raw/official_ce0e357/`.
+
+| # | Item | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Reproducibility | **PASS for the baseline** | Six seeds, one command each, unmodified CLI, drills on. Per-seed found 13, 12, 17, 17, 19, 15 reproduces the recorded Track A figures exactly, and the pooled decoy total is 118 — the same 118 the SPEC uses as its bar. Report sha256 per seed in `raw/official_ce0e357/BASELINE_SEEDS_0-5.csv`. Still owed: a replay of one *v4* config, which needs a report this container does not have. |
+| 2 | Traceability | **PASS** | Every row carries run id `OFFICIAL-s<seed>-ce0e357`, code `ce0e357`, pack override `null`, seed, and the report's sha256. Logs preserved beside them. |
+| 3 | Labelling | **PASS** | This is the official path: no guard bypass, no `--skip-drills`, no pack override. It is the only thing in this folder entitled to be called a baseline. |
+| 4 | Invariants | **PASS** | Unchanged from tick 1; no generator, golden, label or scorer file touched by this commit. |
+| 5 | Cost columns | **PASS (now)** | `BASELINE_SEEDS_0-5.csv` carries decoys by type, `questions_asked`, `background_supported` and `supported_conclusions` next to recall. Pooled: 341 questions, 3 background-supported. The FAIL from tick 1 is cleared for the baseline rows; any lever result still has to carry the same columns. |
+| 6 | Budget matching | **N/A** | No lever result yet. |
+
+**Result: no FAIL.** Merging unblocked.
+
+**The number:** official, dev seeds 0–5, code `ce0e357`, drills on, every check green on every seed —
+**93/240 = 0.3875 recall, 118/300 decoys accepted, 341 questions, 3 background-supported conclusions.**
+All six seeds are official; previously only seed 0 could be, which is what the seed-guard repair changed.
