@@ -1,0 +1,15 @@
+# tools/native/native_probe.py native  (seed 0, 200 users, largest site r00-site-00, 20 fixed questions)
+MODE native temporal edges: nodes 2574, edges built 1290, persisted 1290, build 1.7s
+  NeuralRetriever: 3.50s/question, results/question [200, 200, 200, 117, 200, 200, 200, 200, 200, 200, 200, 200, 200, 169, 200, 200, 200, 68, 200, 166]
+  stages executed (questions): {'fast_recall': 20, 'entity_expansion': 20, 'temporal_chain': 20, 'hierarchy_traversal': 20, 'co_activation_boost': 20, 'ca3_pattern_completion': 20}
+  storage calls via view: {'get_edges_from': 71303, 'get_node': 353, 'dropped_write': 247, 'get_edges_to': 67080}
+  top-50 overlap with Tesseract: [22, 35, 19, 28, 31, 21, 17, 17, 23, 20, 16, 20, 29, 31, 19, 16, 21, 27, 19, 26]
+# tools/native/native_probe.py  (same, no edges)
+MODE no edges: nodes 2574, edges built 0, persisted 0, build 0.0s
+  NeuralRetriever: 3.45s/question, results/question [200, 200, 200, 99, 200, 200, 200, 200, 200, 200, 200, 200, 200, 165, 200, 200, 200, 58, 200, 147]
+  stages executed (questions): {'fast_recall': 20, 'entity_expansion': 20, 'temporal_chain': 20, 'hierarchy_traversal': 20, 'co_activation_boost': 20, 'ca3_pattern_completion': 20}
+  storage calls via view: {'get_edges_from': 71036, 'get_edges_to': 67080}
+  top-50 overlap with Tesseract: [22, 35, 19, 28, 31, 21, 18, 17, 24, 20, 16, 19, 29, 31, 20, 16, 22, 29, 20, 27]
+# comparison of the saved rankings
+native rerun identical rankings: 20 / 20
+edges on vs off: identical top-50 set 14 ; mean top-50 overlap 49.7

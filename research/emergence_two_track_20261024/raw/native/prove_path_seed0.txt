@@ -1,0 +1,30 @@
+MODE default (as benchmarked)  site r00-site-00: nodes 2574, edges persisted 0
+  NeuralGraphService.process_extraction_result 0
+  NeuralRetriever._expand_stage              0
+  NeuralRetriever.retrieve                   0
+  NeuralRetriever.retrieve_with_expansion    0
+  TemporalChainManager.build_temporal_chain  0
+  TemporalChainManager.create_causal_edge    0
+  Tesseract._apply_temporal_momentum         20
+  Tesseract.retrieve                         20
+  storage.get_neighbors                      120
+  storage.save_edge                          0
+  storage.save_edges_batch                   0
+  storage.save_nodes_batch                   6
+MODE graph_edges  site r00-site-00: nodes 2574, edges persisted 4936
+  NeuralGraphService.process_extraction_result 0
+  NeuralRetriever._expand_stage              0
+  NeuralRetriever.retrieve                   0
+  NeuralRetriever.retrieve_with_expansion    0
+  TemporalChainManager.build_temporal_chain  0
+  TemporalChainManager.create_causal_edge    0
+  Tesseract._apply_temporal_momentum         20
+  Tesseract.retrieve                         20
+  storage.get_neighbors                      120
+  storage.save_edge                          0
+  storage.save_edges_batch                   6
+  storage.save_nodes_batch                   6
+# second pass with neighbour-result counters and saved rankings (same script, both modes)
+MODE default (as benchmarked): get_neighbors 120 calls, 0 non-empty, 0 pairs
+MODE graph_edges:              get_neighbors 120 calls, 120 non-empty, 235 pairs
+questions 20: identical full ranking 0, identical top-50 order 9, identical top-50 set 16
