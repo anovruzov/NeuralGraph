@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
+from datetime import date, timedelta
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator, Mapping, NamedTuple, Sequence
@@ -107,6 +108,8 @@ _INSERT_SITE_INFO = "INSERT INTO site_info (key, value) VALUES (?, ?)"
 _LAST_SEQ = "SELECT seq FROM records ORDER BY seq DESC LIMIT 1"
 _HAS_REF = "SELECT seq FROM records WHERE record_ref = ? ORDER BY seq LIMIT 1"
 _ROOT_BY_KEY = "SELECT root_ref FROM records WHERE narrative_key = ? ORDER BY seq LIMIT 1"
+_NEAR_BY_DATE = ("SELECT narrative, structured, root_ref FROM records WHERE received_date >= ? AND received_date <= ? "
+                 "ORDER BY seq")
 _INSERT_RECORD = (
     "INSERT INTO records (record_ref, seq, received_date, iso_week, ingested_at, ingest_week, count_week, language, "
     "codes, structured, narrative, narrative_key, person, reporter_id, origin_ref, origin_site, root_ref, "
@@ -311,6 +314,25 @@ class EmissionRow:
     sent_at: str | None
 
 
+def _near_duplicate_root(conn: sqlite3.Connection, rec: Mapping[str, Any], text: str, jaccard: float,
+                         days: int) -> str | None:
+    """The root of the earliest earlier record at this site with the same entities, received within ``days``, whose
+    folded word set overlaps ``text``'s by at least ``jaccard`` (an echo with a different author line or a reworded
+    tail), or None."""
+    words = set(text.split())
+    day = date.fromisoformat(rec["received_date"])
+    entities = canonical_dumps(rec["entities"])
+    lo, hi = (day - timedelta(days=days)).isoformat(), (day + timedelta(days=days)).isoformat()
+    for narrative, structured, root in conn.execute(_NEAR_BY_DATE, (lo, hi)):
+        if structured != entities:
+            continue
+        other = set(folded(narrative).split())
+        union = words | other
+        if union and len(words & other) / len(union) >= jaccard:
+            return root
+    return None
+
+
 class RecordStore:
     def __init__(self, path: str | Path, *, site_id: str, pack_id: str, config_hash: str) -> None:
         self.path = Path(path)
@@ -356,7 +378,8 @@ class RecordStore:
                 self._conn.execute("ROLLBACK")
 
     # ------------------------------------------------------------------ ingest
-    def ingest(self, records: Sequence[dict[str, Any]], *, ingested_at: str) -> StoreIngest:
+    def ingest(self, records: Sequence[dict[str, Any]], *, ingested_at: str,
+               near_duplicate_roots: tuple[float, int] | None = None) -> StoreIngest:
         day = local_date(ingested_at)
         if day is None:
             raise ValueError("ingested_at must be an ISO 8601 timestamp") from None
@@ -382,6 +405,8 @@ class RecordStore:
                 if root is None and key is not None:
                     found = conn.execute(_ROOT_BY_KEY, (key,)).fetchone()
                     root = found[0] if found is not None else None
+                if root is None and key is not None and near_duplicate_roots is not None:
+                    root = _near_duplicate_root(conn, rec, text, *near_duplicate_roots)
                 seq += 1
                 conn.execute(_INSERT_RECORD, (
                     ref, seq, rec["received_date"], week, ingested_at, ingest_week, count_week, rec["language"],

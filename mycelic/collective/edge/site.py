@@ -294,7 +294,8 @@ class EdgeSite:
                 rejected["wrong_site"] += 1
             else:
                 accepted.append(rec)
-        stored = self.store.ingest(accepted, ingested_at=ingested_at)
+        stored = self.store.ingest(accepted, ingested_at=ingested_at,
+                                   near_duplicate_roots=self.pack.egress.near_duplicate_roots)
         return IngestResult(ingested=stored.ingested, duplicates=stored.duplicates,
                             rejected=MappingProxyType(rejected), late=stored.late, forwarded_in=stored.forwarded_in)
 

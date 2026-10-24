@@ -286,6 +286,10 @@ class Egress:
     verify_max_records: int
     question_budget_per_entity_per_day: int
     question_entities_per_site_per_day: int
+    #: optional (absent = None, the shipped rule): ``(jaccard, days)``; a site record whose folded word set overlaps an
+    #: earlier record of the same site and the same entities, received within ``days``, by at least ``jaccard`` shares
+    #: that record's root (near-duplicate echoes are one root). Research setting; changes only the site's own roots.
+    near_duplicate_roots: tuple[float, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -971,7 +975,18 @@ def _field_names(b: _Build) -> set[str]:
 
 def _egress(b: _Build) -> Egress:
     f = "egress.json"
-    raw = _object(f, "$", b.files[f], _EGRESS_KEYS)
+    raw = b.files[f]
+    near_dup = None
+    if isinstance(raw, dict) and "near_duplicate_roots" in raw:
+        nd = raw["near_duplicate_roots"]
+        if (not isinstance(nd, dict) or sorted(nd) != ["days", "jaccard"]
+                or isinstance(nd["jaccard"], bool) or not isinstance(nd["jaccard"], (int, float))
+                or not 0.5 <= nd["jaccard"] <= 1.0
+                or isinstance(nd["days"], bool) or not isinstance(nd["days"], int) or not 0 <= nd["days"] <= 60):
+            raise PackError(f, "$.near_duplicate_roots", "must be {jaccard: 0.5..1.0, days: 0..60}") from None
+        near_dup = (float(nd["jaccard"]), nd["days"])
+        raw = {k: v for k, v in raw.items() if k != "near_duplicate_roots"}
+    raw = _object(f, "$", raw, _EGRESS_KEYS)
     _check(f, "$", raw, S_EGRESS)
     buckets = raw["verdict_count_buckets"]
     if any(buckets[i] >= buckets[i + 1] for i in range(len(buckets) - 1)):
@@ -1007,7 +1022,8 @@ def _egress(b: _Build) -> Egress:
                   never_fields=tuple(raw["never_fields"]), central_allowed_fields=tuple(raw["central_allowed_fields"]),
                   verify_max_records=raw["verify_max_records"],
                   question_budget_per_entity_per_day=raw["question_budget_per_entity_per_day"],
-                  question_entities_per_site_per_day=raw["question_entities_per_site_per_day"])
+                  question_entities_per_site_per_day=raw["question_entities_per_site_per_day"],
+                  near_duplicate_roots=near_dup)
 
 
 def _detectors(b: _Build, egress: Egress) -> dict[str, Any]:
