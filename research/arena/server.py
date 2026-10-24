@@ -100,6 +100,7 @@ class HarnessController:
         self.proc = subprocess.Popen(argv, cwd=str(cfg.harness_cwd or Path.cwd()), env=env, stdout=self._log,
                                      stderr=subprocess.STDOUT, start_new_session=True)
         self.run_dir, self.scenario, self.paused, self._reported_exit = run_dir, scenario, False, False
+        self.app.started_runs.append({"run_dir": str(run_dir), "log": str(log_path), "run_id": run_id})
         self.app.add_source(HarnessSource(run_dir, log_path, run_id))
         self.app.store.append(tag="CONTROL", source="control", agent="operator",
                               msg=f"start {scenario}: pid {self.proc.pid} -> {run_dir}",
@@ -205,6 +206,10 @@ class App:
             self.add_source(HarnessSource(config.run_dir, config.run_log), announce=False)
         if config.repo:
             self.add_source(GitSource(config.repo, config.branch), announce=False)
+        self.started_runs: list[dict[str, str]] = []
+        for r in self._saved().get("__started_runs__", []):   # runs started from the console survive a restart
+            self.started_runs.append(r)
+            self.add_source(HarnessSource(r["run_dir"], r.get("log"), r.get("run_id")), announce=False)
         self._restore()
         for s in self.sources:
             self.store.append(tag="SOURCE", source="console", msg=f"source attached: {s.name} {getattr(s, 'root', getattr(s, 'run_dir', getattr(s, 'repo', '')))}")
@@ -221,14 +226,17 @@ class App:
     def _state_path(self) -> Path:
         return self.config.state_dir / "sources.json"
 
-    def _restore(self) -> None:
+    def _saved(self) -> dict[str, Any]:
         p = self._state_path()
         if not p.exists():
-            return
+            return {}
         try:
-            saved = json.loads(p.read_text(encoding="utf-8"))
+            return json.loads(p.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return
+            return {}
+
+    def _restore(self) -> None:
+        saved = self._saved()
         for s in self.sources:
             key = f"{s.name}:{getattr(s, 'root', getattr(s, 'run_dir', getattr(s, 'repo', '')))}"
             if key in saved:
@@ -240,6 +248,7 @@ class App:
     def _save(self) -> None:
         with self._lock:
             d = {f"{s.name}:{getattr(s, 'root', getattr(s, 'run_dir', getattr(s, 'repo', '')))}": s.snapshot() for s in self.sources}
+            d["__started_runs__"] = list(self.started_runs)
         tmp = self._state_path().with_suffix(".tmp")
         tmp.write_text(json.dumps(d), encoding="utf-8")
         tmp.replace(self._state_path())

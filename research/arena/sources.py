@@ -252,6 +252,12 @@ class HarnessSource:
             return
         mt = p.stat().st_mtime
         if mt == self.report_mtime:
+            if not self.report:                  # restored positions, unchanged file: reload the summary, emit nothing
+                try:
+                    self.report = json.loads(p.read_text(encoding="utf-8"))
+                    self.phase = self.phase or self.report.get("phase")
+                except (OSError, ValueError):
+                    pass
             return
         self.report_mtime = mt
         try:

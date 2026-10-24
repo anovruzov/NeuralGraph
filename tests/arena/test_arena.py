@@ -131,6 +131,13 @@ class HarnessSourceTests(unittest.TestCase):
             self.assertEqual(src.summary()["sites"], ["s1"])
             src.poll(store)                                                     # nothing new: nothing emitted
             self.assertEqual(len(store.since(0)), 6)
+            # a restart: positions restored, the unchanged report is reloaded for the summary, no event re-emitted
+            src2 = HarnessSource(run, run_id="synthetic")
+            src2.restore(src.snapshot())
+            src2.poll(store)
+            self.assertEqual(len(store.since(0)), 6)
+            self.assertEqual(sorted(src2.summary()["checks"]), ["c9_synthetic"])
+            self.assertEqual(src2.summary()["phase"], "questions")
             store.close()
 
 
@@ -174,7 +181,12 @@ class ControllerTests(unittest.TestCase):
                 time.sleep(0.05)
             self.assertEqual(app.controller._session_pids(pid), [])             # and was swept
             self.assertEqual([e.tag for e in app.store.since(0) if e.source == "control"], ["CONTROL", "COMPLETE", "RECOVER"])
+            app._save()
             app.store.close()
+            app2 = App(Config(state_dir=Path(d) / "state", runs_root=Path(d) / "runs"))   # a restart remembers the run
+            self.assertEqual([r["run_id"] for r in app2.started_runs], [app.started_runs[0]["run_id"]])
+            self.assertTrue(any(isinstance(s, HarnessSource) for s in app2.sources))
+            app2.store.close()
 
 
 class ServerTests(unittest.TestCase):
