@@ -1,0 +1,9 @@
+  precision 0.907  recall 0.828
+P0 once, first week (v4)         found 165/240=0.688  rare 29/103  decoys 179 (1:12 2:59 3:24 4:24 5:60)  bg-supported 61  questions 3181
+P2 timer, every 2nd week (v5)    found 199/240=0.829  rare 62/103  decoys 217 (1:15 2:59 3:27 4:56 5:60)  bg-supported 233  questions 13361
+B1 once, when HQ-ready           found 173/240=0.721  rare 37/103  decoys 212 (1:14 2:59 3:26 4:53 5:60)  bg-supported 144  questions 3181
+B2 first week + when HQ-ready    found 173/240=0.721  rare 37/103  decoys 212 (1:14 2:59 3:26 4:53 5:60)  bg-supported 147  questions 3374
+B3 first week + every HQ-ready week found 176/240=0.733  rare 39/103  decoys 214 (1:14 2:59 3:27 4:54 5:60)  bg-supported 330  questions 5892
+B4 first week + every 2nd HQ-ready week found 176/240=0.733  rare 39/103  decoys 214 (1:14 2:59 3:27 4:54 5:60)  bg-supported 216  questions 4459
+
+[exited with code 0]
