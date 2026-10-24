@@ -74,3 +74,12 @@ Change since tick 2: an engineer's freshness investigation (no code change, no c
 **Result: no FAIL, one item owed.** The gate/oracle freshness parity has no regression guard: the oracle pins 42
 as a literal and the gate reads it from the pack, and nothing asserts they agree. Small test, worth adding before
 either session changes a freshness value.
+
+**2026-10-24 14:21 — tick 5.** Change detected since `d85c7f9`: `837a887`, `9164290`, `ebeb031` (the other
+session: shared research context, evidence ceiling by world size, count-gate specificity by world size).
+Fast-forwarded locally. **Audit deferred, not skipped** — the tick-4 auditor is still running on
+`069df7e`/`132c0ff`/`5eeb945`/`d85c7f9`, and two concurrent auditors would duplicate each other. These three shas
+are queued for the next auditor, which must look hardest at the specificity claim (non-planted keys passing the
+count gate: 9.6% at 200 users, ~70% at 2K and 10K). If that holds, the benchmark's discrimination degrades with
+world size, which bears on every scaling plan in the folder and on whether a 2K or 10K result means what a 200-user
+result means. No merge into the shared branch is blocked by this tick.
