@@ -270,3 +270,21 @@ Audited: the Gate-0 session's `317aac6` (runbook, world-map builder, `--extra-si
     report should say which gate and which window each is, or a reader will take 43.7% as the per-site rate.
 16. **Note, both sessions:** §7's "v5 reask offline +8" is on the v4 pool; on the official pool the re-ask lever's
     ceiling is +4/240 (`EVIDENCE_CEILING.md` §7). Different base, not a contradiction — say so where it is quoted.
+
+### tick 11b — `8ed994c` (learned ranker on system verdicts), merged at `237c3b7`; audited ahead of tick 12
+
+| # | Item | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Reproducibility | **PASS** | one script, one raw line (`raw/rescue/learned_rank_seeds0-5.txt`), per-seed figures printed; same replay tooling that reproduces shipped 118 / rule-first 128. |
+| 2 | Traceability | **PASS** | raw path cited in `CANDIDATE_RESCUE.md` §5. |
+| 3 | Labelling | **PASS** | "replay", "LOSO", "target = system verdict, never the gold label" in the docstring and the doc; `label` read only by `common.score`. |
+| 4 | Invariants | **PASS** | dev seeds 0–5; no pin, golden or label touched; the fitted object is indexed by nothing finer than eleven inference-time features. |
+| 5 | Cost columns | **PASS** | found, rare, decoys, no-pattern confirms, at B = 60. |
+| 6 | Budget matching | **PASS** | same 60-question budget as the orderings it is compared to. |
+
+**Result: 0 FAIL, and a convergence worth recording.** This is the label-free counterpart of the swarm's H2-3:
+fitting on the system's own verdicts cannot find gold because the judge supports 207 of 216 asked decoys
+(`swarm/wave1/H2/HYPOTHESES.md`), so "supported" carries almost no gold signal. Two sessions, two methods
+(PN transfer on the snapshot pool; logistic on the detector pool at the asked week), one answer: **119 vs 118.**
+It also settles, for this benchmark, the question F-H4 left open about label-fitted tables — the label-free
+ranker is the one that does nothing, which is why the 138 needs a ruling before it is run.
