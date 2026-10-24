@@ -237,3 +237,5 @@ reorder arm (and the labels-select ruling it needs), the disclosure invariant, a
 
 Note on cadence: nothing is in flight. Until the per-wave cadence (owed 11) is agreed or the auditor is stood
 down, ticks will be one-line "no change" entries.
+
+17:04Z — tick 10: no change since 606869a; nothing in flight; no agent spent.
