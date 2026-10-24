@@ -201,12 +201,48 @@ class WorldTableTests(unittest.TestCase):
                 self.assertEqual(len(ew.site_ids(org)), counts["sites"])
                 self.assertEqual(sum(ew.records_per_site(corpus).values()), counts["records"])
 
-    def test_a_world_with_other_counts_is_refused(self) -> None:
-        # the check can fail: a row with one count off, and a size the table does not fix
-        with self.assertRaises(ew.WorldError):
-            ew.check_world_counts({**ew.WORLD_TABLE[200], "records": 12963}, 200)
+    def test_a_world_missing_a_seed_invariant_count_is_refused(self) -> None:
+        # the counts the generator derives from the size: one off means this is not the benchmark's world
+        for key in ew.SEED_INVARIANT_COUNTS:
+            with self.subTest(count=key):
+                with self.assertRaises(ew.WorldError):
+                    ew.check_world_counts({**ew.WORLD_TABLE[200], key: ew.WORLD_TABLE[200][key] - 1}, 200)
         with self.assertRaises(ew.WorldError):
             ew.check_world_counts(dict(ew.WORLD_TABLE[200]), 400)
+
+    def test_a_structurally_impossible_world_is_refused(self) -> None:
+        # the drawn counts are held to what the benchmark needs, not to seed 0's numbers
+        row = dict(ew.WORLD_TABLE[200])
+        for broken, why in (
+            ({"sites": 1}, "one site cannot meet the two-site rule"),
+            ({"teams": 6}, "fewer teams than sites"),
+            ({"records": 308}, "fewer records than users"),
+            ({"gold_rare": 41}, "more rare patterns than planted ones"),
+        ):
+            with self.subTest(**broken):
+                with self.assertRaises(ew.WorldError, msg=why):
+                    ew.check_world_counts({**row, **broken}, 200)
+        for key in ew.SEED_DRAWN_COUNTS:
+            with self.subTest(missing=key):
+                with self.assertRaises(ew.WorldError):
+                    ew.check_world_counts({k: v for k, v in row.items() if k != key}, 200)
+
+    def test_every_development_seed_is_accepted_and_reports_its_draw(self) -> None:
+        """The repair's point: the guard refused every seed but 0, so seeds 1-5 could only run as diagnostics.
+
+        Seed 0 still matches section 3.1 exactly; the others differ only in counts the draw moves, and those
+        differences are reported by ``table_row_diff`` rather than refused.
+        """
+        for seed in range(6):
+            with self.subTest(seed=seed):
+                org, corpus, gold = ew.generate(200, seed)
+                counts = ew.world_counts(org, corpus, gold)
+                ew.check_world_counts(counts, 200)
+                diff = ew.table_row_diff(counts, 200)
+                self.assertEqual(diff == [], seed == 0, "only seed 0 is section 3.1's own draw")
+                for line in diff:
+                    self.assertIn(line.split(":")[0], ew.SEED_DRAWN_COUNTS,
+                                  "a seed-invariant count may never differ")
 
 
 # --------------------------------------------------------------------------------------------------- the mapping

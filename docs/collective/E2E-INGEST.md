@@ -824,6 +824,12 @@ settings table records the hash at `e3052c0`, `22dc1aba...fb55cd` in full above,
 (rule 4, `LOOP-48H.md:85`): the run fails, and this value is not amended without naming the commit that changed a
 pinned file and why.
 
+Four deliberate re-pins have followed, each naming the pinned files it changed: `22dc1aba...fb55cd` ->
+`40f2d713...` (near-duplicate roots and N1) -> `4352c2cf...` (their hardening) -> `a2147634...` (N2:
+`gate.py`, `loader.py`) -> `0e05bc00d1cf28ea80ec8e027391585f8312cdd5d84583d63d4fd5860fbeccc8` over `142` files
+(rule_snapshots: `detectors.py`, `loader.py`), which is what `report.SPIKE_CODE_HASH` carries and what c7
+asserts today. The narration above records the state at `e3052c0` and stays historical.
+
 **M14. The measure job's budgets summed past its timeout** (section 10 scaling table, section 11 `measure`). Was: 5 +
 10 + 25 minutes for the three sizes, a sweep of five steps of at least 60 s, Tesseract at three node counts (20,000
 nodes at 8.7 s per query, `HANDOFF-2026-10-09.md:145`, is about 3 minutes alone), install, and a 10-minute simulator

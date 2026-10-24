@@ -628,11 +628,23 @@ def _walk(idx: _Index, pack: "FrozenPack", as_of: str, run_channel: str, tie_sal
          "weeks": rule_weeks[(rule_id, key)],
          "sites_at_first": [{"site": s, "count_lb": n} for s, n in rule_first[(rule_id, key)].sites]}
         for rule_id, key in sorted(rule_weeks)]
+    as_of_by_week = {w["week"]: w["as_of"] for w in result["weeks"]}
+    week_list = [w["week"] for w in result["weeks"]]
+    window = cfg.window_weeks
     for key in sorted(set(candidate_weeks) | set(key_rule_weeks)):
         ser = series[key]                             # a rule key has a lower-bound count > 0, so it has cells
         snapshot = alert_detail.get(key, first_detail.get(key))
         rule = (_rule_part(idx, ser, key_rule_hits[key], key_rule_weeks[key], pack.rules)
                 if key in key_rule_weeks else None)
+        if snapshot is None and rule is not None and pack.detectors.get("rule_snapshots"):
+            # rule_snapshots (research): the first rule week at which a full detector window fits
+            fits = [w for w in key_rule_weeks[key] if w in week_list and week_list.index(w) >= window - 1]
+            if fits:
+                i = week_list.index(fits[0])
+                snapshot = {"week": fits[0], "as_of": as_of_by_week[fits[0]], "window": [week_list[i - window + 1], fits[0]],
+                            "score": 0.0, "features": {}, "decision_unit": rule["decision_unit"], "source": "rule",
+                            "supporting_sites": sorted({s["site"] if isinstance(s, dict) else s
+                                                        for s in rule.get("sites", [])})}
         channels = [name for name, present in ((DETECTOR_CHANNEL, key in candidate_weeks),
                                                (RULE_CHANNEL, rule is not None)) if present]
         weeks_alerted = alert_weeks.get(key, [])

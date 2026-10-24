@@ -70,6 +70,9 @@ SESSION_PREFIX = "site:"
 EMBED_DIM = 256
 CONFIG_KEYS = ("clock_start", "demo_seed", "edge_dir", "embed_dim", "graph_path", "hq_dir", "master_data",
                "max_records", "pack", "retrieval", "site_id")
+#: optional: a routing file (``mycelic.collective.inference.routing``) whose ``judge`` route serves this site's verifier.
+#: Absent, the site judges lexically and its config bytes are the baseline's.
+OPTIONAL_KEYS = ("routing",)
 
 
 class SiteClock:
@@ -96,9 +99,11 @@ class SiteConfig:
     graph_path: str
     clock_start: str
     embed_dim: int = EMBED_DIM
+    routing: str | None = None
 
     def to_json(self) -> dict[str, Any]:
-        return {"clock_start": self.clock_start, "demo_seed": self.demo_seed, "edge_dir": self.edge_dir,
+        extra = {} if self.routing is None else {"routing": self.routing}
+        return {**extra, "clock_start": self.clock_start, "demo_seed": self.demo_seed, "edge_dir": self.edge_dir,
                 "embed_dim": self.embed_dim, "graph_path": self.graph_path, "hq_dir": self.hq_dir,
                 "master_data": {t: list(self.master_data[t]) for t in sorted(self.master_data)},
                 "max_records": self.max_records, "pack": self.pack, "retrieval": self.retrieval,
@@ -106,14 +111,14 @@ class SiteConfig:
 
     @classmethod
     def from_json(cls, obj: Mapping[str, Any]) -> "SiteConfig":
-        if sorted(obj) != list(CONFIG_KEYS):
+        if sorted(set(obj) - set(OPTIONAL_KEYS)) != list(CONFIG_KEYS):
             raise ValueError("a site config has exactly the config keys") from None
         if obj["retrieval"] not in RETRIEVALS:
             raise ValueError("retrieval must be tesseract or shipped") from None
         return cls(pack=obj["pack"], site_id=obj["site_id"], edge_dir=obj["edge_dir"], hq_dir=obj["hq_dir"],
                    master_data={t: tuple(v) for t, v in obj["master_data"].items()}, demo_seed=obj["demo_seed"],
                    retrieval=obj["retrieval"], max_records=obj["max_records"], graph_path=obj["graph_path"],
-                   clock_start=obj["clock_start"], embed_dim=obj["embed_dim"])
+                   clock_start=obj["clock_start"], embed_dim=obj["embed_dim"], routing=obj.get("routing"))
 
 
 def node_text(record: WindowRecord) -> str:
@@ -345,8 +350,9 @@ class TesseractRetrieval:
 class SpikeVerifier(SiteVerifier):
     """``SiteVerifier`` with step 6 (retrieval) taken from ``retrieval``; every other step is the shipped one."""
 
-    def __init__(self, site: EdgeSite, *, clock: SiteClock, demo_seed: int, retrieval: Any) -> None:
-        super().__init__(site, runtime=None, clock=clock, demo_seed=demo_seed)
+    def __init__(self, site: EdgeSite, *, clock: SiteClock, demo_seed: int, retrieval: Any,
+                 runtime: Any = None) -> None:
+        super().__init__(site, runtime=runtime, clock=clock, demo_seed=demo_seed)
         self._retrieval = retrieval
 
     def _answer(self, store: RecordStore, question: dict[str, Any]) -> dict[str, Any]:
@@ -402,7 +408,8 @@ class SiteProcess:
         self.pack = load_pack(config.pack)
         self.clock = SiteClock(config.clock_start)
         edge = Path(config.edge_dir)
-        self.site = EdgeSite(self.pack, config.site_id, edge, runtime=None, clock=self.clock,
+        self.runtime = self._make_runtime(config, edge)
+        self.site = EdgeSite(self.pack, config.site_id, edge, runtime=self.runtime, clock=self.clock,
                              master_data=config.master_data, hq_dir=config.hq_dir)
         self.descriptor_bytes = canonical_bytes(wire.descriptor(config.site_id, self.pack.id, self.pack.config_hash,
                                                                 sorted(self.pack.questions)))
@@ -418,10 +425,52 @@ class SiteProcess:
             else:
                 self.retrieval = ShippedRetrieval(self, config.max_records)
             self.verifier = SpikeVerifier(self.site, clock=self.clock, demo_seed=config.demo_seed,
-                                          retrieval=self.retrieval)
+                                          retrieval=self.retrieval, runtime=self.runtime)
         except BaseException:
             self.close()
             raise
+
+    def _make_runtime(self, config: SiteConfig, edge: Path) -> Any:
+        """The site's model runtime when ``config.routing`` names this site's own routing file, else None (lexical)."""
+        self.runtime = None
+        if config.routing is None:
+            return None
+        from mycelic.collective.edge.verify import JUDGE_TASK
+        from mycelic.collective.inference.routing import parse_routing
+        from mycelic.collective.inference.runtime import Runtime
+        # bound to this site: a record goes only to an endpoint whose boundary is exactly site:<id> (the
+        # runtime refuses any other), and every call is in the site's own ledger. The file is this site's own;
+        # there is no wildcard boundary.
+        obj = strict_load(Path(config.routing).read_bytes())
+        for name, endpoint in obj.get("endpoints", {}).items():
+            if endpoint.get("boundary") != f"site:{config.site_id}":
+                raise ValueError(f"routing endpoint {name} is not bound to site:{config.site_id}") from None
+        self.runtime = Runtime(parse_routing(obj, tasks=(JUDGE_TASK,), sha256=sha256_hex(Path(config.routing).read_bytes())),
+                               boundary=f"site:{config.site_id}",
+                               ledger_path=edge / f"site-{config.site_id}.ledger.jsonl",
+                               run_id=f"e2e-{config.site_id}", clock=self.clock, data_label="synthetic")
+        self._receipts(edge / f"site-{config.site_id}.receipts.jsonl")
+        return self.runtime
+
+    def _receipts(self, path: Path) -> None:
+        """Every model call's payload and validated reply (or error kind), keyed by the ledger's ``ref``, in the site's
+        own directory: the receipt holds record text, so it never leaves the site."""
+        run = self.runtime.run
+
+        def receipted(task: Any, payload: Any, schema: Any, *args: Any, **kwargs: Any) -> Any:
+            row: dict[str, Any] = {"ts": self.clock(), "ref": kwargs.get("ref"), "task": getattr(task, "name", None),
+                                   "payload": payload, "reply": None, "error": None}
+            try:
+                row["reply"] = run(task, payload, schema, *args, **kwargs)
+                return row["reply"]
+            except BaseException as err:
+                row["error"] = getattr(err, "kind", None) or type(err).__name__
+                raise
+            finally:
+                with open(path, "a", encoding="utf-8", newline="\n") as fh:
+                    fh.write(canonical_dumps(row) + "\n")
+
+        self.runtime.run = receipted
 
     def diag(self, row: Mapping[str, Any]) -> None:
         with open(self.diag_log, "a", encoding="utf-8", newline="\n") as fh:
@@ -456,6 +505,8 @@ class SiteProcess:
         if self.retrieval is not None:
             self.retrieval.close()
         self.site.close()
+        if getattr(self, "runtime", None) is not None:
+            self.runtime.close()
 
 
 def write_config(config: SiteConfig, path: str | Path) -> Path:

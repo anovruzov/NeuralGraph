@@ -141,6 +141,10 @@ _TEMPLATE_KEYS = ("text", "entity_types", "predicates")
 _QUESTIONS_KEYS = ("templates", "pushdown")
 _PUSHDOWN_KEYS = ("min_confirming_sites", "min_independent_roots", "min_independent_reporters", "freshness_days",
                   "max_sibling_sites")
+#: optional pushdown keys; a pack without them has the bytes, the config hash and the gate of before.
+#: ``weak_corroborating_sites`` (EMERGENCE-Next protocol N1, research only): how many sites that confirm with fewer than
+#: k records (the ``<k`` bucket they already send) may stand in for missing k-record sites, never for all of them.
+_PUSHDOWN_OPTIONAL = {"weak_corroborating_sites": 0, "roots_from_k_sites_only": False}
 _FOLLOWUP_KEYS = ("label", "tier", "enabled", "executor", "args_schema", "draft_schema", "template", "owner_role",
                   "daily_cap", "ack_days", "escalate_to_role")
 _ARG_KEYS = MappingProxyType({"entity_id": ("kind", "entity_type"), "predicate": ("kind",), "conclusion_id": ("kind",),
@@ -282,6 +286,10 @@ class Egress:
     verify_max_records: int
     question_budget_per_entity_per_day: int
     question_entities_per_site_per_day: int
+    #: optional (absent = None, the shipped rule): ``(jaccard, days)``; a site record whose folded word set overlaps an
+    #: earlier record of the same site and the same entities, received within ``days``, by at least ``jaccard`` shares
+    #: that record's root (near-duplicate echoes are one root). Research setting; changes only the site's own roots.
+    near_duplicate_roots: tuple[float, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -312,6 +320,10 @@ class PushdownConfig:
     min_independent_reporters: int
     freshness_days: int
     max_sibling_sites: int
+    weak_corroborating_sites: int = 0
+    #: EMERGENCE-Next N2 (research only): a site's roots count toward min_independent_roots only when its own roots
+    #: bucket reaches k; single-root sites summed across sites are indistinguishable from echoes of one event.
+    roots_from_k_sites_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -569,6 +581,7 @@ S_TEMPLATE = _schema(_closed({"text": _string(1, 400), "entity_types": {"type": 
 S_PUSHDOWN = _schema(_closed({
     "min_confirming_sites": _int(1, 100), "min_independent_roots": _int(1, 100000),
     "min_independent_reporters": _int(1, 100000), "freshness_days": _int(1, 3660), "max_sibling_sites": _int(0, 100)}))
+S_PUSHDOWN_OPTIONAL = {"weak_corroborating_sites": _int(0, 10), "roots_from_k_sites_only": _BOOL}
 S_ROLE = _schema(_closed({"label": _LABEL120}))
 S_FOLLOWUP_SCALARS = _schema(_closed({
     "label": _LABEL120, "tier": _string(1, 8), "enabled": _BOOL,
@@ -965,7 +978,18 @@ def _field_names(b: _Build) -> set[str]:
 
 def _egress(b: _Build) -> Egress:
     f = "egress.json"
-    raw = _object(f, "$", b.files[f], _EGRESS_KEYS)
+    raw = b.files[f]
+    near_dup = None
+    if isinstance(raw, dict) and "near_duplicate_roots" in raw:
+        nd = raw["near_duplicate_roots"]
+        if (not isinstance(nd, dict) or sorted(nd) != ["days", "jaccard"]
+                or isinstance(nd["jaccard"], bool) or not isinstance(nd["jaccard"], (int, float))
+                or not 0.5 <= nd["jaccard"] <= 1.0
+                or isinstance(nd["days"], bool) or not isinstance(nd["days"], int) or not 0 <= nd["days"] <= 60):
+            raise PackError(f, "$.near_duplicate_roots", "must be {jaccard: 0.5..1.0, days: 0..60}") from None
+        near_dup = (float(nd["jaccard"]), nd["days"])
+        raw = {k: v for k, v in raw.items() if k != "near_duplicate_roots"}
+    raw = _object(f, "$", raw, _EGRESS_KEYS)
     _check(f, "$", raw, S_EGRESS)
     buckets = raw["verdict_count_buckets"]
     if any(buckets[i] >= buckets[i + 1] for i in range(len(buckets) - 1)):
@@ -1001,13 +1025,22 @@ def _egress(b: _Build) -> Egress:
                   never_fields=tuple(raw["never_fields"]), central_allowed_fields=tuple(raw["central_allowed_fields"]),
                   verify_max_records=raw["verify_max_records"],
                   question_budget_per_entity_per_day=raw["question_budget_per_entity_per_day"],
-                  question_entities_per_site_per_day=raw["question_entities_per_site_per_day"])
+                  question_entities_per_site_per_day=raw["question_entities_per_site_per_day"],
+                  near_duplicate_roots=near_dup)
 
 
 def _detectors(b: _Build, egress: Egress) -> dict[str, Any]:
     """The schema gives types and closed ranges; the open ends and the cross-checks are explicit here."""
     f = "detectors.json"
     raw = b.files[f]
+    # optional (absent = false, the shipped candidate source): EMERGENCE-Next research setting; a candidate the rule
+    # layer found but no detector alerted on gets a snapshot from its rule hit, so HQ may ask it
+    extra: dict[str, Any] = {}
+    if isinstance(raw, dict) and "rule_snapshots" in raw:
+        if not isinstance(raw["rule_snapshots"], bool):
+            raise PackError(f, "$.rule_snapshots", "must be a boolean") from None
+        extra = {"rule_snapshots": raw["rule_snapshots"]}
+        raw = {k: v for k, v in raw.items() if k != "rule_snapshots"}
     _check(f, "$", raw, S_DETECTORS)
     for path, value in (("$.burst.alpha_site", raw["burst"]["alpha_site"]),
                         ("$.burst.lambda_floor", raw["burst"]["lambda_floor"]),
@@ -1027,7 +1060,7 @@ def _detectors(b: _Build, egress: Egress) -> dict[str, Any]:
         raise PackError(f, "$.burst.p_max", "must be < 1") from None
     if raw["decoy"]["stale_days"] < egress.close_lag_days + 7:
         raise PackError(f, "$.decoy.stale_days", "must be at least egress.close_lag_days + 7") from None
-    return raw
+    return {**raw, **extra}
 
 
 def _rules(b: _Build, egress: Egress) -> dict[str, Rule]:
@@ -1083,11 +1116,16 @@ def _questions(b: _Build, egress: Egress) -> tuple[dict[str, QuestionTemplate], 
     for t in egress.egress_entity_types:
         if not any(t in tpl.entity_types and tpl.predicates is None for tpl in out.values()):
             raise PackError(f, "$.templates", f"egress entity type {t} has no template with predicates null") from None
-    pushdown = _object(f, "$.pushdown", raw["pushdown"], _PUSHDOWN_KEYS)
+    raw_pd = raw["pushdown"]
+    optional = {key: raw_pd[key] for key in _PUSHDOWN_OPTIONAL if isinstance(raw_pd, dict) and key in raw_pd}
+    pushdown = _object(f, "$.pushdown", {key: v for key, v in raw_pd.items() if key not in optional}
+                       if isinstance(raw_pd, dict) else raw_pd, _PUSHDOWN_KEYS)
     _check(f, "$.pushdown", pushdown, S_PUSHDOWN)
+    for key, value in optional.items():
+        _check(f, f"$.pushdown.{key}", value, _schema(S_PUSHDOWN_OPTIONAL[key]))
     if pushdown["freshness_days"] < egress.close_lag_days + 7:
         raise PackError(f, "$.pushdown.freshness_days", "must be at least egress.close_lag_days + 7") from None
-    return out, PushdownConfig(**{key: pushdown[key] for key in _PUSHDOWN_KEYS})
+    return out, PushdownConfig(**{key: pushdown[key] for key in _PUSHDOWN_KEYS}, **optional)
 
 
 def _arg_schema(b: _Build, spec: Mapping[str, Any]) -> dict[str, Any]:

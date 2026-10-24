@@ -45,8 +45,10 @@ Pushdown verification (G6, ``edge/verify.py``) reads and writes here only throug
 """
 from __future__ import annotations
 
+import re
 import sqlite3
 from contextlib import contextmanager
+from datetime import date, timedelta
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator, Mapping, NamedTuple, Sequence
@@ -75,6 +77,7 @@ _DDL = (
     "origin_ref TEXT, origin_site TEXT, root_ref TEXT NOT NULL, "
     "forwarded_in INTEGER NOT NULL, synthetic INTEGER NOT NULL)",
     "CREATE INDEX IF NOT EXISTS records_narrative_key ON records (narrative_key, seq)",
+    "CREATE INDEX IF NOT EXISTS records_structured_date ON records (structured, received_date)",
     "CREATE INDEX IF NOT EXISTS records_count_week ON records (count_week)",
     "CREATE TABLE IF NOT EXISTS claims ("
     "record_ref TEXT NOT NULL REFERENCES records(record_ref), entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, "
@@ -107,6 +110,15 @@ _INSERT_SITE_INFO = "INSERT INTO site_info (key, value) VALUES (?, ?)"
 _LAST_SEQ = "SELECT seq FROM records ORDER BY seq DESC LIMIT 1"
 _HAS_REF = "SELECT seq FROM records WHERE record_ref = ? ORDER BY seq LIMIT 1"
 _ROOT_BY_KEY = "SELECT root_ref FROM records WHERE narrative_key = ? ORDER BY seq LIMIT 1"
+# candidates for a near-duplicate root: earlier-dated records of the same entities that are their own root (so roots
+# never chain: B joins A only by resembling A itself, never through an intermediate record)
+_NEAR_CANDIDATES = ("SELECT narrative, root_ref FROM records WHERE structured = ? AND received_date >= ? "
+                    "AND received_date <= ? AND root_ref = record_ref ORDER BY seq")
+#: words that flip or qualify a claim; a near-duplicate must carry exactly the same ones
+_NEGATIONS = frozenset({"not", "no", "never", "without", "none", "nor", "cannot"})
+#: a value (3, 40%, 1.5, 12:30): a near-duplicate must carry exactly the same values; identifiers that mix letters
+#: and digits (an author line, a ticket id) may differ between echoes of one report
+_VALUE_RE = re.compile(r"^[\d.,:%+\-]*\d[\d.,:%+\-]*$")
 _INSERT_RECORD = (
     "INSERT INTO records (record_ref, seq, received_date, iso_week, ingested_at, ingest_week, count_week, language, "
     "codes, structured, narrative, narrative_key, person, reporter_id, origin_ref, origin_site, root_ref, "
@@ -311,6 +323,27 @@ class EmissionRow:
     sent_at: str | None
 
 
+def _near_duplicate_root(conn: sqlite3.Connection, rec: Mapping[str, Any], text: str, jaccard: float,
+                         days: int) -> str | None:
+    """The root of the earliest record at this site that is its own root, has the same entities, was received on or
+    up to ``days`` before this one, carries exactly the same values and negation words, and whose folded
+    word set overlaps ``text``'s by at least ``jaccard`` (an echo with a different author line or a reworded tail);
+    else None. Templated reports that differ in a value or in polarity are never merged."""
+    words = set(text.split())
+    key_words = {w for w in words if _VALUE_RE.match(w)} | (words & _NEGATIONS)
+    day = date.fromisoformat(rec["received_date"])
+    lo, hi = (day - timedelta(days=days)).isoformat(), day.isoformat()
+    for narrative, root in conn.execute(_NEAR_CANDIDATES, (canonical_dumps(rec["entities"]), lo, hi)):
+        other = set(folded(narrative).split())
+        other_key = {w for w in other if _VALUE_RE.match(w)} | (other & _NEGATIONS)
+        if other_key != key_words:
+            continue
+        union = words | other
+        if union and len(words & other) / len(union) >= jaccard:
+            return root
+    return None
+
+
 class RecordStore:
     def __init__(self, path: str | Path, *, site_id: str, pack_id: str, config_hash: str) -> None:
         self.path = Path(path)
@@ -356,7 +389,8 @@ class RecordStore:
                 self._conn.execute("ROLLBACK")
 
     # ------------------------------------------------------------------ ingest
-    def ingest(self, records: Sequence[dict[str, Any]], *, ingested_at: str) -> StoreIngest:
+    def ingest(self, records: Sequence[dict[str, Any]], *, ingested_at: str,
+               near_duplicate_roots: tuple[float, int] | None = None) -> StoreIngest:
         day = local_date(ingested_at)
         if day is None:
             raise ValueError("ingested_at must be an ISO 8601 timestamp") from None
@@ -382,6 +416,8 @@ class RecordStore:
                 if root is None and key is not None:
                     found = conn.execute(_ROOT_BY_KEY, (key,)).fetchone()
                     root = found[0] if found is not None else None
+                if root is None and key is not None and near_duplicate_roots is not None:
+                    root = _near_duplicate_root(conn, rec, text, *near_duplicate_roots)
                 seq += 1
                 conn.execute(_INSERT_RECORD, (
                     ref, seq, rec["received_date"], week, ingested_at, ingest_week, count_week, rec["language"],
