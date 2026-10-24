@@ -1,0 +1,12 @@
+STRUCT 200 count   patterns 198/240=0.825 rare 61/103  decoys 219/300 (1:15/60 2:59/60 3:28/60 4:57/60 5:60/60)  background 173/1800=0.096
+STRUCT 200 sb3x1   patterns 156/240=0.650 rare 25/103  decoys 170/300 (1:6/60 2:56/60 3:8/60 4:53/60 5:47/60)  background 62/1800=0.034
+STRUCT 200 sb3x2   patterns 126/240=0.525 rare 6/103  decoys 160/300 (1:5/60 2:53/60 3:4/60 4:52/60 5:46/60)  background 15/1800=0.008
+STRUCT 200 sb4x1   patterns 135/240=0.562 rare 7/103  decoys 160/300 (1:4/60 2:53/60 3:4/60 4:52/60 5:47/60)  background 22/1800=0.012
+STRUCT 2000 count   patterns 228/240=0.950 rare 80/92  decoys 270/300 (1:46/60 2:60/60 3:48/60 4:59/60 5:57/60)  background 1258/1800=0.699
+STRUCT 2000 sb3x1   patterns 178/240=0.742 rare 36/92  decoys 193/300 (1:20/60 2:55/60 3:22/60 4:53/60 5:43/60)  background 544/1800=0.302
+STRUCT 2000 sb3x2   patterns 128/240=0.533 rare 3/92  decoys 150/300 (1:5/60 2:50/60 3:2/60 4:53/60 5:40/60)  background 44/1800=0.024
+STRUCT 2000 sb4x1   patterns 151/240=0.629 rare 16/92  decoys 174/300 (1:14/60 2:53/60 3:13/60 4:53/60 5:41/60)  background 296/1800=0.164
+STRUCT 10000 count   patterns 221/240=0.921 rare 82/101  decoys 278/300 (1:49/60 2:60/60 3:49/60 4:60/60 5:60/60)  background 1249/1800=0.694
+STRUCT 10000 sb3x1   patterns 162/240=0.675 rare 29/101  decoys 204/300 (1:25/60 2:58/60 3:23/60 4:55/60 5:43/60)  background 583/1800=0.324
+STRUCT 10000 sb3x2   patterns 117/240=0.487 rare 0/101  decoys 150/300 (1:5/60 2:53/60 3:4/60 4:54/60 5:34/60)  background 26/1800=0.014
+STRUCT 10000 sb4x1   patterns 140/240=0.583 rare 14/101  decoys 176/300 (1:15/60 2:54/60 3:10/60 4:55/60 5:42/60)  background 327/1800=0.182

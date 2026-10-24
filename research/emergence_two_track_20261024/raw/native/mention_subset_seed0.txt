@@ -1,0 +1,2 @@
+# tools/native/mention_subset.py 60  (seed 0, 200 users, all 7 sites; fixed_questions returned 55)
+sites 7 questions 55: record-question pairs 184561, judge mentions=yes 2940, of which NOT retrieval-matched 0; of those also describes_predicate=yes (could confirm) 0

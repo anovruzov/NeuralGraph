@@ -25,8 +25,8 @@ cite them until each abs page has been fetched and matched** on a machine with a
 |---|---|
 | G0 reproduce "~63%" | Premise wrong: ~63% is a diagnostic (v2/v3). Official baseline **93/240 = 0.3875**, checks green, seeds 0–5 (`raw/official_ce0e357/`). Best diagnostic 0.679 (v4). |
 | G1 evidence ceiling ≥ 85% | **Measured, fails**: pattern-evidence ceiling 0.746 at 200 users, **0.683 at 10K**. Key-volume ceilings reach 0.92 at 10K only because the count gate then approves ~70% of keys with no pattern and 93% of decoys. |
-| G2 oracle routing | Not the loss: each site's retrieval reads every node; an offline evidence check predicts the system's verdict on 98.6% of questions. |
-| G3 exact vs ANN | Not applicable: no ANN index; hash embeddings, no edges, exhaustive search. |
+| G2 oracle routing | Not the loss: an offline evidence check predicts the system's verdict on 98.6% of questions. (Corrected: a site reads at most L = 50 records per question, not every node; 26.4% of v4 site reads hit the cap.) |
+| G3 exact vs ANN | Not applicable: no ANN index; hash embeddings; the benchmarked site graph has no edges and never runs NeuralGraph's edge builders or multi-hop retrieval (proved by instrumentation, `NATIVE_GRAPH_PROOF.md`). |
 
 By the report's own decision tree this is the branch "oracle < 85% → fix ingestion, representation, labels or task
 assumptions", which is what the scale measurement concluded independently (evidence specificity, not routing).
@@ -86,3 +86,23 @@ the best operating point still passes about one key in five with no pattern at a
 representation (per-key aggregates under k per site), 85% at 10K with a tolerable false-pass rate is not reachable.
 Untested: organisational structure of a key's reporters (pattern facets come from specific users over a few regions and
 sites; background reporters are random) — the report's hypergraph idea in the form that fits the Boundary.
+
+## Third round: per-site bursts, organisational concentration (rejected as scale fixes)
+
+- **Per-site bursts** (`tools/plateau/siteburst_gate.py`, `raw/plateau/siteburst_gate_by_world_size.txt`). This one is
+  site-local and exports nothing new: a site tests its own window count against its own prior weeks. `sbZxN` = count
+  gate AND at least N sites with Poisson excess z ≥ Z.
+
+| Gate | 200 users: patterns / non-planted keys passing | 2,000 | 10,000 |
+|---|---|---|---|
+| count | 0.825 / 9.6% | 0.950 / 69.9% | 0.921 / 69.4% |
+| sb3x1 | 0.650 / 3.4% | 0.742 / 30.2% | 0.675 / 32.4% |
+| sb3x2 | 0.525 / 0.8% | 0.533 / 2.4% | 0.487 / **1.4%**, rare **0/101** |
+| sb4x1 | 0.562 / 1.2% | 0.629 / 16.4% | 0.583 / 18.2% |
+
+  Requiring bursts at two sites is the first signal that stays specific at 10K (1.4% of keys with no pattern pass), but
+  it keeps no rare pattern at all. Rare patterns are, by definition, not loud at two sites at once. Same frontier,
+  different point.
+- **Organisational concentration of a key's reporters** (inspection; the script was not preserved, so treat it as
+  indicative only). At team level the signal vanishes at 10K: planted 0.979 vs random 0.987. At region level it
+  persists: 0.299 vs 0.425. Not yet turned into a gate.
