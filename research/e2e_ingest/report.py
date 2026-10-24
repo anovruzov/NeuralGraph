@@ -74,7 +74,7 @@ BROKER_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+")
 CI_BROKER_VERSION = "2.10.29"
 #: M13: ``run.spike_code_hash`` over ``spike_code_files()`` (re-pinned at 7bbaad1d+1, was e3052c0); a different value means a pinned file
 #: changed (rule 4) and the run fails.
-SPIKE_CODE_HASH = "40f2d713f8bb1d97833f7696804071e39078802fe100d26cee93932ca0a19b66"
+SPIKE_CODE_HASH = "4352c2cf7c1bba7c51984f217f4e1ab4f5daa8c9cc4a0fbdb7c478a00daa7223"
 SPIKE_CODE_FILES = 142
 #: M10: the paths ``code_dirty`` is evaluated over, at the start and at the end of the run.
 DIRTY_PATHS = ("mycelic", "research/e2e_ingest", "research/routing_spike", "research/mycelic",
