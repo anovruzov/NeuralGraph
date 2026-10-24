@@ -97,8 +97,16 @@ F/TB_v4-infeasible:
 - the 9th (seed 4, p029) is infeasible under K too — a gap in the offline model (near-duplicate roots and N2 are
   modelled only approximately).
 
-The official run's single mismatch (93 found vs 92 feasible) is very likely the same mechanism. Its per-pattern rows
-live in the other session's `gap_decomposition.csv` and are not in this repo, so that one case is not verified here.
+**The official run's single mismatch is verified to be this mechanism.** In `raw/plateau/gap_decomposition.csv` it is
+seed 4, p022 (rare):
+
+- found at snapshot week 2024-W17;
+- infeasible under F;
+- feasible under K/TB_v4 at exactly W16–W18, which covers the asked week.
+
+The facets alone fall short, and background records on the same key carry it across the gate. The 179/240 ceiling
+therefore bounds *planted-evidence* finds. The scorer can exceed it by background-assisted finds. In the official run
+that is 1 case; in v2 5; in v4 9, all rare.
 
 ## 4. End-to-end confirmation (running)
 
