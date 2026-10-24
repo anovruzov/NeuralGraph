@@ -176,6 +176,21 @@ Counts carry the recall; they carry almost no specificity. So the problem splits
 - **recall is a disclosure question (P1);**
 - **specificity is a statistics question (P2)** that today's count gate does not attempt.
 
+**Specificity on the totals, measured** (`tools/plateau/agg_spec.py`, `raw/plateau/agg_specificity_by_world_size.txt`).
+A burst test on the cross-site total — a Poisson excess over the key's own prior six weeks, never later weeks —
+gives the following at 10K:
+
+| gate (10K users) | recall ceiling | rare | non-planted keys passing |
+|---|---|---|---|
+| per-site rule (today) | 0.683 | 25/101 | 72.4% |
+| total + burst z ≥ 3 | **0.912** | 88/101 | **64.6%** |
+| total + burst z ≥ 4 | **0.812** | 65/101 | **46.4%** |
+
+**Aggregate-then-threshold with a burst test dominates today's rule at 10K on both axes:** more recall *and* fewer
+false passes. The absolute false-pass rate is still high. The site judge and the question budget filter further
+downstream, and a stronger statistic (P2) is still needed. At 200 users, z ≥ 3 gives 0.900 recall at 26.3% (today:
+0.742 at 16.5%).
+
 (The non-planted rates here count any week of the run, so they are higher than §4.3's; compare rows within this
 table, not across tables.)
 
