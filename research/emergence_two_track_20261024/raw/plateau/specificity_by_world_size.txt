@@ -1,0 +1,7 @@
+# python3.11 tools/plateau/specificity_scale.py <size> 0,1,2,3,4,5  (PYTHONPATH=$EMERGENCE_RULE); 300 sampled non-planted chain keys per seed
+SPEC 200 decoys passing (K, in window) by type: 1:15/60, 2:59/60, 3:28/60, 4:57/60, 5:60/60 total 219/300
+SPEC 200 non-planted chain keys ever passing: K 173/1800=0.096  B 193/1800=0.107
+SPEC 2000 decoys passing (K, in window) by type: 1:46/60, 2:60/60, 3:48/60, 4:59/60, 5:57/60 total 270/300
+SPEC 2000 non-planted chain keys ever passing: K 1258/1800=0.699  B 1285/1800=0.714
+SPEC 10000 decoys passing (K, in window) by type: 1:49/60, 2:60/60, 3:49/60, 4:60/60, 5:60/60 total 278/300
+SPEC 10000 non-planted chain keys ever passing: K 1249/1800=0.694  B 1274/1800=0.708
