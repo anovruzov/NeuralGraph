@@ -226,7 +226,8 @@ class E2ESiteProcess(SiteProcess):
         self.pack = load_pack(config.pack)
         self.clock = SiteClock(config.clock_start)
         edge = Path(config.edge_dir)
-        self.site = EdgeSite(self.pack, config.site_id, edge, runtime=None, clock=self.clock,
+        self.runtime = self._make_runtime(config, edge)     # None unless config.routing names this site's file
+        self.site = EdgeSite(self.pack, config.site_id, edge, runtime=self.runtime, clock=self.clock,
                              master_data=config.master_data, hq_dir=config.hq_dir)
         self.descriptor_bytes = canonical_bytes(wire.descriptor(config.site_id, self.pack.id, self.pack.config_hash,
                                                                 sorted(self.pack.questions)))
@@ -243,7 +244,7 @@ class E2ESiteProcess(SiteProcess):
             else:
                 self.retrieval = ShippedRetrieval(self, config.max_records)
             self.verifier = SpikeVerifier(self.site, clock=self.clock, demo_seed=config.demo_seed,
-                                          retrieval=self.retrieval)
+                                          retrieval=self.retrieval, runtime=self.runtime)
         except BaseException:
             self.close()
             raise

@@ -408,24 +408,7 @@ class SiteProcess:
         self.pack = load_pack(config.pack)
         self.clock = SiteClock(config.clock_start)
         edge = Path(config.edge_dir)
-        self.runtime = None
-        if config.routing is not None:
-            from mycelic.collective.edge.verify import JUDGE_TASK
-            from mycelic.collective.inference.routing import parse_routing
-            from mycelic.collective.inference.runtime import Runtime
-            # bound to this site: a record goes only to an endpoint whose boundary is exactly site:<id> (the
-            # runtime refuses any other), and every call is in the site's own ledger. The file is this site's own;
-            # there is no wildcard boundary.
-            obj = strict_load(Path(config.routing).read_bytes())
-            for name, endpoint in obj.get("endpoints", {}).items():
-                if endpoint.get("boundary") != f"site:{config.site_id}":
-                    raise ValueError(f"routing endpoint {name} is not bound to site:{config.site_id}") from None
-            self.runtime = Runtime(parse_routing(obj, tasks=(JUDGE_TASK,), sha256=sha256_hex(Path(config.routing).read_bytes())),
-                                   boundary=f"site:{config.site_id}",
-                                   ledger_path=edge / f"site-{config.site_id}.ledger.jsonl",
-                                   run_id=f"e2e-{config.site_id}", clock=self.clock, data_label="synthetic")
-        if self.runtime is not None:
-            self._receipts(edge / f"site-{config.site_id}.receipts.jsonl")
+        self.runtime = self._make_runtime(config, edge)
         self.site = EdgeSite(self.pack, config.site_id, edge, runtime=self.runtime, clock=self.clock,
                              master_data=config.master_data, hq_dir=config.hq_dir)
         self.descriptor_bytes = canonical_bytes(wire.descriptor(config.site_id, self.pack.id, self.pack.config_hash,
@@ -446,6 +429,28 @@ class SiteProcess:
         except BaseException:
             self.close()
             raise
+
+    def _make_runtime(self, config: SiteConfig, edge: Path) -> Any:
+        """The site's model runtime when ``config.routing`` names this site's own routing file, else None (lexical)."""
+        self.runtime = None
+        if config.routing is None:
+            return None
+        from mycelic.collective.edge.verify import JUDGE_TASK
+        from mycelic.collective.inference.routing import parse_routing
+        from mycelic.collective.inference.runtime import Runtime
+        # bound to this site: a record goes only to an endpoint whose boundary is exactly site:<id> (the
+        # runtime refuses any other), and every call is in the site's own ledger. The file is this site's own;
+        # there is no wildcard boundary.
+        obj = strict_load(Path(config.routing).read_bytes())
+        for name, endpoint in obj.get("endpoints", {}).items():
+            if endpoint.get("boundary") != f"site:{config.site_id}":
+                raise ValueError(f"routing endpoint {name} is not bound to site:{config.site_id}") from None
+        self.runtime = Runtime(parse_routing(obj, tasks=(JUDGE_TASK,), sha256=sha256_hex(Path(config.routing).read_bytes())),
+                               boundary=f"site:{config.site_id}",
+                               ledger_path=edge / f"site-{config.site_id}.ledger.jsonl",
+                               run_id=f"e2e-{config.site_id}", clock=self.clock, data_label="synthetic")
+        self._receipts(edge / f"site-{config.site_id}.receipts.jsonl")
+        return self.runtime
 
     def _receipts(self, path: Path) -> None:
         """Every model call's payload and validated reply (or error kind), keyed by the ledger's ``ref``, in the site's
@@ -500,7 +505,7 @@ class SiteProcess:
         if self.retrieval is not None:
             self.retrieval.close()
         self.site.close()
-        if self.runtime is not None:
+        if getattr(self, "runtime", None) is not None:
             self.runtime.close()
 
 
