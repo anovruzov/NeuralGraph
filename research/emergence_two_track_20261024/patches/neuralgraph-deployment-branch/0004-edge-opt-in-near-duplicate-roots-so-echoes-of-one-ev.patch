@@ -1,0 +1,236 @@
+From 7bbaad1dc1c675c8a601f9aed004584506702c8a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 08:15:22 +0000
+Subject: [PATCH 4/5] edge: opt-in near-duplicate roots, so echoes of one event
+ at a site are one root
+
+egress.near_duplicate_roots {jaccard, days} (optional; absent = the shipped
+exact-text rule, same pack bytes and hash). A record with no origin and no
+exact folded-text match shares the root of the earliest earlier record at the
+same site with the same entities, received within 'days', whose folded word
+set overlaps by at least 'jaccard'. Only the site's own roots change; nothing
+new crosses the Boundary (it can only lower roots_bucket).
+
+Why: the EMERGENCE narrative starts with the author line, so the exact rule
+never fires on echoes: every echo of one event was an independent root
+(decoy class 4, the same copied-root defect as MycelicLabs finding 2).
+Dev seeds 0-5 at 0.65/14: every echo (site, event) group collapses to one
+root; 2 of 3,912 true-pattern records merge with another record. Tuned on dev
+seeds against the generator's near-duplicate echoes; effect on real text is
+not measured.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Cc9kurj5azoGuhPNUVde8U
+---
+ mycelic/collective/edge/records.py         | 27 +++++++-
+ mycelic/collective/edge/site.py            |  3 +-
+ mycelic/collective/packs/loader.py         | 20 +++++-
+ tests/mycelic/test_near_duplicate_roots.py | 71 ++++++++++++++++++++++
+ 4 files changed, 117 insertions(+), 4 deletions(-)
+ create mode 100644 tests/mycelic/test_near_duplicate_roots.py
+
+diff --git a/mycelic/collective/edge/records.py b/mycelic/collective/edge/records.py
+index 9122884d..d1159a00 100644
+--- a/mycelic/collective/edge/records.py
++++ b/mycelic/collective/edge/records.py
+@@ -47,6 +47,7 @@ from __future__ import annotations
+ 
+ import sqlite3
+ from contextlib import contextmanager
++from datetime import date, timedelta
+ from dataclasses import dataclass
+ from pathlib import Path
+ from typing import Any, Iterator, Mapping, NamedTuple, Sequence
+@@ -107,6 +108,8 @@ _INSERT_SITE_INFO = "INSERT INTO site_info (key, value) VALUES (?, ?)"
+ _LAST_SEQ = "SELECT seq FROM records ORDER BY seq DESC LIMIT 1"
+ _HAS_REF = "SELECT seq FROM records WHERE record_ref = ? ORDER BY seq LIMIT 1"
+ _ROOT_BY_KEY = "SELECT root_ref FROM records WHERE narrative_key = ? ORDER BY seq LIMIT 1"
++_NEAR_BY_DATE = ("SELECT narrative, structured, root_ref FROM records WHERE received_date >= ? AND received_date <= ? "
++                 "ORDER BY seq")
+ _INSERT_RECORD = (
+     "INSERT INTO records (record_ref, seq, received_date, iso_week, ingested_at, ingest_week, count_week, language, "
+     "codes, structured, narrative, narrative_key, person, reporter_id, origin_ref, origin_site, root_ref, "
+@@ -311,6 +314,25 @@ class EmissionRow:
+     sent_at: str | None
+ 
+ 
++def _near_duplicate_root(conn: sqlite3.Connection, rec: Mapping[str, Any], text: str, jaccard: float,
++                         days: int) -> str | None:
++    """The root of the earliest earlier record at this site with the same entities, received within ``days``, whose
++    folded word set overlaps ``text``'s by at least ``jaccard`` (an echo with a different author line or a reworded
++    tail), or None."""
++    words = set(text.split())
++    day = date.fromisoformat(rec["received_date"])
++    entities = canonical_dumps(rec["entities"])
++    lo, hi = (day - timedelta(days=days)).isoformat(), (day + timedelta(days=days)).isoformat()
++    for narrative, structured, root in conn.execute(_NEAR_BY_DATE, (lo, hi)):
++        if structured != entities:
++            continue
++        other = set(folded(narrative).split())
++        union = words | other
++        if union and len(words & other) / len(union) >= jaccard:
++            return root
++    return None
++
++
+ class RecordStore:
+     def __init__(self, path: str | Path, *, site_id: str, pack_id: str, config_hash: str) -> None:
+         self.path = Path(path)
+@@ -356,7 +378,8 @@ class RecordStore:
+                 self._conn.execute("ROLLBACK")
+ 
+     # ------------------------------------------------------------------ ingest
+-    def ingest(self, records: Sequence[dict[str, Any]], *, ingested_at: str) -> StoreIngest:
++    def ingest(self, records: Sequence[dict[str, Any]], *, ingested_at: str,
++               near_duplicate_roots: tuple[float, int] | None = None) -> StoreIngest:
+         day = local_date(ingested_at)
+         if day is None:
+             raise ValueError("ingested_at must be an ISO 8601 timestamp") from None
+@@ -382,6 +405,8 @@ class RecordStore:
+                 if root is None and key is not None:
+                     found = conn.execute(_ROOT_BY_KEY, (key,)).fetchone()
+                     root = found[0] if found is not None else None
++                if root is None and key is not None and near_duplicate_roots is not None:
++                    root = _near_duplicate_root(conn, rec, text, *near_duplicate_roots)
+                 seq += 1
+                 conn.execute(_INSERT_RECORD, (
+                     ref, seq, rec["received_date"], week, ingested_at, ingest_week, count_week, rec["language"],
+diff --git a/mycelic/collective/edge/site.py b/mycelic/collective/edge/site.py
+index 21562502..44606631 100644
+--- a/mycelic/collective/edge/site.py
++++ b/mycelic/collective/edge/site.py
+@@ -294,7 +294,8 @@ class EdgeSite:
+                 rejected["wrong_site"] += 1
+             else:
+                 accepted.append(rec)
+-        stored = self.store.ingest(accepted, ingested_at=ingested_at)
++        stored = self.store.ingest(accepted, ingested_at=ingested_at,
++                                   near_duplicate_roots=self.pack.egress.near_duplicate_roots)
+         return IngestResult(ingested=stored.ingested, duplicates=stored.duplicates,
+                             rejected=MappingProxyType(rejected), late=stored.late, forwarded_in=stored.forwarded_in)
+ 
+diff --git a/mycelic/collective/packs/loader.py b/mycelic/collective/packs/loader.py
+index 9fcf7089..6ffbd3b4 100644
+--- a/mycelic/collective/packs/loader.py
++++ b/mycelic/collective/packs/loader.py
+@@ -286,6 +286,10 @@ class Egress:
+     verify_max_records: int
+     question_budget_per_entity_per_day: int
+     question_entities_per_site_per_day: int
++    #: optional (absent = None, the shipped rule): ``(jaccard, days)``; a site record whose folded word set overlaps an
++    #: earlier record of the same site and the same entities, received within ``days``, by at least ``jaccard`` shares
++    #: that record's root (near-duplicate echoes are one root). Research setting; changes only the site's own roots.
++    near_duplicate_roots: tuple[float, int] | None = None
+ 
+ 
+ @dataclass(frozen=True)
+@@ -971,7 +975,18 @@ def _field_names(b: _Build) -> set[str]:
+ 
+ def _egress(b: _Build) -> Egress:
+     f = "egress.json"
+-    raw = _object(f, "$", b.files[f], _EGRESS_KEYS)
++    raw = b.files[f]
++    near_dup = None
++    if isinstance(raw, dict) and "near_duplicate_roots" in raw:
++        nd = raw["near_duplicate_roots"]
++        if (not isinstance(nd, dict) or sorted(nd) != ["days", "jaccard"]
++                or isinstance(nd["jaccard"], bool) or not isinstance(nd["jaccard"], (int, float))
++                or not 0.5 <= nd["jaccard"] <= 1.0
++                or isinstance(nd["days"], bool) or not isinstance(nd["days"], int) or not 0 <= nd["days"] <= 60):
++            raise PackError(f, "$.near_duplicate_roots", "must be {jaccard: 0.5..1.0, days: 0..60}") from None
++        near_dup = (float(nd["jaccard"]), nd["days"])
++        raw = {k: v for k, v in raw.items() if k != "near_duplicate_roots"}
++    raw = _object(f, "$", raw, _EGRESS_KEYS)
+     _check(f, "$", raw, S_EGRESS)
+     buckets = raw["verdict_count_buckets"]
+     if any(buckets[i] >= buckets[i + 1] for i in range(len(buckets) - 1)):
+@@ -1007,7 +1022,8 @@ def _egress(b: _Build) -> Egress:
+                   never_fields=tuple(raw["never_fields"]), central_allowed_fields=tuple(raw["central_allowed_fields"]),
+                   verify_max_records=raw["verify_max_records"],
+                   question_budget_per_entity_per_day=raw["question_budget_per_entity_per_day"],
+-                  question_entities_per_site_per_day=raw["question_entities_per_site_per_day"])
++                  question_entities_per_site_per_day=raw["question_entities_per_site_per_day"],
++                  near_duplicate_roots=near_dup)
+ 
+ 
+ def _detectors(b: _Build, egress: Egress) -> dict[str, Any]:
+diff --git a/tests/mycelic/test_near_duplicate_roots.py b/tests/mycelic/test_near_duplicate_roots.py
+new file mode 100644
+index 00000000..48b7f76c
+--- /dev/null
++++ b/tests/mycelic/test_near_duplicate_roots.py
+@@ -0,0 +1,71 @@
++"""``egress.near_duplicate_roots`` (opt-in): near-duplicate echoes at one site share a root. Absent, a pack keeps its
++bytes, hash and the shipped exact-text root rule."""
++from __future__ import annotations
++
++import tempfile
++import unittest
++from pathlib import Path
++
++from mycelic.collective.edge.records import RecordStore
++from mycelic.collective.packs.loader import PackError
++
++from tests.mycelic.test_collective_edge import DQ, pack_copy, record
++
++ECHO = "The SD-9 pump cracked at the housing seam during the night shift, ticket attached"
++
++
++class NearDuplicateRootTests(unittest.TestCase):
++    def setUp(self) -> None:
++        self.tmp = Path(tempfile.mkdtemp())
++
++    def roots(self, near, recs):
++        store = RecordStore(self.tmp / f"s{len(list(self.tmp.iterdir()))}.sqlite3", site_id="s1", pack_id=DQ.id,
++                            config_hash=DQ.config_hash)
++        try:
++            store.ingest(recs, ingested_at="2026-04-26T08:00:00Z", near_duplicate_roots=near)
++            return {r: store._conn.execute("SELECT root_ref FROM records WHERE record_ref=?", (r,)).fetchone()[0]
++                    for r in (x["record_ref"] for x in recs)}
++        finally:
++            store.close()
++
++    def echoes(self):
++        return [record(DQ, "a", "s1", "2026-04-08", narrative=f"[author A] :: {ECHO}", reporter="R1"),
++                record(DQ, "b", "s1", "2026-04-09", narrative=f"[author B] :: {ECHO}", reporter="R2"),
++                record(DQ, "c", "s1", "2026-04-09", narrative=f"[author C] :: {ECHO[:-8]} pending", reporter="R3")]
++
++    def test_shipped_rule_keeps_echoes_apart(self) -> None:
++        roots = self.roots(None, self.echoes())
++        self.assertEqual(len(set(roots.values())), 3)
++
++    def test_echoes_share_one_root(self) -> None:
++        roots = self.roots((0.65, 14), self.echoes())
++        self.assertEqual(set(roots.values()), {"a"})
++
++    def test_a_distinct_report_keeps_its_own_root(self) -> None:
++        recs = self.echoes() + [record(DQ, "d", "s1", "2026-04-09",
++                                       narrative="[author D] :: SD-9 display went blank after a firmware update",
++                                       reporter="R4")]
++        self.assertEqual(self.roots((0.65, 14), recs)["d"], "d")
++
++    def test_outside_the_window_is_not_merged(self) -> None:
++        recs = self.echoes()[:1] + [record(DQ, "late", "s1", "2026-04-28", narrative=f"[author E] :: {ECHO}",
++                                           reporter="R5")]
++        self.assertEqual(self.roots((0.65, 14), recs)["late"], "late")
++
++    def test_another_entity_is_not_merged(self) -> None:
++        a = self.echoes()[0]
++        b = record(DQ, "x", "s1", "2026-04-08", narrative=f"[author X] :: {ECHO}", reporter="R6",
++                   entities={"component": ["BATTERY-DOOR"]})
++        self.assertEqual(self.roots((0.65, 14), [a, b])["x"], "x")
++
++    def test_pack_setting_is_opt_in_and_validated(self) -> None:
++        self.assertIsNone(DQ.egress.near_duplicate_roots)
++        self.assertEqual(pack_copy(self.tmp, "device_quality").config_hash, DQ.config_hash)
++        p = pack_copy(self.tmp, "device_quality", {("egress.json", "near_duplicate_roots"): {"jaccard": 0.65, "days": 14}})
++        self.assertEqual(p.egress.near_duplicate_roots, (0.65, 14))
++        with self.assertRaises(PackError):
++            pack_copy(self.tmp, "device_quality", {("egress.json", "near_duplicate_roots"): {"jaccard": 0.2, "days": 14}})
++
++
++if __name__ == "__main__":
++    unittest.main()
+-- 
+2.43.0
+

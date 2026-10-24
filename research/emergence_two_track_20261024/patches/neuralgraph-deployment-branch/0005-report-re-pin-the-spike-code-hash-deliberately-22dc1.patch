@@ -1,0 +1,44 @@
+From b3025fb6ea086563ba03a076dbbe5555bf287d92 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 08:16:21 +0000
+Subject: [PATCH 5/5] report: re-pin the spike code hash deliberately (22dc1aba
+ -> 40f2d713)
+
+The pinned spike files changed on purpose in fa609166..7bbaad1d. Not a refresh to
+get green; each change is opt-in and leaves the default run identical:
+- research/routing_spike/site_process.py: per-site routed judge runtime,
+  receipts, SiteProcess._make_runtime (fa609166, 6fd8db9f)
+- mycelic/collective/pushdown/gate.py, packs/loader.py: N1 weak-site
+  corroboration, optional pushdown key (22cbd0ed)
+- mycelic/collective/edge/records.py, edge/site.py, packs/loader.py: optional
+  near-duplicate roots (7bbaad1d)
+Evidence that the default path is unchanged: the plumbing run (fake lexical
+judge over --routing, 5,247 HTTP judge calls) reproduces the clean baseline's
+found set and decoys exactly at seed 0; only c7_guards differed, on this pin.
+File count unchanged (142).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Cc9kurj5azoGuhPNUVde8U
+---
+ research/e2e_ingest/report.py | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/research/e2e_ingest/report.py b/research/e2e_ingest/report.py
+index 1ecae5b9..0687683a 100644
+--- a/research/e2e_ingest/report.py
++++ b/research/e2e_ingest/report.py
+@@ -72,9 +72,9 @@ MEASURE_ROW_FIELDS = ("graph_build_seconds", "graph_seconds_per_1k_records", "pi
+                       "wall_seconds")
+ BROKER_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+")
+ CI_BROKER_VERSION = "2.10.29"
+-#: M13: ``run.spike_code_hash`` at ``e3052c0`` over ``spike_code_files()``; a different value means a pinned file
++#: M13: ``run.spike_code_hash`` over ``spike_code_files()`` (re-pinned at 7bbaad1d+1, was e3052c0); a different value means a pinned file
+ #: changed (rule 4) and the run fails.
+-SPIKE_CODE_HASH = "22dc1abaaf3a30ba346118f180f255939cd04c69732d21a03eaacd0f8dfb55cd"
++SPIKE_CODE_HASH = "40f2d713f8bb1d97833f7696804071e39078802fe100d26cee93932ca0a19b66"
+ SPIKE_CODE_FILES = 142
+ #: M10: the paths ``code_dirty`` is evaluated over, at the start and at the end of the run.
+ DIRTY_PATHS = ("mycelic", "research/e2e_ingest", "research/routing_spike", "research/mycelic",
+-- 
+2.43.0
+

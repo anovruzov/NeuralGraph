@@ -1,0 +1,137 @@
+From 3daed66cd222f815e3e749bb9a3cb993e5f60110 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 08:17:13 +0000
+Subject: [PATCH 2/2] aggregation: a copied observation is not an independent
+ source
+
+Reviewer finding 2, reproduced against the real service and broker: a second
+agent's byte-identical copy of a note counted as an extra agent and root, so
+min_agents = 3 was met by 2 genuine sources. compose_rule now treats active
+raw notes with the same slot and the same text (case and whitespace
+normalised) as one source; the earliest observation (then store arrival
+order, which replay keeps) stands for it. Paraphrases are not detected.
+
+Not changed: a verbatim re-post of a RETRACTED note by another agent still
+counts. The golden scenario follows_evidence (steps 36-41) specifies exactly
+that recount as evidence; blocking it would contradict the reference, so it
+is left as an owners' decision (reviewer finding 3).
+
+tests/copied_roots.rs fails before (copied_roots.rs:49: the copy completed
+the conclusion) and passes after, with an independent-observation control.
+Goldens, datapath and golden_scenarios pass.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Cc9kurj5azoGuhPNUVde8U
+---
+ crates/mycelic/src/aggregation.rs    | 27 ++++++++++++-
+ crates/mycelic/tests/copied_roots.rs | 60 ++++++++++++++++++++++++++++
+ 2 files changed, 86 insertions(+), 1 deletion(-)
+ create mode 100644 crates/mycelic/tests/copied_roots.rs
+
+diff --git a/crates/mycelic/src/aggregation.rs b/crates/mycelic/src/aggregation.rs
+index c29d7fd..b8b032a 100644
+--- a/crates/mycelic/src/aggregation.rs
++++ b/crates/mycelic/src/aggregation.rs
+@@ -554,7 +554,32 @@ impl Aggregator {
+             }
+             kept.push(m.clone());
+         }
+-        let candidates = kept;
++        // a copy is not an independent source: active raw notes with the same slot and the same text (case and
++        // whitespace normalised) are one source, the earliest observation standing for it. Paraphrases are not
++        // detected. A verbatim re-post of a retracted note by another agent is NOT blocked: the golden scenario
++        // follows_evidence specifies such a recount as evidence (an open decision, not settled here).
++        let norm = |t: &str| t.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase();
++        // earliest by observation time, then by arrival (the list is in store insertion order, which replay keeps)
++        let mut first: BTreeMap<(String, String), (String, usize, String)> = BTreeMap::new();
++        for (arrival, m) in kept.iter().enumerate().filter(|(_, m)| m.operator == "agent_observation") {
++            if let Some(slot) = &m.slot {
++                let rank = (m.created_at.clone(), arrival, m.memory_id.clone());
++                let at = first.entry((slot.clone(), norm(&m.text))).or_insert_with(|| rank.clone());
++                if rank < *at {
++                    *at = rank;
++                }
++            }
++        }
++        let candidates: Vec<Memory> = kept
++            .into_iter()
++            .filter(|m| {
++                if m.operator != "agent_observation" {
++                    return true;
++                }
++                let Some(slot) = &m.slot else { return true };
++                first.get(&(slot.clone(), norm(&m.text))).is_some_and(|(_, _, id)| *id == m.memory_id)
++            })
++            .collect();
+         let key = format!("{}:{}", rule.rule_id, entity.filter(|e| !e.is_empty()).unwrap_or("*"));
+         let current = tx.current_derived(org_id, "slot_composition", target_unit, &key)?;
+         let claims: Vec<ClaimEnvelope> = candidates.iter().map(|m| Self::claim(m, rule)).collect::<Result<_>>()?;
+diff --git a/crates/mycelic/tests/copied_roots.rs b/crates/mycelic/tests/copied_roots.rs
+new file mode 100644
+index 0000000..a35e9d0
+--- /dev/null
++++ b/crates/mycelic/tests/copied_roots.rs
+@@ -0,0 +1,60 @@
++//! Copied evidence is correlated support, not independent corroboration (research/mycelic/ingestion_tesseract_20261024,
++//! reviewer finding 2, reproduced against the real service and broker before this test existed).
++//!
++//! A byte-identical copy of an observation (same slot, same text after case and whitespace normalisation) is one source:
++//! the earliest observation stands, the copies add no agent, team or root. Paraphrases are not detected (stated limit).
++//! A verbatim re-post of a retracted note by another agent still counts: the golden scenario follows_evidence (steps
++//! 36-41) specifies that recount as evidence, so blocking it is an owners' decision, not part of this fix.
++
++mod common;
++
++use common::{Harness, demo_rule};
++use serde_json::json;
++
++const BUFFER: &str = "Kessler Antriebe confirms roughly two weeks of SD-9 inventory left.";
++const TRANSPORT: &str = "Port of Rotterdam terminal 3 strike announced; SD-9 servo drive shipments route through it.";
++
++fn obs(slot: &str, topic: &str) -> serde_json::Value {
++    obs_c(slot, topic, 0.8)
++}
++
++fn obs_c(slot: &str, topic: &str, confidence: f64) -> serde_json::Value {
++    json!({"topic": topic, "slot": slot, "entity": "sd-9", "confidence": confidence})
++}
++
++async fn setup() -> Harness {
++    let mut h = Harness::start(false, |_| {}).await;
++    h.service.upsert_rule(&demo_rule(), None).unwrap();
++    for (a, team) in [("log-1", "logistics"), ("log-2", "logistics"), ("proc-1", "procurement")] {
++        h.reg(a, team).await;
++    }
++    h.register("sales-1", "field-sales", "commercial", "nw-gmbh", "emea", "northwind", None).await;
++    h
++}
++
++#[tokio::test(flavor = "multi_thread")]
++async fn test_a_copy_from_another_agent_is_not_an_independent_source() {
++    let h = setup().await;
++    // two genuine sources hold all three slots: log-1 (transport and buffer) and sales-1 (demand)
++    h.observe("log-1", TRANSPORT, obs("transport_disruption", "supply:sd-9/transport")).await;
++    h.observe("log-1", BUFFER, obs("supplier_buffer_low", "supply:sd-9/supplier")).await;
++    h.observe("sales-1", "Helios committed to 40 RX-4 arms; every RX-4 uses an SD-9 drive.",
++              obs("demand_commitment", "supply:sd-9/demand")).await;
++    h.settle().await;
++    assert!(h.layer("enterprise").is_empty(), "two agents cannot meet min_agents = 3");
++    // proc-1 re-posts log-1's buffer note, differing only in case and spacing, with a higher confidence so that it
++    // wins the slot: still one source, so the coalition is still log-1 and sales-1
++    h.observe("proc-1", &format!("  {}  ", BUFFER.to_uppercase()),
++              obs_c("supplier_buffer_low", "supply:sd-9/supplier", 0.95)).await;
++    h.settle().await;
++    assert!(h.layer("enterprise").is_empty(), "a copy must not stand in for a third independent agent");
++    // control: proc-1's own, different observation is independent evidence and completes the conclusion
++    h.observe("proc-1", "Our own count: 9 SD-9 drives on the shelf, reorder lead time 6 weeks.",
++              obs_c("supplier_buffer_low", "supply:sd-9/supplier", 0.97)).await;
++    h.settle().await;
++    let concl = h.layer("enterprise");
++    assert_eq!(concl.len(), 1, "an independent observation still composes");
++    let agents = concl[0].metadata["contributing_agents"].clone();
++    assert_eq!(agents, json!(["log-1", "proc-1", "sales-1"]));
++    h.close().await;
++}
+-- 
+2.43.0
+

@@ -1,0 +1,114 @@
+From 6fd8db9f8204493b208a0d1eb0ec673a7ab07b47 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 08:09:49 +0000
+Subject: [PATCH 3/5] e2e run: the production site process (E2ESiteProcess)
+ builds the routed runtime too
+
+The plumbing run with a fake lexical judge (0 calls reached the server)
+showed that E2ESiteProcess, the class the e2e run actually starts, overrides
+SiteProcess.__init__ and kept runtime=None, so --routing never took effect;
+its inherited close() then failed on the missing attribute, which broke every
+run from fa609166. Runtime construction is now SiteProcess._make_runtime, used
+by both classes, and close() tolerates its absence.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Cc9kurj5azoGuhPNUVde8U
+---
+ research/e2e_ingest/site_graph.py      |  5 +--
+ research/routing_spike/site_process.py | 43 ++++++++++++++------------
+ 2 files changed, 27 insertions(+), 21 deletions(-)
+
+diff --git a/research/e2e_ingest/site_graph.py b/research/e2e_ingest/site_graph.py
+index fe6b31e6..ba21fcd6 100644
+--- a/research/e2e_ingest/site_graph.py
++++ b/research/e2e_ingest/site_graph.py
+@@ -226,7 +226,8 @@ class E2ESiteProcess(SiteProcess):
+         self.pack = load_pack(config.pack)
+         self.clock = SiteClock(config.clock_start)
+         edge = Path(config.edge_dir)
+-        self.site = EdgeSite(self.pack, config.site_id, edge, runtime=None, clock=self.clock,
++        self.runtime = self._make_runtime(config, edge)     # None unless config.routing names this site's file
++        self.site = EdgeSite(self.pack, config.site_id, edge, runtime=self.runtime, clock=self.clock,
+                              master_data=config.master_data, hq_dir=config.hq_dir)
+         self.descriptor_bytes = canonical_bytes(wire.descriptor(config.site_id, self.pack.id, self.pack.config_hash,
+                                                                 sorted(self.pack.questions)))
+@@ -243,7 +244,7 @@ class E2ESiteProcess(SiteProcess):
+             else:
+                 self.retrieval = ShippedRetrieval(self, config.max_records)
+             self.verifier = SpikeVerifier(self.site, clock=self.clock, demo_seed=config.demo_seed,
+-                                          retrieval=self.retrieval)
++                                          retrieval=self.retrieval, runtime=self.runtime)
+         except BaseException:
+             self.close()
+             raise
+diff --git a/research/routing_spike/site_process.py b/research/routing_spike/site_process.py
+index 0f78f718..130b4570 100644
+--- a/research/routing_spike/site_process.py
++++ b/research/routing_spike/site_process.py
+@@ -408,24 +408,7 @@ class SiteProcess:
+         self.pack = load_pack(config.pack)
+         self.clock = SiteClock(config.clock_start)
+         edge = Path(config.edge_dir)
+-        self.runtime = None
+-        if config.routing is not None:
+-            from mycelic.collective.edge.verify import JUDGE_TASK
+-            from mycelic.collective.inference.routing import parse_routing
+-            from mycelic.collective.inference.runtime import Runtime
+-            # bound to this site: a record goes only to an endpoint whose boundary is exactly site:<id> (the
+-            # runtime refuses any other), and every call is in the site's own ledger. The file is this site's own;
+-            # there is no wildcard boundary.
+-            obj = strict_load(Path(config.routing).read_bytes())
+-            for name, endpoint in obj.get("endpoints", {}).items():
+-                if endpoint.get("boundary") != f"site:{config.site_id}":
+-                    raise ValueError(f"routing endpoint {name} is not bound to site:{config.site_id}") from None
+-            self.runtime = Runtime(parse_routing(obj, tasks=(JUDGE_TASK,), sha256=sha256_hex(Path(config.routing).read_bytes())),
+-                                   boundary=f"site:{config.site_id}",
+-                                   ledger_path=edge / f"site-{config.site_id}.ledger.jsonl",
+-                                   run_id=f"e2e-{config.site_id}", clock=self.clock, data_label="synthetic")
+-        if self.runtime is not None:
+-            self._receipts(edge / f"site-{config.site_id}.receipts.jsonl")
++        self.runtime = self._make_runtime(config, edge)
+         self.site = EdgeSite(self.pack, config.site_id, edge, runtime=self.runtime, clock=self.clock,
+                              master_data=config.master_data, hq_dir=config.hq_dir)
+         self.descriptor_bytes = canonical_bytes(wire.descriptor(config.site_id, self.pack.id, self.pack.config_hash,
+@@ -447,6 +430,28 @@ class SiteProcess:
+             self.close()
+             raise
+ 
++    def _make_runtime(self, config: SiteConfig, edge: Path) -> Any:
++        """The site's model runtime when ``config.routing`` names this site's own routing file, else None (lexical)."""
++        self.runtime = None
++        if config.routing is None:
++            return None
++        from mycelic.collective.edge.verify import JUDGE_TASK
++        from mycelic.collective.inference.routing import parse_routing
++        from mycelic.collective.inference.runtime import Runtime
++        # bound to this site: a record goes only to an endpoint whose boundary is exactly site:<id> (the
++        # runtime refuses any other), and every call is in the site's own ledger. The file is this site's own;
++        # there is no wildcard boundary.
++        obj = strict_load(Path(config.routing).read_bytes())
++        for name, endpoint in obj.get("endpoints", {}).items():
++            if endpoint.get("boundary") != f"site:{config.site_id}":
++                raise ValueError(f"routing endpoint {name} is not bound to site:{config.site_id}") from None
++        self.runtime = Runtime(parse_routing(obj, tasks=(JUDGE_TASK,), sha256=sha256_hex(Path(config.routing).read_bytes())),
++                               boundary=f"site:{config.site_id}",
++                               ledger_path=edge / f"site-{config.site_id}.ledger.jsonl",
++                               run_id=f"e2e-{config.site_id}", clock=self.clock, data_label="synthetic")
++        self._receipts(edge / f"site-{config.site_id}.receipts.jsonl")
++        return self.runtime
++
+     def _receipts(self, path: Path) -> None:
+         """Every model call's payload and validated reply (or error kind), keyed by the ledger's ``ref``, in the site's
+         own directory: the receipt holds record text, so it never leaves the site."""
+@@ -500,7 +505,7 @@ class SiteProcess:
+         if self.retrieval is not None:
+             self.retrieval.close()
+         self.site.close()
+-        if self.runtime is not None:
++        if getattr(self, "runtime", None) is not None:
+             self.runtime.close()
+ 
+ 
+-- 
+2.43.0
+

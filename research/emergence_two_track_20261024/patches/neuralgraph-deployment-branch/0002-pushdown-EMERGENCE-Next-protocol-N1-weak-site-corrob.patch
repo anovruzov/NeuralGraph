@@ -1,0 +1,248 @@
+From 22cbd0edbae1b4db5928fdafbec4816b5b30f8f1 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 07:50:54 +0000
+Subject: [PATCH 2/5] pushdown: EMERGENCE-Next protocol N1, weak-site
+ corroboration (opt-in, research only)
+
+pushdown.weak_corroborating_sites (optional, 0..10, absent = 0) lets up to that
+many sites that confirm with fewer than k records (the <k bucket they already
+send) stand in for missing k-record sites, only beside at least one k-record
+site. Weak sites add nothing to roots, reporters, support or freshness. A pack
+without the key keeps its bytes, config hash and the shipped gate (R0); a pack
+with it is a different pack hash, so N1 results can never be read as R0.
+
+Motivation (dev seeds 0-5, offline evidence model): 54 of 240 Gold patterns have
+one site with >= k records and a second site with 1..k-1, and are unreachable
+under R0 for that reason alone; the same class holds 20 of 300 decoys.
+
+tests/mycelic/test_pushdown_n1.py: R0 unchanged without the key; N1 supports
+1 k-site + 1 weak site; never all-weak; weak adds no roots; contributing refute
+still contests; the cap holds; out-of-range refused.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Cc9kurj5azoGuhPNUVde8U
+---
+ mycelic/collective/packs/loader.py  | 15 ++++-
+ mycelic/collective/pushdown/gate.py | 20 ++++++-
+ tests/mycelic/test_pushdown_n1.py   | 90 +++++++++++++++++++++++++++++
+ 3 files changed, 120 insertions(+), 5 deletions(-)
+ create mode 100644 tests/mycelic/test_pushdown_n1.py
+
+diff --git a/mycelic/collective/packs/loader.py b/mycelic/collective/packs/loader.py
+index 4b3d6b32..9fcf7089 100644
+--- a/mycelic/collective/packs/loader.py
++++ b/mycelic/collective/packs/loader.py
+@@ -141,6 +141,10 @@ _TEMPLATE_KEYS = ("text", "entity_types", "predicates")
+ _QUESTIONS_KEYS = ("templates", "pushdown")
+ _PUSHDOWN_KEYS = ("min_confirming_sites", "min_independent_roots", "min_independent_reporters", "freshness_days",
+                   "max_sibling_sites")
++#: optional pushdown keys; a pack without them has the bytes, the config hash and the gate of before.
++#: ``weak_corroborating_sites`` (EMERGENCE-Next protocol N1, research only): how many sites that confirm with fewer than
++#: k records (the ``<k`` bucket they already send) may stand in for missing k-record sites, never for all of them.
++_PUSHDOWN_OPTIONAL = {"weak_corroborating_sites": 0}
+ _FOLLOWUP_KEYS = ("label", "tier", "enabled", "executor", "args_schema", "draft_schema", "template", "owner_role",
+                   "daily_cap", "ack_days", "escalate_to_role")
+ _ARG_KEYS = MappingProxyType({"entity_id": ("kind", "entity_type"), "predicate": ("kind",), "conclusion_id": ("kind",),
+@@ -312,6 +316,7 @@ class PushdownConfig:
+     min_independent_reporters: int
+     freshness_days: int
+     max_sibling_sites: int
++    weak_corroborating_sites: int = 0
+ 
+ 
+ @dataclass(frozen=True)
+@@ -569,6 +574,7 @@ S_TEMPLATE = _schema(_closed({"text": _string(1, 400), "entity_types": {"type":
+ S_PUSHDOWN = _schema(_closed({
+     "min_confirming_sites": _int(1, 100), "min_independent_roots": _int(1, 100000),
+     "min_independent_reporters": _int(1, 100000), "freshness_days": _int(1, 3660), "max_sibling_sites": _int(0, 100)}))
++S_PUSHDOWN_OPTIONAL = {"weak_corroborating_sites": _int(0, 10)}
+ S_ROLE = _schema(_closed({"label": _LABEL120}))
+ S_FOLLOWUP_SCALARS = _schema(_closed({
+     "label": _LABEL120, "tier": _string(1, 8), "enabled": _BOOL,
+@@ -1083,11 +1089,16 @@ def _questions(b: _Build, egress: Egress) -> tuple[dict[str, QuestionTemplate],
+     for t in egress.egress_entity_types:
+         if not any(t in tpl.entity_types and tpl.predicates is None for tpl in out.values()):
+             raise PackError(f, "$.templates", f"egress entity type {t} has no template with predicates null") from None
+-    pushdown = _object(f, "$.pushdown", raw["pushdown"], _PUSHDOWN_KEYS)
++    raw_pd = raw["pushdown"]
++    optional = {key: raw_pd[key] for key in _PUSHDOWN_OPTIONAL if isinstance(raw_pd, dict) and key in raw_pd}
++    pushdown = _object(f, "$.pushdown", {key: v for key, v in raw_pd.items() if key not in optional}
++                       if isinstance(raw_pd, dict) else raw_pd, _PUSHDOWN_KEYS)
+     _check(f, "$.pushdown", pushdown, S_PUSHDOWN)
++    for key, value in optional.items():
++        _check(f, f"$.pushdown.{key}", value, _schema(S_PUSHDOWN_OPTIONAL[key]))
+     if pushdown["freshness_days"] < egress.close_lag_days + 7:
+         raise PackError(f, "$.pushdown.freshness_days", "must be at least egress.close_lag_days + 7") from None
+-    return out, PushdownConfig(**{key: pushdown[key] for key in _PUSHDOWN_KEYS})
++    return out, PushdownConfig(**{key: pushdown[key] for key in _PUSHDOWN_KEYS}, **optional)
+ 
+ 
+ def _arg_schema(b: _Build, spec: Mapping[str, Any]) -> dict[str, Any]:
+diff --git a/mycelic/collective/pushdown/gate.py b/mycelic/collective/pushdown/gate.py
+index 1a9f3752..5b9d484b 100644
+--- a/mycelic/collective/pushdown/gate.py
++++ b/mycelic/collective/pushdown/gate.py
+@@ -80,6 +80,7 @@ class GateParams:
+     min_independent_reporters: int
+     freshness_days: int
+     close_lag_days: int
++    weak_corroborating_sites: int = 0       # EMERGENCE-Next N1; 0 is the shipped gate (R0)
+ 
+     @classmethod
+     def from_pack(cls, pack: "FrozenPack") -> "GateParams":
+@@ -87,13 +88,14 @@ class GateParams:
+         return cls(k=pack.egress.k, labels=verdict_buckets(pack), min_confirming_sites=pd.min_confirming_sites,
+                    min_independent_roots=pd.min_independent_roots,
+                    min_independent_reporters=pd.min_independent_reporters, freshness_days=pd.freshness_days,
+-                   close_lag_days=pack.egress.close_lag_days)
++                   close_lag_days=pack.egress.close_lag_days, weak_corroborating_sites=pd.weak_corroborating_sites)
+ 
+     def to_dict(self) -> dict[str, Any]:
+         return {"k": self.k, "labels": list(self.labels), "min_confirming_sites": self.min_confirming_sites,
+                 "min_independent_roots": self.min_independent_roots,
+                 "min_independent_reporters": self.min_independent_reporters, "freshness_days": self.freshness_days,
+-                "close_lag_days": self.close_lag_days}
++                "close_lag_days": self.close_lag_days,
++                **({"weak_corroborating_sites": self.weak_corroborating_sites} if self.weak_corroborating_sites else {})}
+ 
+ 
+ @dataclass(frozen=True)
+@@ -247,6 +249,7 @@ def evaluate(pack: "FrozenPack", question: Any, routes: Mapping[str, str], recor
+ 
+     # ---- status
+     status_reasons: list[str]
++    corroborating: list[str] = []
+     if refuting_contributing:
+         status = "contested"
+         status_reasons = [f"contested: contributing site {site} refutes" for site in refuting_contributing]
+@@ -259,6 +262,13 @@ def evaluate(pack: "FrozenPack", question: Any, routes: Mapping[str, str], recor
+                           f"before {as_of}"]
+     else:
+         n = len(confirming)
++        # N1: sites confirming with fewer than k records (the <k bucket, already sent) may stand in for missing
++        # k-record sites, up to weak_corroborating_sites of them, and only beside at least one k-record site.
++        # They add nothing to roots, reporters, support or freshness, which stay over the k-record sites alone.
++        weak_from_sites = sorted(u["site"] for u in used if u["source"] == "site" and u["verdict"] == "confirm"
++                                 and latest[u["site"]].body["support_bucket"] == SUPPRESSED)
++        corroborating = weak_from_sites[:params.weak_corroborating_sites] if n >= 1 else []
++        n += len(corroborating)
+         status_reasons = []
+         if n < params.min_confirming_sites:
+             status_reasons.append(f"hypothesis: {n} confirming site(s) with at least {k} records; "
+@@ -275,12 +285,16 @@ def evaluate(pack: "FrozenPack", question: Any, routes: Mapping[str, str], recor
+             status = "supported"
+             status_reasons = [f"supported: {n} confirming sites; independent roots, lower bound {roots_lb}; "
+                               f"independent reporters, lower bound {reporters_lb}"]
++            if corroborating:
++                status_reasons.append(f"supported under N1: {', '.join(corroborating)} corroborate with fewer than "
++                                      f"{k} records")
+ 
+     # ---- notes
+     notes = [f"{site} answered again; the latest verdict is used" for site in superseded]
+     notes += [f"not observed at {site} (sibling refutes; scoped negative evidence)" for site in refuting_siblings]
+     notes += [f"sibling {site} confirms (counted as support)" for site in confirming if routes[site] == "sibling"]
+-    notes += [f"{site} confirms with fewer than {k} records (not counted)" for site in weak]
++    notes += [f"{site} confirms with fewer than {k} records (not counted)" for site in weak
++              if site not in corroborating]
+     notes += [f"{site} judged a truncated subset (verify_max_records)" for site in truncated]
+     for site in unknown:
+         body = latest[site].body
+diff --git a/tests/mycelic/test_pushdown_n1.py b/tests/mycelic/test_pushdown_n1.py
+new file mode 100644
+index 00000000..cdba702a
+--- /dev/null
++++ b/tests/mycelic/test_pushdown_n1.py
+@@ -0,0 +1,90 @@
++"""EMERGENCE-Next protocol N1 (``pushdown.weak_corroborating_sites``): a site that confirms with fewer than k records
++may stand in for a missing k-record site. These pin that N1 is opt-in (a pack without the key keeps its bytes, its
++config hash and the shipped gate R0), that it never supports without a k-record site, and that a weak site adds
++nothing to roots, reporters or freshness."""
++from __future__ import annotations
++
++import tempfile
++import unittest
++from pathlib import Path
++
++from mycelic.collective.edge.egress import SUPPRESSED
++from mycelic.collective.packs.loader import PackError
++from mycelic.collective.pushdown.gate import GateParams, VerdictRecord, evaluate
++
++from tests.mycelic.test_collective_edge import pack_copy
++from tests.mycelic.test_collective_pushdown import AS_OF, DQ, _q, verdict_body
++
++ROUTES = {"s1": "contributing", "s2": "contributing", "s3": "contributing"}
++
++
++def full(site: str, pack=DQ, **kw):
++    q = _q(pack)
++    return VerdictRecord(site, 1, "site", verdict_body(site, "confirm", q, pack_hash=pack.config_hash,
++                                                       reporters_bucket="3-9", **kw), AS_OF)
++
++
++def weak(site: str, pack=DQ, **kw):
++    q = _q(pack)
++    return VerdictRecord(site, 1, "site", verdict_body(site, "confirm", q, pack_hash=pack.config_hash,
++                                                       support_bucket=SUPPRESSED, roots_bucket=SUPPRESSED,
++                                                       reporters_bucket=SUPPRESSED, **kw), AS_OF)
++
++
++def refute(site: str, pack=DQ):
++    return VerdictRecord(site, 1, "site", verdict_body(site, "refute", _q(pack), pack_hash=pack.config_hash), AS_OF)
++
++
++class N1Tests(unittest.TestCase):
++    def setUp(self) -> None:
++        self.tmp = Path(tempfile.mkdtemp())
++        self.n1 = pack_copy(self.tmp, "device_quality", {("questions.json", "pushdown", "weak_corroborating_sites"): 1})
++
++    def gate(self, pack, records):
++        return evaluate(pack, _q(pack), ROUTES, records, as_of=AS_OF)
++
++    def test_r0_is_unchanged_without_the_key(self) -> None:
++        self.assertEqual(GateParams.from_pack(DQ).weak_corroborating_sites, 0)
++        self.assertNotIn("weak_corroborating_sites", GateParams.from_pack(DQ).to_dict())
++        self.assertEqual(pack_copy(self.tmp, "device_quality").config_hash, DQ.config_hash)
++        result = self.gate(DQ, [full("s1"), weak("s2")])
++        self.assertEqual(result.status, "hypothesis")
++        self.assertIn("s2 confirms with fewer than 3 records (not counted)", result.reasons)
++
++    def test_n1_is_a_different_pack(self) -> None:
++        self.assertNotEqual(self.n1.config_hash, DQ.config_hash)
++        self.assertEqual(GateParams.from_pack(self.n1).to_dict()["weak_corroborating_sites"], 1)
++
++    def test_n1_supports_one_k_site_with_one_weak_corroboration(self) -> None:
++        result = self.gate(self.n1, [full("s1", self.n1), weak("s2", self.n1)])
++        self.assertEqual(result.status, "supported", result.reasons)
++        self.assertIn("supported under N1: s2 corroborate with fewer than 3 records", result.reasons)
++        self.assertEqual(result.to_dict()["support"]["roots_lb"], 3)          # the k-record site's alone
++
++    def test_n1_never_supports_without_a_k_record_site(self) -> None:
++        result = self.gate(self.n1, [weak("s1", self.n1), weak("s2", self.n1), weak("s3", self.n1)])
++        self.assertEqual(result.status, "hypothesis")
++
++    def test_a_weak_site_adds_no_roots_or_reporters(self) -> None:
++        # the k-record site has fewer than k roots: a weak corroboration cannot make up the roots
++        result = self.gate(self.n1, [full("s1", self.n1, roots_bucket=SUPPRESSED), weak("s2", self.n1)])
++        self.assertEqual(result.status, "hypothesis")
++        self.assertTrue(any("independent roots" in r for r in result.reasons), result.reasons)
++
++    def test_a_contributing_refute_still_contests(self) -> None:
++        result = self.gate(self.n1, [full("s1", self.n1), weak("s2", self.n1), refute("s3", self.n1)])
++        self.assertEqual(result.status, "contested")
++
++    def test_the_cap_is_respected(self) -> None:
++        two = pack_copy(self.tmp, "device_quality", {("questions.json", "pushdown", "min_confirming_sites"): 3,
++                                                     ("questions.json", "pushdown", "weak_corroborating_sites"): 1})
++        result = self.gate(two, [full("s1", two), weak("s2", two), weak("s3", two)])
++        self.assertEqual(result.status, "hypothesis")    # 1 k-site + at most 1 weak < 3
++
++    def test_out_of_range_is_refused(self) -> None:
++        with self.assertRaises(PackError):
++            pack_copy(self.tmp, "device_quality", {("questions.json", "pushdown", "weak_corroborating_sites"): 11})
++
++
++if __name__ == "__main__":
++    unittest.main()
+-- 
+2.43.0
+
