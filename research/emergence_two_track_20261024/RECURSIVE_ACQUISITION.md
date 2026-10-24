@@ -103,3 +103,31 @@ A loop cannot acquire what the world never disclosed.
    other at this sample size. The precision gap (111 vs 69) is the part that is not noise.
 4. Model K (key-level records) is used throughout, so `before` is 198/240 rather than the 179/240 of model F.
    The comparison between arms is unaffected; the absolute recovery rate would be lower under F.
+
+## 7. The 42 cases, one row each — `RARE_MISS_RECOVERY.csv`
+
+84 rows: each of the 42 missed gold keys under each arm, with the week the budget was spent at, the holders
+asked, the claims returned, the verification rounds, and whether the gate cleared.
+
+**All 42 missed keys are rare.** Not one common pattern is missed by the gate model at any week of its window,
+which is the same fact `EVIDENCE_CEILING.md` §3 reaches from the other direction.
+
+`corrected_verdict` is **empty in every row, deliberately.** A case counts as recovered only with an actual
+corrected verdict from an e2e run, and no such run was spent — the estimate says there is nothing here worth
+spending one on. Every row carries `evidence = "ESTIMATE (ceiling_b gate model); not a verdict"` so the column
+cannot be mistaken for one later.
+
+Which cases cleared:
+
+| arm | cleared | cases |
+|---|---|---|
+| targeted | 5 | s0/p003, s2/p013, s3/p008, s3/p030, s4/p026 |
+| untargeted | 4 | s0/p003, s3/p008, s4/p026, s5/p008 |
+
+Three cases clear under both arms. Targeting uniquely wins two (s2/p013, s3/p030) and uniquely loses one
+(s5/p008), for a net of **+1 key out of 42**. That is a coin flip, and no claim about targeting's recall should
+rest on it. The precision column — 111 unplanted keys admitted against 69 — is the part with signal, and it
+points the wrong way.
+
+Every one of the 42 had at least one holder to ask (`holders_asked` is never 0), so the loop was never starved;
+it asked, got 38 records back across all 42 cases, and the gate still said no.

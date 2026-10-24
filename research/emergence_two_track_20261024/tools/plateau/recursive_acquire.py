@@ -103,8 +103,9 @@ def run_key(rows, recs, sites, widx, weeks, lo_hi, pick):
     return False, after, asks, claims, rounds, weeks[w]
 
 
-def main(out_path, seeds):
+def main(out_path, seeds, rows_path=None):
     results = {}
+    rows = []
     for seed in seeds:
         org, corpus, gold = ew.generate(200, seed)
         sites = ew._user_sites(org)
@@ -170,7 +171,16 @@ def main(out_path, seeds):
                     span = (dec["found_from"], dec["found_to"])
                 else:
                     span = other_span(key)
-                before, after, asks, claims, rounds, _ = run_key(bykey[key], recs, sites, widx, weeks, span, pick)
+                before, after, asks, claims, rounds, at = run_key(bykey[key], recs, sites, widx, weeks,
+                                                                   span, pick)
+                if cls == "gold" and not before:
+                    rows.append({"seed": seed, "arm": arm, "pattern": lab["id"], "key": lab["key"],
+                                 "rare": int(lab["rare"]), "window_from": span[0], "window_to": span[1],
+                                 "budget_spent_at_week": at or "", "holders_asked": asks,
+                                 "claims_returned": claims, "verify_rounds": rounds,
+                                 "gate_cleared_in_estimate": int(after),
+                                 "corrected_verdict": "",          # no e2e run: never filled from an estimate
+                                 "evidence": "ESTIMATE (ceiling_b gate model); not a verdict"})
                 n[f"{cls}_keys"] += 1
                 n[f"{cls}_before"] += before
                 n[f"{cls}_after"] += after
@@ -184,10 +194,17 @@ def main(out_path, seeds):
         results[seed] = arms
     json.dump(results, open(out_path, "w"), indent=1, sort_keys=True)
     print("wrote", out_path)
+    if rows_path:
+        import csv
+        with open(rows_path, "w", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=list(rows[0]))
+            w.writeheader()
+            w.writerows(rows)
+        print("wrote", rows_path, len(rows), "rows")
 
 
 if __name__ == "__main__":
     out = sys.argv[1]
     ss = [int(x) for x in sys.argv[2].split(",")] if len(sys.argv) > 2 else list(range(6))
     assert all(s in range(6) for s in ss), "dev seeds 0-5 only"
-    main(out, ss)
+    main(out, ss, sys.argv[3] if len(sys.argv) > 3 else None)
