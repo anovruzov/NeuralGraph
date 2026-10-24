@@ -239,3 +239,5 @@ Note on cadence: nothing is in flight. Until the per-wave cadence (owed 11) is a
 down, ticks will be one-line "no change" entries.
 
 17:04Z — tick 10: no change since 606869a; nothing in flight; no agent spent.
+
+17:15Z — tick 11: 2 new commit(s) from the other session merged; full audit owed next tick.
