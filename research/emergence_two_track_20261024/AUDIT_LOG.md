@@ -288,3 +288,36 @@ fitting on the system's own verdicts cannot find gold because the judge supports
 (PN transfer on the snapshot pool; logistic on the detector pool at the asked week), one answer: **119 vs 118.**
 It also settles, for this benchmark, the question F-H4 left open about label-fitted tables — the label-free
 ranker is the one that does nothing, which is why the 138 needs a ruling before it is run.
+
+## 2026-10-24 — tick 12 (17:26Z, on time; audited by the orchestrator, no agent spent)
+
+Audited: the Gate-0 session's `3806095` (aggregate gate + burst test, `tools/plateau/agg_spec.py`, first raw rows)
+and `088990d` (`frontier/DISCLOSURE_ANALYSIS.md`; burst test re-measured with the key's history thresholded as the
+contract would release it; the first rows kept as superseded), merged at `dc0b3d1`. Independent re-run of the
+script this tick from the harness tree (`ng-integrity` at `5da07a4`, which carries `research/e2e_ingest`; the
+docs branch does not), script taken from `dc0b3d1` unmodified, `git status` clean before and after.
+
+| # | Item | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Reproducibility | **PASS** | Re-ran `agg_spec.py 200 0,1,2,3,4,5` (3 s) and `agg_spec.py 10000 0,1,2,3,4,5` (22 s): all ten `SPEC` rows **byte-identical** to the pinned thresholded rows (`raw/plateau/agg_specificity_by_world_size.txt`), including the headline 10K `agg_z3` 218/240 = 0.908 and 788/1,800 = 43.8%. Every figure the three documents quote matches a raw row to the unit: `RESEARCH_REPORT.md` §11.1 (0.908 / 43.8% vs 0.683 / 72.4%), `DEEP_RESEARCH_PROBLEM.md`'s 10K table (also z ≥ 4: 189/240 = 0.787, 546/1,800 = 30.3%; 200: 0.900 / 23.5%), `DISCLOSURE_ANALYSIS.md` §2 (adds 200 z ≥ 4: 0.787 / 17.5%). The per-site baseline rows come from `agg_ceiling_by_world_size.txt` lines 2 and 6 (178/240, 297/1,800; 164/240, 1,304/1,800). Both scripts draw the **same 1,800 non-planted keys** (same sort, same `random.Random(seed)` shuffle, same `[:300]`), so the two specificity columns are on the same keys. |
+| 2 | Traceability | **PASS, one gap** | Raw path cited in all three documents; the superseded exact-history rows are kept in the raw file under a header that says why, and the flag that reproduces them (`AGG_RAW_HISTORY=1`) is named there. The `3806095` headline (0.812 / 46.4%) survives in no document — it was replaced within two minutes and the raw file says "superseded". Gap: the 2,000-user size has rows **only under the superseded protocol** (no `SPEC 2000` thresholded row); nothing quotes a 2,000-user figure, so no claim is affected. |
+| 3 | Labelling | **PASS** | `DISCLOSURE_ANALYSIS.md` opens "analysis for a founder decision. Nothing here is adopted"; §2 says "These are ceilings: perfect detection and judging"; the frontier doc says "The absolute false-pass rate is still high" and "a stronger statistic (P2) is still needed"; the Bonawitz citation is marked "from memory and was not fetched… verify it". The script's docstring says offline, upper bound, dev seeds, labels only score. §5 says adopting the contract is "versioned as a new track, never folded into the frozen benchmark". |
+| 4 | Invariants | **PASS** | `assert all(s in range(6) for s in seeds)` in the script; the gate reads no generator label (labels give the pattern list, its window and `rare` for scoring). Files touched: two frontier docs, the report, one raw file, one tool — no pin, golden, label, metric or sealed seed. The thresholding reads a suppressed prior week as `k − 1` ("read high"), which inflates λ and lowers z: conservative **against** the proposal, the right direction. |
+| 5 | Cost columns | **PASS (offline)** | Recall, rare recall and non-planted pass rate per gate variant per size; no e2e run, so no questions/decoys to report. |
+| 6 | Budget / control matching | **PASS with a correction owed** | The comparison "per-site rule (today)" vs "total + burst z ≥ 3" changes **two** things: the disclosure (sub-k contributions enter a secure total) and the statistic (a burst test). The recall gain is attributable to the disclosure change — the per-site rule's 0.683 bounds any per-site conjunction from above, and the bare aggregate gate is 1.000. The specificity gain (72.4% → 43.8%) is **not yet attributed**: under today's contract HQ already sees each site's exact count when ≥ 3, so the same burst test is computable on the sum of released per-site counts. That control arm has not been run. |
+
+**Result: 0 FAIL.** Two corrections owed, neither a number:
+
+17. **Gate-0 session:** add the control arm "sum of today's released per-site counts + the same burst z ≥ 3 / z ≥ 4"
+    (recall ≤ 0.683 by construction; its non-planted pass rate is the number that is missing). Until it exists,
+    "dominates today's rule on both axes" is true of the *combination* and should be read that way; the founder's
+    privacy trade is against the recall axis (0.683 → 0.908 at z ≥ 3, → 1.000 with no burst test), and the burst
+    test is available under either contract.
+18. **Gate-0 session, minor:** `DISCLOSURE_ANALYSIS.md` §1 should state that the proposed release of prior weekly
+    totals distinguishes 0 from `'<k'` (the measurement assumes it: "0 stays 0, 1..k−1 → k−1"); and that `zburst`'s
+    λ floor of 1.0 makes the test on a key with **no** history reduce to total ≥ 4 (z ≥ 3) or ≥ 5 (z ≥ 4) —
+    a property of the statistic worth one sentence, since it is where the "burst" of a new key is decided.
+
+Re-run outputs kept outside the tree at
+`/tmp/claude-0/-home-user-NeuralGraph/2bf29258-e412-50e5-8873-b0acbc147d53/scratchpad/audit12/`. Not committed:
+they are identical to the pinned rows.
