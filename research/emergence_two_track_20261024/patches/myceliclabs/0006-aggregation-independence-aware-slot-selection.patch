@@ -1,0 +1,261 @@
+From 7aee160d2fc6f0ed4cfb8ac0bc79f07e3b309b12 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 12:39:34 +0000
+Subject: [PATCH] aggregation: a slot is given up to a holder the composition
+ does not have yet
+
+Slot selection took the strongest claim for each slot independently. When one
+agent happened to be strongest in two slots, the composition rested on two
+holders, and a rule asking for min_agents 3 / min_teams 2 refused it -- while
+the same candidate set contained a selection with three agents in three teams.
+The refused conclusion was supportable, so this was lost recall, not enforced
+safety. It was found during the adversarial review of the 3-owner fixture and
+recorded as "not fixed" in the research report.
+
+After the strongest-per-slot pick, each slot whose holder also fills another
+selected slot is now offered the best-ordered candidate whose holder is not
+already in the selection. A swap is taken only when it raises the number of
+distinct holders -- never to break a tie -- so a composition that is already
+independent keeps exactly the claims it had, and the strongest claim still wins
+every slot it does not double up on. Passes are bounded by the slot count and
+the candidate order is total, so selection stays deterministic.
+
+tests/independence_selection.rs, over the in-process transport with real SQLite
+(no broker needed):
+- the defect: log-1 strongest in two slots, sales-1 weaker in one of them.
+  Before: 0 compositions. After: 1, support 3, teams 3, and the lineage carries
+  sales-1's note, not log-1's second one.
+- the control: when every slot already has its own holder, the strongest claim
+  per slot is kept and a weaker note from the same agent is not taken. Passes
+  before and after.
+
+Based on a09283a. Prepared against a pinned commit because this session has
+read-only access to this repository; the patch and these instructions are
+committed to the continuation branch in anovruzov/NeuralGraph.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01LhCvWQ3y4pbqgDonDGhVkv
+---
+ crates/mycelic/src/coordination.rs            |  60 +++++++-
+ .../mycelic/tests/independence_selection.rs   | 129 ++++++++++++++++++
+ 2 files changed, 185 insertions(+), 4 deletions(-)
+ create mode 100644 crates/mycelic/tests/independence_selection.rs
+
+diff --git a/crates/mycelic/src/coordination.rs b/crates/mycelic/src/coordination.rs
+index 98a46f9..bd5db7d 100644
+--- a/crates/mycelic/src/coordination.rs
++++ b/crates/mycelic/src/coordination.rs
+@@ -101,9 +101,59 @@ pub struct RuleBasedSynthesizer<'a> {
+ }
+ 
+ impl RuleBasedSynthesizer<'_> {
++    /// Which candidate to take for each slot: the strongest, unless a weaker one brings a holder the composition
++    /// does not have yet.
++    ///
++    /// Taking the strongest claim per slot independently lets one agent fill two slots whenever it happens to be
++    /// strongest in both.  The composition then rests on fewer holders than the evidence actually offers, and a
++    /// rule asking for `min_agents` or `min_teams` refuses it -- while a selection that exists in the same
++    /// candidate set would have satisfied the rule.  That is a recall defect, not a safety one: the refused
++    /// conclusion was supportable.
++    ///
++    /// So after the strongest-per-slot pick, each slot whose holder also fills another selected slot is offered
++    /// the best-ordered candidate whose holder is not already in the selection.  A swap is taken only when it
++    /// raises the number of distinct holders, never to break a tie, so a composition that is already independent
++    /// keeps exactly the claims it had.  Passes are bounded by the slot count and the candidate order is total,
++    /// so the result is deterministic.
++    fn independent_picks(per_slot: &[(String, Vec<&ClaimEnvelope>)]) -> Vec<usize> {
++        let mut picks = vec![0usize; per_slot.len()];
++        let holders = |picks: &[usize]| -> BTreeSet<&str> {
++            picks.iter().enumerate().map(|(i, &p)| per_slot[i].1[p].producer_node_id.as_str()).collect()
++        };
++        for _ in 0..per_slot.len() {
++            let mut improved = false;
++            for slot in 0..per_slot.len() {
++                let before = holders(&picks).len();
++                let used: BTreeSet<&str> = picks
++                    .iter()
++                    .enumerate()
++                    .filter(|&(i, _)| i != slot)
++                    .map(|(i, &p)| per_slot[i].1[p].producer_node_id.as_str())
++                    .collect();
++                if !used.contains(per_slot[slot].1[picks[slot]].producer_node_id.as_str()) {
++                    continue; // this slot already stands on a holder of its own
++                }
++                let Some(alternative) =
++                    per_slot[slot].1.iter().position(|c| !used.contains(c.producer_node_id.as_str()))
++                else {
++                    continue; // every candidate for this slot is a holder already counted
++                };
++                let mut trial = picks.clone();
++                trial[slot] = alternative;
++                if holders(&trial).len() > before {
++                    picks = trial;
++                    improved = true;
++                }
++            }
++            if !improved {
++                break;
++            }
++        }
++        picks
++    }
++
+     pub fn synthesize(&self, claims: &[ClaimEnvelope]) -> SynthesisResult {
+-        let mut selected: Vec<&ClaimEnvelope> = Vec::new();
+-        let mut covered = Vec::new();
++        let mut per_slot: Vec<(String, Vec<&ClaimEnvelope>)> = Vec::new();
+         for slot in self.required_slots {
+             let mut candidates: Vec<&ClaimEnvelope> =
+                 claims.iter().filter(|c| c.slot.as_deref() == Some(slot.as_str()) && c.value != "[REDACTED]").collect();
+@@ -111,9 +161,11 @@ impl RuleBasedSynthesizer<'_> {
+                 continue;
+             }
+             candidates.sort_by(|a, b| claim_order(a, b));
+-            selected.push(candidates[0]);
+-            covered.push(slot.clone());
++            per_slot.push((slot.clone(), candidates));
+         }
++        let picks = Self::independent_picks(&per_slot);
++        let selected: Vec<&ClaimEnvelope> = picks.iter().enumerate().map(|(i, &p)| per_slot[i].1[p]).collect();
++        let covered: Vec<String> = per_slot.iter().map(|(slot, _)| slot.clone()).collect();
+         let success = covered.len() == self.required_slots.len();
+         let mut answer = None;
+         let mut confidence = claims.iter().map(|c| c.confidence).fold(None, |acc: Option<f64>, c| match acc {
+diff --git a/crates/mycelic/tests/independence_selection.rs b/crates/mycelic/tests/independence_selection.rs
+new file mode 100644
+index 0000000..4dc9730
+--- /dev/null
++++ b/crates/mycelic/tests/independence_selection.rs
+@@ -0,0 +1,129 @@
++//! Slot selection has to look at who holds a slot, not only at how strong the claim is.
++//!
++//! A rule that asks for three agents in two teams is asking for independence. The composition used to take the
++//! strongest claim for each slot on its own, so when one agent happened to be strongest in two slots the
++//! conclusion rested on two holders and the rule refused it -- although the same evidence contained a selection
++//! with three. The refused conclusion was supportable: this is lost recall, not enforced safety.
++//!
++//! Both tests run the real service over the in-process transport with real SQLite; no broker is needed.
++
++mod common;
++
++use common::{Harness, demo_rule};
++use serde_json::json;
++
++const TRANSPORT: &str = "supply:sd-9/transport";
++
++/// The rule's conclusions only: the enterprise layer also carries topic consolidations, which are not compositions.
++fn compositions(h: &Harness) -> Vec<mycelic::models::Memory> {
++    h.layer("enterprise").into_iter().filter(|m| m.operator == "slot_composition").collect()
++}
++
++async fn setup() -> Harness {
++    let mut h = Harness::start(false, |_| {}).await;
++    h.service.upsert_rule(&demo_rule(), None).unwrap();
++    h.reg("log-1", "logistics").await;
++    h.reg("proc-1", "procurement").await;
++    h.register("sales-1", "field-sales", "commercial", "nw-gmbh", "emea", "northwind", None).await;
++    h
++}
++
++/// log-1 is strongest in two of the three slots; sales-1 holds the same slot more weakly. The rule needs three
++/// agents, so the composition only exists if the weaker claim is taken for the slot log-1 would otherwise fill
++/// twice.
++#[tokio::test(flavor = "multi_thread")]
++async fn a_slot_is_given_up_to_a_holder_the_composition_does_not_have_yet() {
++    let h = setup().await;
++    h.observe(
++        "log-1",
++        "Port of Rotterdam terminal 3 strike announced; SD-9 shipments route through it.",
++        json!({"topic": TRANSPORT, "slot": "transport_disruption", "entity": "sd-9", "confidence": 0.9}),
++    )
++    .await;
++    h.observe(
++        "proc-1",
++        "Kessler Antriebe confirms roughly two weeks of SD-9 inventory left.",
++        json!({"topic": "supply:sd-9/supplier", "slot": "supplier_buffer_low", "entity": "sd-9",
++                     "confidence": 0.85}),
++    )
++    .await;
++    // the same agent as the transport slot, and the strongest demand claim in the world
++    let strongest = h
++        .observe(
++            "log-1",
++            "Helios Automation re-confirmed 40 RX-4 arms for November.",
++            json!({"topic": "supply:sd-9/demand", "slot": "demand_commitment", "entity": "sd-9",
++                                     "confidence": 0.95}),
++        )
++        .await;
++    // a third holder for that slot, weaker
++    let independent = h
++        .observe(
++            "sales-1",
++            "Helios Automation committed to 40 RX-4 arms for November.",
++            json!({"topic": "supply:sd-9/demand", "slot": "demand_commitment", "entity": "sd-9",
++                                       "confidence": 0.7}),
++        )
++        .await;
++    h.settle().await;
++
++    let compositions = compositions(&h);
++    assert_eq!(compositions.len(), 1, "the evidence supports a composition with three agents in three teams");
++    let c = &compositions[0];
++    assert!(c.support >= 3, "support counts the distinct agents behind it, got {}", c.support);
++    assert!(c.independent_teams >= 2, "teams: {}", c.independent_teams);
++
++    let lineage = h.service.lineage(&h.admin(), &c.memory_id).unwrap();
++    let nodes = lineage["nodes"].as_object().expect("lineage nodes");
++    assert!(nodes.contains_key(&independent), "the slot was given up to the holder that was missing");
++    assert!(
++        !nodes.contains_key(&strongest),
++        "and the agent that already held another slot does not fill this one twice"
++    );
++    h.close().await;
++}
++
++/// The control: when every slot already stands on a holder of its own, the strongest claim per slot is kept.
++/// A swap is only ever taken to add a holder, never to break a tie.
++#[tokio::test(flavor = "multi_thread")]
++async fn an_already_independent_composition_keeps_its_strongest_claims() {
++    let h = setup().await;
++    h.observe(
++        "log-1",
++        "Port of Rotterdam terminal 3 strike announced; SD-9 shipments route through it.",
++        json!({"topic": TRANSPORT, "slot": "transport_disruption", "entity": "sd-9", "confidence": 0.9}),
++    )
++    .await;
++    h.observe(
++        "proc-1",
++        "Kessler Antriebe confirms roughly two weeks of SD-9 inventory left.",
++        json!({"topic": "supply:sd-9/supplier", "slot": "supplier_buffer_low", "entity": "sd-9",
++                     "confidence": 0.85}),
++    )
++    .await;
++    let strongest = h
++        .observe(
++            "sales-1",
++            "Helios Automation committed to 40 RX-4 arms for November.",
++            json!({"topic": "supply:sd-9/demand", "slot": "demand_commitment", "entity": "sd-9",
++                                     "confidence": 0.8}),
++        )
++        .await;
++    let weaker = h
++        .observe(
++            "sales-1",
++            "A second note: Helios still expects the 40 RX-4 arms.",
++            json!({"topic": "supply:sd-9/demand", "slot": "demand_commitment", "entity": "sd-9",
++                                  "confidence": 0.6}),
++        )
++        .await;
++    h.settle().await;
++
++    let compositions = compositions(&h);
++    assert_eq!(compositions.len(), 1);
++    let lineage = h.service.lineage(&h.admin(), &compositions[0].memory_id).unwrap();
++    let nodes = lineage["nodes"].as_object().expect("lineage nodes");
++    assert!(nodes.contains_key(&strongest), "the strongest claim still fills the slot");
++    assert!(!nodes.contains_key(&weaker), "the weaker one from the same agent adds no holder and is not taken");
++    h.close().await;
++}
+-- 
+2.43.0
+

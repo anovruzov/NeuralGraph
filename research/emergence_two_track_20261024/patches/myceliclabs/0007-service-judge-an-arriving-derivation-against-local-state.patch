@@ -1,0 +1,341 @@
+From f50867cc142ad03ec896b65d99536cf34f697219 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 06:57:05 +0000
+Subject: [PATCH] Judge an arriving derivation against what this database
+ already knows
+
+memory.derived events do not come only from this instance: they arrive from
+the stream, during a rebuild, from a second writer, or late after a
+partition. The sender derived them from evidence it believed active. This
+database may already know better.
+
+Two cases it can decide locally, and did not:
+
+- A known direct parent that is no longer active. The conclusion was being
+  admitted as active support for evidence that had been retracted, and
+  nothing downstream could tell it apart from one just derived. It is now
+  kept, with its lineage, but retracted, and whatever already depends on it
+  (an out-of-order child that arrived first) is retired the same way a local
+  retraction retires dependents.
+
+- A version older than the one already standing. supersedes was honoured on
+  arrival order, so a stale version delivered late retired the newer one.
+  Producer time decides instead; the stale arrival is kept as history,
+  superseded by the current version. Equal producer time still supersedes,
+  which is what two versions computed in the same second produce, so the
+  previous behaviour survives at the boundary.
+
+Timestamps are compared as instants, not strings: two writers emit producer
+time with their own UTC offsets. A timestamp that cannot be parsed counts as
+not newer, so an undatable version never displaces a datable one.
+
+Deliberately unchanged: a parent this database has never seen cannot be
+judged from here and is still admitted, and the retired dependents are not
+re-evaluated on remaining evidence the way a local retraction re-evaluates --
+those conclusions were computed elsewhere, and re-deriving them here would
+invent support this instance cannot account for.
+
+tests/derived_freshness.rs covers all of it against real SQLite through
+apply_event. Before the change: 1 passed, 2 failed (baseline 64027cb,
+service.rs sha256 767e2101e08e489225b50a5ce1b11428dad80cc5bfdbdf2a143e4cf37b974027).
+After: 4 passed. Whole crate: 91 passed, 0 failed -- but 9 of those are the
+jetstream tests, which self-skip without a nats-server binary, so the
+delayed-derivation path is still untested over NATS.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01LhCvWQ3y4pbqgDonDGhVkv
+---
+ crates/mycelic/src/service.rs             |  60 ++++++-
+ crates/mycelic/tests/derived_freshness.rs | 199 ++++++++++++++++++++++
+ 2 files changed, 257 insertions(+), 2 deletions(-)
+ create mode 100644 crates/mycelic/tests/derived_freshness.rs
+
+diff --git a/crates/mycelic/src/service.rs b/crates/mycelic/src/service.rs
+index 9abebad..f7a818c 100644
+--- a/crates/mycelic/src/service.rs
++++ b/crates/mycelic/src/service.rs
+@@ -1405,11 +1405,51 @@ impl MycelicService {
+                             }
+                         }
+                         tx.add_lineage_edges(&edges)?;
+-                        if let Some(Value::String(old)) = payload.get("supersedes")
++                        // The sender derived this from evidence it believed active.  This database may already know
++                        // better: the evidence was retracted, or superseded, while the event was in flight or in the
++                        // log.  Keep the conclusion and its lineage -- a replay has to reproduce what was derived,
++                        // and why it did not hold -- but it is not support, and anything already built on it (an
++                        // out-of-order child that arrived first) goes with it, exactly as a local retraction does.
++                        //
++                        // A parent this database has never seen is a different question: it cannot be answered from
++                        // here, and admitting it stays the current behaviour.
++                        let mut withdrawn = None;
++                        for e in &edges {
++                            if let Some(parent) = tx.get_memory(&e.parent_id)?
++                                && parent.status != "active"
++                            {
++                                withdrawn = Some((e.parent_id.clone(), parent.status.clone()));
++                                break;
++                            }
++                        }
++                        if let Some((parent_id, status)) = withdrawn {
++                            let reason = format!("evidence {parent_id} was already {status} when this arrived");
++                            tx.set_memory_status(&m.memory_id, "retracted", None, Some(&reason))?;
++                            self.aggregator.retire_dependents(tx, &m.memory_id, "evidence retracted")?;
++                            tx.audit(
++                                "mycelic",
++                                "memory.withheld",
++                                Some(event_id),
++                                json!({"memory_id": m.memory_id, "parent_id": parent_id, "parent_status": status}),
++                                None,
++                            )?;
++                        } else if let Some(Value::String(old)) = payload.get("supersedes")
+                             && let Some(prev) = tx.get_memory(old)?
+                             && prev.status == "active"
+                         {
+-                            tx.set_memory_status(old, "superseded", Some(&m.memory_id), Some("coalition changed"))?;
++                            // Two versions of one conclusion can arrive in either order.  Producer time decides
++                            // which is current, not arrival order: an older version that shows up late must not be
++                            // able to retire the newer one that is already standing.
++                            if at_least_as_new(&m.created_at, &prev.created_at) {
++                                tx.set_memory_status(old, "superseded", Some(&m.memory_id), Some("coalition changed"))?;
++                            } else {
++                                tx.set_memory_status(
++                                    &m.memory_id,
++                                    "superseded",
++                                    Some(&prev.memory_id),
++                                    Some("a newer version of this conclusion is already current"),
++                                )?;
++                            }
+                         }
+                         self.metrics.derived.with_label_values(&[&m.layer, &m.operator]).inc();
+                     } else {
+@@ -2072,6 +2112,22 @@ impl MycelicService {
+     }
+ }
+ 
++/// Is `ts` at or after `other`, as instants?
++///
++/// Two instances write producer time with their own UTC offsets, so the strings cannot be compared directly.  An
++/// unparseable timestamp is treated as not newer: a version that cannot be dated never displaces one that can.
++fn at_least_as_new(ts: &str, other: &str) -> bool {
++    let instant = |s: &str| {
++        let t = parse_iso(s)?;
++        let naive = t.date.and_hms_opt(t.hour, t.minute, t.second)?;
++        Some(naive.and_utc().timestamp() - i64::from(t.offset_seconds))
++    };
++    match (instant(ts), instant(other)) {
++        (Some(a), Some(b)) => a >= b,
++        _ => false,
++    }
++}
++
+ fn memory_from_payload(p: &Map<String, Value>, now: &str) -> anyhow::Result<Memory> {
+     for k in ["memory_id", "org_id", "layer", "scope", "text"] {
+         if !p.get(k).and_then(Value::as_str).is_some_and(|s| !s.is_empty()) {
+diff --git a/crates/mycelic/tests/derived_freshness.rs b/crates/mycelic/tests/derived_freshness.rs
+new file mode 100644
+index 0000000..29189bd
+--- /dev/null
++++ b/crates/mycelic/tests/derived_freshness.rs
+@@ -0,0 +1,199 @@
++//! Derived memories that arrive out of order, over the log, from another writer.
++//!
++//! `memory.derived` events are not produced only by this instance: they also arrive from the stream, during a
++//! rebuild, from a second writer, or late after a network partition.  The local database is then the authority on
++//! what the arriving conclusion rests on, and it can already know things the sender did not: that the evidence has
++//! since been retracted, or that a newer version of the same conclusion is already current.
++//!
++//! Admitting such an event as active resurrects a conclusion whose support is gone, and nothing downstream can tell
++//! it apart from one that was just derived.  The three cases below are the ones the local database can decide on
++//! its own, without asking anyone:
++//!
++//!   1. the parent is known and active        -> admit it (the control; this already worked)
++//!   2. the parent is known and inactive      -> keep it, with its lineage, but not as support
++//!   3. it supersedes a version that is newer -> the current version stands
++//!
++//! Two things are deliberately left alone.  A parent this database has never seen cannot be judged locally, so an
++//! unknown parent is still admitted.  And the dependents retired in case 2 are not re-evaluated on what evidence
++//! remains, the way a local retraction re-evaluates: those conclusions were computed elsewhere, and re-deriving
++//! them here would invent support this instance cannot account for.
++
++mod common;
++
++use common::{Harness, demo_rule};
++use serde_json::{Map, Value, json};
++
++const TEAM_SCOPE: &str = "northwind/emea/nw-gmbh/ops/logistics";
++const TOPIC: &str = "supply:sd-9/transport";
++
++async fn setup() -> Harness {
++    let mut h = Harness::start(false, |_| {}).await;
++    h.service.upsert_rule(&demo_rule(), None).unwrap();
++    h.reg("log-1", "logistics").await;
++    h.reg("log-2", "logistics").await;
++    h
++}
++
++/// A `memory.derived` event as another writer would put it on the log.
++fn derived_event(
++    event_id: &str,
++    memory_id: &str,
++    created_at: &str,
++    parents: &[(&str, &str)],
++    supersedes: Option<&str>,
++) -> Map<String, Value> {
++    let mut payload = json!({
++        "memory_id": memory_id,
++        "org_id": "northwind",
++        "layer": "team",
++        "scope": TEAM_SCOPE,
++        "text": "Inbound transport for the SD-9 servo drive is disrupted.",
++        "topic": TOPIC,
++        "slot": "transport_disruption",
++        "entity": "sd-9",
++        "kind": "risk",
++        "confidence": 0.9,
++        "support": 1,
++        "independent_teams": 1,
++        "producer_id": "mycelic",
++        "operator": "topic_consolidation",
++        "visibility": "team",
++        "status": "active",
++        "created_at": created_at,
++        "parents": parents.iter().map(|(pid, layer)| json!({
++            "parent_id": pid, "contributed_by": "log-1", "parent_layer": layer, "created_at": created_at,
++        })).collect::<Vec<_>>(),
++    });
++    if let Some(old) = supersedes {
++        payload["supersedes"] = json!(old);
++    }
++    let event = json!({
++        "event_id": event_id,
++        "kind": "memory.derived",
++        "org_id": "northwind",
++        "payload": payload,
++        "created_at": created_at,
++    });
++    event.as_object().cloned().unwrap()
++}
++
++/// An observation to hang the arriving derivations on, plus the conclusions the service draws from it itself.
++async fn observation(h: &Harness, agent: &str, confidence: f64) -> String {
++    let id = h
++        .observe(
++            agent,
++            "Port of Rotterdam terminal 3 strike announced; SD-9 shipments route through it.",
++            json!({"topic": TOPIC, "slot": "transport_disruption", "entity": "sd-9", "confidence": confidence}),
++        )
++        .await;
++    h.settle().await;
++    id
++}
++
++/// The control: nothing is wrong with this event, and it must still be admitted exactly as before.
++#[tokio::test(flavor = "multi_thread")]
++async fn arriving_derivation_with_an_active_parent_is_admitted() {
++    let h = setup().await;
++    let parent = observation(&h, "log-1", 0.9).await;
++
++    let event =
++        derived_event("evt_fresh_1", "mem_arrived_fresh", "2026-10-24T09:00:00+00:00", &[(&parent, "agent")], None);
++    assert_eq!(h.service.apply_event(&event, None).unwrap(), "applied");
++
++    let arrived = h.memory("mem_arrived_fresh");
++    assert_eq!(arrived.status, "active", "a derivation on active evidence is support and stays active");
++    let edges = h.service.store.read(|db| db.children_of(&parent)).unwrap();
++    assert!(edges.iter().any(|e| e.child_id == "mem_arrived_fresh"), "the lineage edge to its parent is recorded",);
++    h.close().await;
++}
++
++/// The event says the conclusion holds; this database already knows the evidence under it was withdrawn.  The
++/// conclusion is kept -- it is history, and a replay must reproduce it -- but it is not active support, and
++/// anything already built on it goes with it.
++#[tokio::test(flavor = "multi_thread")]
++async fn arriving_derivation_whose_parent_is_already_inactive_is_kept_but_not_active() {
++    let h = setup().await;
++    let parent = observation(&h, "log-1", 0.9).await;
++    h.service.retract(&h.principal("log-1"), &parent, "the strike was called off", None).unwrap();
++    h.settle().await;
++    assert_eq!(h.memory(&parent).status, "retracted", "precondition: the evidence is gone");
++
++    // A child of the late conclusion arrived first (out of order), so it is already in the database and active.
++    let child = derived_event(
++        "evt_stale_child",
++        "mem_arrived_child",
++        "2026-10-24T09:05:00+00:00",
++        &[("mem_arrived_stale", "team")],
++        None,
++    );
++    assert_eq!(h.service.apply_event(&child, None).unwrap(), "applied");
++
++    let event =
++        derived_event("evt_stale_1", "mem_arrived_stale", "2026-10-24T09:00:00+00:00", &[(&parent, "agent")], None);
++    assert_eq!(h.service.apply_event(&event, None).unwrap(), "applied");
++
++    let arrived = h.memory("mem_arrived_stale");
++    assert_ne!(arrived.status, "active", "a conclusion on retracted evidence is not active support");
++    assert!(
++        h.service.store.read(|db| db.children_of(&parent)).unwrap().iter().any(|e| e.child_id == "mem_arrived_stale"),
++        "it is kept with its lineage: a replay has to reproduce what was derived, and why it did not hold",
++    );
++    assert_ne!(
++        h.memory("mem_arrived_child").status,
++        "active",
++        "what was built on it goes with it, the same way retire_dependents handles a local retraction",
++    );
++    h.close().await;
++}
++
++/// The boundary of the rule above: same producer time is not "older", so the arrival still wins.  Equal timestamps
++/// are what a writer produces for two versions computed in the same second, and the previous behaviour -- the
++/// arrival supersedes -- has to survive the fix.
++#[tokio::test(flavor = "multi_thread")]
++async fn arriving_version_with_the_same_producer_time_still_supersedes() {
++    let h = setup().await;
++    let parent = observation(&h, "log-1", 0.9).await;
++    let stamp = "2026-10-24T10:00:00+00:00";
++
++    let first = derived_event("evt_same_1", "mem_same_1", stamp, &[(&parent, "agent")], None);
++    assert_eq!(h.service.apply_event(&first, None).unwrap(), "applied");
++    let second = derived_event("evt_same_2", "mem_same_2", stamp, &[(&parent, "agent")], Some("mem_same_1"));
++    assert_eq!(h.service.apply_event(&second, None).unwrap(), "applied");
++
++    assert_eq!(h.memory("mem_same_2").status, "active");
++    let replaced = h.memory("mem_same_1");
++    assert_eq!(replaced.status, "superseded");
++    assert_eq!(replaced.superseded_by.as_deref(), Some("mem_same_2"));
++    h.close().await;
++}
++
++/// Two versions of one conclusion, delivered in the wrong order.  The newer one is already current; the older one
++/// must not be able to retire it by claiming to supersede it.
++#[tokio::test(flavor = "multi_thread")]
++async fn arriving_version_older_than_the_current_one_does_not_supersede_it() {
++    let h = setup().await;
++    let parent = observation(&h, "log-1", 0.9).await;
++
++    let current = derived_event("evt_v2", "mem_version_2", "2026-10-24T10:00:00+00:00", &[(&parent, "agent")], None);
++    assert_eq!(h.service.apply_event(&current, None).unwrap(), "applied");
++    assert_eq!(h.memory("mem_version_2").status, "active");
++
++    let stale = derived_event(
++        "evt_v1",
++        "mem_version_1",
++        "2026-10-24T08:00:00+00:00",
++        &[(&parent, "agent")],
++        Some("mem_version_2"),
++    );
++    assert_eq!(h.service.apply_event(&stale, None).unwrap(), "applied");
++
++    let still_current = h.memory("mem_version_2");
++    assert_eq!(still_current.status, "active", "the current version stands: the arrival is older than it is");
++    assert_eq!(still_current.superseded_by, None, "and nothing points at the stale arrival as its replacement");
++    assert_ne!(
++        h.memory("mem_version_1").status,
++        "active",
++        "the late arrival is kept as history, not as a second active version of the same conclusion",
++    );
++    h.close().await;
++}
+-- 
+2.43.0
+
