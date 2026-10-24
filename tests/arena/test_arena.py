@@ -156,6 +156,27 @@ class ConcurrencyTests(unittest.TestCase):
         self.assertAlmostEqual(s["mean_runtime_s"], 600.0)
 
 
+class ControllerTests(unittest.TestCase):
+    """The controller on a bare App -- no poller thread, so the sequence of start, exit, check and sweep is
+    deterministic.  (Under the server, the poller calls check() every poll and would race these assertions.)"""
+
+    def test_a_process_the_run_leaves_in_its_session_is_swept_and_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            app = App(Config(state_dir=Path(d) / "state", runs_root=Path(d) / "runs",
+                             scenarios={"leaky": Scenario("leaky", SYNTHETIC, lambda run_dir, run_id: ["sh", "-c", "sleep 300 & exit 0"])}))
+            app.controller.start("leaky")
+            pid = app.controller.proc.pid
+            app.controller.proc.wait(10)
+            self.assertTrue(app.controller._session_pids(pid))                  # the sleep outlived the leader
+            app.controller.check()
+            deadline = time.time() + 3
+            while app.controller._session_pids(pid) and time.time() < deadline:
+                time.sleep(0.05)
+            self.assertEqual(app.controller._session_pids(pid), [])             # and was swept
+            self.assertEqual([e.tag for e in app.store.since(0) if e.source == "control"], ["CONTROL", "COMPLETE", "RECOVER"])
+            app.store.close()
+
+
 class ServerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -226,20 +247,6 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(self.app.controller.proc.returncode, 0)                 # the dir did not pre-exist
         self.assertTrue((d / "runs" / (ctl.data["run_id"] + ".log")).exists())  # the log is beside it
         self.assertEqual([e.tag for e in evs if e.source == "control"], ["CONTROL", "COMPLETE"])
-
-    def test_a_process_the_run_leaves_in_its_session_is_swept_and_reported(self) -> None:
-        d = Path(self.tmp.name)
-        leaky = Scenario("leaky", SYNTHETIC, lambda run_dir, run_id: ["sh", "-c", "sleep 300 & exit 0"])
-        self.app.config.runs_root, self.app.config.scenarios = d / "runs", {"leaky": leaky}
-        self.app.controller.start("leaky")
-        pid = self.app.controller.proc.pid
-        self.app.controller.proc.wait(10)
-        self.assertTrue(self.app.controller._session_pids(pid))                # the sleep outlived the leader
-        self.app.controller.check()
-        time.sleep(0.2)
-        self.assertEqual(self.app.controller._session_pids(pid), [])           # and was swept
-        tags = [e.tag for e in self.app.store.since(0) if e.source == "control"]
-        self.assertEqual(tags, ["CONTROL", "COMPLETE", "RECOVER"])
 
     def test_controls_refuse_destruction_without_confirm_and_unknown_actions(self) -> None:
         def post(obj: dict) -> tuple[int, dict]:
