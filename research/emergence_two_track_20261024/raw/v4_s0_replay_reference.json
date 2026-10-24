@@ -1,0 +1,96 @@
+{
+ "purpose": "replay reference for AUDIT_LOG item 1 (reproducibility): v4 rule_snapshots+nd+N1+N2, dev seed 0",
+ "label": "DIAGNOSTIC (seed guard bypass wrapper, --skip-drills)",
+ "full_report_sha256": "4ef21383b9a08b39f55693c941a2fd3990ceb394c56c91a883bd586840726376",
+ "code": {
+  "deployment_worktree_commit": "282757598540257bbd13423987997be29187a879",
+  "patch_series": "patches/neuralgraph-deployment-branch/0001..0011 (0011 = re-pin to 0e05bc00); NOT 0014/0015",
+  "spike_code_hash": "0e05bc00d1cf28ea80ec8e027391585f8312cdd5d84583d63d4fd5860fbeccc8",
+  "code_dirty_start": false
+ },
+ "command": {
+  "wrapper": "tools/ablate.py",
+  "pack_override": {
+   "detectors": {
+    "min_history_weeks": 1,
+    "rule_snapshots": true
+   },
+   "egress": {
+    "near_duplicate_roots": {
+     "jaccard": 0.65,
+     "days": 14
+    }
+   },
+   "questions": {
+    "pushdown": {
+     "weak_corroborating_sites": 1,
+     "roots_from_k_sites_only": true
+    }
+   }
+  },
+  "args": "run --size 200 --seed 0 --mode process --skip-drills --top-n 100000",
+  "broker": "nats-server 2.10.29 (MYCELIC_NATS_SERVER_BIN)"
+ },
+ "compare": {
+  "world.pack_hashes": {
+   "config_hash": "ee98152bc84e30c6eb9d226f37001cd5448404dee38b1883cb547ae1b157e537",
+   "detector_hash": "c8b6a7ab9a4af765a0d993336dd882518385bc281463aa30ef675614147f00bb",
+   "fixtures_hash": "acff8a7ad32205305632c3b9f5a8c03593b2c267102adbf38007c8027c4b73c6",
+   "vocabulary_hash": "53630bdbabfb2e24a50695d728f0da6b2b74585dddfdcc0d610ecb739f697a58"
+  },
+  "discovery.found": 25,
+  "discovery.found_patterns": [
+   "p000",
+   "p001",
+   "p006",
+   "p007",
+   "p009",
+   "p011",
+   "p012",
+   "p013",
+   "p014",
+   "p015",
+   "p017",
+   "p019",
+   "p022",
+   "p023",
+   "p024",
+   "p025",
+   "p028",
+   "p029",
+   "p031",
+   "p032",
+   "p033",
+   "p034",
+   "p035",
+   "p037",
+   "p039"
+  ],
+  "discovery.decoy_accepted_by_type": {
+   "1": 2,
+   "2": 10,
+   "3": 2,
+   "4": 4,
+   "5": 10
+  },
+  "discovery.background_supported": 16,
+  "routing.questions_asked": 539,
+  "routing.verdicts": {
+   "budget_unknown": 0,
+   "confirm": 1147,
+   "hq_error": 0,
+   "refute": 420,
+   "unknown": 50
+  },
+  "routing.statuses": {
+   "hypothesis": 437,
+   "stale": 3,
+   "supported": 99
+  }
+ },
+ "ignore": "timings.*, run.started_at/finished_at/seconds, run.out, run.paths, latency samples",
+ "verdict_of_recorded_run": {
+  "checks_pass": true,
+  "failed": []
+ }
+}

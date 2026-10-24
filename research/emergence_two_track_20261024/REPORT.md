@@ -112,22 +112,28 @@ Seed 0: 22–23 patterns are R0-feasible, 13 are found. The 10 missed (`tools/fu
 
 ## 5. Track A ablations (dev seeds; all inside k = 3 and the two-site gate)
 
-| Arm | What changes | Recall | Decoys | Questions/world |
-|---|---|---|---|---|
-| baseline | – | 93/240 = 0.3875 | 118 | 53–60 |
-| h1 | `min_history_weeks` 6 → 1 (legal minimum), cap 60 | 89/240 = 0.371 | 148 | 60 |
-| h1n | h1 + no candidate cap | **140/240 = 0.583** | 182 (fails decoy bar) | 84–90 |
-| persist | re-ask while a candidate persists | 14/40 at s0 (+1) | 17 (+0) | 199 |
-| persist+rule | + ask rule-only candidates, one question per 6-week window | **refused by the HQ bridge** (no detector snapshot week: provenance guard, correct) | – | 723 |
-| nd (b3025fb6) | near-duplicate roots (echo = one root), first version | 94/240 = 0.392 | **108** (class 4: 41 → 30) | 53–60 |
-| N1 (b3025fb6) | weak-site corroboration (Track B lever) | 96/240 = 0.400 | 119 | 53–60 |
-| nd v2 (f830a57c) | hardened near-duplicate roots alone | 94/240 = 0.392 | 110 | 53–60 |
-| **h1n+nd+N1 (f830a57c, Track B)** | combined | **151/240 = 0.629**; rare 17/103 (baseline 5/103) | 174 (fails decoy bar) | 84–90 |
-| **h1n+nd+N1+N2 (b4eeb7bb, Track B)** | + roots only from k-root sites | **151/240 = 0.629**; rare 17/103 | **153** (class 4: 47 → 26) | 84–90 |
-| ask every site (M = all), seeds 0–1 | follow-up search bound | 46/80 (identical to M = 3) | 58 (vs 57) | |
-| **rule_snapshots + nd + N1 + N2 (28275759, Track B)** | rule-layer candidates asked (via the detector, provenance kept) | **163/240 = 0.679**; rare 27/103; per seed 25, 25, 28, 33, 27, 25 | 181 (fails decoy bar; class 3: 12 → 23, class 5: 48 → 60) | 494–552 |
+| Arm | What changes | Recall | Decoys | Questions/world | Background-supported (seeds 0–5) |
+|---|---|---|---|---|---|
+| baseline | – | 93/240 = 0.3875 | 118 | 53–60 | 3 |
+| h1 | `min_history_weeks` 6 → 1 (legal minimum), cap 60 | 89/240 = 0.371 | 148 | 60 | 3 |
+| h1n | h1 + no candidate cap | **140/240 = 0.583** | 182 (fails decoy bar) | 84–90 | 6 |
+| persist | re-ask while a candidate persists | 14/40 at s0 (+1) | 17 (+0) | 199 | 0 (s0) |
+| persist+rule | + ask rule-only candidates, one question per 6-week window | **refused by the HQ bridge** (no detector snapshot week: provenance guard, correct) | – | 723 | – |
+| nd (b3025fb6) | near-duplicate roots (echo = one root), first version | 94/240 = 0.392 | **108** (class 4: 41 → 30) | 53–60 | 4 |
+| N1 (b3025fb6) | weak-site corroboration (Track B lever) | 96/240 = 0.400 | 119 | 53–60 | 14 |
+| nd v2 (f830a57c) | hardened near-duplicate roots alone | 94/240 = 0.392 | 110 | 53–60 | 4 |
+| **h1n+nd+N1 (f830a57c, Track B)** | combined | **151/240 = 0.629**; rare 17/103 (baseline 5/103) | 174 (fails decoy bar) | 84–90 | 22 |
+| **h1n+nd+N1+N2 (b4eeb7bb, Track B)** | + roots only from k-root sites | **151/240 = 0.629**; rare 17/103 | **153** (class 4: 47 → 26) | 84–90 | 22 |
+| ask every site (M = all), seeds 0–1 | follow-up search bound | 46/80 (identical to M = 3) | 58 (vs 57) | | 6 (s0–1) |
+| **rule_snapshots + nd + N1 + N2 (28275759, Track B)** | rule-layer candidates asked (via the detector, provenance kept) | **163/240 = 0.679**; rare 27/103; per seed 25, 25, 28, 33, 27, 25 | 181 (fails decoy bar; class 3: 12 → 23, class 5: 48 → 60) | 494–552 | **96** |
 
 Notes:
+- **Every row in this table is a DIAGNOSTIC ablation, not a baseline**: the seed guard was bypassed (seeds 1–5) and
+  drills were skipped. The official baseline is the guarded, checks-green run on the recovery branch (patches
+  0014–0015). *Background-supported* counts supported conclusions whose key and snapshot week match no planted
+  pattern or decoy (`discovery.background_supported`); with decoys and questions it is the cost of a recall gain.
+  The offline timing model (`PLATEAU_DIAGNOSIS.md` §4) predicts 61 for v4 against 96 measured, so its cost estimates
+  for re-asking policies are optimistic by about a third.
 - Every ablation ran with `--skip-drills`: the run's privacy and leakage drills (c1–c6) did not execute; only c0,
   c7, c8, c9 were evaluated (c8 fails on seeds 1–5 solely because those worlds are not the seed-0 world table the
   guard checks). A drills-on N1 run and a drills-on plumbing run are reported in §6.
