@@ -1,0 +1,81 @@
+{
+ "n_interactions": 10000,
+ "n_workers": 1000,
+ "n_teams": 10,
+ "n_departments": 2,
+ "n_regions": 1,
+ "n_rounds": 30,
+ "effects_by_kind": {
+  "base_rate": 12,
+  "contradiction": 20,
+  "temporal": 32,
+  "local": 100,
+  "cross_team": 25,
+  "global": 10,
+  "decoy": 30
+ },
+ "min_layer_by_kind": {
+  "base_rate": {
+   "team": 3,
+   "department": 8,
+   "region": 1
+  },
+  "contradiction": {
+   "team": 20
+  },
+  "temporal": {
+   "department": 13,
+   "team": 19
+  },
+  "local": {
+   "team": 100
+  },
+  "cross_team": {
+   "department": 25
+  },
+  "global": {
+   "department": 10
+  },
+  "decoy": {
+   "none": 30
+  }
+ },
+ "n_sensitive": 759,
+ "n_copies": 244,
+ "generation_report": {
+  "base_rate": 12,
+  "contradiction": 14,
+  "temporal": 21,
+  "local": 140,
+  "cross_team": 35,
+  "global": 14,
+  "decoy": 30,
+  "topups": {},
+  "validation_dropped": {
+   "temporal": 52,
+   "local": 29,
+   "cross_team": 8,
+   "global": 1
+  },
+  "final_counts": {
+   "base_rate": 12,
+   "local": 100,
+   "cross_team": 25,
+   "global": 10,
+   "decoy": 30,
+   "contradiction": 20,
+   "temporal": 32
+  }
+ },
+ "dataset_sha256": "43d2c39c01e88b89a332926453baf168bcc8be2146e3e72d11d9c536cc058449",
+ "worker_type_counts": {
+  "expert": 92,
+  "average": 532,
+  "weak": 214,
+  "overconfident": 51,
+  "underconfident": 36,
+  "noisy": 45,
+  "duplicator": 30,
+  "adversarial": 0
+ }
+}
