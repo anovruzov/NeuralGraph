@@ -8,7 +8,7 @@ a few things you need to know that you could not guess.
 ```bash
 git clone https://github.com/anovruzov/NeuralGraph.git
 cd NeuralGraph
-cargo build                                   # everything (Rust 1.89+, a C compiler)
+cargo build
 ```
 
 Everything is Rust: the memory server (`crates/neuralgraph-memory`) and the research track
@@ -21,8 +21,8 @@ deterministic stand-in everywhere, and every test uses it.
 
 ```bash
 cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings
-cargo test -p neuralgraph-memory              # memory server, a few seconds
-cargo test -p neuralgraph-research --release  # research track: golden parity, coordination artifacts
+cargo test -p neuralgraph-memory
+cargo test -p neuralgraph-research --release
 ```
 
 CI runs all of the above (the research job on macOS, see below). Tests must stay offline and deterministic. If a change needs a
