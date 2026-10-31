@@ -84,3 +84,15 @@ Return ONLY JSON: {{"decision": "ADD", "target": null, "text": null, "reason": "
 pub const REPAIR_SUFFIX: &str = r##"
 
 IMPORTANT: your previous answer to this request was not valid JSON. Return ONLY the JSON object, starting with {{ and ending with }}, with no prose before or after it."##;
+
+// ---- additive experiment suffixes (never part of the pinned prompts above; see `ExtractionConfig`) ----
+
+/// Inserted before the final "Return ONLY JSON" line of RECONCILE_PROMPT when `numeric_dedupe_guard` is on.
+pub const RECONCILE_NUMERIC_EXTRA: &str = r##"
+
+NOTE: if NEW and an existing memory give different numbers, dates, amounts or names for the SAME attribute, NEW is not a DUPLICATE: choose UPDATE ("text" = ONE sentence with the NEW value, keeping an old detail only if it is still true) or CONTRADICT. A different attribute of the same topic is ADD, never folded into an existing sentence."##;
+
+/// Appended to MEMORY_PROMPT for the single re-ask of `retry_on_zero_memories`.
+pub const ZERO_MEMORY_RETRY_SUFFIX: &str = r##"
+
+IMPORTANT: the NEW MESSAGES above DO contain facts worth remembering (names, numbers, dates, prices, titles, list items). List them now, one memory per specific, and return ONLY the JSON object."##;

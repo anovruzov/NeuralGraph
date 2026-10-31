@@ -7,6 +7,7 @@
 //!     neuralgraph-memory process   # drain the queue in the foreground
 //!     neuralgraph-memory search "where does Ali live?"
 //!     neuralgraph-memory context "planning a trip"
+//!     neuralgraph-memory answer "how long have I lived in Berlin?" [--today YYYY-MM-DD] [--json]
 //!     neuralgraph-memory profile Ali
 //!     neuralgraph-memory stats
 //!     neuralgraph-memory forget mem_...
@@ -16,6 +17,7 @@
 //! LLM settings default to the LLM_BASE_URL, LLM_MODEL and EMBED_MODEL environment variables. Subcommands, flags,
 //! environment variables and printed output are the ones of the former `python -m NeuralGraph.chat_memory`.
 
+use crate::answer::{AnswerOptions, AnswerRoute};
 use crate::error::{MemoryError, Result};
 use crate::llm::LlmClient;
 use crate::pycompat::{dumps, py_prefix, py_repr_counts, py_str, py_truthy, JsonFormat};
@@ -42,6 +44,7 @@ const ABOUT: &str = "Command line for the cross-chat memory system.
     neuralgraph-memory process   # drain the queue in the foreground
     neuralgraph-memory search \"where does Ali live?\"
     neuralgraph-memory context \"planning a trip\"
+    neuralgraph-memory answer \"how long have I lived in Berlin?\" [--today YYYY-MM-DD] [--json]
     neuralgraph-memory profile Ali
     neuralgraph-memory stats
     neuralgraph-memory forget mem_...
@@ -183,6 +186,21 @@ pub enum Command {
         #[arg(long = "max-chars", default_value_t = 3600)]
         max_chars: usize,
     },
+    /// answer a question from the memories (routed reader: concise, compute with thinking for counts/durations/dates, IDK cascade)
+    Answer {
+        #[command(flatten)]
+        common: Common,
+        question: String,
+        /// the date the question is asked on (default: today, UTC)
+        #[arg(long)]
+        today: Option<String>,
+        /// auto (default: count/duration/date questions think), concise, or compute
+        #[arg(long, default_value = "auto")]
+        route: String,
+        /// print the Answer (text, routed, cascaded, context, calls, seconds) as JSON
+        #[arg(long)]
+        json: bool,
+    },
     /// what is known about a subject
     Profile {
         #[command(flatten)]
@@ -232,6 +250,7 @@ impl Command {
             | Command::Process { common, .. }
             | Command::Search { common, .. }
             | Command::Context { common, .. }
+            | Command::Answer { common, .. }
             | Command::Profile { common, .. }
             | Command::Stats { common }
             | Command::Forget { common, .. }
@@ -528,6 +547,22 @@ async fn cmd_context(common: &Common, query: &str, k: usize, max_chars: usize) -
     Ok(0)
 }
 
+async fn cmd_answer(common: &Common, question: &str, today: Option<String>, route: &str, json: bool) -> Result<i32> {
+    let route = AnswerRoute::parse(route)
+        .ok_or_else(|| MemoryError::Value(format!("--route must be auto, concise or compute, not '{route}'")))?;
+    let cm = build(common)?;
+    let opts = AnswerOptions { today, route, ..Default::default() };
+    let out = cm.answer(question, &opts).await;
+    cm.close().await;
+    let ans = out?;
+    if json {
+        println_flush(&dumps(&ans.to_value(), &JsonFormat::pretty()));
+    } else {
+        println_flush(&ans.text);
+    }
+    Ok(0)
+}
+
 async fn cmd_profile(common: &Common, subject: &str, json: bool) -> Result<i32> {
     let cm = build(common)?;
     let prof = cm.profile(subject, 60)?;
@@ -623,6 +658,9 @@ pub async fn run(cli: Cli) -> Result<i32> {
             cmd_search(&common, &query, k, subject, history, json).await
         }
         Command::Context { common, query, k, max_chars } => cmd_context(&common, &query, k, max_chars).await,
+        Command::Answer { common, question, today, route, json } => {
+            cmd_answer(&common, &question, today, &route, json).await
+        }
         Command::Profile { common, subject, json } => cmd_profile(&common, &subject, json).await,
         Command::Stats { common } => cmd_stats(&common).await,
         Command::Forget { common, memory_id, reason } => cmd_forget(&common, &memory_id, &reason).await,

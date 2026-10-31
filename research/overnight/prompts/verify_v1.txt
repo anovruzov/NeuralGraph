@@ -1,0 +1,7 @@
+Here are the memories and a proposed answer to the question. Check the answer against the memories only. Reply with exactly one line: SUPPORTED, UNSUPPORTED, or FIX: <corrected answer>.
+
+{memories}
+
+Question: {question}
+Proposed answer: {answer}
+Reply:

@@ -26,7 +26,7 @@ use crate::pycompat::{
     fnum, obj, py_float_repr, py_int_from_value, py_len, py_prefix, py_repr_str, py_round, py_strip,
 };
 use crate::store::{ChatMemoryStore, ExtractionPlan, MemoryQuery, PlanEntity, PlanRelation};
-use crate::temporal::{parse_datetime_flexible, resolve_relative_dates};
+use crate::temporal::{parse_datetime_flexible, resolve_more_relative_dates, resolve_relative_dates};
 use crate::textutil::{clip, content_hash, is_probable_chitchat, norm_entity, norm_relation, normalize_ws, tokenize};
 use indexmap::{IndexMap, IndexSet};
 use regex::Regex;
@@ -522,6 +522,22 @@ pub struct ExtractionConfig {
     pub min_grounding_overlap: f64,
     /// capitalised names in a memory must occur in the window/registry
     pub require_name_grounding: bool,
+    // ---- experiment switches (all off by default; `ChatMemoryConfig::apply_env_overrides` flips them) ----
+    /// name grounding also accepts the parts of a hyphenated token ("Red" / "headed" for "Red-headed")
+    pub hyphen_ground: bool,
+    /// a candidate whose digit sequences differ from the existing memory is never dropped as a cosine duplicate:
+    /// it goes to the reconcile prompt (plus [`prompts::RECONCILE_NUMERIC_EXTRA`]), and a DUPLICATE verdict on
+    /// differing numbers becomes UPDATE
+    pub numeric_dedupe_guard: bool,
+    /// also annotate "N weeks/months/years ago" with the resolved date ([`resolve_more_relative_dates`])
+    pub annotate_more_relative: bool,
+    /// text inserted into the MEMORY_PROMPT rules block (before CHAT PARTICIPANTS) when non-empty
+    pub memory_prompt_extra: String,
+    /// when a batch with >= 2 substantive messages yields zero memories, ask once more with a nudge
+    pub retry_on_zero_memories: bool,
+    /// sentences of human messages with a number that no extracted memory mentions become memories themselves
+    pub verbatim_fallback: bool,
+    pub verbatim_fallback_max_per_batch: usize,
 }
 
 impl Default for ExtractionConfig {
@@ -552,6 +568,13 @@ impl Default for ExtractionConfig {
             annotate_relative_dates: true,
             min_grounding_overlap: 0.2,
             require_name_grounding: true,
+            hyphen_ground: false,
+            numeric_dedupe_guard: false,
+            annotate_more_relative: false,
+            memory_prompt_extra: String::new(),
+            retry_on_zero_memories: false,
+            verbatim_fallback: false,
+            verbatim_fallback_max_per_batch: 3,
         }
     }
 }
@@ -592,9 +615,11 @@ pub fn cos(a: Option<&[f64]>, b: Option<&[f64]>) -> f64 {
     }
 }
 
-fn annotate_dates(text: &str, sent_at: Option<&str>) -> String {
+fn annotate_dates(text: &str, sent_at: Option<&str>, more: bool) -> String {
     let Some(base) = parse_iso(sent_at) else { return text.to_string() };
-    match resolve_relative_dates(text, Some(base.naive_local())) {
+    let base = base.naive_local();
+    match resolve_relative_dates(text, Some(base)) {
+        Ok((annotated, _)) if more => resolve_more_relative_dates(&annotated, base),
         Ok((annotated, _)) => annotated,
         Err(_) => text.to_string(),
     }
@@ -607,6 +632,7 @@ fn fmt_messages(
     numbered: bool,
     assistant_roles: &[String],
     annotate: bool,
+    annotate_more: bool,
 ) -> String {
     let mut lines = Vec::with_capacity(msgs.len());
     for (i, m) in msgs.iter().enumerate() {
@@ -618,7 +644,7 @@ fn fmt_messages(
         let tag = if assistant_roles.contains(&role.to_lowercase()) { " (assistant)" } else { "" };
         let mut body = clip(&normalize_ws(&m.text), max_chars);
         if annotate {
-            body = annotate_dates(&body, m.sent_at.as_deref());
+            body = annotate_dates(&body, m.sent_at.as_deref(), annotate_more);
         }
         lines.push(format!("{prefix}[{who}{tag}]{stamp}: {body}"));
     }
@@ -645,6 +671,59 @@ static FIRST_PERSON_START_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(
 static FIRST_PERSON_SUB_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^(?:i|you|he|she|they|we)\b").unwrap());
 static CAP_NAME_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b[A-Z][a-z]{2,}\b").unwrap());
 static DECISION_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(ADD|DUPLICATE|UPDATE|CONTRADICT)\b").unwrap());
+static NUMBER_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\d+(?:[.,:/]\d+)*").unwrap());
+
+/// The digit sequences of `text` ("$1,300" -> "1,300", "2023-05-18" -> "2023", "05", "18"), sorted.
+fn numbers(text: &str) -> Vec<String> {
+    let mut v: Vec<String> = NUMBER_RE.find_iter(text).map(|m| m.as_str().to_string()).collect();
+    v.sort();
+    v
+}
+
+/// False only when BOTH texts carry digit sequences and those sequences differ (the numeric dedupe guard). A text
+/// without digits ("scored several goals") never conflicts with one that has them ("scored 3 goals"): the guard
+/// then falls back to the plain cosine duplicate / the model's reconcile verdict.
+fn numbers_compatible(a: &str, b: &str) -> bool {
+    let (na, nb) = (numbers(a), numbers(b));
+    na.is_empty() || nb.is_empty() || na == nb
+}
+
+/// `" window text "` as searched for names; with `hyphen` the hyphen-split form is appended so that "Red" and
+/// "headed" both match inside "Red-headed" (the unsplit form stays for the whole token).
+fn window_form(text: &str, hyphen: bool) -> String {
+    let n = norm_entity(text);
+    if hyphen && n.contains('-') {
+        format!(" {n} {} ", n.replace('-', " "))
+    } else {
+        format!(" {n} ")
+    }
+}
+
+/// Splits on newlines and on sentence-ending punctuation followed by whitespace ("$4.50" stays whole).
+fn split_sentences(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let mut cur = String::new();
+        let mut chars = line.chars().peekable();
+        while let Some(c) = chars.next() {
+            cur.push(c);
+            if matches!(c, '.' | '!' | '?') && chars.peek().is_none_or(|n| n.is_whitespace()) {
+                out.push(std::mem::take(&mut cur));
+            }
+        }
+        out.push(cur);
+    }
+    out.into_iter().map(|s| normalize_ws(&s)).filter(|s| !s.is_empty()).collect()
+}
+
+/// Inserts `extra` before the first (`last == false`) or last occurrence of `marker`; unchanged if absent.
+fn insert_at_marker(prompt: String, marker: &str, extra: &str, last: bool) -> String {
+    let pos = if last { prompt.rfind(marker) } else { prompt.find(marker) };
+    match pos {
+        Some(i) => format!("{}{}{}", &prompt[..i], extra, &prompt[i..]),
+        None => prompt,
+    }
+}
 
 impl MemoryExtractor {
     pub fn new(store: Arc<ChatMemoryStore>, llm: Arc<dyn LlmClient>, config: ExtractionConfig) -> Self {
@@ -725,8 +804,16 @@ impl MemoryExtractor {
         } else {
             cfg.max_message_chars
         };
-        let ctx_txt = fmt_messages(&context, &names, cfg.max_message_chars, false, &roles, false);
-        let new_txt = fmt_messages(&worthy, &names, msg_chars, true, &roles, cfg.annotate_relative_dates);
+        let ctx_txt = fmt_messages(&context, &names, cfg.max_message_chars, false, &roles, false, false);
+        let new_txt = fmt_messages(
+            &worthy,
+            &names,
+            msg_chars,
+            true,
+            &roles,
+            cfg.annotate_relative_dates,
+            cfg.annotate_more_relative,
+        );
         let repair = if attempt > 1 { py_format(prompts::REPAIR_SUFFIX, &[]) } else { String::new() };
         let max_tokens = (cfg.generate_max_tokens as f64 * (1.0 + 0.5 * ((attempt - 1).min(3) as f64))) as i64;
         let display = |s: &String| names.get(s).cloned().unwrap_or_else(|| s.clone());
@@ -740,7 +827,7 @@ impl MemoryExtractor {
             known.iter().map(|k| format!("- {k}")).collect::<Vec<_>>().join("\n")
         };
         let speakers_comma = if speakers_list.is_empty() { "unknown".to_string() } else { speakers_list.join(", ") };
-        let mem_prompt = py_format(
+        let mut mem_prompt = py_format(
             prompts::MEMORY_PROMPT,
             &[
                 ("kinds", &kinds),
@@ -760,7 +847,12 @@ impl MemoryExtractor {
                     if cfg.extract_assistant { prompts::ASSISTANT_SKIP_ON } else { prompts::ASSISTANT_SKIP_OFF },
                 ),
             ],
-        ) + &repair;
+        );
+        if !cfg.memory_prompt_extra.trim().is_empty() {
+            let extra = format!("\n{}", cfg.memory_prompt_extra.trim());
+            mem_prompt = insert_at_marker(mem_prompt, "\n\nCHAT PARTICIPANTS:", &extra, false);
+        }
+        mem_prompt += &repair;
         let mem_call = self.llm.generate(&mem_prompt, max_tokens, 0.0, cfg.llm_timeout);
         let (mem_out, rel_out) = if cfg.extract_relations {
             let speakers_and =
@@ -791,7 +883,28 @@ impl MemoryExtractor {
                 py_repr_str(&clip(&mem_out, 160))
             )));
         }
-        let candidates = self.parse_memories(&mem_out, &worthy);
+        let mut candidates = self.parse_memories(&mem_out, &worthy);
+        if cfg.retry_on_zero_memories && candidates.is_empty() && self.substantive_targets(&worthy) >= 2 {
+            let nudged = mem_prompt.clone() + prompts::ZERO_MEMORY_RETRY_SUFFIX;
+            if let Ok(again) = self.llm.generate(&nudged, max_tokens, 0.0, cfg.llm_timeout).await {
+                let retried = self.parse_memories(&again, &worthy);
+                plan.audit.push((
+                    "retry_zero".into(),
+                    Some(chat_id.clone()),
+                    obj([("recovered", Value::from(retried.len()))]),
+                ));
+                candidates = retried;
+            }
+        }
+        if cfg.verbatim_fallback {
+            let extra = self.verbatim_fallbacks(&worthy, &candidates);
+            plan.audit.push((
+                "verbatim_fallback".into(),
+                Some(chat_id.clone()),
+                obj([("added", Value::from(extra.len()))]),
+            ));
+            candidates.extend(extra);
+        }
         let mut pending_audit = Vec::new();
         let candidates =
             self.normalise(candidates, &worthy, &mut registry, &speaker_ids, &names, &mut pending_audit)?;
@@ -895,7 +1008,7 @@ impl MemoryExtractor {
         parts.extend(speaker_names.iter().cloned());
         let window_text = parts.join(" ");
         let window_tokens: IndexSet<String> = tokenize(&window_text).into_iter().collect();
-        let window_lower = format!(" {} ", norm_entity(&window_text));
+        let window_lower = window_form(&window_text, cfg.hyphen_ground);
         let mut known_names: IndexSet<String> = IndexSet::new();
         for (eid, v) in &registry.entries {
             known_names.extend(norm_entity(&v.name).split(' ').filter(|s| !s.is_empty()).map(str::to_string));
@@ -906,6 +1019,14 @@ impl MemoryExtractor {
         }
         for sp in names.values().chain(speaker_names.iter()) {
             known_names.extend(norm_entity(sp).split(' ').filter(|s| !s.is_empty()).map(str::to_string));
+        }
+        if cfg.hyphen_ground {
+            let parts: Vec<String> = known_names
+                .iter()
+                .filter(|n| n.contains('-'))
+                .flat_map(|n| n.split('-').filter(|p| !p.is_empty()).map(str::to_string).collect::<Vec<_>>())
+                .collect();
+            known_names.extend(parts);
         }
         let mut kept = Vec::new();
         for mut c in cands {
@@ -973,6 +1094,60 @@ impl MemoryExtractor {
             kept.push(c);
         }
         kept
+    }
+
+    /// Messages the model should have found something in: extractable sources of at least 40 characters.
+    fn substantive_targets(&self, worthy: &[ChatMessage]) -> usize {
+        worthy
+            .iter()
+            .filter(|m| (self.config.extract_assistant || !self.is_assistant(m)) && m.text.chars().count() >= 40)
+            .count()
+    }
+
+    /// Lever "verbatim fallback": every sentence of a human message holding a number that no candidate of the batch
+    /// mentions becomes a candidate of its own (`<Speaker> said: "<sentence>"`), at most
+    /// `verbatim_fallback_max_per_batch`. No LLM call; the candidates go through the normal normalise/ground/reconcile.
+    fn verbatim_fallbacks(&self, worthy: &[ChatMessage], cands: &[CandidateMemory]) -> Vec<CandidateMemory> {
+        let cfg = &self.config;
+        let mut covered: IndexSet<String> = cands.iter().flat_map(|c| numbers(&c.text)).collect();
+        let mut out: Vec<CandidateMemory> = Vec::new();
+        for (i, m) in worthy.iter().enumerate() {
+            if self.is_assistant(m) {
+                continue;
+            }
+            let who = cfg.speaker_names.get(&m.speaker).cloned().unwrap_or_else(|| m.speaker.clone());
+            for sentence in split_sentences(&m.text) {
+                if out.len() >= cfg.verbatim_fallback_max_per_batch {
+                    return out;
+                }
+                let nums = numbers(&sentence);
+                if sentence.split_whitespace().count() < 3 || nums.iter().all(|n| covered.contains(n)) {
+                    continue;
+                }
+                covered.extend(nums);
+                out.push(CandidateMemory {
+                    text: format!("{who} said: \"{}\"", clip(&sentence, 240)),
+                    kind: "fact".into(),
+                    subject_raw: who.clone(),
+                    importance: 0.35,
+                    confidence: 0.9,
+                    when_raw: String::new(),
+                    source_indices: vec![i + 1],
+                    entities: Vec::new(),
+                    subject_id: String::new(),
+                    subject_name: String::new(),
+                    speaker: String::new(),
+                    source_message_ids: Vec::new(),
+                    observed_at: String::new(),
+                    event_time: None,
+                    event_time_precision: "none".into(),
+                    entity_ids: Vec::new(),
+                    embedding: None,
+                    text_hash: String::new(),
+                });
+            }
+        }
+        out
     }
 
     fn known_memories(&self, speaker_ids: &IndexMap<String, String>, human_speakers: &[String]) -> Result<Vec<String>> {
@@ -1216,7 +1391,7 @@ impl MemoryExtractor {
         let cfg = &self.config;
         let o = parse_json_object(raw).unwrap_or_default();
         let joined: String = worthy.iter().chain(context.iter()).map(|m| m.text.as_str()).collect::<Vec<_>>().join(" ");
-        let window_lower = format!(" {} ", norm_entity(&joined));
+        let window_lower = window_form(&joined, cfg.hyphen_ground);
         let window_tokens: IndexSet<String> = tokenize(&joined).into_iter().collect();
         let known_before: IndexSet<String> = registry
             .entries
@@ -1372,7 +1547,8 @@ impl MemoryExtractor {
         // Phase 1 (in order, no LLM): exact and intra-batch duplicates, and the per-candidate shortlist.
         // Phase 2 (concurrent): the RECONCILE_PROMPT calls, which are independent of each other.
         // Phase 3 (in order): apply decisions, so same-target corrections still chain deterministically.
-        let mut accepted: Vec<Option<Vec<f64>>> = Vec::new();
+        let guard = cfg.numeric_dedupe_guard;
+        let mut accepted: Vec<(Option<Vec<f64>>, String)> = Vec::new();
         let mut pending: Vec<Pending> = Vec::new();
         for c in cands.iter() {
             // exact text duplicate anywhere
@@ -1386,7 +1562,10 @@ impl MemoryExtractor {
                 continue;
             }
             // intra-batch near-duplicate (against everything not already dropped as a duplicate)
-            if accepted.iter().any(|a| cos(c.embedding.as_deref(), a.as_deref()) >= cfg.dedupe_cosine) {
+            if accepted.iter().any(|(e, text)| {
+                cos(c.embedding.as_deref(), e.as_deref()) >= cfg.dedupe_cosine
+                    && (!guard || numbers_compatible(&c.text, text))
+            }) {
                 plan.audit.push((
                     "duplicate".into(),
                     None,
@@ -1419,17 +1598,17 @@ impl MemoryExtractor {
                     .collect()
             };
             match top.first().map(|t| t.0) {
-                Some(s) if s >= cfg.dedupe_cosine => {
+                Some(s) if s >= cfg.dedupe_cosine && !(guard && !numbers_compatible(&c.text, &top[0].1.text)) => {
                     let target = top[0].1.clone();
                     pending.push((c.clone(), top, "DUPLICATE", Some(target)));
                 }
                 Some(s) if s >= cfg.reconcile_cosine => {
                     pending.push((c.clone(), top, "ASK", None));
-                    accepted.push(c.embedding.clone());
+                    accepted.push((c.embedding.clone(), c.text.clone()));
                 }
                 _ => {
                     pending.push((c.clone(), top, "ADD", None));
-                    accepted.push(c.embedding.clone());
+                    accepted.push((c.embedding.clone(), c.text.clone()));
                 }
             }
         }
@@ -1481,10 +1660,13 @@ impl MemoryExtractor {
             .join("\n");
         let new_date = py_prefix(&c.observed_at, 10).to_string();
         let new_text = clip(&c.text, 400);
-        let prompt = py_format(
+        let mut prompt = py_format(
             prompts::RECONCILE_PROMPT,
             &[("new_date", &new_date), ("new_text", &new_text), ("existing", &listing)],
         );
+        if self.config.numeric_dedupe_guard {
+            prompt = insert_at_marker(prompt, "\n\nReturn ONLY JSON:", prompts::RECONCILE_NUMERIC_EXTRA, true);
+        }
         let raw = match self.llm.generate(&prompt, self.config.reconcile_max_tokens, 0.0, self.config.llm_timeout).await
         {
             Ok(r) => r,
@@ -1511,6 +1693,12 @@ impl MemoryExtractor {
         }
         if decision != "ADD" && target.is_none() {
             target = existing.first().cloned();
+        }
+        if self.config.numeric_dedupe_guard
+            && decision == "DUPLICATE"
+            && target.as_ref().is_some_and(|t| !numbers_compatible(&c.text, &t.text))
+        {
+            decision = "UPDATE".into();
         }
         let mut text = Some(normalize_ws(&as_str(o.get("text"), 600))).filter(|t| !t.is_empty());
         if decision == "UPDATE" && text.as_ref().is_none_or(|t| py_len(t) < 8) {

@@ -20,7 +20,8 @@ use crate::models::{parse_iso, total_seconds, utcnow, ChatMessage, Memory, Retri
 use crate::pycompat::{fnum, obj, py_fixed, py_len, py_prefix, py_round, py_strip};
 use crate::store::{query_bounds, ChannelFilter, ChatMemoryStore, IndexRow, MemoryQuery};
 use crate::textutil::{norm_entity, normalize_ws};
-use chrono::{DateTime, Utc};
+use crate::temporal::{extract_query_time_cues, parse_datetime_flexible, OrderCue};
+use chrono::{DateTime, NaiveDate, Utc};
 use indexmap::{IndexMap, IndexSet};
 use regex::Regex;
 use serde_json::Value;
@@ -51,6 +52,11 @@ pub struct RetrievalConfig {
     pub recency_weight: f64,
     pub recency_half_life_days: f64,
     pub min_channel_hits: usize,
+    /// context block budget in characters (default 6000, was 3600). With `context_raw_messages = 3` this is what
+    /// the overnight round-3 winner measured: the block grows from ~770 to ~1100 tokens. LongMemEval-50, two
+    /// independent ingests, same reader protocol vs the previous defaults: strict_v2 56 -> 76 and 52 -> 66,
+    /// official judge 58 -> 70 and 48 -> 68 (11:1 both), lenient-non-IDK 72 -> 80 and 64 -> 80; LoCoMo-66 strict
+    /// 50 -> 56. Judge audit: research/overnight/judgments/round3_winner.md
     pub context_max_chars: usize,
     /// 15 beat 10 by 3-4 pts and 5 by ~10 on LoCoMo evidence recall
     pub context_k: usize,
@@ -60,6 +66,40 @@ pub struct RetrievalConfig {
     pub vector_min_sim: f64,
     /// a context line needs a keyword/graph hit or at least this cosine
     pub context_min_vector_sim: f64,
+    /// source quotes rendered under each memory line of the context block (0 = off). Rendering up to 3 of the
+    /// original messages a memory was extracted from lifted LoCoMo conv0 answer accuracy (strict 50 -> 54-56,
+    /// lenient 77 -> 83-86). Quotes only use the budget left after the memory lines, so they never displace one.
+    pub context_quotes: usize,
+    /// quotes are cut to this many characters (then "…"); 300 was the measured setting
+    pub context_quote_chars: usize,
+    /// only quote messages whose speaker is not the assistant. The overnight LongMemEval-50 benchmark's winning
+    /// rendering ("quotes_user") was measured this way: assistant turns echo the question and distract the reader.
+    /// `false` appends assistant turns after the human ones as a fallback (the older, unmeasured behaviour).
+    pub context_quotes_human_only: bool,
+    /// episodic recall (default 3; 0 = off): up to this many raw chat messages matching the question (BM25 over the
+    /// message store) are appended after the memory lines under `RAW_HEADER`, skipping messages already quoted in
+    /// the block. They spend the budget left after memories and quotes. Default flipped 0 -> 3 together with
+    /// `context_max_chars` 3600 -> 6000 on LongMemEval-50 evidence (two ingests: strict_v2 56 -> 76 / 52 -> 66,
+    /// official judge 58 -> 70 / 48 -> 68, lenient-non-IDK 72 -> 80 / 64 -> 80; LoCoMo-66 strict 50 -> 56; see
+    /// research/overnight/judgments/round3_winner.md). Human turns only unless `context_raw_include_assistant`.
+    pub context_raw_messages: usize,
+    /// raw messages are cut to this many characters (sentence-boundary rule of `cut_quote`)
+    pub context_raw_message_chars: usize,
+    /// also allow assistant-role messages as raw messages (default false)
+    pub context_raw_include_assistant: bool,
+    /// opt-in rule-based multi-query retrieval for `context_with_results` (default false): up to 3 extra sub-queries
+    /// are derived from the question by rules (see [`multi_query_rules`]; no LLM), each searched with
+    /// `max(context_k / 2, 5)` hits, and merged with the main search by memory id keeping the highest score.
+    pub context_multi_query: bool,
+    /// opt-in rule-based temporal prior (default 0.0 = off; env token `temporal_prior=<f64>`). When > 0, `search`
+    /// reads time cues off the query by rules (see [`crate::temporal::extract_query_time_cues`]; no LLM): a date
+    /// window ("in March", "March 2023", "2023-04-10", "last week", "3 months ago") multiplies the score of
+    /// memories whose time (event time, else observation time) lies inside it by `1 + w`, and of memories with a
+    /// known event time outside it by `1 / (1 + w/2)`; memories with no event time are never demoted. "most
+    /// recent / latest" wording tilts toward the newest candidates by `1 + w * f` (`f` = position of the memory's
+    /// time among the candidates, 0 oldest .. 1 newest), "first / earliest" toward the oldest. The factor shows as
+    /// the `temporal` channel.
+    pub temporal_prior: f64,
 }
 
 impl Default for RetrievalConfig {
@@ -77,12 +117,160 @@ impl Default for RetrievalConfig {
             recency_weight: 0.2,
             recency_half_life_days: 365.0,
             min_channel_hits: 1,
-            context_max_chars: 3600,
+            context_max_chars: 6000,
             context_k: 15,
             context_min_relative_score: 0.25,
             vector_min_sim: 0.05,
             context_min_vector_sim: 0.3,
+            context_quotes: 1,
+            context_quote_chars: 300,
+            context_quotes_human_only: true,
+            context_raw_messages: 3,
+            context_raw_message_chars: 400,
+            context_raw_include_assistant: false,
+            context_multi_query: false,
+            temporal_prior: 0.0,
         }
+    }
+}
+
+// ---------------------------------------------------------------------------------------- rule-based sub-queries
+const MQ_MAX: usize = 3;
+/// words that do not count as content in a sub-query (on top of `textutil::is_stop`)
+const MQ_FILLER: &[&str] = &[
+    "i", "am", "is", "a", "an", "of", "in", "on", "at", "to", "my", "me", "or", "as", "by", "if", "so", "do", "it", "be",
+    "we", "up", "us", "am",
+];
+/// leading words stripped from a "how many/much/long, total" noun phrase
+const MQ_AUX: &[&str] = &[
+    "did", "i", "have", "do", "does", "has", "had", "was", "were", "is", "are", "am", "will", "would", "can", "could",
+    "the", "a", "an", "my", "total", "number", "amount", "of", "been",
+];
+/// words that end a noun phrase ("hours of yoga | did I do")
+const MQ_STOP_NP: &[&str] = &[
+    "i", "did", "have", "do", "does", "has", "had", "was", "were", "is", "are", "am", "will", "would", "can", "could",
+    "we", "you", "when", "while", "that", "which", "who", "where", "what", "if", "now",
+];
+
+static MQ_SPLIT_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i),\s*(?:and\s+|or\s+)?|\s+and\s+|\s+or\s+").unwrap());
+static MQ_BETWEEN_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bbetween\s+(.+?)\s+and\s+(.+)$").unwrap());
+static MQ_FROM_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bfrom\s+(.+?)\s+to\s+(.+)$").unwrap());
+static MQ_BEFORE_AFTER_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\b(?:before|after)\s+(.+)$").unwrap());
+static MQ_QUANT_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\b(?:how\s+many|how\s+much|how\s+long|total)\b\s*(.*)$").unwrap());
+
+fn mq_words(text: &str) -> Vec<&str> {
+    text.split(|c: char| !(c.is_alphanumeric() || c == '\'' || c == '-')).filter(|w| !w.is_empty()).collect()
+}
+
+fn mq_content_words(text: &str) -> usize {
+    mq_words(text)
+        .into_iter()
+        .filter(|w| {
+            let l = w.to_lowercase();
+            !crate::textutil::is_stop(&l) && !MQ_FILLER.contains(&l.as_str())
+        })
+        .count()
+}
+
+fn mq_clean(text: &str) -> String {
+    normalize_ws(text).trim_matches(|c: char| c.is_whitespace() || matches!(c, '?' | '.' | '!' | ',' | ';' | ':')).to_string()
+}
+
+/// Up to three extra sub-queries for `question`, derived by rules only (no LLM):
+/// (a) the question split on `, ` / " and " / " or " when every piece keeps at least two content words (a piece that
+///     is too short is glued back to its neighbour);
+/// (b) one sub-query per anchor of "between X and Y", "from X to Y", "before X", "after X";
+/// (c) for "how many / how much / how long / total ..." the noun phrase alone (interrogative prefix and auxiliaries
+///     stripped: how many, did I, have I, do I, was, were, the, a, ...). A noun phrase with fewer than two content
+///     words falls back to the remainder with every auxiliary removed ("projects have I led" -> "projects led").
+/// Sub-queries with fewer than two content words, or equal to the question (case-insensitive), are dropped; the rest
+/// are deduplicated and capped at three, in the order (b), (c), (a): the anchors and noun phrases are more specific
+/// than the clauses, whose first half mostly repeats the question. (c) is skipped when (b) matched.
+pub fn multi_query_rules(question: &str) -> Vec<String> {
+    let q = mq_clean(question);
+    let mut cands: Vec<String> = Vec::new(); // (b) and (c) first: they are the more specific
+    let mut clauses: Vec<String> = Vec::new();
+
+    // (a) clause split
+    let mut pieces: Vec<String> = Vec::new();
+    let mut seps: Vec<String> = Vec::new();
+    let mut last = 0;
+    for m in MQ_SPLIT_RE.find_iter(&q) {
+        pieces.push(q[last..m.start()].to_string());
+        seps.push(m.as_str().to_string());
+        last = m.end();
+    }
+    pieces.push(q[last..].to_string());
+    while pieces.len() > 1 {
+        let Some(i) = pieces.iter().position(|p| mq_content_words(p) < 2) else { break };
+        // glue the short piece to its right neighbour (or its left one when it is the last)
+        let (a, b) = if i + 1 < pieces.len() { (i, i + 1) } else { (i - 1, i) };
+        let glued = format!("{}{}{}", pieces[a], seps[a], pieces[b]);
+        pieces[a] = glued;
+        pieces.remove(b);
+        seps.remove(a);
+    }
+    if pieces.len() > 1 {
+        clauses = pieces;
+    }
+
+    // (b) anchors
+    for re in [&*MQ_BETWEEN_RE, &*MQ_FROM_RE] {
+        if let Some(c) = re.captures(&q) {
+            cands.push(c[1].to_string());
+            cands.push(c[2].to_string());
+        }
+    }
+    if let Some(c) = MQ_BEFORE_AFTER_RE.captures(&q) {
+        cands.push(c[1].to_string());
+    }
+
+    // (c) quantity questions (skipped when (b) found anchors: the noun phrase would be a fragment of them)
+    let quant = if cands.is_empty() { MQ_QUANT_RE.captures(&q) } else { None };
+    if let Some(c) = quant {
+        let words = mq_words(&c[1]);
+        let lead = words.iter().take_while(|w| MQ_AUX.contains(&w.to_lowercase().as_str())).count();
+        let rest = &words[lead..];
+        let np: Vec<&str> =
+            rest.iter().take_while(|w| !MQ_STOP_NP.contains(&w.to_lowercase().as_str())).copied().collect();
+        let np = np.join(" ");
+        if mq_content_words(&np) >= 2 {
+            cands.push(np);
+        } else {
+            let all: Vec<&str> =
+                rest.iter().filter(|w| !MQ_AUX.contains(&w.to_lowercase().as_str())).copied().collect();
+            cands.push(all.join(" "));
+        }
+    }
+
+    cands.extend(clauses);
+    let mut out: Vec<String> = Vec::new();
+    for c in cands {
+        let c = mq_clean(&c);
+        if mq_content_words(&c) < 2 || c.eq_ignore_ascii_case(&q) || out.iter().any(|o| o.eq_ignore_ascii_case(&c)) {
+            continue;
+        }
+        out.push(c);
+        if out.len() == MQ_MAX {
+            break;
+        }
+    }
+    out
+}
+
+/// An over-long quote cut after the last ". " / "? " / "! " within `limit` characters when that boundary lies past
+/// half the limit, else hard-cut at `limit`; "…" marks the cut. Same rule as the benchmark harness (`cut_quote`).
+fn cut_quote(text: &str, limit: usize) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    if chars.len() <= limit {
+        return text.to_string();
+    }
+    let head = &chars[..limit + 1];
+    let end = head.windows(2).rposition(|w| matches!(w, ['.' | '?' | '!', ' ']));
+    match end {
+        Some(i) if i as f64 > limit as f64 / 2.0 => format!("{}…", head[..=i].iter().collect::<String>()),
+        _ => format!("{}…", chars[..limit].iter().collect::<String>().trim_end()),
     }
 }
 
@@ -142,6 +330,8 @@ pub struct IndexData {
     kind: Vec<String>,
     t_lo: Vec<String>,
     t_hi: Vec<String>,
+    /// the memory carries its own event time (`t_lo`/`t_hi` otherwise come from `observed_at`)
+    has_event: Vec<bool>,
     importance: Vec<f32>,
     active: Vec<bool>,
     observed: Vec<String>,
@@ -182,6 +372,7 @@ impl IndexData {
             kind: Vec::with_capacity(n),
             t_lo: Vec::with_capacity(n),
             t_hi: Vec::with_capacity(n),
+            has_event: Vec::with_capacity(n),
             importance: Vec::with_capacity(n),
             active: Vec::with_capacity(n),
             observed: Vec::with_capacity(n),
@@ -203,6 +394,7 @@ impl IndexData {
             };
             d.t_lo.push(lo);
             d.t_hi.push(hi);
+            d.has_event.push(has_event);
             d.importance.push(r.importance as f32);
             d.active.push(r.status == "active");
             d.observed.push(r.observed_at.clone());
@@ -363,6 +555,9 @@ pub struct SearchOptions {
     pub query_embedding: Option<Vec<f64>>,
     pub channels: Option<String>,
     pub touch: bool,
+    /// ISO date used as "today" for the relative time cues of `RetrievalConfig::temporal_prior` ("last week", "3
+    /// months ago"); the clock when absent. Ignored while the prior is off.
+    pub now: Option<String>,
 }
 
 impl Default for SearchOptions {
@@ -380,7 +575,67 @@ impl Default for SearchOptions {
             query_embedding: None,
             channels: None,
             touch: true,
+            now: None,
         }
+    }
+}
+
+/// Query time cues resolved for one search (see `RetrievalConfig::temporal_prior`).
+struct TemporalPrior {
+    /// inclusive window as ISO bounds comparable with `IndexData::t_lo` / `t_hi`
+    window: Option<(String, String)>,
+    order: Option<OrderCue>,
+    /// (oldest day, newest day) over the fused candidates, when the ordering cue can be applied
+    span: Option<(NaiveDate, NaiveDate)>,
+}
+
+fn index_day(t: &str) -> Option<NaiveDate> {
+    NaiveDate::parse_from_str(py_prefix(t, 10), "%Y-%m-%d").ok()
+}
+
+impl TemporalPrior {
+    /// `None` when the query carries no time cue.
+    fn new(query: &str, now: Option<&str>, index: &IndexData, fused_ids: &[String]) -> Option<Self> {
+        let today = now
+            .and_then(|n| parse_datetime_flexible(Some(n)).ok().flatten())
+            .map(|f| f.naive.date())
+            .unwrap_or_else(|| utcnow().date_naive());
+        let cues = extract_query_time_cues(query, today);
+        let window = cues.window.map(|(a, b)| (format!("{a}T00:00:00"), format!("{b}T23:59:59")));
+        let mut span = None;
+        if cues.order.is_some() {
+            let days: Vec<NaiveDate> =
+                fused_ids.iter().filter_map(|m| index.position(m)).filter_map(|i| index_day(&index.t_lo[i])).collect();
+            if let (Some(lo), Some(hi)) = (days.iter().min(), days.iter().max()) {
+                if hi > lo {
+                    span = Some((*lo, *hi));
+                }
+            }
+        }
+        if window.is_none() && span.is_none() {
+            return None;
+        }
+        Some(TemporalPrior { window, order: cues.order, span })
+    }
+
+    /// Score multiplier of the memory at index position `i` (1.0 = untouched).
+    fn factor(&self, index: &IndexData, i: usize, w: f64) -> f64 {
+        let mut f = 1.0;
+        if let Some((lo, hi)) = &self.window {
+            let inside = index.t_hi[i].as_str() >= lo.as_str() && index.t_lo[i].as_str() <= hi.as_str();
+            if inside {
+                f *= 1.0 + w;
+            } else if index.has_event[i] {
+                f /= 1.0 + w / 2.0;
+            }
+        }
+        if let (Some(order), Some((lo, hi))) = (self.order, self.span) {
+            if let Some(d) = index_day(&index.t_lo[i]) {
+                let newest = (d - lo).num_days() as f64 / (hi - lo).num_days() as f64;
+                f *= 1.0 + w * if order == OrderCue::Latest { newest } else { 1.0 - newest };
+            }
+        }
+        f
     }
 }
 
@@ -605,6 +860,7 @@ impl MemoryRetriever {
         let now = utcnow();
         let fused_ids: Vec<String> = fused.keys().cloned().collect();
         let ent_map = self.store.entity_ids_for_memories(&fused_ids)?;
+        let tprior = (cfg.temporal_prior > 0.0).then(|| TemporalPrior::new(&query, opts.now.as_deref(), &index, &fused_ids)).flatten();
         let q_ent_set: IndexSet<&String> = q_entities.iter().collect();
         let mut scored: Vec<(String, f64, IndexMap<String, f64>)> = Vec::new();
         for (mid, base) in &fused {
@@ -622,6 +878,13 @@ impl MemoryRetriever {
             {
                 s *= cfg.entity_boost;
                 boosts.push(("entity", cfg.entity_boost));
+            }
+            if let Some(tp) = &tprior {
+                let f = tp.factor(&index, i, cfg.temporal_prior);
+                if f != 1.0 {
+                    s *= f;
+                    boosts.push(("temporal", py_round(f, 4)));
+                }
             }
             let hits = per_channel.values().filter(|ch| ch.contains_key(mid)).count();
             if hits < cfg.min_channel_hits {
@@ -772,7 +1035,38 @@ impl MemoryRetriever {
         let mut opts = filters.clone();
         opts.k = k.filter(|k| *k > 0).unwrap_or(cfg.context_k);
         opts.with_sources = false;
-        let results = self.search(query, &opts).await?;
+        let results = if cfg.context_multi_query {
+            let mut merged = self.search(query, &opts).await?;
+            let subs = multi_query_rules(query);
+            if !subs.is_empty() {
+                let mut sub_opts = opts.clone();
+                sub_opts.k = (opts.k / 2).max(5);
+                sub_opts.query_embedding = None; // the caller's embedding belongs to the main query only
+                let mut at: HashMap<String, usize> =
+                    merged.iter().enumerate().map(|(i, r)| (r.memory.memory_id.clone(), i)).collect();
+                for sub in &subs {
+                    for r in self.search(sub, &sub_opts).await? {
+                        match at.get(&r.memory.memory_id) {
+                            Some(&i) => {
+                                if r.score > merged[i].score {
+                                    merged[i] = r;
+                                }
+                            }
+                            None => {
+                                at.insert(r.memory.memory_id.clone(), merged.len());
+                                merged.push(r);
+                            }
+                        }
+                    }
+                }
+                // stable: on equal scores the main query's results (pushed first) stay ahead
+                merged.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+                merged.truncate(opts.k);
+            }
+            merged
+        } else {
+            self.search(query, &opts).await?
+        };
         if results.is_empty() {
             return Ok((String::new(), Vec::new()));
         }
@@ -795,6 +1089,7 @@ impl MemoryRetriever {
         let mut used = py_len(header);
         let limit = max_chars.filter(|m| *m > 0).unwrap_or(cfg.context_max_chars);
         let mut included = Vec::new();
+        let mut line_of = Vec::new();
         for r in results {
             let m = &r.memory;
             let when = match m.event_time.as_deref().filter(|s| !s.is_empty()) {
@@ -808,13 +1103,138 @@ impl MemoryRetriever {
                 continue; // too long for the remaining budget; a shorter, later line may still fit
             }
             lines.push(line);
+            line_of.push(lines.len() - 1);
             used += n + 1;
             included.push(r);
         }
         if lines.len() == 1 {
             return Ok((String::new(), Vec::new()));
         }
-        Ok((lines.join("\n"), included))
+        let mut used = used;
+        let mut seen = IndexSet::new();
+        let mut quotes: Vec<Vec<String>> = vec![Vec::new(); lines.len()];
+        if cfg.context_quotes > 0 {
+            self.attach_quotes(&included, &line_of, limit, &mut used, &mut seen, &mut quotes)?;
+        }
+        let mut out = Vec::with_capacity(lines.len() + quotes.iter().map(Vec::len).sum::<usize>());
+        for (line, q) in lines.into_iter().zip(quotes) {
+            out.push(line);
+            out.extend(q);
+        }
+        if cfg.context_raw_messages > 0 {
+            self.append_raw_messages(query, filters, limit, used, &seen, &mut out)?;
+        }
+        Ok((out.join("\n"), included))
+    }
+
+    /// Source quotes under each included memory line. Spends only what the memory lines left over.
+    fn attach_quotes(
+        &self,
+        included: &[RetrievedMemory],
+        line_of: &[usize],
+        limit: usize,
+        used: &mut usize,
+        seen: &mut IndexSet<String>,
+        quotes: &mut [Vec<String>],
+    ) -> Result<()> {
+        let cfg = &self.config;
+        // Quotes only spend what the memory lines left over, so they can never push a memory out of the block.
+        // The search ran without sources (`with_sources = false`); load them only for the lines that made it in.
+        let included_ids: Vec<String> = included.iter().map(|r| r.memory.memory_id.clone()).collect();
+        let sourced: HashMap<String, Vec<String>> = self
+            .store
+            .get_memories_by_ids(&included_ids, true)?
+            .into_iter()
+            .map(|m| (m.memory_id, m.source_message_ids))
+            .collect();
+        let all_ids: Vec<String> = sourced.values().flatten().cloned().collect();
+        let by_id: HashMap<String, ChatMessage> =
+            self.store.get_messages_by_ids(&all_ids)?.into_iter().map(|m| (m.message_id.clone(), m)).collect();
+        // a quote already shown under an earlier memory (whitespace-collapsed, lowercased) is not repeated
+        for (r, &at) in included.iter().zip(line_of) {
+            let ids = sourced.get(&r.memory.memory_id).map(Vec::as_slice).unwrap_or_default();
+            let srcs: Vec<&ChatMessage> = ids.iter().filter_map(|id| by_id.get(id)).collect();
+            let is_bot = |m: &ChatMessage| m.role == "assistant" || m.speaker.trim().eq_ignore_ascii_case("assistant");
+            let (bot, human): (Vec<_>, Vec<_>) = srcs.into_iter().partition(|m| is_bot(m));
+            let bot = if cfg.context_quotes_human_only { Vec::new() } else { bot };
+            for m in human.into_iter().chain(bot) {
+                if quotes[at].len() >= cfg.context_quotes {
+                    break;
+                }
+                let raw = m.text.replace('\n', " ");
+                let norm = normalize_ws(&raw).to_lowercase();
+                if norm.is_empty() || !seen.insert(norm) {
+                    continue;
+                }
+                let text = cut_quote(&raw, cfg.context_quote_chars);
+                let when =
+                    py_prefix(m.sent_at.as_deref().filter(|s| !s.is_empty()).unwrap_or(&r.memory.observed_at), 10);
+                let line = format!("    > {} ({when}): \"{text}\"", m.speaker);
+                let n = py_len(&line) + 1;
+                if *used + n > limit {
+                    break; // out of budget: this memory (and, in effect, later ones) keep their line without quotes
+                }
+                *used += n;
+                quotes[at].push(line);
+            }
+        }
+        Ok(())
+    }
+
+    /// Episodic recall: raw messages matching the query, appended after the memory/quote lines.
+    fn append_raw_messages(
+        &self,
+        query: &str,
+        filters: &SearchOptions,
+        limit: usize,
+        mut used: usize,
+        seen: &IndexSet<String>,
+        out: &mut Vec<String>,
+    ) -> Result<()> {
+        let cfg = &self.config;
+        let filter =
+            ChannelFilter { chat_id: filters.chat_id.clone(), speaker: filters.speaker.clone(), ..Default::default() };
+        // over-fetch: quoted and assistant messages are skipped after ranking
+        let depth = (cfg.context_raw_messages * 20).max(100) as i64;
+        let hits = self.store.message_keyword_candidates(&normalize_ws(query), depth, &filter)?;
+        if hits.is_empty() {
+            return Ok(());
+        }
+        let ids: Vec<String> = hits.iter().map(|h| h.0.clone()).collect();
+        let mut by_id: HashMap<String, ChatMessage> =
+            self.store.get_messages_by_ids(&ids)?.into_iter().map(|m| (m.message_id.clone(), m)).collect();
+        let mut seen_raw = IndexSet::new();
+        let mut lines = Vec::new();
+        let mut header_cost = py_len(RAW_HEADER) + 1;
+        for id in &ids {
+            if lines.len() >= cfg.context_raw_messages {
+                break;
+            }
+            let Some(m) = by_id.remove(id) else { continue };
+            let is_bot = m.role == "assistant" || m.speaker.trim().eq_ignore_ascii_case("assistant");
+            if is_bot && !cfg.context_raw_include_assistant {
+                continue;
+            }
+            let norm = normalize_ws(&m.text.replace('\n', " ")).to_lowercase();
+            if norm.is_empty() || seen.contains(&norm) || !seen_raw.insert(norm) {
+                continue;
+            }
+            let text = cut_quote(&normalize_ws(&m.text.replace('\n', " ")), cfg.context_raw_message_chars);
+            let when = py_prefix(m.sent_at.as_deref().filter(|s| !s.is_empty()).unwrap_or(&m.ingested_at), 10);
+            let line = format!("- ({}, {when}) \"{text}\"", m.speaker);
+            let n = py_len(&line) + 1;
+            if used + header_cost + n > limit {
+                continue; // a shorter, lower-ranked message may still fit
+            }
+            used += header_cost + n;
+            header_cost = 0;
+            lines.push(line);
+        }
+        if !lines.is_empty() {
+            out.push(RAW_HEADER.to_string());
+            out.extend(lines);
+        }
+        Ok(())
     }
 
     pub fn profile(&self, subject: &str, limit: i64) -> Result<Value> {
@@ -887,6 +1307,9 @@ impl MemoryRetriever {
     }
 }
 
+/// Section header of the episodic-recall (raw messages) block.
+pub const RAW_HEADER: &str = "Raw messages that match the question:";
+
 pub const DEFAULT_HEADER: &str = "Relevant long-term memories (most relevant first):";
 
 /// Human-readable channel summary ("semantic 0.83, keyword match, names the subject").
@@ -905,6 +1328,9 @@ pub fn explain(ch: &IndexMap<String, f64>) -> String {
         parts.push("names the subject".to_string());
     } else if ch.contains_key("entity") {
         parts.push("names a mentioned entity".to_string());
+    }
+    if let Some(v) = ch.get("temporal") {
+        parts.push(format!("temporal x{}", py_fixed(*v, 2)));
     }
     parts.join(", ")
 }

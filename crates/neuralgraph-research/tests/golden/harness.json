@@ -21362,7 +21362,7 @@
        "ctx_empty": false,
        "search_turn_rank": 0,
        "search_session_rank": 0,
-       "context_preview": "Relevant long-term memories (most relevant first):\n- [2023-05-20, event] The user actually went there with some friends during The's study abroad program at the University of Melbourne. (from chat answer_94030872, 2023-05-20)"
+       "context_preview": "Relevant long-term memories (most relevant first):\n- [2023-05-20, event] The user actually went there with some friends during The's study abroad program at the University of Melbourne. (from chat answer_94030872, 2023-05-20)\n    > user (2023-05-20): \"That sounds amazing! I've been to the Great Ocean Road before, and it's definitely a must-see in Australia. I actually went there with some friends "
       },
       {
        "question_id": "2311e44b",
@@ -21387,7 +21387,7 @@
        "ctx_empty": false,
        "search_turn_rank": 0,
        "search_session_rank": 0,
-       "context_preview": "Relevant long-term memories (most relevant first):\n- [fact] By the way, The user just got back to reading \"The Nightingale\" and The user is excited to finally finish it - it's a long one with 440 pages! (from chat answer_bf633415_2, 2023-05-23)\n- [preference] Specifically, The user would like to know how to schedule The's reading sessions, eliminate distractions, and practice active reading. (from"
+       "context_preview": "Relevant long-term memories (most relevant first):\n- [fact] By the way, The user just got back to reading \"The Nightingale\" and The user is excited to finally finish it - it's a long one with 440 pages! (from chat answer_bf633415_2, 2023-05-23)\n    > user (2023-05-23): \"I've been tracking my reading habits and I want to update my spreadsheet. Can you help me calculate how many pages I need to read"
       },
       {
        "question_id": "10e09553",
@@ -21412,7 +21412,7 @@
        "ctx_empty": false,
        "search_turn_rank": 0,
        "search_session_rank": 0,
-       "context_preview": "Relevant long-term memories (most relevant first):\n- [fact] Oh, and by the way, The user caught 7 largemouth bass on The's trip to Lake Michigan with Alex on 7/10 - that was a great day! (from chat answer_67be2c38_1, 2023-08-11)\n- [plan] The user is thinking of planning another fishing trip to Lake Michigan, what's the current water temperature and fishing forecast for the area? (from chat answer_"
+       "context_preview": "Relevant long-term memories (most relevant first):\n- [fact] Oh, and by the way, The user caught 7 largemouth bass on The's trip to Lake Michigan with Alex on 7/10 - that was a great day! (from chat answer_67be2c38_1, 2023-08-11)\n    > user (2023-08-11): \"I was thinking of getting a tree stand for deer hunting this season. Can you tell me what to consider when buying one, and do you have any recomm"
       },
       {
        "question_id": "0862e8bf_abs",
@@ -21437,7 +21437,7 @@
        "ctx_empty": false,
        "search_turn_rank": null,
        "search_session_rank": 0,
-       "context_preview": "Relevant long-term memories (most relevant first):\n- [fact] By the way, The's cat's name is Luna, and she's been such a sweetie throughout all the changes The've been making to her environment. (from chat answer_c6fd8ebd_abs, 2023-05-20)\n- [fact] The user is thinking of getting The's cat microchipped, do you know anything about the process or have any recommendations for veterinarians in The's are"
+       "context_preview": "Relevant long-term memories (most relevant first):\n- [fact] By the way, The's cat's name is Luna, and she's been such a sweetie throughout all the changes The've been making to her environment. (from chat answer_c6fd8ebd_abs, 2023-05-20)\n    > user (2023-05-20): \"By the way, my cat's name is Luna, and she's been such a sweetie throughout all the changes we've been making to her environment. I'm ju"
       }
      ]
     }
@@ -21537,7 +21537,7 @@
        "ctx_empty": false,
        "search_turn_rank": null,
        "search_session_rank": 0,
-       "context_preview": "Relevant long-term memories (most relevant first):\n- [fact] By the way, Alex's cat's name is Luna, and she's been such a sweetie throughout all the changes Alex've been making to her environment. (from chat answer_c6fd8ebd_abs, 2023-05-20)"
+       "context_preview": "Relevant long-term memories (most relevant first):\n- [fact] By the way, Alex's cat's name is Luna, and she's been such a sweetie throughout all the changes Alex've been making to her environment. (from chat answer_c6fd8ebd_abs, 2023-05-20)\n    > user (2023-05-20): \"By the way, my cat's name is Luna, and she's been such a sweetie throughout all the changes we've been making to her environment. I'm "
       },
       {
        "question_id": "10e09553",
@@ -21562,7 +21562,7 @@
        "ctx_empty": false,
        "search_turn_rank": 0,
        "search_session_rank": 0,
-       "context_preview": "Relevant long-term memories (most relevant first):\n- [fact] Oh, and by the way, Alex caught 7 largemouth bass on Alex's trip to Lake Michigan with Alex on 7/10 - that was a great day! (from chat answer_67be2c38_1, 2023-08-11)\n- [plan] Alex is thinking of planning another fishing trip to Lake Michigan, what's the current water temperature and fishing forecast for the area? (from chat answer_67be2c3"
+       "context_preview": "Relevant long-term memories (most relevant first):\n- [fact] Oh, and by the way, Alex caught 7 largemouth bass on Alex's trip to Lake Michigan with Alex on 7/10 - that was a great day! (from chat answer_67be2c38_1, 2023-08-11)\n    > user (2023-08-11): \"I was thinking of getting a tree stand for deer hunting this season. Can you tell me what to consider when buying one, and do you have any recommend"
       },
       {
        "question_id": "3b6f954b",
@@ -21587,7 +21587,7 @@
        "ctx_empty": false,
        "search_turn_rank": 0,
        "search_session_rank": 0,
-       "context_preview": "Relevant long-term memories (most relevant first):\n- [2023-05-20, event] Alex actually went there with some friends during Alex's study abroad program at the University of Melbourne. (from chat answer_94030872, 2023-05-20)"
+       "context_preview": "Relevant long-term memories (most relevant first):\n- [2023-05-20, event] Alex actually went there with some friends during Alex's study abroad program at the University of Melbourne. (from chat answer_94030872, 2023-05-20)\n    > user (2023-05-20): \"That sounds amazing! I've been to the Great Ocean Road before, and it's definitely a must-see in Australia. I actually went there with some friends dur"
       }
      ]
     }
@@ -21680,7 +21680,7 @@
        "ctx_empty": false,
        "search_turn_rank": 0,
        "search_session_rank": 0,
-       "context_preview": "Relevant long-term memories (most relevant first):\n- [fact] By the way, The user just got back to reading \"The Nightingale\" and The user is excited to finally finish it - it's a long one with 440 pages! (from chat answer_bf633415_2, 2023-05-23)\n- [preference] Specifically, The user would like to know how to schedule The's reading sessions, eliminate distractions, and practice active reading. (from"
+       "context_preview": "Relevant long-term memories (most relevant first):\n- [fact] By the way, The user just got back to reading \"The Nightingale\" and The user is excited to finally finish it - it's a long one with 440 pages! (from chat answer_bf633415_2, 2023-05-23)\n    > user (2023-05-23): \"I've been tracking my reading habits and I want to update my spreadsheet. Can you help me calculate how many pages I need to read"
       },
       {
        "question_id": "10e09553",
@@ -21705,7 +21705,7 @@
        "ctx_empty": false,
        "search_turn_rank": 0,
        "search_session_rank": 0,
-       "context_preview": "Relevant long-term memories (most relevant first):\n- [fact] Oh, and by the way, The user caught 7 largemouth bass on The's trip to Lake Michigan with Alex on 7/10 - that was a great day! (from chat answer_67be2c38_1, 2023-08-11)\n- [plan] The user is thinking of planning another fishing trip to Lake Michigan, what's the current water temperature and fishing forecast for the area? (from chat answer_"
+       "context_preview": "Relevant long-term memories (most relevant first):\n- [fact] Oh, and by the way, The user caught 7 largemouth bass on The's trip to Lake Michigan with Alex on 7/10 - that was a great day! (from chat answer_67be2c38_1, 2023-08-11)\n    > user (2023-08-11): \"I was thinking of getting a tree stand for deer hunting this season. Can you tell me what to consider when buying one, and do you have any recomm"
       }
      ]
     }

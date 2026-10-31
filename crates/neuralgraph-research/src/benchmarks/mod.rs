@@ -2,6 +2,7 @@
 //! `src/bin/`.
 
 pub mod call_center;
+pub mod chat_memory_context;
 pub mod chat_memory_locomo;
 pub mod chat_memory_longmemeval;
 pub mod pyharness;

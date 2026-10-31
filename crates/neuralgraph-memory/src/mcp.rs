@@ -16,6 +16,7 @@
 //! client's version when it is supported, otherwise with its latest. Tool names, schemas, result shapes and error
 //! codes are unchanged from the Python server.
 
+use crate::answer::AnswerOptions;
 use crate::error::MemoryError;
 use crate::pycompat::{
     dumps, fnum, obj, py_float_from_value, py_int_from_value, py_prefix, py_str, py_truthy, JsonFormat, PyIntError,
@@ -142,6 +143,16 @@ pub fn tools() -> Value {
             "title": "Memory system status",
             "description": "Counts, worker/queue state, token savings and the five-axis grade of the memory system.",
             "inputSchema": schema(json!({}), &[]),
+            "annotations": {"readOnlyHint": true, "openWorldHint": false},
+        },
+        {
+            "name": "memory_answer",
+            "title": "Answer a question from memory",
+            "description": "Answer a question from the stored memories with the measured reader protocol: the context block is built, count/duration/date questions are worked out step by step (a slower, thinking call), the rest are answered concisely, and a first answer of \"I don't know\" is retried with the compute prompt. Returns the answer text, whether it was routed to the compute prompt or cascaded, the context the reader saw, the number of model calls and the seconds taken. Slower than memory_context (one or more local-model calls); use memory_context when you will read the memories yourself.",
+            "inputSchema": schema(json!({
+                "question": {"type": "string"},
+                "today": {"type": "string", "description": "The date the question is asked on (YYYY-MM-DD); defaults to today (UTC). Durations and relative dates are computed against it."},
+            }), &["question"]),
             "annotations": {"readOnlyHint": true, "openWorldHint": false},
         },
     ])
@@ -316,6 +327,7 @@ impl MemoryTools {
             "memory_entities" => self.memory_entities(args),
             "memory_forget" => self.memory_forget(args),
             "memory_status" => self.memory_status(args),
+            "memory_answer" => self.memory_answer(args).await,
             other => Err(ToolFailure::Tool(format!("unknown tool: {other}"))),
         }
     }
@@ -562,6 +574,14 @@ impl MemoryTools {
         };
         let ok = self.cm.retract(&memory_id, &reason)?;
         Ok(obj([("memory_id", memory_id_v), ("retracted", Value::Bool(ok))]))
+    }
+
+    async fn memory_answer(&self, map: &Map<String, Value>) -> ToolResult {
+        let a = Args::bind("tool_memory_answer", map, &["question", "today"], &["question"])?;
+        let question = a.text("question", "strip")?.unwrap_or_default();
+        let opts = AnswerOptions { today: a.loose_str("today"), ..Default::default() };
+        let ans = self.cm.answer(question.trim(), &opts).await?;
+        Ok(ans.to_value())
     }
 
     fn memory_status(&self, map: &Map<String, Value>) -> ToolResult {

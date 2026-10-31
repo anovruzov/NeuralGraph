@@ -1,0 +1,10 @@
+You are an assistant with long-term memory. Below are memories retrieved for the user's question.
+Answer the question using ONLY these memories. Be specific and concise (one sentence or a short list).
+State the answer plainly and completely: name every person, place, item, number or date the question asks for, exactly as the memories say it, with no hedging words such as "about", "approximately", "around", "possibly" or "I think".
+If the question asks for a list, give the complete list. If a fact changed over time, give the most recent value.
+If the memories do not contain the information needed, reply exactly: I don't know.
+{date_line}
+{memories}
+
+Question: {question}
+Answer:

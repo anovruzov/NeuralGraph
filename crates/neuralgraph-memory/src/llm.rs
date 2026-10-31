@@ -23,10 +23,33 @@ use std::sync::{Arc, LazyLock, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 
+/// Per-call generation options for [`LlmClient::generate_with`].
+#[derive(Clone, Debug)]
+pub struct GenerateOpts {
+    pub max_tokens: i64,
+    pub temperature: f64,
+    /// seconds before the HTTP call is abandoned
+    pub timeout: f64,
+    /// let the model reason before answering (default off: the extraction/retrieval calls never think). With thinking
+    /// on, `max_tokens` has to cover the reasoning as well as the reply.
+    pub think: bool,
+}
+
+impl Default for GenerateOpts {
+    fn default() -> Self {
+        GenerateOpts { max_tokens: 512, temperature: 0.0, timeout: 120.0, think: false }
+    }
+}
+
 /// Minimal async interface the worker and retriever depend on.
 #[async_trait]
 pub trait LlmClient: Send + Sync {
     async fn generate(&self, prompt: &str, max_tokens: i64, temperature: f64, timeout: f64) -> Result<String>;
+    /// [`Self::generate`] with a per-call thinking switch. The default ignores `think` (clients that cannot switch
+    /// reasoning per call, such as the scripted fake); [`BackendLlmClient`] honours it.
+    async fn generate_with(&self, prompt: &str, opts: &GenerateOpts) -> Result<String> {
+        self.generate(prompt, opts.max_tokens, opts.temperature, opts.timeout).await
+    }
     async fn embed(&self, text: &str) -> Result<Vec<f64>>;
     async fn embed_many(&self, texts: &[String]) -> Result<Vec<Vec<f64>>>;
     async fn close(&self);
@@ -151,11 +174,15 @@ impl BackendLlmClient {
     fn stats_mut(&self) -> std::sync::MutexGuard<'_, LlmStats> {
         self.stats.lock().unwrap_or_else(|e| e.into_inner())
     }
-}
 
-#[async_trait]
-impl LlmClient for BackendLlmClient {
-    async fn generate(&self, prompt: &str, max_tokens: i64, temperature: f64, timeout: f64) -> Result<String> {
+    async fn generate_inner(
+        &self,
+        prompt: &str,
+        max_tokens: i64,
+        temperature: f64,
+        timeout: f64,
+        think: bool,
+    ) -> Result<String> {
         let t0 = Instant::now();
         {
             let mut s = self.stats_mut();
@@ -164,7 +191,7 @@ impl LlmClient for BackendLlmClient {
         }
         let out = self
             .with_retries("generate", || {
-                crate::backend::llm_generate(
+                crate::backend::llm_generate_think(
                     &self.http,
                     prompt,
                     &self.model,
@@ -172,6 +199,7 @@ impl LlmClient for BackendLlmClient {
                     temperature,
                     max_tokens,
                     timeout,
+                    think,
                 )
             })
             .await;
@@ -187,6 +215,17 @@ impl LlmClient for BackendLlmClient {
                 Err(e)
             }
         }
+    }
+}
+
+#[async_trait]
+impl LlmClient for BackendLlmClient {
+    async fn generate(&self, prompt: &str, max_tokens: i64, temperature: f64, timeout: f64) -> Result<String> {
+        self.generate_inner(prompt, max_tokens, temperature, timeout, false).await
+    }
+
+    async fn generate_with(&self, prompt: &str, opts: &GenerateOpts) -> Result<String> {
+        self.generate_inner(prompt, opts.max_tokens, opts.temperature, opts.timeout, opts.think).await
     }
 
     async fn embed(&self, text: &str) -> Result<Vec<f64>> {

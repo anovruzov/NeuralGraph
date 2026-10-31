@@ -7,6 +7,7 @@
 //! GET  /api/status            everything the dashboard shows (auto-polled)
 //! GET  /api/search?q=..&k=..  hybrid search across chats
 //! GET  /api/context?q=..      prompt-ready context block
+//! POST /api/answer {question, today?}  answer from memory (routed reader protocol)
 //! GET  /api/memories          recent memories (?subject=&kind=&limit=)
 //! GET  /api/entities          top entities (?limit=)
 //! GET  /api/profile/{subject}
@@ -324,7 +325,7 @@ async fn route(
                 return not_allowed("GET,HEAD");
             }
         }
-        "/api/messages" | "/api/messages/batch" | "/api/remember" | "/api/forget" | "/api/maintain" => {
+        "/api/messages" | "/api/messages/batch" | "/api/remember" | "/api/forget" | "/api/maintain" | "/api/answer" => {
             if *method != Method::POST {
                 return not_allowed("POST");
             }
@@ -556,6 +557,22 @@ async fn route(
                 json_resp(&json!({"retracted": ok}), 200)
             }
             "/api/maintain" => json_resp(&cm.maintain().await?, 200),
+            "/api/answer" => {
+                let b = match body_object(&body) {
+                    Ok(b) => b,
+                    Err(r) => return Ok(*r),
+                };
+                let question = match b.get("question") {
+                    Some(Value::String(s)) if !py_strip(s).is_empty() => py_strip(s).to_string(),
+                    _ => return Ok(bad("'question' is required", 400)),
+                };
+                if b.get("today").is_some_and(|v| !v.is_null() && !v.is_string()) {
+                    return Ok(bad("'today' must be a string", 400));
+                }
+                let today = b.get("today").and_then(Value::as_str).filter(|v| !v.is_empty()).map(str::to_string);
+                let opts = crate::answer::AnswerOptions { today, ..Default::default() };
+                json_resp(&cm.answer(&question, &opts).await?.to_value(), 200)
+            }
             _ => text_error(404, "404: Not Found"),
         })
     }

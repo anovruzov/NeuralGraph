@@ -34,9 +34,9 @@ third-party service: the model runs on your machine, and the database is a file 
 
 ## 1. What you get
 
-Nine tools, in two groups.
+Ten tools, in two groups.
 
-**Reading** — `memory_search`, `memory_context`, `memory_profile`, `memory_related`, `memory_entities`,
+**Reading** — `memory_search`, `memory_context`, `memory_answer`, `memory_profile`, `memory_related`, `memory_entities`,
 `memory_status`. All are read-only and cannot modify anything.
 
 **Writing** — `memory_add_message` (record a turn, extraction happens in the background), `memory_remember`
@@ -307,6 +307,14 @@ Retracts a memory and the relations grounded in it. Parameters: `memory_id` (**r
 
 No parameters. Counts, worker and queue state, token savings, and the five-axis grade of the memory system.
 
+### `memory_answer` — answer a question from memory
+
+Parameters: `question` (**required**), `today` (`YYYY-MM-DD`, default today UTC). Builds the context block, then answers it with the
+measured reader protocol: count, duration, total and date-difference questions go to a step-by-step prompt with the model's
+thinking on (slower, a few seconds); the rest get a concise answer, and a concise "I don't know" is retried with the step-by-step
+prompt. Returns `text`, `routed`, `cascaded`, `context`, `calls` and `seconds`. It calls the local model, so it is slower than
+`memory_context`; use that when your own model will read the memories. REST: `POST /api/answer` with `{"question","today"?}`.
+
 ---
 
 ## 8. Resources and prompts
@@ -349,6 +357,7 @@ neuralgraph-memory remember "The user moved to Berlin in August 2026." --when 20
 neuralgraph-memory remember "The user's cat is named Luna and is 3 years old."
 neuralgraph-memory search "where does the user live" -k 5
 neuralgraph-memory context "tell me about the user's pets"
+neuralgraph-memory answer "how many pets does the user have?" --today 2026-10-29
 neuralgraph-memory profile user
 ```
 
