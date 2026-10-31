@@ -10,8 +10,9 @@ streams five chats through them while you watch memory get built:
 
 ```bash
 cargo run --release --example chat_memory_live_demo -- --fake-llm
-# then open http://127.0.0.1:8765/
 ```
+
+Then open http://127.0.0.1:8765/.
 
 **Plain cross-chat demo** — feeds the same chats in and asks questions that span them:
 
