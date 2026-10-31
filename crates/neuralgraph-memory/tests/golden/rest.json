@@ -1632,7 +1632,7 @@
    "kind": "json",
    "body": {
     "query": "Berlin",
-    "context": "Relevant long-term memories (most relevant first):\n- [2026-04-05, plan] Ali Novruzov signed up for the Berlin half marathon on 5 April and Ali Novruzov has never run more than 12 km. (from chat 2026-03-02-onboarding, 2026-03-02)\n- [plan] Ali Novruzov is switching from the night shift to days from June, and Ali Novruzov is thinking about starting a part-time master's in public health at TU Berlin in October. (from chat 2026-05-11-work, 2026-05-11)\n- [2026-03-02, event] Ali Novruzov just moved from Baku to Berlin last month for a nursing job at Charité, and Ali Novruzov is trying to get organised. (from chat 2026-03-02-onboarding, 2026-03-02)"
+    "context": "Relevant long-term memories (most relevant first):\n- [2026-04-05, plan] Ali Novruzov signed up for the Berlin half marathon on 5 April and Ali Novruzov has never run more than 12 km. (from chat 2026-03-02-onboarding, 2026-03-02)\n    > user (2026-03-02): \"Mostly my training plan. I signed up for the Berlin half marathon on 5 April and I've never run more than 12 km. Also my cat Luna needs a vet, she's 3 and due for her shots.\"\n- [plan] Ali Novruzov is switching from the night shift to days from June, and Ali Novruzov is thinking about starting a part-time master's in public health at TU Berlin in October. (from chat 2026-05-11-work, 2026-05-11)\n    > user (2026-05-11): \"Rough week. I'm switching from the night shift to days from June, and I'm thinking about starting a part-time master's in public health at TU Berlin in October. Jonas says it's a lot with marathon training.\"\n- [2026-03-02, event] Ali Novruzov just moved from Baku to Berlin last month for a nursing job at Charité, and Ali Novruzov is trying to get organised. (from chat 2026-03-02-onboarding, 2026-03-02)\n    > user (2026-03-02): \"Hi! I'm Ali. I just moved from Baku to Berlin last month for a nursing job at Charité, and I'm trying to get organised.\""
    }
   },
   {
@@ -3672,7 +3672,7 @@
      "tokens_saved": 218,
      "compression_ratio": 1.78,
      "context_queries": 1,
-     "context_tokens_served": 162,
+     "context_tokens_served": 308,
      "context_raw_tokens_avoided": 276
     },
     "grade": {
@@ -4936,7 +4936,7 @@
      "tokens_saved": 218,
      "compression_ratio": 1.78,
      "context_queries": 1,
-     "context_tokens_served": 162,
+     "context_tokens_served": 308,
      "context_raw_tokens_avoided": 276
     },
     "grade": {
@@ -5862,7 +5862,7 @@
      "tokens_saved": 218,
      "compression_ratio": 1.78,
      "context_queries": 1,
-     "context_tokens_served": 162,
+     "context_tokens_served": 308,
      "context_raw_tokens_avoided": 276
     },
     "grade": {

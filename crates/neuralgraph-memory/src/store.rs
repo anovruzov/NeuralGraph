@@ -956,6 +956,52 @@ impl ChatMemoryStore {
         self.group_counts("SELECT status, COUNT(*) AS n FROM messages GROUP BY status")
     }
 
+    /// Keyword channel over raw messages (episodic recall): FTS5 bm25 on `messages_fts` (higher = better, like
+    /// [`Self::keyword_candidates`]); falls back to LIKE with a flat score. Only `chat_id` and `speaker` of the
+    /// filter apply to messages.
+    pub fn message_keyword_candidates(&self, query: &str, limit: i64, f: &ChannelFilter) -> Result<Vec<(String, f64)>> {
+        let toks = tokenize(query);
+        if toks.is_empty() {
+            return Ok(Vec::new());
+        }
+        let (mut sql, mut args, prefix) = if self.has_fts() {
+            let m = fts_match_string(query);
+            if m.is_empty() {
+                return Ok(Vec::new());
+            }
+            (
+                "SELECT m.message_id AS id, bm25(messages_fts) AS s FROM messages_fts f JOIN messages m ON m.rid = f.rowid WHERE messages_fts MATCH ?".to_string(),
+                vec![SqlValue::Text(m)],
+                "m.",
+            )
+        } else {
+            (
+                format!(
+                    "SELECT message_id AS id, -1.0 AS s FROM messages WHERE ({})",
+                    vec!["text LIKE ?"; toks.len()].join(" OR ")
+                ),
+                toks.iter().map(|t| SqlValue::Text(format!("%{t}%"))).collect(),
+                "",
+            )
+        };
+        if let Some(s) = non_empty(&f.chat_id) {
+            sql.push_str(&format!(" AND {prefix}chat_id = ?"));
+            args.push(text_v(s));
+        }
+        if let Some(s) = non_empty(&f.speaker) {
+            sql.push_str(&format!(" AND {prefix}speaker = ?"));
+            args.push(text_v(s));
+        }
+        sql.push_str(" ORDER BY s LIMIT ?");
+        args.push(SqlValue::Integer(limit));
+        self.with_conn(|c| {
+            let mut st = c.prepare(&sql)?;
+            let rows =
+                st.query_map(params_from_iter(args.iter()), |r| Ok((r.get::<_, String>(0)?, -r.get::<_, f64>(1)?)))?;
+            Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+        })
+    }
+
     /// Keyword search over raw messages (FTS5; falls back to LIKE).
     pub fn search_messages(&self, query: &str, limit: i64, chat_id: Option<&str>) -> Result<Vec<(ChatMessage, f64)>> {
         let toks = tokenize(query);

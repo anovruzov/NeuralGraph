@@ -76,6 +76,95 @@ impl Default for ChatMemoryConfig {
     }
 }
 
+impl ChatMemoryConfig {
+    /// Applies the experiment switches in the `NEURALGRAPH_EXP` environment variable (see [`Self::apply_exp`]).
+    /// [`ChatMemory::open`] calls this first, so benchmark harnesses that build their own config pick the switches
+    /// up unchanged. Unset or empty: no effect.
+    ///
+    /// ```text
+    /// NEURALGRAPH_EXP=hyphen_ground=0,num_dedupe=0,verbatim_fallback,verbatim_max=2,prompt_extra_file=/tmp/rules.txt
+    /// ```
+    pub fn apply_env_overrides(&mut self) {
+        if let Ok(spec) = std::env::var("NEURALGRAPH_EXP") {
+            self.apply_exp(&spec);
+        }
+    }
+
+    /// Applies a comma-separated list of tokens; unknown or malformed tokens warn on stderr and are ignored.
+    ///
+    /// The five boolean switches take `=0|1`; the bare token means 1, `=0` turns the setting off (needed for the two that
+    /// default on, to A/B against the old behaviour).
+    ///
+    /// - `hyphen_ground[=0|1]`: name grounding accepts the parts of hyphenated names ("Red-headed") (default off)
+    /// - `num_dedupe[=0|1]`: a candidate with different numbers than the existing memory is never a cosine duplicate
+    ///   (default off)
+    /// - `months_ago[=0|1]`: annotate "N weeks/months/years ago" with the resolved date (default off)
+    /// - `retry_zero[=0|1]`: re-ask once when a batch with >= 2 substantive messages yields no memory (default off)
+    /// - `verbatim_fallback[=0|1]`: sentences with a number no memory mentions become memories (default off)
+    /// - `verbatim_max=N`: cap of those per batch (default 3)
+    /// - `prompt_extra_file=PATH`: the file's text is inserted into the MEMORY_PROMPT rules block (number its rules
+    ///   from 10)
+    /// - `batch_size=N`: messages per extraction pass
+    /// - `context_messages=N`: earlier messages shown as context
+    /// - `context_quotes=N`: source quotes rendered under each memory line of the context block (0 = off)
+    /// - `context_quote_chars=N`: characters per quote (default 300)
+    /// - `context_quotes_human_only=0|1`: skip assistant turns as quotes (default 1, the measured variant)
+    /// - `context_raw_messages=N`: episodic recall, N raw matching messages appended to the context block (default 3 since c03f3efc)
+    /// - `context_raw_message_chars=N`: characters per raw message (default 400)
+    /// - `context_raw_include_assistant=0|1`: allow assistant-role raw messages (default 0)
+    /// - `context_multi_query[=0|1]`: rule-based sub-queries merged into the context search (default off)
+    /// - `temporal_prior=W`: rule-based temporal prior from the question's time cues, strength W >= 0 (default 0 =
+    ///   off; try 0.5)
+    /// - `context_k=N`: memories in the context block (default 15)
+    /// - `context_max_chars=N`: character budget of the context block (default 6000)
+    pub fn apply_exp(&mut self, spec: &str) {
+        for token in spec.split(',').map(str::trim).filter(|t| !t.is_empty()) {
+            let (key, value) = token.split_once('=').map_or((token, None), |(k, v)| (k, Some(v)));
+            let ex = &mut self.extraction;
+            let n = value.and_then(|v| v.trim().parse::<usize>().ok());
+            // Bare token = on; `=1` on; `=0` off; anything else is None (malformed).
+            let flag = match value.map(str::trim) {
+                None | Some("1") => Some(true),
+                Some("0") => Some(false),
+                _ => None,
+            };
+            match (key, value, n) {
+                ("hyphen_ground", _, _) if flag.is_some() => ex.hyphen_ground = flag == Some(true),
+                ("num_dedupe", _, _) if flag.is_some() => ex.numeric_dedupe_guard = flag == Some(true),
+                ("months_ago", _, _) if flag.is_some() => ex.annotate_more_relative = flag == Some(true),
+                ("retry_zero", _, _) if flag.is_some() => ex.retry_on_zero_memories = flag == Some(true),
+                ("verbatim_fallback", _, _) if flag.is_some() => ex.verbatim_fallback = flag == Some(true),
+                ("verbatim_max", _, Some(n)) => ex.verbatim_fallback_max_per_batch = n,
+                ("batch_size", _, Some(n)) if n >= 1 => self.worker.batch_size = n as i64,
+                ("context_messages", _, Some(n)) => ex.context_messages = n as i64,
+                ("context_quotes", _, Some(n)) => self.retrieval.context_quotes = n,
+                ("context_quote_chars", _, Some(n)) if n >= 1 => self.retrieval.context_quote_chars = n,
+                ("context_quotes_human_only", Some(v), _) if matches!(v.trim(), "0" | "1") => {
+                    self.retrieval.context_quotes_human_only = v.trim() == "1"
+                }
+                ("context_raw_messages", _, Some(n)) => self.retrieval.context_raw_messages = n,
+                ("context_raw_message_chars", _, Some(n)) if n >= 1 => self.retrieval.context_raw_message_chars = n,
+                ("context_raw_include_assistant", Some(v), _) if matches!(v.trim(), "0" | "1") => {
+                    self.retrieval.context_raw_include_assistant = v.trim() == "1"
+                }
+                ("context_multi_query", _, _) if flag.is_some() => {
+                    self.retrieval.context_multi_query = flag == Some(true)
+                }
+                ("temporal_prior", Some(v), _) if v.trim().parse::<f64>().is_ok_and(|w| w.is_finite() && w >= 0.0) => {
+                    self.retrieval.temporal_prior = v.trim().parse().unwrap_or(0.0)
+                }
+                ("context_k", _, Some(n)) if n >= 1 => self.retrieval.context_k = n,
+                ("context_max_chars", _, Some(n)) if n >= 1 => self.retrieval.context_max_chars = n,
+                ("prompt_extra_file", Some(path), _) => match std::fs::read_to_string(path) {
+                    Ok(text) => ex.memory_prompt_extra = text,
+                    Err(e) => eprintln!("NEURALGRAPH_EXP: cannot read prompt_extra_file {path}: {e}; ignored"),
+                },
+                _ => eprintln!("NEURALGRAPH_EXP: unknown or malformed token {token:?}; ignored"),
+            }
+        }
+    }
+}
+
 /// Optional fields of a message.
 #[derive(Clone, Debug, Default)]
 pub struct MessageInput {
@@ -139,7 +228,11 @@ fn opt_string(v: Option<&Value>) -> Option<String> {
 
 impl ChatMemory {
     /// Open the store at `db_path` with `llm` (or the configured local model server).
-    pub fn open(db_path: &str, llm: Option<Arc<dyn LlmClient>>, config: ChatMemoryConfig) -> Result<Self> {
+    ///
+    /// The `NEURALGRAPH_EXP` experiment switches are applied to `config` first
+    /// ([`ChatMemoryConfig::apply_env_overrides`]).
+    pub fn open(db_path: &str, llm: Option<Arc<dyn LlmClient>>, mut config: ChatMemoryConfig) -> Result<Self> {
+        config.apply_env_overrides();
         let store = Arc::new(ChatMemoryStore::open(db_path)?);
         let llm: Arc<dyn LlmClient> = match llm {
             Some(l) => l,

@@ -95,31 +95,55 @@ pub async fn llm_generate(
     max_tokens: i64,
     timeout_seconds: f64,
 ) -> Result<String, String> {
+    llm_generate_think(client, prompt, model, base_url, temperature, max_tokens, timeout_seconds, false).await
+}
+
+/// [`llm_generate`] with an explicit per-call `think` switch. `think = false` is exactly [`llm_generate`] (the empty
+/// `<think>` prefill when `LLM_NO_THINK_PREFILL` is set, `reasoning_effort` from `LLM_REASONING_EFFORT`). `think = true`
+/// lets the model reason: no prefill and no `reasoning_effort` key on the OpenAI-compatible route, `"think": true` on
+/// Ollama. The reply is the message content only (a server's separate reasoning field is ignored), so `max_tokens`
+/// must cover the reasoning as well as the answer.
+#[allow(clippy::too_many_arguments)]
+pub async fn llm_generate_think(
+    client: &reqwest::Client,
+    prompt: &str,
+    model: &str,
+    base_url: &str,
+    temperature: f64,
+    max_tokens: i64,
+    timeout_seconds: f64,
+    think: bool,
+) -> Result<String, String> {
     let base_url = base_url.trim_end_matches('/');
     if backend_for(base_url) == "ollama" {
-        let body = json!({
+        let mut body = json!({
             "model": model,
             "prompt": prompt,
             "stream": false,
             "options": {"temperature": temperature, "num_predict": max_tokens},
         });
+        if think {
+            body["think"] = Value::Bool(true);
+        }
         let data = post_json(client, &format!("{base_url}/api/generate"), &body, timeout_seconds).await?;
         let text = data.get("response").and_then(Value::as_str).unwrap_or("");
         return Ok(strip_thinking(text));
     }
     let mut messages = vec![json!({"role": "user", "content": prompt})];
-    if no_think_prefill() {
+    if !think && no_think_prefill() {
         messages.push(json!({"role": "assistant", "content": "<think>\n\n</think>\n\n"}));
     }
-    let body = json!({
+    let mut body = json!({
         "model": model,
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": false,
-        // Gemma/Qwen "thinking" models burn the token budget on reasoning; turn it off.
-        "reasoning_effort": reasoning_effort(),
     });
+    if !think {
+        // Gemma/Qwen "thinking" models burn the token budget on reasoning; turn it off.
+        body["reasoning_effort"] = Value::String(reasoning_effort());
+    }
     let data = post_json(client, &format!("{base_url}/v1/chat/completions"), &body, timeout_seconds).await?;
     let choice = match data.get("choices") {
         Some(Value::Array(a)) => a.first().cloned().ok_or("list index out of range")?,

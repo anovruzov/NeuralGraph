@@ -1,0 +1,41 @@
+- 2026-10-28 02:05:07 START lme_base_ingest (slot 1): ./target/release/chat-memory-longmemeval --n 50 --seed 1 --db-dir .context/overnight/db/lme_base --out .context/overnight/results/lme_base_retrieval.json
+- 2026-10-28 02:07:58 START locomo_c0_ingest (slot 2): ./target/release/chat-memory-locomo ingest --db .context/overnight/db/locomo_c0.db --conv 0 --sessions 8 --batch-size 2
+- 2026-10-28 02:24:02 END   locomo_c0_ingest rc=0 elapsed=964s
+- 2026-10-28 02:24:02 START lme_sub18_E56_ingest (slot 2): ./target/release/chat-memory-longmemeval --file .context/overnight/lme_sub18.json --n 0 --db-dir .context/overnight/db/lme_sub18_E56 --out .context/overnight/results/lme_sub18_E56_retrieval.json
+- 2026-10-28 03:58:08 END   lme_sub18_E56_ingest rc=0 elapsed=5646s
+- 2026-10-28 03:58:12 START lme_sub18_base_ingest (slot 2): ./target/release/chat-memory-longmemeval --file .context/overnight/lme_sub18.json --n 0 --db-dir .context/overnight/db/lme_sub18_base --out .context/overnight/results/lme_sub18_base_retrieval.json
+- 2026-10-28 05:15:08 END   lme_sub18_base_ingest rc=0 elapsed=4616s
+- 2026-10-28 05:15:18 START lme_sub18_E48_ingest (slot 2): ./target/release/chat-memory-longmemeval --file .context/overnight/lme_sub18.json --n 0 --db-dir .context/overnight/db/lme_sub18_E48 --out .context/overnight/results/lme_sub18_E48_retrieval.json
+- 2026-10-28 06:01:40 END   lme_sub18_E48_ingest rc=0 elapsed=2782s
+- 2026-10-28 06:01:41 START lme_E56_ingest (slot 2): ./target/release/chat-memory-longmemeval --n 50 --seed 1 --db-dir .context/overnight/db/lme_E56 --out .context/overnight/results/lme_E56_retrieval.json
+- 2026-10-28 06:08:28 END   lme_base_ingest rc=0 elapsed=14601s
+- 2026-10-28 06:08:37 START lme_sub18_E3_ingest (slot 1): ./target/release/chat-memory-longmemeval --file .context/overnight/lme_sub18.json --n 0 --db-dir .context/overnight/db/lme_sub18_E3 --out .context/overnight/results/lme_sub18_E3_retrieval.json
+- 2026-10-28 07:45:27 END   lme_sub18_E3_ingest rc=143 elapsed=5810s
+- 2026-10-28 07:48 KILLED lme_sub18_E3_ingest (GPU starved; E56 full-50 confirm has priority) and P4 run
+- 2026-10-28 09:37:21 END   lme_E56_ingest rc=0 elapsed=12940s
+- 2026-10-28 09:46:51 START lme_base2_ingest (slot 1): ./target/release/chat-memory-longmemeval --n 50 --seed 1 --db-dir .context/overnight/db/lme_base2 --out .context/overnight/results/lme_base2_retrieval.json
+- 2026-10-28 11:35:18 END   lme_base2_ingest rc=0 elapsed=6507s
+- 2026-10-28 11:51:30 START lme_det1_ingest (slot 1): ./target/release/chat-memory-longmemeval --n 50 --seed 1 --concurrency 1 --parallel 1 --db-dir .context/overnight/db/lme_det1 --out .context/overnight/results/lme_det1_retrieval.json
+- 2026-10-28 14:19:10 END   lme_det1_ingest rc=0 elapsed=8860s
+- 2026-10-28 14:19:34 START lme_det2_ingest (slot 1): ./target/release/chat-memory-longmemeval --n 50 --seed 1 --concurrency 1 --parallel 1 --db-dir .context/overnight/db/lme_det2 --out .context/overnight/results/lme_det2_retrieval.json
+- 2026-10-28 17:26:49 END   lme_det2_ingest rc=0 elapsed=11235s
+- 2026-10-28 17:45:23 START lme_detE56_ingest (slot 1): ./target/release/chat-memory-longmemeval --n 50 --seed 1 --concurrency 1 --parallel 1 --db-dir .context/overnight/db/lme_detE56 --out .context/overnight/results/lme_detE56_retrieval.json
+- 2026-10-28 20:14:50 END   lme_detE56_ingest rc=0 elapsed=8967s
+- 2026-10-28 20:26:01 START locomo_c1_chain (slot 1): research/overnight/scripts/locomo_c1.sh
+- 2026-10-28 20:46:36 END   locomo_c1_chain rc=0 elapsed=1235s
+- 2026-10-28 22:05:55 START locomo_c2_chain (slot 1): research/overnight/scripts/locomo_c2.sh
+- 2026-10-28 22:24:16 END   locomo_c2_chain rc=0 elapsed=1101s
+- 2026-10-29 01:25:29 START lme_detE48_ingest (slot 1): ./target/release/chat-memory-longmemeval --n 50 --seed 1 --concurrency 1 --parallel 1 --db-dir .context/overnight/db/lme_detE48 --out .context/overnight/results/lme_detE48_retrieval.json
+- 2026-10-29 03:59:42 END   lme_detE48_ingest rc=0 elapsed=9253s
+- 2026-10-29 04:05:32 START lme_seed2_ingest (slot 1): ./target/release/chat-memory-longmemeval --n 50 --seed 2 --concurrency 1 --parallel 1 --db-dir .context/overnight/db/lme_seed2 --out .context/overnight/results/lme_seed2_retrieval.json
+- 2026-10-29 06:34:07 END   lme_seed2_ingest rc=0 elapsed=8915s
+- 2026-10-29 07:25:12 START lme_seed3_ingest (slot 1): ./target/release/chat-memory-longmemeval --n 50 --seed 3 --concurrency 1 --parallel 1 --db-dir .context/overnight/db/lme_seed3 --out .context/overnight/results/lme_seed3_retrieval.json
+- 2026-10-29 09:57:38 END   lme_seed3_ingest rc=0 elapsed=9146s
+- 2026-10-29 11:03:01 START locomo_c3_chain (slot 1): research/overnight/scripts/locomo_c3.sh
+- 2026-10-29 11:15:41 END   locomo_c3_chain rc=0 elapsed=760s
+- 2026-10-29 13:05:34 START lme_det27b_ingest (slot 1): ./target/release/chat-memory-longmemeval --n 50 --seed 1 --concurrency 1 --parallel 1 --model qwen/qwen3.8-27b --db-dir .context/overnight/db/lme_det27b --out .context/overnight/results/lme_det27b_retrieval.json
+- 2026-10-29 19:54:14 END   lme_det27b_ingest rc=0 elapsed=24520s
+- 2026-10-29 20:46:24 START lme_detbge_ingest (slot 1): ./target/release/chat-memory-longmemeval --n 50 --seed 1 --concurrency 1 --parallel 1 --db-dir .context/overnight/db/lme_detbge --out .context/overnight/results/lme_detbge_retrieval.json
+- 2026-10-29 23:15:27 END   lme_detbge_ingest rc=0 elapsed=8943s
+- 2026-10-29 23:45:07 START lme_seed4_ingest (slot 1): ./target/release/chat-memory-longmemeval --n 50 --seed 4 --concurrency 1 --parallel 1 --db-dir .context/overnight/db/lme_seed4 --out .context/overnight/results/lme_seed4_retrieval.json
+- 2026-10-30 00:27:37 PAUSED by user: killed lme_seed4_ingest (partial, resumable with --resume) and its chain

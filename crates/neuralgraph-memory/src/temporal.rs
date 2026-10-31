@@ -594,6 +594,294 @@ pub fn resolve_relative_dates(
     Ok((result, resolved))
 }
 
+static MORE_AGO_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b(an?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|[0-9]{1,3})[\s\x1c-\x1f]+(week|month|year)s?[\s\x1c-\x1f]+ago\b")
+        .unwrap()
+});
+
+/// Second pass of [`resolve_relative_dates`] for "N weeks/months/years ago" (digits, number words, "a"/"an"),
+/// which that function only handles for a few fixed forms. Phrases already followed by `[=` are left alone, so
+/// running it after the first pass never annotates twice. Weeks give "around 4 May 2023", months a month
+/// ("February 2023"), years a year. Off by default (`ExtractionConfig::annotate_more_relative`).
+pub fn resolve_more_relative_dates(content: &str, md: NaiveDateTime) -> String {
+    let mut out = String::with_capacity(content.len() + 32);
+    let mut last = 0;
+    for c in MORE_AGO_RE.captures_iter(content) {
+        let whole = c.get(0).expect("group 0");
+        if content[whole.end()..]
+            .trim_start_matches(|ch: char| ch.is_whitespace() || ('\x1c'..='\x1f').contains(&ch))
+            .starts_with("[=")
+        {
+            continue;
+        }
+        let word = c[1].to_lowercase();
+        let n = match word.as_str() {
+            "a" | "an" | "one" => 1,
+            w => NUMBER_WORDS.iter().find(|(x, _)| *x == w).map(|(_, v)| *v).or_else(|| w.parse().ok()).unwrap_or(0),
+        };
+        let unit = c[2].to_lowercase();
+        let target = match unit.as_str() {
+            "week" => shift(md, -7 * n).ok().map(|d| format!("around {}", day_str(d))),
+            "month" => md
+                .checked_sub_months(chrono::Months::new(n as u32))
+                .map(|d| format!("{} {}", month_title(d.month()), d.year())),
+            _ => md.checked_sub_months(chrono::Months::new(12 * n as u32)).map(|d| d.year().to_string()),
+        };
+        let Some(target) = target.filter(|_| n > 0) else { continue };
+        out.push_str(&content[last..whole.end()]);
+        out.push_str(&format!(" [= {target}]"));
+        last = whole.end();
+    }
+    out.push_str(&content[last..]);
+    out
+}
+
+// ------------------------------------------------------------------------------------------ query time cues
+
+/// "first / earliest" or "most recent / latest" wording in a question.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OrderCue {
+    Earliest,
+    Latest,
+}
+
+/// What [`extract_query_time_cues`] found in a question: an inclusive date window and/or an ordering cue.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QueryTimeCues {
+    /// inclusive `[start, end]` calendar days
+    pub window: Option<(NaiveDate, NaiveDate)>,
+    /// which rule produced the window (`"month"`, `"day"`, `"year"`, `"last week"`, `"3 months ago"`, ...)
+    pub label: String,
+    pub order: Option<OrderCue>,
+}
+
+const MONTH_ALT: &str = "january|february|march|april|may|june|july|august|september|october|november|december|\
+                         jan|feb|apr|jun|jul|aug|sept|sep|oct|nov|dec";
+const COUNT_ALT: &str = "[0-9]{1,3}|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a couple of|\
+                         a couple|couple of|a few|few";
+
+static Q_ISO_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\b((?:19|20)\d{2})[-/]([0-9]{1,2})[-/]([0-9]{1,2})\b").unwrap());
+static Q_MONTH_DAY_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(r"(?i)\b({MONTH_ALT})\.?\s+([0-9]{{1,2}})(?:st|nd|rd|th)?\b(?:,?\s+((?:19|20)\d{{2}})\b)?"))
+        .unwrap()
+});
+static Q_DAY_MONTH_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(
+        r"(?i)\b([0-9]{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?({MONTH_ALT})\b\.?(?:,?\s+((?:19|20)\d{{2}})\b)?"
+    ))
+    .unwrap()
+});
+static Q_MONTH_YEAR_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r"(?i)\b({MONTH_ALT})\.?,?\s+((?:19|20)\d{{2}})\b")).unwrap());
+static Q_BARE_MONTH_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(
+        r"(?i)\b(in|during|of|for|early|late|mid|around|last|this)\s+(?:the\s+)?(?:month\s+of\s+)?({MONTH_ALT})\b"
+    ))
+    .unwrap()
+});
+static Q_YEAR_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b(?:in|during|of|throughout|for|year)\s+((?:19|20)\d{2})\b").unwrap()
+});
+static Q_AGO_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r"(?i)\b({COUNT_ALT})[\s-]+(day|week|month|year)s?\s+ago\b")).unwrap());
+static Q_PAST_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(r"(?i)\b(?:past|last)\s+({COUNT_ALT})\s+(day|week|month|year)s\b")).unwrap()
+});
+static Q_YESTERDAY_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\byesterday\b").unwrap());
+static Q_LAST_WEEK_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\blast\s+week\b").unwrap());
+static Q_THIS_WEEK_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bthis\s+week\b").unwrap());
+static Q_LAST_MONTH_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\blast\s+month\b").unwrap());
+static Q_THIS_MONTH_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bthis\s+month\b").unwrap());
+static Q_LAST_YEAR_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\blast\s+year\b").unwrap());
+static Q_THIS_YEAR_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bthis\s+year\b").unwrap());
+static Q_LATEST_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\b(?:most\s+recent(?:ly)?|latest|newest|last\s+time)\b").unwrap());
+static Q_EARLIEST_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\b(?:first|earliest|initially)\b").unwrap());
+
+fn query_month(name: &str, original: &str) -> Option<u32> {
+    let n = name.to_lowercase();
+    // "may" is also a modal verb: only the capitalised word counts
+    if n == "may" && original != "May" {
+        return None;
+    }
+    let full = MONTH_NAMES.iter().position(|m| *m == n || (n.len() <= 4 && n != "may" && m.starts_with(n.as_str())));
+    full.map(|i| i as u32 + 1)
+}
+
+fn count_word(w: &str) -> Option<i64> {
+    let w = w.to_lowercase();
+    match w.as_str() {
+        "a" | "an" => Some(1),
+        "a couple" | "a couple of" | "couple of" => Some(2),
+        "a few" | "few" => Some(3),
+        _ => NUMBER_WORDS.iter().find(|(x, _)| *x == w).map(|(_, v)| *v).or_else(|| w.parse().ok()),
+    }
+}
+
+fn month_span(y: i32, m: u32) -> Option<(NaiveDate, NaiveDate)> {
+    let first = NaiveDate::from_ymd_opt(y, m, 1)?;
+    let next = if m == 12 { NaiveDate::from_ymd_opt(y + 1, 1, 1)? } else { NaiveDate::from_ymd_opt(y, m + 1, 1)? };
+    Some((first, next.pred_opt()?))
+}
+
+fn year_span(y: i32) -> Option<(NaiveDate, NaiveDate)> {
+    Some((NaiveDate::from_ymd_opt(y, 1, 1)?, NaiveDate::from_ymd_opt(y, 12, 31)?))
+}
+
+fn days_around(center: NaiveDate, radius: i64) -> Option<(NaiveDate, NaiveDate)> {
+    let r = TimeDelta::try_days(radius)?;
+    Some((center.checked_sub_signed(r)?, center.checked_add_signed(r)?))
+}
+
+/// A month named without a year: its most recent occurrence not after `now` (strictly before the current month
+/// when `strictly_past`, i.e. "last March").
+fn month_without_year(now: NaiveDate, m: u32, strictly_past: bool) -> Option<(NaiveDate, NaiveDate)> {
+    let before = if strictly_past { m >= now.month() } else { m > now.month() };
+    month_span(if before { now.year() - 1 } else { now.year() }, m)
+}
+
+/// A month/day without a year: the most recent occurrence not after `now`.
+fn day_without_year(now: NaiveDate, m: u32, d: u32) -> Option<NaiveDate> {
+    let this = NaiveDate::from_ymd_opt(now.year(), m, d)?;
+    if this > now {
+        NaiveDate::from_ymd_opt(now.year() - 1, m, d)
+    } else {
+        Some(this)
+    }
+}
+
+fn parse_year(s: Option<regex::Match<'_>>) -> Option<i32> {
+    s.and_then(|m| m.as_str().parse().ok())
+}
+
+fn window_cue(q: &str, now: NaiveDate) -> Option<(String, (NaiveDate, NaiveDate))> {
+    // 1. numeric date
+    if let Some(c) = Q_ISO_RE.captures(q) {
+        let (y, m, d) = (c[1].parse().ok()?, c[2].parse().ok()?, c[3].parse().ok()?);
+        if let Some(day) = NaiveDate::from_ymd_opt(y, m, d) {
+            return Some(("day".into(), (day, day)));
+        }
+    }
+    // 2. "April 10th", "March 3, 2023", "10th of April"
+    for (re, month_first) in [(&*Q_MONTH_DAY_RE, true), (&*Q_DAY_MONTH_RE, false)] {
+        for c in re.captures_iter(q) {
+            let (mi, di) = if month_first { (1, 2) } else { (2, 1) };
+            let Some(month) = query_month(&c[mi], &c[mi]) else { continue };
+            let Ok(d) = c[di].parse::<u32>() else { continue };
+            let day = match parse_year(c.get(3)) {
+                Some(y) => NaiveDate::from_ymd_opt(y, month, d),
+                None => day_without_year(now, month, d),
+            };
+            if let Some(day) = day {
+                return Some(("day".into(), (day, day)));
+            }
+        }
+    }
+    // 3. "March 2023"
+    for c in Q_MONTH_YEAR_RE.captures_iter(q) {
+        if let (Some(month), Ok(y)) = (query_month(&c[1], &c[1]), c[2].parse::<i32>()) {
+            if let Some(w) = month_span(y, month) {
+                return Some(("month".into(), w));
+            }
+        }
+    }
+    // 4. "in March"
+    for c in Q_BARE_MONTH_RE.captures_iter(q) {
+        if let Some(month) = query_month(&c[2], &c[2]) {
+            if let Some(w) = month_without_year(now, month, c[1].eq_ignore_ascii_case("last")) {
+                return Some(("month".into(), w));
+            }
+        }
+    }
+    // 5. "in 2023"
+    if let Some(c) = Q_YEAR_RE.captures(q) {
+        if let Some(w) = c[1].parse().ok().and_then(year_span) {
+            return Some(("year".into(), w));
+        }
+    }
+    // 6. relative to `now`
+    if Q_YESTERDAY_RE.is_match(q) {
+        let d = now.pred_opt()?;
+        return Some(("yesterday".into(), (d, d)));
+    }
+    if let Some(c) = Q_AGO_RE.captures(q) {
+        if let Some(n) = count_word(&c[1]).filter(|n| *n > 0) {
+            let unit = c[2].to_lowercase();
+            let label = format!("{n} {unit}s ago");
+            let w = match unit.as_str() {
+                "day" => days_around(now.checked_sub_signed(TimeDelta::try_days(n)?)?, 1),
+                "week" => days_around(now.checked_sub_signed(TimeDelta::try_days(7 * n)?)?, 3),
+                "month" => days_around(now.checked_sub_months(chrono::Months::new(u32::try_from(n).ok()?))?, 15),
+                _ => year_span(now.checked_sub_months(chrono::Months::new(u32::try_from(12 * n).ok()?))?.year()),
+            };
+            if let Some(w) = w {
+                return Some((label, w));
+            }
+        }
+    }
+    if let Some(c) = Q_PAST_RE.captures(q) {
+        if let Some(n) = count_word(&c[1]).filter(|n| *n > 0) {
+            let unit = c[2].to_lowercase();
+            let start = match unit.as_str() {
+                "day" => now.checked_sub_signed(TimeDelta::try_days(n)?),
+                "week" => now.checked_sub_signed(TimeDelta::try_days(7 * n)?),
+                "month" => now.checked_sub_months(chrono::Months::new(u32::try_from(n).ok()?)),
+                _ => now.checked_sub_months(chrono::Months::new(u32::try_from(12 * n).ok()?)),
+            };
+            if let Some(start) = start {
+                return Some((format!("past {n} {unit}s"), (start, now)));
+            }
+        }
+    }
+    let monday = now.checked_sub_signed(TimeDelta::try_days(now.weekday().num_days_from_monday() as i64)?)?;
+    if Q_LAST_WEEK_RE.is_match(q) && !q.to_lowercase().contains("last weekend") {
+        let start = monday.checked_sub_signed(TimeDelta::try_days(7)?)?;
+        return Some(("last week".into(), (start, start.checked_add_signed(TimeDelta::try_days(6)?)?)));
+    }
+    if Q_THIS_WEEK_RE.is_match(q) {
+        return Some(("this week".into(), (monday, now)));
+    }
+    if Q_LAST_MONTH_RE.is_match(q) {
+        let prev = now.with_day(1)?.pred_opt()?;
+        return Some(("last month".into(), month_span(prev.year(), prev.month())?));
+    }
+    if Q_THIS_MONTH_RE.is_match(q) {
+        return Some(("this month".into(), (now.with_day(1)?, now)));
+    }
+    if Q_LAST_YEAR_RE.is_match(q) {
+        return Some(("last year".into(), year_span(now.year() - 1)?));
+    }
+    if Q_THIS_YEAR_RE.is_match(q) {
+        return Some(("this year".into(), year_span(now.year())?));
+    }
+    None
+}
+
+/// Rule-based time cues of a question (no model): an inclusive date window from explicit dates, months, years and
+/// relative expressions resolved against `now`, and an ordering cue ("first/earliest" vs "most recent/latest").
+///
+/// Explicit forms win over relative ones: ISO date, "April 10th", "10th of April", "March 2023", "in March" (its
+/// most recent occurrence not after `now`; "May" must be capitalised), "in 2023", then "yesterday", "N
+/// days/weeks/months/years ago" (+-1 day, +-3 days, +-15 days, whole year), "past/last N units", "last/this
+/// week" (calendar weeks, Monday first), "last/this month", "last/this year". When both an earliest and a latest
+/// word occur the ordering cue is dropped.
+pub fn extract_query_time_cues(query: &str, now: NaiveDate) -> QueryTimeCues {
+    let (label, window) = match window_cue(query, now) {
+        Some((label, w)) => (label, Some(w)),
+        None => (String::new(), None),
+    };
+    let late = Q_LATEST_RE.is_match(query);
+    let early = Q_EARLIEST_RE.is_match(query);
+    let order = match (early, late) {
+        (true, false) => Some(OrderCue::Earliest),
+        (false, true) => Some(OrderCue::Latest),
+        _ => None,
+    };
+    QueryTimeCues { window, label, order }
+}
+
 #[derive(Clone, Copy)]
 enum Direction {
     Back,
@@ -620,6 +908,23 @@ mod tests {
     fn earlier_today_is_not_annotated_twice() {
         let (text, _) = resolve_relative_dates("earlier today I ran", Some(dt("2023-05-08 10:00"))).unwrap();
         assert_eq!(text, "earlier today [= 8 May 2023] I ran");
+    }
+
+    #[test]
+    fn more_relative_dates() {
+        let md = dt("2023-05-25 10:00");
+        let f = |t: &str| resolve_more_relative_dates(t, md);
+        assert_eq!(f("started three months ago"), "started three months ago [= February 2023]");
+        assert_eq!(
+            f("a month ago and 3 weeks ago"),
+            "a month ago [= April 2023] and 3 weeks ago [= around 4 May 2023]"
+        );
+        assert_eq!(f("about a year ago"), "about a year ago [= 2022]");
+        assert_eq!(f("5 Years ago"), "5 Years ago [= 2018]");
+        // the first pass already annotated these: no second annotation
+        let (first, _) = resolve_relative_dates("2 weeks ago and a week ago", Some(md)).unwrap();
+        assert_eq!(f(&first), first);
+        assert_eq!(f("no relative time"), "no relative time");
     }
 
     #[test]
