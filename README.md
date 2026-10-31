@@ -54,8 +54,6 @@ What makes it different from a vector store with a nice wrapper:
 ```bash
 git clone https://github.com/anovruzov/NeuralGraph.git
 cd NeuralGraph
-
-# Watch memory get built, live, with a deterministic stand-in model
 cargo run --release --example chat_memory_live_demo -- --fake-llm
 ```
 
@@ -65,10 +63,10 @@ stand-in, so you can see the machinery work before downloading a single weight.
 ### With a real local model
 
 ```bash
-cargo install --locked --path crates/neuralgraph-memory     # -> ~/.cargo/bin/neuralgraph-memory
+cargo install --locked --path crates/neuralgraph-memory
 
-ollama pull qwen2.5:7b-instruct        # generation
-ollama pull nomic-embed-text           # embeddings
+ollama pull qwen2.5:7b-instruct
+ollama pull nomic-embed-text
 
 export LLM_BASE_URL=http://localhost:11434
 export LLM_MODEL=qwen2.5:7b-instruct
@@ -124,8 +122,11 @@ does not inherit your `PATH`.
 
 ```bash
 claude mcp add neuralgraph-memory -- "$(command -v neuralgraph-memory)" mcp --user-name "Your Name"
+```
 
-# ...or against an already-running HTTP server
+Or, against an already-running HTTP server:
+
+```bash
 claude mcp add --transport http neuralgraph-memory http://127.0.0.1:8765/mcp \
   --header "Authorization: Bearer $NEURALGRAPH_MCP_TOKEN"
 ```
@@ -348,11 +349,15 @@ and the MCP server.
 
 ## Deployment
 
-```bash
-# Container — memory server + Ollama, volumes for both
-docker compose -f deploy/chat_memory/docker-compose.yml up
+Container with the memory server and Ollama, with volumes for both:
 
-# Or build just the server
+```bash
+docker compose -f deploy/chat_memory/docker-compose.yml up
+```
+
+Or build just the server:
+
+```bash
 docker build -f deploy/chat_memory/Dockerfile -t neuralgraph-memory .
 ```
 
