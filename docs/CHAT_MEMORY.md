@@ -38,16 +38,15 @@ behind; a zombie worker whose lease expired cannot double-write. That is what ma
 ## Quick start
 
 ```bash
-cargo install --locked --path crates/neuralgraph-memory        # -> ~/.cargo/bin/neuralgraph-memory
-# local model: Ollama ...
+cargo install --locked --path crates/neuralgraph-memory
 ollama pull qwen2.5:7b-instruct && ollama pull nomic-embed-text
 export LLM_BASE_URL=http://localhost:11434 LLM_MODEL=qwen2.5:7b-instruct EMBED_MODEL=nomic-embed-text
-# ... or LM Studio (default http://127.0.0.1:1234, google/gemma-4-e4b + text-embedding-nomic-embed-text-v1.5)
-
-# run everything: worker + dashboard + REST + MCP
 neuralgraph-memory serve --user-name "Your Name" --parallel 4
-# open http://127.0.0.1:8765/
 ```
+
+Then open http://127.0.0.1:8765/. `serve` runs the worker, dashboard, REST API and MCP together.
+To use LM Studio instead of Ollama, skip the `ollama` and `export` lines: the defaults point at
+LM Studio (`http://127.0.0.1:1234`, `google/gemma-4-e4b`, `text-embedding-nomic-embed-text-v1.5`).
 
 As a library (`neuralgraph_memory` crate):
 
@@ -204,8 +203,9 @@ Resources `memory://status`, `memory://entities`, `memory://profile/{subject}`; 
 
 **Edge / local (stdio)** – runs next to your Ollama, no network:
 
+Claude Code:
+
 ```bash
-# Claude Code
 claude mcp add neuralgraph-memory -- "$(command -v neuralgraph-memory)" mcp --db ~/.neuralgraph/chat_memory.db
 ```
 ```json
@@ -476,7 +476,7 @@ try on your own data, not a default recommendation.
 ## Tests
 
 ```bash
-cargo test                       # 139 tests, a few seconds, no model server, no network
+cargo test
 ```
 
 All tests use temporary SQLite files and a deterministic fake model (`FakeLlmClient`, hashed bag-of-words
