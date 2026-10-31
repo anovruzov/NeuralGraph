@@ -113,7 +113,7 @@ logs to stderr and the redirect hides them here.
 
 ```bash
 docker build -f deploy/chat_memory/Dockerfile -t neuralgraph-memory .
-docker compose -f deploy/chat_memory/docker-compose.yml up        # memory server + Ollama
+docker compose -f deploy/chat_memory/docker-compose.yml up
 ```
 
 ---
