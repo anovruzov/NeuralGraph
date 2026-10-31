@@ -10,14 +10,13 @@
   <a href="https://www.rust-lang.org/"><img alt="Rust 1.89+" src="https://img.shields.io/badge/Rust-1.89%2B-B7410E.svg?style=flat-square&amp;logo=rust&amp;logoColor=white"></a>
   <a href="https://modelcontextprotocol.io"><img alt="MCP 2025-06-18" src="https://img.shields.io/badge/MCP-2025--06--18-7c3aed.svg?style=flat-square"></a>
   <a href="#privacy-by-construction"><img alt="Local-first" src="https://img.shields.io/badge/Cloud_accounts-0-0ea5e9.svg?style=flat-square"></a>
-  <a href="#benchmarks"><img alt="LoCoMo 87.8% accuracy" src="https://img.shields.io/badge/LoCoMo-87.8%25_accuracy-f59e0b.svg?style=flat-square"></a>
 </p>
 
 <p align="center">
   <a href="#quick-start">Quick Start</a> ·
   <a href="#connect-to-claude">Connect to Claude</a> ·
   <a href="#what-you-get">Features</a> ·
-  <a href="#benchmarks">Benchmarks</a> ·
+  <a href="#research">Research</a> ·
   <a href="#how-it-works">Architecture</a> ·
   <a href="#cli">CLI</a> ·
   <a href="#rest-api-and-dashboard">REST API</a>
@@ -36,10 +35,9 @@ What makes it different from a vector store with a nice wrapper:
 
 | | NeuralGraph |
 |---|---|
-| **Retrieval** | Vector + BM25 fused by Reciprocal Rank Fusion, plus subject and entity priors — not cosine similarity alone. An entity-graph hop channel exists but is off by default: measured, it never helped |
+| **Retrieval** | Vector + BM25 fused by Reciprocal Rank Fusion, plus subject and entity priors — not cosine similarity alone. An entity-graph hop channel exists but is off by default |
 | **Time** | Facts supersede facts. "Where did Ali live in March?" returns the *March* answer, not today's |
 | **Speakers** | Per-agent routing: a question about Nurman searches Nurman's memories |
-| **Evidence** | LoCoMo-based memory retrieval evaluation |
 | **Research** | Experiment reports and research artifacts remain available in the repository |
 | **Ownership** | One binary, one SQLite file. Delete the file and the memory is gone — really gone |
 
@@ -161,7 +159,7 @@ Ask Claude *"what do you remember about me?"* — if `memory_status` comes back,
 
 | Tool | What it does |
 |---|---|
-| `memory_add_message` | Record a turn. Returns in ~1 ms; extraction happens in the background |
+| `memory_add_message` | Record a turn. Returns immediately; extraction happens in the background |
 | `memory_remember` | Store a fact immediately, write-through |
 | `memory_forget` | Retract a memory, keeping an audit entry |
 
@@ -180,17 +178,13 @@ Plus three MCP resources and a `recall` prompt.
 - **Fenced commits.** Work is leased; a worker that dies mid-job has its lease expire and its
   job retried, never double-committed. Restart recovery is tested.
 - **Incremental indexes.** The vector index is refreshed with rows written since the last
-  query, and filters are masks — tens of thousands of memories stay in the low milliseconds.
+  query, and filters are masks.
 - **Safe model swaps.** Change your embedding model and old rows keep answering queries of
   their own dimension until maintenance re-embeds them.
 
 ---
 
-## Benchmarks
-
-**LoCoMo accuracy: 87.8%.**
-
-On the shipped assistant pipeline (9B local reader, 50-question LongMemEval Oracle sample), source quotes under each memory plus an "I don't know" cascade cut refusals from 24 to 14 of 50 and raised strict accuracy from 42 to 50 (Gemma-4-e4b judge); a 6000-character context block with three raw matching user messages and a routed reader (thinking only on count, duration and date-difference questions) then raised the ported official LongMemEval judge score from 58 to 74 (48 to 64 on a second ingest) and LoCoMo conversation 0 `strict_v2` from 56 to 68 (conversation 1: 63 to 68, strict unchanged), all single runs with a Gemma-4-e4b judge and none of the LoCoMo differences significant. Thinking on every question regressed LoCoMo conversation 1, which is why it is routed. On a fresh 50-question sample never used while tuning (seed 2) the routed protocol scored official 44 to 62 and `strict_v2` 50 to 72 against the original pipeline; an optional accuracy mode (Qwen3.6-35B-A3B as the thinker for routed questions, about 13 s mean per answer) adds a few points within noise. On the official LongMemEval judge prompts (run by Gemma-4-e4b), with a local 9B reader, over three 50-question Oracle draws (150 questions, 100 of them held-out), the shipped protocol scores 69, up from 52 for the original pipeline. Vendor figures (Zep 63.8-71.2, Mastra and Mem0 84-95) use frontier readers and judges and mostly the harder S variant, so they are not directly comparable. The measurement protocol is in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md#comparability-with-published-numbers), and [`research/overnight/README.md`](research/overnight/README.md) says how to reproduce it.
+## Research
 
 ### Coordination track
 
@@ -248,14 +242,10 @@ It lived in this repository until October 2026 and moved there with its full his
               context block → Claude
 ```
 
-**Ranks fuse, scores don't.** Channels vote by rank (vector and keyword by default; the graph hop is opt-in because it cost up to 9 points of evidence recall on LoCoMo), so no single scorer's scale can
+**Ranks fuse, scores don't.** Channels vote by rank (vector and keyword by default; the graph hop is opt-in), so no single scorer's scale can
 dominate. Priors then reweight by importance, mild recency, and whether the query names the
 memory's subject or a mentioned entity. Finally a line must earn its place: a keyword or
 graph hit, or cosine above the floor — otherwise it does not reach the model's context.
-
-Measured along the way: retrieval decides, the reranker only reorders; 15 of 30 context
-memories is the optimum; speaker names are embedding-level pointers to the *wrong* speaker
-(0.1% own-name vs 33.4% other-name incidence) — which is exactly why routing by speaker wins.
 
 ---
 
