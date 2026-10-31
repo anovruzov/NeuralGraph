@@ -1,0 +1,361 @@
+{
+ "verdict": "FAIL",
+ "experiment": {
+  "seed": 20261031,
+  "bank": 0,
+  "n": 100000,
+  "db": "/Users/novruz/NeuralGraph-current/operation-100m/work/100k/bank.db",
+  "manifest": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/../manifest.json",
+  "queries": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/../queries.jsonl",
+  "run_dir": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default",
+  "evidence": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/evidence.json"
+ },
+ "gates": {
+  "_note": "Declared 2026-10-31 before any 100K result existed. Engine-level timing (query embedding excluded), same scope as Hindsight's gRPC engine numbers.",
+  "recall_at_10_min": 0.8,
+  "p99_ms_max": 100,
+  "p99_ms_max_concurrent": 200,
+  "min_qps_speedup_at_max_concurrency": 2.0,
+  "peak_rss_fraction_of_ram": 0.25,
+  "projected_rss_fraction_of_ram": 0.5,
+  "next_stage_multiplier": 10,
+  "projected_disk_fraction_of_free": 0.5,
+  "full_regeneration_max_n": 2000000
+ },
+ "checks": [
+  {
+   "check": "row_count",
+   "ok": true,
+   "detail": "100000 rows in DB, spec says 100000"
+  },
+  {
+   "check": "dataset_hash",
+   "ok": true,
+   "detail": "DB text hash 29216d17b5feb2a2\u2026 vs manifest 29216d17b5feb2a2\u2026"
+  },
+  {
+   "check": "records_match_independent_spec",
+   "ok": true,
+   "detail": "all records re-derived in Python; mismatches: []"
+  },
+  {
+   "check": "vector_hash",
+   "ok": true,
+   "detail": "embedding blobs hash matches manifest; dims [768]"
+  },
+  {
+   "check": "ground_truth_independent",
+   "ok": true,
+   "detail": "2000 queries re-derived; 0 differ []"
+  },
+  {
+   "check": "ground_truth_grounded_in_db",
+   "ok": true,
+   "detail": "every relevant row exists, has the expected status, names the entity and states an expected value; bad: []"
+  },
+  {
+   "check": "complete_serial_pass",
+   "ok": true,
+   "detail": "2000/2000 queries have a serial-pass row"
+  },
+  {
+   "check": "summary_p50_ms_c1",
+   "ok": true,
+   "detail": "recomputed 10.671 vs Retriever summary 10.671"
+  },
+  {
+   "check": "summary_p95_ms_c1",
+   "ok": true,
+   "detail": "recomputed 31.935 vs Retriever summary 31.935"
+  },
+  {
+   "check": "summary_p99_ms_c1",
+   "ok": true,
+   "detail": "recomputed 43.818 vs Retriever summary 43.818"
+  },
+  {
+   "check": "summary_p50_ms_c2",
+   "ok": true,
+   "detail": "recomputed 22.700 vs Retriever summary 22.700"
+  },
+  {
+   "check": "summary_p95_ms_c2",
+   "ok": true,
+   "detail": "recomputed 61.230 vs Retriever summary 61.230"
+  },
+  {
+   "check": "summary_p99_ms_c2",
+   "ok": true,
+   "detail": "recomputed 82.187 vs Retriever summary 82.187"
+  },
+  {
+   "check": "deterministic_under_concurrency_c2",
+   "ok": true,
+   "detail": "0 queries returned a different top-10 at concurrency 2: []"
+  },
+  {
+   "check": "summary_p50_ms_c4",
+   "ok": true,
+   "detail": "recomputed 57.561 vs Retriever summary 57.561"
+  },
+  {
+   "check": "summary_p95_ms_c4",
+   "ok": true,
+   "detail": "recomputed 113.203 vs Retriever summary 113.203"
+  },
+  {
+   "check": "summary_p99_ms_c4",
+   "ok": true,
+   "detail": "recomputed 143.727 vs Retriever summary 143.727"
+  },
+  {
+   "check": "deterministic_under_concurrency_c4",
+   "ok": true,
+   "detail": "0 queries returned a different top-10 at concurrency 4: []"
+  },
+  {
+   "check": "summary_p50_ms_c8",
+   "ok": true,
+   "detail": "recomputed 135.616 vs Retriever summary 135.616"
+  },
+  {
+   "check": "summary_p95_ms_c8",
+   "ok": true,
+   "detail": "recomputed 266.385 vs Retriever summary 266.385"
+  },
+  {
+   "check": "summary_p99_ms_c8",
+   "ok": true,
+   "detail": "recomputed 375.175 vs Retriever summary 375.175"
+  },
+  {
+   "check": "deterministic_under_concurrency_c8",
+   "ok": true,
+   "detail": "0 queries returned a different top-10 at concurrency 8: []"
+  },
+  {
+   "check": "gate_no_errors",
+   "ok": true,
+   "detail": "0 failed searches"
+  },
+  {
+   "check": "gate_recall",
+   "ok": true,
+   "detail": "recall@10 0.9247 (floor 0.8)"
+  },
+  {
+   "check": "gate_p99_serial",
+   "ok": true,
+   "detail": "serial warm p99 43.8 ms (budget 100 ms)"
+  },
+  {
+   "check": "gate_concurrency_scaling",
+   "ok": false,
+   "detail": "QPS at concurrency 8 is 0.75x serial (floor 2.0x)"
+  },
+  {
+   "check": "gate_p99_concurrent",
+   "ok": false,
+   "detail": "p99 at concurrency 8: 375.2 ms (budget 200 ms)"
+  },
+  {
+   "check": "gate_peak_rss",
+   "ok": true,
+   "detail": "peak RSS 1.06 GiB (6.6% of RAM; budget 25%)"
+  },
+  {
+   "check": "gate_projected_rss_next_stage",
+   "ok": false,
+   "detail": "10,549 resident B/memory -> 9.8 GiB at n=1,000,000 (budget 50% of RAM = 8.0 GiB)"
+  },
+  {
+   "check": "gate_projected_disk_next_stage",
+   "ok": true,
+   "detail": "4,489 disk B/memory -> 4.2 GiB at n=1,000,000 (free 51.8 GiB)"
+  },
+  {
+   "check": "claim_c1_p50_ms",
+   "ok": true,
+   "detail": "claimed 10.670792 vs artifact 10.670792"
+  },
+  {
+   "check": "claim_c1_p95_ms",
+   "ok": true,
+   "detail": "claimed 31.935208 vs artifact 31.935208"
+  },
+  {
+   "check": "claim_c1_p99_ms",
+   "ok": true,
+   "detail": "claimed 43.818333 vs artifact 43.818333"
+  },
+  {
+   "check": "claim_c2_p50_ms",
+   "ok": true,
+   "detail": "claimed 22.700499999999998 vs artifact 22.700499999999998"
+  },
+  {
+   "check": "claim_c2_p95_ms",
+   "ok": true,
+   "detail": "claimed 61.229667 vs artifact 61.229667"
+  },
+  {
+   "check": "claim_c2_p99_ms",
+   "ok": true,
+   "detail": "claimed 82.186958 vs artifact 82.186958"
+  },
+  {
+   "check": "claim_c4_p50_ms",
+   "ok": true,
+   "detail": "claimed 57.560542 vs artifact 57.560542"
+  },
+  {
+   "check": "claim_c4_p95_ms",
+   "ok": true,
+   "detail": "claimed 113.20254200000001 vs artifact 113.20254200000001"
+  },
+  {
+   "check": "claim_c4_p99_ms",
+   "ok": true,
+   "detail": "claimed 143.727292 vs artifact 143.727292"
+  },
+  {
+   "check": "claim_c8_p50_ms",
+   "ok": true,
+   "detail": "claimed 135.616333 vs artifact 135.616333"
+  },
+  {
+   "check": "claim_c8_p95_ms",
+   "ok": true,
+   "detail": "claimed 266.38466700000004 vs artifact 266.38466700000004"
+  },
+  {
+   "check": "claim_c8_p99_ms",
+   "ok": true,
+   "detail": "claimed 375.174958 vs artifact 375.174958"
+  },
+  {
+   "check": "claim_peak_rss",
+   "ok": true,
+   "detail": "claimed 1133740032 vs artifact 1133740032"
+  },
+  {
+   "check": "claim_ingest_rate",
+   "ok": true,
+   "detail": "claimed 11666.647536864704 vs artifact 11666.647536864704"
+  }
+ ],
+ "failures": [
+  {
+   "code": "CONCURRENCY_DOES_NOT_SCALE",
+   "detail": "QPS at concurrency 8 is 0.75x serial (floor 2.0x)",
+   "action_hint": "find the serialising lock in the search path"
+  },
+  {
+   "code": "P99_CONCURRENT_OVER_BUDGET",
+   "detail": "p99 at concurrency 8: 375.2 ms (budget 200 ms)",
+   "action_hint": "reduce per-query CPU or contention"
+  },
+  {
+   "code": "PROJECTED_RSS_OVER_BUDGET",
+   "detail": "10,549 resident B/memory -> 9.8 GiB at n=1,000,000 (budget 50% of RAM = 8.0 GiB)",
+   "action_hint": "bound resident memory: compact/quantised vectors or disk-backed segments"
+  }
+ ],
+ "metrics": {
+  "quality": {
+   "recall@10": 0.9247379454926624,
+   "hit@10": 0.9333333333333333,
+   "mrr@10": 0.5857651991614263,
+   "ndcg@10": 0.6613122474242534,
+   "hit_any_returned@10": 0.9628930817610063,
+   "answerable_queries": 1590,
+   "by_type": {
+    "current": {
+     "recall@10": 0.9546,
+     "hit@10": 0.958,
+     "mrr@10": 0.623,
+     "ndcg@10": 0.6995,
+     "hit_any_returned@10": 0.958,
+     "n": 1215
+    },
+    "contradiction": {
+     "recall@10": 0.9429,
+     "hit@10": 0.9946,
+     "mrr@10": 0.7189,
+     "ndcg@10": 0.745,
+     "hit_any_returned@10": 0.9946,
+     "n": 184
+    },
+    "historical": {
+     "recall@10": 0.7173,
+     "hit@10": 0.7173,
+     "mrr@10": 0.2208,
+     "ndcg@10": 0.3381,
+     "hit_any_returned@10": 0.9634,
+     "n": 191
+    }
+   }
+  },
+  "latency": {
+   "1": {
+    "n": 2000,
+    "errors": 0,
+    "p50_ms": 10.670792,
+    "p95_ms": 31.935208,
+    "p99_ms": 43.818333,
+    "successful_qps": 72.48413797344224
+   },
+   "2": {
+    "n": 2000,
+    "errors": 0,
+    "p50_ms": 22.700499999999998,
+    "p95_ms": 61.229667,
+    "p99_ms": 82.186958,
+    "successful_qps": 68.06292211981105
+   },
+   "4": {
+    "n": 2000,
+    "errors": 0,
+    "p50_ms": 57.560542,
+    "p95_ms": 113.20254200000001,
+    "p99_ms": 143.727292,
+    "successful_qps": 64.95304766713284
+   },
+   "8": {
+    "n": 2000,
+    "errors": 0,
+    "p50_ms": 135.616333,
+    "p95_ms": 266.38466700000004,
+    "p99_ms": 375.174958,
+    "successful_qps": 54.43687247178903
+   }
+  },
+  "memory": {
+   "resident_bytes_after_load": 1054949376,
+   "resident_bytes_per_memory": 10549.49376,
+   "projected_resident_bytes_next_stage": 10549493760.0,
+   "next_stage_n": 1000000
+  },
+  "disk": {
+   "bytes": 448856064,
+   "bytes_per_memory": 4488.56064,
+   "projected_bytes_next_stage": 4488560640.0,
+   "free_bytes": 55655350272
+  },
+  "cold": {
+   "definition": "fresh process, empty engine caches, OS page cache not purged",
+   "store_open_ms": 1.033125,
+   "first_query_ms_incl_index_load": 588.890917,
+   "second_query_ms": 24.519083000000002
+  },
+  "cpu_s": 495.302533,
+  "ingest": {
+   "memories_per_s_engine_insert": 11666.647536864704,
+   "memories_per_s_wall": 10596.204590511594,
+   "build_peak_rss_bytes": 618102784,
+   "build_cpu_s": 8.731667
+  }
+ },
+ "round": 1,
+ "created_at": "2026-10-31T07:00:36Z"
+}

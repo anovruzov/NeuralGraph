@@ -1,0 +1,95 @@
+{
+  "n": 100000,
+  "engine": {
+    "vector_index": "ivf",
+    "ivf_nprobe": 32,
+    "read_pool": true,
+    "keyword_max_df": 0.01,
+    "channels": "VK",
+    "depth": 100
+  },
+  "index_rows": 100000,
+  "queries_profiled": 300,
+  "index_full_load_ms": 235.156459,
+  "store.index_rows_ms": 321.09749999999997,
+  "rss_before_load": 33423360,
+  "rss_after_load": 173244416,
+  "resident_bytes_per_memory": 1398.21056,
+  "entity_keys": 6250,
+  "stages": {
+    "search_channels_VK": {
+      "n": 300,
+      "p50_ms": 3.7106660000000002,
+      "p95_ms": 4.574,
+      "p99_ms": 5.789292,
+      "max_ms": 10.27725,
+      "mean_ms": 3.8219230900000016
+    },
+    "search_channels_V": {
+      "n": 300,
+      "p50_ms": 3.1814999999999998,
+      "p95_ms": 3.6498749999999998,
+      "p99_ms": 3.8705,
+      "max_ms": 4.319125,
+      "mean_ms": 3.218159016666666
+    },
+    "search_channels_K": {
+      "n": 300,
+      "p50_ms": 1.61625,
+      "p95_ms": 2.6395,
+      "p99_ms": 3.164334,
+      "max_ms": 3.3888339999999997,
+      "mean_ms": 1.8018298800000005
+    },
+    "store.keyword_candidates(depth*2=200, active)": {
+      "n": 300,
+      "p50_ms": 0.140667,
+      "p95_ms": 0.913083,
+      "p99_ms": 1.0077090000000002,
+      "max_ms": 1.113625,
+      "mean_ms": 0.24999390333333338
+    },
+    "store.cache_key (PRAGMA data_version)": {
+      "n": 300,
+      "p50_ms": 0.001084,
+      "p95_ms": 0.0011250000000000001,
+      "p99_ms": 0.001167,
+      "max_ms": 0.001708,
+      "mean_ms": 0.001100086666666662
+    },
+    "retriever.query_entities (alias map clone + scan)": {
+      "n": 300,
+      "p50_ms": 1.013084,
+      "p95_ms": 1.0817080000000001,
+      "p99_ms": 1.149958,
+      "max_ms": 1.1565830000000001,
+      "mean_ms": 1.0203119466666668
+    },
+    "store.entity_ids_for_memories(100)": {
+      "n": 300,
+      "p50_ms": 0.064292,
+      "p95_ms": 0.06724999999999999,
+      "p99_ms": 0.072042,
+      "max_ms": 0.09787499999999999,
+      "mean_ms": 0.0647559566666667
+    },
+    "store.get_memories_by_ids(10)": {
+      "n": 300,
+      "p50_ms": 0.044833000000000005,
+      "p95_ms": 0.047542,
+      "p99_ms": 0.050209,
+      "max_ms": 0.075084,
+      "mean_ms": 0.04521320666666658
+    }
+  },
+  "env": {
+    "git_commit": "f0ddff96242cb98faa421d2a2df8e38046ca7a1b",
+    "git_dirty_files": 6,
+    "cpu": "Apple M4",
+    "ncpu": "10",
+    "mem_bytes": "17179869184",
+    "os": "Darwin 24.6.0 arm64",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13) (Homebrew)",
+    "threads_available": 10
+  }
+}

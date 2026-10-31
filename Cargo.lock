@@ -1214,6 +1214,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
+name = "operation-100m-bench"
+version = "0.1.0"
+dependencies = [
+ "blake2",
+ "chrono",
+ "clap",
+ "futures",
+ "libc",
+ "neuralgraph-memory",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

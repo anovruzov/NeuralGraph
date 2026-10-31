@@ -1,0 +1,103 @@
+{
+ "task": "100k-real",
+ "verified_at": "2026-10-31T07:20:21Z",
+ "label": "verified",
+ "round": 3,
+ "variant": "bounded_recall",
+ "metrics": {
+  "quality": {
+   "recall@10": 0.9236897274633126,
+   "hit@10": 0.9358490566037736,
+   "mrr@10": 0.6785482180293513,
+   "ndcg@10": 0.7336915484040588,
+   "hit_any_returned@10": 0.9547169811320755,
+   "answerable_queries": 1590,
+   "by_type": {
+    "current": {
+     "recall@10": 0.9413,
+     "hit@10": 0.9449,
+     "mrr@10": 0.7093,
+     "ndcg@10": 0.7638,
+     "hit_any_returned@10": 0.9449,
+     "n": 1215
+    },
+    "contradiction": {
+     "recall@10": 0.9185,
+     "hit@10": 1.0,
+     "mrr@10": 0.8089,
+     "ndcg@10": 0.8061,
+     "hit_any_returned@10": 1.0,
+     "n": 184
+    },
+    "historical": {
+     "recall@10": 0.8168,
+     "hit@10": 0.8168,
+     "mrr@10": 0.3576,
+     "ndcg@10": 0.4723,
+     "hit_any_returned@10": 0.9738,
+     "n": 191
+    }
+   }
+  },
+  "latency": {
+   "1": {
+    "n": 2000,
+    "errors": 0,
+    "p50_ms": 9.950000000000001,
+    "p95_ms": 12.637959,
+    "p99_ms": 17.22675,
+    "successful_qps": 96.91742362568243
+   },
+   "2": {
+    "n": 2000,
+    "errors": 0,
+    "p50_ms": 10.417209,
+    "p95_ms": 12.176833,
+    "p99_ms": 14.848375,
+    "successful_qps": 187.53612340734784
+   },
+   "4": {
+    "n": 2000,
+    "errors": 0,
+    "p50_ms": 13.333792,
+    "p95_ms": 17.794875,
+    "p99_ms": 22.775791,
+    "successful_qps": 286.573568042733
+   },
+   "8": {
+    "n": 2000,
+    "errors": 0,
+    "p50_ms": 23.603292,
+    "p95_ms": 35.674125000000004,
+    "p99_ms": 86.105959,
+    "successful_qps": 312.560933070175
+   }
+  },
+  "memory": {
+   "resident_bytes_after_load": 135331840,
+   "resident_bytes_per_memory": 1353.3184,
+   "projected_resident_bytes_next_stage": 1353318400.0,
+   "next_stage_n": 1000000
+  },
+  "disk": {
+   "bytes": 448856064,
+   "bytes_per_memory": 4488.56064,
+   "projected_bytes_next_stage": 4488560640.0,
+   "free_bytes": 54716719104
+  },
+  "cold": {
+   "definition": "fresh process, empty engine caches, OS page cache not purged",
+   "store_open_ms": 1.032792,
+   "first_query_ms_incl_index_load": 371.709584,
+   "second_query_ms": 9.202292
+  },
+  "cpu_s": 117.83969400000001,
+  "ingest": {
+   "memories_per_s_engine_insert": 11666.647536864704,
+   "memories_per_s_wall": 10596.204590511594,
+   "build_peak_rss_bytes": 618102784,
+   "build_cpu_s": 8.731667
+  }
+ },
+ "evidence": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round3-bounded_recall/evidence.json"
+}

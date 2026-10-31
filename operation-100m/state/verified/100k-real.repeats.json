@@ -1,0 +1,107 @@
+{
+ "task": "100k-real",
+ "config": "bounded_recall (ivf nlist 316, nprobe 48, read pool, keyword_max_df 0.01)",
+ "runs": [
+  {
+   "run_dir": "bench/results/ablation-100k-real/repeat_bounded_recall_1",
+   "verdict": "PASS",
+   "failures": [],
+   "recall@10": 0.9236897274633126,
+   "latency": {
+    "1": {
+     "p50_ms": 9.838,
+     "p95_ms": 11.97,
+     "p99_ms": 16.074,
+     "successful_qps": 98.61
+    },
+    "2": {
+     "p50_ms": 10.243,
+     "p95_ms": 11.954,
+     "p99_ms": 15.009,
+     "successful_qps": 191.262
+    },
+    "4": {
+     "p50_ms": 13.775,
+     "p95_ms": 17.178,
+     "p99_ms": 20.27,
+     "successful_qps": 285.637
+    },
+    "8": {
+     "p50_ms": 23.678,
+     "p95_ms": 34.031,
+     "p99_ms": 49.91,
+     "successful_qps": 322.778
+    }
+   },
+   "resident_bytes_per_memory": 1391
+  },
+  {
+   "run_dir": "bench/results/ablation-100k-real/repeat_bounded_recall_2",
+   "verdict": "PASS",
+   "failures": [],
+   "recall@10": 0.9236897274633126,
+   "latency": {
+    "1": {
+     "p50_ms": 9.732,
+     "p95_ms": 11.224,
+     "p99_ms": 14.038,
+     "successful_qps": 100.579
+    },
+    "2": {
+     "p50_ms": 10.514,
+     "p95_ms": 12.206,
+     "p99_ms": 14.048,
+     "successful_qps": 186.83
+    },
+    "4": {
+     "p50_ms": 16.268,
+     "p95_ms": 19.905,
+     "p99_ms": 24.344,
+     "successful_qps": 239.916
+    },
+    "8": {
+     "p50_ms": 27.403,
+     "p95_ms": 35.066,
+     "p99_ms": 38.865,
+     "successful_qps": 288.403
+    }
+   },
+   "resident_bytes_per_memory": 1378
+  },
+  {
+   "run_dir": "bench/results/ablation-100k-real/repeat_bounded_recall_3",
+   "verdict": "PASS",
+   "failures": [],
+   "recall@10": 0.9236897274633126,
+   "latency": {
+    "1": {
+     "p50_ms": 9.806,
+     "p95_ms": 11.402,
+     "p99_ms": 14.717,
+     "successful_qps": 99.708
+    },
+    "2": {
+     "p50_ms": 11.82,
+     "p95_ms": 15.146,
+     "p99_ms": 24.496,
+     "successful_qps": 163.705
+    },
+    "4": {
+     "p50_ms": 18.478,
+     "p95_ms": 22.329,
+     "p99_ms": 26.213,
+     "successful_qps": 213.247
+    },
+    "8": {
+     "p50_ms": 34.129,
+     "p95_ms": 47.82,
+     "p99_ms": 63.237,
+     "successful_qps": 224.662
+    }
+   },
+   "resident_bytes_per_memory": 1274
+  }
+ ],
+ "all_pass": true,
+ "note": "Repeats use the loop's command (concurrency 1,2,4,8). An earlier unwarmed ablation (concurrency 1,8 only) scaled 1.95x at c8, under the 2.0x gate."
+}

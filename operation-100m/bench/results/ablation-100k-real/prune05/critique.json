@@ -1,0 +1,274 @@
+{
+ "verdict": "FAIL",
+ "experiment": {
+  "seed": 20261031,
+  "bank": 0,
+  "n": 100000,
+  "db": "work/100k/bank.db",
+  "manifest": "bench/results/100k-real/manifest.json",
+  "queries": "bench/results/100k-real/queries.jsonl",
+  "run_dir": "bench/results/ablation-100k-real/prune05",
+  "baseline_quality": {
+   "recall@10": 0.9247379454926624,
+   "hit@10": 0.9333333333333333,
+   "mrr@10": 0.5857651991614263,
+   "ndcg@10": 0.6613122474242534,
+   "hit_any_returned@10": 0.9628930817610063,
+   "answerable_queries": 1590,
+   "by_type": {
+    "current": {
+     "recall@10": 0.9546,
+     "hit@10": 0.958,
+     "mrr@10": 0.623,
+     "ndcg@10": 0.6995,
+     "hit_any_returned@10": 0.958,
+     "n": 1215
+    },
+    "contradiction": {
+     "recall@10": 0.9429,
+     "hit@10": 0.9946,
+     "mrr@10": 0.7189,
+     "ndcg@10": 0.745,
+     "hit_any_returned@10": 0.9946,
+     "n": 184
+    },
+    "historical": {
+     "recall@10": 0.7173,
+     "hit@10": 0.7173,
+     "mrr@10": 0.2208,
+     "ndcg@10": 0.3381,
+     "hit_any_returned@10": 0.9634,
+     "n": 191
+    }
+   }
+  }
+ },
+ "gates": {
+  "_note": "Declared 2026-10-31 before any 100K result existed. Engine-level timing (query embedding excluded), same scope as Hindsight's gRPC engine numbers.",
+  "recall_at_10_min": 0.8,
+  "p99_ms_max": 100,
+  "p99_ms_max_concurrent": 200,
+  "min_qps_speedup_at_max_concurrency": 2.0,
+  "peak_rss_fraction_of_ram": 0.25,
+  "projected_rss_fraction_of_ram": 0.5,
+  "next_stage_multiplier": 10,
+  "projected_disk_fraction_of_free": 0.5,
+  "full_regeneration_max_n": 2000000,
+  "max_recall_drop_vs_baseline": 0.01,
+  "_note_2": "2026-10-31: non-regression gate added after round 2 of 100k-real passed the absolute floor while losing 12 points of recall; an absolute floor alone allowed trading accuracy for latency."
+ },
+ "checks": [
+  {
+   "check": "row_count",
+   "ok": true,
+   "detail": "100000 rows in DB, spec says 100000"
+  },
+  {
+   "check": "dataset_hash",
+   "ok": true,
+   "detail": "DB text hash 29216d17b5feb2a2\u2026 vs manifest 29216d17b5feb2a2\u2026"
+  },
+  {
+   "check": "records_match_independent_spec",
+   "ok": true,
+   "detail": "all records re-derived in Python; mismatches: []"
+  },
+  {
+   "check": "vector_hash",
+   "ok": true,
+   "detail": "embedding blobs hash matches manifest; dims [768]"
+  },
+  {
+   "check": "ground_truth_independent",
+   "ok": true,
+   "detail": "2000 queries re-derived; 0 differ []"
+  },
+  {
+   "check": "ground_truth_grounded_in_db",
+   "ok": true,
+   "detail": "every relevant row exists, has the expected status, names the entity and states an expected value; bad: []"
+  },
+  {
+   "check": "complete_serial_pass",
+   "ok": true,
+   "detail": "2000/2000 queries have a serial-pass row"
+  },
+  {
+   "check": "summary_p50_ms_c1",
+   "ok": true,
+   "detail": "recomputed 13.765 vs Retriever summary 13.765"
+  },
+  {
+   "check": "summary_p95_ms_c1",
+   "ok": true,
+   "detail": "recomputed 20.760 vs Retriever summary 20.760"
+  },
+  {
+   "check": "summary_p99_ms_c1",
+   "ok": true,
+   "detail": "recomputed 25.780 vs Retriever summary 25.780"
+  },
+  {
+   "check": "summary_p50_ms_c8",
+   "ok": true,
+   "detail": "recomputed 98.962 vs Retriever summary 98.962"
+  },
+  {
+   "check": "summary_p95_ms_c8",
+   "ok": true,
+   "detail": "recomputed 180.795 vs Retriever summary 180.795"
+  },
+  {
+   "check": "summary_p99_ms_c8",
+   "ok": true,
+   "detail": "recomputed 274.143 vs Retriever summary 274.143"
+  },
+  {
+   "check": "deterministic_under_concurrency_c8",
+   "ok": true,
+   "detail": "0 queries returned a different top-10 at concurrency 8: []"
+  },
+  {
+   "check": "gate_no_errors",
+   "ok": true,
+   "detail": "0 failed searches"
+  },
+  {
+   "check": "gate_recall",
+   "ok": true,
+   "detail": "recall@10 0.9279 (floor 0.8)"
+  },
+  {
+   "check": "gate_p99_serial",
+   "ok": true,
+   "detail": "serial warm p99 25.8 ms (budget 100 ms)"
+  },
+  {
+   "check": "gate_recall_non_regression",
+   "ok": true,
+   "detail": "recall@10 0.9279 vs shipped engine 0.9247 on the same bank (drop -0.0031, allowed 0.01)"
+  },
+  {
+   "check": "gate_concurrency_scaling",
+   "ok": false,
+   "detail": "QPS at concurrency 8 is 1.11x serial (floor 2.0x)"
+  },
+  {
+   "check": "gate_p99_concurrent",
+   "ok": false,
+   "detail": "p99 at concurrency 8: 274.1 ms (budget 200 ms)"
+  },
+  {
+   "check": "gate_peak_rss",
+   "ok": true,
+   "detail": "peak RSS 1.07 GiB (6.7% of RAM; budget 25%)"
+  },
+  {
+   "check": "gate_projected_rss_next_stage",
+   "ok": false,
+   "detail": "10,652 resident B/memory -> 9.9 GiB at n=1,000,000 (budget 50% of RAM = 8.0 GiB)"
+  },
+  {
+   "check": "gate_projected_disk_next_stage",
+   "ok": true,
+   "detail": "4,489 disk B/memory -> 4.2 GiB at n=1,000,000 (free 51.4 GiB)"
+  }
+ ],
+ "failures": [
+  {
+   "code": "CONCURRENCY_DOES_NOT_SCALE",
+   "detail": "QPS at concurrency 8 is 1.11x serial (floor 2.0x)",
+   "action_hint": "find the serialising lock in the search path"
+  },
+  {
+   "code": "P99_CONCURRENT_OVER_BUDGET",
+   "detail": "p99 at concurrency 8: 274.1 ms (budget 200 ms)",
+   "action_hint": "reduce per-query CPU or contention"
+  },
+  {
+   "code": "PROJECTED_RSS_OVER_BUDGET",
+   "detail": "10,652 resident B/memory -> 9.9 GiB at n=1,000,000 (budget 50% of RAM = 8.0 GiB)",
+   "action_hint": "bound resident memory: compact/quantised vectors or disk-backed segments"
+  }
+ ],
+ "advisories": [],
+ "metrics": {
+  "quality": {
+   "recall@10": 0.9278825995807127,
+   "hit@10": 0.9364779874213837,
+   "mrr@10": 0.5866287311570338,
+   "ndcg@10": 0.6626157516099836,
+   "hit_any_returned@10": 0.9616352201257862,
+   "answerable_queries": 1590,
+   "by_type": {
+    "current": {
+     "recall@10": 0.9529,
+     "hit@10": 0.9564,
+     "mrr@10": 0.6233,
+     "ndcg@10": 0.6992,
+     "hit_any_returned@10": 0.9564,
+     "n": 1215
+    },
+    "contradiction": {
+     "recall@10": 0.9429,
+     "hit@10": 0.9946,
+     "mrr@10": 0.7171,
+     "ndcg@10": 0.7441,
+     "hit_any_returned@10": 0.9946,
+     "n": 184
+    },
+    "historical": {
+     "recall@10": 0.7539,
+     "hit@10": 0.7539,
+     "mrr@10": 0.2277,
+     "ndcg@10": 0.3517,
+     "hit_any_returned@10": 0.9634,
+     "n": 191
+    }
+   }
+  },
+  "latency": {
+   "1": {
+    "n": 2000,
+    "errors": 0,
+    "p50_ms": 13.764999999999999,
+    "p95_ms": 20.759667,
+    "p99_ms": 25.779917,
+    "successful_qps": 67.8295848323654
+   },
+   "8": {
+    "n": 2000,
+    "errors": 0,
+    "p50_ms": 98.962042,
+    "p95_ms": 180.79500000000002,
+    "p99_ms": 274.143458,
+    "successful_qps": 75.45286716461804
+   }
+  },
+  "memory": {
+   "resident_bytes_after_load": 1065238528,
+   "resident_bytes_per_memory": 10652.38528,
+   "projected_resident_bytes_next_stage": 10652385280.0,
+   "next_stage_n": 1000000
+  },
+  "disk": {
+   "bytes": 448856064,
+   "bytes_per_memory": 4488.56064,
+   "projected_bytes_next_stage": 4488560640.0,
+   "free_bytes": 55219146752
+  },
+  "cold": {
+   "definition": "fresh process, empty engine caches, OS page cache not purged",
+   "store_open_ms": 0.8524999999999999,
+   "first_query_ms_incl_index_load": 271.017791,
+   "second_query_ms": 8.219583
+  },
+  "cpu_s": 267.57456399999995,
+  "ingest": {
+   "memories_per_s_engine_insert": 11666.647536864704,
+   "memories_per_s_wall": 10596.204590511594,
+   "build_peak_rss_bytes": 618102784,
+   "build_cpu_s": 8.731667
+  }
+ }
+}

@@ -29,6 +29,7 @@ use indexmap::{IndexMap, IndexSet};
 use rusqlite::types::Value as SqlValue;
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension, Row};
 use serde_json::{Map, Value};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -545,6 +546,14 @@ pub struct ChatMemoryStore {
     revision: AtomicU64,
     has_fts: AtomicBool,
     bm25_cache: Mutex<Option<Bm25Cache>>,
+    /// extra read-only connections for the search path (WAL readers run in parallel); empty and unused unless
+    /// [`set_read_pool`](Self::set_read_pool) turned it on
+    read_pool: Mutex<Vec<Connection>>,
+    read_pool_on: AtomicBool,
+    /// keyword channel: drop query terms in more than this fraction of memories (0 = keep every term)
+    keyword_max_df_bits: AtomicU64,
+    /// document frequency per FTS term, valid for one cache key
+    df_cache: Mutex<(Option<(u64, i64)>, i64, HashMap<String, i64>)>,
 }
 
 /// `str(Path(path).expanduser())`: `~` expands to `$HOME`, `.` components and repeated or trailing slashes are
@@ -589,6 +598,10 @@ impl ChatMemoryStore {
             revision: AtomicU64::new(0),
             has_fts: AtomicBool::new(false),
             bm25_cache: Mutex::new(None),
+            read_pool: Mutex::new(Vec::new()),
+            read_pool_on: AtomicBool::new(false),
+            keyword_max_df_bits: AtomicU64::new(0f64.to_bits()),
+            df_cache: Mutex::new((None, 0, HashMap::new())),
         };
         store.init_schema()?;
         Ok(store)
@@ -656,6 +669,76 @@ impl ChatMemoryStore {
             Some(c) => f(c),
             None => Err(MemoryError::Other("ProgrammingError", "Cannot operate on a closed database.".into())),
         }
+    }
+
+    /// Use a pool of read-only connections for search-path reads (file databases only). Off by default: every
+    /// read then shares the single connection and its mutex, so concurrent searches serialise on SQLite.
+    pub fn set_read_pool(&self, on: bool) {
+        self.read_pool_on.store(on && self.db_path != ":memory:", Ordering::SeqCst);
+    }
+
+    /// Keyword channel term pruning: terms that occur in more than `fraction` of all memories are dropped from the
+    /// FTS query (the rarest term is always kept). 0 turns pruning off (the shipped behaviour).
+    pub fn set_keyword_max_df(&self, fraction: f64) {
+        self.keyword_max_df_bits.store(fraction.to_bits(), Ordering::SeqCst);
+    }
+
+    /// Run a read-only `f` on a pooled connection when the pool is on, else on the main connection.
+    pub fn with_read_conn<T>(&self, f: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
+        if !self.read_pool_on.load(Ordering::SeqCst) {
+            return self.with_conn(f);
+        }
+        let pooled = self.read_pool.lock().unwrap_or_else(|e| e.into_inner()).pop();
+        let conn = match pooled {
+            Some(c) => c,
+            None => {
+                let c = Connection::open(&self.db_path)?;
+                c.execute_batch("PRAGMA busy_timeout=5000; PRAGMA query_only=1;")?;
+                c
+            }
+        };
+        let out = f(&conn);
+        self.read_pool.lock().unwrap_or_else(|e| e.into_inner()).push(conn);
+        out
+    }
+
+    /// The FTS match string for `query`, without terms above the configured document-frequency fraction.
+    fn pruned_match(&self, query: &str) -> Result<String> {
+        let m = fts_match_string(query);
+        let frac = f64::from_bits(self.keyword_max_df_bits.load(Ordering::SeqCst));
+        if frac <= 0.0 || m.is_empty() {
+            return Ok(m);
+        }
+        let key = self.cache_key();
+        let terms: Vec<String> = m.split(" OR ").map(str::to_string).collect();
+        let mut cache = self.df_cache.lock().unwrap_or_else(|e| e.into_inner());
+        if cache.0 != Some(key) {
+            let total: i64 = self.with_read_conn(|c| Ok(c.query_row("SELECT count(*) FROM memories", [], |r| r.get(0))?))?;
+            *cache = (Some(key), total, HashMap::new());
+        }
+        let total = cache.1.max(1);
+        let mut dfs: Vec<(String, i64)> = Vec::with_capacity(terms.len());
+        for t in terms {
+            let df = match cache.2.get(&t) {
+                Some(d) => *d,
+                None => {
+                    let d: i64 = self.with_read_conn(|c| {
+                        Ok(c.query_row("SELECT count(*) FROM memories_fts WHERE memories_fts MATCH ?", [&t], |r| r.get(0))?)
+                    })?;
+                    cache.2.insert(t.clone(), d);
+                    d
+                }
+            };
+            dfs.push((t, df));
+        }
+        let limit = (frac * total as f64).max(1.0) as i64;
+        let mut kept: Vec<&str> = dfs.iter().filter(|(_, d)| *d <= limit).map(|(t, _)| t.as_str()).collect();
+        if kept.is_empty() {
+            if let Some((t, _)) = dfs.iter().filter(|(_, d)| *d > 0).min_by_key(|(_, d)| *d) {
+                kept.push(t);
+            }
+        }
+        Ok(kept.join(" OR "))
     }
 
     /// `BEGIN IMMEDIATE ... COMMIT` around `f`; rolls back on error.
@@ -1545,6 +1628,38 @@ impl ChatMemoryStore {
         Ok(())
     }
 
+    /// [`insert_memory`](Self::insert_memory) for many rows in one transaction (bulk loads and benchmarks): the
+    /// rows land exactly as they would one by one, with a single commit and a single cache bump.
+    pub fn insert_memories_bulk(&self, items: &[(Memory, Vec<String>, Vec<String>)]) -> Result<()> {
+        if items.is_empty() {
+            return Ok(());
+        }
+        self.tx(|c| {
+            for (m, sources, entities) in items {
+                Self::insert_memory_sync(c, m, sources, entities)?;
+            }
+            Ok(())
+        })?;
+        self.bump();
+        Ok(())
+    }
+
+    /// [`upsert_entity`](Self::upsert_entity) for many entities in one transaction: (entity_id, name, type,
+    /// seen_at, mentions, aliases).
+    pub fn upsert_entities_bulk(&self, items: &[(String, String, String, Option<String>, i64, Vec<String>)]) -> Result<()> {
+        if items.is_empty() {
+            return Ok(());
+        }
+        self.tx(|c| {
+            for (id, name, etype, seen, mentions, aliases) in items {
+                Self::upsert_entity_sync(c, id, name, etype, seen.as_deref(), *mentions, aliases)?;
+            }
+            Ok(())
+        })?;
+        self.bump();
+        Ok(())
+    }
+
     pub fn get_memory(&self, memory_id: &str, with_sources: bool) -> Result<Option<Memory>> {
         self.with_conn(|c| {
             let mut found = Self::query_memories(c, "SELECT * FROM memories WHERE memory_id=?", &[text_v(memory_id)])?;
@@ -1574,7 +1689,7 @@ impl ChatMemoryStore {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
-        self.with_conn(|c| {
+        self.with_read_conn(|c| {
             let mut out = Vec::new();
             for chunk in ids.chunks(500) {
                 let sql = format!("SELECT * FROM memories WHERE memory_id IN ({})", placeholders(chunk.len()));
@@ -1727,6 +1842,21 @@ impl ChatMemoryStore {
 
     pub fn supersede(&self, old_id: &str, new_id: &str, link_type: &str) -> Result<()> {
         self.tx(|c| Self::supersede_sync(c, old_id, new_id, link_type))?;
+        self.bump();
+        Ok(())
+    }
+
+    /// [`supersede`](Self::supersede) for many (old_id, new_id, link_type) triples in one transaction.
+    pub fn supersede_bulk(&self, items: &[(String, String, String)]) -> Result<()> {
+        if items.is_empty() {
+            return Ok(());
+        }
+        self.tx(|c| {
+            for (old_id, new_id, link_type) in items {
+                Self::supersede_sync(c, old_id, new_id, link_type)?;
+            }
+            Ok(())
+        })?;
         self.bump();
         Ok(())
     }
@@ -1885,7 +2015,22 @@ impl ChatMemoryStore {
     /// Light-weight rows for the retrieval index (embedding may be None). `status=None` returns every status;
     /// `updated_after` returns only rows written since that ISO timestamp (for incremental index refresh).
     pub fn index_rows(&self, status: Option<&str>, updated_after: Option<&str>) -> Result<Vec<IndexRow>> {
-        let mut sql = "SELECT memory_id, subject, speaker, chat_id, kind, importance, observed_at, event_time, event_time_precision, status, updated_at, embedding FROM memories WHERE 1=1".to_string();
+        self.index_rows_embeddings_after(status, updated_after, None)
+    }
+
+    /// [`index_rows`](Self::index_rows), but when `embeddings_after_rid` is set only rows with a larger rid carry
+    /// their embedding (rows a disk vector index already covers are loaded without it, so they cost no RAM).
+    pub fn index_rows_embeddings_after(
+        &self,
+        status: Option<&str>,
+        updated_after: Option<&str>,
+        embeddings_after_rid: Option<i64>,
+    ) -> Result<Vec<IndexRow>> {
+        let emb = match embeddings_after_rid {
+            Some(r) => format!("CASE WHEN rid > {r} THEN embedding END"),
+            None => "embedding".to_string(),
+        };
+        let mut sql = format!("SELECT memory_id, subject, speaker, chat_id, kind, importance, observed_at, event_time, event_time_precision, status, updated_at, {emb} FROM memories WHERE 1=1");
         let mut args = Vec::new();
         if let Some(s) = status.filter(|s| !s.is_empty()) {
             sql.push_str(" AND status=?");
@@ -1896,7 +2041,7 @@ impl ChatMemoryStore {
             args.push(text_v(u));
         }
         sql.push_str(" ORDER BY rid");
-        self.with_conn(|c| {
+        self.with_read_conn(|c| {
             let mut st = c.prepare(&sql)?;
             let rows = st.query_map(params_from_iter(args.iter()), |r| {
                 let blob: Option<Vec<u8>> = r.get(11)?;
@@ -1919,10 +2064,26 @@ impl ChatMemoryStore {
         })
     }
 
+    /// Stream (rid, memory_id, raw f32 embedding bytes) of every active or superseded memory, in rid order (input
+    /// of a disk vector index build).
+    pub fn for_each_embedding(&self, f: &mut dyn FnMut(i64, String, &[u8]) -> Result<()>) -> Result<()> {
+        self.with_read_conn(|c| {
+            let mut st = c.prepare(
+                "SELECT rid, memory_id, embedding FROM memories WHERE embedding IS NOT NULL AND status IN ('active','superseded') ORDER BY rid",
+            )?;
+            let mut rows = st.query([])?;
+            while let Some(r) = rows.next()? {
+                let blob: Vec<u8> = r.get(2)?;
+                f(r.get(0)?, r.get(1)?, &blob)?;
+            }
+            Ok(())
+        })
+    }
+
     pub fn entity_ids_for_memories(&self, memory_ids: &[String]) -> Result<IndexMap<String, Vec<String>>> {
         let ids = dedup(memory_ids.iter().cloned());
         let mut out: IndexMap<String, Vec<String>> = ids.iter().map(|i| (i.clone(), Vec::new())).collect();
-        self.with_conn(|c| {
+        self.with_read_conn(|c| {
             for chunk in ids.chunks(500) {
                 let sql = format!(
                     "SELECT memory_id, entity_id FROM memory_entities WHERE memory_id IN ({}) ORDER BY entity_id",
@@ -1998,7 +2159,7 @@ impl ChatMemoryStore {
             return Ok(Vec::new());
         }
         if self.has_fts() {
-            let m = fts_match_string(query);
+            let m = self.pruned_match(query)?;
             if m.is_empty() {
                 return Ok(Vec::new());
             }
@@ -2023,7 +2184,7 @@ impl ChatMemoryStore {
             sql.push_str(&time_predicates(non_empty(&f.since), non_empty(&f.until), &mut args));
             sql.push_str(" ORDER BY s LIMIT ?");
             args.push(SqlValue::Integer(limit));
-            return self.with_conn(|c| {
+            return self.with_read_conn(|c| {
                 let mut st = c.prepare(&sql)?;
                 let rows = st
                     .query_map(params_from_iter(args.iter()), |r| Ok((r.get::<_, String>(0)?, -r.get::<_, f64>(1)?)))?;

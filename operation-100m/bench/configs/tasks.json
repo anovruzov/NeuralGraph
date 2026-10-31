@@ -1,0 +1,48 @@
+{
+ "100k-real": {
+  "hypothesis": "The shipped engine (f0ddff96 retrieval defaults: vector+keyword channels, RRF, priors) retrieves the right evidence for a 100K-memory bank with real nomic-embed-text vectors within the stage gates.",
+  "experiment": {
+   "n": 100000,
+   "seed": 20261031,
+   "nq": 2000,
+   "work": "100k",
+   "emb": "file:{work}/records.f32",
+   "qvec": "file:{work}/queries.f32",
+   "concurrency": "1,2,4,8"
+  },
+  "implementable": [
+   "CONCURRENCY_DOES_NOT_SCALE",
+   "PROJECTED_RSS_OVER_BUDGET",
+   "P99_OVER_BUDGET",
+   "P99_CONCURRENT_OVER_BUDGET"
+  ]
+ },
+ "1m-synth": {
+  "hypothesis": "With the bounded engine variant, a 1M-memory bank keeps recall@10, serial p99, concurrency scaling and peak RSS within the stage gates on this Mac. Vectors are synthetic latent vectors (768-d, same engine cost as nomic-embed-text) because embedding 1M texts locally would take ~5.5 h; recall here measures the engine on that geometry, not language-model semantics.",
+  "start_variant": "bounded",
+  "not_run": {
+   "engine_default": "Critic projected 9.7 KB resident per memory at 100K -> ~9.7 GB at 1M, over the 25% RAM peak budget; running it risks swapping the host."
+  },
+  "experiment": {
+   "n": 1000000,
+   "seed": 20261031,
+   "nq": 2000,
+   "work": "1m-synth",
+   "emb": "synthetic:768",
+   "qvec": "synthetic:768",
+   "concurrency": "1,2,4,8"
+  },
+  "gates_override": {
+   "advisory_codes": [
+    "PROJECTED_RSS_OVER_BUDGET",
+    "PROJECTED_DISK_OVER_BUDGET"
+   ]
+  },
+  "implementable": [
+   "CONCURRENCY_DOES_NOT_SCALE",
+   "P99_OVER_BUDGET",
+   "P99_CONCURRENT_OVER_BUDGET",
+   "RSS_OVER_BUDGET"
+  ]
+ }
+}

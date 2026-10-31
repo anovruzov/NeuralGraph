@@ -1,0 +1,969 @@
+branch operation-100m, working tree on top of f0ddff96 (uncommitted engine + harness changes)
+started: 2026-10-31T07:23:32Z
+   Compiling neuralgraph-memory v1.0.0 (/Users/novruz/NeuralGraph-current/crates/neuralgraph-memory)
+   Compiling neuralgraph-research v1.0.0 (/Users/novruz/NeuralGraph-current/crates/neuralgraph-research)
+   Compiling operation-100m-bench v0.1.0 (/Users/novruz/NeuralGraph-current/operation-100m/bench)
+warning: field `key` is never read
+  --> operation-100m/bench/src/corpus.rs:21:9
+   |
+20 | pub struct Attr {
+   |            ---- field in this struct
+21 |     pub key: String,
+   |         ^^^
+   |
+   = note: `Attr` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `slot` is never read
+   --> operation-100m/bench/src/corpus.rs:192:9
+    |
+188 | pub struct Record {
+    |            ------ field in this struct
+...
+192 |     pub slot: Option<u64>,
+    |         ^^^^
+    |
+    = note: `Record` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: `operation-100m-bench` (bin "o100m" test) generated 2 warnings
+    Finished `release` profile [optimized] target(s) in 9m 02s
+     Running unittests src/lib.rs (target/release/deps/neuralgraph_memory-04c6a5b852502a27)
+
+running 16 tests
+test difflib::tests::ratios_match_python ... ok
+test pycompat::tests::float_parse_like_python ... ok
+test pycompat::tests::float_repr_matches_python ... ok
+test pycompat::tests::json_formats ... ok
+test llm::tests::fake_embedding_is_deterministic_and_lexical ... ok
+test jsonutil::tests::array_and_garbage ... ok
+test jsonutil::tests::fenced_prefixed_trailing_commas ... ok
+test jsonutil::tests::nested_braces_in_strings ... ok
+test jsonutil::tests::think_blocks_and_truncation ... ok
+test textutil::tests::stems ... ok
+test textutil::tests::normalisation ... ok
+test textutil::tests::chitchat_gate ... ok
+test temporal::tests::earlier_today_is_not_annotated_twice ... ok
+test temporal::tests::yesterday_annotation ... ok
+test temporal::tests::more_relative_dates ... ok
+test temporal::tests::flexible_formats ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/release/deps/neuralgraph_memory-6bb32c3f39bb6cfb)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/answer.rs (target/release/deps/answer-986cc1d2e1bd5976)
+
+running 13 tests
+test answer_line_parsing_matches_the_harness ... ok
+test compute_regex_routes_like_the_harness ... ok
+test prompts_are_the_research_prompts_verbatim ... ok
+test empty_context_still_asks_with_the_placeholder ... ok
+test compute_path_thinks_and_parses_answer_line ... ok
+test default_today_is_the_pinned_clock_and_empty_question_is_rejected ... ok
+test cascade_keeps_the_first_answer_when_the_second_is_also_idk ... ok
+test idk_cascades_to_the_compute_prompt ... ok
+test concise_path_no_thinking ... ok
+test compute_falls_back_to_a_non_thinking_call_when_the_reply_is_empty ... ok
+test mcp_tool_and_rest_endpoint ... ok
+test unclosed_reasoning_counts_as_empty ... ok
+test forced_routes_and_cascade_after_a_compute_idk_is_skipped ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/answer_backend.rs (target/release/deps/answer_backend-31c128850e9dd23b)
+
+running 1 test
+test think_switch_reaches_the_request_body ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/crate_boundary.rs (target/release/deps/crate_boundary-bc363d125f388ad3)
+
+running 1 test
+test product_crate_does_not_depend_on_research_crate ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/extraction.rs (target/release/deps/extraction-d0e6096663797988)
+
+running 20 tests
+test test_fake_embedding_is_deterministic_and_lexical ... ok
+test test_ambiguous_first_name_is_not_forced ... ok
+test test_alias_prefix_fuzzy_and_first_person ... ok
+test test_array_and_garbage ... ok
+test test_absolute_forms ... ok
+test test_fenced_prefixed_trailing_commas ... ok
+test test_nested_braces_in_strings ... ok
+test test_normalisation ... ok
+test test_think_blocks_and_truncation ... ok
+test test_chitchat_gate ... ok
+test test_relative_forms_resolve_against_message_date ... ok
+test test_relations_carry_source_time ... ok
+test test_gate_skips_chitchat_and_assistant_only_without_llm ... ok
+test test_plan_from_scripted_llm ... ok
+test test_unparseable_output_raises_for_retry_and_retries_vary ... ok
+test test_embedding_outage_does_not_lose_memories ... ok
+test test_contradict_supersedes_when_newer ... ok
+test test_older_observation_cannot_supersede_newer_fact ... ok
+test test_duplicate_exact_and_embedding ... ok
+test test_update_merges_text ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/golden.rs (target/release/deps/golden-e8a7b752c900396e)
+
+running 15 tests
+test prompts_match_python ... ok
+test float_tolerance_helper_reports_paths ... ok
+test pycompat_matches_python ... ok
+test registry_matches_python ... ok
+test jsonutil_matches_python ... ok
+test difflib_matches_python ... ok
+test textutil_matches_python ... ok
+test bm25_fallback_matches_python ... ok
+test temporal_matches_python ... ok
+test fake_llm_matches_python ... ok
+test rest_matches_python ... ok
+test mcp_matches_python ... ok
+test retrieval_matches_python ... ok
+test ingest_matches_python ... ok
+test extraction_scenarios_match_python ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/mcp.rs (target/release/deps/mcp-6e6486f6cfad6e8b)
+
+running 12 tests
+test test_initialize_negotiates_version ... ok
+test test_stdio_loop_end_to_end ... ok
+test test_sse_get_and_method_semantics ... ok
+test test_auth_session_and_json_response ... ok
+test test_api_token_when_configured ... ok
+test test_real_socket_server_round_trip ... ok
+test test_cors_allow_list_and_host_check ... ok
+test test_resources_prompts_and_batch ... ok
+test test_dashboard_and_api ... ok
+test test_context_add_remember_forget_status_roundtrip ... ok
+test test_tools_call_success_error_and_unknown ... ok
+test test_tools_list_schema_is_well_formed ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/overnight_switches.rs (target/release/deps/overnight_switches-47b73d245b886207)
+
+running 15 tests
+test neuralgraph_exp_zero_turns_fixes_off_and_one_or_bare_turns_them_on ... ok
+test neuralgraph_exp_ignores_unknown_and_malformed_tokens ... ok
+test neuralgraph_exp_tokens_set_the_matching_fields ... ok
+test switches_default_off ... ok
+test hyphen_switch_still_rejects_names_absent_from_the_window ... ok
+test prompt_extra_goes_before_chat_participants ... ok
+test months_ago_is_annotated_in_the_prompt_only_with_the_switch ... ok
+test hyphenated_names_are_grounded_only_with_the_switch ... ok
+test different_numbers_are_dropped_as_duplicate_by_default ... ok
+test numeric_guard_sends_different_numbers_to_reconcile ... ok
+test verbatim_fallback_stores_sentences_with_uncovered_numbers ... ok
+test numeric_guard_turns_a_duplicate_verdict_on_new_numbers_into_update ... ok
+test numeric_guard_keeps_true_duplicates ... ok
+test numeric_guard_ignores_a_candidate_without_digits ... ok
+test zero_memory_batches_are_asked_once_more_only_with_the_switch ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/retrieval.rs (target/release/deps/retrieval-d6cf6b095b387f3a)
+
+running 37 tests
+test temporal_prior::test_env_token_for_temporal_prior ... ok
+test temporal_prior::test_cue_extractor_on_example_questions ... ok
+test test_add_message_validates_and_infers_role ... ok
+test temporal_prior::test_ordering_cue_tilts_toward_newest_or_oldest ... ok
+test test_channels_and_explanations ... ok
+test test_context_quote_truncation ... ok
+test test_context_block_and_relative_cutoff ... ok
+test temporal_prior::test_memory_inside_the_window_overtakes_one_outside ... ok
+test temporal_prior::test_default_is_off_and_queries_without_cues_are_untouched ... ok
+test test_context_quotes_dedupe_across_memories ... ok
+test test_context_quotes_zero_turns_off_and_default_is_one ... ok
+test test_context_multi_query_second_clause_memory_enters_block ... ok
+test test_env_tokens_for_context_multi_query ... ok
+test test_env_tokens_for_context_quotes ... ok
+test test_env_tokens_for_context_raw ... ok
+test test_context_quotes_never_displace_memory_lines ... ok
+test test_context_multi_query_default_off_is_byte_identical ... ok
+test test_filters ... ok
+test test_multi_query_rules_examples ... ok
+test test_context_raw_dedupes_against_quotes ... ok
+test test_graph_hop_finds_related_memory ... ok
+test test_rrf_shape ... ok
+test test_context_raw_zero_is_unchanged_and_default_is_three ... ok
+test test_index_cache_tracks_store_revision ... ok
+test test_context_quotes_human_only_format_order_and_dedupe ... ok
+test test_context_quote_sentence_boundary_truncation ... ok
+test test_profile_related_timeline ... ok
+test test_status_shape ... ok
+test test_remember_forget_and_dedupe ... ok
+test test_subject_named_in_query_is_boosted ... ok
+test test_context_raw_spends_leftover_budget_only ... ok
+test test_token_ledger_and_grade ... ok
+test test_superseded_memories_are_hidden_unless_asked ... ok
+test test_context_raw_assistant_filter_and_chat_speaker_filters ... ok
+test test_time_window_query_returns_the_fact_that_was_true_then ... ok
+test test_vector_channel_survives_dimension_mismatch ... ok
+test test_context_raw_messages_format_and_order ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running tests/review_fixes.rs (target/release/deps/review_fixes-3942f2f63c2f8a94)
+
+running 33 tests
+test test_fail_and_release_are_fenced ... ok
+test test_debounce_coalesces_with_sub_second_timing ... ok
+test test_bm25_fallback_on_tiny_corpus ... ok
+test test_diacritics_fold_in_keyword_channel ... ok
+test test_bad_body_types_are_400_not_500 ... ok
+test test_longer_name_never_collapses_onto_speaker ... ok
+test test_assistant_subject_is_rejected_not_reattributed ... ok
+test test_context_skips_lines_that_do_not_fit ... ok
+test test_mixed_timezone_offsets_compare_correctly ... ok
+test test_backslash_in_subject_does_not_crash ... ok
+test test_cross_site_writes_are_refused ... ok
+test test_drain_recovers_a_lease_left_by_a_crashed_process ... ok
+test test_hallucinated_name_listed_in_entities_is_still_rejected ... ok
+test test_index_is_incremental_and_handles_mixed_dimensions ... ok
+test test_missing_sources_default_to_a_human_message ... ok
+test test_non_object_json_bodies_are_400 ... ok
+test test_possessive_query_matches_entity_and_keyword ... ok
+test test_month_precision_and_same_day_bounds ... ok
+test test_mcp_malformed_shapes_and_version_header ... ok
+test test_pull_forward_debounce_batches_turn_and_reply ... ok
+test test_relation_endpoints_must_be_grounded ... ok
+test test_retracted_memories_never_resurface ... ok
+test test_short_identity_facts_pass_grounding ... ok
+test test_year_relative_phrases ... ok
+test test_supersede_race_keeps_newest_head ... ok
+test test_subject_filter_and_profile_resolve_aliases ... ok
+test test_stdio_oversized_line_is_a_parse_error_not_a_crash ... ok
+test test_two_candidates_superseding_one_target_chain ... ok
+test test_stdio_survives_a_huge_message ... ok
+test test_update_keeps_target_metadata_and_reembeds_merged_text ... ok
+test test_worker_learns_embedding_dimension_from_its_own_plans ... ok
+test test_filtered_keyword_channel_is_not_starved ... ok
+test test_kind_and_time_filters_reach_keyword_and_graph_channels ... ok
+
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/store.rs (target/release/deps/store-e4246d78f19b2035)
+
+running 18 tests
+test test_enqueue_dedupe_key ... ok
+test test_apply_plan_rolls_back_on_error ... ok
+test test_add_message_assigns_sequence_and_enqueues ... ok
+test test_expired_lease_is_requeued ... ok
+test test_apply_plan_is_fenced_by_lease ... ok
+test test_failure_backoff_then_dead_letter ... ok
+test test_apply_plan_is_atomic_and_marks_messages_and_jobs ... ok
+test test_batch_lease_coalesces_contiguous_messages_only ... ok
+test test_add_message_is_idempotent ... ok
+test test_context_before_and_search_messages ... ok
+test test_keyword_candidates_and_retract ... ok
+test test_functional_predicate_supersession ... ok
+test test_list_memories_filters ... ok
+test test_supersede_and_history ... ok
+test test_per_chat_ordering_and_cross_chat_parallelism ... ok
+test test_schema_created_with_fts_and_wal ... ok
+test test_persistence_across_reopen ... ok
+test test_retry_halves_the_batch ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/vindex.rs (target/release/deps/vindex-8be762a86c57684b)
+
+running 5 tests
+test ivf_falls_back_to_exact_without_an_index_file ... ok
+test ivf_keeps_covered_embeddings_out_of_memory_and_scans_newer_rows_exactly ... ok
+test keyword_pruning_drops_common_terms_and_keeps_the_rarest ... ok
+test read_pool_returns_the_same_results ... ok
+test ivf_probing_every_list_matches_exact_ranking ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/worker.rs (target/release/deps/worker-2cc92bcc01c9b97e)
+
+running 10 tests
+test test_maintenance_backfills_embeddings_and_merges_duplicates ... ok
+test test_zombie_worker_result_is_discarded ... ok
+test test_batches_coalesce_a_turn ... ok
+test test_restart_recovers_expired_leases ... ok
+test test_add_message_never_waits_for_the_llm ... ok
+test test_dead_letter_after_max_attempts ... ok
+test test_retry_with_backoff_then_success ... ok
+test test_graceful_stop_returns_in_flight_work_to_queue ... ok
+test test_parallel_across_chats_ordered_within_chat ... ok
+test test_periodic_maintenance_job_is_enqueued_once_per_bucket ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+
+     Running unittests src/lib.rs (target/release/deps/neuralgraph_research-d8f1b0facf23727d)
+
+running 19 tests
+test benchmarks::pyharness::tests::pathlib_str_normalises_like_pure_posix_path ... ok
+test benchmarks::pyharness::tests::py_sum_keeps_python_number_kinds ... ok
+test numpy::tests::pairwise_matches_sequential_for_short_inputs ... ok
+test pyrandom::tests::numpy_reference_values ... ok
+test pyrandom::tests::python_random_reference_values ... ok
+test pyre::tests::whole_words ... ok
+test pytime::tests::days_floor_like_python ... ok
+test pytime::tests::isoformat_round_trip ... ok
+test retrieval::retriever::tests::naive_date_distance ... ok
+test retrieval::retriever::tests::py_date_errors_like_cpython ... ok
+test retrieval::synonym_hash::tests::loading_merges_and_maps_back ... ok
+test retrieval::tesseract::tests::morphology_variants ... ok
+test temporal_utils::tests::query_modes ... ok
+test temporal_utils::tests::tokens_for_a_locomo_date ... ok
+test numpy::tests::dot_and_norm_basics ... ok
+test pyre::tests::emoji_joiners_are_not_word_characters ... ok
+test temporal_utils::tests::explicit_date_raises_on_impossible_day ... ok
+test pyre::tests::translated_patterns_follow_python ... ok
+test retrieval::tesseract::tests::query_type_scores ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/bin/call-center.rs (target/release/deps/call_center-ded75848b421a880)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/chat-memory-context.rs (target/release/deps/chat_memory_context-f1d7daf8592d3f57)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/chat-memory-locomo.rs (target/release/deps/chat_memory_locomo-ae17924ed055ea57)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/chat-memory-longmemeval.rs (target/release/deps/chat_memory_longmemeval-cc255eab1a2629a2)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/coordination.rs (target/release/deps/coordination-c6b7bbb6b6a16cbc)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/kg-extractor.rs (target/release/deps/kg_extractor-2c0e51378655bfae)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/rescore.rs (target/release/deps/rescore-e112826f69ea0e07)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/retrieval-eval.rs (target/release/deps/retrieval_eval-5b07adb8de99cb59)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/runner.rs (target/release/deps/runner-77d8a6960b91b242)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/two-agent-eval.rs (target/release/deps/two_agent_eval-600a195e0d7be7e4)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/attribution.rs (target/release/deps/attribution-8c78187fecc90ee8)
+
+running 1 test
+test attribution_matches_python ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/consolidation.rs (target/release/deps/consolidation-122b0f659b0d9877)
+
+running 1 test
+test consolidation_sequence_matches ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/coordination.rs (target/release/deps/coordination-63dd42fc2a8f5e88)
+
+running 41 tests
+test test_blank_node_identifier_is_rejected_like_a_missing_one ... ok
+test test_capability_is_unavailable_to_an_unauthorized_context ... ok
+test test_claim_projection_replaces_the_default_content ... ok
+test test_async_lineage_resolver_is_awaited_and_omissions_stay_empty ... ok
+test test_claim_projection_may_not_export_raw_node_state ... ok
+test test_collapsing_identifier_str_cannot_merge_two_memories ... ok
+test test_claim_content_must_be_a_flat_mapping_of_exportable_scalars ... ok
+test test_default_claim_content_is_the_unchanged_text_projection ... ok
+test test_denied_evidence_is_not_exported ... ok
+test test_correlated_copies_collapse_to_one_independent_root_coalition ... ok
+test test_denied_export_leaks_neither_content_nor_identifiers ... ok
+test test_coordination_export_contains_contracts_not_graph_objects ... ok
+test test_exported_content_is_the_validated_view_not_hidden_storage ... ok
+test test_all_failure_toggles_are_reversible_and_non_destructive ... ok
+test test_exported_int_values_are_plain_ints_carrying_no_hidden_state ... ok
+test test_exported_float_values_are_plain_floats_carrying_no_hidden_state ... ok
+test test_exported_keys_are_plain_strings_carrying_no_hidden_state ... ok
+test test_exported_values_are_plain_strings_carrying_no_hidden_state ... ok
+test test_finite_scalars_and_bools_still_cross_the_boundary ... ok
+test test_float_subclass_hiding_a_non_finite_value_is_still_rejected ... ok
+test test_learning_requires_receiver_decision_and_never_auto_commits ... ok
+test test_node_can_only_query_its_own_private_records ... ok
+test test_non_finite_content_values_are_rejected ... ok
+test test_object_without_node_id_is_rejected_without_leaking_payload ... ok
+test test_hostile_value_repr_cannot_leak_through_a_coordinated_run ... ok
+test test_independent_root_remains_distinct ... ok
+test test_real_adapter_does_not_invent_missing_lineage ... ok
+test test_redacted_policy_fails_closed_without_a_claim ... ok
+test test_hostile_numeric_subclasses_cannot_survive_a_coordinated_run ... ok
+test test_query_for_another_capability_retrieves_and_exports_nothing ... ok
+test test_rejection_message_ignores_a_caller_controlled_key_repr ... ok
+test test_redaction_does_not_leak_content_or_trace_metadata ... ok
+test test_router_excludes_a_node_that_is_unavailable_to_the_requester ... ok
+test test_removing_shared_root_invalidates_every_dependent_copy ... ok
+test test_trace_id_is_memory_bound_on_allowed_and_denied_paths ... ok
+test test_trace_id_stays_bound_to_its_memory_under_reversed_order ... ok
+test test_replica_count_repair_does_not_restore_capability ... ok
+test test_success_loss_and_independent_recovery ... ok
+test test_trace_explains_route_failure_selection_and_repair ... ok
+test test_different_seeds_rotate_symbols_but_preserve_structure ... ok
+test test_same_seed_replays_exactly ... ok
+
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/coordination_artifacts.rs (target/release/deps/coordination_artifacts-ac97eb1d2d9371ae)
+
+running 40 tests
+test committed_artifacts_match_their_sha256sums ... ok
+test cli_writes_the_pinned_experiment_bytes ... ok
+test figures_regenerate_byte_identically_from_regenerated_artifacts ... ok
+test invariant_replica_counting_survives_lineage_root_failure_at_zero ... ok
+test invariant_published_tables_are_the_sweep ... ok
+test experiment_artifact_regenerates_byte_identically ... ok
+test invariant_lineage_aware_and_oracle_mean_survival ... ok
+test scale_artifact_regenerates_byte_identically ... ok
+test sha256sums_pins_exactly_the_four_json_artifacts_and_five_figures ... ok
+test invariant_every_scale_verdict_is_invariant_across_k_and_h ... ok
+test benchmark_artifact_regenerates_byte_identically ... ok
+test invariant_lineage_aware_loses_to_source_count_in_exactly_one_of_six_cells ... ok
+test test_every_strategy_has_a_short_name ... ok
+test sweep_artifact_regenerates_byte_identically ... ok
+test results_md_is_the_sweep_markdown ... ok
+test scale_md_is_the_scale_markdown ... ok
+test test_intervention_order_covers_the_benchmark_exactly ... ok
+test test_every_figure_matches_its_recorded_digest ... ok
+test invariant_only_min_cut_two_survives_worst_single_domain_failure ... ok
+test test_heatmap_row_means_match_per_strategy ... ok
+test test_no_opaque_symbol_reaches_the_figure ... ok
+test test_heatmap_prints_every_cell_of_the_sweep ... ok
+test test_pareto_places_lineage_aware_above_and_left_of_full_replication ... ok
+test test_scale_grid_rows_are_uniform_exactly_where_the_artifact_says ... ok
+test test_sha256sums_covers_every_committed_figure ... ok
+test test_scale_grid_draws_one_mark_per_recorded_point ... ok
+test test_shape_records_every_node ... ok
+test test_shape_is_identical_across_seeds ... ok
+test test_strategies_are_ordered_by_survival ... ok
+test test_strategy_order_covers_the_benchmark_exactly ... ok
+test test_the_apparent_replica_shares_its_root_and_domain ... ok
+test test_committed_figures_match_a_fresh_render ... ok
+test test_check_mode_passes_against_the_committed_figures ... ok
+test test_the_lost_lane_reaches_the_highest_confidence_drawn ... ok
+test test_silent_forgetting_lanes_partition_the_cells ... ok
+test test_no_figure_references_an_external_resource ... ok
+test test_rendering_twice_is_byte_identical ... ok
+test test_no_host_dependent_content ... ok
+test test_every_figure_parses_as_xml ... ok
+test test_marks_stay_inside_the_canvas ... ok
+
+test result: ok. 40 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+
+     Running tests/coordination_benchmark.rs (target/release/deps/coordination_benchmark-f7ee162d11b94378)
+
+running 28 tests
+test test_a_system_that_never_had_the_capability_has_not_forgotten_it ... ok
+test test_centralized_holds_the_full_answer_and_is_flagged ... ok
+test test_centralized_failure_is_silent_and_unrecovered ... ok
+test test_lineage_aware_ordering_demotes_correlated_candidates ... ok
+test test_isolated_local_never_reconstructs ... ok
+test test_confidence_exceeds_coverage_when_the_capability_is_lost ... ok
+test test_matrix_is_eight_by_nine ... ok
+test test_full_replication_does_not_survive_a_root_failure_either ... ok
+test test_observed_lineage_comes_only_from_exported_claims ... ok
+test test_only_the_oracle_placement_has_a_min_cut_above_one ... ok
+test test_ordering_is_stable_for_deterministic_policies ... ok
+test test_source_count_ordering_promotes_correlated_candidates ... ok
+test test_different_seeds_change_symbols_but_not_the_verdicts ... ok
+test test_source_count_repair_spends_its_budget_on_correlated_nodes ... ok
+test test_lineage_aware_repair_survives_the_same_failure_at_lower_storage ... ok
+test test_distributed_strategies_never_let_one_node_hold_the_answer ... ok
+test test_the_intervention_is_not_tautological ... ok
+test test_every_coordinated_strategy_reconstructs_before_intervention ... ok
+test test_three_replicas_do_not_survive_their_shared_root_failing ... ok
+test test_no_strategy_leaks_the_answer_into_the_query_or_a_single_memory ... ok
+test test_denied_responses_never_carry_payload ... ok
+test test_transient_and_unrecovered_forgetting_are_distinguished ... ok
+test test_worst_single_domain_failure_is_survived_only_by_min_cut_two ... ok
+test test_every_cell_runs_and_reports_required_metrics ... ok
+test test_same_seed_produces_identical_json ... ok
+test test_lineage_awareness_beats_full_replication_on_both_axes ... ok
+test test_survival_is_monotone_in_lineage_sophistication ... ok
+test test_sweep_flags_the_stochastic_strategy_and_only_that_one ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running tests/coordination_golden.rs (target/release/deps/coordination_golden-b7b158325ff76d69)
+
+running 12 tests
+test real_adapter_error_messages_match ... ok
+test opaque_ids_match ... ok
+test sweep_of_no_trials_raises_like_python ... ok
+test mock_exports_and_trace_events_match ... ok
+test logical_clock_matches ... ok
+test real_adapter_exports_match ... ok
+test storage_lineage_resolver_matches ... ok
+test experiments_at_other_seeds_match ... ok
+test benchmark_at_another_seed_matches ... ok
+test single_seed_benchmark_markdown_matches ... ok
+test short_sweep_matches ... ok
+test scale_sweep_at_another_seed_matches ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+     Running tests/coordination_lineage.rs (target/release/deps/coordination_lineage-be8594a47e133a8b)
+
+running 53 tests
+test in_memory_lineage_resolver_tests::test_chain_deeper_than_the_bound_under_reports_without_inventing ... ok
+test in_memory_lineage_resolver_tests::test_origin_node_reports_no_parent_and_never_roots_itself ... ok
+test in_memory_lineage_resolver_tests::test_dangling_recorded_source_stays_a_parent_but_never_a_root ... ok
+test in_memory_lineage_resolver_tests::test_topic_derivation_is_carried_by_edges_without_source_ids ... ok
+test in_memory_lineage_resolver_tests::test_hierarchy_edge_direction_is_never_inverted ... ok
+test in_memory_lineage_resolver_tests::test_episode_over_messages_resolves_exactly ... ok
+test in_memory_lineage_resolver_tests::test_cycle_terminates_and_repeats_identically ... ok
+test in_memory_lineage_resolver_tests::test_storage_failures_propagate_instead_of_emptying_lineage ... ok
+test in_memory_lineage_resolver_tests::test_every_field_is_sorted_deduped_and_idempotent ... ok
+test in_memory_lineage_resolver_tests::test_topic_under_reports_roots_below_its_depth ... ok
+test in_memory_lineage_resolver_tests::test_resolution_never_writes_to_the_graph ... ok
+test in_memory_real_adapter_tests::test_denied_policy_exports_an_empty_trace_and_no_payload ... ok
+test in_memory_real_adapter_tests::test_export_carries_no_stored_content_metadata_or_embedding ... ok
+test in_memory_real_adapter_tests::test_duplicate_is_skipped_on_the_denied_path_too ... ok
+test in_memory_real_adapter_tests::test_one_memory_reached_twice_exports_once_with_the_same_identity ... ok
+test in_memory_real_adapter_tests::test_exported_lineage_matches_the_stored_graph ... ok
+test in_memory_real_adapter_tests::test_two_stored_memories_export_two_distinct_identities ... ok
+test in_memory_real_adapter_tests::test_repeats_do_not_spend_budget_reserved_for_distinct_memories ... ok
+test in_memory_real_adapter_tests::test_budget_still_bounds_exports_of_distinct_memories ... ok
+test sqlite_backend::sqlite_lineage_resolver_tests::test_storage_failures_propagate_instead_of_emptying_lineage ... ok
+test sqlite_backend::sqlite_lineage_resolver_tests::test_cycle_terminates_and_repeats_identically ... ok
+test sqlite_backend::sqlite_lineage_resolver_tests::test_resolution_never_writes_to_the_graph ... ok
+test sqlite_backend::sqlite_lineage_resolver_tests::test_origin_node_reports_no_parent_and_never_roots_itself ... ok
+test sqlite_backend::sqlite_lineage_resolver_tests::test_episode_over_messages_resolves_exactly ... ok
+test sqlite_backend::sqlite_lineage_resolver_tests::test_chain_deeper_than_the_bound_under_reports_without_inventing ... ok
+test sqlite_backend::sqlite_lineage_resolver_tests::test_dangling_recorded_source_stays_a_parent_but_never_a_root ... ok
+test sqlite_backend::sqlite_lineage_resolver_tests::test_hierarchy_edge_direction_is_never_inverted ... ok
+test sqlite_backend::sqlite_lineage_resolver_tests::test_topic_derivation_is_carried_by_edges_without_source_ids ... ok
+test sqlite_backend::sqlite_lineage_resolver_tests::test_every_field_is_sorted_deduped_and_idempotent ... ok
+test test_a_valid_resolver_still_exports_normally ... ok
+test test_absent_failure_domains_zero_every_coalition_metric ... ok
+test test_bare_string_is_rejected_instead_of_exploded_into_characters ... ok
+test test_blank_entries_are_rejected ... ok
+test test_default_text_projection_is_dropped_before_synthesis ... ok
+test test_non_mapping_resolver_result_is_rejected ... ok
+test test_non_sequence_lineage_values_are_rejected ... ok
+test test_object_entry_is_rejected_without_serializing_it ... ok
+test test_order_and_multiplicity_are_preserved_exactly ... ok
+test test_retrieval_operator_must_be_a_non_blank_string ... ok
+test test_slot_projection_lets_the_same_evidence_reach_synthesis ... ok
+test test_stored_lineage_fallback_is_validated_too ... ok
+test test_string_subclass_entry_crosses_as_a_plain_string ... ok
+test test_uncovered_slot_short_circuits_coalition_analysis ... ok
+test test_valid_retrieval_operator_is_exported_as_a_plain_string ... ok
+test sqlite_backend::sqlite_real_adapter_tests::test_denied_policy_exports_an_empty_trace_and_no_payload ... ok
+test sqlite_backend::sqlite_lineage_resolver_tests::test_topic_under_reports_roots_below_its_depth ... ok
+test sqlite_backend::sqlite_real_adapter_tests::test_duplicate_is_skipped_on_the_denied_path_too ... ok
+test sqlite_backend::sqlite_real_adapter_tests::test_exported_lineage_matches_the_stored_graph ... ok
+test sqlite_backend::sqlite_real_adapter_tests::test_export_carries_no_stored_content_metadata_or_embedding ... ok
+test sqlite_backend::sqlite_real_adapter_tests::test_one_memory_reached_twice_exports_once_with_the_same_identity ... ok
+test sqlite_backend::sqlite_real_adapter_tests::test_two_stored_memories_export_two_distinct_identities ... ok
+test sqlite_backend::sqlite_real_adapter_tests::test_repeats_do_not_spend_budget_reserved_for_distinct_memories ... ok
+test sqlite_backend::sqlite_real_adapter_tests::test_budget_still_bounds_exports_of_distinct_memories ... ok
+
+test result: ok. 53 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/coordination_scale.rs (target/release/deps/coordination_scale-8d42b4800c81359d)
+
+running 13 tests
+test capability_spec_rejects_what_python_rejected ... ok
+test test_answer_requires_every_premise ... ok
+test test_bounded_route_covers_every_premise_at_any_arity ... ok
+test test_the_cost_disappears_once_independent_support_exists ... ok
+test test_adding_holders_does_not_help_when_they_share_a_root ... ok
+test test_independent_roots_restore_survival_at_every_scale ... ok
+test test_reconstruction_succeeds_for_every_capability_arity ... ok
+test test_replica_count_beats_lineage_awareness_under_plain_node_failure ... ok
+test test_correlated_replicas_never_survive_a_lineage_root_failure ... ok
+test test_survival_is_invariant_across_scale_in_every_cell ... ok
+test test_cost_grows_with_arity ... ok
+test test_lineage_awareness_finds_independent_support_in_fewer_verifications ... ok
+test test_sweep_is_deterministic ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.89s
+
+     Running tests/coordination_storage.rs (target/release/deps/coordination_storage-f948518992da42e4)
+
+running 15 tests
+test test_inmemory_and_sqlite_agree_on_source_memory_ids ... ok
+test test_legacy_row_keeps_its_other_fields ... ok
+test test_backends_agree_on_empty_lineage ... ok
+test test_node_without_lineage_round_trips_as_empty_list ... ok
+test test_legacy_row_is_upgraded_once_it_is_saved_again ... ok
+test test_get_nodes_by_session_preserves_source_memory_ids ... ok
+test test_persisted_data_blob_contains_source_memory_ids ... ok
+test test_get_all_nodes_preserves_source_memory_ids ... ok
+test test_legacy_row_loads_without_raising_and_yields_empty_lineage ... ok
+test test_save_node_then_get_node_preserves_source_memory_ids ... ok
+test test_save_nodes_batch_preserves_source_memory_ids ... ok
+test test_sqlite_round_trip_matches_neuralnode_dict_round_trip ... ok
+test test_vector_search_preserves_source_memory_ids ... ok
+test test_no_single_node_stores_the_full_answer ... ok
+test test_reconstruction_survives_a_storage_restart ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/dialogue_linker.rs (target/release/deps/dialogue_linker-af8b48cf97434399)
+
+running 4 tests
+test helpers_match ... ok
+test small_sequences_match ... ok
+test python_word_class_matches ... ok
+test locomo_conversations_match ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running tests/electron.rs (target/release/deps/electron-336bd04f536a9db3)
+
+running 1 test
+test electron_matches_python ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/external_retriever.rs (target/release/deps/external_retriever-00609865fb9eee06)
+
+running 5 tests
+test results_serialise_like_python ... ok
+test tracer_matches ... ok
+test persistent_cache_matches ... ok
+test open_domain_detection_matches ... ok
+test wikipedia_retriever_matches ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/foundation.rs (target/release/deps/foundation-ab06816e6df85586)
+
+running 7 tests
+test python_random_matches ... ok
+test numpy_blas_matches_on_macos ... ok
+test data_types_match ... ok
+test lsh_matches ... ok
+test numpy_pairwise_sums_match_everywhere ... ok
+test in_memory_storage_matches ... ok
+test numpy_legacy_random_matches ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/gating.rs (target/release/deps/gating-188a1700929d65d7)
+
+running 4 tests
+test scalar_activation_functions_match ... ok
+test profiles_and_switching_match ... ok
+test composite_and_adaptive_gates_match ... ok
+test registry_gates_match_on_the_grid ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/harness.rs (target/release/deps/harness-dd89ee56ff356659)
+
+running 12 tests
+test harness_clis_keep_the_python_flags_and_defaults ... ok
+test lme_summaries_match_python ... ok
+test locomo_edge_cases_match_python ... ok
+test rescore_helpers_match_python ... ok
+test lme_dates_match_python ... ok
+test lme_published_track_d_sample ... ok
+test rescore_reproduces_the_published_judge_sensitivity_numbers ... ok
+test locomo_helpers_match_python_on_every_conversation ... ok
+test rescore_run_matches_python_with_a_stand_in_judge ... ok
+test lme_stratified_sample_matches_python ... ok
+test lme_harness_end_to_end_matches_python ... ok
+test locomo_harness_end_to_end_matches_python ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.27s
+
+     Running tests/hierarchy.rs (target/release/deps/hierarchy-0ae204feb58de5cf)
+
+running 2 tests
+test explicit_consolidation_paths_match ... ok
+test hierarchy_build_and_traversal_match ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/kg_extractor.rs (target/release/deps/kg_extractor-f3201be2a41d7361)
+
+running 5 tests
+test helpers_match ... ok
+test type_error_escapes_like_python ... ok
+test cache_is_written_and_reused ... ok
+test scripted_conversation_matches ... ok
+test flatten_matches ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/llm_modules.rs (target/release/deps/llm_modules-6990234ae1df65c9)
+
+running 16 tests
+test prompts_module_exports_every_template ... ok
+test reranker_config_defaults_match_python ... ok
+test prompt_constants_are_byte_identical ... ok
+test generate_answer_and_embeddings_match_python ... ok
+test format_retrieval_context_matches_python ... ok
+test score_cache_ttl_and_eviction_match_python ... ok
+test rewrite_prompts_dedupe_and_fusion_match_python ... ok
+test speaker_profiler_matches_python ... ok
+test profile_query_matches_python ... ok
+test fact_extraction_matches_python ... ok
+test query_rewrites_send_the_same_request_and_parse_the_same ... ok
+test rerank_candidates_parallel_matches_python ... ok
+test semantic_scores_match_python ... ok
+test llm_score_prompt_and_parsing_match_python ... ok
+test rerank_semantic_llm_and_hybrid_match_python ... ok
+test select_prompt_matches_python_on_every_locomo_question ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s
+
+     Running tests/locomo_reproduction.rs (target/release/deps/locomo_reproduction-a57f3020c651596a)
+
+running 2 tests
+test evaluator_tables_match_python ... ignored, needs the gitignored embedding and KG caches; run with --release -- --ignored
+test runner_retrieval_only_reproduces_committed_retrieval_metrics ... ignored, needs the gitignored embedding and KG caches; run with --release -- --ignored
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/mega_search.rs (target/release/deps/mega_search-60190122eef7cbb3)
+
+running 4 tests
+test text_helpers_and_rrf_match ... ok
+test errors_match ... ok
+test channels_match ... ok
+test every_question_and_channel_mix_matches ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.18s
+
+     Running tests/pattern_completion.rs (target/release/deps/pattern_completion-f8e20a0422abeb59)
+
+running 2 tests
+test connection_weights_match_numpy ... ok
+test completion_and_internals_match ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/query_router.rs (target/release/deps/query_router-af80aaff9baf2088)
+
+running 8 tests
+test capitalize_matches_python_title_rule ... ok
+test edit_distance_fuzzy_and_alias_match_python ... ok
+test storage_path_matches_python_membership ... ok
+test match_entity_matches_python ... ok
+test filter_functions_match_python_with_fixed_params ... ok
+test analyze_matches_python_on_edge_cases ... ok
+test filtered_retriever_matches_python_in_every_mode ... ok
+test analyze_matches_python_on_every_locomo_question ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.00s
+
+     Running tests/retrievers.rs (target/release/deps/retrievers-b2e8469f4faf7c29)
+
+running 1 test
+test retrievers_match_python ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.89s
+
+     Running tests/runner.rs (target/release/deps/runner-d1db4c203054ebe1)
+
+running 10 tests
+test compute_retrieval_summary_matches_python ... ok
+test save_results_document_matches_python ... ok
+test judge_label_parsing_and_auto_pass_match_python ... ok
+test check_gold_in_memories_substring_matches_python ... ok
+test call_center_end_to_end_replay_matches_python ... ok
+test message_nodes_context_and_direct_answers_match_python ... ok
+test routing_decisions_match_python_for_every_locomo_question ... ok
+test graph_expansion_pairs_and_cosine_match_python ... ok
+test runner_end_to_end_replays_match_python ... ok
+test two_agent_helpers_match_python ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.02s
+
+     Running tests/service.rs (target/release/deps/service-91e38f05004fd5c1)
+
+running 14 tests
+test configurations_match ... ok
+test retrieval_errors_and_contexts_match ... ok
+test ingestion_matches ... ok
+test consolidation_and_dynamics_match ... ok
+test wave_memory_and_extraction_match ... ok
+test stdp_on_close_creation_times_matches ... ok
+test default_config_matches ... ok
+test multi_hop_config_matches ... ok
+test seeded_ltp_decay_matches ... ok
+test auto_consolidation_matches ... ok
+test routing_modes_match ... ok
+test single_hop_config_matches ... ok
+test external_retrieval_matches ... ok
+test component_variants_match ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.33s
+
+     Running tests/service_helpers.rs (target/release/deps/service_helpers-a3a91bc31643f469)
+
+running 5 tests
+test item_helpers_match ... ok
+test locomo_messages_match ... ok
+test every_locomo_question_matches ... ok
+test edge_questions_match ... ok
+test evidence_memories_match ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.33s
+
+     Running tests/single_hop_regression.rs (target/release/deps/single_hop_regression-4079b30b6927290a)
+
+running 10 tests
+test test_precision_at_1_meets_baseline ... ignored, Requires full NeuralGraph setup with data
+test test_empty_result ... ok
+test test_latency_metrics ... ok
+test test_precision_calculation ... ok
+test test_questions_have_entities ... ok
+test test_questions_not_empty ... ok
+test test_question_categories ... ok
+test test_regression_detection ... ok
+test questions_and_answer_checks_match_python ... ok
+test regression_suite_and_reports_match_python ... ok
+
+test result: ok. 9 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/sqlite_storage.rs (target/release/deps/sqlite_storage-3674051e25c57154)
+
+running 10 tests
+test persisted_data_blob_contains_source_memory_ids ... ok
+test node_without_lineage_round_trips_as_empty_list ... ok
+test save_nodes_batch_preserves_source_memory_ids ... ok
+test save_node_then_get_node_preserves_source_memory_ids ... ok
+test session_reads_and_vector_search_preserve_source_memory_ids ... ok
+test legacy_row_loads_keeps_fields_and_upgrades ... ok
+test sqlite_round_trip_matches_dict_round_trip ... ok
+test legacy_rows_load ... ok
+test backends_agree_on_source_memory_ids ... ok
+test operation_script_matches ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/synonym_hash.rs (target/release/deps/synonym_hash-abab4f318d4d86ae)
+
+running 2 tests
+test lookups_match ... ok
+test whole_table_matches ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.82s
+
+     Running tests/temporal.rs (target/release/deps/temporal-5c2245c8c8b469c1)
+
+running 1 test
+test temporal_manager_sequence_matches ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/temporal_utils.rs (target/release/deps/temporal_utils-5aa11581322cf7ff)
+
+running 4 tests
+test constants_match ... ok
+test locomo_questions_match ... ok
+test edge_cases_match ... ok
+test locomo_messages_match ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.72s
+
+     Running tests/tesseract.rs (target/release/deps/tesseract-4b42d738d43add52)
+
+running 3 tests
+test message_helpers_match ... ok
+test question_predicates_and_parsers_match ... ok
+test tesseract_retrieve_matches ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.55s
+
+     Running tests/wavefront.rs (target/release/deps/wavefront-97f1daf22f5565ea)
+
+running 2 tests
+test interference_matches ... ok
+test wavefront_propagation_matches ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/main.rs (target/release/deps/o100m-12fc71760dff6c73)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests neuralgraph_memory
+
+running 1 test
+test crates/neuralgraph-memory/src/service.rs - service (line 3) - compile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+   Doc-tests neuralgraph_research
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+      594.21 real      3671.44 user       164.64 sys
+           829358080  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+            14134836  page reclaims
+              284754  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                  66  messages sent
+                  68  messages received
+                 149  signals received
+               15371  voluntary context switches
+             8255114  involuntary context switches
+          2981026845  instructions retired
+          1505847558  cycles elapsed
+            66323032  peak memory footprint
+exit: 0
+finished: 2026-10-31T07:33:26Z

@@ -1,0 +1,58 @@
+{
+ "engine_default": {
+  "hypothesis": "Baseline: the engine exactly as shipped at f0ddff96 (exact vector scan, single SQLite connection, unpruned FTS).",
+  "env": {},
+  "addresses": []
+ },
+ "bounded": {
+  "hypothesis": "Disk-backed IVF candidates (nprobe 32) bound resident memory and vector cost; a WAL read pool removes the single-connection serialisation; pruning FTS terms above 1% document frequency bounds the keyword channel's scored set.",
+  "env": {
+   "O100M_VECTOR_INDEX": "ivf",
+   "O100M_NPROBE": "32",
+   "O100M_READ_POOL": "1",
+   "O100M_KEYWORD_MAX_DF": "0.01"
+  },
+  "build_ivf": true,
+  "addresses": [
+   "PROJECTED_RSS_OVER_BUDGET",
+   "RSS_OVER_BUDGET",
+   "P99_OVER_BUDGET",
+   "CONCURRENCY_DOES_NOT_SCALE",
+   "P99_CONCURRENT_OVER_BUDGET"
+  ]
+ },
+ "bounded_np64": {
+  "hypothesis": "Same as bounded with nprobe 64: trades vector-channel latency for candidate recall if bounded loses recall.",
+  "env": {
+   "O100M_VECTOR_INDEX": "ivf",
+   "O100M_NPROBE": "64",
+   "O100M_READ_POOL": "1",
+   "O100M_KEYWORD_MAX_DF": "0.01"
+  },
+  "build_ivf": true,
+  "addresses": [
+   "RECALL_BELOW_FLOOR",
+   "PROJECTED_RSS_OVER_BUDGET"
+  ]
+ },
+ "bounded_recall": {
+  "hypothesis": "Coarser lists (nlist 316 = sqrt(n)) probed 48 deep (~15% of the bank) recover the recall the 1264-list index lost on real nomic-embed-text vectors, keeping the read pool and 1% FTS pruning. Ablation (bench/results/ablation-100k-real) predicts recall within 1 point but concurrency scaling below the gate.",
+  "env": {
+   "O100M_VECTOR_INDEX": "ivf",
+   "O100M_IVF_PATH": "{work}/bank.nl316.ivf",
+   "O100M_NPROBE": "48",
+   "O100M_READ_POOL": "1",
+   "O100M_KEYWORD_MAX_DF": "0.01"
+  },
+  "build_ivf": true,
+  "ivf_build_args": [
+   "--nlist",
+   "316"
+  ],
+  "addresses": [
+   "RECALL_REGRESSION",
+   "RECALL_BELOW_FLOOR",
+   "PROJECTED_RSS_OVER_BUDGET"
+  ]
+ }
+}

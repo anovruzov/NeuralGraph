@@ -1,0 +1,84 @@
+{
+ "github:vectorize-io/hindsight": {
+  "fetched_at": "2026-10-31T07:00:29Z",
+  "result": {
+   "full_name": "vectorize-io/hindsight",
+   "pushed_at": "2026-10-31T04:26:20Z",
+   "default_branch": "main",
+   "license": {
+    "key": "mit",
+    "name": "MIT License",
+    "spdx_id": "MIT",
+    "url": "https://api.github.com/licenses/mit",
+    "node_id": "MDc6TGljZW5zZTEz"
+   },
+   "stargazers_count": 56737
+  }
+ },
+ "github:anovruzov/NeuralGraph": {
+  "fetched_at": "2026-10-31T07:00:29Z",
+  "result": {
+   "full_name": "anovruzov/NeuralGraph",
+   "pushed_at": "2026-10-31T05:27:14Z",
+   "default_branch": "main",
+   "license": {
+    "key": "mit",
+    "name": "MIT License",
+    "spdx_id": "MIT",
+    "url": "https://api.github.com/licenses/mit",
+    "node_id": "MDc6TGljZW5zZTEz"
+   },
+   "stargazers_count": 151
+  }
+ },
+ "arxiv:RaBitQ quantization nearest neighbor:5": {
+  "fetched_at": "2026-10-31T07:00:30Z",
+  "result": [
+   {
+    "id": "http://arxiv.org/abs/2405.12497v1",
+    "title": "RaBitQ: Quantizing High-Dimensional Vectors with a Theoretical Error Bound for Approximate Nearest Neighbor Search"
+   },
+   {
+    "id": "http://arxiv.org/abs/2602.23999v2",
+    "title": "GPU-Native Approximate Nearest Neighbor Search with IVF-RaBitQ: Fast Index Build and Search"
+   },
+   {
+    "id": "http://arxiv.org/abs/1902.04008v1",
+    "title": "Magnon excitations in $Cs_2CuAl_4O_8$ - a bond alternating S=1/2 spin chain with next nearest neighbor coupling"
+   },
+   {
+    "id": "http://arxiv.org/abs/1911.07940v1",
+    "title": "Neighborhood Watch: Representation Learning with Local-Margin Triplet Loss and Sampling Strategy for K-Nearest-Neighbor Image Classification"
+   },
+   {
+    "id": "http://arxiv.org/abs/1605.06792v3",
+    "title": "Active Nearest-Neighbor Learning in Metric Spaces"
+   }
+  ]
+ },
+ "arxiv:LongMemEval long-term memory:5": {
+  "fetched_at": "2026-10-31T07:00:30Z",
+  "result": [
+   {
+    "id": "http://arxiv.org/abs/2410.10813v2",
+    "title": "LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory"
+   },
+   {
+    "id": "http://arxiv.org/abs/2606.24322v1",
+    "title": "Securing LLM-Agent Long-Term Memory Against Poisoning: Non-Malleable, Origin-Bound Authority with Machine-Checked Guarantees"
+   },
+   {
+    "id": "http://arxiv.org/abs/2301.00050v1",
+    "title": "Long-Term Online Multi-Session Graph-Based SPLAM with Memory Management"
+   },
+   {
+    "id": "http://arxiv.org/abs/2210.13383v1",
+    "title": "Evaluating Long-Term Memory in 3D Mazes"
+   },
+   {
+    "id": "http://arxiv.org/abs/2610.07907v1",
+    "title": "Continuous Memory Machines"
+   }
+  ]
+ }
+}

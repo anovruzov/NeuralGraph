@@ -1,0 +1,112 @@
+{
+  "bank": 0,
+  "n": 100000,
+  "db": "/Users/novruz/NeuralGraph-current/operation-100m/work/100k/bank.db",
+  "engine": {
+    "vector_index": "ivf",
+    "ivf_nprobe": 32,
+    "read_pool": true,
+    "keyword_max_df": 0.01,
+    "channels": "VK",
+    "depth": 100
+  },
+  "index_rows": 100000,
+  "queries": 2000,
+  "k": 10,
+  "cold": {
+    "definition": "fresh process, empty engine caches, OS page cache not purged",
+    "store_open_ms": 0.705417,
+    "first_query_ms_incl_index_load": 210.873708,
+    "second_query_ms": 3.0387090000000003
+  },
+  "levels": [
+    {
+      "concurrency": 1,
+      "requests": 2000,
+      "ok": 2000,
+      "errors": 0,
+      "wall_s": 7.304110084,
+      "successful_qps": 273.81843605850014,
+      "latency": {
+        "n": 2000,
+        "p50_ms": 3.447959,
+        "p95_ms": 4.457708,
+        "p99_ms": 7.785334,
+        "max_ms": 30.014625,
+        "mean_ms": 3.6430767105000017
+      }
+    },
+    {
+      "concurrency": 2,
+      "requests": 2000,
+      "ok": 2000,
+      "errors": 0,
+      "wall_s": 5.347642084,
+      "successful_qps": 373.9966079599728,
+      "latency": {
+        "n": 2000,
+        "p50_ms": 5.016875,
+        "p95_ms": 6.910958,
+        "p99_ms": 11.189124999999999,
+        "max_ms": 35.137750000000004,
+        "mean_ms": 5.331646075000007
+      }
+    },
+    {
+      "concurrency": 4,
+      "requests": 2000,
+      "ok": 2000,
+      "errors": 0,
+      "wall_s": 4.110277333,
+      "successful_qps": 486.5851712590509,
+      "latency": {
+        "n": 2000,
+        "p50_ms": 7.584083000000001,
+        "p95_ms": 12.707875,
+        "p99_ms": 16.432458,
+        "max_ms": 24.351084,
+        "mean_ms": 8.189230273499994
+      }
+    },
+    {
+      "concurrency": 8,
+      "requests": 2000,
+      "ok": 2000,
+      "errors": 0,
+      "wall_s": 3.758739417,
+      "successful_qps": 532.0932839755834,
+      "latency": {
+        "n": 2000,
+        "p50_ms": 13.067792,
+        "p95_ms": 26.464042,
+        "p99_ms": 37.896874999999994,
+        "max_ms": 77.001833,
+        "mean_ms": 14.958102786499987
+      }
+    }
+  ],
+  "rss_bytes": {
+    "process_start": 33521664,
+    "after_index_load": 166641664,
+    "end": 156172288,
+    "peak": 185057280
+  },
+  "cpu_s": 62.420423,
+  "disk_bytes": {
+    "db": 448823296,
+    "wal": 0,
+    "shm": 32768,
+    "total": 448856064
+  },
+  "env": {
+    "git_commit": "f0ddff96242cb98faa421d2a2df8e38046ca7a1b",
+    "git_dirty_files": 6,
+    "cpu": "Apple M4",
+    "ncpu": "10",
+    "mem_bytes": "17179869184",
+    "os": "Darwin 24.6.0 arm64",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13) (Homebrew)",
+    "threads_available": 10
+  },
+  "timing_scope": "MemoryRetriever::search wall time in-process; query embedding precomputed and excluded; touch=false; with_sources=false"
+}

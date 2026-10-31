@@ -1,0 +1,626 @@
+{
+ "version": 1,
+ "syllables": [
+  "ka",
+  "lo",
+  "mi",
+  "ra",
+  "ve",
+  "to",
+  "su",
+  "ne",
+  "da",
+  "ri",
+  "po",
+  "ze",
+  "la",
+  "mo",
+  "ki",
+  "ta",
+  "fe",
+  "no",
+  "bi",
+  "sa",
+  "lu",
+  "de",
+  "gi",
+  "ro",
+  "va",
+  "ni",
+  "te",
+  "sho",
+  "ma",
+  "li",
+  "ko",
+  "re"
+ ],
+ "fractions_percent": {
+  "slots": 70,
+  "updates": 10,
+  "duplicates": 5,
+  "contradictions": 2
+ },
+ "entities_per_memory_divisor": 16,
+ "min_entities": 64,
+ "filler": [
+  "This came up while we were planning the quarterly review.",
+  "It was mentioned in passing during a long thread about travel logistics.",
+  "Nobody else on the team seemed to know this yet.",
+  "The note was added after a follow-up call with the operations group.",
+  "Worth remembering because it affects scheduling for next month.",
+  "The detail surfaced again when the support ticket was reopened.",
+  "Several people asked about it at the offsite, so it was written down.",
+  "It was confirmed later by email, with the usual caveats about timing."
+ ],
+ "attributes": [
+  {
+   "key": "lives_in",
+   "phrase": "home city",
+   "values": [
+    "Denver",
+    "Lisbon",
+    "Osaka",
+    "Nairobi",
+    "Toronto",
+    "Krakow",
+    "Austin",
+    "Seoul",
+    "Lyon",
+    "Perth",
+    "Bogota",
+    "Tbilisi",
+    "Oslo",
+    "Pune",
+    "Leeds",
+    "Valencia"
+   ],
+   "memory": [
+    "{name} lives in {value}.",
+    "{name} moved to {value} and is settling in.",
+    "These days {name} is based in {value}."
+   ],
+   "query": [
+    "Where does {name} live now?",
+    "What is {name}'s home city?"
+   ]
+  },
+  {
+   "key": "works_at",
+   "phrase": "employer",
+   "values": [
+    "Altair Robotics",
+    "Brightline Health",
+    "Cobalt Freight",
+    "Dunmore Bank",
+    "Evergreen Labs",
+    "Foxglove Media",
+    "Granite Energy",
+    "Harbor Analytics",
+    "Ironwood Games",
+    "Juniper Telecom",
+    "Keystone Foods",
+    "Lumen Aerospace"
+   ],
+   "memory": [
+    "{name} works at {value}.",
+    "{name} took a job with {value}.",
+    "{name}'s employer is {value}."
+   ],
+   "query": [
+    "Who does {name} work for?",
+    "Which company employs {name}?"
+   ]
+  },
+  {
+   "key": "job_title",
+   "phrase": "job title",
+   "values": [
+    "staff engineer",
+    "product manager",
+    "data scientist",
+    "site reliability lead",
+    "nurse practitioner",
+    "account executive",
+    "research chemist",
+    "network architect",
+    "finance director",
+    "UX researcher",
+    "warehouse supervisor",
+    "security analyst"
+   ],
+   "memory": [
+    "{name} works as a {value}.",
+    "{name} was promoted to {value}.",
+    "{name}'s role is {value}."
+   ],
+   "query": [
+    "What is {name}'s job title?",
+    "What role does {name} have?"
+   ]
+  },
+  {
+   "key": "favorite_food",
+   "phrase": "favorite food",
+   "values": [
+    "ramen",
+    "pierogi",
+    "shakshuka",
+    "pho",
+    "tacos al pastor",
+    "paella",
+    "jollof rice",
+    "bibimbap",
+    "khachapuri",
+    "pad thai",
+    "risotto",
+    "dosa"
+   ],
+   "memory": [
+    "{name}'s favorite food is {value}.",
+    "{name} could eat {value} every day.",
+    "{name} always orders {value}."
+   ],
+   "query": [
+    "What food does {name} like most?",
+    "What is {name}'s favorite dish?"
+   ]
+  },
+  {
+   "key": "pet_name",
+   "phrase": "pet",
+   "values": [
+    "a beagle named Biscuit",
+    "a cat named Juniper",
+    "a parrot named Mango",
+    "a corgi named Pixel",
+    "a tortoise named Atlas",
+    "a husky named Nova",
+    "a rabbit named Clover",
+    "a cat named Saffron"
+   ],
+   "memory": [
+    "{name} has {value}.",
+    "{name} adopted {value}.",
+    "At home {name} looks after {value}."
+   ],
+   "query": [
+    "What pet does {name} have?",
+    "Tell me about {name}'s pet."
+   ]
+  },
+  {
+   "key": "car_model",
+   "phrase": "car",
+   "values": [
+    "Volvo XC40",
+    "Toyota Prius",
+    "Subaru Outback",
+    "Tesla Model 3",
+    "Honda Civic",
+    "Ford Ranger",
+    "Kia EV6",
+    "Mazda MX-5"
+   ],
+   "memory": [
+    "{name} drives a {value}.",
+    "{name} bought a {value}.",
+    "{name}'s car is a {value}."
+   ],
+   "query": [
+    "What car does {name} drive?",
+    "Which car is {name}'s?"
+   ]
+  },
+  {
+   "key": "router_firmware",
+   "phrase": "router firmware version",
+   "values": [
+    "7.2.1",
+    "7.3.0",
+    "7.3.4",
+    "8.0.0",
+    "8.0.2",
+    "8.1.5",
+    "9.0.1",
+    "9.2.0"
+   ],
+   "memory": [
+    "The router at {name}'s site runs firmware {value}.",
+    "{name} upgraded the edge router to firmware {value}.",
+    "Firmware {value} is what {name}'s router reports."
+   ],
+   "query": [
+    "Which firmware is the router at {name}'s site on?",
+    "What router firmware does {name} run?"
+   ]
+  },
+  {
+   "key": "project_codename",
+   "phrase": "current project",
+   "values": [
+    "Project Heron",
+    "Project Basalt",
+    "Project Lantern",
+    "Project Quill",
+    "Project Tundra",
+    "Project Sable",
+    "Project Orchid",
+    "Project Kestrel"
+   ],
+   "memory": [
+    "{name} is leading {value}.",
+    "{name}'s current project is {value}.",
+    "{name} spends most weeks on {value}."
+   ],
+   "query": [
+    "What project is {name} working on?",
+    "Which project does {name} lead?"
+   ]
+  },
+  {
+   "key": "gym_schedule",
+   "phrase": "gym schedule",
+   "values": [
+    "Monday and Thursday mornings",
+    "weekday evenings",
+    "Saturday afternoons",
+    "Tuesday lunchtimes",
+    "every other day at dawn",
+    "Sunday mornings"
+   ],
+   "memory": [
+    "{name} goes to the gym {value}.",
+    "{name} trains {value}.",
+    "{name}'s workout slot is {value}."
+   ],
+   "query": [
+    "When does {name} go to the gym?",
+    "What is {name}'s workout schedule?"
+   ]
+  },
+  {
+   "key": "allergy",
+   "phrase": "allergy",
+   "values": [
+    "peanuts",
+    "shellfish",
+    "penicillin",
+    "pollen",
+    "latex",
+    "gluten",
+    "bee stings",
+    "dairy"
+   ],
+   "memory": [
+    "{name} is allergic to {value}.",
+    "{name} has a {value} allergy.",
+    "Keep {value} away from {name}."
+   ],
+   "query": [
+    "What is {name} allergic to?",
+    "Does {name} have an allergy?"
+   ]
+  },
+  {
+   "key": "phone_extension",
+   "phrase": "phone extension",
+   "values": [
+    "x2041",
+    "x3318",
+    "x4470",
+    "x5182",
+    "x6025",
+    "x7713",
+    "x8857",
+    "x9306"
+   ],
+   "memory": [
+    "{name}'s desk extension is {value}.",
+    "Call {name} on extension {value}.",
+    "{name} can be reached at {value}."
+   ],
+   "query": [
+    "What is {name}'s phone extension?",
+    "How do I call {name} at the office?"
+   ]
+  },
+  {
+   "key": "hometown",
+   "phrase": "hometown",
+   "values": [
+    "Cork",
+    "Gdansk",
+    "Kumasi",
+    "Valparaiso",
+    "Hue",
+    "Brno",
+    "Tartu",
+    "Mendoza",
+    "Fes",
+    "Ilorin"
+   ],
+   "memory": [
+    "{name} grew up in {value}.",
+    "{name}'s hometown is {value}.",
+    "{name} is originally from {value}."
+   ],
+   "query": [
+    "Where did {name} grow up?",
+    "What is {name}'s hometown?"
+   ]
+  },
+  {
+   "key": "language",
+   "phrase": "second language",
+   "values": [
+    "Portuguese",
+    "Japanese",
+    "Swahili",
+    "Polish",
+    "Korean",
+    "Georgian",
+    "Norwegian",
+    "Marathi",
+    "Catalan",
+    "Turkish"
+   ],
+   "memory": [
+    "{name} speaks {value}.",
+    "{name} is learning {value}.",
+    "{name} is fluent in {value}."
+   ],
+   "query": [
+    "What language does {name} speak besides English?",
+    "Which second language does {name} know?"
+   ]
+  },
+  {
+   "key": "commute",
+   "phrase": "commute",
+   "values": [
+    "by bike",
+    "by train",
+    "on foot",
+    "by bus",
+    "by ferry",
+    "by car"
+   ],
+   "memory": [
+    "{name} commutes {value}.",
+    "{name} gets to work {value}.",
+    "{name} usually travels in {value}."
+   ],
+   "query": [
+    "How does {name} get to work?",
+    "What is {name}'s commute?"
+   ]
+  },
+  {
+   "key": "on_call_week",
+   "phrase": "on-call rotation",
+   "values": [
+    "the first week of the month",
+    "the second week of the month",
+    "the third week of the month",
+    "the last week of the month"
+   ],
+   "memory": [
+    "{name} is on call {value}.",
+    "{name}'s pager rotation is {value}.",
+    "{name} covers incidents {value}."
+   ],
+   "query": [
+    "When is {name} on call?",
+    "Which week does {name} carry the pager?"
+   ]
+  },
+  {
+   "key": "laptop",
+   "phrase": "laptop",
+   "values": [
+    "ThinkPad X1",
+    "MacBook Air",
+    "Framework 13",
+    "Dell XPS 15",
+    "MacBook Pro",
+    "Surface Laptop"
+   ],
+   "memory": [
+    "{name} works on a {value}.",
+    "{name} was issued a {value}.",
+    "{name}'s laptop is a {value}."
+   ],
+   "query": [
+    "Which laptop does {name} use?",
+    "What computer was {name} issued?"
+   ]
+  },
+  {
+   "key": "team",
+   "phrase": "team",
+   "values": [
+    "platform team",
+    "billing team",
+    "edge networking team",
+    "growth team",
+    "incident response team",
+    "data platform team",
+    "mobile team",
+    "compliance team"
+   ],
+   "memory": [
+    "{name} is on the {value}.",
+    "{name} joined the {value}.",
+    "{name} reports into the {value}."
+   ],
+   "query": [
+    "Which team is {name} on?",
+    "What team does {name} belong to?"
+   ]
+  },
+  {
+   "key": "manager",
+   "phrase": "manager",
+   "values": [
+    "Priya Raman",
+    "Tomasz Nowak",
+    "Grace Mensah",
+    "Diego Alvarez",
+    "Hana Sato",
+    "Lars Eriksen",
+    "Amara Okafor",
+    "Felix Brandt"
+   ],
+   "memory": [
+    "{name} reports to {value}.",
+    "{name}'s manager is {value}.",
+    "{value} manages {name}."
+   ],
+   "query": [
+    "Who is {name}'s manager?",
+    "Who does {name} report to?"
+   ]
+  },
+  {
+   "key": "birthday_month",
+   "phrase": "birthday",
+   "values": [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December"
+   ],
+   "memory": [
+    "{name}'s birthday is in {value}.",
+    "{name} celebrates a birthday every {value}.",
+    "{name} was born in {value}."
+   ],
+   "query": [
+    "When is {name}'s birthday?",
+    "Which month is {name}'s birthday?"
+   ]
+  },
+  {
+   "key": "datacenter",
+   "phrase": "primary datacenter",
+   "values": [
+    "us-east-2",
+    "eu-central-1",
+    "ap-northeast-1",
+    "us-west-1",
+    "eu-west-2",
+    "sa-east-1"
+   ],
+   "memory": [
+    "{name}'s services run in {value}.",
+    "{name} deploys primarily to {value}.",
+    "{value} is {name}'s primary region."
+   ],
+   "query": [
+    "Which datacenter region does {name} use?",
+    "Where are {name}'s services deployed?"
+   ]
+  },
+  {
+   "key": "hobby",
+   "phrase": "hobby",
+   "values": [
+    "rock climbing",
+    "sourdough baking",
+    "birdwatching",
+    "chess",
+    "woodworking",
+    "salsa dancing",
+    "astrophotography",
+    "sailing"
+   ],
+   "memory": [
+    "{name}'s hobby is {value}.",
+    "On weekends {name} does {value}.",
+    "{name} got into {value} recently."
+   ],
+   "query": [
+    "What does {name} do for fun?",
+    "What is {name}'s hobby?"
+   ]
+  },
+  {
+   "key": "vpn_region",
+   "phrase": "VPN exit region",
+   "values": [
+    "Frankfurt",
+    "Singapore",
+    "Virginia",
+    "Sao Paulo",
+    "Mumbai",
+    "Sydney"
+   ],
+   "memory": [
+    "{name}'s VPN exits in {value}.",
+    "{name} connects through the {value} VPN gateway.",
+    "The VPN profile for {name} uses {value}."
+   ],
+   "query": [
+    "Which VPN region does {name} use?",
+    "Where does {name}'s VPN exit?"
+   ]
+  },
+  {
+   "key": "certification",
+   "phrase": "certification",
+   "values": [
+    "CKA",
+    "CISSP",
+    "PMP",
+    "AWS Solutions Architect",
+    "CCNP",
+    "CFA Level II"
+   ],
+   "memory": [
+    "{name} holds the {value} certification.",
+    "{name} passed the {value} exam.",
+    "{name} is {value} certified."
+   ],
+   "query": [
+    "What certification does {name} have?",
+    "Which exam did {name} pass?"
+   ]
+  },
+  {
+   "key": "desk_location",
+   "phrase": "desk",
+   "values": [
+    "floor 3 near the windows",
+    "floor 5 by the kitchen",
+    "the quiet room on floor 2",
+    "floor 7 east wing",
+    "the annex building",
+    "hot desk area B"
+   ],
+   "memory": [
+    "{name} sits on {value}.",
+    "{name}'s desk is on {value}.",
+    "You can find {name} at {value}."
+   ],
+   "query": [
+    "Where is {name}'s desk?",
+    "Where does {name} sit?"
+   ]
+  }
+ ],
+ "distractor": [
+  "{name} asked whether anyone had updated the {phrase} records.",
+  "Someone mentioned {name}'s {phrase} but nobody wrote down the details.",
+  "{name} said the {phrase} paperwork was still pending review."
+ ],
+ "historical_query": "What was {name}'s {phrase} before it changed?",
+ "time_base": "2025-01-01"
+}

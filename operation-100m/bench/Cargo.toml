@@ -1,0 +1,22 @@
+[package]
+name = "operation-100m-bench"
+version = "0.1.0"
+description = "Operation 100M: deterministic memory-bank generator and benchmark runner over the NeuralGraph memory engine"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "o100m"
+path = "src/main.rs"
+
+[dependencies]
+neuralgraph-memory = { path = "../../crates/neuralgraph-memory" }
+blake2 = "0.11.0"
+chrono = "0.4.45"
+clap = { version = "4.6.7", features = ["derive"] }
+futures = "0.3.34"
+libc = "0.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["preserve_order", "float_roundtrip"] }

@@ -1,0 +1,239 @@
+{
+ "task": "100k-real",
+ "round": 2,
+ "created_at": "2026-10-31T07:01:41Z",
+ "variant": "bounded",
+ "variant_detail": {
+  "hypothesis": "Disk-backed IVF candidates (nprobe 32) bound resident memory and vector cost; a WAL read pool removes the single-connection serialisation; pruning FTS terms above 1% document frequency bounds the keyword channel's scored set.",
+  "env": {
+   "O100M_VECTOR_INDEX": "ivf",
+   "O100M_NPROBE": "32",
+   "O100M_READ_POOL": "1",
+   "O100M_KEYWORD_MAX_DF": "0.01"
+  },
+  "build_ivf": true,
+  "addresses": [
+   "PROJECTED_RSS_OVER_BUDGET",
+   "RSS_OVER_BUDGET",
+   "P99_OVER_BUDGET",
+   "CONCURRENCY_DOES_NOT_SCALE",
+   "P99_CONCURRENT_OVER_BUDGET"
+  ]
+ },
+ "commands": [
+  {
+   "cmd": "/Users/novruz/NeuralGraph-current/target/release/o100m build-ivf --db /Users/novruz/NeuralGraph-current/operation-100m/work/100k/bank.db --out /Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/ivf_build.json",
+   "env": {},
+   "exit": 0,
+   "seconds": 39.55,
+   "stderr_tail": ""
+  },
+  {
+   "cmd": "/Users/novruz/NeuralGraph-current/target/release/o100m queries --bank 0 --n 100000 --seed 20261031 --nq 2000 --out /Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/../queries.jsonl",
+   "env": {},
+   "exit": 0,
+   "seconds": 0.04,
+   "stderr_tail": ""
+  },
+  {
+   "cmd": "/Users/novruz/NeuralGraph-current/target/release/o100m run --bank 0 --n 100000 --seed 20261031 --db /Users/novruz/NeuralGraph-current/operation-100m/work/100k/bank.db --queries /Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/../queries.jsonl --qvec file:/Users/novruz/NeuralGraph-current/operation-100m/work/100k/queries.f32 --concurrency 1,2,4,8 --out-dir /Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded",
+   "env": {
+    "O100M_VECTOR_INDEX": "ivf",
+    "O100M_NPROBE": "32",
+    "O100M_READ_POOL": "1",
+    "O100M_KEYWORD_MAX_DF": "0.01"
+   },
+   "exit": 0,
+   "seconds": 21.19,
+   "stderr_tail": "concurrency 1: 273.8 qps\nconcurrency 2: 374.0 qps\nconcurrency 4: 486.6 qps\nconcurrency 8: 532.1 qps\n"
+  },
+  {
+   "cmd": "/Users/novruz/NeuralGraph-current/target/release/o100m profile --bank 0 --n 100000 --seed 20261031 --db /Users/novruz/NeuralGraph-current/operation-100m/work/100k/bank.db --queries /Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/../queries.jsonl --qvec file:/Users/novruz/NeuralGraph-current/operation-100m/work/100k/queries.f32 --limit 300 --out /Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/profile.json",
+   "env": {
+    "O100M_VECTOR_INDEX": "ivf",
+    "O100M_NPROBE": "32",
+    "O100M_READ_POOL": "1",
+    "O100M_KEYWORD_MAX_DF": "0.01"
+   },
+   "exit": 0,
+   "seconds": 3.86,
+   "stderr_tail": ""
+  }
+ ],
+ "artifacts": {
+  "db": "/Users/novruz/NeuralGraph-current/operation-100m/work/100k/bank.db",
+  "manifest": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/../manifest.json",
+  "queries": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/../queries.jsonl",
+  "run_dir": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded",
+  "profile": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/profile.json"
+ },
+ "claims": [
+  {
+   "id": "c1_p50_ms",
+   "statement": "p50_ms at concurrency 1",
+   "value": 3.447959,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/run_summary.json",
+   "pointer": [
+    "levels",
+    0,
+    "latency",
+    "p50_ms"
+   ]
+  },
+  {
+   "id": "c1_p95_ms",
+   "statement": "p95_ms at concurrency 1",
+   "value": 4.457708,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/run_summary.json",
+   "pointer": [
+    "levels",
+    0,
+    "latency",
+    "p95_ms"
+   ]
+  },
+  {
+   "id": "c1_p99_ms",
+   "statement": "p99_ms at concurrency 1",
+   "value": 7.785334,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/run_summary.json",
+   "pointer": [
+    "levels",
+    0,
+    "latency",
+    "p99_ms"
+   ]
+  },
+  {
+   "id": "c2_p50_ms",
+   "statement": "p50_ms at concurrency 2",
+   "value": 5.016875,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/run_summary.json",
+   "pointer": [
+    "levels",
+    1,
+    "latency",
+    "p50_ms"
+   ]
+  },
+  {
+   "id": "c2_p95_ms",
+   "statement": "p95_ms at concurrency 2",
+   "value": 6.910958,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/run_summary.json",
+   "pointer": [
+    "levels",
+    1,
+    "latency",
+    "p95_ms"
+   ]
+  },
+  {
+   "id": "c2_p99_ms",
+   "statement": "p99_ms at concurrency 2",
+   "value": 11.189124999999999,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/run_summary.json",
+   "pointer": [
+    "levels",
+    1,
+    "latency",
+    "p99_ms"
+   ]
+  },
+  {
+   "id": "c4_p50_ms",
+   "statement": "p50_ms at concurrency 4",
+   "value": 7.584083000000001,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/run_summary.json",
+   "pointer": [
+    "levels",
+    2,
+    "latency",
+    "p50_ms"
+   ]
+  },
+  {
+   "id": "c4_p95_ms",
+   "statement": "p95_ms at concurrency 4",
+   "value": 12.707875,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/run_summary.json",
+   "pointer": [
+    "levels",
+    2,
+    "latency",
+    "p95_ms"
+   ]
+  },
+  {
+   "id": "c4_p99_ms",
+   "statement": "p99_ms at concurrency 4",
+   "value": 16.432458,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/run_summary.json",
+   "pointer": [
+    "levels",
+    2,
+    "latency",
+    "p99_ms"
+   ]
+  },
+  {
+   "id": "c8_p50_ms",
+   "statement": "p50_ms at concurrency 8",
+   "value": 13.067792,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/run_summary.json",
+   "pointer": [
+    "levels",
+    3,
+    "latency",
+    "p50_ms"
+   ]
+  },
+  {
+   "id": "c8_p95_ms",
+   "statement": "p95_ms at concurrency 8",
+   "value": 26.464042,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/run_summary.json",
+   "pointer": [
+    "levels",
+    3,
+    "latency",
+    "p95_ms"
+   ]
+  },
+  {
+   "id": "c8_p99_ms",
+   "statement": "p99_ms at concurrency 8",
+   "value": 37.896874999999994,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/run_summary.json",
+   "pointer": [
+    "levels",
+    3,
+    "latency",
+    "p99_ms"
+   ]
+  },
+  {
+   "id": "peak_rss",
+   "statement": "peak RSS of the query process",
+   "value": 185057280,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/run_summary.json",
+   "pointer": [
+    "rss_bytes",
+    "peak"
+   ]
+  },
+  {
+   "id": "ingest_rate",
+   "statement": "engine insert throughput (memories/s)",
+   "value": 11666.647536864704,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round2-bounded/../manifest.json",
+   "pointer": [
+    "ingest_memories_per_s_engine_insert"
+   ]
+  }
+ ],
+ "label": "candidate (unverified until Critic PASS)",
+ "research": {
+  "hindsight_sources": "/Users/novruz/NeuralGraph-current/operation-100m/sources/hindsight_primary_sources.md"
+ }
+}

@@ -21,6 +21,7 @@ use crate::pycompat::{fnum, obj, py_fixed, py_len, py_prefix, py_round, py_strip
 use crate::store::{query_bounds, ChannelFilter, ChatMemoryStore, IndexRow, MemoryQuery};
 use crate::textutil::{norm_entity, normalize_ws};
 use crate::temporal::{extract_query_time_cues, parse_datetime_flexible, OrderCue};
+use crate::vindex::IvfIndex;
 use chrono::{DateTime, NaiveDate, Utc};
 use indexmap::{IndexMap, IndexSet};
 use regex::Regex;
@@ -100,6 +101,15 @@ pub struct RetrievalConfig {
     /// time among the candidates, 0 oldest .. 1 newest), "first / earliest" toward the oldest. The factor shows as
     /// the `temporal` channel.
     pub temporal_prior: f64,
+    /// vector candidate generation: "exact" (default; every embedding resident, full scan per query) or "ivf" (the
+    /// disk-backed inverted-file index of [`crate::vindex`], built with [`MemoryRetriever::build_ivf`]; embeddings
+    /// of covered rows are never loaded into memory and a query reads `ivf_nprobe` lists). Falls back to exact
+    /// when no index file exists.
+    pub vector_index: String,
+    /// index file; default `<db_path>.ivf`
+    pub ivf_path: Option<String>,
+    /// inverted lists read per query
+    pub ivf_nprobe: usize,
 }
 
 impl Default for RetrievalConfig {
@@ -130,6 +140,9 @@ impl Default for RetrievalConfig {
             context_raw_include_assistant: false,
             context_multi_query: false,
             temporal_prior: 0.0,
+            vector_index: "exact".into(),
+            ivf_path: None,
+            ivf_nprobe: 32,
         }
     }
 }
@@ -335,7 +348,10 @@ pub struct IndexData {
     importance: Vec<f32>,
     active: Vec<bool>,
     observed: Vec<String>,
+    /// exact rows: everything in "exact" mode, only the rows the disk index does not cover in "ivf" mode
     mats: IndexMap<usize, DimMatrix>,
+    /// disk index and its entry -> row position map (`u32::MAX` = row no longer in the index)
+    ivf: Option<(Arc<IvfIndex>, Vec<u32>, usize)>,
 }
 
 fn dot_f32(a: &[f32], b: &[f32]) -> f32 {
@@ -361,7 +377,7 @@ fn normalise_f32(v: &[f64]) -> Vec<f32> {
 }
 
 impl IndexData {
-    fn build(rows: &IndexMap<String, IndexRow>) -> Self {
+    fn build(rows: &IndexMap<String, IndexRow>, ivf: Option<Arc<IvfIndex>>, nprobe: usize) -> Self {
         let n = rows.len();
         let mut d = IndexData {
             ids: Vec::with_capacity(n),
@@ -377,6 +393,7 @@ impl IndexData {
             active: Vec::with_capacity(n),
             observed: Vec::with_capacity(n),
             mats: IndexMap::new(),
+            ivf: None,
         };
         let mut by_dim: IndexMap<usize, Vec<usize>> = IndexMap::new();
         for (i, r) in rows.values().enumerate() {
@@ -409,6 +426,10 @@ impl IndexData {
                 data.extend(normalise_f32(row_list[i].embedding.as_ref().expect("has embedding")));
             }
             d.mats.insert(dim, DimMatrix { idxs, dim, data });
+        }
+        if let Some(ix) = ivf {
+            let map = ix.ids.iter().map(|id| d.pos.get(id).map(|p| *p as u32).unwrap_or(u32::MAX)).collect();
+            d.ivf = Some((ix, map, nprobe));
         }
         d
     }
@@ -470,12 +491,24 @@ impl IndexData {
     }
 
     fn vector_rank(&self, qvec: &[f64], mask: &[bool], k: usize, min_sim: f64) -> Vec<(String, f64)> {
-        let Some(mat) = self.mats.get(&qvec.len()) else { return Vec::new() };
         if qvec.is_empty() {
             return Vec::new();
         }
         let q = normalise_f32(qvec);
         let floor = min_sim as f32;
+        let mut hits: Vec<(usize, f32)> = Vec::new();
+        if let Some((ix, map, nprobe)) = self.ivf.as_ref().filter(|(ix, _, _)| ix.dim == q.len()) {
+            let keep = |e: usize| map[e] != u32::MAX && mask[map[e] as usize];
+            match ix.search(&q, *nprobe, k, floor, &keep) {
+                Ok(h) => hits.extend(h.into_iter().map(|(e, s)| (map[e] as usize, s))),
+                Err(e) => tracing::warn!("ivf search failed ({e}); vector channel uses the exact rows only"),
+            }
+        }
+        let Some(mat) = self.mats.get(&qvec.len()) else {
+            hits.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal).then(a.0.cmp(&b.0)));
+            hits.truncate(k);
+            return hits.into_iter().map(|(i, s)| (self.ids[i].clone(), s as f64)).collect();
+        };
         let scan = |rows: std::ops::Range<usize>| -> Vec<(usize, f32)> {
             let mut out = Vec::new();
             for row in rows {
@@ -494,7 +527,7 @@ impl IndexData {
         // same as a sequential scan.
         let rows = mat.idxs.len();
         let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).min(16);
-        let mut hits: Vec<(usize, f32)> = if threads > 1 && rows * mat.dim >= PARALLEL_SCAN_FLOPS {
+        let scanned: Vec<(usize, f32)> = if threads > 1 && rows * mat.dim >= PARALLEL_SCAN_FLOPS {
             let chunk = rows.div_ceil(threads);
             std::thread::scope(|sc| {
                 let handles: Vec<_> =
@@ -504,8 +537,14 @@ impl IndexData {
         } else {
             scan(0..rows)
         };
+        let ivf_mode = self.ivf.is_some();
+        hits.extend(scanned);
         // highest similarity first; ties keep index order (numpy's order for ties is unspecified)
-        hits.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        if ivf_mode {
+            hits.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal).then(a.0.cmp(&b.0)));
+        } else {
+            hits.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        }
         hits.truncate(k);
         hits.into_iter().map(|(i, s)| (self.ids[i].clone(), s as f64)).collect()
     }
@@ -653,6 +692,8 @@ pub struct MemoryRetriever {
     index: Mutex<IndexState>,
     entity_keys: Mutex<EntityKeyCache>,
     full_loads: AtomicU64,
+    /// the disk vector index, opened on first use in "ivf" mode (None inside = no usable index file)
+    ivf: Mutex<Option<Option<Arc<IvfIndex>>>>,
 }
 
 static POSSESSIVE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"'s\b|'\b").unwrap());
@@ -666,7 +707,50 @@ impl MemoryRetriever {
             index: Mutex::new(IndexState::default()),
             entity_keys: Mutex::new((IndexMap::new(), None)),
             full_loads: AtomicU64::new(0),
+            ivf: Mutex::new(None),
         }
+    }
+
+    fn ivf_path(&self) -> String {
+        self.config.ivf_path.clone().unwrap_or_else(|| format!("{}.ivf", self.store.db_path))
+    }
+
+    /// The disk vector index in "ivf" mode, opened once; `None` in exact mode or when the file is missing.
+    fn ivf_index(&self) -> Option<Arc<IvfIndex>> {
+        if self.config.vector_index != "ivf" {
+            return None;
+        }
+        let mut g = self.ivf.lock().unwrap_or_else(|e| e.into_inner());
+        if g.is_none() {
+            let path = self.ivf_path();
+            *g = Some(match IvfIndex::open(&path) {
+                Ok(ix) => Some(Arc::new(ix)),
+                Err(e) => {
+                    tracing::warn!("vector_index=ivf but {path} is unusable ({e}); using the exact vector scan");
+                    None
+                }
+            });
+        }
+        g.clone().flatten()
+    }
+
+    /// Build (or rebuild) the disk vector index from the store's embeddings, then reload the in-memory index so
+    /// covered embeddings leave RAM. `nlist = 0` picks 4 * sqrt(n).
+    pub fn build_ivf(&self, nlist: usize, iterations: usize) -> Result<crate::vindex::IvfBuildStats> {
+        let mut dim = 0usize;
+        let mut n = 0usize;
+        self.store.for_each_embedding(&mut |_, _, blob| {
+            if dim == 0 {
+                dim = blob.len() / 4;
+            }
+            n += 1;
+            Ok(())
+        })?;
+        let nlist = if nlist == 0 { ((n as f64).sqrt() * 4.0) as usize } else { nlist };
+        let stats = IvfIndex::build(&self.ivf_path(), dim, nlist.max(1), iterations, |f| self.store.for_each_embedding(f))?;
+        *self.ivf.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        *self.index.lock().unwrap_or_else(|e| e.into_inner()) = IndexState::default();
+        Ok(stats)
     }
 
     // ------------------------------------------------------------------ caches
@@ -675,20 +759,22 @@ impl MemoryRetriever {
     pub fn get_index(&self) -> Result<Arc<IndexData>> {
         let key = self.store.cache_key();
         let mut st = self.index.lock().unwrap_or_else(|e| e.into_inner());
+        let ivf = self.ivf_index();
+        let covered = ivf.as_ref().map(|ix| ix.max_rid);
         if !st.loaded {
-            let rows = self.store.index_rows(None, None)?;
+            let rows = self.store.index_rows_embeddings_after(None, None, covered)?;
             st.upsert(rows);
             st.loaded = true;
             st.rev = Some(key);
             self.full_loads.fetch_add(1, Ordering::SeqCst);
         } else if st.rev != Some(key) {
             let after = if st.last_updated_at.is_empty() { None } else { Some(st.last_updated_at.clone()) };
-            let changed = self.store.index_rows(None, after.as_deref())?;
+            let changed = self.store.index_rows_embeddings_after(None, after.as_deref(), covered)?;
             st.upsert(changed);
             st.rev = Some(key);
         }
         if st.built.is_none() {
-            st.built = Some(Arc::new(IndexData::build(&st.rows)));
+            st.built = Some(Arc::new(IndexData::build(&st.rows, ivf, self.config.ivf_nprobe)));
         }
         Ok(st.built.clone().expect("built above"))
     }

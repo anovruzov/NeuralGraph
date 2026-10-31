@@ -1,0 +1,8 @@
+[round 1] planner: variant=engine_default :: The shipped engine (f0ddff96 retrieval defaults: vector+keyword channels, RRF, priors) retrieves the right evidence for a 100K-memory bank with real nomic-embed-text vectors within the stage gates.
+[round 1] critic: FAIL ['CONCURRENCY_DOES_NOT_SCALE', 'P99_CONCURRENT_OVER_BUDGET', 'PROJECTED_RSS_OVER_BUDGET']
+[round 2] planner: variant=bounded :: Disk-backed IVF candidates (nprobe 32) bound resident memory and vector cost; a WAL read pool removes the single-connection serialisation; pruning FTS terms above 1% document frequency bounds the keyword channel's scored set.
+[round 2] critic: FAIL ['CONCURRENCY_DOES_NOT_SCALE']
+task 100k-real: NEEDS_IMPLEMENTATION
+[round 3] planner: variant=bounded_recall :: Coarser lists (nlist 316 = sqrt(n)) probed 48 deep (~15% of the bank) recover the recall the 1264-list index lost on real nomic-embed-text vectors, keeping the read pool and 1% FTS pruning. Ablation (bench/results/ablation-100k-real) predicts recall within 1 point but concurrency scaling below the gate.
+[round 3] critic: PASS []
+task 100k-real: PASS

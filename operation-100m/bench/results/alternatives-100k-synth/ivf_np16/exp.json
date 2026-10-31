@@ -1,0 +1,1 @@
+{"seed":20261031,"bank":0,"n":100000,"db":"operation-100m/work/100k-synth/bank.db","manifest":"operation-100m/work/100k-synth/manifest.json","queries":"operation-100m/work/100k-synth/queries.jsonl","run_dir":"operation-100m/bench/results/alternatives-100k-synth/ivf_np16"}

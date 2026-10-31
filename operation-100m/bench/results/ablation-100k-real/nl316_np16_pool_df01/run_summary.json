@@ -1,0 +1,81 @@
+{
+  "bank": 0,
+  "n": 100000,
+  "db": "/Users/novruz/NeuralGraph-current/operation-100m/work/100k/bank.db",
+  "engine": {
+    "vector_index": "ivf",
+    "ivf_nprobe": 16,
+    "ivf_path": "/Users/novruz/NeuralGraph-current/operation-100m/work/100k/bank.nl316.ivf",
+    "read_pool": true,
+    "keyword_max_df": 0.01,
+    "channels": "VK",
+    "depth": 100
+  },
+  "index_rows": 100000,
+  "queries": 2000,
+  "k": 10,
+  "cold": {
+    "definition": "fresh process, empty engine caches, OS page cache not purged",
+    "store_open_ms": 1.7181659999999999,
+    "first_query_ms_incl_index_load": 439.518916,
+    "second_query_ms": 7.219958
+  },
+  "levels": [
+    {
+      "concurrency": 1,
+      "requests": 2000,
+      "ok": 2000,
+      "errors": 0,
+      "wall_s": 22.1235915,
+      "successful_qps": 90.40123526055885,
+      "latency": {
+        "n": 2000,
+        "p50_ms": 9.804667,
+        "p95_ms": 16.89575,
+        "p99_ms": 26.594834000000002,
+        "max_ms": 98.195583,
+        "mean_ms": 11.04253445949999
+      }
+    },
+    {
+      "concurrency": 8,
+      "requests": 2000,
+      "ok": 2000,
+      "errors": 0,
+      "wall_s": 7.134261041,
+      "successful_qps": 280.337373206022,
+      "latency": {
+        "n": 2000,
+        "p50_ms": 22.877458,
+        "p95_ms": 59.410790999999996,
+        "p99_ms": 132.424458,
+        "max_ms": 276.330917,
+        "mean_ms": 28.409477079000037
+      }
+    }
+  ],
+  "rss_bytes": {
+    "process_start": 33931264,
+    "after_index_load": 174292992,
+    "end": 200130560,
+    "peak": 240910336
+  },
+  "cpu_s": 53.995385,
+  "disk_bytes": {
+    "db": 448823296,
+    "wal": 0,
+    "shm": 32768,
+    "total": 448856064
+  },
+  "env": {
+    "git_commit": "f0ddff96242cb98faa421d2a2df8e38046ca7a1b",
+    "git_dirty_files": 6,
+    "cpu": "Apple M4",
+    "ncpu": "10",
+    "mem_bytes": "17179869184",
+    "os": "Darwin 24.6.0 arm64",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13) (Homebrew)",
+    "threads_available": 10
+  },
+  "timing_scope": "MemoryRetriever::search wall time in-process; query embedding precomputed and excluded; touch=false; with_sources=false"
+}

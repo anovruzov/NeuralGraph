@@ -30,6 +30,7 @@ pub mod store;
 pub mod temporal;
 pub mod testing;
 pub mod textutil;
+pub mod vindex;
 pub mod worker;
 
 pub use answer::{Answer, AnswerOptions, AnswerRoute};

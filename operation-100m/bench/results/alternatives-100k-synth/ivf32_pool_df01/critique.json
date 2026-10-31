@@ -1,0 +1,244 @@
+{
+ "verdict": "PASS",
+ "experiment": {
+  "seed": 20261031,
+  "bank": 0,
+  "n": 100000,
+  "db": "operation-100m/work/100k-synth/bank.db",
+  "manifest": "operation-100m/work/100k-synth/manifest.json",
+  "queries": "operation-100m/work/100k-synth/queries.jsonl",
+  "run_dir": "operation-100m/bench/results/alternatives-100k-synth/ivf32_pool_df01"
+ },
+ "gates": {
+  "_note": "Declared 2026-10-31 before any 100K result existed. Engine-level timing (query embedding excluded), same scope as Hindsight's gRPC engine numbers.",
+  "recall_at_10_min": 0.8,
+  "p99_ms_max": 100,
+  "p99_ms_max_concurrent": 200,
+  "min_qps_speedup_at_max_concurrency": 2.0,
+  "peak_rss_fraction_of_ram": 0.25,
+  "projected_rss_fraction_of_ram": 0.5,
+  "next_stage_multiplier": 10,
+  "projected_disk_fraction_of_free": 0.5,
+  "full_regeneration_max_n": 2000000
+ },
+ "checks": [
+  {
+   "check": "row_count",
+   "ok": true,
+   "detail": "100000 rows in DB, spec says 100000"
+  },
+  {
+   "check": "dataset_hash",
+   "ok": true,
+   "detail": "DB text hash 29216d17b5feb2a2\u2026 vs manifest 29216d17b5feb2a2\u2026"
+  },
+  {
+   "check": "records_match_independent_spec",
+   "ok": true,
+   "detail": "all records re-derived in Python; mismatches: []"
+  },
+  {
+   "check": "vector_hash",
+   "ok": true,
+   "detail": "embedding blobs hash matches manifest; dims [768]"
+  },
+  {
+   "check": "ground_truth_independent",
+   "ok": true,
+   "detail": "2000 queries re-derived; 0 differ []"
+  },
+  {
+   "check": "ground_truth_grounded_in_db",
+   "ok": true,
+   "detail": "every relevant row exists, has the expected status, names the entity and states an expected value; bad: []"
+  },
+  {
+   "check": "complete_serial_pass",
+   "ok": true,
+   "detail": "2000/2000 queries have a serial-pass row"
+  },
+  {
+   "check": "summary_p50_ms_c1",
+   "ok": true,
+   "detail": "recomputed 8.554 vs Retriever summary 8.554"
+  },
+  {
+   "check": "summary_p95_ms_c1",
+   "ok": true,
+   "detail": "recomputed 11.129 vs Retriever summary 11.129"
+  },
+  {
+   "check": "summary_p99_ms_c1",
+   "ok": true,
+   "detail": "recomputed 14.017 vs Retriever summary 14.017"
+  },
+  {
+   "check": "summary_p50_ms_c4",
+   "ok": true,
+   "detail": "recomputed 11.895 vs Retriever summary 11.895"
+  },
+  {
+   "check": "summary_p95_ms_c4",
+   "ok": true,
+   "detail": "recomputed 18.088 vs Retriever summary 18.088"
+  },
+  {
+   "check": "summary_p99_ms_c4",
+   "ok": true,
+   "detail": "recomputed 22.625 vs Retriever summary 22.625"
+  },
+  {
+   "check": "deterministic_under_concurrency_c4",
+   "ok": true,
+   "detail": "0 queries returned a different top-10 at concurrency 4: []"
+  },
+  {
+   "check": "summary_p50_ms_c8",
+   "ok": true,
+   "detail": "recomputed 18.231 vs Retriever summary 18.231"
+  },
+  {
+   "check": "summary_p95_ms_c8",
+   "ok": true,
+   "detail": "recomputed 34.672 vs Retriever summary 34.672"
+  },
+  {
+   "check": "summary_p99_ms_c8",
+   "ok": true,
+   "detail": "recomputed 49.869 vs Retriever summary 49.869"
+  },
+  {
+   "check": "deterministic_under_concurrency_c8",
+   "ok": true,
+   "detail": "0 queries returned a different top-10 at concurrency 8: []"
+  },
+  {
+   "check": "gate_no_errors",
+   "ok": true,
+   "detail": "0 failed searches"
+  },
+  {
+   "check": "gate_recall",
+   "ok": true,
+   "detail": "recall@10 0.9454 (floor 0.8)"
+  },
+  {
+   "check": "gate_p99_serial",
+   "ok": true,
+   "detail": "serial warm p99 14.0 ms (budget 100 ms)"
+  },
+  {
+   "check": "gate_concurrency_scaling",
+   "ok": true,
+   "detail": "QPS at concurrency 8 is 3.42x serial (floor 2.0x)"
+  },
+  {
+   "check": "gate_p99_concurrent",
+   "ok": true,
+   "detail": "p99 at concurrency 8: 49.9 ms (budget 200 ms)"
+  },
+  {
+   "check": "gate_peak_rss",
+   "ok": true,
+   "detail": "peak RSS 0.28 GiB (1.7% of RAM; budget 25%)"
+  },
+  {
+   "check": "gate_projected_rss_next_stage",
+   "ok": true,
+   "detail": "1,484 resident B/memory -> 1.4 GiB at n=1,000,000 (budget 50% of RAM = 8.0 GiB)"
+  },
+  {
+   "check": "gate_projected_disk_next_stage",
+   "ok": true,
+   "detail": "4,489 disk B/memory -> 4.2 GiB at n=1,000,000 (free 52.3 GiB)"
+  }
+ ],
+ "failures": [],
+ "metrics": {
+  "quality": {
+   "recall@10": 0.9453878406708596,
+   "hit@10": 0.9528301886792453,
+   "mrr@10": 0.8294259758410697,
+   "ndcg@10": 0.8525670374571773,
+   "hit_any_returned@10": 0.9666666666666667,
+   "answerable_queries": 1590,
+   "by_type": {
+    "current": {
+     "recall@10": 0.9528,
+     "hit@10": 0.9564,
+     "mrr@10": 0.8705,
+     "ndcg@10": 0.8882,
+     "hit_any_returned@10": 0.9564,
+     "n": 1215
+    },
+    "contradiction": {
+     "recall@10": 0.9592,
+     "hit@10": 1.0,
+     "mrr@10": 0.9386,
+     "ndcg@10": 0.9099,
+     "hit_any_returned@10": 1.0,
+     "n": 184
+    },
+    "historical": {
+     "recall@10": 0.8848,
+     "hit@10": 0.8848,
+     "mrr@10": 0.4631,
+     "ndcg@10": 0.571,
+     "hit_any_returned@10": 1.0,
+     "n": 191
+    }
+   }
+  },
+  "latency": {
+   "1": {
+    "n": 2000,
+    "errors": 0,
+    "p50_ms": 8.553791,
+    "p95_ms": 11.128957999999999,
+    "p99_ms": 14.017042,
+    "successful_qps": 114.87575692463342
+   },
+   "4": {
+    "n": 2000,
+    "errors": 0,
+    "p50_ms": 11.895208,
+    "p95_ms": 18.087833,
+    "p99_ms": 22.625292,
+    "successful_qps": 316.2238300326664
+   },
+   "8": {
+    "n": 2000,
+    "errors": 0,
+    "p50_ms": 18.230542,
+    "p95_ms": 34.672042,
+    "p99_ms": 49.869,
+    "successful_qps": 392.59565251073536
+   }
+  },
+  "memory": {
+   "resident_bytes_after_load": 148439040,
+   "resident_bytes_per_memory": 1484.3904,
+   "projected_resident_bytes_next_stage": 1484390400.0,
+   "next_stage_n": 1000000
+  },
+  "disk": {
+   "bytes": 448856064,
+   "bytes_per_memory": 4488.56064,
+   "projected_bytes_next_stage": 4488560640.0,
+   "free_bytes": 56142548992
+  },
+  "cold": {
+   "definition": "fresh process, empty engine caches, OS page cache not purged",
+   "store_open_ms": 2.072042,
+   "first_query_ms_incl_index_load": 313.490375,
+   "second_query_ms": 7.148375000000001
+  },
+  "cpu_s": 73.195894,
+  "ingest": {
+   "memories_per_s_engine_insert": 9647.498183217873,
+   "memories_per_s_wall": 8323.327883773401,
+   "build_peak_rss_bytes": 126500864,
+   "build_cpu_s": 11.246873999999998
+  }
+ }
+}

@@ -1,0 +1,96 @@
+{
+  "bank": 0,
+  "n": 100000,
+  "db": "operation-100m/work/100k-synth/bank.db",
+  "engine": {
+    "vector_index": "exact",
+    "ivf_nprobe": 32,
+    "read_pool": false,
+    "keyword_max_df": 0.01,
+    "channels": "VK",
+    "depth": 100
+  },
+  "index_rows": 100000,
+  "queries": 2000,
+  "k": 10,
+  "cold": {
+    "definition": "fresh process, empty engine caches, OS page cache not purged",
+    "store_open_ms": 2.4971669999999997,
+    "first_query_ms_incl_index_load": 2197.079209,
+    "second_query_ms": 29.891167
+  },
+  "levels": [
+    {
+      "concurrency": 1,
+      "requests": 2000,
+      "ok": 2000,
+      "errors": 0,
+      "wall_s": 72.155946584,
+      "successful_qps": 27.717743230929823,
+      "latency": {
+        "n": 2000,
+        "p50_ms": 26.637708,
+        "p95_ms": 67.76124999999999,
+        "p99_ms": 198.843041,
+        "max_ms": 1111.544083,
+        "mean_ms": 36.04429815949997
+      }
+    },
+    {
+      "concurrency": 4,
+      "requests": 2000,
+      "ok": 2000,
+      "errors": 0,
+      "wall_s": 36.022376333,
+      "successful_qps": 55.52104562762578,
+      "latency": {
+        "n": 2000,
+        "p50_ms": 65.024125,
+        "p95_ms": 133.210666,
+        "p99_ms": 205.085958,
+        "max_ms": 494.31625,
+        "mean_ms": 71.89063353649993
+      }
+    },
+    {
+      "concurrency": 8,
+      "requests": 2000,
+      "ok": 2000,
+      "errors": 0,
+      "wall_s": 32.527587958,
+      "successful_qps": 61.48626828962613,
+      "latency": {
+        "n": 2000,
+        "p50_ms": 119.05325,
+        "p95_ms": 233.969375,
+        "p99_ms": 303.320583,
+        "max_ms": 1219.237458,
+        "mean_ms": 129.83637398599996
+      }
+    }
+  ],
+  "rss_bytes": {
+    "process_start": 22183936,
+    "after_index_load": 1049985024,
+    "end": 404553728,
+    "peak": 1058881536
+  },
+  "cpu_s": 441.948227,
+  "disk_bytes": {
+    "db": 448823296,
+    "wal": 0,
+    "shm": 32768,
+    "total": 448856064
+  },
+  "env": {
+    "git_commit": "f0ddff96242cb98faa421d2a2df8e38046ca7a1b",
+    "git_dirty_files": 6,
+    "cpu": "Apple M4",
+    "ncpu": "10",
+    "mem_bytes": "17179869184",
+    "os": "Darwin 24.6.0 arm64",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13) (Homebrew)",
+    "threads_available": 10
+  },
+  "timing_scope": "MemoryRetriever::search wall time in-process; query embedding precomputed and excluded; touch=false; with_sources=false"
+}

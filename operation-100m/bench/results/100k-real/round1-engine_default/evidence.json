@@ -1,0 +1,291 @@
+{
+ "task": "100k-real",
+ "round": 1,
+ "created_at": "2026-10-31T07:00:29Z",
+ "variant": "engine_default",
+ "variant_detail": {
+  "hypothesis": "Baseline: the engine exactly as shipped at f0ddff96 (exact vector scan, single SQLite connection, unpruned FTS).",
+  "env": {},
+  "addresses": []
+ },
+ "commands": [
+  {
+   "cmd": "/Users/novruz/NeuralGraph-current/target/release/o100m build --bank 0 --n 100000 --seed 20261031 --db /Users/novruz/NeuralGraph-current/operation-100m/work/100k/bank.db --emb file:/Users/novruz/NeuralGraph-current/operation-100m/work/100k/records.f32 --out /Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/../manifest.json",
+   "env": {},
+   "exit": 0,
+   "seconds": 9.85,
+   "stderr_tail": ""
+  },
+  {
+   "cmd": "/Users/novruz/NeuralGraph-current/target/release/o100m queries --bank 0 --n 100000 --seed 20261031 --nq 2000 --out /Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/../queries.jsonl",
+   "env": {},
+   "exit": 0,
+   "seconds": 0.01,
+   "stderr_tail": ""
+  },
+  {
+   "cmd": "/Users/novruz/NeuralGraph-current/target/release/o100m run --bank 0 --n 100000 --seed 20261031 --db /Users/novruz/NeuralGraph-current/operation-100m/work/100k/bank.db --queries /Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/../queries.jsonl --qvec file:/Users/novruz/NeuralGraph-current/operation-100m/work/100k/queries.f32 --concurrency 1,2,4,8 --out-dir /Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default",
+   "env": {},
+   "exit": 0,
+   "seconds": 125.6,
+   "stderr_tail": "concurrency 1: 72.5 qps\nconcurrency 2: 68.1 qps\nconcurrency 4: 65.0 qps\nconcurrency 8: 54.4 qps\n"
+  },
+  {
+   "cmd": "/Users/novruz/NeuralGraph-current/target/release/o100m profile --bank 0 --n 100000 --seed 20261031 --db /Users/novruz/NeuralGraph-current/operation-100m/work/100k/bank.db --queries /Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/../queries.jsonl --qvec file:/Users/novruz/NeuralGraph-current/operation-100m/work/100k/queries.f32 --limit 300 --out /Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/profile.json",
+   "env": {},
+   "exit": 0,
+   "seconds": 17.08,
+   "stderr_tail": ""
+  }
+ ],
+ "artifacts": {
+  "db": "/Users/novruz/NeuralGraph-current/operation-100m/work/100k/bank.db",
+  "manifest": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/../manifest.json",
+  "queries": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/../queries.jsonl",
+  "run_dir": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default",
+  "profile": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/profile.json"
+ },
+ "claims": [
+  {
+   "id": "c1_p50_ms",
+   "statement": "p50_ms at concurrency 1",
+   "value": 10.670792,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/run_summary.json",
+   "pointer": [
+    "levels",
+    0,
+    "latency",
+    "p50_ms"
+   ]
+  },
+  {
+   "id": "c1_p95_ms",
+   "statement": "p95_ms at concurrency 1",
+   "value": 31.935208,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/run_summary.json",
+   "pointer": [
+    "levels",
+    0,
+    "latency",
+    "p95_ms"
+   ]
+  },
+  {
+   "id": "c1_p99_ms",
+   "statement": "p99_ms at concurrency 1",
+   "value": 43.818333,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/run_summary.json",
+   "pointer": [
+    "levels",
+    0,
+    "latency",
+    "p99_ms"
+   ]
+  },
+  {
+   "id": "c2_p50_ms",
+   "statement": "p50_ms at concurrency 2",
+   "value": 22.700499999999998,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/run_summary.json",
+   "pointer": [
+    "levels",
+    1,
+    "latency",
+    "p50_ms"
+   ]
+  },
+  {
+   "id": "c2_p95_ms",
+   "statement": "p95_ms at concurrency 2",
+   "value": 61.229667,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/run_summary.json",
+   "pointer": [
+    "levels",
+    1,
+    "latency",
+    "p95_ms"
+   ]
+  },
+  {
+   "id": "c2_p99_ms",
+   "statement": "p99_ms at concurrency 2",
+   "value": 82.186958,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/run_summary.json",
+   "pointer": [
+    "levels",
+    1,
+    "latency",
+    "p99_ms"
+   ]
+  },
+  {
+   "id": "c4_p50_ms",
+   "statement": "p50_ms at concurrency 4",
+   "value": 57.560542,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/run_summary.json",
+   "pointer": [
+    "levels",
+    2,
+    "latency",
+    "p50_ms"
+   ]
+  },
+  {
+   "id": "c4_p95_ms",
+   "statement": "p95_ms at concurrency 4",
+   "value": 113.20254200000001,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/run_summary.json",
+   "pointer": [
+    "levels",
+    2,
+    "latency",
+    "p95_ms"
+   ]
+  },
+  {
+   "id": "c4_p99_ms",
+   "statement": "p99_ms at concurrency 4",
+   "value": 143.727292,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/run_summary.json",
+   "pointer": [
+    "levels",
+    2,
+    "latency",
+    "p99_ms"
+   ]
+  },
+  {
+   "id": "c8_p50_ms",
+   "statement": "p50_ms at concurrency 8",
+   "value": 135.616333,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/run_summary.json",
+   "pointer": [
+    "levels",
+    3,
+    "latency",
+    "p50_ms"
+   ]
+  },
+  {
+   "id": "c8_p95_ms",
+   "statement": "p95_ms at concurrency 8",
+   "value": 266.38466700000004,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/run_summary.json",
+   "pointer": [
+    "levels",
+    3,
+    "latency",
+    "p95_ms"
+   ]
+  },
+  {
+   "id": "c8_p99_ms",
+   "statement": "p99_ms at concurrency 8",
+   "value": 375.174958,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/run_summary.json",
+   "pointer": [
+    "levels",
+    3,
+    "latency",
+    "p99_ms"
+   ]
+  },
+  {
+   "id": "peak_rss",
+   "statement": "peak RSS of the query process",
+   "value": 1133740032,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/run_summary.json",
+   "pointer": [
+    "rss_bytes",
+    "peak"
+   ]
+  },
+  {
+   "id": "ingest_rate",
+   "statement": "engine insert throughput (memories/s)",
+   "value": 11666.647536864704,
+   "artifact": "/Users/novruz/NeuralGraph-current/operation-100m/bench/results/100k-real/round1-engine_default/../manifest.json",
+   "pointer": [
+    "ingest_memories_per_s_engine_insert"
+   ]
+  }
+ ],
+ "label": "candidate (unverified until Critic PASS)",
+ "research": {
+  "hindsight_sources": "/Users/novruz/NeuralGraph-current/operation-100m/sources/hindsight_primary_sources.md",
+  "github": [
+   {
+    "full_name": "vectorize-io/hindsight",
+    "pushed_at": "2026-10-31T04:26:20Z",
+    "default_branch": "main",
+    "license": {
+     "key": "mit",
+     "name": "MIT License",
+     "spdx_id": "MIT",
+     "url": "https://api.github.com/licenses/mit",
+     "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "stargazers_count": 56737
+   },
+   {
+    "full_name": "anovruzov/NeuralGraph",
+    "pushed_at": "2026-10-31T05:27:14Z",
+    "default_branch": "main",
+    "license": {
+     "key": "mit",
+     "name": "MIT License",
+     "spdx_id": "MIT",
+     "url": "https://api.github.com/licenses/mit",
+     "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "stargazers_count": 151
+   }
+  ],
+  "arxiv": {
+   "RaBitQ quantization nearest neighbor": [
+    {
+     "id": "http://arxiv.org/abs/2405.12497v1",
+     "title": "RaBitQ: Quantizing High-Dimensional Vectors with a Theoretical Error Bound for Approximate Nearest Neighbor Search"
+    },
+    {
+     "id": "http://arxiv.org/abs/2602.23999v2",
+     "title": "GPU-Native Approximate Nearest Neighbor Search with IVF-RaBitQ: Fast Index Build and Search"
+    },
+    {
+     "id": "http://arxiv.org/abs/1902.04008v1",
+     "title": "Magnon excitations in $Cs_2CuAl_4O_8$ - a bond alternating S=1/2 spin chain with next nearest neighbor coupling"
+    },
+    {
+     "id": "http://arxiv.org/abs/1911.07940v1",
+     "title": "Neighborhood Watch: Representation Learning with Local-Margin Triplet Loss and Sampling Strategy for K-Nearest-Neighbor Image Classification"
+    },
+    {
+     "id": "http://arxiv.org/abs/1605.06792v3",
+     "title": "Active Nearest-Neighbor Learning in Metric Spaces"
+    }
+   ],
+   "LongMemEval long-term memory": [
+    {
+     "id": "http://arxiv.org/abs/2410.10813v2",
+     "title": "LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory"
+    },
+    {
+     "id": "http://arxiv.org/abs/2606.24322v1",
+     "title": "Securing LLM-Agent Long-Term Memory Against Poisoning: Non-Malleable, Origin-Bound Authority with Machine-Checked Guarantees"
+    },
+    {
+     "id": "http://arxiv.org/abs/2301.00050v1",
+     "title": "Long-Term Online Multi-Session Graph-Based SPLAM with Memory Management"
+    },
+    {
+     "id": "http://arxiv.org/abs/2210.13383v1",
+     "title": "Evaluating Long-Term Memory in 3D Mazes"
+    },
+    {
+     "id": "http://arxiv.org/abs/2610.07907v1",
+     "title": "Continuous Memory Machines"
+    }
+   ]
+  }
+ }
+}

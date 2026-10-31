@@ -13,3 +13,6 @@ research/results/smoke*.json
 
 # Rust build output
 /target/
+
+# Operation 100M: generated banks and embeddings (regenerable, large)
+operation-100m/work/
