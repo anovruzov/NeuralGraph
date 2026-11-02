@@ -122,9 +122,10 @@ pub async fn llm_generate_think(
             "stream": false,
             "options": {"temperature": temperature, "num_predict": max_tokens},
         });
-        if think {
-            body["think"] = Value::Bool(true);
-        }
+        // Explicitly disable reasoning on extraction calls. Without this field,
+        // reasoning-capable Ollama models may spend num_predict on hidden thinking
+        // and return an empty response, causing retries and dead-lettered jobs.
+        body["think"] = Value::Bool(think);
         let data = post_json(client, &format!("{base_url}/api/generate"), &body, timeout_seconds).await?;
         let text = data.get("response").and_then(Value::as_str).unwrap_or("");
         return Ok(strip_thinking(text));
