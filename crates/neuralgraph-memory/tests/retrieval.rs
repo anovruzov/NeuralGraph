@@ -440,7 +440,7 @@ async fn test_context_quotes_human_only_format_order_and_dedupe() {
     // human sources in message order, newlines flattened; the assistant message is never quoted
     assert_eq!(lines[at + 1], "    > Mel (2026-04-01): \"I live in Tokyo, in a small flat.\"");
     assert_eq!(lines[at + 2], format!("    > Mel (2026-04-01): \"Tokyo {}\"", "x".repeat(40)));
-    assert!(lines.get(at + 3).map_or(true, |l| !l.starts_with("    > ")), "capped at context_quotes");
+    assert!(lines.get(at + 3).is_none_or(|l| !l.starts_with("    > ")), "capped at context_quotes");
     // with room for more, the duplicate and the blank are skipped and the assistant turn is still left out
     let (f, _) = quote_fx(5, 300);
     let block = f.ret.context_for(Q, None, None, &SearchOptions::default()).await.unwrap();
@@ -877,7 +877,8 @@ mod temporal_prior {
         let (on, ids) = tp_fx(0.5);
         let hits = on.ret.search(TP_Q, &at("2026-05-01")).await.unwrap();
         assert_eq!(hits[0].memory.memory_id, ids[0], "the March memory is boosted past the August one");
-        let ch = |id: &String| hits.iter().find(|h| &h.memory.memory_id == id).unwrap().channels.get("temporal").copied();
+        let ch =
+            |id: &String| hits.iter().find(|h| &h.memory.memory_id == id).unwrap().channels.get("temporal").copied();
         assert_eq!(ch(&ids[0]), Some(1.5));
         assert_eq!(ch(&ids[1]), Some(0.8));
         assert_eq!(ch(&ids[2]), None, "no event time and observed outside the window: unchanged");

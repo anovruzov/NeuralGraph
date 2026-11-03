@@ -226,7 +226,8 @@ fn make_row(
     src: &HashMap<String, HashSet<String>>,
     evidence: &HashSet<String>,
 ) -> Value {
-    let cites_gold = |h: &RetrievedMemory| src.get(&h.memory.memory_id).is_some_and(|s| s.iter().any(|m| evidence.contains(m)));
+    let cites_gold =
+        |h: &RetrievedMemory| src.get(&h.memory.memory_id).is_some_and(|s| s.iter().any(|m| evidence.contains(m)));
     let mut row = Map::new();
     row.insert("id".into(), id.into());
     row.insert("type".into(), typ.into());
@@ -342,7 +343,10 @@ fn eligible_qa_tolerant(qa: &[Value], max_session: i64) -> HResult<Vec<(Value, V
                 Ok(s) => good.push((e, s)),
                 Err(_) => {
                     bad += 1;
-                    eprintln!("warning: qa[{qi}]: unparseable evidence token {e:?} (raw evidence: {}); ignored", q.get("evidence").map(|v| v.to_string()).unwrap_or_default());
+                    eprintln!(
+                        "warning: qa[{qi}]: unparseable evidence token {e:?} (raw evidence: {}); ignored",
+                        q.get("evidence").map(|v| v.to_string()).unwrap_or_default()
+                    );
                 }
             }
         }

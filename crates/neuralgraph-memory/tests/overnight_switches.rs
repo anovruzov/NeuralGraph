@@ -247,7 +247,7 @@ async fn verbatim_fallback_stores_sentences_with_uncovered_numbers() {
     let capped = plan(&s, &l, cfg, std::slice::from_ref(&m)).await;
     assert_eq!(texts(&capped).len(), 2, "cap of one fallback");
     let cfg = ExtractionConfig { verbatim_fallback: true, ..Default::default() };
-    let on = plan(&s, &l, cfg, &[m.clone()]).await;
+    let on = plan(&s, &l, cfg, std::slice::from_ref(&m)).await;
     assert_eq!(
         texts(&on),
         [
@@ -304,7 +304,9 @@ fn neuralgraph_exp_zero_turns_fixes_off_and_one_or_bare_turns_them_on() {
 #[test]
 fn neuralgraph_exp_ignores_unknown_and_malformed_tokens() {
     let mut c = ChatMemoryConfig::default();
-    c.apply_exp("nonsense,verbatim_max=abc,batch_size=0,months_ago=2,hyphen_ground=yes,prompt_extra_file=/no/such/file,,");
+    c.apply_exp(
+        "nonsense,verbatim_max=abc,batch_size=0,months_ago=2,hyphen_ground=yes,prompt_extra_file=/no/such/file,,",
+    );
     let reference = ChatMemoryConfig::default();
     let e = &c.extraction;
     assert!(!e.annotate_more_relative && e.memory_prompt_extra.is_empty());
