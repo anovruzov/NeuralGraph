@@ -252,10 +252,8 @@ fn prompts_are_the_research_prompts_verbatim() {
     let end = start + py[start..].find("\"\"\"").unwrap();
     assert_eq!(ANSWER_PROMPT, &py[start..end]);
     let re_line = py.split("COMPUTE_RE = re.compile(").nth(1).unwrap().split("re.I)").next().unwrap();
-    let joined: String = re_line
-        .lines()
-        .map(|l| l.trim().trim_start_matches("r\"").trim_end_matches(|c| c == '"' || c == ',').to_string())
-        .collect();
+    let joined: String =
+        re_line.lines().map(|l| l.trim().trim_start_matches("r\"").trim_end_matches(['"', ',']).to_string()).collect();
     assert_eq!(joined, neuralgraph_memory::answer::COMPUTE_RE_SRC);
 }
 

@@ -13,3 +13,8 @@ research/results/smoke*.json
 
 # Rust build output
 /target/
+
+# local tooling and OS junk
+.DS_Store
+__pycache__/
+.venv/

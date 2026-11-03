@@ -247,7 +247,7 @@ async fn verbatim_fallback_stores_sentences_with_uncovered_numbers() {
     let capped = plan(&s, &l, cfg, std::slice::from_ref(&m)).await;
     assert_eq!(texts(&capped).len(), 2, "cap of one fallback");
     let cfg = ExtractionConfig { verbatim_fallback: true, ..Default::default() };
-    let on = plan(&s, &l, cfg, &[m.clone()]).await;
+    let on = plan(&s, &l, cfg, std::slice::from_ref(&m)).await;
     assert_eq!(
         texts(&on),
         [
