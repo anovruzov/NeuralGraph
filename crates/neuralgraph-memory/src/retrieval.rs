@@ -19,8 +19,8 @@ use crate::llm::LlmClient;
 use crate::models::{parse_iso, total_seconds, utcnow, ChatMessage, Memory, RetrievedMemory};
 use crate::pycompat::{fnum, obj, py_fixed, py_len, py_prefix, py_round, py_strip};
 use crate::store::{query_bounds, ChannelFilter, ChatMemoryStore, IndexRow, MemoryQuery};
-use crate::textutil::{norm_entity, normalize_ws};
 use crate::temporal::{extract_query_time_cues, parse_datetime_flexible, OrderCue};
+use crate::textutil::{norm_entity, normalize_ws};
 use chrono::{DateTime, NaiveDate, Utc};
 use indexmap::{IndexMap, IndexSet};
 use regex::Regex;
@@ -138,8 +138,8 @@ impl Default for RetrievalConfig {
 const MQ_MAX: usize = 3;
 /// words that do not count as content in a sub-query (on top of `textutil::is_stop`)
 const MQ_FILLER: &[&str] = &[
-    "i", "am", "is", "a", "an", "of", "in", "on", "at", "to", "my", "me", "or", "as", "by", "if", "so", "do", "it", "be",
-    "we", "up", "us", "am",
+    "i", "am", "is", "a", "an", "of", "in", "on", "at", "to", "my", "me", "or", "as", "by", "if", "so", "do", "it",
+    "be", "we", "up", "us", "am",
 ];
 /// leading words stripped from a "how many/much/long, total" noun phrase
 const MQ_AUX: &[&str] = &[
@@ -152,7 +152,8 @@ const MQ_STOP_NP: &[&str] = &[
     "we", "you", "when", "while", "that", "which", "who", "where", "what", "if", "now",
 ];
 
-static MQ_SPLIT_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i),\s*(?:and\s+|or\s+)?|\s+and\s+|\s+or\s+").unwrap());
+static MQ_SPLIT_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i),\s*(?:and\s+|or\s+)?|\s+and\s+|\s+or\s+").unwrap());
 static MQ_BETWEEN_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bbetween\s+(.+?)\s+and\s+(.+)$").unwrap());
 static MQ_FROM_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bfrom\s+(.+?)\s+to\s+(.+)$").unwrap());
 static MQ_BEFORE_AFTER_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\b(?:before|after)\s+(.+)$").unwrap());
@@ -174,7 +175,9 @@ fn mq_content_words(text: &str) -> usize {
 }
 
 fn mq_clean(text: &str) -> String {
-    normalize_ws(text).trim_matches(|c: char| c.is_whitespace() || matches!(c, '?' | '.' | '!' | ',' | ';' | ':')).to_string()
+    normalize_ws(text)
+        .trim_matches(|c: char| c.is_whitespace() || matches!(c, '?' | '.' | '!' | ',' | ';' | ':'))
+        .to_string()
 }
 
 /// Up to three extra sub-queries for `question`, derived by rules only (no LLM):
@@ -860,7 +863,9 @@ impl MemoryRetriever {
         let now = utcnow();
         let fused_ids: Vec<String> = fused.keys().cloned().collect();
         let ent_map = self.store.entity_ids_for_memories(&fused_ids)?;
-        let tprior = (cfg.temporal_prior > 0.0).then(|| TemporalPrior::new(&query, opts.now.as_deref(), &index, &fused_ids)).flatten();
+        let tprior = (cfg.temporal_prior > 0.0)
+            .then(|| TemporalPrior::new(&query, opts.now.as_deref(), &index, &fused_ids))
+            .flatten();
         let q_ent_set: IndexSet<&String> = q_entities.iter().collect();
         let mut scored: Vec<(String, f64, IndexMap<String, f64>)> = Vec::new();
         for (mid, base) in &fused {
@@ -1110,7 +1115,6 @@ impl MemoryRetriever {
         if lines.len() == 1 {
             return Ok((String::new(), Vec::new()));
         }
-        let mut used = used;
         let mut seen = IndexSet::new();
         let mut quotes: Vec<Vec<String>> = vec![Vec::new(); lines.len()];
         if cfg.context_quotes > 0 {

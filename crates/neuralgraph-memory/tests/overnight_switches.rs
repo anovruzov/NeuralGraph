@@ -304,7 +304,9 @@ fn neuralgraph_exp_zero_turns_fixes_off_and_one_or_bare_turns_them_on() {
 #[test]
 fn neuralgraph_exp_ignores_unknown_and_malformed_tokens() {
     let mut c = ChatMemoryConfig::default();
-    c.apply_exp("nonsense,verbatim_max=abc,batch_size=0,months_ago=2,hyphen_ground=yes,prompt_extra_file=/no/such/file,,");
+    c.apply_exp(
+        "nonsense,verbatim_max=abc,batch_size=0,months_ago=2,hyphen_ground=yes,prompt_extra_file=/no/such/file,,",
+    );
     let reference = ChatMemoryConfig::default();
     let e = &c.extraction;
     assert!(!e.annotate_more_relative && e.memory_prompt_extra.is_empty());

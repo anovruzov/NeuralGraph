@@ -680,14 +680,12 @@ static Q_BARE_MONTH_RE: LazyLock<Regex> = LazyLock::new(|| {
     ))
     .unwrap()
 });
-static Q_YEAR_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\b(?:in|during|of|throughout|for|year)\s+((?:19|20)\d{2})\b").unwrap()
-});
+static Q_YEAR_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\b(?:in|during|of|throughout|for|year)\s+((?:19|20)\d{2})\b").unwrap());
 static Q_AGO_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(&format!(r"(?i)\b({COUNT_ALT})[\s-]+(day|week|month|year)s?\s+ago\b")).unwrap());
-static Q_PAST_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(r"(?i)\b(?:past|last)\s+({COUNT_ALT})\s+(day|week|month|year)s\b")).unwrap()
-});
+static Q_PAST_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r"(?i)\b(?:past|last)\s+({COUNT_ALT})\s+(day|week|month|year)s\b")).unwrap());
 static Q_YESTERDAY_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\byesterday\b").unwrap());
 static Q_LAST_WEEK_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\blast\s+week\b").unwrap());
 static Q_THIS_WEEK_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bthis\s+week\b").unwrap());
@@ -697,8 +695,7 @@ static Q_LAST_YEAR_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\blas
 static Q_THIS_YEAR_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bthis\s+year\b").unwrap());
 static Q_LATEST_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)\b(?:most\s+recent(?:ly)?|latest|newest|last\s+time)\b").unwrap());
-static Q_EARLIEST_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)\b(?:first|earliest|initially)\b").unwrap());
+static Q_EARLIEST_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\b(?:first|earliest|initially)\b").unwrap());
 
 fn query_month(name: &str, original: &str) -> Option<u32> {
     let n = name.to_lowercase();

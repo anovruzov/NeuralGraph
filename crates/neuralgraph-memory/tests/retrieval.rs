@@ -877,7 +877,8 @@ mod temporal_prior {
         let (on, ids) = tp_fx(0.5);
         let hits = on.ret.search(TP_Q, &at("2026-05-01")).await.unwrap();
         assert_eq!(hits[0].memory.memory_id, ids[0], "the March memory is boosted past the August one");
-        let ch = |id: &String| hits.iter().find(|h| &h.memory.memory_id == id).unwrap().channels.get("temporal").copied();
+        let ch =
+            |id: &String| hits.iter().find(|h| &h.memory.memory_id == id).unwrap().channels.get("temporal").copied();
         assert_eq!(ch(&ids[0]), Some(1.5));
         assert_eq!(ch(&ids[1]), Some(0.8));
         assert_eq!(ch(&ids[2]), None, "no event time and observed outside the window: unchanged");
