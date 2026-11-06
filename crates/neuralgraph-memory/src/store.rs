@@ -538,6 +538,40 @@ type JobFailRow = (i64, i64, Option<String>, String, String, Option<String>);
 /// entity id -> [(neighbour id, predicate, confidence)]
 pub type Neighbors = IndexMap<String, Vec<(String, String, f64)>>;
 
+/// Two entities named in the same active memories (an untyped edge, drawn behind the typed relations).
+#[derive(Clone, Debug, PartialEq)]
+pub struct CoMention {
+    pub a: String,
+    pub b: String,
+    pub memories: i64,
+    pub first_at: String,
+}
+
+/// One memory shown in the graph's entity panel.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GraphSnippet {
+    pub memory_id: String,
+    pub text: String,
+    pub kind: String,
+    pub chat_id: String,
+    pub when: Option<String>,
+}
+
+/// The dashboard graph: top entities plus every edge whose two ends are both in that set.
+#[derive(Clone, Debug, Default)]
+pub struct EntityGraph {
+    pub entities: Vec<Entity>,
+    /// entity id -> created_at of the first memory naming it (ingestion clock, for the time-lapse)
+    pub first_memory_at: IndexMap<String, String>,
+    /// entity id -> number of active memories naming it
+    pub memory_counts: IndexMap<String, i64>,
+    /// entity id -> its most important active memories
+    pub snippets: IndexMap<String, Vec<GraphSnippet>>,
+    pub relations: Vec<Relation>,
+    /// co-mention pairs that are NOT already joined by an active relation
+    pub co_mentions: Vec<CoMention>,
+}
+
 /// SQLite-backed store. See module docs.
 pub struct ChatMemoryStore {
     pub db_path: String,
@@ -2466,6 +2500,115 @@ impl ChatMemoryStore {
             }
         }
         Ok(out)
+    }
+
+    /// Top `limit` entities by mentions (or, with `chat_id`, by memories in that chat) and the edges among them: up
+    /// to `max_edges` active relations and up to `max_edges` co-mention pairs, plus up to `snippets` memory texts per
+    /// entity. Edges that leave the node set are dropped, so the graph is closed.
+    pub fn entity_graph(
+        &self,
+        limit: i64,
+        max_edges: i64,
+        snippets: usize,
+        chat_id: Option<&str>,
+    ) -> Result<EntityGraph> {
+        let chat_id = chat_id.filter(|c| !c.is_empty());
+        let entities = match chat_id {
+            Some(c) => self.entities_for_chat(c, limit)?,
+            None => self.top_entities(limit, None)?,
+        };
+        let ids: Vec<String> = entities.iter().map(|e| e.entity_id.clone()).collect();
+        if ids.is_empty() {
+            return Ok(EntityGraph::default());
+        }
+        let ph = placeholders(ids.len());
+        let chat_sql = |col: &str| if chat_id.is_some() { format!(" AND {col} = ?") } else { String::new() };
+        let once: Vec<SqlValue> = ids.iter().map(|s| text_v(s)).chain(chat_id.map(text_v)).collect();
+        // both IN lists take the same ids, then the chat scope, then the LIMIT
+        let twice: Vec<SqlValue> = ids
+            .iter()
+            .chain(ids.iter())
+            .map(|s| text_v(s))
+            .chain(chat_id.map(text_v))
+            .chain([SqlValue::Integer(max_edges)])
+            .collect();
+        self.with_conn(|c| {
+            let mut first_memory_at = IndexMap::new();
+            let mut memory_counts = IndexMap::new();
+            let mut st = c.prepare(&format!(
+                "SELECT me.entity_id, MIN(m.created_at), SUM(m.status='active') FROM memory_entities me
+                   JOIN memories m ON m.memory_id = me.memory_id
+                  WHERE me.entity_id IN ({ph}){} GROUP BY me.entity_id",
+                chat_sql("m.chat_id")
+            ))?;
+            for row in st.query_map(params_from_iter(once.iter()), |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?))
+            })? {
+                let (id, at, n) = row?;
+                first_memory_at.insert(id.clone(), at);
+                memory_counts.insert(id, n);
+            }
+            let mut snips: IndexMap<String, Vec<GraphSnippet>> = IndexMap::new();
+            if snippets > 0 {
+                let mut st = c.prepare(&format!(
+                    "SELECT me.entity_id, m.memory_id, m.text, m.kind, m.chat_id, COALESCE(m.event_time, m.observed_at)
+                       FROM memory_entities me JOIN memories m ON m.memory_id = me.memory_id
+                      WHERE me.entity_id IN ({ph}) AND m.status='active'{}
+                      ORDER BY m.importance DESC, m.created_at DESC, m.memory_id",
+                    chat_sql("m.chat_id")
+                ))?;
+                for row in st.query_map(params_from_iter(once.iter()), |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        GraphSnippet {
+                            memory_id: r.get(1)?,
+                            text: r.get(2)?,
+                            kind: r.get(3)?,
+                            chat_id: r.get(4)?,
+                            when: r.get(5)?,
+                        },
+                    ))
+                })? {
+                    let (id, sn) = row?;
+                    let v = snips.entry(id).or_default();
+                    if v.len() < snippets {
+                        v.push(sn);
+                    }
+                }
+            }
+            let mut st = c.prepare(&format!(
+                "SELECT * FROM relations WHERE status='active' AND subject_id IN ({ph}) AND object_id IN ({ph}){}
+                    ORDER BY observation_count DESC, confidence DESC, relation_id LIMIT ?",
+                chat_sql("chat_id")
+            ))?;
+            let relations = st
+                .query_map(params_from_iter(twice.iter()), Self::row_relation)?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            let linked: std::collections::HashSet<(&str, &str)> = relations
+                .iter()
+                .flat_map(|r| {
+                    [(r.subject_id.as_str(), r.object_id.as_str()), (r.object_id.as_str(), r.subject_id.as_str())]
+                })
+                .collect();
+            let mut st = c.prepare(&format!(
+                "SELECT a.entity_id, b.entity_id, COUNT(*) AS n, MIN(m.created_at)
+                   FROM memory_entities a
+                   JOIN memory_entities b ON b.memory_id = a.memory_id AND a.entity_id < b.entity_id
+                   JOIN memories m ON m.memory_id = a.memory_id AND m.status='active'
+                  WHERE a.entity_id IN ({ph}) AND b.entity_id IN ({ph}){}
+                  GROUP BY a.entity_id, b.entity_id ORDER BY n DESC, a.entity_id, b.entity_id LIMIT ?",
+                chat_sql("m.chat_id")
+            ))?;
+            let co_mentions = st
+                .query_map(params_from_iter(twice.iter()), |r| {
+                    Ok(CoMention { a: r.get(0)?, b: r.get(1)?, memories: r.get(2)?, first_at: r.get(3)? })
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?
+                .into_iter()
+                .filter(|m| !linked.contains(&(m.a.as_str(), m.b.as_str())))
+                .collect();
+            Ok(EntityGraph { entities, first_memory_at, memory_counts, snippets: snips, relations, co_mentions })
+        })
     }
 
     pub fn relation_counts(&self) -> Result<IndexMap<String, i64>> {

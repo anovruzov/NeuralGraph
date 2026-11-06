@@ -8,6 +8,7 @@ mod common;
 use axum::body::Body;
 use axum::http::Request;
 use http_body_util::BodyExt;
+use neuralgraph_memory::graph::{ascii_tree, export_html, graph_value, GraphOptions};
 use neuralgraph_memory::mcp::{
     serve_stdio_with, tools, McpProtocol, JSONRPC_INVALID_PARAMS, JSONRPC_METHOD_NOT_FOUND, LATEST_PROTOCOL_VERSION,
 };
@@ -358,6 +359,74 @@ async fn test_dashboard_and_api() {
     assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["memories"].as_array().unwrap().len(), 2);
     let (_, _, body) = send(&app, "GET", "/healthz", &[], None).await;
     assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["ok"], true);
+}
+
+#[tokio::test]
+async fn test_graph_endpoint_closed_over_top_entities() {
+    let (f, app) = http_fx().await;
+    let s = &f.cm.store;
+    for (id, name, ty) in [("berlin", "Berlin", "place"), ("luna", "Luna", "pet"), ("rex", "Rex", "pet")] {
+        s.upsert_entity(id, name, ty, None, 1, &[]).unwrap();
+    }
+    s.insert_memory(&common::mem("Ali and Luna visited Berlin."), &[], &["ali".into(), "luna".into(), "berlin".into()])
+        .unwrap();
+    s.upsert_relation("ali", "lives_in", "berlin", 0.9, "c1", None, None, None).unwrap();
+    s.upsert_relation("ali", "owns", "ghost", 0.9, "c1", None, None, None).unwrap(); // object not an entity
+    let (code, _, body) = send(&app, "GET", "/api/graph", &[], None).await;
+    assert_eq!(code, 200);
+    let g: Value = serde_json::from_str(&body).unwrap();
+    let ids: HashSet<&str> = g["nodes"].as_array().unwrap().iter().map(|n| n["id"].as_str().unwrap()).collect();
+    assert_eq!(ids, HashSet::from(["ali", "berlin", "luna", "rex"]));
+    let edges: Vec<(String, String, String)> = g["edges"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| {
+            let k = e["kind"].as_str().unwrap();
+            let (a, b) = (e["source"].as_str().unwrap(), e["target"].as_str().unwrap());
+            (k.to_string(), a.to_string(), b.to_string())
+        })
+        .collect();
+    // the ali-berlin pair is drawn once (as the typed relation); the dangling "ghost" relation is dropped
+    let mut want = vec![
+        ("co_mention".to_string(), "ali".to_string(), "luna".to_string()),
+        ("co_mention".into(), "berlin".into(), "luna".into()),
+        ("relation".into(), "ali".into(), "berlin".into()),
+    ];
+    let mut got = edges.clone();
+    got.sort();
+    want.sort();
+    assert_eq!(got, want);
+    let luna = g["nodes"].as_array().unwrap().iter().find(|n| n["id"] == "luna").unwrap();
+    assert_eq!(luna["memories"], 1);
+    assert!(luna["born_at"].is_string());
+    let (code, _, _) = send(&app, "GET", "/api/graph?limit=x", &[], None).await;
+    assert_eq!(code, 400);
+    let (code, _, html) = send(&app, "GET", "/graph?embed=1", &[], None).await;
+    assert_eq!(code, 200);
+    assert!(html.contains("/*__GRAPH_DATA__*/null"), "served live, the page fetches /api/graph");
+
+    // chat scope: only c1's memories count, and the scope is echoed back
+    let (_, _, body) = send(&app, "GET", "/api/graph?chat_id=nope", &[], None).await;
+    let scoped: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(scoped["nodes"].as_array().unwrap().len(), 0);
+    assert_eq!(scoped["scope"]["chat_id"], "nope");
+
+    // offline export bakes the JSON in and cannot be broken out of by memory text
+    s.insert_memory(&common::mem("Ali wrote </script><b>x</b> about Luna."), &[], &["luna".into()]).unwrap();
+    let g = graph_value(s, &GraphOptions::default()).unwrap();
+    let html = export_html(&g);
+    assert!(!html.contains("/*__GRAPH_DATA__*/null"));
+    assert_eq!(html.matches("</script>").count(), 1, "only the page's own closing tag");
+    assert!(html.contains("exported_at"));
+
+    // terminal view
+    let tree = ascii_tree(&g, Some("ali"), 2, 5).unwrap();
+    assert!(tree.starts_with("Ali [person] · "), "{tree}");
+    assert!(tree.contains("lives_in → Berlin [place]"), "{tree}");
+    assert!(tree.contains("~ Luna [pet]  (1 memory)"), "{tree}");
+    assert!(ascii_tree(&g, Some("nobody"), 1, 5).is_none());
+    assert!(ascii_tree(&g, None, 1, 2).unwrap().contains(" connections"));
 }
 
 #[tokio::test]

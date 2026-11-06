@@ -100,6 +100,8 @@ textarea{min-height:64px;resize:vertical}
 .feed .m b{color:var(--text-secondary);font-weight:600}
 .feed li.new{animation:pop .7s ease}
 @keyframes pop{from{background:var(--accent-soft)}to{background:transparent}}
+.graph-frame{display:block;width:100%;height:600px;border:0;border-radius:10px;background:var(--surface-1)}
+@media (max-width:760px){.graph-frame{height:820px}}
 .ents{display:flex;flex-wrap:wrap;gap:6px}
 .ent{font-size:12.5px;padding:3px 9px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);color:var(--text-primary)}
 .ent small{color:var(--text-muted);margin-left:4px}
@@ -180,13 +182,21 @@ footer{margin-top:18px;color:var(--text-muted);font-size:12.5px;display:flex;gap
       <div class="tiles" id="tiles"></div>
     </section>
 
+    <section class="card c12" aria-label="Entity graph">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px">
+        <h2 style="margin:0;flex:0 0 auto">Entity graph</h2>
+        <span class="muted" style="flex:0 1 auto;text-align:right">Click an entity for its local graph · offline copy: <code>neuralgraph-memory graph --out graph.html</code></span>
+      </div>
+      <iframe id="graph-frame" class="graph-frame" src="/graph?embed=1" title="Entity graph explorer" loading="lazy"></iframe>
+    </section>
+
     <section class="card c7" aria-label="Memory stream">
       <h2>Live memory stream</h2>
       <ul class="feed" id="feed"><li><span class="k">…</span><div class="t muted">waiting for the worker</div></li></ul>
     </section>
 
     <section class="card c5" aria-label="Entities">
-      <h2>Entity graph</h2>
+      <h2>Top entities</h2>
       <div class="ents" id="ents"><span class="muted">no entities yet</span></div>
       <h2 style="margin-top:16px">Recent events</h2>
       <ul class="feed" id="events" style="max-height:200px"></ul>
@@ -217,8 +227,8 @@ footer{margin-top:18px;color:var(--text-muted);font-size:12.5px;display:flex;gap
     </section>
   </div>
   <footer>
-    <span>API: <code>/api/status</code>, <code>/api/search?q=</code>, <code>POST /api/messages</code></span>
-    <span>MCP (Streamable HTTP): <code>/mcp</code> · stdio: <code>python -m NeuralGraph.chat_memory mcp</code></span>
+    <span>API: <code>/api/status</code>, <code>/api/search?q=</code>, <code>/api/graph</code>, <code>POST /api/messages</code></span>
+    <span>MCP (Streamable HTTP): <code>/mcp</code> · stdio: <code>neuralgraph-memory mcp</code></span>
     <span id="db"></span>
   </footer>
 </div>

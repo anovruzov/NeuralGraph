@@ -1,6 +1,7 @@
 //! Command line for the cross-chat memory system.
 //!
 //! ```text
+//!     neuralgraph-memory setup     # first run: models, your name, connect Claude Code / Codex
 //!     neuralgraph-memory serve     # worker + dashboard + REST API + MCP (Streamable HTTP)
 //!     neuralgraph-memory mcp       # worker + MCP over stdio (Claude Desktop / Claude Code)
 //!     neuralgraph-memory ingest chats.jsonl [--process]
@@ -9,16 +10,19 @@
 //!     neuralgraph-memory context "planning a trip"
 //!     neuralgraph-memory answer "how long have I lived in Berlin?" [--today YYYY-MM-DD] [--json]
 //!     neuralgraph-memory profile Ali
+//!     neuralgraph-memory graph [ENTITY] [--depth 2] [--out graph.html]
 //!     neuralgraph-memory stats
 //!     neuralgraph-memory forget mem_...
 //! ```
 //!
 //! Common options: --db, --model, --base-url, --embed-model, --parallel, --user-name, --fake-llm (tests/demos).
-//! LLM settings default to the LLM_BASE_URL, LLM_MODEL and EMBED_MODEL environment variables. Subcommands, flags,
+//! LLM settings default to the LLM_BASE_URL, LLM_MODEL and EMBED_MODEL environment variables, then to the answers
+//! `setup` saved in ~/.neuralgraph/config.json. Subcommands, flags,
 //! environment variables and printed output are the ones of the former `python -m NeuralGraph.chat_memory`.
 
 use crate::answer::{AnswerOptions, AnswerRoute};
 use crate::error::{MemoryError, Result};
+use crate::graph::{ascii_tree, export_html, graph_value, GraphOptions};
 use crate::llm::LlmClient;
 use crate::pycompat::{dumps, py_prefix, py_repr_counts, py_str, py_truthy, JsonFormat};
 use crate::retrieval::SearchOptions;
@@ -38,6 +42,7 @@ fn default_db() -> String {
 
 const ABOUT: &str = "Command line for the cross-chat memory system.
 
+    neuralgraph-memory setup     # first run: models, your name, connect Claude Code / Codex
     neuralgraph-memory serve     # worker + dashboard + REST API + MCP (Streamable HTTP)
     neuralgraph-memory mcp       # worker + MCP over stdio (Claude Desktop / Claude Code)
     neuralgraph-memory ingest chats.jsonl [--process]
@@ -46,6 +51,7 @@ const ABOUT: &str = "Command line for the cross-chat memory system.
     neuralgraph-memory context \"planning a trip\"
     neuralgraph-memory answer \"how long have I lived in Berlin?\" [--today YYYY-MM-DD] [--json]
     neuralgraph-memory profile Ali
+    neuralgraph-memory graph [ENTITY] [--depth 2] [--out graph.html]
     neuralgraph-memory stats
     neuralgraph-memory forget mem_...
 
@@ -87,7 +93,7 @@ pub struct Common {
     #[arg(long, default_value_t = 1.0)]
     pub debounce: f64,
     /// display name for speaker 'user' (e.g. your name)
-    #[arg(long = "user-name")]
+    #[arg(long = "user-name", env = "NEURALGRAPH_USER_NAME")]
     pub user_name: Option<String>,
     /// extract memories from assistant turns too (the default)
     #[arg(long = "extract-assistant", overrides_with = "no_extract_assistant")]
@@ -126,10 +132,19 @@ pub struct ServeArgs {
     /// accepted Host headers (repeatable). Default: loopback names when bound to 127.0.0.1
     #[arg(long = "allowed-host")]
     pub allowed_host: Vec<String>,
+    /// open the dashboard in the browser once the server is listening
+    #[arg(long)]
+    pub open: bool,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    /// first-run wizard: find the model server, test models, connect Claude Code / Codex / Claude Desktop / Cursor
+    Setup {
+        /// accept every default without asking (connects no tools)
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
     /// run worker + dashboard + API + MCP (HTTP)
     Serve(ServeArgs),
     /// run worker + MCP server over stdio
@@ -209,6 +224,31 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// entity graph: ASCII tree in the terminal, or --out FILE.html for a self-contained explorer
+    Graph {
+        #[command(flatten)]
+        common: Common,
+        /// entity name or id to centre on (default: the most connected hubs)
+        entity: Option<String>,
+        /// hops from ENTITY to print
+        #[arg(long, default_value_t = 1)]
+        depth: usize,
+        /// hubs to print when no ENTITY is given
+        #[arg(long, default_value_t = 5)]
+        hubs: usize,
+        /// most-mentioned entities to load
+        #[arg(long, default_value_t = 150)]
+        limit: i64,
+        /// only this chat's entities and edges
+        #[arg(long = "chat-id")]
+        chat_id: Option<String>,
+        /// write the interactive explorer (opens offline) to this file instead of printing
+        #[arg(long)]
+        out: Option<String>,
+        /// print the graph JSON
+        #[arg(long)]
+        json: bool,
+    },
     /// counts, queue, tokens saved, grade
     Stats {
         #[command(flatten)]
@@ -242,8 +282,10 @@ pub enum Command {
 }
 
 impl Command {
-    pub fn common(&self) -> &Common {
-        match self {
+    /// The shared options (`setup` has none).
+    pub fn common(&self) -> Option<&Common> {
+        Some(match self {
+            Command::Setup { .. } => return None,
             Command::Serve(ServeArgs { common, .. })
             | Command::Mcp { common }
             | Command::Ingest { common, .. }
@@ -252,11 +294,12 @@ impl Command {
             | Command::Context { common, .. }
             | Command::Answer { common, .. }
             | Command::Profile { common, .. }
+            | Command::Graph { common, .. }
             | Command::Stats { common }
             | Command::Forget { common, .. }
             | Command::Remember { common, .. }
             | Command::Maintain { common } => common,
-        }
+        })
     }
 }
 
@@ -347,6 +390,18 @@ pub fn locomo_messages(path: &str, only: Option<&[i64]>) -> Result<Vec<LocomoMes
     Ok(out)
 }
 
+async fn cmd_setup(yes: bool) -> Result<i32> {
+    let out = crate::setup::run_setup(yes).await?;
+    if !out.start_server {
+        return Ok(out.exit_code);
+    }
+    println_flush("");
+    let Cli { cmd: Command::Serve(args) } = Cli::parse_from(["neuralgraph-memory", "serve", "--open"]) else {
+        unreachable!("serve parses to Command::Serve")
+    };
+    cmd_serve(&args).await
+}
+
 async fn cmd_serve(args: &ServeArgs) -> Result<i32> {
     let (host, port) = (args.host.as_str(), args.port);
     let cm = build(&args.common)?;
@@ -373,6 +428,17 @@ async fn cmd_serve(args: &ServeArgs) -> Result<i32> {
         allowed_hosts: none_if_empty(args.allowed_host.clone()),
     };
     let runner = run_server(cm.clone(), host, port, opts).await?;
+    if args.open {
+        let url = format!("http://{}:{port}/", if host == "0.0.0.0" { "127.0.0.1" } else { host });
+        let opener = if cfg!(target_os = "macos") {
+            "open"
+        } else if cfg!(windows) {
+            "explorer"
+        } else {
+            "xdg-open"
+        };
+        let _ = std::process::Command::new(opener).arg(&url).spawn();
+    }
     println_flush(&format!(
         "dashboard: http://{host}:{port}/   MCP: http://{host}:{port}/mcp   db: {}",
         cm.store.db_path
@@ -607,6 +673,48 @@ async fn cmd_profile(common: &Common, subject: &str, json: bool) -> Result<i32> 
     Ok(0)
 }
 
+#[allow(clippy::too_many_arguments)]
+async fn cmd_graph(
+    common: &Common,
+    entity: Option<&str>,
+    depth: usize,
+    hubs: usize,
+    limit: i64,
+    chat_id: Option<String>,
+    out: Option<&str>,
+    json: bool,
+) -> Result<i32> {
+    let cm = build(common)?;
+    let opts = GraphOptions { limit, chat_id, ..Default::default() };
+    let g = graph_value(&cm.store, &opts)?;
+    let code = if let Some(path) = out {
+        std::fs::write(path, export_html(&g))?;
+        println_flush(&format!(
+            "wrote {path}: {} entities, {} connections (open it in a browser; no server needed)",
+            g["nodes"].as_array().map_or(0, Vec::len),
+            g["edges"].as_array().map_or(0, Vec::len)
+        ));
+        0
+    } else if json {
+        println_flush(&dumps(&g, &JsonFormat::pretty()));
+        0
+    } else {
+        match ascii_tree(&g, entity, depth, hubs) {
+            Some(t) => {
+                print!("{t}");
+                let _ = std::io::stdout().flush();
+                0
+            }
+            None => {
+                println_flush(&format!("no entity named {:?} in the top {limit}", entity.unwrap_or_default()));
+                1
+            }
+        }
+    };
+    cm.close().await;
+    Ok(code)
+}
+
 async fn cmd_stats(common: &Common) -> Result<i32> {
     let cm = build(common)?;
     let mut st = cm.status()?;
@@ -648,6 +756,7 @@ async fn cmd_maintain(common: &Common) -> Result<i32> {
 /// Run one parsed command; returns the process exit code.
 pub async fn run(cli: Cli) -> Result<i32> {
     match cli.cmd {
+        Command::Setup { yes } => cmd_setup(yes).await,
         Command::Serve(args) => cmd_serve(&args).await,
         Command::Mcp { common } => cmd_mcp(&common).await,
         Command::Ingest { common, file, chat_id, locomo, only, process } => {
@@ -662,6 +771,9 @@ pub async fn run(cli: Cli) -> Result<i32> {
             cmd_answer(&common, &question, today, &route, json).await
         }
         Command::Profile { common, subject, json } => cmd_profile(&common, &subject, json).await,
+        Command::Graph { common, entity, depth, hubs, limit, chat_id, out, json } => {
+            cmd_graph(&common, entity.as_deref(), depth, hubs, limit, chat_id, out.as_deref(), json).await
+        }
         Command::Stats { common } => cmd_stats(&common).await,
         Command::Forget { common, memory_id, reason } => cmd_forget(&common, &memory_id, &reason).await,
         Command::Remember { common, text, subject, kind, when } => {
