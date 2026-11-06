@@ -42,12 +42,35 @@ What makes it different from a vector store with a nice wrapper:
 
 ## Quick Start
 
-### Prerequisites
+### One command (macOS and Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/anovruzov/NeuralGraph/main/install.sh | sh
+```
+
+That is the whole install. The script:
+
+1. Downloads the prebuilt binary for your machine from the latest release and verifies
+   its SHA-256, so you need no compiler and no Rust. If there is no prebuilt binary for
+   your machine, it installs what a source build needs (the Xcode command-line tools on
+   macOS, Rust via rustup) and compiles instead.
+2. Puts `neuralgraph-memory` in `~/.local/bin` and adds that folder to your `PATH`.
+3. Starts the [setup wizard](#setup-wizard-recommended). If no model server is running, the
+   wizard offers to install [Ollama](https://ollama.com) for you and download the models.
+
+You need about 8 GB of RAM for a 7B-class model. The memory server itself idles at
+about 12 MB, and the database is tiny. Read the script before piping it to `sh`:
+[`install.sh`](install.sh).
+
+Options are environment variables, for example
+`curl -fsSL …/install.sh | NEURALGRAPH_NO_SETUP=1 sh` installs without starting the wizard.
+The script's header lists all of them.
+
+### Prerequisites for building yourself
 
 - **[Rust](https://rustup.rs) 1.89+** and a C compiler (SQLite is compiled into the binary) — or use the
   [container image](#deployment)
 - **[Ollama](https://ollama.com)** or **[LM Studio](https://lmstudio.ai)** — optional for a first run (`--fake-llm`)
-- ~8 GB RAM for a 7B-class model. The memory server idles at ~12 MB; the database is tiny.
 
 ### 60 seconds, no model required
 
@@ -60,7 +83,31 @@ cargo run --release --example chat_memory_live_demo -- --fake-llm
 `--fake-llm` runs the entire extraction and retrieval pipeline with a deterministic
 stand-in, so you can see the machinery work before downloading a single weight.
 
-### With a real local model
+### Setup wizard (recommended)
+
+The installer runs this for you. From a clone:
+
+```bash
+cargo install --locked --path crates/neuralgraph-memory
+neuralgraph-memory setup
+```
+
+One command does the rest:
+
+1. Finds LM Studio or Ollama and lists their models. If neither is running, it offers to
+   install Ollama. If the recommended models are missing, it offers to download them.
+2. Sends one test prompt and one test embedding, so you know both models work.
+3. Asks your name and where to keep the memory file.
+4. Connects **Claude Code**, **Codex**, **Claude Desktop** and **Cursor**. Pick any of the
+   ones it finds. Existing configs are merged, never overwritten, and a `.bak` copy is kept.
+5. Saves your answers to `~/.neuralgraph/config.json`, then offers to start the server and
+   open the dashboard.
+
+Re-run `setup` any time to change an answer. `setup --yes` accepts every default without
+asking and connects no tools. Settings resolve as flags > environment variables >
+`config.json` > built-in defaults.
+
+### Manual setup with Ollama
 
 ```bash
 cargo install --locked --path crates/neuralgraph-memory
@@ -263,6 +310,7 @@ Everything the server does, available from a terminal. All commands are
 
 | Command | What it does |
 |---|---|
+| `setup` | First-run wizard: model server, model tests, your name, connect Claude Code / Codex / Claude Desktop / Cursor (`--yes` for defaults) |
 | `serve` | Worker + dashboard + REST API + MCP over HTTP |
 | `mcp` | Worker + MCP over stdio |
 | `ingest FILE` | Import a JSONL chat log, or LoCoMo JSON with `--locomo` |
@@ -270,6 +318,7 @@ Everything the server does, available from a terminal. All commands are
 | `search QUERY` | Search memories (`-k`, `--subject`, `--history`, `--json`) |
 | `context QUERY` | Print a prompt-ready context block (`-k`, `--max-chars`) |
 | `profile SUBJECT` | What is known about a subject (`--json`) |
+| `graph [ENTITY]` | Entity graph as a terminal tree (`--depth`, `--hubs`, `--chat-id`, `--json`), or `--out graph.html` for an offline explorer |
 | `stats` | Counts, queue, tokens saved, grade |
 | `remember TEXT` | Store a memory now (`--subject`, `--kind`, `--when`) |
 | `forget MEMORY_ID` | Retract a memory (`--reason`) |
@@ -305,8 +354,33 @@ compression, connectivity, freshness and reliability.
 </div>
 
 The live memory stream shows each memory as it is extracted, with its kind, subject,
-source chat, date and importance; the entity graph beside it shows what has been linked
-to what. You can search memory and feed it a chat turn straight from the page.
+source chat, date and importance. You can search memory and feed it a chat turn straight
+from the page.
+
+### Entity graph
+
+The dashboard embeds a graph explorer (also at `/graph` full screen). Entities are nodes,
+sized by mentions and coloured by type. Typed relations and co-mentions (two entities named
+in the same memory) are the edges.
+
+- **Local graph:** click an entity to highlight its neighbourhood to a chosen depth (1–3),
+  or press *Local graph* to show only that neighbourhood. The side panel lists the
+  entity's top memories and every connection.
+- **Filters:** toggle relations, co-mentions, orphans and each type in the legend, find an
+  entity with <kbd>/</kbd>, or scope to one chat. *Table* shows the same data as a list.
+- **Time-lapse:** replays the graph forming in the order memories were learned.
+- **Live:** new entities pulse in as the worker extracts them; signals travel along edges
+  while it is busy.
+- **Deep links:** `/graph?focus=Caroline&depth=2&local=1` opens the explorer on one entity.
+
+<div align="center">
+  <img src="docs/images/graph-explorer.png" alt="Graph explorer focused on one entity, with its two-hop neighbourhood highlighted and its connections listed in the side panel" width="820">
+</div>
+
+```bash
+neuralgraph-memory graph Melanie --depth 2    # ASCII tree in the terminal
+neuralgraph-memory graph --out graph.html     # self-contained explorer, opens without a server
+```
 
 ---
 
@@ -315,6 +389,8 @@ to what. You can search memory and feed it a chat turn straight from the page.
 | Variable | Default | Purpose |
 |---|---|---|
 | `NEURALGRAPH_MEMORY_DB` | `~/.neuralgraph/chat_memory.db` | Database path |
+| `NEURALGRAPH_USER_NAME` | unset | Display name for speaker `user` (same as `--user-name`) |
+| `NEURALGRAPH_CONFIG` | `~/.neuralgraph/config.json` | Where `setup` saves its answers |
 | `NEURALGRAPH_MCP_TOKEN` | unset | Bearer token required on `/mcp` |
 | `NEURALGRAPH_API_TOKEN` | unset | Bearer token required on `/api/*` |
 | `LLM_BASE_URL` | `http://127.0.0.1:1234` (LM Studio) | Model server URL; port 11434 selects the Ollama API |
@@ -323,7 +399,8 @@ to what. You can search memory and feed it a chat turn straight from the page.
 | `OLLAMA_NUM_PARALLEL` | — | Match `--parallel` when using Ollama |
 | `LLM_NO_THINK_PREFILL` | unset | `1` for Qwen builds that ignore `reasoning_effort` and return empty replies |
 
-Command-line flags override environment variables.
+Command-line flags override environment variables, which override the answers `setup`
+saved in `~/.neuralgraph/config.json`.
 
 ---
 
@@ -360,6 +437,11 @@ Or build just the server:
 ```bash
 docker build -f deploy/chat_memory/Dockerfile -t neuralgraph-memory .
 ```
+
+**Prebuilt binaries.** Pushing a tag such as `v1.1.0` runs `.github/workflows/release.yml`.
+It builds `neuralgraph-memory` for macOS (Apple silicon and Intel) and Linux (x86_64 and
+arm64), then attaches each `.tar.gz` and its `.sha256` to the GitHub release. `install.sh`
+downloads those files.
 
 For an always-on laptop or mini-PC, `deploy/chat_memory/neuralgraph-memory.service` runs
 `serve` as a systemd user service beside a local Ollama. One binary, one SQLite file, no

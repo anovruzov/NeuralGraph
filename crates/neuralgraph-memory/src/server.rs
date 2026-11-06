@@ -10,6 +10,8 @@
 //! POST /api/answer {question, today?}  answer from memory (routed reader protocol)
 //! GET  /api/memories          recent memories (?subject=&kind=&limit=)
 //! GET  /api/entities          top entities (?limit=)
+//! GET  /graph                 graph explorer page (force layout, local graph, time-lapse; embedded in /)
+//! GET  /api/graph             entity graph: {nodes, edges, chats} (?limit=&chat_id=)
 //! GET  /api/profile/{subject}
 //! POST /api/messages          {"chat_id", "speaker", "text", "role"?, "sent_at"?, "message_id"?}  -> queued
 //! POST /api/messages/batch    {"chat_id", "messages": [...]}
@@ -22,6 +24,7 @@
 //! it; the worker learns in the background and the dashboard shows it happening. Routing, status codes, headers
 //! and JSON bodies match the previous aiohttp server, including its 404/405 text responses.
 
+use crate::graph::{graph_value, GraphOptions, GRAPH_HTML};
 use crate::mcp::{
     rpc_error, McpProtocol, JSONRPC_PARSE_ERROR, LATEST_PROTOCOL_VERSION, MAX_HTTP_SESSIONS,
     SUPPORTED_PROTOCOL_VERSIONS,
@@ -320,7 +323,8 @@ async fn route(
     };
     match path {
         "/mcp" => return st.mcp.handle(method, headers, &body).await,
-        "/" | "/healthz" | "/api/status" | "/api/search" | "/api/context" | "/api/memories" | "/api/entities" => {
+        "/" | "/healthz" | "/api/status" | "/api/search" | "/api/context" | "/api/memories" | "/api/entities"
+        | "/api/graph" | "/graph" => {
             if !get_like {
                 return not_allowed("GET,HEAD");
             }
@@ -437,6 +441,18 @@ async fn route(
                     out.push(d);
                 }
                 json_resp(&json!({"entities": out}), 200)
+            }
+            "/api/graph" => {
+                let Some(limit) = py_int_parse(&q("limit").unwrap_or_else(|| "150".into())) else {
+                    return Ok(bad("limit must be an integer", 400));
+                };
+                let opts = GraphOptions { limit, chat_id: q_or_none("chat_id"), ..Default::default() };
+                json_resp(&graph_value(&cm.store, &opts)?, 200)
+            }
+            "/graph" => {
+                let mut r = response(200, Some("text/html; charset=utf-8"), GRAPH_HTML);
+                r.headers_mut().insert("cache-control", HeaderValue::from_static("no-store"));
+                r
             }
             "/api/messages" => {
                 let b = match body_object(&body) {

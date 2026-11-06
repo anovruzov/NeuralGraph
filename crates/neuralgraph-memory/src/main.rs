@@ -31,8 +31,10 @@ where
 }
 
 fn main() {
+    // before parsing (clap reads env defaults) and before any thread exists (set_var)
+    neuralgraph_memory::setup::apply_saved_config();
     let cli = Cli::parse();
-    let verbose = cli.cmd.common().verbose;
+    let verbose = cli.cmd.common().is_some_and(|c| c.verbose);
     let level = if verbose { tracing::Level::DEBUG } else { tracing::Level::INFO };
     // stdout is the protocol channel in `mcp` mode, so logs go to stderr there
     let to_stderr = matches!(cli.cmd, Command::Mcp { .. });
@@ -43,8 +45,9 @@ fn main() {
         builder.with_writer(std::io::stdout).init();
     }
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().expect("tokio runtime");
-    // `serve` handles SIGINT/SIGTERM itself and shuts down cleanly; everywhere else Ctrl-C exits with 130
-    let handles_signals = matches!(cli.cmd, Command::Serve { .. });
+    // `serve` handles SIGINT/SIGTERM itself and shuts down cleanly; `setup` may end in `serve` and until then keeps
+    // the default SIGINT (exit); everywhere else Ctrl-C exits with 130
+    let handles_signals = matches!(cli.cmd, Command::Serve { .. } | Command::Setup { .. });
     let code = runtime.block_on(async move {
         let finish = |r: neuralgraph_memory::error::Result<i32>| match r {
             Ok(code) => code,

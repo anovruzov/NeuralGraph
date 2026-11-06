@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeuralGraph · Entity graph</title>
+<meta name="description" content="Force-directed explorer of the entities and relations NeuralGraph memory has learned.">
+<style>
+:root{
+  color-scheme:light;
+  --surface-0:#f4f3f0; --surface-1:#fcfcfb; --surface-2:#ecebe7; --line:#dcdad4;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#7a7873;
+  --accent:#2a78d6; --accent-soft:#cde2fb;
+  --series-1:#2a78d6; --series-2:#eb6834; --series-3:#1baf7a; --series-other:#a3a19a;
+  --radius:14px; --shadow:0 1px 2px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --surface-0:#121211; --surface-1:#1a1a19; --surface-2:#242422; --line:#33332f;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8d8c84;
+    --accent:#3987e5; --accent-soft:#184f95;
+    --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70; --series-other:#6c6b65;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --surface-0:#121211; --surface-1:#1a1a19; --surface-2:#242422; --line:#33332f;
+  --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8d8c84;
+  --accent:#3987e5; --accent-soft:#184f95;
+  --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70; --series-other:#6c6b65;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--surface-0);color:var(--text-primary);
+  font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif}
+body.embedded{background:var(--surface-1)}
+button,input,select{font:inherit;color:inherit}
+button{background:var(--surface-2);color:var(--text-primary);border:1px solid var(--line);border-radius:9px;padding:5px 11px;cursor:pointer;font-weight:600;font-size:13px}
+button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+input,select{background:var(--surface-1);border:1px solid var(--line);border-radius:9px;padding:5px 9px;font-size:13px}
+.app{display:grid;grid-template-rows:auto 1fr;height:100%;padding:12px;gap:10px}
+body.embedded .app{padding:0;gap:8px}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.bar h1{font-size:16px;margin:0 8px 0 0;font-weight:650}
+.bar h1 span{color:var(--text-muted);font-weight:500}
+body.embedded .bar h1,body.embedded #theme,body:not(.embedded) #open-full{display:none}
+body.offline #scope,body.offline #open-full{display:none}
+.bar .grow{flex:1 1 auto}
+.bar label{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-secondary);white-space:nowrap}
+.bar input[type=range]{width:70px;padding:0}
+#search{width:170px}
+.bar{gap:6px}
+.main{display:grid;grid-template-columns:1fr 300px;gap:10px;min-height:0}
+body.embedded .main{grid-template-columns:1fr 260px}
+@media (max-width:760px){.main,body.embedded .main{grid-template-columns:1fr;grid-template-rows:1fr auto}}
+.stage{position:relative;min-height:320px;background:var(--surface-1);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+body:not(.embedded) .stage{box-shadow:var(--shadow)}
+canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+canvas.over{cursor:pointer} canvas.dragging{cursor:grabbing}
+.legend{position:absolute;left:10px;bottom:10px;display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100% - 20px)}
+.legend button{display:inline-flex;align-items:center;gap:6px;font-weight:500;font-size:12px;padding:3px 9px;border-radius:999px;background:var(--surface-1)}
+.legend button i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.legend button.off{opacity:.45;text-decoration:line-through}
+.legend button small{color:var(--text-muted)}
+.hud{position:absolute;left:10px;top:10px;font-size:12px;color:var(--text-muted);pointer-events:none}
+.clock{position:absolute;right:12px;top:10px;font-size:20px;font-weight:650;font-variant-numeric:tabular-nums;color:var(--text-primary);pointer-events:none;display:none}
+.clock small{display:block;font-size:11.5px;font-weight:500;color:var(--text-muted);text-align:right}
+.empty{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:var(--text-muted);text-align:center;padding:20px}
+.panel{background:var(--surface-1);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;overflow:auto;min-height:0}
+body:not(.embedded) .panel{box-shadow:var(--shadow)}
+.panel h3{margin:0 0 4px;font-size:17px;word-break:break-word}
+.panel h4{margin:14px 0 6px;font-size:11.5px;font-weight:650;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px}
+.panel ul{list-style:none;margin:0;padding:0}
+.panel li{padding:5px 0;border-bottom:1px solid var(--line);font-size:13px}
+.panel li button{all:unset;cursor:pointer;color:var(--text-primary);font-weight:600}
+.panel li button:hover,.panel li button:focus-visible{text-decoration:underline}
+.panel .pred{color:var(--text-secondary)}
+.panel .m{font-size:12px;color:var(--text-muted);margin-top:2px}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary)}
+.badge i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.muted{color:var(--text-muted);font-size:12.5px}
+.tip{position:fixed;pointer-events:none;background:var(--surface-1);border:1px solid var(--line);border-radius:8px;
+  padding:6px 9px;font-size:12.5px;box-shadow:var(--shadow);display:none;z-index:9;max-width:260px}
+.table-wrap{position:absolute;inset:0;background:var(--surface-1);overflow:auto;display:none;padding:8px 12px}
+.table-wrap table{border-collapse:collapse;width:100%;font-size:13px}
+.table-wrap th{text-align:left;color:var(--text-secondary);font-weight:600;border-bottom:1px solid var(--line);padding:5px 6px;position:sticky;top:0;background:var(--surface-1)}
+.table-wrap td{border-bottom:1px solid var(--line);padding:5px 6px}
+.table-wrap .n{text-align:right;font-variant-numeric:tabular-nums}
+.table-wrap tr{cursor:pointer} .table-wrap tbody tr:hover{background:var(--surface-2)}
+kbd{font:11px ui-monospace,monospace;border:1px solid var(--line);border-radius:4px;padding:0 4px;background:var(--surface-2)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="bar" role="toolbar" aria-label="Graph controls">
+    <h1>NeuralGraph <span>· entity graph</span></h1>
+    <input id="search" list="names" placeholder="Find entity…  ( / )" aria-label="Find entity">
+    <datalist id="names"></datalist>
+    <select id="scope" aria-label="Scope to one chat"><option value="">All chats</option></select>
+    <button id="rel" class="on" aria-pressed="true" title="Typed relations extracted from memories">Relations</button>
+    <button id="co" class="on" aria-pressed="true" title="Entities named in the same memory">Co-mentions</button>
+    <button id="orph" class="on" aria-pressed="true" title="Entities with no visible connection">Orphans</button>
+    <label title="Hops shown around the selected entity">Depth <input id="depth" type="range" min="1" max="3" value="1"><b id="depth-v">1</b></label>
+    <button id="local" aria-pressed="false" title="Show only the selected entity's neighbourhood">Local graph</button>
+    <span class="grow"></span>
+    <button id="lapse" title="Replay the graph forming in the order memories were learned">▶ Time-lapse</button>
+    <button id="fit" title="Fit to screen (f)">Fit</button>
+    <button id="list" aria-pressed="false" title="Show the entities as a table">Table</button>
+    <a id="open-full" href="/graph" target="_blank" rel="noopener"><button tabindex="-1">Full screen ↗</button></a>
+    <button id="theme" title="Toggle theme" aria-label="Toggle theme">◐</button>
+  </div>
+  <div class="main">
+    <div class="stage" id="stage">
+      <canvas id="cv" role="img" aria-label="Entity graph"></canvas>
+      <div class="hud" id="hud"></div>
+      <div class="clock" id="clock"></div>
+      <div class="legend" id="legend" aria-label="Entity types (click to filter)"></div>
+      <div class="empty" id="empty">No entities yet.<br>Feed some chat turns and the graph grows here as the worker learns.</div>
+      <div class="table-wrap" id="table"><table><thead><tr><th>Entity</th><th>Type</th><th class="n">Mentions</th><th class="n">Memories</th><th class="n">Connections</th></tr></thead><tbody id="tbody"></tbody></table></div>
+    </div>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </div>
+</div>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+(function(){
+  // export_html() replaces the token below with the graph JSON; served live it stays null and we fetch /api/graph
+  const BAKED = /*__GRAPH_DATA__*/null;
+  const OFFLINE = BAKED !== null;
+  const params = new URLSearchParams(location.search);
+  const EMBEDDED = params.get('embed') === '1';
+  if (EMBEDDED) document.body.classList.add('embedded');
+  if (OFFLINE) document.body.classList.add('offline');
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const FONT = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+
+  // ---------- token + theme (shared with the dashboard through localStorage) ----------
+  let TOKEN = '';
+  try { if (params.get('token')) { TOKEN = params.get('token'); localStorage.setItem('ng-token', TOKEN); } else { TOKEN = localStorage.getItem('ng-token') || ''; } } catch(e){}
+  const api = path => fetch(path, {cache:'no-store', headers: TOKEN ? {Authorization:'Bearer '+TOKEN} : {}});
+  const root = document.documentElement;
+  const applyTheme = () => { try { const t = localStorage.getItem('ng-theme'); if (t) root.setAttribute('data-theme', t); else root.removeAttribute('data-theme'); } catch(e){} readColors(); kick(); };
+  $('#theme').onclick = () => {
+    const cur = root.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark':'light');
+    const nxt = cur === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', nxt); try { localStorage.setItem('ng-theme', nxt); } catch(e){}
+    readColors(); kick();
+  };
+  addEventListener('storage', e => { if (e.key === 'ng-theme') applyTheme(); if (e.key === 'ng-token') TOKEN = e.newValue || ''; });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readColors(); kick(); });
+
+  // ---------- colour groups: three categorical slots + neutral "other" (slot order validated all-pairs) ----------
+  const GROUPS = [
+    {key:'person', label:'Person', css:'--series-1'},
+    {key:'place', label:'Place', css:'--series-2'},
+    {key:'org', label:'Organisation', css:'--series-3'},
+    {key:'other', label:'Other', css:'--series-other'},
+  ];
+  const groupOf = t => { t = String(t||'').toLowerCase(); return t === 'person' ? 'person' : t === 'place' ? 'place' : t.startsWith('org') ? 'org' : 'other'; };
+  let C = {};
+  function readColors(){
+    const cs = getComputedStyle(root), v = k => cs.getPropertyValue(k).trim();
+    C = {surface:v('--surface-1'), primary:v('--text-primary'), secondary:v('--text-secondary'), muted:v('--text-muted'), accent:v('--accent'), line:v('--line')};
+    GROUPS.forEach(g => C[g.key] = v(g.css));
+    drawLegend();
+  }
+
+  // ---------- state ----------
+  let nodes = new Map(), links = [], visNodes = [], visLinks = [];
+  let selected = null, hover = null, depth = 1, localOnly = false, query = '';
+  const on = {rel:true, co:true, orph:true}; const groupsOn = new Set(GROUPS.map(g=>g.key));
+  const view = {k:1, x:0, y:0}; let userMoved = false, firstLoad = true;
+  let alpha = 0, alphaTarget = 0, raf = 0, busy = false, lastSignal = 0;
+  let pulses = [], signals = [], lapse = null, graphMeta = {};
+  const cv = $('#cv'), ctx = cv.getContext('2d'), stage = $('#stage'), tip = $('#tip');
+  let W = 0, H = 0, DPR = 1;
+
+  // ---------- data ----------
+  function setData(g){
+    graphMeta = g;
+    const next = new Map();
+    (g.nodes||[]).forEach(d => {
+      let n = nodes.get(d.id);
+      if (!n) n = {id:d.id, x:NaN, y:NaN, vx:0, vy:0, fx:null, fy:null, fresh:!firstLoad};
+      Object.assign(n, {name:d.name||d.id, type:d.type||'', mentions:d.mentions||0, memories:d.memories||0, born:d.born_at||'', snippets:d.snippets||[]});
+      n.group = groupOf(n.type);
+      n.r = Math.min(18, 4 + Math.sqrt(n.mentions) * 1.6);
+      next.set(d.id, n);
+    });
+    links = (g.edges||[]).filter(e => next.has(e.source) && next.has(e.target) && e.source !== e.target)
+      .map(e => ({s:next.get(e.source), t:next.get(e.target), kind:e.kind, label:e.label||'', w:e.weight||1, born:e.born_at||''}));
+    nodes = next;
+    nodes.forEach(n => n.deg = 0); links.forEach(l => { l.s.deg++; l.t.deg++; });
+    // place new nodes next to a placed neighbour (they grow out of the graph) or on a sunflower spiral
+    let i = 0;
+    nodes.forEach(n => {
+      if (!isNaN(n.x)) return;
+      const nb = links.find(l => (l.s === n && !isNaN(l.t.x)) || (l.t === n && !isNaN(l.s.x)));
+      if (nb) { const o = nb.s === n ? nb.t : nb.s; const a = Math.random()*Math.PI*2; n.x = o.x + Math.cos(a)*30; n.y = o.y + Math.sin(a)*30; }
+      else { const r = 12*Math.sqrt(.5+i), a = i*Math.PI*(3-Math.sqrt(5)); n.x = r*Math.cos(a); n.y = r*Math.sin(a); }
+      i++;
+    });
+    if (selected && !nodes.has(selected)) selected = null;
+    const fresh = [...nodes.values()].filter(n => n.fresh);
+    fresh.forEach(n => { n.fresh = false; pulse(n); links.forEach(l => { if (l.s === n || l.t === n) signal(l, l.t === n ? -1 : 1); }); });
+    // the biggest hubs keep their labels even when zoomed out
+    [...nodes.values()].sort((a,b)=>b.mentions-a.mentions).forEach((n,i) => n.big = i < 12);
+    $('#names').innerHTML = [...nodes.values()].sort((a,b)=>b.mentions-a.mentions).map(n=>`<option value="${esc(n.name)}">`).join('');
+    const sc = $('#scope'), chats = g.chats||[], cur = (g.scope||{}).chat_id || '';
+    if (!OFFLINE && sc.options.length !== chats.length + 1) sc.innerHTML = '<option value="">All chats</option>' + chats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    sc.value = cur;
+    const dp = +params.get('depth'); if (firstLoad && dp >= 1 && dp <= 3) { depth = dp; $('#depth').value = dp; $('#depth-v').textContent = dp; }
+    computeVisible();
+    if (firstLoad) { alpha = 1; for (let k = 0; k < (REDUCED ? 300 : 120); k++) tick(); fit(false);
+      const f = params.get('focus'), fl = (f||'').toLowerCase();
+      const hit = f && (nodes.get(f) || [...nodes.values()].find(n => n.name.toLowerCase() === fl));
+      if (hit) { selected = hit.id; if (params.get('local') === '1') { localOnly = true; $('#local').classList.add('on'); $('#local').setAttribute('aria-pressed', true); computeVisible(); } } }
+    else if (fresh.length || g.__structural) alpha = Math.max(alpha, .3);
+    firstLoad = false;
+    drawLegend(); renderPanel(); renderTable(); kick();
+  }
+
+  function adjacency(ls){ const m = new Map(); ls.forEach(l => { (m.get(l.s.id) || m.set(l.s.id, []).get(l.s.id)).push(l.t.id); (m.get(l.t.id) || m.set(l.t.id, []).get(l.t.id)).push(l.s.id); }); return m; }
+  function bfs(start, hops, adj){ const seen = new Set([start]); let front = [start];
+    for (let h = 0; h < hops && front.length; h++) { const nx = []; front.forEach(id => (adj.get(id)||[]).forEach(o => { if (!seen.has(o)) { seen.add(o); nx.push(o); } })); front = nx; }
+    return seen; }
+  const kindOn = l => l.kind === 'relation' ? on.rel : on.co;
+
+  function computeVisible(){
+    const cand = links.filter(l => kindOn(l) && groupsOn.has(l.s.group) && groupsOn.has(l.t.group));
+    const local = localOnly && selected ? bfs(selected, depth, adjacency(cand)) : null;
+    nodes.forEach(n => { n.vis = groupsOn.has(n.group) && (!local || local.has(n.id)); n.vdeg = 0; });
+    visLinks = cand.filter(l => l.s.vis && l.t.vis);
+    visLinks.forEach(l => { l.s.vdeg++; l.t.vdeg++; });
+    if (!on.orph) nodes.forEach(n => { if (n.vdeg === 0 && n.id !== selected) n.vis = false; });
+    visNodes = [...nodes.values()].filter(n => n.vis);
+    $('#empty').style.display = nodes.size ? 'none' : 'flex';
+    const rel = visLinks.filter(l=>l.kind==='relation').length;
+    $('#hud').textContent = `${visNodes.length} of ${nodes.size} entities · ${rel} relations · ${visLinks.length-rel} co-mentions` +
+      (graphMeta.exported_at ? ` · snapshot ${String(graphMeta.exported_at).slice(0,16).replace('T',' ')}` : '');
+    cv.setAttribute('aria-label', `Entity graph: ${visNodes.length} entities and ${visLinks.length} connections. Use the Table button for a list.`);
+  }
+  function relayout(){ computeVisible(); alpha = Math.max(alpha, .5); renderTable(); kick(); }
+
+  // ---------- force simulation (many-body repulsion + springs + weak centring, d3-style integration) ----------
+  function tick(){
+    const vs = visNodes, n = vs.length;
+    for (let i = 0; i < n; i++) { const a = vs[i];
+      for (let j = i+1; j < n; j++) { const b = vs[j];
+        let dx = b.x - a.x, dy = b.y - a.y, d2 = dx*dx + dy*dy;
+        if (d2 < 1e-4) { dx = Math.random()-.5; dy = Math.random()-.5; d2 = dx*dx+dy*dy; }
+        if (d2 > 160000) continue;
+        const f = -260 * alpha / d2; a.vx += dx*f; a.vy += dy*f; b.vx -= dx*f; b.vy -= dy*f;
+        const min = a.r + b.r + 4, d = Math.sqrt(d2);
+        if (d < min) { const p = (min - d) / d * .25; a.x -= dx*p; a.y -= dy*p; b.x += dx*p; b.y += dy*p; }
+      } }
+    for (const l of visLinks) { const s = l.s, t = l.t;
+      let dx = t.x + t.vx - s.x - s.vx, dy = t.y + t.vy - s.y - s.vy; const d = Math.sqrt(dx*dx+dy*dy) || 1;
+      const L = l.kind === 'relation' ? 70 : 95, str = (l.kind === 'relation' ? 1 : .45) / Math.min(s.vdeg, t.vdeg);
+      const k = (d - L) / d * alpha * str; dx *= k; dy *= k; const b = s.vdeg / (s.vdeg + t.vdeg);
+      t.vx -= dx*b; t.vy -= dy*b; s.vx += dx*(1-b); s.vy += dy*(1-b); }
+    for (const v of vs) {
+      const g = v.vdeg ? .04 : .12; // orphans are pulled in harder so they ring the graph instead of drifting off
+      v.vx -= v.x * g * alpha; v.vy -= v.y * g * alpha;
+      if (v.fx != null) { v.x = v.fx; v.y = v.fy; v.vx = v.vy = 0; }
+      else { v.vx *= .6; v.vy *= .6; v.x += v.vx; v.y += v.vy; }
+    }
+    alpha += (alphaTarget - alpha) * .0228;
+  }
+
+  // ---------- view ----------
+  function resize(){ const r = stage.getBoundingClientRect(); DPR = devicePixelRatio || 1; W = r.width; H = r.height; cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR); if (!userMoved) fit(false); kick(); }
+  new ResizeObserver(resize).observe(stage);
+  function fit(mark){
+    if (!visNodes.length || !W) { view.k = 1; view.x = W/2; view.y = H/2; return; }
+    let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+    const linked = visNodes.filter(n => n.vdeg), box = linked.length > 2 ? linked : visNodes;
+    box.forEach(n => { x0=Math.min(x0,n.x-n.r); y0=Math.min(y0,n.y-n.r); x1=Math.max(x1,n.x+n.r); y1=Math.max(y1,n.y+n.r); });
+    const pad = 50, k = Math.min(2, (W-pad*2)/Math.max(1,x1-x0), (H-pad*2-30)/Math.max(1,y1-y0));
+    view.k = Math.max(.15, k); view.x = W/2 - (x0+x1)/2*view.k; view.y = (H-30)/2 - (y0+y1)/2*view.k;
+    if (mark) userMoved = false;
+    kick();
+  }
+  const toWorld = (sx, sy) => [(sx - view.x)/view.k, (sy - view.y)/view.k];
+  function nodeAt(sx, sy){ const [x, y] = toWorld(sx, sy);
+    for (let i = visNodes.length - 1; i >= 0; i--) { const n = visNodes[i]; if (lapse && !(n.rank < lapse.cursor)) continue;
+      const dx = n.x - x, dy = n.y - y, r = n.r + 5/view.k; if (dx*dx + dy*dy < r*r) return n; }
+    return null; }
+
+  // ---------- effects: pulses on new neurons, signals travelling along edges ----------
+  function pulse(n){ if (!REDUCED) pulses.push({n, t0:performance.now()}); }
+  function signal(l, dir){ if (!REDUCED && signals.length < 60) signals.push({l, dir:dir||1, t0:performance.now()}); }
+
+  // ---------- time-lapse (Obsidian-style replay, in the order memories were learned) ----------
+  function startLapse(){
+    const items = [...visNodes.map(n=>({n, born:n.born})), ...visLinks.map(l=>({l, born:l.born}))]
+      .sort((a,b) => (a.born < b.born ? -1 : a.born > b.born ? 1 : (a.n ? -1 : 1)));
+    items.forEach((it, i) => { if (it.n) it.n.rank = i; else it.l.rank = i; });
+    lapse = {items, cursor:0, t0:performance.now(), dur: REDUCED ? 1 : Math.min(14000, 2000 + items.length*40)};
+    $('#lapse').textContent = '■ Stop'; $('#lapse').classList.add('on'); $('#clock').style.display = 'block';
+    alpha = 0; kick();
+  }
+  function stopLapse(){ lapse = null; $('#lapse').textContent = '▶ Time-lapse'; $('#lapse').classList.remove('on'); $('#clock').style.display = 'none'; kick(); }
+  $('#lapse').onclick = () => lapse ? stopLapse() : startLapse();
+  function stepLapse(now){
+    const want = Math.min(lapse.items.length, Math.floor((now - lapse.t0) / lapse.dur * lapse.items.length) + 1);
+    for (; lapse.cursor < want; lapse.cursor++) { const it = lapse.items[lapse.cursor];
+      if (it.n) pulse(it.n); else if (it.l.s.rank < lapse.cursor && it.l.t.rank < lapse.cursor) signal(it.l, 1); }
+    const last = lapse.items[lapse.cursor-1], b = last ? last.born : '';
+    $('#clock').innerHTML = `${esc(b ? b.slice(0,10) : '—')}<small>${esc(b ? b.slice(11,16) : '')} · ${lapse.cursor} / ${lapse.items.length}</small>`;
+    if (lapse.cursor >= lapse.items.length && now - lapse.t0 > lapse.dur + 1200) stopLapse();
+  }
+  const shown = x => !lapse || x.rank < lapse.cursor;
+
+  // ---------- render ----------
+  function kick(){ if (!raf) raf = requestAnimationFrame(frame); }
+  function frame(now){
+    raf = 0;
+    if (alpha >= .005 || alphaTarget > 0) tick();
+    if (lapse) stepLapse(now);
+    if (busy && !REDUCED && visLinks.length && now - lastSignal > 220) { lastSignal = now; signal(visLinks[(Math.random()*visLinks.length)|0], Math.random() < .5 ? 1 : -1); }
+    draw(now);
+    if (alpha >= .005 || alphaTarget > 0 || lapse || pulses.length || signals.length || busy) kick();
+    else if (!userMoved && settledFit && nodes.size) { settledFit = false; fit(false); }
+  }
+  let settledFit = true;
+  function focusSet(){
+    const f = hover ? hover.id : selected;
+    if (f) return bfs(f, hover && hover.id !== selected ? 1 : depth, adjacency(visLinks));
+    if (query) { const q = query.toLowerCase(); const s = new Set(); visNodes.forEach(n => { if (n.name.toLowerCase().includes(q)) s.add(n.id); }); return s; }
+    return null;
+  }
+  function draw(now){
+    ctx.setTransform(DPR,0,0,DPR,0,0); ctx.clearRect(0,0,W,H);
+    if (!visNodes.length) return;
+    const k = view.k; ctx.setTransform(DPR*k,0,0,DPR*k,DPR*view.x,DPR*view.y);
+    const hot = focusSet();
+    const isHot = l => hot && hot.has(l.s.id) && hot.has(l.t.id);
+    // edges: three batched passes (co-mentions, relations, highlighted)
+    const pass = (filter, color, a, w) => { ctx.beginPath(); let any = false;
+      for (const l of visLinks) { if (!shown(l) || !shown(l.s) || !shown(l.t) || !filter(l)) continue; ctx.moveTo(l.s.x, l.s.y); ctx.lineTo(l.t.x, l.t.y); any = true; }
+      if (any) { ctx.globalAlpha = a; ctx.strokeStyle = color; ctx.lineWidth = w/k; ctx.stroke(); } };
+    const dim = hot ? .25 : 1;
+    pass(l => l.kind !== 'relation' && !isHot(l), C.muted, .18*dim, 1);
+    pass(l => l.kind === 'relation' && !isHot(l), C.muted, .5*dim, 1.4);
+    if (hot) { pass(l => l.kind !== 'relation' && isHot(l), C.accent, .45, 1.2); pass(l => l.kind === 'relation' && isHot(l), C.accent, .9, 2); }
+    // signals
+    signals = signals.filter(s => now - s.t0 < 900);
+    ctx.fillStyle = C.accent;
+    for (const s of signals) { if (!s.l.s.vis || !s.l.t.vis) continue; let p = (now - s.t0)/900; if (s.dir < 0) p = 1 - p;
+      const x = s.l.s.x + (s.l.t.x - s.l.s.x)*p, y = s.l.s.y + (s.l.t.y - s.l.s.y)*p;
+      ctx.globalAlpha = Math.sin(Math.PI*(now - s.t0)/900); ctx.beginPath(); ctx.arc(x, y, 2.6/k, 0, 7); ctx.fill(); }
+    // nodes: group fill, 2px surface ring so overlaps stay separable
+    for (const n of visNodes) { if (!shown(n)) continue;
+      ctx.globalAlpha = hot && !hot.has(n.id) ? .16 : 1;
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 7); ctx.fillStyle = C[n.group]; ctx.fill();
+      ctx.lineWidth = 2/k; ctx.strokeStyle = C.surface; ctx.stroke();
+      if (n.id === selected) { ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 4/k, 0, 7); ctx.lineWidth = 2/k; ctx.strokeStyle = C.accent; ctx.stroke(); } }
+    // pulses
+    pulses = pulses.filter(p => now - p.t0 < 1100);
+    for (const p of pulses) { if (!p.n.vis) continue; const t = (now - p.t0)/1100;
+      ctx.globalAlpha = (1-t)*.8; ctx.beginPath(); ctx.arc(p.n.x, p.n.y, p.n.r + t*26/k, 0, 7); ctx.lineWidth = 2/k; ctx.strokeStyle = C.accent; ctx.stroke(); }
+    // entity labels: the focus set, else the biggest nodes and any node large on screen
+    ctx.globalAlpha = 1; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = `${12/k}px ${FONT}`;
+    const pri = n => (n === hover ? 2e9 : 0) + (n.id === selected ? 1e9 : 0) + n.mentions;
+    const ranked = (hot ? visNodes.filter(n => hot.has(n.id)) : visNodes.filter(n => n.r*k > 9 || n.big)).filter(shown).sort((a,b) => pri(b) - pri(a));
+    // greedy de-overlap: a label is drawn only if its box clears every label already placed
+    const placed = [], hh = 7/k;
+    for (const n of ranked.slice(0, 120)) {
+      const x = n.x + n.r + 4/k, y = n.y, w = ctx.measureText(n.name).width;
+      if (placed.some(b => x < b[2] && x + w > b[0] && y - hh < b[3] && y + hh > b[1])) continue;
+      placed.push([x - 2/k, y - hh, x + w + 2/k, y + hh]); if (placed.length > 60) break;
+      ctx.lineWidth = 3/k; ctx.strokeStyle = C.surface; ctx.strokeText(n.name, x, y);
+      ctx.fillStyle = (hover && n === hover) || n.id === selected ? C.primary : C.secondary; ctx.fillText(n.name, x, y); }
+    // relation labels on edges touching the focused entity, in the space the entity labels left free
+    const f = hover ? hover.id : selected;
+    if (f) { ctx.font = `${10.5/k}px ${FONT}`; ctx.fillStyle = C.muted; let c = 0;
+      for (const l of visLinks) { if (c >= 30) break; if (l.kind !== 'relation' || (l.s.id !== f && l.t.id !== f) || !shown(l)) continue;
+        const w = ctx.measureText(l.label).width, x = (l.s.x + l.t.x)/2 - w/2, y = (l.s.y + l.t.y)/2, h = 6/k;
+        if (placed.some(b => x < b[2] && x + w > b[0] && y - h < b[3] && y + h > b[1])) continue;
+        placed.push([x - 2/k, y - h, x + w + 2/k, y + h]); c++;
+        ctx.lineWidth = 3/k; ctx.strokeStyle = C.surface; ctx.strokeText(l.label, x, y); ctx.fillText(l.label, x, y); } }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------- legend (click = filter that group; counts stay with their colour) ----------
+  function drawLegend(){
+    const count = g => [...nodes.values()].filter(n => n.group === g).length;
+    $('#legend').innerHTML = GROUPS.map(g => `<button data-g="${g.key}" class="${groupsOn.has(g.key)?'':'off'}" aria-pressed="${groupsOn.has(g.key)}"><i style="background:${C[g.key]||''}"></i>${g.label} <small>${count(g.key)}</small></button>`).join('');
+    $('#legend').querySelectorAll('button').forEach(b => b.onclick = () => { const g = b.dataset.g; groupsOn.has(g) ? groupsOn.delete(g) : groupsOn.add(g); drawLegend(); relayout(); });
+  }
+
+  // ---------- side panel: connections (Obsidian local graph) + memories (Mem0-style per-entity view) ----------
+  function renderPanel(){
+    const p = $('#panel'); const n = selected && nodes.get(selected);
+    if (!n) {
+      const top = [...nodes.values()].sort((a,b) => b.deg - a.deg).slice(0, 8);
+      p.innerHTML = `<h4 style="margin-top:0">Explore</h4><div class="muted">Click an entity to see its local graph and the memories behind it. Drag to pan, scroll to zoom, drag a node to move it. <kbd>/</kbd> find · <kbd>f</kbd> fit · <kbd>Esc</kbd> clear.</div>` +
+        (top.length ? `<h4>Most connected</h4><ul>${top.map(t => `<li><button data-id="${esc(t.id)}">${esc(t.name)}</button> <span class="muted">· ${t.deg}</span></li>`).join('')}</ul>` : '');
+    } else {
+      const ls = links.filter(l => l.s === n || l.t === n).sort((a,b) => (a.kind === b.kind ? b.w - a.w : a.kind === 'relation' ? -1 : 1));
+      const g = GROUPS.find(x => x.key === n.group);
+      const row = l => { const o = l.s === n ? l.t : l.s; const b = `<button data-id="${esc(o.id)}">${esc(o.name)}</button>`;
+        if (l.kind !== 'relation') return `<li>${b} <span class="muted">· together in ${l.w} memor${l.w===1?'y':'ies'}</span></li>`;
+        return l.s === n ? `<li><span class="pred">${esc(l.label)} →</span> ${b}</li>` : `<li>${b} <span class="pred">${esc(l.label)} → ${esc(n.name)}</span></li>`; };
+      p.innerHTML = `<h3>${esc(n.name)}</h3><span class="badge"><i style="background:${C[n.group]}"></i>${esc(n.type || g.label)}</span>
+        <div class="muted" style="margin-top:4px">${n.mentions} mentions · ${n.memories} memories · ${n.deg} connections${n.born ? ' · first learned ' + esc(n.born.slice(0,10)) : ''}</div>
+        <h4>Top memories</h4>${n.snippets.length ? `<ul>${n.snippets.map(s => `<li>${esc(s.text)}<div class="m">${esc(s.kind)} · ${esc((s.when||'').slice(0,10))} · ${esc(s.chat_id)}</div></li>`).join('')}</ul>` : '<div class="muted">none stored</div>'}
+        <h4>Connections · ${ls.length}</h4>${ls.length ? `<ul>${ls.slice(0, 60).map(row).join('')}</ul>${ls.length > 60 ? `<div class="muted">… ${ls.length-60} more</div>` : ''}` : '<div class="muted">none in this view</div>'}`;
+    }
+    p.querySelectorAll('button[data-id]').forEach(b => b.onclick = () => select(b.dataset.id, true));
+  }
+  function renderTable(){
+    const rows = [...nodes.values()].sort((a,b) => b.mentions - a.mentions);
+    $('#tbody').innerHTML = rows.map(n => `<tr data-id="${esc(n.id)}"><td>${esc(n.name)}</td><td>${esc(n.type)}</td><td class="n">${n.mentions}</td><td class="n">${n.memories}</td><td class="n">${n.deg}</td></tr>`).join('');
+    $('#tbody').querySelectorAll('tr').forEach(r => r.onclick = () => { toggleTable(false); select(r.dataset.id, true); });
+  }
+  function toggleTable(show){ $('#table').style.display = show ? 'block' : 'none'; $('#list').classList.toggle('on', show); $('#list').setAttribute('aria-pressed', show); }
+  $('#list').onclick = () => toggleTable($('#table').style.display !== 'block');
+
+  function select(id, centre){
+    selected = id && nodes.has(id) ? id : null;
+    if (localOnly) relayout();
+    if (selected && centre) { const n = nodes.get(selected); if (!n.vis) { groupsOn.add(n.group); drawLegend(); relayout(); }
+      view.x = W/2 - n.x*view.k; view.y = H/2 - n.y*view.k; userMoved = true; pulse(n); }
+    renderPanel(); kick();
+  }
+
+  // ---------- pointer: drag nodes, pan, zoom, hover ----------
+  let drag = null;
+  const pos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); const [x, y] = pos(e); const n = nodeAt(x, y);
+    drag = {n, x, y, moved:false}; if (n) { n.fx = n.x; n.fy = n.y; } cv.classList.add('dragging'); tip.style.display = 'none'; });
+  cv.addEventListener('pointermove', e => { const [x, y] = pos(e);
+    if (drag) { const dx = x - drag.x, dy = y - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+      if (drag.n) { if (drag.moved) { const [wx, wy] = toWorld(x, y); drag.n.fx = wx; drag.n.fy = wy; alphaTarget = .3; alpha = Math.max(alpha, .3); } }
+      else { view.x += dx; view.y += dy; drag.x = x; drag.y = y; userMoved = true; }
+      kick(); return; }
+    const n = nodeAt(x, y); if (n !== hover) { hover = n; cv.classList.toggle('over', !!n); kick(); }
+    if (n) { tip.style.display = 'block'; tip.innerHTML = `<b>${esc(n.name)}</b> <span class="muted">${esc(n.type)}</span><br>${n.mentions} mentions · ${n.memories} memories · ${n.deg} connections`;
+      tip.style.left = (e.clientX + 14) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; } else tip.style.display = 'none'; });
+  const up = () => { if (!drag) return; cv.classList.remove('dragging');
+    if (drag.n) { drag.n.fx = drag.n.fy = null; alphaTarget = 0; }
+    if (!drag.moved) select(drag.n ? drag.n.id : null, false);
+    drag = null; kick(); };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('pointerleave', () => { if (!drag && hover) { hover = null; tip.style.display = 'none'; kick(); } });
+  cv.addEventListener('dblclick', e => { const [x, y] = pos(e); const n = nodeAt(x, y); if (n) { view.k = Math.max(view.k, 1.6); select(n.id, true); } });
+  cv.addEventListener('wheel', e => { e.preventDefault(); const [x, y] = pos(e); const f = Math.exp(-e.deltaY * .0015);
+    const k = Math.min(5, Math.max(.1, view.k * f)); view.x = x - (x - view.x) * k / view.k; view.y = y - (y - view.y) * k / view.k; view.k = k; userMoved = true; kick(); }, {passive:false});
+
+  // ---------- toolbar ----------
+  const toggle = (id, key) => $(id).onclick = () => { on[key] = !on[key]; $(id).classList.toggle('on', on[key]); $(id).setAttribute('aria-pressed', on[key]); relayout(); };
+  toggle('#rel', 'rel'); toggle('#co', 'co'); toggle('#orph', 'orph');
+  $('#depth').oninput = e => { depth = +e.target.value; $('#depth-v').textContent = depth; if (localOnly) relayout(); else kick(); };
+  $('#local').onclick = () => { localOnly = !localOnly; $('#local').classList.toggle('on', localOnly); $('#local').setAttribute('aria-pressed', localOnly); relayout(); if (localOnly) setTimeout(() => fit(true), 400); };
+  $('#fit').onclick = () => fit(true);
+  $('#search').addEventListener('input', e => { query = e.target.value.trim(); const hit = [...nodes.values()].find(n => n.name.toLowerCase() === query.toLowerCase()); if (hit) select(hit.id, true); else kick(); });
+  $('#search').addEventListener('keydown', e => { if (e.key !== 'Enter') return; const q = query.toLowerCase();
+    const hit = [...nodes.values()].filter(n => n.name.toLowerCase().includes(q)).sort((a,b)=>b.mentions-a.mentions)[0]; if (hit) select(hit.id, true); });
+  $('#scope').onchange = () => { selected = null; load(true); };
+  addEventListener('keydown', e => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') { if (e.key === 'Escape') e.target.blur(); return; }
+    if (e.key === '/') { e.preventDefault(); $('#search').focus(); } else if (e.key === 'f') fit(true);
+    else if (e.key === 'Escape') { if (lapse) stopLapse(); else { query = ''; $('#search').value = ''; select(null); } } });
+  $('#open-full').href = '/graph' + location.search.replace(/[?&]embed=1/, '').replace(/^&/, '?');
+
+  // ---------- loading + live refresh (server mode) ----------
+  async function load(structural){
+    const chat = $('#scope').value;
+    try { const r = await api('/api/graph?limit=' + (params.get('limit') || 150) + (chat ? '&chat_id=' + encodeURIComponent(chat) : ''));
+      if (r.status === 401) { $('#empty').style.display = 'flex'; $('#empty').textContent = 'This server needs an API token: open the dashboard once with ?token=…'; return; }
+      const g = await r.json(); g.__structural = structural; setData(g);
+    } catch(e) { $('#hud').textContent = 'server unreachable'; }
+  }
+  let sig = '';
+  async function poll(){
+    try { const r = await api('/api/status'); if (r.ok) { const st = await r.json();
+        busy = ((st.worker||{}).busy_workers||0) > 0; if (busy) kick();
+        const s = [st.entities, (st.relations||{}).active, st.links, ((st.memories||{}).by_status||{}).active].join('|');
+        if (s !== sig) { const firstSig = !sig; sig = s; if (!firstSig) load(false); } } } catch(e){}
+    finally { setTimeout(poll, 3000); }
+  }
+  try { const t = localStorage.getItem('ng-theme'); if (t) root.setAttribute('data-theme', t); } catch(e){}
+  readColors();
+  if (OFFLINE) setData(BAKED);
+  else {
+    const want = params.get('chat_id');
+    if (want) { $('#scope').innerHTML += `<option value="${esc(want)}">${esc(want)}</option>`; $('#scope').value = want; }
+    load(true).then(poll);
+  }
+})();
+</script>
+</body>
+</html>

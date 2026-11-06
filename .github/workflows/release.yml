@@ -1,0 +1,69 @@
+name: release
+
+# Push a tag like v1.1.0 to publish prebuilt `neuralgraph-memory` binaries. install.sh downloads them from
+# https://github.com/anovruzov/NeuralGraph/releases/latest/download/neuralgraph-memory-<target>.tar.gz (+ .sha256).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: existing tag to (re)build
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: aarch64-apple-darwin, os: macos-14 }
+          - { target: x86_64-apple-darwin, os: macos-14 }
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-22.04 }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-22.04-arm }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - run: cargo build --release --locked -p neuralgraph-memory --target ${{ matrix.target }}
+      - name: the binary runs
+        if: matrix.target != 'x86_64-apple-darwin' # cross-built on an arm64 runner
+        run: target/${{ matrix.target }}/release/neuralgraph-memory --version
+      - name: package
+        run: |
+          asset="neuralgraph-memory-${{ matrix.target }}.tar.gz"
+          tar -C target/${{ matrix.target }}/release -czf "$asset" neuralgraph-memory
+          if command -v shasum >/dev/null; then shasum -a 256 "$asset" > "$asset.sha256"; else sha256sum "$asset" > "$asset.sha256"; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: neuralgraph-memory-*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes
+          gh release upload "$TAG" dist/* -R "$GITHUB_REPOSITORY" --clobber
